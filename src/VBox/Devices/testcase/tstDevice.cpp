@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -39,11 +49,14 @@
 
 #include "tstDeviceInternal.h"
 #include "tstDeviceCfg.h"
+#include "tstDeviceBuiltin.h"
 
 
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
+
+#define PDM_MAX_DEVICE_INSTANCE_SIZE      _4M
 
 
 /*********************************************************************************************************************************
@@ -141,25 +154,6 @@ typedef struct TSTDEVPDMMOD
 } TSTDEVPDMMOD;
 /** Pointer to a PDM module descriptor. */
 typedef TSTDEVPDMMOD *PTSTDEVPDMMOD;
-/** Pointer to a const PDM module descriptor. */
-typedef const TSTDEVPDMMOD *PCTSTDEVPDMMOD;
-
-/**
- * PDM device descriptor.
- */
-typedef struct TSTDEVPDMDEV
-{
-    /** Node for the known device list. */
-    RTLISTNODE                      NdPdmDevs;
-    /** Pointer to the PDM module containing the device. */
-    PCTSTDEVPDMMOD                  pPdmMod;
-    /** Device registration structure. */
-    const PDMDEVREG                 *pReg;
-} TSTDEVPDMDEV;
-/** Pointer to a PDM device descriptor .*/
-typedef TSTDEVPDMDEV *PTSTDEVPDMDEV;
-/** Pointer to a constant PDM device descriptor .*/
-typedef const TSTDEVPDMDEV *PCTSTDEVPDMDEV;
 
 
 /**
@@ -191,6 +185,9 @@ typedef struct TSTDEVPDMR0IMPORTS
 } TSTDEVPDMR0IMPORTS;
 typedef const TSTDEVPDMR0IMPORTS *PCTSTDEVPDMR0IMPORTS;
 
+typedef DECLCALLBACKTYPE(int, FNR0MODULEINIT,(void *hMod));
+typedef FNR0MODULEINIT *PFNR0MODULEINIT;
+
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
@@ -201,29 +198,25 @@ RTLISTANCHOR g_LstPlugins;
 RTLISTANCHOR g_LstTestcases;
 /** List of registered PDM modules. */
 RTLISTANCHOR g_LstPdmMods;
+/** List of registered PDM R0 modules. */
+RTLISTANCHOR g_LstPdmR0Mods;
 /** List of registered PDM devices. */
 RTLISTANCHOR g_LstPdmDevs;
+
+static int tstDevPdmR0RegisterModule(void *hMod, PPDMDEVMODREGR0 pModReg);
 
 /**
  * PDM R0 imports we implement.
  */
 static const TSTDEVPDMR0IMPORTS g_aPdmR0Imports[] =
 {
-#if 0
-    {"IOMMMIOMapMMIO2Page",            (PFNRT)IOMMMIOMapMMIO2Page},
-    {"IOMMMIOResetRegion",             (PFNRT)IOMMMIOResetRegion},
+    {"SUPR0TracerFireProbe",           (PFNRT)NULL},
+    {"SUPSemEventSignal",              (PFNRT)NULL},
+    {"PDMR0DeviceRegisterModule",      (PFNRT)tstDevPdmR0RegisterModule},
+    {"PDMR0DeviceDeregisterModule",    (PFNRT)NULL},
+    {"PGMShwMakePageWritable",         (PFNRT)NULL},
     {"IntNetR0IfSend",                 (PFNRT)/*IntNetR0IfSend*/NULL},
     {"IntNetR0IfSetPromiscuousMode",   (PFNRT)/*IntNetR0IfSetPromiscuousMode*/NULL},
-    {"PDMCritSectEnterDebug",          (PFNRT)PDMCritSectEnterDebug},
-    {"PDMCritSectIsOwner",             (PFNRT)PDMCritSectIsOwner},
-    {"PDMCritSectLeave",               (PFNRT)PDMCritSectLeave},
-    {"PDMCritSectTryEnterDebug",       (PFNRT)PDMCritSectTryEnterDebug},
-    {"PDMHCCritSectScheduleExitEvent", (PFNRT)PDMHCCritSectScheduleExitEvent},
-    {"PDMNsAllocateBandwidth",         (PFNRT)PDMNsAllocateBandwidth},
-    {"PDMQueueAlloc",                  (PFNRT)PDMQueueAlloc},
-    {"PDMQueueInsert",                 (PFNRT)PDMQueueInsert},
-    {"PGMHandlerPhysicalPageTempOff",  (PFNRT)PGMHandlerPhysicalPageTempOff},
-    {"PGMShwMakePageWritable",         (PFNRT)PGMShwMakePageWritable},
     {"RTAssertMsg1Weak",               (PFNRT)RTAssertMsg1Weak},
     {"RTAssertMsg2Weak",               (PFNRT)RTAssertMsg2Weak},
     {"RTAssertShouldPanic",            (PFNRT)RTAssertShouldPanic},
@@ -236,27 +229,14 @@ static const TSTDEVPDMR0IMPORTS g_aPdmR0Imports[] =
     {"RTTimeMilliTS",                  (PFNRT)RTTimeMilliTS},
     {"RTTimeNanoTS",                   (PFNRT)RTTimeNanoTS},
     {"RTTraceBufAddMsgF",              (PFNRT)RTTraceBufAddMsgF},
-    {"SUPSemEventSignal",              (PFNRT)SUPSemEventSignal},
-    {"TMTimerGet",                     (PFNRT)TMTimerGet},
-    {"TMTimerGetFreq",                 (PFNRT)TMTimerGetFreq},
-    {"TMTimerIsActive",                (PFNRT)TMTimerIsActive},
-    {"TMTimerIsLockOwner",             (PFNRT)TMTimerIsLockOwner},
-    {"TMTimerLock",                    (PFNRT)TMTimerLock},
-    {"TMTimerSet",                     (PFNRT)TMTimerSet},
-    {"TMTimerSetFrequencyHint",        (PFNRT)TMTimerSetFrequencyHint},
-    {"TMTimerSetMicro",                (PFNRT)TMTimerSetMicro},
-    {"TMTimerSetMillies",              (PFNRT)TMTimerSetMillies},
-    {"TMTimerSetNano",                 (PFNRT)TMTimerSetNano},
-    {"TMTimerStop",                    (PFNRT)TMTimerStop},
-    {"TMTimerUnlock",                  (PFNRT)TMTimerUnlock},
+    {"RTMemAllocZTag",                 (PFNRT)RTMemAllocZTag},
+    {"RTMemFree",                      (PFNRT)RTMemFree},
+    {"RTStrPrintf",                    (PFNRT)RTStrPrintf},
     {"nocrt_memcmp",                   (PFNRT)memcmp},
     {"nocrt_memcpy",                   (PFNRT)memcpy},
     {"nocrt_memmove",                  (PFNRT)memmove},
     {"nocrt_memset",                   (PFNRT)memset},
     {"nocrt_strlen",                   (PFNRT)strlen},
-#else
-    { NULL, NULL }
-#endif
 };
 
 
@@ -329,7 +309,8 @@ static DECLCALLBACK(int) tstDevRegisterTestcase(void *pvUser, PCTSTDEVTESTCASERE
         if (RT_LIKELY(pTestcase))
         {
             pTestcase->pPlugin = pPlugin;
-            pPlugin->cRefs++;
+            if (pPlugin)
+                pPlugin->cRefs++;
             pTestcase->pTestcaseReg = pTestcaseReg;
             RTListAppend(&g_LstTestcases, &pTestcase->NdTestcases);
             return VINF_SUCCESS;
@@ -430,15 +411,38 @@ static int tstDevLoadPlugin(const char *pszFilename)
  * Checks whether the given testcase name is already existing.
  *
  * @returns Pointer to already loaded plugin, NULL if not found.
- * @param   pszFilename    The filename to check.
+ * @param   pszFilename     The filename to check.
+ * @param   ppR0Reg         Where to store the pointer to the R0 registration record
+ *                          if existing, optional.
  */
-static PCTSTDEVPDMDEV tstDevPdmDeviceFind(const char *pszName)
+DECLHIDDEN(PCTSTDEVPDMDEV) tstDevPdmDeviceFind(const char *pszName, PCPDMDEVREGR0 *ppR0Reg)
 {
     PCTSTDEVPDMDEV pIt;
     RTListForEach(&g_LstPdmDevs, pIt, TSTDEVPDMDEV, NdPdmDevs)
     {
         if (!RTStrCmp(pIt->pReg->szName, pszName))
+        {
+            if (ppR0Reg)
+            {
+                *ppR0Reg = NULL;
+
+                PPDMDEVMODREGR0 pItR0;
+                RTListForEach(&g_LstPdmR0Mods, pItR0, PDMDEVMODREGR0, ListEntry)
+                {
+                    for (uint32_t i = 0; i < pItR0->cDevRegs; i++)
+                    {
+                        PCPDMDEVREGR0 pReg = pItR0->papDevRegs[i];
+                        if (!RTStrCmp(pReg->szName, pszName))
+                        {
+                            *ppR0Reg = pReg;
+                            return pIt;
+                        }
+                    }
+                }
+            }
+
             return pIt;
+        }
     }
 
     return NULL;
@@ -513,7 +517,7 @@ static DECLCALLBACK(int) tstDevPdmR3DevReg_Register(PPDMDEVREGCB pCallbacks, PCP
      */
     int rc = VINF_SUCCESS;
     PCTSTDEVPDMDEVREGCBINT pRegCB = (PCTSTDEVPDMDEVREGCBINT)pCallbacks;
-    if (!tstDevPdmDeviceFind(pReg->szName))
+    if (!tstDevPdmDeviceFind(pReg->szName, NULL /*ppR0Reg*/))
     {
         PTSTDEVPDMDEV pPdmDev = (PTSTDEVPDMDEV)RTMemAllocZ(sizeof(TSTDEVPDMDEV));
         if (RT_LIKELY(pPdmDev))
@@ -569,6 +573,8 @@ static DECLCALLBACK(int) tstDevPdmLoadR0RcModGetImport(RTLDRMOD hLdrMod, const c
 {
     RT_NOREF(hLdrMod, uSymbol, pszModule);
     PTSTDEVPDMMOD pMod = (PTSTDEVPDMMOD)pvUser;
+
+    RTPrintf("Looking for %s\n", pszSymbol);
 
     /* Resolve the import. */
     PCTSTDEVPDMR0IMPORTS pImpDesc = NULL;
@@ -632,6 +638,22 @@ static DECLCALLBACK(int) tstDevPdmLoadR0RcModGetImport(RTLDRMOD hLdrMod, const c
 
 
 /**
+ * The PDMR0RegisterModule() export called by loaded R0 modules.
+ *
+ * @returns VBox status code.
+ * @param   hMod                    The module handle.
+ * @param   pModReg                 The module registration structure.
+ */
+static int tstDevPdmR0RegisterModule(void *hMod, PPDMDEVMODREGR0 pModReg)
+{
+    RT_NOREF(hMod);
+    RTListAppend(&g_LstPdmR0Mods, &pModReg->ListEntry);
+    return VINF_SUCCESS;
+}
+
+
+
+/**
  * Loads a new R0 modules given by the filename.
  *
  * @returns VBox status code.
@@ -675,7 +697,16 @@ static int tstDevPdmLoadR0RcMod(PTSTDEVPDMMOD pMod)
                 /* Get the bits. */
                 rc = RTLdrGetBits(pMod->hLdrMod, pMod->R0Rc.pvBits, (uintptr_t)pMod->R0Rc.pvBits,
                                   tstDevPdmLoadR0RcModGetImport, pMod);
-                if (RT_FAILURE(rc))
+                if (RT_SUCCESS(rc))
+                {
+                    /* Resolve module init entry and call it. */
+                    PFNR0MODULEINIT pfnR0ModuleInit;
+                    rc = RTLdrGetSymbolEx(pMod->hLdrMod, pMod->R0Rc.pvBits, (uintptr_t)pMod->R0Rc.pvBits,
+                                          UINT32_MAX, "ModuleInit", (PRTLDRADDR)&pfnR0ModuleInit);
+                    if (RT_SUCCESS(rc))
+                        rc = pfnR0ModuleInit(pMod);
+                }
+                else
                     RTMemFreeEx(pMod->R0Rc.pbTrampoline, pMod->R0Rc.cbBits);
             }
 
@@ -810,14 +841,12 @@ DECLHIDDEN(int) tstDevPdmLdrGetSymbol(PTSTDEVDUTINT pThis, const char *pszMod, T
  *
  * @returns VBox status code.
  * @param   pszName                 Name of the device to create.
- * @param   fR0Enabled              Flag whether R0 support should be enabled for this device.
- * @param   fRCEnabled              Flag whether RC support should be enabled for this device.
  * @param   pDut                    The device under test structure the created PDM device instance is exercised under.
  */
-static int tstDevPdmDevCreate(const char *pszName, bool fR0Enabled, bool fRCEnabled, PTSTDEVDUTINT pDut)
+static int tstDevPdmDevR3Create(const char *pszName, PTSTDEVDUTINT pDut)
 {
     int rc = VINF_SUCCESS;
-    PCTSTDEVPDMDEV pPdmDev = tstDevPdmDeviceFind(pszName);
+    PCTSTDEVPDMDEV pPdmDev = tstDevPdmDeviceFind(pszName, NULL);
     if (RT_LIKELY(pPdmDev))
     {
         PPDMCRITSECT pCritSect;
@@ -843,8 +872,8 @@ static int tstDevPdmDevCreate(const char *pszName, bool fR0Enabled, bool fRCEnab
         pDevIns->pCfg                     = &pDut->Cfg;
         pDevIns->Internal.s.pDut          = pDut;
         pDevIns->cbRing3                  = cb;
-        pDevIns->fR0Enabled               = fR0Enabled;
-        pDevIns->fRCEnabled               = fRCEnabled;
+        pDevIns->fR0Enabled               = false;
+        pDevIns->fRCEnabled               = false;
         pDevIns->pvInstanceDataR3         = (uint8_t *)pDevIns + offShared;
         pDevIns->pvInstanceDataForR3      = &pDevIns->achInstanceData[0];
         pCritSect = (PPDMCRITSECT)((uint8_t *)pDevIns + offShared + RT_ALIGN_32(pPdmDev->pReg->cbInstanceShared, 64));
@@ -862,6 +891,7 @@ static int tstDevPdmDevCreate(const char *pszName, bool fR0Enabled, bool fRCEnab
             pPciDev->u32Magic           = PDMPCIDEV_MAGIC;
         }
 
+        RTCritSectInit(&pCritSect->s.CritSect);
         rc = pPdmDev->pReg->pfnConstruct(pDevIns, 0, pDevIns->pCfg);
         if (RT_SUCCESS(rc))
             pDut->pDevIns = pDevIns;
@@ -877,6 +907,30 @@ static int tstDevPdmDevCreate(const char *pszName, bool fR0Enabled, bool fRCEnab
     return rc;
 }
 
+
+DECLHIDDEN(int) tstDevPdmDeviceR3Construct(PTSTDEVDUTINT pDut)
+{
+    PPDMDEVINS pDevInsR3 = pDut->pDevIns;
+
+    pDevInsR3->pReg                     = pDut->pPdmDev->pReg;
+    pDevInsR3->pHlpR3                   = &g_tstDevPdmDevHlpR3;
+    pDevInsR3->pCfg                     = &pDut->Cfg;
+    pDevInsR3->Internal.s.pDut          = pDut;
+
+    return pDevInsR3->pReg->pfnConstruct(pDevInsR3, 0, &pDut->Cfg);
+}
+
+
+DECLCALLBACK(void *) tstDevTestsRun_QueryInterface(PPDMIBASE pInterface, const char *pszIID)
+{
+    RT_NOREF(pInterface, pszIID);
+#if 0
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDCONNECTORS, &pThis->ILedConnectors);
+    PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIANOTIFY, &pThis->IMediaNotify);
+#endif
+    return NULL;
+}
 
 /**
  * Run a given test config.
@@ -895,10 +949,15 @@ static int tstDevTestsRun(PCTSTDEVCFG pDevTstCfg)
         TSTDEVDUTINT Dut;
         Dut.pTest           = pTest;
         Dut.enmCtx          = TSTDEVDUTCTX_R3;
-        Dut.pVm             = NULL;
+        Dut.pVm             = (PVM)0x1000;
         Dut.SupSession.pDut = &Dut;
         Dut.Cfg.pDut        = &Dut;
+        Dut.pPdmDev         = tstDevPdmDeviceFind(pDevTstCfg->pszDevName, NULL /*ppPdmDevR0*/);
+
+        Dut.IBaseSts.pfnQueryInterface = tstDevTestsRun_QueryInterface;
+
         RTListInit(&Dut.LstIoPorts);
+        RTListInit(&Dut.LstMmio);
         RTListInit(&Dut.LstTimers);
         RTListInit(&Dut.LstMmHeap);
         RTListInit(&Dut.LstPdmThreads);
@@ -911,10 +970,17 @@ static int tstDevTestsRun(PCTSTDEVCFG pDevTstCfg)
         rc = RTCritSectInitEx(&Dut.CritSectNop.s.CritSect, RTCRITSECT_FLAGS_NOP, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_NONE, "DutNop");
         AssertRC(rc);
 
-        rc = tstDevPdmDevCreate(pDevTstCfg->pszDevName, pTest->fR0Enabled, pTest->fRCEnabled, &Dut);
+        if (!pTest->fR0Enabled)
+            rc = tstDevPdmDevR3Create(pDevTstCfg->pszDevName, &Dut);
+        else
+            rc = tstDevPdmDevR0R3Create(pDevTstCfg->pszDevName, pTest->fRCEnabled, &Dut);
         if (RT_SUCCESS(rc))
         {
-            /** @todo Next */
+            PCTSTDEVTESTCASE pTestcase = tstDevTestcaseFind(pTest->papszTestcaseIds[i]);
+            if (pTestcase)
+                rc = pTestcase->pTestcaseReg->pfnTestEntry(&Dut, pTest->papTestcaseCfg[i], pTest->pacTestcaseCfgItems[i]);
+            else
+                rc = VERR_NOT_FOUND;
         }
     }
 
@@ -934,7 +1000,13 @@ int main(int argc, char *argv[])
         RTListInit(&g_LstPlugins);
         RTListInit(&g_LstTestcases);
         RTListInit(&g_LstPdmMods);
+        RTListInit(&g_LstPdmR0Mods);
         RTListInit(&g_LstPdmDevs);
+
+        /* Register builtin tests. */
+        tstDevRegisterTestcase(NULL, &g_TestcaseSsmFuzz);
+        tstDevRegisterTestcase(NULL, &g_TestcaseSsmLoadDbg);
+        tstDevRegisterTestcase(NULL, &g_TestcaseIoFuzz);
 
         PCTSTDEVCFG pDevTstCfg = NULL;
         rc = tstDevCfgLoad(argv[1], NULL, &pDevTstCfg);

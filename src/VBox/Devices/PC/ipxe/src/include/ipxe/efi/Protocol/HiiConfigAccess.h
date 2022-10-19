@@ -5,7 +5,7 @@
   This protocol is published by drivers providing and requesting
   configuration data from HII. It may only be invoked by HII.
 
-Copyright (c) 2006 - 2010, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2016, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials are licensed and made available under
 the terms and conditions of the BSD License that accompanies this distribution.
 The full text of the license may be found at
@@ -36,6 +36,13 @@ typedef UINTN EFI_BROWSER_ACTION;
 #define EFI_BROWSER_ACTION_RETRIEVE   2
 #define EFI_BROWSER_ACTION_FORM_OPEN  3
 #define EFI_BROWSER_ACTION_FORM_CLOSE 4
+#define EFI_BROWSER_ACTION_SUBMITTED  5
+#define EFI_BROWSER_ACTION_DEFAULT_STANDARD      0x1000
+#define EFI_BROWSER_ACTION_DEFAULT_MANUFACTURING 0x1001
+#define EFI_BROWSER_ACTION_DEFAULT_SAFE          0x1002
+#define EFI_BROWSER_ACTION_DEFAULT_PLATFORM      0x2000
+#define EFI_BROWSER_ACTION_DEFAULT_HARDWARE      0x3000
+#define EFI_BROWSER_ACTION_DEFAULT_FIRMWARE      0x4000
 
 /**
 
@@ -90,13 +97,10 @@ typedef UINTN EFI_BROWSER_ACTION;
                                   stored awaiting possible future
                                   protocols.
 
-  @retval EFI_NOT_FOUND           Routing data doesn't match any
-                                  known driver. Progress set to the
-                                  first character in the routing header.
-                                  Note: There is no requirement that the
-                                  driver validate the routing data. It
-                                  must skip the <ConfigHdr> in order to
-                                  process the names.
+  @retval EFI_NOT_FOUND           A configuration element matching
+                                  the routing data is not found.
+                                  Progress set to the first character
+                                  in the routing header.
 
   @retval EFI_INVALID_PARAMETER   Illegal syntax. Progress set
                                   to most recent "&" before the

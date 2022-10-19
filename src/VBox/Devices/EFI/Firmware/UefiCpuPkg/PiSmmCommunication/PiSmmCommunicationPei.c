@@ -1,7 +1,7 @@
 /** @file
 PiSmmCommunication PEI Driver.
 
-Copyright (c) 2010 - 2015, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2010 - 2021, Intel Corporation. All rights reserved.<BR>
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -47,16 +47,10 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
   +----------------------------------+<--
   | EFI_SMM_COMMUNICATION_CONTEXT    |
   |   SwSmiNumber                    | <- SMRAM
-  |   BufferPtrAddress               |----------------
-  +----------------------------------+                |
-                                                      |
-  +----------------------------------+                |
-  | EFI_SMM_COMMUNICATION_ACPI_TABLE |                |
-  |   SwSmiNumber                    | <- AcpiTable   |
-  |   BufferPtrAddress               |---             |
-  +----------------------------------+   |            |
-                                         |            |
-  +----------------------------------+<---------------
+  |   BufferPtrAddress               |---
+  +----------------------------------+   |
+                                         |
+  +----------------------------------+<--
   | Communication Buffer Pointer     | <- AcpiNvs
   +----------------------------------+---
                                          |
@@ -366,7 +360,7 @@ Communicate (
   @param  FileHandle              Handle of the file being invoked.
   @param  PeiServices             Pointer to PEI Services table.
 
-  @retval EFI_SUCEESS
+  @retval EFI_SUCCESS
   @return Others          Some error occurs.
 **/
 EFI_STATUS

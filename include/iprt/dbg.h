@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_dbg_h
@@ -282,7 +292,7 @@ typedef struct RTDBGUNWINDSTATE
      * @param   cbToRead    The number of bytes to read.
      * @param   pvDst       Where to put the bytes we read.
      */
-    DECLCALLBACKMEMBER(int, pfnReadStack)(struct RTDBGUNWINDSTATE *pThis, RTUINTPTR uSp, size_t cbToRead, void *pvDst);
+    DECLCALLBACKMEMBER(int, pfnReadStack,(struct RTDBGUNWINDSTATE *pThis, RTUINTPTR uSp, size_t cbToRead, void *pvDst));
     /** User argument (useful for pfnReadStack). */
     void               *pvUser;
 
@@ -652,7 +662,7 @@ RTDECL(int) RTDbgCfgQueryUInt(RTDBGCFG hDbgCfg, RTDBGCFGPROP enmProp, uint64_t *
  * @param   pszMsg          The message.
  * @param   pvUser          User argument.
  */
-typedef DECLCALLBACK(void) FNRTDBGCFGLOG(RTDBGCFG hDbgCfg, uint32_t iLevel, const char *pszMsg, void *pvUser);
+typedef DECLCALLBACKTYPE(void, FNRTDBGCFGLOG,(RTDBGCFG hDbgCfg, uint32_t iLevel, const char *pszMsg, void *pvUser));
 /** Pointer to a log callback. */
 typedef FNRTDBGCFGLOG *PFNRTDBGCFGLOG;
 
@@ -685,7 +695,7 @@ RTDECL(int) RTDbgCfgSetLogCallback(RTDBGCFG hDbgCfg, PFNRTDBGCFGLOG pfnCallback,
  * @param   pvUser1             First user parameter.
  * @param   pvUser2             Second user parameter.
  */
-typedef DECLCALLBACK(int) FNRTDBGCFGOPEN(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2);
+typedef DECLCALLBACKTYPE(int, FNRTDBGCFGOPEN,(RTDBGCFG hDbgCfg, const char *pszFilename, void *pvUser1, void *pvUser2));
 /** Pointer to a open-file callback used to the RTDbgCfgOpen functions. */
 typedef FNRTDBGCFGOPEN *PFNRTDBGCFGOPEN;
 
@@ -703,6 +713,8 @@ RTDECL(int) RTDbgCfgOpenDbg(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t 
                             PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
 RTDECL(int) RTDbgCfgOpenDwo(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t uCrc32,
                             PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
+RTDECL(int) RTDbgCfgOpenDwoBuildId(RTDBGCFG hDbgCfg, const char *pszFilename, const uint8_t *pbBuildId,
+                                   size_t cbBuildId, PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
 RTDECL(int) RTDbgCfgOpenDsymBundle(RTDBGCFG hDbgCfg, const char *pszFilename, PCRTUUID pUuid,
                                    PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2);
 RTDECL(int) RTDbgCfgOpenMachOImage(RTDBGCFG hDbgCfg, const char *pszFilename, PCRTUUID pUuid,
@@ -712,6 +724,8 @@ RTDECL(int) RTDbgCfgOpenMachOImage(RTDBGCFG hDbgCfg, const char *pszFilename, PC
  * @{ */
 /** The operative system mask.  The values are RT_OPSYS_XXX. */
 #define RTDBGCFG_O_OPSYS_MASK           UINT32_C(0x000000ff)
+/** Use debuginfod style symbol servers when encountered in the path. */
+#define RTDBGCFG_O_DEBUGINFOD           RT_BIT_32(24)
 /** Same as RTDBGCFG_FLAGS_NO_SYSTEM_PATHS. */
 #define RTDBGCFG_O_NO_SYSTEM_PATHS      RT_BIT_32(25)
 /** The files may be compressed MS styled. */
@@ -727,7 +741,7 @@ RTDECL(int) RTDbgCfgOpenMachOImage(RTDBGCFG hDbgCfg, const char *pszFilename, PC
 /** Use Windbg style symbol servers when encountered in the path. */
 #define RTDBGCFG_O_SYMSRV               RT_BIT_32(31)
 /** Mask of valid flags. */
-#define RTDBGCFG_O_VALID_MASK           UINT32_C(0xfe0000ff)
+#define RTDBGCFG_O_VALID_MASK           UINT32_C(0xff0000ff)
 /** @} */
 
 

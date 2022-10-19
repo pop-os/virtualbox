@@ -8,26 +8,36 @@ Test File Set
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard Python imports.
@@ -513,7 +523,10 @@ class TestFileSet(object):
 
         # Open the tarball:
         try:
-            oTarFile = tarfile.open(sTarFileHst, 'w:gz');
+            # Make sure to explicitly set GNU_FORMAT here, as with Python 3.8 the default format (tarfile.DEFAULT_FORMAT)
+            # has been changed to tarfile.PAX_FORMAT, which our extraction code (vts_tar) currently can't handle.
+            ## @todo Remove tarfile.GNU_FORMAT and use tarfile.PAX_FORMAT as soon as we have PAX support.
+            oTarFile = tarfile.open(sTarFileHst, 'w:gz', format = tarfile.GNU_FORMAT);  # pylint: disable=consider-using-with
         except:
             return reporter.errorXcpt('Failed to open new tar file: %s' % (sTarFileHst,));
 
@@ -588,7 +601,7 @@ class TestFileSet(object):
                 sPath = sPath.replace('\\', os.path.sep);
 
             try:
-                oOutFile = open(sPath, 'wb');
+                oOutFile = open(sPath, 'wb');                   # pylint: disable=consider-using-with
             except:
                 return reporter.errorXcpt('open(%s, "wb") failed' % (sPath,));
             try:
@@ -614,11 +627,13 @@ class TestFileSet(object):
         """
         return self.aoFiles[self.oRandom.choice(xrange(len(self.aoFiles)))];
 
-    def chooseRandomDirFromTree(self, fLeaf = False, fNonEmpty = False):
+    def chooseRandomDirFromTree(self, fLeaf = False, fNonEmpty = False, cMaxRetries = 1024):
         """
         Returns a random directory from the tree (self.oTreeDir).
+        Will return None if no directory with given parameters was found.
         """
-        while True:
+        cRetries = 0;
+        while cRetries < cMaxRetries:
             oDir = self.aoDirs[self.oRandom.choice(xrange(len(self.aoDirs)))];
             # Check fNonEmpty requirement:
             if not fNonEmpty or oDir.aoChildren:
@@ -634,6 +649,8 @@ class TestFileSet(object):
                     if oParent is self.oTreeDir:
                         return oDir;
                     oParent = oParent.oParent;
+            cRetries += 1;
+
         return None; # make pylint happy
 
 #

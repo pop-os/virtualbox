@@ -4,20 +4,31 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
 #include <QAccessibleWidget>
 #include <QAction>
+#include <QActionGroup>
 #include <QHeaderView>
 #include <QLayout>
 #include <QTabWidget>
@@ -29,11 +40,11 @@
 #include "UISettingsSelector.h"
 #include "UIIconPool.h"
 #include "UISettingsPage.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
 
 
-/** QAccessibleWidget extension used as an accessibility interface for UIToolBar buttons. */
-class UIAccessibilityInterfaceForUIToolBarButton : public QAccessibleWidget
+/** QAccessibleWidget extension used as an accessibility interface for UISettingsSelectorToolBar buttons. */
+class UIAccessibilityInterfaceForUISettingsSelectorToolBarButton : public QAccessibleWidget
 {
 public:
 
@@ -44,19 +55,19 @@ public:
         if (   pObject
             && strClassname == QLatin1String("QToolButton")
             && pObject->property("Belongs to") == "UISettingsSelectorToolBar")
-            return new UIAccessibilityInterfaceForUIToolBarButton(qobject_cast<QWidget*>(pObject));
+            return new UIAccessibilityInterfaceForUISettingsSelectorToolBarButton(qobject_cast<QWidget*>(pObject));
 
         /* Null by default: */
         return 0;
     }
 
     /** Constructs an accessibility interface passing @a pWidget to the base-class. */
-    UIAccessibilityInterfaceForUIToolBarButton(QWidget *pWidget)
+    UIAccessibilityInterfaceForUISettingsSelectorToolBarButton(QWidget *pWidget)
         : QAccessibleWidget(pWidget, QAccessible::Button)
     {}
 
     /** Returns the role. */
-    virtual QAccessible::Role role() const /* override */
+    virtual QAccessible::Role role() const RT_OVERRIDE
     {
         /* Make sure button still alive: */
         AssertPtrReturn(button(), QAccessible::NoRole);
@@ -70,7 +81,7 @@ public:
     }
 
     /** Returns the state. */
-    virtual QAccessible::State state() const /* override */
+    virtual QAccessible::State state() const RT_OVERRIDE
     {
         /* Prepare the button state: */
         QAccessible::State state;
@@ -499,10 +510,10 @@ UISettingsSelectorToolBar::UISettingsSelectorToolBar(QWidget *pParent /* = 0 */)
     , m_pActionGroup(0)
 {
     /* Install tool-bar button accessibility interface factory: */
-    QAccessible::installFactory(UIAccessibilityInterfaceForUIToolBarButton::pFactory);
+    QAccessible::installFactory(UIAccessibilityInterfaceForUISettingsSelectorToolBarButton::pFactory);
 
     /* Prepare the toolbar: */
-    m_pToolBar = new UIToolBar(pParent);
+    m_pToolBar = new QIToolBar(pParent);
     m_pToolBar->setUseTextLabels(true);
     m_pToolBar->setIconSize(QSize(32, 32));
 #ifdef VBOX_WS_MAC
@@ -800,9 +811,9 @@ UISelectorActionItem *UISettingsSelectorToolBar::findActionItemByTabWidget(QTabW
     foreach (UISelectorItem *pItem, m_list)
         if (static_cast<UISelectorActionItem*>(pItem)->tabWidget() == pTabWidget)
         {
-            QTabWidget *pTabWidget = static_cast<UISelectorActionItem*>(pItem)->tabWidget();
+            QTabWidget *pTabWidget2 = static_cast<UISelectorActionItem*>(pItem)->tabWidget(); /// @todo r=bird: same as pTabWidget?
             pResult = static_cast<UISelectorActionItem*>(
-                findItemByPage(static_cast<UISettingsPage*>(pTabWidget->widget(iIndex))));
+                findItemByPage(static_cast<UISettingsPage*>(pTabWidget2->widget(iIndex))));
             break;
         }
 

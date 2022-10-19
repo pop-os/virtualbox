@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -29,6 +39,7 @@
 
 /* Determines if <Object of type X> can be converted to object of other type.
  * These functions returns 'true' for all allowed conversions. */
+template<> bool canConvert<KCloudMachineState>() { return true; }
 template<> bool canConvert<KMachineState>() { return true; }
 template<> bool canConvert<KSessionState>() { return true; }
 template<> bool canConvert<KParavirtProvider>() { return true; }
@@ -52,8 +63,46 @@ template<> bool canConvert<KAuthType>() { return true; }
 template<> bool canConvert<KStorageBus>() { return true; }
 template<> bool canConvert<KStorageControllerType>() { return true; }
 template<> bool canConvert<KChipsetType>() { return true; }
+template<> bool canConvert<KTpmType>() { return true; }
 template<> bool canConvert<KNATProtocol>() { return true; }
 template<> bool canConvert<KGuestSessionStatus>() { return true; }
+template<> bool canConvert<KProcessStatus>() { return true; }
+
+/* QIcon <= KCloudMachineState: */
+template<> QIcon toIcon(const KCloudMachineState &state)
+{
+    switch (state)
+    {
+        case KCloudMachineState_Provisioning:  return UIIconPool::iconSet(":/state_running_16px.png");
+        case KCloudMachineState_Running:       return UIIconPool::iconSet(":/state_running_16px.png");
+        case KCloudMachineState_Starting:      return UIIconPool::iconSet(":/state_running_16px.png");
+        case KCloudMachineState_Stopping:      return UIIconPool::iconSet(":/state_saving_16px.png");
+        case KCloudMachineState_Stopped:       return UIIconPool::iconSet(":/state_saved_16px.png");
+        case KCloudMachineState_CreatingImage: return UIIconPool::iconSet(":/state_saved_16px.png");
+        case KCloudMachineState_Terminating:   return UIIconPool::iconSet(":/state_discarding_16px.png");
+        case KCloudMachineState_Terminated:    return UIIconPool::iconSet(":/state_powered_off_16px.png");
+        default: AssertMsgFailed(("No icon for %d", state)); break;
+    }
+    return QIcon();
+}
+
+/* QString <= KCloudMachineState: */
+template<> QString toString(const KCloudMachineState &state)
+{
+    switch (state)
+    {
+        case KCloudMachineState_Provisioning:  return QApplication::translate("UICommon", "Provisioning", "CloudMachineState");
+        case KCloudMachineState_Running:       return QApplication::translate("UICommon", "Running", "CloudMachineState");
+        case KCloudMachineState_Starting:      return QApplication::translate("UICommon", "Starting", "CloudMachineState");
+        case KCloudMachineState_Stopping:      return QApplication::translate("UICommon", "Stopping", "CloudMachineState");
+        case KCloudMachineState_Stopped:       return QApplication::translate("UICommon", "Stopped", "CloudMachineState");
+        case KCloudMachineState_CreatingImage: return QApplication::translate("UICommon", "Creating Image", "CloudMachineState");
+        case KCloudMachineState_Terminating:   return QApplication::translate("UICommon", "Terminating", "CloudMachineState");
+        case KCloudMachineState_Terminated:    return QApplication::translate("UICommon", "Terminated", "CloudMachineState");
+        default: AssertMsgFailed(("No text for %d", state)); break;
+    }
+    return QString();
+}
 
 /* QColor <= KMachineState: */
 template<> QColor toColor(const KMachineState &state)
@@ -62,8 +111,9 @@ template<> QColor toColor(const KMachineState &state)
     {
         case KMachineState_PoweredOff:             return QColor(Qt::gray);
         case KMachineState_Saved:                  return QColor(Qt::yellow);
-        case KMachineState_Aborted:                return QColor(Qt::darkRed);
         case KMachineState_Teleported:             return QColor(Qt::red);
+        case KMachineState_Aborted:                return QColor(Qt::darkRed);
+        case KMachineState_AbortedSaved:           return QColor(Qt::yellow);
         case KMachineState_Running:                return QColor(Qt::green);
         case KMachineState_Paused:                 return QColor(Qt::darkGreen);
         case KMachineState_Stuck:                  return QColor(Qt::darkMagenta);
@@ -98,8 +148,9 @@ template<> QIcon toIcon(const KMachineState &state)
     {
         case KMachineState_PoweredOff:             return UIIconPool::iconSet(":/state_powered_off_16px.png");
         case KMachineState_Saved:                  return UIIconPool::iconSet(":/state_saved_16px.png");
-        case KMachineState_Aborted:                return UIIconPool::iconSet(":/state_aborted_16px.png");
         case KMachineState_Teleported:             return UIIconPool::iconSet(":/state_saved_16px.png");
+        case KMachineState_Aborted:                return UIIconPool::iconSet(":/state_aborted_16px.png");
+        case KMachineState_AbortedSaved:           return UIIconPool::iconSet(":/state_aborted_saved_16px.png");
         case KMachineState_Running:                return UIIconPool::iconSet(":/state_running_16px.png");
         case KMachineState_Paused:                 return UIIconPool::iconSet(":/state_paused_16px.png");
         case KMachineState_Stuck:                  return UIIconPool::iconSet(":/state_stuck_16px.png");
@@ -134,8 +185,9 @@ template<> QString toString(const KMachineState &state)
     {
         case KMachineState_PoweredOff:             return QApplication::translate("UICommon", "Powered Off", "MachineState");
         case KMachineState_Saved:                  return QApplication::translate("UICommon", "Saved", "MachineState");
-        case KMachineState_Aborted:                return QApplication::translate("UICommon", "Aborted", "MachineState");
         case KMachineState_Teleported:             return QApplication::translate("UICommon", "Teleported", "MachineState");
+        case KMachineState_Aborted:                return QApplication::translate("UICommon", "Aborted", "MachineState");
+        case KMachineState_AbortedSaved:           return QApplication::translate("UICommon", "Aborted-Saved", "MachineState");
         case KMachineState_Running:                return QApplication::translate("UICommon", "Running", "MachineState");
         case KMachineState_Paused:                 return QApplication::translate("UICommon", "Paused", "MachineState");
         case KMachineState_Stuck:                  return QApplication::translate("UICommon", "Guru Meditation", "MachineState");
@@ -243,11 +295,13 @@ template<> QString toString(const KPointingHIDType &type)
 {
     switch (type)
     {
-        case KPointingHIDType_PS2Mouse:      return QApplication::translate("UICommon", "PS/2 Mouse", "PointingHIDType");
-        case KPointingHIDType_USBMouse:      return QApplication::translate("UICommon", "USB Mouse", "PointingHIDType");
-        case KPointingHIDType_USBTablet:     return QApplication::translate("UICommon", "USB Tablet", "PointingHIDType");
-        case KPointingHIDType_ComboMouse:    return QApplication::translate("UICommon", "PS/2 and USB Mouse", "PointingHIDType");
-        case KPointingHIDType_USBMultiTouch: return QApplication::translate("UICommon", "USB Multi-Touch Tablet", "PointingHIDType");
+        case KPointingHIDType_None:                       return QApplication::translate("UICommon", "None", "PointingHIDType");
+        case KPointingHIDType_PS2Mouse:                   return QApplication::translate("UICommon", "PS/2 Mouse", "PointingHIDType");
+        case KPointingHIDType_USBMouse:                   return QApplication::translate("UICommon", "USB Mouse", "PointingHIDType");
+        case KPointingHIDType_USBTablet:                  return QApplication::translate("UICommon", "USB Tablet", "PointingHIDType");
+        case KPointingHIDType_ComboMouse:                 return QApplication::translate("UICommon", "PS/2 and USB Mouse", "PointingHIDType");
+        case KPointingHIDType_USBMultiTouch:              return QApplication::translate("UICommon", "USB Multi-Touch Tablet", "PointingHIDType");
+        case KPointingHIDType_USBMultiTouchScreenPlusPad: return QApplication::translate("UICommon", "USB MT TouchScreen and TouchPad", "PointingHIDType");
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
@@ -337,15 +391,20 @@ template<> QString toString(const KNetworkAttachmentType &type)
 {
     switch (type)
     {
-        case KNetworkAttachmentType_Null:       return QApplication::translate("UICommon", "Not attached", "NetworkAttachmentType");
-        case KNetworkAttachmentType_NAT:        return QApplication::translate("UICommon", "NAT", "NetworkAttachmentType");
-        case KNetworkAttachmentType_Bridged:    return QApplication::translate("UICommon", "Bridged Adapter", "NetworkAttachmentType");
-        case KNetworkAttachmentType_Internal:   return QApplication::translate("UICommon", "Internal Network", "NetworkAttachmentType");
-        case KNetworkAttachmentType_HostOnly:   return QApplication::translate("UICommon", "Host-only Adapter", "NetworkAttachmentType");
-        case KNetworkAttachmentType_Generic:    return QApplication::translate("UICommon", "Generic Driver", "NetworkAttachmentType");
-        case KNetworkAttachmentType_NATNetwork: return QApplication::translate("UICommon", "NAT Network", "NetworkAttachmentType");
+        case KNetworkAttachmentType_Null:            return QApplication::translate("UICommon", "Not attached", "NetworkAttachmentType");
+        case KNetworkAttachmentType_NAT:             return QApplication::translate("UICommon", "NAT", "NetworkAttachmentType");
+        case KNetworkAttachmentType_Bridged:         return QApplication::translate("UICommon", "Bridged Adapter", "NetworkAttachmentType");
+        case KNetworkAttachmentType_Internal:        return QApplication::translate("UICommon", "Internal Network", "NetworkAttachmentType");
+#ifndef VBOX_WITH_VMNET
+        case KNetworkAttachmentType_HostOnly:        return QApplication::translate("UICommon", "Host-only Adapter", "NetworkAttachmentType");
+#else /* VBOX_WITH_VMNET */
+        case KNetworkAttachmentType_HostOnly:        return QApplication::translate("UICommon", "Host-only Adapter [DEPRECATED]", "NetworkAttachmentType");
+        case KNetworkAttachmentType_HostOnlyNetwork: return QApplication::translate("UICommon", "Host-only Network", "NetworkAttachmentType");
+#endif /* VBOX_WITH_VMNET */
+        case KNetworkAttachmentType_Generic:         return QApplication::translate("UICommon", "Generic Driver", "NetworkAttachmentType");
+        case KNetworkAttachmentType_NATNetwork:      return QApplication::translate("UICommon", "NAT Network", "NetworkAttachmentType");
 #ifdef VBOX_WITH_CLOUD_NET
-        case KNetworkAttachmentType_Cloud:      return QApplication::translate("UICommon", "Cloud Network [EXPERIMENTAL]", "NetworkAttachmentType");
+        case KNetworkAttachmentType_Cloud:           return QApplication::translate("UICommon", "Cloud Network [EXPERIMENTAL]", "NetworkAttachmentType");
 #endif /* VBOX_WITH_CLOUD_NET */
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
@@ -362,11 +421,14 @@ template<> QString toString(const KNetworkAdapterType &type)
         case KNetworkAdapterType_I82540EM:   return QApplication::translate("UICommon", "Intel PRO/1000 MT Desktop (82540EM)", "NetworkAdapterType");
         case KNetworkAdapterType_I82543GC:   return QApplication::translate("UICommon", "Intel PRO/1000 T Server (82543GC)", "NetworkAdapterType");
         case KNetworkAdapterType_I82545EM:   return QApplication::translate("UICommon", "Intel PRO/1000 MT Server (82545EM)", "NetworkAdapterType");
-#ifdef VBOX_WITH_VIRTIO
         case KNetworkAdapterType_Virtio:     return QApplication::translate("UICommon", "Paravirtualized Network (virtio-net)", "NetworkAdapterType");
-#endif /* VBOX_WITH_VIRTIO */
-        case KNetworkAdapterType_Virtio_1_0: return QApplication::translate("UICommon", "Paravirtualized Network (virtio-net 1.0)", "NetworkAdapterType");
         case KNetworkAdapterType_Am79C960:   return QApplication::translate("UICommon", "PCnet-ISA (Am79C960)", "NetworkAdapterType");
+        case KNetworkAdapterType_NE2000:     return QApplication::translate("UICommon", "Novell NE2000 (NE2000)", "NetworkAdapterType");
+        case KNetworkAdapterType_NE1000:     return QApplication::translate("UICommon", "Novell NE1000 (NE1000)", "NetworkAdapterType");
+        case KNetworkAdapterType_WD8013:     return QApplication::translate("UICommon", "WD EtherCard Plus 16 (WD8013EBT)", "NetworkAdapterType");
+        case KNetworkAdapterType_WD8003:     return QApplication::translate("UICommon", "WD EtherCard Plus (WD8013E)", "NetworkAdapterType");
+        case KNetworkAdapterType_ELNK2:      return QApplication::translate("UICommon", "3Com EtherLink II (3C503)", "NetworkAdapterType");
+        case KNetworkAdapterType_ELNK1:      return QApplication::translate("UICommon", "3Com EtherLink (3C501)", "NetworkAdapterType");
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
@@ -479,14 +541,16 @@ template<> QString toString(const KAudioDriverType &type)
 {
     switch (type)
     {
-        case KAudioDriverType_Null:        return QApplication::translate("UICommon", "Null Audio Driver", "AudioDriverType");
-        case KAudioDriverType_WinMM:       return QApplication::translate("UICommon", "Windows Multimedia", "AudioDriverType");
-        case KAudioDriverType_OSS:         return QApplication::translate("UICommon", "OSS Audio Driver", "AudioDriverType");
-        case KAudioDriverType_ALSA:        return QApplication::translate("UICommon", "ALSA Audio Driver", "AudioDriverType");
-        case KAudioDriverType_DirectSound: return QApplication::translate("UICommon", "Windows DirectSound", "AudioDriverType");
-        case KAudioDriverType_CoreAudio:   return QApplication::translate("UICommon", "CoreAudio", "AudioDriverType");
-        // case KAudioDriverType_MMPM:
+        case KAudioDriverType_Default:     return QApplication::translate("UICommon", "Default", "AudioDriverType");
+        case KAudioDriverType_Null:        return QApplication::translate("UICommon", "Null Audio", "AudioDriverType");
+        case KAudioDriverType_OSS:         return QApplication::translate("UICommon", "OSS Audio", "AudioDriverType");
+        case KAudioDriverType_ALSA:        return QApplication::translate("UICommon", "ALSA Audio", "AudioDriverType");
         case KAudioDriverType_Pulse:       return QApplication::translate("UICommon", "PulseAudio", "AudioDriverType");
+        case KAudioDriverType_WinMM:       return QApplication::translate("UICommon", "Windows Multimedia", "AudioDriverType");
+        case KAudioDriverType_DirectSound: return QApplication::translate("UICommon", "Windows DirectSound", "AudioDriverType");
+        case KAudioDriverType_WAS:         return QApplication::translate("UICommon", "Windows Audio Session", "AudioDriverType");
+        case KAudioDriverType_CoreAudio:   return QApplication::translate("UICommon", "Core Audio", "AudioDriverType");
+        // case KAudioDriverType_MMPM:
         case KAudioDriverType_SolAudio:    return QApplication::translate("UICommon", "Solaris Audio", "AudioDriverType");
         default: AssertMsgFailed(("No text for %d", type)); break;
     }
@@ -497,15 +561,17 @@ template<> QString toString(const KAudioDriverType &type)
 template<> KAudioDriverType fromString<KAudioDriverType>(const QString &strType)
 {
     QHash<QString, KAudioDriverType> list;
-    list.insert(QApplication::translate("UICommon", "Null Audio Driver", "AudioDriverType"),   KAudioDriverType_Null);
-    list.insert(QApplication::translate("UICommon", "Windows Multimedia", "AudioDriverType"),  KAudioDriverType_WinMM);
-    list.insert(QApplication::translate("UICommon", "OSS Audio Driver", "AudioDriverType"),    KAudioDriverType_OSS);
-    list.insert(QApplication::translate("UICommon", "ALSA Audio Driver", "AudioDriverType"),   KAudioDriverType_ALSA);
-    list.insert(QApplication::translate("UICommon", "Windows DirectSound", "AudioDriverType"), KAudioDriverType_DirectSound);
-    list.insert(QApplication::translate("UICommon", "CoreAudio", "AudioDriverType"),           KAudioDriverType_CoreAudio);
+    list.insert(QApplication::translate("UICommon", "Default", "AudioDriverType"),              KAudioDriverType_Default);
+    list.insert(QApplication::translate("UICommon", "Null Audio", "AudioDriverType"),            KAudioDriverType_Null);
+    list.insert(QApplication::translate("UICommon", "OSS Audio", "AudioDriverType"),             KAudioDriverType_OSS);
+    list.insert(QApplication::translate("UICommon", "ALSA Audio", "AudioDriverType"),            KAudioDriverType_ALSA);
+    list.insert(QApplication::translate("UICommon", "PulseAudio", "AudioDriverType"),            KAudioDriverType_Pulse);
+    list.insert(QApplication::translate("UICommon", "Windows Multimedia", "AudioDriverType"),    KAudioDriverType_WinMM);
+    list.insert(QApplication::translate("UICommon", "Windows DirectSound", "AudioDriverType"),   KAudioDriverType_DirectSound);
+    list.insert(QApplication::translate("UICommon", "Windows Audio Session", "AudioDriverType"), KAudioDriverType_WAS);
+    list.insert(QApplication::translate("UICommon", "Core Audio", "AudioDriverType"),            KAudioDriverType_CoreAudio);
     // list.insert(..., KAudioDriverType_MMPM);
-    list.insert(QApplication::translate("UICommon", "PulseAudio", "AudioDriverType"),          KAudioDriverType_Pulse);
-    list.insert(QApplication::translate("UICommon", "Solaris Audio", "AudioDriverType"),       KAudioDriverType_SolAudio);
+    list.insert(QApplication::translate("UICommon", "Solaris Audio", "AudioDriverType"),         KAudioDriverType_SolAudio);
     if (!list.contains(strType))
     {
         AssertMsgFailed(("No value for '%s'", strType.toUtf8().constData()));
@@ -659,6 +725,21 @@ template<> QString toString(const KChipsetType &type)
     return QString();
 }
 
+/* QString <= KTpmType: */
+template<> QString toString(const KTpmType &type)
+{
+    switch (type)
+    {
+        case KTpmType_None:  return QApplication::translate("UICommon", "None", "TpmType");
+        case KTpmType_v1_2:  return QApplication::translate("UICommon", "v1.2", "TpmType");
+        case KTpmType_v2_0:  return QApplication::translate("UICommon", "v2.0", "TpmType");
+        case KTpmType_Host:  return QApplication::translate("UICommon", "Host", "TpmType");
+        case KTpmType_Swtpm: return QApplication::translate("UICommon", "SWTPM", "TpmType");
+        default: AssertMsgFailed(("No text for %d", type)); break;
+    }
+    return QString();
+}
+
 /* QString <= KNATProtocol: */
 template<> QString toString(const KNATProtocol &protocol)
 {
@@ -687,19 +768,11 @@ template<> QString toInternalString(const KNATProtocol &protocol)
 /* KNATProtocol <= QString: */
 template<> KNATProtocol fromInternalString<KNATProtocol>(const QString &strProtocol)
 {
-    /* Here we have some fancy stuff allowing us
-     * to search through the keys using 'case-insensitive' rule: */
-    QStringList keys; QList<KNATProtocol> values;
-    keys << "udp";    values << KNATProtocol_UDP;
-    keys << "tcp";    values << KNATProtocol_TCP;
-    /* Invalid type for unknown words: */
-    if (!keys.contains(strProtocol, Qt::CaseInsensitive))
-    {
-        AssertMsgFailed(("No value for '%s'", strProtocol.toUtf8().constData()));
+    if (strProtocol.compare("udp", Qt::CaseInsensitive) == 0)
         return KNATProtocol_UDP;
-    }
-    /* Corresponding type for known words: */
-    return values.at(keys.indexOf(QRegExp(strProtocol, Qt::CaseInsensitive)));
+    if (strProtocol.compare("tcp", Qt::CaseInsensitive) == 0)
+        return KNATProtocol_TCP;
+    AssertMsgFailedReturn(("No value for '%s'", strProtocol.toUtf8().constData()), KNATProtocol_UDP);
 }
 
 /* QString <= KGuestSessionStatus: */
@@ -739,4 +812,49 @@ template<> KGuestSessionStatus fromString<KGuestSessionStatus>(const QString &st
         AssertMsgFailed(("No value for '%s'", strStatus.toUtf8().constData()));
     }
     return list.value(strStatus, KGuestSessionStatus_Undefined);
+}
+
+/* QString <= KProcessStatus: */
+template<> QString toString(const KProcessStatus &status)
+{
+    switch (status)
+    {
+        case KProcessStatus_Undefined:            return QApplication::translate("UICommon", "Undefined", "ProcessStatus");
+        case KProcessStatus_Starting:             return QApplication::translate("UICommon", "Starting", "ProcessStatus");
+        case KProcessStatus_Started:              return QApplication::translate("UICommon", "Started", "ProcessStatus");
+        case KProcessStatus_Paused:               return QApplication::translate("UICommon", "Paused", "ProcessStatus");
+        case KProcessStatus_Terminating:          return QApplication::translate("UICommon", "Terminating", "ProcessStatus");
+        case KProcessStatus_TerminatedNormally:   return QApplication::translate("UICommon", "Terminated (Normally)", "ProcessStatus");
+        case KProcessStatus_TerminatedSignal:     return QApplication::translate("UICommon", "Terminated (Signal)", "ProcessStatus");
+        case KProcessStatus_TerminatedAbnormally: return QApplication::translate("UICommon", "Terminated (Abnormally)", "ProcessStatus");
+        case KProcessStatus_TimedOutKilled:       return QApplication::translate("UICommon", "Timed Out (Killed)", "ProcessStatus");
+        case KProcessStatus_TimedOutAbnormally:   return QApplication::translate("UICommon", "Timed Out (Abnormally)", "ProcessStatus");
+        case KProcessStatus_Down:                 return QApplication::translate("UICommon", "Down", "ProcessStatus");
+        case KProcessStatus_Error:                return QApplication::translate("UICommon", "Error", "ProcessStatus");
+        default: AssertMsgFailed(("No text for %d", status)); break;
+    }
+    return QString();
+}
+
+/* KProcessStatus <= QString: */
+template<> KProcessStatus fromString<KProcessStatus>(const QString &strStatus)
+{
+    QHash<QString, KProcessStatus> list;
+    list.insert(QApplication::translate("UICommon", "Undefined", "ProcessStatus"),               KProcessStatus_Undefined);
+    list.insert(QApplication::translate("UICommon", "Starting", "ProcessStatus"),                KProcessStatus_Starting);
+    list.insert(QApplication::translate("UICommon", "Started", "ProcessStatus"),                 KProcessStatus_Started);
+    list.insert(QApplication::translate("UICommon", "Paused", "ProcessStatus"),                 KProcessStatus_Paused);
+    list.insert(QApplication::translate("UICommon", "Terminating", "ProcessStatus"),             KProcessStatus_Terminating);
+    list.insert(QApplication::translate("UICommon", "Terminated (Normally)", "ProcessStatus"),   KProcessStatus_TerminatedNormally);
+    list.insert(QApplication::translate("UICommon", "Terminated (Signal)", "ProcessStatus"),     KProcessStatus_TerminatedSignal);
+    list.insert(QApplication::translate("UICommon", "Terminated (Abnormally)", "ProcessStatus"), KProcessStatus_TerminatedAbnormally);
+    list.insert(QApplication::translate("UICommon", "Timed Out (Killed)", "ProcessStatus"),      KProcessStatus_TimedOutKilled);
+    list.insert(QApplication::translate("UICommon", "Timed Out (Abnormally)", "ProcessStatus"),  KProcessStatus_TimedOutAbnormally);
+    list.insert(QApplication::translate("UICommon", "Down", "ProcessStatus"),                    KProcessStatus_Down);
+    list.insert(QApplication::translate("UICommon", "Error", "ProcessStatus"),                   KProcessStatus_Error);
+    if (!list.contains(strStatus))
+    {
+        AssertMsgFailed(("No value for '%s'", strStatus.toUtf8().constData()));
+    }
+    return list.value(strStatus, KProcessStatus_Undefined);
 }

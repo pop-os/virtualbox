@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_NetLib_VBoxNetBaseService_h
@@ -27,14 +37,15 @@
 class VBoxNetHlpUDPService
 {
 public:
-virtual int                 hlpUDPBroadcast(unsigned uSrcPort, unsigned uDstPort,
-                                        void const *pvData, size_t cbData) const = 0;
+    virtual ~VBoxNetHlpUDPService() { /* Make VC++ 19.2 happy. */ }
+    virtual int hlpUDPBroadcast(unsigned uSrcPort, unsigned uDstPort, void const *pvData, size_t cbData) const = 0;
 };
 
 
 class VBoxNetLockee
 {
 public:
+    virtual ~VBoxNetLockee() { /* Make VC++ 19.2 happy. */ }
     virtual int  syncEnter() = 0;
     virtual int  syncLeave() = 0;
 };
@@ -43,7 +54,7 @@ public:
 class VBoxNetALock
 {
 public:
-    VBoxNetALock(VBoxNetLockee *a_lck):m_lck(a_lck)
+    VBoxNetALock(VBoxNetLockee *a_lck) : m_lck(a_lck)
     {
         if (m_lck)
             m_lck->syncEnter();
@@ -60,7 +71,7 @@ private:
 };
 
 # ifndef BASE_SERVICES_ONLY
-class VBoxNetBaseService: public VBoxNetHlpUDPService, public VBoxNetLockee
+class VBoxNetBaseService : public VBoxNetHlpUDPService, public VBoxNetLockee
 {
 public:
     VBoxNetBaseService(const std::string& aName, const std::string& aNetworkName);
@@ -113,7 +124,7 @@ protected:
     int32_t getVerbosityLevel() const;
     void setVerbosityLevel(int32_t);
 
-    void addCommandLineOption(const PRTGETOPTDEF);
+    void addCommandLineOption(PCRTGETOPTDEF);
 
     /**
      * Print debug message depending on the m_cVerbosity level.

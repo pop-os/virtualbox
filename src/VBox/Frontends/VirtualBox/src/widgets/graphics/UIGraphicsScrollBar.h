@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_widgets_graphics_UIGraphicsScrollBar_h
@@ -66,7 +76,7 @@ public:
     UIGraphicsScrollBar(Qt::Orientation enmOrientation, bool fAutoHideMode, QIGraphicsWidget *pParent = 0);
 
     /** Returns minimum size-hint. */
-    virtual QSizeF minimumSizeHint() const /* override */;
+    virtual QSizeF minimumSizeHint() const RT_OVERRIDE;
 
     /** Returns scrolling step. */
     int step() const;
@@ -94,23 +104,23 @@ public:
 protected:
 
     /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) /* override */;
+    virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) RT_OVERRIDE;
 
     /** Performs painting using passed @a pPainter, @a pOptions and optionally specified @a pWidget. */
-    virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) /* override */;
+    virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) RT_OVERRIDE;
 
     /** Handles mouse-press @a pEvent. */
-    virtual void mousePressEvent(QGraphicsSceneMouseEvent *pEvent) /* override */;
+    virtual void mousePressEvent(QGraphicsSceneMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-release @a pEvent. */
-    virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *pEvent) /* override */;
+    virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *pEvent) RT_OVERRIDE;
 
     /** Handles hover enter @a pEvent. */
-    virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+    virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
     /** Handles hover leave @a pEvent. */
-    virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+    virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
 
     /** Handles timer @a pEvent. */
-    virtual void timerEvent(QTimerEvent *pEvent) /* override */;
+    virtual void timerEvent(QTimerEvent *pEvent) RT_OVERRIDE;
 
 private slots:
 

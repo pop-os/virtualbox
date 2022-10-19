@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -52,15 +62,40 @@
 #include <iprt/system.h>
 #include <iprt/time.h>
 
-
 #include <algorithm>
-#include <string>
 #include <signal.h>
 
 #include "VBoxWatchdogInternal.h"
 
 using namespace com;
 
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
+/**
+ * The details of the services that has been compiled in.
+ */
+typedef struct VBOXWATCHDOGMOD
+{
+    /** Pointer to the service descriptor. */
+    PCVBOXMODULE    pDesc;
+    /** Whether Pre-init was called. */
+    bool            fPreInited;
+    /** Whether the module is enabled or not. */
+    bool            fEnabled;
+} VBOXWATCHDOGMOD, *PVBOXWATCHDOGMOD;
+
+enum GETOPTDEF_WATCHDOG
+{
+    GETOPTDEF_WATCHDOG_DISABLE_MODULE = 1000,
+    GETOPTDEF_WATCHDOG_DRYRUN
+};
+
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** External globals. */
 bool                                g_fDryrun     = false;
 bool                                g_fVerbose    = false;
@@ -68,9 +103,9 @@ ComPtr<IVirtualBox>                 g_pVirtualBox = NULL;
 ComPtr<ISession>                    g_pSession    = NULL;
 mapVM                               g_mapVM;
 mapGroup                            g_mapGroup;
-# ifdef VBOX_WATCHDOG_GLOBAL_PERFCOL
+#ifdef VBOX_WATCHDOG_GLOBAL_PERFCOL
 ComPtr<IPerformanceCollector>       g_pPerfCollector = NULL;
-# endif
+#endif
 
 /** The critical section for the machines map. */
 static RTCRITSECT    g_csMachines;
@@ -86,35 +121,17 @@ static uint64_t      g_uHistoryFileSize = 100 * _1M;    /* Max 100MB per file. *
 /** Run in background. */
 static bool          g_fDaemonize = false;
 
-/**
- * The details of the services that has been compiled in.
- */
-typedef struct VBOXWATCHDOGMOD
-{
-    /** Pointer to the service descriptor. */
-    PCVBOXMODULE    pDesc;
-    /** Whether Pre-init was called. */
-    bool            fPreInited;
-    /** Whether the module is enabled or not. */
-    bool            fEnabled;
-} VBOXWATCHDOGMOD, *PVBOXWATCHDOGMOD;
-
 static VBOXWATCHDOGMOD g_aModules[] =
 {
     { &g_ModBallooning, false /* Pre-inited */, true /* Enabled */ },
     { &g_ModAPIMonitor, false /* Pre-inited */, true /* Enabled */ }
 };
 
-enum GETOPTDEF_WATCHDOG
-{
-    GETOPTDEF_WATCHDOG_DISABLE_MODULE = 1000,
-    GETOPTDEF_WATCHDOG_DRYRUN
-};
-
 /**
  * Command line arguments.
  */
-static const RTGETOPTDEF g_aOptions[] = {
+static const RTGETOPTDEF g_aOptions[] =
+{
 #if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) || defined (RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     { "--background",           'b',                                       RTGETOPT_REQ_NOTHING },
 #endif
@@ -137,7 +154,10 @@ static ComPtr<IEventSource>      g_pEventSourceClient = NULL;
 static ComPtr<IEventListener>    g_pVBoxEventListener = NULL;
 static NativeEventQueue         *g_pEventQ = NULL;
 
-/* Prototypes. */
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
 static int machineAdd(const Bstr &strUuid);
 static int machineRemove(const Bstr &strUuid);
 static int watchdogSetup();
@@ -178,11 +198,11 @@ class VirtualBoxEventListener
 
                     Bstr uuid;
                     BOOL fRegistered;
-                    HRESULT hr = pEvent->COMGETTER(Registered)(&fRegistered);
-                    if (SUCCEEDED(hr))
-                        hr = pEvent->COMGETTER(MachineId)(uuid.asOutParam());
+                    HRESULT hrc = pEvent->COMGETTER(Registered)(&fRegistered);
+                    if (SUCCEEDED(hrc))
+                        hrc = pEvent->COMGETTER(MachineId)(uuid.asOutParam());
 
-                    if (SUCCEEDED(hr))
+                    if (SUCCEEDED(hrc))
                     {
                         int rc = RTCritSectEnter(&g_csMachines);
                         if (RT_SUCCESS(rc))
@@ -207,11 +227,11 @@ class VirtualBoxEventListener
                     MachineState_T machineState;
                     Bstr uuid;
 
-                    HRESULT hr = pEvent->COMGETTER(State)(&machineState);
-                    if (SUCCEEDED(hr))
-                        hr = pEvent->COMGETTER(MachineId)(uuid.asOutParam());
+                    HRESULT hrc = pEvent->COMGETTER(State)(&machineState);
+                    if (SUCCEEDED(hrc))
+                        hrc = pEvent->COMGETTER(MachineId)(uuid.asOutParam());
 
-                    if (SUCCEEDED(hr))
+                    if (SUCCEEDED(hrc))
                     {
                         int rc = RTCritSectEnter(&g_csMachines);
                         if (RT_SUCCESS(rc))
@@ -291,7 +311,7 @@ VBOX_LISTENER_DECLARE(VirtualBoxEventListenerImpl)
  * a thread dedicated to delivering this signal.  Do not doing anything
  * unnecessary here.
  */
-static void signalHandler(int iSignal)
+static void signalHandler(int iSignal) RT_NOTHROW_DEF
 {
     NOREF(iSignal);
     ASMAtomicWriteBool(&g_fCanceled, true);
@@ -338,7 +358,7 @@ static void signalHandlerUninstall()
  */
 static int machineAdd(const Bstr &strUuid)
 {
-    HRESULT rc;
+    HRESULT hrc;
 
     /** @todo Add exception handling! */
 
@@ -412,7 +432,7 @@ static int machineAdd(const Bstr &strUuid)
                 rc2 = g_aModules[j].pDesc->pfnOnMachineRegistered(strUuid);
                 if (RT_FAILURE(rc2))
                     serviceLog("OnMachineRegistered: Module '%s' reported an error: %Rrc\n",
-                               g_aModules[j].pDesc->pszName, rc);
+                               g_aModules[j].pDesc->pszName, hrc);
                 /* Keep going. */
             }
 
@@ -420,7 +440,7 @@ static int machineAdd(const Bstr &strUuid)
 
     /** @todo Add std exception handling! */
 
-    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR; /** @todo Find a better error! */
+    return SUCCEEDED(hrc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR; /** @todo Find a better error! */
 }
 
 static int machineDestroy(const Bstr &strUuid)
@@ -685,7 +705,7 @@ static int watchdogShutdownModules()
 
 static RTEXITCODE watchdogMain(/*HandlerArg *a */)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     do
     {
@@ -696,9 +716,9 @@ static RTEXITCODE watchdogMain(/*HandlerArg *a */)
          * Install signal handlers.
          */
         signal(SIGINT,   signalHandler);
-    #ifdef SIGBREAK
+#ifdef SIGBREAK
         signal(SIGBREAK, signalHandler);
-    #endif
+#endif
 
         /*
          * Setup the global event listeners:
@@ -786,11 +806,11 @@ static RTEXITCODE watchdogMain(/*HandlerArg *a */)
         AssertRC(vrc);
 
         if (RT_FAILURE(vrc))
-            rc = VBOX_E_IPRT_ERROR;
+            hrc = VBOX_E_IPRT_ERROR;
 
     } while (0);
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 void serviceLog(const char *pszFormat, ...)
@@ -809,8 +829,7 @@ void serviceLog(const char *pszFormat, ...)
 static void displayHeader()
 {
     RTStrmPrintf(g_pStdErr, VBOX_PRODUCT " Watchdog " VBOX_VERSION_STRING "\n"
-                 "(C) " VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                 "All rights reserved.\n\n");
+                 "Copyright (C) " VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
 }
 
 /**
@@ -825,31 +844,21 @@ static void displayHelp(const char *pszImage)
     displayHeader();
 
     RTStrmPrintf(g_pStdErr,
-                 "Usage:\n"
-                 " %s [-v|--verbose] [-h|-?|--help] [-P|--pidfile]\n"
-                 " [-F|--logfile=<file>] [-R|--logrotate=<num>] [-S|--logsize=<bytes>]\n"
-                 " [-I|--loginterval=<seconds>]\n", pszImage);
+                 "Usage: %s [-v|--verbose] [-h|-?|--help] [-P|--pidfile]\n"
+                 "           [-F|--logfile=<file>] [-R|--logrotate=<num>] \n"
+                 "           [-S|--logsize=<bytes>] [-I|--loginterval=<seconds>]\n",
+                 pszImage);
     for (unsigned j = 0; j < RT_ELEMENTS(g_aModules); j++)
         if (g_aModules[j].pDesc->pszUsage)
             RTStrmPrintf(g_pStdErr, "%s", g_aModules[j].pDesc->pszUsage);
 
-    RTStrmPrintf(g_pStdErr, "\n"
+    RTStrmPrintf(g_pStdErr,
+                 "\n"
                  "Options:\n");
 
-    for (unsigned i = 0;
-         i < RT_ELEMENTS(g_aOptions);
-         ++i)
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aOptions); i++)
     {
-        std::string str(g_aOptions[i].pszLong);
-        if (g_aOptions[i].iShort < 1000) /* Don't show short options which are defined by an ID! */
-        {
-            str += ", -";
-            str += g_aOptions[i].iShort;
-        }
-        str += ":";
-
-        const char *pcszDescr = "";
-
+        const char *pcszDescr;
         switch (g_aOptions[i].iShort)
         {
             case GETOPTDEF_WATCHDOG_DISABLE_MODULE:
@@ -888,9 +897,18 @@ static void displayHelp(const char *pszImage)
             case 'I':
                 pcszDescr = "Maximum time interval to trigger log rotation (seconds).";
                 break;
+            default:
+                AssertFailedBreakStmt(pcszDescr = "");
         }
 
-        RTStrmPrintf(g_pStdErr, "%-23s%s\n", str.c_str(), pcszDescr);
+        if (g_aOptions[i].iShort < 1000)
+            RTStrmPrintf(g_pStdErr,
+                         "  %s, -%c\n"
+                         "      %s\n", g_aOptions[i].pszLong, g_aOptions[i].iShort, pcszDescr);
+        else
+            RTStrmPrintf(g_pStdErr,
+                         "  %s\n"
+                         "      %s\n", g_aOptions[i].pszLong, pcszDescr);
     }
 
     for (unsigned j = 0; j < RT_ELEMENTS(g_aModules); j++)
@@ -924,17 +942,17 @@ static int watchdogSetup()
     /*
      * Setup VirtualBox + session interfaces.
      */
-    HRESULT rc = g_pVirtualBoxClient->COMGETTER(VirtualBox)(g_pVirtualBox.asOutParam());
-    if (SUCCEEDED(rc))
+    HRESULT hrc = g_pVirtualBoxClient->COMGETTER(VirtualBox)(g_pVirtualBox.asOutParam());
+    if (SUCCEEDED(hrc))
     {
-        rc = g_pSession.createInprocObject(CLSID_Session);
-        if (FAILED(rc))
-            RTMsgError("Failed to create a session object (rc=%Rhrc)!", rc);
+        hrc = g_pSession.createInprocObject(CLSID_Session);
+        if (FAILED(hrc))
+            RTMsgError("Failed to create a session object (rc=%Rhrc)!", hrc);
     }
     else
-        RTMsgError("Failed to get VirtualBox object (rc=%Rhrc)!", rc);
+        RTMsgError("Failed to get VirtualBox object (rc=%Rhrc)!", hrc);
 
-    if (FAILED(rc))
+    if (FAILED(hrc))
         return VERR_COM_OBJECT_NOT_FOUND;
 
     /*

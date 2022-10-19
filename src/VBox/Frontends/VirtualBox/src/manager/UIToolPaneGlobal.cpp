@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -24,10 +34,13 @@
 
 /* GUI includes */
 #include "UIActionPoolManager.h"
+#include "UICommon.h"
 #include "UICloudProfileManager.h"
-#include "UIHostNetworkManager.h"
+#include "UIExtensionPackManager.h"
 #include "UIMediumManager.h"
+#include "UINetworkManager.h"
 #include "UIToolPaneGlobal.h"
+#include "UIVMActivityOverviewWidget.h"
 #include "UIWelcomePane.h"
 
 /* Other VBox includes: */
@@ -39,9 +52,12 @@ UIToolPaneGlobal::UIToolPaneGlobal(UIActionPool *pActionPool, QWidget *pParent /
     , m_pActionPool(pActionPool)
     , m_pLayout(0)
     , m_pPaneWelcome(0)
+    , m_pPaneExtensions(0)
     , m_pPaneMedia(0)
     , m_pPaneNetwork(0)
     , m_pPaneCloud(0)
+    , m_pPaneVMActivityOverview(0)
+    , m_fActive(false)
 {
     /* Prepare: */
     prepare();
@@ -51,6 +67,18 @@ UIToolPaneGlobal::~UIToolPaneGlobal()
 {
     /* Cleanup: */
     cleanup();
+}
+
+void UIToolPaneGlobal::setActive(bool fActive)
+{
+    /* Save activity: */
+    if (m_fActive != fActive)
+    {
+        m_fActive = fActive;
+
+        /* Handle token change: */
+        handleTokenChange();
+    }
 }
 
 UIToolType UIToolPaneGlobal::currentTool() const
@@ -104,6 +132,26 @@ void UIToolPaneGlobal::openTool(UIToolType enmType)
                 }
                 break;
             }
+            case UIToolType_Extensions:
+            {
+                /* Create Extension Pack Manager: */
+                m_pPaneExtensions = new UIExtensionPackManagerWidget(EmbedTo_Stack, m_pActionPool, false /* show toolbar */);
+                AssertPtrReturnVoid(m_pPaneExtensions);
+                {
+#ifndef VBOX_WS_MAC
+                    const int iMargin = qApp->style()->pixelMetric(QStyle::PM_LayoutLeftMargin) / 4;
+                    m_pPaneExtensions->setContentsMargins(iMargin, 0, iMargin, 0);
+#endif
+
+                    /* Configure pane: */
+                    m_pPaneExtensions->setProperty("ToolType", QVariant::fromValue(UIToolType_Extensions));
+
+                    /* Add into layout: */
+                    m_pLayout->addWidget(m_pPaneExtensions);
+                    m_pLayout->setCurrentWidget(m_pPaneExtensions);
+                }
+                break;
+            }
             case UIToolType_Media:
             {
                 /* Create Virtual Media Manager: */
@@ -126,8 +174,8 @@ void UIToolPaneGlobal::openTool(UIToolType enmType)
             }
             case UIToolType_Network:
             {
-                /* Create Host Network Manager: */
-                m_pPaneNetwork = new UIHostNetworkManagerWidget(EmbedTo_Stack, m_pActionPool, false /* show toolbar */);
+                /* Create Network Manager: */
+                m_pPaneNetwork = new UINetworkManagerWidget(EmbedTo_Stack, m_pActionPool, false /* show toolbar */);
                 AssertPtrReturnVoid(m_pPaneNetwork);
                 {
 #ifndef VBOX_WS_MAC
@@ -157,8 +205,6 @@ void UIToolPaneGlobal::openTool(UIToolType enmType)
 
                     /* Configure pane: */
                     m_pPaneCloud->setProperty("ToolType", QVariant::fromValue(UIToolType_Cloud));
-                    connect(m_pPaneCloud, &UICloudProfileManagerWidget::sigChange,
-                            this, &UIToolPaneGlobal::sigCloudProfileManagerChange);
 
                     /* Add into layout: */
                     m_pLayout->addWidget(m_pPaneCloud);
@@ -166,10 +212,36 @@ void UIToolPaneGlobal::openTool(UIToolType enmType)
                 }
                 break;
             }
+            case UIToolType_VMActivityOverview:
+            {
+                /* Create VM Activity Overview: */
+                m_pPaneVMActivityOverview = new UIVMActivityOverviewWidget(EmbedTo_Stack, m_pActionPool, false /* show toolbar */);
+                AssertPtrReturnVoid(m_pPaneVMActivityOverview);
+                {
+#ifndef VBOX_WS_MAC
+                    const int iMargin = qApp->style()->pixelMetric(QStyle::PM_LayoutLeftMargin) / 4;
+                    m_pPaneVMActivityOverview->setContentsMargins(iMargin, 0, iMargin, 0);
+#endif
+
+                    /* Configure pane: */
+                    m_pPaneVMActivityOverview->setProperty("ToolType", QVariant::fromValue(UIToolType_VMActivityOverview));
+                    connect(m_pPaneVMActivityOverview, &UIVMActivityOverviewWidget::sigSwitchToMachineActivityPane,
+                            this, &UIToolPaneGlobal::sigSwitchToMachineActivityPane);
+
+                    /* Add into layout: */
+                    m_pLayout->addWidget(m_pPaneVMActivityOverview);
+                    m_pLayout->setCurrentWidget(m_pPaneVMActivityOverview);
+                }
+
+                break;
+            }
             default:
                 AssertFailedReturnVoid();
         }
     }
+
+    /* Handle token change: */
+    handleTokenChange();
 }
 
 void UIToolPaneGlobal::closeTool(UIToolType enmType)
@@ -186,10 +258,11 @@ void UIToolPaneGlobal::closeTool(UIToolType enmType)
         /* Forget corresponding widget: */
         switch (enmType)
         {
-            case UIToolType_Welcome: m_pPaneWelcome = 0; break;
-            case UIToolType_Media:   m_pPaneMedia = 0; break;
-            case UIToolType_Network: m_pPaneNetwork = 0; break;
-            case UIToolType_Cloud:   m_pPaneCloud = 0; break;
+            case UIToolType_Welcome:    m_pPaneWelcome = 0; break;
+            case UIToolType_Extensions: m_pPaneExtensions = 0; break;
+            case UIToolType_Media:      m_pPaneMedia = 0; break;
+            case UIToolType_Network:    m_pPaneNetwork = 0; break;
+            case UIToolType_Cloud:      m_pPaneCloud = 0; break;
             default: break;
         }
         /* Delete corresponding widget: */
@@ -197,6 +270,39 @@ void UIToolPaneGlobal::closeTool(UIToolType enmType)
         m_pLayout->removeWidget(pWidget);
         delete pWidget;
     }
+
+    /* Handle token change: */
+    handleTokenChange();
+}
+
+QString UIToolPaneGlobal::currentHelpKeyword() const
+{
+    QWidget *pCurrentToolWidget = 0;
+    //UIToolType currentTool() const;
+    switch (currentTool())
+    {
+        case UIToolType_Welcome:
+            pCurrentToolWidget = m_pPaneWelcome;
+            break;
+        case UIToolType_Extensions:
+            pCurrentToolWidget = m_pPaneExtensions;
+            break;
+        case UIToolType_Media:
+            pCurrentToolWidget = m_pPaneMedia;
+            break;
+        case UIToolType_Network:
+            pCurrentToolWidget = m_pPaneNetwork;
+            break;
+        case UIToolType_Cloud:
+            pCurrentToolWidget = m_pPaneCloud;
+            break;
+        case UIToolType_VMActivityOverview:
+            pCurrentToolWidget = m_pPaneVMActivityOverview;
+            break;
+        default:
+            break;
+    }
+    return uiCommon().helpKeyword(pCurrentToolWidget);
 }
 
 void UIToolPaneGlobal::prepare()
@@ -217,4 +323,11 @@ void UIToolPaneGlobal::cleanup()
         m_pLayout->removeWidget(pWidget);
         delete pWidget;
     }
+}
+
+void UIToolPaneGlobal::handleTokenChange()
+{
+    /* Determine whether resource monitor is currently active tool: */
+    if (m_pPaneVMActivityOverview)
+        m_pPaneVMActivityOverview->setIsCurrentTool(m_fActive && currentTool() == UIToolType_VMActivityOverview);
 }

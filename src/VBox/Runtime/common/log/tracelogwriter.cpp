@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -858,8 +868,11 @@ RTDECL(int) RTTraceLogWrCreateTcpClient(PRTTRACELOGWR phTraceLogWr, const char *
 
 RTDECL(int) RTTraceLogWrDestroy(RTTRACELOGWR hTraceLogWr)
 {
+    if (hTraceLogWr == NIL_RTTRACELOGWR)
+        return VINF_SUCCESS;
     PRTTRACELOGWRINT pThis = hTraceLogWr;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTTRACELOGWR_MAGIC, VERR_INVALID_HANDLE);
 
     pThis->u32Magic = RTTRACELOGWR_MAGIC_DEAD;
     pThis->pfnStreamClose(pThis->pvUser);
@@ -874,6 +887,7 @@ RTDECL(int) RTTraceLogWrAddEvtDesc(RTTRACELOGWR hTraceLogWr, PCRTTRACELOGEVTDESC
 {
     PRTTRACELOGWRINT pThis = hTraceLogWr;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTTRACELOGWR_MAGIC, VERR_INVALID_HANDLE);
     AssertPtrReturn(pEvtDesc, VERR_INVALID_POINTER);
 
     return rtTraceLogWrEvtDescAdd(pThis, pEvtDesc, NULL);
@@ -886,6 +900,7 @@ RTDECL(int) RTTraceLogWrEvtAdd(RTTRACELOGWR hTraceLogWr, PCRTTRACELOGEVTDESC pEv
 {
     PRTTRACELOGWRINT pThis = hTraceLogWr;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTTRACELOGWR_MAGIC, VERR_INVALID_HANDLE);
 
     int rc = VINF_SUCCESS;
     PRTTRACELOGWREVTDESC pEvtDescInt = rtTraceLogWrEvtDescGetInternal(pThis, pEvtDesc);
@@ -893,7 +908,7 @@ RTDECL(int) RTTraceLogWrEvtAdd(RTTRACELOGWR hTraceLogWr, PCRTTRACELOGEVTDESC pEv
         rc = rtTraceLogWrEvtDescAdd(pThis, pEvtDesc, &pEvtDescInt);
 
     if (   RT_SUCCESS(rc)
-        && VALID_PTR(pEvtDescInt))
+        && RT_VALID_PTR(pEvtDescInt))
     {
         TRACELOGEVT Evt;
         size_t cbEvtData = rtTraceLogWrEvtInit(&Evt, pEvtDescInt, fFlags, uGrpId, uParentGrpId, pacbRawData);
@@ -919,6 +934,7 @@ RTDECL(int) RTTraceLogWrEvtAddLV(RTTRACELOGWR hTraceLogWr, PCRTTRACELOGEVTDESC p
 {
     PRTTRACELOGWRINT pThis = hTraceLogWr;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTTRACELOGWR_MAGIC, VERR_INVALID_HANDLE);
 
     int rc = VINF_SUCCESS;
     PRTTRACELOGWREVTDESC pEvtDescInt = rtTraceLogWrEvtDescGetInternal(pThis, pEvtDesc);
@@ -926,7 +942,7 @@ RTDECL(int) RTTraceLogWrEvtAddLV(RTTRACELOGWR hTraceLogWr, PCRTTRACELOGEVTDESC p
         rc = rtTraceLogWrEvtDescAdd(pThis, pEvtDesc, &pEvtDescInt);
 
     if (   RT_SUCCESS(rc)
-        && VALID_PTR(pEvtDescInt))
+        && RT_VALID_PTR(pEvtDescInt))
     {
         TRACELOGEVT Evt;
         size_t cbEvtData = rtTraceLogWrEvtInit(&Evt, pEvtDescInt, fFlags, uGrpId, uParentGrpId, NULL);

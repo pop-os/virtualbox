@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -289,8 +299,11 @@ typedef struct DMIMEMORYDEV
     uint8_t         u8PartNumber;
     /* v2.6+ */
     uint8_t         u8Attributes;
+    /* v2.7+ */
+    uint32_t        u32ExtendedSize;
+    uint16_t        u16CfgSpeed;    /* Configured speed in MT/sec. */
 } *PDMIMEMORYDEV;
-AssertCompileSize(DMIMEMORYDEV, 28);
+AssertCompileSize(DMIMEMORYDEV, 34);
 
 /** MPS floating pointer structure */
 typedef struct MPSFLOATPTR
@@ -485,7 +498,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
                 return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS, \
                                            N_("Configuration error: Querying \"" name "\" as a string failed")); \
             } \
-            else if (!strcmp(szBuf, "<EMPTY>")) \
+            if (!strcmp(szBuf, "<EMPTY>")) \
                 pszTmp = ""; \
             else \
                 pszTmp = szBuf; \
@@ -495,10 +508,9 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         else \
         { \
             variable = iStrNr++; \
-            size_t cStr = strlen(pszTmp) + 1; \
-            DMI_CHECK_SIZE(cStr); \
-            memcpy(pszStr, pszTmp, cStr); \
-            pszStr += cStr ; \
+            size_t const cbStr = strlen(pszTmp) + 1; \
+            DMI_CHECK_SIZE(cbStr); \
+            pszStr = (char *)mempcpy(pszStr, pszTmp, cbStr); \
         } \
     }
 
@@ -525,16 +537,23 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         } \
     }
 
-#define DMI_START_STRUCT(tbl) \
-        pszStr                       = (char *)(tbl + 1); \
-        iStrNr                       = 1;
+#define DMI_START_STRUCT(a_pTbl) do { \
+        pszStr = (char *)((a_pTbl) + 1); \
+        iStrNr = 1; \
+    } while (0)
 
-#define DMI_TERM_STRUCT \
-    { \
+#if 0 /* GCC 11.2.1 barfs on this: error: writing 1 byte into a region of size 0 [-Werror=stringop-overflow=] */
+# define DMI_TERM_STRUCT do { \
         *pszStr++                    = '\0'; /* terminate set of text strings */ \
         if (iStrNr == 1) \
             *pszStr++                = '\0'; /* terminate a structure without strings */ \
-    }
+    } while (0)
+#else
+# define DMI_TERM_STRUCT do { \
+        size_t const cbToZero = iStrNr == 1 ? 2 : 1; \
+        pszStr = (char *)memset(pszStr, 0, cbToZero) + cbToZero; \
+    } while (0)
+#endif
 
     bool fForceDefault = false;
 #ifdef VBOX_BIOS_DMI_FALLBACK
@@ -726,7 +745,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
          ********************************************/
         PDMICHASSIS pChassis         = (PDMICHASSIS)pszStr;
         DMI_CHECK_SIZE(sizeof(*pChassis));
-        pszStr                       = (char*)&pChassis->u32OEMdefined;
+        pszStr                       = (char *)&pChassis->u32OEMdefined;
         iStrNr                       = 1;
 #ifdef VBOX_WITH_DMI_CHASSIS
         pChassis->header.u8Type      = 3; /* System Enclosure or Chassis */
@@ -777,10 +796,9 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         RTStrPrintf(szSocket, sizeof(szSocket), "Socket #%u", 0);
         pProcessorInf->u8SocketDesignation = iStrNr++;
         {
-            size_t cStr = strlen(szSocket) + 1;
-            DMI_CHECK_SIZE(cStr);
-            memcpy(pszStr, szSocket, cStr);
-            pszStr += cStr;
+            size_t const cbStr = strlen(szSocket) + 1;
+            DMI_CHECK_SIZE(cbStr);
+            pszStr = (char *)mempcpy(pszStr, szSocket, cbStr);
         }
         pProcessorInf->u8ProcessorType     = 0x03; /* Central Processor */
         pProcessorInf->u8ProcessorFamily   = 0xB1; /* Pentium III with Intel SpeedStep(TM) */
@@ -822,7 +840,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         /***************************************
          * DMI Physical Memory Array (Type 16) *
          ***************************************/
-        uint64_t const  cbRamSize = MMR3PhysGetRamSize(PDMDevHlpGetVM(pDevIns));
+        uint64_t const  cbRamSize = PDMDevHlpMMPhysGetRamSize(pDevIns);
 
         PDMIRAMARRAY pMemArray = (PDMIRAMARRAY)pszStr;
         DMI_CHECK_SIZE(sizeof(*pMemArray));
@@ -867,19 +885,32 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         pMemDev->u16TotalWidth           = 0xffff; /* Unknown */
         pMemDev->u16DataWidth            = 0xffff; /* Unknown */
         int16_t u16RamSizeM;
+        int32_t u32ExtRamSizeM = 0;
         if (cbRamSize / _1M > INT16_MAX)
         {
-            /** @todo 32G-1M limit. Provide multiple type-17 descriptors.
-             * The highest bit of u16Size must be 0 to specify 'GB' units / 1 would be 'KB' */
-            AssertLogRelMsgFailed(("DMI: RAM size %#RX64 too big for one type-17 descriptor, clipping to %#RX64\n",
-                                   cbRamSize, (uint64_t)INT16_MAX * _1M));
+            /* The highest bit of u16Size must be 0 to specify 'MB' units / 1 would be 'KB'.
+             * SMBIOS 2.7 introduced a 32-bit extended size. If module size is 32GB or greater,
+             * the old u16Size is set to 7FFFh; old parsers will see 32GB-1MB, new parsers will
+             * look at new u32ExtendedSize which can represent at least 128TB. OS X 10.14+ looks
+             * at the extended size.
+             */
+            LogRel(("DMI: RAM size %#RX64 too big for one type-17 descriptor, clipping to %#RX64\n",
+                    cbRamSize, (uint64_t)INT16_MAX * _1M));
             u16RamSizeM = INT16_MAX;
+            if (cbRamSize / _1M >= 0x8000000) {
+                AssertLogRelMsgFailed(("DMI: RAM size %#RX64 too big for one type-17 descriptor, clipping to %#RX64\n",
+                                       cbRamSize, (uint64_t)INT32_MAX * _1M));
+                u32ExtRamSizeM = 0x8000000; /* 128TB */
+            }
+            else
+                u32ExtRamSizeM = cbRamSize / _1M;
         }
         else
             u16RamSizeM = (uint16_t)(cbRamSize / _1M);
         if (u16RamSizeM == 0)
             u16RamSizeM = 0x400; /* 1G */
         pMemDev->u16Size                 = u16RamSizeM; /* RAM size */
+        pMemDev->u32ExtendedSize         = u32ExtRamSizeM;
         pMemDev->u8FormFactor            = 0x09; /* DIMM */
         pMemDev->u8DeviceSet             = 0x00; /* Not part of a device set */
         DMI_READ_CFG_STR_DEF(pMemDev->u8DeviceLocator, " ", "DIMM 0");
@@ -926,7 +957,7 @@ int FwCommonPlantDMITable(PPDMDEVINS pDevIns, uint8_t *pTable, unsigned cbMax, P
         pOEMSpecific->header.u8Type    = 0x80; /* OEM specific */
         pOEMSpecific->header.u8Length  = sizeof(*pOEMSpecific);
         pOEMSpecific->header.u16Handle = 0x0008; /* Just next free handle */
-        pOEMSpecific->u32CpuFreqKHz    = RT_H2LE_U32((uint32_t)((uint64_t)TMCpuTicksPerSecond(PDMDevHlpGetVM(pDevIns)) / 1000));
+        pOEMSpecific->u32CpuFreqKHz    = RT_H2LE_U32((uint32_t)((uint64_t)PDMDevHlpTMCpuTicksPerSecond(pDevIns) / 1000));
         DMI_TERM_STRUCT;
 
         /* End-of-table marker - includes padding to account for fixed table size. */

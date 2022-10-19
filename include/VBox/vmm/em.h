@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_em_h
@@ -115,16 +125,16 @@ VMM_INT_DECL(void)              EMSetState(PVMCPU pVCpu, EMSTATE enmNewState);
  * These are placed here because IOM wants to use them as well.
  * @{
  */
-typedef DECLCALLBACK(uint32_t)  FNEMULATEPARAM2UINT32(void *pvParam1, uint64_t val2);
-typedef FNEMULATEPARAM2UINT32  *PFNEMULATEPARAM2UINT32;
-typedef DECLCALLBACK(uint32_t)  FNEMULATEPARAM2(void *pvParam1, size_t val2);
-typedef FNEMULATEPARAM2        *PFNEMULATEPARAM2;
-typedef DECLCALLBACK(uint32_t)  FNEMULATEPARAM3(void *pvParam1, uint64_t val2, size_t val3);
-typedef FNEMULATEPARAM3        *PFNEMULATEPARAM3;
-typedef DECLCALLBACK(int)       FNEMULATELOCKPARAM2(void *pvParam1, uint64_t val2, RTGCUINTREG32 *pf);
-typedef FNEMULATELOCKPARAM2    *PFNEMULATELOCKPARAM2;
-typedef DECLCALLBACK(int)       FNEMULATELOCKPARAM3(void *pvParam1, uint64_t val2, size_t cb, RTGCUINTREG32 *pf);
-typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
+typedef DECLCALLBACKTYPE(uint32_t, FNEMULATEPARAM2UINT32,(void *pvParam1, uint64_t val2));
+typedef FNEMULATEPARAM2UINT32    *PFNEMULATEPARAM2UINT32;
+typedef DECLCALLBACKTYPE(uint32_t, FNEMULATEPARAM2,(void *pvParam1, size_t val2));
+typedef FNEMULATEPARAM2          *PFNEMULATEPARAM2;
+typedef DECLCALLBACKTYPE(uint32_t, FNEMULATEPARAM3,(void *pvParam1, uint64_t val2, size_t val3));
+typedef FNEMULATEPARAM3          *PFNEMULATEPARAM3;
+typedef DECLCALLBACKTYPE(int, FNEMULATELOCKPARAM2,(void *pvParam1, uint64_t val2, RTGCUINTREG32 *pf));
+typedef FNEMULATELOCKPARAM2 *PFNEMULATELOCKPARAM2;
+typedef DECLCALLBACKTYPE(int, FNEMULATELOCKPARAM3,(void *pvParam1, uint64_t val2, size_t cb, RTGCUINTREG32 *pf));
+typedef FNEMULATELOCKPARAM3 *PFNEMULATELOCKPARAM3;
 /** @}  */
 
 VMMDECL(void)                   EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC);
@@ -165,6 +175,8 @@ typedef enum EMEXITTYPE
     EMEXITTYPE_RDTSC,
     EMEXITTYPE_MOV_CRX,
     EMEXITTYPE_MOV_DRX,
+    EMEXITTYPE_VMREAD,
+    EMEXITTYPE_VMWRITE,
 
     /** @name Raw-mode only (for now), keep at end.
      * @{  */
@@ -250,9 +262,7 @@ VMM_INT_DECL(PCEMEXITREC)       EMHistoryAddExit(PVMCPUCC pVCpu, uint32_t uFlags
 VMMRC_INT_DECL(void)            EMRCHistoryAddExitCsEip(PVMCPU pVCpu, uint32_t uFlagsAndType, uint16_t uCs, uint32_t uEip,
                                                         uint64_t uTimestamp);
 #endif
-#ifdef IN_RING0
-VMMR0_INT_DECL(void)            EMR0HistoryUpdatePC(PVMCPU pVCpu, uint64_t uFlatPC, bool fFlattened);
-#endif
+VMM_INT_DECL(void)              EMHistoryUpdatePC(PVMCPUCC pVCpu, uint64_t uFlatPC, bool fFlattened);
 VMM_INT_DECL(PCEMEXITREC)       EMHistoryUpdateFlagsAndType(PVMCPUCC pVCpu, uint32_t uFlagsAndType);
 VMM_INT_DECL(PCEMEXITREC)       EMHistoryUpdateFlagsAndTypeAndPC(PVMCPUCC pVCpu, uint32_t uFlagsAndType, uint64_t uFlatPC);
 VMM_INT_DECL(VBOXSTRICTRC)      EMHistoryExec(PVMCPUCC pVCpu, PCEMEXITREC pExitRec, uint32_t fWillExit);
@@ -327,7 +337,7 @@ VMMR3_INT_DECL(void)            EMR3Relocate(PVM pVM);
 VMMR3_INT_DECL(void)            EMR3ResetCpu(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)            EMR3Reset(PVM pVM);
 VMMR3_INT_DECL(int)             EMR3Term(PVM pVM);
-VMMR3DECL(DECLNORETURN(void))   EMR3FatalError(PVMCPU pVCpu, int rc);
+VMMR3DECL(DECL_NO_RETURN(void)) EMR3FatalError(PVMCPU pVCpu, int rc);
 VMMR3_INT_DECL(int)             EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(int)             EMR3CheckRawForcedActions(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(VBOXSTRICTRC)    EMR3HmSingleInstruction(PVM pVM, PVMCPU pVCpu, uint32_t fFlags);

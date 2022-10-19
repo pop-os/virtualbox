@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_EmulatedUSBImpl_h
@@ -22,6 +32,8 @@
 #endif
 
 #include "EmulatedUSBWrap.h"
+
+#include <VBox/vrdpusb.h>
 
 class Console;
 class EUSBWEBCAM;
@@ -33,7 +45,7 @@ class ATL_NO_VTABLE EmulatedUSB :
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR(EmulatedUSB)
+    DECLARE_COMMON_CLASS_METHODS(EmulatedUSB)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -46,6 +58,8 @@ public:
     static DECLCALLBACK(int) i_eusbCallback(void *pv, const char *pszId, uint32_t iEvent,
                                             const void *pvData, uint32_t cbData);
 
+    PEMULATEDUSBIF i_getEmulatedUsbIf();
+
     HRESULT i_webcamAttachInternal(const com::Utf8Str &aPath,
                                    const com::Utf8Str &aSettings,
                                    const char *pszDriver,
@@ -56,6 +70,8 @@ private:
 
     static DECLCALLBACK(int) eusbCallbackEMT(EmulatedUSB *pThis, char *pszId, uint32_t iEvent,
                                              void *pvData, uint32_t cbData);
+
+    static DECLCALLBACK(int) i_QueryEmulatedUsbDataById(void *pvUser, const char *pszId, void **ppvEmUsbCb, void **ppvEmUsbCbData, void **ppvObject);
 
     HRESULT webcamPathFromId(com::Utf8Str *pPath, const char *pszId);
 
@@ -79,6 +95,7 @@ private:
     };
 
     Data m;
+    EMULATEDUSBIF mEmUsbIf;
 };
 
 #endif /* !MAIN_INCLUDED_EmulatedUSBImpl_h */

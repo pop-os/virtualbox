@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -20,6 +30,7 @@
 
 /* GUI includes: */
 #include "UICommon.h"
+#include "UIDesktopWidgetWatchdog.h"
 #include "UISlidingToolBar.h"
 #include "UIAnimationFramework.h"
 #include "UIMachineWindow.h"
@@ -164,7 +175,7 @@ void UISlidingToolBar::prepareContents()
             {
                 /* Configure child-widget: */
                 QPalette pal2 = m_pWidget->palette();
-                pal2.setColor(QPalette::Window, palette().color(QPalette::Window));
+                pal2.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
                 m_pWidget->setPalette(pal2);
                 /* Using abstract (old-style) connection here(!) since the base classes can be different: */
                 connect(m_pWidget, SIGNAL(sigCancelClicked()), this, SLOT(close()));
@@ -186,14 +197,14 @@ void UISlidingToolBar::prepareGeometry()
     {
         case Position_Top:
         {
-            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
+            UIDesktopWidgetWatchdog::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             m_pWidget->setGeometry(0, -sh.height(), qMax(width(), sh.width()), sh.height());
             break;
         }
         case Position_Bottom:
         {
-            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
+            UIDesktopWidgetWatchdog::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             m_pWidget->setGeometry(0,  sh.height(), qMax(width(), sh.width()), sh.height());
             break;
@@ -244,13 +255,13 @@ void UISlidingToolBar::adjustGeometry()
     {
         case Position_Top:
         {
-            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
+            UIDesktopWidgetWatchdog::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y()                         + m_indentRect.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             break;
         }
         case Position_Bottom:
         {
-            UICommon::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
+            UIDesktopWidgetWatchdog::setTopLevelGeometry(this, m_parentRect.x(), m_parentRect.y() + m_parentRect.height() - m_indentRect.height() - sh.height(),
                                                   qMax(m_parentRect.width(), sh.width()), sh.height());
             break;
         }

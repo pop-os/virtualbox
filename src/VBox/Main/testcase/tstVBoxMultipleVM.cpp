@@ -3,15 +3,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -86,9 +96,9 @@ static HRESULT tstComExpr(HRESULT hrc, const char *pszOperation, int iLine)
 
 #define CHECK_ERROR_L(iface, method) \
     do { \
-        rc = iface->method; \
-        if (FAILED(rc)) \
-            RTPrintf("warning: %s->%s failed on line %u with hrc=%Rhrc\n", #iface, #method, __LINE__, rc);\
+        hrc = iface->method; \
+        if (FAILED(hrc)) \
+            RTPrintf("warning: %s->%s failed on line %u with hrc=%Rhrc\n", #iface, #method, __LINE__, hrc);\
     } while (0)
 
 
@@ -99,32 +109,32 @@ static HRESULT tstComExpr(HRESULT hrc, const char *pszOperation, int iLine)
 
 static int tstStartVM(IVirtualBox *pVBox, ISession *pSession, Bstr machineID, bool fSkipUnlock)
 {
-    HRESULT rc;
+    HRESULT hrc;
     ComPtr<IProgress> progress;
     ComPtr<IMachine> machine;
     Bstr machineName;
 
-    rc = TST_COM_EXPR(pVBox->FindMachine(machineID.raw(), machine.asOutParam()));
-    if(SUCCEEDED(rc))
-        rc = TST_COM_EXPR(machine->COMGETTER(Name)(machineName.asOutParam()));
-    if(SUCCEEDED(rc))
+    hrc = TST_COM_EXPR(pVBox->FindMachine(machineID.raw(), machine.asOutParam()));
+    if(SUCCEEDED(hrc))
+        hrc = TST_COM_EXPR(machine->COMGETTER(Name)(machineName.asOutParam()));
+    if(SUCCEEDED(hrc))
     {
-        rc = machine->LaunchVMProcess(pSession, Bstr("headless").raw(),
+        hrc = machine->LaunchVMProcess(pSession, Bstr("headless").raw(),
                                       ComSafeArrayNullInParam(), progress.asOutParam());
     }
-    if (SUCCEEDED(rc) && !progress.isNull())
+    if (SUCCEEDED(hrc) && !progress.isNull())
     {
         CHECK_ERROR_L(progress, WaitForCompletion(-1));
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
         {
             BOOL completed = true;
             CHECK_ERROR_L(progress, COMGETTER(Completed)(&completed));
-            if (SUCCEEDED(rc))
+            if (SUCCEEDED(hrc))
             {
                 Assert(completed);
                 LONG iRc;
                 CHECK_ERROR_L(progress, COMGETTER(ResultCode)(&iRc));
-                if (SUCCEEDED(rc))
+                if (SUCCEEDED(hrc))
                 {
                     if (FAILED(iRc))
                     {
@@ -141,55 +151,55 @@ static int tstStartVM(IVirtualBox *pVBox, ISession *pSession, Bstr machineID, bo
         else
             RTPrintf("Session unlock skipped.\n");
     }
-    return rc;
+    return hrc;
 }
 
 
 static int tstStopVM(IVirtualBox* pVBox, ISession* pSession, Bstr machineID, bool fSkipUnlock)
 {
     ComPtr<IMachine> machine;
-    HRESULT rc = TST_COM_EXPR(pVBox->FindMachine(machineID.raw(), machine.asOutParam()));
-    if (SUCCEEDED(rc))
+    HRESULT hrc = TST_COM_EXPR(pVBox->FindMachine(machineID.raw(), machine.asOutParam()));
+    if (SUCCEEDED(hrc))
     {
         Bstr machineName;
-        rc = TST_COM_EXPR(machine->COMGETTER(Name)(machineName.asOutParam()));
-        if (SUCCEEDED(rc))
+        hrc = TST_COM_EXPR(machine->COMGETTER(Name)(machineName.asOutParam()));
+        if (SUCCEEDED(hrc))
         {
             MachineState_T machineState;
-            rc = TST_COM_EXPR(machine->COMGETTER(State)(&machineState));
+            hrc = TST_COM_EXPR(machine->COMGETTER(State)(&machineState));
             // check that machine is in running state
-            if (   SUCCEEDED(rc)
+            if (   SUCCEEDED(hrc)
                 && (   machineState == MachineState_Running
                     || machineState == MachineState_Paused))
             {
                 ComPtr<IConsole> console;
                 ComPtr<IProgress> progress;
 
-                rc = TST_COM_EXPR(machine->LockMachine(pSession, LockType_Shared));
-                if(SUCCEEDED(rc))
+                hrc = TST_COM_EXPR(machine->LockMachine(pSession, LockType_Shared));
+                if(SUCCEEDED(hrc))
                     TST_COM_EXPR(pSession->COMGETTER(Console)(console.asOutParam()));
-                if(SUCCEEDED(rc))
-                    rc = console->PowerDown(progress.asOutParam());
-                if (SUCCEEDED(rc) && !progress.isNull())
+                if(SUCCEEDED(hrc))
+                    hrc = console->PowerDown(progress.asOutParam());
+                if (SUCCEEDED(hrc) && !progress.isNull())
                 {
                     //RTPrintf("Stopping VM %ls...\n", machineName.raw());
                     CHECK_ERROR_L(progress, WaitForCompletion(-1));
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                     {
                         BOOL completed = true;
                         CHECK_ERROR_L(progress, COMGETTER(Completed)(&completed));
-                        if (SUCCEEDED(rc))
+                        if (SUCCEEDED(hrc))
                         {
                             //ASSERT(completed);
                             LONG iRc;
                             CHECK_ERROR_L(progress, COMGETTER(ResultCode)(&iRc));
-                            if (SUCCEEDED(rc))
+                            if (SUCCEEDED(hrc))
                             {
                                 if (FAILED(iRc))
                                 {
                                     ProgressErrorInfo info(progress);
                                     RTPrintf("Stop VM %ls failed. Warning: %ls.\n", machineName.raw(), info.getText().raw());
-                                    rc = iRc;
+                                    hrc = iRc;
                                 }
                                 else
                                 {
@@ -206,7 +216,7 @@ static int tstStopVM(IVirtualBox* pVBox, ISession* pSession, Bstr machineID, boo
             }
         }
     }
-    return rc;
+    return hrc;
 }
 
 
@@ -218,8 +228,8 @@ static int tstStopVM(IVirtualBox* pVBox, ISession* pSession, Bstr machineID, boo
 static int tstGetMachinesList(IVirtualBox *pVBox, uint32_t maxCount, TMachinesList &listToFill)
 {
     com::SafeIfaceArray<IMachine> machines;
-    HRESULT rc = TST_COM_EXPR(pVBox->COMGETTER(Machines)(ComSafeArrayAsOutParam(machines)));
-    if (SUCCEEDED(rc))
+    HRESULT hrc = TST_COM_EXPR(pVBox->COMGETTER(Machines)(ComSafeArrayAsOutParam(machines)));
+    if (SUCCEEDED(hrc))
     {
 
         size_t cMachines = RT_MIN(machines.size(), maxCount);
@@ -232,9 +242,9 @@ static int tstGetMachinesList(IVirtualBox *pVBox, uint32_t maxCount, TMachinesLi
                 Bstr bstrId;
                 Bstr machineName;
                 CHECK_ERROR_L(machines[idx], COMGETTER(Id)(bstrId.asOutParam()));
-                if (SUCCEEDED(rc))
+                if (SUCCEEDED(hrc))
                     CHECK_ERROR_L(machines[idx], COMGETTER(Name)(machineName.asOutParam()));
-                if (SUCCEEDED(rc))
+                if (SUCCEEDED(hrc))
                 {
                     if (Utf8Str(machineName).startsWith("umtvm"))
                         listToFill.push_back(bstrId);
@@ -248,13 +258,13 @@ static int tstGetMachinesList(IVirtualBox *pVBox, uint32_t maxCount, TMachinesLi
         RTPrintf("Filled pack of %d from %d machines.\n", listToFill.size(), machines.size());
     }
 
-    return rc;
+    return hrc;
 }
 
 
 static int tstMachinesPack(IVirtualBox *pVBox, uint32_t maxPackSize, uint32_t percentage)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     TMachinesList machinesList;
     bool alwaysUnlock = false;
     uint64_t percN = 0;
@@ -276,10 +286,10 @@ static int tstMachinesPack(IVirtualBox *pVBox, uint32_t maxPackSize, uint32_t pe
          ++it)
     {
         ComPtr<ISession> session;
-        rc = session.createInprocObject(CLSID_Session);
-        if (SUCCEEDED(rc))
+        hrc = session.createInprocObject(CLSID_Session);
+        if (SUCCEEDED(hrc))
         {
-            rc = tstStartVM(pVBox, session, *it, !(alwaysUnlock || g_Counter++ % percN));
+            hrc = tstStartVM(pVBox, session, *it, !(alwaysUnlock || g_Counter++ % percN));
         }
         RTSemEventSignal(g_PingEevent);
         RTThreadSleep(100);
@@ -290,16 +300,16 @@ static int tstMachinesPack(IVirtualBox *pVBox, uint32_t maxPackSize, uint32_t pe
          ++it)
     {
         ComPtr<ISession> session;
-        rc = session.createInprocObject(CLSID_Session);
-        if (SUCCEEDED(rc))
+        hrc = session.createInprocObject(CLSID_Session);
+        if (SUCCEEDED(hrc))
         {
             // stop machines, skip session unlock of given % of machines
-            rc = tstStopVM(pVBox, session, *it, !(alwaysUnlock || g_Counter++ % percN));
+            hrc = tstStopVM(pVBox, session, *it, !(alwaysUnlock || g_Counter++ % percN));
         }
         RTSemEventSignal(g_PingEevent);
         RTThreadSleep(100);
     }
-    return rc;
+    return hrc;
 }
 
 
@@ -313,7 +323,7 @@ static Bstr tstMakeMachineName(int i)
 
 static int tstCreateMachines(IVirtualBox *pVBox)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     // create machines for the test
     for (uint32_t i = 0; i < g_Args.numberMachines; i++)
     {
@@ -326,9 +336,12 @@ static int tstCreateMachines(IVirtualBox *pVBox)
                                          machineName.raw(),             /* Name */
                                          ComSafeArrayAsInParam(groups), /* Groups */
                                          NULL,                          /* OS Type */
+                                         NULL,                          /** Cipher */
+                                         NULL,                          /** Password id */
+                                         NULL,                          /** Password */
                                          NULL,                          /* Create flags */
                                          ptrMachine.asOutParam()));
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
         {
             CHECK_ERROR_L(pVBox, RegisterMachine(ptrMachine));
             RTPrintf("Machine '%ls' created\n", machineName.raw());
@@ -337,14 +350,14 @@ static int tstCreateMachines(IVirtualBox *pVBox)
         RTSemEventSignal(g_PingEevent);
         RTThreadSleep(100);
     }
-    return rc;
+    return hrc;
 }
 
 
 static int tstClean(IVirtualBox *pVBox, IVirtualBoxClient *pClient)
 {
-    NOREF(pClient);
-    HRESULT rc = S_OK;
+    RT_NOREF(pClient);
+    HRESULT hrc = S_OK;
 
     // stop all machines created for the test
     for (uint32_t i = 0; i < g_Args.numberMachines; i++)
@@ -360,30 +373,30 @@ static int tstClean(IVirtualBox *pVBox, IVirtualBoxClient *pClient)
         CHECK_ERROR_L(pVBox, FindMachine(machineName.raw(), machine.asOutParam()));
 
         // try to stop it again if it was not stopped
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
         {
             MachineState_T machineState;
             CHECK_ERROR_L(machine, COMGETTER(State)(&machineState));
-            if (   SUCCEEDED(rc)
+            if (   SUCCEEDED(hrc)
                 && (   machineState == MachineState_Running
                     || machineState == MachineState_Paused) )
             {
-                rc = session.createInprocObject(CLSID_Session);
-                if (SUCCEEDED(rc))
+                hrc = session.createInprocObject(CLSID_Session);
+                if (SUCCEEDED(hrc))
                     tstStopVM(pVBox, session, machineName, FALSE);
             }
         }
 
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             CHECK_ERROR_L(machine, Unregister(CleanupMode_DetachAllReturnHardDisksOnly, ComSafeArrayAsOutParam(media)));
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             CHECK_ERROR_L(machine, DeleteConfig(ComSafeArrayAsInParam(media), progress.asOutParam()));
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             CHECK_ERROR_L(progress, WaitForCompletion(-1));
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             RTPrintf("Machine '%ls' deleted.\n", machineName.raw());
     }
-    return rc;
+    return hrc;
 }
 
 
@@ -395,23 +408,23 @@ static DECLCALLBACK(int) tstThreadRun(RTTHREAD hThreadSelf, void *pvUser)
     uint32_t maxPackSize = args->machinesPackSize;
     uint32_t percentage = args->percentsUnlok;
 
-    HRESULT rc = com::Initialize();
-    if (SUCCEEDED(rc))
+    HRESULT hrc = com::Initialize();
+    if (SUCCEEDED(hrc))
     {
         ComPtr<IVirtualBoxClient> ptrVBoxClient;
         ComPtr<IVirtualBox> ptrVBox;
 
-        rc = TST_COM_EXPR(ptrVBoxClient.createInprocObject(CLSID_VirtualBoxClient));
-        if (SUCCEEDED(rc))
-            rc = TST_COM_EXPR(ptrVBoxClient->COMGETTER(VirtualBox)(ptrVBox.asOutParam()));
-        if (SUCCEEDED(rc))
+        hrc = TST_COM_EXPR(ptrVBoxClient.createInprocObject(CLSID_VirtualBoxClient));
+        if (SUCCEEDED(hrc))
+            hrc = TST_COM_EXPR(ptrVBoxClient->COMGETTER(VirtualBox)(ptrVBox.asOutParam()));
+        if (SUCCEEDED(hrc))
         {
             RTPrintf("Creating machines...\n");
             tstCreateMachines(ptrVBox);
 
             while (g_RunTest)
             {
-                rc = tstMachinesPack(ptrVBox, maxPackSize, percentage);
+                hrc = tstMachinesPack(ptrVBox, maxPackSize, percentage);
             }
 
             RTPrintf("Deleting machines...\n");
@@ -426,7 +439,7 @@ static DECLCALLBACK(int) tstThreadRun(RTTHREAD hThreadSelf, void *pvUser)
         ptrVBoxClient = NULL;
         com::Shutdown();
     }
-    return rc;
+    return hrc;
 }
 
 

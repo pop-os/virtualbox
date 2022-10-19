@@ -24,7 +24,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  */
 
 FILE_LICENCE ( GPL2_ONLY );
@@ -83,9 +84,6 @@ static struct net_device_operations skge_operations = {
 /* Avoid conditionals by using array */
 static const int txqaddr[] = { Q_XA1, Q_XA2 };
 static const int rxqaddr[] = { Q_R1, Q_R2 };
-static const u32 rxirqmask[] = { IS_R1_F, IS_R2_F };
-static const u32 txirqmask[] = { IS_XA1_F, IS_XA2_F };
-static const u32 napimask[] = { IS_R1_F|IS_XA1_F, IS_R2_F|IS_XA2_F };
 static const u32 portmask[] = { IS_PORT_1, IS_PORT_2 };
 
 /* Determine supported/advertised modes based on hardware.
@@ -1701,7 +1699,7 @@ void skge_free(struct net_device *dev)
 	free(skge->tx_ring.start);
 	skge->tx_ring.start = NULL;
 
-	free_dma(skge->mem, RING_SIZE);
+	free_phys(skge->mem, RING_SIZE);
 	skge->mem = NULL;
 	skge->dma = 0;
 }
@@ -1716,7 +1714,7 @@ static int skge_up(struct net_device *dev)
 
 	DBG2(PFX "%s: enabling interface\n", dev->name);
 
-	skge->mem = malloc_dma(RING_SIZE, SKGE_RING_ALIGN);
+	skge->mem = malloc_phys(RING_SIZE, SKGE_RING_ALIGN);
 	skge->dma = virt_to_bus(skge->mem);
 	if (!skge->mem)
 		return -ENOMEM;
@@ -1920,8 +1918,6 @@ static void skge_tx_clean(struct net_device *dev)
 
 	skge->tx_ring.to_clean = e;
 }
-
-static const u8 pause_mc_addr[ETH_ALEN] = { 0x1, 0x80, 0xc2, 0x0, 0x0, 0x1 };
 
 static inline u16 phy_length(const struct skge_hw *hw, u32 status)
 {
@@ -2350,8 +2346,9 @@ static int skge_probe(struct pci_device *pdev)
 
 	hw->pdev = pdev;
 
-	hw->regs = (unsigned long)ioremap(pci_bar_start(pdev, PCI_BASE_ADDRESS_0),
-				SKGE_REG_SIZE);
+	hw->regs = (unsigned long)pci_ioremap(pdev,
+					      pci_bar_start(pdev, PCI_BASE_ADDRESS_0),
+					      SKGE_REG_SIZE);
 	if (!hw->regs) {
 		DBG(PFX "cannot map device registers\n");
 		goto err_out_free_hw;

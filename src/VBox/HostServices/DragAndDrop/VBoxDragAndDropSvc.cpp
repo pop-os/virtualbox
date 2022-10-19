@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_svc_dnd    Drag and drop HGCM Service
@@ -146,10 +156,15 @@ private:
  */
 void DragAndDropClient::disconnect(void) RT_NOEXCEPT
 {
-    LogFlowThisFunc(("uClient=%RU32\n", m_uClientID));
+    LogFlowThisFunc(("uClient=%RU32, fDeferred=%RTbool\n", m_idClient, IsDeferred()));
 
+    /*
+     * If the client still is waiting for a message (i.e in deferred mode),
+     * complete the call with a VERR_CANCELED status so that the client (VBoxTray / VBoxClient) knows
+     * it should bail out.
+     */
     if (IsDeferred())
-        CompleteDeferred(VERR_INTERRUPTED);
+        CompleteDeferred(VERR_CANCELLED);
 
     /*
      * Let the host know.
@@ -163,7 +178,7 @@ void DragAndDropClient::disconnect(void) RT_NOEXCEPT
     {
         int rc2 = m_SvcCtx.pfnHostCallback(m_SvcCtx.pvHostData, GUEST_DND_FN_DISCONNECT, &data, sizeof(data));
         if (RT_FAILURE(rc2))
-            LogFlowFunc(("Warning: Unable to notify host about client %RU32 disconnect, rc=%Rrc\n", m_uClientID, rc2));
+            LogFlowFunc(("Warning: Unable to notify host about client %RU32 disconnect, rc=%Rrc\n", m_idClient, rc2));
         /* Not fatal. */
     }
 }
@@ -482,10 +497,6 @@ void DragAndDropService::guestCall(VBOXHGCMCALLHANDLE callHandle, uint32_t idCli
             rc = VINF_SUCCESS;
             break;
     }
-
-#ifdef DEBUG_andy
-    LogFlowFunc(("Mode (%RU32) check rc=%Rrc\n", modeGet(), rc));
-#endif
 
 #define DO_HOST_CALLBACK();                                                                   \
     if (   RT_SUCCESS(rc)                                                                     \
@@ -1039,6 +1050,8 @@ do { \
      */
     if (rc == VINF_HGCM_ASYNC_EXECUTE)
     {
+        LogFlowFunc(("Deferring client %RU32\n", idClient));
+
         try
         {
             AssertPtr(pClient);
@@ -1271,7 +1284,7 @@ DECLCALLBACK(int) DragAndDropService::progressCallback(uint32_t uStatus, uint32_
 }
 
 /**
- * @copydoc VBOXHGCMSVCLOAD
+ * @copydoc FNVBOXHGCMSVCLOAD
  */
 extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad(VBOXHGCMSVCFNTABLE *pTable)
 {

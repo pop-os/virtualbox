@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -44,9 +54,9 @@
 #endif
 
 
-/** UIToolBar reimplementation
+/** QIToolBar reimplementation
   * providing UIMiniToolBar with mini-toolbar. */
-class UIMiniToolBarPrivate : public UIToolBar
+class UIMiniToolBarPrivate : public QIToolBar
 {
     Q_OBJECT;
 
@@ -265,7 +275,7 @@ void UIMiniToolBarPrivate::paintEvent(QPaintEvent*)
         painter.setClipPath(m_shape);
     }
     QRect backgroundRect = rect();
-    QColor backgroundColor = palette().color(QPalette::Window);
+    QColor backgroundColor = QApplication::palette().color(QPalette::Window);
     QLinearGradient headerGradient(backgroundRect.bottomLeft(), backgroundRect.topLeft());
     headerGradient.setColorAt(0, backgroundColor.darker(120));
     headerGradient.setColorAt(1, backgroundColor.darker(90));
@@ -560,6 +570,7 @@ void UIMiniToolBar::sltAutoHideToggled()
 {
     /* Propagate from child: */
     setAutoHide(m_pToolbar->autoHide(), false);
+    emit sigAutoHideToggled(m_pToolbar->autoHide());
 }
 
 void UIMiniToolBar::sltHoverEnter()
@@ -816,12 +827,12 @@ void UIMiniToolBar::sltAdjust()
         case GeometryType_Full:
         {
             /* Determine whether we should use the native full-screen mode: */
-            const bool fUseNativeFullScreen = UICommon::supportsFullScreenMonitorsProtocolX11() &&
-                                              !gEDataManager->legacyFullscreenModeRequested();
+            const bool fUseNativeFullScreen =    NativeWindowSubsystem::X11SupportsFullScreenMonitorsProtocol()
+                                              && !gEDataManager->legacyFullscreenModeRequested();
             if (fUseNativeFullScreen)
             {
                 /* Tell recent window managers which host-screen this window should be mapped to: */
-                UICommon::setFullScreenMonitorX11(this, iHostScreen);
+                NativeWindowSubsystem::X11SetFullScreenMonitor(this, iHostScreen);
             }
 
             /* Set appropriate window size: */
@@ -909,7 +920,7 @@ void UIMiniToolBar::prepare()
         m_pToolbar->setAlignment(m_alignment);
         /* Configure own background: */
         QPalette pal = m_pToolbar->palette();
-        pal.setColor(QPalette::Window, palette().color(QPalette::Window));
+        pal.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
         m_pToolbar->setPalette(pal);
         /* Configure child connections: */
         connect(m_pToolbar, &UIMiniToolBarPrivate::sigResized, this, &UIMiniToolBar::sltHandleToolbarResize);
@@ -949,8 +960,8 @@ void UIMiniToolBar::prepare()
 
 #ifdef VBOX_WS_X11
     /* Hide mini-toolbar from taskbar and pager: */
-    uiCommon().setSkipTaskBarFlag(this);
-    uiCommon().setSkipPagerFlag(this);
+    NativeWindowSubsystem::X11SetSkipTaskBarFlag(this);
+    NativeWindowSubsystem::X11SetSkipPagerFlag(this);
 #endif
 }
 

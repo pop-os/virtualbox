@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -67,8 +77,8 @@ int main()
     RTEXITCODE rcExit = RTTestInitAndCreate("tstLog", &hTest);
     if (rcExit == RTEXITCODE_SUCCESS)
     {
-#if 0   /* Old tests: */
-        printf("tstLog: Requires manual inspection of the log output!\n");
+#if 0 /* Old tests: */
+        RTTestIPrintf(RTTESTLVL_ALWAYS, "Requires manual inspection of the log output!\n");
         RTLogPrintf("%%Rrc %d: %Rrc\n", VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER);
         RTLogPrintf("%%Rrs %d: %Rrs\n", VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER);
         RTLogPrintf("%%Rrf %d: %Rrf\n", VERR_INVALID_PARAMETER, VERR_INVALID_PARAMETER);
@@ -110,6 +120,19 @@ int main()
         RTLogPrintf("%%RX64: %RX64 %#RX64\n", _2E, _2E);
 
         RTLogFlush(NULL);
+
+        /* Flush tests (assumes _4K log buffer). */
+        uint32_t const cbLogBuf = _4K;
+        static char    s_szBuf[cbLogBuf * 4];
+        RTLogChangeFlags(NULL, RTLOGFLAGS_USECRLF, 0);
+        for (uint32_t i = cbLogBuf - 512; i < cbLogBuf + 512; i++)
+        {
+            memset(s_szBuf, '0' + (i % 10), i);
+            s_szBuf[i] = '\n';
+            s_szBuf[i + 1] = '\0';
+            RTLogPrintf("i=%#08x: %s", i, s_szBuf);
+            RTLogFlush(NULL);
+        }
 #endif
 
         /*

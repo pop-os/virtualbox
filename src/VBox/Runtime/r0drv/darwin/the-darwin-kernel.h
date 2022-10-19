@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_SRC_r0drv_darwin_the_darwin_kernel_h
@@ -89,6 +99,9 @@
 #include <sys/fcntl.h>
 #include <IOKit/IOTypes.h>
 #include <IOKit/IOLib.h> /* Note! Has Assert down as a function. */
+#define _OS_OSUNSERIALIZE_H /* HACK ALERT! Block importing OSUnserialized.h as it causes compilation trouble with
+                               newer clang versions and the 10.15 SDK, and we really don't need it. Sample error:
+                               libkern/c++/OSUnserialize.h:72:2: error: use of OSPtr outside of a return type [-Werror,-Wossharedptr-misuse] */
 #include <IOKit/IOMemoryDescriptor.h>
 #include <IOKit/IOBufferMemoryDescriptor.h>
 #include <IOKit/IOMapper.h>
@@ -202,12 +215,12 @@ RT_C_DECLS_BEGIN
 /* initterm-r0drv-darwin.cpp. */
 typedef uint32_t *  (*PFNR0DARWINASTPENDING)(void);
 typedef void        (*PFNR0DARWINCPUINTERRUPT)(int);
-extern lck_grp_t                  *g_pDarwinLockGroup;
-extern PFNR0DARWINASTPENDING       g_pfnR0DarwinAstPending;
-extern PFNR0DARWINCPUINTERRUPT     g_pfnR0DarwinCpuInterrupt;
+extern DECL_HIDDEN_DATA(lck_grp_t *)                 g_pDarwinLockGroup;
+extern DECL_HIDDEN_DATA(PFNR0DARWINASTPENDING)       g_pfnR0DarwinAstPending;
+extern DECL_HIDDEN_DATA(PFNR0DARWINCPUINTERRUPT)     g_pfnR0DarwinCpuInterrupt;
 #ifdef DEBUG /* Used once for debugging memory issues (see #9466). */
 typedef kern_return_t (*PFNR0DARWINVMFAULTEXTERNAL)(vm_map_t, vm_map_offset_t, vm_prot_t, boolean_t, int, pmap_t, vm_map_offset_t);
-extern PFNR0DARWINVMFAULTEXTERNAL  g_pfnR0DarwinVmFaultExternal;
+extern DECL_HIDDEN_DATA(PFNR0DARWINVMFAULTEXTERNAL) g_pfnR0DarwinVmFaultExternal;
 #endif
 
 /* threadpreempt-r0drv-darwin.cpp */

@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -61,16 +71,16 @@
 #include <iprt/x86.h>
 
 #include "tstHelp.h"
-#include <stdio.h>
+#include <iprt/stream.h>
 
 
 
 int main()
 {
     int rc = 0;
-    printf("tstVMStructSize: TESTING\n");
+    RTPrintf("tstVMStructSize: TESTING\n");
 
-    printf("info: struct VM: %d bytes\n", (int)sizeof(VM));
+    RTPrintf("info: struct VM: %d bytes\n", (int)sizeof(VM));
 
 #define CHECK_PADDING_VM(align, member) \
     do \
@@ -79,10 +89,10 @@ int main()
         CHECK_MEMBER_ALIGNMENT(VM, member, align); \
         VM *p = NULL; NOREF(p); \
         if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
-            printf("warning: VM::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
-                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
-                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
-                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("warning: VM::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                     #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                     (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                     (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
     } while (0)
 
 
@@ -93,10 +103,10 @@ int main()
         CHECK_MEMBER_ALIGNMENT(VMCPU, member, align); \
         VMCPU *p = NULL; NOREF(p); \
         if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
-            printf("warning: VMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
-                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
-                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
-                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("warning: VMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                     #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                     (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                     (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
     } while (0)
 
 #define CHECK_CPUMCTXCORE(member) \
@@ -105,7 +115,7 @@ int main()
         unsigned off2 = RT_OFFSETOF(CPUMCTXCORE, member); \
         if (off1 != off2) \
         { \
-            printf("error! CPUMCTX/CORE:: %s! (%#x vs %#x (ctx))\n", #member, off1, off2); \
+            RTPrintf("error! CPUMCTX/CORE:: %s! (%#x vs %#x (ctx))\n", #member, off1, off2); \
             rc++; \
         } \
     } while (0)
@@ -117,10 +127,10 @@ int main()
         CHECK_MEMBER_ALIGNMENT(UVM, member, align); \
         UVM *p = NULL; NOREF(p); \
         if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
-            printf("warning: UVM::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
-                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
-                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
-                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("warning: UVM::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                     #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                     (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                     (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
     } while (0)
 
 #define CHECK_PADDING_UVMCPU(align, member) \
@@ -130,10 +140,10 @@ int main()
         CHECK_MEMBER_ALIGNMENT(UVMCPU, member, align); \
         UVMCPU *p = NULL; NOREF(p); \
         if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
-            printf("warning: UVMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
-                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
-                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
-                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("warning: UVMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                     #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                     (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                     (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
     } while (0)
 
 #define CHECK_PADDING_GVM(align, member) \
@@ -143,10 +153,10 @@ int main()
         CHECK_MEMBER_ALIGNMENT(GVM, member, align); \
         GVM *p = NULL; NOREF(p); \
         if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
-            printf("warning: GVM::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
-                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
-                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
-                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("warning: GVM::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                     #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                     (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                     (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
     } while (0)
 
 #define CHECK_PADDING_GVMCPU(align, member) \
@@ -156,16 +166,16 @@ int main()
         CHECK_MEMBER_ALIGNMENT(GVMCPU, member, align); \
         GVMCPU *p = NULL; NOREF(p); \
         if (sizeof(p->member.padding) >= (ssize_t)sizeof(p->member.s) + 128 + sizeof(p->member.s) / 20) \
-            printf("warning: GVMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
-                   #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
-                   (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
-                   (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("warning: GVMCPU::%-8s: padding=%-5d s=%-5d -> %-4d  suggest=%-5u\n", \
+                     #member, (int)sizeof(p->member.padding), (int)sizeof(p->member.s), \
+                     (int)sizeof(p->member.padding) - (int)sizeof(p->member.s), \
+                     (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
     } while (0)
 
 #define PRINT_OFFSET(strct, member) \
     do \
     { \
-        printf("info: %10s::%-24s offset %#6x (%6d) sizeof %4d\n",  #strct, #member, (int)RT_OFFSETOF(strct, member), (int)RT_OFFSETOF(strct, member), (int)RT_SIZEOFMEMB(strct, member)); \
+        RTPrintf("info: %10s::%-24s offset %#6x (%6d) sizeof %4d\n",  #strct, #member, (int)RT_OFFSETOF(strct, member), (int)RT_OFFSETOF(strct, member), (int)RT_SIZEOFMEMB(strct, member)); \
     } while (0)
 
 
@@ -226,6 +236,7 @@ int main()
     CHECK_PADDING_VM(8, vm);
     CHECK_PADDING_VM(8, cfgm);
     CHECK_PADDING_VM(8, apic);
+    CHECK_PADDING_VM(8, iem);
     PRINT_OFFSET(VM, cfgm);
     PRINT_OFFSET(VM, apCpusR3);
 
@@ -246,15 +257,23 @@ int main()
     PRINT_OFFSET(VMCPU, pgm);
     CHECK_PADDING_VMCPU(4096, pgm);
     CHECK_PADDING_VMCPU(4096, cpum);
+    CHECK_PADDING_VMCPU(4096, cpum);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.svm.Vmcb, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.svm.abMsrBitmap, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.svm.abIoBitmap, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.Vmcs, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.ShadowVmcs, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abVmreadBitmap, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abVmwriteBitmap, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.aEntryMsrLoadArea, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.aExitMsrStoreArea, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.aExitMsrLoadArea, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abMsrBitmap, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abIoBitmap, 4096);
+    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abVirtApicPage, 4096);
 
     PVM pVM = NULL; NOREF(pVM);
-
-    CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.u64CallRing3Arg, 8);
-#if defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64)
-    CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.CallRing3JmpBufR0, 16);
-    CHECK_MEMBER_ALIGNMENT(VMCPU, vmm.s.CallRing3JmpBufR0.xmm6, 16);
-#endif
-    CHECK_MEMBER_ALIGNMENT(VM, vmm.s.u64LastYield, 8);
 
     /* the VMCPUs are page aligned TLB hit reasons. */
     CHECK_SIZE_ALIGNMENT(VMCPU, 4096);
@@ -294,7 +313,7 @@ int main()
     /* CPUMHOSTCTX - lss pair */
     if (RT_UOFFSETOF(CPUMHOSTCTX, esp) + 4 != RT_UOFFSETOF(CPUMHOSTCTX, ss))
     {
-        printf("error! CPUMHOSTCTX lss has been split up!\n");
+        RTPrintf("error! CPUMHOSTCTX lss has been split up!\n");
         rc++;
     }
 #endif
@@ -332,9 +351,6 @@ int main()
     CHECK_PADDING2(PDMCRITSECTRW);
 
     /* pgm */
-#if defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
-    CHECK_MEMBER_ALIGNMENT(PGMCPU, AutoSet, 8);
-#endif
     CHECK_MEMBER_ALIGNMENT(PGMCPU, GCPhysCR3, sizeof(RTGCPHYS));
     CHECK_MEMBER_ALIGNMENT(PGMCPU, aGCPhysGstPaePDs, sizeof(RTGCPHYS));
     CHECK_MEMBER_ALIGNMENT(PGMCPU, DisState, 8);
@@ -347,7 +363,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(PGMREGMMIO2RANGE, RamRange, 16);
 
     /* TM */
-    CHECK_MEMBER_ALIGNMENT(TM, TimerCritSect, sizeof(uintptr_t));
+    CHECK_MEMBER_ALIGNMENT(TM, aTimerQueues, 64);
     CHECK_MEMBER_ALIGNMENT(TM, VirtualSyncLock, sizeof(uintptr_t));
 
     /* misc */
@@ -364,45 +380,43 @@ int main()
     CHECK_MEMBER_ALIGNMENT(EMCPU, aExitRecords, sizeof(EMEXITREC));
     CHECK_MEMBER_ALIGNMENT(PGM, CritSectX, sizeof(uintptr_t));
     CHECK_MEMBER_ALIGNMENT(PDM, CritSect, sizeof(uintptr_t));
-    CHECK_MEMBER_ALIGNMENT(MMHYPERHEAP, Lock, sizeof(uintptr_t));
 
     /* hm - 32-bit gcc won't align uint64_t naturally, so check. */
-    CHECK_MEMBER_ALIGNMENT(HM, uMaxAsid, 8);
     CHECK_MEMBER_ALIGNMENT(HM, vmx, 8);
-    CHECK_MEMBER_ALIGNMENT(HM, vmx.Msrs, 8);
     CHECK_MEMBER_ALIGNMENT(HM, svm, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, ForR3.uMaxAsid, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, ForR3.vmx, 8);
     CHECK_MEMBER_ALIGNMENT(HM, PatchTree, 8);
     CHECK_MEMBER_ALIGNMENT(HM, aPatches, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx, 8);
+    CHECK_MEMBER_ALIGNMENT(HMR0PERVCPU, vmx.pfnStartVm, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfo, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfo.pfnStartVM, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfoNstGst, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.VmcsInfoNstGst.pfnStartVM, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.RestoreHost, 8);
+    CHECK_MEMBER_ALIGNMENT(HMR0PERVCPU, vmx.RestoreHost, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.LastError, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, svm, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, svm.pfnVMRun, 8);
+    CHECK_MEMBER_ALIGNMENT(HMR0PERVCPU, svm.pfnVMRun, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, Event, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, Event.u64IntInfo, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, DisState, 8);
+    CHECK_MEMBER_ALIGNMENT(HMR0PERVCPU, svm.DisState, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, StatEntry, 8);
 
     /* Make sure the set is large enough and has the correct size. */
     CHECK_SIZE(VMCPUSET, 32);
     if (sizeof(VMCPUSET) * 8 < VMM_MAX_CPU_COUNT)
     {
-        printf("error! VMCPUSET is too small for VMM_MAX_CPU_COUNT=%u!\n", VMM_MAX_CPU_COUNT);
+        RTPrintf("error! VMCPUSET is too small for VMM_MAX_CPU_COUNT=%u!\n", VMM_MAX_CPU_COUNT);
         rc++;
     }
 
-    printf("info: struct UVM: %d bytes\n", (int)sizeof(UVM));
+    RTPrintf("info: struct UVM: %d bytes\n", (int)sizeof(UVM));
 
     CHECK_PADDING_UVM(32, vm);
     CHECK_PADDING_UVM(32, mm);
     CHECK_PADDING_UVM(32, pdm);
     CHECK_PADDING_UVM(32, stam);
 
-    printf("info: struct UVMCPU: %d bytes\n", (int)sizeof(UVMCPU));
+    RTPrintf("info: struct UVMCPU: %d bytes\n", (int)sizeof(UVMCPU));
     CHECK_PADDING_UVMCPU(32, vm);
 
     CHECK_PADDING_GVM(4, gvmm);
@@ -421,22 +435,24 @@ int main()
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == false);
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == false);
 
-    PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_ALL);
+    PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_ALL, false);
     CHECK_EXPR(PGM_PAGE_GET_HNDL_PHYS_STATE(&Page) == PGM_PAGE_HNDL_PHYS_STATE_ALL);
     CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == true);
 
-    PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_WRITE);
+    PGM_PAGE_SET_HNDL_PHYS_STATE(&Page, PGM_PAGE_HNDL_PHYS_STATE_WRITE, false);
     CHECK_EXPR(PGM_PAGE_GET_HNDL_PHYS_STATE(&Page) == PGM_PAGE_HNDL_PHYS_STATE_WRITE);
     CHECK_EXPR(PGM_PAGE_HAS_ANY_HANDLERS(&Page) == true);
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_HANDLERS(&Page) == true);
     CHECK_EXPR(PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(&Page) == false);
 
 #undef AssertFatal
-#define AssertFatal(expr) do { } while (0)
+#define AssertFatal(expr)           do { } while (0)
+#undef AssertFatalMsg
+#define AssertFatalMsg(expr, msg)   do { } while (0)
 #undef Assert
-#define Assert(expr)      do { } while (0)
+#define Assert(expr)                do { } while (0)
 
     PGM_PAGE_CLEAR(&Page);
     CHECK_EXPR(PGM_PAGE_GET_HCPHYS_NA(&Page) == 0);
@@ -456,9 +472,9 @@ int main()
      * Report result.
      */
     if (rc)
-        printf("tstVMStructSize: FAILURE - %d errors\n", rc);
+        RTPrintf("tstVMStructSize: FAILURE - %d errors\n", rc);
     else
-        printf("tstVMStructSize: SUCCESS\n");
+        RTPrintf("tstVMStructSize: SUCCESS\n");
     return rc;
 }
 

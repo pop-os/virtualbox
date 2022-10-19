@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_vgsvc_gstctrl VBoxService - Guest Control
@@ -246,7 +256,8 @@ static int vgsvcGstCtrlInvalidate(void)
          */
         const uint64_t fGuestFeatures = VBOX_GUESTCTRL_GF_0_SET_SIZE
                                       | VBOX_GUESTCTRL_GF_0_PROCESS_ARGV0
-                                      | VBOX_GUESTCTRL_GF_0_PROCESS_DYNAMIC_SIZES;
+                                      | VBOX_GUESTCTRL_GF_0_PROCESS_DYNAMIC_SIZES
+                                      | VBOX_GUESTCTRL_GF_0_SHUTDOWN;
 
         rc = VbglR3GuestCtrlReportFeatures(g_idControlSvcClient, fGuestFeatures, &g_fControlHostFeatures0);
         if (RT_SUCCESS(rc))
@@ -340,8 +351,17 @@ static DECLCALLBACK(int) vgsvcGstCtrlWorker(bool volatile *pfShutdown)
          */
         else if (rc == VERR_VM_RESTORED)
         {
-            VGSvcVerbose(1, "The VM session ID changed (i.e. restored)\n");
-            int rc2 = VGSvcGstCtrlSessionClose(&g_Session);
+            VGSvcVerbose(1, "The VM session ID changed (i.e. restored), closing stale root session\n");
+
+            /* Make sure that all other session threads are gone.
+             * This is necessary, as the new VM session (NOT to be confused with guest session!) will re-use
+             * the guest session IDs. */
+            int rc2 = VGSvcGstCtrlSessionThreadDestroyAll(&g_lstControlSessionThreads, 0 /* Flags */);
+            if (RT_FAILURE(rc2))
+                VGSvcError("Closing session threads failed with rc=%Rrc\n", rc2);
+
+            /* Make sure to also close the root session (session 0). */
+            rc2 = VGSvcGstCtrlSessionClose(&g_Session);
             AssertRC(rc2);
 
             rc2 = VbglR3GuestCtrlSessionHasChanged(g_idControlSvcClient, g_idControlSession);

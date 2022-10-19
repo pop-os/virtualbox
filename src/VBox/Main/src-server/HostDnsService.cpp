@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_HOST
@@ -31,21 +41,39 @@
 
 #include <algorithm>
 #include <set>
-#include <string>
+#include <iprt/sanitized/string>
 #include "HostDnsService.h"
 
 
-static void dumpHostDnsInformation(const HostDnsInformation&);
-static void dumpHostDnsStrVector(const std::string &prefix, const std::vector<std::string> &v);
 
+static void dumpHostDnsStrVector(const std::string &prefix, const std::vector<std::string> &v)
+{
+    int i = 1;
+    for (std::vector<std::string>::const_iterator it = v.begin();
+         it != v.end();
+         ++it, ++i)
+        LogRel(("  %s %d: %s\n", prefix.c_str(), i, it->c_str()));
+    if (v.empty())
+        LogRel(("  no %s entries\n", prefix.c_str()));
+}
+
+static void dumpHostDnsInformation(const HostDnsInformation &info)
+{
+    dumpHostDnsStrVector("server", info.servers);
+
+    if (!info.domain.empty())
+        LogRel(("  domain: %s\n", info.domain.c_str()));
+    else
+        LogRel(("  no domain set\n"));
+
+    dumpHostDnsStrVector("search string", info.searchList);
+}
 
 bool HostDnsInformation::equals(const HostDnsInformation &info, uint32_t fLaxComparison) const
 {
     bool fSameServers;
     if ((fLaxComparison & IGNORE_SERVER_ORDER) == 0)
-    {
         fSameServers = (servers == info.servers);
-    }
     else
     {
         std::set<std::string> l(servers.begin(), servers.end());
@@ -61,20 +89,22 @@ bool HostDnsInformation::equals(const HostDnsInformation &info, uint32_t fLaxCom
         fSameSearchList = (searchList == info.searchList);
     }
     else
-    {
         fSameDomain = fSameSearchList = true;
-    }
 
     return fSameServers && fSameDomain && fSameSearchList;
 }
 
-inline static void detachVectorOfString(const std::vector<std::string>& v,
-                                        std::vector<com::Utf8Str> &aArray)
+DECLINLINE(void) detachVectorOfString(const std::vector<std::string>& v, std::vector<com::Utf8Str> &aArray)
 {
     aArray.resize(v.size());
     size_t i = 0;
     for (std::vector<std::string>::const_iterator it = v.begin(); it != v.end(); ++it, ++i)
-        aArray[i] = Utf8Str(it->c_str());
+        aArray[i] = Utf8Str(it->c_str()); /** @todo r=bird: *it isn't necessarily UTF-8 clean!!
+                                           * On darwin we do silly shit like using CFStringGetSystemEncoding()
+                                           * that may be UTF-8 but doesn't need to be.
+                                           *
+                                           * Why on earth are we using std::string here anyway?
+                                           */
 }
 
 struct HostDnsServiceBase::Data
@@ -408,26 +438,3 @@ bool HostDnsMonitorProxy::updateInfo(const HostDnsInformation &info)
     return true;
 }
 
-static void dumpHostDnsInformation(const HostDnsInformation &info)
-{
-    dumpHostDnsStrVector("server", info.servers);
-
-    if (!info.domain.empty())
-        LogRel(("  domain: %s\n", info.domain.c_str()));
-    else
-        LogRel(("  no domain set\n"));
-
-    dumpHostDnsStrVector("search string", info.searchList);
-}
-
-
-static void dumpHostDnsStrVector(const std::string &prefix, const std::vector<std::string> &v)
-{
-    int i = 1;
-    for (std::vector<std::string>::const_iterator it = v.begin();
-         it != v.end();
-         ++it, ++i)
-        LogRel(("  %s %d: %s\n", prefix.c_str(), i, it->c_str()));
-    if (v.empty())
-        LogRel(("  no %s entries\n", prefix.c_str()));
-}

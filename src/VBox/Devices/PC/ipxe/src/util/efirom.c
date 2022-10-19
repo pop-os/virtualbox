@@ -13,9 +13,11 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  */
 
+#define FILE_LICENCE(...) extern void __file_licence ( void )
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -26,7 +28,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <getopt.h>
-#include <ipxe/efi/efi.h>
+#include <ipxe/efi/Uefi.h>
 #include <ipxe/efi/IndustryStandard/PeImage.h>
 #include <ipxe/efi/IndustryStandard/Pci22.h>
 
@@ -79,9 +81,11 @@ static void read_pe_info ( void *pe, uint16_t *machine,
 	*machine = nt->nt32.FileHeader.Machine;
 	switch ( *machine ) {
 	case EFI_IMAGE_MACHINE_IA32:
+	case EFI_IMAGE_MACHINE_ARMTHUMB_MIXED:
 		*subsystem = nt->nt32.OptionalHeader.Subsystem;
 		break;
 	case EFI_IMAGE_MACHINE_X64:
+	case EFI_IMAGE_MACHINE_AARCH64:
 		*subsystem = nt->nt64.OptionalHeader.Subsystem;
 		break;
 	default:
@@ -145,7 +149,7 @@ static void make_efi_rom ( FILE *pe, FILE *rom, struct options *opts ) {
 	headers->pci.VendorId = opts->vendor;
 	headers->pci.DeviceId = opts->device;
 	headers->pci.Length = sizeof ( headers->pci );
-	headers->pci.ClassCode[0] = PCI_CLASS_NETWORK;
+	headers->pci.ClassCode[2] = PCI_CLASS_NETWORK;
 	headers->pci.ImageLength = ( rom_size / 512 );
 	headers->pci.CodeType = 0x03; /* No constant in EFI headers? */
 	headers->pci.Indicator = 0x80; /* No constant in EFI headers? */
@@ -203,14 +207,14 @@ static int parse_options ( const int argc, char **argv,
 		switch ( c ) {
 		case 'v':
 			opts->vendor = strtoul ( optarg, &end, 16 );
-			if ( *end ) {
+			if ( *end || ( ! *optarg ) ) {
 				eprintf ( "Invalid vendor \"%s\"\n", optarg );
 				exit ( 2 );
 			}
 			break;
 		case 'd':
 			opts->device = strtoul ( optarg, &end, 16 );
-			if ( *end ) {
+			if ( *end || ( ! *optarg ) ) {
 				eprintf ( "Invalid device \"%s\"\n", optarg );
 				exit ( 2 );
 			}

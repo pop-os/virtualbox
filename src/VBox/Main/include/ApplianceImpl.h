@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_ApplianceImpl_h
@@ -67,7 +77,7 @@ class ATL_NO_VTABLE Appliance :
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR(Appliance)
+    DECLARE_COMMON_CLASS_METHODS(Appliance)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -78,10 +88,13 @@ public:
 
     /* public methods only for internal purposes */
 
-    static HRESULT i_setErrorStatic(HRESULT aResultCode,
-                                    const Utf8Str &aText)
+    static HRESULT i_setErrorStatic(HRESULT aResultCode, const char *aText, ...)
     {
-        return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
+        va_list va;
+        va_start(va, aText);
+        HRESULT hrc = setErrorInternalV(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, va, false, true);
+        va_end(va);
+        return hrc;
     }
 
     /* private instance data */
@@ -130,8 +143,8 @@ private:
      * @{
      */
     bool i_isApplianceIdle();
-    HRESULT i_searchUniqueVMName(Utf8Str& aName) const;
-    HRESULT i_searchUniqueImageFilePath(const Utf8Str &aMachineFolder,
+    HRESULT i_searchUniqueVMName(Utf8Str &aName) const;
+    HRESULT i_ensureUniqueImageFilePath(const Utf8Str &aMachineFolder,
                                         DeviceType_T aDeviceType,
                                         Utf8Str &aName) const;
     HRESULT i_setUpProgress(ComObjPtr<Progress> &pProgress,
@@ -171,8 +184,18 @@ private:
     HRESULT i_readManifestFile(TaskOVF *pTask, RTVFSIOSTREAM hIosMf, const char *pszSubFileNm);
     HRESULT i_readSignatureFile(TaskOVF *pTask, RTVFSIOSTREAM hIosCert, const char *pszSubFileNm);
     HRESULT i_readTailProcessing(TaskOVF *pTask);
-    HRESULT i_gettingCloudData(TaskCloud *pTask);
+    HRESULT i_readTailProcessingGetManifestData(void **ppvData, size_t *pcbData);
+    HRESULT i_readTailProcessingSignedData(PRTERRINFOSTATIC pErrInfo);
+    HRESULT i_readTailProcessingVerifySelfSignedOvfCert(TaskOVF *pTask, RTCRSTORE hTrustedCerts, PRTERRINFOSTATIC pErrInfo);
+    HRESULT i_readTailProcessingVerifyIssuedOvfCert(TaskOVF *pTask, RTCRSTORE hTrustedStore, PRTERRINFOSTATIC pErrInfo);
+    HRESULT i_readTailProcessingVerifyContentInfoCerts(void const *pvData, size_t cbData,
+                                                       RTCRSTORE hTrustedStore, PRTERRINFOSTATIC pErrInfo);
+    HRESULT i_readTailProcessingVerifyAnalyzeSignerInfo(void const *pvData, size_t cbData, RTCRSTORE hTrustedStore,
+                                                        uint32_t iSigner, PRTTIMESPEC pNow, int vrc,
+                                                        PRTERRINFOSTATIC pErrInfo, PRTCRSTORE phTrustedStore2);
+    HRESULT i_readTailProcessingVerifyContentInfoFailOne(const char *pszSignature, int vrc, PRTERRINFOSTATIC pErrInfo);
 
+    HRESULT i_gettingCloudData(TaskCloud *pTask);
     /** @}  */
 
     /** @name Import stuff
@@ -200,7 +223,7 @@ private:
 
     void i_importMachineGeneric(const ovf::VirtualSystem &vsysThis,
                                 ComObjPtr<VirtualSystemDescription> &vsdescThis,
-                                ComPtr<IMachine> &pNewMachine,
+                                ComPtr<IMachine> &pNewMachineRet,
                                 ImportStack &stack);
     void i_importVBoxMachine(ComObjPtr<VirtualSystemDescription> &vsdescThis,
                              ComPtr<IMachine> &pNewMachine,
@@ -281,7 +304,7 @@ class ATL_NO_VTABLE VirtualSystemDescription :
 
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR(VirtualSystemDescription)
+    DECLARE_COMMON_CLASS_METHODS(VirtualSystemDescription)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -298,7 +321,7 @@ public:
                     const Utf8Str &strExtraConfig = "");
 
     std::list<VirtualSystemDescriptionEntry*> i_findByType(VirtualSystemDescriptionType_T aType);
-    const VirtualSystemDescriptionEntry* i_findControllerFromID(uint32_t id);
+    const VirtualSystemDescriptionEntry* i_findControllerFromID(const Utf8Str &id);
     const VirtualSystemDescriptionEntry* i_findByIndex(const uint32_t aIndex);
 
     void i_importVBoxMachineXML(const xml::ElementNode &elmMachine);

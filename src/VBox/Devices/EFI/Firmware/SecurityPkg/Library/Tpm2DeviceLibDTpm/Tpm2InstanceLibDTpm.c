@@ -16,29 +16,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 #include <Guid/TpmInstance.h>
 
-/**
-  Return PTP interface type.
-
-  @param[in] Register                Pointer to PTP register.
-
-  @return PTP interface type.
-**/
-TPM2_PTP_INTERFACE_TYPE
-Tpm2GetPtpInterface (
-  IN VOID *Register
-  );
-
-/**
-  Return PTP CRB interface IdleByPass state.
-
-  @param[in] Register                Pointer to PTP register.
-
-  @return PTP CRB interface IdleByPass state.
-**/
-UINT8
-Tpm2GetIdleByPass (
-  IN VOID *Register
-  );
+#include "Tpm2DeviceLibDTpm.h"
 
 /**
   Dump PTP register information.
@@ -93,7 +71,7 @@ TPM2_DEVICE_INTERFACE  mDTpm2InternalTpm2Device = {
 /**
   The function register DTPM2.0 instance and caches current active TPM interface type.
 
-  @retval EFI_SUCCESS   DTPM2.0 instance is registered, or system dose not surpport registr DTPM2.0 instance
+  @retval EFI_SUCCESS   DTPM2.0 instance is registered, or system does not support register DTPM2.0 instance
 **/
 EFI_STATUS
 EFIAPI
@@ -102,8 +80,6 @@ Tpm2InstanceLibDTpmConstructor (
   )
 {
   EFI_STATUS               Status;
-  TPM2_PTP_INTERFACE_TYPE  PtpInterface;
-  UINT8                    IdleByPass;
 
   Status = Tpm2RegisterTpm2DeviceLib (&mDTpm2InternalTpm2Device);
   if ((Status == EFI_SUCCESS) || (Status == EFI_UNSUPPORTED)) {
@@ -111,19 +87,7 @@ Tpm2InstanceLibDTpmConstructor (
     // Unsupported means platform policy does not need this instance enabled.
     //
     if (Status == EFI_SUCCESS) {
-      //
-      // Cache current active TpmInterfaceType only when needed
-      //
-      if (PcdGet8(PcdActiveTpmInterfaceType) == 0xFF) {
-        PtpInterface = Tpm2GetPtpInterface ((VOID *) (UINTN) PcdGet64 (PcdTpmBaseAddress));
-        PcdSet8S(PcdActiveTpmInterfaceType, PtpInterface);
-      }
-
-      if (PcdGet8(PcdActiveTpmInterfaceType) == Tpm2PtpInterfaceCrb && PcdGet8(PcdCRBIdleByPass) == 0xFF) {
-        IdleByPass = Tpm2GetIdleByPass((VOID *) (UINTN) PcdGet64 (PcdTpmBaseAddress));
-        PcdSet8S(PcdCRBIdleByPass, IdleByPass);
-      }
-
+      Status = InternalTpm2DeviceLibDTpmCommonConstructor ();
       DumpPtpInfo ((VOID *) (UINTN) PcdGet64 (PcdTpmBaseAddress));
     }
     return EFI_SUCCESS;

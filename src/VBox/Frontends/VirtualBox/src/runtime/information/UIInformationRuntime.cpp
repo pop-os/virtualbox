@@ -4,20 +4,33 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
+#include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QHeaderView>
+#include <QMenu>
 #include <QVBoxLayout>
 #include <QTableWidget>
 #include <QTimer>
@@ -69,10 +82,11 @@ public:
     void updateVRDE();
     void updateClipboardMode(KClipboardMode enmMode = KClipboardMode_Max);
     void updateDnDMode(KDnDMode enmMode = KDnDMode_Max);
+    QString tableData() const;
 
 protected:
 
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
 private slots:
 
@@ -142,6 +156,7 @@ UIRuntimeInfoWidget::UIRuntimeInfoWidget(QWidget *pParent, const CMachine &machi
     , m_iMinimumWidth(0)
     , m_pTimer(0)
 {
+    setContextMenuPolicy(Qt::CustomContextMenu);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setAlternatingRowColors(true);
     m_iFontHeight = QFontMetrics(font()).height();
@@ -210,7 +225,11 @@ void UIRuntimeInfoWidget::retranslateUi()
             strLongest = strLabel;
     }
     QFontMetrics fontMetrics(font());
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    setColumnWidth(0, 1.5 * fontMetrics.horizontalAdvance(*strLongest));
+#else
     setColumnWidth(0, 1.5 * fontMetrics.width(*strLongest));
+#endif
 
     /* Make the API calls and populate the table: */
     createInfoRows();
@@ -342,8 +361,8 @@ void UIRuntimeInfoWidget::updateVirtualizationInfo()
         case KVMExecutionEngine_HwVirt:
             strExecutionEngine = "VT-x/AMD-V";  /* no translation */
             break;
-        case KVMExecutionEngine_RawMode:
-            strExecutionEngine = "raw-mode";    /* no translation */
+        case KVMExecutionEngine_Emulated:
+            strExecutionEngine = "IEM";         /* no translation */
             break;
         case KVMExecutionEngine_NativeApi:
             strExecutionEngine = "native API";  /* no translation */
@@ -410,6 +429,26 @@ void UIRuntimeInfoWidget::updateDnDMode(KDnDMode enmMode /* = KDnDMode_Max */)
                       gpConverter->toString(enmMode));
 }
 
+QString UIRuntimeInfoWidget::tableData() const
+{
+    AssertReturn(columnCount() == 3, QString());
+    QStringList data;
+    for (int i = 0; i < rowCount(); ++i)
+    {
+        /* Skip the first column as it contains only icon and no text: */
+        QTableWidgetItem *pItem = item(i, 1);
+        QString strColumn1 = pItem ? pItem->text() : QString();
+        pItem = item(i, 2);
+        QString strColumn2 = pItem ? pItem->text() : QString();
+        if (strColumn2.isEmpty())
+            data << strColumn1;
+        else
+            data << strColumn1 << ": " << strColumn2;
+        data << "\n";
+    }
+    return data.join(QString());
+}
+
 void UIRuntimeInfoWidget::updateInfoRow(InfoRow enmLine, const QString &strColumn0, const QString &strColumn1)
 {
     QTableWidgetItem *pItem = 0;
@@ -463,6 +502,7 @@ UIInformationRuntime::UIInformationRuntime(QWidget *pParent, const CMachine &mac
     , m_console(console)
     , m_pMainLayout(0)
     , m_pRuntimeInfoWidget(0)
+    , m_pCopyWholeTableAction(0)
 {
     if (!m_console.isNull())
         m_comGuest = m_console.GetGuest();
@@ -478,6 +518,8 @@ UIInformationRuntime::UIInformationRuntime(QWidget *pParent, const CMachine &mac
 
 void UIInformationRuntime::retranslateUi()
 {
+    if (m_pCopyWholeTableAction)
+        m_pCopyWholeTableAction->setText(QApplication::translate("UIVMInformationDialog", "Copy All"));
 }
 
 void UIInformationRuntime::prepareObjects()
@@ -488,8 +530,14 @@ void UIInformationRuntime::prepareObjects()
     m_pMainLayout->setSpacing(0);
 
     m_pRuntimeInfoWidget = new UIRuntimeInfoWidget(0, m_machine, m_console);
+    AssertReturnVoid(m_pRuntimeInfoWidget);
+    connect(m_pRuntimeInfoWidget, &UIRuntimeInfoWidget::customContextMenuRequested,
+            this, &UIInformationRuntime::sltHandleTableContextMenuRequest);
     m_pMainLayout->addWidget(m_pRuntimeInfoWidget);
     m_pRuntimeInfoWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+
+    m_pCopyWholeTableAction = new QAction(this);
+    connect(m_pCopyWholeTableAction, &QAction::triggered, this, &UIInformationRuntime::sltHandleCopyWholeTable);
 }
 
 void UIInformationRuntime::sltGuestAdditionsStateChange()
@@ -522,6 +570,27 @@ void UIInformationRuntime::sltDnDModeChange(KDnDMode enmMode)
 {
     if (m_pRuntimeInfoWidget)
         m_pRuntimeInfoWidget->updateDnDMode(enmMode);
+}
+
+void UIInformationRuntime::sltHandleTableContextMenuRequest(const QPoint &position)
+{
+    if (!m_pCopyWholeTableAction)
+        return;
+
+    QMenu menu(this);
+    menu.addAction(m_pCopyWholeTableAction);
+    menu.exec(mapToGlobal(position));
+}
+
+void UIInformationRuntime::sltHandleCopyWholeTable()
+{
+    QClipboard *pClipboard = QApplication::clipboard();
+    if (!pClipboard)
+        return;
+    if (!m_pRuntimeInfoWidget)
+        return;
+
+    pClipboard->setText(m_pRuntimeInfoWidget->tableData(), QClipboard::Clipboard);
 }
 
 #include "UIInformationRuntime.moc"

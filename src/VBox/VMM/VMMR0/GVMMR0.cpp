@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -53,6 +63,7 @@
 #include <VBox/vmm/gvmm.h>
 #include <VBox/vmm/gmm.h>
 #include "GVMMR0Internal.h"
+#include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/pgm.h>
@@ -90,57 +101,20 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(DOXYGEN_RUNNING)
+#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS) || defined(DOXYGEN_RUNNING)
 /** Define this to enable the periodic preemption timer. */
 # define GVMM_SCHED_WITH_PPT
 #endif
 
-
-/** @def GVMM_CHECK_SMAP_SETUP
- * SMAP check setup. */
-/** @def GVMM_CHECK_SMAP_CHECK
- * Checks that the AC flag is set if SMAP is enabled. If AC is not set,
- * it will be logged and @a a_BadExpr is executed. */
-/** @def GVMM_CHECK_SMAP_CHECK2
- * Checks that the AC flag is set if SMAP is enabled.  If AC is not set, it will
- * be logged, written to the VMs assertion text buffer, and @a a_BadExpr is
- * executed. */
-#if (defined(VBOX_STRICT) || 1) && !defined(VBOX_WITH_RAM_IN_KERNEL)
-# define GVMM_CHECK_SMAP_SETUP() uint32_t const fKernelFeatures = SUPR0GetKernelFeatures()
-# define GVMM_CHECK_SMAP_CHECK(a_BadExpr) \
-    do { \
-        if (fKernelFeatures & SUPKERNELFEATURES_SMAP) \
-        { \
-            RTCCUINTREG fEflCheck = ASMGetFlags(); \
-            if (RT_LIKELY(fEflCheck & X86_EFL_AC)) \
-            { /* likely */ } \
-            else \
-            { \
-                SUPR0Printf("%s, line %d: EFLAGS.AC is clear! (%#x)\n", __FUNCTION__, __LINE__, (uint32_t)fEflCheck); \
-                a_BadExpr; \
-            } \
-        } \
-    } while (0)
-# define GVMM_CHECK_SMAP_CHECK2(a_pGVM, a_BadExpr) \
-    do { \
-        if (fKernelFeatures & SUPKERNELFEATURES_SMAP) \
-        { \
-            RTCCUINTREG fEflCheck = ASMGetFlags(); \
-            if (RT_LIKELY(fEflCheck & X86_EFL_AC)) \
-            { /* likely */ } \
-            else \
-            { \
-                SUPR0BadContext((a_pGVM) ? (a_pGVM)->pSession : NULL, __FILE__, __LINE__, "EFLAGS.AC is zero!"); \
-                a_BadExpr; \
-            } \
-        } \
-    } while (0)
-#else
-# define GVMM_CHECK_SMAP_SETUP()           uint32_t const fKernelFeatures = 0
-# define GVMM_CHECK_SMAP_CHECK(a_BadExpr)           NOREF(fKernelFeatures)
-# define GVMM_CHECK_SMAP_CHECK2(a_pGVM, a_BadExpr)   NOREF(fKernelFeatures)
+#if /*defined(RT_OS_WINDOWS) ||*/ defined(DOXYGEN_RUNNING)
+/** Define this to enable the per-EMT high resolution wakeup timers. */
+# define GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
 #endif
 
+
+/** Special value that GVMMR0DeregisterVCpu sets. */
+#define GVMM_RTNATIVETHREAD_DESTROYED       (~(RTNATIVETHREAD)1)
+AssertCompile(GVMM_RTNATIVETHREAD_DESTROYED != NIL_RTNATIVETHREAD);
 
 
 /*********************************************************************************************************************************
@@ -293,6 +267,13 @@ typedef struct GVMM
      * The minimum sleep time for when we've got company, in nano seconds.
      */
     uint32_t            nsMinSleepCompany;
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+    /** @gcfgm{/GVMM/MinSleepWithHrWakeUp,32-bit,0, 100000000, 5000, ns}
+     * The minimum sleep time for when we've got a high-resolution wake-up timer, in
+     * nano seconds.
+     */
+    uint32_t            nsMinSleepWithHrTimer;
+#endif
     /** @gcfgm{/GVMM/EarlyWakeUp1, 32-bit, 0, 100000000, 25000, ns}
      * The limit for the first round of early wake-ups, given in nano seconds.
      */
@@ -367,6 +348,9 @@ static int gvmmR0ByGVMandEMT(PGVM pGVM, VMCPUID idCpu, PGVMM *ppGVMM);
 #ifdef GVMM_SCHED_WITH_PPT
 static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
 #endif
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+static DECLCALLBACK(void) gvmmR0EmtWakeUpTimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
+#endif
 
 
 /**
@@ -440,6 +424,9 @@ GVMMR0DECL(int) GVMMR0Init(void)
                 pGVMM->nsEarlyWakeUp1    = 0;
                 pGVMM->nsEarlyWakeUp2    = 0;
             }
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+            pGVMM->nsMinSleepWithHrTimer = 5000 /* ns (0.005 ms) */;
+#endif
             pGVMM->fDoEarlyWakeUps = pGVMM->nsEarlyWakeUp1 > 0 && pGVMM->nsEarlyWakeUp2 > 0;
 
             /* The host CPU data. */
@@ -477,7 +464,13 @@ GVMMR0DECL(int) GVMMR0Init(void)
                                          gvmmR0SchedPeriodicPreemptionTimerCallback,
                                          &pGVMM->aHostCpus[iCpu]);
                     if (RT_SUCCESS(rc))
+                    {
                         rc = RTSpinlockCreate(&pGVMM->aHostCpus[iCpu].Ppt.hSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "GVMM/CPU");
+                        if (RT_FAILURE(rc))
+                            LogRel(("GVMMR0Init: RTSpinlockCreate failed for #%u (%d)\n", iCpu, rc));
+                    }
+                    else
+                        LogRel(("GVMMR0Init: RTTimerCreateEx failed for #%u (%d)\n", iCpu, rc));
                     if (RT_FAILURE(rc))
                     {
                         while (iCpu < cHostCpus)
@@ -507,8 +500,12 @@ GVMMR0DECL(int) GVMMR0Init(void)
             /* bail out. */
             RTCritSectRwDelete(&pGVMM->UsedLock);
         }
+        else
+            LogRel(("GVMMR0Init: RTCritSectRwInitEx failed (%d)\n", rc));
         RTCritSectDelete(&pGVMM->CreateDestroyLock);
     }
+    else
+        LogRel(("GVMMR0Init: RTCritSectInitEx failed (%d)\n", rc));
 
     RTMemFree(pGVMM);
     return rc;
@@ -627,6 +624,15 @@ GVMMR0DECL(int) GVMMR0SetConfig(PSUPDRVSESSION pSession, const char *pszName, ui
         else
             rc = VERR_OUT_OF_RANGE;
     }
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+    else if (!strcmp(pszName, "MinSleepWithHrWakeUp"))
+    {
+        if (u64Value <= RT_NS_100MS)
+            pGVMM->nsMinSleepWithHrTimer = u64Value;
+        else
+            rc = VERR_OUT_OF_RANGE;
+    }
+#endif
     else if (!strcmp(pszName, "EarlyWakeUp1"))
     {
         if (u64Value <= RT_NS_100MS)
@@ -686,6 +692,10 @@ GVMMR0DECL(int) GVMMR0QueryConfig(PSUPDRVSESSION pSession, const char *pszName, 
         *pu64Value = pGVMM->nsMinSleepAlone;
     else if (!strcmp(pszName, "MinSleepCompany"))
         *pu64Value = pGVMM->nsMinSleepCompany;
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+    else if (!strcmp(pszName, "MinSleepWithHrWakeUp"))
+        *pu64Value = pGVMM->nsMinSleepWithHrTimer;
+#endif
     else if (!strcmp(pszName, "EarlyWakeUp1"))
         *pu64Value = pGVMM->nsEarlyWakeUp1;
     else if (!strcmp(pszName, "EarlyWakeUp2"))
@@ -889,9 +899,9 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PGVM *pp
                      * Allocate memory for the VM structure (combined VM + GVM).
                      */
                     const uint32_t  cbVM      = RT_UOFFSETOF_DYN(GVM, aCpus[cCpus]);
-                    const uint32_t  cPages    = RT_ALIGN_32(cbVM, PAGE_SIZE) >> PAGE_SHIFT;
+                    const uint32_t  cPages    = RT_ALIGN_32(cbVM, HOST_PAGE_SIZE) >> HOST_PAGE_SHIFT;
                     RTR0MEMOBJ      hVMMemObj = NIL_RTR0MEMOBJ;
-                    rc = RTR0MemObjAllocPage(&hVMMemObj, cPages << PAGE_SHIFT, false /* fExecutable */);
+                    rc = RTR0MemObjAllocPage(&hVMMemObj, cPages << HOST_PAGE_SHIFT, false /* fExecutable */);
                     if (RT_SUCCESS(rc))
                     {
                         PGVM pGVM = (PGVM)RTR0MemObjAddress(hVMMemObj);
@@ -900,14 +910,18 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PGVM *pp
                         /*
                          * Initialise the structure.
                          */
-                        RT_BZERO(pGVM, cPages << PAGE_SHIFT);
+                        RT_BZERO(pGVM, cPages << HOST_PAGE_SHIFT);
                         gvmmR0InitPerVMData(pGVM, iHandle, cCpus, pSession);
                         pGVM->gvmm.s.VMMemObj  = hVMMemObj;
                         rc = GMMR0InitPerVMData(pGVM);
-                        int rc2 = PGMR0InitPerVMData(pGVM);
+                        int rc2 = PGMR0InitPerVMData(pGVM, hVMMemObj);
+                        int rc3 = VMMR0InitPerVMData(pGVM);
+                        CPUMR0InitPerVMData(pGVM);
+                        DBGFR0InitPerVMData(pGVM);
                         PDMR0InitPerVMData(pGVM);
                         IOMR0InitPerVMData(pGVM);
-                        if (RT_SUCCESS(rc) && RT_SUCCESS(rc2))
+                        TMR0InitPerVMData(pGVM);
+                        if (RT_SUCCESS(rc) && RT_SUCCESS(rc2) && RT_SUCCESS(rc3))
                         {
                             /*
                              * Allocate page array.
@@ -927,13 +941,13 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PGVM *pp
                                 /*
                                  * Map the page array, VM and VMCPU structures into ring-3.
                                  */
-                                AssertCompileSizeAlignment(VM, PAGE_SIZE);
+                                AssertCompileSizeAlignment(VM, HOST_PAGE_SIZE);
                                 rc = RTR0MemObjMapUserEx(&pGVM->gvmm.s.VMMapObj, pGVM->gvmm.s.VMMemObj, (RTR3PTR)-1, 0,
                                                          RTMEM_PROT_READ | RTMEM_PROT_WRITE, NIL_RTR0PROCESS,
                                                          0 /*offSub*/, sizeof(VM));
                                 for (VMCPUID i = 0; i < cCpus && RT_SUCCESS(rc); i++)
                                 {
-                                    AssertCompileSizeAlignment(VMCPU, PAGE_SIZE);
+                                    AssertCompileSizeAlignment(VMCPU, HOST_PAGE_SIZE);
                                     rc = RTR0MemObjMapUserEx(&pGVM->aCpus[i].gvmm.s.VMCpuMapObj, pGVM->gvmm.s.VMMemObj,
                                                              (RTR3PTR)-1, 0, RTMEM_PROT_READ | RTMEM_PROT_WRITE, NIL_RTR0PROCESS,
                                                              RT_UOFFSETOF_DYN(GVM, aCpus[i]), sizeof(VMCPU));
@@ -948,7 +962,7 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PGVM *pp
                                      * Initialize all the VM pointers.
                                      */
                                     PVMR3 pVMR3 = RTR0MemObjAddressR3(pGVM->gvmm.s.VMMapObj);
-                                    AssertPtr((void *)pVMR3);
+                                    AssertMsg(RTR0MemUserIsValidAddr(pVMR3) && pVMR3 != NIL_RTR3PTR, ("%p\n", pVMR3));
 
                                     for (VMCPUID i = 0; i < cCpus; i++)
                                     {
@@ -957,11 +971,28 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PGVM *pp
                                         pGVM->apCpusR3[i] = RTR0MemObjAddressR3(pGVM->aCpus[i].gvmm.s.VMCpuMapObj);
                                         pGVM->aCpus[i].pVCpuR3 = pGVM->apCpusR3[i];
                                         pGVM->apCpusR0[i] = &pGVM->aCpus[i];
-                                        AssertPtr((void *)pGVM->apCpusR3[i]);
+                                        AssertMsg(RTR0MemUserIsValidAddr(pGVM->apCpusR3[i]) && pGVM->apCpusR3[i] != NIL_RTR3PTR,
+                                                  ("apCpusR3[%u]=%p\n", i, pGVM->apCpusR3[i]));
                                     }
 
                                     pGVM->paVMPagesR3 = RTR0MemObjAddressR3(pGVM->gvmm.s.VMPagesMapObj);
-                                    AssertPtr((void *)pGVM->paVMPagesR3);
+                                    AssertMsg(RTR0MemUserIsValidAddr(pGVM->paVMPagesR3) && pGVM->paVMPagesR3 != NIL_RTR3PTR,
+                                              ("%p\n", pGVM->paVMPagesR3));
+
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+                                    /*
+                                     * Create the high resolution wake-up timer for EMT 0, ignore failures.
+                                     */
+                                    if (RTTimerCanDoHighResolution())
+                                    {
+                                        int rc4 = RTTimerCreateEx(&pGVM->aCpus[0].gvmm.s.hHrWakeUpTimer,
+                                                                  0 /*one-shot, no interval*/,
+                                                                  RTTIMER_FLAGS_HIGH_RES, gvmmR0EmtWakeUpTimerCallback,
+                                                                  &pGVM->aCpus[0]);
+                                        if (RT_FAILURE(rc4))
+                                            pGVM->aCpus[0].gvmm.s.hHrWakeUpTimer = NULL;
+                                    }
+#endif
 
                                     /*
                                      * Complete the handle - take the UsedLock sem just to be careful.
@@ -969,13 +1000,18 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PGVM *pp
                                     rc = GVMMR0_USED_EXCLUSIVE_LOCK(pGVMM);
                                     AssertRC(rc);
 
-                                    pHandle->pGVM                   = pGVM;
-                                    pHandle->hEMT0                  = hEMT0;
-                                    pHandle->ProcId                 = ProcId;
-                                    pGVM->pVMR3                     = pVMR3;
-                                    pGVM->pVMR3Unsafe               = pVMR3;
-                                    pGVM->aCpus[0].hEMT             = hEMT0;
-                                    pGVM->aCpus[0].hNativeThreadR0  = hEMT0;
+                                    pHandle->pGVM                       = pGVM;
+                                    pHandle->hEMT0                      = hEMT0;
+                                    pHandle->ProcId                     = ProcId;
+                                    pGVM->pVMR3                         = pVMR3;
+                                    pGVM->pVMR3Unsafe                   = pVMR3;
+                                    pGVM->aCpus[0].hEMT                 = hEMT0;
+                                    pGVM->aCpus[0].hNativeThreadR0      = hEMT0;
+                                    pGVM->aCpus[0].cEmtHashCollisions   = 0;
+                                    uint32_t const idxHash = GVMM_EMT_HASH_1(hEMT0);
+                                    pGVM->aCpus[0].gvmm.s.idxEmtHash    = (uint16_t)idxHash;
+                                    pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt = hEMT0;
+                                    pGVM->gvmm.s.aEmtHash[idxHash].idVCpu     = 0;
                                     pGVMM->cEMTs += cCpus;
 
                                     /* Associate it with the session and create the context hook for EMT0. */
@@ -1024,8 +1060,13 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PGVM *pp
                                 }
                             }
                         }
-                        else if (RT_SUCCESS(rc))
-                            rc = rc2;
+                        else
+                        {
+                            if (RT_SUCCESS_NP(rc))
+                                rc = rc2;
+                            if (RT_SUCCESS_NP(rc))
+                                rc = rc3;
+                        }
                     }
                 }
                 /* else: The user wasn't permitted to create this VM. */
@@ -1098,6 +1139,19 @@ static void gvmmR0InitPerVMData(PGVM pGVM, int16_t hSelf, VMCPUID cCpus, PSUPDRV
     pGVM->gvmm.s.fDoneVMMR0Init = false;
     pGVM->gvmm.s.fDoneVMMR0Term = false;
 
+    for (size_t i = 0; i < RT_ELEMENTS(pGVM->gvmm.s.aWorkerThreads); i++)
+    {
+        pGVM->gvmm.s.aWorkerThreads[i].hNativeThread   = NIL_RTNATIVETHREAD;
+        pGVM->gvmm.s.aWorkerThreads[i].hNativeThreadR3 = NIL_RTNATIVETHREAD;
+    }
+    pGVM->gvmm.s.aWorkerThreads[0].hNativeThread = GVMM_RTNATIVETHREAD_DESTROYED; /* invalid entry */
+
+    for (size_t i = 0; i < RT_ELEMENTS(pGVM->gvmm.s.aEmtHash); i++)
+    {
+        pGVM->gvmm.s.aEmtHash[i].hNativeEmt = NIL_RTNATIVETHREAD;
+        pGVM->gvmm.s.aEmtHash[i].idVCpu     = NIL_VMCPUID;
+    }
+
     /*
      * Per virtual CPU.
      */
@@ -1107,6 +1161,8 @@ static void gvmmR0InitPerVMData(PGVM pGVM, int16_t hSelf, VMCPUID cCpus, PSUPDRV
         pGVM->aCpus[i].idCpuUnsafe           = i;
         pGVM->aCpus[i].gvmm.s.HaltEventMulti = NIL_RTSEMEVENTMULTI;
         pGVM->aCpus[i].gvmm.s.VMCpuMapObj    = NIL_RTR0MEMOBJ;
+        pGVM->aCpus[i].gvmm.s.idxEmtHash     = UINT16_MAX;
+        pGVM->aCpus[i].gvmm.s.hHrWakeUpTimer = NULL;
         pGVM->aCpus[i].hEMT                  = NIL_RTNATIVETHREAD;
         pGVM->aCpus[i].pGVM                  = pGVM;
         pGVM->aCpus[i].idHostCpu             = NIL_RTCPUID;
@@ -1208,7 +1264,7 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PGVM pGVM)
      * Validate the VM structure, state and caller.
      */
     AssertPtrReturn(pGVM, VERR_INVALID_POINTER);
-    AssertReturn(!((uintptr_t)pGVM & PAGE_OFFSET_MASK), VERR_INVALID_POINTER);
+    AssertReturn(!((uintptr_t)pGVM & HOST_PAGE_OFFSET_MASK), VERR_INVALID_POINTER);
     AssertMsgReturn(pGVM->enmVMState >= VMSTATE_CREATING && pGVM->enmVMState <= VMSTATE_TERMINATED, ("%d\n", pGVM->enmVMState),
                     VERR_WRONG_ORDER);
 
@@ -1247,7 +1303,7 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PGVM pGVM)
         /* Check that other EMTs have deregistered. */
         uint32_t cNotDeregistered = 0;
         for (VMCPUID idCpu = 1; idCpu < pGVM->cCpus; idCpu++)
-            cNotDeregistered += pGVM->aCpus[idCpu].hEMT != ~(RTNATIVETHREAD)1; /* see GVMMR0DeregisterVCpu for the value */
+            cNotDeregistered += pGVM->aCpus[idCpu].hEMT != GVMM_RTNATIVETHREAD_DESTROYED;
         if (cNotDeregistered == 0)
         {
             /* Grab the object pointer. */
@@ -1301,17 +1357,10 @@ static void gvmmR0CleanupVM(PGVM pGVM)
 #endif
     PDMR0CleanupVM(pGVM);
     IOMR0CleanupVM(pGVM);
+    DBGFR0CleanupVM(pGVM);
     PGMR0CleanupVM(pGVM);
-
-    AssertCompile(NIL_RTTHREADCTXHOOK == (RTTHREADCTXHOOK)0); /* Depends on zero initialized memory working for NIL at the moment. */
-    for (VMCPUID idCpu = 0; idCpu < pGVM->cCpus; idCpu++)
-    {
-        /** @todo Can we busy wait here for all thread-context hooks to be
-         *        deregistered before releasing (destroying) it? Only until we find a
-         *        solution for not deregistering hooks everytime we're leaving HMR0
-         *        context. */
-        VMMR0ThreadCtxHookDestroyForEmt(&pGVM->aCpus[idCpu]);
-    }
+    TMR0CleanupVM(pGVM);
+    VMMR0CleanupVM(pGVM);
 }
 
 
@@ -1448,6 +1497,13 @@ static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvUser1, 
                 rc = RTR0MemObjFree(pGVM->aCpus[i].gvmm.s.VMCpuMapObj, false /* fFreeMappings */); AssertRC(rc);
                 pGVM->aCpus[i].gvmm.s.VMCpuMapObj = NIL_RTR0MEMOBJ;
             }
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+            if (pGVM->aCpus[i].gvmm.s.hHrWakeUpTimer != NULL)
+            {
+                RTTimerDestroy(pGVM->aCpus[i].gvmm.s.hHrWakeUpTimer);
+                pGVM->aCpus[i].gvmm.s.hHrWakeUpTimer = NULL;
+            }
+#endif
         }
 
         /* the GVM structure itself. */
@@ -1496,18 +1552,22 @@ GVMMR0DECL(int) GVMMR0RegisterVCpu(PGVM pGVM, VMCPUID idCpu)
      * Validate the VM structure, state and handle.
      */
     PGVMM pGVMM;
-    int rc = gvmmR0ByGVM(pGVM, &pGVMM, false /* fTakeUsedLock */); /** @todo take lock here. */
+    int rc = gvmmR0ByGVM(pGVM, &pGVMM, false /* fTakeUsedLock */);
     if (RT_SUCCESS(rc))
     {
         if (idCpu < pGVM->cCpus)
         {
-            /* Check that the EMT isn't already assigned to a thread. */
-            if (pGVM->aCpus[idCpu].hEMT == NIL_RTNATIVETHREAD)
-            {
-                Assert(pGVM->aCpus[idCpu].hNativeThreadR0 == NIL_RTNATIVETHREAD);
+            PGVMCPU const        pGVCpu      = &pGVM->aCpus[idCpu];
+            RTNATIVETHREAD const hNativeSelf = RTThreadNativeSelf();
 
-                /* A thread may only be one EMT. */
-                RTNATIVETHREAD const hNativeSelf = RTThreadNativeSelf();
+            gvmmR0CreateDestroyLock(pGVMM); /** @todo per-VM lock? */
+
+            /* Check that the EMT isn't already assigned to a thread. */
+            if (pGVCpu->hEMT == NIL_RTNATIVETHREAD)
+            {
+                Assert(pGVCpu->hNativeThreadR0 == NIL_RTNATIVETHREAD);
+
+                /* A thread may only be one EMT (this makes sure hNativeSelf isn't NIL). */
                 for (VMCPUID iCpu = 0; iCpu < pGVM->cCpus; iCpu++)
                     AssertBreakStmt(pGVM->aCpus[iCpu].hEMT != hNativeSelf, rc = VERR_INVALID_PARAMETER);
                 if (RT_SUCCESS(rc))
@@ -1515,17 +1575,58 @@ GVMMR0DECL(int) GVMMR0RegisterVCpu(PGVM pGVM, VMCPUID idCpu)
                     /*
                      * Do the assignment, then try setup the hook. Undo if that fails.
                      */
-                    pGVM->aCpus[idCpu].hNativeThreadR0 = pGVM->aCpus[idCpu].hEMT = RTThreadNativeSelf();
+                    unsigned cCollisions = 0;
+                    uint32_t idxHash     = GVMM_EMT_HASH_1(hNativeSelf);
+                    if (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt != NIL_RTNATIVETHREAD)
+                    {
+                        uint32_t const idxHash2 = GVMM_EMT_HASH_2(hNativeSelf);
+                        do
+                        {
+                            cCollisions++;
+                            Assert(cCollisions < GVMM_EMT_HASH_SIZE);
+                            idxHash = (idxHash + idxHash2) % GVMM_EMT_HASH_SIZE;
+                        } while (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt != NIL_RTNATIVETHREAD);
+                    }
+                    pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt = hNativeSelf;
+                    pGVM->gvmm.s.aEmtHash[idxHash].idVCpu     = idCpu;
 
-                    rc = VMMR0ThreadCtxHookCreateForEmt(&pGVM->aCpus[idCpu]);
+                    pGVCpu->hNativeThreadR0        = hNativeSelf;
+                    pGVCpu->hEMT                   = hNativeSelf;
+                    pGVCpu->cEmtHashCollisions     = (uint8_t)cCollisions;
+                    pGVCpu->gvmm.s.idxEmtHash      = (uint16_t)idxHash;
+
+                    rc = VMMR0ThreadCtxHookCreateForEmt(pGVCpu);
                     if (RT_SUCCESS(rc))
-                        CPUMR0RegisterVCpuThread(&pGVM->aCpus[idCpu]);
+                    {
+                        CPUMR0RegisterVCpuThread(pGVCpu);
+
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+                        /*
+                         * Create the high resolution wake-up timer, ignore failures.
+                         */
+                        if (RTTimerCanDoHighResolution())
+                        {
+                            int rc2 = RTTimerCreateEx(&pGVCpu->gvmm.s.hHrWakeUpTimer, 0 /*one-shot, no interval*/,
+                                                      RTTIMER_FLAGS_HIGH_RES, gvmmR0EmtWakeUpTimerCallback, pGVCpu);
+                            if (RT_FAILURE(rc2))
+                                pGVCpu->gvmm.s.hHrWakeUpTimer = NULL;
+                        }
+#endif
+                    }
                     else
-                        pGVM->aCpus[idCpu].hNativeThreadR0 = pGVM->aCpus[idCpu].hEMT = NIL_RTNATIVETHREAD;
+                    {
+                        pGVCpu->hNativeThreadR0                   = NIL_RTNATIVETHREAD;
+                        pGVCpu->hEMT                              = NIL_RTNATIVETHREAD;
+                        pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt = NIL_RTNATIVETHREAD;
+                        pGVM->gvmm.s.aEmtHash[idxHash].idVCpu     = NIL_VMCPUID;
+                        pGVCpu->gvmm.s.idxEmtHash                 = UINT16_MAX;
+                    }
                 }
             }
             else
                 rc = VERR_ACCESS_DENIED;
+
+            gvmmR0CreateDestroyUnlock(pGVMM);
         }
         else
             rc = VERR_INVALID_CPU_ID;
@@ -1559,6 +1660,7 @@ GVMMR0DECL(int) GVMMR0DeregisterVCpu(PGVM pGVM, VMCPUID idCpu)
          * prevent racing GVMMR0DestroyVM.
          */
         gvmmR0CreateDestroyLock(pGVMM);
+
         uint32_t hSelf = pGVM->hSelf;
         ASMCompilerBarrier();
         if (   hSelf < RT_ELEMENTS(pGVMM->aHandles)
@@ -1574,13 +1676,144 @@ GVMMR0DECL(int) GVMMR0DeregisterVCpu(PGVM pGVM, VMCPUID idCpu)
              * Invalidate hEMT.  We don't use NIL here as that would allow
              * GVMMR0RegisterVCpu to be called again, and we don't want that.
              */
-            AssertCompile(~(RTNATIVETHREAD)1 != NIL_RTNATIVETHREAD);
-            pGVM->aCpus[idCpu].hEMT           = ~(RTNATIVETHREAD)1;
+            pGVM->aCpus[idCpu].hEMT            = GVMM_RTNATIVETHREAD_DESTROYED;
             pGVM->aCpus[idCpu].hNativeThreadR0 = NIL_RTNATIVETHREAD;
+
+            uint32_t const idxHash = pGVM->aCpus[idCpu].gvmm.s.idxEmtHash;
+            if (idxHash < RT_ELEMENTS(pGVM->gvmm.s.aEmtHash))
+                pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt = GVMM_RTNATIVETHREAD_DESTROYED;
         }
 
         gvmmR0CreateDestroyUnlock(pGVMM);
     }
+    return rc;
+}
+
+
+/**
+ * Registers the caller as a given worker thread.
+ *
+ * This enables the thread to operate critical sections in ring-0.
+ *
+ * @returns VBox status code.
+ * @param   pGVM            The global (ring-0) VM structure.
+ * @param   enmWorker       The worker thread this is supposed to be.
+ * @param   hNativeSelfR3   The ring-3 native self of the caller.
+ */
+GVMMR0DECL(int) GVMMR0RegisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker, RTNATIVETHREAD hNativeSelfR3)
+{
+    /*
+     * Validate input.
+     */
+    AssertReturn(enmWorker > GVMMWORKERTHREAD_INVALID && enmWorker < GVMMWORKERTHREAD_END, VERR_INVALID_PARAMETER);
+    AssertReturn(hNativeSelfR3 != NIL_RTNATIVETHREAD, VERR_INVALID_HANDLE);
+    RTNATIVETHREAD const hNativeSelf = RTThreadNativeSelf();
+    AssertReturn(hNativeSelf != NIL_RTNATIVETHREAD, VERR_INTERNAL_ERROR_3);
+    PGVMM pGVMM;
+    int rc = gvmmR0ByGVM(pGVM, &pGVMM, false /*fTakeUsedLock*/);
+    AssertRCReturn(rc, rc);
+    AssertReturn(pGVM->enmVMState < VMSTATE_DESTROYING, VERR_VM_INVALID_VM_STATE);
+
+    /*
+     * Grab the big lock and check the VM state again.
+     */
+    uint32_t const hSelf = pGVM->hSelf;
+    gvmmR0CreateDestroyLock(pGVMM); /** @todo per-VM lock? */
+    if (   hSelf < RT_ELEMENTS(pGVMM->aHandles)
+        && pGVMM->aHandles[hSelf].pvObj != NULL
+        && pGVMM->aHandles[hSelf].pGVM  == pGVM
+        && pGVMM->aHandles[hSelf].ProcId == RTProcSelf())
+    {
+        if (pGVM->enmVMState < VMSTATE_DESTROYING)
+        {
+            /*
+             * Check that the thread isn't an EMT or serving in some other worker capacity.
+             */
+            for (VMCPUID iCpu = 0; iCpu < pGVM->cCpus; iCpu++)
+                AssertBreakStmt(pGVM->aCpus[iCpu].hEMT != hNativeSelf, rc = VERR_INVALID_PARAMETER);
+            for (size_t idx = 0; idx < RT_ELEMENTS(pGVM->gvmm.s.aWorkerThreads); idx++)
+                AssertBreakStmt(idx == (size_t)enmWorker || pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThread != hNativeSelf,
+                                rc = VERR_INVALID_PARAMETER);
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Do the registration.
+                 */
+                if (   pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThread   == NIL_RTNATIVETHREAD
+                    && pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThreadR3 == NIL_RTNATIVETHREAD)
+                {
+                    pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThread   = hNativeSelf;
+                    pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThreadR3 = hNativeSelfR3;
+                    rc = VINF_SUCCESS;
+                }
+                else if (   pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThread   == hNativeSelf
+                         && pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThreadR3 == hNativeSelfR3)
+                    rc = VERR_ALREADY_EXISTS;
+                else
+                    rc = VERR_RESOURCE_BUSY;
+            }
+        }
+        else
+            rc = VERR_VM_INVALID_VM_STATE;
+    }
+    else
+        rc = VERR_INVALID_VM_HANDLE;
+    gvmmR0CreateDestroyUnlock(pGVMM);
+    return rc;
+}
+
+
+/**
+ * Deregisters a workinger thread (caller).
+ *
+ * The worker thread cannot be re-created and re-registered, instead the given
+ * @a enmWorker slot becomes invalid.
+ *
+ * @returns VBox status code.
+ * @param   pGVM            The global (ring-0) VM structure.
+ * @param   enmWorker       The worker thread this is supposed to be.
+ */
+GVMMR0DECL(int)  GVMMR0DeregisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker)
+{
+    /*
+     * Validate input.
+     */
+    AssertReturn(enmWorker > GVMMWORKERTHREAD_INVALID && enmWorker < GVMMWORKERTHREAD_END, VERR_INVALID_PARAMETER);
+    RTNATIVETHREAD const hNativeThread = RTThreadNativeSelf();
+    AssertReturn(hNativeThread != NIL_RTNATIVETHREAD, VERR_INTERNAL_ERROR_3);
+    PGVMM pGVMM;
+    int rc = gvmmR0ByGVM(pGVM, &pGVMM, false /*fTakeUsedLock*/);
+    AssertRCReturn(rc, rc);
+
+    /*
+     * Grab the big lock and check the VM state again.
+     */
+    uint32_t const hSelf = pGVM->hSelf;
+    gvmmR0CreateDestroyLock(pGVMM); /** @todo per-VM lock? */
+    if (   hSelf < RT_ELEMENTS(pGVMM->aHandles)
+        && pGVMM->aHandles[hSelf].pvObj != NULL
+        && pGVMM->aHandles[hSelf].pGVM  == pGVM
+        && pGVMM->aHandles[hSelf].ProcId == RTProcSelf())
+    {
+        /*
+         * Do the deregistration.
+         * This will prevent any other threads register as the worker later.
+         */
+        if (pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThread == hNativeThread)
+        {
+            pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThread   = GVMM_RTNATIVETHREAD_DESTROYED;
+            pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThreadR3 = GVMM_RTNATIVETHREAD_DESTROYED;
+            rc = VINF_SUCCESS;
+        }
+        else if (   pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThread   == GVMM_RTNATIVETHREAD_DESTROYED
+                 && pGVM->gvmm.s.aWorkerThreads[enmWorker].hNativeThreadR3 == GVMM_RTNATIVETHREAD_DESTROYED)
+            rc = VINF_SUCCESS;
+        else
+            rc = VERR_NOT_OWNER;
+    }
+    else
+        rc = VERR_INVALID_VM_HANDLE;
+    gvmmR0CreateDestroyUnlock(pGVMM);
     return rc;
 }
 
@@ -1638,7 +1871,7 @@ static int gvmmR0ByGVM(PGVM pGVM, PGVMM *ppGVMM, bool fTakeUsedLock)
      */
     int rc;
     if (RT_LIKELY(   RT_VALID_PTR(pGVM)
-                  && ((uintptr_t)pGVM & PAGE_OFFSET_MASK) == 0 ))
+                  && ((uintptr_t)pGVM & HOST_PAGE_OFFSET_MASK) == 0 ))
     {
         /*
          * Get the pGVMM instance and check the VM handle.
@@ -1728,7 +1961,7 @@ static int gvmmR0ByGVMandEMT(PGVM pGVM, VMCPUID idCpu, PGVMM *ppGVMM)
      * Check the pointers.
      */
     AssertPtrReturn(pGVM, VERR_INVALID_POINTER);
-    AssertReturn(((uintptr_t)pGVM & PAGE_OFFSET_MASK) == 0, VERR_INVALID_POINTER);
+    AssertReturn(((uintptr_t)pGVM & HOST_PAGE_OFFSET_MASK) == 0, VERR_INVALID_POINTER);
 
     /*
      * Get the pGVMM instance and check the VM handle.
@@ -1897,6 +2130,160 @@ GVMMR0DECL(PGVMCPU) GVMMR0GetGVCpuByEMT(RTNATIVETHREAD hEMT)
 
 
 /**
+ * Get the GVMCPU structure for the given EMT.
+ *
+ * @returns The VCpu structure for @a hEMT, NULL if not an EMT.
+ * @param   pGVM    The global (ring-0) VM structure.
+ * @param   hEMT    The native thread handle of the EMT.
+ *                  NIL_RTNATIVETHREAD means the current thread
+ */
+GVMMR0DECL(PGVMCPU) GVMMR0GetGVCpuByGVMandEMT(PGVM pGVM, RTNATIVETHREAD hEMT)
+{
+    /*
+     * Validate & adjust input.
+     */
+    AssertPtr(pGVM);
+    Assert(pGVM->u32Magic == GVM_MAGIC);
+    if (hEMT == NIL_RTNATIVETHREAD /* likely */)
+    {
+        hEMT = RTThreadNativeSelf();
+        AssertReturn(hEMT != NIL_RTNATIVETHREAD, NULL);
+    }
+
+    /*
+     * Find the matching hash table entry.
+     * See similar code in GVMMR0GetRing3ThreadForSelf.
+     */
+    uint32_t idxHash = GVMM_EMT_HASH_1(hEMT);
+    if (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt == hEMT)
+    { /* likely */ }
+    else
+    {
+#ifdef VBOX_STRICT
+        unsigned       cCollisions = 0;
+#endif
+        uint32_t const idxHash2    = GVMM_EMT_HASH_2(hEMT);
+        for (;;)
+        {
+            Assert(cCollisions++ < GVMM_EMT_HASH_SIZE);
+            idxHash = (idxHash + idxHash2) % GVMM_EMT_HASH_SIZE;
+            if (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt == hEMT)
+                break;
+            if (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt == NIL_RTNATIVETHREAD)
+            {
+#ifdef VBOX_STRICT
+                uint32_t idxCpu = pGVM->cCpus;
+                AssertStmt(idxCpu < VMM_MAX_CPU_COUNT, idxCpu = VMM_MAX_CPU_COUNT);
+                while (idxCpu-- > 0)
+                    Assert(pGVM->aCpus[idxCpu].hNativeThreadR0 != hEMT);
+#endif
+                return NULL;
+            }
+        }
+    }
+
+    /*
+     * Validate the VCpu number and translate it into a pointer.
+     */
+    VMCPUID const idCpu = pGVM->gvmm.s.aEmtHash[idxHash].idVCpu;
+    AssertReturn(idCpu < pGVM->cCpus, NULL);
+    PGVMCPU pGVCpu = &pGVM->aCpus[idCpu];
+    Assert(pGVCpu->hNativeThreadR0   == hEMT);
+    Assert(pGVCpu->gvmm.s.idxEmtHash == idxHash);
+    return pGVCpu;
+}
+
+
+/**
+ * Get the native ring-3 thread handle for the caller.
+ *
+ * This works for EMTs and registered workers.
+ *
+ * @returns ring-3 native thread handle or NIL_RTNATIVETHREAD.
+ * @param   pGVM    The global (ring-0) VM structure.
+ */
+GVMMR0DECL(RTNATIVETHREAD) GVMMR0GetRing3ThreadForSelf(PGVM pGVM)
+{
+    /*
+     * Validate input.
+     */
+    AssertPtr(pGVM);
+    AssertReturn(pGVM->u32Magic == GVM_MAGIC, NIL_RTNATIVETHREAD);
+    RTNATIVETHREAD const hNativeSelf = RTThreadNativeSelf();
+    AssertReturn(hNativeSelf != NIL_RTNATIVETHREAD, NIL_RTNATIVETHREAD);
+
+    /*
+     * Find the matching hash table entry.
+     * See similar code in GVMMR0GetGVCpuByGVMandEMT.
+     */
+    uint32_t idxHash = GVMM_EMT_HASH_1(hNativeSelf);
+    if (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt == hNativeSelf)
+    { /* likely */ }
+    else
+    {
+#ifdef VBOX_STRICT
+        unsigned       cCollisions = 0;
+#endif
+        uint32_t const idxHash2    = GVMM_EMT_HASH_2(hNativeSelf);
+        for (;;)
+        {
+            Assert(cCollisions++ < GVMM_EMT_HASH_SIZE);
+            idxHash = (idxHash + idxHash2) % GVMM_EMT_HASH_SIZE;
+            if (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt == hNativeSelf)
+                break;
+            if (pGVM->gvmm.s.aEmtHash[idxHash].hNativeEmt == NIL_RTNATIVETHREAD)
+            {
+#ifdef VBOX_STRICT
+                uint32_t idxCpu = pGVM->cCpus;
+                AssertStmt(idxCpu < VMM_MAX_CPU_COUNT, idxCpu = VMM_MAX_CPU_COUNT);
+                while (idxCpu-- > 0)
+                    Assert(pGVM->aCpus[idxCpu].hNativeThreadR0 != hNativeSelf);
+#endif
+
+                /*
+                 * Not an EMT, so see if it's a worker thread.
+                 */
+                size_t idx = RT_ELEMENTS(pGVM->gvmm.s.aWorkerThreads);
+                while (--idx > GVMMWORKERTHREAD_INVALID)
+                    if (pGVM->gvmm.s.aWorkerThreads[idx].hNativeThread == hNativeSelf)
+                        return pGVM->gvmm.s.aWorkerThreads[idx].hNativeThreadR3;
+
+                return NIL_RTNATIVETHREAD;
+            }
+        }
+    }
+
+    /*
+     * Validate the VCpu number and translate it into a pointer.
+     */
+    VMCPUID const idCpu = pGVM->gvmm.s.aEmtHash[idxHash].idVCpu;
+    AssertReturn(idCpu < pGVM->cCpus, NIL_RTNATIVETHREAD);
+    PGVMCPU pGVCpu = &pGVM->aCpus[idCpu];
+    Assert(pGVCpu->hNativeThreadR0   == hNativeSelf);
+    Assert(pGVCpu->gvmm.s.idxEmtHash == idxHash);
+    return pGVCpu->hNativeThread;
+}
+
+
+/**
+ * Converts a pointer with the GVM structure to a host physical address.
+ *
+ * @returns Host physical address.
+ * @param   pGVM    The global (ring-0) VM structure.
+ * @param   pv      The address to convert.
+ * @thread  EMT
+ */
+GVMMR0DECL(RTHCPHYS) GVMMR0ConvertGVMPtr2HCPhys(PGVM pGVM, void *pv)
+{
+    AssertPtr(pGVM);
+    Assert(pGVM->u32Magic == GVM_MAGIC);
+    uintptr_t const off = (uintptr_t)pv - (uintptr_t)pGVM;
+    Assert(off < RT_UOFFSETOF_DYN(GVM, aCpus[pGVM->cCpus]));
+    return RTR0MemObjGetPagePhysAddr(pGVM->gvmm.s.VMMemObj, off >> HOST_PAGE_SHIFT) | ((uintptr_t)pv & HOST_PAGE_OFFSET_MASK);
+}
+
+
+/**
  * This is will wake up expired and soon-to-be expired VMs.
  *
  * @returns Number of VMs that has been woken up.
@@ -2047,6 +2434,34 @@ static unsigned gvmmR0SchedDoWakeUps(PGVMM pGVMM, uint64_t u64Now)
 }
 
 
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+/**
+ * Timer callback for the EMT high-resolution wake-up timer.
+ *
+ * @param   pTimer  The timer handle.
+ * @param   pvUser  The global (ring-0) CPU structure for the EMT to wake up.
+ * @param   iTick   The current tick.
+ */
+static DECLCALLBACK(void) gvmmR0EmtWakeUpTimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick)
+{
+    PGVMCPU pGVCpu = (PGVMCPU)pvUser;
+    NOREF(pTimer); NOREF(iTick);
+
+    pGVCpu->gvmm.s.fHrWakeUptimerArmed = false;
+    if (pGVCpu->gvmm.s.u64HaltExpire != 0)
+    {
+        RTSemEventMultiSignal(pGVCpu->gvmm.s.HaltEventMulti);
+        pGVCpu->gvmm.s.Stats.cWakeUpTimerHits += 1;
+    }
+    else
+        pGVCpu->gvmm.s.Stats.cWakeUpTimerMisses += 1;
+
+    if (RTMpCpuId() == pGVCpu->gvmm.s.idHaltedOnCpu)
+        pGVCpu->gvmm.s.Stats.cWakeUpTimerSameCpu += 1;
+}
+#endif /* GVMM_SCHED_WITH_HR_WAKE_UP_TIMER */
+
+
 /**
  * Halt the EMT thread.
  *
@@ -2062,9 +2477,6 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGip
 {
     LogFlow(("GVMMR0SchedHalt: pGVM=%p pGVCpu=%p(%d) u64ExpireGipTime=%#RX64\n",
              pGVM, pGVCpu, pGVCpu->idCpu, u64ExpireGipTime));
-    GVMM_CHECK_SMAP_SETUP();
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
-
     PGVMM pGVMM;
     GVMM_GET_VALID_INSTANCE(pGVMM, VERR_GVMM_INSTANCE);
 
@@ -2080,10 +2492,7 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGip
     if (fDoEarlyWakeUps)
     {
         int rc2 = GVMMR0_USED_SHARED_LOCK(pGVMM); AssertRC(rc2);
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     }
-
-    pGVCpu->gvmm.s.iCpuEmt = ASMGetApicId();
 
     /* GIP hack: We might are frequently sleeping for short intervals where the
        difference between GIP and system time matters on systems with high resolution
@@ -2091,13 +2500,9 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGip
     Assert(ASMGetFlags() & X86_EFL_IF);
     const uint64_t u64NowSys = RTTimeSystemNanoTS();
     const uint64_t u64NowGip = RTTimeNanoTS();
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
 
     if (fDoEarlyWakeUps)
-    {
         pGVM->gvmm.s.StatsSched.cHaltWakeUps += gvmmR0SchedDoWakeUps(pGVMM, u64NowGip);
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
-    }
 
     /*
      * Go to sleep if we must...
@@ -2106,9 +2511,14 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGip
     int rc;
     uint64_t cNsInterval = u64ExpireGipTime - u64NowGip;
     if (    u64NowGip < u64ExpireGipTime
-        &&  cNsInterval >= (pGVMM->cEMTs > pGVMM->cEMTsMeansCompany
-                            ? pGVMM->nsMinSleepCompany
-                            : pGVMM->nsMinSleepAlone))
+        &&  (    cNsInterval >= (pGVMM->cEMTs > pGVMM->cEMTsMeansCompany
+                                 ? pGVMM->nsMinSleepCompany
+                                 : pGVMM->nsMinSleepAlone)
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+             || (pGVCpu->gvmm.s.hHrWakeUpTimer != NULL && cNsInterval >= pGVMM->nsMinSleepWithHrTimer)
+#endif
+             )
+       )
     {
         pGVM->gvmm.s.StatsSched.cHaltBlocking++;
         if (cNsInterval > RT_NS_1SEC)
@@ -2121,22 +2531,42 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGip
                 pGVMM->uNsNextEmtWakeup = u64ExpireGipTime;
             GVMMR0_USED_SHARED_UNLOCK(pGVMM);
         }
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
+
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+        if (   pGVCpu->gvmm.s.hHrWakeUpTimer != NULL
+            && cNsInterval >= RT_MIN(RT_NS_1US, pGVMM->nsMinSleepWithHrTimer))
+        {
+            STAM_REL_PROFILE_START(&pGVCpu->gvmm.s.Stats.Start, a);
+            RTTimerStart(pGVCpu->gvmm.s.hHrWakeUpTimer, cNsInterval);
+            pGVCpu->gvmm.s.fHrWakeUptimerArmed = true;
+            pGVCpu->gvmm.s.idHaltedOnCpu       = RTMpCpuId();
+            STAM_REL_PROFILE_STOP(&pGVCpu->gvmm.s.Stats.Start, a);
+        }
+#endif
 
         rc = RTSemEventMultiWaitEx(pGVCpu->gvmm.s.HaltEventMulti,
                                    RTSEMWAIT_FLAGS_ABSOLUTE | RTSEMWAIT_FLAGS_NANOSECS | RTSEMWAIT_FLAGS_INTERRUPTIBLE,
                                    u64NowGip > u64NowSys ? u64ExpireGipTime : u64NowSys + cNsInterval);
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
 
         ASMAtomicWriteU64(&pGVCpu->gvmm.s.u64HaltExpire, 0);
         ASMAtomicDecU32(&pGVMM->cHaltedEMTs);
 
+#ifdef GVMM_SCHED_WITH_HR_WAKE_UP_TIMER
+        if (!pGVCpu->gvmm.s.fHrWakeUptimerArmed)
+        { /* likely */ }
+        else
+        {
+            STAM_REL_PROFILE_START(&pGVCpu->gvmm.s.Stats.Stop, a);
+            RTTimerStop(pGVCpu->gvmm.s.hHrWakeUpTimer);
+            pGVCpu->gvmm.s.fHrWakeUptimerArmed         = false;
+            pGVCpu->gvmm.s.Stats.cWakeUpTimerCanceled += 1;
+            STAM_REL_PROFILE_STOP(&pGVCpu->gvmm.s.Stats.Stop, a);
+        }
+#endif
+
         /* Reset the semaphore to try prevent a few false wake-ups. */
         if (rc == VINF_SUCCESS)
-        {
             RTSemEventMultiReset(pGVCpu->gvmm.s.HaltEventMulti);
-            GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
-        }
         else if (rc == VERR_TIMEOUT)
         {
             pGVM->gvmm.s.StatsSched.cHaltTimeouts++;
@@ -2148,9 +2578,7 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGip
         pGVM->gvmm.s.StatsSched.cHaltNotBlocking++;
         if (fDoEarlyWakeUps)
             GVMMR0_USED_SHARED_UNLOCK(pGVMM);
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
         RTSemEventMultiReset(pGVCpu->gvmm.s.HaltEventMulti);
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
         rc = VINF_SUCCESS;
     }
 
@@ -2170,16 +2598,10 @@ GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGip
  */
 GVMMR0DECL(int) GVMMR0SchedHaltReq(PGVM pGVM, VMCPUID idCpu, uint64_t u64ExpireGipTime)
 {
-    GVMM_CHECK_SMAP_SETUP();
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     PGVMM pGVMM;
     int rc = gvmmR0ByGVMandEMT(pGVM, idCpu, &pGVMM);
     if (RT_SUCCESS(rc))
-    {
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
         rc = GVMMR0SchedHalt(pGVM, &pGVM->aCpus[idCpu], u64ExpireGipTime);
-    }
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     return rc;
 }
 
@@ -2241,15 +2663,11 @@ DECLINLINE(int) gvmmR0SchedWakeUpOne(PGVM pGVM, PGVMCPU pGVCpu)
  */
 GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock)
 {
-    GVMM_CHECK_SMAP_SETUP();
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
-
     /*
      * Validate input and take the UsedLock.
      */
     PGVMM pGVMM;
     int rc = gvmmR0ByGVM(pGVM, &pGVMM, fTakeUsedLock);
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     if (RT_SUCCESS(rc))
     {
         if (idCpu < pGVM->cCpus)
@@ -2258,7 +2676,6 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock
              * Do the actual job.
              */
             rc = gvmmR0SchedWakeUpOne(pGVM, &pGVM->aCpus[idCpu]);
-            GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
 
             if (fTakeUsedLock && pGVMM->fDoEarlyWakeUps)
             {
@@ -2268,7 +2685,6 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock
                 Assert(ASMGetFlags() & X86_EFL_IF);
                 const uint64_t u64Now = RTTimeNanoTS(); /* (GIP time) */
                 pGVM->gvmm.s.StatsSched.cWakeUpWakeUps += gvmmR0SchedDoWakeUps(pGVMM, u64Now);
-                GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
             }
         }
         else
@@ -2278,7 +2694,6 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PGVM pGVM, VMCPUID idCpu, bool fTakeUsedLock
         {
             int rc2 = GVMMR0_USED_SHARED_UNLOCK(pGVMM);
             AssertRC(rc2);
-            GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
         }
     }
 
@@ -2319,11 +2734,8 @@ GVMMR0DECL(int) GVMMR0SchedWakeUp(PGVM pGVM, VMCPUID idCpu)
  */
 GVMMR0DECL(int) GVMMR0SchedWakeUpNoGVMNoLock(PGVM pGVM, VMCPUID idCpu)
 {
-    GVMM_CHECK_SMAP_SETUP();
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     PGVMM pGVMM;
     int rc = gvmmR0ByGVM(pGVM, &pGVMM, false /*fTakeUsedLock*/);
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     if (RT_SUCCESS(rc))
         rc = GVMMR0SchedWakeUpEx(pGVM, idCpu, false /*fTakeUsedLock*/);
     return rc;
@@ -2453,8 +2865,6 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PGVM pGVM, PCVMCPUSET pSleepSet, PC
 {
     AssertPtrReturn(pSleepSet, VERR_INVALID_POINTER);
     AssertPtrReturn(pPokeSet, VERR_INVALID_POINTER);
-    GVMM_CHECK_SMAP_SETUP();
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     RTNATIVETHREAD hSelf = RTThreadNativeSelf();
 
     /*
@@ -2462,7 +2872,6 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PGVM pGVM, PCVMCPUSET pSleepSet, PC
      */
     PGVMM pGVMM;
     int rc = gvmmR0ByGVM(pGVM, &pGVMM, true /* fTakeUsedLock */);
-    GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     if (RT_SUCCESS(rc))
     {
         rc = VINF_SUCCESS;
@@ -2475,20 +2884,13 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PGVM pGVM, PCVMCPUSET pSleepSet, PC
 
             /* just ignore errors for now. */
             if (VMCPUSET_IS_PRESENT(pSleepSet, idCpu))
-            {
                 gvmmR0SchedWakeUpOne(pGVM, &pGVM->aCpus[idCpu]);
-                GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
-            }
             else if (VMCPUSET_IS_PRESENT(pPokeSet, idCpu))
-            {
                 gvmmR0SchedPokeOne(pGVM, &pGVM->aCpus[idCpu]);
-                GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
-            }
         }
 
         int rc2 = GVMMR0_USED_SHARED_UNLOCK(pGVMM);
         AssertRC(rc2);
-        GVMM_CHECK_SMAP_CHECK2(pGVM, RT_NOTHING);
     }
 
     LogFlow(("GVMMR0SchedWakeUpAndPokeCpus: returns %Rrc\n", rc));
@@ -2806,11 +3208,18 @@ GVMMR0DECL(int) GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession
         if (RT_FAILURE(rc))
             return rc;
         pStats->SchedVM = pGVM->gvmm.s.StatsSched;
+
+        uint32_t iCpu = RT_MIN(pGVM->cCpus, RT_ELEMENTS(pStats->aVCpus));
+        if (iCpu < RT_ELEMENTS(pStats->aVCpus))
+            RT_BZERO(&pStats->aVCpus[iCpu], (RT_ELEMENTS(pStats->aVCpus) - iCpu) * sizeof(pStats->aVCpus[0]));
+        while (iCpu-- > 0)
+            pStats->aVCpus[iCpu] = pGVM->aCpus[iCpu].gvmm.s.Stats;
     }
     else
     {
         GVMM_GET_VALID_INSTANCE(pGVMM, VERR_GVMM_INSTANCE);
-        memset(&pStats->SchedVM, 0, sizeof(pStats->SchedVM));
+        RT_ZERO(pStats->SchedVM);
+        RT_ZERO(pStats->aVCpus);
 
         int rc = GVMMR0_USED_SHARED_LOCK(pGVMM);
         AssertRCReturn(rc, rc);

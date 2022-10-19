@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_UIVirtualBoxManager_h
@@ -29,32 +39,35 @@
 #include "QIWithRestorableGeometry.h"
 #include "QIWithRetranslateUI.h"
 #include "UICommon.h"
+#include "UIExtraDataDefs.h"
 
 /* Forward declarations: */
 class QMenu;
 class QIManagerDialog;
 class UIAction;
 class UIActionPool;
+struct UIUnattendedInstallData;
 class UIVirtualBoxManagerWidget;
 class UIVirtualMachineItem;
+class CCloudMachine;
+class CUnattended;
 
 /* Type definitions: */
 typedef QIWithRestorableGeometry<QMainWindow> QMainWindowWithRestorableGeometry;
 typedef QIWithRetranslateUI<QMainWindowWithRestorableGeometry> QMainWindowWithRestorableGeometryAndRetranslateUi;
-typedef QMap<QString, QIManagerDialog*> VMLogViewerMap;
 
 /** Singleton QMainWindow extension used as VirtualBox Manager instance. */
 class UIVirtualBoxManager : public QMainWindowWithRestorableGeometryAndRetranslateUi
 {
     Q_OBJECT;
 
+    /** Pointer to menu update-handler for this class: */
+    typedef void (UIVirtualBoxManager::*MenuUpdateHandler)(QMenu *pMenu);
+
 signals:
 
     /** Notifies listeners about this window remapped to another screen. */
     void sigWindowRemapped();
-
-    /** Notifies listeners about Cloud Profile Manager change. */
-    void sigCloudProfileManagerChange();
 
 public:
 
@@ -69,49 +82,53 @@ public:
     UIActionPool *actionPool() const { return m_pActionPool; }
 
     /** Opens Cloud Profile Manager. */
-    void openCloudProfileManager() { sltOpenCloudProfileManagerWindow(); }
+    void openCloudProfileManager() { sltOpenManagerWindow(UIToolType_Cloud); }
 
 protected:
 
     /** Constructs VirtualBox Manager. */
     UIVirtualBoxManager();
     /** Destructs VirtualBox Manager. */
-    virtual ~UIVirtualBoxManager() /* override */;
+    virtual ~UIVirtualBoxManager() RT_OVERRIDE;
 
     /** Returns whether the window should be maximized when geometry being restored. */
-    virtual bool shouldBeMaximized() const /* override */;
+    virtual bool shouldBeMaximized() const RT_OVERRIDE;
 
     /** @name Event handling stuff.
       * @{ */
 #ifdef VBOX_WS_MAC
         /** Mac OS X: Preprocesses any @a pEvent for passed @a pObject. */
-        virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+        virtual bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
 #endif
 
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
 
         /** Handles any Qt @a pEvent. */
-        virtual bool event(QEvent *pEvent) /* override */;
+        virtual bool event(QEvent *pEvent) RT_OVERRIDE;
         /** Handles show @a pEvent. */
-        virtual void showEvent(QShowEvent *pEvent) /* override */;
+        virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
         /** Handles first show @a pEvent. */
-        virtual void polishEvent(QShowEvent *pEvent) /* override */;
+        virtual void polishEvent(QShowEvent *pEvent);
         /** Handles close @a pEvent. */
-        virtual void closeEvent(QCloseEvent *pEvent) /* override */;
+        virtual void closeEvent(QCloseEvent *pEvent) RT_OVERRIDE;
+        /** Handles drag enter @a pEvent. */
+        virtual void dragEnterEvent(QDragEnterEvent *event) RT_OVERRIDE;
+        /** Handles drop @a pEvent. */
+        virtual void dropEvent(QDropEvent *event) RT_OVERRIDE;
     /** @} */
 
 private slots:
 
     /** @name Common stuff.
       * @{ */
-#if QT_VERSION == 0
-        /** Stupid moc does not warn if it cannot find headers! */
-        void QT_VERSION_NOT_DEFINED
-#elif defined(VBOX_WS_X11)
+#ifdef VBOX_WS_X11
         /** Handles host-screen available-area change. */
         void sltHandleHostScreenAvailableAreaChange();
-#endif /* VBOX_WS_X11 */
+#endif
+
+        /** Handles request to update actions. */
+        void sltHandleUpdateActionAppearanceRequest() { updateActionsAppearance(); }
 
         /** Handles signal about medium-enumeration finished. */
         void sltHandleMediumEnumerationFinish();
@@ -119,10 +136,15 @@ private slots:
         /** Handles call to open a @a list of URLs. */
         void sltHandleOpenUrlCall(QList<QUrl> list = QList<QUrl>());
 
+        /** Checks if USB device list can be enumerated and host produces any warning during enumeration. */
+        void sltCheckUSBAccesibility();
+
         /** Hnadles singal about Chooser-pane index change.  */
         void sltHandleChooserPaneIndexChange();
         /** Handles signal about group saving progress change. */
         void sltHandleGroupSavingProgressChange();
+        /** Handles signal about cloud update progress change. */
+        void sltHandleCloudUpdateProgressChange();
 
         /** Handles singal about Tool type change.  */
         void sltHandleToolTypeChange();
@@ -130,8 +152,8 @@ private slots:
         /** Handles current snapshot item change. */
         void sltCurrentSnapshotItemChange();
 
-        /** Handles state change for cloud machine with specified @a strMachineId. */
-        void sltHandleCloudMachineStateChange(const QString strMachineId);
+        /** Handles state change for cloud machine with certain @a uId. */
+        void sltHandleCloudMachineStateChange(const QUuid &uId);
     /** @} */
 
     /** @name CVirtualBox event handling stuff.
@@ -140,22 +162,22 @@ private slots:
         void sltHandleStateChange(const QUuid &uID);
     /** @} */
 
+    /** @name Action-pool stuff.
+      * @{ */
+        /** Handle menu prepare. */
+        void sltHandleMenuPrepare(int iIndex, QMenu *pMenu);
+    /** @} */
+
     /** @name File menu stuff.
       * @{ */
-        /** Handles call to open Virtual Medium Manager window. */
-        void sltOpenVirtualMediumManagerWindow();
-        /** Handles call to close Virtual Medium Manager window. */
-        void sltCloseVirtualMediumManagerWindow();
-
-        /** Handles call to open Host Network Manager window. */
-        void sltOpenHostNetworkManagerWindow();
-        /** Handles call to close Host Network Manager window. */
-        void sltCloseHostNetworkManagerWindow();
-
-        /** Handles call to open Cloud Profile Manager window. */
-        void sltOpenCloudProfileManagerWindow();
-        /** Handles call to close Cloud Profile Manager window. */
-        void sltCloseCloudProfileManagerWindow();
+        /** Handles call to open Manager window of certain @a enmType. */
+        void sltOpenManagerWindow(UIToolType enmType = UIToolType_Invalid);
+        /** Handles call to open Manager window by default. */
+        void sltOpenManagerWindowDefault() { sltOpenManagerWindow(); }
+        /** Handles call to close Manager window of certain @a enmType. */
+        void sltCloseManagerWindow(UIToolType enmType = UIToolType_Invalid);
+        /** Handles call to close Manager window by default. */
+        void sltCloseManagerWindowDefault() { sltCloseManagerWindow(); }
 
         /** Handles call to open Import Appliance wizard.
           * @param strFileName can bring the name of file to import appliance from. */
@@ -164,8 +186,6 @@ private slots:
         void sltOpenImportApplianceWizardDefault() { sltOpenImportApplianceWizard(); }
         /** Handles call to open Export Appliance wizard. */
         void sltOpenExportApplianceWizard();
-        /** Handles call to open New Cloud VM wizard. */
-        void sltOpenNewCloudVMWizard();
 
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
         /** Handles call to open Extra-data Manager window. */
@@ -181,11 +201,15 @@ private slots:
 
     /** @name Machine menu stuff.
       * @{ */
-        /** Handles call to open Add Machine dialog.
-          * @param strFileName can bring the name of file to add machine from. */
-        void sltOpenAddMachineDialog(const QString &strFileName = QString());
-        /** Handles call to open Add Machine dialog the default way. */
-        void sltOpenAddMachineDialogDefault() { sltOpenAddMachineDialog(); }
+        /** Handles call to open new machine wizard. */
+        void sltOpenNewMachineWizard();
+        /** Handles call to open add machine dialog. */
+        void sltOpenAddMachineDialog();
+
+        /** Handles call to open group name editor. */
+        void sltOpenGroupNameEditor();
+        /** Handles call to disband group. */
+        void sltDisbandGroup();
 
         /** Handles call to open Machine Settings dialog.
           * @param strCategory can bring the settings category to start from.
@@ -200,8 +224,16 @@ private slots:
         /** Handles call to open Clone Machine wizard. */
         void sltOpenCloneMachineWizard();
 
-        /** Handles the Move Machine action. */
+        /** Handles call to move machine. */
         void sltPerformMachineMove();
+
+        /** Handles call to remove machine. */
+        void sltPerformMachineRemove();
+
+        /** Handles call to move machine to a new group. */
+        void sltPerformMachineMoveToNewGroup();
+        /** Handles call to move machine to a specific group. */
+        void sltPerformMachineMoveToSpecificGroup();
 
         /** Handles call to start or show machine. */
         void sltPerformStartOrShowMachine();
@@ -211,6 +243,31 @@ private slots:
         void sltPerformStartMachineHeadless();
         /** Handles call to start machine in detachable mode. */
         void sltPerformStartMachineDetachable();
+
+        /** Handles call to create console connection for group. */
+        void sltPerformCreateConsoleConnectionForGroup();
+        /** Handles call to create console connection for machine. */
+        void sltPerformCreateConsoleConnectionForMachine();
+        /** Handles call to delete console connection for group. */
+        void sltPerformDeleteConsoleConnectionForGroup();
+        /** Handles call to delete console connection for machine. */
+        void sltPerformDeleteConsoleConnectionForMachine();
+        /** Handles call to copy console connection key fingerprint. */
+        void sltCopyConsoleConnectionFingerprint();
+        /** Handles call to copy serial console command for Unix. */
+        void sltPerformCopyCommandSerialUnix();
+        /** Handles call to copy serial console command for Windows. */
+        void sltPerformCopyCommandSerialWindows();
+        /** Handles call to copy VNC console command for Unix. */
+        void sltPerformCopyCommandVNCUnix();
+        /** Handles call to copy VNC console command for Windows. */
+        void sltPerformCopyCommandVNCWindows();
+        /** Handles call to show console log. */
+        void sltPerformShowLog();
+        /** Handles call about console @a strLog for cloud VM with @a strName read. */
+        void sltHandleConsoleLogRead(const QString &strName, const QString &strLog);
+        /** Handles call to execute external application. */
+        void sltExecuteExternalApplication();
 
         /** Handles call to discard machine state. */
         void sltPerformDiscardMachineState();
@@ -225,11 +282,15 @@ private slots:
         void sltPerformDetachMachineUI();
         /** Handles call to save machine state. */
         void sltPerformSaveMachineState();
+        /** Handles call to terminate machine. */
+        void sltPerformTerminateMachine();
         /** Handles call to ask machine for shutdown. */
         void sltPerformShutdownMachine();
         /** Handles call to power machine off. */
         void sltPerformPowerOffMachine();
 
+        /** Handles call to show global tool corresponding to passed @a pAction. */
+        void sltPerformShowGlobalTool(QAction *pAction);
         /** Handles call to show machine tool corresponding to passed @a pAction. */
         void sltPerformShowMachineTool(QAction *pAction);
 
@@ -238,16 +299,23 @@ private slots:
         /** Handles call to close machine Log Viewer window. */
         void sltCloseLogViewerWindow();
 
+        /** Handles call to refresh machine. */
+        void sltPerformRefreshMachine();
+
         /** Handles call to show machine in File Manager. */
         void sltShowMachineInFileManager();
 
         /** Handles call to create machine shortcut. */
         void sltPerformCreateMachineShortcut();
 
-        /** Handles call to show group Close menu. */
-        void sltGroupCloseMenuAboutToShow();
-        /** Handles call to show machine Close menu. */
-        void sltMachineCloseMenuAboutToShow();
+        /** Handles call to sort group. */
+        void sltPerformGroupSorting();
+
+        /** Handles call to toggle machine search widget visibility to be @a fVisible. */
+        void sltPerformMachineSearchWidgetVisibilityToggling(bool fVisible);
+
+        /** Handles call to show help viewer. */
+        void sltPerformShowHelpBrowser();
     /** @} */
 
 private:
@@ -271,8 +339,6 @@ private:
         /** Loads settings. */
         void loadSettings();
 
-        /** Saves settings. */
-        void saveSettings();
         /** Cleanups connections. */
         void cleanupConnections();
         /** Cleanups widgets. */
@@ -296,16 +362,63 @@ private:
         bool isAllItemsOfOneGroupSelected() const;
         /** Returns whether single group is selected. */
         bool isSingleGroupSelected() const;
+        /** Returns whether single local group is selected. */
+        bool isSingleLocalGroupSelected() const;
+        /** Returns whether single cloud provider group is selected. */
+        bool isSingleCloudProviderGroupSelected() const;
+        /** Returns whether single cloud profile group is selected. */
+        bool isSingleCloudProfileGroupSelected() const;
+
+        /** Returns whether at least one cloud profile currently being updated. */
+        bool isCloudProfileUpdateInProgress() const;
+
+        /** Checks if @a comUnattended has any errors.
+          * If so shows an error notification and returns false, else returns true. */
+        bool checkUnattendedInstallError(const CUnattended &comUnattended) const;
     /** @} */
 
-    /** @name VM launching stuff.
+    /** @name Various VM helpers.
       * @{ */
+        /** Opens add machine dialog specifying initial name with @a strFileName. */
+        void openAddMachineDialog(const QString &strFileName = QString());
+        /** Opens new machine dialog specifying initial name with @a strFileName. */
+        void openNewMachineWizard(const QString &strISOFilePath = QString());
+        /** Launches certain @a comMachine in specified @a enmLaunchMode. */
+        static void launchMachine(CMachine &comMachine, UICommon::LaunchMode enmLaunchMode = UICommon::LaunchMode_Default);
+        /** Launches certain @a comMachine. */
+        static void launchMachine(CCloudMachine &comMachine);
+
+        /** Creates an unattended installer and uses it to install guest os to newly created vm. */
+    void startUnattendedInstall(CUnattended &comUnattendedInstaller, bool fStartHeadless, const QString &strMachineId);
+
         /** Launches or shows virtual machines represented by passed @a items in corresponding @a enmLaunchMode (for launch). */
         void performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, UICommon::LaunchMode enmLaunchMode);
+
+#ifndef VBOX_WS_WIN
+        /** Parses serialized @a strArguments string according to shell rules. */
+        QStringList parseShellArguments(const QString &strArguments);
+#endif
     /** @} */
 
     /** @name Action update stuff.
       * @{ */
+        /** Updates 'Group' menu. */
+        void updateMenuGroup(QMenu *pMenu);
+        /** Updates 'Machine' menu. */
+        void updateMenuMachine(QMenu *pMenu);
+        /** Updates 'Group' : 'Move to Group' menu. */
+        void updateMenuGroupMoveToGroup(QMenu *pMenu);
+        /** Updates 'Group' : 'Console' menu. */
+        void updateMenuGroupConsole(QMenu *pMenu);
+        /** Updates 'Group' : 'Close' menu. */
+        void updateMenuGroupClose(QMenu *pMenu);
+        /** Updates 'Machine' : 'Move to Group' menu. */
+        void updateMenuMachineMoveToGroup(QMenu *pMenu);
+        /** Updates 'Machine' : 'Console' menu. */
+        void updateMenuMachineConsole(QMenu *pMenu);
+        /** Updates 'Machine' : 'Close' menu. */
+        void updateMenuMachineClose(QMenu *pMenu);
+
         /** Performs update of actions visibility. */
         void updateActionsVisibility();
         /** Performs update of actions appearance. */
@@ -317,6 +430,8 @@ private:
 
         /** Returns whether all passed @a items are local. */
         static bool isItemsLocal(const QList<UIVirtualMachineItem*> &items);
+        /** Returns whether all passed @a items are cloud. */
+        static bool isItemsCloud(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether all passed @a items are powered off. */
         static bool isItemsPoweredOff(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether at least one of passed @a items is able to shutdown. */
@@ -341,6 +456,13 @@ private:
         static bool isAtLeastOneItemStarted(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether at least one of passed @a items is running. */
         static bool isAtLeastOneItemRunning(const QList<UIVirtualMachineItem*> &items);
+
+#ifdef VBOX_WS_X11
+        /** Tries to guess default X11 terminal emulator.
+          * @returns Data packed into Qt pair of QString(s),
+          *          which is `name` and `--execute argument`. */
+        static QPair<QString, QString> defaultTerminalData();
+#endif
     /** @} */
 
     /** Holds the static instance. */
@@ -353,18 +475,20 @@ private:
 
     /** Holds the action-pool instance. */
     UIActionPool *m_pActionPool;
+    /** Holds the map of menu update-handlers. */
+    QMap<int, MenuUpdateHandler> m_menuUpdateHandlers;
 
-    /** Holds the Virtual Media Manager window instance. */
-    QIManagerDialog *m_pManagerVirtualMedia;
-    /** Holds the Host Network Manager window instance. */
-    QIManagerDialog *m_pManagerHostNetwork;
-    /** Holds the Cloud Profile Manager window instance. */
-    QIManagerDialog *m_pManagerCloudProfile;
-    /** Holds a map of (machineUUID, UIVMLogViewerDialog). */
-    VMLogViewerMap   m_logViewers;
+    /** Holds the map of various global managers. */
+    QMap<UIToolType, QIManagerDialog*>  m_managers;
+
+    /** Holds the instance of UIVMLogViewerDialog. */
+    QIManagerDialog   *m_pLogViewerDialog;
 
     /** Holds the central-widget instance. */
     UIVirtualBoxManagerWidget *m_pWidget;
+
+    /** Holds the geometry save timer ID. */
+    int  m_iGeometrySaveTimerId;
 };
 
 #define gpManager UIVirtualBoxManager::instance()

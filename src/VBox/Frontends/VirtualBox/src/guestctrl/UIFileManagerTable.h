@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_guestctrl_UIFileManagerTable_h
@@ -47,6 +57,7 @@ class QGridLayout;
 class QSortFilterProxyModel;
 class QStackedWidget;
 class QTextEdit;
+class QHBoxLayout;
 class QVBoxLayout;
 class UIActionPool;
 class UICustomFileSystemItem;
@@ -54,7 +65,7 @@ class UICustomFileSystemModel;
 class UICustomFileSystemProxyModel;
 class UIFileManagerNavigationWidget;
 class UIGuestControlFileView;
-class UIToolBar;
+class QIToolBar;
 
 /** A simple struck to store some statictics for a directory. Mainly used by  UIDirectoryDiskUsageComputer instances. */
 class UIDirectoryStatistics
@@ -92,7 +103,7 @@ protected:
 
     /** Read the directory with the path @p path recursively and collect #of objects and  total size */
     virtual void directoryStatisticsRecursive(const QString &path, UIDirectoryStatistics &statistics) = 0;
-    virtual void           run() /* override */;
+    virtual void           run() RT_OVERRIDE;
     /** Returns the m_fOkToContinue flag */
     bool                  isOkToContinue() const;
     /** Stores a list of paths whose statistics are accumulated, can be file, directory etc: */
@@ -113,7 +124,7 @@ class UIPropertiesDialog : public QIDialog
 
 public:
 
-    UIPropertiesDialog(QWidget *pParent = 0, Qt::WindowFlags flags = 0);
+    UIPropertiesDialog(QWidget *pParent = 0, Qt::WindowFlags enmFlags = Qt::WindowFlags());
     void setPropertyText(const QString &strProperty);
     void addDirectoryStatistics(UIDirectoryStatistics statictics);
 
@@ -127,15 +138,16 @@ private:
 /** This class serves a base class for file table. Currently a guest version
  *  and a host version are derived from this base. Each of these children
  *  populates the UICustomFileSystemModel by scanning the file system
- *  differently. The file structre kept in this class as a tree. */
+ *  differently. The file structure kept in this class as a tree. */
 class UIFileManagerTable : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
 signals:
 
-    void sigLogOutput(QString strLog, FileManagerLogType eLogType);
+    void sigLogOutput(QString strLog, const QString &strMachineName, FileManagerLogType eLogType);
     void sigDeleteConfirmationOptionChanged();
+    void sigSelectionChanged(bool fHasSelection);
 
 public:
 
@@ -143,7 +155,6 @@ public:
     virtual ~UIFileManagerTable();
     /** Deletes all the tree nodes */
     void        reset();
-    void        emitLogOutput(const QString& strOutput, FileManagerLogType eLogType);
     /** Returns the path of the rootIndex */
     QString     currentDirectoryPath() const;
     /** Returns the paths of the selected items (if any) as a list */
@@ -153,6 +164,7 @@ public:
     static QString humanReadableSize(ULONG64 size);
     /** Peroforms whatever is necessary after a UIFileManagerOptions change. */
     void optionsUpdated();
+    bool hasSelection() const;
 
 public slots:
 
@@ -211,7 +223,7 @@ protected:
     virtual void     determinePathSeparator() = 0;
     virtual void     prepareToolbar() = 0;
     virtual void     createFileViewContextMenu(const QWidget *pWidget, const QPoint &point) = 0;
-    virtual bool     event(QEvent *pEvent) /* override */;
+    virtual bool     event(QEvent *pEvent) RT_OVERRIDE;
 
     /** @name Copy/Cut guest-to-guest (host-to-host) stuff.
      * @{ */
@@ -230,26 +242,30 @@ protected:
     /** Goes into directory pointed by the @p item */
     void             goIntoDirectory(UICustomFileSystemItem *item);
     UICustomFileSystemItem* indexData(const QModelIndex &index) const;
-    bool             eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+    bool             eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
     CGuestFsObjInfo  guestFsObjectInfo(const QString& path, CGuestSession &comGuestSession) const;
     void             setSelectionDependentActionsEnabled(bool fIsEnabled);
     UICustomFileSystemItem*   rootItem();
     void             setPathSeparator(const QChar &separator);
+    QHBoxLayout*     toolBarLayout();
+    void             setSessionWidgetsEnabled(bool fEnabled);
 
     QILabel                 *m_pLocationLabel;
     UIPropertiesDialog      *m_pPropertiesDialog;
     UIActionPool            *m_pActionPool;
-    UIToolBar               *m_pToolBar;
-
+    QIToolBar               *m_pToolBar;
+    QGridLayout     *m_pMainLayout;
     /** Stores the drive letters the file system has (for windows system). For non-windows
      *  systems this is empty and for windows system it should at least contain C:/ */
     QStringList              m_driveLetterList;
     /** The set of actions which need some selection to work on. Like cut, copy etc. */
     QSet<QAction*>           m_selectionDependentActions;
-    /** The absolue path list of the file objects which user has chosen to cut/copy. this
+    /** The absolute path list of the file objects which user has chosen to cut/copy. this
      *  list will be cleaned after a paste operation or overwritten by a subsequent cut/copy.
      *  Currently only used by the guest side. */
     QStringList              m_copyCutBuffer;
+    /** This name is appended to the log messages which are shown in the log panel. */
+    QString          m_strTableName;
 
 private slots:
 
@@ -295,13 +311,12 @@ private:
     /** Contains m_pBreadCrumbsWidget and m_pLocationComboBox. */
     UIFileManagerNavigationWidget *m_pNavigationWidget;
 
-    QGridLayout     *m_pMainLayout;
     QILineEdit      *m_pSearchLineEdit;
     QColor           m_searchLineUnmarkColor;
     QColor           m_searchLineMarkColor;
-    QILabel         *m_pWarningLabel;
     QChar            m_pathSeparator;
-
+    QHBoxLayout     *m_pToolBarLayout;
+    QVector<QWidget*> m_sessionWidgets;
     friend class     UICustomFileSystemModel;
 };
 

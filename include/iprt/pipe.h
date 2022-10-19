@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_pipe_h
@@ -37,6 +47,12 @@ RT_C_DECLS_BEGIN
 
 /** @defgroup grp_rt_pipe      RTPipe - Anonymous Pipes
  * @ingroup grp_rt
+ *
+ * @note    The current Windows implementation has some peculiarities,
+ *          especially with respect to the write side where the it is possible
+ *          to write one extra pipe buffer sized block of data when the pipe
+ *          buffer is full.
+ *
  * @{
  */
 
@@ -69,6 +85,16 @@ RTDECL(int)  RTPipeCreate(PRTPIPE phPipeRead, PRTPIPE phPipeWrite, uint32_t fFla
 RTDECL(int)  RTPipeClose(RTPIPE hPipe);
 
 /**
+ * Closes one end of a pipe created by RTPipeCreate, extended version.
+ *
+ * @returns IPRT status code.
+ * @param   hPipe           The pipe end to close.
+ * @param   fLeaveOpen      Wheter to leave the underlying native handle open
+ *                          (for RTPipeClose() this is @c false).
+ */
+RTDECL(int)  RTPipeCloseEx(RTPIPE hPipe, bool fLeaveOpen);
+
+/**
  * Creates an IPRT pipe handle from a native one.
  *
  * Do NOT use the native handle after passing it to this function, IPRT owns it
@@ -90,8 +116,12 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
 #define RTPIPE_N_WRITE              RT_BIT(1)
 /** Make sure the pipe is inheritable if set and not inheritable when clear. */
 #define RTPIPE_N_INHERIT            RT_BIT(2)
-/** Mask of valid flags. */
+/** Mask of valid flags for . */
 #define RTPIPE_N_VALID_MASK         UINT32_C(0x00000007)
+/** RTPipeFromNative: Leave the native pipe handle open on close. */
+#define RTPIPE_N_LEAVE_OPEN         RT_BIT(3)
+/** Mask of valid flags for RTPipeFromNative(). */
+#define RTPIPE_N_VALID_MASK_FN      UINT32_C(0x0000000f)
 /** @} */
 
 /**

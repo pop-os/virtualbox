@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_nem NEM - Native Execution Manager.
@@ -30,6 +40,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_NEM
+#include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/gim.h>
 #include "NEMInternal.h"
@@ -85,6 +96,10 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
                                   "|LovelyMesaDrvWorkaround"
 #ifdef RT_OS_WINDOWS
                                   "|UseRing0Runloop"
+#elif defined(RT_OS_DARWIN)
+                                  "|VmxPleGap"
+                                  "|VmxPleWindow"
+                                  "|VmxLbr"
 #endif
                                   ,
                                   "" /* pszValidNodes */, "NEM" /* pszWho */, 0 /* uInstance */);
@@ -120,24 +135,6 @@ VMMR3_INT_DECL(int) NEMR3InitConfig(PVM pVM)
         pVCpu->nem.s.fTrapXcptGpForLovelyMesaDrv = f;
     }
 
-#ifdef RT_OS_WINDOWS
-# ifndef VBOX_WITH_PGM_NEM_MODE
-
-    /** @cfgm{/NEM/UseRing0Runloop, bool, true}
-     * Whether to use the ring-0 runloop (if enabled in the build) or the ring-3 one.
-     * The latter is generally slower.  This option serves as a way out in case
-     * something breaks in the ring-0 loop. */
-#  ifdef NEM_WIN_USE_RING0_RUNLOOP_BY_DEFAULT
-    bool fUseRing0Runloop = true;
-#  else
-    bool fUseRing0Runloop = false;
-#  endif
-    rc = CFGMR3QueryBoolDef(pCfgNem, "UseRing0Runloop", &fUseRing0Runloop, fUseRing0Runloop);
-    AssertLogRelRCReturn(rc, rc);
-    pVM->nem.s.fUseRing0Runloop = fUseRing0Runloop;
-# endif
-#endif
-
     return VINF_SUCCESS;
 }
 
@@ -172,7 +169,23 @@ VMMR3_INT_DECL(int) NEMR3Init(PVM pVM, bool fFallback, bool fForced)
         if (RT_SUCCESS(rc))
         {
             if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
-                LogRel(("NEM: NEMR3Init: Active.\n"));
+            {
+#ifdef RT_OS_WINDOWS /* The WHv* API is extremely slow at handling VM exits. The AppleHv and
+                        KVM APIs are much faster, thus the different mode name. :-) */
+                LogRel(("NEM:\n"
+                        "NEM: NEMR3Init: Snail execution mode is active!\n"
+                        "NEM: Note! VirtualBox is not able to run at its full potential in this execution mode.\n"
+                        "NEM:       To see VirtualBox run at max speed you need to disable all Windows features\n"
+                        "NEM:       making use of Hyper-V.  That is a moving target, so google how and carefully\n"
+                        "NEM:       consider the consequences of disabling these features.\n"
+                        "NEM:\n"));
+#else
+                LogRel(("NEM:\n"
+                        "NEM: NEMR3Init: Turtle execution mode is active!\n"
+                        "NEM: Note! VirtualBox is not able to run at its full potential in this execution mode.\n"
+                        "NEM:\n"));
+#endif
+            }
             else
             {
                 LogRel(("NEM: NEMR3Init: Not available.\n"));
@@ -205,27 +218,6 @@ VMMR3_INT_DECL(int) NEMR3InitAfterCPUM(PVM pVM)
     int rc = VINF_SUCCESS;
     if (pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
     {
-        /*
-         * Enable CPU features making general ASSUMPTIONS (there are two similar
-         * blocks of code in HM.cpp), to avoid duplicating this code.  The
-         * native backend can make check capabilities and adjust as needed.
-         */
-        CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SEP);
-        if (   CPUMGetGuestCpuVendor(pVM) == CPUMCPUVENDOR_AMD
-            || CPUMGetGuestCpuVendor(pVM) == CPUMCPUVENDOR_HYGON)
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);            /* 64 bits only on Intel CPUs */
-        if (pVM->nem.s.fAllow64BitGuests)
-        {
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_SYSCALL);
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE);
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LONG_MODE);
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LAHF);
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
-        }
-        /* Turn on NXE if PAE has been enabled. */
-        else if (CPUMR3GetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_PAE))
-            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_NX);
-
         /*
          * Do native after-CPUM init.
          */
@@ -360,10 +352,8 @@ VMMR3_INT_DECL(void) NEMR3ResetCpu(PVMCPU pVCpu, bool fInitIpi)
 VMMR3_INT_DECL(bool) NEMR3NeedSpecialTscMode(PVM pVM)
 {
 #ifdef VBOX_WITH_NATIVE_NEM
-# ifdef RT_OS_WINDOWS
     if (VM_IS_NEM_ENABLED(pVM))
         return true;
-# endif
 #else
     RT_NOREF(pVM);
 #endif
@@ -381,15 +371,25 @@ VMMR3DECL(const char *) NEMR3GetExitName(uint32_t uExit)
 {
     switch ((NEMEXITTYPE)uExit)
     {
-        case NEMEXITTYPE_UNRECOVERABLE_EXCEPTION:       return "NEM unrecoverable exception";
-        case NEMEXITTYPE_INVALID_VP_REGISTER_VALUE:     return "NEM invalid vp register value";
         case NEMEXITTYPE_INTTERRUPT_WINDOW:             return "NEM interrupt window";
         case NEMEXITTYPE_HALT:                          return "NEM halt";
+
+        case NEMEXITTYPE_UNRECOVERABLE_EXCEPTION:       return "NEM unrecoverable exception";
+        case NEMEXITTYPE_INVALID_VP_REGISTER_VALUE:     return "NEM invalid vp register value";
         case NEMEXITTYPE_XCPT_UD:                       return "NEM #UD";
         case NEMEXITTYPE_XCPT_DB:                       return "NEM #DB";
         case NEMEXITTYPE_XCPT_BP:                       return "NEM #BP";
         case NEMEXITTYPE_CANCELED:                      return "NEM canceled";
         case NEMEXITTYPE_MEMORY_ACCESS:                 return "NEM memory access";
+
+        case NEMEXITTYPE_INTERNAL_ERROR_EMULATION:      return "NEM emulation IPE";
+        case NEMEXITTYPE_INTERNAL_ERROR_FATAL:          return "NEM fatal IPE";
+        case NEMEXITTYPE_INTERRUPTED:                   return "NEM interrupted";
+        case NEMEXITTYPE_FAILED_ENTRY:                  return "NEM failed VT-x/AMD-V entry";
+
+        case NEMEXITTYPE_INVALID:
+        case NEMEXITTYPE_END:
+            break;
     }
 
     return NULL;
@@ -439,11 +439,98 @@ VMMR3_INT_DECL(void) NEMR3NotifyFF(PVM pVM, PVMCPU pVCpu, uint32_t fFlags)
 #endif
 }
 
-
 #ifndef VBOX_WITH_NATIVE_NEM
+
 VMMR3_INT_DECL(void) NEMR3NotifySetA20(PVMCPU pVCpu, bool fEnabled)
 {
     RT_NOREF(pVCpu, fEnabled);
 }
-#endif
 
+# ifdef VBOX_WITH_PGM_NEM_MODE
+
+VMMR3_INT_DECL(bool) NEMR3IsMmio2DirtyPageTrackingSupported(PVM pVM)
+{
+    RT_NOREF(pVM);
+    return false;
+}
+
+
+VMMR3_INT_DECL(int)  NEMR3PhysMmio2QueryAndResetDirtyBitmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t uNemRange,
+                                                            void *pvBitmap, size_t cbBitmap)
+{
+    RT_NOREF(pVM, GCPhys, cb, uNemRange, pvBitmap, cbBitmap);
+    AssertFailed();
+    return VERR_INTERNAL_ERROR_2;
+}
+
+
+VMMR3_INT_DECL(int)  NEMR3NotifyPhysMmioExMapEarly(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, uint32_t fFlags,
+                                                   void *pvRam, void *pvMmio2, uint8_t *pu2State, uint32_t *puNemRange)
+{
+    RT_NOREF(pVM, GCPhys, cb, fFlags, pvRam, pvMmio2, pu2State, puNemRange);
+    AssertFailed();
+    return VERR_INTERNAL_ERROR_2;
+}
+
+# endif /* VBOX_WITH_PGM_NEM_MODE */
+#endif /* !VBOX_WITH_NATIVE_NEM */
+
+/**
+ * Notification callback from DBGF when interrupt breakpoints or generic debug
+ * event settings changes.
+ *
+ * DBGF will call NEMR3NotifyDebugEventChangedPerCpu on each CPU afterwards, this
+ * function is just updating the VM globals.
+ *
+ * @param   pVM         The VM cross context VM structure.
+ * @thread  EMT(0)
+ */
+VMMR3_INT_DECL(void) NEMR3NotifyDebugEventChanged(PVM pVM)
+{
+    AssertLogRelReturnVoid(VM_IS_NEM_ENABLED(pVM));
+
+#ifdef VBOX_WITH_NATIVE_NEM
+    /* Interrupts. */
+    bool fUseDebugLoop = pVM->dbgf.ro.cSoftIntBreakpoints > 0
+                      || pVM->dbgf.ro.cHardIntBreakpoints > 0;
+
+    /* CPU Exceptions. */
+    for (DBGFEVENTTYPE enmEvent = DBGFEVENT_XCPT_FIRST;
+         !fUseDebugLoop && enmEvent <= DBGFEVENT_XCPT_LAST;
+         enmEvent = (DBGFEVENTTYPE)(enmEvent + 1))
+        fUseDebugLoop = DBGF_IS_EVENT_ENABLED(pVM, enmEvent);
+
+    /* Common VM exits. */
+    for (DBGFEVENTTYPE enmEvent = DBGFEVENT_EXIT_FIRST;
+         !fUseDebugLoop && enmEvent <= DBGFEVENT_EXIT_LAST_COMMON;
+         enmEvent = (DBGFEVENTTYPE)(enmEvent + 1))
+        fUseDebugLoop = DBGF_IS_EVENT_ENABLED(pVM, enmEvent);
+
+    /* Done. */
+    pVM->nem.s.fUseDebugLoop = nemR3NativeNotifyDebugEventChanged(pVM, fUseDebugLoop);
+#else
+    RT_NOREF(pVM);
+#endif
+}
+
+
+/**
+ * Follow up notification callback to NEMR3NotifyDebugEventChanged for each CPU.
+ *
+ * NEM uses this to combine the decision made NEMR3NotifyDebugEventChanged with
+ * per CPU settings.
+ *
+ * @param   pVM         The VM cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ */
+VMMR3_INT_DECL(void) NEMR3NotifyDebugEventChangedPerCpu(PVM pVM, PVMCPU pVCpu)
+{
+    AssertLogRelReturnVoid(VM_IS_NEM_ENABLED(pVM));
+
+#ifdef VBOX_WITH_NATIVE_NEM
+    pVCpu->nem.s.fUseDebugLoop = nemR3NativeNotifyDebugEventChangedPerCpu(pVM, pVCpu,
+                                                                          pVCpu->nem.s.fSingleInstruction | pVM->nem.s.fUseDebugLoop);
+#else
+    RT_NOREF(pVM, pVCpu);
+#endif
+}

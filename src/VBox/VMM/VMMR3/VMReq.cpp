@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -810,7 +820,7 @@ VMMR3DECL(int) VMR3ReqQueue(PVMREQ pReq, RTMSINTERVAL cMillies)
      * Verify the supplied package.
      */
     AssertMsgReturn(pReq->enmState == VMREQSTATE_ALLOCATED, ("%d\n", pReq->enmState), VERR_VM_REQUEST_STATE);
-    AssertMsgReturn(    VALID_PTR(pReq->pUVM)
+    AssertMsgReturn(    RT_VALID_PTR(pReq->pUVM)
                     &&  !pReq->pNext
                     &&  pReq->EventSem != NIL_RTSEMEVENT,
                     ("Invalid request package! Anyone cooking their own packages???\n"),
@@ -969,7 +979,7 @@ VMMR3DECL(int) VMR3ReqWait(PVMREQ pReq, RTMSINTERVAL cMillies)
                     ||  pReq->enmState == VMREQSTATE_COMPLETED,
                     ("Invalid state %d\n", pReq->enmState),
                     VERR_VM_REQUEST_STATE);
-    AssertMsgReturn(    VALID_PTR(pReq->pUVM)
+    AssertMsgReturn(    RT_VALID_PTR(pReq->pUVM)
                     &&  pReq->EventSem != NIL_RTSEMEVENT,
                     ("Invalid request package! Anyone cooking their own packages???\n"),
                     VERR_VM_REQUEST_INVALID_PACKAGE);
@@ -1210,25 +1220,25 @@ static int  vmR3ReqProcessOne(PVMREQ pReq)
             union
             {
                 PFNRT pfn;
-                DECLCALLBACKMEMBER(int, pfn00)(void);
-                DECLCALLBACKMEMBER(int, pfn01)(uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn02)(uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn03)(uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn04)(uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn05)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn06)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn07)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn08)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn09)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn10)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn11)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn12)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn13)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn14)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
-                DECLCALLBACKMEMBER(int, pfn15)(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+                DECLCALLBACKMEMBER(int, pfn00,(void));
+                DECLCALLBACKMEMBER(int, pfn01,(uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn02,(uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn03,(uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn04,(uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn05,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn06,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn07,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn08,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn09,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn10,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn11,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn12,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn13,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn14,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
+                DECLCALLBACKMEMBER(int, pfn15,(uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t, uintptr_t));
             } u;
             u.pfn = pReq->u.Internal.pfn;
-#ifdef RT_ARCH_AMD64
+#ifndef RT_ARCH_X86
             switch (pReq->u.Internal.cArgs)
             {
                 case 0:  rcRet = u.pfn00(); break;

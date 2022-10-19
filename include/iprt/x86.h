@@ -5,24 +5,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_x86_h
@@ -171,6 +181,7 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_1           RT_BIT_32(1)
 /** Bit 2 - PF - Parity flag - Status flag. */
 #define X86_EFL_PF          RT_BIT_32(2)
+#define X86_EFL_PF_BIT      2
 /** Bit 4 - AF - Auxiliary carry flag - Status flag. */
 #define X86_EFL_AF          RT_BIT_32(4)
 #define X86_EFL_AF_BIT      4
@@ -182,10 +193,13 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_SF_BIT      7
 /** Bit 8 - TF - Trap flag - System flag. */
 #define X86_EFL_TF          RT_BIT_32(8)
+#define X86_EFL_TF_BIT      8
 /** Bit 9 - IF - Interrupt flag - System flag. */
 #define X86_EFL_IF          RT_BIT_32(9)
+#define X86_EFL_IF_BIT      9
 /** Bit 10 - DF - Direction flag - Control flag. */
 #define X86_EFL_DF          RT_BIT_32(10)
+#define X86_EFL_DF_BIT      10
 /** Bit 11 - OF - Overflow flag - Status flag. */
 #define X86_EFL_OF          RT_BIT_32(11)
 #define X86_EFL_OF_BIT      11
@@ -193,18 +207,25 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_IOPL        (RT_BIT_32(12) | RT_BIT_32(13))
 /** Bit 14 - NT - Nested task flag - System flag. */
 #define X86_EFL_NT          RT_BIT_32(14)
+#define X86_EFL_NT_BIT      14
 /** Bit 16 - RF - Resume flag - System flag. */
 #define X86_EFL_RF          RT_BIT_32(16)
+#define X86_EFL_RF_BIT      16
 /** Bit 17 - VM - Virtual 8086 mode - System flag. */
 #define X86_EFL_VM          RT_BIT_32(17)
+#define X86_EFL_VM_BIT      17
 /** Bit 18 - AC - Alignment check flag - System flag. Works with CR0.AM. */
 #define X86_EFL_AC          RT_BIT_32(18)
+#define X86_EFL_AC_BIT      18
 /** Bit 19 - VIF - Virtual interrupt flag - System flag. */
 #define X86_EFL_VIF         RT_BIT_32(19)
+#define X86_EFL_VIF_BIT     19
 /** Bit 20 - VIP - Virtual interrupt pending flag - System flag. */
 #define X86_EFL_VIP         RT_BIT_32(20)
+#define X86_EFL_VIP_BIT     20
 /** Bit 21 - ID - CPUID flag - System flag. If this responds to flipping CPUID is supported. */
 #define X86_EFL_ID          RT_BIT_32(21)
+#define X86_EFL_ID_BIT      21
 /** All live bits. */
 #define X86_EFL_LIVE_MASK   UINT32_C(0x003f7fd5)
 /** Read as 1 bits. */
@@ -851,7 +872,14 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_SVM_FEATURE_EDX_VGIF                      RT_BIT(16)
 /** Bit 17 - GMET - Supports Guest Mode Execute Trap Extensions. */
 #define X86_CPUID_SVM_FEATURE_EDX_GMET                      RT_BIT(17)
-
+/** Bit 19 - SSSCheck - SVM supervisor shadow stack restrictions. */
+#define X86_CPUID_SVM_FEATURE_EDX_SSSCHECK                  RT_BIT(19)
+/** Bit 20 - SpecCtrl - Supports SPEC_CTRL Virtualization. */
+#define X86_CPUID_SVM_FEATURE_EDX_SPEC_CTRL                 RT_BIT(20)
+/** Bit 23 - HOST_MCE_OVERRIDE - Supports host \#MC exception override. */
+#define X86_CPUID_SVM_FEATURE_EDX_HOST_MCE_OVERRIDE         RT_BIT(23)
+/** Bit 24 - TlbiCtl - Supports INVLPGB/TLBSYNC in VMCB and TLBSYNC intercept. */
+#define X86_CPUID_SVM_FEATURE_EDX_TLBICTL                   RT_BIT(24)
 /** @} */
 
 
@@ -906,8 +934,14 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CR3_PAGE_MASK                   (0xfffff000)
 /** Bits  5-31 - - PAE Page directory page number. */
 #define X86_CR3_PAE_PAGE_MASK               (0xffffffe0)
-/** Bits 12-51 - - AMD64 Page directory page number. */
+/** Bits 12-51 - - AMD64 PML4 page number.
+ * @note This is a maxed out mask, the actual acceptable CR3 value can
+ *       be lower depending on the PhysAddrSize from CPUID Fn8000_0008. */
 #define X86_CR3_AMD64_PAGE_MASK             UINT64_C(0x000ffffffffff000)
+/** Bits 12-51 - - Intel EPT PML4 page number (EPTP).
+ * @note This is a maxed out mask, the actual acceptable CR3/EPTP value can
+ *       be lower depending on the PhysAddrSize from CPUID Fn8000_0008. */
+#define X86_CR3_EPT_PAGE_MASK               UINT64_C(0x000ffffffffff000)
 /** @} */
 
 
@@ -1517,8 +1551,51 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 #define MSR_LASTBRANCH_30_TO_IP             0x6de
 #define MSR_LASTBRANCH_31_TO_IP             0x6df
 
+#define MSR_LASTBRANCH_0_INFO               0xdc0
+#define MSR_LASTBRANCH_1_INFO               0xdc1
+#define MSR_LASTBRANCH_2_INFO               0xdc2
+#define MSR_LASTBRANCH_3_INFO               0xdc3
+#define MSR_LASTBRANCH_4_INFO               0xdc4
+#define MSR_LASTBRANCH_5_INFO               0xdc5
+#define MSR_LASTBRANCH_6_INFO               0xdc6
+#define MSR_LASTBRANCH_7_INFO               0xdc7
+#define MSR_LASTBRANCH_8_INFO               0xdc8
+#define MSR_LASTBRANCH_9_INFO               0xdc9
+#define MSR_LASTBRANCH_10_INFO              0xdca
+#define MSR_LASTBRANCH_11_INFO              0xdcb
+#define MSR_LASTBRANCH_12_INFO              0xdcc
+#define MSR_LASTBRANCH_13_INFO              0xdcd
+#define MSR_LASTBRANCH_14_INFO              0xdce
+#define MSR_LASTBRANCH_15_INFO              0xdcf
+#define MSR_LASTBRANCH_16_INFO              0xdd0
+#define MSR_LASTBRANCH_17_INFO              0xdd1
+#define MSR_LASTBRANCH_18_INFO              0xdd2
+#define MSR_LASTBRANCH_19_INFO              0xdd3
+#define MSR_LASTBRANCH_20_INFO              0xdd4
+#define MSR_LASTBRANCH_21_INFO              0xdd5
+#define MSR_LASTBRANCH_22_INFO              0xdd6
+#define MSR_LASTBRANCH_23_INFO              0xdd7
+#define MSR_LASTBRANCH_24_INFO              0xdd8
+#define MSR_LASTBRANCH_25_INFO              0xdd9
+#define MSR_LASTBRANCH_26_INFO              0xdda
+#define MSR_LASTBRANCH_27_INFO              0xddb
+#define MSR_LASTBRANCH_28_INFO              0xddc
+#define MSR_LASTBRANCH_29_INFO              0xddd
+#define MSR_LASTBRANCH_30_INFO              0xdde
+#define MSR_LASTBRANCH_31_INFO              0xddf
+
+/** LBR branch tracking selection MSR. */
+#define MSR_LASTBRANCH_SELECT               0x1c8
 /** LBR Top-of-stack MSR (index to most recent record). */
 #define MSR_LASTBRANCH_TOS                  0x1c9
+/** @} */
+
+/** @name Last event record registers.
+ * @{ */
+/** Last event record source IP register. */
+#define MSR_LER_FROM_IP                     0x1dd
+/** Last event record destination IP register. */
+#define MSR_LER_TO_IP                       0x1de
 /** @} */
 
 /** Intel TSX (Transactional Synchronization Extensions) control MSR. */
@@ -1599,7 +1676,7 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 #define MSR_IA32_VMX_CR4_FIXED1             0x489
 /** Information for enumerating fields in the VMCS. */
 #define MSR_IA32_VMX_VMCS_ENUM              0x48A
-/** Allowed settings for secondary proc-based VM execution controls */
+/** Allowed settings for secondary processor-based VM-execution controls. */
 #define MSR_IA32_VMX_PROCBASED_CTLS2        0x48B
 /** EPT capabilities. */
 #define MSR_IA32_VMX_EPT_VPID_CAP           0x48C
@@ -1613,6 +1690,8 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 #define MSR_IA32_VMX_TRUE_ENTRY_CTLS        0x490
 /** Allowed settings for the VM-function controls. */
 #define MSR_IA32_VMX_VMFUNC                 0x491
+/** Tertiary processor-based VM execution controls. */
+#define MSR_IA32_VMX_PROCBASED_CTLS3        0x492
 
 /** Intel PT - Enable and control for trace packet generation. */
 #define MSR_IA32_RTIT_CTL                   0x570
@@ -1969,6 +2048,16 @@ typedef X86PGPAEUINT const *PCX86PGPAEUINT;
  */
 #define X86_IS_CANONICAL(a_u64Addr)         ((uint64_t)(a_u64Addr) + UINT64_C(0x800000000000) < UINT64_C(0x1000000000000))
 
+/**
+ * Gets the page base mask given the page shift.
+ */
+#define X86_GET_PAGE_BASE_MASK(a_cShift)    (UINT64_C(0xffffffffffffffff) << (a_cShift))
+
+/**
+ * Gets the page offset mask given the page shift.
+ */
+#define X86_GET_PAGE_OFFSET_MASK(a_cShift)  (~X86_GET_PAGE_BASE_MASK(a_cShift))
+
 
 /** @name Page Table Entry
  * @{
@@ -2076,8 +2165,10 @@ typedef union X86PTE
 {
     /** Unsigned integer view */
     X86PGUINT       u;
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Bit field view. */
     X86PTEBITS      n;
+#endif
     /** 32-bit view. */
     uint32_t        au32[1];
     /** 16-bit view. */
@@ -2145,8 +2236,10 @@ typedef union X86PTEPAE
 {
     /** Unsigned integer view */
     X86PGPAEUINT    u;
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Bit field view. */
     X86PTEPAEBITS   n;
+#endif
     /** 32-bit view. */
     uint32_t        au32[2];
     /** 16-bit view. */
@@ -2480,10 +2573,12 @@ typedef union X86PDE
 {
     /** Unsigned integer view. */
     X86PGUINT       u;
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     X86PDEBITS      n;
     /** 4MB view (big). */
     X86PDE4MBITS    b;
+#endif
     /** 8 bit unsigned integer view. */
     uint8_t         au8[4];
     /** 16 bit unsigned integer view. */
@@ -2506,10 +2601,12 @@ typedef union X86PDEPAE
 {
     /** Unsigned integer view. */
     X86PGPAEUINT    u;
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     X86PDEPAEBITS   n;
     /** 2MB page view (big). */
     X86PDE2MPAEBITS b;
+#endif
     /** 8 bit unsigned integer view. */
     uint8_t         au8[8];
     /** 16 bit unsigned integer view. */
@@ -2590,6 +2687,8 @@ typedef const X86PDPAE *PCX86PDPAE;
 #define X86_PDPE_AVL_MASK                   (RT_BIT_32(9) | RT_BIT_32(10) | RT_BIT_32(11))
 /** Bits 12-51 - - PAE - Physical Page number of the next level. */
 #define X86_PDPE_PG_MASK                    UINT64_C(0x000ffffffffff000)
+/** Bits 30-51 - - PG - Physical address of the 1GB page referenced by this entry. */
+#define X86_PDPE1G_PG_MASK                  UINT64_C(0x000fffffc0000000)
 /** Bits 63-52, 8-5, 2-1 - - PAE - MBZ bits (NX is long mode only). */
 #define X86_PDPE_PAE_MBZ_MASK               UINT64_C(0xfff00000000001e6)
 /** Bits 63 - NX - LM - No execution flag. Long Mode only. */
@@ -2729,12 +2828,14 @@ typedef union X86PDPE
 {
     /** Unsigned integer view. */
     X86PGPAEUINT    u;
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     X86PDPEBITS     n;
     /** AMD64 view. */
     X86PDPEAMD64BITS lm;
     /** AMD64 big view. */
     X86PDPE1GB      b;
+#endif
     /** 8 bit unsigned integer view. */
     uint8_t         au8[8];
     /** 16 bit unsigned integer view. */
@@ -2849,8 +2950,10 @@ typedef union X86PML4E
 {
     /** Unsigned integer view. */
     X86PGPAEUINT    u;
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     X86PML4EBITS    n;
+#endif
     /** 8 bit unsigned integer view. */
     uint8_t         au8[8];
     /** 16 bit unsigned integer view. */
@@ -2906,24 +3009,35 @@ typedef const X86PML4 *PCX86PML4;
 /** The maximum valid invalidation type value.   */
 #define X86_INVPCID_TYPE_MAX_VALID                  X86_INVPCID_TYPE_ALL_CONTEXT_EXCL_GLOBAL
 
+
+/** @name Special FPU integer values.
+ * @{ */
+#define X86_FPU_INT64_INDEFINITE    INT64_MIN
+#define X86_FPU_INT32_INDEFINITE    INT32_MIN
+#define X86_FPU_INT16_INDEFINITE    INT16_MIN
+/** @} */
+
 /**
  * 32-bit protected mode FSTENV image.
  */
 typedef struct X86FSTENV32P
 {
-    uint16_t    FCW;
-    uint16_t    padding1;
-    uint16_t    FSW;
-    uint16_t    padding2;
-    uint16_t    FTW;
-    uint16_t    padding3;
-    uint32_t    FPUIP;
-    uint16_t    FPUCS;
-    uint16_t    FOP;
-    uint32_t    FPUDP;
-    uint16_t    FPUDS;
-    uint16_t    padding4;
+    uint16_t    FCW;            /**< 0x00 */
+    uint16_t    padding1;       /**< 0x02 */
+    uint16_t    FSW;            /**< 0x04 */
+    uint16_t    padding2;       /**< 0x06 */
+    uint16_t    FTW;            /**< 0x08 */
+    uint16_t    padding3;       /**< 0x0a */
+    uint32_t    FPUIP;          /**< 0x0c */
+    uint16_t    FPUCS;          /**< 0x10 */
+    uint16_t    FOP;            /**< 0x12 */
+    uint32_t    FPUDP;          /**< 0x14 */
+    uint16_t    FPUDS;          /**< 0x18 */
+    uint16_t    padding4;       /**< 0x1a */
 } X86FSTENV32P;
+#ifndef VBOX_FOR_DTRACE_LIB
+AssertCompileSize(X86FSTENV32P, 0x1c);
+#endif
 /** Pointer to a 32-bit protected mode FSTENV image. */
 typedef X86FSTENV32P *PX86FSTENV32P;
 /** Pointer to a const 32-bit protected mode FSTENV image. */
@@ -2975,6 +3089,34 @@ typedef X86FPUREG *PX86FPUREG;
 /** Pointer to a const FPU register. */
 typedef X86FPUREG const *PCX86FPUREG;
 
+/** FPU (x87) register - v2 with correct size. */
+#pragma pack(1)
+typedef union X86FPUREG2
+{
+    /** MMX view. */
+    uint64_t    mmx;
+    /** FPU view - todo. */
+    X86FPUMMX   fpu;
+    /** Extended precision floating point view. */
+    RTFLOAT80U  r80;
+    /** 8-bit view. */
+    uint8_t     au8[10];
+    /** 16-bit view. */
+    uint16_t    au16[5];
+    /** 32-bit view. */
+    uint32_t    au32[2];
+    /** 64-bit view. */
+    uint64_t    au64[1];
+} X86FPUREG2;
+#pragma pack()
+#ifndef VBOX_FOR_DTRACE_LIB
+AssertCompileSize(X86FPUREG2, 10);
+#endif
+/** Pointer to a FPU register - v2. */
+typedef X86FPUREG2 *PX86FPUREG2;
+/** Pointer to a const FPU register - v2. */
+typedef X86FPUREG2 const *PCX86FPUREG2;
+
 /**
  * XMM register union.
  */
@@ -2990,8 +3132,20 @@ typedef union X86XMMREG
     uint32_t    au32[4];
     /** 64-bit view. */
     uint64_t    au64[2];
+    /** Signed 8-bit view. */
+    int8_t      ai8[16];
+    /** Signed 16-bit view. */
+    int16_t     ai16[8];
+    /** Signed 32-bit view. */
+    int32_t     ai32[4];
+    /** Signed 64-bit view. */
+    int64_t     ai64[2];
     /** 128-bit view. (yeah, very helpful) */
     uint128_t   au128[1];
+    /** Single precision floating point view. */
+    RTFLOAT32U  ar32[4];
+    /** Double precision floating point view. */
+    RTFLOAT64U  ar64[2];
 #ifndef VBOX_FOR_DTRACE_LIB
     /** Confusing nested 128-bit union view (this is what xmm should've been). */
     RTUINT128U  uXmm;
@@ -3010,6 +3164,8 @@ typedef X86XMMREG const *PCX86XMMREG;
  */
 typedef union X86YMMREG
 {
+    /** YMM register view. */
+    RTUINT256U  ymm;
     /** 8-bit view. */
     uint8_t     au8[32];
     /** 16-bit view. */
@@ -3020,6 +3176,10 @@ typedef union X86YMMREG
     uint64_t    au64[4];
     /** 128-bit view. (yeah, very helpful) */
     uint128_t   au128[2];
+    /** Single precision floating point view. */
+    RTFLOAT32U  ar32[8];
+    /** Double precision floating point view. */
+    RTFLOAT64U  ar64[4];
     /** XMM sub register view. */
     X86XMMREG   aXmm[2];
 } X86YMMREG;
@@ -3046,6 +3206,10 @@ typedef union X86ZMMREG
     uint64_t    au64[8];
     /** 128-bit view. (yeah, very helpful) */
     uint128_t   au128[4];
+    /** Single precision floating point view. */
+    RTFLOAT32U  ar32[16];
+    /** Double precision floating point view. */
+    RTFLOAT64U  ar64[8];
     /** XMM sub register view. */
     X86XMMREG   aXmm[4];
     /** YMM sub register view. */
@@ -3062,7 +3226,6 @@ typedef X86ZMMREG const *PCX86ZMMREG;
 
 /**
  * 32-bit FPU state (aka FSAVE/FRSTOR Memory Region).
- * @todo verify this...
  */
 #pragma pack(1)
 typedef struct X86FPUSTATE
@@ -3086,14 +3249,17 @@ typedef struct X86FPUSTATE
     uint16_t    CS;
     /** 0x12 - Opcode. */
     uint16_t    FOP;
-    /** 0x14 - FOO. */
+    /** 0x14 - Data pointer. */
     uint32_t    FPUOO;
     /** 0x18 - FOS. */
-    uint32_t    FPUOS;
+    uint16_t    FPUOS;
+    /** 0x0a - Alignment word */
+    uint16_t    Dummy4;
     /** 0x1c - FPU register. */
-    X86FPUREG   regs[8];
+    X86FPUREG2  regs[8];
 } X86FPUSTATE;
 #pragma pack()
+AssertCompileSize(X86FPUSTATE, 108);
 /** Pointer to a FPU state. */
 typedef X86FPUSTATE  *PX86FPUSTATE;
 /** Pointer to a const FPU state. */
@@ -3159,30 +3325,41 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
  * @{ */
 /** Exception Flag: Invalid operation.  */
 #define X86_FSW_IE          RT_BIT_32(0)
+#define X86_FSW_IE_BIT      0
 /** Exception Flag: Denormalized operand.  */
 #define X86_FSW_DE          RT_BIT_32(1)
+#define X86_FSW_DE_BIT      1
 /** Exception Flag: Zero divide.  */
 #define X86_FSW_ZE          RT_BIT_32(2)
+#define X86_FSW_ZE_BIT      2
 /** Exception Flag: Overflow.  */
 #define X86_FSW_OE          RT_BIT_32(3)
+#define X86_FSW_OE_BIT      3
 /** Exception Flag: Underflow.  */
 #define X86_FSW_UE          RT_BIT_32(4)
+#define X86_FSW_UE_BIT      4
 /** Exception Flag: Precision.  */
 #define X86_FSW_PE          RT_BIT_32(5)
+#define X86_FSW_PE_BIT      5
 /** Stack fault. */
 #define X86_FSW_SF          RT_BIT_32(6)
+#define X86_FSW_SF_BIT      6
 /** Error summary status. */
 #define X86_FSW_ES          RT_BIT_32(7)
+#define X86_FSW_ES_BIT      7
 /** Mask of exceptions flags, excluding the summary bit. */
 #define X86_FSW_XCPT_MASK   UINT16_C(0x007f)
 /** Mask of exceptions flags, including the summary bit. */
 #define X86_FSW_XCPT_ES_MASK UINT16_C(0x00ff)
 /** Condition code 0. */
-#define X86_FSW_C0          RT_BIT_32(8)
+#define X86_FSW_C0          RT_BIT_32(X86_FSW_C0_BIT)
+#define X86_FSW_C0_BIT      8
 /** Condition code 1. */
-#define X86_FSW_C1          RT_BIT_32(9)
+#define X86_FSW_C1          RT_BIT_32(X86_FSW_C1_BIT)
+#define X86_FSW_C1_BIT      9
 /** Condition code 2. */
-#define X86_FSW_C2          RT_BIT_32(10)
+#define X86_FSW_C2          RT_BIT_32(X86_FSW_C2_BIT)
+#define X86_FSW_C2_BIT      10
 /** Top of the stack mask. */
 #define X86_FSW_TOP_MASK    UINT16_C(0x3800)
 /** TOP shift value. */
@@ -3191,12 +3368,25 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
 #define X86_FSW_TOP_SMASK   UINT16_C(0x0007)
 /** Get the TOP value. */
 #define X86_FSW_TOP_GET(a_uFsw) (((a_uFsw) >> X86_FSW_TOP_SHIFT) & X86_FSW_TOP_SMASK)
+/** Get the TOP value offsetted by a_iSt (0-7). */
+#define X86_FSW_TOP_GET_ST(a_uFsw, a_iSt) ((((a_uFsw) >> X86_FSW_TOP_SHIFT) + (a_iSt)) & X86_FSW_TOP_SMASK)
 /** Condition code 3. */
-#define X86_FSW_C3          RT_BIT_32(14)
+#define X86_FSW_C3          RT_BIT_32(X86_FSW_C3_BIT)
+#define X86_FSW_C3_BIT      14
 /** Mask of exceptions flags, including the summary bit. */
 #define X86_FSW_C_MASK      UINT16_C(0x4700)
 /** FPU busy. */
 #define X86_FSW_B           RT_BIT_32(15)
+/** For use with FPREM and FPREM1. */
+#define X86_FSW_CX_TO_QUOTIENT(a_fFsw) \
+    (  (((a_fFsw) & X86_FSW_C1) >> (X86_FSW_C1_BIT - 0)) \
+     | (((a_fFsw) & X86_FSW_C3) >> (X86_FSW_C3_BIT - 1)) \
+     | (((a_fFsw) & X86_FSW_C0) >> (X86_FSW_C0_BIT - 2)) )
+/** For use with FPREM and FPREM1. */
+#define X86_FSW_CX_FROM_QUOTIENT(a_uQuotient) \
+    (  ((uint16_t)((a_uQuotient) & 1) << (X86_FSW_C1_BIT - 0)) \
+     | ((uint16_t)((a_uQuotient) & 2) << (X86_FSW_C3_BIT - 1)) \
+     | ((uint16_t)((a_uQuotient) & 4) << (X86_FSW_C0_BIT - 2)) )
 /** @} */
 
 
@@ -3204,23 +3394,31 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
  * @{ */
 /** Exception Mask: Invalid operation.  */
 #define X86_FCW_IM          RT_BIT_32(0)
+#define X86_FCW_IM_BIT      0
 /** Exception Mask: Denormalized operand.  */
 #define X86_FCW_DM          RT_BIT_32(1)
+#define X86_FCW_DM_BIT      1
 /** Exception Mask: Zero divide.  */
 #define X86_FCW_ZM          RT_BIT_32(2)
+#define X86_FCW_ZM_BIT      2
 /** Exception Mask: Overflow.  */
 #define X86_FCW_OM          RT_BIT_32(3)
+#define X86_FCW_OM_BIT      3
 /** Exception Mask: Underflow.  */
 #define X86_FCW_UM          RT_BIT_32(4)
+#define X86_FCW_UM_BIT      4
 /** Exception Mask: Precision.  */
 #define X86_FCW_PM          RT_BIT_32(5)
+#define X86_FCW_PM_BIT      5
 /** Mask all exceptions, the value typically loaded (by for instance fninit).
  * @remarks This includes reserved bit 6.  */
 #define X86_FCW_MASK_ALL    UINT16_C(0x007f)
 /** Mask all exceptions. Same as X86_FSW_XCPT_MASK. */
-#define X86_FCW_XCPT_MASK    UINT16_C(0x003f)
+#define X86_FCW_XCPT_MASK   UINT16_C(0x003f)
 /** Precision control mask. */
 #define X86_FCW_PC_MASK     UINT16_C(0x0300)
+/** Precision control shift. */
+#define X86_FCW_PC_SHIFT    8
 /** Precision control: 24-bit. */
 #define X86_FCW_PC_24       UINT16_C(0x0000)
 /** Precision control: Reserved. */
@@ -3231,6 +3429,8 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
 #define X86_FCW_PC_64       UINT16_C(0x0300)
 /** Rounding control mask. */
 #define X86_FCW_RC_MASK     UINT16_C(0x0c00)
+/** Rounding control shift. */
+#define X86_FCW_RC_SHIFT    10
 /** Rounding control: To nearest. */
 #define X86_FCW_RC_NEAREST  UINT16_C(0x0000)
 /** Rounding control: Down. */
@@ -3239,6 +3439,16 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
 #define X86_FCW_RC_UP       UINT16_C(0x0800)
 /** Rounding control: Towards zero. */
 #define X86_FCW_RC_ZERO     UINT16_C(0x0c00)
+/** Infinity control mask - obsolete, 8087 & 287 only. */
+#define X86_FCW_IC_MASK     UINT16_C(0x1000)
+/** Infinity control: Affine - positive infinity is distictly different from
+ *  negative infinity.
+ * @note 8087, 287 only */
+#define X86_FCW_IC_AFFINE   UINT16_C(0x1000)
+/** Infinity control: Projective - positive and negative infinity are the
+ * same (sign ignored).
+ * @note 8087, 287 only */
+#define X86_FCW_IC_PROJECTIVE UINT16_C(0x0000)
 /** Bits which should be zero, apparently. */
 #define X86_FCW_ZERO_MASK   UINT16_C(0xf080)
 /** @} */
@@ -3257,6 +3467,8 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
 #define X86_MXCSR_UE          RT_BIT_32(4)
 /** Exception Flag: Precision.  */
 #define X86_MXCSR_PE          RT_BIT_32(5)
+/** Exception Flags: mask */
+#define X86_MXCSR_XCPT_FLAGS  UINT32_C(0x003f)
 
 /** Denormals are zero. */
 #define X86_MXCSR_DAZ         RT_BIT_32(6)
@@ -3273,23 +3485,31 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
 #define X86_MXCSR_UM          RT_BIT_32(11)
 /** Exception Mask: Precision.  */
 #define X86_MXCSR_PM          RT_BIT_32(12)
+/** Exception Mask: mask.  */
+#define X86_MXCSR_XCPT_MASK   UINT32_C(0x1f80)
+/** Exception Mask: shift.  */
+#define X86_MXCSR_XCPT_MASK_SHIFT 7
 
 /** Rounding control mask. */
-#define X86_MXCSR_RC_MASK     UINT16_C(0x6000)
+#define X86_MXCSR_RC_MASK     UINT32_C(0x6000)
+/** Rounding control shift. */
+#define X86_MXCSR_RC_SHIFT    13
 /** Rounding control: To nearest. */
-#define X86_MXCSR_RC_NEAREST  UINT16_C(0x0000)
+#define X86_MXCSR_RC_NEAREST  UINT32_C(0x0000)
 /** Rounding control: Down. */
-#define X86_MXCSR_RC_DOWN     UINT16_C(0x2000)
+#define X86_MXCSR_RC_DOWN     UINT32_C(0x2000)
 /** Rounding control: Up. */
-#define X86_MXCSR_RC_UP       UINT16_C(0x4000)
+#define X86_MXCSR_RC_UP       UINT32_C(0x4000)
 /** Rounding control: Towards zero. */
-#define X86_MXCSR_RC_ZERO     UINT16_C(0x6000)
+#define X86_MXCSR_RC_ZERO     UINT32_C(0x6000)
 
 /** Flush-to-zero for masked underflow.  */
 #define X86_MXCSR_FZ          RT_BIT_32(15)
 
 /** Misaligned Exception Mask (AMD MISALIGNSSE).  */
 #define X86_MXCSR_MM          RT_BIT_32(17)
+/** Bits which should be zero, apparently. */
+#define X86_MXCSR_ZERO_MASK   UINT32_C(0xfffd0000)
 /** @} */
 
 /**

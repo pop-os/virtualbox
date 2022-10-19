@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -33,7 +43,7 @@
 #include "UIProgressDialog.h"
 #include "UIProgressEventHandler.h"
 #include "UISpecialControls.h"
-#include "UICommon.h"
+#include "UITranslator.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif
@@ -43,10 +53,6 @@
 #include "CEventSource.h"
 #include "CProgress.h"
 
-
-/*********************************************************************************************************************************
-*   Class UIProgressDialog implementation.                                                                                       *
-*********************************************************************************************************************************/
 
 const char *UIProgressDialog::m_spcszOpDescTpl = "%1 ... (%2/%3)";
 
@@ -220,7 +226,10 @@ void UIProgressDialog::sltCancelOperation()
 void UIProgressDialog::prepare()
 {
     /* Setup dialog: */
-    setWindowTitle(QString("%1: %2").arg(m_strTitle, m_comProgress.GetDescription()));
+    if (m_strTitle.isNull())
+        setWindowTitle(m_comProgress.GetDescription());
+    else
+        setWindowTitle(QString("%1: %2").arg(m_strTitle, m_comProgress.GetDescription()));
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 #ifdef VBOX_WS_MAC
     ::darwinSetHidesAllTitleButtons(this);
@@ -282,7 +291,7 @@ void UIProgressDialog::prepareWidgets()
         AssertPtrReturnVoid(pDescriptionLayout);
         {
             /* Configure layout: */
-            pDescriptionLayout->setMargin(0);
+            pDescriptionLayout->setContentsMargins(0, 0, 0, 0);
 
             /* Add stretch: */
             pDescriptionLayout->addStretch(1);
@@ -309,7 +318,7 @@ void UIProgressDialog::prepareWidgets()
             AssertPtrReturnVoid(pProgressLayout);
             {
                 /* Configure layout: */
-                pProgressLayout->setMargin(0);
+                pProgressLayout->setContentsMargins(0, 0, 0, 0);
 
                 /* Create progress-bar: */
                 m_pProgressBar = new QProgressBar;
@@ -423,10 +432,10 @@ void UIProgressDialog::updateProgressState()
         iDays     = iHours   / 24;
         iHours   -= iDays    * 24;
 
-        const QString strDays = UICommon::daysToString(iDays);
-        const QString strHours = UICommon::hoursToString(iHours);
-        const QString strMinutes = UICommon::minutesToString(iMinutes);
-        const QString strSeconds = UICommon::secondsToString(iSeconds);
+        const QString strDays = UITranslator::daysToString(iDays);
+        const QString strHours = UITranslator::hoursToString(iHours);
+        const QString strMinutes = UITranslator::minutesToString(iMinutes);
+        const QString strSeconds = UITranslator::secondsToString(iSeconds);
 
         const QString strTwoComp = tr("%1, %2 remaining", "You may wish to translate this more like \"Time remaining: %1, %2\"");
         const QString strOneComp = tr("%1 remaining", "You may wish to translate this more like \"Time remaining: %1\"");
@@ -537,82 +546,4 @@ void UIProgressDialog::handleTimerEvent()
     /* Update progress: */
     updateProgressState();
     updateProgressPercentage();
-}
-
-
-/*********************************************************************************************************************************
-*   Class UIProgress implementation.                                                                                             *
-*********************************************************************************************************************************/
-
-UIProgress::UIProgress(CProgress &comProgress, QObject *pParent /* = 0 */)
-    : QObject(pParent)
-    , m_comProgress(comProgress)
-    , m_cOperations(m_comProgress.GetOperationCount())
-    , m_fEnded(false)
-{
-}
-
-void UIProgress::run(int iRefreshInterval)
-{
-    /* Make sure the CProgress still valid: */
-    if (!m_comProgress.isOk())
-        return;
-
-    /* Start the refresh timer: */
-    int id = startTimer(iRefreshInterval);
-
-    /* Create a local event-loop: */
-    {
-        QEventLoop eventLoop;
-        m_pEventLoop = &eventLoop;
-
-        /* Guard ourself for the case
-         * we destroyed ourself in our event-loop: */
-        QPointer<UIProgress> guard = this;
-
-        /* Start the blocking event-loop: */
-        eventLoop.exec();
-
-        /* Are we still valid? */
-        if (guard.isNull())
-            return;
-
-        m_pEventLoop = 0;
-    }
-
-    /* Kill the refresh timer: */
-    killTimer(id);
-}
-
-void UIProgress::timerEvent(QTimerEvent *)
-{
-    /* Make sure the UIProgress still 'running': */
-    if (m_fEnded)
-        return;
-
-    /* If progress had failed or finished: */
-    if (!m_comProgress.isOk() || m_comProgress.GetCompleted())
-    {
-        /* Notify listeners about the operation progress error: */
-        if (!m_comProgress.isOk() || m_comProgress.GetResultCode() != 0)
-            emit sigProgressError(UIErrorString::formatErrorInfo(m_comProgress));
-
-        /* Exit from the event-loop if there is any: */
-        if (m_pEventLoop)
-            m_pEventLoop->exit();
-
-        /* Mark UIProgress as 'ended': */
-        m_fEnded = true;
-
-        /* Return early: */
-        return;
-    }
-
-    /* If CProgress was not yet canceled: */
-    if (!m_comProgress.GetCanceled())
-    {
-        /* Notify listeners about the operation progress update: */
-        emit sigProgressChange(m_cOperations, m_comProgress.GetOperationDescription(),
-                               m_comProgress.GetOperation() + 1, m_comProgress.GetPercent());
-    }
 }

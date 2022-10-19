@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_sg_h
@@ -37,6 +47,35 @@ RT_C_DECLS_BEGIN
  * @ingroup grp_rt
  * @{
  */
+
+/** Pointer to a const S/G entry. */
+typedef const struct RTSGBUF *PCRTSGBUF;
+
+/**
+ * Callback for RTSgBufCopyToFn() called on every segment of the given S/G buffer.
+ *
+ * @returns Number of bytes copied for this segment, a value smaller than cbSrc will stop the copy operation.
+ * @param   pSgBuf          The S/G buffer for reference.
+ * @param   pvSrc           Where to copy from.
+ * @param   cbSrc           The number of bytes in the source buffer.
+ * @param   pvUser          Opaque user data passed in RTSgBufCopyToFn().
+ */
+typedef DECLCALLBACKTYPE(size_t, FNRTSGBUFCOPYTO, (PCRTSGBUF pSgBuf, const void *pvSrc, size_t cbSrc, void *pvUser));
+/** Pointer to a FNRTSGBUFCOPYTO. */
+typedef FNRTSGBUFCOPYTO *PFNRTSGBUFCOPYTO;
+
+/**
+ * Callback for RTSgBufCopyFromFn() called on every segment of the given S/G buffer.
+ *
+ * @returns Number of bytes copied for this segment, a value smaller than cbDst will stop the copy operation.
+ * @param   pSgBuf          The S/G buffer for reference.
+ * @param   pvDst           Where to copy to.
+ * @param   cbDst           The number of bytes in the destination buffer.
+ * @param   pvUser          Opaque user data passed in RTSgBufCopyFromFn().
+ */
+typedef DECLCALLBACKTYPE(size_t, FNRTSGBUFCOPYFROM, (PCRTSGBUF pSgBuf, void *pvDst, size_t cbDst, void *pvUser));
+/** Pointer to a FNRTSGBUFCOPYFROM. */
+typedef FNRTSGBUFCOPYFROM *PFNRTSGBUFCOPYFROM;
 
 /**
  * A S/G entry.
@@ -81,8 +120,6 @@ typedef struct RTSGBUF
 } RTSGBUF;
 /** Pointer to a S/G entry. */
 typedef RTSGBUF *PRTSGBUF;
-/** Pointer to a const S/G entry. */
-typedef const RTSGBUF *PCRTSGBUF;
 /** Pointer to a S/G entry pointer. */
 typedef PRTSGBUF *PPRTSGBUF;
 
@@ -301,6 +338,32 @@ RTDECL(size_t) RTSgBufCopyToBuf(PRTSGBUF pSgBuf, void *pvBuf, size_t cbCopy);
  * @note This operation advances the internal buffer pointer of the S/G buffer.
  */
 RTDECL(size_t) RTSgBufCopyFromBuf(PRTSGBUF pSgBuf, const void *pvBuf, size_t cbCopy);
+
+/**
+ * Copies data from the given S/G buffer to a destination handled by the given callback.
+ *
+ * @returns Number of bytes copied.
+ * @param   pSgBuf       The S/G buffer to copy from.
+ * @param   cbCopy       How many bytes to copy.
+ * @param   pfnCopyTo    The callback to call on every S/G buffer segment until the operation finished.
+ * @param   pvUser       Opaque user data to pass in the given callback.
+ *
+ * @note This operation advances the internal buffer pointer of the S/G buffer.
+ */
+RTDECL(size_t) RTSgBufCopyToFn(PRTSGBUF pSgBuf, size_t cbCopy, PFNRTSGBUFCOPYTO pfnCopyTo, void *pvUser);
+
+/**
+ * Copies data to the given S/G buffer from a destination handled by the given callback.
+ *
+ * @returns Number of bytes copied.
+ * @param   pSgBuf       The S/G buffer to copy to.
+ * @param   cbCopy       How many bytes to copy.
+ * @param   pfnCopyFrom  The callback to call on every S/G buffer segment until the operation finished.
+ * @param   pvUser       Opaque user data to pass in the given callback.
+ *
+ * @note This operation advances the internal buffer pointer of the S/G buffer.
+ */
+RTDECL(size_t) RTSgBufCopyFromFn(PRTSGBUF pSgBuf, size_t cbCopy, PFNRTSGBUFCOPYFROM pfnCopyFrom, void *pvUser);
 
 /**
  * Advances the internal buffer pointer.

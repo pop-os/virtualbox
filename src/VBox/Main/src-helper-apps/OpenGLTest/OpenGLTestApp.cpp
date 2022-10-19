@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <iprt/assert.h>
@@ -21,6 +31,7 @@
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
 #include <iprt/ldr.h>
+#include <iprt/message.h>
 #include <iprt/stream.h>
 #ifdef RT_OS_WINDOWS
 # include <iprt/win/windows.h>
@@ -33,26 +44,32 @@
 
 #include <string.h>
 
-#define VBOXGLTEST_WITH_LOGGING
+#define VBOXGLTEST_WITH_LOGGING /** @todo r=andy Is this intentional? */
 
 #ifdef VBOXGLTEST_WITH_LOGGING
-#include "package-generated.h"
+# include "package-generated.h"
 
-#include <iprt/log.h>
-#include <iprt/param.h>
-#include <iprt/time.h>
-#include <iprt/system.h>
-#include <iprt/process.h>
-#include <iprt/env.h>
+# include <iprt/log.h>
+# include <iprt/param.h>
+# include <iprt/time.h>
+# include <iprt/system.h>
+# include <iprt/process.h>
+# include <iprt/env.h>
 
-#include <VBox/log.h>
-#include <VBox/version.h>
+# include <VBox/log.h>
+# include <VBox/version.h>
+#endif /* VBOXGLTEST_WITH_LOGGING */
+
+#ifndef RT_OS_WINDOWS
+# include <GL/gl.h> /* For GLubyte and friends. */
 #endif
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-#include <QGLWidget>
-#include <QApplication>
-#include <VBox/VBoxGL2D.h>
+# include <QApplication>
+# if QT_VERSION < QT_VERSION_CHECK(6, 0, 0) && defined(RT_OS_WINDOWS)
+#  include <QGLWidget> /* for GL headers on windows */
+# endif
+# include <VBox/VBoxGL2D.h>
 #endif
 
 /**
@@ -241,17 +258,17 @@ static int vboxCheck3DAccelerationSupported()
 static int vboxCheck2DVideoAccelerationSupported()
 {
     LogRel(("Testing 2D Support:\n"));
-    static int dummyArgc = 1;
-    static char * dummyArgv = (char*)"GlTest";
-    QApplication app (dummyArgc, &dummyArgv);
+    char *apszDummyArgs[] = { (char *)"GLTest", NULL };
+    int   cDummyArgs = RT_ELEMENTS(apszDummyArgs) - 1;
+    QApplication app(cDummyArgs, apszDummyArgs);
 
     VBoxGLTmpContext ctx;
-    const QGLContext *pContext = ctx.makeCurrent();
-    if(pContext)
+    const MY_QOpenGLContext *pContext = ctx.makeCurrent();
+    if (pContext)
     {
         VBoxVHWAInfo supportInfo;
         supportInfo.init(pContext);
-        if(supportInfo.isVHWASupported())
+        if (supportInfo.isVHWASupported())
         {
             LogRel(("Testing 2D Succeeded!\n"));
             return 0;
@@ -291,10 +308,12 @@ static int vboxInitLogging(const char *pszFilename, bool bGenNameSuffix)
         enmLogDest = RTLOGDEST_STDOUT;
     }
 
-    int vrc = RTLogCreateEx(&loggerRelease, fFlags, "all",
-                            "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups, UINT32_MAX, enmLogDest,
-                            NULL /* pfnBeginEnd */, 0 /* cHistory */, 0 /* cbHistoryFileMax */, 0 /* uHistoryTimeMax */,
-                            NULL /* pErrInfo */, pszFilenameFmt, pszFilename, RTTimeMilliTS());
+
+    int vrc = RTLogCreateEx(&loggerRelease, "VBOX_RELEASE_LOG", fFlags, "all", RT_ELEMENTS(s_apszGroups), s_apszGroups, UINT32_MAX,
+                            0 /*cBufDescs*/, NULL /*paBufDescs*/, enmLogDest,
+                            NULL /*pfnBeginEnd*/, 0 /*cHistory*/, 0 /*cbHistoryFileMax*/, 0 /*uHistoryTimeMax*/,
+                            NULL /*pOutputIf*/, NULL /*pvOutputIfUser*/,
+                            NULL /*pErrInfo*/, pszFilenameFmt, pszFilename, RTTimeMilliTS());
     if (RT_SUCCESS(vrc))
     {
         /* some introductory information */
@@ -368,11 +387,10 @@ static int vboxInitQuietMode()
 
 int main(int argc, char **argv)
 {
-    int rc = 0;
-
     RTR3InitExe(argc, &argv, 0);
 
-    if(argc < 2)
+    int rc = 0;
+    if (argc < 2)
     {
         /* backwards compatibility: check 3D */
         rc = vboxCheck3DAccelerationSupported();
@@ -385,11 +403,12 @@ int main(int argc, char **argv)
             { "-test",            't',   RTGETOPT_REQ_STRING },
 #ifdef VBOXGLTEST_WITH_LOGGING
             { "--log",            'l',   RTGETOPT_REQ_STRING },
+            { "--log-to-stdout",  'L',   RTGETOPT_REQ_NOTHING },
 #endif
         };
 
         RTGETOPTSTATE State;
-        rc = RTGetOptInit(&State, argc-1, argv+1, &s_aOptionDefs[0], RT_ELEMENTS(s_aOptionDefs), 0, 0);
+        rc = RTGetOptInit(&State, argc, argv, &s_aOptionDefs[0], RT_ELEMENTS(s_aOptionDefs), 1, 0);
         AssertRCReturn(rc, 49);
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -412,32 +431,28 @@ int main(int argc, char **argv)
             {
                 case 't':
                     if (!strcmp(Val.psz, "3D") || !strcmp(Val.psz, "3d"))
-                    {
                         bTest3D = true;
-                        rc = 0;
-                        break;
-                    }
 #ifdef VBOX_WITH_VIDEOHWACCEL
-                    if (!strcmp(Val.psz, "2D") || !strcmp(Val.psz, "2d"))
-                    {
+                    else if (!strcmp(Val.psz, "2D") || !strcmp(Val.psz, "2d"))
                         bTest2D = true;
-                        rc = 0;
-                        break;
-                    }
 #endif
-                    rc = 1;
+                    else
+                        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Unknown test: %s", Val.psz);
                     break;
+
 #ifdef VBOXGLTEST_WITH_LOGGING
                 case 'l':
                     bLog = true;
                     pLog = Val.psz;
-                    rc = 0;
+                    break;
+                case 'L':
+                    bLog = true;
+                    pLog = NULL;
                     break;
 #endif
                 case 'h':
                     RTPrintf(VBOX_PRODUCT " Helper for testing 2D/3D OpenGL capabilities %u.%u.%u\n"
-                             "(C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                             "All rights reserved.\n"
+                             "Copyright (C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                              "\n"
                              "Parameters:\n"
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -446,57 +461,54 @@ int main(int argc, char **argv)
                              "  --test 3D             test for 3D OpenGL capabilities\n"
 #ifdef VBOXGLTEST_WITH_LOGGING
                              "  --log <log_file_name> log the GL test result to the given file\n"
+                             "  --log-to-stdout       log the GL test result to stdout\n"
                              "\n"
                              "Logging can alternatively be enabled by specifying the VBOXGLTEST_LOG=<log_file_name> env variable\n"
 
 #endif
                              "\n",
                             RTBldCfgVersionMajor(), RTBldCfgVersionMinor(), RTBldCfgVersionBuild());
-                    break;
+                    return RTEXITCODE_SUCCESS;
 
                 case 'V':
-                    RTPrintf("$Revision: 135976 $\n");
-                    return 0;
+                    RTPrintf("$Revision: 153224 $\n");
+                    return RTEXITCODE_SUCCESS;
 
                 case VERR_GETOPT_UNKNOWN_OPTION:
                 case VINF_GETOPT_NOT_OPTION:
-                    rc = 1;
-
                 default:
-                    /* complain? RTGetOptPrintError(rc, &Val); */
-                    break;
+                    return RTGetOptPrintError(rc, &Val);
             }
-
-            if (rc)
-                break;
         }
 
-        if(!rc)
-        {
+        /*
+         * Init logging and output.
+         */
 #ifdef VBOXGLTEST_WITH_LOGGING
-            if(!bLog)
-            {
-                /* check the VBOXGLTEST_LOG env var */
-                pLog = RTEnvGet("VBOXGLTEST_LOG");
-                if(pLog)
-                    bLog = true;
-                bLogSuffix = true;
-            }
-            if(bLog)
-                rc = vboxInitLogging(pLog, bLogSuffix);
-            else
+        if (!bLog)
+        {
+            /* check the VBOXGLTEST_LOG env var */
+            pLog = RTEnvGet("VBOXGLTEST_LOG");
+            if(pLog)
+                bLog = true;
+            bLogSuffix = true;
+        }
+        if (bLog)
+            rc = vboxInitLogging(pLog, bLogSuffix);
+        else
 #endif
-                rc = vboxInitQuietMode();
+            rc = vboxInitQuietMode();
 
-            if(!rc && bTest3D)
-                rc = vboxCheck3DAccelerationSupported();
+        /*
+         * Do the job.
+         */
+        if (!rc && bTest3D)
+            rc = vboxCheck3DAccelerationSupported();
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-            if(!rc && bTest2D)
-                rc = vboxCheck2DVideoAccelerationSupported();
+        if (!rc && bTest2D)
+            rc = vboxCheck2DVideoAccelerationSupported();
 #endif
-
-        }
     }
 
     /*RTR3Term();*/

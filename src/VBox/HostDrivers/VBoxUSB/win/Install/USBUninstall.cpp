@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -34,18 +44,35 @@
 
 #include <iprt/assert.h>
 #include <iprt/errcore.h>
+#include <iprt/initterm.h>
+#include <iprt/message.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
-#include <iprt/errcore.h>
 #include <VBox/VBoxDrvCfg-win.h>
-#include <stdio.h>
 
 
-int usblibOsStopService(void);
-int usblibOsDeleteService(void);
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+/** The support service name. */
+#define SERVICE_NAME    "VBoxUSBMon"
+/** Win32 Device name. */
+#define DEVICE_NAME     "\\\\.\\VBoxUSBMon"
+/** NT Device name. */
+#define DEVICE_NAME_NT   L"\\Device\\VBoxUSBMon"
+/** Win32 Symlink name. */
+#define DEVICE_NAME_DOS  L"\\DosDevices\\VBoxUSBMon"
 
-static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char *pszMsg, void *pvContext)
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+static int usblibOsStopService(void);
+static int usblibOsDeleteService(void);
+
+
+static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY_T enmSeverity, char *pszMsg, void *pvContext)
 {
     RT_NOREF1(pvContext);
     switch (enmSeverity)
@@ -54,7 +81,7 @@ static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char *
         case VBOXDRVCFG_LOG_SEVERITY_REGULAR:
             break;
         case VBOXDRVCFG_LOG_SEVERITY_REL:
-            printf("%s", pszMsg);
+            RTMsgInfo("%s", pszMsg);
             break;
         default:
             break;
@@ -72,8 +99,11 @@ static DECLCALLBACK(void) vboxUsbPanic(void *pvPanic)
 
 int __cdecl main(int argc, char **argv)
 {
-    RT_NOREF2(argc, argv);
-    printf("USB uninstallation\n");
+    RTR3InitExeNoArguments(0);
+    if (argc != 1)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "This utility takes no arguments\n");
+    NOREF(argv);
+    RTMsgInfo("USB uninstallation\n");
 
     VBoxDrvCfgLoggerSet(vboxUsbLog, NULL);
     VBoxDrvCfgPanicSet(vboxUsbPanic, NULL);
@@ -83,24 +113,12 @@ int __cdecl main(int argc, char **argv)
 
     HRESULT hr = VBoxDrvCfgInfUninstallAllF(L"USB", L"USB\\VID_80EE&PID_CAFE", SUOI_FORCEDELETE);
     if (hr != S_OK)
-    {
-        printf("SetupUninstallOEMInf failed with hr=0x%x\n", hr);
-        return 1;
-    }
+        return RTMsgErrorExitFailure("SetupUninstallOEMInf failed: %Rhrc\n", hr);
 
-    printf("USB uninstallation succeeded!\n");
-
+    RTMsgInfo("USB uninstallation succeeded!");
     return 0;
 }
 
-/** The support service name. */
-#define SERVICE_NAME    "VBoxUSBMon"
-/** Win32 Device name. */
-#define DEVICE_NAME     "\\\\.\\VBoxUSBMon"
-/** NT Device name. */
-#define DEVICE_NAME_NT   L"\\Device\\VBoxUSBMon"
-/** Win32 Symlink name. */
-#define DEVICE_NAME_DOS  L"\\DosDevices\\VBoxUSBMon"
 
 /**
  * Stops a possibly running service.
@@ -108,15 +126,14 @@ int __cdecl main(int argc, char **argv)
  * @returns 0 on success.
  * @returns -1 on failure.
  */
-int usblibOsStopService(void)
+static int usblibOsStopService(void)
 {
     /*
      * Assume it didn't exist, so we'll create the service.
      */
     int rc = -1;
     SC_HANDLE   hSMgr = OpenSCManager(NULL, NULL, SERVICE_STOP | SERVICE_QUERY_STATUS);
-    DWORD LastError = GetLastError(); NOREF(LastError);
-    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", LastError));
+    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", GetLastError()));
     if (hSMgr)
     {
         SC_HANDLE hService = OpenService(hSMgr, SERVICE_NAME, SERVICE_STOP | SERVICE_QUERY_STATUS);
@@ -147,19 +164,13 @@ int usblibOsStopService(void)
                    AssertMsgFailed(("Failed to stop service. status=%d\n", Status.dwCurrentState));
             }
             else
-            {
-                DWORD LastError = GetLastError(); NOREF(LastError);
-                AssertMsgFailed(("ControlService failed with LastError=%Rwa. status=%d\n", LastError, Status.dwCurrentState));
-            }
+                AssertMsgFailed(("ControlService failed with LastError=%Rwa. status=%d\n", GetLastError(), Status.dwCurrentState));
             CloseServiceHandle(hService);
         }
         else if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST)
             rc = 0;
         else
-        {
-            DWORD LastError = GetLastError(); NOREF(LastError);
-            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", LastError));
-        }
+            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", GetLastError()));
         CloseServiceHandle(hSMgr);
     }
     return rc;
@@ -172,15 +183,14 @@ int usblibOsStopService(void)
  * @returns 0 on success.
  * @returns -1 on failure.
  */
-int usblibOsDeleteService(void)
+static int usblibOsDeleteService(void)
 {
     /*
      * Assume it didn't exist, so we'll create the service.
      */
     int rc = -1;
-    SC_HANDLE   hSMgr = OpenSCManager(NULL, NULL, SERVICE_CHANGE_CONFIG);
-    DWORD LastError = GetLastError(); NOREF(LastError);
-    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", LastError));
+    SC_HANDLE hSMgr = OpenSCManager(NULL, NULL, SERVICE_CHANGE_CONFIG);
+    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", GetLastError()));
     if (hSMgr)
     {
         SC_HANDLE hService = OpenService(hSMgr, SERVICE_NAME, DELETE);
@@ -192,19 +202,13 @@ int usblibOsDeleteService(void)
             if (DeleteService(hService))
                 rc = 0;
             else
-            {
-                DWORD LastError = GetLastError(); NOREF(LastError);
-                AssertMsgFailed(("DeleteService failed LastError=%Rwa\n", LastError));
-            }
+                AssertMsgFailed(("DeleteService failed LastError=%Rwa\n", GetLastError()));
             CloseServiceHandle(hService);
         }
         else if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST)
             rc = 0;
         else
-        {
-            DWORD LastError = GetLastError(); NOREF(LastError);
-            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", LastError));
-        }
+            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", GetLastError()));
         CloseServiceHandle(hSMgr);
     }
     return rc;

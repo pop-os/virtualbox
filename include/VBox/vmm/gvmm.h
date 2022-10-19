@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_gvmm_h
@@ -31,7 +41,9 @@
 #endif
 
 #include <VBox/types.h>
+#include <VBox/vmm/stam.h>
 #include <VBox/sup.h>
+#include <VBox/param.h>
 #include <iprt/cpuset.h> /* RTCPUSET_MAX_CPUS */
 
 
@@ -130,6 +142,21 @@ typedef struct GVMMSTATSHOSTCPU
 typedef GVMMSTATSHOSTCPU *PGVMMSTATSHOSTCPU;
 
 /**
+ * Per VCpu statistics
+ */
+typedef struct GVMMSTATSVMCPU
+{
+    uint32_t            cWakeUpTimerHits;
+    uint32_t            cWakeUpTimerMisses;
+    uint32_t            cWakeUpTimerCanceled;
+    uint32_t            cWakeUpTimerSameCpu;
+    STAMPROFILE         Start;
+    STAMPROFILE         Stop;
+} GVMMSTATSVMCPU;
+/** Ptoiner to the GVMM per VCpu statistics. */
+typedef GVMMSTATSVMCPU *PGVMMSTATSVMCPU;
+
+/**
  * The GVMM statistics.
  */
 typedef struct GVMMSTATS
@@ -146,6 +173,8 @@ typedef struct GVMMSTATS
     uint32_t            u32Padding;
     /** The number of valid entries in aHostCpus. */
     uint32_t            cHostCpus;
+    /** Per EMT statistics for the specified VM, zero if non specified. */
+    GVMMSTATSVMCPU      aVCpus[VMM_MAX_CPU_COUNT];
     /** Per host CPU statistics. */
     GVMMSTATSHOSTCPU    aHostCpus[RTCPUSET_MAX_CPUS];
 } GVMMSTATS;
@@ -165,10 +194,24 @@ typedef const GVMMSTATS *PCGVMMSTATS;
  * @param   pGVM        The VM
  * @param   pvUser      The user parameter.
  *  */
-typedef DECLCALLBACK(int) FNGVMMR0ENUMCALLBACK(PGVM pGVM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNGVMMR0ENUMCALLBACK,(PGVM pGVM, void *pvUser));
 /** Pointer to an VM enumeration callback function. */
 typedef FNGVMMR0ENUMCALLBACK *PFNGVMMR0ENUMCALLBACK;
 
+/**
+ * Worker thread IDs.
+ */
+typedef enum GVMMWORKERTHREAD
+{
+    /** The usual invalid zero value. */
+    GVMMWORKERTHREAD_INVALID = 0,
+    /** PGM handy page allocator thread. */
+    GVMMWORKERTHREAD_PGM_ALLOCATOR,
+    /** End of valid worker thread values. */
+    GVMMWORKERTHREAD_END,
+    /** Make sure the type size is 32 bits. */
+    GVMMWORKERTHREAD_32_BIT_HACK = 0x7fffffff
+} GVMMWORKERTHREAD;
 
 GVMMR0DECL(int)     GVMMR0Init(void);
 GVMMR0DECL(void)    GVMMR0Term(void);
@@ -182,11 +225,17 @@ GVMMR0DECL(bool)    GVMMR0DoingTermVM(PGVM pGVM);
 GVMMR0DECL(int)     GVMMR0DestroyVM(PGVM pGVM);
 GVMMR0DECL(int)     GVMMR0RegisterVCpu(PGVM pGVM, VMCPUID idCpu);
 GVMMR0DECL(int)     GVMMR0DeregisterVCpu(PGVM pGVM, VMCPUID idCpu);
+GVMMR0DECL(int)     GVMMR0RegisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker, RTNATIVETHREAD hThreadR3);
+GVMMR0DECL(int)     GVMMR0DeregisterWorkerThread(PGVM pGVM, GVMMWORKERTHREAD enmWorker);
 GVMMR0DECL(PGVM)    GVMMR0ByHandle(uint32_t hGVM);
 GVMMR0DECL(int)     GVMMR0ValidateGVM(PGVM pGVM);
 GVMMR0DECL(int)     GVMMR0ValidateGVMandEMT(PGVM pGVM, VMCPUID idCpu);
+GVMMR0DECL(int)     GVMMR0ValidateGVMandEMTorWorker(PGVM pGVM, VMCPUID idCpu, GVMMWORKERTHREAD enmWorker);
 GVMMR0DECL(PVMCC)   GVMMR0GetVMByEMT(RTNATIVETHREAD hEMT);
 GVMMR0DECL(PGVMCPU) GVMMR0GetGVCpuByEMT(RTNATIVETHREAD hEMT);
+GVMMR0DECL(PGVMCPU) GVMMR0GetGVCpuByGVMandEMT(PGVM pGVM, RTNATIVETHREAD hEMT);
+GVMMR0DECL(RTNATIVETHREAD) GVMMR0GetRing3ThreadForSelf(PGVM pGVM);
+GVMMR0DECL(RTHCPHYS) GVMMR0ConvertGVMPtr2HCPhys(PGVM pGVM, void *pv);
 GVMMR0DECL(int)     GVMMR0SchedHalt(PGVM pGVM, PGVMCPU pGVCpu, uint64_t u64ExpireGipTime);
 GVMMR0DECL(int)     GVMMR0SchedHaltReq(PGVM pGVM, VMCPUID idCpu, uint64_t u64ExpireGipTime);
 GVMMR0DECL(int)     GVMMR0SchedWakeUp(PGVM pGVM, VMCPUID idCpu);
@@ -223,6 +272,20 @@ typedef struct GVMMCREATEVMREQ
 typedef GVMMCREATEVMREQ *PGVMMCREATEVMREQ;
 
 GVMMR0DECL(int)     GVMMR0CreateVMReq(PGVMMCREATEVMREQ pReq, PSUPDRVSESSION pSession);
+
+
+/**
+ * Request packet for calling GVMMR0RegisterWorkerThread.
+ */
+typedef struct GVMMREGISTERWORKERTHREADREQ
+{
+    /** The request header. */
+    SUPVMMR0REQHDR  Hdr;
+    /** Ring-3 native thread handle of the caller. (IN)   */
+    RTNATIVETHREAD  hNativeThreadR3;
+} GVMMREGISTERWORKERTHREADREQ;
+/** Pointer to a GVMMR0RegisterWorkerThread request packet. */
+typedef GVMMREGISTERWORKERTHREADREQ *PGVMMREGISTERWORKERTHREADREQ;
 
 
 /**
@@ -281,6 +344,16 @@ typedef struct GVMMRESETSTATISTICSSREQ
 typedef GVMMRESETSTATISTICSSREQ *PGVMMRESETSTATISTICSSREQ;
 
 GVMMR0DECL(int)     GVMMR0ResetStatisticsReq(PGVM pGVM, PGVMMRESETSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
+
+
+#ifdef IN_RING3
+VMMR3_INT_DECL(int)  GVMMR3CreateVM(PUVM pUVM, uint32_t cCpus, PSUPDRVSESSION pSession, PVM *ppVM, PRTR0PTR ppVMR0);
+VMMR3_INT_DECL(int)  GVMMR3DestroyVM(PUVM pUVM, PVM pVM);
+VMMR3_INT_DECL(int)  GVMMR3RegisterVCpu(PVM pVM, VMCPUID idCpu);
+VMMR3_INT_DECL(int)  GVMMR3DeregisterVCpu(PVM pVM, VMCPUID idCpu);
+VMMR3_INT_DECL(int)  GVMMR3RegisterWorkerThread(PVM pVM, GVMMWORKERTHREAD enmWorker);
+VMMR3_INT_DECL(int)  GVMMR3DeregisterWorkerThread(PVM pVM, GVMMWORKERTHREAD enmWorker);
+#endif
 
 
 /** @} */

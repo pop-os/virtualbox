@@ -4359,7 +4359,7 @@ Please turn one of those options off.</source>
     </message>
     <message>
         <source>%1: unable to unlock</source>
-        <translation>%1: no es pot desblocar</translation>
+        <translation>%1: no es pot desbloquejar</translation>
     </message>
     <message>
         <source>%1: permission denied</source>

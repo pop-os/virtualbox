@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -144,9 +144,7 @@ struct VBVAINFOVIEW;
  * @param  pInfo   array of @a VBVAINFOVIEW structures to be filled in
  * @todo  explicitly pass the array size
  */
-typedef DECLCALLBACK(int) FNHGSMIFILLVIEWINFO(void *pvData,
-                                              struct VBVAINFOVIEW *pInfo,
-                                              uint32_t cViews);
+typedef DECLCALLBACKTYPE(int, FNHGSMIFILLVIEWINFO,(void *pvData, struct VBVAINFOVIEW *pInfo, uint32_t cViews));
 /** Pointer to a FNHGSMIFILLVIEWINFO callback */
 typedef FNHGSMIFILLVIEWINFO *PFNHGSMIFILLVIEWINFO;
 

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <VBoxWddmUmHlp.h>
@@ -21,7 +31,7 @@
 #include "svga_screen.h"
 #include "pipe/p_screen.h"
 #include "pipe/p_context.h"
-#include "state_tracker/drm_driver.h"
+#include "frontend/drm_driver.h"
 
 #include "wddm_screen.h"
 
@@ -55,9 +65,9 @@ GaDrvGetSurfaceId(struct pipe_screen *pScreen, struct pipe_resource *pResource)
         /* Get the sid (surface id). */
         struct winsys_handle whandle;
         memset(&whandle, 0, sizeof(whandle));
-        whandle.type = DRM_API_HANDLE_TYPE_SHARED;
+        whandle.type = WINSYS_HANDLE_TYPE_SHARED;
 
-        if (pScreen->resource_get_handle(pScreen, NULL, pResource, &whandle, PIPE_HANDLE_USAGE_READ))
+        if (pScreen->resource_get_handle(pScreen, NULL, pResource, &whandle, 0))
         {
             u32Sid = (uint32_t)whandle.handle;
         }

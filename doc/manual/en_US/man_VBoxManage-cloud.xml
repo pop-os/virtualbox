@@ -1,42 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage cloud
+-->
+<!--
+    Copyright (C) 2018-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2018-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
-<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+  "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
+<!ENTITY % all.entities SYSTEM "all-entities.ent">
+%all.entities;
+]>
 <refentry id="vboxmanage-cloud" lang="en">
-
   <refentryinfo>
-    <pubdate>$Date: 2021-03-01 11:20:37 +0100 (Mon, 01 Mar 2021) $</pubdate>
+    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
     <title>VBoxManage cloud</title>
   </refentryinfo>
 
   <refmeta>
     <refentrytitle>VBoxManage-cloud</refentrytitle>
     <manvolnum>1</manvolnum>
+    <refmiscinfo class="manual">&product-name;</refmiscinfo>
   </refmeta>
 
   <refnamediv>
     <refname>VBoxManage-cloud</refname>
     <refpurpose>Manage the cloud entities</refpurpose>
-    <refclass>Oracle VM VirtualBox</refclass>
+    <refclass>&product-name;</refclass>
   </refnamediv>
 
   <refsynopsisdiv>
-    <!-- Cloud list commands -->
-    <cmdsynopsis id="synopsis-vboxmanage-cloudlist-instances"> <!-- The 'id' is mandatory and must start with 'synopsis-'. -->
+    <!-- Cloud list -->
+    <!-- The 'id' is mandatory and must start with 'synopsis-'. -->
+    <cmdsynopsis id="synopsis-vboxmanage-cloudlist-instances">
       <command>VBoxManage cloud</command>
         <arg choice="req">--provider=<replaceable>name</replaceable></arg>
         <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+        <sbr/>
         <arg choice="plain">list</arg>
         <arg choice="plain">instances</arg>
         <arg>--state=<replaceable>string</replaceable></arg>
@@ -46,6 +63,7 @@
       <command>VBoxManage cloud</command>
       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+      <sbr/>
       <arg choice="plain">list</arg>
       <arg choice="plain">images</arg>
       <arg choice="req">--compartment-id=<replaceable>string</replaceable></arg>
@@ -55,106 +73,116 @@
     <!-- Cloud instance commands -->
       <cmdsynopsis id="synopsis-vboxmanage-cloudinstance-create" sepchar=" ">
        <command moreinfo="none">VBoxManage cloud</command>
-       <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-       <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-       <arg choice="plain" rep="norepeat">instance</arg>
-       <arg choice="plain" rep="norepeat">create</arg>
-       <arg choice="req" rep="norepeat">--domain-name=<replaceable>name</replaceable></arg>
+       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+       <sbr/>
+       <arg choice="plain">instance</arg>
+       <arg choice="plain">create</arg>
+       <arg choice="req">--domain-name=<replaceable>name</replaceable></arg>
        <group choice="req">
-           <arg choice="req" rep="norepeat">--image-id=<replaceable>id</replaceable></arg>
-           <arg choice="req" rep="norepeat">--boot-volume-id=<replaceable>id</replaceable></arg>
+           <arg choice="req">--image-id=<replaceable>id</replaceable></arg>
+           <arg choice="req">--boot-volume-id=<replaceable>id</replaceable></arg>
        </group>
-       <arg choice="req" rep="norepeat">--display-name=<replaceable>name</replaceable></arg>
-       <arg choice="req" rep="norepeat">--shape=<replaceable>type</replaceable></arg>
-       <arg choice="req" rep="norepeat">--subnet=<replaceable>id</replaceable></arg>
-       <arg rep="norepeat">--boot-disk-size=<replaceable>size in GB</replaceable></arg>
-       <arg rep="norepeat">--publicip=<replaceable>true/false</replaceable></arg>
-       <arg rep="norepeat">--privateip=<replaceable>IP address</replaceable></arg>
+       <arg choice="req">--display-name=<replaceable>name</replaceable></arg>
+       <arg choice="req">--shape=<replaceable>type</replaceable></arg>
+       <arg choice="req">--subnet=<replaceable>id</replaceable></arg>
+       <arg>--boot-disk-size=<replaceable>size in GB</replaceable></arg>
+       <arg>--publicip=<replaceable>true/false</replaceable></arg>
+       <arg>--privateip=<replaceable>IP address</replaceable></arg>
        <arg rep="repeat">--public-ssh-key=<replaceable>key string</replaceable></arg>
-       <arg rep="norepeat">--launch-mode=<replaceable>NATIVE/EMULATED/PARAVIRTUALIZED</replaceable></arg>
-       <arg rep="norepeat">--cloud-init-script-path=<replaceable>path to a script</replaceable></arg>
+       <arg>--launch-mode=<replaceable>NATIVE/EMULATED/PARAVIRTUALIZED</replaceable></arg>
+       <arg>--cloud-init-script-path=<replaceable>path to a script</replaceable></arg>
      </cmdsynopsis>
      <cmdsynopsis id="synopsis-vboxmanage-cloudinstance-info" sepchar=" ">
        <command moreinfo="none">VBoxManage cloud</command>
-       <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-       <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-       <arg choice="plain" rep="norepeat">instance</arg>
-       <arg choice="plain" rep="norepeat">info</arg>
-       <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+       <sbr/>
+       <arg choice="plain">instance</arg>
+       <arg choice="plain">info</arg>
+       <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
      </cmdsynopsis>
      <cmdsynopsis id="synopsis-vboxmanage-cloudinstance-terminate" sepchar=" ">
        <command moreinfo="none">VBoxManage cloud</command>
-       <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-       <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-       <arg choice="plain" rep="norepeat">instance</arg>
-       <arg choice="plain" rep="norepeat">terminate</arg>
-       <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+       <sbr/>
+       <arg choice="plain">instance</arg>
+       <arg choice="plain">terminate</arg>
+       <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
      </cmdsynopsis>
      <cmdsynopsis id="synopsis-vboxmanage-cloudinstance-start" sepchar=" ">
        <command moreinfo="none">VBoxManage cloud</command>
-       <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-       <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-       <arg choice="plain" rep="norepeat">instance</arg>
-       <arg choice="plain" rep="norepeat">start</arg>
-       <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+       <sbr/>
+       <arg choice="plain">instance</arg>
+       <arg choice="plain">start</arg>
+       <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
      </cmdsynopsis>
      <cmdsynopsis id="synopsis-vboxmanage-cloudinstance-pause" sepchar=" ">
        <command moreinfo="none">VBoxManage cloud</command>
-       <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-       <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-       <arg choice="plain" rep="norepeat">instance</arg>
-       <arg choice="plain" rep="norepeat">pause</arg>
-       <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+       <sbr/>
+       <arg choice="plain">instance</arg>
+       <arg choice="plain">pause</arg>
+       <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
      </cmdsynopsis>
 
      <!-- Cloud image commands -->
       <cmdsynopsis id="synopsis-vboxmanage-cloudimage-create" sepchar=" "> <!-- The 'id' is mandatory and must start with 'synopsis-'. -->
         <command>VBoxManage cloud</command>
-          <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-          <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-          <arg choice="plain" rep="norepeat">image</arg>
-          <arg choice="plain" rep="norepeat">create</arg>
-          <arg choice="req" rep="norepeat">--display-name=<replaceable>name</replaceable></arg>
-          <arg rep="norepeat">--bucket-name=<replaceable>name</replaceable></arg>
-          <arg rep="norepeat">--object-name=<replaceable>name</replaceable></arg>
-          <arg rep="norepeat">--instance-id=<replaceable>unique id</replaceable></arg>
+          <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+          <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+          <sbr/>
+          <arg choice="plain">image</arg>
+          <arg choice="plain">create</arg>
+          <arg choice="req">--display-name=<replaceable>name</replaceable></arg>
+          <arg>--bucket-name=<replaceable>name</replaceable></arg>
+          <arg>--object-name=<replaceable>name</replaceable></arg>
+          <arg>--instance-id=<replaceable>unique id</replaceable></arg>
       </cmdsynopsis>
       <cmdsynopsis id="synopsis-vboxmanage-cloudimage-info" sepchar=" ">
         <command>VBoxManage cloud</command>
-        <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-        <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-        <arg choice="plain" rep="norepeat">image</arg>
-        <arg choice="plain" rep="norepeat">info</arg>
-        <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+        <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+        <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+        <sbr/>
+        <arg choice="plain">image</arg>
+        <arg choice="plain">info</arg>
+        <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
       </cmdsynopsis>
       <cmdsynopsis id="synopsis-vboxmanage-cloudimage-delete" sepchar=" ">
         <command>VBoxManage cloud</command>
-        <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-        <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-        <arg choice="plain" rep="norepeat">image</arg>
-        <arg choice="plain" rep="norepeat">delete</arg>
-        <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+        <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+        <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+        <sbr/>
+        <arg choice="plain">image</arg>
+        <arg choice="plain">delete</arg>
+        <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
       </cmdsynopsis>
       <cmdsynopsis id="synopsis-vboxmanage-cloudimage-import" sepchar=" ">
         <command>VBoxManage cloud</command>
-        <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-        <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-        <arg choice="plain" rep="norepeat">image</arg>
-        <arg choice="plain" rep="norepeat">import</arg>
-        <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
-        <arg rep="norepeat">--bucket-name=<replaceable>name</replaceable></arg>
-        <arg rep="norepeat">--object-name=<replaceable>name</replaceable></arg>
+        <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+        <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+        <sbr/>
+        <arg choice="plain">image</arg>
+        <arg choice="plain">import</arg>
+        <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
+        <arg>--bucket-name=<replaceable>name</replaceable></arg>
+        <arg>--object-name=<replaceable>name</replaceable></arg>
       </cmdsynopsis>
       <cmdsynopsis id="synopsis-vboxmanage-cloudimage-export" sepchar=" ">
         <command>VBoxManage cloud</command>
-        <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-        <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-        <arg choice="plain" rep="norepeat">image</arg>
-        <arg choice="plain" rep="norepeat">export</arg>
-        <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
-        <arg choice="req" rep="norepeat">--display-name=<replaceable>name</replaceable></arg>
-        <arg rep="norepeat">--bucket-name=<replaceable>name</replaceable></arg>
-        <arg rep="norepeat">--object-name=<replaceable>name</replaceable></arg>
+        <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+        <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+        <sbr/>
+        <arg choice="plain">image</arg>
+        <arg choice="plain">export</arg>
+        <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
+        <arg choice="req">--display-name=<replaceable>name</replaceable></arg>
+        <arg>--bucket-name=<replaceable>name</replaceable></arg>
+        <arg>--object-name=<replaceable>name</replaceable></arg>
       </cmdsynopsis>
 
       <!-- Cloud network commands -->
@@ -162,14 +190,13 @@
       <command>VBoxManage cloud</command>
       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+      <sbr/>
       <arg choice="plain">network setup</arg>
-      <arg choice="req">--local-gateway-iso=<replaceable>path</replaceable></arg>
       <arg>--gateway-os-name=<replaceable>string</replaceable></arg>
       <arg>--gateway-os-version=<replaceable>string</replaceable></arg>
       <arg>--gateway-shape=<replaceable>string</replaceable></arg>
       <arg>--tunnel-network-name=<replaceable>string</replaceable></arg>
       <arg>--tunnel-network-range=<replaceable>string</replaceable></arg>
-      <arg>--guest-additions-iso=<replaceable>path</replaceable></arg>
       <arg>--proxy=<replaceable>string</replaceable></arg>
       <arg>--compartment-id=<replaceable>string</replaceable></arg>
     </cmdsynopsis>
@@ -177,6 +204,7 @@
       <command>VBoxManage cloud</command>
       <arg choice="req">--provider=<replaceable>name</replaceable></arg>
       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+      <sbr/>
       <arg choice="plain">network create</arg>
       <arg choice="req">--name=<replaceable>string</replaceable></arg>
       <arg choice="req">--network-id=<replaceable>string</replaceable></arg>
@@ -289,8 +317,8 @@
         There are two standard ways to create an instance in the Cloud:
          1. Create an instance from an existing custom image.
          2. Create an instance from an existing bootable volume. This bootable volume shouldn't  be attached to any instance.
-        For the 1st approach next parameters are required: image-id and  boot-disk-size.
-        For the 2nd approach next parameters are required: boot-volume-id;
+        For the 1st approach next parameters are required: image-id, boot-disk-size.
+        For the 2nd approach next parameters are required: boot-volume-id.
         The rest parameters are common for both cases:
          display-name, launch-mode, subnet-id, publicIP, privateIP, shape, domain.
       </para>
@@ -521,9 +549,6 @@
       </para>
       <variablelist>
         <varlistentry>
-          <term><option>--local-gateway-iso</option></term><listitem><para>The local path to an installation media for a local gateway.</para></listitem>
-        </varlistentry>
-        <varlistentry>
           <term><option>--gateway-os-name</option></term><listitem><para>The name of OS to use for a cloud gateway.</para></listitem>
         </varlistentry>
         <varlistentry>
@@ -537,9 +562,6 @@
         </varlistentry>
         <varlistentry>
           <term><option>--tunnel-network-range</option></term><listitem><para>The IP address range to use for tunneling. </para></listitem>
-        </varlistentry>
-        <varlistentry>
-          <term><option>--guest-additions-iso</option></term><listitem><para>The local path to an installation media for VirtualBox guest additions.</para></listitem>
         </varlistentry>
         <varlistentry>
           <term><option>--proxy</option></term><listitem><para>The proxy URL to be used in local gateway installation.</para></listitem>

@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_vfs_h
@@ -48,7 +58,7 @@ RT_C_DECLS_BEGIN
  * container files, file system sub-trees, file system overlays and other custom
  * filesystem configurations.  It also makes it possible to create filters, like
  * automatically gunzipping a tar.gz file before feeding it to the RTTar API for
- * unpacking - or wise versa.
+ * unpacking - or vice versa.
  *
  * The virtual filesystem APIs are intended to mirror the RTDir, RTFile, RTPath
  * and RTFs APIs pretty closely so that rewriting a piece of code to work with
@@ -90,6 +100,14 @@ typedef enum RTVFSOBJTYPE
 } RTVFSOBJTYPE;
 /** Pointer to a VFS object type. */
 typedef RTVFSOBJTYPE *PRTVFSOBJTYPE;
+
+/**
+ * Translates a RTVFSOBJTYPE value into a string.
+ *
+ * @returns Pointer to readonly name.
+ * @param   enmType             The object type to name.
+ */
+RTDECL(const char *) RTVfsTypeName(RTVFSOBJTYPE enmType);
 
 
 
@@ -179,6 +197,25 @@ RTDECL(int) RTVfsQueryPathInfo(RTVFS hVfs, const char *pszPath, PRTFSOBJINFO pOb
  * @param   pfUsed      Where to store the result.
  */
 RTDECL(int) RTVfsQueryRangeState(RTVFS hVfs, uint64_t off, size_t cb, bool *pfUsed);
+
+/**
+ * Queries the volume label.
+ *
+ * @returns IPRT status code.
+ * @param   hVfs            VFS handle.
+ * @param   fAlternative    For use with ISO files to retrieve the primary lable
+ *                          rather than the joliet / UDF one that the mount
+ *                          options would indicate.  For other file systems, as
+ *                          well for ISO not mounted in joliet / UDF mode, the
+ *                          flag is ignored.
+ * @param   pszLabel        Where to store the lable.
+ * @param   cbLabel         Size of the buffer @a pszLable points at.
+ * @param   pcbActual       Where to return the label length, including the
+ *                          terminator.  In case of VERR_BUFFER_OVERFLOW
+ *                          returns, this will be set to the required buffer
+ *                          size.  Optional.
+ */
+RTDECL(int) RTVfsQueryLabel(RTVFS hVfs, bool fAlternative, char *pszLabel, size_t cbLabel, size_t *pcbActual);
 
 
 /** @defgroup grp_rt_vfs_obj        VFS Base Object API
@@ -1481,7 +1518,7 @@ RTDECL(RTFOFF)      RTVfsFileTell(RTVFSFILE hVfsFile);
  *
  * @param   hVfsFile        The VFS file handle.
  * @param   offSeek         The seek offset.
- * @param   uMethod         The seek emthod.
+ * @param   uMethod         The seek method.
  * @param   poffActual      Where to optionally return the new file offset.
  *
  * @sa      RTFileSeek
@@ -1516,10 +1553,10 @@ RTDECL(int)         RTVfsFileSetSize(RTVFSFILE hVfsFile, uint64_t cbSize, uint32
  * @{ */
 /** Normal truncate or grow (zero'ed) like RTFileSetSize . */
 #define RTVFSFILE_SIZE_F_NORMAL             UINT32_C(0x00000001)
-/** Only grow the file, ignore call if cbSize would trunacte the file.
+/** Only grow the file, ignore call if cbSize would truncate the file.
  * This is what RTFileSetAllocationSize does by default.  */
 #define RTVFSFILE_SIZE_F_GROW               UINT32_C(0x00000002)
-/** Only grow the file, ignore call if cbSize would trunacte the file.
+/** Only grow the file, ignore call if cbSize would truncate the file.
  * This is what RTFileSetAllocationSize does by default.  */
 #define RTVFSFILE_SIZE_F_GROW_KEEP_SIZE     UINT32_C(0x00000003)
 /** Action mask. */

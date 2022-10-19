@@ -4,28 +4,36 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#ifndef VBOX_ONLY_DOCS
 #include <VBox/com/com.h>
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/VirtualBox.h>
-#endif /* !VBOX_ONLY_DOCS */
 
 #include <iprt/cidr.h>
 #include <iprt/ctype.h>
@@ -37,8 +45,10 @@
 #include <iprt/getopt.h>
 #include <VBox/log.h>
 #include "VBoxManage.h"
+#include "VBoxManageUtils.h"
 
-#ifndef VBOX_ONLY_DOCS
+DECLARE_TRANSLATION_CONTEXT(ModifyVM);
+
 using namespace com;
 /** @todo refine this after HDD changes; MSC 8.0/64 has trouble with handleModifyVM.  */
 #if defined(_MSC_VER)
@@ -74,6 +84,7 @@ enum
     MODIFYVM_LARGEPAGES,
     MODIFYVM_VTXVPID,
     MODIFYVM_VTXUX,
+    MODIFYVM_VIRT_VMSAVE_VMLOAD,
     MODIFYVM_IBPB_ON_VM_EXIT,
     MODIFYVM_IBPB_ON_VM_ENTRY,
     MODIFYVM_SPEC_CTRL,
@@ -88,9 +99,8 @@ enum
     MODIFYVM_PLUGCPU,
     MODIFYVM_UNPLUGCPU,
     MODIFYVM_SETCPUID,
-    MODIFYVM_SETCPUID_OLD,
     MODIFYVM_DELCPUID,
-    MODIFYVM_DELCPUID_OLD,
+    MODIFYVM_DELCPUID_OLD,      // legacy, different syntax from MODIFYVM_DELCPUID
     MODIFYVM_DELALLCPUID,
     MODIFYVM_GRAPHICSCONTROLLER,
     MODIFYVM_MONITORCOUNT,
@@ -132,7 +142,13 @@ enum
     MODIFYVM_NIC,
     MODIFYVM_CABLECONNECTED,
     MODIFYVM_BRIDGEADAPTER,
+#ifdef VBOX_WITH_CLOUD_NET
+    MODIFYVM_CLOUDNET,
+#endif /* VBOX_WITH_CLOUD_NET */
     MODIFYVM_HOSTONLYADAPTER,
+#ifdef VBOX_WITH_VMNET
+    MODIFYVM_HOSTONLYNET,
+#endif /* VBOX_WITH_VMNET */
     MODIFYVM_INTNET,
     MODIFYVM_GENERICDRV,
     MODIFYVM_NATNETWORKNAME,
@@ -147,6 +163,7 @@ enum
     MODIFYVM_NATDNSPASSDOMAIN,
     MODIFYVM_NATDNSPROXY,
     MODIFYVM_NATDNSHOSTRESOLVER,
+    MODIFYVM_NATLOCALHOSTREACHABLE,
     MODIFYVM_MACADDRESS,
     MODIFYVM_HIDPTR,
     MODIFYVM_HIDKBD,
@@ -233,209 +250,263 @@ enum
     MODIFYVM_RECORDING_OPTIONS,
 #endif
     MODIFYVM_CHIPSET,
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    MODIFYVM_IOMMU,
+#endif
+#if defined(VBOX_WITH_TPM)
+    MODIFYVM_TPM_LOCATION,
+    MODIFYVM_TPM_TYPE,
+#endif
     MODIFYVM_DEFAULTFRONTEND,
-    MODIFYVM_VMPROC_PRIORITY
+    MODIFYVM_VMPROC_PRIORITY,
+    MODIFYVM_TESTING_ENABLED,
+    MODIFYVM_TESTING_MMIO,
+    MODIFYVM_TESTING_CFG_DWORD,
+    MODIFYVM_GUEST_DEBUG_PROVIDER,
+    MODIFYVM_GUEST_DEBUG_IO_PROVIDER,
+    MODIFYVM_GUEST_DEBUG_ADDRESS,
+    MODIFYVM_GUEST_DEBUG_PORT,
 };
 
 static const RTGETOPTDEF g_aModifyVMOptions[] =
 {
-/** @todo Convert to dash separated names like --triple-fault-reset! Please
- *        do that for all new options as we don't need more character soups
- *        around VirtualBox - typedefs more than covers that demand! */
-    { "--name",                     MODIFYVM_NAME,                      RTGETOPT_REQ_STRING },
-    { "--groups",                   MODIFYVM_GROUPS,                    RTGETOPT_REQ_STRING },
-    { "--description",              MODIFYVM_DESCRIPTION,               RTGETOPT_REQ_STRING },
-    { "--ostype",                   MODIFYVM_OSTYPE,                    RTGETOPT_REQ_STRING },
-    { "--iconfile",                 MODIFYVM_ICONFILE,                  RTGETOPT_REQ_STRING },
-    { "--memory",                   MODIFYVM_MEMORY,                    RTGETOPT_REQ_UINT32 },
-    { "--pagefusion",               MODIFYVM_PAGEFUSION,                RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vram",                     MODIFYVM_VRAM,                      RTGETOPT_REQ_UINT32 },
-    { "--firmware",                 MODIFYVM_FIRMWARE,                  RTGETOPT_REQ_STRING },
-    { "--acpi",                     MODIFYVM_ACPI,                      RTGETOPT_REQ_BOOL_ONOFF },
-    { "--ioapic",                   MODIFYVM_IOAPIC,                    RTGETOPT_REQ_BOOL_ONOFF },
-    { "--pae",                      MODIFYVM_PAE,                       RTGETOPT_REQ_BOOL_ONOFF },
-    { "--longmode",                 MODIFYVM_LONGMODE,                  RTGETOPT_REQ_BOOL_ONOFF },
-    { "--cpuid-portability-level",  MODIFYVM_CPUID_PORTABILITY,         RTGETOPT_REQ_UINT32 },
-    { "--triplefaultreset",         MODIFYVM_TFRESET,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--apic",                     MODIFYVM_APIC,                      RTGETOPT_REQ_BOOL_ONOFF },
-    { "--x2apic",                   MODIFYVM_X2APIC,                    RTGETOPT_REQ_BOOL_ONOFF },
-    { "--paravirtprovider",         MODIFYVM_PARAVIRTPROVIDER,          RTGETOPT_REQ_STRING },
-    { "--paravirtdebug",            MODIFYVM_PARAVIRTDEBUG,             RTGETOPT_REQ_STRING },
-    { "--hwvirtex",                 MODIFYVM_HWVIRTEX,                  RTGETOPT_REQ_BOOL_ONOFF },
-    { "--nestedpaging",             MODIFYVM_NESTEDPAGING,              RTGETOPT_REQ_BOOL_ONOFF },
-    { "--largepages",               MODIFYVM_LARGEPAGES,                RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vtxvpid",                  MODIFYVM_VTXVPID,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vtxux",                    MODIFYVM_VTXUX,                     RTGETOPT_REQ_BOOL_ONOFF },
-    { "--ibpb-on-vm-exit",          MODIFYVM_IBPB_ON_VM_EXIT,           RTGETOPT_REQ_BOOL_ONOFF },
-    { "--ibpb-on-vm-entry",         MODIFYVM_IBPB_ON_VM_ENTRY,          RTGETOPT_REQ_BOOL_ONOFF },
-    { "--spec-ctrl",                MODIFYVM_SPEC_CTRL,                 RTGETOPT_REQ_BOOL_ONOFF },
-    { "--l1d-flush-on-sched",       MODIFYVM_L1D_FLUSH_ON_SCHED,        RTGETOPT_REQ_BOOL_ONOFF },
-    { "--l1d-flush-on-vm-entry",    MODIFYVM_L1D_FLUSH_ON_VM_ENTRY,     RTGETOPT_REQ_BOOL_ONOFF },
-    { "--mds-clear-on-sched",       MODIFYVM_MDS_CLEAR_ON_SCHED,        RTGETOPT_REQ_BOOL_ONOFF },
-    { "--mds-clear-on-vm-entry",    MODIFYVM_MDS_CLEAR_ON_VM_ENTRY,     RTGETOPT_REQ_BOOL_ONOFF },
-    { "--nested-hw-virt",           MODIFYVM_NESTED_HW_VIRT,            RTGETOPT_REQ_BOOL_ONOFF },
-    { "--cpuid-set",                MODIFYVM_SETCPUID,                  RTGETOPT_REQ_UINT32_OPTIONAL_PAIR | RTGETOPT_FLAG_HEX },
-    { "--cpuid-remove",             MODIFYVM_DELCPUID,                  RTGETOPT_REQ_UINT32_OPTIONAL_PAIR | RTGETOPT_FLAG_HEX },
-    { "--cpuidset",                 MODIFYVM_SETCPUID_OLD,              RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX },
-    { "--cpuidremove",              MODIFYVM_DELCPUID_OLD,              RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX },
-    { "--cpuidremoveall",           MODIFYVM_DELALLCPUID,               RTGETOPT_REQ_NOTHING},
-    { "--cpus",                     MODIFYVM_CPUS,                      RTGETOPT_REQ_UINT32 },
-    { "--cpuhotplug",               MODIFYVM_CPUHOTPLUG,                RTGETOPT_REQ_BOOL_ONOFF },
-    { "--cpu-profile",              MODIFYVM_CPU_PROFILE,               RTGETOPT_REQ_STRING },
-    { "--plugcpu",                  MODIFYVM_PLUGCPU,                   RTGETOPT_REQ_UINT32 },
-    { "--unplugcpu",                MODIFYVM_UNPLUGCPU,                 RTGETOPT_REQ_UINT32 },
-    { "--cpuexecutioncap",          MODIFYVM_CPU_EXECTUION_CAP,         RTGETOPT_REQ_UINT32 },
-    { "--rtcuseutc",                MODIFYVM_RTCUSEUTC,                 RTGETOPT_REQ_BOOL_ONOFF },
-    { "--graphicscontroller",       MODIFYVM_GRAPHICSCONTROLLER,        RTGETOPT_REQ_STRING },
-    { "--monitorcount",             MODIFYVM_MONITORCOUNT,              RTGETOPT_REQ_UINT32 },
-    { "--accelerate3d",             MODIFYVM_ACCELERATE3D,              RTGETOPT_REQ_BOOL_ONOFF },
+    OPT1("--name",                                                      MODIFYVM_NAME,                      RTGETOPT_REQ_STRING),
+    OPT1("--groups",                                                    MODIFYVM_GROUPS,                    RTGETOPT_REQ_STRING),
+    OPT1("--description",                                               MODIFYVM_DESCRIPTION,               RTGETOPT_REQ_STRING),
+    OPT2("--os-type",                       "--ostype",                 MODIFYVM_OSTYPE,                    RTGETOPT_REQ_STRING),
+    OPT2("--icon-file",                     "--iconfile",               MODIFYVM_ICONFILE,                  RTGETOPT_REQ_STRING),
+    OPT1("--memory",                                                    MODIFYVM_MEMORY,                    RTGETOPT_REQ_UINT32),
+    OPT2("--page-fusion",                   "--pagefusion",             MODIFYVM_PAGEFUSION,                RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--vram",                                                      MODIFYVM_VRAM,                      RTGETOPT_REQ_UINT32),
+    OPT1("--firmware",                                                  MODIFYVM_FIRMWARE,                  RTGETOPT_REQ_STRING),
+    OPT1("--acpi",                                                      MODIFYVM_ACPI,                      RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--ioapic",                                                    MODIFYVM_IOAPIC,                    RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--pae",                                                       MODIFYVM_PAE,                       RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--long-mode",                     "--longmode",               MODIFYVM_LONGMODE,                  RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--cpuid-portability-level",                                   MODIFYVM_CPUID_PORTABILITY,         RTGETOPT_REQ_UINT32),
+    OPT2("--triple-fault-reset",            "--triplefaultreset",       MODIFYVM_TFRESET,                   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--apic",                                                      MODIFYVM_APIC,                      RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--x2apic",                                                    MODIFYVM_X2APIC,                    RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--paravirt-provider",             "--paravirtprovider",       MODIFYVM_PARAVIRTPROVIDER,          RTGETOPT_REQ_STRING),
+    OPT2("--paravirt-debug",                "--paravirtdebug",          MODIFYVM_PARAVIRTDEBUG,             RTGETOPT_REQ_STRING),
+    OPT1("--hwvirtex",                                                  MODIFYVM_HWVIRTEX,                  RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--nested-paging",                 "--nestedpaging",           MODIFYVM_NESTEDPAGING,              RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--large-pages",                   "--largepages",             MODIFYVM_LARGEPAGES,                RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--vtx-vpid",                      "--vtxvpid",                MODIFYVM_VTXVPID,                   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--vtx-ux",                        "--vtxux",                  MODIFYVM_VTXUX,                     RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--virt-vmsave-vmload",                                        MODIFYVM_VIRT_VMSAVE_VMLOAD,        RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--ibpb-on-vm-exit",                                           MODIFYVM_IBPB_ON_VM_EXIT,           RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--ibpb-on-vm-entry",                                          MODIFYVM_IBPB_ON_VM_ENTRY,          RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--spec-ctrl",                                                 MODIFYVM_SPEC_CTRL,                 RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--l1d-flush-on-sched",                                        MODIFYVM_L1D_FLUSH_ON_SCHED,        RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--l1d-flush-on-vm-entry",                                     MODIFYVM_L1D_FLUSH_ON_VM_ENTRY,     RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--mds-clear-on-sched",                                        MODIFYVM_MDS_CLEAR_ON_SCHED,        RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--mds-clear-on-vm-entry",                                     MODIFYVM_MDS_CLEAR_ON_VM_ENTRY,     RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--nested-hw-virt",                                            MODIFYVM_NESTED_HW_VIRT,            RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--cpuid-set",                     "--cpuidset",               MODIFYVM_SETCPUID,                  RTGETOPT_REQ_UINT32_OPTIONAL_PAIR | RTGETOPT_FLAG_HEX),
+    OPT1("--cpuid-remove",                                              MODIFYVM_DELCPUID,                  RTGETOPT_REQ_UINT32_OPTIONAL_PAIR | RTGETOPT_FLAG_HEX),
+    OPT1("--cpuidremove",                                               MODIFYVM_DELCPUID_OLD,              RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX), /* legacy - syntax differs */
+    OPT2("--cpuid-remove-all",              "--cpuidremoveall",         MODIFYVM_DELALLCPUID,               RTGETOPT_REQ_NOTHING),
+    OPT1("--cpus",                                                      MODIFYVM_CPUS,                      RTGETOPT_REQ_UINT32),
+    OPT2("--cpu-hotplug",                   "--cpuhotplug",             MODIFYVM_CPUHOTPLUG,                RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--cpu-profile",                                               MODIFYVM_CPU_PROFILE,               RTGETOPT_REQ_STRING),
+    OPT2("--plug-cpu",                      "--plugcpu",                MODIFYVM_PLUGCPU,                   RTGETOPT_REQ_UINT32),
+    OPT2("--unplug-cpu",                    "--unplugcpu",              MODIFYVM_UNPLUGCPU,                 RTGETOPT_REQ_UINT32),
+    OPT2("--cpu-execution-cap",             "--cpuexecutioncap",        MODIFYVM_CPU_EXECTUION_CAP,         RTGETOPT_REQ_UINT32),
+    OPT2("--rtc-use-utc",                   "--rtcuseutc",              MODIFYVM_RTCUSEUTC,                 RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--graphicscontroller",            "--graphicscontroller",     MODIFYVM_GRAPHICSCONTROLLER,        RTGETOPT_REQ_STRING),
+    OPT2("--monitor-count",                 "--monitorcount",           MODIFYVM_MONITORCOUNT,              RTGETOPT_REQ_UINT32),
+    OPT2("--accelerate-3d",                 "--accelerate3d",           MODIFYVM_ACCELERATE3D,              RTGETOPT_REQ_BOOL_ONOFF),
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    { "--accelerate2dvideo",        MODIFYVM_ACCELERATE2DVIDEO,         RTGETOPT_REQ_BOOL_ONOFF },
+    OPT2("--accelerate-2d-video",           "--accelerate2dvideo",      MODIFYVM_ACCELERATE2DVIDEO,         RTGETOPT_REQ_BOOL_ONOFF),
 #endif
-    { "--bioslogofadein",           MODIFYVM_BIOSLOGOFADEIN,            RTGETOPT_REQ_BOOL_ONOFF },
-    { "--bioslogofadeout",          MODIFYVM_BIOSLOGOFADEOUT,           RTGETOPT_REQ_BOOL_ONOFF },
-    { "--bioslogodisplaytime",      MODIFYVM_BIOSLOGODISPLAYTIME,       RTGETOPT_REQ_UINT32 },
-    { "--bioslogoimagepath",        MODIFYVM_BIOSLOGOIMAGEPATH,         RTGETOPT_REQ_STRING },
-    { "--biosbootmenu",             MODIFYVM_BIOSBOOTMENU,              RTGETOPT_REQ_STRING },
-    { "--biossystemtimeoffset",     MODIFYVM_BIOSSYSTEMTIMEOFFSET,      RTGETOPT_REQ_INT64 },
-    { "--biosapic",                 MODIFYVM_BIOSAPIC,                  RTGETOPT_REQ_STRING },
-    { "--biospxedebug",             MODIFYVM_BIOSPXEDEBUG,              RTGETOPT_REQ_BOOL_ONOFF },
-    { "--system-uuid-le",           MODIFYVM_SYSTEMUUIDLE,              RTGETOPT_REQ_BOOL_ONOFF },
-    { "--boot",                     MODIFYVM_BOOT,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--hda",                      MODIFYVM_HDA,                       RTGETOPT_REQ_STRING },
-    { "--hdb",                      MODIFYVM_HDB,                       RTGETOPT_REQ_STRING },
-    { "--hdd",                      MODIFYVM_HDD,                       RTGETOPT_REQ_STRING },
-    { "--idecontroller",            MODIFYVM_IDECONTROLLER,             RTGETOPT_REQ_STRING },
-    { "--sataportcount",            MODIFYVM_SATAPORTCOUNT,             RTGETOPT_REQ_UINT32 },
-    { "--sataport",                 MODIFYVM_SATAPORT,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--sata",                     MODIFYVM_SATA,                      RTGETOPT_REQ_STRING },
-    { "--scsiport",                 MODIFYVM_SCSIPORT,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--scsitype",                 MODIFYVM_SCSITYPE,                  RTGETOPT_REQ_STRING },
-    { "--scsi",                     MODIFYVM_SCSI,                      RTGETOPT_REQ_STRING },
-    { "--dvdpassthrough",           MODIFYVM_DVDPASSTHROUGH,            RTGETOPT_REQ_STRING },
-    { "--dvd",                      MODIFYVM_DVD,                       RTGETOPT_REQ_STRING },
-    { "--floppy",                   MODIFYVM_FLOPPY,                    RTGETOPT_REQ_STRING },
-    { "--nictracefile",             MODIFYVM_NICTRACEFILE,              RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nictrace",                 MODIFYVM_NICTRACE,                  RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
-    { "--nicproperty",              MODIFYVM_NICPROPERTY,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nictype",                  MODIFYVM_NICTYPE,                   RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nicspeed",                 MODIFYVM_NICSPEED,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
-    { "--nicbootprio",              MODIFYVM_NICBOOTPRIO,               RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX },
-    { "--nicpromisc",               MODIFYVM_NICPROMISC,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nicbandwidthgroup",        MODIFYVM_NICBWGROUP,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nic",                      MODIFYVM_NIC,                       RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--cableconnected",           MODIFYVM_CABLECONNECTED,            RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
-    { "--bridgeadapter",            MODIFYVM_BRIDGEADAPTER,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--hostonlyadapter",          MODIFYVM_HOSTONLYADAPTER,           RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--intnet",                   MODIFYVM_INTNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nicgenericdrv",            MODIFYVM_GENERICDRV,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nat-network",              MODIFYVM_NATNETWORKNAME,            RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--natnetwork",               MODIFYVM_NATNETWORKNAME,            RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--natnet",                   MODIFYVM_NATNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--natbindip",                MODIFYVM_NATBINDIP,                 RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--natsettings",              MODIFYVM_NATSETTINGS,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--natpf",                    MODIFYVM_NATPF,                     RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nataliasmode",             MODIFYVM_NATALIASMODE,              RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nattftpprefix",            MODIFYVM_NATTFTPPREFIX,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nattftpfile",              MODIFYVM_NATTFTPFILE,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--nattftpserver",            MODIFYVM_NATTFTPSERVER,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--natdnspassdomain",         MODIFYVM_NATDNSPASSDOMAIN,          RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
-    { "--natdnsproxy",              MODIFYVM_NATDNSPROXY,               RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
-    { "--natdnshostresolver",       MODIFYVM_NATDNSHOSTRESOLVER,        RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX },
-    { "--macaddress",               MODIFYVM_MACADDRESS,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--mouse",                    MODIFYVM_HIDPTR,                    RTGETOPT_REQ_STRING },
-    { "--keyboard",                 MODIFYVM_HIDKBD,                    RTGETOPT_REQ_STRING },
-    { "--uartmode",                 MODIFYVM_UARTMODE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--uarttype",                 MODIFYVM_UARTTYPE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--uart",                     MODIFYVM_UART,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    OPT2("--bios-logo-fade-in",             "--bioslogofadein",         MODIFYVM_BIOSLOGOFADEIN,            RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--bios-logo-fade-out",            "--bioslogofadeout",        MODIFYVM_BIOSLOGOFADEOUT,           RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--bios-logo-display-time",        "--bioslogodisplaytime",    MODIFYVM_BIOSLOGODISPLAYTIME,       RTGETOPT_REQ_UINT32),
+    OPT2("--bios-logo-image-path",          "--bioslogoimagepath",      MODIFYVM_BIOSLOGOIMAGEPATH,         RTGETOPT_REQ_STRING),
+    OPT2("--bios-boot-menu",                "--biosbootmenu",           MODIFYVM_BIOSBOOTMENU,              RTGETOPT_REQ_STRING),
+    OPT2("--bios-system-time-offset",       "--biossystemtimeoffset",   MODIFYVM_BIOSSYSTEMTIMEOFFSET,      RTGETOPT_REQ_INT64),
+    OPT2("--bios-apic",                     "--biosapic",               MODIFYVM_BIOSAPIC,                  RTGETOPT_REQ_STRING),
+    OPT2("--bios-pxe-debug",                "--biospxedebug",           MODIFYVM_BIOSPXEDEBUG,              RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--system-uuid-le",                "--system-uuid-le",         MODIFYVM_SYSTEMUUIDLE,              RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--boot",                                                      MODIFYVM_BOOT,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT1("--hda",                                                       MODIFYVM_HDA,                       RTGETOPT_REQ_STRING), /* deprecated */
+    OPT1("--hdb",                                                       MODIFYVM_HDB,                       RTGETOPT_REQ_STRING), /* deprecated */
+    OPT1("--hdd",                                                       MODIFYVM_HDD,                       RTGETOPT_REQ_STRING), /* deprecated */
+    OPT2("--idec-ontroller",                "--idecontroller",          MODIFYVM_IDECONTROLLER,             RTGETOPT_REQ_STRING), /* deprecated */
+    OPT2("--sata-port-count",               "--sataportcount",          MODIFYVM_SATAPORTCOUNT,             RTGETOPT_REQ_UINT32), /* deprecated */
+    OPT2("--sata-port",                     "--sataport",               MODIFYVM_SATAPORT,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX), /* deprecated */
+    OPT1("--sata",                                                      MODIFYVM_SATA,                      RTGETOPT_REQ_STRING), /* deprecated */
+    OPT2("--scsi-port",                     "--scsiport",               MODIFYVM_SCSIPORT,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX), /* deprecated */
+    OPT2("--scsi-type",                     "--scsitype",               MODIFYVM_SCSITYPE,                  RTGETOPT_REQ_STRING), /* deprecated */
+    OPT1("--scsi",                                                      MODIFYVM_SCSI,                      RTGETOPT_REQ_STRING), /* deprecated */
+    OPT2("--dvd-pass-through",              "--dvdpassthrough",         MODIFYVM_DVDPASSTHROUGH,            RTGETOPT_REQ_STRING), /* deprecated */
+    OPT1("--dvd",                                                       MODIFYVM_DVD,                       RTGETOPT_REQ_STRING), /* deprecated */
+    OPT1("--floppy",                                                    MODIFYVM_FLOPPY,                    RTGETOPT_REQ_STRING), /* deprecated */
+    OPT2("--nic-trace-file",                "--nictracefile",           MODIFYVM_NICTRACEFILE,              RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-trace",                     "--nictrace",               MODIFYVM_NICTRACE,                  RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-property",                  "--nicproperty",            MODIFYVM_NICPROPERTY,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-type",                      "--nictype",                MODIFYVM_NICTYPE,                   RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-speed",                     "--nicspeed",               MODIFYVM_NICSPEED,                  RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-boot-prio",                 "--nicbootprio",            MODIFYVM_NICBOOTPRIO,               RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-promisc",                   "--nicpromisc",             MODIFYVM_NICPROMISC,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-bandwidth-group",           "--nicbandwidthgroup",      MODIFYVM_NICBWGROUP,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT1("--nic",                                                       MODIFYVM_NIC,                       RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--cable-connected",               "--cableconnected",         MODIFYVM_CABLECONNECTED,            RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT2("--bridge-adapter",                "--bridgeadapter",          MODIFYVM_BRIDGEADAPTER,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+#ifdef VBOX_WITH_CLOUD_NET
+    OPT2("--cloud-network",                 "--cloudnetwork",           MODIFYVM_CLOUDNET,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+#endif /* VBOX_WITH_CLOUD_NET */
+    OPT2("--host-only-adapter",             "--hostonlyadapter",        MODIFYVM_HOSTONLYADAPTER,           RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+#ifdef VBOX_WITH_VMNET
+    OPT2("--host-only-net",                 "--hostonlynet",            MODIFYVM_HOSTONLYNET,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+#endif
+    OPT1("--intnet",                                                    MODIFYVM_INTNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nic-generic-drv",               "--nicgenericdrv",          MODIFYVM_GENERICDRV,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-network",                   "--natnetwork",             MODIFYVM_NATNETWORKNAME,            RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-net",                       "--natnet",                 MODIFYVM_NATNET,                    RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-bind-ip",                   "--natbindip",              MODIFYVM_NATBINDIP,                 RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-settings",                  "--natsettings",            MODIFYVM_NATSETTINGS,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-pf",                        "--natpf",                  MODIFYVM_NATPF,                     RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-alias-mode",                "--nataliasmode",           MODIFYVM_NATALIASMODE,              RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-tftp-prefix",               "--nattftpprefix",          MODIFYVM_NATTFTPPREFIX,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-tftp-file",                 "--nattftpfile",            MODIFYVM_NATTFTPFILE,               RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-tftp-server",               "--nattftpserver",          MODIFYVM_NATTFTPSERVER,             RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-dns-pass-domain",           "--natdnspassdomain",       MODIFYVM_NATDNSPASSDOMAIN,          RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-dns-proxy",                 "--natdnsproxy",            MODIFYVM_NATDNSPROXY,               RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-dns-host-resolver",         "--natdnshostresolver",     MODIFYVM_NATDNSHOSTRESOLVER,        RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT2("--nat-localhostreachable",        "--natlocalhostreachable",  MODIFYVM_NATLOCALHOSTREACHABLE,     RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX),
+    OPT2("--mac-address",                   "--macaddress",             MODIFYVM_MACADDRESS,                RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT1("--mouse",                                                     MODIFYVM_HIDPTR,                    RTGETOPT_REQ_STRING),
+    OPT1("--keyboard",                                                  MODIFYVM_HIDKBD,                    RTGETOPT_REQ_STRING),
+    OPT2("--uart-mode",                     "--uartmode",               MODIFYVM_UARTMODE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT2("--uart-type",                     "--uarttype",               MODIFYVM_UARTTYPE,                  RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT1("--uart",                                                      MODIFYVM_UART,                      RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
-    { "--lptmode",                  MODIFYVM_LPTMODE,                   RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
-    { "--lpt",                      MODIFYVM_LPT,                       RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX },
+    OPT2("--lpt-mode",                      "--lptmode",                MODIFYVM_LPTMODE,                   RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
+    OPT1("--lpt",                                                       MODIFYVM_LPT,                       RTGETOPT_REQ_STRING | RTGETOPT_FLAG_INDEX),
 #endif
-    { "--guestmemoryballoon",       MODIFYVM_GUESTMEMORYBALLOON,        RTGETOPT_REQ_UINT32 },
-    { "--audiocontroller",          MODIFYVM_AUDIOCONTROLLER,           RTGETOPT_REQ_STRING },
-    { "--audiocodec",               MODIFYVM_AUDIOCODEC,                RTGETOPT_REQ_STRING },
-    { "--audio",                    MODIFYVM_AUDIO,                     RTGETOPT_REQ_STRING },
-    { "--audioin",                  MODIFYVM_AUDIOIN,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--audioout",                 MODIFYVM_AUDIOOUT,                  RTGETOPT_REQ_BOOL_ONOFF },
+    OPT2("--guest-memory-balloon",          "--guestmemoryballoon",     MODIFYVM_GUESTMEMORYBALLOON,        RTGETOPT_REQ_UINT32),
+    OPT2("--audio-controller",              "--audiocontroller",        MODIFYVM_AUDIOCONTROLLER,           RTGETOPT_REQ_STRING),
+    OPT2("--audio-codec",                   "--audiocodec",             MODIFYVM_AUDIOCODEC,                RTGETOPT_REQ_STRING),
+    OPT1("--audio",                                                     MODIFYVM_AUDIO,                     RTGETOPT_REQ_STRING),
+    OPT2("--audio-in",                      "--audioin",                MODIFYVM_AUDIOIN,                   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--audio-out",                     "--audioout",               MODIFYVM_AUDIOOUT,                  RTGETOPT_REQ_BOOL_ONOFF),
 #ifdef VBOX_WITH_SHARED_CLIPBOARD
-    { "--clipboard-mode",           MODIFYVM_CLIPBOARD_MODE,            RTGETOPT_REQ_STRING },
-    { "--clipboard",                MODIFYVM_CLIPBOARD_MODE,            RTGETOPT_REQ_STRING },     /* deprecated */
+    OPT1("--clipboard-mode",                                            MODIFYVM_CLIPBOARD_MODE,            RTGETOPT_REQ_STRING),
+    OPT1("--clipboard",                                                 MODIFYVM_CLIPBOARD_MODE,            RTGETOPT_REQ_STRING),     /* deprecated */
 # ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    { "--clipboard-file-transfers", MODIFYVM_CLIPBOARD_FILE_TRANSFERS,  RTGETOPT_REQ_STRING },
+    OPT1("--clipboard-file-transfers",                                  MODIFYVM_CLIPBOARD_FILE_TRANSFERS,  RTGETOPT_REQ_STRING),
 # endif
 #endif
-    { "--draganddrop",              MODIFYVM_DRAGANDDROP,               RTGETOPT_REQ_STRING },
-    { "--vrdpport",                 MODIFYVM_VRDPPORT,                  RTGETOPT_REQ_STRING },     /* deprecated */
-    { "--vrdpaddress",              MODIFYVM_VRDPADDRESS,               RTGETOPT_REQ_STRING },     /* deprecated */
-    { "--vrdpauthtype",             MODIFYVM_VRDPAUTHTYPE,              RTGETOPT_REQ_STRING },     /* deprecated */
-    { "--vrdpmulticon",             MODIFYVM_VRDPMULTICON,              RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
-    { "--vrdpreusecon",             MODIFYVM_VRDPREUSECON,              RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
-    { "--vrdpvideochannel",         MODIFYVM_VRDPVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
-    { "--vrdpvideochannelquality",  MODIFYVM_VRDPVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING },     /* deprecated */
-    { "--vrdp",                     MODIFYVM_VRDP,                      RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
-    { "--vrdeproperty",             MODIFYVM_VRDEPROPERTY,              RTGETOPT_REQ_STRING },
-    { "--vrdeport",                 MODIFYVM_VRDEPORT,                  RTGETOPT_REQ_STRING },
-    { "--vrdeaddress",              MODIFYVM_VRDEADDRESS,               RTGETOPT_REQ_STRING },
-    { "--vrdeauthtype",             MODIFYVM_VRDEAUTHTYPE,              RTGETOPT_REQ_STRING },
-    { "--vrdeauthlibrary",          MODIFYVM_VRDEAUTHLIBRARY,           RTGETOPT_REQ_STRING },
-    { "--vrdemulticon",             MODIFYVM_VRDEMULTICON,              RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vrdereusecon",             MODIFYVM_VRDEREUSECON,              RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vrdevideochannel",         MODIFYVM_VRDEVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF },
-    { "--vrdevideochannelquality",  MODIFYVM_VRDEVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING },
-    { "--vrdeextpack",              MODIFYVM_VRDE_EXTPACK,              RTGETOPT_REQ_STRING },
-    { "--vrde",                     MODIFYVM_VRDE,                      RTGETOPT_REQ_BOOL_ONOFF },
-    { "--usbrename",                MODIFYVM_USBRENAME,                 RTGETOPT_REQ_STRING },
-    { "--usbxhci",                  MODIFYVM_USBXHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--usbehci",                  MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--usbohci",                  MODIFYVM_USBOHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--usb",                      MODIFYVM_USBOHCI,                   RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
-    { "--snapshotfolder",           MODIFYVM_SNAPSHOTFOLDER,            RTGETOPT_REQ_STRING },
-    { "--teleporter",               MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF },
-    { "--teleporterenabled",        MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF }, /* deprecated */
-    { "--teleporterport",           MODIFYVM_TELEPORTER_PORT,           RTGETOPT_REQ_UINT32 },
-    { "--teleporteraddress",        MODIFYVM_TELEPORTER_ADDRESS,        RTGETOPT_REQ_STRING },
-    { "--teleporterpassword",       MODIFYVM_TELEPORTER_PASSWORD,       RTGETOPT_REQ_STRING },
-    { "--teleporterpasswordfile",   MODIFYVM_TELEPORTER_PASSWORD_FILE,  RTGETOPT_REQ_STRING },
-    { "--tracing-enabled",          MODIFYVM_TRACING_ENABLED,           RTGETOPT_REQ_BOOL_ONOFF },
-    { "--tracing-config",           MODIFYVM_TRACING_CONFIG,            RTGETOPT_REQ_STRING },
-    { "--tracing-allow-vm-access",  MODIFYVM_TRACING_ALLOW_VM_ACCESS,   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--hardwareuuid",             MODIFYVM_HARDWARE_UUID,             RTGETOPT_REQ_STRING },
-    { "--hpet",                     MODIFYVM_HPET,                      RTGETOPT_REQ_BOOL_ONOFF },
-    { "--iocache",                  MODIFYVM_IOCACHE,                   RTGETOPT_REQ_BOOL_ONOFF },
-    { "--iocachesize",              MODIFYVM_IOCACHESIZE,               RTGETOPT_REQ_UINT32 },
-    { "--chipset",                  MODIFYVM_CHIPSET,                   RTGETOPT_REQ_STRING },
-#ifdef VBOX_WITH_RECORDING
-    { "--recording",                MODIFYVM_RECORDING,                 RTGETOPT_REQ_BOOL_ONOFF },
-    { "--recordingscreens",         MODIFYVM_RECORDING_SCREENS,         RTGETOPT_REQ_STRING },
-    { "--recordingfile",            MODIFYVM_RECORDING_FILENAME,        RTGETOPT_REQ_STRING },
-    { "--recordingmaxtime",         MODIFYVM_RECORDING_MAXTIME,         RTGETOPT_REQ_INT32  },
-    { "--recordingmaxsize",         MODIFYVM_RECORDING_MAXSIZE,         RTGETOPT_REQ_INT32  },
-    { "--recordingopts",            MODIFYVM_RECORDING_OPTIONS,         RTGETOPT_REQ_STRING },
-    { "--recordingoptions",         MODIFYVM_RECORDING_OPTIONS,         RTGETOPT_REQ_STRING },
-    { "--recordingvideores",        MODIFYVM_RECORDING_VIDEO_RES,       RTGETOPT_REQ_STRING },
-    { "--recordingvideoresolution", MODIFYVM_RECORDING_VIDEO_RES,       RTGETOPT_REQ_STRING },
-    { "--recordingvideorate",       MODIFYVM_RECORDING_VIDEO_RATE,      RTGETOPT_REQ_UINT32 },
-    { "--recordingvideofps",        MODIFYVM_RECORDING_VIDEO_FPS,       RTGETOPT_REQ_UINT32 },
+    OPT2("--drag-and-drop",                 "--draganddrop",            MODIFYVM_DRAGANDDROP,               RTGETOPT_REQ_STRING),
+    OPT2("--vrdp-port",                     "--vrdpport",               MODIFYVM_VRDPPORT,                  RTGETOPT_REQ_STRING),     /* deprecated */
+    OPT2("--vrdp-address",                  "--vrdpaddress",            MODIFYVM_VRDPADDRESS,               RTGETOPT_REQ_STRING),     /* deprecated */
+    OPT2("--vrdp-auth-type",                "--vrdpauthtype",           MODIFYVM_VRDPAUTHTYPE,              RTGETOPT_REQ_STRING),     /* deprecated */
+    OPT2("--vrdp-multi-con",                "--vrdpmulticon",           MODIFYVM_VRDPMULTICON,              RTGETOPT_REQ_BOOL_ONOFF), /* deprecated */
+    OPT2("--vrdp-reuse-con",                "--vrdpreusecon",           MODIFYVM_VRDPREUSECON,              RTGETOPT_REQ_BOOL_ONOFF), /* deprecated */
+    OPT2("--vrdp-video-channel",            "--vrdpvideochannel",       MODIFYVM_VRDPVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF), /* deprecated */
+    OPT2("--vrdp-video-channel-quality",    "--vrdpvideochannelquality",MODIFYVM_VRDPVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING),     /* deprecated */
+    OPT1("--vrdp",                                                      MODIFYVM_VRDP,                      RTGETOPT_REQ_BOOL_ONOFF), /* deprecated */
+    OPT2("--vrde-property",                 "--vrdeproperty",           MODIFYVM_VRDEPROPERTY,              RTGETOPT_REQ_STRING),
+    OPT2("--vrde-port",                     "--vrdeport",               MODIFYVM_VRDEPORT,                  RTGETOPT_REQ_STRING),
+    OPT2("--vrde-address",                  "--vrdeaddress",            MODIFYVM_VRDEADDRESS,               RTGETOPT_REQ_STRING),
+    OPT2("--vrde-auth-type",                "--vrdeauthtype",           MODIFYVM_VRDEAUTHTYPE,              RTGETOPT_REQ_STRING),
+    OPT2("--vrde-auth-library",             "--vrdeauthlibrary",        MODIFYVM_VRDEAUTHLIBRARY,           RTGETOPT_REQ_STRING),
+    OPT2("--vrde-multi-con",                "--vrdemulticon",           MODIFYVM_VRDEMULTICON,              RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--vrde-reuse-con",                "--vrdereusecon",           MODIFYVM_VRDEREUSECON,              RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--vrde-video-channel",            "--vrdevideochannel",       MODIFYVM_VRDEVIDEOCHANNEL,          RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--vrde-video-channel-quality",    "--vrdevideochannelquality",MODIFYVM_VRDEVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING),
+    OPT2("--vrde-extpack",                  "--vrdeextpack",            MODIFYVM_VRDE_EXTPACK,              RTGETOPT_REQ_STRING),
+    OPT1("--vrde",                                                      MODIFYVM_VRDE,                      RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--usb-rename",                    "--usbrename",              MODIFYVM_USBRENAME,                 RTGETOPT_REQ_STRING),
+    OPT2("--usb-xhci",                      "--usbxhci",                MODIFYVM_USBXHCI,                   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--usb-ehci",                      "--usbehci",                MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--usb-ohci",                      "--usbohci",                MODIFYVM_USBOHCI,                   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--usb",                                                       MODIFYVM_USBOHCI,                   RTGETOPT_REQ_BOOL_ONOFF), /* deprecated */
+    OPT2("--snapshot-folder",               "--snapshotfolder",         MODIFYVM_SNAPSHOTFOLDER,            RTGETOPT_REQ_STRING),
+    OPT1("--teleporter",                                                MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--teleporter-enabled",            "--teleporterenabled",      MODIFYVM_TELEPORTER_ENABLED,        RTGETOPT_REQ_BOOL_ONOFF), /* deprecated */
+    OPT2("--teleporter-port",               "--teleporterport",         MODIFYVM_TELEPORTER_PORT,           RTGETOPT_REQ_UINT32),
+    OPT2("--teleporter-address",            "--teleporteraddress",      MODIFYVM_TELEPORTER_ADDRESS,        RTGETOPT_REQ_STRING),
+    OPT2("--teleporter-password",           "--teleporterpassword",     MODIFYVM_TELEPORTER_PASSWORD,       RTGETOPT_REQ_STRING),
+    OPT2("--teleporter-password-file",      "--teleporterpasswordfile", MODIFYVM_TELEPORTER_PASSWORD_FILE,  RTGETOPT_REQ_STRING),
+    OPT1("--tracing-enabled",                                           MODIFYVM_TRACING_ENABLED,           RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--tracing-config",                                            MODIFYVM_TRACING_CONFIG,            RTGETOPT_REQ_STRING),
+    OPT1("--tracing-allow-vm-access",                                   MODIFYVM_TRACING_ALLOW_VM_ACCESS,   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--hardware-uuid",                 "--hardwareuuid",                            MODIFYVM_HARDWARE_UUID,             RTGETOPT_REQ_STRING),
+    OPT1("--hpet",                                                      MODIFYVM_HPET,                      RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--iocache",                                                   MODIFYVM_IOCACHE,                   RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--iocache-size",                  "--iocachesize",            MODIFYVM_IOCACHESIZE,               RTGETOPT_REQ_UINT32),
+    OPT1("--chipset",                                                   MODIFYVM_CHIPSET,                   RTGETOPT_REQ_STRING),
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    OPT1("--iommu",                                                     MODIFYVM_IOMMU,                     RTGETOPT_REQ_STRING),
 #endif
-    { "--autostart-enabled",        MODIFYVM_AUTOSTART_ENABLED,         RTGETOPT_REQ_BOOL_ONOFF },
-    { "--autostart-delay",          MODIFYVM_AUTOSTART_DELAY,           RTGETOPT_REQ_UINT32 },
-    { "--autostop-type",            MODIFYVM_AUTOSTOP_TYPE,             RTGETOPT_REQ_STRING },
+#if defined(VBOX_WITH_TPM)
+    OPT1("--tpm-type",                                                  MODIFYVM_TPM_TYPE,                  RTGETOPT_REQ_STRING),
+    OPT1("--tpm-location",                                              MODIFYVM_TPM_LOCATION,              RTGETOPT_REQ_STRING),
+#endif
+#ifdef VBOX_WITH_RECORDING
+    OPT1("--recording",                                                 MODIFYVM_RECORDING,                 RTGETOPT_REQ_BOOL_ONOFF),
+    OPT2("--recording-screens",             "--recordingscreens",       MODIFYVM_RECORDING_SCREENS,         RTGETOPT_REQ_STRING),
+    OPT2("--recording-file",                "--recordingfile",          MODIFYVM_RECORDING_FILENAME,        RTGETOPT_REQ_STRING),
+    OPT2("--recording-max-time",            "--recordingmaxtime",       MODIFYVM_RECORDING_MAXTIME,         RTGETOPT_REQ_INT32),
+    OPT2("--recording-max-size",            "--recordingmaxsize",       MODIFYVM_RECORDING_MAXSIZE,         RTGETOPT_REQ_INT32),
+    OPT2("--recording-opts",                "--recordingopts",          MODIFYVM_RECORDING_OPTIONS,         RTGETOPT_REQ_STRING),
+    OPT2("--recording-options",             "--recordingoptions",       MODIFYVM_RECORDING_OPTIONS,         RTGETOPT_REQ_STRING),
+    OPT2("--recording-video-res",           "--recordingvideores",      MODIFYVM_RECORDING_VIDEO_RES,       RTGETOPT_REQ_STRING),
+    OPT2("--recording-video-resolution",    "--recordingvideoresolution",MODIFYVM_RECORDING_VIDEO_RES,      RTGETOPT_REQ_STRING),
+    OPT2("--recording-video-rate",          "--recordingvideorate",     MODIFYVM_RECORDING_VIDEO_RATE,      RTGETOPT_REQ_UINT32),
+    OPT2("--recording-video-fps",           "--recordingvideofps",      MODIFYVM_RECORDING_VIDEO_FPS,       RTGETOPT_REQ_UINT32),
+#endif
+    OPT1("--autostart-enabled",                                         MODIFYVM_AUTOSTART_ENABLED,         RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--autostart-delay",                                           MODIFYVM_AUTOSTART_DELAY,           RTGETOPT_REQ_UINT32),
+    OPT1("--autostop-type",                                             MODIFYVM_AUTOSTOP_TYPE,             RTGETOPT_REQ_STRING),
 #ifdef VBOX_WITH_PCI_PASSTHROUGH
-    { "--pciattach",                MODIFYVM_ATTACH_PCI,                RTGETOPT_REQ_STRING },
-    { "--pcidetach",                MODIFYVM_DETACH_PCI,                RTGETOPT_REQ_STRING },
+    OPT2("--pci-attach",                    "--pciattach",              MODIFYVM_ATTACH_PCI,                RTGETOPT_REQ_STRING),
+    OPT2("--pci-detach",                    "--pcidetach",              MODIFYVM_DETACH_PCI,                RTGETOPT_REQ_STRING),
 #endif
 #ifdef VBOX_WITH_USB_CARDREADER
-    { "--usbcardreader",            MODIFYVM_USBCARDREADER,             RTGETOPT_REQ_BOOL_ONOFF },
+    OPT2("--usb-card-reader",               "--usbcardreader",          MODIFYVM_USBCARDREADER,             RTGETOPT_REQ_BOOL_ONOFF),
 #endif
-    { "--defaultfrontend",          MODIFYVM_DEFAULTFRONTEND,           RTGETOPT_REQ_STRING },
-    { "--vm-process-priority",      MODIFYVM_VMPROC_PRIORITY,           RTGETOPT_REQ_STRING },
+    OPT2("--default-frontend",              "--defaultfrontend",        MODIFYVM_DEFAULTFRONTEND,           RTGETOPT_REQ_STRING),
+    OPT1("--vm-process-priority",                                       MODIFYVM_VMPROC_PRIORITY,           RTGETOPT_REQ_STRING),
+    OPT1("--testing-enabled",                                           MODIFYVM_TESTING_ENABLED,           RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--testing-mmio",                                              MODIFYVM_TESTING_MMIO,              RTGETOPT_REQ_BOOL_ONOFF),
+    OPT1("--testing-cfg-dword",                                         MODIFYVM_TESTING_CFG_DWORD,         RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_INDEX),
+    OPT1("--guest-debug-provider",                                      MODIFYVM_GUEST_DEBUG_PROVIDER,      RTGETOPT_REQ_STRING),
+    OPT1("--guest-debug-io-provider",                                   MODIFYVM_GUEST_DEBUG_IO_PROVIDER,   RTGETOPT_REQ_STRING),
+    OPT1("--guest-debug-address",                                       MODIFYVM_GUEST_DEBUG_ADDRESS,       RTGETOPT_REQ_STRING),
+    OPT1("--guest-debug-port",                                          MODIFYVM_GUEST_DEBUG_PORT,          RTGETOPT_REQ_UINT32),
 };
 
 static void vrdeWarningDeprecatedOption(const char *pszOption)
 {
-    RTStrmPrintf(g_pStdErr, "Warning: '--vrdp%s' is deprecated. Use '--vrde%s'.\n", pszOption, pszOption);
+    RTStrmPrintf(g_pStdErr, ModifyVM::tr("Warning: '--vrdp%s' is deprecated. Use '--vrde%s'.\n"), pszOption, pszOption);
 }
+
+
+/**
+ * Wrapper around IMachine::SetExtraData that does the error reporting.
+ *
+ * @returns COM result code.
+ * @param   rSessionMachine The IMachine.
+ * @param   pszVariable     The variable to set.
+ * @param   pszValue        The value to set.  To delete pass empty string, not
+ *                          NULL.
+ */
+static HRESULT setExtraData(ComPtr<IMachine> &rSessionMachine, const char *pszVariable, const char *pszValue)
+{
+    HRESULT hrc = rSessionMachine->SetExtraData(Bstr(pszVariable).raw(), Bstr(pszValue).raw());
+    if (FAILED(hrc))
+    {
+        char *pszContext = RTStrAPrintf2("IMachine::SetExtraData('%s', '%s')", pszVariable, pszValue);
+        com::GlueHandleComError(rSessionMachine, pszContext, hrc, __FILE__, __LINE__);
+        RTStrFree(pszContext);
+    }
+    return hrc;
+}
+
 
 #ifdef VBOX_WITH_PCI_PASSTHROUGH
 /** Parse PCI address in format 01:02.03 and convert it to the numeric representation. */
@@ -480,15 +551,6 @@ void parseGroups(const char *pcszGroups, com::SafeArray<BSTR> *pGroups)
 }
 
 #ifdef VBOX_WITH_RECORDING
-/**
- * Parses a string for a list of screen numbers.
- *
- * @returns VBox status code.
- * @param   pcszScreens         String to parse.
- *                              Can be a delimited list (e.g. "1,2,3") or ("all") all screens.
- * @param   pScreens            Where to return to the parsed screens.
- *                              The array needs to be pre-allocated by the maximum number of screens.
- */
 int parseScreens(const char *pcszScreens, com::SafeArray<BOOL> *pScreens)
 {
     if (!RTStrICmp(pcszScreens, "all"))
@@ -519,19 +581,19 @@ int parseScreens(const char *pcszScreens, com::SafeArray<BOOL> *pScreens)
                 return VERR_PARSE_ERROR;
             pszNext++;
         }
-        (*pScreens)[iScreen] = FALSE;
+        (*pScreens)[iScreen] = true;
         pcszScreens = pszNext;
     }
     return VINF_SUCCESS;
 }
-#endif /* VBOX_WITH_RECORDING */
+#endif
 
 static int parseNum(uint32_t uIndex, unsigned cMaxIndex, const char *pszName)
 {
     if (   uIndex >= 1
         && uIndex <= cMaxIndex)
         return uIndex;
-    errorArgument("Invalid %s number %u", pszName, uIndex);
+    errorArgument(ModifyVM::tr("Invalid %s number %u"), pszName, uIndex);
     return 0;
 }
 
@@ -554,13 +616,13 @@ VMProcPriority_T nameToVMProcPriority(const char *pszName)
 RTEXITCODE handleModifyVM(HandlerArg *a)
 {
     int c;
-    HRESULT rc;
+    HRESULT hrc;
     Bstr name;
 
     /* VM ID + at least one parameter. Parameter arguments are checked
      * individually. */
     if (a->argc < 2)
-        return errorSyntax(USAGE_MODIFYVM, "Not enough parameters");
+        return errorSyntax(ModifyVM::tr("Not enough parameters"));
 
     /* try to find the given sessionMachine */
     ComPtr<IMachine> machine;
@@ -589,7 +651,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                  RT_ELEMENTS(g_aModifyVMOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
     RTGETOPTUNION ValueUnion;
-    while (   SUCCEEDED (rc)
+    while (   SUCCEEDED (hrc)
            && (c = RTGetOpt(&GetOptState, &ValueUnion)))
     {
         switch (c)
@@ -623,30 +685,30 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 int vrc = RTFileOpen(&iconFile, ValueUnion.psz, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
                 if (RT_FAILURE(vrc))
                 {
-                    RTMsgError("Cannot open file \"%s\": %Rrc", ValueUnion.psz, vrc);
-                    rc = E_FAIL;
+                    RTMsgError(ModifyVM::tr("Cannot open file \"%s\": %Rrc"), ValueUnion.psz, vrc);
+                    hrc = E_FAIL;
                     break;
                 }
                 uint64_t cbSize;
                 vrc = RTFileQuerySize(iconFile, &cbSize);
                 if (RT_FAILURE(vrc))
                 {
-                    RTMsgError("Cannot get size of file \"%s\": %Rrc", ValueUnion.psz, vrc);
-                    rc = E_FAIL;
+                    RTMsgError(ModifyVM::tr("Cannot get size of file \"%s\": %Rrc"), ValueUnion.psz, vrc);
+                    hrc = E_FAIL;
                     break;
                 }
                 if (cbSize > _256K)
                 {
-                    RTMsgError("File \"%s\" is bigger than 256KByte", ValueUnion.psz);
-                    rc = E_FAIL;
+                    RTMsgError(ModifyVM::tr("File \"%s\" is bigger than 256KByte"), ValueUnion.psz);
+                    hrc = E_FAIL;
                     break;
                 }
                 SafeArray<BYTE> icon((size_t)cbSize);
-                rc = RTFileRead(iconFile, icon.raw(), (size_t)cbSize, NULL);
+                hrc = RTFileRead(iconFile, icon.raw(), (size_t)cbSize, NULL);
                 if (RT_FAILURE(vrc))
                 {
-                    RTMsgError("Cannot read contents of file \"%s\": %Rrc", ValueUnion.psz, vrc);
-                    rc = E_FAIL;
+                    RTMsgError(ModifyVM::tr("Cannot read contents of file \"%s\": %Rrc"), ValueUnion.psz, vrc);
+                    hrc = E_FAIL;
                     break;
                 }
                 RTFileClose(iconFile);
@@ -696,8 +758,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    errorArgument("Invalid --firmware argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --firmware argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -767,8 +829,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(sessionMachine, COMSETTER(ParavirtProvider)(ParavirtProvider_KVM));
                 else
                 {
-                    errorArgument("Invalid --paravirtprovider argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --paravirtprovider argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -786,7 +848,6 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             }
 
             case MODIFYVM_SETCPUID:
-            case MODIFYVM_SETCPUID_OLD:
             {
                 uint32_t const idx    = c == MODIFYVM_SETCPUID ?  ValueUnion.PairU32.uFirst  : ValueUnion.u32;
                 uint32_t const idxSub = c == MODIFYVM_SETCPUID ?  ValueUnion.PairU32.uSecond : UINT32_MAX;
@@ -795,7 +856,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 {
                     int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX);
                     if (RT_FAILURE(vrc))
-                        return errorSyntax(USAGE_MODIFYVM, "Missing or Invalid argument to '%s'", GetOptState.pDef->pszLong);
+                        return errorSyntax(ModifyVM::tr("Missing or invalid argument to '%s'"),
+                                           GetOptState.pDef->pszLong);
                     aValue[i] = ValueUnion.u32;
                 }
                 CHECK_ERROR(sessionMachine, SetCPUIDLeaf(idx, idxSub, aValue[0], aValue[1], aValue[2], aValue[3]));
@@ -839,6 +901,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 CHECK_ERROR(sessionMachine, SetHWVirtExProperty(HWVirtExPropertyType_UnrestrictedExecution, ValueUnion.f));
                 break;
             }
+
+            case MODIFYVM_VIRT_VMSAVE_VMLOAD:
+                CHECK_ERROR(sessionMachine, SetHWVirtExProperty(HWVirtExPropertyType_VirtVmsaveVmload, ValueUnion.f));
+                break;
 
             case MODIFYVM_IBPB_ON_VM_EXIT:
                 CHECK_ERROR(sessionMachine, SetCPUProperty(CPUPropertyType_IBPBOnVMExit, ValueUnion.f));
@@ -934,8 +1000,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 #endif
                 else
                 {
-                    errorArgument("Invalid --graphicscontroller argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --graphicscontroller argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -1000,8 +1066,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    errorArgument("Invalid --biosbootmenu argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --biosbootmenu argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -1024,8 +1090,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    errorArgument("Invalid --biosapic argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --biosapic argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -1071,7 +1137,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(sessionMachine, SetBootOrder(GetOptState.uIndex, DeviceType_Network));
                 }
                 else
-                    return errorArgument("Invalid boot device '%s'", ValueUnion.psz);
+                    return errorArgument(ModifyVM::tr("Invalid boot device '%s'"), ValueUnion.psz);
                 break;
             }
 
@@ -1112,11 +1178,11 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else
                 {
                     ComPtr<IMedium> hardDisk;
-                    rc = openMedium(a, ValueUnion.psz, DeviceType_HardDisk,
+                    hrc = openMedium(a, ValueUnion.psz, DeviceType_HardDisk,
                                     AccessMode_ReadWrite, hardDisk,
                                     false /* fForceNewUuidOnOpen */,
                                     false /* fSilent */);
-                    if (FAILED(rc))
+                    if (FAILED(hrc))
                         break;
                     if (hardDisk)
                     {
@@ -1126,7 +1192,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                                                           hardDisk));
                     }
                     else
-                        rc = E_FAIL;
+                        hrc = E_FAIL;
                 }
                 break;
             }
@@ -1151,8 +1217,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    errorArgument("Invalid --idecontroller argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --idecontroller argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -1163,7 +1229,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 CHECK_ERROR(sessionMachine, GetStorageControllerByName(Bstr("SATA").raw(),
                                                                 SataCtl.asOutParam()));
 
-                if (SUCCEEDED(rc) && ValueUnion.u32 > 0)
+                if (SUCCEEDED(hrc) && ValueUnion.u32 > 0)
                     CHECK_ERROR(SataCtl, COMSETTER(PortCount)(ValueUnion.u32));
                 break;
             }
@@ -1181,7 +1247,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else if (!RTStrICmp(ValueUnion.psz, "off") || !RTStrICmp(ValueUnion.psz, "disable"))
                     CHECK_ERROR(sessionMachine, RemoveStorageController(Bstr("SATA").raw()));
                 else
-                    return errorArgument("Invalid --usb argument '%s'", ValueUnion.psz);
+                    return errorArgument(ModifyVM::tr("Invalid --usb argument '%s'"), ValueUnion.psz);
                 break;
             }
 
@@ -1189,28 +1255,28 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             {
                 if (!RTStrICmp(ValueUnion.psz, "none"))
                 {
-                    rc = sessionMachine->DetachDevice(Bstr("LsiLogic").raw(),
+                    hrc = sessionMachine->DetachDevice(Bstr("LsiLogic").raw(),
                                                GetOptState.uIndex, 0);
-                    if (FAILED(rc))
+                    if (FAILED(hrc))
                         CHECK_ERROR(sessionMachine, DetachDevice(Bstr("BusLogic").raw(),
                                                           GetOptState.uIndex, 0));
                 }
                 else
                 {
                     ComPtr<IMedium> hardDisk;
-                    rc = openMedium(a, ValueUnion.psz, DeviceType_HardDisk,
+                    hrc = openMedium(a, ValueUnion.psz, DeviceType_HardDisk,
                                     AccessMode_ReadWrite, hardDisk,
                                     false /* fForceNewUuidOnOpen */,
                                     false /* fSilent */);
-                    if (FAILED(rc))
+                    if (FAILED(hrc))
                         break;
                     if (hardDisk)
                     {
-                        rc = sessionMachine->AttachDevice(Bstr("LsiLogic").raw(),
+                        hrc = sessionMachine->AttachDevice(Bstr("LsiLogic").raw(),
                                                    GetOptState.uIndex, 0,
                                                    DeviceType_HardDisk,
                                                    hardDisk);
-                        if (FAILED(rc))
+                        if (FAILED(hrc))
                             CHECK_ERROR(sessionMachine,
                                         AttachDevice(Bstr("BusLogic").raw(),
                                                      GetOptState.uIndex, 0,
@@ -1218,7 +1284,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                                                      hardDisk));
                     }
                     else
-                        rc = E_FAIL;
+                        hrc = E_FAIL;
                 }
                 break;
             }
@@ -1229,8 +1295,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
                 if (!RTStrICmp(ValueUnion.psz, "LsiLogic"))
                 {
-                    rc = sessionMachine->RemoveStorageController(Bstr("BusLogic").raw());
-                    if (FAILED(rc))
+                    hrc = sessionMachine->RemoveStorageController(Bstr("BusLogic").raw());
+                    if (FAILED(hrc))
                         CHECK_ERROR(sessionMachine, RemoveStorageController(Bstr("LsiLogic").raw()));
 
                     CHECK_ERROR(sessionMachine,
@@ -1238,13 +1304,13 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                                                       StorageBus_SCSI,
                                                       ctl.asOutParam()));
 
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                         CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_LsiLogic));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "BusLogic"))
                 {
-                    rc = sessionMachine->RemoveStorageController(Bstr("LsiLogic").raw());
-                    if (FAILED(rc))
+                    hrc = sessionMachine->RemoveStorageController(Bstr("LsiLogic").raw());
+                    if (FAILED(hrc))
                         CHECK_ERROR(sessionMachine, RemoveStorageController(Bstr("BusLogic").raw()));
 
                     CHECK_ERROR(sessionMachine,
@@ -1252,11 +1318,11 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                                                       StorageBus_SCSI,
                                                       ctl.asOutParam()));
 
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                         CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_BusLogic));
                 }
                 else
-                    return errorArgument("Invalid --scsitype argument '%s'", ValueUnion.psz);
+                    return errorArgument(ModifyVM::tr("Invalid --scsitype argument '%s'"), ValueUnion.psz);
                 break;
             }
 
@@ -1269,13 +1335,13 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(sessionMachine, AddStorageController(Bstr("BusLogic").raw(),
                                                               StorageBus_SCSI,
                                                               ctl.asOutParam()));
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                         CHECK_ERROR(ctl, COMSETTER(ControllerType)(StorageControllerType_BusLogic));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "off") || !RTStrICmp(ValueUnion.psz, "disable"))
                 {
-                    rc = sessionMachine->RemoveStorageController(Bstr("BusLogic").raw());
-                    if (FAILED(rc))
+                    hrc = sessionMachine->RemoveStorageController(Bstr("BusLogic").raw());
+                    if (FAILED(hrc))
                         CHECK_ERROR(sessionMachine, RemoveStorageController(Bstr("LsiLogic").raw()));
                 }
                 break;
@@ -1303,7 +1369,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 {
                     ComPtr<IHost> host;
                     CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-                    rc = host->FindHostDVDDrive(Bstr(ValueUnion.psz + 5).raw(),
+                    hrc = host->FindHostDVDDrive(Bstr(ValueUnion.psz + 5).raw(),
                                                 dvdMedium.asOutParam());
                     if (!dvdMedium)
                     {
@@ -1311,31 +1377,31 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         char szPathReal[RTPATH_MAX];
                         if (RT_FAILURE(RTPathReal(ValueUnion.psz + 5, szPathReal, sizeof(szPathReal))))
                         {
-                            errorArgument("Invalid host DVD drive name \"%s\"", ValueUnion.psz + 5);
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Invalid host DVD drive name \"%s\""), ValueUnion.psz + 5);
+                            hrc = E_FAIL;
                             break;
                         }
-                        rc = host->FindHostDVDDrive(Bstr(szPathReal).raw(),
+                        hrc = host->FindHostDVDDrive(Bstr(szPathReal).raw(),
                                                     dvdMedium.asOutParam());
                         if (!dvdMedium)
                         {
-                            errorArgument("Invalid host DVD drive name \"%s\"", ValueUnion.psz + 5);
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Invalid host DVD drive name \"%s\""), ValueUnion.psz + 5);
+                            hrc = E_FAIL;
                             break;
                         }
                     }
                 }
                 else
                 {
-                    rc = openMedium(a, ValueUnion.psz, DeviceType_DVD,
+                    hrc = openMedium(a, ValueUnion.psz, DeviceType_DVD,
                                     AccessMode_ReadOnly, dvdMedium,
                                     false /* fForceNewUuidOnOpen */,
                                     false /* fSilent */);
-                    if (FAILED(rc))
+                    if (FAILED(hrc))
                         break;
                     if (!dvdMedium)
                     {
-                        rc = E_FAIL;
+                        hrc = E_FAIL;
                         break;
                     }
                 }
@@ -1381,26 +1447,26 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     {
                         ComPtr<IHost> host;
                         CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
-                        rc = host->FindHostFloppyDrive(Bstr(ValueUnion.psz + 5).raw(),
+                        hrc = host->FindHostFloppyDrive(Bstr(ValueUnion.psz + 5).raw(),
                                                        floppyMedium.asOutParam());
                         if (!floppyMedium)
                         {
-                            errorArgument("Invalid host floppy drive name \"%s\"", ValueUnion.psz + 5);
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Invalid host floppy drive name \"%s\""), ValueUnion.psz + 5);
+                            hrc = E_FAIL;
                             break;
                         }
                     }
                     else
                     {
-                        rc = openMedium(a, ValueUnion.psz, DeviceType_Floppy,
+                        hrc = openMedium(a, ValueUnion.psz, DeviceType_Floppy,
                                         AccessMode_ReadWrite, floppyMedium,
                                         false /* fForceNewUuidOnOpen */,
                                         false /* fSilent */);
-                        if (FAILED(rc))
+                        if (FAILED(hrc))
                             break;
                         if (!floppyMedium)
                         {
-                            rc = E_FAIL;
+                            hrc = E_FAIL;
                             break;
                         }
                     }
@@ -1465,15 +1531,16 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         }
                         else
                         {
-                            errorArgument("Invalid --nicproperty%d argument '%s'", GetOptState.uIndex, ValueUnion.psz);
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Invalid --nicproperty%d argument '%s'"), GetOptState.uIndex, ValueUnion.psz);
+                            hrc = E_FAIL;
                         }
                         RTStrFree(pszProperty);
                     }
                     else
                     {
-                        RTStrmPrintf(g_pStdErr, "Error: Failed to allocate memory for --nicproperty%d '%s'\n", GetOptState.uIndex, ValueUnion.psz);
-                        rc = E_FAIL;
+                        RTStrmPrintf(g_pStdErr, ModifyVM::tr("Error: Failed to allocate memory for --nicproperty%d '%s'\n"),
+                                     GetOptState.uIndex, ValueUnion.psz);
+                        hrc = E_FAIL;
                     }
                 }
                 break;
@@ -1519,16 +1586,35 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Virtio));
                 }
 #endif /* VBOX_WITH_VIRTIO */
-#ifdef VBOX_WITH_VIRTIO_NET_1_0
-                else if (!RTStrICmp(ValueUnion.psz, "virtio_1.0"))
+                else if (!RTStrICmp(ValueUnion.psz, "NE1000"))
                 {
-                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_Virtio_1_0));
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_NE1000));
                 }
-#endif /* VBOX_WITH_VIRTIO_NET_1_0 */
+                else if (!RTStrICmp(ValueUnion.psz, "NE2000"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_NE2000));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "WD8003"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_WD8003));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "WD8013"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_WD8013));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "3C503"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_ELNK2));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "3C501"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(AdapterType)(NetworkAdapterType_ELNK1));
+                }
                 else
                 {
-                    errorArgument("Invalid NIC type '%s' specified for NIC %u", ValueUnion.psz, GetOptState.uIndex);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid NIC type '%s' specified for NIC %u"),
+                                  ValueUnion.psz, GetOptState.uIndex);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -1561,8 +1647,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                  */
                 if (ValueUnion.u32 > 4)
                 {
-                    errorArgument("Invalid boot priority '%u' specfied for NIC %u", ValueUnion.u32, GetOptState.uIndex);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid boot priority '%u' specfied for NIC %u"), ValueUnion.u32, GetOptState.uIndex);
+                    hrc = E_FAIL;
                 }
                 else
                 {
@@ -1583,8 +1669,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     enmPromiscModePolicy = NetworkAdapterPromiscModePolicy_AllowAll;
                 else
                 {
-                    errorArgument("Unknown promiscuous mode policy '%s'", ValueUnion.psz);
-                    rc = E_INVALIDARG;
+                    errorArgument(ModifyVM::tr("Unknown promiscuous mode policy '%s'"), ValueUnion.psz);
+                    hrc = E_INVALIDARG;
                     break;
                 }
 
@@ -1620,10 +1706,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
                     CHECK_ERROR(sessionMachine, COMGETTER(BandwidthControl)(bwCtrl.asOutParam()));
 
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                     {
                         CHECK_ERROR(bwCtrl, GetBandwidthGroup(Bstr(ValueUnion.psz).raw(), bwGroup.asOutParam()));
-                        if (SUCCEEDED(rc))
+                        if (SUCCEEDED(hrc))
                         {
                             CHECK_ERROR(nic, COMSETTER(BandwidthGroup)(bwGroup));
                         }
@@ -1688,6 +1774,14 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_HostOnly));
                 }
+#ifdef VBOX_WITH_VMNET
+                else if (!RTStrICmp(ValueUnion.psz, "hostonlynet"))
+                {
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_HostOnlyNetwork));
+                }
+#endif /* VBOX_WITH_VMNET */
                 else if (!RTStrICmp(ValueUnion.psz, "generic"))
                 {
                     if (!fEnabled)
@@ -1700,10 +1794,18 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
                     CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_NATNetwork));
                 }
+#ifdef VBOX_WITH_CLOUD_NET
+                else if (!RTStrICmp(ValueUnion.psz, "cloud"))
+                {
+                    if (!fEnabled)
+                        CHECK_ERROR(nic, COMSETTER(Enabled)(TRUE));
+                    CHECK_ERROR(nic, COMSETTER(AttachmentType)(NetworkAttachmentType_Cloud));
+                }
+#endif /* VBOX_WITH_CLOUD_NET */
                 else
                 {
-                    errorArgument("Invalid type '%s' specfied for NIC %u", ValueUnion.psz, GetOptState.uIndex);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid type '%s' specfied for NIC %u"), ValueUnion.psz, GetOptState.uIndex);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -1738,9 +1840,34 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else
                 {
                     CHECK_ERROR(nic, COMSETTER(BridgedInterface)(Bstr(ValueUnion.psz).raw()));
+                    verifyHostNetworkInterfaceName(a->virtualBox, ValueUnion.psz,
+                                                   HostNetworkInterfaceType_Bridged);
                 }
                 break;
             }
+
+#ifdef VBOX_WITH_CLOUD_NET
+            case MODIFYVM_CLOUDNET:
+            {
+                if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
+                    break;
+
+                ComPtr<INetworkAdapter> nic;
+                CHECK_ERROR_BREAK(sessionMachine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                /* remove it? */
+                if (!RTStrICmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(CloudNetwork)(Bstr().raw()));
+                }
+                else
+                {
+                    CHECK_ERROR(nic, COMSETTER(CloudNetwork)(Bstr(ValueUnion.psz).raw()));
+                }
+                break;
+            }
+#endif /* VBOX_WITH_CLOUD_NET */
 
             case MODIFYVM_HOSTONLYADAPTER:
             {
@@ -1759,9 +1886,34 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else
                 {
                     CHECK_ERROR(nic, COMSETTER(HostOnlyInterface)(Bstr(ValueUnion.psz).raw()));
+                    verifyHostNetworkInterfaceName(a->virtualBox, ValueUnion.psz,
+                                                   HostNetworkInterfaceType_HostOnly);
                 }
                 break;
             }
+
+#ifdef VBOX_WITH_VMNET
+            case MODIFYVM_HOSTONLYNET:
+            {
+                if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
+                    break;
+
+                ComPtr<INetworkAdapter> nic;
+                CHECK_ERROR_BREAK(sessionMachine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                /* remove it? */
+                if (!RTStrICmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(nic, COMSETTER(HostOnlyNetwork)(Bstr().raw()));
+                }
+                else
+                {
+                    CHECK_ERROR(nic, COMSETTER(HostOnlyNetwork)(Bstr(ValueUnion.psz).raw()));
+                }
+                break;
+            }
+#endif /* VBOX_WITH_VMNET */
 
             case MODIFYVM_INTNET:
             {
@@ -1846,20 +1998,19 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
-#define ITERATE_TO_NEXT_TERM(ch)                                           \
-    do {                                                                   \
-        while (*ch != ',')                                                 \
-        {                                                                  \
-            if (*ch == 0)                                                  \
-            {                                                              \
-                return errorSyntax(USAGE_MODIFYVM,                         \
-                                   "Missing or Invalid argument to '%s'",  \
-                                    GetOptState.pDef->pszLong);            \
-            }                                                              \
-            ch++;                                                          \
-        }                                                                  \
-        *ch = '\0';                                                        \
-        ch++;                                                              \
+#define ITERATE_TO_NEXT_TERM(ch)                                                         \
+    do {                                                                                 \
+        while (*ch != ',')                                                               \
+        {                                                                                \
+            if (*ch == 0)                                                                \
+            {                                                                            \
+                return errorSyntax(ModifyVM::tr("Missing or invalid argument to '%s'"),  \
+                                   GetOptState.pDef->pszLong);                           \
+            }                                                                            \
+            ch++;                                                                        \
+        }                                                                                \
+        *ch = '\0';                                                                      \
+        ch++;                                                                            \
     } while(0)
 
             case MODIFYVM_NATSETTINGS:
@@ -1937,8 +2088,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         proto = NATProtocol_TCP;
                     else
                     {
-                        errorArgument("Invalid proto '%s' specfied for NIC %u", ValueUnion.psz, GetOptState.uIndex);
-                        rc = E_FAIL;
+                        errorArgument(ModifyVM::tr("Invalid proto '%s' specfied for NIC %u"), ValueUnion.psz, GetOptState.uIndex);
+                        hrc = E_FAIL;
                         break;
                     }
                     CHECK_ERROR(engine, AddRedirect(Bstr(strName).raw(), proto,
@@ -1953,7 +2104,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     int vrc;
                     vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_STRING);
                     if (RT_FAILURE(vrc))
-                        return errorSyntax(USAGE_MODIFYVM, "Not enough parameters");
+                        return errorSyntax(ModifyVM::tr("Not enough parameters"));
                     CHECK_ERROR(engine, RemoveRedirect(Bstr(ValueUnion.psz).raw()));
                 }
                 break;
@@ -2086,6 +2237,23 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 CHECK_ERROR(engine, COMSETTER(DNSUseHostResolver)(ValueUnion.f));
                 break;
             }
+
+            case MODIFYVM_NATLOCALHOSTREACHABLE:
+            {
+                if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
+                    break;
+
+                ComPtr<INetworkAdapter> nic;
+                CHECK_ERROR_BREAK(sessionMachine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
+                ASSERT(nic);
+
+                ComPtr<INATEngine> engine;
+                CHECK_ERROR(nic, COMGETTER(NATEngine)(engine.asOutParam()));
+
+                CHECK_ERROR(engine, COMSETTER(LocalhostReachable)(ValueUnion.f));
+                break;
+            }
+
             case MODIFYVM_MACADDRESS:
             {
                 if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
@@ -2117,35 +2285,45 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else if (!RTStrICmp(ValueUnion.psz, "usb"))
                 {
                     CHECK_ERROR(sessionMachine, COMSETTER(PointingHIDType)(PointingHIDType_USBMouse));
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                         fEnableUsb = true;
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "usbtablet"))
                 {
                     CHECK_ERROR(sessionMachine, COMSETTER(PointingHIDType)(PointingHIDType_USBTablet));
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                         fEnableUsb = true;
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "usbmultitouch"))
                 {
                     CHECK_ERROR(sessionMachine, COMSETTER(PointingHIDType)(PointingHIDType_USBMultiTouch));
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                         fEnableUsb = true;
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "usbmtscreenpluspad"))
+                {
+                    CHECK_ERROR(sessionMachine, COMSETTER(PointingHIDType)(PointingHIDType_USBMultiTouchScreenPlusPad));
+                    if (SUCCEEDED(hrc))
+                        fEnableUsb = true;
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(sessionMachine, COMSETTER(PointingHIDType)(PointingHIDType_None));
                 }
                 else
                 {
-                    errorArgument("Invalid type '%s' specfied for pointing device", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid type '%s' specfied for pointing device"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 if (fEnableUsb)
                 {
                     /* Make sure either the OHCI or xHCI controller is enabled. */
                     ULONG cOhciCtrls = 0;
                     ULONG cXhciCtrls = 0;
-                    rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
-                    if (SUCCEEDED(rc)) {
-                        rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
-                        if (   SUCCEEDED(rc)
+                    hrc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
+                    if (SUCCEEDED(hrc)) {
+                        hrc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
+                        if (   SUCCEEDED(hrc)
                             && cOhciCtrls + cXhciCtrls == 0)
                         {
                             /* If there's nothing, enable OHCI (always available). */
@@ -2168,23 +2346,29 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else if (!RTStrICmp(ValueUnion.psz, "usb"))
                 {
                     CHECK_ERROR(sessionMachine, COMSETTER(KeyboardHIDType)(KeyboardHIDType_USBKeyboard));
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
+                        fEnableUsb = true;
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "none"))
+                {
+                    CHECK_ERROR(sessionMachine, COMSETTER(KeyboardHIDType)(KeyboardHIDType_None));
+                    if (SUCCEEDED(hrc))
                         fEnableUsb = true;
                 }
                 else
                 {
-                    errorArgument("Invalid type '%s' specfied for keyboard", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid type '%s' specfied for keyboard"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 if (fEnableUsb)
                 {
                     /* Make sure either the OHCI or xHCI controller is enabled. */
                     ULONG cOhciCtrls = 0;
                     ULONG cXhciCtrls = 0;
-                    rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
-                    if (SUCCEEDED(rc)) {
-                        rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
-                        if (   SUCCEEDED(rc)
+                    hrc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
+                    if (SUCCEEDED(hrc)) {
+                        hrc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
+                        if (   SUCCEEDED(hrc)
                             && cOhciCtrls + cXhciCtrls == 0)
                         {
                             /* If there's nothing, enable OHCI (always available). */
@@ -2218,8 +2402,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
                     int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_STRING);
                     if (RT_FAILURE(vrc))
-                        return errorSyntax(USAGE_MODIFYVM,
-                                           "Missing or Invalid argument to '%s'",
+                        return errorSyntax(ModifyVM::tr("Missing or invalid argument to '%s'"),
                                            GetOptState.pDef->pszLong);
 
                     CHECK_ERROR(uart, COMSETTER(Path)(Bstr(ValueUnion.psz).raw()));
@@ -2277,8 +2460,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(uart, COMSETTER(UartType)(UartType_U16750));
                 }
                 else
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Invalid argument to '%s'",
+                    return errorSyntax(ModifyVM::tr("Invalid argument to '%s'"),
                                        GetOptState.pDef->pszLong);
                 break;
             }
@@ -2299,15 +2481,14 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
                     int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_UINT32) != MODIFYVM_UART;
                     if (RT_FAILURE(vrc))
-                        return errorSyntax(USAGE_MODIFYVM,
-                                           "Missing or Invalid argument to '%s'",
+                        return errorSyntax(ModifyVM::tr("Missing or invalid argument to '%s'"),
                                            GetOptState.pDef->pszLong);
 
                     CHECK_ERROR(uart, COMSETTER(IRQ)(ValueUnion.u32));
 
                     vrc = RTStrToUInt32Ex(pszIOBase, NULL, 0, &uVal);
                     if (vrc != VINF_SUCCESS || uVal == 0)
-                        return errorArgument("Error parsing UART I/O base '%s'", pszIOBase);
+                        return errorArgument(ModifyVM::tr("Error parsing UART I/O base '%s'"), pszIOBase);
                     CHECK_ERROR(uart, COMSETTER(IOBase)(uVal));
 
                     CHECK_ERROR(uart, COMSETTER(Enabled)(TRUE));
@@ -2343,15 +2524,14 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
                     int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_UINT32) != MODIFYVM_LPT;
                     if (RT_FAILURE(vrc))
-                        return errorSyntax(USAGE_MODIFYVM,
-                                           "Missing or Invalid argument to '%s'",
+                        return errorSyntax(ModifyVM::tr("Missing or invalid argument to '%s'"),
                                            GetOptState.pDef->pszLong);
 
                     CHECK_ERROR(lpt, COMSETTER(IRQ)(ValueUnion.u32));
 
                     vrc = RTStrToUInt32Ex(pszIOBase, NULL, 0, &uVal);
                     if (vrc != VINF_SUCCESS || uVal == 0)
-                        return errorArgument("Error parsing LPT I/O base '%s'", pszIOBase);
+                        return errorArgument(ModifyVM::tr("Error parsing LPT I/O base '%s'"), pszIOBase);
                     CHECK_ERROR(lpt, COMSETTER(IOBase)(uVal));
 
                     CHECK_ERROR(lpt, COMSETTER(Enabled)(TRUE));
@@ -2368,8 +2548,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_AUDIOCONTROLLER:
             {
+                ComPtr<IAudioSettings> audioSettings;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(AudioSettings)(audioSettings.asOutParam()));
                 ComPtr<IAudioAdapter> audioAdapter;
-                sessionMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                CHECK_ERROR_BREAK(audioSettings, COMGETTER(Adapter)(audioAdapter.asOutParam()));
                 ASSERT(audioAdapter);
 
                 if (!RTStrICmp(ValueUnion.psz, "sb16"))
@@ -2380,16 +2562,18 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioController)(AudioControllerType_HDA));
                 else
                 {
-                    errorArgument("Invalid --audiocontroller argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --audiocontroller argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
 
             case MODIFYVM_AUDIOCODEC:
             {
+                ComPtr<IAudioSettings> audioSettings;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(AudioSettings)(audioSettings.asOutParam()));
                 ComPtr<IAudioAdapter> audioAdapter;
-                sessionMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                CHECK_ERROR_BREAK(audioSettings, COMGETTER(Adapter)(audioAdapter.asOutParam()));
                 ASSERT(audioAdapter);
 
                 if (!RTStrICmp(ValueUnion.psz, "sb16"))
@@ -2402,16 +2586,18 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioCodec)(AudioCodecType_STAC9221));
                 else
                 {
-                    errorArgument("Invalid --audiocodec argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --audiocodec argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
 
             case MODIFYVM_AUDIO:
             {
+                ComPtr<IAudioSettings> audioSettings;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(AudioSettings)(audioSettings.asOutParam()));
                 ComPtr<IAudioAdapter> audioAdapter;
-                sessionMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                CHECK_ERROR_BREAK(audioSettings, COMGETTER(Adapter)(audioAdapter.asOutParam()));
                 ASSERT(audioAdapter);
 /** @todo r=klaus: don't unconditionally bolt together setting the audio driver
  * and enabling the device. Doing this more cleverly allows changing the audio
@@ -2419,11 +2605,15 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
  * between systems with different setup. The driver doesn't leave any traces in
  * saved state. The GUI also might learn this trick if it doesn't use it
  * already. */
-
                 /* disable? */
                 if (!RTStrICmp(ValueUnion.psz, "none"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(false));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "default"))
+                {
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_Default));
+                    CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
                 else if (!RTStrICmp(ValueUnion.psz, "null"))
                 {
@@ -2441,6 +2631,11 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 else if (!RTStrICmp(ValueUnion.psz, "dsound"))
                 {
                     CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_DirectSound));
+                    CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "was"))
+                {
+                    CHECK_ERROR(audioAdapter, COMSETTER(AudioDriver)(AudioDriverType_WAS));
                     CHECK_ERROR(audioAdapter, COMSETTER(Enabled)(true));
                 }
 #endif /* RT_OS_WINDOWS */
@@ -2474,16 +2669,18 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 #endif /* !RT_OS_DARWIN */
                 else
                 {
-                    errorArgument("Invalid --audio argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --audio argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
 
             case MODIFYVM_AUDIOIN:
             {
+                ComPtr<IAudioSettings> audioSettings;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(AudioSettings)(audioSettings.asOutParam()));
                 ComPtr<IAudioAdapter> audioAdapter;
-                sessionMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                CHECK_ERROR_BREAK(audioSettings, COMGETTER(Adapter)(audioAdapter.asOutParam()));
                 ASSERT(audioAdapter);
 
                 CHECK_ERROR(audioAdapter, COMSETTER(EnabledIn)(ValueUnion.f));
@@ -2492,8 +2689,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_AUDIOOUT:
             {
+                ComPtr<IAudioSettings> audioSettings;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(AudioSettings)(audioSettings.asOutParam()));
                 ComPtr<IAudioAdapter> audioAdapter;
-                sessionMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+                CHECK_ERROR_BREAK(audioSettings, COMGETTER(Adapter)(audioAdapter.asOutParam()));
                 ASSERT(audioAdapter);
 
                 CHECK_ERROR(audioAdapter, COMSETTER(EnabledOut)(ValueUnion.f));
@@ -2514,10 +2713,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     mode = ClipboardMode_Bidirectional;
                 else
                 {
-                    errorArgument("Invalid --clipboard-mode argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --clipboard-mode argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
-                if (SUCCEEDED(rc))
+                if (SUCCEEDED(hrc))
                 {
                     CHECK_ERROR(sessionMachine, COMSETTER(ClipboardMode)(mode));
                 }
@@ -2534,10 +2733,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     fEnabled = false;
                 else
                 {
-                    errorArgument("Invalid --clipboard-file-transfers argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --clipboard-file-transfers argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
-                if (SUCCEEDED(rc))
+                if (SUCCEEDED(hrc))
                 {
                     CHECK_ERROR(sessionMachine, COMSETTER(ClipboardFileTransfersEnabled)(fEnabled));
                 }
@@ -2559,10 +2758,10 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     mode = DnDMode_Bidirectional;
                 else
                 {
-                    errorArgument("Invalid --draganddrop argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --draganddrop argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
-                if (SUCCEEDED(rc))
+                if (SUCCEEDED(hrc))
                 {
                     CHECK_ERROR(sessionMachine, COMSETTER(DnDMode)(mode));
                 }
@@ -2613,16 +2812,17 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         {
                             RTStrFree(pszProperty);
 
-                            errorArgument("Invalid --vrdeproperty argument '%s'", ValueUnion.psz);
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Invalid --vrdeproperty argument '%s'"), ValueUnion.psz);
+                            hrc = E_FAIL;
                             break;
                         }
                         RTStrFree(pszProperty);
                     }
                     else
                     {
-                        RTStrmPrintf(g_pStdErr, "Error: Failed to allocate memory for VRDE property '%s'\n", ValueUnion.psz);
-                        rc = E_FAIL;
+                        RTStrmPrintf(g_pStdErr, ModifyVM::tr("Error: Failed to allocate memory for VRDE property '%s'\n"),
+                                     ValueUnion.psz);
+                        hrc = E_FAIL;
                     }
                 }
                 break;
@@ -2682,8 +2882,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 else
                 {
-                    errorArgument("Invalid --vrdeauthtype argument '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --vrdeauthtype argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -2779,8 +2979,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 const char *pszName = ValueUnion.psz;
                 int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_STRING);
                 if (RT_FAILURE(vrc))
-                    return errorSyntax(USAGE_MODIFYVM,
-                                       "Missing or Invalid argument to '%s'",
+                    return errorSyntax(ModifyVM::tr("Missing or invalid argument to '%s'"),
                                        GetOptState.pDef->pszLong);
                 const char *pszNewName = ValueUnion.psz;
 
@@ -2801,8 +3000,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 }
                 if (!fRenamed)
                 {
-                    errorArgument("Invalid --usbrename parameters, nothing renamed");
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --usbrename parameters, nothing renamed"));
+                    hrc = E_FAIL;
                 }
                 break;
             }
@@ -2810,8 +3009,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             case MODIFYVM_USBXHCI:
             {
                 ULONG cXhciCtrls = 0;
-                rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
-                if (SUCCEEDED(rc))
+                hrc = sessionMachine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
+                if (SUCCEEDED(hrc))
                 {
                     if (!cXhciCtrls && ValueUnion.f)
                     {
@@ -2843,8 +3042,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             case MODIFYVM_USBEHCI:
             {
                 ULONG cEhciCtrls = 0;
-                rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_EHCI, &cEhciCtrls);
-                if (SUCCEEDED(rc))
+                hrc = sessionMachine->GetUSBControllerCountByType(USBControllerType_EHCI, &cEhciCtrls);
+                if (SUCCEEDED(hrc))
                 {
                     if (!cEhciCtrls && ValueUnion.f)
                     {
@@ -2876,8 +3075,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
             case MODIFYVM_USBOHCI:
             {
                 ULONG cOhciCtrls = 0;
-                rc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
-                if (SUCCEEDED(rc))
+                hrc = sessionMachine->GetUSBControllerCountByType(USBControllerType_OHCI, &cOhciCtrls);
+                if (SUCCEEDED(hrc))
                 {
                     if (!cOhciCtrls && ValueUnion.f)
                     {
@@ -2944,7 +3143,7 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 Utf8Str password;
                 RTEXITCODE rcExit = readPasswordFile(ValueUnion.psz, &password);
                 if (rcExit != RTEXITCODE_SUCCESS)
-                    rc = E_FAIL;
+                    hrc = E_FAIL;
                 else
                     CHECK_ERROR(sessionMachine, COMSETTER(TeleporterPassword)(Bstr(password).raw()));
                 break;
@@ -3005,17 +3204,84 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     CHECK_ERROR(biosSettings, COMGETTER(IOAPICEnabled)(&fIoApic));
                     if (!fIoApic)
                     {
-                        RTStrmPrintf(g_pStdErr, "*** I/O APIC must be enabled for ICH9, enabling. ***\n");
+                        RTStrmPrintf(g_pStdErr, ModifyVM::tr("*** I/O APIC must be enabled for ICH9, enabling. ***\n"));
                         CHECK_ERROR(biosSettings, COMSETTER(IOAPICEnabled)(TRUE));
                     }
                 }
                 else
                 {
-                    errorArgument("Invalid --chipset argument '%s' (valid: piix3,ich9)", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --chipset argument '%s' (valid: piix3,ich9)"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 break;
             }
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+            case MODIFYVM_IOMMU:
+            {
+                if (   !RTStrICmp(ValueUnion.psz, "none")
+                    || !RTStrICmp(ValueUnion.psz, "disabled"))
+                    CHECK_ERROR(sessionMachine, COMSETTER(IommuType)(IommuType_None));
+                else if (!RTStrICmp(ValueUnion.psz, "amd"))
+                    CHECK_ERROR(sessionMachine, COMSETTER(IommuType)(IommuType_AMD));
+                else if (!RTStrICmp(ValueUnion.psz, "intel"))
+                {
+#ifdef VBOX_WITH_IOMMU_INTEL
+                    CHECK_ERROR(sessionMachine, COMSETTER(IommuType)(IommuType_Intel));
+#else
+                    errorArgument(ModifyVM::tr("Invalid --iommu argument '%s' (valid: none,amd,automatic)"), ValueUnion.psz);
+                    hrc = E_FAIL;
+#endif
+                }
+                else if (!RTStrICmp(ValueUnion.psz, "automatic"))
+                {
+                    CHECK_ERROR(sessionMachine, COMSETTER(IommuType)(IommuType_Automatic));
+#ifndef VBOX_WITH_IOMMU_INTEL
+                    RTStrmPrintf(g_pStdErr,
+                                 ModifyVM::tr("Warning: On Intel hosts, 'automatic' will not enable an IOMMU since the Intel IOMMU device is not supported yet.\n"));
+#endif
+                }
+                else
+                {
+                    errorArgument(ModifyVM::tr("Invalid --iommu argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
+                }
+                break;
+            }
+#endif
+#if defined(VBOX_WITH_TPM)
+            case MODIFYVM_TPM_TYPE:
+            {
+                ComPtr<ITrustedPlatformModule> tpm;
+                sessionMachine->COMGETTER(TrustedPlatformModule)(tpm.asOutParam());
+
+                if (   !RTStrICmp(ValueUnion.psz, "none")
+                    || !RTStrICmp(ValueUnion.psz, "disabled"))
+                    CHECK_ERROR(tpm, COMSETTER(Type)(TpmType_None));
+                else if (!RTStrICmp(ValueUnion.psz, "1.2"))
+                    CHECK_ERROR(tpm, COMSETTER(Type)(TpmType_v1_2));
+                else if (!RTStrICmp(ValueUnion.psz, "2.0"))
+                    CHECK_ERROR(tpm, COMSETTER(Type)(TpmType_v2_0));
+                else if (!RTStrICmp(ValueUnion.psz, "host"))
+                    CHECK_ERROR(tpm, COMSETTER(Type)(TpmType_Host));
+                else if (!RTStrICmp(ValueUnion.psz, "swtpm"))
+                    CHECK_ERROR(tpm, COMSETTER(Type)(TpmType_Swtpm));
+                else
+                {
+                    errorArgument(ModifyVM::tr("Invalid --tpm-type argument '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
+                }
+                break;
+            }
+
+            case MODIFYVM_TPM_LOCATION:
+            {
+                ComPtr<ITrustedPlatformModule> tpm;
+                sessionMachine->COMGETTER(TrustedPlatformModule)(tpm.asOutParam());
+
+                CHECK_ERROR(tpm, COMSETTER(Location)(Bstr(ValueUnion.psz).raw()));
+                break;
+            }
+#endif
 #ifdef VBOX_WITH_RECORDING
             case MODIFYVM_RECORDING:
                 RT_FALL_THROUGH();
@@ -3058,8 +3324,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         com::SafeArray<BOOL> screens(cMonitors);
                         if (RT_FAILURE(parseScreens(ValueUnion.psz, &screens)))
                         {
-                            errorArgument("Invalid list of screens specified\n");
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Invalid list of screens specified\n"));
+                            hrc = E_FAIL;
                             break;
                         }
 
@@ -3080,8 +3346,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                             int vrc = RTPathAbs(ValueUnion.psz, szVCFileAbs, sizeof(szVCFileAbs));
                             if (RT_FAILURE(vrc))
                             {
-                                errorArgument("Cannot convert filename \"%s\" to absolute path\n", ValueUnion.psz);
-                                rc = E_FAIL;
+                                errorArgument(ModifyVM::tr("Cannot convert filename \"%s\" to absolute path\n"), ValueUnion.psz);
+                                hrc = E_FAIL;
                                 break;
                             }
                             bstr = szVCFileAbs;
@@ -3110,16 +3376,18 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                         int vrc = RTStrToUInt32Ex(ValueUnion.psz, &pszNext, 0, &uWidth);
                         if (RT_FAILURE(vrc) || vrc != VWRN_TRAILING_CHARS || !pszNext || *pszNext != 'x')
                         {
-                            errorArgument("Error parsing video resolution '%s' (expected <width>x<height>)", ValueUnion.psz);
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Error parsing video resolution '%s' (expected <width>x<height>)"),
+                                          ValueUnion.psz);
+                            hrc = E_FAIL;
                             break;
                         }
                         uint32_t uHeight = 0;
                         vrc = RTStrToUInt32Ex(pszNext+1, NULL, 0, &uHeight);
                         if (vrc != VINF_SUCCESS)
                         {
-                            errorArgument("Error parsing video resolution '%s' (expected <width>x<height>)", ValueUnion.psz);
-                            rc = E_FAIL;
+                            errorArgument(ModifyVM::tr("Error parsing video resolution '%s' (expected <width>x<height>)"),
+                                          ValueUnion.psz);
+                            hrc = E_FAIL;
                             break;
                         }
 
@@ -3192,11 +3460,12 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                     enmAutostopType = AutostopType_AcpiShutdown;
                 else
                 {
-                    errorArgument("Invalid --autostop-type argument '%s' (valid: disabled, savestate, poweroff, acpishutdown)", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --autostop-type argument '%s' (valid: disabled, savestate, poweroff, acpishutdown)"),
+                                  ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
 
-                if (SUCCEEDED(rc))
+                if (SUCCEEDED(hrc))
                     CHECK_ERROR(sessionMachine, COMSETTER(AutostopType)(enmAutostopType));
                 break;
             }
@@ -3211,8 +3480,9 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
 
                 if (iHostAddr == -1 || iGuestAddr == -1)
                 {
-                    errorArgument("Invalid --pciattach argument '%s' (valid: 'HB:HD.HF@GB:GD.GF' or just 'HB:HD.HF')", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --pciattach argument '%s' (valid: 'HB:HD.HF@GB:GD.GF' or just 'HB:HD.HF')"),
+                                  ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 else
                 {
@@ -3228,8 +3498,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 iHostAddr = parsePci(ValueUnion.psz);
                 if (iHostAddr == -1)
                 {
-                    errorArgument("Invalid --pcidetach argument '%s' (valid: 'HB:HD.HF')", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --pcidetach argument '%s' (valid: 'HB:HD.HF')"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 else
                 {
@@ -3262,8 +3532,8 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 VMProcPriority_T enmPriority = nameToVMProcPriority(ValueUnion.psz);
                 if (enmPriority == VMProcPriority_Invalid)
                 {
-                    errorArgument("Invalid --vm-process-priority '%s'", ValueUnion.psz);
-                    rc = E_FAIL;
+                    errorArgument(ModifyVM::tr("Invalid --vm-process-priority '%s'"), ValueUnion.psz);
+                    hrc = E_FAIL;
                 }
                 else
                 {
@@ -3272,23 +3542,114 @@ RTEXITCODE handleModifyVM(HandlerArg *a)
                 break;
             }
 
-            default:
+            case MODIFYVM_TESTING_ENABLED:
+                hrc = setExtraData(sessionMachine, "VBoxInternal/Devices/VMMDev/0/Config/TestingEnabled", ValueUnion.f ? "1" : "");
+                break;
+
+            case MODIFYVM_TESTING_MMIO:
+                hrc = setExtraData(sessionMachine, "VBoxInternal/Devices/VMMDev/0/Config/TestingMMIO", ValueUnion.f ? "1" : "");
+                break;
+
+            case MODIFYVM_TESTING_CFG_DWORD:
+                if (GetOptState.uIndex <= 9)
+                {
+                    char szVar[128];
+                    RTStrPrintf(szVar, sizeof(szVar), "VBoxInternal/Devices/VMMDev/0/Config/TestingCfgDword%u",
+                                GetOptState.uIndex);
+                    char szValue[32];
+                    RTStrPrintf(szValue, sizeof(szValue), "%u", ValueUnion.u32);
+                    hrc = setExtraData(sessionMachine, szVar, szValue);
+                }
+                else
+                    hrc = errorArgumentHr(ModifyVM::tr("--testing-cfg-dword index %u is out of range: 0 thru 9"),
+                                         GetOptState.uIndex);
+                break;
+
+            case MODIFYVM_GUEST_DEBUG_PROVIDER:
             {
-                errorGetOpt(USAGE_MODIFYVM, c, &ValueUnion);
-                rc = E_FAIL;
+                ComPtr<IGuestDebugControl> gstDbgCtrl;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(GuestDebugControl)(gstDbgCtrl.asOutParam()));
+
+                GuestDebugProvider_T enmDebugProvider = GuestDebugProvider_None;
+
+                if (!RTStrICmp(ValueUnion.psz, "none"))
+                    enmDebugProvider = GuestDebugProvider_None;
+                else if (!RTStrICmp(ValueUnion.psz, "native"))
+                    enmDebugProvider = GuestDebugProvider_Native;
+                else if (!RTStrICmp(ValueUnion.psz, "gdb"))
+                    enmDebugProvider = GuestDebugProvider_GDB;
+                else if (!RTStrICmp(ValueUnion.psz, "kd"))
+                    enmDebugProvider = GuestDebugProvider_KD;
+                else
+                {
+                    errorArgument(ModifyVM::tr("Invalid --guest-debug-provider '%s' (valid: none, native, gdb, kd)"),
+                                  ValueUnion.psz);
+                    hrc = E_FAIL;
+                }
+
+                if (SUCCEEDED(hrc))
+                    CHECK_ERROR(gstDbgCtrl, COMSETTER(DebugProvider)(enmDebugProvider));
                 break;
             }
+
+            case MODIFYVM_GUEST_DEBUG_IO_PROVIDER:
+            {
+                ComPtr<IGuestDebugControl> gstDbgCtrl;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(GuestDebugControl)(gstDbgCtrl.asOutParam()));
+
+                GuestDebugIoProvider_T enmDebugIoProvider = GuestDebugIoProvider_None;
+
+                if (!RTStrICmp(ValueUnion.psz, "none"))
+                    enmDebugIoProvider = GuestDebugIoProvider_None;
+                else if (!RTStrICmp(ValueUnion.psz, "tcp"))
+                    enmDebugIoProvider = GuestDebugIoProvider_TCP;
+                else if (!RTStrICmp(ValueUnion.psz, "udp"))
+                    enmDebugIoProvider = GuestDebugIoProvider_UDP;
+                else if (!RTStrICmp(ValueUnion.psz, "ipc"))
+                    enmDebugIoProvider = GuestDebugIoProvider_IPC;
+                else
+                {
+                    errorArgument(ModifyVM::tr("Invalid --guest-debug-io-provider '%s' (valid: none, tcp, udp, ipc)"),
+                                  ValueUnion.psz);
+                    hrc = E_FAIL;
+                }
+
+                if (SUCCEEDED(hrc))
+                    CHECK_ERROR(gstDbgCtrl, COMSETTER(DebugIoProvider)(enmDebugIoProvider));
+                break;
+            }
+
+            case MODIFYVM_GUEST_DEBUG_ADDRESS:
+            {
+                ComPtr<IGuestDebugControl> gstDbgCtrl;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(GuestDebugControl)(gstDbgCtrl.asOutParam()));
+
+                Bstr bstr(ValueUnion.psz);
+                CHECK_ERROR(gstDbgCtrl, COMSETTER(DebugAddress)(bstr.raw()));
+                break;
+            }
+
+            case MODIFYVM_GUEST_DEBUG_PORT:
+            {
+                ComPtr<IGuestDebugControl> gstDbgCtrl;
+                CHECK_ERROR_BREAK(sessionMachine, COMGETTER(GuestDebugControl)(gstDbgCtrl.asOutParam()));
+                CHECK_ERROR(gstDbgCtrl, COMSETTER(DebugPort)(ValueUnion.u32));
+                break;
+            }
+
+            default:
+                errorGetOpt(c, &ValueUnion);
+                hrc = E_FAIL;
+                break;
         }
     }
 
     /* commit changes */
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         CHECK_ERROR(sessionMachine, SaveSettings());
 
     /* it's important to always close sessions */
     a->session->UnlockMachine();
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
-
-#endif /* !VBOX_ONLY_DOCS */

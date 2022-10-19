@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -21,9 +31,9 @@
 
 /* GUI includes: */
 #include "UIDetails.h"
+#include "UIDetailsItem.h"
 #include "UIDetailsModel.h"
 #include "UIDetailsView.h"
-#include "UIDetailsItem.h"
 
 /* Other VBox includes: */
 #include <iprt/assert.h>
@@ -51,7 +61,7 @@ public:
     {}
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */
+    virtual int childCount() const RT_OVERRIDE
     {
         /* Make sure view still alive: */
         AssertPtrReturn(view(), 0);
@@ -68,7 +78,7 @@ public:
     }
 
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int iIndex) const /* override */
+    virtual QAccessibleInterface *child(int iIndex) const RT_OVERRIDE
     {
         /* Make sure view still alive: */
         AssertPtrReturn(view(), 0);
@@ -86,15 +96,32 @@ public:
         return QAccessible::queryAccessibleInterface(view()->details()->model()->root()->items().first()->items().at(iIndex));
     }
 
+    /** Returns the index of passed @a pChild. */
+    virtual int indexOfChild(const QAccessibleInterface *pChild) const RT_OVERRIDE
+    {
+        /* Make sure view still alive: */
+        AssertPtrReturn(view(), -1);
+        /* Make sure child is valid: */
+        AssertReturn(pChild, -1);
+
+        /* Acquire item itself: */
+        UIDetailsItem *pChildItem = qobject_cast<UIDetailsItem*>(pChild->object());
+
+        /* Return the index of item in it's parent: */
+        return   pChildItem && pChildItem->parentItem()
+               ? pChildItem->parentItem()->items().indexOf(pChildItem)
+               : -1;
+    }
+
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE
     {
         /* Make sure view still alive: */
         AssertPtrReturn(view(), QString());
 
         /* Return view tool-tip: */
         Q_UNUSED(enmTextRole);
-        return view()->toolTip();
+        return view()->whatsThis();
     }
 
 private:
@@ -133,9 +160,7 @@ void UIDetailsView::sltMinimumWidthHintChanged(int iHint)
 void UIDetailsView::retranslateUi()
 {
     /* Translate this: */
-#if 0 /* we will leave that for accessibility needs. */
-    setToolTip(tr("Contains a list of Virtual Machine details"));
-#endif  /* to be integrated to accessibility interface. */
+    setWhatsThis(tr("Contains a list of Virtual Machine details."));
 }
 
 void UIDetailsView::resizeEvent(QResizeEvent *pEvent)
@@ -153,6 +178,12 @@ void UIDetailsView::prepare()
 {
     /* Install Details-view accessibility interface factory: */
     QAccessible::installFactory(UIAccessibilityInterfaceForUIDetailsView::pFactory);
+
+    /* Prepare palette: */
+    QPalette pal = QApplication::palette();
+    pal.setColor(QPalette::Active, QPalette::Base, pal.color(QPalette::Active, QPalette::Window));
+    pal.setColor(QPalette::Inactive, QPalette::Base, pal.color(QPalette::Inactive, QPalette::Window));
+    setPalette(pal);
 
     /* Setup frame: */
     setFrameShape(QFrame::NoFrame);

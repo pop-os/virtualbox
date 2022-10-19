@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -22,6 +32,7 @@
 #include "PasswordInput.h"
 
 #include <iprt/ctype.h>
+#include <iprt/errcore.h>
 #include <iprt/message.h>
 #include <iprt/stream.h>
 
@@ -92,9 +103,9 @@ RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const char *pszF
     RTEXITCODE rcExit = readPasswordFile(pszFilename, &passwd);
     if (rcExit == RTEXITCODE_SUCCESS)
     {
-        int rc;
+        HRESULT hrc;
         CHECK_ERROR(virtualBox, SetSettingsSecret(com::Bstr(passwd).raw()));
-        if (FAILED(rc))
+        if (FAILED(hrc))
             rcExit = RTEXITCODE_FAILURE;
     }
 
@@ -128,7 +139,27 @@ RTEXITCODE readPasswordFromConsole(com::Utf8Str *pPassword, const char *pszPromp
             {
                 vrc = RTStrmGetLine(g_pStdIn, &aszPwdInput[0], sizeof(aszPwdInput));
                 if (RT_SUCCESS(vrc))
+                {
+#ifdef RT_OS_WINDOWS
+                    /*
+                     * Returned string encoded in console code page (e.g. Win-125X or CP-XXX).
+                     * Convert it to Utf-8
+                     */
+                    char *pszPassword = NULL;
+                    vrc = RTStrConsoleCPToUtf8(&pszPassword, aszPwdInput);
+                    if (RT_SUCCESS(vrc) && pszPassword)
+                    {
+                        *pPassword = pszPassword;
+                        RTMemFree(pszPassword);
+                    }
+                    else
+                        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE,
+                                                "Failed to convert password from windows console codepage to Utf-8 (%Rrc)",
+                                                vrc);
+#else
                     *pPassword = aszPwdInput;
+#endif
+                }
                 else
                     rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed read password from command line (%Rrc)", vrc);
 

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_VRDESERVER
@@ -285,13 +295,13 @@ static int i_portParseNumber(uint16_t *pu16Port, const char *pszStart, const cha
      *       only digits and pszEnd points to the char after last
      *       digit.
      */
-    size_t cch = pszEnd - pszStart;
+    size_t cch = (size_t)(pszEnd - pszStart);
     if (cch > 0 && cch <= 5) /* Port is up to 5 decimal digits. */
     {
         unsigned uPort = 0;
         while (pszStart != pszEnd)
         {
-            uPort = uPort * 10 + *pszStart - '0';
+            uPort = uPort * 10 + (unsigned)(*pszStart - '0');
             pszStart++;
         }
 
@@ -450,7 +460,20 @@ HRESULT VRDEServer::getVRDEProperty(const com::Utf8Str &aKey, com::Utf8Str &aVal
     return S_OK;
 }
 
+/*
+ * Work around clang being unhappy about PFNVRDESUPPORTEDPROPERTIES
+ * ("exception specifications are not allowed beyond a single level of
+ * indirection").  The original comment for 13.0 check said: "assuming
+ * this issue will be fixed eventually".  Well, 13.0 is now out, and
+ * it was not.
+ */
+#define CLANG_EXCEPTION_SPEC_HACK (RT_CLANG_PREREQ(11, 0) /* && !RT_CLANG_PREREQ(13, 0) */)
+
+#if CLANG_EXCEPTION_SPEC_HACK
+static int loadVRDELibrary(const char *pszLibraryName, RTLDRMOD *phmod, void *ppfn)
+#else
 static int loadVRDELibrary(const char *pszLibraryName, RTLDRMOD *phmod, PFNVRDESUPPORTEDPROPERTIES *ppfn)
+#endif
 {
     int rc = VINF_SUCCESS;
 
@@ -542,7 +565,11 @@ HRESULT VRDEServer::getVRDEProperties(std::vector<com::Utf8Str> &aProperties)
          */
         PFNVRDESUPPORTEDPROPERTIES pfn = NULL;
         RTLDRMOD hmod = NIL_RTLDRMOD;
+#if CLANG_EXCEPTION_SPEC_HACK
+        vrc = loadVRDELibrary(strVrdeLibrary.c_str(), &hmod, (void **)&pfn);
+#else
         vrc = loadVRDELibrary(strVrdeLibrary.c_str(), &hmod, &pfn);
+#endif
         Log(("VRDEPROP: load library [%s] rc %Rrc\n", strVrdeLibrary.c_str(), vrc));
         if (RT_SUCCESS(vrc))
         {
@@ -677,7 +704,7 @@ HRESULT VRDEServer::getAuthLibrary(com::Utf8Str &aLibrary)
         }
 
         if (FAILED(hrc))
-            return setError(hrc, "failed to query the library setting\n");
+            return setError(hrc, tr("failed to query the library setting\n"));
     }
 
     return S_OK;

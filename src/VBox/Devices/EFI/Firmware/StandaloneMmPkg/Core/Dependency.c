@@ -3,10 +3,10 @@
 
   This routine evaluates a dependency expression (DEPENDENCY_EXPRESSION) to determine
   if a driver can be scheduled for execution.  The criteria for
-  schedulability is that the dependency expression is satisfied.
+  scheduling is that the dependency expression is satisfied.
 
   Copyright (c) 2009 - 2010, Intel Corporation. All rights reserved.<BR>
-  Copyright (c) 2016 - 2018, ARM Limited. All rights reserved.<BR>
+  Copyright (c) 2016 - 2021, Arm Limited. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -193,7 +193,7 @@ MmIsSchedulable (
   if (DriverEntry->Depex == NULL) {
     //
     // A NULL Depex means that the MM driver is not built correctly.
-    // All MM drivers must have a valid depex expressiion.
+    // All MM drivers must have a valid depex expression.
     //
     DEBUG ((DEBUG_DISPATCH, "  RESULT = FALSE (Depex is empty)\n"));
     ASSERT (FALSE);
@@ -372,7 +372,7 @@ MmIsSchedulable (
     // The math is done out of order, but it should not matter. That is
     // we may add in the sizeof (EFI_GUID) before we account for the OP Code.
     // This is not an issue, since we just need the correct end result. You
-    // need to be careful using Iterator in the loop as it's intermediate value
+    // need to be careful using Iterator in the loop as its intermediate value
     // may be strange.
     //
     Iterator++;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_trpm   TRPM - The Trap Monitor
@@ -161,13 +171,9 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     /*
      * Statistics.
      */
-#ifdef VBOX_WITH_STATISTICS
-    rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * 256, sizeof(STAMCOUNTER), MM_TAG_TRPM, (void **)&pVM->trpm.s.paStatForwardedIRQR3);
-    AssertRCReturn(rc, rc);
     for (unsigned i = 0; i < 256; i++)
-        STAMR3RegisterF(pVM, &pVM->trpm.s.paStatForwardedIRQR3[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES, "Forwarded interrupts.",
-                        i < 0x20 ? "/TRPM/ForwardRaw/TRAP/%02X" : "/TRPM/ForwardRaw/IRQ/%02X", i);
-#endif
+        STAMR3RegisterF(pVM, &pVM->trpm.s.aStatForwardedIRQ[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                        "Forwarded interrupts.", i < 0x20 ? "/TRPM/ForwardRaw/TRAP/%02X" : "/TRPM/ForwardRaw/IRQ/%02X", i);
 
     return 0;
 }
@@ -385,10 +391,13 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool
             return VBOXSTRICTRC_VAL(rcStrict);
         }
 #endif
+#ifdef RT_OS_WINDOWS
         if (!VM_IS_NEM_ENABLED(pVM))
         {
+#endif
             rc = TRPMAssertTrap(pVCpu, u8Interrupt, TRPM_HARDWARE_INT);
             AssertRC(rc);
+#ifdef RT_OS_WINDOWS
         }
         else
         {
@@ -398,7 +407,8 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool
             if (rcStrict != VINF_SUCCESS)
                 return VBOXSTRICTRC_TODO(rcStrict);
         }
-        STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
+#endif
+        STAM_REL_COUNTER_INC(&pVM->trpm.s.aStatForwardedIRQ[u8Interrupt]);
     }
     else
     {

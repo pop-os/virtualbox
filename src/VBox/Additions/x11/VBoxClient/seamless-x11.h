@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_SRC_x11_VBoxClient_seamless_x11_h
@@ -48,7 +58,8 @@ typedef FNSENDREGIONUPDATE *PFNSENDREGIONUPDATE;
 
 /** Structure containing information about a guest window's position and visible area.
     Used inside of VBoxGuestWindowList. */
-struct VBoxGuestWinInfo {
+struct VBoxGuestWinInfo
+{
 public:
     /** Header structure for insertion into an AVL tree */
     AVLU32NODECORE Core;
@@ -65,10 +76,10 @@ public:
      * is destroyed. */
     XRectangle *mpRects;
     /** Constructor. */
-    VBoxGuestWinInfo(bool hasShape, int x, int y, int w, int h, int cRects,
-                     XRectangle *pRects)
-            : mhasShape(hasShape), mX(x), mY(y), mWidth(w), mHeight(h),
-              mcRects(cRects), mpRects(pRects) {}
+    VBoxGuestWinInfo(bool hasShape, int x, int y, int w, int h, int cRects, XRectangle *pRects)
+        : mhasShape(hasShape), mX(x), mY(y), mWidth(w), mHeight(h)
+        , mcRects(cRects), mpRects(pRects)
+    {}
 
     /** Destructor */
     ~VBoxGuestWinInfo()
@@ -82,16 +93,16 @@ public:
 
 private:
     // We don't want a copy constructor or assignment operator
-    VBoxGuestWinInfo(const VBoxGuestWinInfo&);
-    VBoxGuestWinInfo& operator=(const VBoxGuestWinInfo&);
+    VBoxGuestWinInfo(const VBoxGuestWinInfo &);
+    VBoxGuestWinInfo &operator=(const VBoxGuestWinInfo &);
 };
 
 /** Callback type used for "DoWithAll" calls */
-typedef DECLCALLBACK(int) VBOXGUESTWINCALLBACK(VBoxGuestWinInfo *, void *);
+typedef DECLCALLBACKTYPE(int, FNVBOXGUESTWINCALLBACK,(VBoxGuestWinInfo *, void *));
 /** Pointer to VBOXGUESTWINCALLBACK */
-typedef VBOXGUESTWINCALLBACK *PVBOXGUESTWINCALLBACK;
+typedef FNVBOXGUESTWINCALLBACK *PFNVBOXGUESTWINCALLBACK;
 
-DECLCALLBACK(int) inline VBoxGuestWinCleanup(VBoxGuestWinInfo *pInfo, void *)
+static inline DECLCALLBACK(int) VBoxGuestWinCleanup(VBoxGuestWinInfo *pInfo, void *)
 {
     delete pInfo;
     return VINF_SUCCESS;
@@ -135,15 +146,14 @@ public:
         return (VBoxGuestWinInfo *)RTAvlU32Get(&mWindows, hWin);
     }
 
-    void detachAll(PVBOXGUESTWINCALLBACK pCallback, void *pvParam)
+    void detachAll(PFNVBOXGUESTWINCALLBACK pfnCallback, void *pvParam)
     {
-        RTAvlU32Destroy(&mWindows, (PAVLU32CALLBACK)pCallback, pvParam);
+        RTAvlU32Destroy(&mWindows, (PAVLU32CALLBACK)pfnCallback, pvParam);
     }
 
-    int doWithAll(PVBOXGUESTWINCALLBACK pCallback, void *pvParam)
+    int doWithAll(PFNVBOXGUESTWINCALLBACK pfnCallback, void *pvParam)
     {
-        return RTAvlU32DoWithAll(&mWindows, 1, (PAVLU32CALLBACK)pCallback,
-                                 pvParam);
+        return RTAvlU32DoWithAll(&mWindows, 1, (PAVLU32CALLBACK)pfnCallback, pvParam);
     }
 
     bool addWindow(Window hWin, bool isMapped, int x, int y, int w, int h, int cRects,
@@ -151,8 +161,7 @@ public:
     {
         LogRelFlowFunc(("hWin=%lu, isMapped=%RTbool, x=%d, y=%d, w=%d, h=%d, cRects=%d\n",
                         (unsigned long) hWin, isMapped, x, y, w, h, cRects));
-        VBoxGuestWinInfo *pInfo = new VBoxGuestWinInfo(isMapped, x, y, w, h, cRects,
-                                                       pRects);
+        VBoxGuestWinInfo *pInfo = new VBoxGuestWinInfo(isMapped, x, y, w, h, cRects, pRects);
         pInfo->Core.Key = hWin;
         LogRelFlowFuncLeave();
         return RTAvlU32Insert(&mWindows, &pInfo->Core);
@@ -224,15 +233,7 @@ public:
     /**
      * Shutdown seamless event monitoring.
      */
-    void uninit(void)
-    {
-        if (mHostCallback)
-            stop();
-        mHostCallback = NULL;
-        if (mDisplay)
-            XCloseDisplay(mDisplay);
-        mDisplay = NULL;
-    }
+    void uninit(void);
 
     /**
      * Initialise seamless event reporting in the guest.

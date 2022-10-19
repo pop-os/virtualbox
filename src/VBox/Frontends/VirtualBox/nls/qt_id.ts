@@ -735,11 +735,11 @@ menjadi
     </message>
     <message>
         <source>ShowMenu</source>
-        <translation>ShowMenu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SetFocus</source>
-        <translation>SetFocus</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Toggle</source>
@@ -1166,15 +1166,15 @@ Tekan ESC untuk membatalkan</translation>
     </message>
     <message>
         <source>Second Shift (16:00 to 23:59)</source>
-        <translation>Shift Ke Dua (16:00 sampai 23:59)</translation>
+        <translation type="unfinished">Shift Ke Dua (16:00 sampai 23:59)</translation>
     </message>
     <message>
         <source>Third Shift (00:00 to 07:59)</source>
-        <translation>Shift Ke Tiga (00:00 sampai 07:59)</translation>
+        <translation type="unfinished">Shift Ke Tiga (00:00 sampai 07:59)</translation>
     </message>
     <message>
         <source>Weekend (Saturday to Sunday)</source>
-        <translation>Akhir Pekan (Sabtu sampai Minggu)</translation>
+        <translation type="unfinished">Akhir Pekan (Sabtu sampai Minggu)</translation>
     </message>
     <message>
         <source>Specific Time</source>
@@ -1193,7 +1193,7 @@ Tekan ESC untuk membatalkan</translation>
     <message>
         <source>Unclassified</source>
         <comment>CUPS Banner page</comment>
-        <translation>Unclassified</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Confidential</source>
@@ -1203,7 +1203,7 @@ Tekan ESC untuk membatalkan</translation>
     <message>
         <source>Classified</source>
         <comment>CUPS Banner page</comment>
-        <translation>Classified</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Secret</source>
@@ -1569,7 +1569,7 @@ Tekan ESC untuk membatalkan</translation>
     </message>
     <message>
         <source>Undocks and re-attaches the dock widget</source>
-        <translation>Lepas labuh dan cantolkan ulang widget dok</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Closes the dock widget</source>
@@ -1880,7 +1880,7 @@ Anda tetap ingin menghapusnya?</translation>
     </message>
     <message>
         <source>Recent Places</source>
-        <translation>Tempat Baru-baru Ini</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>%1 File</source>
@@ -3234,7 +3234,7 @@ Anda tetap ingin menghapusnya?</translation>
     </message>
     <message>
         <source>&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across all major desktop operating systems. It is also available for embedded Linux and other embedded and mobile operating systems.&lt;/p&gt;&lt;p&gt;Qt is available under three different licensing options designed to accommodate the needs of our various users.&lt;/p&gt;&lt;p&gt;Qt licensed under our commercial license agreement is appropriate for development of proprietary/commercial software where you do not want to share any source code with third parties or otherwise cannot comply with the terms of the GNU LGPL version 3 or GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU LGPL version 3 is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the GNU LGPL version 3.&lt;/p&gt;&lt;p&gt;Qt licensed under the GNU LGPL version 2.1 is appropriate for the development of Qt&amp;nbsp;applications provided you can comply with the terms and conditions of the GNU LGPL version 2.1.&lt;/p&gt;&lt;p&gt;Please see &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; for an overview of Qt licensing.&lt;/p&gt;&lt;p&gt;Copyright (C) %1 The Qt Company Ltd and other contributors.&lt;/p&gt;&lt;p&gt;Qt and the Qt logo are trademarks of The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt is The Qt Company Ltd product developed as an open source project. See &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Qt adalah sebuah toolkit C++ untuk pengembangan aplikasi lintas platform.&lt;/p&gt;&lt;p&gt;Qt menyediakan portabilitas sumber tunggal melintasi semua sistem operasi desktop mayor. Ini juga tersedia untuk Linux embedded dan sistem operasi embedded dan mobile lain.&lt;/p&gt;&lt;p&gt;Qt tersedia di bawah tiga opsi lisensi yang dirancang untuk mengakomodasi kebutuhan berbagai pengguna.&lt;/p&gt;&lt;p&gt;Qt yang dilisensikan di bawah perjanjian lisensi komersial kami cocok untuk pengembangan perangkat proprietari/komersial dimana Anda tidak ingin berbagi kode sumber apapun dengan pihak ke tiga atau karena tidak bisa mematuhi persyaratan GNU LGPL versi 3 atau GNU LGPL versi 2.1.&lt;/p&gt;&lt;p&gt;Qt yang dilisensikan di bawah GNU LGPL versi 3 cocok untuk pengembangan aplikasi&amp;nbps;Qt asal Anda dapat mematuhi syarat dan ketentuan GNU LGPL versi 3.&lt;/p&gt;&lt;p&gt;Qt yang dilisensikan di bawah GNU LGPL versi 2.1 cocok untuk pengembangan aplikasi&amp;nbps;Qt asal Anda dapat mematuhi syarat dan ketentuan GNU LGPL versi 2.1.&lt;/p&gt;&lt;p&gt;Harap lihat &lt;a href=&quot;http://%2/&quot;&gt;%2&lt;/a&gt; untuk ringkasan perlisensian Qt.&lt;/p&gt;&lt;p&gt;Hak Cipta (C) %1 The Qt Company Ltd dan para kontributor lain.&lt;/p&gt;&lt;p&gt;Qt dan logo Qt adalah merk dagang dari The Qt Company Ltd.&lt;/p&gt;&lt;p&gt;Qt adalah produk The Qt Company Ltd yang dikembangkan sebagai suatu projek sumber terbuka. Lihat &lt;a href=&quot;http://%3/&quot;&gt;%3&lt;/a&gt; untuk informasi lebih lanjut.&lt;/p&gt;</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4176,7 +4176,7 @@ Anda tetap ingin menghapusnya?</translation>
     </message>
     <message>
         <source>Statement</source>
-        <translation>Statement</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Super A</source>
@@ -4208,15 +4208,15 @@ Anda tetap ingin menghapusnya?</translation>
     </message>
     <message>
         <source>Fan-fold US (14.875 x 11 in)</source>
-        <translation>Fan-fold AS (14.875 x 11 in)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Fan-fold German (8.5 x 12 in)</source>
-        <translation>Fan-fold Jerman (8.5 x 12 in)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Fan-fold German Legal (8.5 x 13 in)</source>
-        <translation>Fan-fold Jerman Legal (8.5 x 13 in)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Envelope B4</source>
@@ -4720,12 +4720,11 @@ Silakan pilih nama file lain.</translation>
     <message>
         <source>Options &apos;Pages Per Sheet&apos; and &apos;Page Set&apos; cannot be used together.
 Please turn one of those options off.</source>
-        <translation>Opsi &apos;Halaman Per Lembar&apos; dan &apos;Set Halaman&apos; tidak dapat dipakai bersama.
-Harap matikan salah satu opsi itu.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
-        <translation>Nilai &apos;Dari&apos; tidak bisa lebih dari nilai &apos;Sampai&apos;.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>OK</source>
@@ -5089,7 +5088,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>lookbehinds not supported, see QTBUG-2371</source>
-        <translation>lookbehinds tidak didukung, lihat QTBUG-2371</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>invalid interval</source>
@@ -6109,11 +6108,11 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Eject</source>
-        <translation>Keluarkan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Screensaver</source>
-        <translation>Screensaver</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>WWW</source>
@@ -6125,7 +6124,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>LightBulb</source>
-        <translation>BolaLampu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Shop</source>
@@ -6141,7 +6140,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Hot Links</source>
-        <translation>Tautan Panas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Adjust Brightness</source>
@@ -6157,11 +6156,11 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Media Rewind</source>
-        <translation>Putar Ulang Media</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Back Forward</source>
-        <translation>Mundur Terus</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Application Left</source>
@@ -6189,7 +6188,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Clear Grab</source>
-        <translation>Lepas Genggaman</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Close</source>
@@ -6205,7 +6204,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Display</source>
-        <translation>Tampilan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>DOS</source>
@@ -6217,7 +6216,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Spreadsheet</source>
-        <translation>Spreadsheet</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Browser</source>
@@ -6229,7 +6228,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Go</source>
-        <translation>Jalan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>iTouch</source>
@@ -6237,7 +6236,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Logoff</source>
-        <translation>Logoff</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Market</source>
@@ -6253,11 +6252,11 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Menu PB</source>
-        <translation>Menu PB</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>My Sites</source>
-        <translation>My Sites</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>News</source>
@@ -6265,7 +6264,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Home Office</source>
-        <translation>Home Office</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Option</source>
@@ -6293,11 +6292,11 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Rotation PB</source>
-        <translation>PB Rotasi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Rotation KB</source>
-        <translation>KB Rotasi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Save</source>
@@ -6345,15 +6344,15 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>XFer</source>
-        <translation>XFer</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Zoom In</source>
-        <translation>Perbesar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Zoom Out</source>
-        <translation>Perkecil</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Away</source>
@@ -6361,7 +6360,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Messenger</source>
-        <translation>Messenger</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>WebCam</source>
@@ -6369,7 +6368,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Mail Forward</source>
-        <translation>Teruskan Surat</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Pictures</source>
@@ -6393,27 +6392,27 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Ultra Wide Band</source>
-        <translation>Ultra Wide Band</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Media Fast Forward</source>
-        <translation>Media Maju Cepat</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Audio Repeat</source>
-        <translation>Pengulangan Audio</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Audio Random Play</source>
-        <translation>Putar Acak Audio</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Subtitle</source>
-        <translation>Subtitel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Audio Cycle Track</source>
-        <translation>Trek Siklus Audio</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Time</source>
@@ -6433,7 +6432,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Power Down</source>
-        <translation>Matikan Daya</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Suspend</source>
@@ -6481,11 +6480,11 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Microphone Volume Up</source>
-        <translation>Volume Mikrofon Naik</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Microphone Volume Down</source>
-        <translation>Volume Mikrofon Turun</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>New</source>
@@ -6501,36 +6500,36 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Undo</source>
-        <translation>Batalkan</translation>
+        <translation type="unfinished">Batalkan</translation>
     </message>
     <message>
         <source>Redo</source>
-        <translation>Jadi lagi</translation>
+        <translation type="unfinished">Jadi lagi</translation>
     </message>
     <message>
         <source>Toggle Call/Hangup</source>
         <extracomment>Button that will hang up if we&apos;re in call, or make a call if we&apos;re not.</extracomment>
-        <translation>Jungkitkan Panggil/Putus</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Voice Dial</source>
         <extracomment>Button to trigger voice dialing</extracomment>
-        <translation>Tombol untuk memicu pemanggilan suara</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Last Number Redial</source>
         <extracomment>Button to redial the last number called</extracomment>
-        <translation>Tombol untuk memanggil ulang nomor yang terakhir dipanggil</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Camera Shutter</source>
         <extracomment>Button to trigger the camera shutter (take a picture)</extracomment>
-        <translation type="unfinished">Tombol untuk memicu shutter kamera (mengambil gambar)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Camera Focus</source>
         <extracomment>Button to focus the camera</extracomment>
-        <translation>Fokus Kamera</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Kanji</source>
@@ -6582,31 +6581,31 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Kana Lock</source>
-        <translation>Kunci Kana</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Kana Shift</source>
-        <translation>Shift Kana</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Eisu Shift</source>
-        <translation>Shift Eisu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Eisu toggle</source>
-        <translation>Jungkit Eisu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Code input</source>
-        <translation>Masukan kode</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Multiple Candidate</source>
-        <translation>Kandidat Berganda</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Previous Candidate</source>
-        <translation>Kandidat Sebelumnya</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hangul</source>
@@ -6614,11 +6613,11 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Hangul Start</source>
-        <translation>Mulai Hangul</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hangul End</source>
-        <translation>Selesai Hangul</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Hangul Hanja</source>
@@ -6650,7 +6649,7 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Hangul Special</source>
-        <translation>Hangul Khusus</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -6658,19 +6657,19 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Printer</source>
-        <translation>Pencetak</translation>
+        <translation type="unfinished">Printer</translation>
     </message>
     <message>
         <source>Execute</source>
-        <translation>Jalankan</translation>
+        <translation type="unfinished">Jalankan</translation>
     </message>
     <message>
         <source>Play</source>
-        <translation>Putar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Zoom</source>
-        <translation>Zum</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Exit</source>
@@ -6678,15 +6677,15 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Touchpad Toggle</source>
-        <translation>Jungkitkan Touchpad</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Touchpad On</source>
-        <translation>Touchpad Menyala</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Touchpad Off</source>
-        <translation>Touchpad Mati</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Num</source>
@@ -6728,55 +6727,55 @@ Harap matikan salah satu opsi itu.</translation>
     </message>
     <message>
         <source>Connection to proxy refused</source>
-        <translation>Koneksi ke proksi ditolak</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connection to proxy closed prematurely</source>
-        <translation>Koneksi ke proksi tertutup secara prematur</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy host not found</source>
-        <translation>Host proksi tidak ditemukan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connection to proxy timed out</source>
-        <translation>Koneksi ke proksi habis waktu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy authentication failed</source>
-        <translation>Autentikasi proksi gagal</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Proxy authentication failed: %1</source>
-        <translation>Autentikasi proksi gagal: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SOCKS version 5 protocol error</source>
-        <translation>Galat protokol SOCKS versi 5</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>General SOCKSv5 server failure</source>
-        <translation>Kegagalan server SOCKSv5 umum</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connection not allowed by SOCKSv5 server</source>
-        <translation>Koneksi tidak diizinkan oleh server SOCKS5</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>TTL expired</source>
-        <translation>TTL kedaluwarsa</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>SOCKSv5 command not supported</source>
-        <translation>Perintah SOCSKv5 tidak didukung</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Address type not supported</source>
-        <translation>Tipe alamat tidak didukung</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unknown SOCKSv5 proxy error code 0x%1</source>
-        <translation>Kode galat proksi SOCKS5 yang tidak dikenal 0x%1</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6784,359 +6783,359 @@ Harap matikan salah satu opsi itu.</translation>
     <message>
         <source>invalid role</source>
         <extracomment>Role of an accessible object - the object is in an invalid state or could not be constructed</extracomment>
-        <translation>peran tidak valid</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>title bar</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>bilah judul</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>menu bar</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>bilah menu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>scroll bar</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>bilah gulir</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>grip</source>
         <extracomment>Role of an accessible object - the grip is usually used for resizing another object</extracomment>
-        <translation>pegangan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>sound</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>suara</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>cursor</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>kursor</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>text caret</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>karet teks</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>alert message</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>pesan waspada</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>frame</source>
         <extracomment>Role of an accessible object: a window with frame and title
 ----------
 Role of an accessible object</extracomment>
-        <translation>bingkai</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>filler</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>pengisi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>popup menu</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>menu popup</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>menu item</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>butir menu</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>tool tip</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tip perkakas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>application</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>aplikasi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>document</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>dokumen</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>panel</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>panel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>chart</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>bagan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>dialog</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>dialog</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>separator</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>pemisah</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>tool bar</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>bilah alat</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>status bar</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>bilah status</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>table</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tabel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>column header</source>
         <extracomment>Role of an accessible object - part of a table</extracomment>
-        <translation>kepala kolom</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>row header</source>
         <extracomment>Role of an accessible object - part of a table</extracomment>
-        <translation>kepala baris</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>column</source>
         <extracomment>Role of an accessible object - part of a table</extracomment>
-        <translation>kolom</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>row</source>
         <extracomment>Role of an accessible object - part of a table</extracomment>
-        <translation>baris</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>cell</source>
         <extracomment>Role of an accessible object - part of a table</extracomment>
-        <translation>sel</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>link</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tautan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>help balloon</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>balon bantuan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>assistant</source>
         <extracomment>Role of an accessible object - a helper dialog</extracomment>
-        <translation>asisten</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>list</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>daftar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>list item</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>butir daftar</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>tree</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>pohon</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>tree item</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>butir pohon</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>page tab</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tab halaman</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>property page</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>halaman properti</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>indicator</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>indikator</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>graphic</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>grafik</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>label</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>label</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>text</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>teks</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>push button</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tombol tekan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>check box</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>kotak centang</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>radio button</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tombol radio</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>combo box</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>kotak kombo</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>progress bar</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>bilah kemajuan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>dial</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>dial</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>hotkey field</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>ruas tombol pintas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>slider</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>penggeser</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>spin box</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>kotak puntir</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>canvas</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>kanvas</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>animation</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>animasi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>equation</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>persamaan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>button with drop down</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tombol dengan drop down</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>button menu</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>menu tombol</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>button with drop down grid</source>
         <extracomment>Role of an accessible object - a button that expands a grid.</extracomment>
-        <translation>tombol dengan kisi drop down</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>space</source>
         <extracomment>Role of an accessible object - blank space between other objects.</extracomment>
-        <translation>spasi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>page tab list</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>daftar tab halaman</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>clock</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>jam</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>splitter</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>pembelah</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>layered pane</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>panel berlapis</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>web document</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>dokumen web</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>paragraph</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>paragraf</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>section</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>seksi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>color chooser</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>pemilih warna</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>footer</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>kaki</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>form</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>formulir</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>heading</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tajuk</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>note</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>catatan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>complementary content</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>isi pelengkap</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>unknown</source>
         <extracomment>Role of an accessible object</extracomment>
-        <translation>tak dikenal</translation>
+        <translation type="unfinished">tak dikenal</translation>
     </message>
 </context>
 <context>
@@ -7241,127 +7240,127 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Error when setting the elliptic curves (%1)</source>
-        <translation>Galat ketika menata kurva eliptik (%1)</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>unsupported protocol</source>
-        <translation>protokol tak didukung</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Private key does not certify public key, %1</source>
-        <translation>Kunci privat tidak mensertifikasi kunci publik, %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>OpenSSL version too old, need at least v1.0.2</source>
-        <translation>Versi OpenSSL terlalu tua, perlu paling tidak v1.0.2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No error</source>
-        <translation>Tidak ada galat</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The issuer certificate could not be found</source>
-        <translation>Sertifikat penerbit tidak dapat ditemukan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The certificate signature could not be decrypted</source>
-        <translation>Tanda tangan sertifikat tidak dapat didekripsi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The public key in the certificate could not be read</source>
-        <translation>Kunci publik dalam sertifikat tidak dapat dibaca</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The signature of the certificate is invalid</source>
-        <translation>Tanda tangan sertifikat tidak valid</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The certificate is not yet valid</source>
-        <translation>Sertifikat belum valid</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The certificate has expired</source>
-        <translation>Sertifikat telah kedaluwarsa</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The certificate&apos;s notBefore field contains an invalid time</source>
-        <translation>Ruas notBefore sertifikat memuat suatu waktu yang tidak valid</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The certificate&apos;s notAfter field contains an invalid time</source>
-        <translation>Ruas notAfter sertifikat memuat suatu waktu yang tidak valid</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The certificate is self-signed, and untrusted</source>
-        <translation>Sertifikat ditandatangani sendiri, dan tidak terpercaya</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The root certificate of the certificate chain is self-signed, and untrusted</source>
-        <translation>Sertifikat root dari rantai sertifikat ditandatangani sendiri, dan tidak terpercaya</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The issuer certificate of a locally looked up certificate could not be found</source>
-        <translation>Sertifikat penerbit dari sertifikat yang dicari secara lokal tidak dapat ditemukan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No certificates could be verified</source>
-        <translation>Tidak ada sertifikat yang dapat diverifikasi</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>One of the CA certificates is invalid</source>
-        <translation>Satu dari sertifikat CA tidak valid</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The basicConstraints path length parameter has been exceeded</source>
-        <translation>Parameter panjang path basicConstraints telah terlampaui</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The supplied certificate is unsuitable for this purpose</source>
-        <translation>Sertifikat yang diberikan tidak cocok untuk keperluan ini</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The root CA certificate is not trusted for this purpose</source>
-        <translation>Sertifikat CA root tidak terpercaya untuk keperluan ini</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The root CA certificate is marked to reject the specified purpose</source>
-        <translation>Sertifikat CA root ditandai untuk menolak keperluan yang dinyatakan</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The current candidate issuer certificate was rejected because its subject name did not match the issuer name of the current certificate</source>
-        <translation>Sertifikat penerbit kandidat saat ini ditolak karena nama subjeknya tidak cocok dengan nama penerbit dari sertifikat saat ini</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The current candidate issuer certificate was rejected because its issuer name and serial number was present and did not match the authority key identifier of the current certificate</source>
-        <translation>Sertifikat penerbit kandidat saat ini ditolak karena nama penerbit dan nomor serinya ada dan tidak cocok dengan identifier kunci otoritas dari sertifikat saat ini</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The peer did not present any certificate</source>
-        <translation>Peer tidak menyajikan sertifikat apapun</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The host name did not match any of the valid hosts for this certificate</source>
-        <translation>Nama host tidak cocok dengan sebarang host yang valid bagi sertifikat ini</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The peer certificate is blacklisted</source>
-        <translation>Sertifikat peer masuk daftar hitam</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unknown error</source>
-        <translation>Kesalahan tak dikenal</translation>
+        <translation type="unfinished">Kesalahan tak dikenal</translation>
     </message>
     <message>
         <source>The TLS/SSL connection has been closed</source>
-        <translation>Koneksi TLS/SSL telah ditutup</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to init SSL Context: %1</source>
-        <translation>Tidak bisa meng-init Konteks SSL: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unable to decrypt data: %1</source>
-        <translation>Tidak bisa mendekripsi data: %1</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7400,7 +7399,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Home</source>
-        <translation>Beranda</translation>
+        <translation type="unfinished">Home</translation>
     </message>
     <message>
         <source>Cache</source>
@@ -7412,7 +7411,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>Runtime</source>
-        <translation>Runtime</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Configuration</source>
@@ -7443,7 +7442,7 @@ Role of an accessible object</extracomment>
     <name>QStateMachine</name>
     <message>
         <source>Missing initial state in compound state &apos;%1&apos;</source>
-        <translation>Kurang keadaan awal dalam keadaan kompon &apos;%1&apos;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Missing default state in history state &apos;%1&apos;</source>
@@ -7451,7 +7450,7 @@ Role of an accessible object</extracomment>
     </message>
     <message>
         <source>No common ancestor for targets and source of transition from state &apos;%1&apos;</source>
-        <translation>Tidak ada moyang bersama bagi target dan sumber transisi dari keadaan &apos;%1&apos;</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Unknown error</source>
@@ -8024,9 +8023,9 @@ Role of an accessible object</extracomment>
         <source>Qt cannot load the direct2d platform plugin because the Direct2D version on this system is too old. The minimum system requirement for this platform plugin is Windows 7 SP1 with Platform Update.
 
 The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on this system is %5.%6.%7.%8.</source>
-        <translation>Qt tidak bisa memuat plugin platform direct2d karena versi Direct2D pada sistem ini terlalu tua. Persyaratan minimum sistem bagi plugin platform ini adalah Windows 7 SP1 dengan Pembaruan Platform.
+        <translation type="unfinished">Qt tidak bisa memuat plugin platform direct2d karena versi Direct2D pada sistem ini terlalu tua. Persyaratan minimum sistem bagi plugin platform ini adalah Windows 7 SP1 dengan Pembaruan Platform.
 
-Versi Direct2D minimum yang diperlukan adalah %1.%2.%3.%4. Versi Direct2D pada sistem ini adalah %5.%6.%7.%8.</translation>
+</translation>
     </message>
     <message>
         <source>Cannot load direct2d platform plugin</source>

@@ -209,9 +209,7 @@ struct ucl_compress
 
 #define SWD_HSIZE	16384
 #define SWD_MAX_CHAIN	2048
-#ifndef VBOX
-#define SWD_BEST_OFF    1
-#endif
+#undef SWD_BEST_OFF
 
 #define HEAD3(b,p) \
     (((0x9f5f*(((((uint32_t)b[p]<<5)^b[p+1])<<5)^b[p+2]))>>5) & (SWD_HSIZE-1))
@@ -1037,9 +1035,6 @@ len_of_coded_match(struct ucl_compress *c, unsigned int m_len, unsigned int
 	return b;
 }
 
-#ifdef VBOX
-static
-#endif
 int ucl_nrv2b_99_compress(
 	const uint8_t *in, unsigned long in_len,
 	uint8_t *out, unsigned long *out_len,
@@ -1086,9 +1081,6 @@ int ucl_nrv2b_99_compress(
 	swd = (struct ucl_swd *) malloc(sizeof(*swd));
 	if (!swd)
 		return UCL_E_OUT_OF_MEMORY;
-#ifdef VBOX
-        memset(swd, 0, sizeof(*swd));
-#endif
 
 	swd->f = F;
 	swd->n = N;
@@ -1240,9 +1232,6 @@ int ucl_nrv2b_99_compress(
 }
 
 
-#ifdef VBOX
-static
-#endif
 void Encode(void)  /* compression */
 {
 	uint8_t *in, *out;
@@ -1366,9 +1355,6 @@ void Encode(void)  /* compression */
 #define FAIL(x,r)
 #endif
 
-#ifdef VBOX
-static
-#endif
 void Decode(void)  /* recover */
 {
 	uint32_t tw;

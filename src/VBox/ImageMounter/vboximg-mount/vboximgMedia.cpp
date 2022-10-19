@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <VirtualBox_XPCOM.h>
@@ -93,11 +103,10 @@ char *vboximgScaledSize(size_t size)
     return RTStrDup(tmp);
 }
 
-static int
-getMediumInfo(IMachine *pMachine, IMedium *pMedium, MEDIUMINFO **ppMediumInfo)
+static int getMediumInfo(IMachine *pMachine, IMedium *pMedium, MEDIUMINFO **ppMediumInfo)
 {
-    NOREF(pMachine);
-    int rc;
+    RT_NOREF(pMachine);
+
     MEDIUMINFO *info = new MEDIUMINFO();
     *ppMediumInfo = info;
 
@@ -113,6 +122,8 @@ getMediumInfo(IMachine *pMachine, IMedium *pMedium, MEDIUMINFO **ppMediumInfo)
     MediumState_T *pState = &info->state;
 
     *pState = MediumState_NotCreated;
+
+    HRESULT hrc;
 
     CHECK_ERROR(pMedium, RefreshState(pState));
     CHECK_ERROR(pMedium, COMGETTER(Id)(uuid.asOutParam()));
@@ -253,32 +264,38 @@ static void displayMediumInfo(MEDIUMINFO *pInfo, int nestLevel, bool fLast)
 
 static int vboximgListBranch(IMachine *pMachine, IMedium *pMedium, uint8_t nestLevel, bool fLast)
 {
-    int rc;
     MEDIUMINFO *pMediumInfo;
-    rc = getMediumInfo(pMachine, pMedium, &pMediumInfo);
-    if (FAILED(rc))
-        return rc;
+    int vrc = getMediumInfo(pMachine, pMedium, &pMediumInfo);
+    if (RT_FAILURE(vrc))
+        return vrc;
+
     displayMediumInfo(pMediumInfo, nestLevel, fLast);
+
+    HRESULT hrc;
     com::SafeIfaceArray<IMedium> pChildren;
-    CHECK_ERROR_RET(pMedium, COMGETTER(Children)(ComSafeArrayAsOutParam(pChildren)), rc);
+    CHECK_ERROR_RET(pMedium, COMGETTER(Children)(ComSafeArrayAsOutParam(pChildren)), VERR_NOT_FOUND); /** @todo r=andy Find a better rc. */
+
     for (size_t i = 0; i < pChildren.size(); i++)
         vboximgListBranch(pMachine, pChildren[i], nestLevel + 1, fLast);
+
     delete pMediumInfo;
+
     return VINF_SUCCESS;
 }
 
-static int
-listMedia(IVirtualBox *pVirtualBox, IMachine *pMachine, char *vmName, char *vmUuid)
+static int listMedia(IVirtualBox *pVirtualBox, IMachine *pMachine, char *vmName, char *vmUuid)
 {
+    RT_NOREF(pVirtualBox);
+    RT_NOREF(vmName);
+    RT_NOREF(vmUuid);
 
-    NOREF(pVirtualBox);
-    NOREF(vmName);
-    NOREF(vmUuid);
+    int vrc = VINF_SUCCESS;
 
-    int rc = 0;
     com::SafeIfaceArray<IMediumAttachment> pMediumAttachments;
 
+    HRESULT hrc;
     CHECK_ERROR(pMachine, COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(pMediumAttachments)));
+
     for (size_t i = 0; i < pMediumAttachments.size(); i++)
     {
         bool fLast = (i == pMediumAttachments.size() - 1);
@@ -297,32 +314,36 @@ listMedia(IVirtualBox *pVirtualBox, IMachine *pMachine, char *vmName, char *vmUu
             RTPrintf(" |\n");
         else
             RTPrintf("\n");
-        rc = vboximgListBranch(pMachine, pBase, 0, fLast);
-        if (FAILED(rc))
-        {
-            RTPrintf("vboximgListBranch failed %d\n", rc);
-            return rc;
-        }
 
+        vrc = vboximgListBranch(pMachine, pBase, 0, fLast);
+        if (RT_FAILURE(vrc))
+        {
+            RTPrintf("vboximgListBranch failed with %Rrc\n", vrc);
+            break;
+        }
     }
-    return VINF_SUCCESS;
+
+    return vrc;
 }
 /**
  * Display all registered VMs on the screen with some information about each
  *
  * @param virtualBox VirtualBox instance object.
  */
-int
-vboximgListVMs(IVirtualBox *pVirtualBox)
+int vboximgListVMs(IVirtualBox *pVirtualBox)
 {
-    HRESULT rc = 0;
+    HRESULT hrc;
     com::SafeIfaceArray<IMachine> pMachines;
     CHECK_ERROR(pVirtualBox, COMGETTER(Machines)(ComSafeArrayAsOutParam(pMachines)));
+
     if (g_vboximgOpts.fWide)
     {
         RTPrintf("\n");
         RTPrintf("VM  Image                             Size   Type          State  UUID (hierarchy)\n");
     }
+
+    int vrc = VINF_SUCCESS;
+
     for (size_t i = 0; i < pMachines.size(); ++i)
     {
         ComPtr<IMachine> pMachine = pMachines[i];
@@ -371,12 +392,18 @@ vboximgListVMs(IVirtualBox *pVirtualBox)
                             RTPrintf("UUID: %s\n", CSTR(machineUuid));
                         }
                     }
-                    rc = listMedia(pVirtualBox, pMachine,
-                            RTStrDup(CSTR(machineName)), RTStrDup(CSTR(machineUuid)));
+
+                    int vrc2 = listMedia(pVirtualBox, pMachine,
+                                         RTStrDup(CSTR(machineName)), RTStrDup(CSTR(machineUuid)));
+                    if (RT_SUCCESS(vrc))
+                        vrc = vrc2;
+
                     RTPrintf("\n");
                 }
             }
         }
     }
-    return rc;
+
+    return vrc;
 }
+

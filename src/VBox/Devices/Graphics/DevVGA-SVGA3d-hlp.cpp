@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2020 Oracle Corporation
+ * Copyright (C) 2020-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_DEV_VMSVGA
@@ -20,8 +30,8 @@
 
 #ifdef SHADER_VERIFY_STANDALONE
 # include <stdio.h>
-# define Log3(a) printf a
-# define LogRel(a) printf a
+//# define Log3(a) printf a        - /** @todo r=bird: This is strictly forbidden. Noone redefines Log macros ever! */
+//# define LogRel(a) printf a      - /** @todo r=bird: This is strictly forbidden. Noone redefines Log macros ever! */
 #else
 # include <VBox/log.h>
 #endif
@@ -31,10 +41,9 @@
 #include <iprt/types.h>
 #include <iprt/string.h>
 
-#include "vmsvga/svga3d_reg.h"
-#include "vmsvga/svga3d_shaderdefs.h"
+#include "DevVGA-SVGA.h"
 
- /** Per shader data is stored in this structure. */
+/** Per shader data is stored in this structure. */
 typedef struct VMSVGA3DSHADERPARSECONTEXT
 {
     /** Version token. */
@@ -162,20 +171,20 @@ static int vmsvga3dShaderParseDestToken(VMSVGA3DSHADERPARSECONTEXT* pCtx, uint32
     SVGA3dShaderDestToken dest;
     dest.value = Token;
 
-    SVGA3dShaderRegType const regType = (SVGA3dShaderRegType)(dest.s.type_upper << 3 | dest.s.type_lower);
+    SVGA3dShaderRegType const regType = (SVGA3dShaderRegType)(dest.type_upper << 3 | dest.type_lower);
     Log3(("Dest: type %d, r0 %d, shfScale %d, dstMod %d, mask 0x%x, r1 %d, relAddr %d, num %d\n",
-        regType, dest.s.reserved0, dest.s.shfScale, dest.s.dstMod, dest.s.mask, dest.s.reserved1, dest.s.relAddr, dest.s.num));
+        regType, dest.reserved0, dest.shfScale, dest.dstMod, dest.mask, dest.reserved1, dest.relAddr, dest.num));
 
     if (pCtx->currentOpcode == SVGA3DOP_DCL && regType == SVGA3DREG_SAMPLER)
     {
-        if (pCtx->u.pDclArgs->s2.s1.type == SVGA3DSAMP_UNKNOWN)
+        if (pCtx->u.pDclArgs->type == SVGA3DSAMP_UNKNOWN)
         {
             Log3(("Replacing SVGA3DSAMP_UNKNOWN with SVGA3DSAMP_2D\n"));
-            pCtx->u.pDclArgs->s2.s1.type = SVGA3DSAMP_2D;
+            pCtx->u.pDclArgs->type = SVGA3DSAMP_2D;
         }
     }
 
-    return vmsvga3dShaderParseRegOffset(pCtx, false, regType, dest.s.num);
+    return vmsvga3dShaderParseRegOffset(pCtx, false, regType, dest.num);
 }
 
 /* Parse a source parameter token:
@@ -189,11 +198,11 @@ static int vmsvga3dShaderParseSrcToken(VMSVGA3DSHADERPARSECONTEXT* pCtx, uint32_
     SVGA3dShaderSrcToken src;
     src.value = Token;
 
-    SVGA3dShaderRegType const regType = (SVGA3dShaderRegType)(src.s.type_upper << 3 | src.s.type_lower);
+    SVGA3dShaderRegType const regType = (SVGA3dShaderRegType)(src.type_upper << 3 | src.type_lower);
     Log3(("Src: type %d, r0 %d, srcMod %d, swizzle 0x%x, r1 %d, relAddr %d, num %d\n",
-        regType, src.s.reserved0, src.s.srcMod, src.s.swizzle, src.s.reserved1, src.s.relAddr, src.s.num));
+        regType, src.reserved0, src.srcMod, src.swizzle, src.reserved1, src.relAddr, src.num));
 
-    return vmsvga3dShaderParseRegOffset(pCtx, true, regType, src.s.num);
+    return vmsvga3dShaderParseRegOffset(pCtx, true, regType, src.num);
 }
 
 /* Shortcut defines. */
@@ -348,12 +357,12 @@ int vmsvga3dShaderParse(SVGA3dShaderType type, uint32_t cbShaderData, uint32_t* 
 
     /* "The first token must be a version token." */
     ctx.version = *(SVGA3dShaderVersion*)paTokensStart;
-    ASSERT_GUEST_RETURN(ctx.version.s.type == SVGA3D_VS_TYPE
-        || ctx.version.s.type == SVGA3D_PS_TYPE, VERR_PARSE_ERROR);
+    ASSERT_GUEST_RETURN(ctx.version.type == SVGA3D_VS_TYPE
+        || ctx.version.type == SVGA3D_PS_TYPE, VERR_PARSE_ERROR);
     /* A vertex shader should not be defined with a pixel shader bytecode (and visa versa)*/
-    ASSERT_GUEST_RETURN((ctx.version.s.type == SVGA3D_VS_TYPE && type == SVGA3D_SHADERTYPE_VS)
-                     || (ctx.version.s.type == SVGA3D_PS_TYPE && type == SVGA3D_SHADERTYPE_PS), VERR_PARSE_ERROR);
-    ASSERT_GUEST_RETURN(ctx.version.s.major >= 2 && ctx.version.s.major <= 4, VERR_PARSE_ERROR);
+    ASSERT_GUEST_RETURN((ctx.version.type == SVGA3D_VS_TYPE && type == SVGA3D_SHADERTYPE_VS)
+                     || (ctx.version.type == SVGA3D_PS_TYPE && type == SVGA3D_SHADERTYPE_PS), VERR_PARSE_ERROR);
+    ASSERT_GUEST_RETURN(ctx.version.major >= 2 && ctx.version.major <= 4, VERR_PARSE_ERROR);
 
     /* Scan the tokens. Immediately return an error code on any unexpected data. */
     uint32_t *paTokensEnd = &paTokensStart[cTokens];
@@ -364,29 +373,29 @@ int vmsvga3dShaderParse(SVGA3dShaderType type, uint32_t cbShaderData, uint32_t* 
         SVGA3dShaderInstToken const token = *(SVGA3dShaderInstToken*)pToken;
 
         /* Figure out the instruction length, which is how many tokens follow the instruction token. */
-        uint32_t const cInstLen = token.s1.op == SVGA3DOP_COMMENT
-            ? token.s.comment_size
-            : token.s1.size;
+        uint32_t const cInstLen = token.op == SVGA3DOP_COMMENT
+            ? token.comment_size
+            : token.size;
 
-        Log3(("op %d, cInstLen %d\n", token.s1.op, cInstLen));
+        Log3(("op %d, cInstLen %d\n", token.op, cInstLen));
 
         /* Must not be greater than the number of remaining tokens. */
         ASSERT_GUEST_RETURN(cInstLen < (uintptr_t)(paTokensEnd - pToken), VERR_PARSE_ERROR);
 
         /* Stop parsing if this is the SVGA3DOP_END instruction. */
-        if (token.s1.op == SVGA3DOP_END)
+        if (token.op == SVGA3DOP_END)
         {
             ASSERT_GUEST_RETURN(token.value == 0x0000FFFF, VERR_PARSE_ERROR);
             bEndTokenFound = true;
             break;
         }
 
-        ctx.currentOpcode = (SVGA3dShaderOpCodeType)token.s1.op;
+        ctx.currentOpcode = (SVGA3dShaderOpCodeType)token.op;
 
         /* If this instrution is in the aOps table. */
-        if (token.s1.op <= SVGA3DOP_BREAKP)
+        if (token.op <= SVGA3DOP_BREAKP)
         {
-            VMSVGA3DSHADERPARSEOP const* pOp = &aOps[token.s1.op];
+            VMSVGA3DSHADERPARSEOP const* pOp = &aOps[token.op];
 
             if (ctx.currentOpcode == SVGA3DOP_DCL)
                 ctx.u.pDclArgs = (SVGA3DOpDclArgs *)&pToken[1];
@@ -404,13 +413,13 @@ int vmsvga3dShaderParse(SVGA3dShaderType type, uint32_t cbShaderData, uint32_t* 
                 if (!pOp->apfnParse[i])
                     continue;
 
-                int rc = pOp->apfnParse[i](&ctx, token.s1.op, pToken[i + 1], i);
+                int rc = pOp->apfnParse[i](&ctx, token.op, pToken[i + 1], i);
                 if (RT_FAILURE(rc))
                     return rc;
             }
         }
-        else if (token.s1.op == SVGA3DOP_PHASE
-            || token.s1.op == SVGA3DOP_COMMENT)
+        else if (token.op == SVGA3DOP_PHASE
+            || token.op == SVGA3DOP_COMMENT)
         {
         }
         else

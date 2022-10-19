@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -27,6 +32,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/command.h>
 #include <ipxe/parseopt.h>
 #include <ipxe/shell.h>
+#include <config/branding.h>
 
 /** @file
  *
@@ -35,7 +41,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
  */
 
 /** The shell prompt string */
-static const char shell_prompt[] = "iPXE> ";
+static const char shell_prompt[] = PRODUCT_SHORT_NAME "> ";
 
 /**
  * "help" command
@@ -85,7 +91,7 @@ int shell ( void ) {
 
 	/* Read and execute commands */
 	do {
-		line = readline_history ( shell_prompt, &history );
+		readline_history ( shell_prompt, NULL, &history, &line );
 		if ( line ) {
 			rc = system ( line );
 			free ( line );
@@ -106,7 +112,7 @@ static struct option_descriptor shell_opts[] = {};
 
 /** "shell" command descriptor */
 static struct command_descriptor shell_cmd =
-	COMMAND_DESC ( struct shell_options, shell_opts, 0, 0, "" );
+	COMMAND_DESC ( struct shell_options, shell_opts, 0, 0, NULL );
 
 /**
  * "shell" command

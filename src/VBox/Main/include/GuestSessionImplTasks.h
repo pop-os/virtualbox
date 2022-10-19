@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_GuestSessionImplTasks_h
@@ -66,10 +76,6 @@ struct GuestSessionFsSourceSpec
         {
             /** Directory copy flags. */
             DirectoryCopyFlag_T fCopyFlags;
-            /** Whether to follow symbolic links or not. */
-            bool                fFollowSymlinks; /** @todo Remove once we have that parameter in DirectoryCopyFlag_T. */
-            /** Whether to copy the directory recursively or not. */
-            bool                fRecursive;
         } Dir;
         /** File-specific data. */
         struct
@@ -153,9 +159,11 @@ typedef std::vector<FsList *> FsLists;
  * Abstract base class for a lenghtly per-session operation which
  * runs in a Main worker thread.
  */
-class GuestSessionTask : public ThreadTask
+class GuestSessionTask
+    : public ThreadTask
 {
 public:
+    DECLARE_TRANSLATE_METHODS(GuestSessionTask)
 
     GuestSessionTask(GuestSession *pSession);
 
@@ -163,7 +171,13 @@ public:
 
 public:
 
+    /**
+     * Function which implements the actual task to perform.
+     *
+     * @returns VBox status code.
+     */
     virtual int Run(void) = 0;
+
     void handler()
     {
         int vrc = Run();
@@ -187,8 +201,10 @@ public:
         return S_OK;
     }
 
+    /** Returns the task's progress object. */
     const ComObjPtr<Progress>& GetProgressObject(void) const { return mProgress; }
 
+    /** Returns the task's guest session object. */
     const ComObjPtr<GuestSession>& GetSession(void) const { return mSession; }
 
 protected:
@@ -269,6 +285,7 @@ protected:
 class GuestSessionCopyTask : public GuestSessionTask
 {
 public:
+    DECLARE_TRANSLATE_METHODS(GuestSessionCopyTask)
 
     GuestSessionCopyTask(GuestSession *pSession);
     virtual ~GuestSessionCopyTask();
@@ -290,6 +307,7 @@ protected:
 class GuestSessionTaskCopyFrom : public GuestSessionCopyTask
 {
 public:
+    DECLARE_TRANSLATE_METHODS(GuestSessionTaskCopyFrom)
 
     GuestSessionTaskCopyFrom(GuestSession *pSession, GuestSessionFsSourceSet const &vecSrc, const Utf8Str &strDest);
     virtual ~GuestSessionTaskCopyFrom(void);
@@ -304,6 +322,7 @@ public:
 class GuestSessionTaskCopyTo : public GuestSessionCopyTask
 {
 public:
+    DECLARE_TRANSLATE_METHODS(GuestSessionTaskCopyTo)
 
     GuestSessionTaskCopyTo(GuestSession *pSession, GuestSessionFsSourceSet const &vecSrc, const Utf8Str &strDest);
     virtual ~GuestSessionTaskCopyTo(void);
@@ -318,6 +337,7 @@ public:
 class GuestSessionTaskUpdateAdditions : public GuestSessionTask
 {
 public:
+    DECLARE_TRANSLATE_METHODS(GuestSessionTaskUpdateAdditions)
 
     GuestSessionTaskUpdateAdditions(GuestSession *pSession, const Utf8Str &strSource,
                                     const ProcessArguments &aArguments, uint32_t fFlags);

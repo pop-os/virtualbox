@@ -7,13 +7,15 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <ipxe/list.h>
 #include <ipxe/tables.h>
 #include <ipxe/refcnt.h>
 #include <ipxe/settings.h>
+#include <ipxe/interface.h>
+#include <ipxe/retry.h>
 
 struct io_buffer;
 struct net_device;
@@ -35,16 +37,15 @@ struct device;
 
 /** Maximum length of a link-layer header
  *
- * The longest currently-supported link-layer header is for 802.11: a
- * 24-byte frame header plus an 8-byte 802.3 LLC/SNAP header, plus a
- * possible 4-byte VLAN header.  (The IPoIB link-layer pseudo-header
- * doesn't actually include link-layer addresses; see ipoib.c for
- * details.)
+ * The longest currently-supported link-layer header is for RNDIS: an
+ * 8-byte RNDIS header, a 32-byte RNDIS packet message header, a
+ * 14-byte Ethernet header and a possible 4-byte VLAN header.  Round
+ * up to 64 bytes.
  */
-#define MAX_LL_HEADER_LEN 36
+#define MAX_LL_HEADER_LEN 64
 
 /** Maximum length of a network-layer address */
-#define MAX_NET_ADDR_LEN 4
+#define MAX_NET_ADDR_LEN 16
 
 /** Maximum length of a network-layer header
  *
@@ -175,8 +176,17 @@ struct ll_protocol {
 	 *
 	 * @v ll_addr		Link-layer address
 	 * @v eth_addr		Ethernet-compatible address to fill in
+	 * @ret rc		Return status code
 	 */
 	int ( * eth_addr ) ( const void *ll_addr, void *eth_addr );
+	/**
+	 * Generate EUI-64 address
+	 *
+	 * @v ll_addr		Link-layer address
+	 * @v eui64		EUI-64 address to fill in
+	 * @ret rc		Return status code
+	 */
+	int ( * eui64 ) ( const void *ll_addr, void *eui64 );
 	/** Link-layer protocol
 	 *
 	 * This is an ARPHRD_XXX constant, in network byte order.
@@ -188,7 +198,16 @@ struct ll_protocol {
 	uint8_t ll_addr_len;
 	/** Link-layer header length */
 	uint8_t ll_header_len;
+	/** Flags */
+	unsigned int flags;
 };
+
+/** Local link-layer address functions only as a name
+ *
+ * This flag indicates that the local link-layer address cannot
+ * directly be used as a destination address by a remote node.
+ */
+#define LL_NAME_ONLY 0x0001
 
 /** Network device operations */
 struct net_device_operations {
@@ -227,6 +246,10 @@ struct net_device_operations {
 	 *
 	 * This method is guaranteed to be called only when the device
 	 * is open.
+	 *
+	 * If the network device has an associated DMA device, then
+	 * the I/O buffer will be automatically mapped for transmit
+	 * DMA.
 	 */
 	int ( * transmit ) ( struct net_device *netdev,
 			     struct io_buffer *iobuf );
@@ -274,6 +297,48 @@ struct net_device_stats {
 	struct net_device_error errors[NETDEV_MAX_UNIQUE_ERRORS];
 };
 
+/** A network device configuration */
+struct net_device_configuration {
+	/** Network device */
+	struct net_device *netdev;
+	/** Network device configurator */
+	struct net_device_configurator *configurator;
+	/** Configuration status */
+	int rc;
+	/** Job control interface */
+	struct interface job;
+};
+
+/** A network device configurator */
+struct net_device_configurator {
+	/** Name */
+	const char *name;
+	/** Check applicability of configurator
+	 *
+	 * @v netdev		Network device
+	 * @ret applies		Configurator applies to this network device
+	 */
+	int ( * applies ) ( struct net_device *netdev );
+	/** Start configuring network device
+	 *
+	 * @v job		Job control interface
+	 * @v netdev		Network device
+	 * @ret rc		Return status code
+	 */
+	int ( * start ) ( struct interface *job, struct net_device *netdev );
+};
+
+/** Network device configurator table */
+#define NET_DEVICE_CONFIGURATORS \
+	__table ( struct net_device_configurator, "net_device_configurators" )
+
+/** Declare a network device configurator */
+#define __net_device_configurator \
+	__table_entry ( NET_DEVICE_CONFIGURATORS, 01 )
+
+/** Maximum length of a network device name */
+#define NETDEV_NAME_LEN 12
+
 /**
  * A network device
  *
@@ -291,10 +356,14 @@ struct net_device {
 	struct list_head list;
 	/** List of open network devices */
 	struct list_head open_list;
+	/** Index of this network device */
+	unsigned int index;
 	/** Name of this network device */
-	char name[12];
+	char name[NETDEV_NAME_LEN];
 	/** Underlying hardware device */
 	struct device *dev;
+	/** DMA device */
+	struct dma_device *dma;
 
 	/** Network device operations */
 	struct net_device_operations *op;
@@ -330,13 +399,24 @@ struct net_device {
 	 * indicates the error preventing link-up.
 	 */
 	int link_rc;
+	/** Link block timer */
+	struct retry_timer link_block;
 	/** Maximum packet length
 	 *
-	 * This length includes any link-layer headers.
+	 * This is the maximum packet length (including any link-layer
+	 * headers) supported by the hardware.
 	 */
 	size_t max_pkt_len;
+	/** Maximum transmission unit length
+	 *
+	 * This is the maximum transmission unit length (excluding any
+	 * link-layer headers) configured for the link.
+	 */
+	size_t mtu;
 	/** TX packet queue */
 	struct list_head tx_queue;
+	/** Deferred TX packet queue */
+	struct list_head tx_deferred;
 	/** RX packet queue */
 	struct list_head rx_queue;
 	/** TX statistics */
@@ -349,6 +429,9 @@ struct net_device {
 
 	/** Driver private data */
 	void *priv;
+
+	/** Network device configurations (variable length) */
+	struct net_device_configuration configs[0];
 };
 
 /** Network device is open */
@@ -359,6 +442,14 @@ struct net_device {
 
 /** Network device receive queue processing is frozen */
 #define NETDEV_RX_FROZEN 0x0004
+
+/** Network device interrupts are unsupported
+ *
+ * This flag can be used by a network device to indicate that
+ * interrupts are not supported despite the presence of an irq()
+ * method.
+ */
+#define NETDEV_IRQ_UNSUPPORTED 0x0008
 
 /** Link-layer protocol table */
 #define LL_PROTOCOLS __table ( struct ll_protocol, "ll_protocols" )
@@ -399,38 +490,6 @@ struct net_driver {
 
 /** Declare a network driver */
 #define __net_driver __table_entry ( NET_DRIVERS, 01 )
-
-/** Network device setting tag magic
- *
- * All DHCP option settings are deemed to be valid as network device
- * settings.  There are also some extra non-DHCP settings (such as
- * "mac"), which are marked as being valid network device settings by
- * using a magic tag value.
- */
-#define NETDEV_SETTING_TAG_MAGIC 0xeb
-
-/**
- * Construct network device setting tag
- *
- * @v id		Unique identifier
- * @ret tag		Setting tag
- */
-#define NETDEV_SETTING_TAG( id ) ( ( NETDEV_SETTING_TAG_MAGIC << 24 ) | (id) )
-
-/**
- * Check if tag is a network device setting tag
- *
- * @v tag		Setting tag
- * @ret is_ours		Tag is a network device setting tag
- */
-#define IS_NETDEV_SETTING_TAG( tag ) \
-	( ( (tag) >> 24 ) == NETDEV_SETTING_TAG_MAGIC )
-
-/** MAC address setting tag */
-#define NETDEV_SETTING_TAG_MAC NETDEV_SETTING_TAG ( 0x01 )
-
-/** Bus ID setting tag */
-#define NETDEV_SETTING_TAG_BUS_ID NETDEV_SETTING_TAG ( 0x02 )
 
 extern struct list_head net_devices;
 extern struct net_device_operations null_netdev_operations;
@@ -539,6 +598,35 @@ netdev_settings_init ( struct net_device *netdev ) {
 }
 
 /**
+ * Get network device configuration
+ *
+ * @v netdev		Network device
+ * @v configurator	Network device configurator
+ * @ret config		Network device configuration
+ */
+static inline struct net_device_configuration *
+netdev_configuration ( struct net_device *netdev,
+		       struct net_device_configurator *configurator ) {
+
+	return &netdev->configs[ table_index ( NET_DEVICE_CONFIGURATORS,
+					       configurator ) ];
+}
+
+/**
+ * Check if configurator applies to network device
+ *
+ * @v netdev		Network device
+ * @v configurator	Network device configurator
+ * @ret applies		Configurator applies to network device
+ */
+static inline int
+netdev_configurator_applies ( struct net_device *netdev,
+			      struct net_device_configurator *configurator ) {
+	return ( ( configurator->applies == NULL ) ||
+		 configurator->applies ( netdev ) );
+}
+
+/**
  * Check link state of network device
  *
  * @v netdev		Network device
@@ -547,6 +635,17 @@ netdev_settings_init ( struct net_device *netdev ) {
 static inline __attribute__ (( always_inline )) int
 netdev_link_ok ( struct net_device *netdev ) {
 	return ( netdev->link_rc == 0 );
+}
+
+/**
+ * Check link block state of network device
+ *
+ * @v netdev		Network device
+ * @ret link_blocked	Link is blocked
+ */
+static inline __attribute__ (( always_inline )) int
+netdev_link_blocked ( struct net_device *netdev ) {
+	return ( timer_running ( &netdev->link_block ) );
 }
 
 /**
@@ -568,7 +667,8 @@ netdev_is_open ( struct net_device *netdev ) {
  */
 static inline __attribute__ (( always_inline )) int
 netdev_irq_supported ( struct net_device *netdev ) {
-	return ( netdev->op->irq != NULL );
+	return ( ( netdev->op->irq != NULL ) &&
+		 ! ( netdev->state & NETDEV_IRQ_UNSUPPORTED ) );
 }
 
 /**
@@ -593,9 +693,16 @@ netdev_rx_frozen ( struct net_device *netdev ) {
 	return ( netdev->state & NETDEV_RX_FROZEN );
 }
 
+extern void netdev_rx_freeze ( struct net_device *netdev );
+extern void netdev_rx_unfreeze ( struct net_device *netdev );
 extern void netdev_link_err ( struct net_device *netdev, int rc );
 extern void netdev_link_down ( struct net_device *netdev );
+extern void netdev_link_block ( struct net_device *netdev,
+				unsigned long timeout );
+extern void netdev_link_unblock ( struct net_device *netdev );
 extern int netdev_tx ( struct net_device *netdev, struct io_buffer *iobuf );
+extern void netdev_tx_defer ( struct net_device *netdev,
+			      struct io_buffer *iobuf );
 extern void netdev_tx_err ( struct net_device *netdev,
 			    struct io_buffer *iobuf, int rc );
 extern void netdev_tx_complete_err ( struct net_device *netdev,
@@ -613,8 +720,11 @@ extern void netdev_close ( struct net_device *netdev );
 extern void unregister_netdev ( struct net_device *netdev );
 extern void netdev_irq ( struct net_device *netdev, int enable );
 extern struct net_device * find_netdev ( const char *name );
+extern struct net_device * find_netdev_by_index ( unsigned int index );
 extern struct net_device * find_netdev_by_location ( unsigned int bus_type,
 						     unsigned int location );
+extern struct net_device *
+find_netdev_by_ll_addr ( struct ll_protocol *ll_protocol, const void *ll_addr );
 extern struct net_device * last_opened_netdev ( void );
 extern int net_tx ( struct io_buffer *iobuf, struct net_device *netdev,
 		    struct net_protocol *net_protocol, const void *ll_dest,
@@ -623,6 +733,13 @@ extern int net_rx ( struct io_buffer *iobuf, struct net_device *netdev,
 		    uint16_t net_proto, const void *ll_dest,
 		    const void *ll_source, unsigned int flags );
 extern void net_poll ( void );
+extern struct net_device_configurator *
+find_netdev_configurator ( const char *name );
+extern int netdev_configure ( struct net_device *netdev,
+			      struct net_device_configurator *configurator );
+extern int netdev_configure_all ( struct net_device *netdev );
+extern int netdev_configuration_in_progress ( struct net_device *netdev );
+extern int netdev_configuration_ok ( struct net_device *netdev );
 
 /**
  * Complete network transmission
@@ -656,26 +773,6 @@ static inline void netdev_tx_complete_next ( struct net_device *netdev ) {
 static inline __attribute__ (( always_inline )) void
 netdev_link_up ( struct net_device *netdev ) {
 	netdev_link_err ( netdev, 0 );
-}
-
-/**
- * Freeze network device receive queue processing
- *
- * @v netdev		Network device
- */
-static inline __attribute__ (( always_inline )) void
-netdev_rx_freeze ( struct net_device *netdev ) {
-	netdev->state |= NETDEV_RX_FROZEN;
-}
-
-/**
- * Unfreeze network device receive queue processing
- *
- * @v netdev		Network device
- */
-static inline __attribute__ (( always_inline )) void
-netdev_rx_unfreeze ( struct net_device *netdev ) {
-	netdev->state &= ~NETDEV_RX_FROZEN;
 }
 
 #endif /* _IPXE_NETDEVICE_H */

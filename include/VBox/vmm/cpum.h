@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_cpum_h
@@ -31,9 +41,7 @@
 
 #include <iprt/x86.h>
 #include <VBox/types.h>
-#ifdef RT_ARCH_AMD64
-# include <VBox/vmm/cpumctx.h>
-#endif
+#include <VBox/vmm/cpumctx.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/hm_svm.h>
@@ -70,16 +78,12 @@ typedef enum CPUMCPUIDFEATURE
     CPUMCPUIDFEATURE_LAHF,
     /** The LONG MODE feature bit. (Ext) */
     CPUMCPUIDFEATURE_LONG_MODE,
-    /** The PAT feature bit. (Std+Ext) */
-    CPUMCPUIDFEATURE_PAT,
     /** The x2APIC  feature bit. (Std) */
     CPUMCPUIDFEATURE_X2APIC,
     /** The RDTSCP feature bit. (Ext) */
     CPUMCPUIDFEATURE_RDTSCP,
     /** The Hypervisor Present bit. (Std) */
     CPUMCPUIDFEATURE_HVP,
-    /** The MWait Extensions bits (Std) */
-    CPUMCPUIDFEATURE_MWAIT_EXTS,
     /** The speculation control feature bits. (StExt) */
     CPUMCPUIDFEATURE_SPEC_CTRL,
     /** 32bit hackishness. */
@@ -335,6 +339,9 @@ typedef enum CPUMMICROARCH
 #define CPUMMICROARCH_IS_AMD_FAM_16H(a_enmMicroarch) \
     ((a_enmMicroarch) >= kCpumMicroarch_AMD_16h_First && (a_enmMicroarch) <= kCpumMicroarch_AMD_16h_End)
 
+/** Predicate macro for catching AMD Zen Family CPUs. */
+#define CPUMMICROARCH_IS_AMD_FAM_ZEN(a_enmMicroarch) \
+    ((a_enmMicroarch) >= kCpumMicroarch_AMD_Zen_First && (a_enmMicroarch) <= kCpumMicroarch_AMD_Zen_End)
 
 
 /**
@@ -949,9 +956,9 @@ typedef struct CPUMMSRRANGE
     uint16_t    enmWrFn;
     /** The offset of the 64-bit MSR value relative to the start of CPUMCPU.
      * UINT16_MAX if not used by the read and write functions.  [12] */
-    uint16_t    offCpumCpu;
-    /** Reserved for future hacks. [14] */
-    uint16_t    fReserved;
+    uint32_t    offCpumCpu : 24;
+    /** Reserved for future hacks. [15] */
+    uint32_t    fReserved : 8;
     /** The init/read value. [16]
      * When enmRdFn is kCpumMsrRdFn_INIT_VALUE, this is the value returned on RDMSR.
      * offCpumCpu must be UINT16_MAX in that case, otherwise it must be a valid
@@ -966,7 +973,6 @@ typedef struct CPUMMSRRANGE
     /** The register name, if applicable. [40] */
     char        szName[56];
 
-#ifdef VBOX_WITH_STATISTICS
     /** The number of reads. */
     STAMCOUNTER cReads;
     /** The number of writes. */
@@ -975,14 +981,9 @@ typedef struct CPUMMSRRANGE
     STAMCOUNTER cIgnoredBits;
     /** The number of GPs generated. */
     STAMCOUNTER cGps;
-#endif
 } CPUMMSRRANGE;
 #ifndef VBOX_FOR_DTRACE_LIB
-# ifdef VBOX_WITH_STATISTICS
 AssertCompileSize(CPUMMSRRANGE, 128);
-# else
-AssertCompileSize(CPUMMSRRANGE, 96);
-# endif
 #endif
 /** Pointer to an MSR range. */
 typedef CPUMMSRRANGE *PCPUMMSRRANGE;
@@ -991,7 +992,6 @@ typedef CPUMMSRRANGE const *PCCPUMMSRRANGE;
 
 
 /**
- * MSRs.
  * MSRs which are required while exploding features.
  */
 typedef struct CPUMMSRS
@@ -1044,6 +1044,8 @@ typedef struct CPUMFEATURES
     uint32_t        fPse36 : 1;
     /** Supports physical address extension (PAE). */
     uint32_t        fPae : 1;
+    /** Supports page-global extension (PGE). */
+    uint32_t        fPge : 1;
     /** Page attribute table (PAT) support (page level cache control). */
     uint32_t        fPat : 1;
     /** Supports the FXSAVE and FXRSTOR instructions. */
@@ -1112,6 +1114,19 @@ typedef struct CPUMFEATURES
     uint32_t        fInvpcid : 1;
     /** Supports read/write FSGSBASE instructions. */
     uint32_t        fFsGsBase : 1;
+    /** Support BMI1 instructions (ANDN, BEXTR, BLSI, BLSMSK, BLSR, and TZCNT). */
+    uint32_t        fBmi1 : 1;
+    /** Support BMI2 instructions (BZHI, MULX, PDEP, PEXT, RORX, SARX, SHRX,
+     * and SHLX). */
+    uint32_t        fBmi2 : 1;
+    /** Support POPCNT instruction. */
+    uint32_t        fPopCnt : 1;
+    /** Support RDRAND instruction. */
+    uint32_t        fRdRand : 1;
+    /** Support RDSEED instruction. */
+    uint32_t        fRdSeed : 1;
+    /** Support PCLMULQDQ instruction. */
+    uint32_t        fPclMul : 1;
 
     /** Supports AMD 3DNow instructions. */
     uint32_t        f3DNow : 1;
@@ -1132,6 +1147,11 @@ typedef struct CPUMFEATURES
     uint32_t        fMovCr8In32Bit : 1;
     /** AMD64: Supports XOP (similar to VEX3/AVX). */
     uint32_t        fXop : 1;
+    /** AMD64: Supports ABM, i.e. the LZCNT instruction. */
+    uint32_t        fAbm : 1;
+    /** AMD64: Supports TBM (BEXTR, BLCFILL, BLCI, BLCIC, BLCMSK, BLCS,
+     *  BLSFILL, BLSIC, T1MSKC, and TZMSK). */
+    uint32_t        fTbm : 1;
 
     /** Indicates that FPU instruction and data pointers may leak.
      * This generally applies to recent AMD CPUs, where the FPU IP and DP pointer
@@ -1165,9 +1185,13 @@ typedef struct CPUMFEATURES
      * @remarks Only safe use after CPUM ring-0 init! */
     uint32_t        fArchMdsNo : 1;
 
-    /** Alignment padding / reserved for future use. */
-    uint32_t        fPadding : 8;
+    /** Alignment padding / reserved for future use (96 bits total, plus 12 bytes
+     *  prior to the bit fields -> total of 24 bytes) */
+    uint32_t        fPadding0 : 31;
 
+
+    /** @name SVM
+     * @{ */
     /** SVM: Supports Nested-paging. */
     uint32_t        fSvmNestedPaging : 1;
     /** SVM: Support LBR (Last Branch Record) virtualization. */
@@ -1196,17 +1220,23 @@ typedef struct CPUMFEATURES
     uint32_t        fSvmVGif : 1;
     /** SVM: Supports GMET (Guest Mode Execute Trap Extension). */
     uint32_t        fSvmGmet : 1;
-    /** SVM: Padding / reserved for future features. */
-    uint32_t        fSvmPadding0 : 18;
+    /** SVM: Supports SSSCheck (SVM Supervisor Shadow Stack). */
+    uint32_t        fSvmSSSCheck : 1;
+    /** SVM: Supports SPEC_CTRL virtualization. */
+    uint32_t        fSvmSpecCtrl : 1;
+    /** SVM: Supports HOST_MCE_OVERRIDE. */
+    uint32_t        fSvmHostMceOverride : 1;
+    /** SVM: Supports TlbiCtl (INVLPGB/TLBSYNC in VMCB and TLBSYNC intercept). */
+    uint32_t        fSvmTlbiCtl : 1;
+    /** SVM: Padding / reserved for future features (64 bits total w/ max ASID). */
+    uint32_t        fSvmPadding0 : 14;
     /** SVM: Maximum supported ASID. */
     uint32_t        uSvmMaxAsid;
+    /** @} */
+
 
     /** VMX: Maximum physical address width. */
-    uint8_t         cVmxMaxPhysAddrWidth;
-    /** VMX: Padding / reserved for future. */
-    uint8_t         abVmxPadding[3];
-    /** VMX: Padding / reserved for future.  */
-    uint32_t        fVmxPadding0;
+    uint32_t        cVmxMaxPhysAddrWidth : 8;
 
     /** @name VMX basic controls.
      * @{ */
@@ -1248,6 +1278,8 @@ typedef struct CPUMFEATURES
     uint32_t        fVmxCr3LoadExit : 1;
     /** VMX: Supports CR3-store exiting. */
     uint32_t        fVmxCr3StoreExit : 1;
+    /** VMX: Supports tertiary processor-based VM-execution controls. */
+    uint32_t        fVmxTertiaryExecCtls : 1;
     /** VMX: Supports CR8-load exiting. */
     uint32_t        fVmxCr8LoadExit : 1;
     /** VMX: Supports CR8-store exiting. */
@@ -1312,10 +1344,28 @@ typedef struct CPUMFEATURES
     uint32_t        fVmxPml : 1;
     /** VMX: Supports EPT-violations \#VE. */
     uint32_t        fVmxEptXcptVe : 1;
+    /** VMX: Supports conceal VMX from PT. */
+    uint32_t        fVmxConcealVmxFromPt : 1;
     /** VMX: Supports XSAVES/XRSTORS. */
     uint32_t        fVmxXsavesXrstors : 1;
+    /** VMX: Supports mode-based execute control for EPT. */
+    uint32_t        fVmxModeBasedExecuteEpt : 1;
+    /** VMX: Supports sub-page write permissions for EPT. */
+    uint32_t        fVmxSppEpt : 1;
+    /** VMX: Supports Intel PT to output guest-physical addresses for EPT. */
+    uint32_t        fVmxPtEpt : 1;
     /** VMX: Supports TSC scaling. */
     uint32_t        fVmxUseTscScaling : 1;
+    /** VMX: Supports TPAUSE, UMONITOR, or UMWAIT. */
+    uint32_t        fVmxUserWaitPause : 1;
+    /** VMX: Supports enclave (ENCLV) exiting. */
+    uint32_t        fVmxEnclvExit : 1;
+    /** @} */
+
+    /** @name VMX Tertiary processor-based controls.
+     * @{ */
+    /** VMX: Supports LOADIWKEY exiting. */
+    uint32_t        fVmxLoadIwKeyExit : 1;
     /** @} */
 
     /** @name VMX VM-entry controls.
@@ -1355,7 +1405,7 @@ typedef struct CPUMFEATURES
     /** VMX: Supports storing EFER.LMA into IA32e-mode guest field on VM-exit. */
     uint32_t        fVmxExitSaveEferLma : 1;
     /** VMX: Whether Intel PT (Processor Trace) is supported in VMX mode or not. */
-    uint32_t        fVmxIntelPt : 1;
+    uint32_t        fVmxPt : 1;
     /** VMX: Supports VMWRITE to any valid VMCS field incl. read-only fields, otherwise
      *  VMWRITE cannot modify read-only VM-exit information fields. */
     uint32_t        fVmxVmwriteAll : 1;
@@ -1365,8 +1415,9 @@ typedef struct CPUMFEATURES
     /** @} */
 
     /** VMX: Padding / reserved for future features. */
-    uint32_t        fVmxPadding1 : 1;
-    uint32_t        fVmxPadding2;
+    uint32_t        fVmxPadding0 : 17;
+    /** VMX: Padding / reserved for future, making it a total of 128 bits.  */
+    uint32_t        fVmxPadding1;
 } CPUMFEATURES;
 #ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(CPUMFEATURES, 48);
@@ -1376,8 +1427,96 @@ typedef CPUMFEATURES *PCPUMFEATURES;
 /** Pointer to a const CPU feature structure. */
 typedef CPUMFEATURES const *PCCPUMFEATURES;
 
+/**
+ * Chameleon wrapper structure for the host CPU features.
+ *
+ * This is used for the globally readable g_CpumHostFeatures variable, which is
+ * initialized once during VMMR0 load for ring-0 and during CPUMR3Init in
+ * ring-3.  To reflect this immutability after load/init, we use this wrapper
+ * structure to switch it between const and non-const depending on the context.
+ * Only two files sees it as non-const (CPUMR0.cpp and CPUM.cpp).
+ */
+typedef struct CPUHOSTFEATURES
+{
+    CPUMFEATURES
+#ifndef CPUM_WITH_NONCONST_HOST_FEATURES
+    const
+#endif
+                    s;
+} CPUHOSTFEATURES;
+/** Pointer to a const host CPU feature structure. */
+typedef CPUHOSTFEATURES const *PCCPUHOSTFEATURES;
+
+/** Host CPU features.
+ * @note In ring-3, only valid after CPUMR3Init.  In ring-0, valid after
+ *       module init. */
+extern CPUHOSTFEATURES g_CpumHostFeatures;
+
+
+/**
+ * CPU database entry.
+ */
+typedef struct CPUMDBENTRY
+{
+    /** The CPU name. */
+    const char     *pszName;
+    /** The full CPU name. */
+    const char     *pszFullName;
+    /** The CPU vendor (CPUMCPUVENDOR). */
+    uint8_t         enmVendor;
+    /** The CPU family. */
+    uint8_t         uFamily;
+    /** The CPU model. */
+    uint8_t         uModel;
+    /** The CPU stepping. */
+    uint8_t         uStepping;
+    /** The microarchitecture. */
+    CPUMMICROARCH   enmMicroarch;
+    /** Scalable bus frequency used for reporting other frequencies. */
+    uint64_t        uScalableBusFreq;
+    /** Flags - CPUMDB_F_XXX. */
+    uint32_t        fFlags;
+    /** The maximum physical address with of the CPU.  This should correspond to
+     * the value in CPUID leaf 0x80000008 when present. */
+    uint8_t         cMaxPhysAddrWidth;
+    /** The MXCSR mask. */
+    uint32_t        fMxCsrMask;
+    /** Pointer to an array of CPUID leaves.  */
+    PCCPUMCPUIDLEAF paCpuIdLeaves;
+    /** The number of CPUID leaves in the array paCpuIdLeaves points to. */
+    uint32_t        cCpuIdLeaves;
+    /** The method used to deal with unknown CPUID leaves. */
+    CPUMUNKNOWNCPUID enmUnknownCpuId;
+    /** The default unknown CPUID value. */
+    CPUMCPUID       DefUnknownCpuId;
+
+    /** MSR mask.  Several microarchitectures ignore the higher bits of ECX in
+     *  the RDMSR and WRMSR instructions. */
+    uint32_t        fMsrMask;
+
+    /** The number of ranges in the table pointed to b paMsrRanges. */
+    uint32_t        cMsrRanges;
+    /** MSR ranges for this CPU. */
+    PCCPUMMSRRANGE  paMsrRanges;
+} CPUMDBENTRY;
+/** Pointer to a const CPU database entry. */
+typedef CPUMDBENTRY const *PCCPUMDBENTRY;
+
+/** @name CPUMDB_F_XXX - CPUDBENTRY::fFlags
+ * @{ */
+/** Should execute all in IEM.
+ * @todo Implement this - currently done in Main...  */
+#define CPUMDB_F_EXECUTE_ALL_IN_IEM         RT_BIT_32(0)
+/** @} */
+
+
 
 #ifndef VBOX_FOR_DTRACE_LIB
+
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+VMMDECL(int)                CPUMCpuIdCollectLeavesX86(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves);
+VMMDECL(CPUMCPUVENDOR)      CPUMCpuIdDetectX86VendorEx(uint32_t uEAX, uint32_t uEBX, uint32_t uECX, uint32_t uEDX);
+#endif
 
 /** @name Guest Register Getters.
  * @{ */
@@ -1418,16 +1557,18 @@ VMMDECL(uint64_t)       CPUMGetGuestDR3(PCVMCPU pVCpu);
 VMMDECL(uint64_t)       CPUMGetGuestDR6(PCVMCPU pVCpu);
 VMMDECL(uint64_t)       CPUMGetGuestDR7(PCVMCPU pVCpu);
 VMMDECL(int)            CPUMGetGuestDRx(PCVMCPU pVCpu, uint32_t iReg, uint64_t *pValue);
-VMMDECL(void)           CPUMGetGuestCpuId(PVMCPUCC pVCpu, uint32_t iLeaf, uint32_t iSubLeaf,
+VMMDECL(void)           CPUMGetGuestCpuId(PVMCPUCC pVCpu, uint32_t iLeaf, uint32_t iSubLeaf, int f64BitMode,
                                           uint32_t *pEax, uint32_t *pEbx, uint32_t *pEcx, uint32_t *pEdx);
 VMMDECL(uint64_t)       CPUMGetGuestEFER(PCVMCPU pVCpu);
 VMM_INT_DECL(uint64_t)  CPUMGetGuestIa32FeatCtrl(PCVMCPUCC pVCpu);
 VMM_INT_DECL(uint64_t)  CPUMGetGuestIa32MtrrCap(PCVMCPU pVCpu);
-VMM_INT_DECL(uint64_t)  CPUMGetGuestIa32SmmMonitorCtl(PCVMCPU pVCpu);
+VMM_INT_DECL(uint64_t)  CPUMGetGuestIa32SmmMonitorCtl(PCVMCPUCC pVCpu);
+VMM_INT_DECL(uint64_t)  CPUMGetGuestIa32VmxEptVpidCap(PCVMCPUCC pVCpu);
 VMMDECL(VBOXSTRICTRC)   CPUMQueryGuestMsr(PVMCPUCC pVCpu, uint32_t idMsr, uint64_t *puValue);
 VMMDECL(VBOXSTRICTRC)   CPUMSetGuestMsr(PVMCPUCC pVCpu, uint32_t idMsr, uint64_t uValue);
 VMMDECL(CPUMCPUVENDOR)  CPUMGetGuestCpuVendor(PVM pVM);
 VMMDECL(CPUMMICROARCH)  CPUMGetGuestMicroarch(PCVM pVM);
+VMMDECL(void)           CPUMGetGuestAddrWidths(PCVM pVM, uint8_t *pcPhysAddrWidth, uint8_t *pcLinearAddrWidth);
 VMMDECL(CPUMCPUVENDOR)  CPUMGetHostCpuVendor(PVM pVM);
 VMMDECL(CPUMMICROARCH)  CPUMGetHostMicroarch(PCVM pVM);
 /** @} */
@@ -1477,6 +1618,8 @@ VMM_INT_DECL(uint64_t) CPUMGetGuestTscAux(PVMCPUCC pVCpu);
 VMM_INT_DECL(void)     CPUMSetGuestSpecCtrl(PVMCPUCC pVCpu, uint64_t uValue);
 VMM_INT_DECL(uint64_t) CPUMGetGuestSpecCtrl(PVMCPUCC pVCpu);
 VMM_INT_DECL(uint64_t) CPUMGetGuestCR4ValidMask(PVM pVM);
+VMM_INT_DECL(void)     CPUMSetGuestPaePdpes(PVMCPU pVCpu, PCX86PDPE paPaePdpes);
+VMM_INT_DECL(void)     CPUMGetGuestPaePdpes(PVMCPU pVCpu, PX86PDPE paPaePdpes);
 /** @} */
 
 
@@ -1521,6 +1664,9 @@ VMM_INT_DECL(bool)      CPUMIsGuestVmxVmreadVmwriteInterceptSet(PCVMCPU pVCpu, u
 VMM_INT_DECL(int)       CPUMStartGuestVmxPremptTimer(PVMCPUCC pVCpu, uint32_t uTimer, uint8_t cShift, uint64_t *pu64EntryTick);
 VMM_INT_DECL(int)       CPUMStopGuestVmxPremptTimer(PVMCPUCC pVCpu);
 VMM_INT_DECL(uint32_t)  CPUMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_t idMsr);
+VMM_INT_DECL(bool)      CPUMIsGuestVmxEptPagingEnabled(PCVMCPUCC pVCpu);
+VMM_INT_DECL(bool)      CPUMIsGuestVmxEptPaePagingEnabled(PCVMCPUCC pVCpu);
+VMM_INT_DECL(uint64_t)  CPUMGetGuestVmxApicAccessPageAddr(PCVMCPUCC pVCpu);
 /** @} */
 
 /** @name Externalized State Helpers.
@@ -1587,7 +1733,7 @@ VMM_INT_DECL(uint32_t)  CPUMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_
 VMM_INT_DECL(int) CPUMImportGuestStateOnDemand(PVMCPUCC pVCpu, uint64_t fExtrnImport);
 /** @} */
 
-#if (!defined(IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS) && defined(RT_ARCH_AMD64)) || defined(DOXYGEN_RUNNING)
+#if !defined(IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS) || defined(DOXYGEN_RUNNING)
 /** @name Inlined Guest Getters and predicates Functions.
  * @{ */
 
@@ -1688,18 +1834,31 @@ DECLINLINE(bool) CPUMIsGuestPagingEnabledEx(PCCPUMCTX pCtx)
 }
 
 /**
+ * Tests if PAE paging is enabled given the relevant control registers.
+ *
+ * @returns @c true if in PAE mode, @c false otherwise.
+ * @param   uCr0        The CR0 value.
+ * @param   uCr4        The CR4 value.
+ * @param   uEferMsr    The EFER value.
+ */
+DECLINLINE(bool) CPUMIsPaePagingEnabled(uint64_t uCr0, uint64_t uCr4, uint64_t uEferMsr)
+{
+    /* Intel mentions EFER.LMA and EFER.LME in different parts of their spec. We shall use EFER.LMA rather
+       than EFER.LME as it reflects if the CPU has entered paging with EFER.LME set.  */
+    return (   (uCr4 & X86_CR4_PAE)
+            && (uCr0 & X86_CR0_PG)
+            && !(uEferMsr & MSR_K6_EFER_LMA));
+}
+
+/**
  * Tests if the guest is running in PAE mode or not.
  *
- * @returns true if in PAE mode, otherwise false.
+ * @returns @c true if in PAE mode, @c false otherwise.
  * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestInPAEModeEx(PCCPUMCTX pCtx)
 {
-    /* Intel mentions EFER.LMA and EFER.LME in different parts of their spec. We shall use EFER.LMA rather
-       than EFER.LME as it reflects if the CPU has entered paging with EFER.LME set.  */
-    return (   (pCtx->cr4 & X86_CR4_PAE)
-            && CPUMIsGuestPagingEnabledEx(pCtx)
-            && !(pCtx->msrEFER & MSR_K6_EFER_LMA));
+    return CPUMIsPaePagingEnabled(pCtx->cr0, pCtx->cr4, pCtx->msrEFER);
 }
 
 /**
@@ -1760,7 +1919,7 @@ DECLINLINE(bool) CPUMIsGuestInSvmNestedHwVirtMode(PCCPUMCTX pCtx)
      */
 #ifndef IN_RC
     if (   pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM
-        || !(pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl.u64InterceptCtrl & SVM_CTRL_INTERCEPT_VMRUN))
+        || !(pCtx->hwvirt.svm.Vmcb.ctrl.u64InterceptCtrl & SVM_CTRL_INTERCEPT_VMRUN))
         return false;
     return true;
 #else
@@ -1826,7 +1985,7 @@ DECLINLINE(bool) CPUMIsGuestInVmxRootMode(PCCPUMCTX pCtx)
  *
  * @returns @c true if in intercept is set, @c false otherwise.
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   fIntercept  The SVM control/instruction intercept, see
  *                      SVM_CTRL_INTERCEPT_*.
  */
@@ -1834,11 +1993,9 @@ DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, u
 {
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     uint64_t u64Intercepts;
     if (!HMGetGuestSvmCtrlIntercepts(pVCpu, &u64Intercepts))
-        u64Intercepts = pVmcb->ctrl.u64InterceptCtrl;
+        u64Intercepts = pCtx->hwvirt.svm.Vmcb.ctrl.u64InterceptCtrl;
     return RT_BOOL(u64Intercepts & fIntercept);
 }
 
@@ -1847,7 +2004,7 @@ DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, u
  *
  * @returns @c true if in intercept is set, @c false otherwise.
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx    Pointer to the context.
+ * @param   pCtx    Current CPU context.
  * @param   uCr     The CR register number (0 to 15).
  */
 DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t uCr)
@@ -1855,11 +2012,9 @@ DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx
     Assert(uCr < 16);
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     uint16_t u16Intercepts;
     if (!HMGetGuestSvmReadCRxIntercepts(pVCpu, &u16Intercepts))
-        u16Intercepts = pVmcb->ctrl.u16InterceptRdCRx;
+        u16Intercepts = pCtx->hwvirt.svm.Vmcb.ctrl.u16InterceptRdCRx;
     return RT_BOOL(u16Intercepts & (UINT16_C(1) << uCr));
 }
 
@@ -1868,7 +2023,7 @@ DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx
  *
  * @returns @c true if in intercept is set, @c false otherwise.
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx    Pointer to the context.
+ * @param   pCtx    Current CPU context.
  * @param   uCr     The CR register number (0 to 15).
  */
 DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t uCr)
@@ -1876,11 +2031,9 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCt
     Assert(uCr < 16);
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     uint16_t u16Intercepts;
     if (!HMGetGuestSvmWriteCRxIntercepts(pVCpu, &u16Intercepts))
-        u16Intercepts = pVmcb->ctrl.u16InterceptWrCRx;
+        u16Intercepts = pCtx->hwvirt.svm.Vmcb.ctrl.u16InterceptWrCRx;
     return RT_BOOL(u16Intercepts & (UINT16_C(1) << uCr));
 }
 
@@ -1889,7 +2042,7 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCt
  *
  * @returns @c true if in intercept is set, @c false otherwise.
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx    Pointer to the context.
+ * @param   pCtx    Current CPU context.
  * @param   uDr     The DR register number (0 to 15).
  */
 DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t uDr)
@@ -1897,11 +2050,9 @@ DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx
     Assert(uDr < 16);
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     uint16_t u16Intercepts;
     if (!HMGetGuestSvmReadDRxIntercepts(pVCpu, &u16Intercepts))
-        u16Intercepts = pVmcb->ctrl.u16InterceptRdDRx;
+        u16Intercepts = pCtx->hwvirt.svm.Vmcb.ctrl.u16InterceptRdDRx;
     return RT_BOOL(u16Intercepts & (UINT16_C(1) << uDr));
 }
 
@@ -1910,7 +2061,7 @@ DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx
  *
  * @returns @c true if in intercept is set, @c false otherwise.
  * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx    Pointer to the context.
+ * @param   pCtx    Current CPU context.
  * @param   uDr     The DR register number (0 to 15).
  */
 DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t uDr)
@@ -1918,11 +2069,9 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCt
     Assert(uDr < 16);
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     uint16_t u16Intercepts;
     if (!HMGetGuestSvmWriteDRxIntercepts(pVCpu, &u16Intercepts))
-        u16Intercepts = pVmcb->ctrl.u16InterceptWrDRx;
+        u16Intercepts = pCtx->hwvirt.svm.Vmcb.ctrl.u16InterceptWrDRx;
     return RT_BOOL(u16Intercepts & (UINT16_C(1) << uDr));
 }
 
@@ -1931,7 +2080,7 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCt
  *
  * @returns @c true if in intercept is active, @c false otherwise.
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uVector     The exception / interrupt vector.
  */
 DECLINLINE(bool) CPUMIsGuestSvmXcptInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t uVector)
@@ -1939,11 +2088,9 @@ DECLINLINE(bool) CPUMIsGuestSvmXcptInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, u
     Assert(uVector <= X86_XCPT_LAST);
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     uint32_t u32Intercepts;
     if (!HMGetGuestSvmXcptIntercepts(pVCpu, &u32Intercepts))
-        u32Intercepts = pVmcb->ctrl.u32InterceptXcpt;
+        u32Intercepts = pCtx->hwvirt.svm.Vmcb.ctrl.u32InterceptXcpt;
     return RT_BOOL(u32Intercepts & RT_BIT(uVector));
 }
 
@@ -1951,8 +2098,8 @@ DECLINLINE(bool) CPUMIsGuestSvmXcptInterceptSet(PCVMCPU pVCpu, PCCPUMCTX pCtx, u
  * Checks if the nested-guest VMCB has virtual-interrupt masking enabled.
  *
  * @returns @c true if virtual-interrupts are masked, @c false otherwise.
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx        Pointer to the context.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx    Current CPU context.
  *
  * @remarks Should only be called when SVM feature is exposed to the guest.
  */
@@ -1960,11 +2107,9 @@ DECLINLINE(bool) CPUMIsGuestSvmVirtIntrMasking(PCVMCPU pVCpu, PCCPUMCTX pCtx)
 {
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     bool fVIntrMasking;
     if (!HMGetGuestSvmVirtIntrMasking(pVCpu, &fVIntrMasking))
-        fVIntrMasking = pVmcb->ctrl.IntCtrl.n.u1VIntrMasking;
+        fVIntrMasking = pCtx->hwvirt.svm.Vmcb.ctrl.IntCtrl.n.u1VIntrMasking;
     return fVIntrMasking;
 }
 
@@ -1972,8 +2117,8 @@ DECLINLINE(bool) CPUMIsGuestSvmVirtIntrMasking(PCVMCPU pVCpu, PCCPUMCTX pCtx)
  * Checks if the nested-guest VMCB has nested-paging enabled.
  *
  * @returns @c true if nested-paging is enabled, @c false otherwise.
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx        Pointer to the context.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx    Current CPU context.
  *
  * @remarks Should only be called when SVM feature is exposed to the guest.
  */
@@ -1981,11 +2126,9 @@ DECLINLINE(bool) CPUMIsGuestSvmNestedPagingEnabled(PCVMCPU pVCpu, PCCPUMCTX pCtx
 {
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     bool fNestedPaging;
     if (!HMGetGuestSvmNestedPaging(pVCpu, &fNestedPaging))
-        fNestedPaging = pVmcb->ctrl.NestedPagingCtrl.n.u1NestedPaging;
+        fNestedPaging = pCtx->hwvirt.svm.Vmcb.ctrl.NestedPagingCtrl.n.u1NestedPaging;
     return fNestedPaging;
 }
 
@@ -1993,8 +2136,8 @@ DECLINLINE(bool) CPUMIsGuestSvmNestedPagingEnabled(PCVMCPU pVCpu, PCCPUMCTX pCtx
  * Gets the nested-guest VMCB pause-filter count.
  *
  * @returns The pause-filter count.
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx        Pointer to the context.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx    Current CPU context.
  *
  * @remarks Should only be called when SVM feature is exposed to the guest.
  */
@@ -2002,11 +2145,9 @@ DECLINLINE(uint16_t) CPUMGetGuestSvmPauseFilterCount(PCVMCPU pVCpu, PCCPUMCTX pC
 {
     if (pCtx->hwvirt.enmHwvirt != CPUMHWVIRT_SVM)
         return false;
-    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
     uint16_t u16PauseFilterCount;
     if (!HMGetGuestSvmPauseFilterCount(pVCpu, &u16PauseFilterCount))
-        u16PauseFilterCount = pVmcb->ctrl.u16PauseFilterCount;
+        u16PauseFilterCount = pCtx->hwvirt.svm.Vmcb.ctrl.u16PauseFilterCount;
     return u16PauseFilterCount;
 }
 
@@ -2014,18 +2155,16 @@ DECLINLINE(uint16_t) CPUMGetGuestSvmPauseFilterCount(PCVMCPU pVCpu, PCCPUMCTX pC
  * Updates the NextRIP (NRIP) field in the nested-guest VMCB.
  *
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   cbInstr     The length of the current instruction in bytes.
  *
  * @remarks Should only be called when SVM feature is exposed to the guest.
  */
-DECLINLINE(void) CPUMGuestSvmUpdateNRip(PVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t cbInstr)
+DECLINLINE(void) CPUMGuestSvmUpdateNRip(PVMCPU pVCpu, PCPUMCTX pCtx, uint8_t cbInstr)
 {
     RT_NOREF(pVCpu);
     Assert(pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_SVM);
-    PSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-    Assert(pVmcb);
-    pVmcb->ctrl.u64NextRIP = pCtx->rip + cbInstr;
+    pCtx->hwvirt.svm.Vmcb.ctrl.u64NextRIP = pCtx->rip + cbInstr;
 }
 
 /**
@@ -2033,7 +2172,7 @@ DECLINLINE(void) CPUMGuestSvmUpdateNRip(PVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t cb
  * executing a nested-guest.
  *
  * @returns @c true if set, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uPinCtls    The Pin-based VM-execution controls to check.
  *
  * @remarks This does not check if all given controls are set if more than one
@@ -2042,9 +2181,7 @@ DECLINLINE(void) CPUMGuestSvmUpdateNRip(PVMCPU pVCpu, PCCPUMCTX pCtx, uint8_t cb
 DECLINLINE(bool) CPUMIsGuestVmxPinCtlsSet(PCCPUMCTX pCtx, uint32_t uPinCtls)
 {
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
-    return RT_BOOL(pVmcs->u32PinCtls & uPinCtls);
+    return RT_BOOL(pCtx->hwvirt.vmx.Vmcs.u32PinCtls & uPinCtls);
 }
 
 /**
@@ -2052,7 +2189,7 @@ DECLINLINE(bool) CPUMIsGuestVmxPinCtlsSet(PCCPUMCTX pCtx, uint32_t uPinCtls)
  * when executing a nested-guest.
  *
  * @returns @c true if set, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uProcCtls   The Processor-based VM-execution controls to check.
  *
  * @remarks This does not check if all given controls are set if more than one
@@ -2061,9 +2198,7 @@ DECLINLINE(bool) CPUMIsGuestVmxPinCtlsSet(PCCPUMCTX pCtx, uint32_t uPinCtls)
 DECLINLINE(bool) CPUMIsGuestVmxProcCtlsSet(PCCPUMCTX pCtx, uint32_t uProcCtls)
 {
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
-    return RT_BOOL(pVmcs->u32ProcCtls & uProcCtls);
+    return RT_BOOL(pCtx->hwvirt.vmx.Vmcs.u32ProcCtls & uProcCtls);
 }
 
 /**
@@ -2071,7 +2206,7 @@ DECLINLINE(bool) CPUMIsGuestVmxProcCtlsSet(PCCPUMCTX pCtx, uint32_t uProcCtls)
  * are set when executing a nested-guest.
  *
  * @returns @c true if set, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uProcCtls2  The Secondary Processor-based VM-execution controls to
  *                      check.
  *
@@ -2081,9 +2216,25 @@ DECLINLINE(bool) CPUMIsGuestVmxProcCtlsSet(PCCPUMCTX pCtx, uint32_t uProcCtls)
 DECLINLINE(bool) CPUMIsGuestVmxProcCtls2Set(PCCPUMCTX pCtx, uint32_t uProcCtls2)
 {
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
-    return RT_BOOL(pVmcs->u32ProcCtls2 & uProcCtls2);
+    return RT_BOOL(pCtx->hwvirt.vmx.Vmcs.u32ProcCtls2 & uProcCtls2);
+}
+
+/**
+ * Checks whether one of the given Tertiary Processor-based VM-execution controls
+ * are set when executing a nested-guest.
+ *
+ * @returns @c true if set, @c false otherwise.
+ * @param   pCtx        Current CPU context.
+ * @param   uProcCtls3  The Tertiary Processor-based VM-execution controls to
+ *                      check.
+ *
+ * @remarks This does not check if all given controls are set if more than one
+ *          control is passed in @a uProcCtls3.
+ */
+DECLINLINE(bool) CPUMIsGuestVmxProcCtls3Set(PCCPUMCTX pCtx, uint64_t uProcCtls3)
+{
+    Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
+    return RT_BOOL(pCtx->hwvirt.vmx.Vmcs.u64ProcCtls3.u & uProcCtls3);
 }
 
 /**
@@ -2091,7 +2242,7 @@ DECLINLINE(bool) CPUMIsGuestVmxProcCtls2Set(PCCPUMCTX pCtx, uint32_t uProcCtls2)
  * nested-guest.
  *
  * @returns @c true if set, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uExitCtls   The VM-exit controls to check.
  *
  * @remarks This does not check if all given controls are set if more than one
@@ -2100,9 +2251,7 @@ DECLINLINE(bool) CPUMIsGuestVmxProcCtls2Set(PCCPUMCTX pCtx, uint32_t uProcCtls2)
 DECLINLINE(bool) CPUMIsGuestVmxExitCtlsSet(PCCPUMCTX pCtx, uint32_t uExitCtls)
 {
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
-    return RT_BOOL(pVmcs->u32ExitCtls & uExitCtls);
+    return RT_BOOL(pCtx->hwvirt.vmx.Vmcs.u32ExitCtls & uExitCtls);
 }
 
 /**
@@ -2110,7 +2259,7 @@ DECLINLINE(bool) CPUMIsGuestVmxExitCtlsSet(PCCPUMCTX pCtx, uint32_t uExitCtls)
  * nested-guest.
  *
  * @returns @c true if set, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uEntryCtls  The VM-entry controls to check.
  *
  * @remarks This does not check if all given controls are set if more than one
@@ -2119,16 +2268,14 @@ DECLINLINE(bool) CPUMIsGuestVmxExitCtlsSet(PCCPUMCTX pCtx, uint32_t uExitCtls)
 DECLINLINE(bool) CPUMIsGuestVmxEntryCtlsSet(PCCPUMCTX pCtx, uint32_t uEntryCtls)
 {
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
-    return RT_BOOL(pVmcs->u32EntryCtls & uEntryCtls);
+    return RT_BOOL(pCtx->hwvirt.vmx.Vmcs.u32EntryCtls & uEntryCtls);
 }
 
 /**
  * Checks whether events injected in the nested-guest are subject to VM-exit checks.
  *
  * @returns @c true if set, @c false otherwise.
- * @param   pCtx    Pointer to the context.
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestVmxInterceptEvents(PCCPUMCTX pCtx)
 {
@@ -2139,7 +2286,7 @@ DECLINLINE(bool) CPUMIsGuestVmxInterceptEvents(PCCPUMCTX pCtx)
 /**
  * Sets whether events injected in the nested-guest are subject to VM-exit checks.
  *
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   fIntercept  Whether to subject injected events to VM-exits or not.
  */
 DECLINLINE(void) CPUMSetGuestVmxInterceptEvents(PCPUMCTX pCtx, bool fInterceptEvents)
@@ -2158,7 +2305,7 @@ DECLINLINE(void) CPUMSetGuestVmxInterceptEvents(PCPUMCTX pCtx, bool fInterceptEv
  * function.
  *
  * @returns @c true if the exception causes a VM-exit, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uVector     The exception vector.
  * @param   uErrCode    The error code associated with the exception. Pass 0 if not
  *                      applicable.
@@ -2168,19 +2315,17 @@ DECLINLINE(bool) CPUMIsGuestVmxXcptInterceptSet(PCCPUMCTX pCtx, uint8_t uVector,
     Assert(uVector <= X86_XCPT_LAST);
 
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
 
     /* NMIs have a dedicated VM-execution control for causing VM-exits. */
     if (uVector == X86_XCPT_NMI)
-        return RT_BOOL(pVmcs->u32PinCtls & VMX_PIN_CTLS_NMI_EXIT);
+        return RT_BOOL(pCtx->hwvirt.vmx.Vmcs.u32PinCtls & VMX_PIN_CTLS_NMI_EXIT);
 
     /* Page-faults are subject to masking using its error code. */
-    uint32_t fXcptBitmap = pVmcs->u32XcptBitmap;
+    uint32_t fXcptBitmap = pCtx->hwvirt.vmx.Vmcs.u32XcptBitmap;
     if (uVector == X86_XCPT_PF)
     {
-        uint32_t const fXcptPFMask  = pVmcs->u32XcptPFMask;
-        uint32_t const fXcptPFMatch = pVmcs->u32XcptPFMatch;
+        uint32_t const fXcptPFMask  = pCtx->hwvirt.vmx.Vmcs.u32XcptPFMask;
+        uint32_t const fXcptPFMatch = pCtx->hwvirt.vmx.Vmcs.u32XcptPFMatch;
         if ((uErrCode & fXcptPFMask) != fXcptPFMatch)
             fXcptBitmap ^= RT_BIT(X86_XCPT_PF);
     }
@@ -2191,10 +2336,24 @@ DECLINLINE(bool) CPUMIsGuestVmxXcptInterceptSet(PCCPUMCTX pCtx, uint8_t uVector,
     return false;
 }
 
+
+/**
+ * Checks whether the guest is in VMX non-root mode and using EPT paging.
+ *
+ * @returns @c true if in VMX non-root operation with EPT, @c false otherwise.
+ * @param   pCtx   Current CPU context.
+ */
+DECLINLINE(bool) CPUMIsGuestVmxEptPagingEnabledEx(PCCPUMCTX pCtx)
+{
+    return    CPUMIsGuestInVmxNonRootMode(pCtx)
+           && CPUMIsGuestVmxProcCtls2Set(pCtx, VMX_PROC_CTLS2_EPT);
+}
+
+
 /**
  * Implements VMSucceed for VMX instruction success.
  *
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(void) CPUMSetGuestVmxVmSucceed(PCPUMCTX pCtx)
 {
@@ -2204,7 +2363,7 @@ DECLINLINE(void) CPUMSetGuestVmxVmSucceed(PCPUMCTX pCtx)
 /**
  * Implements VMFailInvalid for VMX instruction failure.
  *
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(void) CPUMSetGuestVmxVmFailInvalid(PCPUMCTX pCtx)
 {
@@ -2215,20 +2374,20 @@ DECLINLINE(void) CPUMSetGuestVmxVmFailInvalid(PCPUMCTX pCtx)
 /**
  * Implements VMFailValid for VMX instruction failure.
  *
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pCtx        Current CPU context.
  * @param   enmInsErr   The VM instruction error.
  */
 DECLINLINE(void) CPUMSetGuestVmxVmFailValid(PCPUMCTX pCtx, VMXINSTRERR enmInsErr)
 {
     pCtx->eflags.u32 &= ~(X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
     pCtx->eflags.u32 |= X86_EFL_ZF;
-    pCtx->hwvirt.vmx.CTX_SUFF(pVmcs)->u32RoVmInstrError = enmInsErr;
+    pCtx->hwvirt.vmx.Vmcs.u32RoVmInstrError = enmInsErr;
 }
 
 /**
  * Implements VMFail for VMX instruction failure.
  *
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pCtx        Current CPU context.
  * @param   enmInsErr   The VM instruction error.
  */
 DECLINLINE(void) CPUMSetGuestVmxVmFail(PCPUMCTX pCtx, VMXINSTRERR enmInsErr)
@@ -2244,21 +2403,19 @@ DECLINLINE(void) CPUMSetGuestVmxVmFail(PCPUMCTX pCtx, VMXINSTRERR enmInsErr)
  * nested-guest.
  *
  * @returns The APIC-access page guest-physical address.
- * @param   pCtx    Pointer to the context.
+ * @param   pCtx    Current CPU context.
  */
-DECLINLINE(uint64_t) CPUMGetGuestVmxApicAccessPageAddr(PCCPUMCTX pCtx)
+DECLINLINE(uint64_t) CPUMGetGuestVmxApicAccessPageAddrEx(PCCPUMCTX pCtx)
 {
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
-    return pVmcs->u64AddrApicAccess.u;
+    return pCtx->hwvirt.vmx.Vmcs.u64AddrApicAccess.u;
 }
 
 /**
  * Gets the nested-guest CR0 subject to the guest/host mask and the read-shadow.
  *
  * @returns The nested-guest CR0.
- * @param   pCtx            Pointer to the context.
+ * @param   pCtx            Current CPU context.
  * @param   fGstHostMask    The CR0 guest/host mask to use.
  */
 DECLINLINE(uint64_t) CPUMGetGuestVmxMaskedCr0(PCCPUMCTX pCtx, uint64_t fGstHostMask)
@@ -2271,10 +2428,8 @@ DECLINLINE(uint64_t) CPUMGetGuestVmxMaskedCr0(PCCPUMCTX pCtx, uint64_t fGstHostM
      * See Intel Spec. 25.3 "Changes To Instruction Behavior In VMX Non-root Operation".
      */
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
     uint64_t const uGstCr0      = pCtx->cr0;
-    uint64_t const fReadShadow  = pVmcs->u64Cr0ReadShadow.u;
+    uint64_t const fReadShadow  = pCtx->hwvirt.vmx.Vmcs.u64Cr0ReadShadow.u;
     return (fReadShadow & fGstHostMask) | (uGstCr0 & ~fGstHostMask);
 }
 
@@ -2282,7 +2437,7 @@ DECLINLINE(uint64_t) CPUMGetGuestVmxMaskedCr0(PCCPUMCTX pCtx, uint64_t fGstHostM
  * Gets the nested-guest CR4 subject to the guest/host mask and the read-shadow.
  *
  * @returns The nested-guest CR4.
- * @param   pCtx            Pointer to the context.
+ * @param   pCtx            Current CPU context.
  * @param   fGstHostMask    The CR4 guest/host mask to use.
  */
 DECLINLINE(uint64_t) CPUMGetGuestVmxMaskedCr4(PCCPUMCTX pCtx, uint64_t fGstHostMask)
@@ -2295,10 +2450,8 @@ DECLINLINE(uint64_t) CPUMGetGuestVmxMaskedCr4(PCCPUMCTX pCtx, uint64_t fGstHostM
      * See Intel Spec. 25.3 "Changes To Instruction Behavior In VMX Non-root Operation".
      */
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
     uint64_t const uGstCr4      = pCtx->cr4;
-    uint64_t const fReadShadow  = pVmcs->u64Cr4ReadShadow.u;
+    uint64_t const fReadShadow  = pCtx->hwvirt.vmx.Vmcs.u64Cr4ReadShadow.u;
     return (fReadShadow & fGstHostMask) | (uGstCr4 & ~fGstHostMask);
 }
 
@@ -2306,7 +2459,7 @@ DECLINLINE(uint64_t) CPUMGetGuestVmxMaskedCr4(PCCPUMCTX pCtx, uint64_t fGstHostM
  * Checks whether the LMSW access causes a VM-exit or not.
  *
  * @returns @c true if the LMSW access causes a VM-exit, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   uNewMsw     The LMSW source operand (the Machine Status Word).
  */
 DECLINLINE(bool) CPUMIsGuestVmxLmswInterceptSet(PCCPUMCTX pCtx, uint16_t uNewMsw)
@@ -2318,11 +2471,9 @@ DECLINLINE(bool) CPUMIsGuestVmxLmswInterceptSet(PCCPUMCTX pCtx, uint16_t uNewMsw
      * See Intel spec. 25.1.3 "Instructions That Cause VM Exits Conditionally".
      */
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
 
-    uint32_t const fGstHostMask = pVmcs->u64Cr0Mask.u;
-    uint32_t const fReadShadow  = pVmcs->u64Cr0ReadShadow.u;
+    uint32_t const fGstHostMask = (uint32_t)pCtx->hwvirt.vmx.Vmcs.u64Cr0Mask.u;
+    uint32_t const fReadShadow  = (uint32_t)pCtx->hwvirt.vmx.Vmcs.u64Cr0ReadShadow.u;
 
     /*
      * LMSW can never clear CR0.PE but it may set it. Hence, we handle the
@@ -2352,7 +2503,7 @@ DECLINLINE(bool) CPUMIsGuestVmxLmswInterceptSet(PCCPUMCTX pCtx, uint16_t uNewMsw
  * Checks whether the Mov-to-CR0/CR4 access causes a VM-exit or not.
  *
  * @returns @c true if the Mov CRX access causes a VM-exit, @c false otherwise.
- * @param   pCtx        Pointer to the context.
+ * @param   pCtx        Current CPU context.
  * @param   iCrReg      The control register number (must be 0 or 4).
  * @param   uNewCrX     The CR0/CR4 value being written.
  */
@@ -2366,21 +2517,19 @@ DECLINLINE(bool) CPUMIsGuestVmxMovToCr0Cr4InterceptSet(PCCPUMCTX pCtx, uint8_t i
      * See Intel spec. 25.1.3 "Instructions That Cause VM Exits Conditionally".
      */
     Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-    Assert(pVmcs);
     Assert(iCrReg == 0 || iCrReg == 4);
 
     uint64_t fGstHostMask;
     uint64_t fReadShadow;
     if (iCrReg == 0)
     {
-        fGstHostMask = pVmcs->u64Cr0Mask.u;
-        fReadShadow  = pVmcs->u64Cr0ReadShadow.u;
+        fGstHostMask = pCtx->hwvirt.vmx.Vmcs.u64Cr0Mask.u;
+        fReadShadow  = pCtx->hwvirt.vmx.Vmcs.u64Cr0ReadShadow.u;
     }
     else
     {
-        fGstHostMask = pVmcs->u64Cr4Mask.u;
-        fReadShadow  = pVmcs->u64Cr4ReadShadow.u;
+        fGstHostMask = pCtx->hwvirt.vmx.Vmcs.u64Cr4Mask.u;
+        fReadShadow  = pCtx->hwvirt.vmx.Vmcs.u64Cr4ReadShadow.u;
     }
 
     if ((fReadShadow & fGstHostMask) != (uNewCrX & fGstHostMask))
@@ -2396,28 +2545,11 @@ DECLINLINE(bool) CPUMIsGuestVmxMovToCr0Cr4InterceptSet(PCCPUMCTX pCtx, uint8_t i
  * Returns whether the guest has an active, current VMCS.
  *
  * @returns @c true if the guest has an active, current VMCS, @c false otherwise.
- * @param   pCtx    Pointer to the context.
+ * @param   pCtx    Current CPU context.
  */
 DECLINLINE(bool) CPUMIsGuestVmxCurrentVmcsValid(PCCPUMCTX pCtx)
 {
-    RTGCPHYS const GCPhysVmcs = pCtx->hwvirt.vmx.GCPhysVmcs;
-    return RT_BOOL(GCPhysVmcs != NIL_RTGCPHYS);
-}
-
-/**
- * Gets the nested-guest virtual-APIC page.
- *
- * @returns The virtual-APIC page.
- * @param   pCtx        Pointer to the context.
- * @param   pHCPhys     Where to store the host-physical address of the virtual-APIC
- *                      page.
- */
-DECLINLINE(void *) CPUMGetGuestVmxVirtApicPage(PCCPUMCTX pCtx, PRTHCPHYS pHCPhysVirtApicPage)
-{
-    Assert(pHCPhysVirtApicPage);
-    Assert(pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_VMX);
-    *pHCPhysVirtApicPage = pCtx->hwvirt.vmx.HCPhysVirtApicPage;
-    return pCtx->hwvirt.vmx.CTX_SUFF(pvVirtApicPage);
+    return pCtx->hwvirt.vmx.GCPhysVmcs != NIL_RTGCPHYS;
 }
 
 # endif /* !IN_RC */
@@ -2500,7 +2632,7 @@ DECLINLINE(bool) CPUMIsGuestVmxVirtIntrEnabled(PCCPUMCTX pCtx)
 }
 
 /** @} */
-#endif /* !IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS && RT_ARCH_AMD64 */
+#endif /* !IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS || DOXYGEN_RUNNING */
 
 
 
@@ -2524,7 +2656,7 @@ VMMDECL(void)           CPUMSetHyperDR2(PVMCPU pVCpu, RTGCUINTREG uDr2);
 VMMDECL(void)           CPUMSetHyperDR3(PVMCPU pVCpu, RTGCUINTREG uDr3);
 VMMDECL(void)           CPUMSetHyperDR6(PVMCPU pVCpu, RTGCUINTREG uDr6);
 VMMDECL(void)           CPUMSetHyperDR7(PVMCPU pVCpu, RTGCUINTREG uDr7);
-VMMDECL(int)            CPUMRecalcHyperDRx(PVMCPUCC pVCpu, uint8_t iGstReg, bool fForceHyper);
+VMMDECL(int)            CPUMRecalcHyperDRx(PVMCPUCC pVCpu, uint8_t iGstReg);
 /** @} */
 
 VMMDECL(PCPUMCTX)       CPUMQueryGuestCtxPtr(PVMCPU pVCpu);
@@ -2537,6 +2669,9 @@ VMMDECL(PCCPUMCTXCORE)  CPUMGetGuestCtxCore(PVMCPU pVCpu);
  * These flags are used to keep track of which important register that
  * have been changed since last they were reset. The only one allowed
  * to clear them is REM!
+ *
+ * @todo This is obsolete, but remains as it will be refactored for coordinating
+ *       IEM and NEM/HM later. Probably.
  * @{
  */
 #define CPUM_CHANGED_FPU_REM                    RT_BIT(0)
@@ -2566,8 +2701,6 @@ VMMDECL(PCCPUMCTXCORE)  CPUMGetGuestCtxCore(PVMCPU pVCpu);
 /** @} */
 
 VMMDECL(void)           CPUMSetChangedFlags(PVMCPU pVCpu, uint32_t fChangedAdd);
-VMMR3DECL(uint32_t)     CPUMR3RemEnter(PVMCPU pVCpu, uint32_t *puCpl);
-VMMR3DECL(void)         CPUMR3RemLeave(PVMCPU pVCpu, bool fNoOutOfSyncSels);
 VMMDECL(bool)           CPUMSupportsXSave(PVM pVM);
 VMMDECL(bool)           CPUMIsHostUsingSysEnter(PVM pVM);
 VMMDECL(bool)           CPUMIsHostUsingSysCall(PVM pVM);
@@ -2575,10 +2708,8 @@ VMMDECL(bool)           CPUMIsGuestFPUStateActive(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsGuestFPUStateLoaded(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsHostFPUStateSaved(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsGuestDebugStateActive(PVMCPU pVCpu);
-VMMDECL(bool)           CPUMIsGuestDebugStateActivePending(PVMCPU pVCpu);
 VMMDECL(void)           CPUMDeactivateGuestDebugState(PVMCPU pVCpu);
 VMMDECL(bool)           CPUMIsHyperDebugStateActive(PVMCPU pVCpu);
-VMMDECL(bool)           CPUMIsHyperDebugStateActivePending(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMGetGuestCPL(PVMCPU pVCpu);
 VMMDECL(CPUMMODE)       CPUMGetGuestMode(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMGetGuestCodeBits(PVMCPU pVCpu);
@@ -2642,18 +2773,31 @@ VMMR3DECL(int)          CPUMR3SetCR4Feature(PVM pVM, RTHCUINTREG fOr, RTHCUINTRE
 
 VMMR3DECL(int)              CPUMR3CpuIdInsert(PVM pVM, PCPUMCPUIDLEAF pNewLeaf);
 VMMR3DECL(int)              CPUMR3CpuIdGetLeaf(PVM pVM, PCPUMCPUIDLEAF pLeaf, uint32_t uLeaf, uint32_t uSubLeaf);
-VMMR3DECL(CPUMMICROARCH)    CPUMR3CpuIdDetermineMicroarchEx(CPUMCPUVENDOR enmVendor, uint8_t bFamily,
-                                                            uint8_t bModel, uint8_t bStepping);
-VMMR3DECL(const char *)     CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch);
-VMMR3DECL(int)              CPUMR3CpuIdCollectLeaves(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves);
+VMMR3_INT_DECL(PCCPUMCPUIDLEAF) CPUMR3CpuIdGetPtr(PVM pVM, uint32_t *pcLeaves);
+VMMDECL(CPUMMICROARCH)      CPUMCpuIdDetermineX86MicroarchEx(CPUMCPUVENDOR enmVendor, uint8_t bFamily,
+                                                             uint8_t bModel, uint8_t bStepping);
+VMMDECL(const char *)       CPUMMicroarchName(CPUMMICROARCH enmMicroarch);
 VMMR3DECL(int)              CPUMR3CpuIdDetectUnknownLeafMethod(PCPUMUNKNOWNCPUID penmUnknownMethod, PCPUMCPUID pDefUnknown);
 VMMR3DECL(const char *)     CPUMR3CpuIdUnknownLeafMethodName(CPUMUNKNOWNCPUID enmUnknownMethod);
-VMMR3DECL(CPUMCPUVENDOR)    CPUMR3CpuIdDetectVendorEx(uint32_t uEAX, uint32_t uEBX, uint32_t uECX, uint32_t uEDX);
-VMMR3DECL(const char *)     CPUMR3CpuVendorName(CPUMCPUVENDOR enmVendor);
+VMMR3DECL(const char *)     CPUMCpuVendorName(CPUMCPUVENDOR enmVendor);
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
 VMMR3DECL(uint32_t)         CPUMR3DeterminHostMxCsrMask(void);
+#endif
 
 VMMR3DECL(int)              CPUMR3MsrRangesInsert(PVM pVM, PCCPUMMSRRANGE pNewRange);
 
+VMMR3DECL(uint32_t)         CPUMR3DbGetEntries(void);
+/** Pointer to CPUMR3DbGetEntries. */
+typedef DECLCALLBACKPTR(uint32_t, PFNCPUMDBGETENTRIES, (void));
+VMMR3DECL(PCCPUMDBENTRY)    CPUMR3DbGetEntryByIndex(uint32_t idxCpuDb);
+/** Pointer to CPUMR3DbGetEntryByIndex. */
+typedef DECLCALLBACKPTR(PCCPUMDBENTRY, PFNCPUMDBGETENTRYBYINDEX, (uint32_t idxCpuDb));
+VMMR3DECL(PCCPUMDBENTRY)    CPUMR3DbGetEntryByName(const char *pszName);
+/** Pointer to CPUMR3DbGetEntryByName. */
+typedef DECLCALLBACKPTR(PCCPUMDBENTRY, PFNCPUMDBGETENTRYBYNAME, (const char *pszName));
+
+VMMR3_INT_DECL(void)    CPUMR3NemActivateGuestDebugState(PVMCPUCC pVCpu);
+VMMR3_INT_DECL(void)    CPUMR3NemActivateHyperDebugState(PVMCPUCC pVCpu);
 /** @} */
 #endif /* IN_RING3 */
 
@@ -2663,6 +2807,7 @@ VMMR3DECL(int)              CPUMR3MsrRangesInsert(PVM pVM, PCCPUMMSRRANGE pNewRa
  */
 VMMR0_INT_DECL(int)     CPUMR0ModuleInit(void);
 VMMR0_INT_DECL(int)     CPUMR0ModuleTerm(void);
+VMMR0_INT_DECL(void)    CPUMR0InitPerVMData(PGVM pGVM);
 VMMR0_INT_DECL(int)     CPUMR0InitVM(PVMCC pVM);
 DECLASM(void)           CPUMR0RegisterVCpuThread(PVMCPUCC pVCpu);
 DECLASM(void)           CPUMR0TouchHostFpu(void);
@@ -2675,10 +2820,6 @@ VMMR0_INT_DECL(bool)    CPUMR0DebugStateMaybeSaveGuest(PVMCPUCC pVCpu, bool fDr6
 
 VMMR0_INT_DECL(void)    CPUMR0LoadGuestDebugState(PVMCPUCC pVCpu, bool fDr6);
 VMMR0_INT_DECL(void)    CPUMR0LoadHyperDebugState(PVMCPUCC pVCpu, bool fDr6);
-#ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-VMMR0_INT_DECL(void)    CPUMR0SetLApic(PVMCPUCC pVCpu, uint32_t iHostCpuSet);
-#endif
-
 /** @} */
 #endif /* IN_RING0 */
 

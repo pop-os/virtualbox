@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Defines: */
@@ -560,7 +570,7 @@ void DarwinDisableGlobalHotKeys(bool fDisable)
 
 /** Callback function for consuming queued events.
   * @param   pvTarget  Brings the queue?
-  * @param   rcIn      Brigns what?
+  * @param   rcIn      Brings what?
   * @param   pvRefcon  Brings the pointer to the keyboard cache entry.
   * @param   pvSender  Brings what? */
 static void darwinQueueCallback(void *pvTarget, IOReturn rcIn, void *pvRefcon, void *pvSender)
@@ -1753,9 +1763,10 @@ static int darwinUsbHidSubscribeInterestNotifications(VBoxHidsState_t *pHidState
             CFRunLoopAddSource(CFRunLoopGetCurrent(), IONotificationPortGetRunLoopSource(pHidState->pNotificationPrortRef), kCFRunLoopDefaultMode);
 
             rc = IOServiceAddMatchingNotification(pHidState->pNotificationPrortRef, kIOMatchedNotification,
-                pDictionary, darwinUsbHidDeviceMatchCb, pHidState, &pHidState->pUsbHidDeviceMatchNotify);
+                                                  pDictionary, darwinUsbHidDeviceMatchCb, pHidState,
+                                                  &pHidState->pUsbHidDeviceMatchNotify);
 
-            if (rc == kIOReturnSuccess && &pHidState->pUsbHidDeviceMatchNotify != NULL)
+            if (rc == kIOReturnSuccess && pHidState->pUsbHidDeviceMatchNotify != IO_OBJECT_NULL)
             {
                 darwinUsbHidDeviceMatchCb(pHidState, pHidState->pUsbHidDeviceMatchNotify);
                 LogRel2(("Successfully subscribed to IOUSBInterface IOService match notifications\n"));
@@ -1931,7 +1942,8 @@ static int darwinAddCarbonHandler(VBoxHidsState_t *pHidState)
         return kIOReturnError;
     }
 
-    pTapRef = CGEventTapCreate(kCGSessionEventTap, kCGTailAppendEventTap, 0, fMask, darwinCarbonCallback, (void *)pHidState);
+    pTapRef = CGEventTapCreate(kCGSessionEventTap, kCGTailAppendEventTap, kCGEventTapOptionDefault, fMask,
+                               darwinCarbonCallback, (void *)pHidState);
     if (pTapRef)
     {
         CFRunLoopSourceRef pLoopSourceRef;

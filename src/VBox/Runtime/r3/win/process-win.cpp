@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -34,9 +44,11 @@
 #include <iprt/nt/nt-and-windows.h>
 #include <Userenv.h>
 #include <tlhelp32.h>
-#include <process.h>
-#include <errno.h>
-#include <Strsafe.h>
+#ifndef IPRT_NO_CRT
+# include <process.h>
+# include <errno.h>
+# include <Strsafe.h>
+#endif
 #include <LsaLookup.h>
 #include <Lmcons.h>
 
@@ -70,14 +82,12 @@
 /* kernel32.dll: */
 //typedef DWORD   (WINAPI *PFNWTSGETACTIVECONSOLESESSIONID)(VOID);
 typedef HANDLE  (WINAPI *PFNCREATETOOLHELP32SNAPSHOT)(DWORD, DWORD);
-typedef BOOL    (WINAPI *PFNPROCESS32FIRST)(HANDLE, LPPROCESSENTRY32);
 typedef BOOL    (WINAPI *PFNPROCESS32FIRSTW)(HANDLE, LPPROCESSENTRY32W);
-typedef BOOL    (WINAPI *PFNPROCESS32NEXT)(HANDLE, LPPROCESSENTRY32);
 typedef BOOL    (WINAPI *PFNPROCESS32NEXTW)(HANDLE, LPPROCESSENTRY32W);
 
 /* psapi.dll: */
 typedef BOOL    (WINAPI *PFNENUMPROCESSES)(LPDWORD, DWORD, LPDWORD);
-typedef DWORD   (WINAPI *PFNGETMODULEBASENAME)(HANDLE, HMODULE, LPTSTR, DWORD);
+typedef DWORD   (WINAPI *PFNGETMODULEBASENAMEW)(HANDLE, HMODULE, LPWSTR, DWORD);
 
 /* advapi32.dll: */
 typedef BOOL    (WINAPI *PFNCREATEPROCESSWITHLOGON)(LPCWSTR, LPCWSTR, LPCWSTR, DWORD, LPCWSTR, LPWSTR, DWORD,
@@ -130,12 +140,10 @@ typedef struct RTPROCWINACCOUNTINFO
 static RTONCE                           g_rtProcWinResolveOnce          = RTONCE_INITIALIZER;
 /* kernel32.dll: */
 static PFNCREATETOOLHELP32SNAPSHOT      g_pfnCreateToolhelp32Snapshot   = NULL;
-static PFNPROCESS32FIRST                g_pfnProcess32First             = NULL;
-static PFNPROCESS32NEXT                 g_pfnProcess32Next              = NULL;
 static PFNPROCESS32FIRSTW               g_pfnProcess32FirstW            = NULL;
 static PFNPROCESS32NEXTW                g_pfnProcess32NextW             = NULL;
 /* psapi.dll: */
-static PFNGETMODULEBASENAME             g_pfnGetModuleBaseName          = NULL;
+static PFNGETMODULEBASENAMEW            g_pfnGetModuleBaseNameW         = NULL;
 static PFNENUMPROCESSES                 g_pfnEnumProcesses              = NULL;
 /* advapi32.dll: */
 static PFNCREATEPROCESSWITHLOGON        g_pfnCreateProcessWithLogonW    = NULL;
@@ -314,25 +322,23 @@ static DECLCALLBACK(int) rtProcWinResolveOnce(void *pvUser)
      * kernel32.dll APIs introduced after NT4.
      */
     g_pfnCreateToolhelp32Snapshot   = (PFNCREATETOOLHELP32SNAPSHOT)GetProcAddress(g_hModKernel32, "CreateToolhelp32Snapshot");
-    g_pfnProcess32First             = (PFNPROCESS32FIRST          )GetProcAddress(g_hModKernel32, "Process32First");
     g_pfnProcess32FirstW            = (PFNPROCESS32FIRSTW         )GetProcAddress(g_hModKernel32, "Process32FirstW");
-    g_pfnProcess32Next              = (PFNPROCESS32NEXT           )GetProcAddress(g_hModKernel32, "Process32Next");
     g_pfnProcess32NextW             = (PFNPROCESS32NEXTW          )GetProcAddress(g_hModKernel32, "Process32NextW");
 
     /*
      * psapi.dll APIs, if none of the above are available.
      */
     if (   !g_pfnCreateToolhelp32Snapshot
-        || !g_pfnProcess32First
-        || !g_pfnProcess32Next)
+        || !g_pfnProcess32FirstW
+        || !g_pfnProcess32NextW)
     {
-        Assert(!g_pfnCreateToolhelp32Snapshot && !g_pfnProcess32First && !g_pfnProcess32Next);
+        Assert(!g_pfnCreateToolhelp32Snapshot && !g_pfnProcess32FirstW && !g_pfnProcess32NextW);
 
         rc = RTLdrLoadSystem("psapi.dll", true /*fNoUnload*/, &hMod);
         if (RT_SUCCESS(rc))
         {
-            rc = RTLdrGetSymbol(hMod, "GetModuleBaseName", (void **)&g_pfnGetModuleBaseName);
-            AssertStmt(RT_SUCCESS(rc), g_pfnGetModuleBaseName = NULL);
+            rc = RTLdrGetSymbol(hMod, "GetModuleBaseNameW", (void **)&g_pfnGetModuleBaseNameW);
+            AssertStmt(RT_SUCCESS(rc), g_pfnGetModuleBaseNameW = NULL);
 
             rc = RTLdrGetSymbol(hMod, "EnumProcesses", (void **)&g_pfnEnumProcesses);
             AssertStmt(RT_SUCCESS(rc), g_pfnEnumProcesses = NULL);
@@ -619,7 +625,7 @@ static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, 
     /*
      * Load PSAPI.DLL and resolve the two symbols we need.
      */
-    if (   !g_pfnGetModuleBaseName
+    if (   !g_pfnGetModuleBaseNameW
         || !g_pfnEnumProcesses)
         return false;
 
@@ -656,9 +662,8 @@ static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, 
          * We ASSUME that the caller won't be specifying any names longer
          * than RTPATH_MAX.
          */
-        DWORD cbProcName  = RTPATH_MAX;
-        char *pszProcName = (char *)RTMemTmpAlloc(RTPATH_MAX);
-        if (pszProcName)
+        PRTUTF16 pwszProcName = (PRTUTF16)RTMemTmpAllocZ(RTPATH_MAX * sizeof(pwszProcName[0]));
+        if (pwszProcName)
         {
             for (size_t i = 0; papszNames[i] && !fFound; i++)
             {
@@ -668,17 +673,17 @@ static bool rtProcWinFindTokenByProcessAndPsApi(const char * const *papszNames, 
                     HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, paPids[iPid]);
                     if (hProc)
                     {
-                        *pszProcName = '\0';
-                        DWORD cbRet = g_pfnGetModuleBaseName(hProc, 0 /*hModule = exe */, pszProcName, cbProcName);
+                        *pwszProcName = '\0';
+                        DWORD cbRet = g_pfnGetModuleBaseNameW(hProc, 0 /*hModule = exe */, pwszProcName, RTPATH_MAX);
                         if (   cbRet > 0
-                            && _stricmp(pszProcName, papszNames[i]) == 0
+                            && RTUtf16ICmpAscii(pwszProcName, papszNames[i]) == 0
                             && RT_SUCCESS(rtProcWinGetProcessTokenHandle(paPids[iPid], pSid, UINT32_MAX, phToken)))
                             fFound = true;
                         CloseHandle(hProc);
                     }
                 }
             }
-            RTMemTmpFree(pszProcName);
+            RTMemTmpFree(pwszProcName);
         }
         else
             rc = VERR_NO_TMP_MEMORY;
@@ -715,7 +720,7 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
      * and reliable.  Fallback to EnumProcess on NT4.
      */
     bool fFallback = true;
-    if (g_pfnProcess32Next && g_pfnProcess32First && g_pfnCreateToolhelp32Snapshot)
+    if (g_pfnProcess32NextW && g_pfnProcess32FirstW && g_pfnCreateToolhelp32Snapshot)
     {
         HANDLE hSnap = g_pfnCreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
         Assert(hSnap != INVALID_HANDLE_VALUE);
@@ -724,14 +729,14 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
             fFallback = false;
             for (size_t i = 0; papszNames[i] && !fFound; i++)
             {
-                PROCESSENTRY32 ProcEntry;
+                PROCESSENTRY32W ProcEntry;
                 ProcEntry.dwSize = sizeof(PROCESSENTRY32);
-/** @todo use W APIs here.   */
-                if (g_pfnProcess32First(hSnap, &ProcEntry))
+                ProcEntry.szExeFile[0] = '\0';
+                if (g_pfnProcess32FirstW(hSnap, &ProcEntry))
                 {
                     do
                     {
-                        if (_stricmp(ProcEntry.szExeFile, papszNames[i]) == 0)
+                        if (RTUtf16ICmpAscii(ProcEntry.szExeFile, papszNames[i]) == 0)
                         {
                             int rc = rtProcWinGetProcessTokenHandle(ProcEntry.th32ProcessID, pSid, idDesiredSession, phToken);
                             if (RT_SUCCESS(rc))
@@ -740,15 +745,10 @@ static bool rtProcWinFindTokenByProcess(const char * const *papszNames, PSID pSi
                                 break;
                             }
                         }
-                    } while (g_pfnProcess32Next(hSnap, &ProcEntry));
+                    } while (g_pfnProcess32NextW(hSnap, &ProcEntry));
                 }
-#ifdef RT_STRICT
                 else
-                {
-                    DWORD dwErr = GetLastError();
-                    AssertMsgFailed(("dwErr=%u (%x)\n", dwErr, dwErr));
-                }
-#endif
+                    AssertMsgFailed(("dwErr=%u (%x)\n", GetLastError(), GetLastError()));
             }
             CloseHandle(hSnap);
         }
@@ -1611,7 +1611,8 @@ static int rtProcWinTokenToUsername(HANDLE hToken, PRTUTF16 *ppwszUser)
 static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 *ppwszExec, PRTUTF16 pwszCmdLine,
                                   RTENV hEnv, DWORD dwCreationFlags,
                                   STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo,
-                                  uint32_t fFlags, const char *pszExec, uint32_t idDesiredSession)
+                                  uint32_t fFlags, const char *pszExec, uint32_t idDesiredSession,
+                                  HANDLE hUserToken)
 {
     /*
      * So if we want to start a process from a service (RTPROC_FLAGS_SERVICE),
@@ -1641,8 +1642,10 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
      */
     DWORD   dwErr       = NO_ERROR;
     HANDLE  hTokenLogon = INVALID_HANDLE_VALUE;
-    int rc;
-    if (fFlags & RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)
+    int rc = VINF_SUCCESS;
+    if (fFlags & RTPROC_FLAGS_TOKEN_SUPPLIED)
+        hTokenLogon = hUserToken;
+    else if (fFlags & RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)
         rc = rtProcWinGetThreadTokenHandle(GetCurrentThread(), &hTokenLogon);
     else if (pwszUser == NULL)
         rc = rtProcWinGetProcessTokenHandle(GetCurrentProcess(), &hTokenLogon);
@@ -1849,7 +1852,8 @@ static int rtProcWinCreateAsUser2(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
 
         if (hTokenUserDesktop != INVALID_HANDLE_VALUE)
             CloseHandle(hTokenUserDesktop);
-        if (hTokenLogon != INVALID_HANDLE_VALUE)
+        if (   !(fFlags & RTPROC_FLAGS_TOKEN_SUPPLIED)
+            && hTokenLogon != INVALID_HANDLE_VALUE)
             CloseHandle(hTokenLogon);
 
         if (rc == VERR_UNRESOLVED_ERROR)
@@ -2075,8 +2079,7 @@ static int rtProcWinCreateAsUser1(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
             DWORD dwErr = GetLastError();
             rc = RTErrConvertFromWin32(dwErr);
             if (rc == VERR_UNRESOLVED_ERROR)
-                LogRelFunc(("CreateProcessWithLogonW (%p) failed: dwErr=%u (%#x), rc=%Rrc\n",
-                            g_pfnCreateProcessWithLogonW, dwErr, dwErr, rc));
+                LogRelFunc(("CreateProcessWithLogonW failed: dwErr=%u (%#x), rc=%Rrc\n", dwErr, dwErr, rc));
         }
         if (pwszzBlock)
             RTEnvFreeUtf16Block(pwszzBlock);
@@ -2088,7 +2091,8 @@ static int rtProcWinCreateAsUser1(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTU
 static int rtProcWinCreateAsUser(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUTF16 *ppwszExec, PRTUTF16 pwszCmdLine,
                                  RTENV hEnv, DWORD dwCreationFlags,
                                  STARTUPINFOW *pStartupInfo, PROCESS_INFORMATION *pProcInfo,
-                                 uint32_t fFlags, const char *pszExec, uint32_t idDesiredSession)
+                                 uint32_t fFlags, const char *pszExec, uint32_t idDesiredSession,
+                                 HANDLE hUserToken)
 {
     /*
      * If we run as a service CreateProcessWithLogon will fail, so don't even
@@ -2096,7 +2100,7 @@ static int rtProcWinCreateAsUser(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUT
      * we should use, we also have to have to skip over this approach.
      * Note! This method is very slow on W2K.
      */
-    if (!(fFlags & (RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)))
+    if (!(fFlags & (RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN | RTPROC_FLAGS_TOKEN_SUPPLIED)))
     {
         AssertPtr(pwszUser);
         int rc = rtProcWinCreateAsUser1(pwszUser, pwszPassword, ppwszExec, pwszCmdLine,
@@ -2104,8 +2108,8 @@ static int rtProcWinCreateAsUser(PRTUTF16 pwszUser, PRTUTF16 pwszPassword, PRTUT
         if (RT_SUCCESS(rc))
             return rc;
     }
-    return rtProcWinCreateAsUser2(pwszUser, pwszPassword, ppwszExec, pwszCmdLine,
-                                  hEnv, dwCreationFlags, pStartupInfo, pProcInfo, fFlags, pszExec, idDesiredSession);
+    return rtProcWinCreateAsUser2(pwszUser, pwszPassword, ppwszExec, pwszCmdLine, hEnv, dwCreationFlags,
+                                  pStartupInfo, pProcInfo, fFlags, pszExec, idDesiredSession, hUserToken);
 }
 
 
@@ -2117,7 +2121,7 @@ static DECLCALLBACK(int) rtPathFindExec(char const *pchPath, size_t cchPath, voi
 {
     const char *pszExec     = (const char *)pvUser1;
     char       *pszRealExec = (char *)pvUser2;
-    int rc = RTPathJoinEx(pszRealExec, RTPATH_MAX, pchPath, cchPath, pszExec, RTSTR_MAX);
+    int rc = RTPathJoinEx(pszRealExec, RTPATH_MAX, pchPath, cchPath, pszExec, RTSTR_MAX, RTPATH_STR_F_STYLE_HOST);
     if (RT_FAILURE(rc))
         return rc;
     if (RTFileExists(pszRealExec))
@@ -2282,12 +2286,18 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     else
         AssertReturn(!(fFlags & RTPROC_FLAGS_DESIRED_SESSION_ID), VERR_INVALID_FLAGS);
 
+    HANDLE hUserToken = NULL;
+    if (fFlags & RTPROC_FLAGS_TOKEN_SUPPLIED)
+        hUserToken = *(HANDLE *)pvExtraData;
+
     /*
      * Initialize the globals.
      */
     int rc = RTOnce(&g_rtProcWinInitOnce, rtProcWinInitOnce, NULL);
     AssertRCReturn(rc, rc);
-    if (pszAsUser || (fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)))
+    if (   pszAsUser
+        || (fFlags & (RTPROC_FLAGS_PROFILE | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN
+                      | RTPROC_FLAGS_TOKEN_SUPPLIED)))
     {
         rc = RTOnce(&g_rtProcWinResolveOnce, rtProcWinResolveOnce, NULL);
         AssertRCReturn(rc, rc);
@@ -2369,9 +2379,9 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
             /* Get the inheritability of the handle. */
             if (*aphStds[i] != INVALID_HANDLE_VALUE)
             {
-                if (g_enmWinVer == kRTWinOSType_NT310)
+                if (!g_pfnGetHandleInformation)
                     afInhStds[i] = 0; /* No handle info on NT 3.1, so ASSUME it is not inheritable. */
-                else if (!GetHandleInformation(*aphStds[i], &afInhStds[i]))
+                else if (!g_pfnGetHandleInformation(*aphStds[i], &afInhStds[i]))
                 {
                     rc = RTErrConvertFromWin32(GetLastError());
                     AssertMsgFailedReturn(("%Rrc aphStds[%d] => %p paHandles[%d]={%d,%p}\n",
@@ -2393,7 +2403,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         if (   (afInhStds[i] != 0xffffffff)
             && !(afInhStds[i] & HANDLE_FLAG_INHERIT))
         {
-            if (g_enmWinVer == kRTWinOSType_NT310)
+            if (!g_pfnSetHandleInformation)
             {
                 if (DuplicateHandle(GetCurrentProcess(), *aphStds[i], GetCurrentProcess(), &ahStdDups[i],
                                     i == 0 ? GENERIC_READ : GENERIC_WRITE, TRUE /*fInheritHandle*/, DUPLICATE_SAME_ACCESS))
@@ -2404,7 +2414,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                     AssertMsgFailedBreak(("%Rrc aphStds[%u] => %p\n", rc, i, *aphStds[i]));
                 }
             }
-            else if (!SetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT))
+            else if (!g_pfnSetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT))
             {
                 rc = RTErrConvertFromWin32(GetLastError());
                 if (rc == VERR_INVALID_FUNCTION && g_enmWinVer == kRTWinOSType_NT310)
@@ -2445,7 +2455,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
              * the more advanced version in rtProcWinCreateAsUser().
              */
             if (   pszAsUser == NULL
-                && !(fFlags & (RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN)))
+                && !(fFlags & (RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_AS_IMPERSONATED_TOKEN | RTPROC_FLAGS_TOKEN_SUPPLIED)))
             {
                 /* Create the environment block first. */
                 PRTUTF16 pwszzBlock;
@@ -2483,9 +2493,9 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                     rc = RTStrToUtf16(pszPassword ? pszPassword : "", &pwszPassword);
                     if (RT_SUCCESS(rc))
                     {
-                        rc = rtProcWinCreateAsUser(pwszUser, pwszPassword,
-                                                   &pwszExec, pwszCmdLine, hEnv, dwCreationFlags,
-                                                   &StartupInfo, &ProcInfo, fFlags, pszExec, idDesiredSession);
+                        rc = rtProcWinCreateAsUser(pwszUser, pwszPassword, &pwszExec, pwszCmdLine, hEnv, dwCreationFlags,
+                                                   &StartupInfo, &ProcInfo, fFlags, pszExec, idDesiredSession,
+                                                   hUserToken);
 
                         if (pwszPassword && *pwszPassword)
                             RTMemWipeThoroughly(pwszPassword, RTUtf16Len(pwszPassword), 5);
@@ -2518,14 +2528,14 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         RTUtf16Free(pwszCmdLine);
     }
 
-    if (g_enmWinVer != kRTWinOSType_NT310)
+    if (g_pfnSetHandleInformation)
     {
         /* Undo any handle inherit changes. */
         for (int i = 0; i < 3; i++)
             if (   (afInhStds[i] != 0xffffffff)
                 && !(afInhStds[i] & HANDLE_FLAG_INHERIT))
             {
-                if (   !SetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, 0)
+                if (   !g_pfnSetHandleInformation(*aphStds[i], HANDLE_FLAG_INHERIT, 0)
                     && (   GetLastError() != ERROR_INVALID_FUNCTION
                         || g_enmWinVer != kRTWinOSType_NT310) )
                     AssertMsgFailed(("%Rrc %p\n", RTErrConvertFromWin32(GetLastError()), *aphStds[i]));

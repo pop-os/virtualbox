@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2015-2020 Oracle Corporation
+ * Copyright (C) 2015-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_objects_UIRichTextString_h
@@ -53,14 +63,14 @@ public:
     UIRichTextString(const QString &strString, Type enmType = Type_None, const QString &strStringMeta = QString());
 
     /** Destructor rich text string. */
-    virtual ~UIRichTextString() /* override */;
+    virtual ~UIRichTextString();
 
     /** Returns the QString representation. */
     QString toString() const;
 
     /** Returns the list of existing format ranges appropriate for QTextLayout.
       * @param  iShift  Brings the shift of <i>this</i> rich text block accordig to it's root. */
-    QList<QTextLayout::FormatRange> formatRanges(int iShift = 0) const;
+    QVector<QTextLayout::FormatRange> formatRanges(int iShift = 0) const;
 
     /** Defines the anchor to highlight in <i>this</i> rich text block and in it's children. */
     void setHoveredAnchor(const QString &strHoveredAnchor);

@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_err_h
@@ -127,6 +137,8 @@
 #define VERR_NO_PAGE_MEMORY                 (-27)
 /** Already initialized. */
 #define VINF_ALREADY_INITIALIZED            28
+/** Already initialized. */
+#define VERR_ALREADY_INITIALIZED            (-28)
 /** The specified thread is dead. */
 #define VERR_THREAD_IS_DEAD                 (-29)
 /** The specified thread is not waitable. */
@@ -379,9 +391,22 @@
 #define VERR_EMPTY_STRING                   (-22422)
 /** Too many references to an object. */
 #define VERR_TOO_MANY_REFERENCES            (-22423)
+/** Returned by RTThreadQueryTerminationStatus to indicate that the thread is
+ * (or should be) terminating. */
+#define VINF_THREAD_IS_TERMINATING          (22424)
+/** The thread is terminating. */
+#define VERR_THREAD_IS_TERMINATING          (-22424)
 /** Unable to translate one or more of the arguments to the codeset the child
  * process is expected to use. */
 #define VERR_PROC_NO_ARG_TRANSLATION        (-22425)
+/** Floating pointer underflow. */
+#define VERR_FLOAT_UNDERFLOW                (-22426)
+/** Floating pointer underflow. */
+#define VWRN_FLOAT_UNDERFLOW                (22426)
+/** Floating pointer overflow. */
+#define VERR_FLOAT_OVERFLOW                 (-22427)
+/** Floating pointer overflow. */
+#define VWRN_FLOAT_OVERFLOW                 (22427)
 /** @} */
 
 
@@ -1443,6 +1468,10 @@
  * @{ */
 /** The internal logger revision did not match. */
 #define VERR_LOG_REVISION_MISMATCH                  (-22300)
+/** Logging is disabled or logger instance could not be created. */
+#define VINF_LOG_DISABLED                           (22301)
+/** No logger instance. */
+#define VINF_LOG_NO_LOGGER                          (22302)
 /** @} */
 
 /* see above, 22400..22499 is used for misc codes! */
@@ -2693,6 +2722,12 @@
 #define VERR_CR_CIPHER_INVALID_KEY_LENGTH                       (-25807)
 /** Invalid initialization vector length. */
 #define VERR_CR_CIPHER_INVALID_INITIALIZATION_VECTOR_LENGTH     (-25808)
+/** Invalid tag length. */
+#define VERR_CR_CIPHER_INVALID_TAG_LENGTH                       (-25809)
+/** EVP_CIPHER_CTX_ctrl EVP_CTRL_AEAD_GET_TAG failed. */
+#define VERR_CR_CIPHER_OSSL_GET_TAG_FAILED                      (-25810)
+/** EVP_CIPHER_CTX_ctrl EVP_CTRL_AEAD_SET_TAG failed. */
+#define VERR_CR_CIPHER_OSSL_SET_TAG_FAILED                      (-25811)
 /** @} */
 
 
@@ -2715,6 +2750,7 @@
 #define VERR_IOQUEUE_BUSY                                       (-26203)
 /** @} */
 
+
 /** @name FTP status codes
  * @{ */
 /** FTP Internal Server Error. */
@@ -2731,6 +2767,52 @@
 #define VERR_FTP_CLIENT_NOT_FOUND                               (-26405)
 /** Client limit has been reached. */
 #define VERR_FTP_CLIENT_LIMIT_REACHED                           (-26406)
+/** @} */
+
+
+/** @name Trace Log status codes.
+ * @{ */
+/** The trace log is malformed. */
+#define VERR_TRACELOG_READER_MALFORMED_LOG                      (-26600)
+/** The trace log version is not supported. */
+#define VERR_TRACELOG_READER_LOG_UNSUPPORTED                    (-26601)
+/** The trace log reader iterator reached the end of the event list. */
+#define VERR_TRACELOG_READER_ITERATOR_END                       (-26602)
+/** @} */
+
+
+/** @name Hardened AVL tree status codes.
+ * @{ */
+/** Node index is out of bounds. */
+#define VERR_HARDAVL_INDEX_OUT_OF_BOUNDS                        (-26801)
+/** Node pointer is not within the memory allocated for nodes. */
+#define VERR_HARDAVL_POINTER_OUT_OF_BOUNDS                      (-26802)
+/** Node pointer does not point to the start of a node. */
+#define VERR_HARDAVL_MISALIGNED_POINTER                         (-26803)
+/** Bogus reference to freed node. */
+#define VERR_HARDAVL_NODE_IS_FREE                               (-26804)
+/** Stack overflow during AVL tree operation. */
+#define VERR_HARDAVL_STACK_OVERFLOW                             (-26810)
+/** Attempted to insert mode with invalid key range. */
+#define VERR_HARDAVL_INSERT_INVALID_KEY_RANGE                   (-26811)
+/** Bad left tree height. */
+#define VERR_HARDAVL_BAD_LEFT_HEIGHT                            (-26812)
+/** Bad left right height. */
+#define VERR_HARDAVL_BAD_RIGHT_HEIGHT                           (-26813)
+/** Bad new tree height. */
+#define VERR_HARDAVL_BAD_NEW_HEIGHT                             (-26814)
+/** Unexpected NULL pointer to left subtree. */
+#define VERR_HARDAVL_UNEXPECTED_NULL_LEFT                       (-26815)
+/** Unexpected NULL pointer to right subtree. */
+#define VERR_HARDAVL_UNEXPECTED_NULL_RIGHT                      (-26816)
+/** Tree traversal encountered more nodes than available in the allocator. */
+#define VERR_HARDAVL_TRAVERSED_TOO_MANY_NODES                   (-26817)
+/** Too deep walk during lookup.  */
+#define VERR_HARDAVL_LOOKUP_TOO_DEEP                            (-26818)
+/** Bad tree height. */
+#define VERR_HARDAVL_BAD_HEIGHT                                 (-26819)
+/** Unbalanced tree. */
+#define VERR_HARDAVL_UNBALANCED                                 (-26820)
 /** @} */
 
 /* SED-END */

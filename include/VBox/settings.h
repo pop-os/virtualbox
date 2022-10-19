@@ -17,24 +17,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_settings_h
@@ -49,6 +59,7 @@
 
 #include <VBox/com/Guid.h>
 #include <VBox/com/string.h>
+#include <VBox/VBoxCryptoIf.h>
 
 #include <list>
 #include <map>
@@ -58,7 +69,8 @@
  * Maximum depth of a medium tree, to prevent stack overflows.
  * XPCOM has a relatively low stack size for its workers, and we have
  * to avoid crashes due to exceeding the limit both on reading and
- * writing config files.
+ * writing config files. The bottleneck is in libxml2.
+ * Data point: a release and asan build could both handle 3800 on Debian 10.
  */
 #define SETTINGS_MEDIUM_DEPTH_MAX 300
 
@@ -67,8 +79,8 @@
  * XPCOM has a relatively low stack size for its workers, and we have
  * to avoid crashes due to exceeding the limit both on reading and
  * writing config files. The bottleneck is reading config files with
- * deep snapshot nesting, as libxml2 needs quite some stack space,
- * so with the current stack size the margin isn't big.
+ * deep snapshot nesting, as libxml2 needs quite some stack space.
+ * Data point: a release and asan build could both handle 1300 on Debian 10.
  */
 #define SETTINGS_SNAPSHOT_DEPTH_MAX 250
 
@@ -221,6 +233,7 @@ class ConfigFileBase
 {
 public:
     bool fileExists();
+    SettingsVersion_T getSettingsVersion();
 
     void copyBaseFrom(const ConfigFileBase &b);
 
@@ -255,7 +268,7 @@ protected:
     void readUSBDeviceFilters(const xml::ElementNode &elmDeviceFilters,
                               USBDeviceFiltersList &ll);
     void readMediumOne(MediaType t, const xml::ElementNode &elmMedium, Medium &med);
-    void readMedium(MediaType t, uint32_t depth, const xml::ElementNode &elmMedium, Medium &med);
+    void readMedium(MediaType t, const xml::ElementNode &elmMedium, Medium &med);
     void readMediaRegistry(const xml::ElementNode &elmMediaRegistry, MediaRegistry &mr);
     void readNATForwardRulesMap(const xml::ElementNode  &elmParent, NATRulesMap &mapRules);
     void readNATLoopbacks(const xml::ElementNode &elmParent, NATLoopbackOffsetList &llLoopBacks);
@@ -269,9 +282,8 @@ protected:
                                const USBDeviceFiltersList &ll,
                                bool fHostMode);
     void buildMedium(MediaType t,
-                     uint32_t depth,
                      xml::ElementNode &elmMedium,
-                     const Medium &mdm);
+                     const Medium &med);
     void buildMediaRegistry(xml::ElementNode &elmParent,
                             const MediaRegistry &mr);
     void buildNATForwardRulesMap(xml::ElementNode &elmParent, const NATRulesMap &mapRules);
@@ -300,10 +312,28 @@ struct USBDeviceSource
 
 typedef std::list<USBDeviceSource> USBDeviceSourcesList;
 
+#ifdef VBOX_WITH_UPDATE_AGENT
+struct UpdateAgent
+{
+    UpdateAgent();
+
+    bool                    fEnabled;
+    UpdateChannel_T         enmChannel;
+    uint32_t                uCheckFreqSeconds;
+    com::Utf8Str            strRepoUrl;
+    com::Utf8Str            strLastCheckDate;
+    uint32_t                uCheckCount;
+};
+#endif /* VBOX_WITH_UPDATE_AGENT */
+
 struct Host
 {
     USBDeviceFiltersList    llUSBDeviceFilters;
     USBDeviceSourcesList    llUSBDeviceSources;
+#ifdef VBOX_WITH_UPDATE_AGENT
+    UpdateAgent             updateHost;
+    /** @todo Add handling for ExtPack and Guest Additions updates here later. See @bugref{7983}. */
+#endif /* VBOX_WITH_UPDATE_AGENT */
 };
 
 struct SystemProperties
@@ -316,6 +346,7 @@ struct SystemProperties
     com::Utf8Str            strVRDEAuthLibrary;
     com::Utf8Str            strWebServiceAuthLibrary;
     com::Utf8Str            strDefaultVRDEExtPack;
+    com::Utf8Str            strDefaultCryptoExtPack;
     com::Utf8Str            strAutostartDatabasePath;
     com::Utf8Str            strDefaultAdditionsISO;
     com::Utf8Str            strDefaultFrontend;
@@ -324,6 +355,7 @@ struct SystemProperties
     uint32_t                uProxyMode; /**< ProxyMode_T */
     uint32_t                uLogHistoryCount;
     bool                    fExclusiveHwVirt;
+    com::Utf8Str            strLanguageId;
 };
 
 struct MachineRegistryEntry
@@ -429,6 +461,25 @@ struct NATNetwork
 
 typedef std::list<NATNetwork> NATNetworksList;
 
+#ifdef VBOX_WITH_VMNET
+/**
+ * HostOnly Networking settings.
+ */
+struct HostOnlyNetwork
+{
+    HostOnlyNetwork();
+
+    com::Guid    uuid;
+    com::Utf8Str strNetworkName;
+    com::Utf8Str strNetworkMask;
+    com::Utf8Str strIPLower;
+    com::Utf8Str strIPUpper;
+    bool         fEnabled;
+};
+
+typedef std::list<HostOnlyNetwork> HostOnlyNetworksList;
+#endif /* VBOX_WITH_VMNET */
+
 #ifdef VBOX_WITH_CLOUD_NET
 /**
  * Cloud Networking settings.
@@ -455,6 +506,9 @@ public:
 
     void readMachineRegistry(const xml::ElementNode &elmMachineRegistry);
     void readNATNetworks(const xml::ElementNode &elmNATNetworks);
+#ifdef VBOX_WITH_VMNET
+    void readHostOnlyNetworks(const xml::ElementNode &elmHostOnlyNetworks);
+#endif /* VBOX_WITH_VMNET */
 #ifdef VBOX_WITH_CLOUD_NET
     void readCloudNetworks(const xml::ElementNode &elmCloudNetworks);
 #endif /* VBOX_WITH_CLOUD_NET */
@@ -467,6 +521,9 @@ public:
     MachinesRegistry        llMachines;
     DHCPServersList         llDhcpServers;
     NATNetworksList         llNATNetworks;
+#ifdef VBOX_WITH_VMNET
+    HostOnlyNetworksList    llHostOnlyNetworks;
+#endif /* VBOX_WITH_VMNET */
 #ifdef VBOX_WITH_CLOUD_NET
     CloudNetworksList       llCloudNetworks;
 #endif /* VBOX_WITH_CLOUD_NET */
@@ -536,12 +593,53 @@ struct BIOSSettings
     APICMode_T      apicMode;           // requires settings version 1.16 (VirtualBox 5.1)
     int64_t         llTimeOffset;
     com::Utf8Str    strLogoImagePath;
-    com::Utf8Str    strNVRAMPath;
+};
+
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct TpmSettings
+{
+    TpmSettings();
+
+    bool areDefaultSettings() const;
+
+    bool operator==(const TpmSettings &d) const;
+
+    TpmType_T       tpmType;
+    com::Utf8Str    strLocation;
+};
+
+/**
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
+struct NvramSettings
+{
+    NvramSettings();
+
+    bool areDefaultSettings() const;
+
+    bool operator==(const NvramSettings &d) const;
+
+    com::Utf8Str    strNvramPath;
+    com::Utf8Str    strKeyId;
+    com::Utf8Str    strKeyStore;
 };
 
 /** List for keeping a recording feature list. */
 typedef std::map<RecordingFeature_T, bool> RecordingFeatureMap;
 
+/**
+ * Recording settings for a single screen (e.g. virtual monitor).
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
+ */
 struct RecordingScreenSettings
 {
     RecordingScreenSettings(uint32_t idScreen = UINT32_MAX);
@@ -556,6 +654,18 @@ struct RecordingScreenSettings
 
     static const char *getDefaultOptions(void);
 
+    static int featuresFromString(const com::Utf8Str &strFeatures, RecordingFeatureMap &featureMap);
+
+    static void featuresToString(const RecordingFeatureMap &featureMap, com::Utf8Str &strFeatures);
+
+    static int audioCodecFromString(const com::Utf8Str &strCodec, RecordingAudioCodec_T &enmCodec);
+
+    static void audioCodecToString(const RecordingAudioCodec_T &enmCodec, com::Utf8Str &strCodec);
+
+    static int videoCodecFromString(const com::Utf8Str &strCodec, RecordingVideoCodec_T &enmCodec);
+
+    static void videoCodecToString(const RecordingVideoCodec_T &enmCodec, com::Utf8Str &strCodec);
+
     bool operator==(const RecordingScreenSettings &d) const;
 
     /** Screen ID.
@@ -566,7 +676,7 @@ struct RecordingScreenSettings
     /** Destination to record to. */
     RecordingDestination_T enmDest;
     /** Which features are enable or not. */
-    RecordingFeatureMap    featureMap; /** @todo Implement with next settings version bump. */
+    RecordingFeatureMap    featureMap; // requires settings version 1.19 (VirtualBox 7.0)
     /** Maximum time (in s) to record. If set to 0, no time limit is set. */
     uint32_t               ulMaxTimeS; // requires settings version 1.14 (VirtualBox 4.3)
     /** Options string for hidden / advanced / experimental features.
@@ -578,20 +688,19 @@ struct RecordingScreenSettings
      */
     struct Audio
     {
-        Audio()
-            : enmAudioCodec(RecordingAudioCodec_Opus)
-            , uHz(22050)
-            , cBits(16)
-            , cChannels(2) { }
-
         /** The audio codec type to use. */
-        RecordingAudioCodec_T enmAudioCodec; /** @todo Implement with next settings version bump. */
+        RecordingAudioCodec_T    enmCodec;      // requires settings version 1.19 (VirtualBox 7.0)
+        /** Codec deadline to use. */
+        RecordingCodecDeadline_T enmDeadline;   // requires settings version 1.19 (VirtualBox 7.0)
+        /** Rate control mode to use. */
+        RecordingRateControlMode_T
+                                 enmRateCtlMode;// requires settings version 1.19 (VirtualBox 7.0)
         /** Hz rate. */
-        uint16_t              uHz;           /** @todo Implement with next settings version bump. */
+        uint16_t                 uHz;           // requires settings version 1.19 (VirtualBox 7.0)
         /** Bits per sample. */
-        uint8_t               cBits;         /** @todo Implement with next settings version bump. */
+        uint8_t                  cBits;         // requires settings version 1.19 (VirtualBox 7.0)
         /** Number of audio channels. */
-        uint8_t               cChannels;     /** @todo Implement with next settings version bump. */
+        uint8_t                  cChannels;     // requires settings version 1.19 (VirtualBox 7.0)
     } Audio;
 
     /**
@@ -599,23 +708,24 @@ struct RecordingScreenSettings
      */
     struct Video
     {
-        Video()
-            : enmCodec(RecordingVideoCodec_VP8)
-            , ulWidth(1024)
-            , ulHeight(768)
-            , ulRate(512)
-            , ulFPS(25) { }
-
         /** The codec to use. */
-        RecordingVideoCodec_T enmCodec;  /** @todo Implement with next settings version bump. */
+        RecordingVideoCodec_T    enmCodec;    // requires settings version 1.19 (VirtualBox 7.0)
+        /** Codec deadline to use. */
+        RecordingCodecDeadline_T enmDeadline; // requires settings version 1.19 (VirtualBox 7.0)
+        /** Rate control mode to use. */
+        RecordingRateControlMode_T
+                                 enmRateCtlMode; // requires settings version 1.19 (VirtualBox 7.0)
+        /** Rate control mode to use. */
+        RecordingVideoScalingMode_T
+                                 enmScalingMode; // requires settings version 1.19 (VirtualBox 7.0)
         /** Target frame width in pixels (X). */
-        uint32_t              ulWidth;   // requires settings version 1.14 (VirtualBox 4.3)
+        uint32_t                 ulWidth;     // requires settings version 1.14 (VirtualBox 4.3)
         /** Target frame height in pixels (Y). */
-        uint32_t              ulHeight;  // requires settings version 1.14 (VirtualBox 4.3)
+        uint32_t                 ulHeight;    // requires settings version 1.14 (VirtualBox 4.3)
         /** Encoding rate. */
-        uint32_t              ulRate;    // requires settings version 1.14 (VirtualBox 4.3)
+        uint32_t                 ulRate;      // requires settings version 1.14 (VirtualBox 4.3)
         /** Frames per second (FPS). */
-        uint32_t              ulFPS;     // requires settings version 1.14 (VirtualBox 4.3)
+        uint32_t                 ulFPS;       // requires settings version 1.14 (VirtualBox 4.3)
     } Video;
 
     /**
@@ -623,9 +733,6 @@ struct RecordingScreenSettings
      */
     struct File
     {
-        File()
-            : ulMaxSizeMB(0) { }
-
         /** Maximum size (in MB) the file is allowed to have.
          *  When reaching the limit, recording will stop. 0 means no limit. */
         uint32_t     ulMaxSizeMB; // requires settings version 1.14 (VirtualBox 4.3)
@@ -641,6 +748,10 @@ typedef std::map<uint32_t, RecordingScreenSettings> RecordingScreenSettingsMap;
 
 /**
  * Common recording settings, shared among all per-screen recording settings.
+ *
+ * NOTE: If you add any fields in here, you must update a) the constructor and b)
+ * the operator== which is used by MachineConfigFile::operator==(), or otherwise
+ * your settings might never get saved.
  */
 struct RecordingCommonSettings
 {
@@ -734,7 +845,8 @@ struct NAT
     bool areDNSDefaultSettings() const;
     bool areAliasDefaultSettings() const;
     bool areTFTPDefaultSettings() const;
-    bool areDefaultSettings() const;
+    bool areLocalhostReachableDefaultSettings(SettingsVersion_T sv) const;
+    bool areDefaultSettings(SettingsVersion_T sv) const;
 
     bool operator==(const NAT &n) const;
 
@@ -754,6 +866,7 @@ struct NAT
     bool                    fAliasLog;
     bool                    fAliasProxyOnly;
     bool                    fAliasUseSamePorts;
+    bool                    fLocalhostReachable;
     NATRulesMap             mapRules;
 };
 
@@ -768,7 +881,7 @@ struct NetworkAdapter
 
     bool areGenericDriverDefaultSettings() const;
     bool areDefaultSettings(SettingsVersion_T sv) const;
-    bool areDisabledDefaultSettings() const;
+    bool areDisabledDefaultSettings(SettingsVersion_T sv) const;
 
     bool operator==(const NetworkAdapter &n) const;
 
@@ -787,6 +900,9 @@ struct NetworkAdapter
     NAT                                 nat;
     com::Utf8Str                        strBridgedName;
     com::Utf8Str                        strHostOnlyName;
+#ifdef VBOX_WITH_VMNET
+    com::Utf8Str                        strHostOnlyNetworkName;
+#endif /* VBOX_WITH_VMNET */
     com::Utf8Str                        strInternalNetworkName;
     com::Utf8Str                        strGenericDriver;
     StringsMap                          genericProperties;
@@ -1139,6 +1255,7 @@ struct Hardware
     bool                fMDSClearOnSched;       //< added out of cycle, after 1.16 was out.
     bool                fMDSClearOnVMEntry;     //< added out of cycle, after 1.16 was out.
     bool                fNestedHWVirt;          //< requires settings version 1.17 (VirtualBox 6.0)
+    bool                fVirtVmsaveVmload;      //< requires settings version 1.18 (VirtualBox 6.1)
     typedef enum LongModeType { LongMode_Enabled, LongMode_Disabled, LongMode_Legacy } LongModeType;
     LongModeType        enmLongMode;
     uint32_t            cCPUs;
@@ -1161,6 +1278,7 @@ struct Hardware
     KeyboardHIDType_T   keyboardHIDType;        // requires settings version 1.10 (VirtualBox 3.2)
 
     ChipsetType_T       chipsetType;            // requires settings version 1.11 (VirtualBox 4.0)
+    IommuType_T         iommuType;              // requires settings version 1.19 (VirtualBox 6.2)
     ParavirtProvider_T  paravirtProvider;       // requires settings version 1.15 (VirtualBox 4.4)
     com::Utf8Str        strParavirtDebug;       // requires settings version 1.16 (VirtualBox 5.1)
 
@@ -1169,8 +1287,10 @@ struct Hardware
     VRDESettings        vrdeSettings;
 
     BIOSSettings        biosSettings;
+    NvramSettings       nvramSettings;
     GraphicsAdapter     graphicsAdapter;
     USB                 usbSettings;
+    TpmSettings         tpmSettings;            // requires settings version 1.19 (VirtualBox 6.2)
     NetworkAdaptersList llNetworkAdapters;
     SerialPortsList     llSerialPorts;
     ParallelPortsList   llParallelPorts;
@@ -1211,6 +1331,10 @@ struct Debugging
     bool                    fTracingEnabled;
     bool                    fAllowTracingToAccessVM;
     com::Utf8Str            strTracingConfig;
+    GuestDebugProvider_T    enmDbgProvider;
+    GuestDebugIoProvider_T  enmIoProvider;
+    com::Utf8Str            strAddress;
+    uint32_t                ulPort;
 };
 
 /**
@@ -1302,8 +1426,17 @@ class MachineConfigFile : public ConfigFileBase
 public:
     com::Guid               uuid;
 
+    enum
+    {
+        ParseState_NotParsed,
+        ParseState_PasswordError,
+        ParseState_Parsed
+    }                       enmParseState;
+
     MachineUserData         machineUserData;
 
+    com::Utf8Str            strStateKeyId;
+    com::Utf8Str            strStateKeyStore;
     com::Utf8Str            strStateFile;
     bool                    fCurrentStateModified;      // optional, default is true
     RTTIMESPEC              timeLastStateChange;        // optional, defaults to now
@@ -1321,7 +1454,14 @@ public:
 
     SnapshotsList           llFirstSnapshot;            // first snapshot or empty list if there's none
 
-    MachineConfigFile(const com::Utf8Str *pstrFilename);
+    com::Utf8Str            strKeyId;
+    com::Utf8Str            strKeyStore;                // if not empty, the encryption is used
+    com::Utf8Str            strLogKeyId;
+    com::Utf8Str            strLogKeyStore;
+
+    MachineConfigFile(const com::Utf8Str *pstrFilename,
+                      PCVBOXCRYPTOIF pCryptoIf = NULL,
+                      const char *pszPassword = NULL);
 
     bool operator==(const MachineConfigFile &m) const;
 
@@ -1329,7 +1469,7 @@ public:
 
     void importMachineXML(const xml::ElementNode &elmMachine);
 
-    void write(const com::Utf8Str &strFilename);
+    void write(const com::Utf8Str &strFilename, PCVBOXCRYPTOIF pCryptoIf = NULL, const char *pszPassword = NULL);
 
     enum
     {
@@ -1339,11 +1479,13 @@ public:
         BuildMachineXML_MediaRegistry = 0x08,
         BuildMachineXML_SuppressSavedState = 0x10
     };
+
+    void copyEncryptionSettingsFrom(const MachineConfigFile &other);
     void buildMachineXML(xml::ElementNode &elmMachine,
                          uint32_t fl,
                          std::list<xml::ElementNode*> *pllElementsWithUuidAttributes);
 
-    static bool isAudioDriverAllowedOnThisHost(AudioDriverType_T drv);
+    static bool isAudioDriverAllowedOnThisHost(AudioDriverType_T enmDrvType);
     static AudioDriverType_T getHostDefaultAudioDriver();
 
 private:
@@ -1360,14 +1502,15 @@ private:
     void readHardDiskAttachments_pre1_7(const xml::ElementNode &elmHardDiskAttachments, Storage &strg);
     void readStorageControllers(const xml::ElementNode &elmStorageControllers, Storage &strg);
     void readDVDAndFloppies_pre1_9(const xml::ElementNode &elmHardware, Storage &strg);
-    void readTeleporter(const xml::ElementNode *pElmTeleporter, MachineUserData *pUserData);
-    void readDebugging(const xml::ElementNode *pElmDbg, Debugging *pDbg);
-    void readAutostart(const xml::ElementNode *pElmAutostart, Autostart *pAutostart);
+    void readTeleporter(const xml::ElementNode &elmTeleporter, MachineUserData &userData);
+    void readDebugging(const xml::ElementNode &elmDbg, Debugging &dbg);
+    void readAutostart(const xml::ElementNode &elmAutostart, Autostart &autostrt);
     void readRecordingSettings(const xml::ElementNode &elmRecording, uint32_t cMonitors, RecordingSettings &recording);
-    void readGroups(const xml::ElementNode *elmGroups, StringsList *pllGroups);
-    bool readSnapshot(const com::Guid &curSnapshotUuid, uint32_t depth, const xml::ElementNode &elmSnapshot, Snapshot &snap);
+    void readGroups(const xml::ElementNode &elmGroups, StringsList &llGroups);
+    bool readSnapshot(const com::Guid &curSnapshotUuid, const xml::ElementNode &elmSnapshot, Snapshot &snap);
     void convertOldOSType_pre1_5(com::Utf8Str &str);
     void readMachine(const xml::ElementNode &elmMachine);
+    void readMachineEncrypted(const xml::ElementNode &elmMachine, PCVBOXCRYPTOIF pCryptoIf, const char *pszPassword);
 
     void buildHardwareXML(xml::ElementNode &elmParent, const Hardware &hw, uint32_t fl, std::list<xml::ElementNode*> *pllElementsWithUuidAttributes);
     void buildNetworkXML(NetworkAttachmentType_T mode, bool fEnabled, xml::ElementNode &elmParent, const NetworkAdapter &nic);
@@ -1375,11 +1518,17 @@ private:
                                     const Storage &st,
                                     bool fSkipRemovableMedia,
                                     std::list<xml::ElementNode*> *pllElementsWithUuidAttributes);
-    void buildDebuggingXML(xml::ElementNode *pElmParent, const Debugging *pDbg);
-    void buildAutostartXML(xml::ElementNode *pElmParent, const Autostart *pAutostart);
+    void buildDebuggingXML(xml::ElementNode &elmParent, const Debugging &dbg);
+    void buildAutostartXML(xml::ElementNode &elmParent, const Autostart &autostrt);
     void buildRecordingXML(xml::ElementNode &elmParent, const RecordingSettings &recording);
-    void buildGroupsXML(xml::ElementNode *pElmParent, const StringsList *pllGroups);
-    void buildSnapshotXML(uint32_t depth, xml::ElementNode &elmParent, const Snapshot &snap);
+    void buildGroupsXML(xml::ElementNode &elmParent, const StringsList &llGroups);
+    void buildSnapshotXML(xml::ElementNode &elmParent, const Snapshot &snap);
+
+    void buildMachineEncryptedXML(xml::ElementNode &elmMachine,
+                                  uint32_t fl,
+                                  std::list<xml::ElementNode*> *pllElementsWithUuidAttributes,
+                                  PCVBOXCRYPTOIF pCryptoIf,
+                                  const char *pszPassword);
 
     void bumpSettingsVersionIfNeeded();
 };

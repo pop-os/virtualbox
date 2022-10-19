@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_VirtualBoxClientImpl_h
@@ -23,6 +33,7 @@
 
 #include "VirtualBoxClientWrap.h"
 #include "EventImpl.h"
+#include "VirtualBoxTranslator.h"
 
 #ifdef RT_OS_WINDOWS
 # include "win/resource.h"
@@ -81,7 +92,13 @@ private:
 
     struct Data
     {
-        Data() : m_ThreadWatcher(NIL_RTTHREAD), m_SemEvWatcher(NIL_RTSEMEVENT)
+        Data()
+            : m_ThreadWatcher(NIL_RTTHREAD)
+            , m_SemEvWatcher(NIL_RTSEMEVENT)
+#ifdef VBOX_WITH_MAIN_NLS
+            , m_pVBoxTranslator(NULL)
+            , m_pTrComponent(NULL)
+#endif
         {}
 
         ~Data()
@@ -97,9 +114,15 @@ private:
         ComPtr<IVirtualBox> m_pVirtualBox;
         ComPtr<IToken> m_pToken;
         const ComObjPtr<EventSource> m_pEventSource;
+        ComPtr<IEventSource> m_pVBoxEventSource;
+        ComPtr<IEventListener> m_pVBoxEventListener;
 
         RTTHREAD m_ThreadWatcher;
         RTSEMEVENT m_SemEvWatcher;
+#ifdef VBOX_WITH_MAIN_NLS
+        VirtualBoxTranslator *m_pVBoxTranslator;
+        PTRCOMPONENT          m_pTrComponent;
+#endif
     };
 
     Data mData;
@@ -109,6 +132,12 @@ public:
      * DllCanUnloadNow().  This is incremented to 1 when init() initialized
      * m_pEventSource and is decremented by the Data destructor (above). */
     static LONG s_cUnnecessaryAtlModuleLocks;
+
+#ifdef VBOX_WITH_MAIN_NLS
+    HRESULT i_reloadApiLanguage();
+    HRESULT i_registerEventListener();
+    void    i_unregisterEventListener();
+#endif
 };
 
 #endif /* !MAIN_INCLUDED_VirtualBoxClientImpl_h */

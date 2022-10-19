@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_runtime_UIMachineWindow_h
@@ -86,14 +96,19 @@ public:
     /** Returns the machine name. */
     const QString& machineName() const;
 
+    /** Returns whether the machine-window should resize to fit to the guest display.
+      * @note Relevant only to normal (windowed) case. */
+    bool shouldResizeToGuestDisplay() const;
+
     /** Restores cached window geometry.
       * @note Reimplemented in sub-classes. Base implementation does nothing. */
     virtual void restoreCachedGeometry() {}
 
     /** Adjusts machine-window size to correspond current machine-view size.
       * @param fAdjustPosition determines whether is it necessary to adjust position too.
+      * @param fResizeToGuestDisplay determines if is it necessary to resize the window to fit to guest display size.
       * @note  Reimplemented in sub-classes. Base implementation does nothing. */
-    virtual void normalizeGeometry(bool fAdjustPosition) { Q_UNUSED(fAdjustPosition); }
+    virtual void normalizeGeometry(bool fAdjustPosition, bool fResizeToGuestDisplay) { Q_UNUSED(fAdjustPosition); Q_UNUSED(fResizeToGuestDisplay); }
 
     /** Adjusts machine-view size to correspond current machine-window size. */
     virtual void adjustMachineViewSize();
@@ -110,7 +125,7 @@ protected slots:
 
 #ifdef VBOX_WS_X11
     /** X11: Performs machine-window geometry normalization. */
-    void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */); }
+    void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */, shouldResizeToGuestDisplay()); }
 #endif /* VBOX_WS_X11 */
 
     /** Performs machine-window activation. */
@@ -131,12 +146,12 @@ protected:
     void retranslateUi();
 
     /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    virtual bool event(QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
+    virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
     /** Handles hide @a pEvent. */
-    virtual void hideEvent(QHideEvent *pEvent) /* override */;
+    virtual void hideEvent(QHideEvent *pEvent) RT_OVERRIDE;
 
     /** Close event handler. */
     void closeEvent(QCloseEvent *pCloseEvent);
@@ -158,6 +173,7 @@ protected:
     virtual void prepareMenu() {}
     virtual void prepareStatusBar() {}
     virtual void prepareMachineView();
+    virtual void prepareNotificationCenter();
     virtual void prepareVisualState() {}
     virtual void prepareHandlers();
     virtual void loadSettings() {}
@@ -166,6 +182,7 @@ protected:
     virtual void saveSettings() {}
     virtual void cleanupHandlers();
     virtual void cleanupVisualState() {}
+    virtual void cleanupNotificationCenter();
     virtual void cleanupMachineView();
     virtual void cleanupStatusBar() {}
     virtual void cleanupMenu() {}

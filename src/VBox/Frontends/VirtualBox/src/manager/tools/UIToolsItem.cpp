@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -57,7 +67,7 @@ public:
     {}
 
     /** Returns the parent. */
-    virtual QAccessibleInterface *parent() const /* override */
+    virtual QAccessibleInterface *parent() const RT_OVERRIDE
     {
         /* Make sure item still alive: */
         AssertPtrReturn(item(), 0);
@@ -67,7 +77,7 @@ public:
     }
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */
+    virtual int childCount() const RT_OVERRIDE
     {
         /* Make sure item still alive: */
         AssertPtrReturn(item(), 0);
@@ -77,7 +87,7 @@ public:
     }
 
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int) const /* override */
+    virtual QAccessibleInterface *child(int) const RT_OVERRIDE
     {
         /* Make sure item still alive: */
         AssertPtrReturn(item(), 0);
@@ -87,7 +97,7 @@ public:
     }
 
     /** Returns the index of the passed @a pChild. */
-    virtual int indexOfChild(const QAccessibleInterface *pChild) const /* override */
+    virtual int indexOfChild(const QAccessibleInterface *pChild) const RT_OVERRIDE
     {
         /* Search for corresponding child: */
         for (int i = 0; i < childCount(); ++i)
@@ -99,7 +109,7 @@ public:
     }
 
     /** Returns the rect. */
-    virtual QRect rect() const /* override */
+    virtual QRect rect() const RT_OVERRIDE
     {
         /* Now goes the mapping: */
         const QSize   itemSize         = item()->size().toSize();
@@ -111,7 +121,7 @@ public:
     }
 
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE
     {
         /* Make sure item still alive: */
         AssertPtrReturn(item(), QString());
@@ -129,7 +139,7 @@ public:
     }
 
     /** Returns the role. */
-    virtual QAccessible::Role role() const /* override */
+    virtual QAccessible::Role role() const RT_OVERRIDE
     {
         /* Make sure item still alive: */
         AssertPtrReturn(item(), QAccessible::NoRole);
@@ -139,7 +149,7 @@ public:
     }
 
     /** Returns the state. */
-    virtual QAccessible::State state() const /* override */
+    virtual QAccessible::State state() const RT_OVERRIDE
     {
         /* Make sure item still alive: */
         AssertPtrReturn(item(), QAccessible::State());
@@ -188,12 +198,12 @@ UIToolsItem::UIToolsItem(QGraphicsScene *pScene,
     , m_iDefaultValue(0)
     , m_iHoveredValue(100)
     , m_iAnimatedValue(m_iDefaultValue)
-    , m_iDefaultLightnessMin(0)
-    , m_iDefaultLightnessMax(0)
-    , m_iHoverLightnessMin(0)
-    , m_iHoverLightnessMax(0)
-    , m_iHighlightLightnessMin(0)
-    , m_iHighlightLightnessMax(0)
+    , m_iDefaultLightnessStart(0)
+    , m_iDefaultLightnessFinal(0)
+    , m_iHoverLightnessStart(0)
+    , m_iHoverLightnessFinal(0)
+    , m_iHighlightLightnessStart(0)
+    , m_iHighlightLightnessFinal(0)
     , m_iPreviousMinimumWidthHint(0)
     , m_iPreviousMinimumHeightHint(0)
     , m_iMaximumNameWidth(0)
@@ -441,21 +451,28 @@ void UIToolsItem::prepare()
     QAccessible::installFactory(UIAccessibilityInterfaceForUIToolsItem::pFactory);
 
     /* Prepare color tones: */
-#ifdef VBOX_WS_MAC
-    m_iHighlightLightnessMin = 105;
-    m_iHighlightLightnessMax = 115;
-    m_iHoverLightnessMin = 115;
-    m_iHoverLightnessMax = 125;
-    m_iDefaultLightnessMin = 145;
-    m_iDefaultLightnessMax = 155;
-#else /* VBOX_WS_MAC */
-    m_iHighlightLightnessMin = 130;
-    m_iHighlightLightnessMax = 160;
-    m_iHoverLightnessMin = 160;
-    m_iHoverLightnessMax = 190;
-    m_iDefaultLightnessMin = 160;
-    m_iDefaultLightnessMax = 190;
-#endif /* !VBOX_WS_MAC */
+#if defined(VBOX_WS_MAC)
+    m_iDefaultLightnessStart = 120;
+    m_iDefaultLightnessFinal = 110;
+    m_iHoverLightnessStart = 125;
+    m_iHoverLightnessFinal = 115;
+    m_iHighlightLightnessStart = 115;
+    m_iHighlightLightnessFinal = 105;
+#elif defined(VBOX_WS_WIN)
+    m_iDefaultLightnessStart = 120;
+    m_iDefaultLightnessFinal = 110;
+    m_iHoverLightnessStart = 220;
+    m_iHoverLightnessFinal = 210;
+    m_iHighlightLightnessStart = 190;
+    m_iHighlightLightnessFinal = 180;
+#else /* !VBOX_WS_MAC && !VBOX_WS_WIN */
+    m_iDefaultLightnessStart = 110;
+    m_iDefaultLightnessFinal = 100;
+    m_iHoverLightnessStart = 125;
+    m_iHoverLightnessFinal = 115;
+    m_iHighlightLightnessStart = 110;
+    m_iHighlightLightnessFinal = 100;
+#endif /* !VBOX_WS_MAC && !VBOX_WS_WIN */
 
     /* Prepare fonts: */
     m_nameFont = font();
@@ -625,7 +642,11 @@ void UIToolsItem::updateMinimumNameSize()
     const QFontMetrics fm(m_nameFont, pPaintDevice);
     const int iWidthOf15Letters = textWidthMonospace(m_nameFont, pPaintDevice, 15);
     const QString strNameCompressedTo15Letters = compressText(m_nameFont, pPaintDevice, m_strName, iWidthOf15Letters);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    const QSize minimumNameSize = QSize(fm.horizontalAdvance(strNameCompressedTo15Letters), fm.height());
+#else
     const QSize minimumNameSize = QSize(fm.width(strNameCompressedTo15Letters), fm.height());
+#endif
 
     /* Update linked values: */
     if (m_minimumNameSize != minimumNameSize)
@@ -679,7 +700,11 @@ int UIToolsItem::textWidthMonospace(const QFont &font, QPaintDevice *pPaintDevic
     QFontMetrics fm(font, pPaintDevice);
     QString strString;
     strString.fill('_', iCount);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    return fm.horizontalAdvance(strString);
+#else
     return fm.width(strString);
+#endif
 }
 
 /* static */
@@ -691,14 +716,24 @@ QString UIToolsItem::compressText(const QFont &font, QPaintDevice *pPaintDevice,
 
     /* Check if passed text already fits maximum width: */
     QFontMetrics fm(font, pPaintDevice);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    if (fm.horizontalAdvance(strText) <= iWidth)
+#else
     if (fm.width(strText) <= iWidth)
+#endif
         return strText;
 
     /* Truncate otherwise: */
     QString strEllipsis = QString("...");
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int iEllipsisWidth = fm.horizontalAdvance(strEllipsis + " ");
+    while (!strText.isEmpty() && fm.horizontalAdvance(strText) + iEllipsisWidth > iWidth)
+        strText.truncate(strText.size() - 1);
+#else
     int iEllipsisWidth = fm.width(strEllipsis + " ");
     while (!strText.isEmpty() && fm.width(strText) + iEllipsisWidth > iWidth)
         strText.truncate(strText.size() - 1);
+#endif
     return strText + strEllipsis;
 }
 
@@ -708,7 +743,7 @@ void UIToolsItem::paintBackground(QPainter *pPainter, const QRect &rectangle) co
     pPainter->save();
 
     /* Prepare variables: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
 
     /* Selection background: */
     if (model()->currentItem() == this)
@@ -716,11 +751,11 @@ void UIToolsItem::paintBackground(QPainter *pPainter, const QRect &rectangle) co
         /* Prepare color: */
         const QColor backgroundColor = isEnabled()
                                      ? pal.color(QPalette::Active, QPalette::Highlight)
-                                     : pal.color(QPalette::Disabled, QPalette::Midlight);
+                                     : pal.color(QPalette::Disabled, QPalette::Window);
         /* Draw gradient: */
         QLinearGradient bgGrad(rectangle.topLeft(), rectangle.bottomLeft());
-        bgGrad.setColorAt(0, backgroundColor.lighter(m_iHighlightLightnessMax));
-        bgGrad.setColorAt(1, backgroundColor.lighter(m_iHighlightLightnessMin));
+        bgGrad.setColorAt(0, backgroundColor.lighter(m_iHighlightLightnessStart));
+        bgGrad.setColorAt(1, backgroundColor.lighter(m_iHighlightLightnessFinal));
         pPainter->fillRect(rectangle, bgGrad);
 
         if (isEnabled() && isHovered())
@@ -755,11 +790,11 @@ void UIToolsItem::paintBackground(QPainter *pPainter, const QRect &rectangle) co
         /* Prepare color: */
         const QColor backgroundColor = isEnabled()
                                      ? pal.color(QPalette::Active, QPalette::Highlight)
-                                     : pal.color(QPalette::Disabled, QPalette::Midlight);
+                                     : pal.color(QPalette::Disabled, QPalette::Window);
         /* Draw gradient: */
         QLinearGradient bgGrad(rectangle.topLeft(), rectangle.bottomLeft());
-        bgGrad.setColorAt(0, backgroundColor.lighter(m_iHoverLightnessMax));
-        bgGrad.setColorAt(1, backgroundColor.lighter(m_iHoverLightnessMin));
+        bgGrad.setColorAt(0, backgroundColor.lighter(m_iHoverLightnessStart));
+        bgGrad.setColorAt(1, backgroundColor.lighter(m_iHoverLightnessFinal));
         pPainter->fillRect(rectangle, bgGrad);
 
         if (isEnabled())
@@ -793,12 +828,12 @@ void UIToolsItem::paintBackground(QPainter *pPainter, const QRect &rectangle) co
     {
         /* Prepare color: */
         const QColor backgroundColor = isEnabled()
-                                     ? pal.color(QPalette::Active, QPalette::Mid)
-                                     : pal.color(QPalette::Disabled, QPalette::Midlight);
+                                     ? pal.color(QPalette::Active, QPalette::Window)
+                                     : pal.color(QPalette::Disabled, QPalette::Window);
         /* Draw gradient: */
         QLinearGradient bgGrad(rectangle.topLeft(), rectangle.bottomLeft());
-        bgGrad.setColorAt(0, backgroundColor.lighter(m_iDefaultLightnessMax));
-        bgGrad.setColorAt(1, backgroundColor.lighter(m_iDefaultLightnessMin));
+        bgGrad.setColorAt(0, backgroundColor.lighter(m_iDefaultLightnessStart));
+        bgGrad.setColorAt(1, backgroundColor.lighter(m_iDefaultLightnessFinal));
         pPainter->fillRect(rectangle, bgGrad);
     }
 
@@ -816,18 +851,18 @@ void UIToolsItem::paintFrame(QPainter *pPainter, const QRect &rectangle) const
     pPainter->save();
 
     /* Prepare colors: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
     QColor strokeColor;
 
     /* Selection frame: */
     if (model()->currentItem() == this)
-        strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightnessMin - 40);
+        strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightnessStart - 40);
     /* Hovering frame: */
     else if (isHovered())
-        strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHoverLightnessMin - 50);
+        strokeColor = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHoverLightnessStart - 40);
     /* Default frame: */
     else
-        strokeColor = pal.color(QPalette::Active, QPalette::Mid).lighter(m_iDefaultLightnessMin);
+        strokeColor = pal.color(QPalette::Active, QPalette::Window).lighter(m_iDefaultLightnessStart);
 
     /* Create/assign pen: */
     QPen pen(strokeColor);
@@ -850,32 +885,37 @@ void UIToolsItem::paintToolInfo(QPainter *pPainter, const QRect &rectangle) cons
     const int iFullHeight = rectangle.height();
     const int iMargin = data(ToolsItemData_Margin).toInt();
     const int iSpacing = data(ToolsItemData_Spacing).toInt();
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
 
-    /* Selected item foreground: */
-    if (model()->currentItem() == this)
+    /* Selected or hovered item foreground: */
+    if (model()->currentItem() == this || isHovered())
     {
-        const QColor textColor = isEnabled()
-                               ? pal.color(QPalette::Active, QPalette::HighlightedText)
-                               : pal.color(QPalette::Disabled, QPalette::Text);
-        pPainter->setPen(textColor);
-    }
-    /* Hovered item foreground: */
-    else if (isHovered())
-    {
-        /* Prepare color: */
-        QColor defaultHighlighted = pal.color(QPalette::Active, QPalette::Highlight);
-        QColor hoveredHighlighted = defaultHighlighted.lighter(m_iHoverLightnessMax);
-        QColor textColor;
-        if (hoveredHighlighted.value() - hoveredHighlighted.saturation() > 0)
-            textColor = isEnabled()
-                      ? pal.color(QPalette::Active, QPalette::Text)
-                      : pal.color(QPalette::Disabled, QPalette::Text);
+        /* Prepare palette: */
+        const QPalette pal = QApplication::palette();
+
+        /* Get background color: */
+        const QColor highlight = pal.color(QPalette::Active, QPalette::Highlight);
+        const QColor background = model()->currentItem() == this
+                                ? highlight.lighter(m_iHighlightLightnessStart)
+                                : highlight.lighter(m_iHoverLightnessStart);
+
+        /* Get foreground color: */
+        const QColor simpleText = pal.color(QPalette::Active, QPalette::Text);
+        const QColor highlightText = pal.color(QPalette::Active, QPalette::HighlightedText);
+        QColor lightText = simpleText.black() < highlightText.black() ? simpleText : highlightText;
+        QColor darkText = simpleText.black() > highlightText.black() ? simpleText : highlightText;
+        if (lightText.black() > 128)
+            lightText = QColor(Qt::white);
+        if (darkText.black() < 128)
+            darkText = QColor(Qt::black);
+
+        /* Gather foreground color for background one: */
+        double dLuminance = (0.299 * background.red() + 0.587 * background.green() + 0.114 * background.blue()) / 255;
+        //printf("luminance = %f\n", dLuminance);
+        if (dLuminance > 0.5)
+            pPainter->setPen(darkText);
         else
-            textColor = isEnabled()
-                      ? pal.color(QPalette::Active, QPalette::HighlightedText)
-                      : pal.color(QPalette::Disabled, QPalette::Text);
-        pPainter->setPen(textColor);
+            pPainter->setPen(lightText);
     }
     /* Default item foreground: */
     else

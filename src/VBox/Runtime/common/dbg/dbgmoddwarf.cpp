@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -234,7 +244,8 @@ typedef struct RTDWARFCURSOR
  */
 typedef struct RTDWARFLINESTATE
 {
-    /** Virtual Line Number Machine Registers. */
+    /** @name Virtual Line Number Machine Registers.
+     * @{ */
     struct
     {
         uint64_t        uAddress;
@@ -296,8 +307,8 @@ typedef RTDWARFLINESTATE *PRTDWARFLINESTATE;
  * @param   uForm           The data form.
  * @param   pCursor         The cursor to read data from.
  */
-typedef DECLCALLBACK(int) FNRTDWARFATTRDECODER(PRTDWARFDIE pDie, uint8_t *pbMember, PCRTDWARFATTRDESC pDesc,
-                                               uint32_t uForm, PRTDWARFCURSOR pCursor);
+typedef DECLCALLBACKTYPE(int, FNRTDWARFATTRDECODER,(PRTDWARFDIE pDie, uint8_t *pbMember, PCRTDWARFATTRDESC pDesc,
+                                                    uint32_t uForm, PRTDWARFCURSOR pCursor));
 /** Pointer to an attribute decoder callback. */
 typedef FNRTDWARFATTRDECODER *PFNRTDWARFATTRDECODER;
 
@@ -3823,14 +3834,14 @@ static int rtDwarfLine_RunProgram(PRTDWARFLINESTATE pLnState, PRTDWARFCURSOR pCu
                         }
 
                         /*
-                         * Note! Was defined in DWARF 4.  But... Watcom used it
-                         *       for setting the segment in DWARF 2, creating
-                         *       an incompatibility with the newer standard.
+                         * Note! Was defined in DWARF 4.  But... Watcom used it for setting the
+                         *       segment in DWARF 2, creating an incompatibility with the newer
+                         *       standard.  And gcc 10 uses v3 for these.
                          */
                         case DW_LNE_set_descriminator:
                             if (pLnState->Hdr.uVer != 2)
                             {
-                                Assert(pLnState->Hdr.uVer >= 4);
+                                Assert(pLnState->Hdr.uVer >= 3);
                                 pLnState->Regs.uDiscriminator = rtDwarfCursor_GetULeb128AsU32(pCursor, UINT32_MAX);
                                 Log2(("%08x: DW_LNE_set_descriminator: %u\n", offOpCode, pLnState->Regs.uDiscriminator));
                             }
@@ -5158,7 +5169,7 @@ static int rtDwarfInfo_SnoopSymbols(PRTDBGMODDWARF pThis, PRTDWARFDIE pDie)
                 Log5(("label %s %#x:%#llx\n", pLabel->pszName, pLabel->uSegment, pLabel->Address.uAddress));
                 if (pThis->iWatcomPass == 1)
                     rc = rtDbgModDwarfRecordSegOffset(pThis, pLabel->uSegment, pLabel->Address.uAddress);
-                else
+                else if (pLabel->pszName && *pLabel->pszName != '\0') /* Seen empty labels with isolinux. */
                 {
                     RTDBGSEGIDX iSeg;
                     RTUINTPTR   offSeg;

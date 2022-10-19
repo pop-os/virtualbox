@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /*
@@ -27,6 +37,8 @@
 
 /* Qt includes: */
 #include <QLabel>
+#include <QRegularExpression>
+#include <QRegExp>
 
 /* GUI includes: */
 #include "UILibraryDefs.h"
@@ -39,9 +51,9 @@ class SHARED_LIBRARY_STUFF QILabel : public QLabel
 public:
 
     /** Constructs label passing @a pParent and @a enmFlags to the base-class. */
-    QILabel(QWidget *pParent = 0, Qt::WindowFlags enmFlags = 0);
+    QILabel(QWidget *pParent = 0, Qt::WindowFlags enmFlags = Qt::WindowFlags());
     /** Constructs label passing @a strText, @a pParent and @a enmFlags to the base-class. */
-    QILabel(const QString &strText, QWidget *pParent = 0, Qt::WindowFlags enmFlags = 0);
+    QILabel(const QString &strText, QWidget *pParent = 0, Qt::WindowFlags enmFlags = Qt::WindowFlags());
 
     /** Returns whether label full-size focusing selection is enabled. */
     bool fullSizeSelection() const { return m_fFullSizeSelection; }
@@ -127,9 +139,9 @@ private:
     QAction *m_pCopyAction;
 
     /** Holds text-copy reg-exp. */
-    static const QRegExp s_regExpCopy;
+    static const QRegularExpression s_regExpCopy;
     /** Holds text-elide reg-exp. */
-    static QRegExp       s_regExpElide;
+    static QRegExp                  s_regExpElide;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_extensions_QILabel_h */

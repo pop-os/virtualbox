@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -1003,7 +1013,7 @@ static int pdmacFileAioMgrNormalProcessTaskList(PPDMACTASKFILE pTaskHead,
 
         pCurr->pNext = NULL;
 
-        AssertMsg(VALID_PTR(pCurr->pEndpoint) && (pCurr->pEndpoint == pEndpoint),
+        AssertMsg(RT_VALID_PTR(pCurr->pEndpoint) && pCurr->pEndpoint == pEndpoint,
                   ("Endpoints do not match\n"));
 
         switch (pCurr->enmTransferType)
@@ -1197,7 +1207,7 @@ static int pdmacFileAioMgrNormalProcessBlockingEvent(PPDMACEPFILEMGR pAioMgr)
         case PDMACEPFILEAIOMGRBLOCKINGEVENT_ADD_ENDPOINT:
         {
             PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointNew = ASMAtomicReadPtrT(&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, PPDMASYNCCOMPLETIONENDPOINTFILE);
-            AssertMsg(VALID_PTR(pEndpointNew), ("Adding endpoint event without a endpoint to add\n"));
+            AssertMsg(RT_VALID_PTR(pEndpointNew), ("Adding endpoint event without a endpoint to add\n"));
 
             pEndpointNew->enmState = PDMASYNCCOMPLETIONENDPOINTFILESTATE_ACTIVE;
 
@@ -1216,7 +1226,7 @@ static int pdmacFileAioMgrNormalProcessBlockingEvent(PPDMACEPFILEMGR pAioMgr)
         case PDMACEPFILEAIOMGRBLOCKINGEVENT_REMOVE_ENDPOINT:
         {
             PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointRemove = ASMAtomicReadPtrT(&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, PPDMASYNCCOMPLETIONENDPOINTFILE);
-            AssertMsg(VALID_PTR(pEndpointRemove), ("Removing endpoint event without a endpoint to remove\n"));
+            AssertMsg(RT_VALID_PTR(pEndpointRemove), ("Removing endpoint event without a endpoint to remove\n"));
 
             pEndpointRemove->enmState = PDMASYNCCOMPLETIONENDPOINTFILESTATE_REMOVING;
             fNotifyWaiter = !pdmacFileAioMgrNormalRemoveEndpoint(pEndpointRemove);
@@ -1225,7 +1235,7 @@ static int pdmacFileAioMgrNormalProcessBlockingEvent(PPDMACEPFILEMGR pAioMgr)
         case PDMACEPFILEAIOMGRBLOCKINGEVENT_CLOSE_ENDPOINT:
         {
             PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointClose = ASMAtomicReadPtrT(&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, PPDMASYNCCOMPLETIONENDPOINTFILE);
-            AssertMsg(VALID_PTR(pEndpointClose), ("Close endpoint event without a endpoint to close\n"));
+            AssertMsg(RT_VALID_PTR(pEndpointClose), ("Close endpoint event without a endpoint to close\n"));
 
             if (pEndpointClose->enmState == PDMASYNCCOMPLETIONENDPOINTFILESTATE_ACTIVE)
             {

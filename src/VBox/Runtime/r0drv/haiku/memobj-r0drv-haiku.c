@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -151,8 +161,8 @@ int rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 }
 
 
-static int rtR0MemObjNativeAllocArea(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
-                                     bool fExecutable, RTR0MEMOBJTYPE type, RTHCPHYS PhysHighest, size_t uAlignment)
+static int rtR0MemObjNativeAllocArea(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, RTR0MEMOBJTYPE enmType,
+                                     RTHCPHYS PhysHighest, size_t uAlignment, const char *pszTag)
 {
     NOREF(fExecutable);
 
@@ -161,10 +171,10 @@ static int rtR0MemObjNativeAllocArea(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
     const char *pszName = NULL;
     uint32 addressSpec  = B_ANY_KERNEL_ADDRESS;
     uint32 fLock        = ~0U;
-    LogFlowFunc(("ppMem=%p cb=%u, fExecutable=%s, type=%08x, PhysHighest=%RX64 uAlignment=%u\n", ppMem,(unsigned)cb,
-                 fExecutable ? "true" : "false", type, PhysHighest,(unsigned)uAlignment));
+    LogFlowFunc(("ppMem=%p cb=%u, fExecutable=%s, enmType=%08x, PhysHighest=%RX64 uAlignment=%u\n", ppMem,(unsigned)cb,
+                 fExecutable ? "true" : "false", enmType, PhysHighest,(unsigned)uAlignment));
 
-    switch (type)
+    switch (enmType)
     {
         case RTR0MEMOBJTYPE_PAGE:
             pszName = "IPRT R0MemObj Alloc";
@@ -203,7 +213,7 @@ static int rtR0MemObjNativeAllocArea(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
 
     /* Create the object. */
     PRTR0MEMOBJHAIKU pMemHaiku;
-    pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(RTR0MEMOBJHAIKU), type, NULL, cb);
+    pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(RTR0MEMOBJHAIKU), enmType, NULL, cb, pszTag);
     if (RT_UNLIKELY(!pMemHaiku))
         return VERR_NO_MEMORY;
 
@@ -212,7 +222,7 @@ static int rtR0MemObjNativeAllocArea(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
     {
         physical_entry physMap[2];
         pMemHaiku->Core.pv = pvMap;   /* store start address */
-        switch (type)
+        switch (enmType)
         {
             case RTR0MEMOBJTYPE_CONT:
                 rc = get_memory_map(pvMap, cb, physMap, 2);
@@ -247,9 +257,9 @@ static int rtR0MemObjNativeAllocArea(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
 }
 
 
-int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+int rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
-    return rtR0MemObjNativeAllocArea(ppMem, cb, fExecutable, RTR0MEMOBJTYPE_PAGE, 0 /* PhysHighest */, 0 /* uAlignment */);
+    return rtR0MemObjNativeAllocArea(ppMem, cb, fExecutable, RTR0MEMOBJTYPE_PAGE, 0 /* PhysHighest */, 0 /* uAlignment */, pszTag);
 }
 
 
@@ -260,36 +270,36 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLarge(PPRTR0MEMOBJINTERNAL ppMem, size_t cb
 }
 
 
-int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+int rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
-    return rtR0MemObjNativeAllocArea(ppMem, cb, fExecutable, RTR0MEMOBJTYPE_LOW, 0 /* PhysHighest */, 0 /* uAlignment */);
+    return rtR0MemObjNativeAllocArea(ppMem, cb, fExecutable, RTR0MEMOBJTYPE_LOW, 0 /* PhysHighest */, 0 /* uAlignment */, pszTag);
 }
 
 
-int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+int rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
-    return rtR0MemObjNativeAllocArea(ppMem, cb, fExecutable, RTR0MEMOBJTYPE_CONT, 0 /* PhysHighest */, 0 /* uAlignment */);
+    return rtR0MemObjNativeAllocArea(ppMem, cb, fExecutable, RTR0MEMOBJTYPE_CONT, 0 /* PhysHighest */, 0 /* uAlignment */, pszTag);
 }
 
-int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
+int rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment, const char *pszTag)
 {
-    return rtR0MemObjNativeAllocArea(ppMem, cb, false, RTR0MEMOBJTYPE_PHYS, PhysHighest, uAlignment);
-}
-
-
-int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
-{
-    return rtR0MemObjNativeAllocPhys(ppMem, cb, PhysHighest, PAGE_SIZE);
+    return rtR0MemObjNativeAllocArea(ppMem, cb, false, RTR0MEMOBJTYPE_PHYS, PhysHighest, uAlignment, pszTag);
 }
 
 
-int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
+int rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, const char *pszTag)
+{
+    return rtR0MemObjNativeAllocPhys(ppMem, cb, PhysHighest, PAGE_SIZE, pszTag);
+}
+
+
+int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy, const char *pszTag)
 {
     AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_SUPPORTED);
     LogFlowFunc(("ppMem=%p Phys=%08x cb=%u uCachePolicy=%x\n", ppMem, Phys,(unsigned)cb, uCachePolicy));
 
     /* Create the object. */
-    PRTR0MEMOBJHAIKU pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(*pMemHaiku), RTR0MEMOBJTYPE_PHYS, NULL, cb);
+    PRTR0MEMOBJHAIKU pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(*pMemHaiku), RTR0MEMOBJTYPE_PHYS, NULL, cb, pszTag);
     if (!pMemHaiku)
         return VERR_NO_MEMORY;
 
@@ -307,33 +317,33 @@ int rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t 
  * Worker locking the memory in either kernel or user maps.
  *
  * @returns IPRT status code.
- * @param   ppMem        Where to store the allocated memory object.
- * @param   pvStart      The starting address.
- * @param   cb           The size of the block.
- * @param   fAccess      The mapping protection to apply.
- * @param   R0Process    The process to map the memory to (use NIL_RTR0PROCESS
- *                       for the kernel)
- * @param   fFlags       Memory flags (B_READ_DEVICE indicates the memory is
- *                       intended to be written from a "device").
+ * @param   ppMem       Where to store the allocated memory object.
+ * @param   pvStart     The starting address.
+ * @param   cb          The size of the block.
+ * @param   fAccess     The mapping protection to apply.
+ * @param   R0Process   The process to map the memory to (use NIL_RTR0PROCESS
+ *                      for the kernel)
+ * @param   fFlags      Memory flags (B_READ_DEVICE indicates the memory is
+ *                      intended to be written from a "device").
+ * @param   pszTag      Allocation tag used for statistics and such.
  */
 static int rtR0MemObjNativeLockInMap(PPRTR0MEMOBJINTERNAL ppMem, void *pvStart, size_t cb, uint32_t fAccess,
-                                     RTR0PROCESS R0Process, int fFlags)
+                                     RTR0PROCESS R0Process, int fFlags, const char *pszTag)
 {
     NOREF(fAccess);
-    int rc;
     team_id TeamId = B_SYSTEM_TEAM;
 
     LogFlowFunc(("ppMem=%p pvStart=%p cb=%u fAccess=%x R0Process=%d fFlags=%x\n", ppMem, pvStart, cb, fAccess, R0Process,
                  fFlags));
 
     /* Create the object. */
-    PRTR0MEMOBJHAIKU pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(*pMemHaiku), RTR0MEMOBJTYPE_LOCK, pvStart, cb);
+    PRTR0MEMOBJHAIKU pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(*pMemHaiku), RTR0MEMOBJTYPE_LOCK, pvStart, cb, pszTag);
     if (RT_UNLIKELY(!pMemHaiku))
         return VERR_NO_MEMORY;
 
     if (R0Process != NIL_RTR0PROCESS)
         TeamId = (team_id)R0Process;
-    rc = lock_memory_etc(TeamId, pvStart, cb, fFlags);
+    int rc = lock_memory_etc(TeamId, pvStart, cb, fFlags);
     if (rc == B_OK)
     {
         pMemHaiku->AreaId = -1;
@@ -346,15 +356,16 @@ static int rtR0MemObjNativeLockInMap(PPRTR0MEMOBJINTERNAL ppMem, void *pvStart, 
 }
 
 
-int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process)
+int rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process,
+                             const char *pszTag)
 {
-    return rtR0MemObjNativeLockInMap(ppMem, (void *)R3Ptr, cb, fAccess, R0Process, B_READ_DEVICE);
+    return rtR0MemObjNativeLockInMap(ppMem, (void *)R3Ptr, cb, fAccess, R0Process, B_READ_DEVICE, pszTag);
 }
 
 
-int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess)
+int rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess, const char *pszTag)
 {
-    return rtR0MemObjNativeLockInMap(ppMem, pv, cb, fAccess, NIL_RTR0PROCESS, B_READ_DEVICE);
+    return rtR0MemObjNativeLockInMap(ppMem, pv, cb, fAccess, NIL_RTR0PROCESS, B_READ_DEVICE, pszTag);
 }
 
 
@@ -392,20 +403,23 @@ static int rtR0MemObjNativeReserveInMap(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixe
 #endif
 
 
-int rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment)
+int rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment, const char *pszTag)
 {
+    RT_NOREF(ppMem, pvFixed, cb, uAlignment, pszTag);
     return VERR_NOT_SUPPORTED;
 }
 
 
-int rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment, RTR0PROCESS R0Process)
+int rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment,
+                                RTR0PROCESS R0Process, const char *pszTag)
 {
+    RT_NOREF(ppMem, R3PtrFixed, cb, uAlignment, R0Process, pszTag);
     return VERR_NOT_SUPPORTED;
 }
 
 
 int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
-                              unsigned fProt, size_t offSub, size_t cbSub)
+                              unsigned fProt, size_t offSub, size_t cbSub, const char *pszTag)
 {
     PRTR0MEMOBJHAIKU pMemToMapHaiku = (PRTR0MEMOBJHAIKU)pMemToMap;
     PRTR0MEMOBJHAIKU pMemHaiku;
@@ -464,7 +478,7 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
     {
         /* Create the object. */
         pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(RTR0MEMOBJHAIKU), RTR0MEMOBJTYPE_MAPPING, pvMap,
-                                                    pMemToMapHaiku->Core.cb);
+                                                    pMemToMapHaiku->Core.cb, pszTag);
         if (RT_UNLIKELY(!pMemHaiku))
             return VERR_NO_MEMORY;
 
@@ -484,7 +498,7 @@ int rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, 
 
 
 int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment,
-                            unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub)
+                            unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub, const char *pszTag)
 {
 #if 0
     /*
@@ -572,10 +586,8 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
         /*
          * Create a mapping object for it.
          */
-        PRTR0MEMOBJHAIKU pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(RTR0MEMOBJHAIKU),
-                                                                     RTR0MEMOBJTYPE_MAPPING,
-                                                                     (void *)AddrR3,
-                                                                     pMemToMap->cb);
+        PRTR0MEMOBJHAIKU pMemHaiku = (PRTR0MEMOBJHAIKU)rtR0MemObjNew(sizeof(RTR0MEMOBJHAIKU), RTR0MEMOBJTYPE_MAPPING,
+                                                                     (void *)AddrR3, pMemToMap->cb, pszTag);
         if (pMemHaiku)
         {
             Assert((vm_offset_t)pMemHaiku->Core.pv == AddrR3);
@@ -587,6 +599,8 @@ int rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RT
         rc = vm_map_remove(pProcMap, ((vm_offset_t)AddrR3), ((vm_offset_t)AddrR3) + pMemToMap->cb);
         AssertMsg(rc == KERN_SUCCESS, ("Deleting mapping failed\n"));
     }
+#else
+    RT_NOREF(ppMem, pMemToMap, R3PtrFixed, uAlignment, fProt, R0Process, offSub, cbSub, pszTag);
 #endif
     return VERR_NOT_SUPPORTED;
 }

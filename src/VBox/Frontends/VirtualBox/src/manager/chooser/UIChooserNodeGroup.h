@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_chooser_UIChooserNodeGroup_h
@@ -33,60 +43,65 @@ class UIChooserNodeGroup : public UIChooserNode
 public:
 
     /** Constructs chooser node passing @a pParent to the base-class.
-      * @param  fFavorite  Brings whether the node is favorite.
-      * @param  iPosition  Brings the initial node position.
-      * @param  strName    Brings current node name.
-      * @param  fOpened    Brings whether this group node is opened. */
+      * @param  iPosition     Brings the initial node position.
+      * @param  uId           Brings current node id.
+      * @param  strName       Brings current node name.
+      * @param  enmGroupType  Brings group node type.
+      * @param  fOpened       Brings whether this group node is opened. */
     UIChooserNodeGroup(UIChooserNode *pParent,
-                       bool fFavorite,
                        int iPosition,
+                       const QUuid &uId,
                        const QString &strName,
+                       UIChooserNodeGroupType enmGroupType,
                        bool fOpened);
     /** Constructs chooser node passing @a pParent to the base-class.
-      * @param  pCopyFrom  Brings the node to copy data from.
-      * @param  iPosition  Brings the initial node position. */
+      * @param  iPosition  Brings the initial node position.
+      * @param  pCopyFrom  Brings the node to copy data from. */
     UIChooserNodeGroup(UIChooserNode *pParent,
-                       UIChooserNodeGroup *pCopyFrom,
-                       int iPosition);
+                       int iPosition,
+                       UIChooserNodeGroup *pCopyFrom);
     /** Destructs chooser node removing it's children. */
-    virtual ~UIChooserNodeGroup() /* override */;
+    virtual ~UIChooserNodeGroup() RT_OVERRIDE;
 
     /** Returns RTTI node type. */
-    virtual UIChooserItemType type() const /* override */ { return UIChooserItemType_Group; }
+    virtual UIChooserNodeType type() const RT_OVERRIDE { return UIChooserNodeType_Group; }
 
     /** Returns item name. */
-    virtual QString name() const /* override */;
+    virtual QString name() const RT_OVERRIDE;
     /** Returns item full-name. */
-    virtual QString fullName() const /* override */;
+    virtual QString fullName() const RT_OVERRIDE;
     /** Returns item description. */
-    virtual QString description() const /* override */;
-    /** Returns item definition. */
-    virtual QString definition() const /* override */;
+    virtual QString description() const RT_OVERRIDE;
+    /** Returns item definition.
+      * @param  fFull  Brings whether full definition is required
+      *                which is used while saving group definitions,
+      *                otherwise short definition will be returned,
+      *                which is used while saving last chosen node. */
+    virtual QString definition(bool fFull = false) const RT_OVERRIDE;
 
     /** Returns whether there are children of certain @a enmType. */
-    virtual bool hasNodes(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
+    virtual bool hasNodes(UIChooserNodeType enmType = UIChooserNodeType_Any) const RT_OVERRIDE;
     /** Returns a list of nodes of certain @a enmType. */
-    virtual QList<UIChooserNode*> nodes(UIChooserItemType enmType = UIChooserItemType_Any) const /* override */;
+    virtual QList<UIChooserNode*> nodes(UIChooserNodeType enmType = UIChooserNodeType_Any) const RT_OVERRIDE;
 
     /** Adds passed @a pNode to specified @a iPosition. */
-    virtual void addNode(UIChooserNode *pNode, int iPosition) /* override */;
+    virtual void addNode(UIChooserNode *pNode, int iPosition) RT_OVERRIDE;
     /** Removes passed @a pNode. */
-    virtual void removeNode(UIChooserNode *pNode) /* override */;
+    virtual void removeNode(UIChooserNode *pNode) RT_OVERRIDE;
 
     /** Removes all children with specified @a uId recursively. */
-    virtual void removeAllNodes(const QUuid &uId) /* override */;
+    virtual void removeAllNodes(const QUuid &uId) RT_OVERRIDE;
     /** Updates all children with specified @a uId recursively. */
-    virtual void updateAllNodes(const QUuid &uId) /* override */;
-
-    /** Returns whether this node is a cloud node itself
-      * or contains at least one cloud VM node child. */
-    virtual bool hasAtLeastOneCloudNode() const /* override */;
+    virtual void updateAllNodes(const QUuid &uId) RT_OVERRIDE;
 
     /** Returns position of specified node inside this one. */
-    virtual int positionOf(UIChooserNode *pNode) /* override */;
+    virtual int positionOf(UIChooserNode *pNode) RT_OVERRIDE;
 
     /** Defines node @a strName. */
     void setName(const QString &strName);
+
+    /** Returns group node type. */
+    UIChooserNodeGroupType groupType() const { return m_enmGroupType; }
 
     /** Returns whether this group node is opened. */
     bool isOpened() const { return m_fOpened; }
@@ -98,26 +113,33 @@ public:
     /** Closes this group node. */
     void close() { m_fOpened = false; }
 
-    /** Recursively searches for a children wrt.  @a strSearchTerm and @a iItemSearchFlags and updates the @a matchedItems. */
-    virtual void searchForNodes(const QString &strSearchTerm, int iItemSearchFlags, QList<UIChooserNode*> &matchedItems) /* override */;
+    /** Recursively searches for a children wrt.  @a strSearchTerm and @a iSearchFlags and updates the @a matchedItems. */
+    virtual void searchForNodes(const QString &strSearchTerm, int iSearchFlags, QList<UIChooserNode*> &matchedItems) RT_OVERRIDE;
 
     /** Performs sorting of children nodes. */
-    virtual void sortNodes() /* override */;
+    virtual void sortNodes() RT_OVERRIDE;
+
+    /** Returns node group id. */
+    QUuid id() const;
 
 protected:
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
 private:
 
     /** Copies children contents from @a pCopyFrom item. */
     void copyContents(UIChooserNodeGroup *pCopyFrom);
 
+    /** Holds the node id. */
+    QUuid                   m_uId;
     /** Holds the node name. */
-    QString  m_strName;
+    QString                 m_strName;
+    /** Holds the group node type. */
+    UIChooserNodeGroupType  m_enmGroupType;
     /** Holds whether node is opened. */
-    bool     m_fOpened;
+    bool                    m_fOpened;
 
     /** Holds group children. */
     QList<UIChooserNode*>  m_nodesGroup;

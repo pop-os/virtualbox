@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_SNAPSHOT
@@ -25,8 +35,9 @@
 #include "MachineImpl.h"
 #include "MediumImpl.h"
 #include "MediumFormatImpl.h"
-#include "Global.h"
 #include "ProgressImpl.h"
+#include "Global.h"
+#include "StringifyEnums.h"
 
 /// @todo these three includes are required for about one or two lines, try
 // to remove them and put that code in shared code in MachineImplcpp
@@ -155,51 +166,90 @@ HRESULT Snapshot::init(VirtualBox *aVirtualBox,
  *
  *  Since this manipulates the snapshots tree, the caller must hold the
  *  machine lock in write mode (which protects the snapshots tree)!
+ *
+ * @note All children of this snapshot get uninitialized, too, in a stack
+ *       friendly manner.
  */
 void Snapshot::uninit()
 {
     LogFlowThisFunc(("\n"));
 
-    /* Enclose the state transition Ready->InUninit->NotReady */
-    AutoUninitSpan autoUninitSpan(this);
-    if (autoUninitSpan.uninitDone())
-        return;
-
-    Assert(m->pMachine->isWriteLockOnCurrentThread());
-
-    // uninit all children
-    SnapshotsList::iterator it;
-    for (it = m->llChildren.begin();
-         it != m->llChildren.end();
-         ++it)
     {
-        Snapshot *pChild = *it;
-        pChild->m->pParent.setNull();
-        pChild->uninit();
-    }
-    m->llChildren.clear();          // this unsets all the ComPtrs and probably calls delete
-
-    // since there is no guarantee anyone holds a reference to us except the
-    // list of children in our parent, make sure that the reference count
-    // will not drop to 0 before we've declared ourselves as uninitialized,
-    // otherwise there will be another uninit call which causes a self-deadlock
-    // because this uninit isn't complete yet.
-    ComObjPtr<Snapshot> pSnapshot(this);
-    if (m->pParent)
-        i_deparent();
-
-    if (m->pMachine)
-    {
-        m->pMachine->uninit();
-        m->pMachine.setNull();
+        /* If "this" is already uninitialized or was never initialized, skip
+         * all activity since it makes no sense. Also would cause asserts with
+         * the automatic refcount updating with SnapshotList/ComPtr. Also,
+         * make sure that the possible fake error is undone. */
+        ErrorInfoKeeper eik;
+        AutoLimitedCaller autoCaller(this);
+        if (FAILED(autoCaller.rc()))
+            return;
     }
 
-    delete m;
-    m = NULL;
+    SnapshotsList llSnapshotsTodo;
+    llSnapshotsTodo.push_back(this);
+    SnapshotsList llSnapshotsAll;
 
-    autoUninitSpan.setSucceeded();
-    // see above, now the refcount may reach 0
-    pSnapshot.setNull();
+    while (llSnapshotsTodo.size() > 0)
+    {
+        /* This also guarantees that the refcount doesn't actually drop to 0
+         * again while the uninit is already ongoing. */
+        ComObjPtr<Snapshot> pSnapshot = llSnapshotsTodo.front();
+        llSnapshotsTodo.pop_front();
+
+        /* Enclose the state transition Ready->InUninit->NotReady */
+        AutoUninitSpan autoUninitSpan(pSnapshot);
+        if (autoUninitSpan.uninitDone())
+            continue;
+
+        /* Remember snapshots (depth first), for associated SnapshotMachine
+         * uninitialization, which must be done in dept first order, otherwise
+         * the Medium object uninit is done in the wrong order. */
+        llSnapshotsAll.push_front(pSnapshot);
+
+        Assert(pSnapshot->m->pMachine->isWriteLockOnCurrentThread());
+
+        /* Remove initial snapshot from parent snapshot's list of children. */
+        if (pSnapshot == this)
+            pSnapshot->i_deparent();
+
+        /* Paranoia. Shouldn't be set any more at processing time. */
+        Assert(!pSnapshot->m || pSnapshot->m->pParent.isNull());
+
+        /* Process all children */
+        SnapshotsList::const_iterator itBegin = pSnapshot->m->llChildren.begin();
+        SnapshotsList::const_iterator itEnd = pSnapshot->m->llChildren.end();
+        for (SnapshotsList::const_iterator it = itBegin; it != itEnd; ++it)
+        {
+            Snapshot *pChild = *it;
+
+            if (!pChild || !pChild->m)
+                continue;
+
+            pChild->m->pParent.setNull();
+            llSnapshotsTodo.push_back(pChild);
+        }
+
+        /* Children information obsolete, will be processed anyway. */
+        pSnapshot->m->llChildren.clear();
+
+        autoUninitSpan.setSucceeded();
+    }
+
+    /* Now handle SnapshotMachine uninit and free memory. */
+    while (llSnapshotsAll.size() > 0)
+    {
+        ComObjPtr<Snapshot> pSnapshot = llSnapshotsAll.front();
+        llSnapshotsAll.pop_front();
+
+        if (pSnapshot->m->pMachine)
+        {
+            pSnapshot->m->pMachine->uninit();
+            pSnapshot->m->pMachine.setNull();
+        }
+
+        delete pSnapshot->m;
+        pSnapshot->m = NULL;
+    }
 }
 
 /**
@@ -276,13 +326,18 @@ void Snapshot::i_beginSnapshotDelete()
 
 /**
  * Internal helper that removes "this" from the list of children of its
- * parent. Used in uninit() and other places when reparenting is necessary.
+ * parent. Used in places when reparenting is necessary.
  *
  * The caller must hold the machine lock in write mode (which protects the snapshots tree)!
  */
 void Snapshot::i_deparent()
 {
     Assert(m->pMachine->isWriteLockOnCurrentThread());
+
+    if (m->pParent.isNull())
+        return;
+
+    Assert(m->pParent->m);
 
     SnapshotsList &llParent = m->pParent->m->llChildren;
     for (SnapshotsList::iterator it = llParent.begin();
@@ -486,7 +541,6 @@ uint32_t Snapshot::i_getDepth()
 
 /**
  * Returns the number of direct child snapshots, without grandchildren.
- * Does not recurse.
  * @return
  */
 ULONG Snapshot::i_getChildrenCount()
@@ -501,29 +555,7 @@ ULONG Snapshot::i_getChildrenCount()
 }
 
 /**
- * Implementation method for getAllChildrenCount() so we request the
- * tree lock only once before recursing. Don't call directly.
- * @return
- */
-ULONG Snapshot::i_getAllChildrenCountImpl()
-{
-    AutoCaller autoCaller(this);
-    AssertComRC(autoCaller.rc());
-
-    ULONG count = (ULONG)m->llChildren.size();
-    for (SnapshotsList::const_iterator it = m->llChildren.begin();
-         it != m->llChildren.end();
-         ++it)
-    {
-        count += (*it)->i_getAllChildrenCountImpl();
-    }
-
-    return count;
-}
-
-/**
  * Returns the number of child snapshots including all grandchildren.
- * Recurses into the snapshots tree.
  * @return
  */
 ULONG Snapshot::i_getAllChildrenCount()
@@ -534,7 +566,31 @@ ULONG Snapshot::i_getAllChildrenCount()
     // snapshots tree is protected by machine lock
     AutoReadLock alock(m->pMachine COMMA_LOCKVAL_SRC_POS);
 
-    return i_getAllChildrenCountImpl();
+    std::list<const Snapshot *> llSnapshotsTodo;
+    llSnapshotsTodo.push_back(this);
+
+    ULONG cChildren = 0;
+
+    while (llSnapshotsTodo.size() > 0)
+    {
+        const Snapshot *pSnapshot = llSnapshotsTodo.front();
+        llSnapshotsTodo.pop_front();
+
+        /* Check if snapshot is uninitialized already, can happen if an API
+         * client asks at an inconvenient time. */
+        if (!pSnapshot->m)
+            continue;
+
+        cChildren += (ULONG)pSnapshot->m->llChildren.size();
+
+        /* count all children */
+        SnapshotsList::const_iterator itBegin = pSnapshot->m->llChildren.begin();
+        SnapshotsList::const_iterator itEnd = pSnapshot->m->llChildren.end();
+        for (SnapshotsList::const_iterator it = itBegin; it != itEnd; ++it)
+            llSnapshotsTodo.push_back(*it);
+    }
+
+    return cChildren;
 }
 
 /**
@@ -716,22 +772,24 @@ bool Snapshot::i_sharesSavedStateFile(const Utf8Str &strPath,
                                       Snapshot *pSnapshotToIgnore)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    const Utf8Str &path = m->pMachine->mSSData->strStateFilePath;
+    std::list<const Snapshot *> llSnapshotsTodo;
+    llSnapshotsTodo.push_back(this);
 
-    if (!pSnapshotToIgnore || pSnapshotToIgnore != this)
-        if (path.isNotEmpty())
-            if (path == strPath)
-                return true;        // no need to recurse then
-
-    // but otherwise we must check children
-    for (SnapshotsList::const_iterator it = m->llChildren.begin();
-         it != m->llChildren.end();
-         ++it)
+    while (llSnapshotsTodo.size() > 0)
     {
-        Snapshot *pChild = *it;
-        if (!pSnapshotToIgnore || pSnapshotToIgnore != pChild)
-            if (pChild->i_sharesSavedStateFile(strPath, pSnapshotToIgnore))
+        const Snapshot *pSnapshot = llSnapshotsTodo.front();
+        llSnapshotsTodo.pop_front();
+        const Utf8Str &path = pSnapshot->m->pMachine->mSSData->strStateFilePath;
+
+        if ((!pSnapshotToIgnore || pSnapshotToIgnore != this) && path.isNotEmpty())
+            if (path == strPath)
                 return true;
+
+        /* check all children */
+        SnapshotsList::const_iterator itBegin = pSnapshot->m->llChildren.begin();
+        SnapshotsList::const_iterator itEnd = pSnapshot->m->llChildren.end();
+        for (SnapshotsList::const_iterator it = itBegin; it != itEnd; ++it)
+            llSnapshotsTodo.push_back(*it);
     }
 
     return false;
@@ -748,7 +806,7 @@ void Snapshot::i_updateNVRAMPathsImpl(const Utf8Str &strOldPath,
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    const Utf8Str path = m->pMachine->mBIOSSettings->i_getNonVolatileStorageFile();
+    const Utf8Str path = m->pMachine->mNvramStore->i_getNonVolatileStorageFile();
     LogFlowThisFunc(("Snap[%s].nvramPath={%s}\n", m->strName.c_str(), path.c_str()));
 
     /* NVRAM filename may be empty */
@@ -756,10 +814,10 @@ void Snapshot::i_updateNVRAMPathsImpl(const Utf8Str &strOldPath,
          && RTPathStartsWith(path.c_str(), strOldPath.c_str())
        )
     {
-        m->pMachine->mBIOSSettings->i_updateNonVolatileStorageFile(Utf8StrFmt("%s%s",
+        m->pMachine->mNvramStore->i_updateNonVolatileStorageFile(Utf8StrFmt("%s%s",
                                                                               strNewPath.c_str(),
                                                                               path.c_str() + strOldPath.length()));
-        LogFlowThisFunc(("-> updated: {%s}\n", m->pMachine->mBIOSSettings->i_getNonVolatileStorageFile().c_str()));
+        LogFlowThisFunc(("-> updated: {%s}\n", m->pMachine->mNvramStore->i_getNonVolatileStorageFile().c_str()));
     }
 
     for (SnapshotsList::const_iterator it = m->llChildren.begin();
@@ -803,7 +861,7 @@ void Snapshot::i_updateNVRAMPaths(const Utf8Str &strOldPath,
  * @param data      Target for saving snapshot settings.
  * @return
  */
-HRESULT Snapshot::i_saveSnapshotImplOne(settings::Snapshot &data) const
+HRESULT Snapshot::i_saveSnapshotOne(settings::Snapshot &data) const
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -822,41 +880,6 @@ HRESULT Snapshot::i_saveSnapshotImplOne(settings::Snapshot &data) const
 }
 
 /**
- * Internal implementation for Snapshot::saveSnapshot (below). Caller has
- * requested the snapshots tree (machine) lock.
- *
- * @param data      Target for saving snapshot settings.
- * @return
- */
-HRESULT Snapshot::i_saveSnapshotImpl(settings::Snapshot &data) const
-{
-    HRESULT rc = i_saveSnapshotImplOne(data);
-    if (FAILED(rc))
-        return rc;
-
-    settings::SnapshotsList &llSettingsChildren = data.llChildSnapshots;
-    for (SnapshotsList::const_iterator it = m->llChildren.begin();
-         it != m->llChildren.end();
-         ++it)
-    {
-        // Use the heap (indirectly through the list container) to reduce the
-        // stack footprint, avoiding local settings objects on the stack which
-        // need a lot of stack space. There can be VMs with deeply nested
-        // snapshots. The stack can be quite small, especially with XPCOM.
-        llSettingsChildren.push_back(settings::Snapshot::Empty);
-        Snapshot *pSnap = *it;
-        rc = pSnap->i_saveSnapshotImpl(llSettingsChildren.back());
-        if (FAILED(rc))
-        {
-            llSettingsChildren.pop_back();
-            return rc;
-        }
-    }
-
-    return S_OK;
-}
-
-/**
  * Saves the given snapshot and all its children.
  * It is assumed that the given node is empty.
  *
@@ -867,62 +890,36 @@ HRESULT Snapshot::i_saveSnapshot(settings::Snapshot &data) const
     // snapshots tree is protected by machine lock
     AutoReadLock alock(m->pMachine COMMA_LOCKVAL_SRC_POS);
 
-    return i_saveSnapshotImpl(data);
-}
+    std::list<const Snapshot *> llSnapshotsTodo;
+    llSnapshotsTodo.push_back(this);
+    std::list<settings::Snapshot *> llSettingsTodo;
+    llSettingsTodo.push_back(&data);
 
-/**
- * Part of the cleanup engine of Machine::Unregister().
- *
- * This removes all medium attachments from the snapshot's machine and returns
- * the snapshot's saved state file name, if any, and then calls uninit() on
- * "this" itself.
- *
- * Caller must hold the machine write lock (which protects the snapshots tree!)
- *
- * @param writeLock Machine write lock, which can get released temporarily here.
- * @param cleanupMode Cleanup mode; see Machine::detachAllMedia().
- * @param llMedia List of media returned to caller, depending on cleanupMode.
- * @param llFilenames
- * @return
- */
-HRESULT Snapshot::i_uninitOne(AutoWriteLock &writeLock,
-                              CleanupMode_T cleanupMode,
-                              MediaList &llMedia,
-                              std::list<Utf8Str> &llFilenames)
-{
-    // now call detachAllMedia on the snapshot machine
-    HRESULT rc = m->pMachine->i_detachAllMedia(writeLock,
-                                               this /* pSnapshot */,
-                                               cleanupMode,
-                                               llMedia);
-    if (FAILED(rc))
-        return rc;
-
-    // report the saved state file if it's not on the list yet
-    if (m->pMachine->mSSData->strStateFilePath.isNotEmpty())
+    while (llSnapshotsTodo.size() > 0)
     {
-        bool fFound = false;
-        for (std::list<Utf8Str>::const_iterator it = llFilenames.begin();
-             it != llFilenames.end();
-             ++it)
+        const Snapshot *pSnapshot = llSnapshotsTodo.front();
+        llSnapshotsTodo.pop_front();
+        settings::Snapshot *current = llSettingsTodo.front();
+        llSettingsTodo.pop_front();
+
+        HRESULT rc = pSnapshot->i_saveSnapshotOne(*current);
+        if (FAILED(rc))
+            return rc;
+
+        /* save all children */
+        SnapshotsList::const_iterator itBegin = pSnapshot->m->llChildren.begin();
+        SnapshotsList::const_iterator itEnd = pSnapshot->m->llChildren.end();
+        for (SnapshotsList::const_iterator it = itBegin; it != itEnd; ++it)
         {
-            const Utf8Str &str = *it;
-            if (str == m->pMachine->mSSData->strStateFilePath)
-            {
-                fFound = true;
-                break;
-            }
+            AutoCaller autoCaller(*it);
+            if (FAILED(autoCaller.rc()))
+                continue;
+
+            llSnapshotsTodo.push_back(*it);
+            current->llChildSnapshots.push_back(settings::Snapshot::Empty);
+            llSettingsTodo.push_back(&current->llChildSnapshots.back());
         }
-        if (!fFound)
-            llFilenames.push_back(m->pMachine->mSSData->strStateFilePath);
     }
-
-    Utf8Str strNVRAMFile = m->pMachine->mBIOSSettings->i_getNonVolatileStorageFile();
-    if (strNVRAMFile.isNotEmpty() && RTFileExists(strNVRAMFile.c_str()))
-        llFilenames.push_back(strNVRAMFile);
-
-    i_beginSnapshotDelete();
-    uninit();
 
     return S_OK;
 }
@@ -930,11 +927,10 @@ HRESULT Snapshot::i_uninitOne(AutoWriteLock &writeLock,
 /**
  * Part of the cleanup engine of Machine::Unregister().
  *
- * This recursively removes all medium attachments from the snapshot's machine
- * and returns the snapshot's saved state file name, if any, and then calls
- * uninit() on "this" itself.
+ * This removes all medium attachments from the snapshot's machine and returns
+ * the snapshot's saved state file name, if any, and then calls uninit().
  *
- * This recurses into children first, so the given MediaList receives child
+ * This processes children depth first, so the given MediaList receives child
  * media first before their parents. If the caller wants to close all media,
  * they should go thru the list from the beginning to the end because media
  * cannot be closed if they have children.
@@ -950,46 +946,75 @@ HRESULT Snapshot::i_uninitOne(AutoWriteLock &writeLock,
  * @param llFilenames
  * @return
  */
-HRESULT Snapshot::i_uninitRecursively(AutoWriteLock &writeLock,
-                                      CleanupMode_T cleanupMode,
-                                      MediaList &llMedia,
-                                      std::list<Utf8Str> &llFilenames)
+HRESULT Snapshot::i_uninitAll(AutoWriteLock &writeLock,
+                              CleanupMode_T cleanupMode,
+                              MediaList &llMedia,
+                              std::list<Utf8Str> &llFilenames)
 {
     Assert(m->pMachine->isWriteLockOnCurrentThread());
 
     HRESULT rc = S_OK;
 
-    // make a copy of the Guid for logging before we uninit ourselves
-#ifdef LOG_ENABLED
-    Guid uuid = i_getId();
-    Utf8Str name = i_getName();
-    LogFlowThisFunc(("Entering for snapshot '%s' {%RTuuid}\n", name.c_str(), uuid.raw()));
-#endif
+    SnapshotsList llSnapshotsTodo;
+    llSnapshotsTodo.push_front(this);
+    SnapshotsList llSnapshotsAll;
 
-    // Recurse into children first so that the child media appear on the list
-    // first; this way caller can close the media from the beginning to the end
-    // because parent media can't be closed if they have children and
-    // additionally it postpones the uninit() call until we no longer need
-    // anything from the list. Oh, and remember that the child removes itself
-    // from the list, so keep the iterator at the beginning.
-    for (SnapshotsList::const_iterator it = m->llChildren.begin();
-         it != m->llChildren.end();
-         it = m->llChildren.begin())
+    /* Enumerate all snapshots depth first, avoids trouble with updates. */
+    while (llSnapshotsTodo.size() > 0)
     {
-        Snapshot *pChild = *it;
-        rc = pChild->i_uninitRecursively(writeLock, cleanupMode, llMedia, llFilenames);
-        if (FAILED(rc))
-            break;
+        ComObjPtr<Snapshot> pSnapshot = llSnapshotsTodo.front();
+        llSnapshotsTodo.pop_front();
+
+        llSnapshotsAll.push_front(pSnapshot);
+
+        /* Process all children */
+        SnapshotsList::const_iterator itBegin = pSnapshot->m->llChildren.begin();
+        SnapshotsList::const_iterator itEnd = pSnapshot->m->llChildren.end();
+        for (SnapshotsList::const_iterator it = itBegin; it != itEnd; ++it)
+        {
+            Snapshot *pChild = *it;
+            pChild->m->pParent.setNull();
+            llSnapshotsTodo.push_front(pChild);
+        }
     }
 
-    if (SUCCEEDED(rc))
-        rc = i_uninitOne(writeLock, cleanupMode, llMedia, llFilenames);
+    /* Process all snapshots in enumeration order. */
+    while (llSnapshotsAll.size() > 0)
+    {
+        /* This also guarantees that the refcount doesn't actually drop to 0
+         * again while the uninit is already ongoing. */
+        ComObjPtr<Snapshot> pSnapshot = llSnapshotsAll.front();
+        llSnapshotsAll.pop_front();
 
-#ifdef LOG_ENABLED
-    LogFlowThisFunc(("Leaving for snapshot '%s' {%RTuuid}: %Rhrc\n", name.c_str(), uuid.raw(), rc));
-#endif
+        rc = pSnapshot->m->pMachine->i_detachAllMedia(writeLock,
+                                                      pSnapshot,
+                                                      cleanupMode,
+                                                      llMedia);
+        if (SUCCEEDED(rc))
+        {
+            Utf8Str strFile;
 
-    return rc;
+            // report the saved state file if it's not on the list yet
+            strFile = pSnapshot->m->pMachine->mSSData->strStateFilePath;
+            if (strFile.isNotEmpty())
+            {
+                std::list<Utf8Str>::const_iterator itFound = find(llFilenames.begin(), llFilenames.end(), strFile);
+
+                if (itFound == llFilenames.end())
+                    llFilenames.push_back(strFile);
+            }
+
+            strFile = pSnapshot->m->pMachine->mNvramStore->i_getNonVolatileStorageFile();
+            if (strFile.isNotEmpty() && RTFileExists(strFile.c_str()))
+                llFilenames.push_back(strFile);
+        }
+
+        pSnapshot->m->pParent.setNull();
+        pSnapshot->m->llChildren.clear();
+        pSnapshot->uninit();
+    }
+
+    return S_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1149,6 +1174,14 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
     rc = mRecordingSettings->initCopy(this, pMachine->mRecordingSettings);
     if (FAILED(rc)) return rc;
 
+    unconst(mTrustedPlatformModule).createObject();
+    rc = mTrustedPlatformModule->initCopy(this, pMachine->mTrustedPlatformModule);
+    if (FAILED(rc)) return rc;
+
+    unconst(mNvramStore).createObject();
+    rc = mNvramStore->initCopy(this, pMachine->mNvramStore);
+    if (FAILED(rc)) return rc;
+
     unconst(mGraphicsAdapter).createObject();
     rc = mGraphicsAdapter->initCopy(this, pMachine->mGraphicsAdapter);
     if (FAILED(rc)) return rc;
@@ -1157,8 +1190,8 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
     rc = mVRDEServer->initCopy(this, pMachine->mVRDEServer);
     if (FAILED(rc)) return rc;
 
-    unconst(mAudioAdapter).createObject();
-    rc = mAudioAdapter->initCopy(this, pMachine->mAudioAdapter);
+    unconst(mAudioSettings).createObject();
+    rc = mAudioSettings->initCopy(this, pMachine->mAudioSettings);
     if (FAILED(rc)) return rc;
 
     /* create copies of all USB controllers (mUSBControllerData
@@ -1204,6 +1237,10 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
 
     unconst(mBandwidthControl).createObject();
     rc = mBandwidthControl->initCopy(this, pMachine->mBandwidthControl);
+    if (FAILED(rc)) return rc;
+
+    unconst(mGuestDebugControl).createObject();
+    rc = mGuestDebugControl->initCopy(this, pMachine->mGuestDebugControl);
     if (FAILED(rc)) return rc;
 
     /* Confirm a successful initialization when it's the case */
@@ -1280,14 +1317,20 @@ HRESULT SnapshotMachine::initFromSettings(Machine *aMachine,
     unconst(mRecordingSettings).createObject();
     mRecordingSettings->init(this);
 
+    unconst(mTrustedPlatformModule).createObject();
+    mTrustedPlatformModule->init(this);
+
+    unconst(mNvramStore).createObject();
+    mNvramStore->init(this);
+
     unconst(mGraphicsAdapter).createObject();
     mGraphicsAdapter->init(this);
 
     unconst(mVRDEServer).createObject();
     mVRDEServer->init(this);
 
-    unconst(mAudioAdapter).createObject();
-    mAudioAdapter->init(this);
+    unconst(mAudioSettings).createObject();
+    mAudioSettings->init(this);
 
     unconst(mUSBDeviceFilters).createObject();
     mUSBDeviceFilters->init(this);
@@ -1314,21 +1357,23 @@ HRESULT SnapshotMachine::initFromSettings(Machine *aMachine,
     unconst(mBandwidthControl).createObject();
     mBandwidthControl->init(this);
 
-    /* load hardware and storage settings */
-    HRESULT rc = i_loadHardware(NULL, &mSnapshotId, hardware, pDbg, pAutostart, recording);
+    unconst(mGuestDebugControl).createObject();
+    mGuestDebugControl->init(this);
 
-    if (SUCCEEDED(rc))
+    /* load hardware and storage settings */
+    HRESULT hrc = i_loadHardware(NULL, &mSnapshotId, hardware, pDbg, pAutostart, recording);
+    if (SUCCEEDED(hrc))
         /* commit all changes made during the initialization */
         i_commit();   /// @todo r=dj why do we need a commit in init?!? this is very expensive
         /// @todo r=klaus for some reason the settings loading logic backs up
         // the settings, and therefore a commit is needed. Should probably be changed.
 
     /* Confirm a successful initialization when it's the case */
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         autoInitSpan.setSucceeded();
 
     LogFlowThisFuncLeave();
-    return rc;
+    return hrc;
 }
 
 /**
@@ -1403,7 +1448,7 @@ HRESULT SnapshotMachine::i_onSnapshotChange(Snapshot *aSnapshot)
     }
 
     /* inform callbacks */
-    mParent->i_onSnapshotChange(uuidMachine, uuidSnapshot);
+    mParent->i_onSnapshotChanged(uuidMachine, uuidSnapshot);
 
     return rc;
 }
@@ -1448,14 +1493,17 @@ public:
                      bool fPause,
                      uint32_t uMemSize,
                      bool fTakingSnapshotOnline)
-        : SnapshotTask(m, p, t, s),
-          m_strName(strName),
-          m_strDescription(strDescription),
-          m_uuidSnapshot(uuidSnapshot),
-          m_fPause(fPause),
-          m_uMemSize(uMemSize),
-          m_fTakingSnapshotOnline(fTakingSnapshotOnline)
+        : SnapshotTask(m, p, t, s)
+        , m_strName(strName)
+        , m_strDescription(strDescription)
+        , m_uuidSnapshot(uuidSnapshot)
+        , m_fPause(fPause)
+#if 0 /*unused*/
+        , m_uMemSize(uMemSize)
+#endif
+        , m_fTakingSnapshotOnline(fTakingSnapshotOnline)
     {
+        RT_NOREF(uMemSize);
         if (fTakingSnapshotOnline)
             m_pDirectControl = m->mData->mSession.mDirectControl;
         // If the VM is already paused then there's no point trying to pause
@@ -1483,7 +1531,9 @@ private:
     Utf8Str m_strStateFilePath;
     ComPtr<IInternalSessionControl> m_pDirectControl;
     bool m_fPause;
+#if 0 /*unused*/
     uint32_t m_uMemSize;
+#endif
     bool m_fTakingSnapshotOnline;
 
     friend HRESULT SessionMachine::i_finishTakingSnapshot(TakeSnapshotTask &task, AutoWriteLock &alock, bool aSuccess);
@@ -1709,6 +1759,8 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
         return;
     }
 
+    LogRel(("Taking snapshot %s\n", task.m_strName.c_str()));
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     bool fBeganTakingSnapshot = false;
@@ -1736,7 +1788,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
 
         /* save settings to ensure current changes are committed and
          * hard disks are fixed up */
-        rc = i_saveSettings(NULL, alock);
+        rc = i_saveSettings(NULL, alock); /******************1 */
             // no need to check for whether VirtualBox.xml needs changing since
             // we can't have a machine XML rename pending at this point
         if (FAILED(rc))
@@ -1752,7 +1804,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
                 // creating a new online snapshot: we need a fresh saved state file
                 i_composeSavedStateFilename(task.m_strStateFilePath);
         }
-        else if (task.m_machineStateBackup == MachineState_Saved)
+        else if (task.m_machineStateBackup == MachineState_Saved || task.m_machineStateBackup == MachineState_AbortedSaved)
             // taking an offline snapshot from machine in "saved" state: use existing state file
             task.m_strStateFilePath = mSSData->strStateFilePath;
 
@@ -1856,7 +1908,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
         }
 
         // Handle NVRAM file snapshotting
-        Utf8Str strNVRAM = mBIOSSettings->i_getNonVolatileStorageFile();
+        Utf8Str strNVRAM = mNvramStore->i_getNonVolatileStorageFile();
         Utf8Str strNVRAMSnap = pSnapshotMachine->i_getSnapshotNVRAMFilename();
         if (strNVRAM.isNotEmpty() && strNVRAMSnap.isNotEmpty() && RTFileExists(strNVRAM.c_str()))
         {
@@ -1870,7 +1922,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
                 throw setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
                                    tr("Could not copy NVRAM file '%s' to '%s' (%Rrc)"),
                                    strNVRAM.c_str(), strNVRAMSnapAbs.c_str(), vrc);
-            pSnapshotMachine->mBIOSSettings->i_updateNonVolatileStorageFile(strNVRAMSnap);
+            pSnapshotMachine->mNvramStore->i_updateNonVolatileStorageFile(strNVRAMSnap);
         }
 
         // store parent of newly created diffs before commit for notify
@@ -1912,14 +1964,14 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
          * Finalize the requested snapshot object. This will reset the
          * machine state to the state it had at the beginning.
          */
-        rc = i_finishTakingSnapshot(task, alock, true /*aSuccess*/);
+        rc = i_finishTakingSnapshot(task, alock, true /*aSuccess*/); /*******************2+3 */
         // do not throw rc here because we can't call i_finishTakingSnapshot() twice
-        LogFlowThisFunc(("i_finishTakingSnapshot -> %Rhrc [mMachineState=%s]\n", rc, Global::stringifyMachineState(mData->mMachineState)));
+        LogFlowThisFunc(("i_finishTakingSnapshot -> %Rhrc [mMachineState=%s]\n", rc, ::stringifyMachineState(mData->mMachineState)));
     }
     catch (HRESULT rcThrown)
     {
         rc = rcThrown;
-        LogThisFunc(("Caught %Rhrc [mMachineState=%s]\n", rc, Global::stringifyMachineState(mData->mMachineState)));
+        LogThisFunc(("Caught %Rhrc [mMachineState=%s]\n", rc, ::stringifyMachineState(mData->mMachineState)));
 
         /// @todo r=klaus check that the implicit diffs created above are cleaned up im the relevant error cases
 
@@ -1956,14 +2008,14 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
             || mData->mMachineState == MachineState_Snapshotting)
         {
             if (!task.m_fTakingSnapshotOnline)
-                i_setMachineState(task.m_machineStateBackup);
+                i_setMachineState(task.m_machineStateBackup); /**************** 4 Machine::i_saveStateSettings*/
             else
             {
                 MachineState_T enmMachineState = MachineState_Null;
                 HRESULT rc2 = task.m_pDirectControl->COMGETTER(NominalState)(&enmMachineState);
                 if (FAILED(rc2) || enmMachineState == MachineState_Null)
                 {
-                    AssertMsgFailed(("state=%s\n", Global::stringifyMachineState(enmMachineState)));
+                    AssertMsgFailed(("state=%s\n", ::stringifyMachineState(enmMachineState)));
                     // pure nonsense, try to continue somehow
                     enmMachineState = MachineState_Aborted;
                 }
@@ -1998,8 +2050,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
                 pConsole->COMGETTER(State)(&enmMachineState);
         }
         LogFlowThisFunc(("local mMachineState=%s remote mMachineState=%s\n",
-                         Global::stringifyMachineState(mData->mMachineState),
-                         Global::stringifyMachineState(enmMachineState)));
+                         ::stringifyMachineState(mData->mMachineState), ::stringifyMachineState(enmMachineState)));
 
         if (fNeedClientMachineStateUpdate)
             i_updateMachineStateOnClient();
@@ -2027,6 +2078,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
                 mParent->i_onMediumConfigChanged(*it);
         }
     }
+    LogRel(("Finished taking snapshot %s\n", task.m_strName.c_str()));
     LogFlowThisFuncLeave();
 }
 
@@ -2091,7 +2143,7 @@ HRESULT SessionMachine::i_finishTakingSnapshot(TakeSnapshotTask &task, AutoWrite
              * reset the mCurrentStateModified flag */
             flSaveSettings |= SaveS_ResetCurStateModified;
 
-        rc = i_saveSettings(NULL, alock, flSaveSettings);
+        rc = i_saveSettings(NULL, alock, flSaveSettings); /******************2 */
     }
 
     if (aSuccess && SUCCEEDED(rc))
@@ -2129,7 +2181,7 @@ HRESULT SessionMachine::i_finishTakingSnapshot(TakeSnapshotTask &task, AutoWrite
     task.m_pSnapshot.setNull();
 
     /* alock has been released already */
-    mParent->i_saveModifiedRegistries();
+    mParent->i_saveModifiedRegistries(); /**************3 */
 
     alock.acquire();
 
@@ -2287,7 +2339,7 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
 
         /* Delete the saved state file if the machine was Saved prior to this
          * operation */
-        if (task.m_machineStateBackup == MachineState_Saved)
+        if (task.m_machineStateBackup == MachineState_Saved || task.m_machineStateBackup == MachineState_AbortedSaved)
         {
             Assert(!mSSData->strStateFilePath.isEmpty());
 
@@ -2365,8 +2417,8 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
                 // online snapshot: then share the state file
                 mSSData->strStateFilePath = strSnapshotStateFile;
 
-            const Utf8Str srcNVRAM(pSnapshotMachine->mBIOSSettings->i_getNonVolatileStorageFile());
-            const Utf8Str dstNVRAM(mBIOSSettings->i_getNonVolatileStorageFile());
+            const Utf8Str srcNVRAM(pSnapshotMachine->mNvramStore->i_getNonVolatileStorageFile());
+            const Utf8Str dstNVRAM(mNvramStore->i_getNonVolatileStorageFile());
             if (dstNVRAM.isNotEmpty() && RTFileExists(dstNVRAM.c_str()))
                 RTFileDelete(dstNVRAM.c_str());
             if (srcNVRAM.isNotEmpty() && dstNVRAM.isNotEmpty() && RTFileExists(srcNVRAM.c_str()))
@@ -2661,6 +2713,7 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
         && mData->mMachineState != MachineState_Saved
         && mData->mMachineState != MachineState_Teleported
         && mData->mMachineState != MachineState_Aborted
+        && mData->mMachineState != MachineState_AbortedSaved
         && mData->mMachineState != MachineState_Running
         && mData->mMachineState != MachineState_Paused)
         return setError(VBOX_E_INVALID_VM_STATE,
@@ -2682,7 +2735,8 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
     size_t childrenCount = pSnapshot->i_getChildrenCount();
     if (childrenCount > 1)
         return setError(VBOX_E_INVALID_OBJECT_STATE,
-                        tr("Snapshot '%s' of the machine '%s' cannot be deleted, because it has %d child snapshots, which is more than the one snapshot allowed for deletion"),
+                        tr("Snapshot '%s' of the machine '%s' cannot be deleted, because it has %d child snapshots, which is more than the one snapshot allowed for deletion",
+                           "", childrenCount),
                         pSnapshot->i_getName().c_str(),
                         mUserData->s.strName.c_str(),
                         childrenCount);
@@ -3044,7 +3098,8 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
             if (fNeedsOnlineMerge && pSource->i_getLogicalSize() > pTarget->i_getLogicalSize())
             {
                 rc = setError(E_FAIL,
-                              tr("Unable to merge storage '%s', because it is smaller than the source image. If you resize it to have a capacity of at least %lld bytes you can retry"),
+                              tr("Unable to merge storage '%s', because it is smaller than the source image. If you resize it to have a capacity of at least %lld bytes you can retry",
+                                 "", pSource->i_getLogicalSize()),
                               pTarget->i_getLocationFull().c_str(), pSource->i_getLogicalSize());
                 throw rc;
             }
@@ -3491,7 +3546,7 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
 
         /* 3a: delete NVRAM file if present. */
         {
-            Utf8Str NVRAMPath = pSnapMachine->mBIOSSettings->i_getNonVolatileStorageFile();
+            Utf8Str NVRAMPath = pSnapMachine->mNvramStore->i_getNonVolatileStorageFile();
             if (NVRAMPath.isNotEmpty() && RTFileExists(NVRAMPath.c_str()))
                 RTFileDelete(NVRAMPath.c_str());
         }
@@ -3626,7 +3681,7 @@ HRESULT SessionMachine::i_prepareDeleteSnapshotMedium(const ComObjPtr<Medium> &a
                                                       ComPtr<IToken> &aHDLockToken)
 {
     Assert(!mParent->i_getMediaTreeLockHandle().isWriteLockOnCurrentThread());
-    Assert(!fOnlineMergePossible || VALID_PTR(aVMMALockList));
+    Assert(!fOnlineMergePossible || RT_VALID_PTR(aVMMALockList));
 
     AutoWriteLock alock(aHD COMMA_LOCKVAL_SRC_POS);
 

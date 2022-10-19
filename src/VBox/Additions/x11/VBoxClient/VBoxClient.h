@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_SRC_x11_VBoxClient_VBoxClient_h
@@ -26,60 +36,110 @@
 #include <iprt/cpp/utils.h>
 #include <iprt/string.h>
 
+/** Environment variable which is exported when in Wayland Desktop Environment. */
+#define VBCL_ENV_WAYLAND_DISPLAY        "WAYLAND_DISPLAY"
+/** Environment variable which contains information about currently running Desktop Environment. */
+#define VBCL_ENV_XDG_CURRENT_DESKTOP    "XDG_CURRENT_DESKTOP"
+/** Environment variable which contains information about currently running session (X11, Wayland, etc). */
+#define VBCL_ENV_XDG_SESSION_TYPE       "XDG_SESSION_TYPE"
+
 void VBClLogInfo(const char *pszFormat, ...);
 void VBClLogError(const char *pszFormat, ...);
 void VBClLogFatalError(const char *pszFormat, ...);
-void VBClLogDestroy(void);
+void VBClLogVerbose(unsigned iLevel, const char *pszFormat, ...);
+
 int VBClLogCreate(const char *pszLogFile);
+void VBClLogSetLogPrefix(const char *pszPrefix);
+void VBClLogDestroy(void);
+
+/**
+ * Detect if user is running on Wayland by checking corresponding environment variable.
+ *
+ * @returns True if Wayland has been detected, False otherwise.
+ */
+extern bool VBClHasWayland(void);
 
 /** Call clean-up for the current service and exit. */
-extern void VBClCleanUp(bool fExit = true);
+extern void VBClShutdown(bool fExit = true);
 
-/** A simple interface describing a service.  VBoxClient will run exactly one
- * service per invocation. */
-struct VBCLSERVICE
+/**
+ * A service descriptor.
+ */
+typedef struct
 {
-    /** Returns the (friendly) name of the service. */
-    const char *(*getName)(void);
+    /** The short service name. 16 chars maximum (RTTHREAD_NAME_LEN). */
+    const char *pszName;
+    /** The longer service name. */
+    const char *pszDesc;
     /** Get the services default path to pidfile, relative to $HOME */
     /** @todo Should this also have a component relative to the X server number?
      */
-    const char *(*getPidFilePath)(void);
-    /** Special initialisation, if needed.  @a pause and @a resume are
-     * guaranteed not to be called until after this returns. */
-    int (*init)(struct VBCLSERVICE **ppInterface);
-    /** Run the service main loop */
-    int (*run)(struct VBCLSERVICE **ppInterface, bool fDaemonised);
-    /** Clean up any global resources before we shut down hard.  The last calls
-     * to @a pause and @a resume are guaranteed to finish before this is called.
+    const char *pszPidFilePath;
+    /** The usage options stuff for the --help screen. */
+    const char *pszUsage;
+    /** The option descriptions for the --help screen. */
+    const char *pszOptions;
+
+    /**
+     * Tries to parse the given command line option.
+     *
+     * @returns 0 if we parsed, -1 if it didn't and anything else means exit.
+     * @param   ppszShort   If not NULL it points to the short option iterator. a short argument.
+     *                      If NULL examine argv[*pi].
+     * @param   argc        The argument count.
+     * @param   argv        The argument vector.
+     * @param   pi          The argument vector index. Update if any value(s) are eaten.
      */
-    void (*cleanup)(struct VBCLSERVICE **ppInterface);
-};
+    DECLCALLBACKMEMBER(int, pfnOption,(const char **ppszShort, int argc, char **argv, int *pi));
 
-/** Default handler for various struct VBCLSERVICE member functions. */
-DECLINLINE(int) VBClServiceDefaultHandler(struct VBCLSERVICE **pSelf)
-{
-    RT_NOREF1(pSelf);
-    return VINF_SUCCESS;
-}
+    /**
+     * Called before parsing arguments.
+     * @returns VBox status code, or
+     *          VERR_NOT_AVAILABLE if service is supported on this platform in general but not available at the moment.
+     *          VERR_NOT_SUPPORTED if service is not supported on this platform. */
+    DECLCALLBACKMEMBER(int, pfnInit,(void));
 
-/** Default handler for the struct VBCLSERVICE clean-up member function.
- * Usually used because the service is cleaned up automatically when the user
- * process/X11 exits. */
-DECLINLINE(void) VBClServiceDefaultCleanup(struct VBCLSERVICE **ppInterface)
-{
-    RT_NOREF(ppInterface);
-}
+    /** Called from the worker thread.
+     *
+     * @returns VBox status code.
+     * @retval  VINF_SUCCESS if exitting because *pfShutdown was set.
+     * @param   pfShutdown      Pointer to a per service termination flag to check
+     *                          before and after blocking.
+     */
+    DECLCALLBACKMEMBER(int, pfnWorker,(bool volatile *pfShutdown));
 
-extern struct VBCLSERVICE **VBClGetClipboardService();
-extern struct VBCLSERVICE **VBClGetSeamlessService();
-extern struct VBCLSERVICE **VBClGetHostVersionService();
-#ifdef VBOX_WITH_DRAG_AND_DROP
-extern struct VBCLSERVICE **VBClGetDragAndDropService();
-#endif /* VBOX_WITH_DRAG_AND_DROP */
-extern struct VBCLSERVICE **VBClCheck3DService();
-extern struct VBCLSERVICE **VBClDisplaySVGAService();
-extern struct VBCLSERVICE **VBClDisplaySVGAX11Service();
-extern struct VBCLSERVICE **VBClGetDisplayService();
+    /**
+     * Asks the service to stop.
+     *
+     * @remarks Will be called from the signal handler.
+     */
+    DECLCALLBACKMEMBER(void, pfnStop,(void));
+
+    /**
+     * Does termination cleanups.
+     *
+     * @remarks This will be called even if pfnInit hasn't been called or pfnStop failed!
+     */
+    DECLCALLBACKMEMBER(int, pfnTerm,(void));
+} VBCLSERVICE;
+/** Pointer to a VBCLSERVICE. */
+typedef VBCLSERVICE *PVBCLSERVICE;
+/** Pointer to a const VBCLSERVICE. */
+typedef VBCLSERVICE const *PCVBCLSERVICE;
+
+RT_C_DECLS_BEGIN
+extern VBCLSERVICE g_SvcClipboard;
+extern VBCLSERVICE g_SvcDisplayDRM;
+extern VBCLSERVICE g_SvcDisplaySVGA;
+extern VBCLSERVICE g_SvcDisplayLegacy;
+# ifdef RT_OS_LINUX
+extern VBCLSERVICE g_SvcDisplaySVGASession;
+# endif
+extern VBCLSERVICE g_SvcDragAndDrop;
+extern VBCLSERVICE g_SvcHostVersion;
+extern VBCLSERVICE g_SvcSeamless;
+
+extern bool        g_fDaemonized;
+RT_C_DECLS_END
 
 #endif /* !GA_INCLUDED_SRC_x11_VBoxClient_VBoxClient_h */

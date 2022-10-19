@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -53,9 +63,13 @@
 *********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 extern DECLEXPORT(const PDMDEVHLPR0)    g_pdmR0DevHlp;
+#ifdef VBOX_WITH_DBGF_TRACING
+extern DECLEXPORT(const PDMDEVHLPR0)    g_pdmR0DevHlpTracing;
+#endif
 extern DECLEXPORT(const PDMPICHLP)      g_pdmR0PicHlp;
 extern DECLEXPORT(const PDMIOAPICHLP)   g_pdmR0IoApicHlp;
 extern DECLEXPORT(const PDMPCIHLPR0)    g_pdmR0PciHlp;
+extern DECLEXPORT(const PDMIOMMUHLPR0)  g_pdmR0IommuHlp;
 extern DECLEXPORT(const PDMHPETHLPR0)   g_pdmR0HpetHlp;
 extern DECLEXPORT(const PDMPCIRAWHLPR0) g_pdmR0PciRawHlp;
 RT_C_DECLS_END
@@ -137,6 +151,15 @@ static int pdmR0DeviceDestroy(PGVM pGVM, PPDMDEVINSR0 pDevIns, uint32_t idxR0Dev
         pGVM->pdmr0.s.cDevInstances = idxR0Device;
 
     /*
+     * Free the DBGF tracing tracking structures if necessary.
+     */
+    if (pDevIns->Internal.s.hDbgfTraceEvtSrc != NIL_DBGFTRACEREVTSRC)
+    {
+        RTR0MemObjFree(pDevIns->Internal.s.hDbgfTraceObj, true);
+        pDevIns->Internal.s.hDbgfTraceObj = NIL_RTR0MEMOBJ;
+    }
+
+    /*
      * Free the ring-3 mapping and instance memory.
      */
     RTR0MEMOBJ hMemObj = pDevIns->Internal.s.hMapObj;
@@ -180,6 +203,13 @@ VMMR0_INT_DECL(void) PDMR0CleanupVM(PGVM pGVM)
         if (pDevIns)
             pdmR0DeviceDestroy(pGVM, pDevIns, i);
     }
+
+    i = pGVM->pdmr0.s.cQueues;
+    while (i-- > 0)
+    {
+        if (pGVM->pdmr0.s.aQueues[i].pQueue != NULL)
+            pdmR0QueueDestroy(pGVM, i);
+    }
 }
 
 
@@ -220,19 +250,21 @@ VMMR0_INT_DECL(void) PDMR0CleanupVM(PGVM pGVM)
    @endverbatim
  *
  * @returns VBox status code.
- * @param   pGVM            The global (ring-0) VM structure.
- * @param   pDevReg         The device registration structure.
- * @param   iInstance       The device instance number.
- * @param   cbInstanceR3    The size of the ring-3 instance data.
- * @param   cbInstanceRC    The size of the raw-mode instance data.
- * @param   hMod            The module implementing the device.  On success, the
- * @param   RCPtrMapping    The raw-mode context mapping address, NIL_RTGCPTR if
- *                          not to include raw-mode.
- * @param   ppDevInsR3      Where to return the ring-3 device instance address.
+ * @param   pGVM             The global (ring-0) VM structure.
+ * @param   pDevReg          The device registration structure.
+ * @param   iInstance        The device instance number.
+ * @param   cbInstanceR3     The size of the ring-3 instance data.
+ * @param   cbInstanceRC     The size of the raw-mode instance data.
+ * @param   hMod             The module implementing the device.
+ * @param   hDbgfTraceEvtSrc The DBGF tarcer event source handle.
+ * @param   RCPtrMapping     The raw-mode context mapping address, NIL_RTGCPTR if
+ *                           not to include raw-mode.
+ * @param   ppDevInsR3       Where to return the ring-3 device instance address.
  * @thread  EMT(0)
  */
 static int pdmR0DeviceCreateWorker(PGVM pGVM, PCPDMDEVREGR0 pDevReg, uint32_t iInstance, uint32_t cbInstanceR3,
-                                   uint32_t cbInstanceRC, RTRGPTR RCPtrMapping, void *hMod, PPDMDEVINSR3 *ppDevInsR3)
+                                   uint32_t cbInstanceRC, RTRGPTR RCPtrMapping, DBGFTRACEREVTSRC hDbgfTraceEvtSrc,
+                                   void *hMod, PPDMDEVINSR3 *ppDevInsR3)
 {
     /*
      * Check that the instance number isn't a duplicate.
@@ -246,9 +278,9 @@ static int pdmR0DeviceCreateWorker(PGVM pGVM, PCPDMDEVREGR0 pDevReg, uint32_t iI
     /*
      * Figure out how much memory we need and allocate it.
      */
-    uint32_t const cbRing0     = RT_ALIGN_32(RT_UOFFSETOF(PDMDEVINSR0, achInstanceData) + pDevReg->cbInstanceCC, PAGE_SIZE);
+    uint32_t const cbRing0     = RT_ALIGN_32(RT_UOFFSETOF(PDMDEVINSR0, achInstanceData) + pDevReg->cbInstanceCC, HOST_PAGE_SIZE);
     uint32_t const cbRing3     = RT_ALIGN_32(RT_UOFFSETOF(PDMDEVINSR3, achInstanceData) + cbInstanceR3,
-                                             RCPtrMapping != NIL_RTRGPTR ? PAGE_SIZE : 64);
+                                             RCPtrMapping != NIL_RTRGPTR ? HOST_PAGE_SIZE : 64);
     uint32_t const cbRC        = RCPtrMapping != NIL_RTRGPTR ? 0
                                : RT_ALIGN_32(RT_UOFFSETOF(PDMDEVINSRC, achInstanceData) + cbInstanceRC, 64);
     uint32_t const cbShared    = RT_ALIGN_32(pDevReg->cbInstanceShared, 64);
@@ -257,7 +289,7 @@ static int pdmR0DeviceCreateWorker(PGVM pGVM, PCPDMDEVREGR0 pDevReg, uint32_t iI
     uint32_t const cbPciDev    = RT_ALIGN_32(RT_UOFFSETOF_DYN(PDMPCIDEV, abMsixState[cbMsixState]), 64);
     uint32_t const cPciDevs    = RT_MIN(pDevReg->cMaxPciDevices, 8);
     uint32_t const cbPciDevs   = cbPciDev * cPciDevs;
-    uint32_t const cbTotal     = RT_ALIGN_32(cbRing0 + cbRing3 + cbRC + cbShared + cbCritSect + cbPciDevs, PAGE_SIZE);
+    uint32_t const cbTotal     = RT_ALIGN_32(cbRing0 + cbRing3 + cbRC + cbShared + cbCritSect + cbPciDevs, HOST_PAGE_SIZE);
     AssertLogRelMsgReturn(cbTotal <= PDM_MAX_DEVICE_INSTANCE_SIZE,
                           ("Instance of '%s' is too big: cbTotal=%u, max %u\n",
                            pDevReg->szName, cbTotal, PDM_MAX_DEVICE_INSTANCE_SIZE),
@@ -283,7 +315,11 @@ static int pdmR0DeviceCreateWorker(PGVM pGVM, PCPDMDEVREGR0 pDevReg, uint32_t iI
          */
         pDevIns->u32Version             = PDM_DEVINSR0_VERSION;
         pDevIns->iInstance              = iInstance;
+#ifdef VBOX_WITH_DBGF_TRACING
+        pDevIns->pHlpR0                 = hDbgfTraceEvtSrc == NIL_DBGFTRACEREVTSRC ? &g_pdmR0DevHlp : &g_pdmR0DevHlpTracing;
+#else
         pDevIns->pHlpR0                 = &g_pdmR0DevHlp;
+#endif
         pDevIns->pvInstanceDataR0       = (uint8_t *)pDevIns + cbRing0 + cbRing3 + cbRC;
         pDevIns->pvInstanceDataForR0    = &pDevIns->achInstanceData[0];
         pDevIns->pCritSectRoR0          = (PPDMCRITSECT)((uint8_t *)pDevIns->pvInstanceDataR0 + cbShared);
@@ -312,6 +348,7 @@ static int pdmR0DeviceCreateWorker(PGVM pGVM, PCPDMDEVREGR0 pDevReg, uint32_t iI
         pDevIns->Internal.s.hMapObj     = hMapObj;
         pDevIns->Internal.s.pInsR3R0    = pDevInsR3;
         pDevIns->Internal.s.pIntR3R0    = &pDevInsR3->Internal.s;
+        pDevIns->Internal.s.hDbgfTraceEvtSrc = hDbgfTraceEvtSrc;
 
         /*
          * Initialize the ring-3 instance data as much as we can.
@@ -340,6 +377,7 @@ static int pdmR0DeviceCreateWorker(PGVM pGVM, PCPDMDEVREGR0 pDevReg, uint32_t iI
         pDevInsR3->Internal.s.pVMR3     = pGVM->pVMR3;
         pDevInsR3->Internal.s.fIntFlags = RCPtrMapping == NIL_RTRGPTR ? PDMDEVINSINT_FLAGS_R0_ENABLED
                                         : PDMDEVINSINT_FLAGS_R0_ENABLED | PDMDEVINSINT_FLAGS_RC_ENABLED;
+        pDevInsR3->Internal.s.hDbgfTraceEvtSrc = hDbgfTraceEvtSrc;
 
         /*
          * Initialize the raw-mode instance data as much as possible.
@@ -367,41 +405,66 @@ static int pdmR0DeviceCreateWorker(PGVM pGVM, PCPDMDEVREGR0 pDevReg, uint32_t iI
         }
 
         /*
-         * Add to the device instance array and set its handle value.
+         * If the device is being traced we have to set up a single page for tracking
+         * I/O and MMIO region registrations so we can inject our own handlers.
          */
-        AssertCompile(sizeof(pGVM->pdmr0.padding) == sizeof(pGVM->pdmr0));
-        uint32_t idxR0Device = pGVM->pdmr0.s.cDevInstances;
-        if (idxR0Device < RT_ELEMENTS(pGVM->pdmr0.s.apDevInstances))
+        if (hDbgfTraceEvtSrc != NIL_DBGFTRACEREVTSRC)
         {
-            pGVM->pdmr0.s.apDevInstances[idxR0Device] = pDevIns;
-            pGVM->pdmr0.s.cDevInstances = idxR0Device + 1;
-            pDevIns->Internal.s.idxR0Device   = idxR0Device;
-            pDevInsR3->Internal.s.idxR0Device = idxR0Device;
-
-            /*
-             * Call the early constructor if present.
-             */
-            if (pDevReg->pfnEarlyConstruct)
-                rc = pDevReg->pfnEarlyConstruct(pDevIns);
+            pDevIns->Internal.s.hDbgfTraceObj = NIL_RTR0MEMOBJ;
+            rc = RTR0MemObjAllocPage(&pDevIns->Internal.s.hDbgfTraceObj, PDM_MAX_DEVICE_DBGF_TRACING_TRACK, false /*fExecutable*/);
             if (RT_SUCCESS(rc))
             {
-                /*
-                 * We're done.
-                 */
-                *ppDevInsR3 = RTR0MemObjAddressR3(hMapObj);
-                return rc;
+                pDevIns->Internal.s.paDbgfTraceTrack      = (PPDMDEVINSDBGFTRACK)RTR0MemObjAddress(pDevIns->Internal.s.hDbgfTraceObj);
+                pDevIns->Internal.s.idxDbgfTraceTrackNext = 0;
+                pDevIns->Internal.s.cDbgfTraceTrackMax    = PDM_MAX_DEVICE_DBGF_TRACING_TRACK / sizeof(PDMDEVINSDBGFTRACK);
+                RT_BZERO(pDevIns->Internal.s.paDbgfTraceTrack, PDM_MAX_DEVICE_DBGF_TRACING_TRACK);
             }
-
-            /*
-             * Bail out.
-             */
-            if (pDevIns->pReg->pfnFinalDestruct)
-                pDevIns->pReg->pfnFinalDestruct(pDevIns);
-
-            pGVM->pdmr0.s.apDevInstances[idxR0Device] = NULL;
-            Assert(pGVM->pdmr0.s.cDevInstances == idxR0Device + 1);
-            pGVM->pdmr0.s.cDevInstances = idxR0Device;
         }
+
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Add to the device instance array and set its handle value.
+             */
+            AssertCompile(sizeof(pGVM->pdmr0.padding) == sizeof(pGVM->pdmr0));
+            uint32_t idxR0Device = pGVM->pdmr0.s.cDevInstances;
+            if (idxR0Device < RT_ELEMENTS(pGVM->pdmr0.s.apDevInstances))
+            {
+                pGVM->pdmr0.s.apDevInstances[idxR0Device]    = pDevIns;
+                pGVM->pdmr0.s.cDevInstances                  = idxR0Device + 1;
+                pGVM->pdm.s.apDevRing0Instances[idxR0Device] = pDevIns->pDevInsForR3;
+                pDevIns->Internal.s.idxR0Device   = idxR0Device;
+                pDevInsR3->Internal.s.idxR0Device = idxR0Device;
+
+                /*
+                 * Call the early constructor if present.
+                 */
+                if (pDevReg->pfnEarlyConstruct)
+                    rc = pDevReg->pfnEarlyConstruct(pDevIns);
+                if (RT_SUCCESS(rc))
+                {
+                    /*
+                     * We're done.
+                     */
+                    *ppDevInsR3 = RTR0MemObjAddressR3(hMapObj);
+                    return rc;
+                }
+
+                /*
+                 * Bail out.
+                 */
+                if (pDevIns->pReg->pfnFinalDestruct)
+                    pDevIns->pReg->pfnFinalDestruct(pDevIns);
+
+                pGVM->pdmr0.s.apDevInstances[idxR0Device] = NULL;
+                Assert(pGVM->pdmr0.s.cDevInstances == idxR0Device + 1);
+                pGVM->pdmr0.s.cDevInstances = idxR0Device;
+            }
+        }
+
+        if (   hDbgfTraceEvtSrc != NIL_DBGFTRACEREVTSRC
+            && pDevIns->Internal.s.hDbgfTraceObj != NIL_RTR0MEMOBJ)
+            RTR0MemObjFree(pDevIns->Internal.s.hDbgfTraceObj, true);
 
         RTR0MemObjFree(hMapObj, true);
     }
@@ -513,7 +576,8 @@ VMMR0_INT_DECL(int) PDMR0DeviceCreateReqHandler(PGVM pGVM, PPDMDEVICECREATEREQ p
                         && pReq->cMaxMsixVectors  == pDevReg->cMaxMsixVectors)
                     {
                         rc = pdmR0DeviceCreateWorker(pGVM, pDevReg, pReq->iInstance, pReq->cbInstanceR3, pReq->cbInstanceRC,
-                                                     NIL_RTRCPTR /** @todo new raw-mode */, hMod, &pReq->pDevInsR3);
+                                                     NIL_RTRCPTR /** @todo new raw-mode */, pReq->hDbgfTracerEvtSrc,
+                                                     hMod, &pReq->pDevInsR3);
                         if (RT_SUCCESS(rc))
                             hMod = NULL; /* keep the module reference */
                     }

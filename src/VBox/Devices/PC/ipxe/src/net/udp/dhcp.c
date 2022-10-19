@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <string.h>
 #include <stdlib.h>
@@ -43,6 +48,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/dhcppkt.h>
 #include <ipxe/dhcp_arch.h>
 #include <ipxe/features.h>
+#include <config/dhcp.h>
 
 /** @file
  *
@@ -76,45 +82,36 @@ static uint8_t dhcp_request_options_data[] = {
 	DHCP_MESSAGE_TYPE, DHCP_BYTE ( 0 ),
 	DHCP_MAX_MESSAGE_SIZE,
 	DHCP_WORD ( ETH_MAX_MTU - 20 /* IP header */ - 8 /* UDP header */ ),
-	DHCP_CLIENT_ARCHITECTURE, DHCP_ARCH_CLIENT_ARCHITECTURE,
-	DHCP_CLIENT_NDI, DHCP_ARCH_CLIENT_NDI,
-	DHCP_VENDOR_CLASS_ID, DHCP_ARCH_VENDOR_CLASS_ID,
+	DHCP_CLIENT_ARCHITECTURE, DHCP_WORD ( DHCP_ARCH_CLIENT_ARCHITECTURE ),
+	DHCP_CLIENT_NDI, DHCP_OPTION ( DHCP_ARCH_CLIENT_NDI ),
+	DHCP_VENDOR_CLASS_ID,
+	DHCP_STRING ( DHCP_VENDOR_PXECLIENT ( DHCP_ARCH_CLIENT_ARCHITECTURE,
+					      DHCP_ARCH_CLIENT_NDI ) ),
 	DHCP_USER_CLASS_ID, DHCP_STRING ( 'i', 'P', 'X', 'E' ),
 	DHCP_PARAMETER_REQUEST_LIST,
 	DHCP_OPTION ( DHCP_SUBNET_MASK, DHCP_ROUTERS, DHCP_DNS_SERVERS,
 		      DHCP_LOG_SERVERS, DHCP_HOST_NAME, DHCP_DOMAIN_NAME,
-		      DHCP_ROOT_PATH, DHCP_VENDOR_ENCAP, DHCP_VENDOR_CLASS_ID,
-		      DHCP_TFTP_SERVER_NAME, DHCP_BOOTFILE_NAME,
+		      DHCP_ROOT_PATH, DHCP_MTU, DHCP_VENDOR_ENCAP,
+		      DHCP_VENDOR_CLASS_ID, DHCP_TFTP_SERVER_NAME,
+		      DHCP_BOOTFILE_NAME, DHCP_DOMAIN_SEARCH,
 		      128, 129, 130, 131, 132, 133, 134, 135, /* for PXE */
 		      DHCP_EB_ENCAP, DHCP_ISCSI_INITIATOR_IQN ),
 	DHCP_END
 };
 
-/** Version number feature */
-FEATURE_VERSION ( VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH );
+/** Settings copied in to all DHCP requests */
+static const struct setting * dhcp_request_settings[] = {
+	&user_class_setting,
+	&vendor_class_setting,
+};
 
 /** DHCP server address setting */
-struct setting dhcp_server_setting __setting ( SETTING_MISC ) = {
+const struct setting dhcp_server_setting __setting ( SETTING_MISC,
+						     dhcp-server ) = {
 	.name = "dhcp-server",
 	.description = "DHCP server",
 	.tag = DHCP_SERVER_IDENTIFIER,
 	.type = &setting_type_ipv4,
-};
-
-/** DHCP user class setting */
-struct setting user_class_setting __setting ( SETTING_HOST_EXTRA ) = {
-	.name = "user-class",
-	.description = "DHCP user class",
-	.tag = DHCP_USER_CLASS_ID,
-	.type = &setting_type_string,
-};
-
-/** Use cached network settings */
-struct setting use_cached_setting __setting ( SETTING_MISC ) = {
-	.name = "use-cached",
-	.description = "Use cached settings",
-	.tag = DHCP_EB_USE_CACHED,
-	.type = &setting_type_uint8,
 };
 
 /**
@@ -165,30 +162,32 @@ struct dhcp_session_state {
 	 * @v dhcppkt		DHCP packet
 	 * @v peer		Destination address
 	 */
-	int ( * tx ) ( struct dhcp_session *dhcp,
-		       struct dhcp_packet *dhcppkt,
+	int ( * tx ) ( struct dhcp_session *dhcp, struct dhcp_packet *dhcppkt,
 		       struct sockaddr_in *peer );
-	/** Handle received packet
+	/**
+	 * Handle received packet
 	 *
 	 * @v dhcp		DHCP session
 	 * @v dhcppkt		DHCP packet
 	 * @v peer		DHCP server address
 	 * @v msgtype		DHCP message type
 	 * @v server_id		DHCP server ID
+	 * @v pseudo_id		DHCP server pseudo-ID
 	 */
-	void ( * rx ) ( struct dhcp_session *dhcp,
-			struct dhcp_packet *dhcppkt,
-			struct sockaddr_in *peer,
-			uint8_t msgtype, struct in_addr server_id );
-	/** Handle timer expiry
+	void ( * rx ) ( struct dhcp_session *dhcp, struct dhcp_packet *dhcppkt,
+			struct sockaddr_in *peer, uint8_t msgtype,
+			struct in_addr server_id, struct in_addr pseudo_id );
+	/**
+	 * Handle timer expiry
 	 *
 	 * @v dhcp		DHCP session
 	 */
 	void ( * expired ) ( struct dhcp_session *dhcp );
 	/** Transmitted message type */
 	uint8_t tx_msgtype;
-	/** Apply minimum timeout */
-	uint8_t apply_min_timeout;
+	/** Timeout parameters */
+	uint8_t min_timeout_sec;
+	uint8_t max_timeout_sec;
 };
 
 static struct dhcp_session_state dhcp_state_discover;
@@ -288,9 +287,9 @@ static void dhcp_set_state ( struct dhcp_session *dhcp,
 	dhcp->state = state;
 	dhcp->start = currticks();
 	stop_timer ( &dhcp->timer );
-	dhcp->timer.min_timeout =
-		( state->apply_min_timeout ? DHCP_MIN_TIMEOUT : 0 );
-	dhcp->timer.max_timeout = DHCP_MAX_TIMEOUT;
+	set_timer_limits ( &dhcp->timer,
+			   ( state->min_timeout_sec * TICKS_PER_SEC ),
+			   ( state->max_timeout_sec * TICKS_PER_SEC ) );
 	start_timer_nodelay ( &dhcp->timer );
 }
 
@@ -305,8 +304,9 @@ static void dhcp_set_state ( struct dhcp_session *dhcp,
  */
 static int dhcp_has_pxeopts ( struct dhcp_packet *dhcppkt ) {
 
-	/* Check for a boot filename */
-	if ( dhcppkt_fetch ( dhcppkt, DHCP_BOOTFILE_NAME, NULL, 0 ) > 0 )
+	/* Check for a next-server and boot filename */
+	if ( dhcppkt->dhcphdr->siaddr.s_addr &&
+	     ( dhcppkt_fetch ( dhcppkt, DHCP_BOOTFILE_NAME, NULL, 0 ) > 0 ) )
 		return 1;
 
 	/* Check for a PXE boot menu */
@@ -350,11 +350,13 @@ static int dhcp_discovery_tx ( struct dhcp_session *dhcp,
  * @v peer		DHCP server address
  * @v msgtype		DHCP message type
  * @v server_id		DHCP server ID
+ * @v pseudo_id		DHCP server pseudo-ID
  */
 static void dhcp_discovery_rx ( struct dhcp_session *dhcp,
 				struct dhcp_packet *dhcppkt,
 				struct sockaddr_in *peer, uint8_t msgtype,
-				struct in_addr server_id ) {
+				struct in_addr server_id,
+				struct in_addr pseudo_id ) {
 	struct in_addr ip;
 	char vci[9]; /* "PXEClient" */
 	int vci_len;
@@ -366,8 +368,11 @@ static void dhcp_discovery_rx ( struct dhcp_session *dhcp,
 	DBGC ( dhcp, "DHCP %p %s from %s:%d", dhcp,
 	       dhcp_msgtype_name ( msgtype ), inet_ntoa ( peer->sin_addr ),
 	       ntohs ( peer->sin_port ) );
-	if ( server_id.s_addr != peer->sin_addr.s_addr )
-		DBGC ( dhcp, " (%s)", inet_ntoa ( server_id ) );
+	if ( ( server_id.s_addr != peer->sin_addr.s_addr ) ||
+	     ( pseudo_id.s_addr != peer->sin_addr.s_addr ) ) {
+		DBGC ( dhcp, " (%s/", inet_ntoa ( server_id ) );
+		DBGC ( dhcp, "%s)", inet_ntoa ( pseudo_id ) );
+	}
 
 	/* Identify offered IP address */
 	ip = dhcppkt->dhcphdr->yiaddr;
@@ -408,10 +413,10 @@ static void dhcp_discovery_rx ( struct dhcp_session *dhcp,
 	}
 
 	/* Select as ProxyDHCP offer, if applicable */
-	if ( server_id.s_addr && has_pxeclient &&
+	if ( pseudo_id.s_addr && has_pxeclient &&
 	     ( priority >= dhcp->proxy_priority ) ) {
 		dhcppkt_put ( dhcp->proxy_offer );
-		dhcp->proxy_server = server_id;
+		dhcp->proxy_server = pseudo_id;
 		dhcp->proxy_offer = dhcppkt_get ( dhcppkt );
 		dhcp->proxy_priority = priority;
 	}
@@ -431,7 +436,7 @@ static void dhcp_discovery_rx ( struct dhcp_session *dhcp,
 	/* If we can't yet transition to DHCPREQUEST, do nothing */
 	elapsed = ( currticks() - dhcp->start );
 	if ( ! ( dhcp->no_pxedhcp || dhcp->proxy_offer ||
-		 ( elapsed > PROXYDHCP_MAX_TIMEOUT ) ) )
+		 ( elapsed > DHCP_DISC_PROXY_TIMEOUT_SEC * TICKS_PER_SEC ) ) )
 		return;
 
 	/* Transition to DHCPREQUEST */
@@ -446,8 +451,20 @@ static void dhcp_discovery_rx ( struct dhcp_session *dhcp,
 static void dhcp_discovery_expired ( struct dhcp_session *dhcp ) {
 	unsigned long elapsed = ( currticks() - dhcp->start );
 
+	/* If link is blocked, defer DHCP discovery (and reset timeout) */
+	if ( netdev_link_blocked ( dhcp->netdev ) &&
+	     ( dhcp->count <= DHCP_DISC_MAX_DEFERRALS ) ) {
+		DBGC ( dhcp, "DHCP %p deferring discovery\n", dhcp );
+		dhcp->start = currticks();
+		start_timer_fixed ( &dhcp->timer,
+				    ( DHCP_DISC_START_TIMEOUT_SEC *
+				      TICKS_PER_SEC ) );
+		return;
+	}
+
 	/* Give up waiting for ProxyDHCP before we reach the failure point */
-	if ( dhcp->offer.s_addr && ( elapsed > PROXYDHCP_MAX_TIMEOUT ) ) {
+	if ( dhcp->offer.s_addr &&
+	     ( elapsed > DHCP_DISC_PROXY_TIMEOUT_SEC * TICKS_PER_SEC ) ) {
 		dhcp_set_state ( dhcp, &dhcp_state_request );
 		return;
 	}
@@ -463,7 +480,8 @@ static struct dhcp_session_state dhcp_state_discover = {
 	.rx			= dhcp_discovery_rx,
 	.expired		= dhcp_discovery_expired,
 	.tx_msgtype		= DHCPDISCOVER,
-	.apply_min_timeout	= 1,
+	.min_timeout_sec	= DHCP_DISC_START_TIMEOUT_SEC,
+	.max_timeout_sec	= DHCP_DISC_END_TIMEOUT_SEC,
 };
 
 /**
@@ -509,11 +527,13 @@ static int dhcp_request_tx ( struct dhcp_session *dhcp,
  * @v peer		DHCP server address
  * @v msgtype		DHCP message type
  * @v server_id		DHCP server ID
+ * @v pseudo_id		DHCP server pseudo-ID
  */
 static void dhcp_request_rx ( struct dhcp_session *dhcp,
 			      struct dhcp_packet *dhcppkt,
 			      struct sockaddr_in *peer, uint8_t msgtype,
-			      struct in_addr server_id ) {
+			      struct in_addr server_id,
+			      struct in_addr pseudo_id ) {
 	struct in_addr ip;
 	struct settings *parent;
 	struct settings *settings;
@@ -522,8 +542,11 @@ static void dhcp_request_rx ( struct dhcp_session *dhcp,
 	DBGC ( dhcp, "DHCP %p %s from %s:%d", dhcp,
 	       dhcp_msgtype_name ( msgtype ), inet_ntoa ( peer->sin_addr ),
 	       ntohs ( peer->sin_port ) );
-	if ( server_id.s_addr != peer->sin_addr.s_addr )
-		DBGC ( dhcp, " (%s)", inet_ntoa ( server_id ) );
+	if ( ( server_id.s_addr != peer->sin_addr.s_addr ) ||
+	     ( pseudo_id.s_addr != peer->sin_addr.s_addr ) ) {
+		DBGC ( dhcp, " (%s/", inet_ntoa ( server_id ) );
+		DBGC ( dhcp, "%s)", inet_ntoa ( pseudo_id ) );
+	}
 
 	/* Identify leased IP address */
 	ip = dhcppkt->dhcphdr->yiaddr;
@@ -600,7 +623,8 @@ static struct dhcp_session_state dhcp_state_request = {
 	.rx			= dhcp_request_rx,
 	.expired		= dhcp_request_expired,
 	.tx_msgtype		= DHCPREQUEST,
-	.apply_min_timeout	= 0,
+	.min_timeout_sec	= DHCP_REQ_START_TIMEOUT_SEC,
+	.max_timeout_sec	= DHCP_REQ_END_TIMEOUT_SEC,
 };
 
 /**
@@ -639,19 +663,26 @@ static int dhcp_proxy_tx ( struct dhcp_session *dhcp,
  * @v peer		DHCP server address
  * @v msgtype		DHCP message type
  * @v server_id		DHCP server ID
+ * @v pseudo_id		DHCP server pseudo-ID
  */
 static void dhcp_proxy_rx ( struct dhcp_session *dhcp,
 			    struct dhcp_packet *dhcppkt,
 			    struct sockaddr_in *peer, uint8_t msgtype,
-			    struct in_addr server_id ) {
+			    struct in_addr server_id,
+			    struct in_addr pseudo_id ) {
 	struct settings *settings = &dhcppkt->settings;
 	int rc;
 
 	DBGC ( dhcp, "DHCP %p %s from %s:%d", dhcp,
 	       dhcp_msgtype_name ( msgtype ), inet_ntoa ( peer->sin_addr ),
 	       ntohs ( peer->sin_port ) );
-	if ( server_id.s_addr != peer->sin_addr.s_addr )
-		DBGC ( dhcp, " (%s)", inet_ntoa ( server_id ) );
+	if ( ( server_id.s_addr != peer->sin_addr.s_addr ) ||
+	     ( pseudo_id.s_addr != peer->sin_addr.s_addr ) ) {
+		DBGC ( dhcp, " (%s/", inet_ntoa ( server_id ) );
+		DBGC ( dhcp, "%s)", inet_ntoa ( pseudo_id ) );
+	}
+	if ( dhcp_has_pxeopts ( dhcppkt ) )
+		DBGC ( dhcp, " pxe" );
 	DBGC ( dhcp, "\n" );
 
 	/* Filter out unacceptable responses */
@@ -659,8 +690,9 @@ static void dhcp_proxy_rx ( struct dhcp_session *dhcp,
 		return;
 	if ( ( msgtype != DHCPOFFER ) && ( msgtype != DHCPACK ) )
 		return;
-	if ( server_id.s_addr /* Linux PXE server omits server ID */ &&
-	     ( server_id.s_addr != dhcp->proxy_server.s_addr ) )
+	if ( ( pseudo_id.s_addr != dhcp->proxy_server.s_addr ) )
+		return;
+	if ( ! dhcp_has_pxeopts ( dhcppkt ) )
 		return;
 
 	/* Register settings */
@@ -685,7 +717,7 @@ static void dhcp_proxy_expired ( struct dhcp_session *dhcp ) {
 	unsigned long elapsed = ( currticks() - dhcp->start );
 
 	/* Give up waiting for ProxyDHCP before we reach the failure point */
-	if ( elapsed > PROXYDHCP_MAX_TIMEOUT ) {
+	if ( elapsed > DHCP_REQ_PROXY_TIMEOUT_SEC * TICKS_PER_SEC ) {
 		dhcp_finished ( dhcp, 0 );
 		return;
 	}
@@ -701,7 +733,8 @@ static struct dhcp_session_state dhcp_state_proxy = {
 	.rx			= dhcp_proxy_rx,
 	.expired		= dhcp_proxy_expired,
 	.tx_msgtype		= DHCPREQUEST,
-	.apply_min_timeout	= 0,
+	.min_timeout_sec	= DHCP_PROXY_START_TIMEOUT_SEC,
+	.max_timeout_sec	= DHCP_PROXY_END_TIMEOUT_SEC,
 };
 
 /**
@@ -769,19 +802,24 @@ static int dhcp_pxebs_accept ( struct dhcp_session *dhcp,
  * @v peer		DHCP server address
  * @v msgtype		DHCP message type
  * @v server_id		DHCP server ID
+ * @v pseudo_id		DHCP server pseudo-ID
  */
 static void dhcp_pxebs_rx ( struct dhcp_session *dhcp,
 			    struct dhcp_packet *dhcppkt,
 			    struct sockaddr_in *peer, uint8_t msgtype,
-			    struct in_addr server_id ) {
+			    struct in_addr server_id,
+			    struct in_addr pseudo_id ) {
 	struct dhcp_pxe_boot_menu_item menu_item = { 0, 0 };
 	int rc;
 
 	DBGC ( dhcp, "DHCP %p %s from %s:%d", dhcp,
 	       dhcp_msgtype_name ( msgtype ), inet_ntoa ( peer->sin_addr ),
 	       ntohs ( peer->sin_port ) );
-	if ( server_id.s_addr != peer->sin_addr.s_addr )
-		DBGC ( dhcp, " (%s)", inet_ntoa ( server_id ) );
+	if ( ( server_id.s_addr != peer->sin_addr.s_addr ) ||
+	     ( pseudo_id.s_addr != peer->sin_addr.s_addr ) ) {
+		DBGC ( dhcp, " (%s/", inet_ntoa ( server_id ) );
+		DBGC ( dhcp, "%s)", inet_ntoa ( pseudo_id ) );
+	}
 
 	/* Identify boot menu item */
 	dhcppkt_fetch ( dhcppkt, DHCP_PXE_BOOT_MENU_ITEM,
@@ -798,8 +836,7 @@ static void dhcp_pxebs_rx ( struct dhcp_session *dhcp,
 		return;
 	if ( menu_item.type != dhcp->pxe_type )
 		return;
-	if ( ! dhcp_pxebs_accept ( dhcp, ( server_id.s_addr ?
-					   server_id : peer->sin_addr ) ) )
+	if ( ! dhcp_pxebs_accept ( dhcp, pseudo_id ) )
 		return;
 
 	/* Register settings */
@@ -826,7 +863,7 @@ static void dhcp_pxebs_expired ( struct dhcp_session *dhcp ) {
 	/* Give up waiting before we reach the failure point, and fail
 	 * over to the next server in the attempt list
 	 */
-	if ( elapsed > PXEBS_MAX_TIMEOUT ) {
+	if ( elapsed > PXEBS_MAX_TIMEOUT_SEC * TICKS_PER_SEC ) {
 		dhcp->pxe_attempt++;
 		if ( dhcp->pxe_attempt->s_addr ) {
 			dhcp_set_state ( dhcp, &dhcp_state_pxebs );
@@ -848,7 +885,8 @@ static struct dhcp_session_state dhcp_state_pxebs = {
 	.rx			= dhcp_pxebs_rx,
 	.expired		= dhcp_pxebs_expired,
 	.tx_msgtype		= DHCPREQUEST,
-	.apply_min_timeout	= 1,
+	.min_timeout_sec	= PXEBS_START_TIMEOUT_SEC,
+	.max_timeout_sec	= PXEBS_END_TIMEOUT_SEC,
 };
 
 /****************************************************************************
@@ -856,53 +894,6 @@ static struct dhcp_session_state dhcp_state_pxebs = {
  * Packet construction
  *
  */
-
-/**
- * Construct DHCP client hardware address field and broadcast flag
- *
- * @v netdev		Network device
- * @v chaddr		Hardware address buffer
- * @v flags		Flags to set (or NULL)
- * @ret hlen		Hardware address length
- */
-unsigned int dhcp_chaddr ( struct net_device *netdev, void *chaddr,
-			   uint16_t *flags ) {
-	struct ll_protocol *ll_protocol = netdev->ll_protocol;
-	struct dhcphdr *dhcphdr;
-	int rc;
-
-	/* If the link-layer address cannot fit into the chaddr field
-	 * (as is the case for IPoIB) then try using the Ethernet-
-	 * compatible link-layer address.  If we do this, set the
-	 * broadcast flag, since chaddr then does not represent a
-	 * valid link-layer address for the return path.
-	 *
-	 * If we cannot produce an Ethernet-compatible link-layer
-	 * address, try using the hardware address.
-	 *
-	 * If even the hardware address is too large, use an empty
-	 * chaddr field and set the broadcast flag.
-	 *
-	 * This goes against RFC4390, but RFC4390 mandates that we use
-	 * a DHCP client identifier that conforms with RFC4361, which
-	 * we cannot do without either persistent (NIC-independent)
-	 * storage, or by eliminating the hardware address completely
-	 * from the DHCP packet, which seems unfriendly to users.
-	 */
-	if ( ll_protocol->ll_addr_len <= sizeof ( dhcphdr->chaddr ) ) {
-		memcpy ( chaddr, netdev->ll_addr, ll_protocol->ll_addr_len );
-		return ll_protocol->ll_addr_len;
-	}
-	if ( flags )
-		*flags |= htons ( BOOTP_FL_BROADCAST );
-	if ( ( rc = ll_protocol->eth_addr ( netdev->ll_addr, chaddr ) ) == 0 )
-		return ETH_ALEN;
-	if ( ll_protocol->hw_addr_len <= sizeof ( dhcphdr->chaddr ) ) {
-		memcpy ( chaddr, netdev->hw_addr, ll_protocol->hw_addr_len );
-		return ll_protocol->hw_addr_len;
-	}
-	return 0;
-}
 
 /**
  * Create a DHCP packet
@@ -937,9 +928,24 @@ int dhcp_create_packet ( struct dhcp_packet *dhcppkt,
 	dhcphdr->magic = htonl ( DHCP_MAGIC_COOKIE );
 	dhcphdr->htype = ntohs ( netdev->ll_protocol->ll_proto );
 	dhcphdr->op = dhcp_op[msgtype];
-	dhcphdr->hlen = dhcp_chaddr ( netdev, dhcphdr->chaddr,
-				      &dhcphdr->flags );
+	dhcphdr->hlen = netdev->ll_protocol->ll_addr_len;
+	memcpy ( dhcphdr->chaddr, netdev->ll_addr,
+		 netdev->ll_protocol->ll_addr_len );
 	memcpy ( dhcphdr->options, options, options_len );
+
+	/* If the local link-layer address functions only as a name
+	 * (i.e. cannot be used as a destination address), then
+	 * request broadcast responses.
+	 */
+	if ( netdev->ll_protocol->flags & LL_NAME_ONLY )
+		dhcphdr->flags |= htons ( BOOTP_FL_BROADCAST );
+
+	/* If the network device already has an IPv4 address then
+	 * unicast responses from the DHCP server may be rejected, so
+	 * request broadcast responses.
+	 */
+	if ( ipv4_has_any_addr ( netdev ) )
+		dhcphdr->flags |= htons ( BOOTP_FL_BROADCAST );
 
 	/* Initialise DHCP packet structure */
 	memset ( dhcppkt, 0, sizeof ( *dhcppkt ) );
@@ -975,10 +981,13 @@ int dhcp_create_request ( struct dhcp_packet *dhcppkt,
 	struct dhcp_netdev_desc dhcp_desc;
 	struct dhcp_client_id client_id;
 	struct dhcp_client_uuid client_uuid;
+	const struct setting *setting;
 	uint8_t *dhcp_features;
 	size_t dhcp_features_len;
 	size_t ll_addr_len;
+	void *raw;
 	ssize_t len;
+	unsigned int i;
 	int rc;
 
 	/* Create DHCP packet */
@@ -988,7 +997,7 @@ int dhcp_create_request ( struct dhcp_packet *dhcppkt,
 					 data, max_len ) ) != 0 ) {
 		DBG ( "DHCP could not create DHCP packet: %s\n",
 		      strerror ( rc ) );
-		return rc;
+		goto err_create_packet;
 	}
 
 	/* Set client IP address */
@@ -1001,17 +1010,17 @@ int dhcp_create_request ( struct dhcp_packet *dhcppkt,
 				    dhcp_features_len ) ) != 0 ) {
 		DBG ( "DHCP could not set features list option: %s\n",
 		      strerror ( rc ) );
-		return rc;
+		goto err_store_features;
 	}
 
 	/* Add options to identify the network device */
-	fetch_setting ( &netdev->settings.settings, &busid_setting, &dhcp_desc,
-		sizeof ( dhcp_desc ) );
+	fetch_raw_setting ( netdev_settings ( netdev ), &busid_setting,
+			    &dhcp_desc, sizeof ( dhcp_desc ) );
 	if ( ( rc = dhcppkt_store ( dhcppkt, DHCP_EB_BUS_ID, &dhcp_desc,
 				    sizeof ( dhcp_desc ) ) ) != 0 ) {
 		DBG ( "DHCP could not set bus ID option: %s\n",
 		      strerror ( rc ) );
-		return rc;
+		goto err_store_busid;
 	}
 
 	/* Add DHCP client identifier.  Required for Infiniband, and
@@ -1025,37 +1034,50 @@ int dhcp_create_request ( struct dhcp_packet *dhcppkt,
 				    ( ll_addr_len + 1 ) ) ) != 0 ) {
 		DBG ( "DHCP could not set client ID: %s\n",
 		      strerror ( rc ) );
-		return rc;
+		goto err_store_client_id;
 	}
 
-	/* Add client UUID, if we have one.  Required for PXE. */
+	/* Add client UUID, if we have one.  Required for PXE.  The
+	 * PXE spec does not specify a byte ordering for UUIDs, but
+	 * RFC4578 suggests that it follows the EFI spec, in which the
+	 * first three fields are little-endian.
+	 */
 	client_uuid.type = DHCP_CLIENT_UUID_TYPE;
 	if ( ( len = fetch_uuid_setting ( NULL, &uuid_setting,
 					  &client_uuid.uuid ) ) >= 0 ) {
+		uuid_mangle ( &client_uuid.uuid );
 		if ( ( rc = dhcppkt_store ( dhcppkt, DHCP_CLIENT_UUID,
 					    &client_uuid,
 					    sizeof ( client_uuid ) ) ) != 0 ) {
 			DBG ( "DHCP could not set client UUID: %s\n",
 			      strerror ( rc ) );
-			return rc;
+			goto err_store_client_uuid;
 		}
 	}
 
-	/* Add user class, if we have one. */
-	if ( ( len = fetch_setting_len ( NULL, &user_class_setting ) ) >= 0 ) {
-		char user_class[len];
-		fetch_setting ( NULL, &user_class_setting, user_class,
-				sizeof ( user_class ) );
-		if ( ( rc = dhcppkt_store ( dhcppkt, DHCP_USER_CLASS_ID,
-					    &user_class,
-					    sizeof ( user_class ) ) ) != 0 ) {
-			DBG ( "DHCP could not set user class: %s\n",
-			      strerror ( rc ) );
-			return rc;
+	/* Add request settings, if applicable */
+	for ( i = 0 ; i < ( sizeof ( dhcp_request_settings ) /
+			    sizeof ( dhcp_request_settings[0] ) ) ; i++ ) {
+		setting = dhcp_request_settings[i];
+		if ( ( len = fetch_raw_setting_copy ( NULL, setting,
+						      &raw ) ) >= 0 ) {
+			rc = dhcppkt_store ( dhcppkt, setting->tag, raw, len );
+			free ( raw );
+			if ( rc != 0 ) {
+				DBG ( "DHCP could not set %s: %s\n",
+				      setting->name, strerror ( rc ) );
+				goto err_store_raw;
+			}
 		}
 	}
 
-	return 0;
+ err_store_raw:
+ err_store_client_uuid:
+ err_store_client_id:
+ err_store_busid:
+ err_store_features:
+ err_create_packet:
+	return rc;
 }
 
 /****************************************************************************
@@ -1108,7 +1130,7 @@ static int dhcp_tx ( struct dhcp_session *dhcp ) {
 	 * session state into packet traces.  Useful for extracting
 	 * debug information from non-debug builds.
 	 */
-	dhcppkt.dhcphdr->secs = htons ( ( ++(dhcp->count) << 2 ) |
+	dhcppkt.dhcphdr->secs = htons ( ( dhcp->count << 2 ) |
 					( dhcp->offer.s_addr ? 0x02 : 0 ) |
 					( dhcp->proxy_offer ? 0x01 : 0 ) );
 
@@ -1144,12 +1166,15 @@ static int dhcp_tx ( struct dhcp_session *dhcp ) {
 static int dhcp_deliver ( struct dhcp_session *dhcp,
 			  struct io_buffer *iobuf,
 			  struct xfer_metadata *meta ) {
+	struct net_device *netdev = dhcp->netdev;
+	struct ll_protocol *ll_protocol = netdev->ll_protocol;
 	struct sockaddr_in *peer;
 	size_t data_len;
 	struct dhcp_packet *dhcppkt;
 	struct dhcphdr *dhcphdr;
 	uint8_t msgtype = 0;
 	struct in_addr server_id = { 0 };
+	struct in_addr pseudo_id;
 	int rc = 0;
 
 	/* Sanity checks */
@@ -1184,6 +1209,13 @@ static int dhcp_deliver ( struct dhcp_session *dhcp,
 	dhcppkt_fetch ( dhcppkt, DHCP_SERVER_IDENTIFIER,
 			&server_id, sizeof ( server_id ) );
 
+	/* Identify server pseudo-ID */
+	pseudo_id = server_id;
+	if ( ! pseudo_id.s_addr )
+		pseudo_id = dhcppkt->dhcphdr->siaddr;
+	if ( ! pseudo_id.s_addr )
+		pseudo_id = peer->sin_addr;
+
 	/* Check for matching transaction ID */
 	if ( dhcphdr->xid != dhcp->xid ) {
 		DBGC ( dhcp, "DHCP %p %s from %s:%d has bad transaction "
@@ -1194,9 +1226,21 @@ static int dhcp_deliver ( struct dhcp_session *dhcp,
 		goto err_xid;
 	};
 
-	/* Handle packet based on current state */
-	dhcp->state->rx ( dhcp, dhcppkt, peer, msgtype, server_id );
+	/* Check for matching client hardware address */
+	if ( memcmp ( dhcphdr->chaddr, netdev->ll_addr,
+		      ll_protocol->ll_addr_len ) != 0 ) {
+		DBGC ( dhcp, "DHCP %p %s from %s:%d has bad chaddr %s\n",
+		       dhcp, dhcp_msgtype_name ( msgtype ),
+		       inet_ntoa ( peer->sin_addr ), ntohs ( peer->sin_port ),
+		       ll_protocol->ntoa ( dhcphdr->chaddr ) );
+		rc = -EINVAL;
+		goto err_chaddr;
+	}
 
+	/* Handle packet based on current state */
+	dhcp->state->rx ( dhcp, dhcppkt, peer, msgtype, server_id, pseudo_id );
+
+ err_chaddr:
  err_xid:
 	dhcppkt_put ( dhcppkt );
  err_alloc_dhcppkt:
@@ -1229,6 +1273,9 @@ static void dhcp_timer_expired ( struct retry_timer *timer, int fail ) {
 		dhcp_finished ( dhcp, -ETIMEDOUT );
 		return;
 	}
+
+	/* Increment transmission counter */
+	dhcp->count++;
 
 	/* Handle timer expiry based on current state */
 	dhcp->state->expired ( dhcp );
@@ -1267,36 +1314,19 @@ static struct sockaddr dhcp_peer = {
 };
 
 /**
- * Get cached DHCPACK where none exists
- */
-__weak void get_cached_dhcpack ( void ) { __keepme }
-
-/**
  * Start DHCP state machine on a network device
  *
  * @v job		Job control interface
  * @v netdev		Network device
- * @ret rc		Return status code, or positive if cached
+ * @ret rc		Return status code
  *
  * Starts DHCP on the specified network device.  If successful, the
  * DHCPACK (and ProxyDHCPACK, if applicable) will be registered as
  * option sources.
- *
- * On a return of 0, a background job has been started to perform the
- * DHCP request. Any nonzero return means the job has not been
- * started; a positive return value indicates the success condition of
- * having fetched the appropriate data from cached information.
  */
 int start_dhcp ( struct interface *job, struct net_device *netdev ) {
 	struct dhcp_session *dhcp;
 	int rc;
-
-	/* Check for cached DHCP information */
-	get_cached_dhcpack();
-	if ( fetch_uintz_setting ( NULL, &use_cached_setting ) ) {
-		DBG ( "DHCP using cached network settings\n" );
-		return 1;
-	}
 
 	/* Allocate and initialise structure */
 	dhcp = zalloc ( sizeof ( *dhcp ) );
@@ -1399,7 +1429,8 @@ int start_pxebs ( struct interface *job, struct net_device *netdev,
 	int rc;
 
 	/* Get upper bound for PXE boot server IP address list */
-	pxebs_list_len = fetch_setting_len ( NULL, &pxe_boot_servers_setting );
+	pxebs_list_len = fetch_raw_setting ( NULL, &pxe_boot_servers_setting,
+					     NULL, 0 );
 	if ( pxebs_list_len < 0 )
 		pxebs_list_len = 0;
 
@@ -1437,8 +1468,8 @@ int start_pxebs ( struct interface *job, struct net_device *netdev,
 	if ( pxebs_list_len ) {
 		uint8_t buf[pxebs_list_len];
 
-		fetch_setting ( NULL, &pxe_boot_servers_setting,
-				buf, sizeof ( buf ) );
+		fetch_raw_setting ( NULL, &pxe_boot_servers_setting,
+				    buf, sizeof ( buf ) );
 		pxebs_list ( dhcp, buf, sizeof ( buf ), ip );
 	}
 	if ( ! dhcp->pxe_attempt->s_addr ) {
@@ -1478,3 +1509,9 @@ int start_pxebs ( struct interface *job, struct net_device *netdev,
 	ref_put ( &dhcp->refcnt );
 	return rc;
 }
+
+/** DHCP network device configurator */
+struct net_device_configurator dhcp_configurator __net_device_configurator = {
+	.name = "dhcp",
+	.start = start_dhcp,
+};

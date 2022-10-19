@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_wizards_clonevd_UIWizardCloneVD_h
@@ -22,63 +32,75 @@
 #endif
 
 /* GUI includes: */
-#include "UIWizard.h"
+#include "UINativeWizard.h"
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CMedium.h"
+#include "CMediumFormat.h"
 
-
-/** UIWizard subclass to clone virtual disk image files. */
-class UIWizardCloneVD : public UIWizard
+/** Clone Virtual Disk wizard: */
+class UIWizardCloneVD : public UINativeWizard
 {
     Q_OBJECT;
 
 public:
 
-    /** Basic Page IDs. */
-    enum
-    {
-        Page1,
-        Page2,
-        Page3
-    };
-
-    /** Expert Page IDs. */
-    enum
-    {
-        PageExpert
-    };
-
     /** Constructs wizard to clone @a comSourceVirtualDisk passing @a pParent to the base-class. */
     UIWizardCloneVD(QWidget *pParent, const CMedium &comSourceVirtualDisk);
 
     /** Returns source virtual-disk. */
-    const CMedium &sourceVirtualDisk() const { return m_comSourceVirtualDisk; }
-    /** Returns target virtual-disk. */
-    CMedium targetVirtualDisk() const { return m_comTargetVirtualDisk; }
-
-    /** Returns the source virtual-disk device type. */
-    KDeviceType sourceVirtualDiskDeviceType() const { return m_enmSourceVirtualDiskDeviceType; }
+    const CMedium &sourceVirtualDisk() const;
 
     /** Makes a copy of source virtual-disk. */
     bool copyVirtualDisk();
 
+    /** @name Parameter setter/getters
+      * @{ */
+        /** Returns the source virtual-disk device type. */
+        KDeviceType deviceType() const;
+
+        const CMediumFormat &mediumFormat() const;
+        void setMediumFormat(const CMediumFormat &comMediumFormat);
+
+        qulonglong mediumVariant() const;
+        void setMediumVariant(qulonglong uMediumVariant);
+
+        qulonglong mediumSize() const;
+        void setMediumSize(qulonglong uMediumSize);
+
+        const QString &mediumPath() const;
+        void setMediumPath(const QString &strPath);
+
+        qulonglong sourceDiskLogicalSize() const;
+        QString sourceDiskFilePath() const;
+        QString sourceDiskName() const;
+   /** @} */
+
+protected:
+
+    virtual void populatePages() /* final override */;
+
 private:
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
+    void setMediumVariantPageVisibility();
 
-    /** Prepares all. */
-    virtual void prepare() /* override */;
+    /** @name Parameters needed during medium cloning
+      * @{ */
+        CMediumFormat m_comMediumFormat;
+        qulonglong m_uMediumVariant;
+        /** Holds the source virtual disk wrapper. */
+        CMedium m_comSourceVirtualDisk;
 
-    /** Holds the source virtual disk wrapper. */
-    CMedium m_comSourceVirtualDisk;
-    /** Holds the target virtual disk wrapper. */
-    CMedium m_comTargetVirtualDisk;
-
-    /** Holds the source virtual-disk device type. */
-    KDeviceType m_enmSourceVirtualDiskDeviceType;
+        /** Holds the source virtual-disk device type. */
+        KDeviceType m_enmDeviceType;
+        int m_iMediumVariantPageIndex;
+        qulonglong m_uMediumSize;
+        QString m_strMediumPath;
+        QString m_strSourceDiskPath;
+    /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_wizards_clonevd_UIWizardCloneVD_h */

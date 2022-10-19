@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_linux_sysfs_h
@@ -444,6 +454,30 @@ RTDECL(int) RTLinuxCheckDevicePathV(dev_t DevNum, RTFMODE fMode, char *pszBuf, s
  */
 RTDECL(int) RTLinuxCheckDevicePath(dev_t DevNum, RTFMODE fMode, char *pszBuf, size_t cchBuf,
                                    const char *pszPattern, ...) RT_IPRT_FORMAT_ATTR(5, 6);
+
+/**
+ * Constructs the path of a sysfs file from the format parameters passed,
+ * prepending "/sys/" if the path is relative.
+ *
+ * @returns IPRT status code.
+ * @param   pszPath    Where to write the path.
+ * @param   cbPath     The size of the buffer pointed to by @a pszPath.
+ * @param   pszFormat  The name format, either absolute or relative to "/sys/".
+ * @param   va         The format args.
+ */
+RTDECL(int) RTLinuxConstructPathV(char *pszPath, size_t cbPath, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
+
+/**
+ * Constructs the path of a sysfs file from the format parameters passed,
+ * prepending "/sys/" if the path is relative.
+ *
+ * @returns IPRT status code.
+ * @param   pszPath    Where to write the path.
+ * @param   cbPath     The size of the buffer pointed to by @a pszPath.
+ * @param   pszFormat  The name format, either absolute or relative to "/sys/".
+ * @param   ...        The format args.
+ */
+RTDECL(int) RTLinuxConstructPath(char *pszPath, size_t cbPath, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 
 /** @} */
 

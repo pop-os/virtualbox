@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -44,9 +54,12 @@
 #include <iprt/stdarg.h>
 #ifdef IN_RING3
 # include <iprt/env.h>
-# include <stdio.h>
+# ifndef IPRT_NO_CRT
+#  include <stdio.h>
+# endif
 # ifdef RT_OS_WINDOWS
 #  include <iprt/win/windows.h>
+#  include "../../r3/win/internal-r3-win.h"
 # endif
 #endif
 #include "internal/assert.h"
@@ -146,7 +159,7 @@ RTDECL(void) RTAssertMsg1(const char *pszExpr, unsigned uLine, const char *pszFi
         char   szStack[sizeof(g_szRTAssertStack)];
         size_t cchStack = 0;
 # if defined(IN_RING3) && defined(RT_OS_WINDOWS) /** @todo make this stack on/off thing more modular. */
-        bool   fStack = !IsDebuggerPresent() && !RTEnvExist("IPRT_ASSERT_NO_STACK");
+        bool   fStack = (!g_pfnIsDebuggerPresent || !g_pfnIsDebuggerPresent()) && !RTEnvExist("IPRT_ASSERT_NO_STACK");
 # elif defined(IN_RING3)
         bool   fStack = !RTEnvExist("IPRT_ASSERT_NO_STACK");
 # else
@@ -173,64 +186,58 @@ RTDECL(void) RTAssertMsg1(const char *pszExpr, unsigned uLine, const char *pszFi
         rtR0AssertNativeMsg1(pszExpr, uLine, pszFile, pszFunction);
 
 #else  /* !IN_RING0 */
-# if !defined(IN_RING3) && !defined(LOG_NO_COM)
-#  if 0 /* Enable this iff you have a COM port and really want this debug info. */
-        RTLogComPrintf("\n!!Assertion Failed!!\n"
-                       "Expression: %s\n"
-                       "Location  : %s(%d) %s\n",
-                       pszExpr, pszFile, uLine, pszFunction);
-#  endif
-# endif
 
-        PRTLOGGER pLog = RTLogRelGetDefaultInstance();
-        if (pLog)
-        {
-            RTLogRelPrintf("\n!!Assertion Failed!!\n"
-                           "Expression: %s\n"
-                           "Location  : %s(%d) %s\n",
-                           pszExpr, pszFile, uLine, pszFunction);
-# ifdef IPRT_WITH_ASSERT_STACK
-            RTLogRelPrintf("Stack     :\n%s\n", szStack);
-# endif
-# ifndef IN_RC /* flushing is done automatically in RC */
-            RTLogFlush(pLog);
-# endif
-        }
 
-# ifndef LOG_ENABLED
-        if (!pLog)
+# if defined(IN_RING3) && (defined(IN_RT_STATIC) || defined(IPRT_NO_CRT)) /* ugly */
+        if (g_pfnRTLogAssert)
+            g_pfnRTLogAssert(
+# else
+        RTLogAssert(
 # endif
-        {
-            pLog = RTLogDefaultInstance();
-            if (pLog)
-            {
-                RTLogPrintf("\n!!Assertion Failed!!\n"
-                            "Expression: %s\n"
-                            "Location  : %s(%d) %s\n",
-                            pszExpr, pszFile, uLine, pszFunction);
+                             "\n!!Assertion Failed!!\n"
+                             "Expression: %s\n"
+                             "Location  : %s(%d) %s\n"
 # ifdef IPRT_WITH_ASSERT_STACK
-                RTLogPrintf("Stack     :\n%s\n", szStack);
+                             "Stack     :\n%s\n"
 # endif
-# ifndef IN_RC /* flushing is done automatically in RC */
-                RTLogFlush(pLog);
+                             , pszExpr, pszFile, uLine, pszFunction
+# ifdef IPRT_WITH_ASSERT_STACK
+                             , szStack
 # endif
-            }
-        }
+                             );
 
 # ifdef IN_RING3
         /* print to stderr, helps user and gdb debugging. */
+#  ifndef IPRT_NO_CRT
         fprintf(stderr,
                 "\n!!Assertion Failed!!\n"
                 "Expression: %s\n"
                 "Location  : %s(%d) %s\n",
-                VALID_PTR(pszExpr) ? pszExpr : "<none>",
-                VALID_PTR(pszFile) ? pszFile : "<none>",
+                RT_VALID_PTR(pszExpr) ? pszExpr : "<none>",
+                RT_VALID_PTR(pszFile) ? pszFile : "<none>",
                 uLine,
-                VALID_PTR(pszFunction) ? pszFunction : "");
-# ifdef IPRT_WITH_ASSERT_STACK
+                RT_VALID_PTR(pszFunction) ? pszFunction : "");
+#   ifdef IPRT_WITH_ASSERT_STACK
         fprintf(stderr, "Stack     :\n%s\n", szStack);
-# endif
+#   endif
         fflush(stderr);
+#  else
+        char szMsg[2048];
+        size_t cchMsg = RTStrPrintf(szMsg, sizeof(szMsg),
+                                    "\n!!Assertion Failed!!\n"
+                                    "Expression: %s\n"
+                                    "Location  : %s(%d) %s\n",
+                                    RT_VALID_PTR(pszExpr) ? pszExpr : "<none>",
+                                    RT_VALID_PTR(pszFile) ? pszFile : "<none>",
+                                    uLine,
+                                    RT_VALID_PTR(pszFunction) ? pszFunction : "");
+        RTLogWriteStdErr(szMsg, cchMsg);
+#   ifdef IPRT_WITH_ASSERT_STACK
+        RTLogWriteStdErr(RT_STR_TUPLE("Stack     :\n"));
+        RTLogWriteStdErr(szStack, strlen(szStack));
+        RTLogWriteStdErr(RT_STR_TUPLE("\n"));
+#   endif
+#  endif
 # endif
 #endif /* !IN_RING0 */
 
@@ -292,44 +299,32 @@ static void rtAssertMsg2Worker(bool fInitial, const char *pszFormat, va_list va)
         rtR0AssertNativeMsg2V(fInitial, pszFormat, va);
 
 #else  /* !IN_RING0 */
-# if !defined(IN_RING3) && !defined(LOG_NO_COM)
-#  if 0 /* Enable this iff you have a COM port and really want this debug info. */
-        va_copy(vaCopy, va);
-        RTLogComPrintfV(pszFormat, vaCopy);
-        va_end(vaCopy);
-#  endif
-# endif
 
-        PRTLOGGER pLog = RTLogRelGetDefaultInstance();
-        if (pLog)
+# if defined(IN_RING3) && (defined(IN_RT_STATIC) || defined(IPRT_NO_CRT))
+        if (g_pfnRTLogAssert)
+# endif
         {
             va_copy(vaCopy, va);
-            RTLogRelPrintfV(pszFormat, vaCopy);
-            va_end(vaCopy);
-# ifndef IN_RC /* flushing is done automatically in RC */
-            RTLogFlush(pLog);
+# if defined(IN_RING3) && (defined(IN_RT_STATIC) || defined(IPRT_NO_CRT))
+            g_pfnRTLogAssertV(pszFormat, vaCopy);
+# else
+            RTLogAssertV(pszFormat, vaCopy);
 # endif
-        }
-
-        pLog = RTLogDefaultInstance();
-        if (pLog)
-        {
-            va_copy(vaCopy, va);
-            RTLogPrintfV(pszFormat, vaCopy);
             va_end(vaCopy);
-# ifndef IN_RC /* flushing is done automatically in RC */
-            RTLogFlush(pLog);
-#endif
         }
 
 # ifdef IN_RING3
         /* print to stderr, helps user and gdb debugging. */
         char szMsg[sizeof(g_szRTAssertMsg2)];
         va_copy(vaCopy, va);
-        RTStrPrintfV(szMsg, sizeof(szMsg), pszFormat, vaCopy);
+        size_t cchMsg = RTStrPrintfV(szMsg, sizeof(szMsg), pszFormat, vaCopy);
         va_end(vaCopy);
-        fprintf(stderr, "%s", szMsg);
+#  ifndef IPRT_NO_CRT
+        fwrite(szMsg, 1, cchMsg, stderr);
         fflush(stderr);
+#  else
+        RTLogWriteStdErr(szMsg, cchMsg);
+#  endif
 # endif
 #endif /* !IN_RING0 */
 

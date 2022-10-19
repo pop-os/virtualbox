@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 /* Qt includes: */
 #include <QBoxLayout>
@@ -29,17 +39,20 @@
 
 QIDialogButtonBox::QIDialogButtonBox(QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QDialogButtonBox>(pParent)
+    , m_fDoNotPickDefaultButton(false)
 {
 }
 
 QIDialogButtonBox::QIDialogButtonBox(Qt::Orientation enmOrientation, QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QDialogButtonBox>(pParent)
+    , m_fDoNotPickDefaultButton(false)
 {
     setOrientation(enmOrientation);
 }
 
 QIDialogButtonBox::QIDialogButtonBox(StandardButtons enmButtonTypes, Qt::Orientation enmOrientation, QWidget *pParent)
-   : QIWithRetranslateUI<QDialogButtonBox>(pParent)
+    : QIWithRetranslateUI<QDialogButtonBox>(pParent)
+    , m_fDoNotPickDefaultButton(false)
 {
     setOrientation(enmOrientation);
     setStandardButtons(enmButtonTypes);
@@ -97,6 +110,11 @@ void QIDialogButtonBox::addExtraLayout(QLayout *pInsertedLayout)
     }
 }
 
+void QIDialogButtonBox::setDoNotPickDefaultButton(bool fDoNotPickDefaultButton)
+{
+    m_fDoNotPickDefaultButton = fDoNotPickDefaultButton;
+}
+
 void QIDialogButtonBox::retranslateUi()
 {
     QPushButton *pButton = QDialogButtonBox::button(QDialogButtonBox::Help);
@@ -111,10 +129,29 @@ void QIDialogButtonBox::retranslateUi()
     }
 }
 
+void QIDialogButtonBox::showEvent(QShowEvent *pEvent)
+{
+    // WORKAROUND:
+    // QDialogButtonBox has embedded functionality we'd like to avoid.
+    // It auto-picks default button if non is set, based on button role.
+    // Qt documentation states that happens in showEvent, so here we are.
+    // In rare case we'd like to have dialog with no default button at all.
+    if (m_fDoNotPickDefaultButton)
+    {
+        /* Unset all default-buttons in the dialog: */
+        foreach (QPushButton *pButton, findChildren<QPushButton*>())
+            if (pButton->isDefault())
+                pButton->setDefault(false);
+    }
+
+    /* Call to base-class: */
+    return QIWithRetranslateUI<QDialogButtonBox>::showEvent(pEvent);
+}
+
 QBoxLayout *QIDialogButtonBox::boxLayout() const
 {
     QBoxLayout *pLayout = qobject_cast<QBoxLayout*>(layout());
-    AssertMsg(VALID_PTR(pLayout), ("Layout of the QDialogButtonBox isn't a box layout."));
+    AssertMsg(RT_VALID_PTR(pLayout), ("Layout of the QDialogButtonBox isn't a box layout."));
     return pLayout;
 }
 

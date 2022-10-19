@@ -4,24 +4,28 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#include "VBoxUtils-darwin.h"
-#include "VBoxCocoaHelper.h"
-#include "UICocoaApplication.h"
-
-#include <iprt/mem.h>
-#include <iprt/assert.h>
-
+/* Qt includes: */
 #include <QMainWindow>
 #include <QApplication>
 #include <QWidget>
@@ -29,8 +33,17 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QContextMenuEvent>
-#include <QtMac>
 
+/* GUI includes: */
+#include "VBoxUtils-darwin.h"
+#include "VBoxCocoaHelper.h"
+#include "UICocoaApplication.h"
+
+/* Other VBox includes: */
+#include <iprt/mem.h>
+#include <iprt/assert.h>
+
+/* System includes: */
 #include <Carbon/Carbon.h>
 
 NativeNSViewRef darwinToNativeView(QWidget *pWidget)
@@ -69,9 +82,9 @@ void darwinSetShowsToolbarButton(QToolBar *aToolBar, bool fEnabled)
         ::darwinSetShowsToolbarButtonImpl(::darwinToNativeWindow(parent), fEnabled);
 }
 
-void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap, bool fCenter)
+void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap)
 {
-    ::darwinLabelWindow(::darwinToNativeWindow(pWidget), ::darwinToNSImageRef(pPixmap), fCenter);
+    ::darwinLabelWindow(::darwinToNativeWindow(pWidget), ::darwinToNSImageRef(pPixmap), pPixmap->devicePixelRatio());
 }
 
 void darwinSetHidesAllTitleButtons(QWidget *pWidget)
@@ -211,6 +224,11 @@ int darwinWindowToolBarHeight(QWidget *pWidget)
     return 0;
 }
 
+int darwinWindowTitleHeight(QWidget *pWidget)
+{
+    return ::darwinWindowTitleHeight(::darwinToNativeWindow(pWidget));
+}
+
 bool darwinIsToolbarVisible(QToolBar *pToolBar)
 {
     bool fResult = false;
@@ -282,7 +300,8 @@ CGImageRef darwinToCGImageRef(const QImage *pImage)
     Assert(!imageCopy->isNull());
 
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    CGDataProviderRef dp = CGDataProviderCreateWithData(imageCopy, pImage->bits(), pImage->byteCount(), darwinDataProviderReleaseQImage);
+    CGDataProviderRef dp = CGDataProviderCreateWithData(imageCopy, pImage->bits(), pImage->sizeInBytes(),
+                                                        darwinDataProviderReleaseQImage);
 
     CGBitmapInfo bmpInfo = kCGImageAlphaFirst | kCGBitmapByteOrder32Host;
     CGImageRef ir = CGImageCreate(imageCopy->width(), imageCopy->height(), 8, 32, imageCopy->bytesPerLine(), cs,
@@ -321,7 +340,7 @@ CGImageRef darwinToCGImageRef(const QPixmap *pPixmap)
                                               cs,
                                               kCGImageAlphaPremultipliedFirst);
     /* Get the CGImageRef from Qt */
-    CGImageRef qtPixmap = QtMac::toCGImageRef(*pPixmap);
+    CGImageRef qtPixmap = pPixmap->toImage().toCGImage();
     /* Draw the image from Qt & convert the context back to a new CGImageRef. */
     CGContextDrawImage(ctx, CGRectMake(0, 0, pPixmap->width(), pPixmap->height()), qtPixmap);
     CGImageRef newImage = CGBitmapContextCreateImage(ctx);
@@ -406,7 +425,7 @@ void darwinSendMouseGrabEvents(QWidget *pWidget, int type, int button, int butto
     else if (button == 1)
         qtExtraButton = Qt::RightButton;
     else if (button == 2)
-        qtExtraButton = Qt::MidButton;
+        qtExtraButton = Qt::MiddleButton;
     else if (button == 3)
         qtExtraButton = Qt::XButton1;
     else if (button == 4)
@@ -497,7 +516,7 @@ void darwinSendMouseGrabEvents(QWidget *pWidget, int type, int button, int butto
     if ((buttons & RT_BIT_32(1)) == RT_BIT_32(1))
         qtButtons |= Qt::RightButton;
     if ((buttons & RT_BIT_32(2)) == RT_BIT_32(2))
-        qtButtons |= Qt::MidButton;
+        qtButtons |= Qt::MiddleButton;
     if ((buttons & RT_BIT_32(3)) == RT_BIT_32(3))
         qtButtons |= Qt::XButton1;
     if ((buttons & RT_BIT_32(4)) == RT_BIT_32(4))
@@ -547,7 +566,7 @@ QString darwinResolveAlias(const QString &strFile)
 
 /********************************************************************************
  *
- * Old carbon stuff. Have to converted soon!
+ * Old carbon stuff. Have to convert soon!
  *
  ********************************************************************************/
 
@@ -756,4 +775,3 @@ void darwinDebugPrintEvent(const char *psz, EventRef evtRef)
 }
 
 #endif /* DEBUG */
-

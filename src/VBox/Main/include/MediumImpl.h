@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_MediumImpl_h
@@ -45,7 +55,7 @@ class ATL_NO_VTABLE Medium :
     public MediumWrap
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(Medium)
+    DECLARE_COMMON_CLASS_METHODS(Medium)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -76,15 +86,15 @@ public:
     HRESULT initOne(Medium *aParent,
                     DeviceType_T aDeviceType,
                     const Guid &uuidMachineRegistry,
-                    const settings::Medium &data,
-                    const Utf8Str &strMachineFolder);
-    HRESULT init(VirtualBox *aVirtualBox,
-                 Medium *aParent,
-                 DeviceType_T aDeviceType,
-                 const Guid &uuidMachineRegistry,
-                 const settings::Medium &data,
-                 const Utf8Str &strMachineFolder,
-                 AutoWriteLock &mediaTreeLock);
+                    const Utf8Str &strMachineFolder,
+                    const settings::Medium &data);
+    static HRESULT initFromSettings(VirtualBox *aVirtualBox,
+                                    DeviceType_T aDeviceType,
+                                    const Guid &uuidMachineRegistry,
+                                    const Utf8Str &strMachineFolder,
+                                    const settings::Medium &data,
+                                    AutoWriteLock &mediaTreeLock,
+                                    std::list<std::pair<Guid, DeviceType_T> > &uIdsForNotify);
 
     // initializer for host floppy/DVD
     HRESULT init(VirtualBox *aVirtualBox,
@@ -118,12 +128,13 @@ public:
 
     /* handles caller/locking itself */
     bool i_addRegistry(const Guid &id);
+    bool i_addRegistryNoCallerCheck(const Guid &id);
     /* handles caller/locking itself, caller is responsible for tree lock */
-    bool i_addRegistryRecursive(const Guid &id);
+    bool i_addRegistryAll(const Guid &id);
     /* handles caller/locking itself */
     bool i_removeRegistry(const Guid& id);
     /* handles caller/locking itself, caller is responsible for tree lock */
-    bool i_removeRegistryRecursive(const Guid& id);
+    bool i_removeRegistryAll(const Guid& id);
     bool i_isInRegistry(const Guid& id);
     bool i_getFirstRegistryMachineId(Guid &uuid) const;
     void i_markRegistriesModified();
@@ -137,7 +148,7 @@ public:
 
 
     const Guid* i_getFirstMachineBackrefId() const;
-    const Guid* i_getAnyMachineBackref() const;
+    const Guid* i_getAnyMachineBackref(const Guid &aId) const;
     const Guid* i_getFirstMachineBackrefSnapshotId() const;
     size_t i_getMachineBackRefCount() const;
 
@@ -206,7 +217,7 @@ public:
     void i_cancelMergeTo(MediumLockList *aChildrenToReparent,
                        MediumLockList *aMediumLockList);
 
-    HRESULT i_resize(LONG64 aLogicalSize,
+    HRESULT i_resize(uint64_t aLogicalSize,
                      MediumLockList *aMediumLockList,
                      ComObjPtr<Progress> *aProgress,
                      bool aWait,

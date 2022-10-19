@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2009-2020 Oracle Corporation
+# Copyright (C) 2009-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../../..
@@ -27,8 +37,7 @@ VBoxSampleDevice_TEMPLATE = VBOXR3
 VBoxSampleDevice_SOURCES  = \
 	VBoxSampleDevice.cpp
 VBoxSampleDevice_LIBS     = \
-	$(LIB_RUNTIME) \
-	$(LIB_VMM)
+	$(LIB_RUNTIME)
 
 #
 # VBoxSampleDriver - A sample driver module.
@@ -38,8 +47,7 @@ VBoxSampleDriver_TEMPLATE = VBOXR3
 VBoxSampleDriver_SOURCES  = \
 	DrvStorageFilter.cpp
 VBoxSampleDriver_LIBS     = \
-	$(LIB_RUNTIME) \
-	$(LIB_VMM)
+	$(LIB_RUNTIME)
 
 
 #
@@ -51,8 +59,7 @@ VBoxPlaygroundDevice_SOURCES  = \
 	DevPlayground.cpp
 VBoxPlaygroundDevice_LIBS     = \
 	$(PATH_STAGE_LIB)/VBoxCOM$(VBOX_SUFF_LIB) \
-	$(LIB_RUNTIME) \
-	$(LIB_VMM)
+	$(LIB_RUNTIME)
 
 ifdef VBOX_WITH_XPCOM
  ## @todo may be worth creating the VBOX_XPCOM SDK def, or just a SDK_VBOXXPCOM.

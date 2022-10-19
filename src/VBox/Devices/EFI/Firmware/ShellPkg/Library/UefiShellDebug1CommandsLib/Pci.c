@@ -1,7 +1,7 @@
 /** @file
   Main file for Pci shell Debug1 function.
 
-  Copyright (c) 2005 - 2018, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2005 - 2021, Intel Corporation. All rights reserved.<BR>
   (C) Copyright 2013-2015 Hewlett-Packard Development Company, L.P.<BR>
   (C) Copyright 2016 Hewlett Packard Enterprise Development LP<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
@@ -2038,12 +2038,14 @@ LocatePciCapability (
 
   @param[in] PciExpressCap       PCI Express capability buffer.
   @param[in] ExtendedConfigSpace PCI Express extended configuration space.
+  @param[in] ExtendedConfigSize  PCI Express extended configuration size.
   @param[in] ExtendedCapability  PCI Express extended capability ID to explain.
 **/
 VOID
 PciExplainPciExpress (
   IN  PCI_CAPABILITY_PCIEXP                  *PciExpressCap,
   IN  UINT8                                  *ExtendedConfigSpace,
+  IN  UINTN                                  ExtendedConfigSize,
   IN CONST UINT16                            ExtendedCapability
   );
 
@@ -2921,6 +2923,7 @@ ShellCommandRunPci (
         PciExplainPciExpress (
           (PCI_CAPABILITY_PCIEXP *) ((UINT8 *) &ConfigSpace + PcieCapabilityPtr),
           ExtendedConfigSpace,
+          ExtendedConfigSize,
           ExtendedCapability
           );
       }
@@ -4515,8 +4518,14 @@ ExplainPcieLinkCap (
     case 3:
       MaxLinkSpeed = L"8.0 GT/s";
       break;
+    case 4:
+      MaxLinkSpeed = L"16.0 GT/s";
+      break;
+    case 5:
+      MaxLinkSpeed = L"32.0 GT/s";
+      break;
     default:
-      MaxLinkSpeed = L"Unknown";
+      MaxLinkSpeed = L"Reserved";
       break;
   }
   ShellPrintEx (-1, -1,
@@ -4671,6 +4680,12 @@ ExplainPcieLinkStatus (
       break;
     case 3:
       CurLinkSpeed = L"8.0 GT/s";
+      break;
+    case 4:
+      CurLinkSpeed = L"16.0 GT/s";
+      break;
+    case 5:
+      CurLinkSpeed = L"32.0 GT/s";
       break;
     default:
       CurLinkSpeed = L"Reserved";
@@ -5522,8 +5537,8 @@ PrintInterpretedExtendedCompatibilityResizeableBar (
       STRING_TOKEN (STR_PCI_EXT_CAP_RESIZE_BAR),
       gShellDebug1HiiHandle,
       ItemCount+1,
-      Header->Capability[ItemCount].ResizableBarCapability,
-      Header->Capability[ItemCount].ResizableBarControl
+      Header->Capability[ItemCount].ResizableBarCapability.Uint32,
+      Header->Capability[ItemCount].ResizableBarControl.Uint32
       );
   }
 
@@ -5686,12 +5701,14 @@ PrintPciExtendedCapabilityDetails(
 
   @param[in] PciExpressCap       PCI Express capability buffer.
   @param[in] ExtendedConfigSpace PCI Express extended configuration space.
+  @param[in] ExtendedConfigSize  PCI Express extended configuration size.
   @param[in] ExtendedCapability  PCI Express extended capability ID to explain.
 **/
 VOID
 PciExplainPciExpress (
   IN  PCI_CAPABILITY_PCIEXP                  *PciExpressCap,
   IN  UINT8                                  *ExtendedConfigSpace,
+  IN  UINTN                                  ExtendedConfigSize,
   IN CONST UINT16                            ExtendedCapability
   )
 {
@@ -5774,7 +5791,7 @@ PciExplainPciExpress (
   }
 
   ExtHdr = (PCI_EXP_EXT_HDR*)ExtendedConfigSpace;
-  while (ExtHdr->CapabilityId != 0 && ExtHdr->CapabilityVersion != 0) {
+  while (ExtHdr->CapabilityId != 0 && ExtHdr->CapabilityVersion != 0 && ExtHdr->CapabilityId != 0xFFFF) {
     //
     // Process this item
     //
@@ -5788,7 +5805,8 @@ PciExplainPciExpress (
     //
     // Advance to the next item if it exists
     //
-    if (ExtHdr->NextCapabilityOffset != 0) {
+    if (ExtHdr->NextCapabilityOffset != 0 &&
+       (ExtHdr->NextCapabilityOffset <= (UINT32) (ExtendedConfigSize + EFI_PCIE_CAPABILITY_BASE_OFFSET - sizeof (PCI_EXP_EXT_HDR)))) {
       ExtHdr = (PCI_EXP_EXT_HDR*)(ExtendedConfigSpace + ExtHdr->NextCapabilityOffset - EFI_PCIE_CAPABILITY_BASE_OFFSET);
     } else {
       break;

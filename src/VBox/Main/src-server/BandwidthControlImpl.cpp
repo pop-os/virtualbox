@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_BANDWIDTHCONTROL
@@ -27,6 +37,7 @@
 
 #include <iprt/cpp/utils.h>
 #include <VBox/com/array.h>
+#include <VBox/param.h>
 #include <algorithm>
 
 // defines
@@ -391,35 +402,81 @@ HRESULT BandwidthControl::createBandwidthGroup(const com::Utf8Str &aName,
                                                BandwidthGroupType_T aType,
                                                LONG64 aMaxBytesPerSec)
 {
+    /*
+     * Validate input.
+     */
     if (aMaxBytesPerSec < 0)
-        return setError(E_INVALIDARG,
-                        tr("Bandwidth group limit cannot be negative"));
+        return setError(E_INVALIDARG, tr("Bandwidth group limit cannot be negative"));
+    switch (aType)
+    {
+        case BandwidthGroupType_Null: /*??*/
+        case BandwidthGroupType_Disk:
+            break;
+        case BandwidthGroupType_Network:
+            if (aName.length() > PDM_NET_SHAPER_MAX_NAME_LEN)
+                return setError(E_INVALIDARG, tr("Bandwidth name is too long: %zu, max %u"),
+                                aName.length(), PDM_NET_SHAPER_MAX_NAME_LEN);
+            break;
+        default:
+            AssertFailedReturn(setError(E_INVALIDARG, tr("Invalid group type: %d"), aType));
+    }
+    if (aName.isEmpty())
+        return setError(E_INVALIDARG, tr("Bandwidth group name must not be empty")); /* ConsoleImpl2.cpp fails then */
 
-    /* the machine needs to be mutable */
+    /*
+     * The machine needs to be mutable:
+     */
     AutoMutableOrSavedStateDependency adep(m->pParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    HRESULT hrc = adep.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    /* try to find one with the name first. */
-    ComObjPtr<BandwidthGroup> group;
-    HRESULT rc = i_getBandwidthGroupByName(aName, group, false /* aSetError */);
-
-    if (SUCCEEDED(rc))
-        return setError(VBOX_E_OBJECT_IN_USE,
-                        tr("Bandwidth group named '%s' already exists"),
-                        aName.c_str());
-
-    group.createObject();
-
-    rc = group->init(this, aName, aType, aMaxBytesPerSec);
-    if (FAILED(rc)) return rc;
-
-    m->pParent->i_setModified(Machine::IsModified_BandwidthControl);
-    m->llBandwidthGroups.backup();
-    m->llBandwidthGroups->push_back(group);
-
-    return S_OK;
+        /*
+         * Check that the group doesn't already exist:
+         */
+        ComObjPtr<BandwidthGroup> group;
+        hrc = i_getBandwidthGroupByName(aName, group, false /* aSetError */);
+        if (FAILED(hrc))
+        {
+            /*
+             * There is an upper limit of the number of network groups imposed by PDM.
+             */
+            size_t cNetworkGroups = 0;
+            if (aType == BandwidthGroupType_Network)
+                for (BandwidthGroupList::const_iterator it = m->llBandwidthGroups->begin();
+                     it != m->llBandwidthGroups->end();
+                     ++it)
+                    if ((*it)->i_getType() == BandwidthGroupType_Network)
+                        cNetworkGroups++;
+            if (cNetworkGroups < PDM_NET_SHAPER_MAX_GROUPS)
+            {
+                /*
+                 * Create the new group.
+                 */
+                hrc = group.createObject();
+                if (SUCCEEDED(hrc))
+                {
+                    hrc = group->init(this, aName, aType, aMaxBytesPerSec);
+                    if (SUCCEEDED(hrc))
+                    {
+                        /*
+                         * Add it to the settings.
+                         */
+                        m->pParent->i_setModified(Machine::IsModified_BandwidthControl);
+                        m->llBandwidthGroups.backup();
+                        m->llBandwidthGroups->push_back(group);
+                        hrc = S_OK;
+                    }
+                }
+            }
+            else
+                hrc = setError(E_FAIL, tr("Too many network bandwidth groups (max %u)"), PDM_NET_SHAPER_MAX_GROUPS);
+        }
+        else
+            hrc = setError(VBOX_E_OBJECT_IN_USE, tr("Bandwidth group named '%s' already exists"), aName.c_str());
+    }
+    return hrc;
 }
 
 HRESULT BandwidthControl::deleteBandwidthGroup(const com::Utf8Str &aName)
@@ -500,7 +557,7 @@ HRESULT BandwidthControl::i_loadSettings(const settings::IOSettings &data)
          ++it)
     {
         const settings::BandwidthGroup &gr = *it;
-        rc = createBandwidthGroup(gr.strName, gr.enmType, gr.cMaxBytesPerSec);
+        rc = createBandwidthGroup(gr.strName, gr.enmType, (LONG64)gr.cMaxBytesPerSec);
         if (FAILED(rc)) break;
     }
 
@@ -524,7 +581,7 @@ HRESULT BandwidthControl::i_saveSettings(settings::IOSettings &data)
 
         group.strName      = (*it)->i_getName();
         group.enmType      = (*it)->i_getType();
-        group.cMaxBytesPerSec = (*it)->i_getMaxBytesPerSec();
+        group.cMaxBytesPerSec = (uint64_t)(*it)->i_getMaxBytesPerSec();
 
         data.llBandwidthGroups.push_back(group);
     }

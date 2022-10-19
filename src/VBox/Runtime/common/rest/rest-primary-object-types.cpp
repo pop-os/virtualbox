@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -552,7 +562,7 @@ RTCRestInt32::RTCRestInt32(int32_t iValue) RT_NOEXCEPT
 
 
 /** Destructor. */
-RTCRestInt32::~RTCRestInt32()
+RTCRestInt32::~RTCRestInt32() RT_NOEXCEPT
 {
     /* nothing to do */
 }
@@ -1023,7 +1033,7 @@ int RTCRestDouble::deserializeFromJson(RTCRestJsonCursor const &a_rCursor) RT_NO
         if (RT_SUCCESS(rc))
         {
             m_rdValue = iTmp;
-            if (m_rdValue == iTmp)
+            if ((int64_t)m_rdValue == iTmp)
                 return rc;
             return a_rCursor.m_pPrimary->addError(a_rCursor, VERR_OUT_OF_RANGE, "value %RI64 does not fit in a double", iTmp);
         }
@@ -2266,6 +2276,12 @@ int RTCRestDataObject::deserializeMemberFromJson(RTCRestJsonCursor const &a_rCur
 
 int RTCRestDataObject::deserializeFromJson(RTCRestJsonCursor const &a_rCursor) RT_NOEXCEPT
 {
+    if (RTJsonValueGetType(a_rCursor.m_hValue) == RTJSONVALTYPE_NULL)
+    {
+        setNull();
+        return VINF_SUCCESS;
+    }
+
     /*
      * Make sure the object starts out with default values.
      */

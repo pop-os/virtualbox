@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -60,6 +70,7 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
+#ifndef SUP_HARDENED_WITHOUT_DLOPEN_PATCHING
 /**
  * Callback (SUPHARDENEDPOSIXHOOK::pfnResolv) for triggering lazy GOT resolver.
  *
@@ -69,7 +80,7 @@
  * On Solaris dlsym() will return the value in the GOT/PLT entry.  We don't wish
  * to patch the lazy loader trampoline function, but rather the real function!
  */
-typedef DECLCALLBACK(void) FNSUPHARDENEDSYMRESOLVE(void);
+typedef DECLCALLBACKTYPE(void, FNSUPHARDENEDSYMRESOLVE,(void));
 /** Pointer to FNSUPHARDENEDSYMRESOLVE. */
 typedef FNSUPHARDENEDSYMRESOLVE *PFNSUPHARDENEDSYMRESOLVE;
 
@@ -83,8 +94,9 @@ typedef struct SUPHARDENEDPOSIXHOOK
     /** The intercepting wrapper doing additional checks. */
     PFNRT                    pfnHook;
     /** Where to store the pointer to the code into patch memory
-     * which resumes the original call. */
-    PFNRT                   *ppfnRealResume;
+     * which resumes the original call.
+     * @note uintptr_t instead of PFNRT is for Clang 11. */
+    uintptr_t               *ppfnRealResume;
     /** Pointer to the resolver method used on Solaris. */
     PFNSUPHARDENEDSYMRESOLVE pfnResolve;
 } SUPHARDENEDPOSIXHOOK;
@@ -105,10 +117,13 @@ typedef void *FNDLMOPEN(Lmid_t idLm, const char *pszFilename, int fFlags);
 typedef FNDLMOPEN *PFNDLMOPEN;
 #endif
 
+#endif /* SUP_HARDENED_WITHOUT_DLOPEN_PATCHING */
+
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
+#ifndef SUP_HARDENED_WITHOUT_DLOPEN_PATCHING
 static FNSUPHARDENEDSYMRESOLVE supR3HardenedPosixMonitorDlopenResolve;
 #ifdef SUP_HARDENED_WITH_DLMOPEN
 static FNSUPHARDENEDSYMRESOLVE supR3HardenedPosixMonitorDlmopenResolve;
@@ -119,17 +134,20 @@ DECLASM(void) supR3HardenedPosixMonitor_Dlopen(const char *pszFilename, int fFla
 #ifdef SUP_HARDENED_WITH_DLMOPEN
 DECLASM(void) supR3HardenedPosixMonitor_Dlmopen(Lmid_t idLm, const char *pszFilename, int fFlags);
 #endif
+#endif /* SUP_HARDENED_WITHOUT_DLOPEN_PATCHING */
 
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+#ifndef SUP_HARDENED_WITHOUT_DLOPEN_PATCHING
+
 RT_C_DECLS_BEGIN
 /** Resume patch for dlopen(), jumped to form assembly stub. */
-DECLHIDDEN(PFNDLOPEN)  g_pfnDlopenReal  = NULL;
+DECL_HIDDEN_DATA(PFNDLOPEN)     g_pfnDlopenReal  = NULL;
 #ifdef SUP_HARDENED_WITH_DLMOPEN
 /** Resume patch for dlmopen(), jumped to form assembly stub. */
-DECLHIDDEN(PFNDLMOPEN) g_pfnDlmopenReal = NULL;
+DECL_HIDDEN_DATA(PFNDLMOPEN)    g_pfnDlmopenReal = NULL;
 #endif
 RT_C_DECLS_END
 
@@ -143,10 +161,10 @@ static uint32_t g_offExecMemory = 0;
  */
 static SUPHARDENEDPOSIXHOOK const g_aHooks[] =
 {
-    /* pszSymbol,       pfnHook,                                     ppfnRealResume,   pfnResolve */
-    { "dlopen",  (PFNRT)supR3HardenedPosixMonitor_Dlopen,  (PFNRT *)&g_pfnDlopenReal,  supR3HardenedPosixMonitorDlopenResolve  },
+    /* pszSymbol,       pfnHook,                                         ppfnRealResume,   pfnResolve */
+    { "dlopen",  (PFNRT)supR3HardenedPosixMonitor_Dlopen,  (uintptr_t *)&g_pfnDlopenReal,  supR3HardenedPosixMonitorDlopenResolve  },
 #ifdef SUP_HARDENED_WITH_DLMOPEN
-    { "dlmopen", (PFNRT)supR3HardenedPosixMonitor_Dlmopen, (PFNRT *)&g_pfnDlmopenReal, supR3HardenedPosixMonitorDlmopenResolve }
+    { "dlmopen", (PFNRT)supR3HardenedPosixMonitor_Dlmopen, (uintptr_t *)&g_pfnDlmopenReal, supR3HardenedPosixMonitorDlmopenResolve }
 #endif
 };
 
@@ -302,7 +320,7 @@ static uint8_t *supR3HardenedMainPosixExecMemAlloc(size_t cb, void *pvHint, bool
  *                              (somewhere in patch memory).
  * @param   pfnResolve          The resolver to call before trying to query the start address.
  */
-static int supR3HardenedMainPosixHookOne(const char *pszSymbol, PFNRT pfnHook, PFNRT *ppfnReal,
+static int supR3HardenedMainPosixHookOne(const char *pszSymbol, PFNRT pfnHook, uintptr_t /*PFNRT*/ *ppfnReal,
                                          PFNSUPHARDENEDSYMRESOLVE pfnResolve)
 {
     void *pfnTarget = supR3HardenedMainPosixGetStartBySymbol(pszSymbol, pfnResolve);
@@ -386,7 +404,7 @@ static int supR3HardenedMainPosixHookOne(const char *pszSymbol, PFNRT pfnHook, P
     }
 
     /* Assemble the code for resuming the call.*/
-    *ppfnReal = (PFNRT)(uintptr_t)pbPatchMem;
+    *ppfnReal = (uintptr_t)pbPatchMem;
 
     /* Go through the instructions to patch and fixup any rip relative mov instructions. */
     uint32_t offInsn = 0;
@@ -519,7 +537,7 @@ static int supR3HardenedMainPosixHookOne(const char *pszSymbol, PFNRT pfnHook, P
         return VERR_NO_MEMORY;
 
     /* Assemble the code for resuming the call.*/
-    *ppfnReal = (PFNRT)(uintptr_t)pbPatchMem;
+    *ppfnReal = (uintptr_t)pbPatchMem;
 
     /* Go through the instructions to patch and fixup any relative call instructions. */
     uint32_t offInsn = 0;
@@ -618,6 +636,8 @@ static DECLCALLBACK(void) supR3HardenedPosixMonitorDlmopenResolve(void)
 }
 #endif
 
+#endif /* SUP_HARDENED_WITHOUT_DLOPEN_PATCHING */
+
 
 /**
  * Hardening initialization for POSIX compatible hosts.
@@ -628,6 +648,7 @@ static DECLCALLBACK(void) supR3HardenedPosixMonitorDlmopenResolve(void)
  */
 DECLHIDDEN(void) supR3HardenedPosixInit(void)
 {
+#ifndef SUP_HARDENED_WITHOUT_DLOPEN_PATCHING
     for (unsigned i = 0; i < RT_ELEMENTS(g_aHooks); i++)
     {
         PCSUPHARDENEDPOSIXHOOK pHook = &g_aHooks[i];
@@ -636,6 +657,7 @@ DECLHIDDEN(void) supR3HardenedPosixInit(void)
             supR3HardenedFatalMsg("supR3HardenedPosixInit", kSupInitOp_Integrity, rc,
                                   "Failed to hook the %s interface", pHook->pszSymbol);
     }
+#endif
 }
 
 

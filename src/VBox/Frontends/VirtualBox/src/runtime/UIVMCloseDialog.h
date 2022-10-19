@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_runtime_UIVMCloseDialog_h
@@ -61,21 +71,18 @@ public:
 protected:
 
     /** Preprocesses any Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    virtual bool event(QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
+    virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
 private slots:
-
-    /** Updates widgets availability. */
-    void sltUpdateWidgetAvailability();
 
     /** Accepts the dialog. */
     void accept();
@@ -101,9 +108,6 @@ private:
     void setButtonEnabledPowerOff(bool fEnabled);
     /** Defines whether 'PowerOff' button is visible. */
     void setButtonVisiblePowerOff(bool fVisible);
-
-    /** Defines whether 'Discard' check-box is visible. */
-    void setCheckBoxVisibleDiscard(bool fVisible);
 
     /** Prepares all. */
     void prepare();
@@ -171,11 +175,6 @@ private:
     QLabel       *m_pLabelIconPowerOff;
     /** Holds the 'PowerOff' radio-button instance.  */
     QRadioButton *m_pRadioButtonPowerOff;
-
-    /** Holds the 'Discard' check-box instance.  */
-    QCheckBox *m_pCheckBoxDiscard;
-    /** Holds the 'Discard' check-box text. */
-    QString    m_strDiscardCheckBoxText;
 
     /** Holds the last close action. */
     MachineCloseAction  m_enmLastCloseAction;

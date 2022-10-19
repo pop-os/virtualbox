@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
+
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
 <!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
   "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
 <!ENTITY % all.entities SYSTEM "all-entities.ent">
@@ -1496,9 +1517,11 @@ string result = service.SayHello("Peter");  // invoke remote procedure</screen>
         layer that abstracts out most platform-specific details from the
         application and allows the developer to focus on application logic.
         The VirtualBox installer automatically sets up this glue layer for the
-        system default Python install. See below for details on how to set up
-        the glue layer if you want to use a different Python
-        installation.</para>
+        system default Python installation.</para>
+
+        <para>See <xref linkend="glue-python-setup"/> for details on how to
+        set up the glue layer if you want to use a different Python installation,
+        or if the VirtualBox installer failed to detect and set it up accordingly.</para>
 
         <para>The minimum supported Python version is 2.6.</para>
 
@@ -1568,12 +1591,20 @@ for m in mgr.getArray(vbox, 'machines'):
         uniform session creation and closing
         (<computeroutput>mgr.getSessionObject()</computeroutput>).</para>
 
-        <para>In case you want to use the glue layer with a different Python
-        installation, use these steps in a shell to add the necessary
-        files:</para>
+        <sect3 id="glue-python-setup">
+          <title>Manual or subsequent setup</title>
+
+          <para>In case you want to use the glue layer with a different Python
+            installation or the installer failed to set it up, use these steps
+            in a shell to install the necessary files:</para>
 
         <screen>    # cd VBOX_INSTALL_PATH/sdk/installer
     # PYTHON vboxapisetup.py install</screen>
+
+           <note> <para>On Windows hosts, a Python distribution along with the
+             win32api bindings package need to be installed as a prerequisite. </para></note>
+        </sect3>
+
       </sect2>
 
       <sect2 id="cppcom">
@@ -2160,7 +2191,7 @@ if (atexit(g_pVBoxFuncs-&gt;pfnClientUninitialize()) != 0) {
           similar to:<screen># Where is the SDK directory?
 PATH_SDK      = ../../..
 CAPI_INC      = -I$(PATH_SDK)/bindings/c/include
-ifeq ($(BUILD_PLATFORM),win)
+ifdef ProgramFiles
 PLATFORM_INC  = -I$(PATH_SDK)/bindings/mscom/include
 PLATFORM_LIB  = $(PATH_SDK)/bindings/mscom/lib
 else
@@ -4128,6 +4159,47 @@ AuthResult AUTHCALL AuthEntry(
     interfaces and similar). In other words, the list does not contain new
     interfaces, methods or attributes or other changes that do not affect
     existing client code.</para>
+
+    <sect1>
+      <title>Incompatible API changes with version 7.0</title>
+
+      <itemizedlist>
+
+        <listitem><para>The machine's audio adapter has been moved into the new IAudioSettings interface, which in turn
+          takes care of of all audio settings of a virtual machine.
+          See <link linkend="IMachine__audioSettings">IMachine::audioSettings</link> and
+          <link linkend="IAudioSettings">IAudioSettings</link> for more information.</para>
+        </listitem>
+
+        <listitem><para>The <link linkend="IVirtualBox__openMachine">IVirtualBox::openMachine</link> call now
+          requires an additional password parameter. If the machine is not encrypted the parameter is ignored.</para>
+        </listitem>
+
+        <listitem><para>When a new VM is being created, the default audio driver will be now
+          <link linkend="AudioDriverType__Default">AudioDriverType_Default</link>. This driver
+          type will automatically choose the best audio driver (backend) for the host OS &VBOX_PRODUCT;
+          currently is running on.</para>
+        </listitem>
+
+        <listitem><para>The host update functionality at IHost::update has been refactored into
+          <link linkend="IHost__updateHost">IHost::updateHost</link>, which in turn uses the new
+          <link linkend="IHostUpdateAgent">IHostUpdateAgent</link> interface, derived from the new
+          <link linkend="IUpdateAgent">IUpdateAgent</link> interface.</para>
+        </listitem>
+
+        <listitem><para><link linkend="IGuestSession__directoryCopyFromGuest">IGuestSession::directoryCopyFromGuest()</link> and
+          <link linkend="IGuestSession__directoryCopyToGuest">IGuestSession::directoryCopyToGuest()</link> no longer implicitly
+          copy recursively and follow symbolic links -- for this to continue working, the newly introduced flags
+          <link linkend="DirectoryCopyFlag__Recursive">DirectoryCopyFlag::Recursive</link> and/or
+          <link linkend="DirectoryCopyFlag__FollowLinks">DirectoryCopyFlag::FollowLinks</link> have to be used.</para>
+        </listitem>
+
+        <listitem><para>VBoxEventType_Last has been renamed to <link linkend="VBoxEventType__End">VBoxEventType_End</link>
+          for consistency.</para></listitem>
+
+      </itemizedlist>
+
+    </sect1>
 
     <sect1>
       <title>Incompatible API changes with version 6.1</title>

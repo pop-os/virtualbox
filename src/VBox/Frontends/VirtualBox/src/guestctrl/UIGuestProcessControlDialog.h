@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_guestctrl_UIGuestProcessControlDialog_h
@@ -48,7 +58,7 @@ protected:
 
     /** Creates derived @a pDialog instance.
       * @param  pCenterWidget  Passes the widget to center wrt. pCenterWidget. */
-    virtual void create(QIManagerDialog *&pDialog, QWidget *pCenterWidget) /* override */;
+    virtual void create(QIManagerDialog *&pDialog, QWidget *pCenterWidget) RT_OVERRIDE;
 
     UIActionPool *m_pActionPool;
     CGuest        m_comGuest;
@@ -74,28 +84,28 @@ protected:
     /** @name Event-handling stuff.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
     /** @} */
 
     /** @name Prepare/cleanup cascade.
      * @{ */
         /** Configures all. */
-        virtual void configure() /* override */;
+        virtual void configure() RT_OVERRIDE;
         /** Configures central-widget. */
-        virtual void configureCentralWidget() /* override */;
+        virtual void configureCentralWidget() RT_OVERRIDE;
         /** Perform final preparations. */
-        virtual void finalize() /* override */;
-        /** Loads dialog setting such as geometry from extradata. */
-        virtual void loadSettings() /* override */;
+        virtual void finalize() RT_OVERRIDE;
+        /** Loads dialog setting from extradata. */
+        virtual void loadSettings() RT_OVERRIDE;
 
         /** Saves dialog setting into extradata. */
-        virtual void saveSettings() const /* override */;
+        virtual void saveSettings() RT_OVERRIDE;
     /** @} */
 
     /** @name Functions related to geometry restoration.
      * @{ */
         /** Returns whether the window should be maximized when geometry being restored. */
-        virtual bool shouldBeMaximized() const /* override */;
+        virtual bool shouldBeMaximized() const RT_OVERRIDE;
     /** @} */
 
 private slots:

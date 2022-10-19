@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_GuestOSTypeImpl_h
@@ -30,7 +40,7 @@ class ATL_NO_VTABLE GuestOSType :
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR(GuestOSType)
+    DECLARE_COMMON_CLASS_METHODS(GuestOSType)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -47,6 +57,8 @@ public:
     bool i_recommendedX2APIC() const { return !!(mOSHint & VBOXOSHINT_X2APIC); }
     bool i_recommendedVirtEx() const { return !!(mOSHint & VBOXOSHINT_HWVIRTEX); }
     bool i_recommendedEFI() const { return !!(mOSHint & VBOXOSHINT_EFI); }
+    bool i_recommendedEFISecureBoot() const { return !!(mOSHint & VBOXOSHINT_EFI_SECUREBOOT); }
+    bool i_recommendedTpm2() const { return !!(mOSHint & VBOXOSHINT_TPM2); }
     NetworkAdapterType_T i_networkAdapterType() const { return mNetworkAdapterType; }
     uint32_t i_numSerialEnabled() const { return mNumSerialEnabled; }
 
@@ -78,6 +90,7 @@ private:
     HRESULT getRecommendedUSBTablet(BOOL *aRecommendedUSBTablet);
     HRESULT getRecommendedRTCUseUTC(BOOL *aRecommendedRTCUseUTC);
     HRESULT getRecommendedChipset(ChipsetType_T *aChipsetType);
+    HRESULT getRecommendedIommuType(IommuType_T *aIommuType);
     HRESULT getRecommendedAudioController(AudioControllerType_T *aAudioController);
     HRESULT getRecommendedAudioCodec(AudioCodecType_T *aAudioCodec);
     HRESULT getRecommendedFloppy(BOOL *aRecommendedFloppy);
@@ -86,6 +99,9 @@ private:
     HRESULT getRecommendedTFReset(BOOL *aRecommendedTFReset);
     HRESULT getRecommendedX2APIC(BOOL *aRecommendedX2APIC);
     HRESULT getRecommendedCPUCount(ULONG *aRecommendedCPUCount);
+    HRESULT getRecommendedTpmType(TpmType_T *aRecommendedTpmType);
+    HRESULT getRecommendedSecureBoot(BOOL *aRecommendedSecureBoot);
+    HRESULT getRecommendedWDDMGraphics(BOOL *aRecommendedWDDMGraphics);
 
 
     const Utf8Str mFamilyID;
@@ -99,7 +115,6 @@ private:
     const GraphicsControllerType_T mGraphicsControllerType;
     const uint32_t mVRAMSize;
     const uint64_t mHDDSize;
-    const uint32_t mMonitorCount;
     const NetworkAdapterType_T mNetworkAdapterType;
     const uint32_t mNumSerialEnabled;
     const StorageControllerType_T mDVDStorageControllerType;
@@ -107,6 +122,7 @@ private:
     const StorageControllerType_T mHDStorageControllerType;
     const StorageBus_T mHDStorageBusType;
     const ChipsetType_T mChipsetType;
+    const IommuType_T mIommuType;
     const AudioControllerType_T mAudioControllerType;
     const AudioCodecType_T mAudioCodecType;
 };

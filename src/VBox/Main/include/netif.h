@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_netif_h
@@ -116,16 +126,16 @@ DECLINLINE(Bstr) getDefaultIPv4Address(Bstr bstrIfName)
     /* Get the index from the name */
     Utf8Str strTmp = bstrIfName;
     const char *pcszIfName = strTmp.c_str();
-    int iInstance = 0;
     size_t iPos = strcspn(pcszIfName, "0123456789");
+    uint32_t uInstance = 0;
     if (pcszIfName[iPos])
-        iInstance = RTStrToUInt32(pcszIfName + iPos);
+        uInstance = RTStrToUInt32(pcszIfName + iPos);
 
     in_addr tmp;
 #if defined(RT_OS_WINDOWS)
-    tmp.S_un.S_addr = VBOXNET_IPV4ADDR_DEFAULT + (iInstance << 16);
+    tmp.S_un.S_addr = VBOXNET_IPV4ADDR_DEFAULT + (uInstance << 16);
 #else
-    tmp.s_addr = VBOXNET_IPV4ADDR_DEFAULT + (iInstance << 16);
+    tmp.s_addr = VBOXNET_IPV4ADDR_DEFAULT + (uInstance << 16);
 #endif
     char *addr = inet_ntoa(tmp);
     return Bstr(addr);

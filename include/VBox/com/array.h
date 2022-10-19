@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_com_array_h
@@ -1011,10 +1021,10 @@ public:
         AssertFailedReturn(*this);
     }
 
-    void cloneTo(SafeArray<T>& aOther) const
+    HRESULT cloneTo(SafeArray<T>& aOther) const
     {
         aOther.reset(size());
-        aOther.initFrom(*this);
+        return aOther.initFrom(*this);
     }
 
 
@@ -1087,8 +1097,8 @@ public:
         return list;
     }
 
-    inline void initFrom(const com::SafeArray<T> & aRef);
-    inline void initFrom(const T* aPtr, size_t aSize);
+    inline HRESULT initFrom(const com::SafeArray<T> & aRef);
+    inline HRESULT initFrom(const T* aPtr, size_t aSize);
 
     // Public methods for internal purposes only.
 
@@ -1294,60 +1304,92 @@ protected:
 
 /* Few fast specializations for primitive array types */
 template<>
-inline void com::SafeArray<BYTE>::initFrom(const com::SafeArray<BYTE> & aRef)
+inline HRESULT com::SafeArray<BYTE>::initFrom(const com::SafeArray<BYTE> & aRef)
 {
     size_t sSize = aRef.size();
-    resize(sSize);
-    ::memcpy(raw(), aRef.raw(), sSize);
+    if (resize(sSize))
+    {
+        ::memcpy(raw(), aRef.raw(), sSize);
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 template<>
-inline void com::SafeArray<BYTE>::initFrom(const BYTE* aPtr, size_t aSize)
+inline HRESULT com::SafeArray<BYTE>::initFrom(const BYTE *aPtr, size_t aSize)
 {
-    resize(aSize);
-    ::memcpy(raw(), aPtr, aSize);
+    if (resize(aSize))
+    {
+        ::memcpy(raw(), aPtr, aSize);
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 
 
 template<>
-inline void com::SafeArray<SHORT>::initFrom(const com::SafeArray<SHORT> & aRef)
+inline HRESULT com::SafeArray<SHORT>::initFrom(const com::SafeArray<SHORT> & aRef)
 {
     size_t sSize = aRef.size();
-    resize(sSize);
-    ::memcpy(raw(), aRef.raw(), sSize * sizeof(SHORT));
+    if (resize(sSize))
+    {
+        ::memcpy(raw(), aRef.raw(), sSize * sizeof(SHORT));
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 template<>
-inline void com::SafeArray<SHORT>::initFrom(const SHORT* aPtr, size_t aSize)
+inline HRESULT com::SafeArray<SHORT>::initFrom(const SHORT *aPtr, size_t aSize)
 {
-    resize(aSize);
-    ::memcpy(raw(), aPtr, aSize * sizeof(SHORT));
+    if (resize(aSize))
+    {
+        ::memcpy(raw(), aPtr, aSize * sizeof(SHORT));
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 
 template<>
-inline void com::SafeArray<USHORT>::initFrom(const com::SafeArray<USHORT> & aRef)
+inline HRESULT com::SafeArray<USHORT>::initFrom(const com::SafeArray<USHORT> & aRef)
 {
     size_t sSize = aRef.size();
-    resize(sSize);
-    ::memcpy(raw(), aRef.raw(), sSize * sizeof(USHORT));
+    if (resize(sSize))
+    {
+        ::memcpy(raw(), aRef.raw(), sSize * sizeof(USHORT));
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 template<>
-inline void com::SafeArray<USHORT>::initFrom(const USHORT* aPtr, size_t aSize)
+inline HRESULT com::SafeArray<USHORT>::initFrom(const USHORT *aPtr, size_t aSize)
 {
-    resize(aSize);
-    ::memcpy(raw(), aPtr, aSize * sizeof(USHORT));
+    if (resize(aSize))
+    {
+        ::memcpy(raw(), aPtr, aSize * sizeof(USHORT));
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 
 template<>
-inline void com::SafeArray<LONG>::initFrom(const com::SafeArray<LONG> & aRef)
+inline HRESULT com::SafeArray<LONG>::initFrom(const com::SafeArray<LONG> & aRef)
 {
     size_t sSize = aRef.size();
-    resize(sSize);
-    ::memcpy(raw(), aRef.raw(), sSize * sizeof(LONG));
+    if (resize(sSize))
+    {
+        ::memcpy(raw(), aRef.raw(), sSize * sizeof(LONG));
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 template<>
-inline void com::SafeArray<LONG>::initFrom(const LONG* aPtr, size_t aSize)
+inline HRESULT com::SafeArray<LONG>::initFrom(const LONG *aPtr, size_t aSize)
 {
-    resize(aSize);
-    ::memcpy(raw(), aPtr, aSize * sizeof(LONG));
+    if (resize(aSize))
+    {
+        ::memcpy(raw(), aPtr, aSize * sizeof(LONG));
+        return S_OK;
+    }
+    return E_OUTOFMEMORY;
 }
 
 

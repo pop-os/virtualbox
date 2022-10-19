@@ -4,18 +4,29 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
+#include "UIChooserAbstractModel.h"
 #include "UIChooserNodeGlobal.h"
 
 /* Other VBox includes: */
@@ -23,29 +34,38 @@
 
 
 UIChooserNodeGlobal::UIChooserNodeGlobal(UIChooserNode *pParent,
-                                         bool fFavorite,
                                          int iPosition,
+                                         bool fFavorite,
                                          const QString &)
     : UIChooserNode(pParent, fFavorite)
 {
+    /* Add to parent: */
     if (parentNode())
         parentNode()->addNode(this, iPosition);
+
+    /* Apply language settings: */
     retranslateUi();
 }
 
 UIChooserNodeGlobal::UIChooserNodeGlobal(UIChooserNode *pParent,
-                                         UIChooserNodeGlobal *pCopyFrom,
-                                         int iPosition)
+                                         int iPosition,
+                                         UIChooserNodeGlobal *pCopyFrom)
     : UIChooserNode(pParent, pCopyFrom->isFavorite())
 {
+    /* Add to parent: */
     if (parentNode())
         parentNode()->addNode(this, iPosition);
+
+    /* Apply language settings: */
     retranslateUi();
 }
 
 UIChooserNodeGlobal::~UIChooserNodeGlobal()
 {
+    /* Delete item: */
     delete item();
+
+    /* Remove from parent: */
     if (parentNode())
         parentNode()->removeNode(this);
 }
@@ -62,21 +82,26 @@ QString UIChooserNodeGlobal::fullName() const
 
 QString UIChooserNodeGlobal::description() const
 {
-    return name();
+    return m_strDescription;
 }
 
-QString UIChooserNodeGlobal::definition() const
+QString UIChooserNodeGlobal::definition(bool fFull /* = false */) const
 {
-    return QString("n=%1").arg("GLOBAL");
+    const QString strNodePrefix = UIChooserAbstractModel::prefixToString(UIChooserNodeDataPrefixType_Global);
+    const QString strNodeOptionFavorite = UIChooserAbstractModel::optionToString(UIChooserNodeDataOptionType_GlobalFavorite);
+    const QString strNodeValueDefault = UIChooserAbstractModel::valueToString(UIChooserNodeDataValueType_GlobalDefault);
+    return   fFull
+           ? QString("%1%2=%3").arg(strNodePrefix).arg(isFavorite() ? strNodeOptionFavorite : "").arg(strNodeValueDefault)
+           : QString("%1=%2").arg(strNodePrefix).arg(strNodeValueDefault);
 }
 
-bool UIChooserNodeGlobal::hasNodes(UIChooserItemType enmType /* = UIChooserItemType_Any */) const
+bool UIChooserNodeGlobal::hasNodes(UIChooserNodeType enmType /* = UIChooserNodeType_Any */) const
 {
     Q_UNUSED(enmType);
     AssertFailedReturn(false);
 }
 
-QList<UIChooserNode*> UIChooserNodeGlobal::nodes(UIChooserItemType enmType /* = UIChooserItemType_Any */) const
+QList<UIChooserNode*> UIChooserNodeGlobal::nodes(UIChooserNodeType enmType /* = UIChooserNodeType_Any */) const
 {
     Q_UNUSED(enmType);
     AssertFailedReturn(QList<UIChooserNode*>());
@@ -108,37 +133,35 @@ void UIChooserNodeGlobal::updateAllNodes(const QUuid &)
     item()->updateItem();
 }
 
-bool UIChooserNodeGlobal::hasAtLeastOneCloudNode() const
-{
-    return false;
-}
-
 int UIChooserNodeGlobal::positionOf(UIChooserNode *pNode)
 {
     Q_UNUSED(pNode);
     AssertFailedReturn(0);
 }
 
-void UIChooserNodeGlobal::searchForNodes(const QString &strSearchTerm, int iItemSearchFlags, QList<UIChooserNode*> &matchedItems)
+void UIChooserNodeGlobal::searchForNodes(const QString &strSearchTerm, int iSearchFlags, QList<UIChooserNode*> &matchedItems)
 {
-    if (!(iItemSearchFlags & UIChooserItemSearchFlag_Global))
+    /* Ignore if we are not searching for the global-node: */
+    if (!(iSearchFlags & UIChooserItemSearchFlag_Global))
         return;
 
+    /* If the search term is empty we just add the node to the matched list: */
     if (strSearchTerm.isEmpty())
-    {
         matchedItems << this;
-        return;
-    }
-
-    if (iItemSearchFlags & UIChooserItemSearchFlag_ExactName)
-    {
-        if (name() == strSearchTerm)
-            matchedItems << this;
-    }
     else
     {
-        if (name().contains(strSearchTerm, Qt::CaseInsensitive))
-            matchedItems << this;
+        /* If exact name flag specified => check full node name: */
+        if (iSearchFlags & UIChooserItemSearchFlag_ExactName)
+        {
+            if (name() == strSearchTerm)
+                matchedItems << this;
+        }
+        /* Otherwise check if name contains search term: */
+        else
+        {
+            if (name().contains(strSearchTerm, Qt::CaseInsensitive))
+                matchedItems << this;
+        }
     }
 }
 
@@ -149,8 +172,9 @@ void UIChooserNodeGlobal::sortNodes()
 
 void UIChooserNodeGlobal::retranslateUi()
 {
-    /* Translate name: */
+    /* Translate name & description: */
     m_strName = tr("Tools");
+    m_strDescription = tr("Item");
 
     /* Update global-item: */
     if (item())

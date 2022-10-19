@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_RecordingScreenSettingsImpl_h
@@ -37,7 +47,7 @@ class ATL_NO_VTABLE RecordingScreenSettings :
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR(RecordingScreenSettings)
+    DECLARE_COMMON_CLASS_METHODS(RecordingScreenSettings)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -72,8 +82,8 @@ private:
     HRESULT getId(ULONG *id);
     HRESULT getEnabled(BOOL *enabled);
     HRESULT setEnabled(BOOL enabled);
-    HRESULT getFeatures(ULONG *aFeatures);
-    HRESULT setFeatures(ULONG aFeatures);
+    HRESULT getFeatures(std::vector<RecordingFeature_T> &aFeatures);
+    HRESULT setFeatures(const std::vector<RecordingFeature_T> &aFeatures);
     HRESULT getDestination(RecordingDestination_T *aDestination);
     HRESULT setDestination(RecordingDestination_T aDestination);
 
@@ -88,6 +98,10 @@ private:
 
     HRESULT getAudioCodec(RecordingAudioCodec_T *aCodec);
     HRESULT setAudioCodec(RecordingAudioCodec_T aCodec);
+    HRESULT getAudioDeadline(RecordingCodecDeadline_T *aDeadline);
+    HRESULT setAudioDeadline(RecordingCodecDeadline_T aDeadline);
+    HRESULT getAudioRateControlMode(RecordingRateControlMode_T *aMode);
+    HRESULT setAudioRateControlMode(RecordingRateControlMode_T aMode);
     HRESULT getAudioHz(ULONG *aHz);
     HRESULT setAudioHz(ULONG aHz);
     HRESULT getAudioBits(ULONG *aBits);
@@ -97,27 +111,25 @@ private:
 
     HRESULT getVideoCodec(RecordingVideoCodec_T *aCodec);
     HRESULT setVideoCodec(RecordingVideoCodec_T aCodec);
+    HRESULT getVideoDeadline(RecordingCodecDeadline_T *aDeadline);
+    HRESULT setVideoDeadline(RecordingCodecDeadline_T aDeadline);
     HRESULT getVideoWidth(ULONG *aVideoWidth);
     HRESULT setVideoWidth(ULONG aVideoWidth);
     HRESULT getVideoHeight(ULONG *aVideoHeight);
     HRESULT setVideoHeight(ULONG aVideoHeight);
     HRESULT getVideoRate(ULONG *aVideoRate);
     HRESULT setVideoRate(ULONG aVideoRate);
-    HRESULT getVideoRateControlMode(RecordingVideoRateControlMode_T *aMode);
-    HRESULT setVideoRateControlMode(RecordingVideoRateControlMode_T aMode);
+    HRESULT getVideoRateControlMode(RecordingRateControlMode_T *aMode);
+    HRESULT setVideoRateControlMode(RecordingRateControlMode_T aMode);
     HRESULT getVideoFPS(ULONG *aVideoFPS);
     HRESULT setVideoFPS(ULONG aVideoFPS);
-    HRESULT getVideoScalingMethod(RecordingVideoScalingMethod_T *aMode);
-    HRESULT setVideoScalingMethod(RecordingVideoScalingMethod_T aMode);
+    HRESULT getVideoScalingMode(RecordingVideoScalingMode_T *aMode);
+    HRESULT setVideoScalingMode(RecordingVideoScalingMode_T aMode);
 
 private:
 
     // internal methods
     int i_initInternal();
-
-private:
-
-    static int i_parseOptionsString(const com::Utf8Str &strOptions, settings::RecordingScreenSettings &screenSettings);
 
 private:
 

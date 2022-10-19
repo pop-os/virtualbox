@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Must be included before winutils.h (lwip/def.h), otherwise Windows build breaks. */
@@ -29,6 +39,7 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/VirtualBox.h>
+#include <VBox/com/NativeEventQueue.h>
 
 #include <iprt/net.h>
 #include <iprt/initterm.h>
@@ -44,7 +55,6 @@
 #include <iprt/path.h>
 #include <iprt/param.h>
 #include <iprt/pipe.h>
-#include <iprt/getopt.h>
 #include <iprt/string.h>
 #include <iprt/mem.h>
 #include <iprt/message.h>
@@ -53,6 +63,10 @@
 #include <iprt/semaphore.h>
 #include <iprt/cpp/utils.h>
 #include <VBox/log.h>
+
+#include <iprt/buildconfig.h>
+#include <iprt/getopt.h>
+#include <iprt/process.h>
 
 #include <VBox/sup.h>
 #include <VBox/intnet.h>
@@ -73,14 +87,12 @@
 
 #include <map>
 #include <vector>
-#include <string>
+#include <iprt/sanitized/string>
 
 #include <stdio.h>
 
-#include "../NetLib/VBoxNetLib.h"
-#include "../NetLib/VBoxNetBaseService.h"
-#include "../NetLib/utils.h"
-#include "VBoxLwipCore.h"
+#include "../NetLib/IntNetIf.h"
+#include "../NetLib/VBoxPortForwardString.h"
 
 extern "C"
 {
@@ -99,58 +111,50 @@ extern "C"
 #include "portfwd.h"
 }
 
-
-#if defined(VBOX_RAWSOCK_DEBUG_HELPER)          \
-    && (defined(VBOX_WITH_HARDENING)            \
-        || defined(RT_OS_WINDOWS)               \
-        || defined(RT_OS_DARWIN))
-# error Have you forgotten to turn off VBOX_RAWSOCK_DEBUG_HELPER?
-#endif
+#include "VBoxLwipCore.h"
 
 #ifdef VBOX_RAWSOCK_DEBUG_HELPER
+#if    defined(VBOX_WITH_HARDENING) /* obviously */     \
+    || defined(RT_OS_WINDOWS)       /* not used */      \
+    || defined(RT_OS_DARWIN)        /* not necessary */
+# error Have you forgotten to turn off VBOX_RAWSOCK_DEBUG_HELPER?
+#endif
+/* ask the privileged helper to create a raw socket for us */
 extern "C" int getrawsock(int type);
 #endif
 
-#include "../NetLib/VBoxPortForwardString.h"
 
-static RTGETOPTDEF g_aGetOptDef[] =
-{
-    { "--port-forward4",           'p',   RTGETOPT_REQ_STRING },
-    { "--port-forward6",           'P',   RTGETOPT_REQ_STRING }
-};
 
-typedef struct NATSEVICEPORTFORWARDRULE
+typedef struct NATSERVICEPORTFORWARDRULE
 {
     PORTFORWARDRULE Pfr;
     fwspec         FWSpec;
-} NATSEVICEPORTFORWARDRULE, *PNATSEVICEPORTFORWARDRULE;
+} NATSERVICEPORTFORWARDRULE, *PNATSERVICEPORTFORWARDRULE;
 
-typedef std::vector<NATSEVICEPORTFORWARDRULE> VECNATSERVICEPF;
+typedef std::vector<NATSERVICEPORTFORWARDRULE> VECNATSERVICEPF;
 typedef VECNATSERVICEPF::iterator ITERATORNATSERVICEPF;
 typedef VECNATSERVICEPF::const_iterator CITERATORNATSERVICEPF;
 
-static int fetchNatPortForwardRules(const ComNatPtr&, bool, VECNATSERVICEPF&);
 
-static int vboxNetNATLogInit(int argc, char **argv);
-
-
-class VBoxNetLwipNAT: public VBoxNetBaseService, public NATNetworkEventAdapter
+class VBoxNetLwipNAT
 {
-    friend class NATNetworkListener;
-  public:
-    VBoxNetLwipNAT(SOCKET icmpsock4, SOCKET icmpsock6);
-    virtual ~VBoxNetLwipNAT();
-    void usage(){                /** @todo should be implemented */ };
-    int run();
-    virtual int init(void);
-    virtual int parseOpt(int rc, const RTGETOPTUNION& getOptVal);
-    /* VBoxNetNAT always needs Main */
-    virtual bool isMainNeeded() const { return true; }
-    virtual int processFrame(void *, size_t);
-    virtual int processGSO(PCPDMNETWORKGSO, size_t);
-    virtual int processUDP(void *, size_t) { return VERR_IGNORED; }
+    static RTGETOPTDEF s_aGetOptDef[];
 
-   private:
+    com::Utf8Str m_strNetworkName;
+    int m_uVerbosity;
+
+    ComPtr<IVirtualBoxClient> virtualboxClient;
+    ComPtr<IVirtualBox> virtualbox;
+    ComPtr<IHost> m_host;
+    ComPtr<INATNetwork> m_net;
+
+    RTMAC m_MacAddress;
+    IntNetIf m_IntNetIf;
+    RTTHREAD m_hThrRecv;
+
+    /** Home folder location; used as default directory for several paths. */
+    com::Utf8Str m_strHome;
+
     struct proxy_options m_ProxyOptions;
     struct sockaddr_in m_src4;
     struct sockaddr_in6 m_src6;
@@ -163,14 +167,57 @@ class VBoxNetLwipNAT: public VBoxNetBaseService, public NATNetworkEventAdapter
     uint16_t m_u16Mtu;
     netif m_LwipNetIf;
 
-    /* Our NAT network descriptor in Main */
-    ComPtr<INATNetwork> m_net;
-    ComPtr<IHost> m_host;
+    VECNATSERVICEPF m_vecPortForwardRule4;
+    VECNATSERVICEPF m_vecPortForwardRule6;
 
-    ComNatListenerPtr m_NatListener;
-    ComNatListenerPtr m_VBoxListener;
-    ComNatListenerPtr m_VBoxClientListener;
-    static INTNETSEG aXmitSeg[64];
+    class Listener
+    {
+        class Adapter;
+        typedef ListenerImpl<Adapter, VBoxNetLwipNAT *> Impl;
+
+        ComObjPtr<Impl> m_pListenerImpl;
+        ComPtr<IEventSource> m_pEventSource;
+
+    public:
+        HRESULT init(VBoxNetLwipNAT *pNAT);
+        void uninit();
+
+        template <typename IEventful>
+        HRESULT listen(const ComPtr<IEventful> &pEventful,
+                       const VBoxEventType_T aEvents[]);
+        HRESULT unlisten();
+
+    private:
+        HRESULT doListen(const ComPtr<IEventSource> &pEventSource,
+                         const VBoxEventType_T aEvents[]);
+    };
+
+    Listener m_ListenerNATNet;
+    Listener m_ListenerVirtualBox;
+    Listener m_ListenerVBoxClient;
+
+public:
+    VBoxNetLwipNAT();
+    ~VBoxNetLwipNAT();
+
+    RTEXITCODE parseArgs(int argc, char *argv[]);
+
+    int init();
+    int run();
+    void shutdown();
+
+private:
+    RTEXITCODE usage();
+
+    int initCom();
+    int initHome();
+    int initLog();
+    int initIPv4();
+    int initIPv4LoopbackMap();
+    int initIPv6();
+    int initComEvents();
+
+    int getExtraData(com::Utf8Str &strValueOut, const char *pcszKey);
 
     static void reportError(const char *a_pcszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
 
@@ -181,30 +228,1220 @@ class VBoxNetLwipNAT: public VBoxNetBaseService, public NATNetworkEventAdapter
                                     const com::Utf8Str &strContext);
     static void reportErrorInfo(const com::ErrorInfo &info);
 
+    void initIPv4RawSock();
+    void initIPv6RawSock();
+
+    static DECLCALLBACK(void) onLwipTcpIpInit(void *arg);
+    static DECLCALLBACK(void) onLwipTcpIpFini(void *arg);
+    static DECLCALLBACK(err_t) netifInit(netif *pNetif) RT_NOTHROW_PROTO;
+
     HRESULT HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent);
 
     const char **getHostNameservers();
 
-    /* Only for debug needs, by default NAT service should load rules from SVC
-     * on startup, and then on sync them on events.
-     */
-    bool fDontLoadRulesOnStartup;
-    static DECLCALLBACK(void) onLwipTcpIpInit(void *arg);
-    static DECLCALLBACK(void) onLwipTcpIpFini(void *arg);
-    static err_t netifInit(netif *pNetif);
-    static err_t netifLinkoutput(netif *pNetif, pbuf *pBuf);
-    /* static int intNetThreadRecv(RTTHREAD, void *); - unused */
+    int fetchNatPortForwardRules(VECNATSERVICEPF &vec, bool fIsIPv6);
+    static int natServiceProcessRegisteredPf(VECNATSERVICEPF &vecPf);
+    static int natServicePfRegister(NATSERVICEPORTFORWARDRULE &natServicePf);
 
-    VECNATSERVICEPF m_vecPortForwardRule4;
-    VECNATSERVICEPF m_vecPortForwardRule6;
+    static DECLCALLBACK(int) receiveThread(RTTHREAD hThreadSelf, void *pvUser);
 
-    static int natServicePfRegister(NATSEVICEPORTFORWARDRULE& natServicePf);
-    static int natServiceProcessRegisteredPf(VECNATSERVICEPF& vecPf);
+    /* input from intnet */
+    static DECLCALLBACK(void) processFrame(void *pvUser, void *pvFrame, uint32_t cbFrame);
+
+    /* output to intnet */
+    static DECLCALLBACK(err_t) netifLinkoutput(netif *pNetif, pbuf *pBuf) RT_NOTHROW_PROTO;
 };
 
 
-static VBoxNetLwipNAT *g_pLwipNat;
-INTNETSEG VBoxNetLwipNAT::aXmitSeg[64];
+
+VBoxNetLwipNAT::VBoxNetLwipNAT()
+  : m_uVerbosity(0),
+    m_hThrRecv(NIL_RTTHREAD)
+{
+    LogFlowFuncEnter();
+
+    RT_ZERO(m_ProxyOptions.ipv4_addr);
+    RT_ZERO(m_ProxyOptions.ipv4_mask);
+    RT_ZERO(m_ProxyOptions.ipv6_addr);
+    m_ProxyOptions.ipv6_enabled = 0;
+    m_ProxyOptions.ipv6_defroute = 0;
+    m_ProxyOptions.icmpsock4 = INVALID_SOCKET;
+    m_ProxyOptions.icmpsock6 = INVALID_SOCKET;
+    m_ProxyOptions.tftp_root = NULL;
+    m_ProxyOptions.src4 = NULL;
+    m_ProxyOptions.src6 = NULL;
+    RT_ZERO(m_src4);
+    RT_ZERO(m_src6);
+    m_src4.sin_family = AF_INET;
+    m_src6.sin6_family = AF_INET6;
+#if HAVE_SA_LEN
+    m_src4.sin_len = sizeof(m_src4);
+    m_src6.sin6_len = sizeof(m_src6);
+#endif
+    m_ProxyOptions.lomap_desc = NULL;
+    m_ProxyOptions.nameservers = NULL;
+
+    m_LwipNetIf.name[0] = 'N';
+    m_LwipNetIf.name[1] = 'T';
+
+    m_MacAddress.au8[0] = 0x52;
+    m_MacAddress.au8[1] = 0x54;
+    m_MacAddress.au8[2] = 0;
+    m_MacAddress.au8[3] = 0x12;
+    m_MacAddress.au8[4] = 0x35;
+    m_MacAddress.au8[5] = 0;
+
+    RT_ZERO(m_lo2off);
+    m_loOptDescriptor.lomap = NULL;
+    m_loOptDescriptor.num_lomap = 0;
+
+    LogFlowFuncLeave();
+}
+
+
+VBoxNetLwipNAT::~VBoxNetLwipNAT()
+{
+    if (m_ProxyOptions.tftp_root)
+    {
+        RTStrFree((char *)m_ProxyOptions.tftp_root);
+        m_ProxyOptions.tftp_root = NULL;
+    }
+    if (m_ProxyOptions.nameservers)
+    {
+        const char **pv = m_ProxyOptions.nameservers;
+        while (*pv)
+        {
+            RTStrFree((char*)*pv);
+            pv++;
+        }
+        RTMemFree(m_ProxyOptions.nameservers);
+        m_ProxyOptions.nameservers = NULL;
+    }
+}
+
+
+/**
+ * Command line options.
+ */
+RTGETOPTDEF VBoxNetLwipNAT::s_aGetOptDef[] =
+{
+    { "--network",              'n',   RTGETOPT_REQ_STRING },
+    { "--verbose",              'v',   RTGETOPT_REQ_NOTHING },
+};
+
+
+/** Icky hack to tell the caller it should exit with RTEXITCODE_SUCCESS */
+#define RTEXITCODE_DONE RTEXITCODE_32BIT_HACK
+
+RTEXITCODE
+VBoxNetLwipNAT::usage()
+{
+    RTPrintf("%s Version %sr%u\n"
+             "Copyright (C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+             "\n"
+             "Usage: %s <options>\n"
+             "\n"
+             "Options:\n",
+             RTProcShortName(), RTBldCfgVersion(), RTBldCfgRevision(),
+             RTProcShortName());
+    for (size_t i = 0; i < RT_ELEMENTS(s_aGetOptDef); ++i)
+        RTPrintf("    -%c, %s\n", s_aGetOptDef[i].iShort, s_aGetOptDef[i].pszLong);
+
+    return RTEXITCODE_DONE;
+}
+
+
+RTEXITCODE
+VBoxNetLwipNAT::parseArgs(int argc, char *argv[])
+{
+    unsigned int uVerbosity = 0;
+    int rc;
+
+    RTGETOPTSTATE State;
+    rc = RTGetOptInit(&State, argc, argv,
+                      s_aGetOptDef, RT_ELEMENTS(s_aGetOptDef),
+                      1, 0);
+
+    int ch;
+    RTGETOPTUNION Val;
+    while ((ch = RTGetOpt(&State, &Val)) != 0)
+    {
+        switch (ch)
+        {
+            case 'n':           /* --network */
+                if (m_strNetworkName.isNotEmpty())
+                    return RTMsgErrorExit(RTEXITCODE_SYNTAX, "multiple --network options");
+                m_strNetworkName = Val.psz;
+                break;
+
+            case 'v':           /* --verbose */
+                ++uVerbosity;
+                break;
+
+
+            /*
+             * Standard options recognized by RTGetOpt()
+             */
+
+            case 'V':           /* --version */
+                RTPrintf("%sr%u\n", RTBldCfgVersion(), RTBldCfgRevision());
+                return RTEXITCODE_DONE;
+
+            case 'h':           /* --help */
+                return usage();
+
+            case VINF_GETOPT_NOT_OPTION:
+                return RTMsgErrorExit(RTEXITCODE_SYNTAX, "unexpected non-option argument");
+
+            default:
+                return RTGetOptPrintError(ch, &Val);
+        }
+    }
+
+    if (m_strNetworkName.isEmpty())
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "missing --network option");
+
+    m_uVerbosity = uVerbosity;
+    return RTEXITCODE_SUCCESS;
+}
+
+
+/**
+ * Perform actual initialization.
+ *
+ * This code runs on the main thread.  Establish COM connection with
+ * VBoxSVC so that we can do API calls.  Starts the LWIP thread.
+ */
+int VBoxNetLwipNAT::init()
+{
+    HRESULT hrc;
+    int rc;
+
+    LogFlowFuncEnter();
+
+    /* Get the COM API set up. */
+    rc = initCom();
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* Get the home folder location.  It's ok if it fails. */
+    initHome();
+
+    /*
+     * We get the network name on the command line.  Get hold of its
+     * API object to get the rest of the configuration from.
+     */
+    hrc = virtualbox->FindNATNetworkByName(com::Bstr(m_strNetworkName).raw(),
+                                           m_net.asOutParam());
+    if (FAILED(hrc))
+    {
+        reportComError(virtualbox, "FindNATNetworkByName", hrc);
+        return VERR_NOT_FOUND;
+    }
+
+    /*
+     * Now that we know the network name and have ensured that it
+     * indeed exists we can create the release log file.
+     */
+    initLog();
+
+    // resolver changes are reported on vbox but are retrieved from
+    // host so stash a pointer for future lookups
+    hrc = virtualbox->COMGETTER(Host)(m_host.asOutParam());
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+
+    /* Get the settings related to IPv4. */
+    rc = initIPv4();
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* Get the settings related to IPv6. */
+    rc = initIPv6();
+    if (RT_FAILURE(rc))
+        return rc;
+
+
+    fetchNatPortForwardRules(m_vecPortForwardRule4, /* :fIsIPv6 */ false);
+    if (m_ProxyOptions.ipv6_enabled)
+        fetchNatPortForwardRules(m_vecPortForwardRule6, /* :fIsIPv6 */ true);
+
+
+    if (m_strHome.isNotEmpty())
+    {
+        com::Utf8StrFmt strTftpRoot("%s%c%s", m_strHome.c_str(), RTPATH_DELIMITER, "TFTP");
+        char *pszStrTemp;       // avoid const char ** vs char **
+        rc = RTStrUtf8ToCurrentCP(&pszStrTemp, strTftpRoot.c_str());
+        AssertRC(rc);
+        m_ProxyOptions.tftp_root = pszStrTemp;
+    }
+
+    m_ProxyOptions.nameservers = getHostNameservers();
+
+    initComEvents();
+    /* end of COM initialization */
+
+    /* connect to the intnet */
+    rc = m_IntNetIf.init(m_strNetworkName);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+
+/**
+ * Primary COM initialization performed on the main thread.
+ *
+ * This initializes COM and obtains VirtualBox Client and VirtualBox
+ * objects.
+ *
+ * @note The member variables for them are in the base class.  We
+ * currently do it here so that we can report errors properly, because
+ * the base class' VBoxNetBaseService::init() is a bit naive and
+ * fixing that would just create unnecessary churn for little
+ * immediate gain.  It's easier to ignore the base class code and do
+ * it ourselves and do the refactoring later.
+ */
+int VBoxNetLwipNAT::initCom()
+{
+    HRESULT hrc;
+
+    hrc = com::Initialize();
+    if (FAILED(hrc))
+    {
+#ifdef VBOX_WITH_XPCOM
+        if (hrc == NS_ERROR_FILE_ACCESS_DENIED)
+        {
+            char szHome[RTPATH_MAX] = "";
+            int vrc = com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome), false);
+            if (RT_SUCCESS(vrc))
+            {
+                return RTMsgErrorExit(RTEXITCODE_INIT,
+                                      "Failed to initialize COM: %s: %Rhrf",
+                                      szHome, hrc);
+            }
+        }
+#endif  /* VBOX_WITH_XPCOM */
+        return RTMsgErrorExit(RTEXITCODE_INIT,
+                              "Failed to initialize COM: %Rhrf", hrc);
+    }
+
+    hrc = virtualboxClient.createInprocObject(CLSID_VirtualBoxClient);
+    if (FAILED(hrc))
+    {
+        reportError("Failed to create VirtualBox Client object: %Rhra", hrc);
+        return VERR_GENERAL_FAILURE;
+    }
+
+    hrc = virtualboxClient->COMGETTER(VirtualBox)(virtualbox.asOutParam());
+    if (FAILED(hrc))
+    {
+        reportError("Failed to obtain VirtualBox object: %Rhra", hrc);
+        return VERR_GENERAL_FAILURE;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Get the VirtualBox home folder.
+ *
+ * It is used as the base directory for the default release log file
+ * and for the TFTP root location.
+ */
+int VBoxNetLwipNAT::initHome()
+{
+    HRESULT hrc;
+    int rc;
+
+    com::Bstr bstrHome;
+    hrc = virtualbox->COMGETTER(HomeFolder)(bstrHome.asOutParam());
+    if (SUCCEEDED(hrc))
+    {
+        m_strHome = bstrHome;
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * In the unlikely event that we have failed to retrieve
+     * HomeFolder via the API, try the fallback method.  Note that
+     * despite "com" namespace it does not use COM.
+     */
+    char szHome[RTPATH_MAX] = "";
+    rc = com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome), false);
+    if (RT_SUCCESS(rc))
+    {
+        m_strHome = szHome;
+        return VINF_SUCCESS;
+    }
+
+    return rc;
+}
+
+
+/*
+ * Read IPv4 related settings and do necessary initialization.  These
+ * settings will be picked up by the proxy on the lwIP thread.  See
+ * onLwipTcpIpInit().
+ */
+int VBoxNetLwipNAT::initIPv4()
+{
+    HRESULT hrc;
+    int rc;
+
+    AssertReturn(m_net.isNotNull(), VERR_GENERAL_FAILURE);
+
+
+    /*
+     * IPv4 address and mask.
+     */
+    com::Bstr bstrIPv4Prefix;
+    hrc = m_net->COMGETTER(Network)(bstrIPv4Prefix.asOutParam());
+    if (FAILED(hrc))
+    {
+        reportComError(m_net, "Network", hrc);
+        return VERR_GENERAL_FAILURE;
+    }
+
+    RTNETADDRIPV4 Net4, Mask4;
+    int iPrefixLength;
+    rc = RTNetStrToIPv4Cidr(com::Utf8Str(bstrIPv4Prefix).c_str(),
+                            &Net4, &iPrefixLength);
+    if (RT_FAILURE(rc))
+    {
+        reportError("Failed to parse IPv4 prefix %ls\n", bstrIPv4Prefix.raw());
+        return rc;
+    }
+
+    if (iPrefixLength > 30 || 0 >= iPrefixLength)
+    {
+        reportError("Invalid IPv4 prefix length %d\n", iPrefixLength);
+        return VERR_INVALID_PARAMETER;
+    }
+
+    rc = RTNetPrefixToMaskIPv4(iPrefixLength, &Mask4);
+    AssertRCReturn(rc, rc);
+
+    /** @todo r=uwe Check the address is unicast, not a loopback, etc. */
+
+    RTNETADDRIPV4 Addr4;
+    Addr4.u = Net4.u | RT_H2N_U32_C(0x00000001);
+
+    memcpy(&m_ProxyOptions.ipv4_addr, &Addr4, sizeof(ip_addr));
+    memcpy(&m_ProxyOptions.ipv4_mask, &Mask4, sizeof(ip_addr));
+
+
+    /* Raw socket for ICMP. */
+    initIPv4RawSock();
+
+
+    /* IPv4 source address (host), if configured. */
+    com::Utf8Str strSourceIp4;
+    rc = getExtraData(strSourceIp4, "SourceIp4");
+    if (RT_SUCCESS(rc) && strSourceIp4.isNotEmpty())
+    {
+        RTNETADDRIPV4 addr;
+        rc = RTNetStrToIPv4Addr(strSourceIp4.c_str(), &addr);
+        if (RT_SUCCESS(rc))
+        {
+            m_src4.sin_addr.s_addr = addr.u;
+            m_ProxyOptions.src4 = &m_src4;
+
+            LogRel(("Will use %RTnaipv4 as IPv4 source address\n",
+                    m_src4.sin_addr.s_addr));
+        }
+        else
+        {
+            LogRel(("Failed to parse \"%s\" IPv4 source address specification\n",
+                    strSourceIp4.c_str()));
+        }
+    }
+
+    /* Make host's loopback(s) available from inside the natnet */
+    initIPv4LoopbackMap();
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Create raw IPv4 socket for sending and snooping ICMP.
+ */
+void VBoxNetLwipNAT::initIPv4RawSock()
+{
+    SOCKET icmpsock4 = INVALID_SOCKET;
+
+#ifndef RT_OS_DARWIN
+    const int icmpstype = SOCK_RAW;
+#else
+    /* on OS X it's not privileged */
+    const int icmpstype = SOCK_DGRAM;
+#endif
+
+    icmpsock4 = socket(AF_INET, icmpstype, IPPROTO_ICMP);
+    if (icmpsock4 == INVALID_SOCKET)
+    {
+        perror("IPPROTO_ICMP");
+#ifdef VBOX_RAWSOCK_DEBUG_HELPER
+        icmpsock4 = getrawsock(AF_INET);
+#endif
+    }
+
+    if (icmpsock4 != INVALID_SOCKET)
+    {
+#ifdef ICMP_FILTER              //  Linux specific
+        struct icmp_filter flt = {
+            ~(uint32_t)(
+                  (1U << ICMP_ECHOREPLY)
+                | (1U << ICMP_DEST_UNREACH)
+                | (1U << ICMP_TIME_EXCEEDED)
+            )
+        };
+
+        int status = setsockopt(icmpsock4, SOL_RAW, ICMP_FILTER,
+                                &flt, sizeof(flt));
+        if (status < 0)
+        {
+            perror("ICMP_FILTER");
+        }
+#endif
+    }
+
+    m_ProxyOptions.icmpsock4 = icmpsock4;
+}
+
+
+/**
+ * Init mapping from the natnet's IPv4 addresses to host's IPv4
+ * loopbacks.  Plural "loopbacks" because it's now quite common to run
+ * services on loopback addresses other than 127.0.0.1.  E.g. a
+ * caching dns proxy on 127.0.1.1 or 127.0.0.53.
+ */
+int VBoxNetLwipNAT::initIPv4LoopbackMap()
+{
+    HRESULT hrc;
+    int rc;
+
+    com::SafeArray<BSTR> aStrLocalMappings;
+    hrc = m_net->COMGETTER(LocalMappings)(ComSafeArrayAsOutParam(aStrLocalMappings));
+    if (FAILED(hrc))
+    {
+        reportComError(m_net, "LocalMappings", hrc);
+        return VERR_GENERAL_FAILURE;
+    }
+
+    if (aStrLocalMappings.size() == 0)
+        return VINF_SUCCESS;
+
+
+    /* netmask in host order, to verify the offsets */
+    uint32_t uMask = RT_N2H_U32(ip4_addr_get_u32(&m_ProxyOptions.ipv4_mask));
+
+
+    /*
+     * Process mappings of the form "127.x.y.z=off"
+     */
+    unsigned int dst = 0;      /* typeof(ip4_lomap_desc::num_lomap) */
+    for (size_t i = 0; i < aStrLocalMappings.size(); ++i)
+    {
+        com::Utf8Str strMapping(aStrLocalMappings[i]);
+        const char *pcszRule = strMapping.c_str();
+        LogRel(("IPv4 loopback mapping %zu: %s\n", i, pcszRule));
+
+        RTNETADDRIPV4 Loopback4;
+        char *pszNext;
+        rc = RTNetStrToIPv4AddrEx(pcszRule, &Loopback4, &pszNext);
+        if (RT_FAILURE(rc))
+        {
+            LogRel(("Failed to parse IPv4 address: %Rra\n", rc));
+            continue;
+        }
+
+        if (Loopback4.au8[0] != 127)
+        {
+            LogRel(("Not an IPv4 loopback address\n"));
+            continue;
+        }
+
+        if (rc != VWRN_TRAILING_CHARS)
+        {
+            LogRel(("Missing right hand side\n"));
+            continue;
+        }
+
+        pcszRule = RTStrStripL(pszNext);
+        if (*pcszRule != '=')
+        {
+            LogRel(("Invalid rule format\n"));
+            continue;
+        }
+
+        pcszRule = RTStrStripL(pcszRule+1);
+        if (*pszNext == '\0')
+        {
+            LogRel(("Empty right hand side\n"));
+            continue;
+        }
+
+        uint32_t u32Offset;
+        rc = RTStrToUInt32Ex(pcszRule, &pszNext, 10, &u32Offset);
+        if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_SPACES)
+        {
+            LogRel(("Invalid offset\n"));
+            continue;
+        }
+
+        if (u32Offset <= 1 || u32Offset == ~uMask)
+        {
+            LogRel(("Offset maps to a reserved address\n"));
+            continue;
+        }
+
+        if ((u32Offset & uMask) != 0)
+        {
+            LogRel(("Offset exceeds the network size\n"));
+            continue;
+        }
+
+        if (dst >= RT_ELEMENTS(m_lo2off))
+        {
+            LogRel(("Ignoring the mapping, too many mappings already\n"));
+            continue;
+        }
+
+        ip4_addr_set_u32(&m_lo2off[dst].loaddr, Loopback4.u);
+        m_lo2off[dst].off = u32Offset;
+        ++dst;
+    }
+
+    if (dst > 0)
+    {
+        m_loOptDescriptor.lomap = m_lo2off;
+        m_loOptDescriptor.num_lomap = dst;
+        m_ProxyOptions.lomap_desc = &m_loOptDescriptor;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/*
+ * Read IPv6 related settings and do necessary initialization.  These
+ * settings will be picked up by the proxy on the lwIP thread.  See
+ * onLwipTcpIpInit().
+ */
+int VBoxNetLwipNAT::initIPv6()
+{
+    HRESULT hrc;
+    int rc;
+
+    AssertReturn(m_net.isNotNull(), VERR_GENERAL_FAILURE);
+
+
+    /* Is IPv6 enabled for this network at all? */
+    BOOL fIPv6Enabled = FALSE;
+    hrc = m_net->COMGETTER(IPv6Enabled)(&fIPv6Enabled);
+    if (FAILED(hrc))
+    {
+        reportComError(m_net, "IPv6Enabled", hrc);
+        return VERR_GENERAL_FAILURE;
+    }
+
+    m_ProxyOptions.ipv6_enabled = !!fIPv6Enabled;
+    if (!fIPv6Enabled)
+        return VINF_SUCCESS;
+
+
+    /*
+     * IPv6 address.
+     */
+    com::Bstr bstrIPv6Prefix;
+    hrc = m_net->COMGETTER(IPv6Prefix)(bstrIPv6Prefix.asOutParam());
+    if (FAILED(hrc))
+    {
+        reportComError(m_net, "IPv6Prefix", hrc);
+        return VERR_GENERAL_FAILURE;
+    }
+
+    RTNETADDRIPV6 Net6;
+    int iPrefixLength;
+    rc = RTNetStrToIPv6Cidr(com::Utf8Str(bstrIPv6Prefix).c_str(),
+                            &Net6, &iPrefixLength);
+    if (RT_FAILURE(rc))
+    {
+        reportError("Failed to parse IPv6 prefix %ls\n", bstrIPv6Prefix.raw());
+        return rc;
+    }
+
+    /* Allow both addr:: and addr::/64 */
+    if (iPrefixLength == 128)   /* no length was specified after the address? */
+        iPrefixLength = 64;     /*   take it to mean /64 which we require anyway */
+    else if (iPrefixLength != 64)
+    {
+        reportError("Invalid IPv6 prefix length %d,"
+                    " must be 64.\n", iPrefixLength);
+        return rc;
+    }
+
+    /* Verify the address is unicast. */
+    if (   ((Net6.au8[0] & 0xe0) != 0x20)  /* global 2000::/3 */
+        && ((Net6.au8[0] & 0xfe) != 0xfc)) /* local  fc00::/7 */
+    {
+        reportError("IPv6 prefix %RTnaipv6 is not unicast.\n", &Net6);
+        return VERR_INVALID_PARAMETER;
+    }
+
+    /* Verify the interfaces ID part is zero */
+    if (Net6.au64[1] != 0)
+    {
+        reportError("Non-zero bits in the interface ID part"
+                    " of the IPv6 prefix %RTnaipv6/64.\n", &Net6);
+        return VERR_INVALID_PARAMETER;
+    }
+
+    /* Use ...::1 as our address */
+    RTNETADDRIPV6 Addr6 = Net6;
+    Addr6.au8[15] = 0x01;
+    memcpy(&m_ProxyOptions.ipv6_addr, &Addr6, sizeof(ip6_addr_t));
+
+
+    /*
+     * Should we advertise ourselves as default IPv6 route?  If the
+     * host doesn't have IPv6 connectivity, it's probably better not
+     * to, to prevent the guest from IPv6 connection attempts doomed
+     * to fail.
+     *
+     * We might want to make this modifiable while the natnet is
+     * running.
+     */
+    BOOL fIPv6DefaultRoute = FALSE;
+    hrc = m_net->COMGETTER(AdvertiseDefaultIPv6RouteEnabled)(&fIPv6DefaultRoute);
+    if (FAILED(hrc))
+    {
+        reportComError(m_net, "AdvertiseDefaultIPv6RouteEnabled", hrc);
+        return VERR_GENERAL_FAILURE;
+    }
+
+    m_ProxyOptions.ipv6_defroute = fIPv6DefaultRoute;
+
+
+    /* Raw socket for ICMP. */
+    initIPv6RawSock();
+
+
+    /* IPv6 source address, if configured. */
+    com::Utf8Str strSourceIp6;
+    rc = getExtraData(strSourceIp6, "SourceIp6");
+    if (RT_SUCCESS(rc) && strSourceIp6.isNotEmpty())
+    {
+        RTNETADDRIPV6 addr;
+        char *pszZone = NULL;
+        rc = RTNetStrToIPv6Addr(strSourceIp6.c_str(), &addr, &pszZone);
+        if (RT_SUCCESS(rc))
+        {
+            memcpy(&m_src6.sin6_addr, &addr, sizeof(addr));
+            m_ProxyOptions.src6 = &m_src6;
+
+            LogRel(("Will use %RTnaipv6 as IPv6 source address\n",
+                    &m_src6.sin6_addr));
+        }
+        else
+        {
+            LogRel(("Failed to parse \"%s\" IPv6 source address specification\n",
+                    strSourceIp6.c_str()));
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Create raw IPv6 socket for sending and snooping ICMP6.
+ */
+void VBoxNetLwipNAT::initIPv6RawSock()
+{
+    SOCKET icmpsock6 = INVALID_SOCKET;
+
+#ifndef RT_OS_DARWIN
+    const int icmpstype = SOCK_RAW;
+#else
+    /* on OS X it's not privileged */
+    const int icmpstype = SOCK_DGRAM;
+#endif
+
+    icmpsock6 = socket(AF_INET6, icmpstype, IPPROTO_ICMPV6);
+    if (icmpsock6 == INVALID_SOCKET)
+    {
+        perror("IPPROTO_ICMPV6");
+#ifdef VBOX_RAWSOCK_DEBUG_HELPER
+        icmpsock6 = getrawsock(AF_INET6);
+#endif
+    }
+
+    if (icmpsock6 != INVALID_SOCKET)
+    {
+#ifdef ICMP6_FILTER             // Windows doesn't support RFC 3542 API
+        /*
+         * XXX: We do this here for now, not in pxping.c, to avoid
+         * name clashes between lwIP and system headers.
+         */
+        struct icmp6_filter flt;
+        ICMP6_FILTER_SETBLOCKALL(&flt);
+
+        ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &flt);
+
+        ICMP6_FILTER_SETPASS(ICMP6_DST_UNREACH, &flt);
+        ICMP6_FILTER_SETPASS(ICMP6_PACKET_TOO_BIG, &flt);
+        ICMP6_FILTER_SETPASS(ICMP6_TIME_EXCEEDED, &flt);
+        ICMP6_FILTER_SETPASS(ICMP6_PARAM_PROB, &flt);
+
+        int status = setsockopt(icmpsock6, IPPROTO_ICMPV6, ICMP6_FILTER,
+                                &flt, sizeof(flt));
+        if (status < 0)
+        {
+            perror("ICMP6_FILTER");
+        }
+#endif
+    }
+
+    m_ProxyOptions.icmpsock6 = icmpsock6;
+}
+
+
+
+/**
+ * Adapter for the ListenerImpl template.  It has to be a separate
+ * object because ListenerImpl deletes it.  Just a small wrapper that
+ * delegates the real work back to VBoxNetLwipNAT.
+ */
+class VBoxNetLwipNAT::Listener::Adapter
+{
+    VBoxNetLwipNAT *m_pNAT;
+public:
+    Adapter() : m_pNAT(NULL) {}
+    HRESULT init() { return init(NULL); }
+    void uninit() { m_pNAT = NULL; }
+
+    HRESULT init(VBoxNetLwipNAT *pNAT)
+    {
+        m_pNAT = pNAT;
+        return S_OK;
+    }
+
+    HRESULT HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
+    {
+        if (RT_LIKELY(m_pNAT != NULL))
+            return m_pNAT->HandleEvent(aEventType, pEvent);
+        else
+            return S_OK;
+    }
+};
+
+
+HRESULT
+VBoxNetLwipNAT::Listener::init(VBoxNetLwipNAT *pNAT)
+{
+    HRESULT hrc;
+
+    hrc = m_pListenerImpl.createObject();
+    if (FAILED(hrc))
+        return hrc;
+
+    hrc = m_pListenerImpl->init(new Adapter(), pNAT);
+    if (FAILED(hrc))
+    {
+        VBoxNetLwipNAT::reportComError(m_pListenerImpl, "init", hrc);
+        return hrc;
+    }
+
+    return hrc;
+}
+
+
+void
+VBoxNetLwipNAT::Listener::uninit()
+{
+    unlisten();
+    m_pListenerImpl.setNull();
+}
+
+
+/*
+ * There's no base interface that exposes "eventSource" so fake it
+ * with a template.
+ */
+template <typename IEventful>
+HRESULT
+VBoxNetLwipNAT::Listener::listen(const ComPtr<IEventful> &pEventful,
+                                         const VBoxEventType_T aEvents[])
+{
+    HRESULT hrc;
+
+    if (m_pListenerImpl.isNull())
+        return S_OK;
+
+    ComPtr<IEventSource> pEventSource;
+    hrc = pEventful->COMGETTER(EventSource)(pEventSource.asOutParam());
+    if (FAILED(hrc))
+    {
+        VBoxNetLwipNAT::reportComError(pEventful, "EventSource", hrc);
+        return hrc;
+    }
+
+    /* got a real interface, punt to the non-template code */
+    hrc = doListen(pEventSource, aEvents);
+    if (FAILED(hrc))
+        return hrc;
+
+    return hrc;
+}
+
+
+HRESULT
+VBoxNetLwipNAT::Listener::doListen(const ComPtr<IEventSource> &pEventSource,
+                                   const VBoxEventType_T aEvents[])
+{
+    HRESULT hrc;
+
+    com::SafeArray<VBoxEventType_T> aInteresting;
+    for (size_t i = 0; aEvents[i] != VBoxEventType_Invalid; ++i)
+        aInteresting.push_back(aEvents[i]);
+
+    BOOL fActive = true;
+    hrc = pEventSource->RegisterListener(m_pListenerImpl,
+                                         ComSafeArrayAsInParam(aInteresting),
+                                         fActive);
+    if (FAILED(hrc))
+    {
+        VBoxNetLwipNAT::reportComError(m_pEventSource, "RegisterListener", hrc);
+        return hrc;
+    }
+
+    m_pEventSource = pEventSource;
+    return hrc;
+}
+
+
+HRESULT
+VBoxNetLwipNAT::Listener::unlisten()
+{
+    HRESULT hrc;
+
+    if (m_pEventSource.isNull())
+        return S_OK;
+
+    const ComPtr<IEventSource> pEventSource = m_pEventSource;
+    m_pEventSource.setNull();
+
+    hrc = pEventSource->UnregisterListener(m_pListenerImpl);
+    if (FAILED(hrc))
+    {
+        VBoxNetLwipNAT::reportComError(pEventSource, "UnregisterListener", hrc);
+        return hrc;
+    }
+
+    return hrc;
+}
+
+
+
+/**
+ * Create and register API event listeners.
+ */
+int VBoxNetLwipNAT::initComEvents()
+{
+    /**
+     * @todo r=uwe These events are reported on both IVirtualBox and
+     * INATNetwork objects.  We used to listen for them on our
+     * network, but it was changed later to listen on vbox.  Leave it
+     * that way for now.  Note that HandleEvent() has to do additional
+     * check for them to ignore events for other networks.
+     */
+    static const VBoxEventType_T s_aNATNetEvents[] = {
+        VBoxEventType_OnNATNetworkPortForward,
+        VBoxEventType_OnNATNetworkSetting,
+        VBoxEventType_Invalid
+    };
+    m_ListenerNATNet.init(this);
+    m_ListenerNATNet.listen(virtualbox, s_aNATNetEvents); // sic!
+
+    static const VBoxEventType_T s_aVirtualBoxEvents[] = {
+        VBoxEventType_OnHostNameResolutionConfigurationChange,
+        VBoxEventType_OnNATNetworkStartStop,
+        VBoxEventType_Invalid
+    };
+    m_ListenerVirtualBox.init(this);
+    m_ListenerVirtualBox.listen(virtualbox, s_aVirtualBoxEvents);
+
+    static const VBoxEventType_T s_aVBoxClientEvents[] = {
+        VBoxEventType_OnVBoxSVCAvailabilityChanged,
+        VBoxEventType_Invalid
+    };
+    m_ListenerVBoxClient.init(this);
+    m_ListenerVBoxClient.listen(virtualboxClient, s_aVBoxClientEvents);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Perform lwIP initialization on the lwIP "tcpip" thread.
+ *
+ * The lwIP thread was created in init() and this function is run
+ * before the main lwIP loop is started.  It is responsible for
+ * setting up lwIP state, configuring interface(s), etc.
+ a*/
+/*static*/
+DECLCALLBACK(void) VBoxNetLwipNAT::onLwipTcpIpInit(void *arg)
+{
+    AssertPtrReturnVoid(arg);
+    VBoxNetLwipNAT *self = static_cast<VBoxNetLwipNAT *>(arg);
+
+    HRESULT hrc = com::Initialize();
+    AssertComRCReturnVoid(hrc);
+
+    proxy_arp_hook = pxremap_proxy_arp;
+    proxy_ip4_divert_hook = pxremap_ip4_divert;
+
+    proxy_na_hook = pxremap_proxy_na;
+    proxy_ip6_divert_hook = pxremap_ip6_divert;
+
+    netif *pNetif = netif_add(&self->m_LwipNetIf /* Lwip Interface */,
+                              &self->m_ProxyOptions.ipv4_addr, /* IP address*/
+                              &self->m_ProxyOptions.ipv4_mask, /* Network mask */
+                              &self->m_ProxyOptions.ipv4_addr, /* XXX: Gateway address */
+                              self /* state */,
+                              VBoxNetLwipNAT::netifInit /* netif_init_fn */,
+                              tcpip_input /* netif_input_fn */);
+
+    AssertPtrReturnVoid(pNetif);
+
+    LogRel(("netif %c%c%d: mac %RTmac\n",
+            pNetif->name[0], pNetif->name[1], pNetif->num,
+            pNetif->hwaddr));
+    LogRel(("netif %c%c%d: inet %RTnaipv4 netmask %RTnaipv4\n",
+            pNetif->name[0], pNetif->name[1], pNetif->num,
+            pNetif->ip_addr, pNetif->netmask));
+    for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; ++i) {
+        if (!ip6_addr_isinvalid(netif_ip6_addr_state(pNetif, i))) {
+            LogRel(("netif %c%c%d: inet6 %RTnaipv6\n",
+                    pNetif->name[0], pNetif->name[1], pNetif->num,
+                    netif_ip6_addr(pNetif, i)));
+        }
+    }
+
+    netif_set_up(pNetif);
+    netif_set_link_up(pNetif);
+
+    if (self->m_ProxyOptions.ipv6_enabled) {
+        /*
+         * XXX: lwIP currently only ever calls mld6_joingroup() in
+         * nd6_tmr() for fresh tentative addresses, which is a wrong place
+         * to do it - but I'm not keen on fixing this properly for now
+         * (with correct handling of interface up and down transitions,
+         * etc).  So stick it here as a kludge.
+         */
+        for (int i = 0; i <= 1; ++i) {
+            ip6_addr_t *paddr = netif_ip6_addr(pNetif, i);
+
+            ip6_addr_t solicited_node_multicast_address;
+            ip6_addr_set_solicitednode(&solicited_node_multicast_address,
+                                       paddr->addr[3]);
+            mld6_joingroup(paddr, &solicited_node_multicast_address);
+        }
+
+        /*
+         * XXX: We must join the solicited-node multicast for the
+         * addresses we do IPv6 NA-proxy for.  We map IPv6 loopback to
+         * proxy address + 1.  We only need the low 24 bits, and those are
+         * fixed.
+         */
+        {
+            ip6_addr_t solicited_node_multicast_address;
+
+            ip6_addr_set_solicitednode(&solicited_node_multicast_address,
+                                       /* last 24 bits of the address */
+                                       PP_HTONL(0x00000002));
+            mld6_netif_joingroup(pNetif,  &solicited_node_multicast_address);
+        }
+    }
+
+    proxy_init(&self->m_LwipNetIf, &self->m_ProxyOptions);
+
+    natServiceProcessRegisteredPf(self->m_vecPortForwardRule4);
+    natServiceProcessRegisteredPf(self->m_vecPortForwardRule6);
+}
+
+
+/**
+ * lwIP's callback to configure the interface.
+ *
+ * Called from onLwipTcpIpInit() via netif_add().  Called after the
+ * initerface is mostly initialized, and its IPv4 address is already
+ * configured.  Here we still need to configure the MAC address and
+ * IPv6 addresses.  It's best to consult the source of netif_add() for
+ * the exact details.
+ */
+/* static */ DECLCALLBACK(err_t)
+VBoxNetLwipNAT::netifInit(netif *pNetif) RT_NOTHROW_DEF
+{
+    err_t rcLwip = ERR_OK;
+
+    AssertPtrReturn(pNetif, ERR_ARG);
+
+    VBoxNetLwipNAT *self = static_cast<VBoxNetLwipNAT *>(pNetif->state);
+    AssertPtrReturn(self, ERR_ARG);
+
+    LogFlowFunc(("ENTER: pNetif[%c%c%d]\n", pNetif->name[0], pNetif->name[1], pNetif->num));
+    /* validity */
+    AssertReturn(   pNetif->name[0] == 'N'
+                 && pNetif->name[1] == 'T', ERR_ARG);
+
+
+    pNetif->hwaddr_len = sizeof(RTMAC);
+    memcpy(pNetif->hwaddr, &self->m_MacAddress, sizeof(RTMAC));
+
+    self->m_u16Mtu = 1500; // XXX: FIXME
+    pNetif->mtu = self->m_u16Mtu;
+
+    pNetif->flags = NETIF_FLAG_BROADCAST
+      | NETIF_FLAG_ETHARP                /* Don't bother driver with ARP and let Lwip resolve ARP handling */
+      | NETIF_FLAG_ETHERNET;             /* Lwip works with ethernet too */
+
+    pNetif->linkoutput = netifLinkoutput; /* ether-level-pipe */
+    pNetif->output = etharp_output;       /* ip-pipe */
+
+    if (self->m_ProxyOptions.ipv6_enabled) {
+        pNetif->output_ip6 = ethip6_output;
+
+        /* IPv6 link-local address in slot 0 */
+        netif_create_ip6_linklocal_address(pNetif, /* :from_mac_48bit */ 1);
+        netif_ip6_addr_set_state(pNetif, 0, IP6_ADDR_PREFERRED); // skip DAD
+
+        /* INATNetwork::IPv6Prefix in slot 1 */
+        memcpy(netif_ip6_addr(pNetif, 1),
+               &self->m_ProxyOptions.ipv6_addr, sizeof(ip6_addr_t));
+        netif_ip6_addr_set_state(pNetif, 1, IP6_ADDR_PREFERRED);
+
+#if LWIP_IPV6_SEND_ROUTER_SOLICIT
+        pNetif->rs_count = 0;
+#endif
+    }
+
+    LogFlowFunc(("LEAVE: %d\n", rcLwip));
+    return rcLwip;
+}
+
+
+/**
+ * Run the pumps.
+ *
+ * Spawn the intnet pump thread that gets packets from the intnet and
+ * feeds them to lwIP.  Enter COM event loop here, on the main thread.
+ */
+int
+VBoxNetLwipNAT::run()
+{
+    int rc;
+
+    AssertReturn(m_hThrRecv == NIL_RTTHREAD, VERR_INVALID_STATE);
+
+    /* spawn the lwIP tcpip thread */
+    vboxLwipCoreInitialize(VBoxNetLwipNAT::onLwipTcpIpInit, this);
+
+    /* spawn intnet input pump */
+    rc = RTThreadCreate(&m_hThrRecv,
+             VBoxNetLwipNAT::receiveThread, this,
+             0, /* :cbStack */
+             RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE,
+             "RECV");
+    AssertRCReturn(rc, rc);
+
+    /* main thread will run the API event queue pump */
+    com::NativeEventQueue *pQueue = com::NativeEventQueue::getMainEventQueue();
+    if (pQueue == NULL)
+    {
+        LogRel(("run: getMainEventQueue() == NULL\n"));
+        return VERR_GENERAL_FAILURE;
+    }
+
+    /* dispatch API events to our listeners */
+    for (;;)
+    {
+        rc = pQueue->processEventQueue(RT_INDEFINITE_WAIT);
+        if (rc == VERR_INTERRUPTED)
+        {
+            LogRel(("run: shutdown\n"));
+            break;
+        }
+        else if (rc != VINF_SUCCESS)
+        {
+            /* note any unexpected rc */
+            LogRel(("run: processEventQueue: %Rrc\n", rc));
+        }
+    }
+
+    /*
+     * We are out of the event loop, so we were told to shut down.
+     * Tell other threads to wrap up.
+     */
+
+    /* tell the intnet input pump to terminate */
+    m_IntNetIf.ifAbort();
+
+    /* tell the lwIP tcpip thread to terminate */
+    vboxLwipCoreFinalize(VBoxNetLwipNAT::onLwipTcpIpFini, this);
+
+    rc = RTThreadWait(m_hThrRecv, 5000, NULL);
+    m_hThrRecv = NIL_RTTHREAD;
+
+    return VINF_SUCCESS;
+}
+
+
+void
+VBoxNetLwipNAT::shutdown()
+{
+    int rc;
+
+    com::NativeEventQueue *pQueue = com::NativeEventQueue::getMainEventQueue();
+    if (pQueue == NULL)
+    {
+        LogRel(("shutdown: getMainEventQueue() == NULL\n"));
+        return;
+    }
+
+    /* unregister listeners */
+    m_ListenerNATNet.unlisten();
+    m_ListenerVirtualBox.unlisten();
+    m_ListenerVBoxClient.unlisten();
+
+    /* tell the event loop in run() to stop */
+    rc = pQueue->interruptEventQueueProcessing();
+    if (RT_FAILURE(rc))
+        LogRel(("shutdown: interruptEventQueueProcessing: %Rrc\n", rc));
+}
+
+
+/**
+ * Run finalization on the lwIP "tcpip" thread.
+ */
+/* static */
+DECLCALLBACK(void) VBoxNetLwipNAT::onLwipTcpIpFini(void *arg)
+{
+    AssertPtrReturnVoid(arg);
+    VBoxNetLwipNAT *self = static_cast<VBoxNetLwipNAT *>(arg);
+
+    /* XXX: proxy finalization */
+    netif_set_link_down(&self->m_LwipNetIf);
+    netif_set_down(&self->m_LwipNetIf);
+    netif_remove(&self->m_LwipNetIf);
+}
+
 
 /**
  * @note: this work on Event thread.
@@ -221,7 +1458,7 @@ HRESULT VBoxNetLwipNAT::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
             com::Bstr networkName;
             hrc = pSettingsEvent->COMGETTER(NetworkName)(networkName.asOutParam());
             AssertComRCReturn(hrc, hrc);
-            if (networkName.compare(getNetworkName().c_str()))
+            if (networkName != m_strNetworkName)
                 break; /* change not for our network */
 
             // XXX: only handle IPv6 default route for now
@@ -247,7 +1484,7 @@ HRESULT VBoxNetLwipNAT::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
             com::Bstr networkName;
             hrc = pForwardEvent->COMGETTER(NetworkName)(networkName.asOutParam());
             AssertComRCReturn(hrc, hrc);
-            if (networkName.compare(getNetworkName().c_str()))
+            if (networkName != m_strNetworkName)
                 break; /* change not for our network */
 
             BOOL fCreateFW;
@@ -285,7 +1522,7 @@ HRESULT VBoxNetLwipNAT::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
             VECNATSERVICEPF& rules = fIPv6FW ? m_vecPortForwardRule6
                                              : m_vecPortForwardRule4;
 
-            NATSEVICEPORTFORWARDRULE r;
+            NATSERVICEPORTFORWARDRULE r;
             RT_ZERO(r);
 
             r.Pfr.fPfrIPv6 = fIPv6FW;
@@ -357,7 +1594,7 @@ HRESULT VBoxNetLwipNAT::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
                 for (it = rules.begin(); it != rules.end(); ++it)
                 {
                     /* compare */
-                    NATSEVICEPORTFORWARDRULE &natFw = *it;
+                    NATSERVICEPORTFORWARDRULE &natFw = *it;
                     if (   natFw.Pfr.iPfrProto == r.Pfr.iPfrProto
                         && natFw.Pfr.u16PfrHostPort == r.Pfr.u16PfrHostPort
                         && strncmp(natFw.Pfr.szPfrHostAddr, r.Pfr.szPfrHostAddr, INET6_ADDRSTRLEN) == 0
@@ -405,7 +1642,7 @@ HRESULT VBoxNetLwipNAT::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
             com::Bstr networkName;
             hrc = pStartStopEvent->COMGETTER(NetworkName)(networkName.asOutParam());
             AssertComRCReturn(hrc, hrc);
-            if (networkName.compare(getNetworkName().c_str()))
+            if (networkName != m_strNetworkName)
                 break; /* change not for our network */
 
             BOOL fStart = TRUE;
@@ -430,283 +1667,131 @@ HRESULT VBoxNetLwipNAT::HandleEvent(VBoxEventType_T aEventType, IEvent *pEvent)
 }
 
 
-/*static*/ DECLCALLBACK(void) VBoxNetLwipNAT::onLwipTcpIpInit(void *arg)
-{
-    AssertPtrReturnVoid(arg);
-    VBoxNetLwipNAT *pNat = static_cast<VBoxNetLwipNAT *>(arg);
-
-    HRESULT hrc = com::Initialize();
-    Assert(!FAILED(hrc)); NOREF(hrc);
-
-    proxy_arp_hook = pxremap_proxy_arp;
-    proxy_ip4_divert_hook = pxremap_ip4_divert;
-
-    proxy_na_hook = pxremap_proxy_na;
-    proxy_ip6_divert_hook = pxremap_ip6_divert;
-
-    /* lwip thread */
-    RTNETADDRIPV4 network;
-    RTNETADDRIPV4 address = g_pLwipNat->getIpv4Address();
-    RTNETADDRIPV4 netmask = g_pLwipNat->getIpv4Netmask();
-    network.u = address.u & netmask.u;
-
-    ip_addr LwipIpAddr, LwipIpNetMask, LwipIpNetwork;
-
-    memcpy(&LwipIpAddr, &address, sizeof(ip_addr));
-    memcpy(&LwipIpNetMask, &netmask, sizeof(ip_addr));
-    memcpy(&LwipIpNetwork, &network, sizeof(ip_addr));
-
-    netif *pNetif = netif_add(&g_pLwipNat->m_LwipNetIf /* Lwip Interface */,
-                              &LwipIpAddr /* IP address*/,
-                              &LwipIpNetMask /* Network mask */,
-                              &LwipIpAddr /* gateway address, @todo: is self IP acceptable? */,
-                              g_pLwipNat /* state */,
-                              VBoxNetLwipNAT::netifInit /* netif_init_fn */,
-                              tcpip_input /* netif_input_fn */);
-
-    AssertPtrReturnVoid(pNetif);
-
-    LogRel(("netif %c%c%d: mac %RTmac\n",
-            pNetif->name[0], pNetif->name[1], pNetif->num,
-            pNetif->hwaddr));
-    LogRel(("netif %c%c%d: inet %RTnaipv4 netmask %RTnaipv4\n",
-            pNetif->name[0], pNetif->name[1], pNetif->num,
-            pNetif->ip_addr, pNetif->netmask));
-    for (int i = 0; i < LWIP_IPV6_NUM_ADDRESSES; ++i) {
-        if (!ip6_addr_isinvalid(netif_ip6_addr_state(pNetif, i))) {
-            LogRel(("netif %c%c%d: inet6 %RTnaipv6\n",
-                    pNetif->name[0], pNetif->name[1], pNetif->num,
-                    netif_ip6_addr(pNetif, i)));
-        }
-    }
-
-    netif_set_up(pNetif);
-    netif_set_link_up(pNetif);
-
-    if (pNat->m_ProxyOptions.ipv6_enabled) {
-        /*
-         * XXX: lwIP currently only ever calls mld6_joingroup() in
-         * nd6_tmr() for fresh tentative addresses, which is a wrong place
-         * to do it - but I'm not keen on fixing this properly for now
-         * (with correct handling of interface up and down transitions,
-         * etc).  So stick it here as a kludge.
-         */
-        for (int i = 0; i <= 1; ++i) {
-            ip6_addr_t *paddr = netif_ip6_addr(pNetif, i);
-
-            ip6_addr_t solicited_node_multicast_address;
-            ip6_addr_set_solicitednode(&solicited_node_multicast_address,
-                                       paddr->addr[3]);
-            mld6_joingroup(paddr, &solicited_node_multicast_address);
-        }
-
-        /*
-         * XXX: We must join the solicited-node multicast for the
-         * addresses we do IPv6 NA-proxy for.  We map IPv6 loopback to
-         * proxy address + 1.  We only need the low 24 bits, and those are
-         * fixed.
-         */
-        {
-            ip6_addr_t solicited_node_multicast_address;
-
-            ip6_addr_set_solicitednode(&solicited_node_multicast_address,
-                                       /* last 24 bits of the address */
-                                       PP_HTONL(0x00000002));
-            mld6_netif_joingroup(pNetif,  &solicited_node_multicast_address);
-        }
-    }
-
-    proxy_init(&g_pLwipNat->m_LwipNetIf, &g_pLwipNat->m_ProxyOptions);
-
-    natServiceProcessRegisteredPf(g_pLwipNat->m_vecPortForwardRule4);
-    natServiceProcessRegisteredPf(g_pLwipNat->m_vecPortForwardRule6);
-}
-
-
-/*static*/ DECLCALLBACK(void) VBoxNetLwipNAT::onLwipTcpIpFini(void* arg)
-{
-    AssertPtrReturnVoid(arg);
-
-    /* XXX: proxy finalization */
-    netif_set_link_down(&g_pLwipNat->m_LwipNetIf);
-    netif_set_down(&g_pLwipNat->m_LwipNetIf);
-    netif_remove(&g_pLwipNat->m_LwipNetIf);
-
-}
-
-/*
- * Callback for netif_add() to initialize the interface.
+/**
+ * Read the list of host's resolvers via the API.
+ *
+ * Called during initialization and in response to the
+ * VBoxEventType_OnHostNameResolutionConfigurationChange event.
  */
-/*static*/ err_t VBoxNetLwipNAT::netifInit(netif *pNetif)
+const char **VBoxNetLwipNAT::getHostNameservers()
 {
-    err_t rcLwip = ERR_OK;
+    if (m_host.isNull())
+        return NULL;
 
-    AssertPtrReturn(pNetif, ERR_ARG);
+    com::SafeArray<BSTR> aNameServers;
+    HRESULT hrc = m_host->COMGETTER(NameServers)(ComSafeArrayAsOutParam(aNameServers));
+    if (FAILED(hrc))
+        return NULL;
 
-    VBoxNetLwipNAT *pNat = static_cast<VBoxNetLwipNAT *>(pNetif->state);
-    AssertPtrReturn(pNat, ERR_ARG);
+    const size_t cNameServers = aNameServers.size();
+    if (cNameServers == 0)
+        return NULL;
 
-    LogFlowFunc(("ENTER: pNetif[%c%c%d]\n", pNetif->name[0], pNetif->name[1], pNetif->num));
-    /* validity */
-    AssertReturn(   pNetif->name[0] == 'N'
-                 && pNetif->name[1] == 'T', ERR_ARG);
+    const char **ppcszNameServers =
+        (const char **)RTMemAllocZ(sizeof(char *) * (cNameServers + 1));
+    if (ppcszNameServers == NULL)
+        return NULL;
 
-
-    pNetif->hwaddr_len = sizeof(RTMAC);
-    RTMAC mac = g_pLwipNat->getMacAddress();
-    memcpy(pNetif->hwaddr, &mac, sizeof(RTMAC));
-
-    pNat->m_u16Mtu = 1500; // XXX: FIXME
-    pNetif->mtu = pNat->m_u16Mtu;
-
-    pNetif->flags = NETIF_FLAG_BROADCAST
-      | NETIF_FLAG_ETHARP                /* Don't bother driver with ARP and let Lwip resolve ARP handling */
-      | NETIF_FLAG_ETHERNET;             /* Lwip works with ethernet too */
-
-    pNetif->linkoutput = netifLinkoutput; /* ether-level-pipe */
-    pNetif->output = etharp_output;       /* ip-pipe */
-
-    if (pNat->m_ProxyOptions.ipv6_enabled) {
-        pNetif->output_ip6 = ethip6_output;
-
-        /* IPv6 link-local address in slot 0 */
-        netif_create_ip6_linklocal_address(pNetif, /* :from_mac_48bit */ 1);
-        netif_ip6_addr_set_state(pNetif, 0, IP6_ADDR_PREFERRED); // skip DAD
-
-        /* INATNetwork::IPv6Prefix in slot 1 */
-        memcpy(netif_ip6_addr(pNetif, 1),
-               &pNat->m_ProxyOptions.ipv6_addr, sizeof(ip6_addr_t));
-        netif_ip6_addr_set_state(pNetif, 1, IP6_ADDR_PREFERRED);
-
-#if LWIP_IPV6_SEND_ROUTER_SOLICIT
-        pNetif->rs_count = 0;
-#endif
-    }
-
-    LogFlowFunc(("LEAVE: %d\n", rcLwip));
-    return rcLwip;
-}
-
-
-/*static*/ err_t VBoxNetLwipNAT::netifLinkoutput(netif *pNetif, pbuf *pPBuf)
-{
-    AssertPtrReturn(pNetif, ERR_ARG);
-    AssertPtrReturn(pPBuf, ERR_ARG);
-
-    VBoxNetLwipNAT *self = static_cast<VBoxNetLwipNAT *>(pNetif->state);
-    AssertPtrReturn(self, ERR_IF);
-    AssertReturn(self == g_pLwipNat, ERR_ARG);
-
-    LogFlowFunc(("ENTER: pNetif[%c%c%d], pPbuf:%p\n",
-                 pNetif->name[0],
-                 pNetif->name[1],
-                 pNetif->num,
-                 pPBuf));
-
-    RT_ZERO(VBoxNetLwipNAT::aXmitSeg);
-
-    size_t idx = 0;
-    for (struct pbuf *q = pPBuf; q != NULL; q = q->next, ++idx)
+    size_t idxLast = 0;
+    for (size_t i = 0; i < cNameServers; ++i)
     {
-        AssertReturn(idx < RT_ELEMENTS(VBoxNetLwipNAT::aXmitSeg), ERR_MEM);
-
-#if ETH_PAD_SIZE
-        if (q == pPBuf)
-        {
-            VBoxNetLwipNAT::aXmitSeg[idx].pv = (uint8_t *)q->payload + ETH_PAD_SIZE;
-            VBoxNetLwipNAT::aXmitSeg[idx].cb = q->len - ETH_PAD_SIZE;
-        }
-        else
-#endif
-        {
-            VBoxNetLwipNAT::aXmitSeg[idx].pv = q->payload;
-            VBoxNetLwipNAT::aXmitSeg[idx].cb = q->len;
-        }
+        com::Utf8Str strNameServer(aNameServers[i]);
+        ppcszNameServers[idxLast] = RTStrDup(strNameServer.c_str());
+        if (ppcszNameServers[idxLast] != NULL)
+            ++idxLast;
     }
 
-    int rc = self->sendBufferOnWire(VBoxNetLwipNAT::aXmitSeg, idx,
-                                    pPBuf->tot_len - ETH_PAD_SIZE);
-    AssertRCReturn(rc, ERR_IF);
-
-    self->flushWire();
-
-    LogFlowFunc(("LEAVE: %d\n", ERR_OK));
-    return ERR_OK;
-}
-
-
-VBoxNetLwipNAT::VBoxNetLwipNAT(SOCKET icmpsock4, SOCKET icmpsock6) : VBoxNetBaseService("VBoxNetNAT", "nat-network")
-{
-    LogFlowFuncEnter();
-
-    RT_ZERO(m_ProxyOptions.ipv6_addr);
-    m_ProxyOptions.ipv6_enabled = 0;
-    m_ProxyOptions.ipv6_defroute = 0;
-    m_ProxyOptions.icmpsock4 = icmpsock4;
-    m_ProxyOptions.icmpsock6 = icmpsock6;
-    m_ProxyOptions.tftp_root = NULL;
-    m_ProxyOptions.src4 = NULL;
-    m_ProxyOptions.src6 = NULL;
-    RT_ZERO(m_src4);
-    RT_ZERO(m_src6);
-    m_src4.sin_family = AF_INET;
-    m_src6.sin6_family = AF_INET6;
-#if HAVE_SA_LEN
-    m_src4.sin_len = sizeof(m_src4);
-    m_src6.sin6_len = sizeof(m_src6);
-#endif
-    m_ProxyOptions.nameservers = NULL;
-
-    m_LwipNetIf.name[0] = 'N';
-    m_LwipNetIf.name[1] = 'T';
-
-    RTMAC mac;
-    mac.au8[0] = 0x52;
-    mac.au8[1] = 0x54;
-    mac.au8[2] = 0;
-    mac.au8[3] = 0x12;
-    mac.au8[4] = 0x35;
-    mac.au8[5] = 0;
-    setMacAddress(mac);
-
-    RTNETADDRIPV4 address;
-    address.u     = RT_MAKE_U32_FROM_U8( 10,  0,  2,  2); // NB: big-endian
-    setIpv4Address(address);
-
-    address.u     = RT_H2N_U32_C(0xffffff00);
-    setIpv4Netmask(address);
-
-    fDontLoadRulesOnStartup = false;
-
-    for(unsigned int i = 0; i < RT_ELEMENTS(g_aGetOptDef); ++i)
-        addCommandLineOption(&g_aGetOptDef[i]);
-
-    LogFlowFuncLeave();
-}
-
-
-VBoxNetLwipNAT::~VBoxNetLwipNAT()
-{
-    if (m_ProxyOptions.tftp_root)
+    if (idxLast == 0)
     {
-        RTStrFree((char *)m_ProxyOptions.tftp_root);
-        m_ProxyOptions.tftp_root = NULL;
+        RTMemFree(ppcszNameServers);
+        return NULL;
     }
-    if (m_ProxyOptions.nameservers)
-    {
-        const char **pv = m_ProxyOptions.nameservers;
-        while (*pv)
-        {
-            RTStrFree((char*)*pv);
-            pv++;
-        }
-        RTMemFree(m_ProxyOptions.nameservers);
-        m_ProxyOptions.nameservers = NULL;
-    }
+
+    return ppcszNameServers;
 }
 
 
-/*static*/ int VBoxNetLwipNAT::natServicePfRegister(NATSEVICEPORTFORWARDRULE& natPf)
+/**
+ * Fetch port-forwarding rules via the API.
+ *
+ * Reads the initial sets of rules from VBoxSVC.  The rules will be
+ * activated when all the initialization and plumbing is done.  See
+ * natServiceProcessRegisteredPf().
+ */
+int VBoxNetLwipNAT::fetchNatPortForwardRules(VECNATSERVICEPF &vec, bool fIsIPv6)
+{
+    HRESULT hrc;
+
+    com::SafeArray<BSTR> rules;
+    if (fIsIPv6)
+        hrc = m_net->COMGETTER(PortForwardRules6)(ComSafeArrayAsOutParam(rules));
+    else
+        hrc = m_net->COMGETTER(PortForwardRules4)(ComSafeArrayAsOutParam(rules));
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+    NATSERVICEPORTFORWARDRULE Rule;
+    for (size_t idxRules = 0; idxRules < rules.size(); ++idxRules)
+    {
+        Log(("%d-%s rule: %ls\n", idxRules, (fIsIPv6 ? "IPv6" : "IPv4"), rules[idxRules]));
+        RT_ZERO(Rule);
+
+        int rc = netPfStrToPf(com::Utf8Str(rules[idxRules]).c_str(), fIsIPv6,
+                              &Rule.Pfr);
+        if (RT_FAILURE(rc))
+            continue;
+
+        vec.push_back(Rule);
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Activate the initial set of port-forwarding rules.
+ *
+ * Happens after lwIP and lwIP proxy is initialized, right before lwIP
+ * thread starts processing messages.
+ */
+/* static */
+int VBoxNetLwipNAT::natServiceProcessRegisteredPf(VECNATSERVICEPF& vecRules)
+{
+    ITERATORNATSERVICEPF it;
+    for (it = vecRules.begin(); it != vecRules.end(); ++it)
+    {
+        NATSERVICEPORTFORWARDRULE &natPf = *it;
+
+        LogRel(("Loading %s port-forwarding rule \"%s\": %s %s%s%s:%d -> %s%s%s:%d\n",
+                natPf.Pfr.fPfrIPv6 ? "IPv6" : "IPv4",
+                natPf.Pfr.szPfrName,
+                natPf.Pfr.iPfrProto == IPPROTO_TCP ? "TCP" : "UDP",
+                /* from */
+                natPf.Pfr.fPfrIPv6 ? "[" : "",
+                natPf.Pfr.szPfrHostAddr,
+                natPf.Pfr.fPfrIPv6 ? "]" : "",
+                natPf.Pfr.u16PfrHostPort,
+                /* to */
+                natPf.Pfr.fPfrIPv6 ? "[" : "",
+                natPf.Pfr.szPfrGuestAddr,
+                natPf.Pfr.fPfrIPv6 ? "]" : "",
+                natPf.Pfr.u16PfrGuestPort));
+
+        natServicePfRegister(natPf);
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Activate a single port-forwarding rule.
+ *
+ * This is used both when we activate all the initial rules on startup
+ * and when port-forwarding rules are changed and we are notified via
+ * an API event.
+ */
+/* static */
+int VBoxNetLwipNAT::natServicePfRegister(NATSERVICEPORTFORWARDRULE &natPf)
 {
     int lrc;
 
@@ -759,352 +1844,60 @@ VBoxNetLwipNAT::~VBoxNetLwipNAT()
 }
 
 
-/*static*/ int VBoxNetLwipNAT::natServiceProcessRegisteredPf(VECNATSERVICEPF& vecRules)
-{
-    ITERATORNATSERVICEPF it;
-    for (it = vecRules.begin(); it != vecRules.end(); ++it)
-    {
-        NATSEVICEPORTFORWARDRULE &natPf = *it;
-
-        LogRel(("Loading %s port-forwarding rule \"%s\": %s %s%s%s:%d -> %s%s%s:%d\n",
-                natPf.Pfr.fPfrIPv6 ? "IPv6" : "IPv4",
-                natPf.Pfr.szPfrName,
-                natPf.Pfr.iPfrProto == IPPROTO_TCP ? "TCP" : "UDP",
-                /* from */
-                natPf.Pfr.fPfrIPv6 ? "[" : "",
-                natPf.Pfr.szPfrHostAddr,
-                natPf.Pfr.fPfrIPv6 ? "]" : "",
-                natPf.Pfr.u16PfrHostPort,
-                /* to */
-                natPf.Pfr.fPfrIPv6 ? "[" : "",
-                natPf.Pfr.szPfrGuestAddr,
-                natPf.Pfr.fPfrIPv6 ? "]" : "",
-                natPf.Pfr.u16PfrGuestPort));
-
-        natServicePfRegister(natPf);
-    }
-
-    return VINF_SUCCESS;
-}
-
-
 /**
- * Main thread. Starts also the LWIP thread.
+ * IntNetIf receive thread.  Runs intnet pump with our processFrame()
+ * as input callback.
  */
-int VBoxNetLwipNAT::init()
+/* static */ DECLCALLBACK(int)
+VBoxNetLwipNAT::receiveThread(RTTHREAD hThreadSelf, void *pvUser)
 {
     HRESULT hrc;
     int rc;
 
-    LogFlowFuncEnter();
+    RT_NOREF(hThreadSelf);
 
-    /* virtualbox initialized in super class */
-    rc = VBoxNetBaseService::init();
-    if (RT_FAILURE(rc))
-        return rc;
+    AssertReturn(pvUser != NULL, VERR_INVALID_PARAMETER);
+    VBoxNetLwipNAT *self = static_cast<VBoxNetLwipNAT *>(pvUser);
 
-    const std::string &networkName = getNetworkName();
-    hrc = virtualbox->FindNATNetworkByName(com::Bstr(networkName.c_str()).raw(),
-                                           m_net.asOutParam());
+    /* do we relaly need to init com on this thread? */
+    hrc = com::Initialize();
     if (FAILED(hrc))
-    {
-        reportComError(virtualbox, "FindNATNetworkByName", hrc);
-        return VERR_NOT_FOUND;
-    }
+        return VERR_GENERAL_FAILURE;
 
-    {
-        ComEventTypeArray eventTypes;
-        eventTypes.push_back(VBoxEventType_OnNATNetworkPortForward);
-        eventTypes.push_back(VBoxEventType_OnNATNetworkSetting);
-        rc = createNatListener(m_NatListener, virtualbox, this, eventTypes);
-        AssertRCReturn(rc, rc);
-    }
+    rc = self->m_IntNetIf.setInputCallback(VBoxNetLwipNAT::processFrame, self);
+    AssertRCReturn(rc, rc);
 
+    rc = self->m_IntNetIf.ifPump();
+    if (rc == VERR_SEM_DESTROYED)
+        return VINF_SUCCESS;
 
-    // resolver changes are reported on vbox but are retrieved from
-    // host so stash a pointer for future lookups
-    hrc = virtualbox->COMGETTER(Host)(m_host.asOutParam());
-    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
-
-    {
-        ComEventTypeArray eventTypes;
-        eventTypes.push_back(VBoxEventType_OnHostNameResolutionConfigurationChange);
-        eventTypes.push_back(VBoxEventType_OnNATNetworkStartStop);
-        rc = createNatListener(m_VBoxListener, virtualbox, this, eventTypes);
-        AssertRCReturn(rc, rc);
-    }
-
-    {
-        ComEventTypeArray eventTypes;
-        eventTypes.push_back(VBoxEventType_OnVBoxSVCAvailabilityChanged);
-        rc = createClientListener(m_VBoxClientListener, virtualboxClient, this, eventTypes);
-        AssertRCReturn(rc, rc);
-    }
-
-    BOOL fIPv6Enabled = FALSE;
-    hrc = m_net->COMGETTER(IPv6Enabled)(&fIPv6Enabled);
-    AssertComRCReturn(hrc, VERR_NOT_FOUND);
-
-    /*
-     * Get IPv6 address via the API.  Grafted from trunk.
-     *
-     * Trunk has this file rototilled a lot, tied in with other
-     * refactoring, which makes merging this is more or less
-     * impossible without backporting all the refactoring involved.
-     * So just rip this bit out.
-     */
-    if (fIPv6Enabled)
-    {
-        com::Bstr bstrIPv6Prefix;
-        hrc = m_net->COMGETTER(IPv6Prefix)(bstrIPv6Prefix.asOutParam());
-        if (FAILED(hrc))
-        {
-            reportComError(m_net, "IPv6Prefix", hrc);
-            return VERR_GENERAL_FAILURE;
-        }
-
-        RTNETADDRIPV6 Net6;
-        int iPrefixLength;
-        rc = RTNetStrToIPv6Cidr(com::Utf8Str(bstrIPv6Prefix).c_str(),
-                                &Net6, &iPrefixLength);
-        if (RT_FAILURE(rc))
-        {
-            reportError("Failed to parse IPv6 prefix %ls\n", bstrIPv6Prefix.raw());
-            return rc;
-        }
-
-        /* Allow both addr:: and addr::/64 */
-        if (iPrefixLength == 128)   /* no length was specified after the address? */
-            iPrefixLength = 64;     /*   take it to mean /64 which we require anyway */
-        else if (iPrefixLength != 64)
-        {
-            reportError("Invalid IPv6 prefix length %d,"
-                        " must be 64.\n", iPrefixLength);
-            return rc;
-        }
-
-        /* Verify the address is unicast. */
-        if (   ((Net6.au8[0] & 0xe0) != 0x20)  /* global 2000::/3 */
-            && ((Net6.au8[0] & 0xfe) != 0xfc)) /* local  fc00::/7 */
-        {
-            reportError("IPv6 prefix %RTnaipv6 is not unicast.\n", &Net6);
-            return VERR_INVALID_PARAMETER;
-        }
-
-        /* Verify the interfaces ID part is zero */
-        if (Net6.au64[1] != 0)
-        {
-            reportError("Non-zero bits in the interface ID part"
-                        " of the IPv6 prefix %RTnaipv6/64.\n", &Net6);
-            return VERR_INVALID_PARAMETER;
-        }
-
-        /* Use ...::1 as our address */
-        RTNETADDRIPV6 Addr6 = Net6;
-        Addr6.au8[15] = 0x01;
-        memcpy(&m_ProxyOptions.ipv6_addr, &Addr6, sizeof(ip6_addr_t));
-    }
-
-    BOOL fIPv6DefaultRoute = FALSE;
-    if (fIPv6Enabled)
-    {
-        hrc = m_net->COMGETTER(AdvertiseDefaultIPv6RouteEnabled)(&fIPv6DefaultRoute);
-        AssertComRCReturn(hrc, VERR_NOT_FOUND);
-    }
-
-    m_ProxyOptions.ipv6_enabled = fIPv6Enabled;
-    m_ProxyOptions.ipv6_defroute = fIPv6DefaultRoute;
-
-
-    /*
-     * Bind outgoing connections to the specified IP.
-     */
-    com::Bstr bstrSourceIpX;
-
-    /* IPv4 */
-    com::Bstr bstrSourceIp4Key = com::BstrFmt("NAT/%s/SourceIp4", networkName.c_str());
-    hrc = virtualbox->GetExtraData(bstrSourceIp4Key.raw(), bstrSourceIpX.asOutParam());
-    if (SUCCEEDED(hrc) && bstrSourceIpX.isNotEmpty())
-    {
-        RTNETADDRIPV4 addr;
-        rc = RTNetStrToIPv4Addr(com::Utf8Str(bstrSourceIpX).c_str(), &addr);
-        if (RT_SUCCESS(rc))
-        {
-            m_src4.sin_addr.s_addr = addr.u;
-            m_ProxyOptions.src4 = &m_src4;
-
-            LogRel(("Will use %RTnaipv4 as IPv4 source address\n",
-                    m_src4.sin_addr.s_addr));
-        }
-        else
-        {
-            LogRel(("Failed to parse \"%s\" IPv4 source address specification\n",
-                    com::Utf8Str(bstrSourceIpX).c_str()));
-        }
-
-        bstrSourceIpX.setNull();
-    }
-
-    /* IPv6 */
-    com::Bstr bstrSourceIp6Key = com::BstrFmt("NAT/%s/SourceIp6", networkName.c_str());
-    hrc = virtualbox->GetExtraData(bstrSourceIp6Key.raw(), bstrSourceIpX.asOutParam());
-    if (SUCCEEDED(hrc) && bstrSourceIpX.isNotEmpty())
-    {
-        RTNETADDRIPV6 addr;
-        char *pszZone = NULL;
-        rc = RTNetStrToIPv6Addr(com::Utf8Str(bstrSourceIpX).c_str(), &addr, &pszZone);
-        if (RT_SUCCESS(rc))
-        {
-            memcpy(&m_src6.sin6_addr, &addr, sizeof(addr));
-            m_ProxyOptions.src6 = &m_src6;
-
-            LogRel(("Will use %RTnaipv6 as IPv6 source address\n",
-                    &m_src6.sin6_addr));
-        }
-        else
-        {
-            LogRel(("Failed to parse \"%s\" IPv6 source address specification\n",
-                    com::Utf8Str(bstrSourceIpX).c_str()));
-        }
-
-        bstrSourceIpX.setNull();
-    }
-
-
-    if (!fDontLoadRulesOnStartup)
-    {
-        fetchNatPortForwardRules(m_net, false, m_vecPortForwardRule4);
-        fetchNatPortForwardRules(m_net, true, m_vecPortForwardRule6);
-    } /* if (!fDontLoadRulesOnStartup) */
-
-    AddressToOffsetMapping tmp;
-    rc = localMappings(m_net, tmp);
-    if (RT_SUCCESS(rc) && !tmp.empty())
-    {
-        unsigned long i = 0;
-        for (AddressToOffsetMapping::iterator it = tmp.begin();
-             it != tmp.end() && i < RT_ELEMENTS(m_lo2off);
-             ++it, ++i)
-        {
-            ip4_addr_set_u32(&m_lo2off[i].loaddr, it->first.u);
-            m_lo2off[i].off = it->second;
-        }
-
-        m_loOptDescriptor.lomap = m_lo2off;
-        m_loOptDescriptor.num_lomap = i;
-        m_ProxyOptions.lomap_desc = &m_loOptDescriptor;
-    }
-
-    com::Bstr bstr;
-    hrc = virtualbox->COMGETTER(HomeFolder)(bstr.asOutParam());
-    AssertComRCReturn(hrc, VERR_NOT_FOUND);
-    if (!bstr.isEmpty())
-    {
-        com::Utf8Str strTftpRoot(com::Utf8StrFmt("%ls%c%s",
-                                     bstr.raw(), RTPATH_DELIMITER, "TFTP"));
-        char *pszStrTemp;       // avoid const char ** vs char **
-        rc = RTStrUtf8ToCurrentCP(&pszStrTemp, strTftpRoot.c_str());
-        AssertRC(rc);
-        m_ProxyOptions.tftp_root = pszStrTemp;
-    }
-
-    m_ProxyOptions.nameservers = getHostNameservers();
-
-    /* end of COM initialization */
-
-    rc = g_pLwipNat->tryGoOnline();
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /* this starts LWIP thread */
-    vboxLwipCoreInitialize(VBoxNetLwipNAT::onLwipTcpIpInit, this);
-
-    LogFlowFuncLeaveRC(rc);
-    return rc;
+    LogRel(("receiveThread: ifPump: unexpected %Rrc\n", rc));
+    return VERR_INVALID_STATE;
 }
 
 
-const char **VBoxNetLwipNAT::getHostNameservers()
+/**
+ * Process an incoming frame received from the intnet.
+ */
+/* static */ DECLCALLBACK(void)
+VBoxNetLwipNAT::processFrame(void *pvUser, void *pvFrame, uint32_t cbFrame)
 {
-    if (m_host.isNull())
-        return NULL;
-
-    com::SafeArray<BSTR> aNameServers;
-    HRESULT hrc = m_host->COMGETTER(NameServers)(ComSafeArrayAsOutParam(aNameServers));
-    if (FAILED(hrc))
-        return NULL;
-
-    const size_t cNameServers = aNameServers.size();
-    if (cNameServers == 0)
-        return NULL;
-
-    const char **ppcszNameServers =
-        (const char **)RTMemAllocZ(sizeof(char *) * (cNameServers + 1));
-    if (ppcszNameServers == NULL)
-        return NULL;
-
-    size_t idxLast = 0;
-    for (size_t i = 0; i < cNameServers; ++i)
-    {
-        com::Utf8Str strNameServer(aNameServers[i]);
-        ppcszNameServers[idxLast] = RTStrDup(strNameServer.c_str());
-        if (ppcszNameServers[idxLast] != NULL)
-            ++idxLast;
-    }
-
-    if (idxLast == 0)
-    {
-        RTMemFree(ppcszNameServers);
-        return NULL;
-    }
-
-    return ppcszNameServers;
-}
-
-
-int VBoxNetLwipNAT::parseOpt(int rc, const RTGETOPTUNION& Val)
-{
-    switch (rc)
-    {
-        case 'p':
-        case 'P':
-        {
-            NATSEVICEPORTFORWARDRULE Rule;
-            VECNATSERVICEPF& rules = (rc == 'P'?
-                                        m_vecPortForwardRule6
-                                      : m_vecPortForwardRule4);
-
-            fDontLoadRulesOnStartup = true;
-
-            RT_ZERO(Rule);
-
-            int rc2 = netPfStrToPf(Val.psz, (rc == 'P'), &Rule.Pfr);
-            RT_NOREF_PV(rc2);
-            rules.push_back(Rule);
-            return VINF_SUCCESS;
-        }
-        default:;
-    }
-    return VERR_NOT_FOUND;
-}
-
-
-int VBoxNetLwipNAT::processFrame(void *pvFrame, size_t cbFrame)
-{
-    AssertPtrReturn(pvFrame, VERR_INVALID_PARAMETER);
+    AssertReturnVoid(pvFrame != NULL);
 
     /* shouldn't happen, but if it does, don't even bother */
     if (RT_UNLIKELY(cbFrame < sizeof(RTNETETHERHDR)))
-        return VERR_INVALID_PARAMETER;
+        return;
 
     /* we expect normal ethernet frame including .1Q and FCS */
     if (cbFrame > 1522)
-        return VERR_TOO_MUCH_DATA;
+        return;
 
+    AssertReturnVoid(pvUser != NULL);
+    VBoxNetLwipNAT *self = static_cast<VBoxNetLwipNAT *>(pvUser);
 
     struct pbuf *p = pbuf_alloc(PBUF_RAW, (u16_t)cbFrame + ETH_PAD_SIZE, PBUF_POOL);
     if (RT_UNLIKELY(p == NULL))
-        return VERR_NO_MEMORY;
+        return;
 
     /*
      * The code below is inlined version of:
@@ -1131,56 +1924,73 @@ int VBoxNetLwipNAT::processFrame(void *pvFrame, size_t cbFrame)
         q = q->next;
     } while (RT_UNLIKELY(q != NULL));
 
-    m_LwipNetIf.input(p, &m_LwipNetIf);
-    return VINF_SUCCESS;
+    /* pass input to lwIP: netif input funcion tcpip_input() */
+    self->m_LwipNetIf.input(p, &self->m_LwipNetIf);
 }
 
 
-int VBoxNetLwipNAT::processGSO(PCPDMNETWORKGSO pGso, size_t cbFrame)
+/**
+ * Send an outgoing frame from lwIP to intnet.
+ */
+/* static */ DECLCALLBACK(err_t)
+VBoxNetLwipNAT::netifLinkoutput(netif *pNetif, pbuf *pPBuf) RT_NOTHROW_DEF
 {
-    if (!PDMNetGsoIsValid(pGso, cbFrame, cbFrame - sizeof(PDMNETWORKGSO)))
-        return VERR_INVALID_PARAMETER;
+    int rc;
 
-    cbFrame -= sizeof(PDMNETWORKGSO);
-    uint8_t         abHdrScratch[256];
-    uint32_t const  cSegs = PDMNetGsoCalcSegmentCount(pGso,
-                                                      cbFrame);
-    for (uint32_t iSeg = 0; iSeg < cSegs; iSeg++)
+    AssertPtrReturn(pNetif, ERR_ARG);
+    AssertPtrReturn(pPBuf, ERR_ARG);
+
+    VBoxNetLwipNAT *self = static_cast<VBoxNetLwipNAT *>(pNetif->state);
+    AssertPtrReturn(self, ERR_IF);
+    AssertReturn(pNetif == &self->m_LwipNetIf, ERR_IF);
+
+    LogFlowFunc(("ENTER: pNetif[%c%c%d], pPbuf:%p\n",
+                 pNetif->name[0],
+                 pNetif->name[1],
+                 pNetif->num,
+                 pPBuf));
+
+    if (pPBuf->tot_len < sizeof(struct eth_hdr)) /* includes ETH_PAD_SIZE */
+        return ERR_ARG;
+
+    size_t cbFrame = (size_t)pPBuf->tot_len - ETH_PAD_SIZE;
+    IntNetIf::Frame frame;
+    rc = self->m_IntNetIf.getOutputFrame(frame, cbFrame);
+    if (RT_FAILURE(rc))
+        return ERR_MEM;
+
+    pbuf_copy_partial(pPBuf, frame.pvFrame, (u16_t)cbFrame, ETH_PAD_SIZE);
+    rc = self->m_IntNetIf.ifOutput(frame);
+    if (RT_FAILURE(rc))
+        return ERR_IF;
+
+    LogFlowFunc(("LEAVE: %d\n", ERR_OK));
+    return ERR_OK;
+}
+
+
+/**
+ * Retrieve network-specific extra data item.
+ */
+int VBoxNetLwipNAT::getExtraData(com::Utf8Str &strValueOut, const char *pcszKey)
+{
+    HRESULT hrc;
+
+    AssertReturn(!virtualbox.isNull(), E_FAIL);
+    AssertReturn(m_strNetworkName.isNotEmpty(), E_FAIL);
+    AssertReturn(pcszKey != NULL, E_FAIL);
+    AssertReturn(*pcszKey != '\0', E_FAIL);
+
+    com::BstrFmt bstrKey("NAT/%s/%s", m_strNetworkName.c_str(), pcszKey);
+    com::Bstr bstrValue;
+    hrc = virtualbox->GetExtraData(bstrKey.raw(), bstrValue.asOutParam());
+    if (FAILED(hrc))
     {
-        uint32_t cbSegFrame;
-        void    *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso,
-                                                      (uint8_t *)(pGso + 1),
-                                                      cbFrame,
-                                                      abHdrScratch,
-                                                      iSeg,
-                                                      cSegs,
-                                                      &cbSegFrame);
-
-        int rc = processFrame(pvSegFrame, cbSegFrame);
-        if (RT_FAILURE(rc))
-        {
-            return rc;
-        }
+        reportComError(virtualbox, "GetExtraData", hrc);
+        return VERR_GENERAL_FAILURE;
     }
 
-    return VINF_SUCCESS;
-}
-
-
-int VBoxNetLwipNAT::run()
-{
-    /* Father starts receiving thread and enter event loop. */
-    VBoxNetBaseService::run();
-
-    vboxLwipCoreFinalize(VBoxNetLwipNAT::onLwipTcpIpFini, this);
-
-    m_vecPortForwardRule4.clear();
-    m_vecPortForwardRule6.clear();
-
-    destroyNatListener(m_NatListener, virtualbox);
-    destroyNatListener(m_VBoxListener, virtualbox);
-    destroyClientListener(m_VBoxClientListener, virtualboxClient);
-
+    strValueOut = bstrValue;
     return VINF_SUCCESS;
 }
 
@@ -1297,184 +2107,25 @@ void VBoxNetLwipNAT::reportError(const char *a_pcszFormat, ...)
 
 
 /**
- *  Entry point.
+ * Create release logger.
+ *
+ * The NAT network name is sanitized so that it can be used in a path
+ * component.  By default the release log is written to the file
+ * ~/.VirtualBox/${netname}.log but its destiation and content can be
+ * overridden with VBOXNET_${netname}_RELEASE_LOG family of
+ * environment variables (also ..._DEST and ..._FLAGS).
  */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
-{
-    int rc;
-
-    LogFlowFuncEnter();
-
-    NOREF(envp);
-
-#ifdef RT_OS_WINDOWS
-    WSADATA wsaData;
-    int err;
-
-    err = WSAStartup(MAKEWORD(2,2), &wsaData);
-    if (err)
-    {
-        fprintf(stderr, "wsastartup: failed (%d)\n", err);
-        return 1;
-    }
-#endif
-
-    SOCKET icmpsock4 = INVALID_SOCKET;
-    SOCKET icmpsock6 = INVALID_SOCKET;
-#ifndef RT_OS_DARWIN
-    const int icmpstype = SOCK_RAW;
-#else
-    /* on OS X it's not privileged */
-    const int icmpstype = SOCK_DGRAM;
-#endif
-
-    icmpsock4 = socket(AF_INET, icmpstype, IPPROTO_ICMP);
-    if (icmpsock4 == INVALID_SOCKET)
-    {
-        perror("IPPROTO_ICMP");
-#ifdef VBOX_RAWSOCK_DEBUG_HELPER
-        icmpsock4 = getrawsock(AF_INET);
-#endif
-    }
-
-    if (icmpsock4 != INVALID_SOCKET)
-    {
-#ifdef ICMP_FILTER              //  Linux specific
-        struct icmp_filter flt = {
-            ~(uint32_t)(
-                  (1U << ICMP_ECHOREPLY)
-                | (1U << ICMP_DEST_UNREACH)
-                | (1U << ICMP_TIME_EXCEEDED)
-            )
-        };
-
-        int status = setsockopt(icmpsock4, SOL_RAW, ICMP_FILTER,
-                                &flt, sizeof(flt));
-        if (status < 0)
-        {
-            perror("ICMP_FILTER");
-        }
-#endif
-    }
-
-    icmpsock6 = socket(AF_INET6, icmpstype, IPPROTO_ICMPV6);
-    if (icmpsock6 == INVALID_SOCKET)
-    {
-        perror("IPPROTO_ICMPV6");
-#ifdef VBOX_RAWSOCK_DEBUG_HELPER
-        icmpsock6 = getrawsock(AF_INET6);
-#endif
-    }
-
-    if (icmpsock6 != INVALID_SOCKET)
-    {
-#ifdef ICMP6_FILTER             // Windows doesn't support RFC 3542 API
-        /*
-         * XXX: We do this here for now, not in pxping.c, to avoid
-         * name clashes between lwIP and system headers.
-         */
-        struct icmp6_filter flt;
-        ICMP6_FILTER_SETBLOCKALL(&flt);
-
-        ICMP6_FILTER_SETPASS(ICMP6_ECHO_REPLY, &flt);
-
-        ICMP6_FILTER_SETPASS(ICMP6_DST_UNREACH, &flt);
-        ICMP6_FILTER_SETPASS(ICMP6_PACKET_TOO_BIG, &flt);
-        ICMP6_FILTER_SETPASS(ICMP6_TIME_EXCEEDED, &flt);
-        ICMP6_FILTER_SETPASS(ICMP6_PARAM_PROB, &flt);
-
-        int status = setsockopt(icmpsock6, IPPROTO_ICMPV6, ICMP6_FILTER,
-                                &flt, sizeof(flt));
-        if (status < 0)
-        {
-            perror("ICMP6_FILTER");
-        }
-#endif
-    }
-
-    HRESULT hrc = com::Initialize();
-    if (FAILED(hrc))
-    {
-#ifdef VBOX_WITH_XPCOM
-        if (hrc == NS_ERROR_FILE_ACCESS_DENIED)
-        {
-            char szHome[RTPATH_MAX] = "";
-            int vrc = com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome), false);
-            if (RT_SUCCESS(vrc))
-            {
-                closesocket(icmpsock4);
-                closesocket(icmpsock6);
-                return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                                      "Failed to initialize COM: %s: %Rhrf",
-                                      szHome, hrc);
-            }
-        }
-#endif  // VBOX_WITH_XPCOM
-        closesocket(icmpsock4);
-        closesocket(icmpsock6);
-        return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                              "Failed to initialize COM: %Rhrf", hrc);
-    }
-
-    rc = vboxNetNATLogInit(argc, argv);
-    // shall we bail if we failed to init logging?
-
-    g_pLwipNat = new VBoxNetLwipNAT(icmpsock4, icmpsock6);
-
-    Log2(("NAT: initialization\n"));
-    rc = g_pLwipNat->parseArgs(argc - 1, argv + 1);
-    rc = (rc == 0) ? VINF_SUCCESS : VERR_GENERAL_FAILURE; /* XXX: FIXME */
-
-    if (RT_SUCCESS(rc))
-        rc = g_pLwipNat->init();
-
-    if (RT_SUCCESS(rc))
-        g_pLwipNat->run();
-
-    delete g_pLwipNat;
-    return 0;
-}
-
-
-static int vboxNetNATLogInit(int argc, char **argv)
+/* static */
+int VBoxNetLwipNAT::initLog()
 {
     size_t cch;
     int rc;
 
-    char szHome[RTPATH_MAX];
-    rc = com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome), false);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    const char *pcszNetwork = NULL;
-
-    // XXX: This duplicates information from VBoxNetBaseService.cpp.
-    // Perhaps option definitions should be exported as public static
-    // member of VBoxNetBaseService?
-    static const RTGETOPTDEF s_aOptions[] = {
-        { "--network", 'n', RTGETOPT_REQ_STRING }
-    };
-
-    RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1,
-                 RTGETOPTINIT_FLAGS_NO_STD_OPTS);
-
-    RTGETOPTUNION ValueUnion;
-    int ch;
-    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
-    {
-        if (ch == 'n')
-        {
-            pcszNetwork = ValueUnion.psz;
-            break;
-        }
-    }
-
-    if (pcszNetwork == NULL)
+    if (m_strNetworkName.isEmpty())
         return VERR_MISSING;
 
     char szNetwork[RTPATH_MAX];
-    rc = RTStrCopy(szNetwork, sizeof(szNetwork), pcszNetwork);
+    rc = RTStrCopy(szNetwork, sizeof(szNetwork), m_strNetworkName.c_str());
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1485,12 +2136,14 @@ static int vboxNetNATLogInit(int argc, char **argv)
             *p = '_';
     }
 
+    const char *pcszLogFile = NULL;
     char szLogFile[RTPATH_MAX];
-    cch = RTStrPrintf(szLogFile, sizeof(szLogFile),
-                      "%s%c%s.log", szHome, RTPATH_DELIMITER, szNetwork);
-    if (cch >= sizeof(szLogFile))
+    if (m_strHome.isNotEmpty())
     {
-        return VERR_BUFFER_OVERFLOW;
+        cch = RTStrPrintf(szLogFile, sizeof(szLogFile),
+                          "%s%c%s.log", m_strHome.c_str(), RTPATH_DELIMITER, szNetwork);
+        if (cch < sizeof(szLogFile))
+            pcszLogFile = szLogFile;
     }
 
     // sanitize network name some more to be usable as environment variable
@@ -1506,16 +2159,17 @@ static int vboxNetNATLogInit(int argc, char **argv)
     }
 
     char szEnvVarBase[128];
+    const char *pcszEnvVarBase = szEnvVarBase;
     cch = RTStrPrintf(szEnvVarBase, sizeof(szEnvVarBase),
                       "VBOXNET_%s_RELEASE_LOG", szNetwork);
     if (cch >= sizeof(szEnvVarBase))
-        return VERR_BUFFER_OVERFLOW;
+        pcszEnvVarBase = NULL;
 
     rc = com::VBoxLogRelCreate("NAT Network",
-                               szLogFile,
+                               pcszLogFile,
                                RTLOGFLAGS_PREFIX_TIME_PROG,
                                "all all.restrict -default.restrict",
-                               szEnvVarBase,
+                               pcszEnvVarBase,
                                RTLOGDEST_FILE,
                                32768 /* cMaxEntriesPerGroup */,
                                0 /* cHistory */,
@@ -1547,31 +2201,41 @@ static int vboxNetNATLogInit(int argc, char **argv)
 }
 
 
-static int fetchNatPortForwardRules(const ComNatPtr& nat, bool fIsIPv6, VECNATSERVICEPF& vec)
+/**
+ *  Entry point.
+ */
+extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
-    HRESULT hrc;
-    com::SafeArray<BSTR> rules;
-    if (fIsIPv6)
-        hrc = nat->COMGETTER(PortForwardRules6)(ComSafeArrayAsOutParam(rules));
-    else
-        hrc = nat->COMGETTER(PortForwardRules4)(ComSafeArrayAsOutParam(rules));
-    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+    LogFlowFuncEnter();
+    NOREF(envp);
 
-    NATSEVICEPORTFORWARDRULE Rule;
-    for (size_t idxRules = 0; idxRules < rules.size(); ++idxRules)
+#ifdef RT_OS_WINDOWS
+    WSADATA WsaData = {0};
+    int err = WSAStartup(MAKEWORD(2,2), &WsaData);
+    if (err)
     {
-        Log(("%d-%s rule: %ls\n", idxRules, (fIsIPv6 ? "IPv6" : "IPv4"), rules[idxRules]));
-        RT_ZERO(Rule);
+        fprintf(stderr, "wsastartup: failed (%d)\n", err);
+        return RTEXITCODE_INIT;
+    }
+#endif
 
-        int rc = netPfStrToPf(com::Utf8Str(rules[idxRules]).c_str(), fIsIPv6,
-                              &Rule.Pfr);
-        if (RT_FAILURE(rc))
-            continue;
+    VBoxNetLwipNAT NAT;
 
-        vec.push_back(Rule);
+    int rcExit = NAT.parseArgs(argc, argv);
+    if (rcExit != RTEXITCODE_SUCCESS)
+    {
+        /* messages are already printed */
+        return rcExit == RTEXITCODE_DONE ? RTEXITCODE_SUCCESS : rcExit;
     }
 
-    return VINF_SUCCESS;
+    int rc = NAT.init();
+    if (RT_FAILURE(rc))
+        return RTEXITCODE_INIT;
+
+    NAT.run();
+
+    LogRel(("Terminating\n"));
+    return RTEXITCODE_SUCCESS;
 }
 
 
@@ -1580,10 +2244,9 @@ static int fetchNatPortForwardRules(const ComNatPtr& nat, bool fIsIPv6, VECNATSE
 int main(int argc, char **argv, char **envp)
 {
     int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
-
-    return TrustedMain(argc, argv, envp);
+    if (RT_SUCCESS(rc))
+        return TrustedMain(argc, argv, envp);
+    return RTMsgInitFailure(rc);
 }
 
 # if defined(RT_OS_WINDOWS)

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -1349,8 +1359,10 @@ static VOID rtmpNtDPCWrapper(IN PKDPC Dpc, IN PVOID DeferredContext, IN PVOID Sy
  * This is shared with the timer code.
  *
  * @returns IPRT status code (errors are asserted).
+ * @retval  VERR_CPU_NOT_FOUND if impossible CPU. Not asserted.
  * @param   pDpc                The DPC.
  * @param   idCpu               The ID of the new target CPU.
+ * @note    Callable at any IRQL.
  */
 DECLHIDDEN(int) rtMpNtSetTargetProcessorDpc(KDPC *pDpc, RTCPUID idCpu)
 {
@@ -1360,14 +1372,19 @@ DECLHIDDEN(int) rtMpNtSetTargetProcessorDpc(KDPC *pDpc, RTCPUID idCpu)
            the reverse conversion internally). */
         PROCESSOR_NUMBER ProcNum;
         NTSTATUS rcNt = g_pfnrtKeGetProcessorNumberFromIndex(RTMpCpuIdToSetIndex(idCpu), &ProcNum);
-        AssertMsgReturn(NT_SUCCESS(rcNt),
-                        ("KeGetProcessorNumberFromIndex(%u) -> %#x\n", idCpu, rcNt),
-                        RTErrConvertFromNtStatus(rcNt));
+        if (NT_SUCCESS(rcNt))
+        {
+            rcNt = g_pfnrtKeSetTargetProcessorDpcEx(pDpc, &ProcNum);
+            AssertLogRelMsgReturn(NT_SUCCESS(rcNt),
+                                  ("KeSetTargetProcessorDpcEx(,%u(%u/%u)) -> %#x\n", idCpu, ProcNum.Group, ProcNum.Number, rcNt),
+                                  RTErrConvertFromNtStatus(rcNt));
+        }
+        else if (rcNt == STATUS_INVALID_PARAMETER)
+            return VERR_CPU_NOT_FOUND;
+        else
+            AssertLogRelMsgReturn(NT_SUCCESS(rcNt), ("KeGetProcessorNumberFromIndex(%u) -> %#x\n", idCpu, rcNt),
+                                  RTErrConvertFromNtStatus(rcNt));
 
-        rcNt = g_pfnrtKeSetTargetProcessorDpcEx(pDpc, &ProcNum);
-        AssertMsgReturn(NT_SUCCESS(rcNt),
-                        ("KeSetTargetProcessorDpcEx(,%u(%u/%u)) -> %#x\n", idCpu, ProcNum.Group, ProcNum.Number, rcNt),
-                        RTErrConvertFromNtStatus(rcNt));
     }
     else if (g_pfnrtKeSetTargetProcessorDpc)
         g_pfnrtKeSetTargetProcessorDpc(pDpc, RTMpCpuIdToSetIndex(idCpu));
@@ -1925,7 +1942,7 @@ int rtMpPokeCpuUsingDpc(RTCPUID idCpu)
     /*
      * APC fallback.
      */
-    static KDPC s_aPokeDpcs[RTCPUSET_MAX_CPUS] = {0};
+    static KDPC s_aPokeDpcs[RTCPUSET_MAX_CPUS] = {{0}};
     static bool s_fPokeDPCsInitialized = false;
 
     if (!s_fPokeDPCsInitialized)
@@ -1936,7 +1953,7 @@ int rtMpPokeCpuUsingDpc(RTCPUID idCpu)
             if (g_pfnrtKeSetImportanceDpc)
                 g_pfnrtKeSetImportanceDpc(&s_aPokeDpcs[i], HighImportance);
             int rc = rtMpNtSetTargetProcessorDpc(&s_aPokeDpcs[i], idCpu);
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rc) && rc != VERR_CPU_NOT_FOUND)
                 return rc;
         }
 

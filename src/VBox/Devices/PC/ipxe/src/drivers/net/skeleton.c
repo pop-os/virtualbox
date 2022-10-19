@@ -15,18 +15,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-/*
- * Oracle GPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
- * the General Public License version 2 (GPLv2) at this time for any software where
- * a choice of GPL license versions is made available with the language indicating
- * that GPLv2 or any later version may be used, or where a choice of which version
- * of the GPL is applied is otherwise unspecified.
- */
-
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <string.h>
@@ -39,7 +34,6 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/iobuf.h>
 #include <ipxe/malloc.h>
 #include <ipxe/pci.h>
-#include <ipxe/mii.h>
 #include "skeleton.h"
 
 /** @file
@@ -47,54 +41,6 @@ FILE_LICENCE ( GPL2_OR_LATER );
  * Skeleton network driver
  *
  */
-
-/******************************************************************************
- *
- * MII interface
- *
- ******************************************************************************
- */
-
-/**
- * Read from MII register
- *
- * @v mii		MII interface
- * @v reg		Register address
- * @ret value		Data read, or negative error
- */
-static int skeleton_mii_read ( struct mii_interface *mii, unsigned int reg ) {
-	struct skeleton_nic *skel =
-		container_of ( mii, struct skeleton_nic, mii );
-
-	DBGC ( skel, "SKELETON %p does not yet support MII read\n", skel );
-	( void ) reg;
-	return -ENOTSUP;
-}
-
-/**
- * Write to MII register
- *
- * @v mii		MII interface
- * @v reg		Register address
- * @v data		Data to write
- * @ret rc		Return status code
- */
-static int skeleton_mii_write ( struct mii_interface *mii, unsigned int reg,
-				unsigned int data) {
-	struct skeleton_nic *skel =
-		container_of ( mii, struct skeleton_nic, mii );
-
-	DBGC ( skel, "SKELETON %p does not yet support MII write\n", skel );
-	( void ) reg;
-	( void ) data;
-	return -ENOTSUP;
-}
-
-/** Skeleton MII operations */
-static struct mii_operations skeleton_mii_operations = {
-	.read = skeleton_mii_read,
-	.write = skeleton_mii_write,
-};
 
 /******************************************************************************
  *
@@ -249,19 +195,15 @@ static int skeleton_probe ( struct pci_device *pci ) {
 	adjust_pci_device ( pci );
 
 	/* Map registers */
-	skel->regs = ioremap ( pci->membase, SKELETON_BAR_SIZE );
+	skel->regs = pci_ioremap ( pci, pci->membase, SKELETON_BAR_SIZE );
+	if ( ! skel->regs ) {
+		rc = -ENODEV;
+		goto err_ioremap;
+	}
 
 	/* Reset the NIC */
 	if ( ( rc = skeleton_reset ( skel ) ) != 0 )
 		goto err_reset;
-
-	/* Initialise and reset MII interface */
-	mii_init ( &skel->mii, &skeleton_mii_operations );
-	if ( ( rc = mii_reset ( &skel->mii ) ) != 0 ) {
-		DBGC ( skel, "SKELETON %p could not reset MII: %s\n",
-		       skel, strerror ( rc ) );
-		goto err_mii_reset;
-	}
 
 	/* Register network device */
 	if ( ( rc = register_netdev ( netdev ) ) != 0 )
@@ -274,9 +216,10 @@ static int skeleton_probe ( struct pci_device *pci ) {
 
 	unregister_netdev ( netdev );
  err_register_netdev:
- err_mii_reset:
 	skeleton_reset ( skel );
  err_reset:
+	iounmap ( skel->regs );
+ err_ioremap:
 	netdev_nullify ( netdev );
 	netdev_put ( netdev );
  err_alloc:
@@ -299,6 +242,7 @@ static void skeleton_remove ( struct pci_device *pci ) {
 	skeleton_reset ( skel );
 
 	/* Free network device */
+	iounmap ( skel->regs );
 	netdev_nullify ( netdev );
 	netdev_put ( netdev );
 }

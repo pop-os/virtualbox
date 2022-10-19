@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -85,6 +95,20 @@ typedef struct fdctrl_t fdctrl_t;
 
 /********************************************************/
 /* Floppy drive emulation                               */
+
+/* Drive selection note:
+ * For many commands, the FDC can select one of four drives through the
+ * second command byte. The Digital Output Register (DOR) can also select
+ * one of four drives. On PCs, the FDC drive selection is ignored, but
+ * should be reflected back in command status. Only the DOR drive selection
+ * is effective; on old PCs with a discrete NEC uPD765 or similar, the FDC
+ * drive selection signals (US0/US1) are not connected at all.
+ * NB: A drive is actually selected only when its motor on bit in the DOR
+ * is also set. It is possible to have no drive selected.
+ *
+ * The FDC cur_drv field tracks the drive the FDC thinks is selected, but
+ * the DOR is used for actual drive selection.
+ */
 
 #define GET_CUR_DRV(fdctrl) ((fdctrl)->cur_drv)
 #define SET_CUR_DRV(fdctrl, drive) ((fdctrl)->cur_drv = (drive))
@@ -228,24 +252,21 @@ static int fd_seek(fdrive_t *drv, uint8_t head, uint8_t track, uint8_t sect,
     int ret;
 
     if (!drv->last_sect) {
-        FLOPPY_DPRINTF("no disk in drive (max=%d %d %02x %02x)\n",
-                       1, (drv->flags & FDISK_DBL_SIDES) == 0 ? 0 : 1,
-                       drv->max_track, drv->last_sect);
+        FLOPPY_DPRINTF("no disk in drive (max=%d h=%d c=%02x =s%02x) -> 5\n",
+                       1, NUM_SIDES(drv) - 1, drv->max_track, drv->last_sect);
         return 5;
     }
     if (track > drv->max_track ||
         (head != 0 && (drv->flags & FDISK_DBL_SIDES) == 0)) {
-        FLOPPY_DPRINTF("try to read %d %02x %02x (max=%d %d %02x %02x)\n",
-                       head, track, sect, 1,
-                       (drv->flags & FDISK_DBL_SIDES) == 0 ? 0 : 1,
-                       drv->max_track, drv->last_sect);
+        FLOPPY_DPRINTF("try to read h=%d c=%02x s=%02x (max=%d h=%d c=%02x s=%02x) -> 2\n",
+                       head, track, sect,
+                       1, NUM_SIDES(drv) - 1, drv->max_track, drv->last_sect);
         return 2;
     }
     if (sect > drv->last_sect || sect < 1) {
-        FLOPPY_DPRINTF("try to read %d %02x %02x (max=%d %d %02x %02x)\n",
-                       head, track, sect, 1,
-                       (drv->flags & FDISK_DBL_SIDES) == 0 ? 0 : 1,
-                       drv->max_track, drv->last_sect);
+        FLOPPY_DPRINTF("try to read h=%d c=%02x s=%02x (max=%d h=%d c=%02x s=%02x) -> 3\n",
+                       head, track, sect,
+                       1, NUM_SIDES(drv) - 1, drv->max_track, drv->last_sect);
         return 3;
     }
     sector = fd_sector_calc(head, track, sect, drv->last_sect, NUM_SIDES(drv));
@@ -294,7 +315,7 @@ typedef struct fd_format_t {
 /* Note: Low-density disks (160K/180K/320K/360K) use 250 Kbps data rate
  * in 40-track drives, but 300 Kbps in high-capacity 80-track drives.
  */
-static fd_format_t fd_formats[] = {
+static fd_format_t const fd_formats[] = {
     /* First entry is default format */
     /* 1.44 MB 3"1/2 floppy disks */
     { FDRIVE_DRV_144, 18, 80, 1, FDRIVE_RATE_500K, "1.44 MB 3\"1/2", },
@@ -598,10 +619,14 @@ enum {
 
 enum {
 #if MAX_FD == 4
-    FD_DOR_SELMASK  = 0x03,
+    FD_DRV_SELMASK  = 0x03,
 #else
-    FD_DOR_SELMASK  = 0x01,
+    FD_DRV_SELMASK  = 0x01,
 #endif
+};
+
+enum {
+    FD_DOR_SELMASK  = 0x03, /* Always two bits regardless of FD_DRV_SELMASK. */
     FD_DOR_nRESET   = 0x04,
     FD_DOR_DMAEN    = 0x08,
     FD_DOR_MOTEN0   = 0x10,
@@ -683,6 +708,9 @@ struct fdctrl_t {
     uint8_t data_state;
     uint8_t data_dir;
     uint8_t eot; /* last wanted sector */
+    /* Debugging only */
+    uint8_t cur_cmd;
+    uint8_t prev_cmd;
     /* States kept only to be returned back */
     /* Timers state */
     uint8_t timer0;
@@ -884,7 +912,7 @@ static inline fdrive_t *drv3(fdctrl_t *fdctrl)
 
 static fdrive_t *get_cur_drv(fdctrl_t *fdctrl)
 {
-    switch (fdctrl->cur_drv) {
+    switch (fdctrl->dor & FD_DRV_SELMASK) {
         case 0: return drv0(fdctrl);
         case 1: return drv1(fdctrl);
 #if MAX_FD == 4
@@ -920,8 +948,6 @@ static uint32_t fdctrl_read_dor(fdctrl_t *fdctrl)
 {
     uint32_t retval = fdctrl->dor;
 
-    /* Selected drive */
-    retval |= fdctrl->cur_drv;
     FLOPPY_DPRINTF("digital output register: 0x%02x\n", retval);
 
     return retval;
@@ -959,8 +985,6 @@ static void fdctrl_write_dor(fdctrl_t *fdctrl, uint32_t value)
             fdctrl->dsr &= ~FD_DSR_PWRDOWN;
         }
     }
-    /* Selected drive */
-    fdctrl->cur_drv = value & FD_DOR_SELMASK;
 
     fdctrl->dor = value;
 }
@@ -1053,7 +1077,7 @@ static uint32_t fdctrl_read_dir(fdctrl_t *fdctrl)
      * is *not* selected!
      */
     if (fdctrl_media_changed(get_cur_drv(fdctrl))
-     && (fdctrl->dor & (0x10 << fdctrl->cur_drv)))
+     && (fdctrl->dor & (0x10 << (fdctrl->dor & FD_DOR_SELMASK))))
         retval |= FD_DIR_DSKCHG;
     if (retval != 0)
         FLOPPY_DPRINTF("Floppy digital input register: 0x%02x\n", retval);
@@ -1067,6 +1091,8 @@ static void fdctrl_reset_fifo(fdctrl_t *fdctrl)
     fdctrl->data_dir = FD_DIR_WRITE;
     fdctrl->data_pos = 0;
     fdctrl->msr &= ~(FD_MSR_CMDBUSY | FD_MSR_DIO);
+    fdctrl->prev_cmd = fdctrl->cur_cmd;
+    fdctrl->cur_cmd = 0;
 }
 
 /* Set FIFO status for the host to read */
@@ -2111,7 +2137,7 @@ static const struct {
     { FD_CMD_SENSE_INTERRUPT_STATUS, 0xff, "SENSE INTERRUPT STATUS", 0, fdctrl_handle_sense_interrupt_status },
     { FD_CMD_RECALIBRATE, 0xff, "RECALIBRATE", 1, fdctrl_handle_recalibrate },
     { FD_CMD_FORMAT_TRACK, 0xbf, "FORMAT TRACK", 5, fdctrl_handle_format_track },
-    { FD_CMD_READ_TRACK, 0xbf, "READ TRACK", 8, fdctrl_start_transfer, FD_DIR_READ },
+    { FD_CMD_READ_TRACK, 0x9f, "READ TRACK", 8, fdctrl_start_transfer, FD_DIR_READ },
     { FD_CMD_RESTORE, 0xff, "RESTORE", 17, fdctrl_handle_restore }, /* part of READ DELETED DATA */
     { FD_CMD_SAVE, 0xff, "SAVE", 0, fdctrl_handle_save }, /* part of READ DELETED DATA */
     { FD_CMD_READ_DELETED, 0x1f, "READ DELETED DATA", 8, fdctrl_start_transfer_del, FD_DIR_READ },
@@ -2188,6 +2214,7 @@ static void fdctrl_write_data(fdctrl_t *fdctrl, uint32_t value)
         FLOPPY_DPRINTF("%s command\n", handlers[pos].name);
         fdctrl->data_len = handlers[pos].parameters + 1;
         fdctrl->msr |= FD_MSR_CMDBUSY;
+        fdctrl->cur_cmd = value & 0xff;
     }
 
     FLOPPY_DPRINTF("%s: %02x\n", __FUNCTION__, value);
@@ -2213,11 +2240,11 @@ static void fdctrl_write_data(fdctrl_t *fdctrl, uint32_t value)
 /**
  * @callback_method_impl{FNTMTIMERDEV}
  */
-static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     fdctrl_t *fdctrl = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
     fdrive_t *cur_drv = get_cur_drv(fdctrl);
-    RT_NOREF(pTimer, pvUser);
+    RT_NOREF(hTimer, pvUser);
 
     /* Pretend we are spinning.
      * This is needed for Coherent, which uses READ ID to check for
@@ -2297,10 +2324,10 @@ static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort1Write(PPDMDEVINS pDevIns, void *pvUs
 /**
  * @callback_method_impl{FNTMTIMERDEV}
  */
-static DECLCALLBACK(void) fdcTransferDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) fdcTransferDelayTimer(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     fdctrl_t *fdctrl = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
-    RT_NOREF(pvUser, pTimer);
+    RT_NOREF(pvUser, hTimer);
     fdctrl_stop_transfer_now(fdctrl, fdctrl->st0, fdctrl->st1, fdctrl->st2);
 }
 
@@ -2308,10 +2335,10 @@ static DECLCALLBACK(void) fdcTransferDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTi
 /**
  * @callback_method_impl{FNTMTIMERDEV}
  */
-static DECLCALLBACK(void) fdcIrqDelayTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) fdcIrqDelayTimer(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     fdctrl_t *fdctrl = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
-    RT_NOREF(pvUser, pTimer);
+    RT_NOREF(pvUser, hTimer);
     fdctrl_raise_irq_now(fdctrl, fdctrl->st0);
 }
 
@@ -2364,6 +2391,67 @@ static DECLCALLBACK(VBOXSTRICTRC) fdcIoPort2Read(PPDMDEVINS pDevIns, void *pvUse
         return VINF_SUCCESS;
     }
     return VERR_IOM_IOPORT_UNUSED;
+}
+
+
+/* -=-=-=-=-=-=-=-=- Debugger callback -=-=-=-=-=-=-=-=- */
+
+/**
+ * FDC debugger info callback.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pHlp        The output helpers.
+ * @param   pszArgs     The arguments.
+ */
+static DECLCALLBACK(void) fdcInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    fdctrl_t    *pThis = PDMDEVINS_2_DATA(pDevIns, fdctrl_t *);
+    unsigned    i;
+    bool        fVerbose = false;
+
+    /* Parse arguments. */
+    if (pszArgs)
+        fVerbose = strstr(pszArgs, "verbose") != NULL;
+
+    /* Show basic information. */
+    pHlp->pfnPrintf(pHlp, "%s#%d: ",
+                    pDevIns->pReg->szName,
+                    pDevIns->iInstance);
+    pHlp->pfnPrintf(pHlp, "I/O=%X IRQ=%u DMA=%u ",
+                    pThis->io_base,
+                    pThis->irq_lvl,
+                    pThis->dma_chann);
+    pHlp->pfnPrintf(pHlp, "RC=%RTbool R0=%RTbool\n", pDevIns->fRCEnabled, pDevIns->fR0Enabled);
+
+    /* Print register contents. */
+    pHlp->pfnPrintf(pHlp, "Registers: MSR=%02X DSR=%02X DOR=%02X\n",
+                    pThis->msr, pThis->dsr, pThis->dor);
+    pHlp->pfnPrintf(pHlp, "           DIR=%02X\n",
+                    fdctrl_read_dir(pThis));
+
+    /* Print the current command, if any. */
+    if (pThis->cur_cmd)
+        pHlp->pfnPrintf(pHlp, "Curr cmd: %02X (%s)\n",
+                        pThis->cur_cmd,
+                        handlers[command_to_handler[pThis->cur_cmd]].name);
+    if (pThis->prev_cmd)
+        pHlp->pfnPrintf(pHlp, "Prev cmd: %02X (%s)\n",
+                        pThis->prev_cmd,
+                        handlers[command_to_handler[pThis->prev_cmd]].name);
+
+
+    for (i = 0; i < pThis->num_floppies; ++i)
+    {
+        fdrive_t  *drv = &pThis->drives[i];
+        pHlp->pfnPrintf(pHlp, "  Drive %u state:\n", i);
+        pHlp->pfnPrintf(pHlp, "    Medium : %u tracks, %u sectors\n",
+                        drv->max_track,
+                        drv->last_sect);
+        pHlp->pfnPrintf(pHlp, "    Current: track %u, head %u, sector %u\n",
+                        drv->track,
+                        drv->head,
+                        drv->sect);
+    }
 }
 
 
@@ -2923,21 +3011,24 @@ static DECLCALLBACK(int) fdcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
      * Create the FDC timer.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, fdcTimerCallback, pThis,
-                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "FDC Timer", &pThis->hResultTimer);
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT | TMTIMER_FLAGS_NO_RING0,
+                              "FDC Timer", &pThis->hResultTimer);
     AssertRCReturn(rc, rc);
 
     /*
      * Create the transfer delay timer.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, fdcTransferDelayTimer, pThis,
-                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "FDC Transfer Delay Timer", &pThis->hXferDelayTimer);
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT | TMTIMER_FLAGS_NO_RING0,
+                              "FDC Transfer Delay", &pThis->hXferDelayTimer);
     AssertRCReturn(rc, rc);
 
     /*
      * Create the IRQ delay timer.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, fdcIrqDelayTimer, pThis,
-                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "FDC IRQ Delay Timer", &pThis->hIrqDelayTimer);
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT | TMTIMER_FLAGS_NO_RING0,
+                              "FDC IRQ Delay", &pThis->hIrqDelayTimer);
     AssertRCReturn(rc, rc);
 
     pThis->uIrqDelayMsec = uIrqDelay;
@@ -2998,6 +3089,11 @@ static DECLCALLBACK(int) fdcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
      */
     rc = PDMDevHlpSSMRegister(pDevIns, FDC_SAVESTATE_CURRENT, sizeof(*pThis), fdcSaveExec, fdcLoadExec);
     AssertRCReturn(rc, rc);
+
+    /*
+     * Register the debugger info callback.
+     */
+    PDMDevHlpDBGFInfoRegister(pDevIns, "fdc", "FDC info", fdcInfo);
 
     /*
      * Attach the status port (optional).

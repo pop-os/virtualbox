@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -84,26 +94,33 @@
 *********************************************************************************************************************************/
 
 #ifdef IN_RING3
-typedef LONG (WINAPI * PFNWINVERIFYTRUST)(HWND hwnd, GUID const *pgActionID, PVOID pWVTData);
-typedef BOOL (WINAPI * PFNCRYPTCATADMINACQUIRECONTEXT)(HCATADMIN *phCatAdmin, const GUID *pGuidSubsystem, DWORD dwFlags);
-typedef BOOL (WINAPI * PFNCRYPTCATADMINACQUIRECONTEXT2)(HCATADMIN *phCatAdmin, const GUID *pGuidSubsystem, PCWSTR pwszHashAlgorithm,
-                                                        struct _CERT_STRONG_SIGN_PARA const *pStrongHashPolicy, DWORD dwFlags);
-typedef BOOL (WINAPI * PFNCRYPTCATADMINCALCHASHFROMFILEHANDLE)(HANDLE hFile, DWORD *pcbHash, BYTE *pbHash, DWORD dwFlags);
-typedef BOOL (WINAPI * PFNCRYPTCATADMINCALCHASHFROMFILEHANDLE2)(HCATADMIN hCatAdmin, HANDLE hFile, DWORD *pcbHash,
-                                                                BYTE *pbHash, DWORD dwFlags);
-typedef HCATINFO (WINAPI *PFNCRYPTCATADMINENUMCATALOGFROMHASH)(HCATADMIN hCatAdmin, BYTE *pbHash, DWORD cbHash,
-                                                               DWORD dwFlags, HCATINFO *phPrevCatInfo);
-typedef BOOL (WINAPI * PFNCRYPTCATADMINRELEASECATALOGCONTEXT)(HCATADMIN hCatAdmin, HCATINFO hCatInfo, DWORD dwFlags);
-typedef BOOL (WINAPI * PFNCRYPTCATDADMINRELEASECONTEXT)(HCATADMIN hCatAdmin, DWORD dwFlags);
-typedef BOOL (WINAPI * PFNCRYPTCATCATALOGINFOFROMCONTEXT)(HCATINFO hCatInfo, CATALOG_INFO *psCatInfo, DWORD dwFlags);
+typedef DECLCALLBACKPTR_EX(LONG, WINAPI, PFNWINVERIFYTRUST,(HWND hwnd, GUID const *pgActionID, PVOID pWVTData));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCRYPTCATADMINACQUIRECONTEXT,(HCATADMIN *phCatAdmin, const GUID *pGuidSubsystem,
+                                                                         DWORD dwFlags));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCRYPTCATADMINACQUIRECONTEXT2,(HCATADMIN *phCatAdmin, const GUID *pGuidSubsystem,
+                                                                          PCWSTR pwszHashAlgorithm,
+                                                                          struct _CERT_STRONG_SIGN_PARA const *pStrongHashPolicy,
+                                                                          DWORD dwFlags));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCRYPTCATADMINCALCHASHFROMFILEHANDLE,(HANDLE hFile, DWORD *pcbHash, BYTE *pbHash,
+                                                                                 DWORD dwFlags));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCRYPTCATADMINCALCHASHFROMFILEHANDLE2,(HCATADMIN hCatAdmin, HANDLE hFile,
+                                                                                  DWORD *pcbHash, BYTE *pbHash, DWORD dwFlags));
+typedef DECLCALLBACKPTR_EX(HCATINFO, WINAPI, PFNCRYPTCATADMINENUMCATALOGFROMHASH,(HCATADMIN hCatAdmin, BYTE *pbHash, DWORD cbHash,
+                                                                                  DWORD dwFlags, HCATINFO *phPrevCatInfo));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCRYPTCATADMINRELEASECATALOGCONTEXT,(HCATADMIN hCatAdmin, HCATINFO hCatInfo,
+                                                                                DWORD dwFlags));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCRYPTCATDADMINRELEASECONTEXT,(HCATADMIN hCatAdmin, DWORD dwFlags));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCRYPTCATCATALOGINFOFROMCONTEXT,(HCATINFO hCatInfo, CATALOG_INFO *psCatInfo,
+                                                                            DWORD dwFlags));
 
-typedef HCERTSTORE (WINAPI *PFNCERTOPENSTORE)(PCSTR pszStoreProvider, DWORD dwEncodingType, HCRYPTPROV_LEGACY hCryptProv,
-                                              DWORD dwFlags, const void *pvParam);
-typedef BOOL (WINAPI *PFNCERTCLOSESTORE)(HCERTSTORE hCertStore, DWORD dwFlags);
-typedef PCCERT_CONTEXT (WINAPI *PFNCERTENUMCERTIFICATESINSTORE)(HCERTSTORE hCertStore, PCCERT_CONTEXT pPrevCertContext);
+typedef DECLCALLBACKPTR_EX(HCERTSTORE, WINAPI, PFNCERTOPENSTORE,(PCSTR pszStoreProvider, DWORD dwEncodingType,
+                                                                 HCRYPTPROV_LEGACY hCryptProv, DWORD dwFlags, const void *pvParam));
+typedef DECLCALLBACKPTR_EX(BOOL, WINAPI, PFNCERTCLOSESTORE,(HCERTSTORE hCertStore, DWORD dwFlags));
+typedef DECLCALLBACKPTR_EX(PCCERT_CONTEXT, WINAPI, PFNCERTENUMCERTIFICATESINSTORE,(HCERTSTORE hCertStore,
+                                                                                   PCCERT_CONTEXT pPrevCertContext));
 
-typedef NTSTATUS (WINAPI *PFNBCRYPTOPENALGORTIHMPROVIDER)(BCRYPT_ALG_HANDLE *phAlgo, PCWSTR pwszAlgoId,
-                                                          PCWSTR pwszImpl, DWORD dwFlags);
+typedef DECLCALLBACKPTR_EX(NTSTATUS, WINAPI, PFNBCRYPTOPENALGORTIHMPROVIDER,(BCRYPT_ALG_HANDLE *phAlgo, PCWSTR pwszAlgoId,
+                                                                             PCWSTR pwszImpl, DWORD dwFlags));
 #endif
 
 
@@ -684,8 +701,8 @@ DECLHIDDEN(bool) supHardViUtf16PathStartsWithEx(PCRTUTF16 pwszLeft, uint32_t cwc
  * @param   pUniStrRight        The starts-with path.
  * @param   fCheckSlash         Check for a slash following the prefix.
  */
-DECLHIDDEN(bool) supHardViUniStrPathStartsWithUniStr(UNICODE_STRING const *pUniStrLeft, UNICODE_STRING const *pUniStrRight,
-                                                     bool fCheckSlash)
+DECLHIDDEN(bool) supHardViUniStrPathStartsWithUniStr(UNICODE_STRING const *pUniStrLeft,
+                                                     UNICODE_STRING const *pUniStrRight, bool fCheckSlash)
 {
     return supHardViUtf16PathStartsWithEx(pUniStrLeft->Buffer, pUniStrLeft->Length / sizeof(WCHAR),
                                           pUniStrRight->Buffer, pUniStrRight->Length / sizeof(WCHAR), fCheckSlash);
@@ -1010,19 +1027,17 @@ static DECLCALLBACK(int) supHardNtViCertVerifyCallback(PCRTCRX509CERTIFICATE pCe
      * callback, it must be because of the build certificate.  We trust the
      * build certificate without any second thoughts.
      */
-    if (hCertPaths == NIL_RTCRX509CERTPATHS)
+    if (RTCrX509Certificate_Compare(pCert, &g_BuildX509Cert) == 0)
     {
-        if (RTCrX509Certificate_Compare(pCert, &g_BuildX509Cert) == 0) /* healthy paranoia */
-            return VINF_SUCCESS;
-        int rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_BUILD_CERT_IPE, "Not valid kernel code signature (fFlags=%#x).", fFlags);
-        if (pErrInfo)
-        {
-            RTErrInfoAdd(pErrInfo, rc, "\n\nExe cert:\n");
-            RTAsn1Dump(&pCert->SeqCore.Asn1Core, 0 /*fFlags*/, 0 /*uLevel*/, supHardNtViAsn1DumpToErrInfo, pErrInfo);
-            RTErrInfoAdd(pErrInfo, rc, "\n\nBuild cert:\n");
-            RTAsn1Dump(&g_BuildX509Cert.SeqCore.Asn1Core, 0 /*fFlags*/, 0 /*uLevel*/, supHardNtViAsn1DumpToErrInfo, pErrInfo);
-        }
-        return rc;
+#ifdef VBOX_STRICT
+        Assert(RTCrX509CertPathsGetPathCount(hCertPaths) == 1);
+        bool     fTrusted = false;
+        uint32_t cNodes = UINT32_MAX;
+        int      rcVerify = -1;
+        int rc = RTCrX509CertPathsQueryPathInfo(hCertPaths, 0, &fTrusted, &cNodes, NULL, NULL, NULL, NULL, &rcVerify);
+        AssertRC(rc); AssertRC(rcVerify); Assert(fTrusted); Assert(cNodes == 1);
+#endif
+        return VINF_SUCCESS;
     }
 
     /*
@@ -1503,8 +1518,8 @@ DECLHIDDEN(int) supHardenedWinVerifyImageByLdrMod(RTLDRMOD hLdrMod, PCRTUTF16 pw
  * @param   pfWinVerifyTrust    Where to return whether WinVerifyTrust was used.
  * @param   pErrInfo            Pointer to error info structure. Optional.
  */
-DECLHIDDEN(int) supHardenedWinVerifyImageByHandle(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, bool fAvoidWinVerifyTrust,
-                                                  bool *pfWinVerifyTrust, PRTERRINFO pErrInfo)
+DECLHIDDEN(int) supHardenedWinVerifyImageByHandle(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags,
+                                                  bool fAvoidWinVerifyTrust, bool *pfWinVerifyTrust, PRTERRINFO pErrInfo)
 {
     /*
      * Create a reader instance.
@@ -2512,6 +2527,10 @@ static int supR3HardNtViCallWinVerifyTrust(HANDLE hFile, PCRTUTF16 pwszName, uin
     TrustData.pFile = &FileInfo;
 
     HRESULT hrc = pfnWinVerifyTrust(NULL /*hwnd*/, &PolicyActionGuid, &TrustData);
+# ifdef DEBUG_bird /* TEMP HACK */
+    if (hrc == CERT_E_EXPIRED)
+        hrc = S_OK;
+# endif
     if (hrc == S_OK)
         rc = VINF_SUCCESS;
     else

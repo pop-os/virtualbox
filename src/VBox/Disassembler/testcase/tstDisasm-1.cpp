@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -41,9 +51,10 @@ static void testDisas(const char *pszSub, uint8_t const *pabInstrs, uintptr_t uE
     size_t const cbInstrs = uEndPtr - (uintptr_t)pabInstrs;
     for (size_t off = 0; off < cbInstrs;)
     {
-        uint32_t const  cErrBefore = RTTestIErrorCount();
-        uint32_t        cb = 1;
         DISSTATE        Dis;
+        uint32_t        cb = 1;
+#ifndef DIS_CORE_ONLY
+        uint32_t const  cErrBefore = RTTestIErrorCount();
         char            szOutput[256] = {0};
         int rc = DISInstrToStr(&pabInstrs[off], enmDisCpuMode, &Dis, &cb, szOutput, sizeof(szOutput));
 
@@ -82,6 +93,12 @@ static void testDisas(const char *pszSub, uint8_t const *pabInstrs, uintptr_t uE
         RTTESTI_CHECK_RC(rc, VINF_SUCCESS);
         RTTESTI_CHECK(cbOnly == DisOnly.cbInstr);
         RTTESTI_CHECK_MSG(cbOnly == cb, ("%#x vs %#x\n", cbOnly, cb));
+
+#else  /* DIS_CORE_ONLY */
+        int rc = DISInstr(&pabInstrs[off], enmDisCpuMode,  &Dis, &cb);
+        RTTESTI_CHECK_RC(rc, VINF_SUCCESS);
+        RTTESTI_CHECK(cb == Dis.cbInstr);
+#endif /* DIS_CORE_ONLY */
 
         off += cb;
     }
@@ -144,8 +161,13 @@ void testTwo(void)
             uint32_t cb2;
             RTTESTI_CHECK_MSG((cb2 = DISGetParamSize(&Dis, &Dis.Param1)) == s_gInstrs[i].cbParam1,
                               ("%u: %#x vs %#x\n", i , cb2, s_gInstrs[i].cbParam1));
+#ifndef DIS_CORE_ONLY
             RTTESTI_CHECK_MSG((cb2 = DISGetParamSize(&Dis, &Dis.Param2)) == s_gInstrs[i].cbParam2,
                               ("%u: %#x vs %#x (%s)\n", i , cb2, s_gInstrs[i].cbParam2, Dis.pCurInstr->pszOpcode));
+#else
+            RTTESTI_CHECK_MSG((cb2 = DISGetParamSize(&Dis, &Dis.Param2)) == s_gInstrs[i].cbParam2,
+                              ("%u: %#x vs %#x\n", i , cb2, s_gInstrs[i].cbParam2));
+#endif
             RTTESTI_CHECK_MSG((cb2 = DISGetParamSize(&Dis, &Dis.Param3)) == s_gInstrs[i].cbParam3,
                               ("%u: %#x vs %#x\n", i , cb2, s_gInstrs[i].cbParam3));
         }

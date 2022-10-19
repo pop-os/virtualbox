@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2020 Oracle Corporation
+ * Copyright (C) 2020-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -79,7 +89,7 @@ static DECLCALLBACK(void) drvIfTrace_Destruct(PPDMDRVINS pDrvIns)
 
     if (pThis->pszTraceFilePath)
     {
-        MMR3HeapFree(pThis->pszTraceFilePath);
+        PDMDrvHlpMMHeapFree(pDrvIns, pThis->pszTraceFilePath);
         pThis->pszTraceFilePath = NULL;
     }
 }
@@ -92,9 +102,10 @@ static DECLCALLBACK(void) drvIfTrace_Destruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvIfTrace_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVIFTRACE   pThis   = PDMINS_2_DATA(pDrvIns, PDRVIFTRACE);
-
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVIFTRACE     pThis = PDMINS_2_DATA(pDrvIns, PDRVIFTRACE);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
+
 
     /*
      * Initialize the instance data.
@@ -110,7 +121,7 @@ static DECLCALLBACK(int) drvIfTrace_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
      */
     PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "TraceFilePath|", "");
 
-    int rc = CFGMR3QueryStringAlloc(pCfg, "TraceFilePath", &pThis->pszTraceFilePath);
+    int rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "TraceFilePath", &pThis->pszTraceFilePath);
     AssertLogRelRCReturn(rc, rc);
 
     /* Try to create a file based trace log. */

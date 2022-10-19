@@ -4,24 +4,34 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
+#
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 #
 
 SUB_DEPTH = ../../../..
@@ -43,12 +53,14 @@ if   defined(VBOX_WITH_HARDENING) \
  && !defined(VBOX_ONLY_VALIDATIONKIT)
  LIBRARIES += SUPR3HardenedStatic
 endif
-DLLS.win += VBoxSupLib
+ifndef VBOX_ONLY_BUILD
+ DLLS.win += VBoxSupLib
+endif
 ifdef VBOX_WITH_32_ON_64_MAIN_API
  LIBRARIES += SUPR3-x86
 endif
 if !defined(VBOX_ONLY_DOCS)
- if1of ($(VBOX_LDR_FMT), pe lx macho)
+ if1of ($(VBOX_LDR_FMT), pe lx)
   LIBRARIES += SUPR0
  endif
 endif
@@ -101,6 +113,7 @@ VBOX_SUP_WIN_CERTS := \
        NtRootMicrosoft8=NtRoot-MicrosoftCodeVerificationRoot-729404101f3e0ca347837fca175a8438.taf \
        TimeRootMicrosoft0=Timestamp-CopyrightC1997MicrosoftCorp-01.taf \
        TimeRootOracle0=Timestamp-VBoxLegacyWinCA.taf \
+       TimeRootOracle1=Timestamp-VBoxLegacyWinSha1CA.taf \
        TrustedCertVBox0=Trusted-OracleCorporationVirtualBox-05308b76ac2e15b29720fb4395f65f38.taf \
        AppleRoot0=AppleRoot-2bd06947947609fef46b8d2e40a6f7474d7f085e.taf \
        AppleRoot1=AppleRoot-G2-c499136c1803c27bc0a3a00d7f72807a1c77268d.taf
@@ -177,6 +190,7 @@ SUPR3_DEFS          = \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
+	$(if $(VBOX_WITH_DRIVERLESS_NEM_FALLBACK),VBOX_WITH_DRIVERLESS_NEM_FALLBACK,) \
 	VBOX_PERMIT_MORE \
 	VBOX_PERMIT_EVEN_MORE
 SUPR3_INCS         := $(PATH_SUB_CURRENT)
@@ -184,12 +198,15 @@ SUPR3_SOURCES       = \
 	SUPLib.cpp \
 	SUPLibLdr.cpp \
 	SUPLibSem.cpp \
-	SUPLibTracerA.asm \
 	SUPLibAll.cpp \
 	SUPR3HardenedIPRT.cpp \
 	SUPR3HardenedVerify.cpp \
 	$(KBUILD_TARGET)/SUPLib-$(KBUILD_TARGET).cpp \
  	$(VBOX_SUP_WIN_CERTS_FILE)
+SUPR3_SOURCES.amd64 = \
+	SUPLibTracerA.asm
+SUPR3_SOURCES.x86   = \
+	SUPLibTracerA.asm
 ifdef VBOX_WITH_HARDENING
  SUPR3_SOURCES.win  = \
  	win/SUPHardenedVerifyImage-win.cpp
@@ -218,6 +235,7 @@ SUPR3HardenedStatic_DEFS    += \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC,) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
+	$(if $(VBOX_WITH_DRIVERLESS_NEM_FALLBACK),VBOX_WITH_DRIVERLESS_NEM_FALLBACK,) \
 	$(if $(VBOX_WITHOUT_DEBUGGER_CHECKS),VBOX_WITHOUT_DEBUGGER_CHECKS,) \
 	$(if $(VBOX_PERMIT_VISUAL_STUDIO_PROFILING),VBOX_PERMIT_VISUAL_STUDIO_PROFILING,) \
 	VBOX_PERMIT_MORE \
@@ -373,6 +391,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCat.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCmp.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrCopy.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrEnd.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrICmpAscii.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrNCmp.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrNLen.cpp \
@@ -392,6 +411,8 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strncpy.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strprintf.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strprintf-ellipsis.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/strprintf2.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/strprintf2-ellipsis.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strtonum.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/utf-16.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/utf-8.cpp \
@@ -426,33 +447,48 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
  	$(VBOX_PATH_RUNTIME_SRC)/win/RTErrConvertFromWin32.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/win/errmsgwin.cpp
 
- # Add necessary compiler specific files from libcmt.lib and the lib dir.
+ # Add necessary compiler specific files from the compiler lib dir.
  ifeq ($(KBUILD_TARGET),win)
-   SUPR3HardenedStatic_VBOX_LIBC_OBJS = chkstk.obj
-   ifeq ($(KBUILD_TARGET_ARCH),x86)
-    SUPR3HardenedStatic_VBOX_LIBC_OBJS += \
-    	alloca16.obj \
-    	ulldiv.obj \
-    	ulldvrm.obj \
-    	ullrem.obj \
-    	ullshr.obj \
-    	lldiv.obj \
-    	lldvrm.obj \
-    	llmul.obj \
-    	llrem.obj \
-    	llshl.obj \
-    	llshr.obj \
-    	rotl.obj \
-    	rotr.obj
-   endif
-  SUPR3HardenedStatic_SOURCES.win += $(addprefix $(SUPR3HardenedStatic_0_OUTDIR)/,$(SUPR3HardenedStatic_VBOX_LIBC_OBJS))
+  include $(KBUILD_PATH)/tools/$(VBOX_VCC_TOOL).kmk
+  SUPR3HardenedStatic_SOURCES.win += \
+  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/chkstk.obj
 
-  $(addprefix $$(SUPR3HardenedStatic_0_OUTDIR)/,$(SUPR3HardenedStatic_VBOX_LIBC_OBJS)): \
-		$$(PATH_TOOL_$(TEMPLATE_VBOXR3EXE_TOOL.win.$(KBUILD_TARGET_ARCH))_LIB)/libcmt.lib | $$(dir $$@)
-	$(TOOL_$(TEMPLATE_VBOXR3HARDENEDEXE_TOOL.win.$(KBUILD_TARGET_ARCH))_AR) "$<" \
-		/EXTRACT:`$(TOOL_$(TEMPLATE_VBOXR3HARDENEDEXE_TOOL.win.$(KBUILD_TARGET_ARCH))_AR) "$<" /LIST \
-		          | $(SED_EXT) -n -e '/[\\/:]$(notdir $@)/p'` \
-		"/OUT:$@"
+  # And a few extracted from the static libc to support -guard and cookes.
+  # In 14.2 these files does not import anything from the win32 API and are
+  # mostly tiny bits of code. Needs not initialization that I can spot.
+  ifneq ($(VBOX_VCC_LD_GUARD_CF),)
+   SUPR3HardenedStatic_SOURCES.win += \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/loadcfg.obj
+   # These are for the /guard option.
+   SUPR3HardenedStatic_SOURCES.win += \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/gs_cookie.obj \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/guard_support.obj
+   SUPR3HardenedStatic_SOURCES.win.amd64 += \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/guard_dispatch.obj \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/guard_xfg_dispatch.obj
+   # These next ones are for supporting the /GS option.  We skip gs_report.obj as it
+   # import lots from kernel32 and we're better of reporting the problem ourselves.
+   SUPR3HardenedStatic_SOURCES.win.amd64 += \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/amdsecgs.obj \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/gshandler.obj
+   SUPR3HardenedStatic_SOURCES.win.x86 += \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/secchk.obj \
+   	$(SUPR3HardenedStatic_0_OUTDIR)/alloca16.obj
+
+$$(SUPR3HardenedStatic_0_OUTDIR)/loadcfg.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/gs_cookie.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/guard_support.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/guard_dispatch.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/guard_xfg_dispatch.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/amdsecgs.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/gs_report.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/gshandler.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/secchk.obj \
+$$(SUPR3HardenedStatic_0_OUTDIR)/alloca16.obj \
+	: \
+		$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/libcmt.lib | $$(dir $$@)
+	set -x; $(TOOL_$(VBOX_VCC_TOOL)_AR) "/EXTRACT:$$($(TOOL_$(VBOX_VCC_TOOL)_AR) /LIST "$<" | $(SED_EXT) -e '/$(notdir $@)/!d' )" "/OUT:$@" "$<"
+  endif
  endif
 endif
 
@@ -484,6 +520,7 @@ if1of ($(KBUILD_TARGET), linux solaris)
  	SUP_HARDENED_WITH_DLMOPEN
  SUPR3HardenedStatic_DEFS.solaris += \
  	SUP_HARDENED_WITH_DLMOPEN
+ SUPR3HardenedStatic_DEFS.asan    += SUP_HARDENED_WITHOUT_DLOPEN_PATCHING
 
  SUPR3HardenedStatic_INCS += $(VBOX_PATH_RUNTIME_SRC)/include
 
@@ -509,7 +546,7 @@ SUPR3HardenedMain.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
 #
 # VBoxSupLib - Windows DLL for catching thread creation and termination.
 #
-VBoxSupLib_TEMPLATE = $(if-expr "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING),VBOXR3HARDENEDLIB,VBOXR3)
+VBoxSupLib_TEMPLATE = VBoxR3StaticNoCrt
 VBoxSupLib_SDKS.win = VBOX_NTDLL
 VBoxSupLib_LDFLAGS.win.amd64 = -Entry:DllMainEntrypoint
 VBoxSupLib_LDFLAGS.win.x86   = -Entry:DllMainEntrypoint
@@ -520,9 +557,17 @@ VBoxSupLib_SOURCES = \
 VBoxSupLib_SOURCES.win = \
 	win/VBoxSupLib.rc
 VBoxSupLib_LIBS.win.x86 = \
- 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.x86)_LIB)/libcmt.lib   # for __chkstk
+	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.x86)_LIB)/chkstk.obj
 VBoxSupLib_LIBS.win.amd64 = \
- 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.amd64)_LIB)/libcmt.lib # for __chkstk
+	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.amd64)_LIB)/chkstk.obj
+ifdef VBOX_WITH_HARDENING # for /guard:cf stuff
+ VBoxSupLib_LIBS.win.x86 = \
+ 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.x86)_LIB)/libcmt.lib
+ VBoxSupLib_LIBS.win.amd64 = \
+ 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.amd64)_LIB)/libcmt.lib
+endif
+VBoxSupLib_VBOX_IMPORT_CHECKER.win.x86   = xp
+VBoxSupLib_VBOX_IMPORT_CHECKER.win.amd64 = xp64
 
 
 #
@@ -566,37 +611,6 @@ $$(SUPR0_0_OUTDIR)/SUPR0.def: \
    SUPR0_POST_CMDS = $(KLIBTWEAKER_EXT) --clear-timestamps --fill-null_thunk_data $(out)
   endif
  endif
-
-else ifeq ($(VBOX_LDR_FMT),macho)
- $(call KB_FN_DO_PASS0_ON_TARGET,SUPR0) # Defines SUPR0_0_OUTDIR so we can use it in SUPR0_VBOX_FILES w/o needing $$.
- SUPR0_VBOX_KMK_FILE = $(SUPR0_0_OUTDIR)/files.kmk
- include $(SUPR0_VBOX_KMK_FILE)
- SUPR0_SOURCES       = $(SUPR0_VBOX_FILES)
- SUPR0_CLEAN         = $(SUPR0_VBOX_FILES) $(SUPR0_0_OUTDIR)/SUPR0.asm $(SUPR0_VBOX_KMK_FILE) $(SUPR0_VBOX_KMK_FILE).ts
-
- # Generate a make include file which lists the wrapper source files.
-# $ (call KB_FN_AUTO_CMD_DEPS,$(SUPR0_VBOX_KMK_FILE).ts)
- $(SUPR0_VBOX_KMK_FILE).ts \
- +| $(SUPR0_VBOX_KMK_FILE): \
-		$(PATH_SUB_CURRENT)/SUPDrv.cpp \
-		$(PATH_SUB_CURRENT)/SUPR0-asm-files.sed
-#	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
-	$(call MSG_GENERATE,,$(SUPR0_VBOX_KMK_FILE))
-	$(QUIET)$(RM) -f -- "$@"
-	$(QUIET)$(MKDIR) -p -- "$(@D)"
-	$(QUIET)$(SED) --output "$@" -f "$(VBOX_PATH_SUP_SRC)/SUPR0-asm-files.sed" "$(VBOX_PATH_SUP_SRC)/SUPDrv.cpp"
-	$(QUIET)$(CP) --changed -fv "$@" $(SUPR0_VBOX_KMK_FILE)
-
- $(SUPR0_0_OUTDIR)/SUPR0.asm +| $(SUPR0_VBOX_FILES): \
-		$(PATH_SUB_CURRENT)/SUPDrv.cpp \
-		$(PATH_SUB_CURRENT)/SUPR0-asm.sed \
-               | $$(dir $$@) $(VBOX_FILESPLIT)
-#	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
-	$(call MSG_GENERATE,,SUPR0.asm and friends)
-	$(QUIET)$(RM) -f -- "$@"
-	$(QUIET)$(SED) --output "$@" -f "$(VBOX_PATH_SUP_SRC)/SUPR0-asm.sed" "$(VBOX_PATH_SUP_SRC)/SUPDrv.cpp"
-	$(VBOX_FILESPLIT) "$@" "$(dir $@)"
-
 endif
 
 
@@ -613,7 +627,7 @@ SUPRC_SOURCES  := SUPLibAll.cpp
 #
 SUPR0IdcClient_TEMPLATE = VBoxR0DrvLib
 SUPR0IdcClient_DEFS = IN_RT_R0 IN_SUP_R0 IN_SUP_STATIC
-SUPR0IdcClient_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK) $(VBOX_WINPSDK)INCS
+SUPR0IdcClient_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK) $(VBOX_WINPSDK_INCS)
 SUPR0IdcClient_SOURCES.$(KBUILD_TARGET) = \
 	$(KBUILD_TARGET)/SUPR0IdcClient-$(KBUILD_TARGET).c
 SUPR0IdcClient_SOURCES = \
@@ -680,7 +694,7 @@ if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  endif
  VBoxDrv_INST.darwin      = $(INST_VBOXDRV)Contents/MacOS/
  VBoxDrv_DEBUG_INST.darwin= $(patsubst %/,%,$(INST_VBOXDRV))
- VBoxDrv_SDKS.win         = ReorderCompilerIncs $(VBOX_WINDDK) $(VBOX_WINPSDK)INCS
+ VBoxDrv_SDKS.win         = ReorderCompilerIncs $(VBOX_WINDDK) $(VBOX_WINPSDK_INCS)
 
  VBoxDrv_DEFS            := IN_RT_R0 IN_SUP_R0 SUPDRV_WITH_RELEASE_LOGGER VBOX_SVN_REV=$(VBOX_SVN_REV)
  ifdef VBOX_WITH_DTRACE_R0DRV
@@ -700,6 +714,9 @@ if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  endif
  if defined(VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION) && defined(VBOX_SIGNING_MODE)
   VBoxDrv_DEFS.darwin    += VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+  ifeq ($(VBOX_SIGNING_MODE),test)
+   VBoxDrv_DEFS.darwin   += VBOX_WITH_DARWIN_R0_TEST_SIGN
+  endif
  endif
  ifdef VBOX_WITH_NETFLT
   VBoxDrv_DEFS.solaris   += VBOX_WITH_NETFLT
@@ -730,6 +747,10 @@ if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  	$(PATH_STAGE_LIB)/RuntimeR0Drv$(VBOX_SUFF_LIB) \
  	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/ntoskrnl.lib \
  	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/hal.lib
+ ifn1of ($(VBOX_WINDDK), WINDDK80 WINDDK71)
+  VBoxDrv_LIBS.win.x86    = \
+ 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/BufferOverflowK.lib
+ endif
 
  #VBoxDrv_LDFLAGS.darwin   = -Wl,-sectcreate,__TEXT,__info_plist,$(VBoxDrv.kext_0_OUTDIR)/Info.plist
  #VBoxDrv_LDFLAGS.darwin   = -v -Wl,-whyload -Wl,-v -Wl,-whatsloaded
@@ -781,7 +802,7 @@ endif
 
 
 
-if1of ($(KBUILD_TARGET), darwin)
+if defined(VBOX_WITH_VBOXDRV) && "$(KBUILD_TARGET)" == "darwin"
  # Files necessary to make a darwin kernel extension bundle.
  INSTALLS.darwin += VBoxDrv.kext
  VBoxDrv.kext_INST     = $(INST_VBOXDRV)Contents/
@@ -795,13 +816,13 @@ if1of ($(KBUILD_TARGET), darwin)
 	$(call MSG_GENERATE,VBoxDrv,$@,$<)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
-		-e 's/@VBOX_VERSION_STRING@/$(if !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_STRING),4.2.51)/g' \
-		-e 's/@VBOX_VERSION_MAJOR@/$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_MAJOR),4)/g' \
-		-e 's/@VBOX_VERSION_MINOR@/$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_MINOR),2)/g' \
-		-e 's/@VBOX_VERSION_BUILD@/$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_BUILD),51)/g' \
-		-e 's/@VBOX_VENDOR@/$(VBOX_VENDOR)/g' \
-		-e 's/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g' \
-		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
+		-e 's+@VBOX_VERSION_STRING@+$(if !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_STRING),4.2.51)+g' \
+		-e 's+@VBOX_VERSION_MAJOR@+$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_MAJOR),4)+g' \
+		-e 's+@VBOX_VERSION_MINOR@+$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_MINOR),2)+g' \
+		-e 's+@VBOX_VERSION_BUILD@+$(if  !defined(VBOX_MAVERICS_CODE_SIGNING_HACK),$(VBOX_VERSION_BUILD),51)+g' \
+		-e 's+@VBOX_VENDOR@+$(VBOX_VENDOR)+g' \
+		-e 's+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+g' \
+		-e 's+@VBOX_C_YEAR@+$(VBOX_C_YEAR)+g' \
 		--output $@ \
 		$<
 
@@ -810,52 +831,64 @@ endif
 
 
 if1of ($(KBUILD_TARGET), darwin solaris)
- # Common manual loader script.
- INSTALLS += SUPDrvScripts
- SUPDrvScripts_INST = $(INST_DIST)
- SUPDrvScripts_EXEC_SOURCES  = \
-	$(KBUILD_TARGET)/load.sh
+ ifdef VBOX_WITH_VBOXDRV
+  # Common manual loader script.
+  INSTALLS += SUPDrvScripts
+  SUPDrvScripts_INST = $(INST_DIST)
+  SUPDrvScripts_EXEC_SOURCES  = \
+  	$(KBUILD_TARGET)/load.sh
+ endif
 endif
 
 
 if1of ($(KBUILD_TARGET), linux freebsd)
  if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
- #
- # Targets for installing the linux sources.
- #
- vboxdrv-src_INST    = bin/src/vboxdrv/
- vboxdrv-src_SOURCES = \
- 	$(subst $(DQUOTE),,$(FILES_VBOXDRV_NOBIN)) \
- 	$(vboxdrv-src_0_OUTDIR)/Makefile
- vboxdrv-src_EXEC_SOURCES  = \
- 	$(subst $(DQUOTE),,$(FILES_VBOXDRV_BIN))
- vboxdrv-src_CLEAN   = \
- 	$(vboxdrv-src_0_OUTDIR)/Makefile \
- 	$(PATH_TARGET)/vboxdrv-src-1.dep \
+#
+# Targets for installing the linux sources.
+#
+vboxdrv-src_INST    = bin/src/vboxdrv/
+vboxdrv-src_SOURCES = \
+	$(subst $(DQUOTE),,$(FILES_VBOXDRV_NOBIN)) \
+	$(vboxdrv-src_0_OUTDIR)/Makefile
+vboxdrv-src_EXEC_SOURCES  = \
+	$(subst $(DQUOTE),,$(FILES_VBOXDRV_BIN))
+vboxdrv-src_CLEAN   = \
+	$(vboxdrv-src_0_OUTDIR)/Makefile \
+	$(PATH_TARGET)/vboxdrv-src-1.dep \
 
- # Scripts needed for building the kernel modules
- includedep $(PATH_TARGET)/vboxdrv-src-1.dep
- $$(vboxdrv-src_0_OUTDIR)/Makefile: \
+# Scripts needed for building the kernel modules
+includedep $(PATH_TARGET)/vboxdrv-src-1.dep
+$$(vboxdrv-src_0_OUTDIR)/Makefile: \
 		$(PATH_SUB_CURRENT)/$(KBUILD_TARGET)/Makefile \
 		$$(if $$(eq $$(Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED),$$(VBOX_WITH_HARDENING)),,FORCE) \
 		$$(if $$(eq $$(Support/$(KBUILD_TARGET)/Makefile_VBOX_RAM_IN_KERNEL),$$(VBOX_WITH_RAM_IN_KERNEL)),,FORCE) \
 		| $$(dir $$@)
 	$(call MSG_TOOL,Creating,,$@)
 	$(QUIET)$(SED) -e "" \
-		$(if-expr !defined(VBOX_WITH_HARDENING)   ,-e "s;VBOX_WITH_HARDENING;;g",) \
-		$(if-expr ($(VBOX_VERSION_BUILD) % 2) == 0 || defined(VBOX_WITH_RAM_IN_KERNEL) \
-		 , -e "s;VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV;;g" -e "s;IPRT_WITH_EFLAGS_AC_PRESERVING;;g",) \
-		$(if-expr !defined(VBOX_WITH_RAM_IN_KERNEL) \
-		 , -e 's;VBOX_WITHOUT_EFLAGS_AC_SET_IN_VBOXDRV;;g' -e 's;IPRT_WITHOUT_EFLAGS_AC_PRESERVING;;g',) \
+		$(if-expr !defined(VBOX_WITH_HARDENING),-e "s;VBOX_WITH_HARDENING;;g",) \
 		--output $@ $<
-	%$(QUIET2)$(APPEND) -t '$(PATH_TARGET)/vboxdrv-src-1.dep' \
+	%$(QUIET2)$(APPEND) -t -n '$(PATH_TARGET)/vboxdrv-src-1.dep' \
 		'Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)' \
 		'Support/$(KBUILD_TARGET)/Makefile_VBOX_RAM_IN_KERNEL=$(VBOX_WITH_RAM_IN_KERNEL)'
 
- #
- # Build test for the linux host kernel modules.
- #
- $(evalcall2 VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN,vboxdrv-src,,save_symvers)
+#
+# Build test for the linux host kernel modules.
+#
+$(evalcall2 VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN,vboxdrv-src,,save_symvers)
+
+  ifdef VBOX_WITH_KMOD_WRAPPED_R0_MODS
+#
+# Common wrapper module files.
+#
+INSTALLS.linux += vboxwrappermod-common-src
+vboxwrappermod-common-src_INST = bin/src/common/
+vboxwrappermod-common-src_SOURCES = \
+	linux/SUPWrapperMod-linux.c=>SUPWrapperMod-linux.c \
+	linux/Makefile-wrapper.gmk=>Makefile-wrapper.gmk \
+	$(PATH_ROOT)/src/VBox/Installer/linux/Makefile-header.gmk=>Makefile-header.gmk \
+	$(PATH_ROOT)/src/VBox/Installer/linux/Makefile-footer.gmk=>Makefile-footer.gmk
+  endif
+
  endif # supported host arch
 endif # linux freebsd
 
@@ -888,6 +921,14 @@ ifeq ($(KBUILD_TARGET), win)
 	$(call VBOX_MAKE_CAT_FN, $(@D),$@)
  endif # signing
 endif # win
+
+#
+# Linux only.
+#
+PROGRAMS.linux += LnxPerfHack
+LnxPerfHack_TEMPLATE = VBoxR3Tool
+LnxPerfHack_SOURCES = linux/LnxPerfHack.cpp
+
 
 
 endif # !VBOX_ONLY_DOCS && !VBOX_ONLY_EXTPACKS && !VBOX_ONLY_VALIDATIONKIT

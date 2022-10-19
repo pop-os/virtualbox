@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_DisasmInternal_h
@@ -63,6 +73,7 @@ enum IDX_Parse
   IDX_ParseGrp14,
   IDX_ParseGrp15,
   IDX_ParseGrp16,
+  IDX_ParseGrp17,
   IDX_ParseModFence,
   IDX_ParseYv,
   IDX_ParseYb,
@@ -81,8 +92,31 @@ enum IDX_Parse
   IDX_ParseVexDest,
   IDX_ParseMax
 };
+AssertCompile(IDX_ParseMax < 64 /* Packed DISOPCODE assumption. */);
 /** @}  */
 
+/**
+ * Opcode map descriptor.
+ *
+ * This is used a number of places to save storage space where there are lots of
+ * invalid instructions and the beginning or end of the map.
+ */
+typedef struct DISOPMAPDESC
+{
+    /** Pointer to the opcodes described by this structure. */
+    PCDISOPCODE     papOpcodes;
+#if ARCH_BITS <= 32
+    uint16_t
+#else
+    uint32_t
+#endif
+    /** The map index corresponding to the first papOpcodes entry. */
+                    idxFirst,
+    /** Number of opcodes in the map. */
+                    cOpcodes;
+} DISOPMAPDESC;
+/** Pointer to a const opcode map descriptor. */
+typedef DISOPMAPDESC const *PCDISOPMAPDESC;
 
 /** @name Opcode maps.
  * @{ */
@@ -123,17 +157,22 @@ extern PCDISOPCODE const g_apThreeByteMapX86_66F20F38[16];
 
 /** VEX opcodes table defined by [VEX.m-mmmm - 1].
   * 0Fh, 0F38h, 0F3Ah correspondingly, VEX.pp = 00b */
-extern PCDISOPCODE const g_aVexOpcodesMap[3];
+extern PCDISOPMAPDESC const g_apVexOpcodesMapRanges_None[3];
 
 /** VEX opcodes table defined by [VEX.m-mmmm - 1].
   * 0Fh, 0F38h, 0F3Ah correspondingly, VEX.pp = 01b (66h) */
-extern PCDISOPCODE const g_aVexOpcodesMap_66H[3];
+extern PCDISOPMAPDESC const g_apVexOpcodesMapRanges_66H[3];
 
 /** 0Fh, 0F38h, 0F3Ah correspondingly, VEX.pp = 10b (F3h) */
-extern PCDISOPCODE const g_aVexOpcodesMap_F3H[3];
+extern PCDISOPMAPDESC const g_apVexOpcodesMapRanges_F3H[3];
 
 /** 0Fh, 0F38h, 0F3Ah correspondingly, VEX.pp = 11b (F2h) */
-extern PCDISOPCODE const g_aVexOpcodesMap_F2H[3];
+extern PCDISOPMAPDESC const g_apVexOpcodesMapRanges_F2H[3];
+
+/** Two dimmentional map descriptor array: first index is by VEX.pp (prefix),
+ * second by the VEX.mmmm (map).
+ * The latter has to be bounced checked as we only have the first 4 maps. */
+extern PCDISOPMAPDESC const g_aapVexOpcodesMapRanges[4][4];
 /** @} */
 
 /** @name Opcode extensions (Group tables)
@@ -157,6 +196,7 @@ extern const DISOPCODE g_aMapX86_Group14[8*2];
 extern const DISOPCODE g_aMapX86_Group15_mem[8];
 extern const DISOPCODE g_aMapX86_Group15_mod11_rm000[8];
 extern const DISOPCODE g_aMapX86_Group16[8];
+extern const DISOPCODE g_aMapX86_Group17[8*2];
 extern const DISOPCODE g_aMapX86_NopPause[2];
 /** @} */
 
@@ -193,16 +233,25 @@ extern const PCDISOPCODE g_apMapX86_FP_High[8];
  *
  * @internal
  */
-#ifndef DIS_CORE_ONLY
+#if DISOPCODE_FORMAT == 0
 # define OP(pszOpcode, idxParse1, idxParse2, idxParse3, opcode, param1, param2, param3, optype) \
     { pszOpcode, idxParse1, idxParse2, idxParse3, 0, opcode, param1, param2, param3, 0, 0, optype }
 # define OPVEX(pszOpcode, idxParse1, idxParse2, idxParse3, idxParse4, opcode, param1, param2, param3, param4, optype) \
     { pszOpcode, idxParse1, idxParse2, idxParse3, idxParse4, opcode, param1, param2, param3, param4, 0, optype | DISOPTYPE_SSE }
-#else
+
+#elif DISOPCODE_FORMAT == 16
 # define OP(pszOpcode, idxParse1, idxParse2, idxParse3, opcode, param1, param2, param3, optype) \
-    { idxParse1, idxParse2, idxParse3, 0, opcode, param1, param2, param3, 0, 0, optype }
+    { optype,                 opcode, idxParse1, idxParse2, param1, param2, idxParse3, param3, 0,      0         }
 # define OPVEX(pszOpcode, idxParse1, idxParse2, idxParse3, idxParse4, opcode, param1, param2, param3, param4, optype) \
-    { idxParse1, idxParse2, idxParse3, idxParse4, opcode, param1, param2, param3, param4, 0, optype | DISOPTYPE_SSE}
+    { optype | DISOPTYPE_SSE, opcode, idxParse1, idxParse2, param1, param2, idxParse3, param3, param4, idxParse4 }
+
+#elif DISOPCODE_FORMAT == 15
+# define OP(pszOpcode, idxParse1, idxParse2, idxParse3, opcode, param1, param2, param3, optype) \
+    { opcode, idxParse1, idxParse2, idxParse3, param1, param2, param3, optype,                 0,      0         }
+# define OPVEX(pszOpcode, idxParse1, idxParse2, idxParse3, idxParse4, opcode, param1, param2, param3, param4, optype) \
+    { opcode, idxParse1, idxParse2, idxParse3, param1, param2, param3, optype | DISOPTYPE_SSE, param4, idxParse4 }
+#else
+# error Unsupported DISOPCODE_FORMAT value
 #endif
 
 

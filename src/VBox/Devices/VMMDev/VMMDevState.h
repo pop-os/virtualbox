@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_VMMDev_VMMDevState_h
@@ -26,6 +36,7 @@
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdmifs.h>
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
+# include <VBox/vmm/pdmthread.h>
 # include <iprt/test.h>
 # include <VBox/VMMDevTesting.h>
 #endif
@@ -125,6 +136,11 @@ typedef struct VMMDEV
      *          the driver interfaces where we have to waste time digging out the
      *          PDMDEVINS structure. */
     PDMCRITSECT         CritSect;
+#if !defined(VBOX_WITHOUT_TESTING_FEATURES) || defined(DOXYGEN_RUNNING)
+    /** Read write critical section of lock testing.
+     * @remarks At the beginning to satisfy 64 byte alignment requirement.  */
+    PDMCRITSECTRW       CritSectRw;
+#endif
 
     /** mouse capabilities of host and guest */
     uint32_t            fMouseCapabilities;
@@ -259,13 +275,38 @@ typedef struct VMMDEV
 
     uint32_t            StatMemBalloonChunks;
 
+    /** @name Heartbeat
+     * @{ */
+    /** Timestamp of the last heartbeat from guest in nanosec. */
+    uint64_t volatile   nsLastHeartbeatTS;
+    /** Indicates whether we missed HB from guest on last check. */
+    bool volatile       fFlatlined;
+    /** Indicates whether heartbeat check is active. */
+    bool volatile       fHeartbeatActive;
+    /** Alignment padding. */
+    bool                afAlignment8[6];
+    /** Guest heartbeat interval in nanoseconds.
+     * This is the interval the guest is told to produce heartbeats at. */
+    uint64_t            cNsHeartbeatInterval;
+    /** The amount of time without a heartbeat (nanoseconds) before we
+     * conclude the guest is doing a Dixie Flatline (Neuromancer) impression. */
+    uint64_t            cNsHeartbeatTimeout;
+    /** Timer for signalling a flatlined guest. */
+    TMTIMERHANDLE       hFlatlinedTimer;
+    /** @} */
+
+    /** @name Testing
+     * @{ */
     /** Set if testing is enabled. */
     bool                fTestingEnabled;
     /** Set if testing the MMIO testing range is enabled. */
     bool                fTestingMMIO;
+#if defined(VBOX_WITHOUT_TESTING_FEATURES) && !defined(DOXYGEN_RUNNING)
     /** Alignment padding. */
-    bool                afPadding9[HC_ARCH_BITS == 32 ? 2 : 6];
-#ifndef VBOX_WITHOUT_TESTING_FEATURES
+    bool                afPadding9[2];
+#else
+    /** The amount of readable testing data (for query response). */
+    uint16_t            cbReadableTestingData;
     /** The high timestamp value. */
     uint32_t            u32TestingHighTimestamp;
     /** The current testing command (VMMDEV_TESTING_CMD_XXX). */
@@ -275,7 +316,8 @@ typedef struct VMMDEV
     /** For buffering the what comes in over the testing data port. */
     union
     {
-        char            padding[1024];
+        /** Plain byte view. */
+        uint8_t         ab[1024];
 
         /** VMMDEV_TESTING_CMD_INIT, VMMDEV_TESTING_CMD_SUB_NEW,
          *  VMMDEV_TESTING_CMD_FAILED. */
@@ -298,35 +340,58 @@ typedef struct VMMDEV
             char        szName[1024 - 8 - 4];
         } Value;
 
+        /** A 8-bit VMMDEV_TESTING_QUERY_CFG response. */
+        uint8_t         b;
+        /** A 32-bit VMMDEV_TESTING_QUERY_CFG response. */
+        uint32_t        u32;
+
         /** The read back register (VMMDEV_TESTING_MMIO_OFF_READBACK,
          *  VMMDEV_TESTING_MMIO_OFF_READBACK_R3). */
         uint8_t         abReadBack[VMMDEV_TESTING_READBACK_SIZE];
     } TestingData;
-
+    /** The locking testing control dword. */
+    union
+    {
+        /** Plain view. */
+        uint64_t        u64;
+        /** Plain 32-bit view. */
+        uint32_t        au32[2];
+        struct
+        {
+            /** bits 15:0: Number of microseconds to hold the lock. */
+            uint32_t    cUsHold : 16;
+            /** bits 31:16: Number of microseconds to wait before retaking the lock again. */
+            uint32_t    cUsBetween : 16;
+            /** bits 51:32: Kilo (1024) ticks the EMT should hold the lock for. */
+            uint32_t    cKiloTicksEmtHold : 20;
+            /** bits 57:52: Reserved MBZ. */
+            uint32_t    uReserved : 6;
+            /** bit 58: Thread takes lock in shared mode when set, exclusive when clear.  */
+            uint32_t    fThreadShared : 1;
+            /** bit 59: EMT takes lock in shared mode when set, exclusive when clear.  */
+            uint32_t    fEmtShared : 1;
+            /** bit 60: Use read/write critical section instead of regular.  */
+            uint32_t    fReadWriteSection : 1;
+            /** bit 61: EMT passes VINF_SUCCESS as rcBusy if set. */
+            uint32_t    fMustSucceed : 1;
+            /** bit 62: Thread pokes EMTs before releasing it when set. */
+            uint32_t    fPokeBeforeRelease : 1;
+            /** bit 63: Enabled/disabled. */
+            uint32_t    fEnabled : 1;
+        } s;
+    } TestingLockControl;
+    /** Event semaphore that the locking thread blocks. */
+    SUPSEMEVENT         hTestingLockEvt;
+# if HC_ARCH_BITS == 32
+    uint32_t            uPadding10;
+# endif
     /** Handle for the I/O ports used by the testing component. */
     IOMIOPORTHANDLE     hIoPortTesting;
     /** Handle for the MMIO region used by the testing component. */
     IOMMMIOHANDLE       hMmioTesting;
-#endif /* !VBOX_WITHOUT_TESTING_FEATURES */
-
-    /** @name Heartbeat
-     * @{ */
-    /** Timestamp of the last heartbeat from guest in nanosec. */
-    uint64_t volatile   nsLastHeartbeatTS;
-    /** Indicates whether we missed HB from guest on last check. */
-    bool volatile       fFlatlined;
-    /** Indicates whether heartbeat check is active. */
-    bool volatile       fHeartbeatActive;
-    /** Alignment padding. */
-    bool                afAlignment8[6];
-    /** Guest heartbeat interval in nanoseconds.
-     * This is the interval the guest is told to produce heartbeats at. */
-    uint64_t            cNsHeartbeatInterval;
-    /** The amount of time without a heartbeat (nanoseconds) before we
-     * conclude the guest is doing a Dixie Flatline (Neuromancer) impression. */
-    uint64_t            cNsHeartbeatTimeout;
-    /** Timer for signalling a flatlined guest. */
-    TMTIMERHANDLE       hFlatlinedTimer;
+    /** User defined configuration dwords. */
+    uint32_t            au32TestingCfgDwords[10];
+#endif /* !VBOX_WITHOUT_TESTING_FEATURES || DOXYGEN_RUNNING */
     /** @} */
 
     /** Handle for the backdoor logging I/O port. */
@@ -351,8 +416,23 @@ AssertCompileMemberAlignment(VMMDEV, enmCpuHotPlugEvent, 4);
 AssertCompileMemberAlignment(VMMDEV, aFacilityStatuses, 8);
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
 AssertCompileMemberAlignment(VMMDEV, TestingData.Value.u64Value, 8);
+AssertCompileMemberAlignment(VMMDEV, CritSectRw, 64);
 #endif
 
+
+/** @name VMMDev/HGCM accounting categories (indexes into VMMDEVR3::aHgcmAcc)
+ * @{  */
+/** Legacy, VMMDEV_REQUESTOR_USR_NOT_GIVEN, VMMDEV_REQUESTOR_USR_DRV,
+ *  VMMDEV_REQUESTOR_USR_DRV_OTHER. */
+#define VMMDEV_HGCM_CATEGORY_KERNEL   0
+/** VMMDEV_REQUESTOR_USR_ROOT, VMMDEV_REQUESTOR_USR_SYSTEM   */
+#define VMMDEV_HGCM_CATEGORY_ROOT     1
+/** VMMDEV_REQUESTOR_USR_RESERVED1, VMMDEV_REQUESTOR_USR_USER,
+ *  VMMDEV_REQUESTOR_USR_GUEST */
+#define VMMDEV_HGCM_CATEGORY_USER     2
+/** Array size. */
+#define VMMDEV_HGCM_CATEGORY_MAX      3
+/** @} */
 
 /**
  * State structure for the VMM device, ring-3 edition.
@@ -407,11 +487,11 @@ typedef struct VMMDEVR3
         uint64_t                    cbHeapBudgetConfig;
         /** The currently available heap budget.   */
         uint64_t                    cbHeapBudget;
-        /** Total sum of all heap usage.   */
-        STAMCOUNTER                 cbHeapTotal;
-        /** Total number of message. */
-        STAMCOUNTER                 cTotalMessages;
-    } aHgcmAcc[VMMDEV_REQUESTOR_USR_MASK + 1];
+        /** Message stats. */
+        STAMPROFILE                 StateMsgHeapUsage;
+        /** Budget overruns.   */
+        STAMCOUNTER                 StatBudgetOverruns;
+    } aHgcmAcc[VMMDEV_HGCM_CATEGORY_MAX];
     STAMPROFILE                     StatHgcmCmdArrival;
     STAMPROFILE                     StatHgcmCmdCompletion;
     STAMPROFILE                     StatHgcmCmdTotal;
@@ -438,6 +518,8 @@ typedef struct VMMDEVR3
     R3PTRTYPE(char *)               pszTestingXmlOutput;
     /** Testing instance for dealing with the output. */
     RTTEST                          hTestingTest;
+    /** The locking test thread (). */
+    PPDMTHREAD                      pTestingLockThread;
 #endif
 } VMMDEVR3;
 /** Pointer to the ring-3 VMM device state. */
@@ -481,7 +563,9 @@ void VMMDevCtlSetGuestFilterMask(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pT
 
 
 /** The saved state version. */
-#define VMMDEV_SAVED_STATE_VERSION                              VMMDEV_SAVED_STATE_VERSION_HGCM_PARAMS
+#define VMMDEV_SAVED_STATE_VERSION                              VMMDEV_SAVED_STATE_VERSION_DISPLAY_CHANGE_DATA
+/** The saved state version with display change data state. */
+#define VMMDEV_SAVED_STATE_VERSION_DISPLAY_CHANGE_DATA          18
 /** Updated HGCM commands. */
 #define VMMDEV_SAVED_STATE_VERSION_HGCM_PARAMS                  17
 /** The saved state version with heartbeat state. */

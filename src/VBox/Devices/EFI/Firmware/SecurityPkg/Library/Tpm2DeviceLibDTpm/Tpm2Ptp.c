@@ -2,6 +2,7 @@
   PTP (Platform TPM Profile) CRB (Command Response Buffer) interface used by dTPM2.0 library.
 
 Copyright (c) 2015 - 2018, Intel Corporation. All rights reserved.<BR>
+Copyright (c), Microsoft Corporation.
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -19,6 +20,8 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <IndustryStandard/TpmPtp.h>
 #include <IndustryStandard/TpmTis.h>
 
+#include "Tpm2DeviceLibDTpm.h"
+
 //
 // Execution of the command may take from several seconds to minutes for certain
 // commands, such as key generation.
@@ -26,7 +29,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #define PTP_TIMEOUT_MAX             (90000 * 1000)  // 90s
 
 //
-// Max TPM command/reponse length
+// Max TPM command/response length
 //
 #define TPMCMDBUFLENGTH             0x500
 
@@ -174,7 +177,7 @@ PtpCrbTpmCommand (
   // STEP 0:
   // if CapCRbIdelByPass == 0, enforce Idle state before sending command
   //
-  if (PcdGet8(PcdCRBIdleByPass) == 0 && (MmioRead32((UINTN)&CrbReg->CrbControlStatus) & PTP_CRB_CONTROL_AREA_STATUS_TPM_IDLE) == 0){
+  if (GetCachedIdleByPass () == 0 && (MmioRead32((UINTN)&CrbReg->CrbControlStatus) & PTP_CRB_CONTROL_AREA_STATUS_TPM_IDLE) == 0){
     Status = PtpCrbWaitRegisterBits (
               &CrbReg->CrbControlStatus,
               PTP_CRB_CONTROL_AREA_STATUS_TPM_IDLE,
@@ -290,7 +293,7 @@ PtpCrbTpmCommand (
     DEBUG ((EFI_D_VERBOSE, "\n"));
   );
   //
-  // Check the reponse data header (tag, parasize and returncode)
+  // Check the response data header (tag, parasize and returncode)
   //
   CopyMem (&Data16, BufferOut, sizeof (UINT16));
   // TPM2 should not use this RSP_COMMAND
@@ -327,10 +330,10 @@ PtpCrbTpmCommand (
 
 GoReady_Exit:
   //
-  // Goto Ready State if command is completed succesfully and TPM support IdleBypass
+  // Goto Ready State if command is completed successfully and TPM support IdleBypass
   // If not supported. flow down to GoIdle
   //
-  if (PcdGet8(PcdCRBIdleByPass) == 1) {
+  if (GetCachedIdleByPass () == 1) {
     MmioWrite32((UINTN)&CrbReg->CrbControlRequest, PTP_CRB_CONTROL_AREA_REQUEST_COMMAND_READY);
     return Status;
   }
@@ -347,10 +350,10 @@ GoIdle_Exit:
   MmioWrite32((UINTN)&CrbReg->CrbControlRequest, PTP_CRB_CONTROL_AREA_REQUEST_GO_IDLE);
 
   //
-  // Only enforce Idle state transition if execution fails when CRBIndleBypass==1
+  // Only enforce Idle state transition if execution fails when CRBIdleBypass==1
   // Leave regular Idle delay at the beginning of next command execution
   //
-  if (PcdGet8(PcdCRBIdleByPass) == 1){
+  if (GetCachedIdleByPass () == 1){
     Status = PtpCrbWaitRegisterBits (
                &CrbReg->CrbControlStatus,
                PTP_CRB_CONTROL_AREA_STATUS_TPM_IDLE,
@@ -519,7 +522,7 @@ DumpPtpInfo (
   Vid = 0xFFFF;
   Did = 0xFFFF;
   Rid = 0xFF;
-  PtpInterface = PcdGet8(PcdActiveTpmInterfaceType);
+  PtpInterface = GetCachedPtpInterface ();
   DEBUG ((EFI_D_INFO, "PtpInterface - %x\n", PtpInterface));
   switch (PtpInterface) {
   case Tpm2PtpInterfaceCrb:
@@ -564,7 +567,7 @@ DTpm2SubmitCommand (
 {
   TPM2_PTP_INTERFACE_TYPE  PtpInterface;
 
-  PtpInterface = PcdGet8(PcdActiveTpmInterfaceType);
+  PtpInterface = GetCachedPtpInterface ();
   switch (PtpInterface) {
   case Tpm2PtpInterfaceCrb:
     return PtpCrbTpmCommand (
@@ -603,7 +606,7 @@ DTpm2RequestUseTpm (
 {
   TPM2_PTP_INTERFACE_TYPE  PtpInterface;
 
-  PtpInterface = PcdGet8(PcdActiveTpmInterfaceType);
+  PtpInterface = GetCachedPtpInterface ();
   switch (PtpInterface) {
   case Tpm2PtpInterfaceCrb:
     return PtpCrbRequestUseTpm ((PTP_CRB_REGISTERS_PTR) (UINTN) PcdGet64 (PcdTpmBaseAddress));

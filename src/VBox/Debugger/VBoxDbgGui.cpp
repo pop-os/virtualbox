@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -25,14 +35,18 @@
 #include <iprt/errcore.h>
 
 #include "VBoxDbgGui.h"
-#include <QDesktopWidget>
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+# include <QScreen>
+#else
+# include <QDesktopWidget>
+#endif
 #include <QApplication>
 
 
 
 VBoxDbgGui::VBoxDbgGui() :
     m_pDbgStats(NULL), m_pDbgConsole(NULL), m_pSession(NULL), m_pConsole(NULL),
-    m_pMachineDebugger(NULL), m_pMachine(NULL), m_pUVM(NULL),
+    m_pMachineDebugger(NULL), m_pMachine(NULL), m_pUVM(NULL), m_pVMM(NULL),
     m_pParent(NULL), m_pMenu(NULL),
     m_x(0), m_y(0), m_cx(0), m_cy(0), m_xDesktop(0), m_yDesktop(0), m_cxDesktop(0), m_cyDesktop(0)
 {
@@ -40,12 +54,13 @@ VBoxDbgGui::VBoxDbgGui() :
 }
 
 
-int VBoxDbgGui::init(PUVM pUVM)
+int VBoxDbgGui::init(PUVM pUVM, PCVMMR3VTABLE pVMM)
 {
     /*
      * Set the VM handle and update the desktop size.
      */
     m_pUVM = pUVM; /* Note! This eats the incoming reference to the handle! */
+    m_pVMM = pVMM;
     updateDesktopSize();
 
     return VINF_SUCCESS;
@@ -74,16 +89,19 @@ int VBoxDbgGui::init(ISession *pSession)
                 /*
                  * Get the VM handle.
                  */
-                LONG64 llVM;
-                hrc = m_pMachineDebugger->COMGETTER(VM)(&llVM);
+                LONG64 llUVM = 0;
+                LONG64 llVMMFunctionTable = 0;
+                hrc = m_pMachineDebugger->GetUVMAndVMMFunctionTable((int64_t)VMMR3VTABLE_MAGIC_VERSION,
+                                                                    &llVMMFunctionTable, &llUVM);
                 if (SUCCEEDED(hrc))
                 {
-                    PUVM pUVM = (PUVM)(intptr_t)llVM;
-                    rc = init(pUVM);
+                    PUVM          pUVM = (PUVM)(intptr_t)llUVM;
+                    PCVMMR3VTABLE pVMM = (PCVMMR3VTABLE)(intptr_t)llVMMFunctionTable;
+                    rc = init(pUVM, pVMM);
                     if (RT_SUCCESS(rc))
                         return rc;
 
-                    VMR3ReleaseUVM(pUVM);
+                    pVMM->pfnVMR3ReleaseUVM(pUVM);
                 }
 
                 /* damn, failure! */
@@ -141,8 +159,10 @@ VBoxDbgGui::~VBoxDbgGui()
 
     if (m_pUVM)
     {
-        VMR3ReleaseUVM(m_pUVM);
+        Assert(m_pVMM);
+        m_pVMM->pfnVMR3ReleaseUVM(m_pUVM);
         m_pUVM = NULL;
+        m_pVMM = NULL;
     }
 }
 
@@ -161,11 +181,14 @@ VBoxDbgGui::setMenu(QMenu *pMenu)
 
 
 int
-VBoxDbgGui::showStatistics()
+VBoxDbgGui::showStatistics(const char *pszFilter, const char *pszExpand)
 {
     if (!m_pDbgStats)
     {
-        m_pDbgStats = new VBoxDbgStats(this, "*", 2, m_pParent);
+        m_pDbgStats = new VBoxDbgStats(this,
+                                       pszFilter && *pszFilter ? pszFilter :  "*",
+                                       pszExpand && *pszExpand ? pszExpand : NULL,
+                                       2, m_pParent);
         connect(m_pDbgStats, SIGNAL(destroyed(QObject *)), this, SLOT(notifyChildDestroyed(QObject *)));
         repositionStatistics();
     }
@@ -224,9 +247,15 @@ void
 VBoxDbgGui::updateDesktopSize()
 {
     QRect Rct(0, 0, 1600, 1200);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+    QScreen *pScreen = QApplication::screenAt(QPoint(m_x, m_y));
+    if (pScreen)
+        Rct = pScreen->availableGeometry();
+#else
     QDesktopWidget *pDesktop = QApplication::desktop();
     if (pDesktop)
         Rct = pDesktop->availableGeometry(QPoint(m_x, m_y));
+#endif
     m_xDesktop = Rct.x();
     m_yDesktop = Rct.y();
     m_cxDesktop = Rct.width();
@@ -237,8 +266,9 @@ VBoxDbgGui::updateDesktopSize()
 void
 VBoxDbgGui::adjustRelativePos(int x, int y, unsigned cx, unsigned cy)
 {
-    /* Disregard a width less than 640 since it will mess up the console. */
-    if (cx < 640)
+    /* Disregard a width less than 640 since it will mess up the console,
+     * but only if previos width was already initialized.. */
+    if ((cx < 640) && (m_cx > 0))
         cx = m_cx;
 
     const bool fResize = cx != m_cx || cy != m_cy;

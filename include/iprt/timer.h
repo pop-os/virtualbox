@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_timer_h
@@ -80,7 +90,7 @@ typedef struct RTTIMER   *PRTTIMER;
  *                      callback after the timer was started. For omni timers
  *                      this will be 1 when a cpu comes back online.
  */
-typedef DECLCALLBACK(void) FNRTTIMER(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
+typedef DECLCALLBACKTYPE(void, FNRTTIMER,(PRTTIMER pTimer, void *pvUser, uint64_t iTick));
 /** Pointer to FNRTTIMER() function. */
 typedef FNRTTIMER *PFNRTTIMER;
 
@@ -140,7 +150,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
 #define RTTIMER_FLAGS_CPU(iCpu)     ( (iCpu) | RTTIMER_FLAGS_CPU_SPECIFIC )
 /** Macro that validates the flags. */
 #define RTTIMER_FLAGS_ARE_VALID(fFlags) \
-    ( !((fFlags) & ~((fFlags) & RTTIMER_FLAGS_CPU_SPECIFIC ? UINT32_C(0x3ffff) : UINT32_C(0x30000))) )
+    ( !((fFlags) & ((fFlags) & RTTIMER_FLAGS_CPU_SPECIFIC ? ~UINT32_C(0x3ffff) : ~UINT32_C(0x30000))) )
 /** @} */
 
 /**
@@ -289,7 +299,7 @@ RTDECL(bool) RTTimerCanDoHighResolution(void);
  *                      callback after the timer was started. Will jump if we've
  *                      skipped ticks when lagging behind.
  */
-typedef DECLCALLBACK(void) FNRTTIMERLR(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick);
+typedef DECLCALLBACKTYPE(void, FNRTTIMERLR,(RTTIMERLR hTimerLR, void *pvUser, uint64_t iTick));
 /** Pointer to FNRTTIMER() function. */
 typedef FNRTTIMERLR *PFNRTTIMERLR;
 

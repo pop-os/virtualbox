@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_RECORDINGSCREENSETTINGS
@@ -303,20 +313,20 @@ HRESULT RecordingScreenSettings::setEnabled(BOOL enabled)
     return S_OK;
 }
 
-HRESULT RecordingScreenSettings::getFeatures(ULONG *aFeatures)
+HRESULT RecordingScreenSettings::getFeatures(std::vector<RecordingFeature_T> &aFeatures)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aFeatures = 0;
+    aFeatures.clear();
 
     settings::RecordingFeatureMap::const_iterator itFeature = m->bd->featureMap.begin();
     while (itFeature != m->bd->featureMap.end())
     {
         if (itFeature->second) /* Is feature enable? */
-            *aFeatures |= (ULONG)itFeature->first;
+            aFeatures.push_back(itFeature->first);
 
         ++itFeature;
     }
@@ -324,7 +334,7 @@ HRESULT RecordingScreenSettings::getFeatures(ULONG *aFeatures)
     return S_OK;
 }
 
-HRESULT RecordingScreenSettings::setFeatures(ULONG aFeatures)
+HRESULT RecordingScreenSettings::setFeatures(const std::vector<RecordingFeature_T> &aFeatures)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -339,10 +349,22 @@ HRESULT RecordingScreenSettings::setFeatures(ULONG aFeatures)
     settings::RecordingFeatureMap featureMapOld = m->bd->featureMap;
     m->bd->featureMap.clear();
 
-    if (aFeatures & RecordingFeature_Audio)
-        m->bd->featureMap[RecordingFeature_Audio] = true;
-    if (aFeatures & RecordingFeature_Video)
-        m->bd->featureMap[RecordingFeature_Video] = true;
+    for (size_t i = 0; i < aFeatures.size(); i++)
+    {
+        switch (aFeatures[i])
+        {
+            case RecordingFeature_Audio:
+                m->bd->featureMap[RecordingFeature_Audio] = true;
+                break;
+
+            case RecordingFeature_Video:
+                m->bd->featureMap[RecordingFeature_Video] = true;
+                break;
+
+            default:
+                break;
+        }
+    }
 
     if (m->bd->featureMap != featureMapOld)
     {
@@ -545,9 +567,7 @@ HRESULT RecordingScreenSettings::setOptions(const com::Utf8Str &aOptions)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    int vrc = RecordingScreenSettings::i_parseOptionsString(aOptions, *m->bd.data());
-    if (RT_FAILURE(vrc))
-        return setError(E_INVALIDARG, tr("Invalid option specified"));
+    /* Note: Parsing and validation is done at codec level. */
 
     m->bd.backup();
     m->bd->strOptions = aOptions;
@@ -566,7 +586,7 @@ HRESULT RecordingScreenSettings::getAudioCodec(RecordingAudioCodec_T *aCodec)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aCodec = m->bd->Audio.enmAudioCodec;
+    *aCodec = m->bd->Audio.enmCodec;
 
     return S_OK;
 }
@@ -579,15 +599,15 @@ HRESULT RecordingScreenSettings::setAudioCodec(RecordingAudioCodec_T aCodec)
     if (!m->pParent->i_canChangeSettings())
         return setError(E_INVALIDARG, tr("Cannot change audio codec while recording is enabled"));
 
-    if (aCodec != RecordingAudioCodec_Opus)
+    if (aCodec != RecordingAudioCodec_OggVorbis)
         return setError(E_INVALIDARG, tr("Audio codec not supported"));
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (m->bd->Audio.enmAudioCodec != aCodec)
+    if (m->bd->Audio.enmCodec != aCodec)
     {
         m->bd.backup();
-        m->bd->Audio.enmAudioCodec = aCodec;
+        m->bd->Audio.enmCodec = aCodec;
 
         alock.release();
 
@@ -595,6 +615,69 @@ HRESULT RecordingScreenSettings::setAudioCodec(RecordingAudioCodec_T aCodec)
     }
 
     return S_OK;
+}
+
+HRESULT RecordingScreenSettings::getAudioDeadline(RecordingCodecDeadline_T *aDeadline)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aDeadline = m->bd->Audio.enmDeadline;
+
+    return S_OK;
+}
+
+HRESULT RecordingScreenSettings::setAudioDeadline(RecordingCodecDeadline_T aDeadline)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    if (!m->pParent->i_canChangeSettings())
+        return setError(E_INVALIDARG, tr("Cannot change audio deadline while recording is enabled"));
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (m->bd->Audio.enmDeadline != aDeadline)
+    {
+        m->bd.backup();
+        m->bd->Audio.enmDeadline = aDeadline;
+
+        alock.release();
+
+        m->pParent->i_onSettingsChanged();
+    }
+
+    return S_OK;
+}
+
+HRESULT RecordingScreenSettings::getAudioRateControlMode(RecordingRateControlMode_T *aMode)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aMode = RecordingRateControlMode_VBR; /** @todo Implement CBR. */
+
+    return S_OK;
+}
+
+HRESULT RecordingScreenSettings::setAudioRateControlMode(RecordingRateControlMode_T aMode)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    if (!m->pParent->i_canChangeSettings())
+        return setError(E_INVALIDARG, tr("Cannot change audio rate control mode while recording is enabled"));
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /** @todo Implement this. */
+    RT_NOREF(aMode);
+
+    return E_NOTIMPL;
 }
 
 HRESULT RecordingScreenSettings::getAudioHz(ULONG *aHz)
@@ -740,6 +823,41 @@ HRESULT RecordingScreenSettings::setVideoCodec(RecordingVideoCodec_T aCodec)
     return S_OK;
 }
 
+HRESULT RecordingScreenSettings::getVideoDeadline(RecordingCodecDeadline_T *aDeadline)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aDeadline = m->bd->Video.enmDeadline;
+
+    return S_OK;
+}
+
+HRESULT RecordingScreenSettings::setVideoDeadline(RecordingCodecDeadline_T aDeadline)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    if (!m->pParent->i_canChangeSettings())
+        return setError(E_INVALIDARG, tr("Cannot change video deadline while recording is enabled"));
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (m->bd->Video.enmDeadline != aDeadline)
+    {
+        m->bd.backup();
+        m->bd->Video.enmDeadline = aDeadline;
+
+        alock.release();
+
+        m->pParent->i_onSettingsChanged();
+    }
+
+    return S_OK;
+}
+
 HRESULT RecordingScreenSettings::getVideoWidth(ULONG *aVideoWidth)
 {
     AutoCaller autoCaller(this);
@@ -845,19 +963,19 @@ HRESULT RecordingScreenSettings::setVideoRate(ULONG aVideoRate)
     return S_OK;
 }
 
-HRESULT RecordingScreenSettings::getVideoRateControlMode(RecordingVideoRateControlMode_T *aMode)
+HRESULT RecordingScreenSettings::getVideoRateControlMode(RecordingRateControlMode_T *aMode)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aMode = RecordingVideoRateControlMode_CBR; /** @todo Implement VBR. */
+    *aMode = RecordingRateControlMode_VBR; /** @todo Implement CBR. */
 
     return S_OK;
 }
 
-HRESULT RecordingScreenSettings::setVideoRateControlMode(RecordingVideoRateControlMode_T aMode)
+HRESULT RecordingScreenSettings::setVideoRateControlMode(RecordingRateControlMode_T aMode)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -908,25 +1026,25 @@ HRESULT RecordingScreenSettings::setVideoFPS(ULONG aVideoFPS)
     return S_OK;
 }
 
-HRESULT RecordingScreenSettings::getVideoScalingMethod(RecordingVideoScalingMethod_T *aMode)
+HRESULT RecordingScreenSettings::getVideoScalingMode(RecordingVideoScalingMode_T *aMode)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aMode = RecordingVideoScalingMethod_None; /** @todo Implement this. */
+    *aMode = RecordingVideoScalingMode_None; /** @todo Implement this. */
 
     return S_OK;
 }
 
-HRESULT RecordingScreenSettings::setVideoScalingMethod(RecordingVideoScalingMethod_T aMode)
+HRESULT RecordingScreenSettings::setVideoScalingMode(RecordingVideoScalingMode_T aMode)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     if (!m->pParent->i_canChangeSettings())
-        return setError(E_INVALIDARG, tr("Cannot change video rate scaling method while recording is enabled"));
+        return setError(E_INVALIDARG, tr("Cannot change video scaling mode while recording is enabled"));
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -947,10 +1065,6 @@ int RecordingScreenSettings::i_initInternal(void)
 
     i_reference();
 
-    int vrc = i_parseOptionsString(m->bd->strOptions, *m->bd.data());
-    if (RT_FAILURE(vrc))
-        return vrc;
-
     switch (m->bd->enmDest)
     {
         case RecordingDestination_File:
@@ -964,7 +1078,7 @@ int RecordingScreenSettings::i_initInternal(void)
             break;
     }
 
-    return vrc;
+    return VINF_SUCCESS;
 }
 
 
@@ -1134,81 +1248,3 @@ int32_t RecordingScreenSettings::i_getReferences(void)
 {
     return ASMAtomicReadS32(&m->cRefs);
 }
-
-/**
- * Parses a recording screen options string and stores the parsed result in the specified screen settings.
- *
- * @returns IPRT status code.
- * @param   strOptions          Options string to parse.
- * @param   screenSettings      Where to store the parsed result into.
- */
-/* static */
-int RecordingScreenSettings::i_parseOptionsString(const com::Utf8Str &strOptions,
-                                                  settings::RecordingScreenSettings &screenSettings)
-{
-    /*
-     * Parse options string.
-     */
-    size_t pos = 0;
-    com::Utf8Str key, value;
-    while ((pos = strOptions.parseKeyValue(key, value, pos)) != com::Utf8Str::npos)
-    {
-        if (key.compare("vc_quality", Utf8Str::CaseInsensitive) == 0)
-        {
-#ifdef VBOX_WITH_LIBVPX
-            if (value.compare("realtime", Utf8Str::CaseInsensitive) == 0)
-                mVideoRecCfg.Video.Codec.VPX.uEncoderDeadline = VPX_DL_REALTIME;
-            else if (value.compare("good", Utf8Str::CaseInsensitive) == 0)
-                mVideoRecCfg.Video.Codec.VPX.uEncoderDeadline = 1000000 / mVideoRecCfg.Video.uFPS;
-            else if (value.compare("best", Utf8Str::CaseInsensitive) == 0)
-                mVideoRecCfg.Video.Codec.VPX.uEncoderDeadline = VPX_DL_BEST_QUALITY;
-            else
-            {
-                mVideoRecCfg.Video.Codec.VPX.uEncoderDeadline = value.toUInt32();
-            }
-#endif
-        }
-        else if (key.compare("vc_enabled", Utf8Str::CaseInsensitive) == 0)
-        {
-            if (value.compare("false", Utf8Str::CaseInsensitive) == 0)
-            {
-                screenSettings.featureMap[RecordingFeature_Video] = false;
-            }
-        }
-        else if (key.compare("ac_enabled", Utf8Str::CaseInsensitive) == 0)
-        {
-#ifdef VBOX_WITH_AUDIO_RECORDING
-            if (value.compare("true", Utf8Str::CaseInsensitive) == 0)
-            {
-                screenSettings.featureMap[RecordingFeature_Audio] = true;
-            }
-#endif
-        }
-        else if (key.compare("ac_profile", Utf8Str::CaseInsensitive) == 0)
-        {
-#ifdef VBOX_WITH_AUDIO_RECORDING
-            if (value.compare("low", Utf8Str::CaseInsensitive) == 0)
-            {
-                screenSettings.Audio.uHz       = 8000;
-                screenSettings.Audio.cBits     = 16;
-                screenSettings.Audio.cChannels = 1;
-            }
-            else if (value.startsWith("med" /* "med[ium]" */, Utf8Str::CaseInsensitive) == 0)
-            {
-                /* Stay with the default set above. */
-            }
-            else if (value.compare("high", Utf8Str::CaseInsensitive) == 0)
-            {
-                screenSettings.Audio.uHz       = 48000;
-                screenSettings.Audio.cBits     = 16;
-                screenSettings.Audio.cChannels = 2;
-            }
-#endif
-        }
-        /* else just ignore. */
-
-    } /* while */
-
-    return VINF_SUCCESS;
-}
-

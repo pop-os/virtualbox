@@ -1,6 +1,6 @@
 ## @ FspTool.py
 #
-# Copyright (c) 2015 - 2019, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2015 - 2020, Intel Corporation. All rights reserved.<BR>
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 #
 ##
@@ -428,7 +428,7 @@ class FirmwareFile:
         ffssize = len(self.FfsData)
         offset  = sizeof(self.FfsHdr)
         if self.FfsHdr.Name != '\xff' * 16:
-            while offset < ffssize:
+            while offset < (ffssize - sizeof (EFI_COMMON_SECTION_HEADER)):
                 sechdr = EFI_COMMON_SECTION_HEADER.from_buffer (self.FfsData, offset)
                 sec = Section (offset, self.FfsData[offset:offset + int(sechdr.Size)])
                 self.SecList.append(sec)
@@ -453,7 +453,7 @@ class FirmwareVolume:
         else:
             offset = self.FvHdr.HeaderLength
         offset = AlignPtr(offset)
-        while offset < fvsize:
+        while offset < (fvsize - sizeof (EFI_FFS_FILE_HEADER)):
             ffshdr = EFI_FFS_FILE_HEADER.from_buffer (self.FvData, offset)
             if (ffshdr.Name == '\xff' * 16) and (int(ffshdr.Size) == 0xFFFFFF):
                 offset = fvsize
@@ -515,7 +515,7 @@ class FirmwareDevice:
         offset = 0
         fdsize = len(self.FdData)
         self.FvList  = []
-        while offset < fdsize:
+        while offset < (fdsize - sizeof (EFI_FIRMWARE_VOLUME_HEADER)):
             fvh = EFI_FIRMWARE_VOLUME_HEADER.from_buffer (self.FdData, offset)
             if b'_FVH' != fvh.Signature:
                 raise Exception("ERROR: Invalid FV header !")
@@ -619,10 +619,10 @@ class PeTeImage:
             rsize   = self.TeHdr.DataDirectoryBaseReloc.Size
             roffset = sizeof(self.TeHdr) - self.TeHdr.StrippedSize + self.TeHdr.DataDirectoryBaseReloc.VirtualAddress
         else:
-            if self.PeHdr.OptionalHeader.PeOptHdr.Magic == 0x10b: # PE32 image
-                rsize   = self.PeHdr.OptionalHeader.PeOptHdr.DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY.BASERELOC].Size
-                roffset = self.PeHdr.OptionalHeader.PeOptHdr.DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY.BASERELOC].VirtualAddress
-            if self.PeHdr.OptionalHeader.PeOptHdr.Magic == 0x20b: # PE32+ image
+            # Assuming PE32 image type (self.PeHdr.OptionalHeader.PeOptHdr.Magic == 0x10b)
+            rsize   = self.PeHdr.OptionalHeader.PeOptHdr.DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY.BASERELOC].Size
+            roffset = self.PeHdr.OptionalHeader.PeOptHdr.DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY.BASERELOC].VirtualAddress
+            if self.PeHdr.OptionalHeader.PePlusOptHdr.Magic == 0x20b: # PE32+ image
                 rsize   = self.PeHdr.OptionalHeader.PePlusOptHdr.DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY.BASERELOC].Size
                 roffset = self.PeHdr.OptionalHeader.PePlusOptHdr.DataDirectory[EFI_IMAGE_DIRECTORY_ENTRY.BASERELOC].VirtualAddress
 
@@ -677,8 +677,12 @@ class PeTeImage:
         else:
             offset  = self.Offset + self.DosHdr.e_lfanew
             offset += EFI_IMAGE_NT_HEADERS32.OptionalHeader.offset
-            offset += EFI_IMAGE_OPTIONAL_HEADER32.ImageBase.offset
-            size    = EFI_IMAGE_OPTIONAL_HEADER32.ImageBase.size
+            if self.PeHdr.OptionalHeader.PePlusOptHdr.Magic == 0x20b: # PE32+ image
+                offset += EFI_IMAGE_OPTIONAL_HEADER32_PLUS.ImageBase.offset
+                size    = EFI_IMAGE_OPTIONAL_HEADER32_PLUS.ImageBase.size
+            else:
+                offset += EFI_IMAGE_OPTIONAL_HEADER32.ImageBase.offset
+                size    = EFI_IMAGE_OPTIONAL_HEADER32.ImageBase.size
 
         value  = Bytes2Val(fdbin[offset:offset+size]) + delta
         fdbin[offset:offset+size] = Val2Bytes(value, size)
@@ -838,7 +842,7 @@ def RebaseFspBin (FspBinary, FspComponent, FspBase, OutputDir, OutputFile):
 
 def main ():
     parser     = argparse.ArgumentParser()
-    subparsers = parser.add_subparsers(title='commands')
+    subparsers = parser.add_subparsers(title='commands', dest="which")
 
     parser_rebase  = subparsers.add_parser('rebase',  help='rebase a FSP into a new base address')
     parser_rebase.set_defaults(which='rebase')
@@ -880,7 +884,7 @@ def main ():
     elif args.which == 'info':
         ShowFspInfo (args.FspBinary)
     else:
-        pass
+        parser.print_help()
 
     return 0
 

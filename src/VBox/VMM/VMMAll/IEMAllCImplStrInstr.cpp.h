@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -145,12 +155,12 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_repe_cmps_op,OP_SIZE,_addr,ADDR_SIZE), uint8
     IEM_CTX_IMPORT_RET(pVCpu, CPUMCTX_EXTRN_SREG_FROM_IDX(iEffSeg) | CPUMCTX_EXTRN_ES);
 
     PCCPUMSELREGHID pSrc1Hid     = iemSRegGetHid(pVCpu, iEffSeg);
-    uint64_t        uSrc1Base;
+    uint64_t        uSrc1Base    = 0; /* gcc may not be used uninitialized */
     VBOXSTRICTRC    rcStrict     = iemMemSegCheckReadAccessEx(pVCpu, pSrc1Hid, iEffSeg, &uSrc1Base);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
 
-    uint64_t        uSrc2Base;
+    uint64_t        uSrc2Base    = 0; /* gcc may not be used uninitialized */
     rcStrict = iemMemSegCheckReadAccessEx(pVCpu, iemSRegUpdateHid(pVCpu, &pVCpu->cpum.GstCtx.es), X86_SREG_ES, &uSrc2Base);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -170,10 +180,10 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_repe_cmps_op,OP_SIZE,_addr,ADDR_SIZE), uint8
          */
         ADDR2_TYPE  uVirtSrc1Addr = uSrc1AddrReg + (ADDR2_TYPE)uSrc1Base;
         ADDR2_TYPE  uVirtSrc2Addr = uSrc2AddrReg + (ADDR2_TYPE)uSrc2Base;
-        uint32_t    cLeftSrc1Page = (PAGE_SIZE - (uVirtSrc1Addr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftSrc1Page = (GUEST_PAGE_SIZE - (uVirtSrc1Addr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftSrc1Page > uCounterReg)
             cLeftSrc1Page = uCounterReg;
-        uint32_t    cLeftSrc2Page = (PAGE_SIZE - (uVirtSrc2Addr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftSrc2Page = (GUEST_PAGE_SIZE - (uVirtSrc2Addr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         uint32_t    cLeftPage     = RT_MIN(cLeftSrc1Page, cLeftSrc2Page);
 
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -314,13 +324,13 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_repne_cmps_op,OP_SIZE,_addr,ADDR_SIZE), uint
 
     IEM_CTX_IMPORT_RET(pVCpu, CPUMCTX_EXTRN_SREG_FROM_IDX(iEffSeg) | CPUMCTX_EXTRN_ES);
 
-    PCCPUMSELREGHID pSrc1Hid = iemSRegGetHid(pVCpu, iEffSeg);
-    uint64_t        uSrc1Base;
+    PCCPUMSELREGHID pSrc1Hid     = iemSRegGetHid(pVCpu, iEffSeg);
+    uint64_t        uSrc1Base    = 0; /* gcc may not be used uninitialized */;
     VBOXSTRICTRC rcStrict = iemMemSegCheckReadAccessEx(pVCpu, pSrc1Hid, iEffSeg, &uSrc1Base);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
 
-    uint64_t        uSrc2Base;
+    uint64_t        uSrc2Base    = 0; /* gcc may not be used uninitialized */
     rcStrict = iemMemSegCheckReadAccessEx(pVCpu, iemSRegUpdateHid(pVCpu, &pVCpu->cpum.GstCtx.es), X86_SREG_ES, &uSrc2Base);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -340,10 +350,10 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_repne_cmps_op,OP_SIZE,_addr,ADDR_SIZE), uint
          */
         ADDR2_TYPE  uVirtSrc1Addr = uSrc1AddrReg + (ADDR2_TYPE)uSrc1Base;
         ADDR2_TYPE  uVirtSrc2Addr = uSrc2AddrReg + (ADDR2_TYPE)uSrc2Base;
-        uint32_t    cLeftSrc1Page = (PAGE_SIZE - (uVirtSrc1Addr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftSrc1Page = (GUEST_PAGE_SIZE - (uVirtSrc1Addr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftSrc1Page > uCounterReg)
             cLeftSrc1Page = uCounterReg;
-        uint32_t    cLeftSrc2Page = (PAGE_SIZE - (uVirtSrc2Addr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftSrc2Page = (GUEST_PAGE_SIZE - (uVirtSrc2Addr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         uint32_t    cLeftPage = RT_MIN(cLeftSrc1Page, cLeftSrc2Page);
 
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -483,7 +493,7 @@ IEM_CIMPL_DEF_0(RT_CONCAT4(iemCImpl_repe_scas_,OP_rAX,_m,ADDR_SIZE))
     }
 
     IEM_CTX_IMPORT_RET(pVCpu, CPUMCTX_EXTRN_ES);
-    uint64_t        uBaseAddr;
+    uint64_t        uBaseAddr   = 0; /* gcc may not be used uninitialized */
     VBOXSTRICTRC rcStrict = iemMemSegCheckReadAccessEx(pVCpu, iemSRegUpdateHid(pVCpu, &pVCpu->cpum.GstCtx.es), X86_SREG_ES, &uBaseAddr);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -502,7 +512,7 @@ IEM_CIMPL_DEF_0(RT_CONCAT4(iemCImpl_repe_scas_,OP_rAX,_m,ADDR_SIZE))
          * Do segmentation and virtual page stuff.
          */
         ADDR2_TYPE  uVirtAddr = uAddrReg + (ADDR2_TYPE)uBaseAddr;
-        uint32_t    cLeftPage = (PAGE_SIZE - (uVirtAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftPage = (GUEST_PAGE_SIZE - (uVirtAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftPage > uCounterReg)
             cLeftPage = uCounterReg;
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -615,7 +625,7 @@ IEM_CIMPL_DEF_0(RT_CONCAT4(iemCImpl_repne_scas_,OP_rAX,_m,ADDR_SIZE))
     }
 
     IEM_CTX_IMPORT_RET(pVCpu, CPUMCTX_EXTRN_ES);
-    uint64_t        uBaseAddr;
+    uint64_t        uBaseAddr   = 0; /* gcc may not be used uninitialized */
     VBOXSTRICTRC rcStrict = iemMemSegCheckReadAccessEx(pVCpu, iemSRegUpdateHid(pVCpu, &pVCpu->cpum.GstCtx.es), X86_SREG_ES, &uBaseAddr);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -634,7 +644,7 @@ IEM_CIMPL_DEF_0(RT_CONCAT4(iemCImpl_repne_scas_,OP_rAX,_m,ADDR_SIZE))
          * Do segmentation and virtual page stuff.
          */
         ADDR2_TYPE  uVirtAddr = uAddrReg + (ADDR2_TYPE)uBaseAddr;
-        uint32_t    cLeftPage = (PAGE_SIZE - (uVirtAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftPage = (GUEST_PAGE_SIZE - (uVirtAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftPage > uCounterReg)
             cLeftPage = uCounterReg;
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -749,13 +759,13 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_movs_op,OP_SIZE,_addr,ADDR_SIZE), uint8_
 
     IEM_CTX_IMPORT_RET(pVCpu, CPUMCTX_EXTRN_SREG_FROM_IDX(iEffSeg) | CPUMCTX_EXTRN_ES);
 
-    PCCPUMSELREGHID pSrcHid = iemSRegGetHid(pVCpu, iEffSeg);
-    uint64_t        uSrcBase;
+    PCCPUMSELREGHID pSrcHid   = iemSRegGetHid(pVCpu, iEffSeg);
+    uint64_t        uSrcBase  = 0; /* gcc may not be used uninitialized */
     VBOXSTRICTRC rcStrict = iemMemSegCheckReadAccessEx(pVCpu, pSrcHid, iEffSeg, &uSrcBase);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
 
-    uint64_t        uDstBase;
+    uint64_t        uDstBase  = 0; /* gcc may not be used uninitialized */
     rcStrict = iemMemSegCheckWriteAccessEx(pVCpu, iemSRegUpdateHid(pVCpu, &pVCpu->cpum.GstCtx.es), X86_SREG_ES, &uDstBase);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -783,10 +793,10 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_movs_op,OP_SIZE,_addr,ADDR_SIZE), uint8_
          */
         ADDR2_TYPE  uVirtSrcAddr = uSrcAddrReg + (ADDR2_TYPE)uSrcBase;
         ADDR2_TYPE  uVirtDstAddr = uDstAddrReg + (ADDR2_TYPE)uDstBase;
-        uint32_t    cLeftSrcPage = (PAGE_SIZE - (uVirtSrcAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftSrcPage = (GUEST_PAGE_SIZE - (uVirtSrcAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftSrcPage > uCounterReg)
             cLeftSrcPage = uCounterReg;
-        uint32_t    cLeftDstPage = (PAGE_SIZE - (uVirtDstAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftDstPage = (GUEST_PAGE_SIZE - (uVirtDstAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         uint32_t    cLeftPage = RT_MIN(cLeftSrcPage, cLeftDstPage);
 
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -823,8 +833,8 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_movs_op,OP_SIZE,_addr,ADDR_SIZE), uint8_
                 rcStrict = iemMemPageMap(pVCpu, GCPhysSrcMem, IEM_ACCESS_DATA_R, (void **)&puSrcMem, &PgLockSrcMem);
                 if (rcStrict == VINF_SUCCESS)
                 {
-                    Assert(   (GCPhysSrcMem         >> PAGE_SHIFT) != (GCPhysDstMem         >> PAGE_SHIFT)
-                           || ((uintptr_t)puSrcMem  >> PAGE_SHIFT) == ((uintptr_t)puDstMem  >> PAGE_SHIFT));
+                    Assert(   (GCPhysSrcMem         >> GUEST_PAGE_SHIFT) != (GCPhysDstMem         >> GUEST_PAGE_SHIFT)
+                           || ((uintptr_t)puSrcMem  >> GUEST_PAGE_SHIFT) == ((uintptr_t)puDstMem  >> GUEST_PAGE_SHIFT));
 
                     /* Perform the operation exactly (don't use memcpy to avoid
                        having to consider how its implementation would affect
@@ -909,7 +919,7 @@ IEM_CIMPL_DEF_0(RT_CONCAT4(iemCImpl_stos_,OP_rAX,_m,ADDR_SIZE))
 
     IEM_CTX_IMPORT_RET(pVCpu, CPUMCTX_EXTRN_ES);
 
-    uint64_t        uBaseAddr;
+    uint64_t        uBaseAddr   = 0; /* gcc may not be used uninitialized */
     VBOXSTRICTRC rcStrict = iemMemSegCheckWriteAccessEx(pVCpu, iemSRegUpdateHid(pVCpu, &pVCpu->cpum.GstCtx.es), X86_SREG_ES, &uBaseAddr);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -937,7 +947,7 @@ IEM_CIMPL_DEF_0(RT_CONCAT4(iemCImpl_stos_,OP_rAX,_m,ADDR_SIZE))
          * Do segmentation and virtual page stuff.
          */
         ADDR2_TYPE  uVirtAddr = uAddrReg + (ADDR2_TYPE)uBaseAddr;
-        uint32_t    cLeftPage = (PAGE_SIZE - (uVirtAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftPage = (GUEST_PAGE_SIZE - (uVirtAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftPage > uCounterReg)
             cLeftPage = uCounterReg;
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -1057,8 +1067,8 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_lods_,OP_rAX,_m,ADDR_SIZE), int8_t, iEffSeg)
     }
 
     IEM_CTX_IMPORT_RET(pVCpu, CPUMCTX_EXTRN_SREG_FROM_IDX(iEffSeg));
-    PCCPUMSELREGHID pSrcHid = iemSRegGetHid(pVCpu, iEffSeg);
-    uint64_t        uBaseAddr;
+    PCCPUMSELREGHID pSrcHid   = iemSRegGetHid(pVCpu, iEffSeg);
+    uint64_t        uBaseAddr = 0; /* gcc may not be used uninitialized */
     VBOXSTRICTRC rcStrict = iemMemSegCheckReadAccessEx(pVCpu, pSrcHid, iEffSeg, &uBaseAddr);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -1075,7 +1085,7 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_lods_,OP_rAX,_m,ADDR_SIZE), int8_t, iEffSeg)
          * Do segmentation and virtual page stuff.
          */
         ADDR2_TYPE  uVirtAddr = uAddrReg + (ADDR2_TYPE)uBaseAddr;
-        uint32_t    cLeftPage = (PAGE_SIZE - (uVirtAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftPage = (GUEST_PAGE_SIZE - (uVirtAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftPage > uCounterReg)
             cLeftPage = uCounterReg;
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -1230,7 +1240,8 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, fIoCh
 #endif
 
     OP_TYPE        *puMem;
-    rcStrict = iemMemMap(pVCpu, (void **)&puMem, OP_SIZE / 8, X86_SREG_ES, pVCpu->cpum.GstCtx.ADDR_rDI, IEM_ACCESS_DATA_W);
+    rcStrict = iemMemMap(pVCpu, (void **)&puMem, OP_SIZE / 8, X86_SREG_ES, pVCpu->cpum.GstCtx.ADDR_rDI,
+                         IEM_ACCESS_DATA_W, OP_SIZE / 8 - 1);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
 
@@ -1321,7 +1332,7 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
         return VINF_SUCCESS;
     }
 
-    uint64_t        uBaseAddr;
+    uint64_t        uBaseAddr   = 0; /* gcc may not be used uninitialized */
     rcStrict = iemMemSegCheckWriteAccessEx(pVCpu, iemSRegUpdateHid(pVCpu, &pVCpu->cpum.GstCtx.es), X86_SREG_ES, &uBaseAddr);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -1347,7 +1358,7 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
          * Do segmentation and virtual page stuff.
          */
         ADDR2_TYPE  uVirtAddr = uAddrReg + (ADDR2_TYPE)uBaseAddr;
-        uint32_t    cLeftPage = (PAGE_SIZE - (uVirtAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftPage = (GUEST_PAGE_SIZE - (uVirtAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftPage > uCounterReg)
             cLeftPage = uCounterReg;
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */
@@ -1420,7 +1431,8 @@ IEM_CIMPL_DEF_1(RT_CONCAT4(iemCImpl_rep_ins_op,OP_SIZE,_addr,ADDR_SIZE), bool, f
         do
         {
             OP_TYPE *puMem;
-            rcStrict = iemMemMap(pVCpu, (void **)&puMem, OP_SIZE / 8, X86_SREG_ES, uAddrReg, IEM_ACCESS_DATA_W);
+            rcStrict = iemMemMap(pVCpu, (void **)&puMem, OP_SIZE / 8, X86_SREG_ES, uAddrReg,
+                                 IEM_ACCESS_DATA_W, OP_SIZE / 8 - 1);
             if (rcStrict != VINF_SUCCESS)
                 return rcStrict;
 
@@ -1609,8 +1621,8 @@ IEM_CIMPL_DEF_2(RT_CONCAT4(iemCImpl_rep_outs_op,OP_SIZE,_addr,ADDR_SIZE), uint8_
         return VINF_SUCCESS;
     }
 
-    PCCPUMSELREGHID pHid = iemSRegGetHid(pVCpu, iEffSeg);
-    uint64_t        uBaseAddr;
+    PCCPUMSELREGHID pHid      = iemSRegGetHid(pVCpu, iEffSeg);
+    uint64_t        uBaseAddr = 0; /* gcc may not be used uninitialized */
     rcStrict = iemMemSegCheckReadAccessEx(pVCpu, pHid, iEffSeg, &uBaseAddr);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
@@ -1627,7 +1639,7 @@ IEM_CIMPL_DEF_2(RT_CONCAT4(iemCImpl_rep_outs_op,OP_SIZE,_addr,ADDR_SIZE), uint8_
          * Do segmentation and virtual page stuff.
          */
         ADDR2_TYPE  uVirtAddr = uAddrReg + (ADDR2_TYPE)uBaseAddr;
-        uint32_t    cLeftPage = (PAGE_SIZE - (uVirtAddr & PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
+        uint32_t    cLeftPage = (GUEST_PAGE_SIZE - (uVirtAddr & GUEST_PAGE_OFFSET_MASK)) / (OP_SIZE / 8);
         if (cLeftPage > uCounterReg)
             cLeftPage = uCounterReg;
         if (   cLeftPage > 0 /* can be null if unaligned, do one fallback round. */

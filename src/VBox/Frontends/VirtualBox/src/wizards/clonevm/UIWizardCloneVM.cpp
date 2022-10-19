@@ -4,128 +4,203 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
-#include "UIWizardCloneVM.h"
-#include "UIWizardCloneVMPageBasic1.h"
-#include "UIWizardCloneVMPageBasic2.h"
-#include "UIWizardCloneVMPageBasic3.h"
-#include "UIWizardCloneVMPageExpert.h"
 #include "UICommon.h"
-#include "UIMessageCenter.h"
+#include "UINotificationCenter.h"
+#include "UIWizardCloneVM.h"
+#include "UIWizardCloneVMNamePathPage.h"
+#include "UIWizardCloneVMTypePage.h"
+#include "UIWizardCloneVMModePage.h"
+#include "UIWizardCloneVMExpertPage.h"
 
 /* COM includes: */
-#include "CConsole.h"
 #include "CSystemProperties.h"
 
 
 UIWizardCloneVM::UIWizardCloneVM(QWidget *pParent, const CMachine &machine,
                                  const QString &strGroup, CSnapshot snapshot /* = CSnapshot() */)
-    : UIWizard(pParent, WizardType_CloneVM)
+    : UINativeWizard(pParent, WizardType_CloneVM, WizardMode_Auto, "clone" /* help keyword */)
     , m_machine(machine)
     , m_snapshot(snapshot)
     , m_strGroup(strGroup)
+    , m_iCloneModePageIndex(-1)
+    , m_strCloneName(!machine.isNull() ? machine.GetName() : QString())
+    , m_enmCloneMode(KCloneMode_MachineState)
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/wizard_clone.png");
+    setPixmapName(":/wizard_clone.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/wizard_clone_bg.png");
+    setPixmapName(":/wizard_clone_bg.png");
 #endif /* VBOX_WS_MAC */
+}
+
+void UIWizardCloneVM::setCloneModePageVisible(bool fIsFullClone)
+{
+    if (m_iCloneModePageIndex == -1)
+        return;
+    setPageVisible(m_iCloneModePageIndex, fIsFullClone);
+}
+
+bool UIWizardCloneVM::isCloneModePageVisible() const
+{
+    /* If we did not create the clone mode page return false: */
+    if (m_iCloneModePageIndex == -1)
+        return false;
+    return isPageVisible(m_iCloneModePageIndex);
+}
+
+void UIWizardCloneVM::setCloneName(const QString &strCloneName)
+{
+    m_strCloneName = strCloneName;
+}
+
+const QString &UIWizardCloneVM::cloneName() const
+{
+    return m_strCloneName;
+}
+
+void UIWizardCloneVM::setCloneFilePath(const QString &strCloneFilePath)
+{
+    m_strCloneFilePath = strCloneFilePath;
+}
+
+const QString &UIWizardCloneVM::cloneFilePath() const
+{
+    return m_strCloneFilePath;
+}
+
+MACAddressClonePolicy UIWizardCloneVM::macAddressClonePolicy() const
+{
+    return m_enmMACAddressClonePolicy;
+}
+
+void UIWizardCloneVM::setMacAddressPolicy(MACAddressClonePolicy enmMACAddressClonePolicy)
+{
+    m_enmMACAddressClonePolicy = enmMACAddressClonePolicy;
+}
+
+bool UIWizardCloneVM::keepDiskNames() const
+{
+    return m_fKeepDiskNames;
+}
+
+void UIWizardCloneVM::setKeepDiskNames(bool fKeepDiskNames)
+{
+    m_fKeepDiskNames = fKeepDiskNames;
+}
+
+bool UIWizardCloneVM::keepHardwareUUIDs() const
+{
+    return m_fKeepHardwareUUIDs;
+}
+
+void UIWizardCloneVM::setKeepHardwareUUIDs(bool fKeepHardwareUUIDs)
+{
+    m_fKeepHardwareUUIDs = fKeepHardwareUUIDs;
+}
+
+bool UIWizardCloneVM::linkedClone() const
+{
+    return m_fLinkedClone;
+}
+
+void UIWizardCloneVM::setLinkedClone(bool fLinkedClone)
+{
+    m_fLinkedClone = fLinkedClone;
+}
+
+KCloneMode UIWizardCloneVM::cloneMode() const
+{
+    return m_enmCloneMode;
+}
+
+void UIWizardCloneVM::setCloneMode(KCloneMode enmCloneMode)
+{
+    m_enmCloneMode = enmCloneMode;
+}
+
+bool UIWizardCloneVM::machineHasSnapshot() const
+{
+    AssertReturn(!m_machine.isNull(), false);
+    return m_machine.GetSnapshotCount() > 0;
 }
 
 bool UIWizardCloneVM::cloneVM()
 {
-    /* Get the clone name: */
-    QString strName = field("cloneName").toString();
-    /* Get the clone setting file path: */
-    QString strSettingsFile = field("cloneFilePath").toString();
-
-    /* Should we create linked clone? */
-    bool fLinked = field("linkedClone").toBool();
-    /* Get clone mode: */
-    KCloneMode cloneMode = (mode() == WizardMode_Basic && page(Page3)) ||
-                           (mode() == WizardMode_Expert && page(PageExpert)) ?
-                           field("cloneMode").value<KCloneMode>() : KCloneMode_MachineState;
-
-    /* Get VBox object: */
-    CVirtualBox vbox = uiCommon().virtualBox();
-
     /* Prepare machine for cloning: */
     CMachine srcMachine = m_machine;
 
-    /* If the user like to create a linked clone from the current machine, we
-     * have to take a little bit more action. First we create an snapshot, so
-     * that new differencing images on the source VM are created. Based on that
-     * we could use the new snapshot machine for cloning. */
-    if (fLinked && m_snapshot.isNull())
+    /* If the user like to create a linked clone from the current machine, we have to take a little bit more action.
+     * First we create an snapshot, so that new differencing images on the source VM are created. Based on that we
+     * could use the new snapshot machine for cloning. */
+    if (m_fLinkedClone && m_snapshot.isNull())
     {
-        /* Open session: */
-        CSession session = uiCommon().openSession(m_machine.GetId());
-        if (session.isNull())
-            return false;
-
-        /* Prepare machine: */
-        CMachine machine = session.GetMachine();
+        /* Compose snapshot name: */
+        const QString strSnapshotName = tr("Linked Base for %1 and %2").arg(m_machine.GetName()).arg(m_strCloneName);
 
         /* Take the snapshot: */
-        QString strSnapshotName = tr("Linked Base for %1 and %2").arg(m_machine.GetName()).arg(strName);
-        QUuid uSnapshotId;
-        CProgress progress = machine.TakeSnapshot(strSnapshotName, "", true, uSnapshotId);
+        UINotificationProgressSnapshotTake *pNotification = new UINotificationProgressSnapshotTake(srcMachine,
+                                                                                                   strSnapshotName,
+                                                                                                   QString());
+        UINotificationReceiver receiver;
+        connect(pNotification, &UINotificationProgressSnapshotTake::sigSnapshotTaken,
+                &receiver, &UINotificationReceiver::setReceiverProperty);
+        if (!handleNotificationProgressNow(pNotification))
+            return false;
 
-        if (machine.isOk())
-        {
-            /* Show the "Taking Snapshot" progress dialog: */
-            msgCenter().showModalProgressDialog(progress, m_machine.GetName(), ":/progress_snapshot_create_90px.png", this);
+        /* Acquire created snapshot id: */
+        QUuid uSnapshotId = receiver.property("received_value").toUuid();
 
-            if (!progress.isOk() || progress.GetResultCode() != 0)
-            {
-                msgCenter().cannotTakeSnapshot(progress, m_machine.GetName(), this);
-                return false;
-            }
-        }
-        else
+        /* Look for created snapshot: */
+        const CSnapshot comCreatedSnapshot = m_machine.FindSnapshot(uSnapshotId.toString());
+        if (comCreatedSnapshot.isNull())
         {
-            msgCenter().cannotTakeSnapshot(machine, m_machine.GetName(), this);
+            UINotificationMessage::cannotFindSnapshotByName(m_machine, strSnapshotName, notificationCenter());
             return false;
         }
 
-        /* Unlock machine finally: */
-        session.UnlockMachine();
-
-        /* Get the new snapshot and the snapshot machine. */
-        const CSnapshot &newSnapshot = m_machine.FindSnapshot(uSnapshotId.toString());
-        if (newSnapshot.isNull())
-        {
-            msgCenter().cannotFindSnapshotByName(m_machine, strSnapshotName, this);
-            return false;
-        }
-        srcMachine = newSnapshot.GetMachine();
+        /* Update machine for cloning finally: */
+        srcMachine = comCreatedSnapshot.GetMachine();
     }
 
-    /* Create a new machine object. */
-    CMachine cloneMachine = vbox.CreateMachine(strSettingsFile, strName, QVector<QString>(), QString::null, QString::null);
-    if (!vbox.isOk())
+    /* Get VBox object: */
+    CVirtualBox comVBox = uiCommon().virtualBox();
+    /* Create a new machine object: */
+    CMachine cloneMachine = comVBox.CreateMachine(m_strCloneFilePath, m_strCloneName, QVector<QString>(), QString(), QString(),
+                                                  QString(), QString(), QString());
+    if (!comVBox.isOk())
     {
-        msgCenter().cannotCreateMachine(vbox, this);
+        UINotificationMessage::cannotCreateMachine(comVBox, notificationCenter());
         return false;
     }
 
     /* Clone options vector to pass to cloning: */
     QVector<KCloneOptions> options;
     /* Set the selected MAC address policy: */
-    switch (field("macAddressClonePolicy").value<MACAddressClonePolicy>())
+    switch (m_enmMACAddressClonePolicy)
     {
         case MACAddressClonePolicy_KeepAllMACs:
             options.append(KCloneOptions_KeepAllMACs);
@@ -136,41 +211,22 @@ bool UIWizardCloneVM::cloneVM()
         default:
             break;
     }
-
-    if (field("keepDiskNames").value<bool>())
+    if (m_fKeepDiskNames)
         options.append(KCloneOptions_KeepDiskNames);
-    if (field("keepHWUUIDs").value<bool>())
+    if (m_fKeepHardwareUUIDs)
         options.append(KCloneOptions_KeepHwUUIDs);
-
     /* Linked clones requested? */
-    if (fLinked)
+    if (m_fLinkedClone)
         options.append(KCloneOptions_Link);
 
-    /* Start cloning. */
-    CProgress progress = srcMachine.CloneTo(cloneMachine, cloneMode, options);
-    if (!srcMachine.isOk())
-    {
-        msgCenter().cannotCreateClone(srcMachine, this);
-        return false;
-    }
-
-    /* Wait until done. */
-    msgCenter().showModalProgressDialog(progress, windowTitle(), ":/progress_clone_90px.png", this);
-    if (progress.GetCanceled())
-        return false;
-    if (!progress.isOk() || progress.GetResultCode() != 0)
-    {
-        msgCenter().cannotCreateClone(progress, srcMachine.GetName(), this);
-        return false;
-    }
-
-    /* Finally register the clone machine. */
-    vbox.RegisterMachine(cloneMachine);
-    if (!vbox.isOk())
-    {
-        msgCenter().cannotRegisterMachine(vbox, cloneMachine.GetName(), this);
-        return false;
-    }
+    /* Clone VM: */
+    UINotificationProgressMachineCopy *pNotification = new UINotificationProgressMachineCopy(srcMachine,
+                                                                                             cloneMachine,
+                                                                                             m_enmCloneMode,
+                                                                                             options);
+    connect(pNotification, &UINotificationProgressMachineCopy::sigMachineCopied,
+            &uiCommon(), &UICommon::sltHandleMachineCreated);
+    gpNotificationCenter->append(pNotification);
 
     return true;
 }
@@ -178,14 +234,13 @@ bool UIWizardCloneVM::cloneVM()
 void UIWizardCloneVM::retranslateUi()
 {
     /* Call to base-class: */
-    UIWizard::retranslateUi();
+    UINativeWizard::retranslateUi();
 
     /* Translate wizard: */
     setWindowTitle(tr("Clone Virtual Machine"));
-    setButtonText(QWizard::FinishButton, tr("Clone"));
 }
 
-void UIWizardCloneVM::prepare()
+void UIWizardCloneVM::populatePages()
 {
     QString strDefaultMachineFolder = uiCommon().virtualBox().GetSystemProperties().GetDefaultMachineFolder();
     /* Create corresponding pages: */
@@ -193,19 +248,19 @@ void UIWizardCloneVM::prepare()
     {
         case WizardMode_Basic:
         {
-            setPage(Page1, new UIWizardCloneVMPageBasic1(m_machine.GetName(), strDefaultMachineFolder, m_strGroup));
-            setPage(Page2, new UIWizardCloneVMPageBasic2(m_snapshot.isNull()));
-            if (m_machine.GetSnapshotCount() > 0)
-                setPage(Page3, new UIWizardCloneVMPageBasic3(m_snapshot.isNull() ? false : m_snapshot.GetChildrenCount() > 0));
+            addPage(new UIWizardCloneVMNamePathPage(m_strCloneName, strDefaultMachineFolder, m_strGroup));
+            addPage(new UIWizardCloneVMTypePage(m_snapshot.isNull()));
+            if (machineHasSnapshot())
+                m_iCloneModePageIndex = addPage(new UIWizardCloneVMModePage(m_snapshot.isNull() ? false : m_snapshot.GetChildrenCount() > 0));
             break;
         }
         case WizardMode_Expert:
         {
-            setPage(PageExpert, new UIWizardCloneVMPageExpert(m_machine.GetName(),
-                                                              strDefaultMachineFolder,
-                                                              m_snapshot.isNull(),
-                                                              m_snapshot.isNull() ? false : m_snapshot.GetChildrenCount() > 0,
-                                                              m_strGroup));
+            addPage(new UIWizardCloneVMExpertPage(m_machine.GetName(),
+                                                  strDefaultMachineFolder,
+                                                  m_snapshot.isNull(),
+                                                  m_snapshot.isNull() ? false : m_snapshot.GetChildrenCount() > 0,
+                                                  m_strGroup));
             break;
         }
         default:
@@ -214,6 +269,4 @@ void UIWizardCloneVM::prepare()
             break;
         }
     }
-    /* Call to base-class: */
-    UIWizard::prepare();
 }

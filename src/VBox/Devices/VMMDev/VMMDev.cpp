@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_vmmdev   The VMM Device.
@@ -97,7 +107,9 @@
 #include <VBox/version.h>
 
 #include <iprt/asm.h>
-#include <iprt/asm-amd64-x86.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h> /* ASMReadTsc */
+#endif
 #include <iprt/assert.h>
 #include <iprt/buildconfig.h>
 #include <iprt/string.h>
@@ -153,6 +165,16 @@
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 #ifdef IN_RING3
 
+/** DISPLAYCHANGEDATA field descriptors for the v18+ saved state. */
+static SSMFIELD const g_aSSMDISPLAYCHANGEDATAStateFields[] =
+{
+    SSMFIELD_ENTRY(DISPLAYCHANGEDATA, iCurrentMonitor),
+    SSMFIELD_ENTRY(DISPLAYCHANGEDATA, fGuestSentChangeEventAck),
+    SSMFIELD_ENTRY(DISPLAYCHANGEDATA, afAlignment),
+    SSMFIELD_ENTRY(DISPLAYCHANGEDATA, aRequests),
+    SSMFIELD_ENTRY_TERM()
+};
+
 /* -=-=-=-=- Misc Helpers -=-=-=-=- */
 
 /**
@@ -200,15 +222,63 @@ static void vmmdevLogGuestOsInfo(VBoxGuestInfo *pGuestInfo)
         case VBOXOSTYPE_Linux26:                          pszOs = "Linux >= 2.6";   break;
         case VBOXOSTYPE_ArchLinux:                        pszOs = "ArchLinux";      break;
         case VBOXOSTYPE_Debian:                           pszOs = "Debian";         break;
+        case VBOXOSTYPE_Debian31:                         pszOs = "Debian 3.1";     break;
+        case VBOXOSTYPE_Debian4:                          pszOs = "Debian 4.0";     break;
+        case VBOXOSTYPE_Debian5:                          pszOs = "Debian 5.0";     break;
+        case VBOXOSTYPE_Debian6:                          pszOs = "Debian 6.0";     break;
+        case VBOXOSTYPE_Debian7:                          pszOs = "Debian 7";       break;
+        case VBOXOSTYPE_Debian8:                          pszOs = "Debian 8";       break;
+        case VBOXOSTYPE_Debian9:                          pszOs = "Debian 9";       break;
+        case VBOXOSTYPE_Debian10:                         pszOs = "Debian 10";      break;
+        case VBOXOSTYPE_Debian11:                         pszOs = "Debian 11";      break;
         case VBOXOSTYPE_OpenSUSE:                         pszOs = "openSUSE";       break;
+        case VBOXOSTYPE_OpenSUSE_Leap_x64 & ~VBOXOSTYPE_x64: pszOs = "openSUSE Leap";      break;
+        case VBOXOSTYPE_OpenSUSE_Tumbleweed:              pszOs = "openSUSE Tumbleweed";   break;
+        case VBOXOSTYPE_SUSE_LE:                          pszOs = "SUSE Linux Enterprise"; break;
         case VBOXOSTYPE_FedoraCore:                       pszOs = "Fedora";         break;
         case VBOXOSTYPE_Gentoo:                           pszOs = "Gentoo";         break;
         case VBOXOSTYPE_Mandriva:                         pszOs = "Mandriva";       break;
+        case VBOXOSTYPE_OpenMandriva_Lx:                  pszOs = "OpenMandriva Lx"; break;
+        case VBOXOSTYPE_PCLinuxOS:                        pszOs = "PCLinuxOS";      break;
+        case VBOXOSTYPE_Mageia:                           pszOs = "Mageia";         break;
         case VBOXOSTYPE_RedHat:                           pszOs = "RedHat";         break;
+        case VBOXOSTYPE_RedHat3:                          pszOs = "RedHat 3";       break;
+        case VBOXOSTYPE_RedHat4:                          pszOs = "RedHat 4";       break;
+        case VBOXOSTYPE_RedHat5:                          pszOs = "RedHat 5";       break;
+        case VBOXOSTYPE_RedHat6:                          pszOs = "RedHat 6";       break;
+        case VBOXOSTYPE_RedHat7_x64 & ~VBOXOSTYPE_x64:    pszOs = "RedHat 7";       break;
+        case VBOXOSTYPE_RedHat8_x64 & ~VBOXOSTYPE_x64:    pszOs = "RedHat 8";       break;
         case VBOXOSTYPE_Turbolinux:                       pszOs = "TurboLinux";     break;
         case VBOXOSTYPE_Ubuntu:                           pszOs = "Ubuntu";         break;
+        case VBOXOSTYPE_Ubuntu10_LTS:                     pszOs = "Ubuntu 10.04 LTS"; break;
+        case VBOXOSTYPE_Ubuntu10:                         pszOs = "Ubuntu 10.10";   break;
+        case VBOXOSTYPE_Ubuntu11:                         pszOs = "Ubuntu 11.x";    break;
+        case VBOXOSTYPE_Ubuntu12_LTS:                     pszOs = "Ubuntu 12.04 LTS"; break;
+        case VBOXOSTYPE_Ubuntu12:                         pszOs = "Ubuntu 12.10";   break;
+        case VBOXOSTYPE_Ubuntu13:                         pszOs = "Ubuntu 13.x";    break;
+        case VBOXOSTYPE_Ubuntu14_LTS:                     pszOs = "Ubuntu 14.04 LTS"; break;
+        case VBOXOSTYPE_Ubuntu14:                         pszOs = "Ubuntu 14.10";   break;
+        case VBOXOSTYPE_Ubuntu15:                         pszOs = "Ubuntu 15.x";    break;
+        case VBOXOSTYPE_Ubuntu16_LTS:                     pszOs = "Ubuntu 16.04 LTS"; break;
+        case VBOXOSTYPE_Ubuntu16:                         pszOs = "Ubuntu 16.10";   break;
+        case VBOXOSTYPE_Ubuntu17:                         pszOs = "Ubuntu 17.x";    break;
+        case VBOXOSTYPE_Ubuntu18_LTS:                     pszOs = "Ubuntu 18.04 LTS"; break;
+        case VBOXOSTYPE_Ubuntu18:                         pszOs = "Ubuntu 18.10";   break;
+        case VBOXOSTYPE_Ubuntu19:                         pszOs = "Ubuntu 19.x";    break;
+        case VBOXOSTYPE_Ubuntu20_LTS_x64 & ~VBOXOSTYPE_x64: pszOs = "Ubuntu 20.04 LTS"; break;
+        case VBOXOSTYPE_Ubuntu20_x64 & ~VBOXOSTYPE_x64:   pszOs = "Ubuntu 20.10";   break;
+        case VBOXOSTYPE_Ubuntu21_x64 & ~VBOXOSTYPE_x64:   pszOs = "Ubuntu 21.x";    break;
+        case VBOXOSTYPE_Ubuntu22_LTS_x64 & ~VBOXOSTYPE_x64: pszOs = "Ubuntu 22.04 LTS"; break;
+        case VBOXOSTYPE_Ubuntu22_x64 & ~VBOXOSTYPE_x64:   pszOs = "Ubuntu 22.10";   break;
+        case VBOXOSTYPE_Lubuntu:                          pszOs = "Lubuntu";        break;
+        case VBOXOSTYPE_Xubuntu:                          pszOs = "Xubuntu";        break;
         case VBOXOSTYPE_Xandros:                          pszOs = "Xandros";        break;
         case VBOXOSTYPE_Oracle:                           pszOs = "Oracle Linux";   break;
+        case VBOXOSTYPE_Oracle4:                          pszOs = "Oracle Linux 4"; break;
+        case VBOXOSTYPE_Oracle5:                          pszOs = "Oracle Linux 5"; break;
+        case VBOXOSTYPE_Oracle6:                          pszOs = "Oracle Linux 6"; break;
+        case VBOXOSTYPE_Oracle7_x64 & ~VBOXOSTYPE_x64:    pszOs = "Oracle Linux 7"; break;
+        case VBOXOSTYPE_Oracle8_x64 & ~VBOXOSTYPE_x64:    pszOs = "Oracle Linux 8"; break;
         case VBOXOSTYPE_FreeBSD:                          pszOs = "FreeBSD";        break;
         case VBOXOSTYPE_OpenBSD:                          pszOs = "OpenBSD";        break;
         case VBOXOSTYPE_NetBSD:                           pszOs = "NetBSD";         break;
@@ -317,7 +387,7 @@ static void vmmdevMaybeSetIRQ(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pThis
 static void vmmdevNotifyGuestWorker(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pThisCC, uint32_t fAddEvents)
 {
     Log3(("vmmdevNotifyGuestWorker: fAddEvents=%#010x.\n", fAddEvents));
-    Assert(PDMCritSectIsOwner(&pThis->CritSect));
+    Assert(PDMDevHlpCritSectIsOwner(pDevIns, &pThis->CritSect));
 
     if (!VMMDEV_INTERFACE_VERSION_IS_1_03(pThis))
     {
@@ -384,8 +454,11 @@ void VMMDevNotifyGuest(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pThisCC, uin
         || enmVMState == VMSTATE_DEBUGGING_LS
        )
     {
-        PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+        int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+        PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
+
         vmmdevNotifyGuestWorker(pDevIns, pThis, pThisCC, fAddEvents);
+
         PDMDevHlpCritSectLeave(pDevIns, &pThis->CritSect);
     }
     else
@@ -410,7 +483,8 @@ void VMMDevNotifyGuest(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pThisCC, uin
  */
 void VMMDevCtlSetGuestFilterMask(PPDMDEVINS pDevIns, PVMMDEV pThis, PVMMDEVCC pThisCC, uint32_t fOrMask, uint32_t fNotMask)
 {
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
 
     const bool fHadEvents = (pThis->fHostEventFlags & pThis->fGuestFilterMask) != 0;
 
@@ -513,13 +587,13 @@ static int vmmDevReqHandler_GuestHeartbeat(PPDMDEVINS pDevIns, PVMMDEV pThis)
  *
  * @remarks Does not take the VMMDev critsect.
  */
-static DECLCALLBACK(void) vmmDevHeartbeatFlatlinedTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) vmmDevHeartbeatFlatlinedTimer(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
-    RT_NOREF(pDevIns);
     PVMMDEV pThis = (PVMMDEV)pvUser;
+    Assert(hTimer == pThis->hFlatlinedTimer);
     if (pThis->fHeartbeatActive)
     {
-        uint64_t cNsElapsed = TMTimerGetNano(pTimer) - pThis->nsLastHeartbeatTS;
+        uint64_t cNsElapsed = PDMDevHlpTimerGetNano(pDevIns, hTimer) - pThis->nsLastHeartbeatTS;
         if (   !pThis->fFlatlined
             && cNsElapsed >= pThis->cNsHeartbeatInterval)
         {
@@ -593,15 +667,14 @@ static int vmmDevReqHandler_NtBugCheck(PPDMDEVINS pDevIns, VMMDevRequestHeader *
     if (pReqHdr->size == sizeof(VMMDevReqNtBugCheck))
     {
         VMMDevReqNtBugCheck const *pReq = (VMMDevReqNtBugCheck const *)pReqHdr;
-        DBGFR3ReportBugCheck(PDMDevHlpGetVM(pDevIns), PDMDevHlpGetVMCPU(pDevIns), DBGFEVENT_BSOD_VMMDEV,
-                             pReq->uBugCheck, pReq->auParameters[0], pReq->auParameters[1],
-                             pReq->auParameters[2], pReq->auParameters[3]);
+        PDMDevHlpDBGFReportBugCheck(pDevIns, DBGFEVENT_BSOD_VMMDEV,
+                                    pReq->uBugCheck, pReq->auParameters[0], pReq->auParameters[1],
+                                    pReq->auParameters[2], pReq->auParameters[3]);
     }
     else if (pReqHdr->size == sizeof(VMMDevRequestHeader))
     {
         LogRel(("VMMDev: NT BugCheck w/o data.\n"));
-        DBGFR3ReportBugCheck(PDMDevHlpGetVM(pDevIns), PDMDevHlpGetVMCPU(pDevIns), DBGFEVENT_BSOD_VMMDEV,
-                             0, 0, 0, 0, 0);
+        PDMDevHlpDBGFReportBugCheck(pDevIns, DBGFEVENT_BSOD_VMMDEV, 0, 0, 0, 0, 0);
     }
     else
         return VERR_INVALID_PARAMETER;
@@ -1220,7 +1293,13 @@ static int vmmdevReqHandler_GetHypervisorInfo(PPDMDEVINS pDevIns, VMMDevRequestH
     VMMDevReqHypervisorInfo *pReq = (VMMDevReqHypervisorInfo *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
+#if 1 /* Obsolete for now, only used for raw-mode. */
+    RT_NOREF(pDevIns);
+    pReq->hypervisorSize = 0;
+    return VINF_SUCCESS;
+#else
     return PGMR3MappingsSize(PDMDevHlpGetVM(pDevIns), &pReq->hypervisorSize);
+#endif
 }
 
 
@@ -1237,6 +1316,13 @@ static int vmmdevReqHandler_SetHypervisorInfo(PPDMDEVINS pDevIns, VMMDevRequestH
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
     int rc;
+#if 1 /* Obsolete for now, only used for raw-mode. */
+    RT_NOREF(pDevIns);
+    if (pReq->hypervisorStart == 0 || pReq->hypervisorSize == 0)
+        rc = VINF_SUCCESS;
+    else
+        rc = VERR_TRY_AGAIN;
+#else
     PVM pVM = PDMDevHlpGetVM(pDevIns);
     if (pReq->hypervisorStart == 0)
         rc = PGMR3MappingsUnfix(pVM);
@@ -1252,9 +1338,10 @@ static int vmmdevReqHandler_SetHypervisorInfo(PPDMDEVINS pDevIns, VMMDevRequestH
             LogRel(("VMMDev: Guest reported fixed hypervisor window at 0%010x LB %#x (rc=%Rrc)\n",
                     pReq->hypervisorStart, pReq->hypervisorSize, rc));
         }
-        else if (RT_FAILURE(rc))
+        else if (RT_FAILURE(rc)) /** @todo r=bird: This should've been RT_SUCCESS(rc)) */
             rc = VERR_TRY_AGAIN;
     }
+#endif
     return rc;
 }
 
@@ -1271,7 +1358,7 @@ static int vmmdevReqHandler_RegisterPatchMemory(PPDMDEVINS pDevIns, VMMDevReques
     VMMDevReqPatchMemory *pReq = (VMMDevReqPatchMemory *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
-    return VMMR3RegisterPatchMemory(PDMDevHlpGetVM(pDevIns), pReq->pPatchMem, pReq->cbPatchMem);
+    return PDMDevHlpVMMRegisterPatchMemory(pDevIns, pReq->pPatchMem, pReq->cbPatchMem);
 }
 
 
@@ -1287,7 +1374,7 @@ static int vmmdevReqHandler_DeregisterPatchMemory(PPDMDEVINS pDevIns, VMMDevRequ
     VMMDevReqPatchMemory *pReq = (VMMDevReqPatchMemory *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(*pReq), ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
-    return VMMR3DeregisterPatchMemory(PDMDevHlpGetVM(pDevIns), pReq->pPatchMem, pReq->cbPatchMem);
+    return PDMDevHlpVMMDeregisterPatchMemory(pDevIns, pReq->pPatchMem, pReq->cbPatchMem);
 }
 
 
@@ -2122,7 +2209,7 @@ static int vmmdevReqHandler_ChangeMemBalloon(PPDMDEVINS pDevIns, PVMMDEV pThis, 
                     ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
     Log(("VMMDevReq_ChangeMemBalloon\n"));
-    int rc = PGMR3PhysChangeMemBalloon(PDMDevHlpGetVM(pDevIns), !!pReq->fInflate, pReq->cPages, pReq->aPhysPage);
+    int rc = PDMDevHlpPhysChangeMemBalloon(pDevIns, !!pReq->fInflate, pReq->cPages, pReq->aPhysPage);
     if (pReq->fInflate)
         STAM_REL_U32_INC(&pThis->StatMemBalloonChunks);
     else
@@ -2487,8 +2574,8 @@ static int vmmdevReqHandler_RegisterSharedModule(PPDMDEVINS pDevIns, VMMDevReque
     /*
      * Forward the request to the VMM.
      */
-    return PGMR3SharedModuleRegister(PDMDevHlpGetVM(pDevIns), pReq->enmGuestOS, pReq->szName, pReq->szVersion,
-                                     pReq->GCBaseAddr, pReq->cbModule, pReq->cRegions, pReq->aRegions);
+    return PDMDevHlpSharedModuleRegister(pDevIns, pReq->enmGuestOS, pReq->szName, pReq->szVersion,
+                                         pReq->GCBaseAddr, pReq->cbModule, pReq->cRegions, pReq->aRegions);
 }
 
 /**
@@ -2517,8 +2604,8 @@ static int vmmdevReqHandler_UnregisterSharedModule(PPDMDEVINS pDevIns, VMMDevReq
     /*
      * Forward the request to the VMM.
      */
-    return PGMR3SharedModuleUnregister(PDMDevHlpGetVM(pDevIns), pReq->szName, pReq->szVersion,
-                                       pReq->GCBaseAddr, pReq->cbModule);
+    return PDMDevHlpSharedModuleUnregister(pDevIns, pReq->szName, pReq->szVersion,
+                                           pReq->GCBaseAddr, pReq->cbModule);
 }
 
 /**
@@ -2533,7 +2620,7 @@ static int vmmdevReqHandler_CheckSharedModules(PPDMDEVINS pDevIns, VMMDevRequest
     VMMDevSharedModuleCheckRequest *pReq = (VMMDevSharedModuleCheckRequest *)pReqHdr;
     AssertMsgReturn(pReq->header.size == sizeof(VMMDevSharedModuleCheckRequest),
                     ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
-    return PGMR3SharedModuleCheckAll(PDMDevHlpGetVM(pDevIns));
+    return PDMDevHlpSharedModuleCheckAll(pDevIns);
 }
 
 /**
@@ -2570,12 +2657,7 @@ static int vmmdevReqHandler_DebugIsPageShared(PPDMDEVINS pDevIns, VMMDevRequestH
     AssertMsgReturn(pReq->header.size == sizeof(VMMDevPageIsSharedRequest),
                     ("%u\n", pReq->header.size), VERR_INVALID_PARAMETER);
 
-# ifdef DEBUG
-    return PGMR3SharedModuleGetPageState(PDMDevHlpGetVM(pDevIns), pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
-# else
-    RT_NOREF(pDevIns);
-    return VERR_NOT_IMPLEMENTED;
-# endif
+    return PDMDevHlpSharedModuleGetPageState(pDevIns, pReq->GCPtrPage, &pReq->fShared, &pReq->uPageFlags);
 }
 
 #endif /* VBOX_WITH_PAGE_SHARING */
@@ -2632,8 +2714,7 @@ static int vmmdevReqHandler_WriteCoreDump(PPDMDEVINS pDevIns, PVMMDEV pThis, VMM
     /*
      * Write the core file.
      */
-    PUVM pUVM = PDMDevHlpGetUVM(pDevIns);
-    return DBGFR3CoreWrite(pUVM, szCorePath, true /*fReplaceFile*/);
+    return PDMDevHlpDBGFCoreWrite(pDevIns, szCorePath, true /*fReplaceFile*/);
 }
 
 
@@ -3069,8 +3150,11 @@ vmmdevRequestHandler(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_
                  * Feed buffered request thru the dispatcher.
                  */
                 uint32_t fPostOptimize = 0;
-                PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+                int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+                PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
+
                 rcRet = vmmdevReqDispatcher(pDevIns, pThis, pThisCC, pRequestHeader, u32, tsArrival, &fPostOptimize, &pLock);
+
                 PDMDevHlpCritSectLeave(pDevIns, &pThis->CritSect);
 
                 /*
@@ -3184,7 +3268,7 @@ vmmdevFastRequestHandler(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uin
                 }
                 else
                 {
-                    Log(("vmmdevFastRequestHandler: PDMCritSectEnter -> %Rrc\n", rc2));
+                    Log(("vmmdevFastRequestHandler: PDMDevHlpPDMCritSectEnter -> %Rrc\n", rc2));
                     rcStrict = rc2;
                 }
             }
@@ -3543,7 +3627,8 @@ static DECLCALLBACK(int) vmmdevIPort_SetAbsoluteMouse(PPDMIVMMDEVPORT pInterface
     PVMMDEVCC  pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS pDevIns = pThisCC->pDevIns;
     PVMMDEV    pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     if (   pThis->xMouseAbs != xAbs
         || pThis->yMouseAbs != yAbs)
@@ -3580,7 +3665,8 @@ vmmdevIPort_UpdateMouseCapabilities(PPDMIVMMDEVPORT pInterface, uint32_t fCapsAd
     PVMMDEVCC  pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS pDevIns = pThisCC->pDevIns;
     PVMMDEV    pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     uint32_t fOldCaps = pThis->fMouseCapabilities;
     pThis->fMouseCapabilities &= ~(fCapsRemoved & VMMDEV_MOUSE_HOST_MASK);
@@ -3639,8 +3725,8 @@ vmmdevIPort_RequestDisplayChange(PPDMIVMMDEVPORT pInterface, uint32_t cDisplays,
     PVMMDEV     pThis        = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
     int         rc           = VINF_SUCCESS;
     bool        fNotifyGuest = false;
-
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const   rcLock       = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     uint32_t i;
     for (i = 0; i < cDisplays; ++i)
@@ -3706,7 +3792,8 @@ static DECLCALLBACK(int) vmmdevIPort_RequestSeamlessChange(PPDMIVMMDEVPORT pInte
     PVMMDEVCC  pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS pDevIns = pThisCC->pDevIns;
     PVMMDEV    pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     /* Verify that the new resolution is different and that guest does not yet know about it. */
     bool fSameMode = (pThis->fLastSeamlessEnabled == fEnabled);
@@ -3734,7 +3821,8 @@ static DECLCALLBACK(int) vmmdevIPort_SetMemoryBalloon(PPDMIVMMDEVPORT pInterface
     PVMMDEVCC  pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS pDevIns = pThisCC->pDevIns;
     PVMMDEV    pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     /* Verify that the new resolution is different and that guest does not yet know about it. */
     Log(("vmmdevIPort_SetMemoryBalloon: old=%u new=%u\n", pThis->cMbMemoryBalloonLast, cMbBalloon));
@@ -3759,7 +3847,8 @@ static DECLCALLBACK(int) vmmdevIPort_VRDPChange(PPDMIVMMDEVPORT pInterface, bool
     PVMMDEVCC  pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS pDevIns = pThisCC->pDevIns;
     PVMMDEV    pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     bool fSame = (pThis->fVRDPEnabled == fVRDPEnabled);
 
@@ -3785,7 +3874,8 @@ static DECLCALLBACK(int) vmmdevIPort_SetStatisticsInterval(PPDMIVMMDEVPORT pInte
     PVMMDEVCC  pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS pDevIns = pThisCC->pDevIns;
     PVMMDEV    pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     /* Verify that the new resolution is different and that guest does not yet know about it. */
     bool fSame = (pThis->cSecsLastStatInterval == cSecsStatInterval);
@@ -3826,7 +3916,8 @@ static DECLCALLBACK(int) vmmdevIPort_SetCredentials(PPDMIVMMDEVPORT pInterface, 
     VMMDEVCREDS *pCredentials = pThisCC->pCredentials;
     AssertPtrReturn(pCredentials, VERR_NOT_SUPPORTED);
 
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rcLock, rcLock);
 
     /*
      * Logon mode
@@ -3886,11 +3977,11 @@ static DECLCALLBACK(int) vmmdevIPort_CpuHotUnplug(PPDMIVMMDEVPORT pInterface, ui
     PVMMDEVCC   pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS  pDevIns = pThisCC->pDevIns;
     PVMMDEV     pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    int         rc      = VINF_SUCCESS;
 
     Log(("vmmdevIPort_CpuHotUnplug: idCpuCore=%u idCpuPackage=%u\n", idCpuCore, idCpuPackage));
 
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rc, rc);
 
     if (pThis->fCpuHotPlugEventsEnabled)
     {
@@ -3914,11 +4005,11 @@ static DECLCALLBACK(int) vmmdevIPort_CpuHotPlug(PPDMIVMMDEVPORT pInterface, uint
     PVMMDEVCC   pThisCC = RT_FROM_MEMBER(pInterface, VMMDEVCC, IPort);
     PPDMDEVINS  pDevIns = pThisCC->pDevIns;
     PVMMDEV     pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
-    int         rc      = VINF_SUCCESS;
 
     Log(("vmmdevCpuPlug: idCpuCore=%u idCpuPackage=%u\n", idCpuCore, idCpuPackage));
 
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rc, rc);
 
     if (pThis->fCpuHotPlugEventsEnabled)
     {
@@ -3943,12 +4034,13 @@ static DECLCALLBACK(int) vmmdevIPort_CpuHotPlug(PPDMIVMMDEVPORT pInterface, uint
 static DECLCALLBACK(int) vmmdevLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
     RT_NOREF(uPass);
-    PVMMDEV pThis = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
+    PVMMDEV         pThis = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
+    PCPDMDEVHLPR3   pHlp  = pDevIns->pHlpR3;
 
-    SSMR3PutBool(pSSM, pThis->fGetHostTimeDisabled);
-    SSMR3PutBool(pSSM, pThis->fBackdoorLogDisabled);
-    SSMR3PutBool(pSSM, pThis->fKeepCredentials);
-    SSMR3PutBool(pSSM, pThis->fHeapEnabled);
+    pHlp->pfnSSMPutBool(pSSM, pThis->fGetHostTimeDisabled);
+    pHlp->pfnSSMPutBool(pSSM, pThis->fBackdoorLogDisabled);
+    pHlp->pfnSSMPutBool(pSSM, pThis->fKeepCredentials);
+    pHlp->pfnSSMPutBool(pSSM, pThis->fHeapEnabled);
 
     return VINF_SSM_DONT_CALL_AGAIN;
 }
@@ -3962,7 +4054,8 @@ static DECLCALLBACK(int) vmmdevSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     PVMMDEV         pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
     PVMMDEVCC       pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PVMMDEVCC);
     PCPDMDEVHLPR3   pHlp    = pDevIns->pHlpR3;
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    AssertRCReturn(rc, rc);
 
     vmmdevLiveExec(pDevIns, pSSM, SSM_PASS_FINAL);
 
@@ -4009,6 +4102,9 @@ static DECLCALLBACK(int) vmmdevSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     pHlp->pfnSSMPutBool(pSSM, pThis->fFlatlined);
     pHlp->pfnSSMPutU64(pSSM, pThis->nsLastHeartbeatTS);
     PDMDevHlpTimerSave(pDevIns, pThis->hFlatlinedTimer, pSSM);
+
+    pHlp->pfnSSMPutStructEx(pSSM, &pThis->displayChangeData, sizeof(pThis->displayChangeData), 0,
+                            g_aSSMDISPLAYCHANGEDATAStateFields, NULL);
 
     PDMDevHlpCritSectLeave(pDevIns, &pThis->CritSect);
     return VINF_SUCCESS;
@@ -4147,6 +4243,12 @@ static DECLCALLBACK(int) vmmdevLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
                     PDMDevHlpTimerGetNano(pDevIns, pThis->hFlatlinedTimer) - pThis->nsLastHeartbeatTS));
     }
 
+    if (uVersion >= VMMDEV_SAVED_STATE_VERSION_DISPLAY_CHANGE_DATA)
+    {
+        pHlp->pfnSSMGetStructEx(pSSM, &pThis->displayChangeData, sizeof(pThis->displayChangeData), 0,
+                                g_aSSMDISPLAYCHANGEDATAStateFields, NULL);
+    }
+
     /*
      * On a resume, we send the capabilities changed message so
      * that listeners can sync their state again
@@ -4245,7 +4347,8 @@ static DECLCALLBACK(void) vmmdevReset(PPDMDEVINS pDevIns)
 {
     PVMMDEV   pThis   = PDMDEVINS_2_DATA(pDevIns, PVMMDEV);
     PVMMDEVCC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PVMMDEVCC);
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    int const rcLock  = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_IGNORED);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
 
     /*
      * Reset the mouse integration feature bits
@@ -4467,6 +4570,7 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
     pThis->hIoPortTesting       = NIL_IOMIOPORTHANDLE;
     pThis->hMmioTesting         = NIL_IOMMMIOHANDLE;
+    pThis->hTestingLockEvt      = NIL_SUPSEMEVENT;
 #endif
 
     PPDMPCIDEV pPciDev = pDevIns->apPciDevs[0];
@@ -4565,7 +4669,17 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                   "HeartbeatTimeout|"
                                   "TestingEnabled|"
                                   "TestingMMIO|"
-                                  "TestintXmlOutputFile|"
+                                  "TestingXmlOutputFile|"
+                                  "TestingCfgDword0|"
+                                  "TestingCfgDword1|"
+                                  "TestingCfgDword2|"
+                                  "TestingCfgDword3|"
+                                  "TestingCfgDword4|"
+                                  "TestingCfgDword5|"
+                                  "TestingCfgDword6|"
+                                  "TestingCfgDword7|"
+                                  "TestingCfgDword8|"
+                                  "TestingCfgDword9|"
                                   "HGCMHeapBudgetDefault|"
                                   "HGCMHeapBudgetLegacy|"
                                   "HGCMHeapBudgetVBoxGuest|"
@@ -4613,7 +4727,7 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed querying \"GuestCoreDumpDir\" as a string"));
 
     RTStrCopy(pThis->szGuestCoreDumpDir, sizeof(pThis->szGuestCoreDumpDir), pszGuestCoreDumpDir);
-    MMR3HeapFree(pszGuestCoreDumpDir);
+    PDMDevHlpMMHeapFree(pDevIns, pszGuestCoreDumpDir);
 
     rc = pHlp->pfnCFGMQueryU32Def(pCfg, "GuestCoreDumpCount", &pThis->cGuestCoreDumps, 3);
     if (RT_FAILURE(rc))
@@ -4646,9 +4760,20 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "TestingMMIO", &pThis->fTestingMMIO, false);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed querying \"TestingMMIO\" as a boolean"));
-    rc = pHlp->pfnCFGMQueryStringAllocDef(pCfg, "TestintXmlOutputFile", &pThisCC->pszTestingXmlOutput, NULL);
+    rc = pHlp->pfnCFGMQueryStringAllocDef(pCfg, "TestingXmlOutputFile", &pThisCC->pszTestingXmlOutput, NULL);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed querying \"TestintXmlOutputFile\" as a string"));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed querying \"TestingXmlOutputFile\" as a string"));
+
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->au32TestingCfgDwords); i++)
+    {
+        char szName[32];
+        RTStrPrintf(szName, sizeof(szName), "TestingCfgDword%u", i);
+        rc = pHlp->pfnCFGMQueryU32Def(pCfg, szName, &pThis->au32TestingCfgDwords[i], 0);
+        if (RT_FAILURE(rc))
+            return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
+                                       N_("Configuration error: Failed querying \"%s\" as a string"), szName);
+    }
+
 
     /** @todo image-to-load-filename? */
 #endif
@@ -4658,19 +4783,17 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
      * Heap budgets for HGCM requestor categories.  Take the available host
      * memory as a rough hint of how much we can handle.
      */
-    /** @todo If we reduced the number of categories here, we could alot more to
-     *        each... */
     uint64_t cbDefaultBudget = 0;
     if (RT_FAILURE(RTSystemQueryTotalRam(&cbDefaultBudget)))
-        cbDefaultBudget = 16 * _1G64;
+        cbDefaultBudget = 8 * _1G64;
     LogFunc(("RTSystemQueryTotalRam -> %'RU64 (%RX64)\n", cbDefaultBudget, cbDefaultBudget));
 # if ARCH_BITS == 32
     cbDefaultBudget  = RT_MIN(cbDefaultBudget, _512M);
 # endif
     cbDefaultBudget /= 8;                               /* One eighth of physical memory ... */
-    cbDefaultBudget /= RT_ELEMENTS(pThisCC->aHgcmAcc);  /* over 8 accounting categories. (8GiB -> 64MiB) */
-    cbDefaultBudget  = RT_MIN(cbDefaultBudget, _512M);  /* max 512MiB */
-    cbDefaultBudget  = RT_MAX(cbDefaultBudget, _32M);   /* min  32MiB */
+    cbDefaultBudget /= RT_ELEMENTS(pThisCC->aHgcmAcc);  /* over 3 accounting categories. (8GiB -> 341MiB) */
+    cbDefaultBudget  = RT_MIN(cbDefaultBudget, _1G);    /* max 1024MiB */
+    cbDefaultBudget  = RT_MAX(cbDefaultBudget, _32M);   /* min   32MiB */
     rc = pHlp->pfnCFGMQueryU64Def(pCfg, "HGCMHeapBudgetDefault", &cbDefaultBudget, cbDefaultBudget);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed querying \"HGCMHeapBudgetDefault\" as a 64-bit unsigned integer"));
@@ -4678,14 +4801,9 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     LogRel(("VMMDev: cbDefaultBudget: %'RU64 (%RX64)\n", cbDefaultBudget, cbDefaultBudget));
     static const struct { const char *pszName; unsigned idx; } s_aCfgHeapBudget[] =
     {
-        { "HGCMHeapBudgetLegacy",       VMMDEV_REQUESTOR_USR_NOT_GIVEN  },
-        { "HGCMHeapBudgetVBoxGuest",    VMMDEV_REQUESTOR_USR_DRV        },
-        { "HGCMHeapBudgetOtherDrv",     VMMDEV_REQUESTOR_USR_DRV_OTHER  },
-        { "HGCMHeapBudgetRoot",         VMMDEV_REQUESTOR_USR_ROOT       },
-        { "HGCMHeapBudgetSystem",       VMMDEV_REQUESTOR_USR_SYSTEM     },
-        { "HGCMHeapBudgetReserved1",    VMMDEV_REQUESTOR_USR_RESERVED1  },
-        { "HGCMHeapBudgetUser",         VMMDEV_REQUESTOR_USR_USER       },
-        { "HGCMHeapBudgetGuest",        VMMDEV_REQUESTOR_USR_GUEST      },
+        { "HGCMHeapBudgetKernel",       VMMDEV_HGCM_CATEGORY_KERNEL },
+        { "HGCMHeapBudgetRoot",         VMMDEV_HGCM_CATEGORY_ROOT   },
+        { "HGCMHeapBudgetUser",         VMMDEV_HGCM_CATEGORY_USER   },
     };
     AssertCompile(RT_ELEMENTS(s_aCfgHeapBudget) == RT_ELEMENTS(pThisCC->aHgcmAcc));
     for (uintptr_t i = 0; i < RT_ELEMENTS(s_aCfgHeapBudget); i++)
@@ -4707,17 +4825,17 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                STAMUNIT_BYTES, "Currently available budget", "HGCM-%s/BudgetAvailable", pszCatName);
         PDMDevHlpSTAMRegisterF(pDevIns, &pThisCC->aHgcmAcc[idx].cbHeapBudgetConfig, STAMTYPE_U64, STAMVISIBILITY_ALWAYS,
                                STAMUNIT_BYTES, "Configured budget",          "HGCM-%s/BudgetConfig", pszCatName);
-        PDMDevHlpSTAMRegisterF(pDevIns, &pThisCC->aHgcmAcc[idx].cbHeapTotal, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
-                               STAMUNIT_BYTES, "Total heap usage",           "HGCM-%s/cbHeapTotal", pszCatName);
-        PDMDevHlpSTAMRegisterF(pDevIns, &pThisCC->aHgcmAcc[idx].cTotalMessages, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
-                               STAMUNIT_COUNT, "Total messages",             "HGCM-%s/cTotalMessages", pszCatName);
+        PDMDevHlpSTAMRegisterF(pDevIns, &pThisCC->aHgcmAcc[idx].StateMsgHeapUsage, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS,
+                               STAMUNIT_BYTES_PER_CALL, "Message heap usage", "HGCM-%s/MessageHeapUsage", pszCatName);
+        PDMDevHlpSTAMRegisterF(pDevIns, &pThisCC->aHgcmAcc[idx].StatBudgetOverruns, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
+                               STAMUNIT_BYTES, "Budget overruns and allocation errors", "HGCM-%s/BudgetOverruns", pszCatName);
     }
 #endif
 
     /*
      * <missing comment>
      */
-    pThis->cbGuestRAM = MMR3PhysGetRamSize(PDMDevHlpGetVM(pDevIns));
+    pThis->cbGuestRAM = PDMDevHlpMMPhysGetRamSize(pDevIns);
 
     /*
      * We do our own locking entirely. So, install NOP critsect for the device
@@ -4867,7 +4985,7 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
      * Create heartbeat checking timer.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vmmDevHeartbeatFlatlinedTimer, pThis,
-                              TMTIMER_FLAGS_NO_CRIT_SECT, "Heartbeat flatlined", &pThis->hFlatlinedTimer);
+                              TMTIMER_FLAGS_NO_CRIT_SECT | TMTIMER_FLAGS_RING0, "Heartbeat flatlined", &pThis->hFlatlinedTimer);
     AssertRCReturn(rc, rc);
 
 #ifdef VBOX_WITH_HGCM
@@ -4943,7 +5061,7 @@ static DECLCALLBACK(int) vmmdevRZConstruct(PPDMDEVINS pDevIns)
      * We map the first page of the VMMDevRAM into raw-mode and kernel contexts so we
      * can handle interrupt acknowledge requests more timely (vmmdevFastRequestIrqAck).
      */
-    rc = PDMDevHlpMmio2SetUpContext(pDevIns, pThis->hMmio2VMMDevRAM, 0, PAGE_SIZE, (void **)&pThisCC->CTX_SUFF(pVMMDevRAM));
+    rc = PDMDevHlpMmio2SetUpContext(pDevIns, pThis->hMmio2VMMDevRAM, 0, GUEST_PAGE_SIZE, (void **)&pThisCC->CTX_SUFF(pVMMDevRAM));
     AssertRCReturn(rc, rc);
 
     rc = PDMDevHlpIoPortSetUpContext(pDevIns, pThis->hIoPortFast, vmmdevFastRequestHandler, vmmdevFastRequestIrqAck, NULL);

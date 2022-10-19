@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -60,8 +70,15 @@ BS3_CMN_DEF(void, Bs3PitSetupAndEnablePeriodTimer,(uint16_t cHzDesired))
      * Disable the PIT and make sure we've configured the IRQ handlers.
      */
     Bs3PitDisable();
-    Bs3PicSetup();
+    Bs3PicSetup(false /*fForcedReInit*/);
     Bs3TrapSetHandlerEx(0x70, bs3PitIrqHandler_c16, bs3PitIrqHandler_c32, bs3PitIrqHandler_c64);
+
+    /*
+     * Reset the counters.
+     */
+    g_cBs3PitNs         = 0;
+    g_cBs3PitMs         = 0;
+    g_cBs3PitTicks      = 0;
 
     /*
      * Calculate an interval.
@@ -118,7 +135,7 @@ BS3_CMN_DEF(void, Bs3PitSetupAndEnablePeriodTimer,(uint16_t cHzDesired))
 #undef Bs3PitDisable
 BS3_CMN_DEF(void, Bs3PitDisable,(void))
 {
-    if (g_cBs3PitIntervalMs != 0)
+    if (g_cBs3PitIntervalHz != 0)
     {
         RTCCUINTREG fSaved = ASMIntDisableFlags();
 
@@ -144,11 +161,8 @@ BS3_CMN_DEF(void, Bs3PitDisable,(void))
     }
 
     /*
-     * Reset all the values.
+     * Reset the interval values (leave the ticks and elapsed ns/ms values as-is).
      */
-    g_cBs3PitNs         = 0;
-    g_cBs3PitMs         = 0;
-    g_cBs3PitTicks      = 0;
     g_cBs3PitIntervalNs = 0;
     g_cBs3PitIntervalMs = 0;
     g_cBs3PitIntervalHz = 0;

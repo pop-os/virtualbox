@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVM_h
@@ -22,60 +32,76 @@
 #endif
 
 /* GUI includes: */
-#include "UIWizard.h"
+#include "UINativeWizard.h"
+#include "UIWizardCloneVMEditors.h"
 
 /* COM includes: */
-#include "COMEnums.h"
 #include "CMachine.h"
 #include "CSnapshot.h"
 
-/* Clone VM wizard: */
-class UIWizardCloneVM : public UIWizard
+/** Clone Virtual Machine wizard: */
+class UIWizardCloneVM : public UINativeWizard
 {
     Q_OBJECT;
 
 public:
 
-    /* Page IDs: */
-    enum
-    {
-        Page1,
-        Page2,
-        Page3
-    };
-
-    /* Page IDs: */
-    enum
-    {
-        PageExpert
-    };
-
-    /* Constructor: */
     UIWizardCloneVM(QWidget *pParent, const CMachine &machine,
                     const QString &strGroup, CSnapshot snapshot = CSnapshot());
+    void setCloneModePageVisible(bool fIsFullClone);
+    bool isCloneModePageVisible() const;
+    /** Clone VM stuff. */
+    bool cloneVM();
+    bool machineHasSnapshot() const;
+
+    /** @name Parameter setter/getters
+      * @{ */
+        void setCloneName(const QString &strCloneName);
+        const QString &cloneName() const;
+
+        void setCloneFilePath(const QString &strCloneFilePath);
+        const QString &cloneFilePath() const;
+
+        MACAddressClonePolicy macAddressClonePolicy() const;
+        void setMacAddressPolicy(MACAddressClonePolicy enmMACAddressClonePolicy);
+
+        bool keepDiskNames() const;
+        void setKeepDiskNames(bool fKeepDiskNames);
+
+        bool keepHardwareUUIDs() const;
+        void setKeepHardwareUUIDs(bool fKeepHardwareUUIDs);
+
+        bool linkedClone() const;
+        void setLinkedClone(bool fLinkedClone);
+
+        KCloneMode cloneMode() const;
+        void setCloneMode(KCloneMode enmCloneMode);
+    /** @} */
 
 protected:
 
-    /* CLone VM stuff: */
-    bool cloneVM();
-
-    /* Who will be able to clone virtual-machine: */
-    friend class UIWizardCloneVMPageBasic2;
-    friend class UIWizardCloneVMPageBasic3;
-    friend class UIWizardCloneVMPageExpert;
+    virtual void populatePages() /* final override */;
 
 private:
 
-    /* Translation stuff: */
     void retranslateUi();
-
-    /* Pages related stuff: */
     void prepare();
 
-    /* Variables: */
     CMachine  m_machine;
     CSnapshot m_snapshot;
     QString   m_strGroup;
+    int m_iCloneModePageIndex;
+
+    /** @name Parameters needed during machine cloning
+      * @{ */
+        QString m_strCloneName;
+        QString m_strCloneFilePath;
+        MACAddressClonePolicy m_enmMACAddressClonePolicy;
+        bool m_fKeepDiskNames;
+        bool m_fKeepHardwareUUIDs;
+        bool m_fLinkedClone;
+        KCloneMode m_enmCloneMode;
+    /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVM_h */

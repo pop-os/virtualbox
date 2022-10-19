@@ -49,7 +49,7 @@ class EfiSection (EfiSectionClassObject):
     #   @param  Dict        dictionary contains macro and its value
     #   @retval tuple       (Generated file name list, section alignment)
     #
-    def GenSection(self, OutputPath, ModuleName, SecNum, KeyStringList, FfsInf = None, Dict = {}, IsMakefile = False) :
+    def GenSection(self, OutputPath, ModuleName, SecNum, KeyStringList, FfsInf = None, Dict = None, IsMakefile = False) :
 
         if self.FileName is not None and self.FileName.startswith('PCD('):
             self.FileName = GenFdsGlobalVariable.GetPcdValue(self.FileName)
@@ -76,6 +76,8 @@ class EfiSection (EfiSectionClassObject):
 
         """If the file name was pointed out, add it in FileList"""
         FileList = []
+        if Dict is None:
+            Dict = {}
         if Filename is not None:
             Filename = GenFdsGlobalVariable.MacroExtend(Filename, Dict)
             # check if the path is absolute or relative
@@ -258,15 +260,8 @@ class EfiSection (EfiSectionClassObject):
 
                     #Get PE Section alignment when align is set to AUTO
                     if self.Alignment == 'Auto' and (SectionType == BINARY_FILE_TYPE_PE32 or SectionType == BINARY_FILE_TYPE_TE):
-                        ImageObj = PeImageClass (File)
-                        if ImageObj.SectionAlignment < 0x400:
-                            Align = str (ImageObj.SectionAlignment)
-                        elif ImageObj.SectionAlignment < 0x100000:
-                            Align = str (ImageObj.SectionAlignment // 0x400) + 'K'
-                        else:
-                            Align = str (ImageObj.SectionAlignment // 0x100000) + 'M'
-
-                    if File[(len(File)-4):] == '.efi':
+                        Align = "0"
+                    if File[(len(File)-4):] == '.efi' and FfsInf.InfModule.BaseName == os.path.basename(File)[:-4]:
                         MapFile = File.replace('.efi', '.map')
                         CopyMapFile = os.path.join(OutputPath, ModuleName + '.map')
                         if IsMakefile:

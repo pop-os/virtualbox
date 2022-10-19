@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_3D_WIN_VBoxGaTypes_h
@@ -22,6 +32,11 @@
 #endif
 
 #include <iprt/types.h>
+
+#pragma pack(1) /* VMSVGA structures are '__packed'. */
+#include <svga3d_caps.h>
+#include <svga3d_reg.h>
+#pragma pack()
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,6 +84,27 @@ typedef struct GAFENCEQUERY
     /* OUT: GA_FENCE_STATUS_*. */
     uint32_t u32FenceStatus;
 } GAFENCEQUERY;
+
+typedef struct SVGAGBSURFCREATE
+{
+    /* Surface data. */
+    struct
+    {
+        SVGA3dSurfaceAllFlags flags;
+        SVGA3dSurfaceFormat format;
+        unsigned usage;
+        SVGA3dSize size;
+        uint32_t numFaces;
+        uint32_t numMipLevels;
+        unsigned sampleCount;
+        SVGA3dMSPattern multisamplePattern;
+        SVGA3dMSQualityLevel qualityLevel;
+    } s;
+    uint32_t gmrid; /* In/Out: Backing GMR. */
+    uint32_t cbGB; /* Out: Size of backing memory. */
+    uint64_t u64UserAddress; /* Out: R3 mapping of the backing memory. */
+    uint32_t u32Sid; /* Out: Surface id. */
+} SVGAGBSURFCREATE, *PSVGAGBSURFCREATE;
 
 #ifdef __cplusplus
 }

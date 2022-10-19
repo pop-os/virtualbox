@@ -4,24 +4,34 @@
 #
 
 #
-# Copyright (C) 2007-2020 Oracle Corporation
+# Copyright (C) 2007-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
+#
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 #
 
 SUB_DEPTH = ../../../../..
@@ -31,7 +41,7 @@ include $(KBUILD_PATH)/subheader.kmk
 include $(PATH_SUB_CURRENT)/lib/Makefile.kmk
 
 
-if1of ($(KBUILD_TARGET), darwin freebsd haiku netbsd os2 solaris win)
+if defined(VBOX_WITH_ADDITION_DRIVERS) && "$(intersects $(KBUILD_TARGET), darwin freebsd haiku netbsd os2 solaris win)" != ""
  #
  # VBoxGuest - The Guest Additions Driver.
  #
@@ -42,7 +52,7 @@ if1of ($(KBUILD_TARGET), darwin freebsd haiku netbsd os2 solaris win)
  VBoxGuest_NAME.netbsd   = vboxguest
  VBoxGuest_NAME.solaris  = vboxguest
  VBoxGuest_INST.darwin   = $(INST_ADDITIONS)VBoxGuest.kext/Contents/MacOS/
- ifdef VBOX_SIGN_ADDITIONS # See Additions/WINNT/Makefile.kmk?
+ if defined(VBOX_SIGNING_MODE) && defined(VBOX_SIGN_ADDITIONS) # See Additions/WINNT/Makefile.kmk?
   VBoxGuest_INSTTYPE.win = none
   VBoxGuest_DEBUG_INSTTYPE.win = both
  endif
@@ -88,10 +98,14 @@ if1of ($(KBUILD_TARGET), darwin freebsd haiku netbsd os2 solaris win)
     	$(VBOX_LIB_IPRT_GUEST_R0) \
     	$(PATH_SDK_$(VBOX_WINDDK_GST_NT4)_LIB)/exsup.lib \
     	$(PATH_SDK_$(VBOX_WINDDK_GST_NT4)_LIB)/int64.lib \
-    	$(PATH_SDK_$(VBOX_WINDDK_GST_NT4)_LIB)/ntoskrnl.lib \
-    	$(PATH_SDK_$(VBOX_WINDDK_GST_NT4)_LIB)/hal.lib
+    	$(PATH_SDK_$(VBOX_WINDDK_GST)_LIB)/ntoskrnl.lib \
+    	$(PATH_SDK_$(VBOX_WINDDK_GST)_LIB)/hal.lib
+    ifneq ($(VBOX_VCC_CC_GUARD_CF),)
+     VBoxGuest_LIBS     += \
+     	$(PATH_SDK_$(VBOX_WINDDK_GST)_LIB)/BufferOverflowK.lib
+    endif
    else
-    VBoxGuest_LIBS        = \
+    VBoxGuest_LIBS       = \
     	$(PATH_SDK_$(VBOX_WINDDK_GST)_LIB)/ntoskrnl.lib \
     	$(PATH_SDK_$(VBOX_WINDDK_GST)_LIB)/hal.lib
    endif
@@ -176,7 +190,7 @@ VBoxGuestLibOs2Hack_SOURCES = \
 endif # enabled
 
 
-ifeq ($(KBUILD_TARGET), darwin)
+if defined(VBOX_WITH_ADDITION_DRIVERS) && "$(KBUILD_TARGET)" == "darwin"
  # Files necessary to make a darwin kernel extension bundle.
  INSTALLS += VBoxGuest.kext
  VBoxGuest.kext_INST     = $(INST_ADDITIONS)/VBoxGuest.kext/Contents/
@@ -190,13 +204,13 @@ $$(VBoxGuest.kext_0_OUTDIR)/Contents/Info.plist: \
 	$(call MSG_GENERATE,VBoxGuest,$@,$<)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
-		-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \
-		-e 's/@VBOX_VERSION_MAJOR@/$(VBOX_VERSION_MAJOR)/g' \
-		-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
-		-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
-		-e 's/@VBOX_VENDOR@/$(VBOX_VENDOR)/g' \
-		-e 's/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g' \
-		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
+		-e 's+@VBOX_VERSION_STRING@+$(VBOX_VERSION_STRING)+g' \
+		-e 's+@VBOX_VERSION_MAJOR@+$(VBOX_VERSION_MAJOR)+g' \
+		-e 's+@VBOX_VERSION_MINOR@+$(VBOX_VERSION_MINOR)+g' \
+		-e 's+@VBOX_VERSION_BUILD@+$(VBOX_VERSION_BUILD)+g' \
+		-e 's+@VBOX_VENDOR@+$(VBOX_VENDOR)+g' \
+		-e 's+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+g' \
+		-e 's+@VBOX_C_YEAR@+$(VBOX_C_YEAR)+g' \
 		--output $@ \
 		$<
 
@@ -251,6 +265,10 @@ ifeq ($(KBUILD_TARGET),win)
  #
  PROGRAMS.win.x86 += VBoxGuestInstNT
  VBoxGuestInstNT_TEMPLATE = VBoxGuestR3Exe
+ ifndef VBOX_WITH_NOCRT_STATIC
+  VBoxGuestInstNT_LDFLAGS := -Include:_vcc100_kernel32_fakes_asm # Temporary kludge to deal with some link order issue.
+ endif
+ VBoxGuestInstNT_INCS     = ../../WINNT/include
  VBoxGuestInstNT_SOURCES  = win/VBoxGuestInst.cpp
  VBoxGuestInstNT_USES     = vboximportchecker
  VBoxGuestInstNT_VBOX_IMPORT_CHECKER.win.x86 = nt31

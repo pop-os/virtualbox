@@ -4,17 +4,31 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_MAIN
 #include "LoggingNew.h"
 
@@ -24,12 +38,17 @@
 #include <iprt/string.h>
 
 #include <VBox/vmm/cfgm.h>
+#include <VBox/vmm/vmmr3vtable.h>
 #include <VBox/com/array.h>
 
 #include <map>
 #include <vector>
 #include <algorithm>
 
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 struct DeviceAssignmentRule
 {
     const char *pszName;
@@ -45,6 +64,10 @@ struct DeviceAliasRule
     const char *pszDevAlias;
 };
 
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /* Those rules define PCI slots assignment */
 /** @note
  * The EFI takes assumptions about PCI slot assignments which are different
@@ -54,7 +77,7 @@ struct DeviceAliasRule
 /* Device           Bus  Device Function Priority */
 
 /* Generic rules */
-static const DeviceAssignmentRule aGenericRules[] =
+static const DeviceAssignmentRule g_aGenericRules[] =
 {
     /* VGA controller */
     {"vga",           0,  2, 0,  0},
@@ -67,7 +90,6 @@ static const DeviceAssignmentRule aGenericRules[] =
     {"hda",           0,  5, 0,  0},
 
     /* Storage controllers */
-    {"lsilogic",      0, 20, 0,  1},
     {"buslogic",      0, 21, 0,  1},
     {"lsilogicsas",   0, 22, 0,  1},
     {"nvme",          0, 14, 0,  1},
@@ -106,10 +128,11 @@ static const DeviceAssignmentRule aGenericRules[] =
 };
 
 /* PIIX3 chipset rules */
-static const DeviceAssignmentRule aPiix3Rules[] =
+static const DeviceAssignmentRule g_aPiix3Rules[] =
 {
     {"piix3ide",      0,  1,  1, 0},
     {"ahci",          0, 13,  0, 1},
+    {"lsilogic",      0, 20,  0, 1},
     {"pcibridge",     0, 24,  0, 0},
     {"pcibridge",     0, 25,  0, 0},
     { NULL,          -1, -1, -1, 0}
@@ -117,7 +140,7 @@ static const DeviceAssignmentRule aPiix3Rules[] =
 
 
 /* ICH9 chipset rules */
-static const DeviceAssignmentRule aIch9Rules[] =
+static const DeviceAssignmentRule g_aIch9Rules[] =
 {
     /* Host Controller */
     {"i82801",        0, 30, 0,  0},
@@ -228,8 +251,62 @@ static const DeviceAssignmentRule aIch9Rules[] =
     { NULL,          -1, -1, -1,  0}
 };
 
+
+#ifdef VBOX_WITH_IOMMU_AMD
+/*
+ * AMD IOMMU and LSI Logic controller rules.
+ *
+ * Since the PCI slot (BDF=00:20.0) of the LSI Logic controller
+ * conflicts with the SB I/O APIC, we assign the LSI Logic controller
+ * to device number 23 when the VM is configured for an AMD IOMMU.
+ */
+static const DeviceAssignmentRule g_aIch9IommuAmdRules[] =
+{
+    /* AMD IOMMU. */
+    {"iommu-amd",     0,  0,  0, 0},
+    /* AMD IOMMU: Reserved for southbridge I/O APIC. */
+    {"sb-ioapic",     0, 20,  0, 0},
+
+    /* Storage controller */
+    {"lsilogic",      0, 23,  0, 1},
+    { NULL,          -1, -1, -1, 0}
+};
+#endif
+
+#ifdef VBOX_WITH_IOMMU_INTEL
+/*
+ * Intel IOMMU.
+ * The VT-d misc, address remapping, system management device is
+ * located at BDF 0:5:0 on real hardware but we use 0:1:0 since that
+ * slot isn't used for anything else.
+ *
+ * While we could place the I/O APIC anywhere, we keep it consistent
+ * with the AMD IOMMU and we assign the LSI Logic controller to
+ * device number 23 (and I/O APIC at device 20).
+ */
+static const DeviceAssignmentRule g_aIch9IommuIntelRules[] =
+{
+    /* Intel IOMMU. */
+    {"iommu-intel",   0,  1,  0, 0},
+    /* Intel IOMMU: Reserved for I/O APIC. */
+    {"sb-ioapic",     0, 20,  0, 0},
+
+    /* Storage controller */
+    {"lsilogic",      0, 23,  0, 1},
+    { NULL,          -1, -1, -1, 0}
+};
+#endif
+
+/* LSI Logic Controller. */
+static const DeviceAssignmentRule g_aIch9LsiRules[] =
+{
+    /* Storage controller */
+    {"lsilogic",      0, 20,  0, 1},
+    { NULL,          -1, -1, -1, 0}
+};
+
 /* Aliasing rules */
-static const DeviceAliasRule aDeviceAliases[] =
+static const DeviceAliasRule g_aDeviceAliases[] =
 {
     {"e1000",       "nic"},
     {"pcnet",       "nic"},
@@ -242,6 +319,12 @@ static const DeviceAliasRule aDeviceAliases[] =
     {"virtio-scsi", "storage"}
 };
 
+
+
+/**
+ * Bus assignment manage state data.
+ * @internal
+ */
 struct BusAssignmentManager::State
 {
     struct PCIDeviceRecord
@@ -279,16 +362,18 @@ struct BusAssignmentManager::State
     volatile int32_t cRefCnt;
     ChipsetType_T    mChipsetType;
     const char *     mpszBridgeName;
+    IommuType_T      mIommuType;
     PCIMap           mPCIMap;
     ReversePCIMap    mReversePCIMap;
+    PCVMMR3VTABLE    mpVMM;
 
     State()
-        : cRefCnt(1), mChipsetType(ChipsetType_Null), mpszBridgeName("unknownbridge")
+        : cRefCnt(1), mChipsetType(ChipsetType_Null), mpszBridgeName("unknownbridge"), mpVMM(NULL)
     {}
     ~State()
     {}
 
-    HRESULT init(ChipsetType_T chipsetType);
+    HRESULT init(PCVMMR3VTABLE pVMM, ChipsetType_T chipsetType, IommuType_T iommuType);
 
     HRESULT record(const char *pszName, PCIBusAddress& GuestAddress, PCIBusAddress HostAddress);
     HRESULT autoAssign(const char *pszName, PCIBusAddress& Address);
@@ -300,9 +385,24 @@ struct BusAssignmentManager::State
     void listAttachedPCIDevices(std::vector<PCIDeviceInfo> &aAttached);
 };
 
-HRESULT BusAssignmentManager::State::init(ChipsetType_T chipsetType)
+
+HRESULT BusAssignmentManager::State::init(PCVMMR3VTABLE pVMM, ChipsetType_T chipsetType, IommuType_T iommuType)
 {
+    mpVMM = pVMM;
+
+    if (iommuType != IommuType_None)
+    {
+#if defined(VBOX_WITH_IOMMU_AMD) && defined(VBOX_WITH_IOMMU_INTEL)
+        Assert(iommuType == IommuType_AMD || iommuType == IommuType_Intel);
+#elif defined(VBOX_WITH_IOMMU_AMD)
+        Assert(iommuType == IommuType_AMD);
+#elif defined(VBOX_WITH_IOMMU_INTEL)
+        Assert(iommuType == IommuType_Intel);
+#endif
+    }
+
     mChipsetType = chipsetType;
+    mIommuType   = iommuType;
     switch (chipsetType)
     {
         case ChipsetType_PIIX3:
@@ -339,7 +439,7 @@ HRESULT BusAssignmentManager::State::record(const char *pszName, PCIBusAddress& 
     return S_OK;
 }
 
-bool    BusAssignmentManager::State::findPCIAddress(const char *pszDevName, int iInstance, PCIBusAddress& Address)
+bool BusAssignmentManager::State::findPCIAddress(const char *pszDevName, int iInstance, PCIBusAddress& Address)
 {
     PCIDeviceRecord devRec(pszDevName);
 
@@ -357,16 +457,31 @@ bool    BusAssignmentManager::State::findPCIAddress(const char *pszDevName, int 
 void BusAssignmentManager::State::addMatchingRules(const char *pszName, PCIRulesList& aList)
 {
     size_t iRuleset, iRule;
-    const DeviceAssignmentRule *aArrays[2] = {aGenericRules, NULL};
+    const DeviceAssignmentRule *aArrays[3] = {g_aGenericRules, NULL, NULL};
 
     switch (mChipsetType)
     {
         case ChipsetType_PIIX3:
-            aArrays[1] = aPiix3Rules;
+            aArrays[1] = g_aPiix3Rules;
             break;
         case ChipsetType_ICH9:
-            aArrays[1] = aIch9Rules;
+        {
+            aArrays[1] = g_aIch9Rules;
+#ifdef VBOX_WITH_IOMMU_AMD
+            if (mIommuType == IommuType_AMD)
+                aArrays[2] = g_aIch9IommuAmdRules;
+            else
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+            if (mIommuType == IommuType_Intel)
+                aArrays[2] = g_aIch9IommuIntelRules;
+            else
+#endif
+            {
+                aArrays[2] = g_aIch9LsiRules;
+            }
             break;
+        }
         default:
             AssertFailed();
             break;
@@ -387,10 +502,10 @@ void BusAssignmentManager::State::addMatchingRules(const char *pszName, PCIRules
 
 const char *BusAssignmentManager::State::findAlias(const char *pszDev)
 {
-    for (size_t iAlias = 0; iAlias < RT_ELEMENTS(aDeviceAliases); iAlias++)
+    for (size_t iAlias = 0; iAlias < RT_ELEMENTS(g_aDeviceAliases); iAlias++)
     {
-        if (strcmp(pszDev, aDeviceAliases[iAlias].pszDevName) == 0)
-            return aDeviceAliases[iAlias].pszDevAlias;
+        if (strcmp(pszDev, g_aDeviceAliases[iAlias].pszDevName) == 0)
+            return g_aDeviceAliases[iAlias].pszDevAlias;
     }
     return NULL;
 }
@@ -404,7 +519,7 @@ HRESULT BusAssignmentManager::State::autoAssign(const char *pszName, PCIBusAddre
 {
     PCIRulesList matchingRules;
 
-    addMatchingRules(pszName,  matchingRules);
+    addMatchingRules(pszName, matchingRules);
     const char *pszAlias = findAlias(pszName);
     if (pszAlias)
         addMatchingRules(pszAlias, matchingRules);
@@ -467,10 +582,10 @@ BusAssignmentManager::~BusAssignmentManager()
     }
 }
 
-BusAssignmentManager *BusAssignmentManager::createInstance(ChipsetType_T chipsetType)
+BusAssignmentManager *BusAssignmentManager::createInstance(PCVMMR3VTABLE pVMM, ChipsetType_T chipsetType, IommuType_T iommuType)
 {
     BusAssignmentManager *pInstance = new BusAssignmentManager();
-    pInstance->pState->init(chipsetType);
+    pInstance->pState->init(pVMM, chipsetType, iommuType);
     Assert(pInstance);
     return pInstance;
 }
@@ -479,24 +594,25 @@ void BusAssignmentManager::AddRef()
 {
     ASMAtomicIncS32(&pState->cRefCnt);
 }
+
 void BusAssignmentManager::Release()
 {
     if (ASMAtomicDecS32(&pState->cRefCnt) == 0)
         delete this;
 }
 
-DECLINLINE(HRESULT) InsertConfigInteger(PCFGMNODE pCfg,  const char *pszName, uint64_t u64)
+DECLINLINE(HRESULT) InsertConfigInteger(PCVMMR3VTABLE pVMM, PCFGMNODE pCfg, const char *pszName, uint64_t u64)
 {
-    int vrc = CFGMR3InsertInteger(pCfg, pszName, u64);
+    int vrc = pVMM->pfnCFGMR3InsertInteger(pCfg, pszName, u64);
     if (RT_FAILURE(vrc))
         return E_INVALIDARG;
 
     return S_OK;
 }
 
-DECLINLINE(HRESULT) InsertConfigNode(PCFGMNODE pNode, const char *pcszName, PCFGMNODE *ppChild)
+DECLINLINE(HRESULT) InsertConfigNode(PCVMMR3VTABLE pVMM, PCFGMNODE pNode, const char *pcszName, PCFGMNODE *ppChild)
 {
-    int vrc = CFGMR3InsertNode(pNode, pcszName, ppChild);
+    int vrc = pVMM->pfnCFGMR3InsertNode(pNode, pcszName, ppChild);
     if (RT_FAILURE(vrc))
         return E_INVALIDARG;
 
@@ -510,10 +626,10 @@ HRESULT BusAssignmentManager::assignPCIDeviceImpl(const char *pszDevName,
                                                   PCIBusAddress HostAddress,
                                                   bool fGuestAddressRequired)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     if (!GuestAddress.valid())
-        rc = pState->autoAssign(pszDevName, GuestAddress);
+        hrc = pState->autoAssign(pszDevName, GuestAddress);
     else
     {
         bool fAvailable = pState->checkAvailable(GuestAddress);
@@ -521,38 +637,42 @@ HRESULT BusAssignmentManager::assignPCIDeviceImpl(const char *pszDevName,
         if (!fAvailable)
         {
             if (fGuestAddressRequired)
-                rc = E_ACCESSDENIED;
+                hrc = E_ACCESSDENIED;
             else
-                rc = pState->autoAssign(pszDevName, GuestAddress);
+                hrc = pState->autoAssign(pszDevName, GuestAddress);
         }
     }
 
-    if (FAILED(rc))
-        return rc;
+    if (FAILED(hrc))
+        return hrc;
 
     Assert(GuestAddress.valid() && pState->checkAvailable(GuestAddress));
 
-    rc = pState->record(pszDevName, GuestAddress, HostAddress);
-    if (FAILED(rc))
-        return rc;
+    hrc = pState->record(pszDevName, GuestAddress, HostAddress);
+    if (FAILED(hrc))
+        return hrc;
 
-    rc = InsertConfigInteger(pCfg, "PCIBusNo",      GuestAddress.miBus);
-    if (FAILED(rc))
-        return rc;
-    rc = InsertConfigInteger(pCfg, "PCIDeviceNo",   GuestAddress.miDevice);
-    if (FAILED(rc))
-        return rc;
-    rc = InsertConfigInteger(pCfg, "PCIFunctionNo", GuestAddress.miFn);
-    if (FAILED(rc))
-        return rc;
+    PCVMMR3VTABLE const pVMM = pState->mpVMM;
+    if (pCfg)
+    {
+        hrc = InsertConfigInteger(pVMM, pCfg, "PCIBusNo",      GuestAddress.miBus);
+        if (FAILED(hrc))
+            return hrc;
+        hrc = InsertConfigInteger(pVMM, pCfg, "PCIDeviceNo",   GuestAddress.miDevice);
+        if (FAILED(hrc))
+            return hrc;
+        hrc = InsertConfigInteger(pVMM, pCfg, "PCIFunctionNo", GuestAddress.miFn);
+        if (FAILED(hrc))
+            return hrc;
+    }
 
     /* Check if the bus is still unknown, i.e. the bridge to it is missing */
     if (   GuestAddress.miBus > 0
         && !hasPCIDevice(pState->mpszBridgeName, GuestAddress.miBus - 1))
     {
-        PCFGMNODE pDevices = CFGMR3GetParent(CFGMR3GetParent(pCfg));
+        PCFGMNODE pDevices = pVMM->pfnCFGMR3GetParent(pVMM->pfnCFGMR3GetParent(pCfg));
         AssertLogRelMsgReturn(pDevices, ("BusAssignmentManager: cannot find base device configuration\n"), E_UNEXPECTED);
-        PCFGMNODE pBridges = CFGMR3GetChild(pDevices, "ich9pcibridge");
+        PCFGMNODE pBridges = pVMM->pfnCFGMR3GetChild(pDevices, "ich9pcibridge");
         AssertLogRelMsgReturn(pBridges, ("BusAssignmentManager: cannot find bridge configuration base\n"), E_UNEXPECTED);
 
         /* Device should be on a not yet existing bus, add it automatically */
@@ -561,18 +681,18 @@ HRESULT BusAssignmentManager::assignPCIDeviceImpl(const char *pszDevName,
             if (!hasPCIDevice(pState->mpszBridgeName, iBridge))
             {
                 PCIBusAddress BridgeGuestAddress;
-                rc = pState->autoAssign(pState->mpszBridgeName, BridgeGuestAddress);
-                if (FAILED(rc))
-                    return rc;
+                hrc = pState->autoAssign(pState->mpszBridgeName, BridgeGuestAddress);
+                if (FAILED(hrc))
+                    return hrc;
                 if (BridgeGuestAddress.miBus > iBridge)
                     AssertLogRelMsgFailedReturn(("BusAssignmentManager: cannot create bridge for bus %i because the possible parent bus positions are exhausted\n", iBridge + 1), E_UNEXPECTED);
 
                 PCFGMNODE pInst;
-                InsertConfigNode(pBridges, Utf8StrFmt("%d", iBridge).c_str(), &pInst);
-                InsertConfigInteger(pInst, "Trusted", 1);
-                rc = assignPCIDevice(pState->mpszBridgeName, pInst);
-                if (FAILED(rc))
-                    return rc;
+                InsertConfigNode(pVMM, pBridges, Utf8StrFmt("%d", iBridge).c_str(), &pInst);
+                InsertConfigInteger(pVMM, pInst, "Trusted", 1);
+                hrc = assignPCIDevice(pState->mpszBridgeName, pInst);
+                if (FAILED(hrc))
+                    return hrc;
             }
         }
     }

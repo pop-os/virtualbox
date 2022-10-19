@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stddef.h>
 #include <string.h>
@@ -83,7 +88,6 @@ static void free_image ( struct refcnt *refcnt ) {
  * @ret image		Executable image
  */
 struct image * alloc_image ( struct uri *uri ) {
-	const char *name;
 	struct image *image;
 	int rc;
 
@@ -94,21 +98,40 @@ struct image * alloc_image ( struct uri *uri ) {
 
 	/* Initialise image */
 	ref_init ( &image->refcnt, free_image );
-	if ( uri ) {
-		image->uri = uri_get ( uri );
-		if ( uri->path ) {
-			name = basename ( ( char * ) uri->path );
-			if ( ( rc = image_set_name ( image, name ) ) != 0 )
-				goto err_set_name;
-		}
-	}
+	if ( uri && ( ( rc = image_set_uri ( image, uri ) ) != 0 ) )
+		goto err_set_uri;
 
 	return image;
 
- err_set_name:
+ err_set_uri:
 	image_put ( image );
  err_alloc:
 	return NULL;
+}
+
+/**
+ * Set image URI
+ *
+ * @v image		Image
+ * @v uri		New image URI
+ * @ret rc		Return status code
+ */
+int image_set_uri ( struct image *image, struct uri *uri ) {
+	const char *name;
+	int rc;
+
+	/* Set name, if image does not already have one */
+	if ( uri->path && ( ! ( image->name && image->name[0] ) ) ) {
+		name = basename ( ( char * ) uri->path );
+		if ( ( rc = image_set_name ( image, name ) ) != 0 )
+			return rc;
+	}
+
+	/* Update image URI */
+	uri_put ( image->uri );
+	image->uri = uri_get ( uri );
+
+	return 0;
 }
 
 /**
@@ -153,6 +176,32 @@ int image_set_cmdline ( struct image *image, const char *cmdline ) {
 }
 
 /**
+ * Determine image type
+ *
+ * @v image		Executable image
+ * @ret rc		Return status code
+ */
+static int image_probe ( struct image *image ) {
+	struct image_type *type;
+	int rc;
+
+	/* Try each type in turn */
+	for_each_table_entry ( type, IMAGE_TYPES ) {
+		if ( ( rc = type->probe ( image ) ) == 0 ) {
+			image->type = type;
+			DBGC ( image, "IMAGE %s is %s\n",
+			       image->name, type->name );
+			return 0;
+		}
+		DBGC ( image, "IMAGE %s is not %s: %s\n", image->name,
+		       type->name, strerror ( rc ) );
+	}
+
+	DBGC ( image, "IMAGE %s format not recognised\n", image->name );
+	return -ENOTSUP;
+}
+
+/**
  * Register executable image
  *
  * @v image		Executable image
@@ -184,6 +233,14 @@ int register_image ( struct image *image ) {
 	       image->name, user_to_phys ( image->data, 0 ),
 	       user_to_phys ( image->data, image->len ) );
 
+	/* Try to detect image type, if applicable.  Ignore failures,
+	 * since we expect to handle some unrecognised images
+	 * (e.g. kernel initrds, multiboot modules, random files
+	 * provided via our EFI virtual filesystem, etc).
+	 */
+	if ( ! image->type )
+		image_probe ( image );
+
 	return 0;
 }
 
@@ -193,6 +250,10 @@ int register_image ( struct image *image ) {
  * @v image		Executable image
  */
 void unregister_image ( struct image *image ) {
+
+	/* Do nothing unless image is registered */
+	if ( ! ( image->flags & IMAGE_REGISTERED ) )
+		return;
 
 	DBGC ( image, "IMAGE %s unregistered\n", image->name );
 	list_del ( &image->list );
@@ -218,36 +279,6 @@ struct image * find_image ( const char *name ) {
 }
 
 /**
- * Determine image type
- *
- * @v image		Executable image
- * @ret rc		Return status code
- */
-int image_probe ( struct image *image ) {
-	struct image_type *type;
-	int rc;
-
-	/* Succeed if we already have a type */
-	if ( image->type )
-		return 0;
-
-	/* Try each type in turn */
-	for_each_table_entry ( type, IMAGE_TYPES ) {
-		if ( ( rc = type->probe ( image ) ) == 0 ) {
-			image->type = type;
-			DBGC ( image, "IMAGE %s is %s\n",
-			       image->name, type->name );
-			return 0;
-		}
-		DBGC ( image, "IMAGE %s is not %s: %s\n", image->name,
-		       type->name, strerror ( rc ) );
-	}
-
-	DBGC ( image, "IMAGE %s format not recognised\n", image->name );
-	return -ENOEXEC;
-}
-
-/**
  * Execute image
  *
  * @v image		Executable image
@@ -259,22 +290,12 @@ int image_probe ( struct image *image ) {
  */
 int image_exec ( struct image *image ) {
 	struct image *saved_current_image;
-	struct image *replacement;
+	struct image *replacement = NULL;
 	struct uri *old_cwuri;
 	int rc;
 
 	/* Sanity check */
 	assert ( image->flags & IMAGE_REGISTERED );
-
-	/* Check that this image can be selected for execution */
-	if ( ( rc = image_select ( image ) ) != 0 )
-		return rc;
-
-	/* Check that image is trusted (if applicable) */
-	if ( require_trusted_images && ! ( image->flags & IMAGE_TRUSTED ) ) {
-		DBGC ( image, "IMAGE %s is not trusted\n", image->name );
-		return -EACCES_UNTRUSTED;
-	}
 
 	/* Switch current working directory to be that of the image itself */
 	old_cwuri = uri_get ( cwuri );
@@ -288,6 +309,19 @@ int image_exec ( struct image *image ) {
 	 * automatically freeing itself.
 	 */
 	current_image = image_get ( image );
+
+	/* Check that this image can be executed */
+	if ( ! ( image->type && image->type->exec ) ) {
+		rc = -ENOEXEC;
+		goto err;
+	}
+
+	/* Check that image is trusted (if applicable) */
+	if ( require_trusted_images && ! ( image->flags & IMAGE_TRUSTED ) ) {
+		DBGC ( image, "IMAGE %s is not trusted\n", image->name );
+		rc = -EACCES_UNTRUSTED;
+		goto err;
+	}
 
 	/* Record boot attempt */
 	syslog ( LOG_NOTICE, "Executing \"%s\"\n", image->name );
@@ -317,6 +351,19 @@ int image_exec ( struct image *image ) {
 	if ( replacement )
 		assert ( replacement->flags & IMAGE_REGISTERED );
 
+ err:
+	/* Unregister image if applicable */
+	if ( image->flags & IMAGE_AUTO_UNREGISTER )
+		unregister_image ( image );
+
+	/* Debug message for tail-recursion.  Placed here because the
+	 * image_put() may end up freeing the image.
+	 */
+	if ( replacement ) {
+		DBGC ( image, "IMAGE %s replacing self with IMAGE %s\n",
+		       image->name, replacement->name );
+	}
+
 	/* Drop temporary reference to the original image */
 	image_put ( image );
 
@@ -328,12 +375,8 @@ int image_exec ( struct image *image ) {
 	uri_put ( old_cwuri );
 
 	/* Tail-recurse into replacement image, if one exists */
-	if ( replacement ) {
-		DBGC ( image, "IMAGE <freed> replacing self with IMAGE %s\n",
-		       replacement->name );
-		if ( ( rc = image_exec ( replacement ) ) != 0 )
-			return rc;
-	}
+	if ( replacement )
+		return image_exec ( replacement );
 
 	return rc;
 }
@@ -363,8 +406,8 @@ int image_replace ( struct image *replacement ) {
 	}
 
 	/* Check that the replacement image can be executed */
-	if ( ( rc = image_probe ( replacement ) ) != 0 )
-		return rc;
+	if ( ! ( replacement->type && replacement->type->exec ) )
+		return -ENOEXEC;
 
 	/* Clear any existing replacement */
 	image_put ( image->replacement );
@@ -385,15 +428,14 @@ int image_replace ( struct image *replacement ) {
  */
 int image_select ( struct image *image ) {
 	struct image *tmp;
-	int rc;
 
 	/* Unselect all other images */
 	for_each_image ( tmp )
 		tmp->flags &= ~IMAGE_SELECTED;
 
 	/* Check that this image can be executed */
-	if ( ( rc = image_probe ( image ) ) != 0 )
-		return rc;
+	if ( ! ( image->type && image->type->exec ) )
+		return -ENOEXEC;
 
 	/* Mark image as selected */
 	image->flags |= IMAGE_SELECTED;

@@ -9,15 +9,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -161,7 +171,7 @@ typedef struct HGSMIHOSTHEAP
 
 typedef struct HGSMIINSTANCE
 {
-    PVM pVM;                           /**< The VM. */
+    PPDMDEVINS  pDevIns;               /**< The device instance. */
 
     const char *pszName;               /**< A name for the instance. Mostyl used in the log. */
 
@@ -191,7 +201,7 @@ typedef struct HGSMIINSTANCE
 } HGSMIINSTANCE;
 
 
-typedef DECLCALLBACK(void) FNHGSMIHOSTFIFOCALLBACK(void *pvCallback);
+typedef DECLCALLBACKTYPE(void, FNHGSMIHOSTFIFOCALLBACK,(void *pvCallback));
 typedef FNHGSMIHOSTFIFOCALLBACK *PFNHGSMIHOSTFIFOCALLBACK;
 
 typedef struct HGSMIHOSTFIFOENTRY
@@ -327,7 +337,7 @@ HGSMIOFFSET HGSMIGuestRead(PHGSMIINSTANCE pIns)
 
     AssertPtr(pIns);
 
-    Assert(VMMGetCpu(pIns->pVM) != NULL);
+    Assert(PDMDevHlpGetVMCPU(pIns->pDevIns) != NULL);
 
 #ifndef VBOX_WITH_WDDM
     /* Currently there is no functionality here. */
@@ -344,7 +354,7 @@ HGSMIOFFSET HGSMIGuestRead(PHGSMIINSTANCE pIns)
 
 static bool hgsmiProcessHostCmdCompletion(HGSMIINSTANCE *pIns, HGSMIOFFSET offBuffer, bool fCompleteFirst)
 {
-    Assert(VMMGetCpu(pIns->pVM) != NULL);
+    Assert(PDMDevHlpGetVMCPU(pIns->pDevIns) != NULL);
 
     int rc = hgsmiFIFOLock(pIns);
     if (RT_SUCCESS(rc))
@@ -414,7 +424,7 @@ HGSMIOFFSET HGSMIHostRead(HGSMIINSTANCE *pIns)
 {
     LogFlowFunc(("pIns %p\n", pIns));
 
-    Assert(VMMGetCpu(pIns->pVM) != NULL);
+    Assert(PDMDevHlpGetVMCPU(pIns->pDevIns) != NULL);
 
     AssertPtrReturn(pIns->pHGFlags, HGSMIOFFSET_VOID);
     int rc = hgsmiFIFOLock(pIns);
@@ -1513,7 +1523,7 @@ static DECLCALLBACK(int) hgsmiChannelHandler(void *pvHandler, uint16_t u16Channe
 }
 
 int HGSMICreate(PHGSMIINSTANCE *ppIns,
-                PVM             pVM,
+                PPDMDEVINS      pDevIns,
                 const char     *pszName,
                 HGSMIOFFSET     offBase,
                 uint8_t        *pu8MemBase,
@@ -1522,10 +1532,10 @@ int HGSMICreate(PHGSMIINSTANCE *ppIns,
                 void           *pvNotifyGuest,
                 size_t          cbContext)
 {
-    LogFlowFunc(("ppIns = %p, pVM = %p, pszName = [%s], offBase = 0x%08X, pu8MemBase = %p, cbMem = 0x%08X, "
+    LogFlowFunc(("ppIns = %p, pDevIns = %p, pszName = [%s], offBase = 0x%08X, pu8MemBase = %p, cbMem = 0x%08X, "
                  "pfnNotifyGuest = %p, pvNotifyGuest = %p, cbContext = %d\n",
                  ppIns,
-                 pVM,
+                 pDevIns,
                  pszName,
                  offBase,
                  pu8MemBase,
@@ -1536,7 +1546,7 @@ int HGSMICreate(PHGSMIINSTANCE *ppIns,
                ));
 
     AssertPtrReturn(ppIns, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pVM, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pDevIns, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pu8MemBase, VERR_INVALID_PARAMETER);
 
     int rc;
@@ -1552,8 +1562,8 @@ int HGSMICreate(PHGSMIINSTANCE *ppIns,
             rc = RTCritSectInit(&pIns->hostFIFOCritSect);
         if (RT_SUCCESS (rc))
         {
-            pIns->pVM            = pVM;
-            pIns->pszName        = VALID_PTR(pszName) ? pszName : "";
+            pIns->pDevIns        = pDevIns;
+            pIns->pszName        = RT_VALID_PTR(pszName) ? pszName : "";
 
             hgsmiHostHeapSetupUninitialized(&pIns->hostHeap);
 

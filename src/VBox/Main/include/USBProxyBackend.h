@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2005-2020 Oracle Corporation
+ * Copyright (C) 2005-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_USBProxyBackend_h
@@ -43,7 +53,7 @@ class ATL_NO_VTABLE USBProxyBackend
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackend)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackend)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -140,6 +150,7 @@ protected:
 #  define OSType Carbon_OSType
 #  include <Carbon/Carbon.h>
 #  undef OSType
+#  undef PVM
 
 /**
  * The Darwin hosted USB Proxy Backend.
@@ -147,21 +158,14 @@ protected:
 class USBProxyBackendDarwin : public USBProxyBackend
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackendDarwin)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackendDarwin)
 
     int init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId,
              const com::Utf8Str &strAddress, bool fLoadingSettings);
     void uninit();
 
-    virtual void *insertFilter(PCUSBFILTER aFilter);
-    virtual void removeFilter(void *aId);
-
     virtual int captureDevice(HostUSBDevice *aDevice);
-    virtual void captureDeviceCompleted(HostUSBDevice *aDevice, bool aSuccess);
     virtual int releaseDevice(HostUSBDevice *aDevice);
-    virtual void releaseDeviceCompleted(HostUSBDevice *aDevice, bool aSuccess);
-
-    virtual bool i_isDevReEnumerationRequired();
 
 protected:
     virtual int wait(RTMSINTERVAL aMillies);
@@ -169,6 +173,7 @@ protected:
     virtual PUSBDEVICE getDevices (void);
     virtual void serviceThreadInit (void);
     virtual void serviceThreadTerm (void);
+    virtual bool isFakeUpdateRequired();
 
 private:
     /** Reference to the runloop of the service thread.
@@ -179,8 +184,6 @@ private:
     /** A hack to work around the problem with the usb device enumeration
      * not including newly attached devices. */
     bool mWaitABitNextTime;
-    /** Whether we've successfully initialized the USBLib and should call USBLibTerm in the destructor. */
-    bool mUSBLibInitialized;
 };
 # endif /* RT_OS_DARWIN */
 
@@ -197,7 +200,7 @@ private:
 class USBProxyBackendLinux: public USBProxyBackend
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackendLinux)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackendLinux)
 
     int init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId,
              const com::Utf8Str &strAddress, bool fLoadingSettings);
@@ -250,7 +253,7 @@ private:
 class USBProxyBackendOs2 : public USBProxyBackend
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackendOs2)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackendOs2)
 
     virtual int captureDevice(HostUSBDevice *aDevice);
     virtual int releaseDevice(HostUSBDevice *aDevice);
@@ -289,7 +292,7 @@ private:
 class USBProxyBackendSolaris : public USBProxyBackend
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackendSolaris)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackendSolaris)
 
     int init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId,
              const com::Utf8Str &strAddress, bool fLoadingSettings);
@@ -325,7 +328,7 @@ private:
 class USBProxyBackendWindows : public USBProxyBackend
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackendWindows)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackendWindows)
 
     int init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId,
              const com::Utf8Str &strAddress, bool fLoadingSettings);
@@ -357,7 +360,7 @@ private:
 class USBProxyBackendFreeBSD : public USBProxyBackend
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackendFreeBSD)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackendFreeBSD)
 
     int init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId,
              const com::Utf8Str &strAddress, bool fLoadingSettings);
@@ -409,7 +412,7 @@ struct UsbIpExportedDevice;
 class USBProxyBackendUsbIp: public USBProxyBackend
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(USBProxyBackendUsbIp)
+    DECLARE_COMMON_CLASS_METHODS(USBProxyBackendUsbIp)
 
     int init(USBProxyService *pUsbProxyService, const com::Utf8Str &strId,
              const com::Utf8Str &strAddress, bool fLoadingSettings);

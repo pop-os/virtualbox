@@ -13,7 +13,12 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
 #include <stdio.h>
@@ -26,7 +31,7 @@
 #include <ipxe/sanboot.h>
 #include <usr/autoboot.h>
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 /** @file
  *
@@ -42,33 +47,45 @@ struct sanboot_options {
 	int no_describe;
 	/** Keep SAN device */
 	int keep;
+	/** Filename */
+	char *filename;
 };
 
 /** "sanboot" option list */
-static struct option_descriptor sanboot_opts[] = {
-	OPTION_DESC ( "drive", 'd', required_argument,
-		      struct sanboot_options, drive, parse_integer ),
-	OPTION_DESC ( "no-describe", 'n', no_argument,
-		      struct sanboot_options, no_describe, parse_flag ),
-	OPTION_DESC ( "keep", 'k', no_argument,
-		      struct sanboot_options, keep, parse_flag ),
+static union {
+	/* "sanboot" takes all four options */
+	struct option_descriptor sanboot[4];
+	/* "sanhook" takes only --drive and --no-describe */
+	struct option_descriptor sanhook[2];
+	/* "sanunhook" takes only --drive */
+	struct option_descriptor sanunhook[1];
+} opts = {
+	.sanboot = {
+		OPTION_DESC ( "drive", 'd', required_argument,
+			      struct sanboot_options, drive, parse_integer ),
+		OPTION_DESC ( "no-describe", 'n', no_argument,
+			      struct sanboot_options, no_describe, parse_flag ),
+		OPTION_DESC ( "keep", 'k', no_argument,
+			      struct sanboot_options, keep, parse_flag ),
+		OPTION_DESC ( "filename", 'f', required_argument,
+			      struct sanboot_options, filename, parse_string ),
+	},
 };
+
 
 /** "sanhook" command descriptor */
 static struct command_descriptor sanhook_cmd =
-	COMMAND_DESC ( struct sanboot_options, sanboot_opts, 1, 1,
-		       "[--drive <drive>] [--no-describe] <root-path>" );
+	COMMAND_DESC ( struct sanboot_options, opts.sanhook, 1, MAX_ARGUMENTS,
+		       "<root-path>" );
 
 /** "sanboot" command descriptor */
 static struct command_descriptor sanboot_cmd =
-	COMMAND_DESC ( struct sanboot_options, sanboot_opts, 0, 1,
-		       "[--drive <drive>] [--no-describe] [--keep] "
+	COMMAND_DESC ( struct sanboot_options, opts.sanboot, 0, MAX_ARGUMENTS,
 		       "[<root-path>]" );
 
 /** "sanunhook" command descriptor */
 static struct command_descriptor sanunhook_cmd =
-	COMMAND_DESC ( struct sanboot_options, sanboot_opts, 0, 0,
-		       "[--drive <drive>]" );
+	COMMAND_DESC ( struct sanboot_options, opts.sanunhook, 0, 0, NULL );
 
 /**
  * The "sanboot", "sanhook" and "sanunhook" commands
@@ -83,9 +100,10 @@ static int sanboot_core_exec ( int argc, char **argv,
 			       struct command_descriptor *cmd,
 			       int default_flags, int no_root_path_flags ) {
 	struct sanboot_options opts;
-	const char *root_path;
-	struct uri *uri;
+	struct uri *uris[argc];
+	int count;
 	int flags;
+	int i;
 	int rc;
 
 	/* Initialise options */
@@ -96,17 +114,14 @@ static int sanboot_core_exec ( int argc, char **argv,
 	if ( ( rc = reparse_options ( argc, argv, cmd, &opts ) ) != 0 )
 		goto err_parse_options;
 
-	/* Parse root path, if present */
-	if ( argc > optind ) {
-		root_path = argv[optind];
-		uri = parse_uri ( root_path );
-		if ( ! uri ) {
+	/* Parse root paths, if present */
+	count = ( argc - optind );
+	for ( i = 0 ; i < count ; i++ ) {
+		uris[i] = parse_uri ( argv[ optind + i ] );
+		if ( ! uris[i] ) {
 			rc = -ENOMEM;
 			goto err_parse_uri;
 		}
-	} else {
-		root_path = NULL;
-		uri = NULL;
 	}
 
 	/* Construct flags */
@@ -115,16 +130,19 @@ static int sanboot_core_exec ( int argc, char **argv,
 		flags |= URIBOOT_NO_SAN_DESCRIBE;
 	if ( opts.keep )
 		flags |= URIBOOT_NO_SAN_UNHOOK;
-	if ( ! root_path )
+	if ( ! count )
 		flags |= no_root_path_flags;
 
 	/* Boot from root path */
-	if ( ( rc = uriboot ( NULL, uri, opts.drive, flags ) ) != 0 )
+	if ( ( rc = uriboot ( NULL, uris, count, opts.drive, opts.filename,
+			      flags ) ) != 0 )
 		goto err_uriboot;
 
  err_uriboot:
-	uri_put ( uri );
+	i = count;
  err_parse_uri:
+	for ( i-- ; i >= 0 ; i-- )
+		uri_put ( uris[i] );
  err_parse_options:
 	return rc;
 }

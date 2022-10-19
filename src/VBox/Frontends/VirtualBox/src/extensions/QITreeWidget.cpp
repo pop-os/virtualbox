@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -49,24 +59,24 @@ public:
     {}
 
     /** Returns the parent. */
-    virtual QAccessibleInterface *parent() const /* override */;
+    virtual QAccessibleInterface *parent() const RT_OVERRIDE;
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */;
+    virtual int childCount() const RT_OVERRIDE;
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int iIndex) const /* override */;
+    virtual QAccessibleInterface *child(int iIndex) const RT_OVERRIDE;
     /** Returns the index of the passed @a pChild. */
-    virtual int indexOfChild(const QAccessibleInterface *pChild) const /* override */;
+    virtual int indexOfChild(const QAccessibleInterface *pChild) const RT_OVERRIDE;
 
     /** Returns the rect. */
-    virtual QRect rect() const /* override */;
+    virtual QRect rect() const RT_OVERRIDE;
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */;
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
 
     /** Returns the role. */
-    virtual QAccessible::Role role() const /* override */;
+    virtual QAccessible::Role role() const RT_OVERRIDE;
     /** Returns the state. */
-    virtual QAccessible::State state() const /* override */;
+    virtual QAccessible::State state() const RT_OVERRIDE;
 
 private:
 
@@ -97,12 +107,14 @@ public:
     {}
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */;
+    virtual int childCount() const RT_OVERRIDE;
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int iIndex) const /* override */;
+    virtual QAccessibleInterface *child(int iIndex) const RT_OVERRIDE;
+    /** Returns the index of the passed @a pChild. */
+    virtual int indexOfChild(const QAccessibleInterface *pChild) const RT_OVERRIDE;
 
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */;
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
 
 private:
 
@@ -149,9 +161,9 @@ QAccessibleInterface *QIAccessibilityInterfaceForQITreeWidgetItem::child(int iIn
 int QIAccessibilityInterfaceForQITreeWidgetItem::indexOfChild(const QAccessibleInterface *pChild) const
 {
     /* Search for corresponding child: */
-    for (int i = 0; i < childCount(); ++i)
-        if (child(i) == pChild)
-            return i;
+    for (int iIndex = 0; iIndex < childCount(); ++iIndex)
+        if (child(iIndex) == pChild)
+            return iIndex;
 
     /* -1 by default: */
     return -1;
@@ -300,13 +312,30 @@ QAccessibleInterface *QIAccessibilityInterfaceForQITreeWidget::child(int iIndex)
     return QAccessible::queryAccessibleInterface(tree()->childItem(iIndex));
 }
 
+int QIAccessibilityInterfaceForQITreeWidget::indexOfChild(const QAccessibleInterface *pChild) const
+{
+    /* Make sure tree still alive: */
+    AssertPtrReturn(tree(), -1);
+    /* Make sure child is valid: */
+    AssertReturn(pChild, -1);
+
+    // WORKAROUND:
+    // Not yet sure how to handle this for tree widget with multiple columns, so this is a simple hack:
+    const QModelIndex index = tree()->itemIndex(qobject_cast<QITreeWidgetItem*>(pChild->object()));
+    const int iIndex = index.row();
+    return iIndex;
+}
+
 QString QIAccessibilityInterfaceForQITreeWidget::text(QAccessible::Text /* enmTextRole */) const
 {
     /* Make sure tree still alive: */
     AssertPtrReturn(tree(), QString());
 
-    /* Return tree whats-this: */
-    return tree()->whatsThis();
+    /* Gather suitable text: */
+    QString strText = tree()->toolTip();
+    if (strText.isEmpty())
+        strText = tree()->whatsThis();
+    return strText;
 }
 
 
@@ -318,7 +347,7 @@ QString QIAccessibilityInterfaceForQITreeWidget::text(QAccessible::Text /* enmTe
 QITreeWidgetItem *QITreeWidgetItem::toItem(QTreeWidgetItem *pItem)
 {
     /* Make sure alive QITreeWidgetItem passed: */
-    if (!pItem || pItem->type() != QITreeWidgetItem::ItemType)
+    if (!pItem || pItem->type() != ItemType)
         return 0;
 
     /* Return casted QITreeWidgetItem: */
@@ -329,7 +358,7 @@ QITreeWidgetItem *QITreeWidgetItem::toItem(QTreeWidgetItem *pItem)
 const QITreeWidgetItem *QITreeWidgetItem::toItem(const QTreeWidgetItem *pItem)
 {
     /* Make sure alive QITreeWidgetItem passed: */
-    if (!pItem || pItem->type() != QITreeWidgetItem::ItemType)
+    if (!pItem || pItem->type() != ItemType)
         return 0;
 
     /* Return casted QITreeWidgetItem: */
@@ -363,19 +392,16 @@ QITreeWidgetItem::QITreeWidgetItem(QITreeWidgetItem *pTreeWidgetItem, const QStr
 
 QITreeWidget *QITreeWidgetItem::parentTree() const
 {
-    /* Return the parent tree if any: */
     return treeWidget() ? qobject_cast<QITreeWidget*>(treeWidget()) : 0;
 }
 
 QITreeWidgetItem *QITreeWidgetItem::parentItem() const
 {
-    /* Return the parent item if any: */
     return QTreeWidgetItem::parent() ? toItem(QTreeWidgetItem::parent()) : 0;
 }
 
 QITreeWidgetItem *QITreeWidgetItem::childItem(int iIndex) const
 {
-    /* Return the child item with iIndex if any: */
     return QTreeWidgetItem::child(iIndex) ? toItem(QTreeWidgetItem::child(iIndex)) : 0;
 }
 
@@ -422,13 +448,11 @@ void QITreeWidget::setSizeHintForItems(const QSize &sizeHint)
 
 int QITreeWidget::childCount() const
 {
-    /* Return the number of children: */
     return invisibleRootItem()->childCount();
 }
 
 QITreeWidgetItem *QITreeWidget::childItem(int iIndex) const
 {
-    /* Return the child item with iIndex if any: */
     return invisibleRootItem()->child(iIndex) ? QITreeWidgetItem::toItem(invisibleRootItem()->child(iIndex)) : 0;
 }
 
@@ -437,26 +461,11 @@ QModelIndex QITreeWidget::itemIndex(QTreeWidgetItem *pItem)
     return indexFromItem(pItem);
 }
 
-QList<QTreeWidgetItem*> QITreeWidget::filterItems(const QITreeWidgetItemFilter &filter, QTreeWidgetItem* pParent /* = 0 */)
+QList<QTreeWidgetItem*> QITreeWidget::filterItems(const QITreeWidgetItemFilter &filter, QTreeWidgetItem *pParent /* = 0 */)
 {
     QList<QTreeWidgetItem*> filteredItemList;
-    if (!pParent)
-        filterItemsInternal(filter, invisibleRootItem(), filteredItemList);
-    else
-        filterItemsInternal(filter, pParent, filteredItemList);
+    filterItemsInternal(filter, pParent ? pParent : invisibleRootItem(), filteredItemList);
     return filteredItemList;
-}
-
-void QITreeWidget::filterItemsInternal(const QITreeWidgetItemFilter &filter,
-                                           QTreeWidgetItem* pParent, QList<QTreeWidgetItem*> &filteredItemList)
-{
-    if (!pParent)
-        return;
-    if (filter(pParent))
-        filteredItemList.append(pParent);
-
-    for (int i = 0; i < pParent->childCount(); ++i)
-        filterItemsInternal(filter, pParent->child(i), filteredItemList);
 }
 
 void QITreeWidget::paintEvent(QPaintEvent *pEvent)
@@ -487,4 +496,16 @@ void QITreeWidget::resizeEvent(QResizeEvent *pEvent)
 
     /* Notify listeners about resizing: */
     emit resized(pEvent->size(), pEvent->oldSize());
+}
+
+void QITreeWidget::filterItemsInternal(const QITreeWidgetItemFilter &filter, QTreeWidgetItem *pParent,
+                                       QList<QTreeWidgetItem*> &filteredItemList)
+{
+    if (!pParent)
+        return;
+    if (filter(pParent))
+        filteredItemList.append(pParent);
+
+    for (int i = 0; i < pParent->childCount(); ++i)
+        filterItemsInternal(filter, pParent->child(i), filteredItemList);
 }

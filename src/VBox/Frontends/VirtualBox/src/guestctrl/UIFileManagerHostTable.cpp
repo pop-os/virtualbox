@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -27,7 +37,7 @@
 #include "UICustomFileSystemModel.h"
 #include "UIFileManagerHostTable.h"
 #include "UIPathOperations.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
 
 
 /*********************************************************************************************************************************
@@ -45,7 +55,7 @@ public:
 
 protected:
 
-    virtual void directoryStatisticsRecursive(const QString &path, UIDirectoryStatistics &statistics) /* override */;
+    virtual void directoryStatisticsRecursive(const QString &path, UIDirectoryStatistics &statistics) RT_OVERRIDE;
 };
 
 
@@ -166,13 +176,13 @@ UIFileManagerHostTable::UIFileManagerHostTable(UIActionPool *pActionPool, QWidge
         fileObjects.insert(fileInfo.fileName(), item);
         item->setIsOpened(false);
     }
-
 }
 
 void UIFileManagerHostTable::retranslateUi()
 {
     if (m_pLocationLabel)
-        m_pLocationLabel->setText(UIFileManager::tr("Host File System"));
+        m_pLocationLabel->setText(UIFileManager::tr("Host File System:"));
+    m_strTableName = UIFileManager::tr("Host");
     UIFileManagerTable::retranslateUi();
 }
 
@@ -206,9 +216,7 @@ void UIFileManagerHostTable::prepareToolbar()
         m_pActionPool->action(UIActionIndex_M_FileManager_S_Host_Copy)->setVisible(false);
         m_pActionPool->action(UIActionIndex_M_FileManager_S_Host_Cut)->setVisible(false);
         m_pActionPool->action(UIActionIndex_M_FileManager_S_Host_Paste)->setVisible(false);
-
     }
-
     setSelectionDependentActionsEnabled(false);
 }
 
@@ -266,8 +274,8 @@ void UIFileManagerHostTable::deleteByItem(UICustomFileSystemItem *item)
     /** @todo replace this recursive delete by a better implementation: */
     bool deleteSuccess = itemToDelete.removeRecursively();
 
-     if (!deleteSuccess)
-         emit sigLogOutput(QString(item->path()).append(" could not be deleted"), FileManagerLogType_Error);
+    if (!deleteSuccess)
+        emit sigLogOutput(QString(item->path()).append(" could not be deleted"), m_strTableName, FileManagerLogType_Error);
 }
 
 void UIFileManagerHostTable::deleteByPath(const QStringList &pathList)
@@ -287,7 +295,7 @@ void UIFileManagerHostTable::deleteByPath(const QStringList &pathList)
             deleteSuccess = itemToDelete.removeRecursively();
         }
         if (!deleteSuccess)
-            emit sigLogOutput(QString(strPath).append(" could not be deleted"), FileManagerLogType_Error);
+            emit sigLogOutput(QString(strPath).append(" could not be deleted"), m_strTableName, FileManagerLogType_Error);
     }
 }
 
@@ -322,14 +330,15 @@ bool UIFileManagerHostTable::createDirectory(const QString &path, const QString 
     QDir parentDir(path);
     if (!parentDir.mkdir(directoryName))
     {
-        emit sigLogOutput(UIPathOperations::mergePaths(path, directoryName).append(" could not be created"), FileManagerLogType_Error);
+        emit sigLogOutput(UIPathOperations::mergePaths(path, directoryName).append(" could not be created"), m_strTableName, FileManagerLogType_Error);
         return false;
     }
 
     return true;
 }
 
-/* static */ KFsObjType UIFileManagerHostTable::fileType(const QFileInfo &fsInfo)
+/* static */
+KFsObjType UIFileManagerHostTable::fileType(const QFileInfo &fsInfo)
 {
     if (!fsInfo.exists())
         return KFsObjType_Unknown;
@@ -341,8 +350,13 @@ bool UIFileManagerHostTable::createDirectory(const QString &path, const QString 
         return KFsObjType_File;
     else if (fsInfo.isDir())
         return KFsObjType_Directory;
-
     return KFsObjType_Unknown;
+}
+
+/* static */
+KFsObjType  UIFileManagerHostTable::fileType(const QString &strPath)
+{
+    return fileType(QFileInfo(strPath));
 }
 
 QString UIFileManagerHostTable::fsObjectPropertyString()
@@ -368,13 +382,17 @@ QString UIFileManagerHostTable::fsObjectPropertyString()
         /* Type: */
         propertyStringList << UIFileManager::tr("<b>Type:</b> %1<br/>").arg(fileTypeString(fileType(fileInfo)));
         /* Creation Date: */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+        propertyStringList << UIFileManager::tr("<b>Created:</b> %1<br/>").arg(fileInfo.birthTime().toString());
+#else
         propertyStringList << UIFileManager::tr("<b>Created:</b> %1<br/>").arg(fileInfo.created().toString());
+#endif
         /* Last Modification Date: */
         propertyStringList << UIFileManager::tr("<b>Modified:</b> %1<br/>").arg(fileInfo.lastModified().toString());
         /* Owner: */
         propertyStringList << UIFileManager::tr("<b>Owner:</b> %1").arg(fileInfo.owner());
 
-        return propertyStringList.join(QString());;
+        return propertyStringList.join(QString());
     }
 
     int fileCount = 0;

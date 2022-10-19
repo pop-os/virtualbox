@@ -4,107 +4,127 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
-#include <VBox/VBoxNetCfg-win.h>
-#include <stdio.h>
 
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#include <VBox/VBoxNetCfg-win.h>
+
+#include <iprt/initterm.h>
+#include <iprt/message.h>
+#include <iprt/utf16.h>
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #define VBOX_NETCFG_APP_NAME L"NetLwfUninstall"
 #define VBOX_NETLWF_RETRIES 10
 
-static VOID winNetCfgLogger (LPCSTR szString)
+
+static DECLCALLBACK(void) winNetCfgLogger(const char *pszString)
 {
-    printf("%s", szString);
+    RTMsgInfo("%s", pszString);
 }
 
 static int VBoxNetLwfUninstall()
 {
-    INetCfg *pnc;
-    LPWSTR lpszLockedBy = NULL;
-    int r;
+    int rcExit = RTEXITCODE_FAILURE;
 
     VBoxNetCfgWinSetLogging(winNetCfgLogger);
 
     HRESULT hr = CoInitialize(NULL);
     if (hr == S_OK)
     {
-        int i = 0;
-        do
+        for (int i = 0;; i++)
         {
-            hr = VBoxNetCfgWinQueryINetCfg(&pnc, TRUE, VBOX_NETCFG_APP_NAME, 10000, &lpszLockedBy);
+            LPWSTR pwszLockedBy = NULL;
+            INetCfg *pnc = NULL;
+            hr = VBoxNetCfgWinQueryINetCfg(&pnc, TRUE, VBOX_NETCFG_APP_NAME, 10000, &pwszLockedBy);
             if (hr == S_OK)
             {
                 hr = VBoxNetCfgWinNetLwfUninstall(pnc);
-                if (hr != S_OK)
+                if (hr == S_OK)
                 {
-                    wprintf(L"error uninstalling VBoxNetLwf (0x%x)\n", hr);
-                    r = 1;
+                    RTMsgInfo("uninstalled successfully!");
+                    rcExit = RTEXITCODE_SUCCESS;
                 }
                 else
-                {
-                    wprintf(L"uninstalled successfully\n");
-                    r = 0;
-                }
+                    RTMsgError("error uninstalling VBoxNetLwf: %Rhrc");
 
                 VBoxNetCfgWinReleaseINetCfg(pnc, TRUE);
                 break;
             }
-            else if (hr == NETCFG_E_NO_WRITE_LOCK && lpszLockedBy)
+
+            if (hr == NETCFG_E_NO_WRITE_LOCK && pwszLockedBy)
             {
-                if (i < VBOX_NETLWF_RETRIES && !wcscmp(lpszLockedBy, L"6to4svc.dll"))
+                if (i < VBOX_NETLWF_RETRIES && RTUtf16ICmpAscii(pwszLockedBy, "6to4svc.dll") == 0)
                 {
-                    wprintf(L"6to4svc.dll is holding the lock, retrying %d out of %d\n", ++i, VBOX_NETLWF_RETRIES);
-                    CoTaskMemFree(lpszLockedBy);
+                    RTMsgInfo("6to4svc.dll is holding the lock - retry %d out of %d ...", i + 1, VBOX_NETLWF_RETRIES);
+                    CoTaskMemFree(pwszLockedBy);
                 }
                 else
                 {
-                    wprintf(L"Error: write lock is owned by another application (%s), close the application and retry uninstalling\n", lpszLockedBy);
-                    r = 1;
-                    CoTaskMemFree(lpszLockedBy);
+                    RTMsgError("Write lock is owned by another application (%ls), close the application and retry uninstalling",
+                               pwszLockedBy);
+                    CoTaskMemFree(pwszLockedBy);
                     break;
                 }
             }
             else
             {
-                wprintf(L"Error getting the INetCfg interface (0x%x)\n", hr);
-                r = 1;
+                RTMsgError("Failed getting the INetCfg interface: %Rhrc", hr);
                 break;
             }
-        } while (true);
+        }
 
         CoUninitialize();
     }
     else
-    {
-        wprintf(L"Error initializing COM (0x%x)\n", hr);
-        r = 1;
-    }
+        RTMsgError("Failed initializing COM: %Rhrc", hr);
 
     VBoxNetCfgWinSetLogging(NULL);
 
-    return r;
+    return rcExit;
 }
 
 int __cdecl main(int argc, char **argv)
 {
-    RT_NOREF2(argc, argv);
+    RTR3InitExeNoArguments(0);
+    if (argc != 1)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "This utility takes no arguments\n");
+    NOREF(argv);
+
     return VBoxNetLwfUninstall();
 }
+

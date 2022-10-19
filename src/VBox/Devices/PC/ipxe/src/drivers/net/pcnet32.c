@@ -13,7 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  */
 
@@ -245,7 +246,7 @@ pcnet32_setup_rx_resources ( struct pcnet32_private *priv )
 {
 	DBGP ( "pcnet32_setup_rx_resources\n" );
 
-	priv->rx_base = malloc_dma ( RX_RING_BYTES, RX_RING_ALIGN );
+	priv->rx_base = malloc_phys ( RX_RING_BYTES, RX_RING_ALIGN );
 
 	DBG ( "priv->rx_base = %#08lx\n", virt_to_bus ( priv->rx_base ) );
 
@@ -269,7 +270,7 @@ pcnet32_free_rx_resources ( struct pcnet32_private *priv )
 
 	DBGP ( "pcnet32_free_rx_resources\n" );
 
-	free_dma ( priv->rx_base, RX_RING_BYTES );
+	free_phys ( priv->rx_base, RX_RING_BYTES );
 
 	for ( i = 0; i < RX_RING_SIZE; i++ ) {
 		free_iob ( priv->rx_iobuf[i] );
@@ -289,7 +290,7 @@ pcnet32_setup_tx_resources ( struct pcnet32_private *priv )
 {
 	DBGP ( "pcnet32_setup_tx_resources\n" );
 
-	priv->tx_base = malloc_dma ( TX_RING_BYTES, TX_RING_ALIGN );
+	priv->tx_base = malloc_phys ( TX_RING_BYTES, TX_RING_ALIGN );
 
 	if ( ! priv->tx_base ) {
 		return -ENOMEM;
@@ -311,7 +312,7 @@ pcnet32_free_tx_resources ( struct pcnet32_private *priv )
 {
 	DBGP ( "pcnet32_free_tx_resources\n" );
 
-	free_dma ( priv->tx_base, TX_RING_BYTES );
+	free_phys ( priv->tx_base, TX_RING_BYTES );
 }
 
 static int
@@ -406,15 +407,14 @@ pcnet32_chip_detect ( struct pcnet32_private *priv )
 	/*
 	 * On selected chips turn on the BCR18:NOUFLO bit. This stops transmit
 	 * starting until the packet is loaded. Strike one for reliability, lose
-	 * one for latency - although on PCI this isnt a big loss. Older chips
+	 * one for latency - although on PCI this isn't a big loss. Older chips
 	 * have FIFO's smaller than a packet, so you can't do this.
 	 * Turn on BCR18:BurstRdEn and BCR18:BurstWrEn.
 	 */
 	if (fset) {
 		a->write_bcr ( ioaddr, 18,
 			( a->read_bcr ( ioaddr, 18 ) | 0x0860 ) );
-		a->write_csr ( ioaddr, 80,
-			( a->read_csr ( ioaddr, 80 ) & 0x0C00) | 0x0C00 );
+		a->write_csr ( ioaddr, 80, 0x0c00 );
 	}
 
 	priv->full_duplex = fdx;

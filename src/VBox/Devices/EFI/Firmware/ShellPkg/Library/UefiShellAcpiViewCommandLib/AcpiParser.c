@@ -1,7 +1,7 @@
 /** @file
   ACPI parser
 
-  Copyright (c) 2016 - 2019, ARM Limited. All rights reserved.
+  Copyright (c) 2016 - 2021, Arm Limited. All rights reserved.
   SPDX-License-Identifier: BSD-2-Clause-Patent
 **/
 
@@ -10,6 +10,7 @@
 #include <Library/UefiBootServicesTableLib.h>
 #include "AcpiParser.h"
 #include "AcpiView.h"
+#include "AcpiViewConfig.h"
 
 STATIC UINT32   gIndent;
 STATIC UINT32   mTableErrorCount;
@@ -406,6 +407,39 @@ Dump8Chars (
 }
 
 /**
+  This function traces 12 characters which can be optionally
+  formated using the format string if specified.
+
+  If no format string is specified the Format must be NULL.
+
+  @param [in] Format  Optional format string for tracing the data.
+  @param [in] Ptr     Pointer to the start of the buffer.
+**/
+VOID
+EFIAPI
+Dump12Chars (
+  IN CONST CHAR16* Format OPTIONAL,
+  IN       UINT8*  Ptr
+  )
+{
+  Print (
+    (Format != NULL) ? Format : L"%c%c%c%c%c%c%c%c%c%c%c%c",
+    Ptr[0],
+    Ptr[1],
+    Ptr[2],
+    Ptr[3],
+    Ptr[4],
+    Ptr[5],
+    Ptr[6],
+    Ptr[7],
+    Ptr[8],
+    Ptr[9],
+    Ptr[10],
+    Ptr[11]
+    );
+}
+
+/**
   This function indents and prints the ACPI table Field Name.
 
   @param [in] Indent      Number of spaces to add to the global table indent.
@@ -510,8 +544,15 @@ ParseAcpi (
 
   for (Index = 0; Index < ParserItems; Index++) {
     if ((Offset + Parser[Index].Length) > Length) {
+
+      // For fields outside the buffer length provided, reset any pointers
+      // which were supposed to be updated by this function call
+      if (Parser[Index].ItemPtr != NULL) {
+        *Parser[Index].ItemPtr = NULL;
+      }
+
       // We don't parse past the end of the max length specified
-      break;
+      continue;
     }
 
     if (GetConsistencyChecking () &&
@@ -555,13 +596,12 @@ ParseAcpi (
               Parser[Index].Length
               );
         } // switch
-
-        // Validating only makes sense if we are tracing
-        // the parsed table entries, to report by table name.
-        if (GetConsistencyChecking () &&
-            (Parser[Index].FieldValidator != NULL)) {
-          Parser[Index].FieldValidator (Ptr, Parser[Index].Context);
-        }
+      }
+      // Validating only makes sense if we are tracing
+      // the parsed table entries, to report by table name.
+      if (GetConsistencyChecking () &&
+          (Parser[Index].FieldValidator != NULL)) {
+        Parser[Index].FieldValidator (Ptr, Parser[Index].Context);
       }
       Print (L"\n");
     } // if (Trace)
@@ -588,7 +628,7 @@ STATIC CONST ACPI_PARSER GasParser[] = {
   {L"Address Space ID", 1, 0, L"0x%x", NULL, NULL, NULL, NULL},
   {L"Register Bit Width", 1, 1, L"0x%x", NULL, NULL, NULL, NULL},
   {L"Register Bit Offset", 1, 2, L"0x%x", NULL, NULL, NULL, NULL},
-  {L"Address Size", 1, 3, L"0x%x", NULL, NULL, NULL, NULL},
+  {L"Access Size", 1, 3, L"0x%x", NULL, NULL, NULL, NULL},
   {L"Address", 8, 4, L"0x%lx", NULL, NULL, NULL, NULL}
 };
 
@@ -633,7 +673,7 @@ DumpGas (
   IN UINT8*        Ptr
   )
 {
-  DumpGasStruct (Ptr, 2, GAS_LENGTH);
+  DumpGasStruct (Ptr, 2, sizeof (EFI_ACPI_6_3_GENERIC_ADDRESS_STRUCTURE));
 }
 
 /**
@@ -654,7 +694,7 @@ DumpAcpiHeader (
            0,
            "ACPI Table Header",
            Ptr,
-           ACPI_DESCRIPTION_HEADER_LENGTH,
+           sizeof (EFI_ACPI_DESCRIPTION_HEADER),
            PARSER_PARAMS (AcpiHeaderParser)
            );
 }
@@ -688,7 +728,7 @@ ParseAcpiHeader (
                   0,
                   NULL,
                   Ptr,
-                  ACPI_DESCRIPTION_HEADER_LENGTH,
+                  sizeof (EFI_ACPI_DESCRIPTION_HEADER),
                   PARSER_PARAMS (AcpiHeaderParser)
                   );
 

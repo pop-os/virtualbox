@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsStorage_h
@@ -22,14 +32,11 @@
 #endif
 
 /* GUI includes: */
-#include "UIMachineSettingsStorage.gen.h"
-#include "UIMediumDefs.h"
 #include "UISettingsPage.h"
 
 /* Forward declarations: */
-class QITreeView;
-class StorageModel;
-class UIMediumIDHolder;
+class UIActionPool;
+class UIStorageSettingsEditor;
 struct UIDataSettingsMachineStorage;
 struct UIDataSettingsMachineStorageController;
 struct UIDataSettingsMachineStorageAttachment;
@@ -38,8 +45,7 @@ typedef UISettingsCachePool<UIDataSettingsMachineStorageController, UISettingsCa
 typedef UISettingsCachePool<UIDataSettingsMachineStorage, UISettingsCacheMachineStorageController> UISettingsCacheMachineStorage;
 
 /** Machine settings: Storage page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsStorage : public UISettingsPageMachine,
-                                                      public Ui::UIMachineSettingsStorage
+class SHARED_LIBRARY_STUFF UIMachineSettingsStorage : public UISettingsPageMachine
 {
     Q_OBJECT;
 
@@ -50,15 +56,10 @@ signals:
 
 public:
 
-    /** Holds the controller mime-type for the D&D system. */
-    static const QString  s_strControllerMimeType;
-    /** Holds the attachment mime-type for the D&D system. */
-    static const QString  s_strAttachmentMimeType;
-
     /** Constructs Storage settings page. */
-    UIMachineSettingsStorage();
+    UIMachineSettingsStorage(UIActionPool *pActionPool);
     /** Destructs Storage settings page. */
-    virtual ~UIMachineSettingsStorage() /* override */;
+    virtual ~UIMachineSettingsStorage() RT_OVERRIDE;
 
     /** Defines chipset @a enmType. */
     void setChipsetType(KChipsetType enmType);
@@ -66,172 +67,48 @@ public:
 protected:
 
     /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */;
+    virtual bool changed() const RT_OVERRIDE;
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Performs validation, updates @a messages list if something is wrong. */
-    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
+    virtual bool validate(QList<UIValidationMessage> &messages) RT_OVERRIDE;
 
     /** Defines the configuration access @a enmLevel. */
-    virtual void setConfigurationAccessLevel(ConfigurationAccessLevel enmLevel) /* override */;
+    virtual void setConfigurationAccessLevel(ConfigurationAccessLevel enmLevel) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Performs final page polishing. */
-    virtual void polishPage() /* override */;
-
-    /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
-
-private slots:
-
-    /** Handles enumeration of medium with @a uMediumId. */
-    void sltHandleMediumEnumerated(const QUuid &uMediumId);
-    /** Handles removing of medium with @a uMediumId. */
-    void sltHandleMediumDeleted(const QUuid &uMediumId);
-
-    /** Handles command to add controller. */
-    void sltAddController();
-    /** Handles command to add PIIX3 controller. */
-    void sltAddControllerPIIX3();
-    /** Handles command to add PIIX4 controller. */
-    void sltAddControllerPIIX4();
-    /** Handles command to add ICH6 controller. */
-    void sltAddControllerICH6();
-    /** Handles command to add AHCI controller. */
-    void sltAddControllerAHCI();
-    /** Handles command to add LsiLogic controller. */
-    void sltAddControllerLsiLogic();
-    /** Handles command to add BusLogic controller. */
-    void sltAddControllerBusLogic();
-    /** Handles command to add Floppy controller. */
-    void sltAddControllerFloppy();
-    /** Handles command to add SAS controller. */
-    void sltAddControllerLsiLogicSAS();
-    /** Handles command to add USB controller. */
-    void sltAddControllerUSB();
-    /** Handles command to add NVMe controller. */
-    void sltAddControllerNVMe();
-    /** Handles command to add virtio-scsi controller. */
-    void sltAddControllerVirtioSCSI();
-    /** Handles command to remove controller. */
-    void sltRemoveController();
-
-    /** Handles command to add attachment. */
-    void sltAddAttachment();
-    /** Handles command to add HD attachment. */
-    void sltAddAttachmentHD();
-    /** Handles command to add CD attachment. */
-    void sltAddAttachmentCD();
-    /** Handles command to add FD attachment. */
-    void sltAddAttachmentFD();
-    /** Handles command to remove attachment. */
-    void sltRemoveAttachment();
-
-    /** Loads information from model to widgets. */
-    void sltGetInformation();
-    /** Saves information from widgets to model. */
-    void sltSetInformation();
-
-    /** Prepares 'Open Medium' menu. */
-    void sltPrepareOpenMediumMenu();
-    /** Unmounts current device. */
-    void sltUnmountDevice();
-    /** Mounts existing medium. */
-    void sltChooseExistingMedium();
-    /** Mounts a medium from a disk file. */
-    void sltChooseDiskFile();
-    /** Mounts existing host-drive. */
-    void sltChooseHostDrive();
-    /** Mounts one of recent media. */
-    void sltChooseRecentMedium();
-
-    /** Updates action states. */
-    void sltUpdateActionStates();
-
-    /** Handles row insertion into @a parentIndex on @a iPosition. */
-    void sltHandleRowInsertion(const QModelIndex &parentIndex, int iPosition);
-    /** Handles row removal. */
-    void sltHandleRowRemoval();
-
-    /** Handles current item change. */
-    void sltHandleCurrentItemChange();
-
-    /** Handles context menu request for @a position. */
-    void sltHandleContextMenuRequest(const QPoint &position);
-
-    /** Handles item branch drawing with @a pPainter, within @a rect for item with @a index. */
-    void sltHandleDrawItemBranches(QPainter *pPainter, const QRect &rect, const QModelIndex &index);
-
-    /** Handles mouse-move @a pEvent. */
-    void sltHandleMouseMove(QMouseEvent *pEvent);
-    /** Handles mouse-click @a pEvent. */
-    void sltHandleMouseClick(QMouseEvent *pEvent);
-    /** Handles mouse-release @a pEvent. */
-    void sltHandleMouseRelease(QMouseEvent *pEvent);
-
-    /** Handles drag-enter @a pEvent. */
-    void sltHandleDragEnter(QDragEnterEvent *pEvent);
-    /** Handles drag-move @a pEvent. */
-    void sltHandleDragMove(QDragMoveEvent *pEvent);
-    /** Handles drag-drop @a pEvent. */
-    void sltHandleDragDrop(QDropEvent *pEvent);
+    virtual void polishPage() RT_OVERRIDE;
 
 private:
 
     /** Prepares all. */
     void prepare();
-    /** Prepares storage tree. */
-    void prepareStorageTree();
-    /** Prepares storage toolbar. */
-    void prepareStorageToolbar();
-    /** Prepares storage widgets. */
-    void prepareStorageWidgets();
+    /** Prepares widgets. */
+    void prepareWidgets();
     /** Prepares connections. */
     void prepareConnections();
 
     /** Cleanups all. */
     void cleanup();
 
-    /** Adds controller with @a strName, @a enmBus and @a enmType. */
-    void addControllerWrapper(const QString &strName, KStorageBus enmBus, KStorageControllerType enmType);
-    /** Adds attachment with @a enmDevice. */
-    void addAttachmentWrapper(KDeviceType enmDevice);
-
-    /** Updates additions details according to passed @a enmType. */
-    void updateAdditionalDetails(KDeviceType enmType);
-
-    /** Generates unique controller name based on passed @a strTemplate. */
-    QString generateUniqueControllerName(const QString &strTemplate) const;
-
-    /** Returns current devices count for passed @a enmType. */
-    uint32_t deviceCount(KDeviceType enmType) const;
-
-    /** Adds 'Choose/Create Medium' action into passed @a pOpenMediumMenu under passed @a strActionName. */
-    void addChooseExistingMediumAction(QMenu *pOpenMediumMenu, const QString &strActionName);
-    /** Adds 'Choose Disk File' action into passed @a pOpenMediumMenu under passed @a strActionName. */
-    void addChooseDiskFileAction(QMenu *pOpenMediumMenu, const QString &strActionName);
-    /** Adds 'Choose Host Drive' actions into passed @a pOpenMediumMenu. */
-    void addChooseHostDriveActions(QMenu *pOpenMediumMenu);
-    /** Adds 'Choose Recent Medium' actions of passed @a enmRecentMediumType into passed @a pOpenMediumMenu. */
-    void addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumDeviceType enmRecentMediumType);
-
-    /** Saves existing storage data from the cache. */
-    bool saveStorageData();
+    /** Saves existing data from cache. */
+    bool saveData();
     /** Removes existing storage controller described by the @a controllerCache. */
     bool removeStorageController(const UISettingsCacheMachineStorageController &controllerCache);
     /** Creates existing storage controller described by the @a controllerCache. */
@@ -253,51 +130,26 @@ private:
     /** Returns whether the attachment described by the @a attachmentCache could be updated or recreated otherwise. */
     bool isAttachmentCouldBeUpdated(const UISettingsCacheMachineStorageAttachment &attachmentCache) const;
 
+    /** Holds the action pool instance. */
+    UIActionPool *m_pActionPool;
+
     /** Holds the machine ID. */
     QUuid    m_uMachineId;
+    /** Holds the machine name. */
+    QString  m_strMachineName;
     /** Holds the machine settings file-path. */
     QString  m_strMachineSettingsFilePath;
-    /** Holds the machine settings file-path. */
-    QString  m_strMachineName;
     /** Holds the machine guest OS type ID. */
     QString  m_strMachineGuestOSTypeId;
 
-    /** Holds the storage-tree instance. */
-    QITreeView   *m_pTreeStorage;
-    /** Holds the storage-model instance. */
-    StorageModel *m_pModelStorage;
-
-    /** Holds the 'Add Controller' action instance. */
-    QAction *m_pActionAddController;
-    /** Holds the 'Remove Controller' action instance. */
-    QAction *m_pActionRemoveController;
-    /** Holds the map of add controller action instances. */
-    QMap<KStorageControllerType, QAction*> m_addControllerActions;
-
-    /** Holds the 'Add Attachment' action instance. */
-    QAction *m_pActionAddAttachment;
-    /** Holds the 'Remove Attachment' action instance. */
-    QAction *m_pActionRemoveAttachment;
-    /** Holds the 'Add HD Attachment' action instance. */
-    QAction *m_pActionAddAttachmentHD;
-    /** Holds the 'Add CD Attachment' action instance. */
-    QAction *m_pActionAddAttachmentCD;
-    /** Holds the 'Add FD Attachment' action instance. */
-    QAction *m_pActionAddAttachmentFD;
-
-    /** Holds the medium ID wrapper instance. */
-    UIMediumIDHolder *m_pMediumIdHolder;
-
-    /** Holds whether the page is polished. */
-    bool  m_fPolished;
-    /** Holds whether the loading is in progress. */
-    bool  m_fLoadingInProgress;
-
-    /** Holds the last mouse-press position. */
-    QPoint  m_mousePressPosition;
-
     /** Holds the page data cache instance. */
     UISettingsCacheMachineStorage *m_pCache;
+
+    /** @name Widgets
+      * @{ */
+        /** Holds the storage settings editor instance. */
+        UIStorageSettingsEditor *m_pEditorStorageSettings;
+    /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsStorage_h */

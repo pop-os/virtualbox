@@ -4,30 +4,51 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
 #
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
+#
 
 SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
-ifdef VBOX_WITH_TESTCASES
+ifdef VBOX_WITH_TESTCASES # The whole file
+
+#
+# Include the Validation Kit configuration to make use of build templates needed
+# for testcases to be included  on the Validation Kit .ISO.
+#
+ifdef VBOX_WITH_VALIDATIONKIT_UNITTESTS_PACKING
+ ifndef VBOX_VALIDATIONKIT_CONFIG_KMK_INCLUDED
+  include $(PATH_ROOT)/src/VBox/ValidationKit/Config.kmk
+ endif
+endif
+
 
 #
 # Globals
@@ -43,195 +64,210 @@ IPRT_OUT_DIR ?= $(PATH_TARGET)/Runtime
 #
 # Target lists
 #
-PROGRAMS += \
-	tstRTAssertCompile \
-	tstRTAvl \
-	tstRTBase64 \
-	tstRTBitOperations \
-	tstRTBigNum \
-	tstRTCidr \
-	tstRTCritSect \
-	tstRTCritSectRw \
-	tstRTCrPkix-1 \
-	tstRTCrX509-1 \
-	tstRTCType \
-	tstRTDigest \
-	tstRTDigest-2 \
-	tstDir \
-	tstDir-2 \
-	tstDir-3 \
-	tstRTDvm \
-	tstRTEnv \
-	tstRTErrUnique \
-	tstFile \
-	tstRTFileAio \
-	tstRTFileAppend-1 \
-	tstRTFileQuerySize-1 \
-	tstRTFileModeStringToFlags \
-	tstFileLock \
-	tstRTFileOpenEx-1 \
-	tstFork \
-	tstRTFsQueries \
-	tstRTFilesystem \
-	tstRTGetOpt \
-	tstRTGetOptArgv \
-	tstHandleTable \
-	tstRTHeapOffset \
-	tstRTHeapSimple \
-	tstRTInlineAsm \
-	tstIprtList \
-	tstIprtMiniString \
-	tstLdr \
-	tstLdrLoad \
-	tstRTLocalIpc \
-	tstRTLdrVerifyPeImage \
-	tstRTList \
-	tstRTLockValidator \
-	tstLog \
-	tstRTMath \
-	tstRTMemEf \
-	tstRTMemCache \
-	tstRTMemPool \
-	tstRTMemWipe \
-	tstRTMemSafer \
-	tstMove \
-	tstRTMp-1 \
-	tstRTNetIPv4 \
-	tstRTNetIPv6 \
-	tstOnce \
-	tstRTPath \
-	tstRTPathGlob \
-	tstRTPathQueryInfo \
-	tstRTPipe \
-	tstRTPoll \
-	tstRTPrfIO \
-	tstRTProcCreateEx \
-	tstRTProcCreatePrf \
-	tstRTProcQueryUsername \
-	tstPrfRT \
-	tstRand \
-	tstRTReqPool \
-	tstRTSemEventMulti \
-	tstSemMutex \
-	tstSemPingPong \
-	tstRTSemRW \
-	tstRTSemXRoads \
-	tstRTSort \
-	tstRTStrAlloc \
-	tstRTStrCache \
-	tstRTStrCatCopy \
-	tstRTStrFormat \
-	tstStrSimplePattern \
-	tstStrToNum \
-	tstRTStrVersion \
-	tstRTSymlink \
-	tstRTSystemQueryDmi \
-	tstRTSystemQueryFirmware \
-	tstRTSystemQueryOsInfo \
-	tstRTTcp-1 \
-	tstRTTemp \
-	tstRTDirCreateUniqueNumbered \
-	tstTermCallbacks \
-	tstThread-1 \
-	tstRTThreadPoke \
-	tstRTThreadExecutionTime \
-	tstRTTime \
-	tstTime-2 \
-	tstTime-3 \
-	tstTime-4 \
-	tstTimer \
-	tstRTTimerLR \
-	tstRTTimeSpec \
-	tstRTTls-1 \
-	tstRTTraceLog \
-	tstRTUdp-1 \
-	tstUtf8 \
-	tstRTUuid \
-	tstRTCircBuf \
-	tstRTManifest \
-	tstRTUri \
-	tstVector \
-	tstRTVfs \
-	tstRTZip \
-	tstRTJson \
-	tstRTShMem
-
-PROGRAMS.win += \
-	tstRTCritSectW32 \
-	tstRTProcWait \
-	tstFileAppendWin-1 \
-	tstRTNtPath-1 \
-	ntGetTimerResolution \
-	tstRTDarwinMachKernel
-
-PROGRAMS.linux += \
-	tstRTProcWait \
-	tstRTProcIsRunningByName \
-	tstRTBitOperationsPIC3 \
-	tstRTInlineAsmPIC \
-	tstRTInlineAsmPIC3
-PROGRAMS.solaris += \
-	tstRTCoreDump
-PROGRAMS.darwin += \
-	tstDarwinSched \
-	tstRTDarwinMachKernel
-ifdef VBOX_WITH_LIBCURL
+ifndef VBOX_ONLY_VALIDATIONKIT
  PROGRAMS += \
- 	tstRTHttp-1 \
- 	tstRTCRest-1 \
- 	tstRTS3
-endif
-if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
- PROGRAMS += \
- 	tstLdr-2 \
- 	tstLdr-3 \
- 	tstLdr-4 \
- 	tstNoCrt-1 \
-	tstTSC
- if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
+ 	tstRTAssertCompile \
+ 	tstRTAvl \
+ 	tstRTBase64 \
+ 	tstRTBitOperations \
+ 	tstRTBigNum \
+ 	tstRTCidr \
+ 	tstRTCritSect \
+ 	tstRTCritSectRw \
+ 	tstRTCrPkix-1 \
+ 	tstRTCrX509-1 \
+ 	tstRTCType \
+ 	tstRTDigest \
+ 	tstRTDigest-2 \
+ 	tstDir \
+ 	tstDir-2 \
+ 	tstDir-3 \
+ 	tstRTDvm \
+ 	tstRTEnv \
+ 	tstRTErr-1 \
+ 	tstFile \
+ 	tstRTFileAio \
+ 	tstRTFileAppend-1 \
+ 	tstRTFileQuerySize-1 \
+ 	tstRTFileModeStringToFlags \
+ 	tstFileLock \
+ 	tstRTFileOpenEx-1 \
+ 	tstFork \
+ 	tstRTFsQueries \
+ 	tstRTFilesystem \
+ 	tstRTExprEval\
+ 	tstRTGetOpt \
+ 	tstRTGetOptArgv \
+ 	tstHandleTable \
+ 	tstRTHeapOffset \
+ 	tstRTHeapSimple \
+ 	tstRTInlineAsm \
+ 	tstIprtList \
+ 	tstIprtMiniString \
+ 	tstLdr \
+ 	tstLdrLoad \
+ 	tstRTLocalIpc \
+ 	tstRTLdrVerifyPeImage \
+ 	tstRTList \
+ 	tstRTLockValidator \
+ 	tstLog \
+ 	tstRTMath \
+ 	tstRTMemEf \
+ 	tstRTMemCache \
+ 	tstRTMemPool \
+ 	tstRTMemWipe \
+ 	tstRTMemSafer \
+ 	tstMove \
+ 	tstRTMp-1 \
+ 	tstRTNetIPv4 \
+ 	tstRTNetIPv6 \
+ 	tstOnce \
+ 	tstRTPath \
+ 	tstRTPathGlob \
+ 	tstRTPathQueryInfo \
+ 	tstRTPipe \
+ 	tstRTPoll \
+ 	tstRTPrfIO \
+ 	tstRTProcCreateEx \
+ 	tstRTProcCreatePrf \
+ 	tstRTProcQueryUsername \
+ 	tstPrfRT \
+ 	tstRand \
+ 	tstRTReqPool \
+ 	tstRTSemEvent \
+ 	tstRTSemEventMulti \
+ 	tstSemMutex \
+ 	tstSemPingPong \
+ 	tstRTSemRW \
+ 	tstRTSemXRoads \
+ 	tstRTSort \
+ 	tstRTStrAlloc \
+ 	tstRTStrCache \
+ 	tstRTStrCatCopy \
+ 	tstRTStrFormat \
+ 	tstRTStrSplit \
+ 	tstRTStrSimplePattern \
+ 	tstStrToNum \
+ 	tstRTStrVersion \
+ 	tstRTSymlink \
+ 	tstRTSystemQueryDmi \
+ 	tstRTSystemQueryFirmware \
+ 	tstRTSystemQueryOsInfo \
+ 	tstRTTcp-1 \
+ 	tstRTTemp \
+ 	tstRTDirCreateUniqueNumbered \
+ 	tstTermCallbacks \
+ 	tstThread-1 \
+ 	tstRTThreadPoke \
+ 	tstRTThreadExecutionTime \
+ 	tstRTTime \
+ 	tstTime-2 \
+ 	tstTime-3 \
+ 	tstTime-4 \
+ 	tstTimer \
+ 	tstRTTimerLR \
+ 	tstRTTimeSpec \
+ 	tstRTTls-1 \
+ 	tstRTTraceLog \
+ 	tstRTUdp-1 \
+ 	tstUtf8 \
+ 	tstRTUuid \
+ 	tstRTCircBuf \
+ 	tstRTManifest \
+ 	tstRTUri \
+ 	tstVector \
+ 	tstRTVfs \
+ 	tstRTZip \
+ 	tstRTJson \
+ 	tstRTShMem
+
+ PROGRAMS.win += \
+ 	tstRTCritSectW32 \
+ 	tstRTProcWait \
+ 	tstFileAppendWin-1 \
+ 	tstRTNtPath-1 \
+ 	ntGetTimerResolution \
+ 	tstRTDarwinMachKernel
+
+ PROGRAMS.linux += \
+ 	tstRTProcWait \
+ 	tstRTProcIsRunningByName \
+ 	tstRTBitOperationsPIC3 \
+ 	tstRTInlineAsmPIC \
+ 	tstRTInlineAsmPIC3
+ PROGRAMS.solaris += \
+ 	tstRTCoreDump
+ PROGRAMS.darwin += \
+ 	tstDarwinSched \
+ 	tstRTDarwinMachKernel
+ ifdef VBOX_WITH_LIBCURL
   PROGRAMS += \
-  	tstRTR0MemUserKernelDriverHardened \
-  	tstRTR0SemMutexDriverHardened \
-  	tstRTR0TimerDriverHardened \
-  	tstRTR0ThreadPreemptionDriverHardened \
-  	tstRTR0ThreadDriverHardened
-  DLLS     += \
-    	tstRTR0MemUserKernelDriver \
-  	tstRTR0SemMutexDriver \
-  	tstRTR0TimerDriver \
-  	tstRTR0ThreadPreemptionDriver \
-  	tstRTR0ThreadDriver
- else
-  PROGRAMS += \
-    	tstRTR0MemUserKernelDriver \
-  	tstRTR0SemMutexDriver \
-  	tstRTR0TimerDriver \
-  	tstRTR0ThreadPreemptionDriver \
-  	tstRTR0ThreadDriver
+  	tstRTHttp-1 \
+  	tstRTCRest-1 \
+  	tstRTS3
  endif
- if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
-  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += \
-  	tstLdrObjR0
-  ifdef VBOX_WITH_RAW_MODE
-   SYSMODS += tstLdrObj
+
+ if1of ($(KBUILD_TARGET_ARCH), x86 amd64)
+  PROGRAMS += \
+  	tstNoCrt-1
+  if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), win.amd64) ## Build and test x86 too!
+   PROGRAMS += \
+   	tstRTNoCrt-2
   endif
  endif
- $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += \
- 	tstRTR0MemUserKernel \
- 	tstRTR0SemMutex \
- 	tstRTR0Timer \
- 	tstRTR0ThreadPreemption \
- 	tstRTR0Thread
- if1of ($(KBUILD_TARGET), solaris darwin)
-  PROGRAMS += tstRTR0DbgKrnlInfoDriver
-  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += tstRTR0DbgKrnlInfo
- endif # VBOX_SUPPORTED_HOST_ARCHS only
 
-endif
-if1of ($(VBOX_LDR_FMT)), lx pe)
- LIBRARIES += \
- 	tstLdr-4Imp
-endif
+ if defined(VBOX_WITH_R0_MODULES)
+  PROGRAMS += \
+  	tstLdr-2 \
+  	tstLdr-3 \
+  	tstLdr-4 \
+ 	tstTSC
+  if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
+   PROGRAMS += \
+   	tstRTR0MemUserKernelDriverHardened \
+   	tstRTR0SemMutexDriverHardened \
+   	tstRTR0TimerDriverHardened \
+   	tstRTR0ThreadPreemptionDriverHardened \
+   	tstRTR0ThreadDriverHardened
+   DLLS     += \
+   	tstRTR0MemUserKernelDriver \
+   	tstRTR0SemMutexDriver \
+   	tstRTR0TimerDriver \
+   	tstRTR0ThreadPreemptionDriver \
+   	tstRTR0ThreadDriver
+  else
+   PROGRAMS += \
+   	tstRTR0MemUserKernelDriver \
+   	tstRTR0SemMutexDriver \
+   	tstRTR0TimerDriver \
+   	tstRTR0ThreadPreemptionDriver \
+   	tstRTR0ThreadDriver
+  endif
+  if1of ($(KBUILD_TARGET_ARCH), $(VBOX_SUPPORTED_HOST_ARCHS))
+   $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += \
+   	tstLdrObjR0
+   ifdef VBOX_WITH_RAW_MODE
+    SYSMODS += tstLdrObj
+   endif
+  endif
+  $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += \
+  	tstRTR0MemUserKernel \
+  	tstRTR0SemMutex \
+  	tstRTR0Timer \
+  	tstRTR0ThreadPreemption \
+  	tstRTR0Thread
+  if1of ($(KBUILD_TARGET), solaris darwin)
+   PROGRAMS += tstRTR0DbgKrnlInfoDriver
+   $(if-expr defined(VBOX_WITH_VBOXR0_AS_DLL),DLLS,SYSMODS) += tstRTR0DbgKrnlInfo
+  endif # VBOX_SUPPORTED_HOST_ARCHS only
+
+ endif
+ if1of ($(VBOX_LDR_FMT)), lx pe)
+  LIBRARIES += \
+  	tstLdr-4Imp
+ endif
+
+endif # !VBOX_ONLY_VALIDATIONKIT
 
 
 #
@@ -251,6 +287,7 @@ tstRTBase64_SOURCES = tstRTBase64.cpp
 tstRTBigNum_TEMPLATE = VBOXR3TSTEXE
 tstRTBigNum_SOURCES = tstRTBigNum.cpp
 tstRTBigNum_SDKS = VBOX_OPENSSL2
+tstRTBigNum_CXXFLAGS.win = -bigobj
 
 tstRTBitOperations_TEMPLATE = VBOXR3TSTEXE
 tstRTBitOperations_SOURCES = tstRTBitOperations.cpp
@@ -350,9 +387,8 @@ tstRTDvm_SOURCES = tstRTDvm.cpp
 tstRTEnv_TEMPLATE = VBOXR3TSTEXE
 tstRTEnv_SOURCES = tstRTEnv.cpp
 
-tstRTErrUnique_SOURCES = tstRTErrUnique.cpp
-tstRTErrUnique_INCS = $(IPRT_OUT_DIR)/
-tstRTErrUnique.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgdata.h # generate by ../Makefile.kmk
+tstRTErr-1_TEMPLATE = VBOXR3TSTEXE
+tstRTErr-1_SOURCES = tstRTErr-1.cpp
 
 tstFile_TEMPLATE = VBOXR3TSTEXE
 tstFile_SOURCES = tstFile.cpp
@@ -386,6 +422,9 @@ tstRTFsQueries_SOURCES = tstRTFsQueries.cpp
 
 tstRTFilesystem_TEMPLATE = VBOXR3TSTEXE
 tstRTFilesystem_SOURCES = tstRTFilesystem.cpp
+
+tstRTExprEval_TEMPLATE = VBOXR3TSTEXE
+tstRTExprEval_SOURCES = tstRTExprEval.cpp
 
 tstRTGetOpt_TEMPLATE = VBOXR3TSTEXE
 tstRTGetOpt_SOURCES = tstRTGetOpt.cpp
@@ -552,7 +591,123 @@ tstNoCrt-1_SOURCES = \
 	../common/string/strchr.asm \
 	../common/string/strcmp.asm \
 	../common/string/strcpy.asm \
-	../common/string/strlen.asm
+	../common/string/strlen.asm \
+	../common/string/wcslen.asm
+
+tstRTNoCrt-2_TEMPLATE = VBOXR3TSTEXE
+tstRTNoCrt-2_DEFS = RT_WITHOUT_NOCRT_WRAPPER_ALIASES
+tstRTNoCrt-2_INCS = ../include
+tstRTNoCrt-2_SDKS = VBOX_SOFTFLOAT
+tstRTNoCrt-2_SOURCES = \
+	tstRTNoCrt-2.cpp \
+       \
+	../common/math/copysign.cpp \
+	../common/math/copysignf.cpp \
+	../common/math/copysignl.cpp \
+	../common/math/fma.cpp \
+	../common/math/fmaf.cpp \
+	../common/math/fmax.cpp \
+	../common/math/fmaxf.cpp \
+	../common/math/fmaxl.cpp \
+	../common/math/fmin.cpp \
+	../common/math/fminf.cpp \
+	../common/math/fminl.cpp \
+	../common/math/isinf.cpp \
+	../common/math/isnan.cpp \
+	../common/math/isnanf.cpp \
+	../common/math/llround.cpp \
+	../common/math/llroundf.cpp \
+	../common/math/lround.cpp \
+	../common/math/lroundf.cpp \
+	../common/math/nocrt-abs.cpp \
+	../common/math/nocrt-labs.cpp \
+	../common/math/nocrt-llabs.cpp \
+	../common/math/round.cpp \
+	../common/math/roundf.cpp \
+	../common/math/frexp.cpp \
+	../common/math/frexpf.cpp \
+	../common/math/frexpl.cpp \
+	../common/math/__fpclassifyd.cpp \
+	../common/math/__fpclassifyf.cpp \
+	../common/math/__fpclassifyl.cpp \
+	../common/math/__isfinite.cpp \
+	../common/math/__isfinitef.cpp \
+	../common/math/__isfinitel.cpp \
+	../common/math/__isinff.cpp \
+	../common/math/__isinfl.cpp \
+	../common/math/__isnanl.cpp \
+	../common/math/__isnormal.cpp \
+	../common/math/__isnormalf.cpp \
+	../common/math/__isnormall.cpp \
+	../common/math/__signbit.cpp \
+	../common/math/__signbitf.cpp \
+	../common/math/__signbitl.cpp
+
+if1of ($(KBUILD_TARGET_ARCH), x86 amd64)
+tstRTNoCrt-2_SOURCES.x86 += \
+  	../common/math/rtNoCrtHasSse.asm
+tstRTNoCrt-2_SOURCES += \
+	../common/math/atan.asm \
+	../common/math/atan2.asm \
+	../common/math/atan2f.asm \
+	../common/math/atanf.asm \
+	../common/math/ceil.asm \
+	../common/math/ceilf.asm \
+	../common/math/cos.asm \
+	../common/math/cosf.asm \
+	../common/math/cosl.asm \
+	../common/math/exp.asm \
+	../common/math/expf.asm \
+	../common/math/exp2.asm \
+	../common/math/exp2f.asm \
+	../common/math/fabs.asm \
+	../common/math/fabsf.asm \
+  	../common/math/fegetenv.asm \
+  	../common/math/fesetenv.asm \
+  	../common/math/feholdexcept.asm \
+  	../common/math/fegetround.asm \
+  	../common/math/fesetround.asm \
+  	../common/math/fegetx87precision.asm \
+  	../common/math/fesetx87precision.asm \
+  	../common/math/fegetexcept.asm \
+  	../common/math/feenableexcept.asm \
+  	../common/math/fedisableexcept.asm \
+  	../common/math/feclearexcept.asm \
+  	../common/math/fegetexceptflag.asm \
+  	../common/math/fesetexceptflag.asm \
+  	../common/math/fetestexcept.asm \
+  	../common/math/feraiseexcept.asm \
+	../common/math/floor.asm \
+	../common/math/floorf.asm \
+	../common/math/fma-asm.asm \
+	../common/math/fmaf-asm.asm \
+	../common/math/ldexp.asm \
+	../common/math/ldexpf.asm \
+	../common/math/llrint.asm \
+	../common/math/llrintf.asm \
+	../common/math/log.asm \
+	../common/math/logf.asm \
+	../common/math/log2.asm \
+	../common/math/log2f.asm \
+	../common/math/lrint.asm \
+	../common/math/lrintf.asm \
+	../common/math/pow.asm \
+	../common/math/powf.asm \
+	../common/math/powcore.asm \
+	../common/math/remainder.asm \
+	../common/math/remainderf.asm \
+	../common/math/rint.asm \
+	../common/math/rintf.asm \
+	../common/math/sin.asm \
+	../common/math/sinf.asm \
+	../common/math/sincore.asm \
+	../common/math/sqrt.asm \
+	../common/math/sqrtf.asm \
+	../common/math/tan.asm \
+	../common/math/tanf.asm \
+	../common/math/trunc.asm \
+	../common/math/truncf.asm
+endif
 
 tstRTNtPath-1_TEMPLATE = VBOXR3TSTEXE
 tstRTNtPath-1_SOURCES = tstRTNtPath-1.cpp
@@ -562,6 +717,9 @@ tstOnce_SOURCES = tstOnce.cpp
 
 tstRTPath_TEMPLATE = VBOXR3TSTEXE
 tstRTPath_SOURCES = tstRTPath.cpp
+
+tstRTPathFindCommon_TEMPLATE = VBOXR3TSTEXE
+tstRTPathFindCommon_SOURCES = tstRTPathFindCommon.cpp
 
 tstRTPathGlob_TEMPLATE = VBOXR3TSTEXE
 tstRTPathGlob_SOURCES = tstRTPathGlob.cpp
@@ -610,6 +768,9 @@ tstRTS3_SOURCES = tstRTS3.cpp
 tstSemMutex_TEMPLATE = VBOXR3TSTEXE
 tstSemMutex_SOURCES = tstSemMutex.cpp
 
+tstRTSemEvent_TEMPLATE = VBOXR3TSTEXE
+tstRTSemEvent_SOURCES = tstRTSemEvent.cpp
+
 tstRTSemEventMulti_TEMPLATE = VBOXR3TSTEXE
 tstRTSemEventMulti_SOURCES = tstRTSemEventMulti.cpp
 
@@ -637,8 +798,11 @@ tstRTStrCatCopy_SOURCES = tstRTStrCatCopy.cpp
 tstRTStrFormat_TEMPLATE = VBOXR3TSTEXE
 tstRTStrFormat_SOURCES = tstRTStrFormat.cpp
 
-tstStrSimplePattern_TEMPLATE = VBOXR3TSTEXE
-tstStrSimplePattern_SOURCES = tstStrSimplePattern.cpp
+tstRTStrSplit_TEMPLATE = VBOXR3TSTEXE
+tstRTStrSplit_SOURCES = tstRTStrSplit.cpp
+
+tstRTStrSimplePattern_TEMPLATE = VBOXR3TSTEXE
+tstRTStrSimplePattern_SOURCES = tstRTStrSimplePattern.cpp
 
 tstStrToNum_TEMPLATE = VBOXR3TSTEXE
 tstStrToNum_SOURCES = tstStrToNum.cpp
@@ -767,7 +931,11 @@ tstRTR0DbgKrnlInfo_LIBS = \
 if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstRTR0DbgKrnlInfoDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstRTR0DbgKrnlInfoDriverHardened_NAME = tstRTR0DbgKrnlInfoDriver
- tstRTR0DbgKrnlInfoDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0DbgKrnlInfoDriver\"
+ ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+  tstRTR0DbgKrnlInfoDriverHardened_DEFS = PROGRAM_NAME_STR="tstRTR0DbgKrnlInfoDriver"
+ else
+  tstRTR0DbgKrnlInfoDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0DbgKrnlInfoDriver\"
+ endif
  tstRTR0DbgKrnlInfoDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
  tstRTR0DbgKrnlInfoDriver_TEMPLATE = VBoxR3HardenedTstDll
 else
@@ -788,7 +956,11 @@ tstRTR0MemUserKernel_LIBS = \
 if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstRTR0MemUserKernelDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstRTR0MemUserKernelDriverHardened_NAME = tstRTR0MemUserKernelDriver
- tstRTR0MemUserKernelDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0MemUserKernelDriver\"
+ ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+  tstRTR0MemUserKernelDriverHardened_DEFS = PROGRAM_NAME_STR="tstRTR0MemUserKernelDriver"
+ else
+  tstRTR0MemUserKernelDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0MemUserKernelDriver\"
+ endif
  tstRTR0MemUserKernelDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
  tstRTR0MemUserKernelDriver_TEMPLATE = VBoxR3HardenedTstDll
 else
@@ -808,7 +980,11 @@ tstRTR0SemMutex_LIBS = \
 if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstRTR0SemMutexDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstRTR0SemMutexDriverHardened_NAME = tstRTR0SemMutexDriver
- tstRTR0SemMutexDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0SemMutexDriver\"
+ ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+  tstRTR0SemMutexDriverHardened_DEFS = PROGRAM_NAME_STR="tstRTR0SemMutexDriver"
+ else
+  tstRTR0SemMutexDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0SemMutexDriver\"
+ endif
  tstRTR0SemMutexDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
  tstRTR0SemMutexDriver_TEMPLATE = VBoxR3HardenedTstDll
 else
@@ -828,7 +1004,11 @@ tstRTR0Thread_LIBS = \
 if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstRTR0ThreadDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstRTR0ThreadDriverHardened_NAME = tstRTR0ThreadDriver
- tstRTR0ThreadDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0ThreadDriver\"
+ ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+  tstRTR0ThreadDriverHardened_DEFS = PROGRAM_NAME_STR="tstRTR0ThreadDriver"
+ else
+  tstRTR0ThreadDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0ThreadDriver\"
+ endif
  tstRTR0ThreadDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
  tstRTR0ThreadDriver_TEMPLATE = VBoxR3HardenedTstDll
 else
@@ -848,7 +1028,11 @@ tstRTR0Timer_LIBS = \
 if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstRTR0TimerDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstRTR0TimerDriverHardened_NAME = tstRTR0TimerDriver
- tstRTR0TimerDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0TimerDriver\"
+ ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+  tstRTR0TimerDriverHardened_DEFS = PROGRAM_NAME_STR="tstRTR0TimerDriver"
+ else
+  tstRTR0TimerDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0TimerDriver\"
+ endif
  tstRTR0TimerDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
  tstRTR0TimerDriver_TEMPLATE = VBoxR3HardenedTstDll
 else
@@ -868,7 +1052,11 @@ tstRTR0ThreadPreemption_LIBS = \
 if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
  tstRTR0ThreadPreemptionDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
  tstRTR0ThreadPreemptionDriverHardened_NAME = tstRTR0ThreadPreemptionDriver
- tstRTR0ThreadPreemptionDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0ThreadPreemptionDriver\"
+ ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+  tstRTR0ThreadPreemptionDriverHardened_DEFS = PROGRAM_NAME_STR="tstRTR0ThreadPreemptionDriver"
+ else
+  tstRTR0ThreadPreemptionDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0ThreadPreemptionDriver\"
+ endif
  tstRTR0ThreadPreemptionDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplateTestcase.cpp
  tstRTR0ThreadPreemptionDriver_TEMPLATE = VBoxR3HardenedTstDll
 else
@@ -893,7 +1081,21 @@ tstRTDarwinMachKernel_SOURCES  = \
 ntGetTimerResolution_SOURCES = ntGetTimerResolution.cpp
 ntGetTimerResolution_SDKS.win = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
 
+
+#
+# ValKit versions of selected tests.
+#
+ifdef VBOX_WITH_VALIDATIONKIT_UNITTESTS_PACKING
+ define def_valkit_unittest_iprt
+  PROGRAMS += $(unittest)-ValKit
+  $(unittest)-ValKit_TEMPLATE := VBoxValidationKitR3TstExe
+  $(unittest)-ValKit_EXTENDS  := $(unittest)
+  $(unittest)-ValKit_NAME     := $(unittest)
+ endef
+ $(foreach unittest, $(VALKIT_UNITTESTS_WHITELIST_IPRT) $($(VALKIT_UNITTESTS_WHITELIST_IPRT).$(KBUILD_TARGET)) \
+	,$(evalcall2 def_valkit_unittest_iprt))
+endif
+
 endif # VBOX_WITH_TESTCASES
 
 include $(FILE_KBUILD_SUB_FOOTER)
-

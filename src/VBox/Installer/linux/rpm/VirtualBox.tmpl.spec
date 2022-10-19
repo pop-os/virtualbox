@@ -4,21 +4,31 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 %define %SPEC% 1
 %define %OSE% 1
 %define %PYTHON% 1
-%define %CHM% 1
+%define %QHELP% 1
 %define VBOXDOCDIR %{_defaultdocdir}/%NAME%
 %global __requires_exclude_from ^/usr/lib/virtualbox/VBoxPython.*$|^/usr/lib/python.*$|^.*\\.py$
 %{!?python_sitelib: %define python_sitelib %(%{__python} -c "from distutils.sysconfig import get_python_lib; print(get_python_lib())")}
@@ -33,7 +43,7 @@ License:   GPLv2
 Group:     Applications/System
 Vendor:    Oracle Corporation
 BuildRoot: %BUILDROOT%
-Requires:  %INITSCRIPTS% %LIBASOUND% %NETTOOLS%
+Requires:  %INITSCRIPTS% %LIBASOUND% %NETTOOLS% %LIBVULKAN%
 
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
 %debug_package
@@ -48,9 +58,6 @@ Requires:  %INITSCRIPTS% %LIBASOUND% %NETTOOLS%
 %{?rpm_suse: %define vbox_python_sitelib %{py_sitedir}}
 %{!?rpm_suse: %define vbox_python_sitelib %{python_sitelib}}
 %endif
-
-# our Qt5 libs are built on EL5 with ld 2.17 which does not provide --link-id=
-%undefine _missing_build_ids_terminate_build
 
 # Remove source code from debuginfo package, needed for Fedora 27 and later
 # as we build the binaries before creating the RPMs.
@@ -123,8 +130,13 @@ cd icons
 cd -
 rmdir icons
 mv virtualbox.xml $RPM_BUILD_ROOT/usr/share/mime/packages
-mv VBoxTunctl $RPM_BUILD_ROOT/usr/bin
 %if %{?is_ose:0}%{!?is_ose:1}
+%if "%BUILDREL%" == "el7"
+# For el7 we use gcc from devtoolset-4, which is not suitable for kernel work.
+# See the PATH trickery in src/VBox/Installer/linux/rpm/rules.
+old_path="$PATH"
+PATH=${PATH#/opt/rh/devtoolset-4/root/usr/bin:}
+%endif
 for d in /lib/modules/*; do
   if [ -L $d/build ]; then
     rm -f /tmp/vboxdrv-Module.symvers
@@ -152,14 +164,12 @@ for d in /lib/modules/*; do
     fi
   fi
 done
-rm -r src
+%if "%BUILDREL%" == "el7"
+# For el7 restore PATH, see above.
+PATH="$old_path"
+unset old_path
 %endif
-%if %{?is_ose:0}%{!?is_ose:1}
-  for i in rdesktop-vrdp.tar.gz rdesktop-vrdp-keymaps; do
-    mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
-  # Very little needed tool causing python compatibility trouble. Do not ship.
-  rm -f $RPM_BUILD_ROOT/usr/share/virtualbox/rdesktop-vrdp-keymaps/convert-map
-  mv rdesktop-vrdp $RPM_BUILD_ROOT/usr/bin
+rm -r src
 %endif
 for i in additions/VBoxGuestAdditions.iso; do
   mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
@@ -175,7 +185,9 @@ ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxVRDP
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxHeadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxheadless
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxDTrace
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxAudioTest
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxdtrace
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxaudiotest
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxBugReport
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxbugreport
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxBalloonCtrl
@@ -190,7 +202,7 @@ mv virtualbox.desktop $RPM_BUILD_ROOT/usr/share/applications/virtualbox.desktop
 mv VBox.png $RPM_BUILD_ROOT/usr/share/pixmaps/VBox.png
 %{!?is_ose: mv LICENSE $RPM_BUILD_ROOT%{VBOXDOCDIR}}
 mv UserManual*.pdf $RPM_BUILD_ROOT%{VBOXDOCDIR}
-%{?with_chm: mv VirtualBox*.chm $RPM_BUILD_ROOT%{VBOXDOCDIR}}
+%{?with_qhelp: mv UserManual*.qch UserManual*.qhc $RPM_BUILD_ROOT%{VBOXDOCDIR}}
 install -m 755 -d $RPM_BUILD_ROOT/usr/lib/debug/usr/lib/virtualbox
 %if %{?rpm_suse:1}%{!?rpm_suse:0}
 rm *.debug
@@ -202,13 +214,12 @@ if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/libQt5CoreVBox.so.5 ]; then
   $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath --keepgoing --replace /usr/lib/virtualbox \
     $RPM_BUILD_ROOT/usr/lib/virtualbox/*.so.5 \
     $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/platforms/*.so \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/platformthemes/*.so \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/sqldrivers/*.so \
+    $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/styles/*.so \
     $RPM_BUILD_ROOT/usr/lib/virtualbox/plugins/xcbglintegrations/*.so || true
   echo "[Paths]" > $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
   echo "Plugins = /usr/lib/virtualbox/plugins" >> $RPM_BUILD_ROOT/usr/lib/virtualbox/qt.conf
-fi
-if [ -d $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy ]; then
-  mv $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy/* $RPM_BUILD_ROOT/usr/lib/virtualbox
-  rmdir $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy
 fi
 rm -f $RPM_BUILD_ROOT/usr/lib/virtualbox/chrpath
 ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so

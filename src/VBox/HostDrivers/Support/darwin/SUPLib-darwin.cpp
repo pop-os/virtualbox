@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -186,7 +196,7 @@ static int suplibDarwinOpenService(PSUPLIBDATA pThis)
 }
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+DECLHIDDEN(int) suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, uint32_t fFlags, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
 {
     RT_NOREF(penmWhat, pErrInfo);
 
@@ -197,13 +207,22 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
         return VINF_SUCCESS;
 
     /*
+     * Driverless?
+     */
+    if (fFlags & SUPR3INIT_F_DRIVERLESS)
+    {
+        pThis->fDriverless = true;
+        return VINF_SUCCESS;
+    }
+
+    /*
      * Do the job.
      */
     Assert(pThis->hDevice == (intptr_t)NIL_RTFILE);
     int rc = suplibDarwinOpenService(pThis);
     if (RT_SUCCESS(rc))
     {
-        rc = suplibDarwinOpenDevice(pThis, fUnrestricted);
+        rc = suplibDarwinOpenDevice(pThis, RT_BOOL(fFlags & SUPR3INIT_F_UNRESTRICTED));
         if (RT_FAILURE(rc))
         {
             kern_return_t kr = IOServiceClose((io_connect_t)pThis->uConnection);
@@ -215,12 +234,19 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
             pThis->uConnection = 0;
         }
     }
+    if (   RT_FAILURE(rc)
+        && fFlags & SUPR3INIT_F_DRIVERLESS_MASK)
+    {
+        LogRel(("Failed to open \"%s\", rc=%Rrc - Switching to driverless mode.\n", IOCLASS_NAME, rc));
+        pThis->fDriverless = true;
+        rc = VINF_SUCCESS;
+    }
 
     return rc;
 }
 
 
-int suplibOsTerm(PSUPLIBDATA pThis)
+DECLHIDDEN(int) suplibOsTerm(PSUPLIBDATA pThis)
 {
     /*
      * Close the connection to the IOService.
@@ -253,19 +279,19 @@ int suplibOsTerm(PSUPLIBDATA pThis)
 
 #ifndef IN_SUP_HARDENED_R3
 
-int suplibOsInstall(void)
+DECLHIDDEN(int) suplibOsInstall(void)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
 
-int suplibOsUninstall(void)
+DECLHIDDEN(int) suplibOsUninstall(void)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
 
-int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
+DECLHIDDEN(int) suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {
     RT_NOREF(cbReq);
     if (RT_LIKELY(ioctl(pThis->hDevice, uFunction, pvReq) >= 0))
@@ -274,7 +300,7 @@ int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cb
 }
 
 
-int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
+DECLHIDDEN(int) suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 {
     int rc = ioctl(pThis->hDevice, uFunction, idCpu);
     if (rc == -1)
@@ -283,9 +309,9 @@ int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 }
 
 
-int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
+DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFlags, void **ppvPages)
 {
-    NOREF(pThis);
+    RT_NOREF(pThis, fFlags);
     *ppvPages = valloc(cPages << PAGE_SHIFT);
     if (*ppvPages)
     {
@@ -296,7 +322,7 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 }
 
 
-int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
+DECLHIDDEN(int) suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
 {
     NOREF(pThis);
     free(pvPages);

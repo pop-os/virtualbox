@@ -1,6 +1,6 @@
 /* $Id: VBoxVideoIPRT.h $ */
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -63,10 +63,6 @@ RT_C_DECLS_END
 #include <X11/Xfuncproto.h>
 #include <stdint.h>
 #if defined(IN_XF86_MODULE) && !defined(NO_ANSIC)
-/* XFree86 did not have these.  Not that I care much for micro-optimisations
- * in most cases anyway. */
-# define _X_LIKELY(x) (x)
-# define _X_UNLIKELY(x) (x)
 # ifndef offsetof
 #  define offsetof(type, member) ( (int)(uintptr_t)&( ((type *)(void *)0)->member) )
 # endif
@@ -75,6 +71,15 @@ RT_C_DECLS_END
 # include <stddef.h>
 # include <string.h>
 #endif  /* !(defined(IN_XF86_MODULE) && !defined(NO_ANSIC)) */
+
+/* XFree86 (and newer Xfuncproto.h) do not have these.  Not that I care much for micro-optimisations
+ * in most cases anyway. */
+#ifndef _X_LIKELY
+# define _X_LIKELY(x) (x)
+#endif
+#ifndef _X_UNLIKELY
+# define _X_UNLIKELY(x) (x)
+#endif
 
 RT_C_DECLS_BEGIN
 extern int RTASSERTVAR[1];
@@ -108,8 +113,9 @@ RT_C_DECLS_END
 # define AssertRC(expr) do { } while(0)
 #endif
 
-#define DECLCALLBACK(type) type
-#define DECLCALLBACKMEMBER(type, name) type (* name)
+#define DECLCALLBACK(a_RetType) a_RetType
+#define DECLCALLBACKTYPE(a_RetType, a_Name, a_Args) a_RetType a_Name a_Args
+#define DECLCALLBACKMEMBER(a_RetType, a_Name, a_Args) a_RetType (*a_Name) a_Args
 #if __GNUC__ >= 4
 # define DECLHIDDEN(type) __attribute__((visibility("hidden"))) type
 #else
@@ -129,7 +135,7 @@ RT_C_DECLS_END
 #define RT_OFFSETOF(type, member) offsetof(type, member)
 #define RT_UOFFSETOF(type, member) offsetof(type, member)
 #define RT_ZERO(Obj)        RT_BZERO(&(Obj), sizeof(Obj))
-#define VALID_PTR(ptr)    (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U )
+#define RT_VALID_PTR(ptr)  (   (uintptr_t)(ptr) + 0x1000U >= 0x2000U )
 #ifndef INT16_C
 # define INT16_C(Value) (Value)
 #endif

@@ -6,16 +6,27 @@
  *  provided or needed for calling the VirtualBox API. The header file also
  *  works on Windows, by using the C bindings header created by the MS COM IDL
  *  compiler (which simultaneously supports C and C++, unlike XPCOM).
+-->
+<!--
+    Copyright (C) 2008-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2008-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -72,12 +83,12 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
  * This file is part of a free software library; you can redistribute
  * it and/or modify it under the terms of the GNU Lesser General
  * Public License version 2.1 as published by the Free Software
- * Foundation and shipped in the "COPYING" file with this library.
+ * Foundation and shipped in the "COPYING.LIB" file with this library.
  * The library is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY of any kind.
  *
@@ -89,16 +100,25 @@
  * language indicating that LGPLv2 or any later version may be used,
  * or where a choice of which version of the LGPL is applied is
  * otherwise unspecified.
+ *
+ * SPDX-License-Identifier: LGPL-2.1-only
  */
 
 #ifndef ___VirtualBox_CAPI_h
 #define ___VirtualBox_CAPI_h
 
 #ifdef _WIN32
-# pragma warning(push)
-# pragma warning(disable:4668 4255) /* -Wall and windows.h */
-# if _MSC_VER >= 1800 /*RT_MSC_VER_VC120*/
-#  pragma warning(disable:4005) /* sdk/v7.1/include/sal_supp.h(57) : warning C4005: '__useHeader' : macro redefinition */
+# ifdef _MSC_VER
+#  pragma warning(push)
+#  pragma warning(disable:4668 4255) /* -Wall and windows.h */
+#  if _MSC_VER >= 1800 /*RT_MSC_VER_VC120*/
+#   pragma warning(disable:4005) /* sdk/v7.1/include/sal_supp.h(57) : warning C4005: '__useHeader' : macro redefinition */
+#  endif
+#  ifdef __cplusplus
+#   if _MSC_VER >= 1900 /*RT_MSC_VER_VC140*/
+#    pragma warning(disable:5039) /* winbase.h(13179): warning C5039: 'TpSetCallbackCleanupGroup': pointer or reference to potentially throwing function passed to 'extern "C"' function under -EHc. Undefined behavior may occur if this function throws an exception. */
+#   endif
+#  endif
 # endif
 # undef COBJMACROS
 # define COBJMACROS

@@ -965,7 +965,7 @@ ShellPrintHiiEx(
   IN INT32                Row OPTIONAL,
   IN CONST CHAR8          *Language OPTIONAL,
   IN CONST EFI_STRING_ID  HiiFormatStringId,
-  IN CONST EFI_HANDLE     HiiFormatHandle,
+  IN CONST EFI_HII_HANDLE HiiFormatHandle,
   ...
   );
 
@@ -1034,7 +1034,7 @@ ShellIsFileInPath(
   @param[in] String   String representation of a number.
 
   @return             The unsigned integer result of the conversion.
-  @retval (UINTN)(-1) An error occured.
+  @retval (UINTN)(-1) An error occurred.
 **/
 UINTN
 EFIAPI
@@ -1051,7 +1051,7 @@ ShellStrToUintn(
   @param[in] String   String representation of a number.
 
   @return             The unsigned integer result of the conversion.
-  @retval (UINTN)(-1) An error occured.
+  @retval (UINTN)(-1) An error occurred.
 **/
 UINTN
 EFIAPI
@@ -1260,7 +1260,7 @@ EFIAPI
 ShellPromptForResponseHii (
   IN SHELL_PROMPT_REQUEST_TYPE         Type,
   IN CONST EFI_STRING_ID  HiiFormatStringId,
-  IN CONST EFI_HANDLE     HiiFormatHandle,
+  IN CONST EFI_HII_HANDLE HiiFormatHandle,
   IN OUT VOID             **Response
   );
 

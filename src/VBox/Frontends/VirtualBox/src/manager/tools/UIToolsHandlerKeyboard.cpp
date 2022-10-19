@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -64,7 +74,15 @@ bool UIToolsHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
             if (iPosition > 0)
             {
                 if (pEvent->key() == Qt::Key_Up)
-                    pPreviousItem = model()->navigationList().at(iPosition - 1);
+                    for (int i = iPosition - 1; i >= 0; --i)
+                    {
+                        UIToolsItem *pIteratedItem = model()->navigationList().at(i);
+                        if (pIteratedItem->isEnabled())
+                        {
+                            pPreviousItem = pIteratedItem;
+                            break;
+                        }
+                    }
                 else if (pEvent->key() == Qt::Key_Home)
                     pPreviousItem = model()->navigationList().first();
             }
@@ -90,7 +108,15 @@ bool UIToolsHandlerKeyboard::handleKeyPress(QKeyEvent *pEvent) const
             if (iPosition < model()->navigationList().size() - 1)
             {
                 if (pEvent->key() == Qt::Key_Down)
-                    pNextItem = model()->navigationList().at(iPosition + 1);
+                    for (int i = iPosition + 1; i < model()->navigationList().size(); ++i)
+                    {
+                        UIToolsItem *pIteratedItem = model()->navigationList().at(i);
+                        if (pIteratedItem->isEnabled())
+                        {
+                            pNextItem = pIteratedItem;
+                            break;
+                        }
+                    }
                 else if (pEvent->key() == Qt::Key_End)
                     pNextItem = model()->navigationList().last();
             }

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_details_UIMachinePreview_h
@@ -62,7 +72,7 @@ public:
     /** Constructs preview element, passing pParent to the base-class. */
     UIMachinePreview(QIGraphicsWidget *pParent);
     /** Destructs preview element. */
-    virtual ~UIMachinePreview() /* override */;
+    virtual ~UIMachinePreview() RT_OVERRIDE;
 
     /** @name Item stuff.
       * @{ */
@@ -77,27 +87,27 @@ protected:
     /** @name Event-handling stuff.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
 
         /** Handles resize @a pEvent. */
-        virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) /* override */;
+        virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) RT_OVERRIDE;
 
         /** Handles show @a pEvent. */
-        virtual void showEvent(QShowEvent *pEvent) /* override */;
+        virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
         /** Handles hide @a pEvent. */
-        virtual void hideEvent(QHideEvent *pEvent) /* override */;
+        virtual void hideEvent(QHideEvent *pEvent) RT_OVERRIDE;
 
         /** Handles context-menu @a pEvent. */
-        virtual void contextMenuEvent(QGraphicsSceneContextMenuEvent *pEvent) /* override */;
+        virtual void contextMenuEvent(QGraphicsSceneContextMenuEvent *pEvent) RT_OVERRIDE;
 
         /** Performs painting using passed @a pPainter, @a pOptions and optionally specified @a pWidget. */
-        virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) /* override */;
+        virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) RT_OVERRIDE;
     /** @} */
 
     /** @name Item stuff.
       * @{ */
         /** Returns RTTI item type. */
-        virtual int type() const /* override */ { return Type; }
+        virtual int type() const RT_OVERRIDE { return Type; }
     /** @} */
 
     /** @name Layout stuff.
@@ -105,7 +115,7 @@ protected:
         /** Returns size-hint.
           * @param  enmWhich    Brings size-hint type.
           * @param  constraint  Brings size constraint. */
-        virtual QSizeF sizeHint(Qt::SizeHint enmWhich, const QSizeF &constraint = QSizeF()) const /* override */;
+        virtual QSizeF sizeHint(Qt::SizeHint enmWhich, const QSizeF &constraint = QSizeF()) const RT_OVERRIDE;
     /** @} */
 
 private slots:

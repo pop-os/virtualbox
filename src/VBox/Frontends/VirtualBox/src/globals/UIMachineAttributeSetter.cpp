@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -23,9 +33,11 @@
 #include "UICommon.h"
 #include "UIMachineAttributeSetter.h"
 #include "UIMessageCenter.h"
+#include "UINotificationCenter.h"
 
 /* COM includes: */
 #include "CAudioAdapter.h"
+#include "CAudioSettings.h"
 #include "CGraphicsAdapter.h"
 #include "CNetworkAdapter.h"
 #include "CUSBController.h"
@@ -96,30 +108,8 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comMachine.SetName(guiAttribute.toString());
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotChangeMachineAttribute(comMachine);
+                    UINotificationMessage::cannotChangeMachineParameter(comMachine);
                     fErrorHappened = true;
-                }
-                break;
-            }
-            case MachineAttribute_Location:
-            {
-                /* Do not save machine settings: */
-                fSaveSettings = false;
-                /* Prepare machine move progress: */
-                CProgress comProgress = comMachine.MoveTo(guiAttribute.toString(), "basic");
-                if (!comMachine.isOk())
-                {
-                    msgCenter().cannotMoveMachine(comMachine);
-                    fErrorHappened = true;
-                    break;
-                }
-                /* Show machine move progress: */
-                msgCenter().showModalProgressDialog(comProgress, comMachine.GetName(), ":/progress_clone_90px.png");
-                if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
-                {
-                    msgCenter().cannotMoveMachine(comProgress, comMachine.GetName());
-                    fErrorHappened = true;
-                    break;
                 }
                 break;
             }
@@ -129,7 +119,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comMachine.SetOSTypeId(guiAttribute.toString());
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotChangeMachineAttribute(comMachine);
+                    UINotificationMessage::cannotChangeMachineParameter(comMachine);
                     fErrorHappened = true;
                 }
                 break;
@@ -140,7 +130,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comMachine.SetMemorySize(guiAttribute.toInt());
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotChangeMachineAttribute(comMachine);
+                    UINotificationMessage::cannotChangeMachineParameter(comMachine);
                     fErrorHappened = true;
                 }
                 break;
@@ -151,7 +141,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 saveBootItems(guiAttribute.value<UIBootItemDataList>(), comMachine);
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotChangeMachineAttribute(comMachine);
+                    UINotificationMessage::cannotChangeMachineParameter(comMachine);
                     fErrorHappened = true;
                 }
                 break;
@@ -162,7 +152,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 CGraphicsAdapter comGraphics = comMachine.GetGraphicsAdapter();
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotAcquireMachineParameter(comMachine);
+                    UINotificationMessage::cannotAcquireMachineParameter(comMachine);
                     fErrorHappened = true;
                     break;
                 }
@@ -170,7 +160,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comGraphics.SetVRAMSize(guiAttribute.toInt());
                 if (!comGraphics.isOk())
                 {
-                    msgCenter().cannotChangeGraphicsAdapterAttribute(comGraphics);
+                    UINotificationMessage::cannotChangeGraphicsAdapterParameter(comGraphics);
                     fErrorHappened = true;
                 }
                 break;
@@ -181,7 +171,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 CGraphicsAdapter comGraphics = comMachine.GetGraphicsAdapter();
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotAcquireMachineParameter(comMachine);
+                    UINotificationMessage::cannotAcquireMachineParameter(comMachine);
                     fErrorHappened = true;
                     break;
                 }
@@ -189,7 +179,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comGraphics.SetGraphicsControllerType(guiAttribute.value<KGraphicsControllerType>());
                 if (!comGraphics.isOk())
                 {
-                    msgCenter().cannotChangeGraphicsAdapterAttribute(comGraphics);
+                    UINotificationMessage::cannotChangeGraphicsAdapterParameter(comGraphics);
                     fErrorHappened = true;
                 }
                 break;
@@ -197,10 +187,11 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
             case MachineAttribute_AudioHostDriverType:
             {
                 /* Acquire audio adapter: */
-                CAudioAdapter comAdapter = comMachine.GetAudioAdapter();
-                if (!comMachine.isOk())
+                CAudioSettings const comAudioSettings = comMachine.GetAudioSettings();
+                CAudioAdapter        comAdapter       = comAudioSettings.GetAdapter();
+                if (!comAudioSettings.isOk())
                 {
-                    msgCenter().cannotAcquireMachineParameter(comMachine);
+                    UINotificationMessage::cannotAcquireMachineParameter(comMachine);
                     fErrorHappened = true;
                     break;
                 }
@@ -208,7 +199,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comAdapter.SetAudioDriver(guiAttribute.value<KAudioDriverType>());
                 if (!comAdapter.isOk())
                 {
-                    msgCenter().cannotChangeAudioAdapterAttribute(comAdapter);
+                    UINotificationMessage::cannotChangeAudioAdapterParameter(comAdapter);
                     fErrorHappened = true;
                 }
                 break;
@@ -216,10 +207,11 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
             case MachineAttribute_AudioControllerType:
             {
                 /* Acquire audio adapter: */
-                CAudioAdapter comAdapter = comMachine.GetAudioAdapter();
-                if (!comMachine.isOk())
+                CAudioSettings const comAudioSettings = comMachine.GetAudioSettings();
+                CAudioAdapter        comAdapter       = comAudioSettings.GetAdapter();
+                if (!comAudioSettings.isOk())
                 {
-                    msgCenter().cannotAcquireMachineParameter(comMachine);
+                    UINotificationMessage::cannotAcquireMachineParameter(comMachine);
                     fErrorHappened = true;
                     break;
                 }
@@ -227,7 +219,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comAdapter.SetAudioController(guiAttribute.value<KAudioControllerType>());
                 if (!comAdapter.isOk())
                 {
-                    msgCenter().cannotChangeAudioAdapterAttribute(comAdapter);
+                    UINotificationMessage::cannotChangeAudioAdapterParameter(comAdapter);
                     fErrorHappened = true;
                 }
                 break;
@@ -240,7 +232,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 CNetworkAdapter comAdapter = comMachine.GetNetworkAdapter(nad.m_iSlot);
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotAcquireMachineParameter(comMachine);
+                    UINotificationMessage::cannotAcquireMachineParameter(comMachine);
                     fErrorHappened = true;
                     break;
                 }
@@ -248,7 +240,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 comAdapter.SetAttachmentType(nad.m_enmType);
                 if (!comAdapter.isOk())
                 {
-                    msgCenter().cannotChangeNetworkAdapterAttribute(comAdapter);
+                    UINotificationMessage::cannotChangeNetworkAdapterParameter(comAdapter);
                     fErrorHappened = true;
                     break;
                 }
@@ -262,12 +254,15 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                     case KNetworkAttachmentType_NATNetwork: comAdapter.SetNATNetwork(nad.m_strName); break;
 #ifdef VBOX_WITH_CLOUD_NET
                     case KNetworkAttachmentType_Cloud: comAdapter.SetCloudNetwork(nad.m_strName); break;
-#endif /* VBOX_WITH_CLOUD_NET */
+#endif
+#ifdef VBOX_WITH_VMNET
+                    case KNetworkAttachmentType_HostOnlyNetwork: comAdapter.SetHostOnlyNetwork(nad.m_strName); break;
+#endif
                     default: break;
                 }
                 if (!comAdapter.isOk())
                 {
-                    msgCenter().cannotChangeNetworkAdapterAttribute(comAdapter);
+                    UINotificationMessage::cannotChangeNetworkAdapterParameter(comAdapter);
                     fErrorHappened = true;
                 }
                 break;
@@ -278,7 +273,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                 removeUSBControllers(comMachine);
                 if (!comMachine.isOk())
                 {
-                    msgCenter().cannotChangeMachineAttribute(comMachine);
+                    UINotificationMessage::cannotChangeMachineParameter(comMachine);
                     fErrorHappened = true;
                     break;
                 }
@@ -289,7 +284,7 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
                     createUSBControllers(comMachine, controllerSet);
                     if (!comMachine.isOk())
                     {
-                        msgCenter().cannotChangeMachineAttribute(comMachine);
+                        UINotificationMessage::cannotChangeMachineParameter(comMachine);
                         fErrorHappened = true;
                     }
                 }
@@ -319,4 +314,14 @@ void UIMachineAttributeSetter::setMachineAttribute(const CMachine &comConstMachi
     /* Close session to editable comMachine if necessary: */
     if (!comSession.isNull())
         comSession.UnlockMachine();
+}
+
+void UIMachineAttributeSetter::setMachineLocation(const QUuid &uMachineId,
+                                                  const QString &strLocation)
+{
+    /* Move machine: */
+    UINotificationProgressMachineMove *pNotification = new UINotificationProgressMachineMove(uMachineId,
+                                                                                             strLocation,
+                                                                                             "basic");
+    gpNotificationCenter->append(pNotification);
 }

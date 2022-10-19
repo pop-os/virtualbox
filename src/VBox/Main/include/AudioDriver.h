@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_AudioDriver_h
@@ -96,8 +106,8 @@ public:
 
     bool IsAttached(void) { return mfAttached; }
 
-    int doAttachDriverViaEmt(PUVM pUVM, util::AutoWriteLock *pAutoLock);
-    int doDetachDriverViaEmt(PUVM pUVM, util::AutoWriteLock *pAutoLock);
+    int doAttachDriverViaEmt(PUVM pUVM, PCVMMR3VTABLE pVMM, util::AutoWriteLock *pAutoLock);
+    int doDetachDriverViaEmt(PUVM pUVM, PCVMMR3VTABLE pVMM, util::AutoWriteLock *pAutoLock);
 
 protected:
     static DECLCALLBACK(int) attachDriverOnEmt(AudioDriver *pThis);
@@ -106,14 +116,19 @@ protected:
     int configure(unsigned uLUN, bool fAttach);
 
     /**
-     * Optional (virtual) function to give the derived audio driver
-     * class the ability to add (or change) the driver configuration
-     * entries when setting up.
+     * Virtual function for child specific driver configuration.
      *
-     * @return VBox status code.
-     * @param  pLunCfg          CFGM configuration node of the driver.
+     * This is called at the end of AudioDriver::configure().
+     *
+     * @returns VBox status code.
+     * @param   pLunCfg          CFGM configuration node of the driver.
+     * @param   pVMM            The VMM ring-3 vtable.
      */
-    virtual int configureDriver(PCFGMNODE pLunCfg) { RT_NOREF(pLunCfg); return VINF_SUCCESS; }
+    virtual int configureDriver(PCFGMNODE pLunCfg, PCVMMR3VTABLE pVMM)
+    {
+        RT_NOREF(pLunCfg, pVMM);
+        return VINF_SUCCESS;
+    }
 
 protected:
 

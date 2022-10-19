@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_UIErrorPane_h
@@ -24,45 +34,27 @@
 /* Qt includes: */
 #include <QWidget>
 
-/* GUI includes: */
-#include "QIWithRetranslateUI.h"
-
 /* Forward declarations: */
-class QAction;
-class QString;
 class QTextBrowser;
-class QToolButton;
 
-
-/** QWidget subclass representing error pane reflecting information
-  * about currently chosen inaccessible VM and allowing to operate over it. */
-class UIErrorPane : public QIWithRetranslateUI<QWidget>
+/** QWidget subclass representing error pane reflecting
+  * information about currently chosen inaccessible VM. */
+class UIErrorPane : public QWidget
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs error pane passing @a pParent to the base-class.
-      * @param  pRefreshAction  Brings the refresh action reference. */
-    UIErrorPane(QAction *pRefreshAction = 0, QWidget *pParent = 0);
+    /** Constructs error pane passing @a pParent to the base-class. */
+    UIErrorPane(QWidget *pParent = 0);
 
     /** Defines error @a strDetails. */
     void setErrorDetails(const QString &strDetails);
-
-protected:
-
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
 
 private:
 
     /** Prepares all. */
     void prepare();
-
-    /** Holds the Refresh action refrence. */
-    QAction     *m_pActionRefresh;
-    /** Holds the VM refresh button instance. */
-    QToolButton *m_pButtonRefresh;
 
     /** Holds the text-browser instance. */
     QTextBrowser *m_pBrowserDetails;

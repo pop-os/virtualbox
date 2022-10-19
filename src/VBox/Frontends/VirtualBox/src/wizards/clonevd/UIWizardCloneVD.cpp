@@ -4,65 +4,79 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
-#include "UIMedium.h"
-#include "UIWizardCloneVD.h"
-#include "UIWizardCloneVDPageBasic1.h"
-#include "UIWizardCloneVDPageBasic2.h"
-#include "UIWizardCloneVDPageBasic3.h"
-#include "UIWizardCloneVDPageExpert.h"
 #include "UICommon.h"
-#include "UIMessageCenter.h"
+#include "UIMedium.h"
+#include "UINotificationCenter.h"
+#include "UIWizardCloneVD.h"
+#include "UIWizardCloneVDFormatPage.h"
+#include "UIWizardCloneVDVariantPage.h"
+#include "UIWizardCloneVDPathSizePage.h"
+#include "UIWizardCloneVDExpertPage.h"
 
 /* COM includes: */
 #include "CMediumFormat.h"
 
-
 UIWizardCloneVD::UIWizardCloneVD(QWidget *pParent, const CMedium &comSourceVirtualDisk)
-    : UIWizard(pParent, WizardType_CloneVD)
+    : UINativeWizard(pParent, WizardType_CloneVD)
     , m_comSourceVirtualDisk(comSourceVirtualDisk)
-    , m_enmSourceVirtualDiskDeviceType(m_comSourceVirtualDisk.GetDeviceType())
+    , m_enmDeviceType(m_comSourceVirtualDisk.GetDeviceType())
+    , m_iMediumVariantPageIndex(-1)
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/wizard_new_harddisk.png");
+    setPixmapName(":/wizard_new_harddisk.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/wizard_new_harddisk_bg.png");
+    setPixmapName(":/wizard_new_harddisk_bg.png");
 #endif /* VBOX_WS_MAC */
+}
+
+const CMedium &UIWizardCloneVD::sourceVirtualDisk() const
+{
+    return m_comSourceVirtualDisk;
+}
+
+KDeviceType UIWizardCloneVD::deviceType() const
+{
+    return m_enmDeviceType;
 }
 
 bool UIWizardCloneVD::copyVirtualDisk()
 {
-    /* Gather attributes: */
-
-    const CMediumFormat comMediumFormat = field("mediumFormat").value<CMediumFormat>();
-    const qulonglong uVariant = field("mediumVariant").toULongLong();
-    const QString strMediumPath = field("mediumPath").toString();
-    const qulonglong uSize = field("mediumSize").toULongLong();
     /* Check attributes: */
-    AssertReturn(!strMediumPath.isNull(), false);
-    AssertReturn(uSize > 0, false);
+    AssertReturn(!m_strMediumPath.isNull(), false);
+    AssertReturn(m_uMediumSize > 0, false);
 
     /* Get VBox object: */
     CVirtualBox comVBox = uiCommon().virtualBox();
 
     /* Create new virtual disk image: */
-    CMedium comVirtualDisk = comVBox.CreateMedium(comMediumFormat.GetName(), strMediumPath, KAccessMode_ReadWrite, m_enmSourceVirtualDiskDeviceType);
+    CMedium comVirtualDisk = comVBox.CreateMedium(m_comMediumFormat.GetName(), m_strMediumPath, KAccessMode_ReadWrite, m_enmDeviceType);
     if (!comVBox.isOk())
     {
-        msgCenter().cannotCreateMediumStorage(comVBox, strMediumPath, this);
+        UINotificationMessage::cannotCreateMediumStorage(comVBox, m_strMediumPath, notificationCenter());
         return false;
     }
 
@@ -70,63 +84,46 @@ bool UIWizardCloneVD::copyVirtualDisk()
     QVector<KMediumVariant> variants(sizeof(qulonglong) * 8);
     for (int i = 0; i < variants.size(); ++i)
     {
-        qulonglong temp = uVariant;
+        qulonglong temp = m_uMediumVariant;
         temp &= Q_UINT64_C(1) << i;
         variants[i] = (KMediumVariant)temp;
     }
 
-    /* Copy source image to new one: */
-    CProgress comProgress = m_comSourceVirtualDisk.CloneTo(comVirtualDisk, variants, CMedium());
-    if (!m_comSourceVirtualDisk.isOk())
-    {
-        msgCenter().cannotCreateMediumStorage(m_comSourceVirtualDisk, strMediumPath, this);
-        return false;
-    }
+    /* Copy medium: */
+    UINotificationProgressMediumCopy *pNotification = new UINotificationProgressMediumCopy(m_comSourceVirtualDisk,
+                                                                                           comVirtualDisk,
+                                                                                           variants);
+    connect(pNotification, &UINotificationProgressMediumCopy::sigMediumCopied,
+            &uiCommon(), &UICommon::sltHandleMediumCreated);
+    gpNotificationCenter->append(pNotification);
 
-    /* Show creation progress: */
-    msgCenter().showModalProgressDialog(comProgress, windowTitle(), ":/progress_media_create_90px.png", this);
-    if (comProgress.GetCanceled())
-        return false;
-    if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
-    {
-        msgCenter().cannotCreateMediumStorage(comProgress, strMediumPath, this);
-        return false;
-    }
-
-    /* Save created image as target one: */
-    m_comTargetVirtualDisk = comVirtualDisk;
-
-    /* Make sure we register the medium to VBox: */
-    uiCommon().createMedium(UIMedium(m_comTargetVirtualDisk, UIMediumDeviceType_HardDisk, KMediumState_Created));
-
+    /* Positive: */
     return true;
 }
 
 void UIWizardCloneVD::retranslateUi()
 {
-    /* Call to base-class: */
-    UIWizard::retranslateUi();
-
     /* Translate wizard: */
-    setWindowTitle(tr("Copy Virtual Disk Image"));
-    setButtonText(QWizard::FinishButton, tr("Copy"));
+    setWindowTitle(tr("Copy Virtual Disk"));
+    UINativeWizard::retranslateUi();
 }
 
-void UIWizardCloneVD::prepare()
+void UIWizardCloneVD::populatePages()
 {
     /* Create corresponding pages: */
     switch (mode())
     {
         case WizardMode_Basic:
-        {
-            setPage(Page1, new UIWizardCloneVDPageBasic1(m_enmSourceVirtualDiskDeviceType));
-            setPage(Page2, new UIWizardCloneVDPageBasic2(m_enmSourceVirtualDiskDeviceType));
-            setPage(Page3, new UIWizardCloneVDPageBasic3);
+
+            {
+            addPage(new UIWizardCloneVDFormatPage(m_enmDeviceType));
+            m_iMediumVariantPageIndex = addPage(new UIWizardCloneVDVariantPage);
+            addPage(new UIWizardCloneVDPathSizePage(sourceDiskLogicalSize()));
             break;
         }
         case WizardMode_Expert:
         {
-            setPage(PageExpert, new UIWizardCloneVDPageExpert(m_enmSourceVirtualDiskDeviceType));
+            addPage(new UIWizardCloneVDExpertPage(m_enmDeviceType, sourceDiskLogicalSize()));
             break;
         }
         default:
@@ -135,6 +132,86 @@ void UIWizardCloneVD::prepare()
             break;
         }
     }
-    /* Call to base-class: */
-    UIWizard::prepare();
+}
+
+const CMediumFormat &UIWizardCloneVD::mediumFormat() const
+{
+    return m_comMediumFormat;
+}
+
+void UIWizardCloneVD::setMediumFormat(const CMediumFormat &comMediumFormat)
+{
+    m_comMediumFormat = comMediumFormat;
+    if (mode() == WizardMode_Basic)
+        setMediumVariantPageVisibility();
+}
+
+qulonglong UIWizardCloneVD::mediumVariant() const
+{
+    return m_uMediumVariant;
+}
+
+void UIWizardCloneVD::setMediumVariant(qulonglong uMediumVariant)
+{
+    m_uMediumVariant = uMediumVariant;
+}
+
+qulonglong UIWizardCloneVD::mediumSize() const
+{
+    return m_uMediumSize;
+}
+
+void UIWizardCloneVD::setMediumSize(qulonglong uMediumSize)
+{
+    m_uMediumSize = uMediumSize;
+}
+
+const QString &UIWizardCloneVD::mediumPath() const
+{
+    return m_strMediumPath;
+}
+
+void UIWizardCloneVD::setMediumPath(const QString &strPath)
+{
+    m_strMediumPath = strPath;
+}
+
+qulonglong UIWizardCloneVD::sourceDiskLogicalSize() const
+{
+    if (m_comSourceVirtualDisk.isNull())
+        return 0;
+    return m_comSourceVirtualDisk.GetLogicalSize();
+}
+
+QString UIWizardCloneVD::sourceDiskFilePath() const
+{
+    if (m_comSourceVirtualDisk.isNull())
+        return QString();
+    return m_comSourceVirtualDisk.GetLocation();
+}
+
+QString UIWizardCloneVD::sourceDiskName() const
+{
+    if (m_comSourceVirtualDisk.isNull())
+        return QString();
+    return m_comSourceVirtualDisk.GetName();
+}
+
+void UIWizardCloneVD::setMediumVariantPageVisibility()
+{
+    AssertReturnVoid(!m_comMediumFormat.isNull());
+    ULONG uCapabilities = 0;
+    QVector<KMediumFormatCapabilities> capabilities;
+    capabilities = m_comMediumFormat.GetCapabilities();
+    for (int i = 0; i < capabilities.size(); i++)
+        uCapabilities |= capabilities[i];
+
+    int cTest = 0;
+    if (uCapabilities & KMediumFormatCapabilities_CreateDynamic)
+        ++cTest;
+    if (uCapabilities & KMediumFormatCapabilities_CreateFixed)
+        ++cTest;
+    if (uCapabilities & KMediumFormatCapabilities_CreateSplit2G)
+        ++cTest;
+    setPageVisible(m_iMediumVariantPageIndex, cTest > 1);
 }

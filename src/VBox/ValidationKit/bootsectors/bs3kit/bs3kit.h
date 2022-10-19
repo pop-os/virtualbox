@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef BS3KIT_INCLUDED_bs3kit_h
@@ -846,8 +856,12 @@ typedef uint32_t            PFNBS3FARADDRCONV;
 #define BS3_SYSCALL_SET_LDTR    UINT16_C(0x000e)
 /** Get the LDT register (value returned in ax). */
 #define BS3_SYSCALL_GET_LDTR    UINT16_C(0x000f)
+/** Set XCR0 register (value in edx:esi). */
+#define BS3_SYSCALL_SET_XCR0    UINT16_C(0x0010)
+/** Get XCR0 register (value returned in edx:eax). */
+#define BS3_SYSCALL_GET_XCR0    UINT16_C(0x0011)
 /** The last system call value. */
-#define BS3_SYSCALL_LAST        BS3_SYSCALL_GET_LDTR
+#define BS3_SYSCALL_LAST        BS3_SYSCALL_GET_XCR0
 /** @} */
 
 
@@ -1921,6 +1935,14 @@ BS3_CMN_PROTO_FARSTUB(4, uint32_t, Bs3SelProtFar16DataToFlat,(uint32_t uFar1616)
 BS3_CMN_PROTO_FARSTUB(4, uint32_t, Bs3SelRealModeDataToFlat,(uint32_t uFar1616));
 
 /**
+ * Converts a link-time pointer to a current context pointer.
+ *
+ * @returns Converted pointer.
+ * @param   pvLnkPtr    The pointer the linker produced.
+ */
+BS3_CMN_PROTO_FARSTUB(4, void BS3_FAR *, Bs3SelLnkPtrToCurPtr,(void BS3_FAR *pvLnkPtr));
+
+/**
  * Gets a flat address from a working poitner.
  *
  * @returns flat address (32-bit or 64-bit).
@@ -2177,8 +2199,10 @@ BS3_CMN_PROTO_STUB(void, Bs3MemGuardedTestPageFree,(void BS3_FAR *pvGuardedPage)
  */
 BS3_CMN_PROTO_STUB(void, Bs3MemPrintInfo, (void));
 
-/** Highes RAM byte below 4G. */
+/** The end RAM address below 4GB (approximately). */
 extern uint32_t  g_uBs3EndOfRamBelow4G;
+/** The end RAM address above 4GB, zero if no memory above 4GB. */
+extern uint64_t  g_uBs3EndOfRamAbove4G;
 
 
 /**
@@ -2237,6 +2261,30 @@ BS3_CMN_PROTO_STUB(int, Bs3PagingInitRootForPAE,(void));
  * @remarks Must not be called in real-mode!
  */
 BS3_CMN_PROTO_STUB(int, Bs3PagingInitRootForLM,(void));
+
+/**
+ * Maps all RAM above 4GB into the long mode page tables.
+ *
+ * This requires Bs3PagingInitRootForLM to have been called first.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_WRONG_ORDER if Bs3PagingInitRootForLM wasn't called.
+ * @retval  VINF_ALREADY_INITIALIZED if already called or someone mapped
+ *          something else above 4GiB already.
+ * @retval  VERR_OUT_OF_RANGE if too much RAM (more than 2^47 bytes).
+ * @retval  VERR_NO_MEMORY if no more memory for paging structures.
+ * @retval  VERR_UNSUPPORTED_ALIGNMENT if the bs3kit allocator malfunctioned and
+ *          didn't give us page aligned memory as it should.
+ *
+ * @param   puFailurePoint      Where to return the address where we encountered
+ *                              a failure.  Optional.
+ *
+ * @remarks Must be called in 32-bit or 64-bit mode as paging structures will be
+ *          allocated using BS3MEMKIND_FLAT32, as there might not be sufficient
+ *          BS3MEMKIND_TILED memory around.  (Also, too it's simply too much of
+ *          a bother to deal with 16-bit for something that's long-mode only.)
+ */
+BS3_CMN_PROTO_STUB(int, Bs3PagingMapRamAbove4GForLM,(uint64_t *puFailurePoint));
 
 /**
  * Modifies the page table protection of an address range.
@@ -2426,8 +2474,10 @@ BS3_CMN_PROTO_NOSB(void, Bs3KbdWrite,(uint8_t bCmd, uint8_t bData));
  * end-of-interrupt, and all IRQs masked.  The individual PIC users will have to
  * use #Bs3PicUpdateMask unmask their IRQ once they've got all the handlers
  * installed.
+ *
+ * @param   fForcedReInit   Force a reinitialization.
  */
-BS3_CMN_PROTO_STUB(void, Bs3PicSetup,(void));
+BS3_CMN_PROTO_STUB(void, Bs3PicSetup,(bool fForcedReInit));
 
 /**
  * Updates the PIC masks.
@@ -2458,19 +2508,22 @@ BS3_CMN_PROTO_STUB(void, Bs3PitSetupAndEnablePeriodTimer,(uint16_t cHzDesired));
  */
 BS3_CMN_PROTO_STUB(void, Bs3PitDisable,(void));
 
-/** Nano seconds (approx) since last the PIT timer was started. */
+/** Nanoseconds (approx) since last the PIT timer was started. */
 extern uint64_t volatile    g_cBs3PitNs;
 /** Milliseconds seconds (very approx) since last the PIT timer was started. */
 extern uint64_t volatile    g_cBs3PitMs;
 /** Number of ticks since last the PIT timer was started.  */
 extern uint32_t volatile    g_cBs3PitTicks;
-/** The current interval in nanon seconds.  */
+/** The current interval in nanoseconds.
+ * This is 0 if not yet started (cleared by Bs3PitDisable). */
 extern uint32_t             g_cBs3PitIntervalNs;
 /** The current interval in milliseconds (approximately).
- * This is 0 if not yet started (used for checking the state internally). */
-extern uint16_t volatile    g_cBs3PitIntervalMs;
-/** The current PIT frequency (approximately).  0 if not yet started.  */
-extern uint16_t             g_cBs3PitIntervalHz;
+ * This is 0 if not yet started (cleared by Bs3PitDisable). */
+extern uint16_t             g_cBs3PitIntervalMs;
+/** The current PIT frequency (approximately).
+ * 0 if not yet started (cleared by Bs3PitDisable; used for checking the
+ * state internally). */
+extern uint16_t volatile    g_cBs3PitIntervalHz;
 
 
 /**
@@ -2516,6 +2569,13 @@ typedef union BS3REG
     uint16_t    au16[4];
     /** 32-bit view. */
     uint32_t    au32[2];
+    /** Unsigned integer, depending on compiler context.
+     * This generally follows ARCH_BITS. */
+    RTCCUINTREG  uCcReg;
+    /** Extended unsigned integer, depending on compiler context.
+     * This is 32-bit in 16-bit and 32-bit compiler contexts, and 64-bit in
+     * 64-bit. */
+    RTCCUINTXREG uCcXReg;
 } BS3REG;
 /** Pointer to an integer register. */
 typedef BS3REG BS3_FAR *PBS3REG;
@@ -2596,8 +2656,8 @@ BS3_CMN_PROTO_NOSB(void, Bs3RegCtxSave,(PBS3REGCTX pRegCtx));
  *
  * This is for writing more flexible test drivers that can test more than the
  * CPU bitcount (16-bit, 32-bit, 64-bit, and virtual 8086) of the driver itself.
- * For instance a 32-bit driver can do V86 and 16-bit testing, thus saving more
- * precious and problematic 16-bit code.
+ * For instance a 32-bit driver can do V86 and 16-bit testing, thus saving space
+ * by avoiding duplicate 16-bit driver code.
  *
  * @param   pRegCtx         Where to store the register context.
  * @param   bBitMode        Bit mode to switch to, BS3_MODE_CODE_XXX.  Only
@@ -2608,12 +2668,38 @@ BS3_CMN_PROTO_NOSB(void, Bs3RegCtxSave,(PBS3REGCTX pRegCtx));
 BS3_CMN_PROTO_FARSTUB(8, void, Bs3RegCtxSaveEx,(PBS3REGCTX pRegCtx, uint8_t bBitMode, uint16_t cbExtraStack));
 
 /**
+ * This is Bs3RegCtxSaveEx with automatic Bs3RegCtxConvertV86ToRm thrown in.
+ *
+ * This is for simplifying writing 32-bit test drivers that covers real-mode as
+ * well as virtual 8086, 16-bit, 32-bit, and 64-bit modes.
+ *
+ * @param   pRegCtx         Where to store the register context.
+ * @param   bMode           The mode to get a context for.  If this isn't
+ *                          BS3_MODE_RM, the BS3_MODE_SYS_MASK has to match the
+ *                          one of the current mode.
+ * @param   cbExtraStack    Number of bytes of additional stack to allocate.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3RegCtxSaveForMode,(PBS3REGCTX pRegCtx, uint8_t bMode, uint16_t cbExtraStack));
+
+/**
  * Transforms a register context to a different ring.
  *
  * @param   pRegCtx     The register context.
  * @param   bRing       The target ring (0..3).
+ *
+ * @note    Do _NOT_ call this for creating real mode or v8086 contexts, because
+ *          it will always output a protected mode context!
  */
 BS3_CMN_PROTO_STUB(void, Bs3RegCtxConvertToRingX,(PBS3REGCTX pRegCtx, uint8_t bRing));
+
+/**
+ * Transforms a V8086 register context to a real mode one.
+ *
+ * @param   pRegCtx     The register context.
+ *
+ * @note    Will assert if called on a non-V8086 context.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3RegCtxConvertV86ToRm,(PBS3REGCTX pRegCtx));
 
 /**
  * Restores a register context.
@@ -2666,17 +2752,17 @@ BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetGrpSegFromFlat,(PBS3REGCTX pRegCtx, PBS3REG
  * @param   pSel        The selector register (points within @a pRegCtx).
  * @param   pvPtr       Current context pointer.
  */
-BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetGrpSegFromCurPtr,(PBS3REGCTX pRegCtx, PBS3REG pGpr, PRTSEL pSel, void  BS3_FAR *pvPtr));
+BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetGrpSegFromCurPtr,(PBS3REGCTX pRegCtx, PBS3REG pGpr, PRTSEL pSel, void BS3_FAR *pvPtr));
 
 /**
- * Sets a GPR and DS to point at the same location as @a ovPtr.
+ * Sets a GPR and DS to point at the same location as @a pvPtr.
  *
  * @param   pRegCtx     The register context.
  * @param   pGpr        The general purpose register to set (points within
  *                      @a pRegCtx).
  * @param   pvPtr       Current context pointer.
  */
-BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetGrpDsFromCurPtr,(PBS3REGCTX pRegCtx, PBS3REG pGpr, void  BS3_FAR *pvPtr));
+BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetGrpDsFromCurPtr,(PBS3REGCTX pRegCtx, PBS3REG pGpr, void BS3_FAR *pvPtr));
 
 /**
  * Sets CS:RIP to point at the same piece of code as @a uFlatCode.
@@ -2710,6 +2796,17 @@ BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetRipCsFromLnkPtr,(PBS3REGCTX pRegCtx, FPFNBS
  * @sa      Bs3RegCtxSetRipCsFromLnkPtr, Bs3RegCtxSetRipCsFromFlat
  */
 BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetRipCsFromCurPtr,(PBS3REGCTX pRegCtx, FPFNBS3FAR pfnCode));
+
+/**
+ * Sets a GPR by number.
+ *
+ * @return  true if @a iGpr is valid, false if not.
+ * @param   pRegCtx     The register context.
+ * @param   iGpr        The GPR number.
+ * @param   uValue      The new value.
+ * @param   cbValue     The size of the value: 1, 2, 4 or 8.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3RegCtxSetGpr,(PBS3REGCTX pRegCtx, uint8_t iGpr, uint64_t uValue, uint8_t cb));
 
 
 /**
@@ -2813,12 +2910,38 @@ BS3_CMN_PROTO_STUB(PBS3EXTCTX, Bs3ExtCtxInit,(PBS3EXTCTX pExtCtx, uint16_t cbExt
 BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxSave,(PBS3EXTCTX pExtCtx));
 
 /**
+ * Saves the extended CPU state to the given structure, when in long mode this
+ * is done from 64-bit mode to capture YMM8 thru YMM15.
+ *
+ * This is for testing 64-bit code from a 32-bit test driver.
+ *
+ * @param   pExtCtx         The extended CPU context.
+ * @note    Only safe to call from ring-0 at present.
+ * @remarks All GPRs preserved.
+ * @sa      Bs3ExtCtxRestoreEx
+ */
+BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxSaveEx,(PBS3EXTCTX pExtCtx));
+
+/**
  * Restores the extended CPU state from the given structure.
  *
  * @param   pExtCtx         The extended CPU context.
  * @remarks All GPRs preserved.
  */
-BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxRestore,(PBS3EXTCTX pExtCtx));
+BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxRestore,(PCBS3EXTCTX pExtCtx));
+
+/**
+ * Restores the extended CPU state from the given structure and in long mode
+ * switch to 64-bit mode to do this so YMM8-YMM15 are also loaded.
+ *
+ * This is for testing 64-bit code from a 32-bit test driver.
+ *
+ * @param   pExtCtx         The extended CPU context.
+ * @note    Only safe to call from ring-0 at present.
+ * @remarks All GPRs preserved.
+ * @sa      Bs3ExtCtxSaveEx
+ */
+BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxRestoreEx,(PCBS3EXTCTX pExtCtx));
 
 /**
  * Copies the state from one context to another.
@@ -2828,6 +2951,176 @@ BS3_CMN_PROTO_FARSTUB(4, void, Bs3ExtCtxRestore,(PBS3EXTCTX pExtCtx));
  * @param   pSrc            The source extended CPU context.
  */
 BS3_CMN_PROTO_STUB(PBS3EXTCTX, Bs3ExtCtxCopy,(PBS3EXTCTX pDst, PCBS3EXTCTX pSrc));
+
+/**
+ * Gets the FCW register value from @a pExtCtx.
+ *
+ * @returns FCW value.
+ * @param   pExtCtx         The extended CPU context.
+ */
+BS3_CMN_PROTO_STUB(uint16_t, Bs3ExtCtxGetFcw,(PCBS3EXTCTX pExtCtx));
+
+/**
+ * Sets the FCW register value in @a pExtCtx.
+ *
+ * @param   pExtCtx         The extended CPU context.
+ * @param   uValue          The new FCW value.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3ExtCtxSetFcw,(PBS3EXTCTX pExtCtx, uint16_t uValue));
+
+/**
+ * Gets the FSW register value from @a pExtCtx.
+ *
+ * @returns FSW value.
+ * @param   pExtCtx         The extended CPU context.
+ */
+BS3_CMN_PROTO_STUB(uint16_t, Bs3ExtCtxGetFsw,(PCBS3EXTCTX pExtCtx));
+
+/**
+ * Sets the FSW register value in @a pExtCtx.
+ *
+ * @param   pExtCtx         The extended CPU context.
+ * @param   uValue          The new FSW value.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3ExtCtxSetFsw,(PBS3EXTCTX pExtCtx, uint16_t uValue));
+
+/**
+ * Gets the abridged FTW register value from @a pExtCtx.
+ *
+ * @returns FTW value.
+ * @param   pExtCtx         The extended CPU context.
+ */
+BS3_CMN_PROTO_STUB(uint16_t, Bs3ExtCtxGetAbridgedFtw,(PCBS3EXTCTX pExtCtx));
+
+/**
+ * Sets the abridged FTW register value in @a pExtCtx.
+ *
+ * Currently this requires that the state stores teh abridged FTW, no conversion
+ * to the two-bit variant will be attempted.
+ *
+ * @returns true if set successfully, false if not.
+ * @param   pExtCtx         The extended CPU context.
+ * @param   uValue          The new FTW value.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3ExtCtxSetAbridgedFtw,(PBS3EXTCTX pExtCtx, uint16_t uValue));
+
+/**
+ * Gets the MXCSR register value from @a pExtCtx.
+ *
+ * @returns MXCSR value, 0 if not part of context.
+ * @param   pExtCtx         The extended CPU context.
+ */
+BS3_CMN_PROTO_STUB(uint32_t, Bs3ExtCtxGetMxCsr,(PCBS3EXTCTX pExtCtx));
+
+/**
+ * Sets the MXCSR register value in @a pExtCtx.
+ *
+ * @returns true if set, false if not supported by the format.
+ * @param   pExtCtx         The extended CPU context.
+ * @param   uValue          The new MXCSR value.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3ExtCtxSetMxCsr,(PBS3EXTCTX pExtCtx, uint32_t uValue));
+
+/**
+ * Gets the MXCSR MASK value from @a pExtCtx.
+ *
+ * @returns MXCSR MASK value, 0 if not part of context.
+ * @param   pExtCtx         The extended CPU context.
+ */
+BS3_CMN_PROTO_STUB(uint32_t, Bs3ExtCtxGetMxCsrMask,(PCBS3EXTCTX pExtCtx));
+
+/**
+ * Sets the MXCSR MASK value in @a pExtCtx.
+ *
+ * @returns true if set, false if not supported by the format.
+ * @param   pExtCtx         The extended CPU context.
+ * @param   uValue          The new MXCSR MASK value.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3ExtCtxSetMxCsrMask,(PBS3EXTCTX pExtCtx, uint32_t uValue));
+
+/**
+ * Gets the value of MM register number @a iReg from @a pExtCtx.
+ *
+ * @returns The MM register value.
+ * @param   pExtCtx         The extended CPU context.
+ * @param   iReg            The register to get (0 thru 7).
+ */
+BS3_CMN_PROTO_STUB(uint64_t, Bs3ExtCtxGetMm,(PCBS3EXTCTX pExtCtx, uint8_t iReg));
+
+/** What to do about the 16-bit above the MM QWORD. */
+typedef enum BS3EXTCTXTOPMM
+{
+    /** Invalid zero value. */
+    BS3EXTCTXTOPMM_INVALID = 0,
+    /** Set to 0FFFFh like real CPUs typically does when updating an MM register. */
+    BS3EXTCTXTOPMM_SET,
+    /** Set to zero. */
+    BS3EXTCTXTOPMM_ZERO,
+    /** Don't change the value, leaving it as-is. */
+    BS3EXTCTXTOPMM_AS_IS,
+    /** End of valid values. */
+    BS3EXTCTXTOPMM_END
+} BS3EXTCTXTOPMM;
+
+/**
+ * Sets the value of YMM register number @a iReg in @a pExtCtx to @a pValue.
+ *
+ * @returns True if set, false if not.
+ * @param   pExtCtx         The extended CPU context.
+ * @param   iReg            The register to set.
+ * @param   uValue          The new register value.
+ * @param   enmTop          What to do about the 16-bit value above the MM
+ *                          QWord.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3ExtCtxSetMm,(PBS3EXTCTX pExtCtx, uint8_t iReg, uint64_t uValue, BS3EXTCTXTOPMM enmTop));
+
+/**
+ * Gets the value of XMM register number @a iReg from @a pExtCtx.
+ *
+ * @returns pValue
+ * @param   pExtCtx         The extended CPU context.
+ * @param   iReg            The register to get.
+ * @param   pValue          Where to return the value. Zeroed if the state
+ *                          doesn't support SSE or if @a iReg is invalid.
+ */
+BS3_CMN_PROTO_STUB(PRTUINT128U, Bs3ExtCtxGetXmm,(PCBS3EXTCTX pExtCtx, uint8_t iReg, PRTUINT128U pValue));
+
+/**
+ * Sets the value of XMM register number @a iReg in @a pExtCtx to @a pValue.
+ *
+ * @returns True if set, false if not set (not supported by state format or
+ *          invalid iReg).
+ * @param   pExtCtx         The extended CPU context.
+ * @param   iReg            The register to set.
+ * @param   pValue          The new register value.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3ExtCtxSetXmm,(PBS3EXTCTX pExtCtx, uint8_t iReg, PCRTUINT128U pValue));
+
+/**
+ * Gets the value of YMM register number @a iReg from @a pExtCtx.
+ *
+ * @returns pValue
+ * @param   pExtCtx         The extended CPU context.
+ * @param   iReg            The register to get.
+ * @param   pValue          Where to return the value.  Parts not in the
+ *                          extended state are zeroed.  For absent or invalid
+ *                          @a iReg values this is set to zero.
+ */
+BS3_CMN_PROTO_STUB(PRTUINT256U, Bs3ExtCtxGetYmm,(PCBS3EXTCTX pExtCtx, uint8_t iReg, PRTUINT256U pValue));
+
+/**
+ * Sets the value of YMM register number @a iReg in @a pExtCtx to @a pValue.
+ *
+ * @returns true if set (even if only partially). False if not set (not
+ *          supported by state format, unsupported/invalid iReg).
+ * @param   pExtCtx         The extended CPU context.
+ * @param   iReg            The register to set.
+ * @param   pValue          The new register value.
+ * @param   cbValue         Number of bytes to take from @a pValue, either 16 or
+ *                          32. If 16, the high part will be zeroed when present
+ *                          in the state.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3ExtCtxSetYmm,(PBS3EXTCTX pExtCtx, uint8_t iReg, PCRTUINT256U pValue, uint8_t cbValue));
 
 
 /** @name Debug register accessors for V8086 mode (works everwhere).
@@ -2859,6 +3152,7 @@ BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetCr3,(void));
 BS3_CMN_PROTO_NOSB(RTCCUINTXREG, Bs3RegGetCr4,(void));
 BS3_CMN_PROTO_NOSB(uint16_t, Bs3RegGetTr,(void));
 BS3_CMN_PROTO_NOSB(uint16_t, Bs3RegGetLdtr,(void));
+BS3_CMN_PROTO_NOSB(uint64_t, Bs3RegGetXcr0,(void));
 
 BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr0,(RTCCUINTXREG uValue));
 BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr2,(RTCCUINTXREG uValue));
@@ -2866,6 +3160,7 @@ BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr3,(RTCCUINTXREG uValue));
 BS3_CMN_PROTO_NOSB(void, Bs3RegSetCr4,(RTCCUINTXREG uValue));
 BS3_CMN_PROTO_NOSB(void, Bs3RegSetTr,(uint16_t uValue));
 BS3_CMN_PROTO_NOSB(void, Bs3RegSetLdtr,(uint16_t uValue));
+BS3_CMN_PROTO_NOSB(void, Bs3RegSetXcr0,(uint64_t uValue));
 /** @} */
 
 
@@ -3135,7 +3430,7 @@ BS3_CMN_PROTO_STUB(void, Bs3TrapPrintFrame,(PCBS3TRAPFRAME pTrapFrame));
 /**
  * Sets up a long jump from a trap handler.
  *
- * The long jump will only be performed onced, but will catch any kind of trap,
+ * The long jump will only be performed once, but will catch any kind of trap,
  * fault, interrupt or irq.
  *
  * @retval  true on the initial call.
@@ -3153,6 +3448,63 @@ BS3_CMN_PROTO_NOSB(DECL_RETURNS_TWICE(bool),Bs3TrapSetJmp,(PBS3TRAPFRAME pTrapFr
  * @param   pTrapFrame      Where to store the trap information.
  */
 BS3_CMN_PROTO_STUB(void, Bs3TrapSetJmpAndRestore,(PCBS3REGCTX pCtxRestore, PBS3TRAPFRAME pTrapFrame));
+
+/**
+ * Variation of Bs3TrapSetJmpAndRestore that includes
+ * #Bs3TrapSetJmpAndRestoreInRm and calls is if pCtxRestore is a real mode
+ * context and we're not in real mode.
+ *
+ * This is useful for 32-bit test drivers running via #Bs3TestDoModesByOne using
+ * BS3TESTMODEBYONEENTRY_F_REAL_MODE_READY to allow them to test real-mode too.
+ *
+ * @param   pCtxRestore     The context to restore.
+ * @param   pTrapFrame      Where to store the trap information.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3TrapSetJmpAndRestoreWithRm,(PCBS3REGCTX pCtxRestore, PBS3TRAPFRAME pTrapFrame));
+
+/**
+ * Combination of #Bs3ExtCtxRestoreEx, #Bs3TrapSetJmp, #Bs3RegCtxRestore and
+ * #Bs3ExtCtxSaveEx.
+ *
+ * @param   pCtxRestore     The context to restore.
+ * @param   pExtCtxRestore  The extended context to restore.
+ * @param   pTrapFrame      Where to store the trap information.
+ * @param   pExtCtxTrap     Where to store the extended context after the trap.
+ *                          Note, the saving isn't done from the trap handler,
+ *                          but after #Bs3TrapSetJmp returns zero (i.e. for the
+ *                          2nd time).
+ */
+BS3_CMN_PROTO_STUB(void, Bs3TrapSetJmpAndRestoreWithExtCtx,(PCBS3REGCTX pCtxRestore, PCBS3EXTCTX pExtCtxRestore,
+                                                            PBS3TRAPFRAME pTrapFrame, PBS3EXTCTX pExtCtxTrap));
+
+/**
+ * Variation of Bs3TrapSetJmpAndRestoreWithExtCtx that includes
+ * #Bs3TrapSetJmpAndRestoreInRm and calls is if pCtxRestore is a real mode
+ * context and we're not in real mode.
+ *
+ * This is useful for 32-bit test drivers running via #Bs3TestDoModesByOne using
+ * BS3TESTMODEBYONEENTRY_F_REAL_MODE_READY to allow them to test real-mode too.
+ *
+ * @param   pCtxRestore     The context to restore.
+ * @param   pExtCtxRestore  The extended context to restore.
+ * @param   pTrapFrame      Where to store the trap information.
+ * @param   pExtCtxTrap     Where to store the extended context after the trap.
+ *                          Note, the saving isn't done from the trap handler,
+ *                          but after #Bs3TrapSetJmp returns zero (i.e. for the
+ *                          2nd time).
+ */
+BS3_CMN_PROTO_STUB(void, Bs3TrapSetJmpAndRestoreWithExtCtxAndRm,(PCBS3REGCTX pCtxRestore, PCBS3EXTCTX pExtCtxRestore,
+                                                                 PBS3TRAPFRAME pTrapFrame, PBS3EXTCTX pExtCtxTrap));
+
+/**
+ * Combination of Bs3SwitchToRM, #Bs3TrapSetJmp and #Bs3RegCtxRestore.
+ *
+ * @param   pCtxRestore     The context to restore.  Must be real-mode
+ *                          addressable.
+ * @param   pTrapFrame      Where to store the trap information.  Must be
+ *                          real-mode addressable.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3TrapSetJmpAndRestoreInRm,(PCBS3REGCTX pCtxRestore, PBS3TRAPFRAME pTrapFrame));
 
 /**
  * Disables a previous #Bs3TrapSetJmp call.
@@ -3199,9 +3551,47 @@ BS3_CMN_PROTO_STUB(void, Bs3TestSubV,(const char BS3_FAR *pszFormat, va_list BS3
 BS3_CMN_PROTO_STUB(void, Bs3TestSubDone,(void));
 
 /**
+ * Equivalent to RTTestIValue.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3TestValue,(const char BS3_FAR *pszName, uint64_t u64Value, uint8_t bUnit));
+
+/**
  * Equivalent to RTTestSubErrorCount.
  */
 BS3_CMN_PROTO_STUB(uint16_t, Bs3TestSubErrorCount,(void));
+
+/**
+ * Get nanosecond host timestamp.
+ *
+ * This only works when testing is enabled and will not work in VMs configured
+ * with a 286, 186 or 8086/8088 CPU profile.
+ */
+BS3_CMN_PROTO_STUB(uint64_t, Bs3TestNow,(void));
+
+
+/**
+ * Queries an unsigned 8-bit configuration value.
+ *
+ * @returns Value.
+ * @param   uCfg        A VMMDEV_TESTING_CFG_XXX value.
+ */
+BS3_CMN_PROTO_STUB(uint8_t, Bs3TestQueryCfgU8,(uint16_t uCfg));
+
+/**
+ * Queries an unsigned 8-bit configuration value.
+ *
+ * @returns Value.
+ * @param   uCfg        A VMMDEV_TESTING_CFG_XXX value.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3TestQueryCfgBool,(uint16_t uCfg));
+
+/**
+ * Queries an unsigned 32-bit configuration value.
+ *
+ * @returns Value.
+ * @param   uCfg        A VMMDEV_TESTING_CFG_XXX value.
+ */
+BS3_CMN_PROTO_STUB(uint32_t, Bs3TestQueryCfgU32,(uint16_t uCfg));
 
 /**
  * Equivalent to RTTestIPrintf with RTTESTLVL_ALWAYS.
@@ -3291,7 +3681,23 @@ BS3_CMN_PROTO_STUB(void, Bs3TestSkippedV,(const char BS3_FAR *pszFormat, va_list
  * @param   idTestStep      Test step identifier.
  */
 BS3_CMN_PROTO_STUB(bool, Bs3TestCheckRegCtxEx,(PCBS3REGCTX pActualCtx, PCBS3REGCTX pExpectedCtx, uint16_t cbPcAdjust,
-                                               int16_t cbSpAdjust, uint32_t fExtraEfl, const char *pszMode, uint16_t idTestStep));
+                                               int16_t cbSpAdjust, uint32_t fExtraEfl,
+                                               const char BS3_FAR *pszMode, uint16_t idTestStep));
+
+/**
+ * Compares two extended register contexts.
+ *
+ * Differences will be reported as test failures.
+ *
+ * @returns true if equal, false if not.
+ * @param   pActualExtCtx   The actual register context.
+ * @param   pExpectedExtCtx Expected register context.
+ * @param   fFlags          Reserved, pass 0.
+ * @param   pszMode         CPU mode or some other helpful text.
+ * @param   idTestStep      Test step identifier.
+ */
+BS3_CMN_PROTO_STUB(bool, Bs3TestCheckExtCtx,(PCBS3EXTCTX pActualExtCtx, PCBS3EXTCTX pExpectedExtCtx, uint16_t fFlags,
+                                             const char BS3_FAR *pszMode, uint16_t idTestStep));
 
 /**
  * Performs the testing for the given mode.
@@ -3658,6 +4064,10 @@ typedef BS3TESTMODEBYONEENTRY const *PCBS3TESTMODEBYONEENTRY;
  * @{ */
 /** Only test modes that has paging enabled. */
 #define BS3TESTMODEBYONEENTRY_F_ONLY_PAGING     RT_BIT_32(0)
+/** Minimal mode selection. */
+#define BS3TESTMODEBYONEENTRY_F_MINIMAL         RT_BIT_32(1)
+/** The 32-bit worker is ready to handle real-mode by mode switching. */
+#define BS3TESTMODEBYONEENTRY_F_REAL_MODE_READY RT_BIT_32(2)
 /** @} */
 
 
@@ -3911,7 +4321,7 @@ BS3_MODE_PROTO_NOSB(void, Bs3TestDoModes,(PCBS3TESTMODEENTRY paEntries, size_t c
  *
  * @param   paEntries       The mode sub-test-by-one entries.
  * @param   cEntries        The number of sub-test-by-one entries.
- * @param   fFlags          Reserved for the future, MBZ.
+ * @param   fFlags          BS3TESTMODEBYONEENTRY_F_XXX.
  */
 BS3_MODE_PROTO_NOSB(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_t cEntries, uint32_t fFlags));
 
@@ -3924,8 +4334,77 @@ BS3_MODE_PROTO_NOSB(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries
  */
 BS3_MODE_PROTO_NOSB(void, Bs3TestDoModesByMax,(PCBS3TESTMODEBYMAXENTRY paEntries, size_t cEntries));
 
+/** @} */
+
+
+/** @defgroup grp_bs3kit_bios_int15     BIOS - int 15h
+ * @{ */
+
+/** An INT15E820 data entry. */
+typedef struct INT15E820ENTRY
+{
+    uint64_t    uBaseAddr;
+    uint64_t    cbRange;
+    /** Memory type this entry describes, see INT15E820_TYPE_XXX. */
+    uint32_t    uType;
+    /** Optional.   */
+    uint32_t    fAcpi3;
+} INT15E820ENTRY;
+AssertCompileSize(INT15E820ENTRY,24);
+
+
+/** @name INT15E820_TYPE_XXX - Memory types returned by int 15h function 0xe820.
+ * @{ */
+#define INT15E820_TYPE_USABLE               1 /**< Usable RAM. */
+#define INT15E820_TYPE_RESERVED             2 /**< Reserved by the system, unusable. */
+#define INT15E820_TYPE_ACPI_RECLAIMABLE     3 /**< ACPI reclaimable memory, whatever that means. */
+#define INT15E820_TYPE_ACPI_NVS             4 /**< ACPI non-volatile storage? */
+#define INT15E820_TYPE_BAD                  5 /**< Bad memory, unusable. */
+/** @} */
+
+
+/**
+ * Performs an int 15h function 0xe820 call.
+ *
+ * @returns Success indicator.
+ * @param   pEntry              The return buffer.
+ * @param   pcbEntry            Input: The size of the buffer (min 20 bytes);
+ *                              Output: The size of the returned data.
+ * @param   puContinuationValue Where to get and return the continuation value (EBX)
+ *                              Set to zero the for the first call.  Returned as zero
+ *                              after the last entry.
+ */
+BS3_MODE_PROTO_STUB(bool, Bs3BiosInt15hE820,(INT15E820ENTRY BS3_FAR *pEntry, uint32_t BS3_FAR *pcbEntry,
+                                             uint32_t BS3_FAR *puContinuationValue));
+
+/**
+ * Performs an int 15h function 0x88 call.
+ *
+ * @returns UINT32_MAX on failure, number of KBs above 1MB otherwise.
+ */
+#if ARCH_BITS != 16 || !defined(BS3_BIOS_INLINE_RM)
+BS3_MODE_PROTO_STUB(uint32_t, Bs3BiosInt15h88,(void));
+#else
+BS3_DECL(uint32_t) Bs3BiosInt15h88(void);
+# pragma aux Bs3BiosInt15h88 = \
+    ".286" \
+    "clc" \
+    "mov    ax, 08800h" \
+    "int    15h" \
+    "jc     failed" \
+    "xor    dx, dx" \
+    "jmp    done" \
+    "failed:" \
+    "xor    ax, ax" \
+    "dec    ax" \
+    "mov    dx, ax" \
+    "done:" \
+    value [ax dx] \
+    modify exact [ax bx cx dx es];
+#endif
 
 /** @} */
+
 
 /** @} */
 

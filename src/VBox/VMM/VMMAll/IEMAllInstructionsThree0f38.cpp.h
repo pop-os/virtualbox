@@ -7,15 +7,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -23,54 +33,480 @@
  * @{
  */
 
-/*  Opcode      0x0f 0x38 0x00. */
-FNIEMOP_STUB(iemOp_pshufb_Pq_Qq);
-/*  Opcode 0x66 0x0f 0x38 0x00. */
-FNIEMOP_STUB(iemOp_pshufb_Vx_Wx);
+FNIEMOP_DEF_2(iemOpCommonMmx_FullFull_To_Full_Ex, PFNIEMAIMPLMEDIAF2U64, pfnU64, bool, fSupported); /* in IEMAllInstructionsTwoByteOf.cpp.h */
+
+
+/**
+ * Common worker for SSSE3 instructions on the forms:
+ *      pxxx    xmm1, xmm2/mem128
+ *
+ * Proper alignment of the 128-bit operand is enforced.
+ * Exceptions type 4. SSSE3 cpuid checks.
+ *
+ * @sa  iemOpCommonSse2_FullFull_To_Full
+ */
+FNIEMOP_DEF_1(iemOpCommonSsse3_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U128, pfnU128)
+{
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_REG_MODE(bRm))
+    {
+        /*
+         * Register, register.
+         */
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_BEGIN(2, 0);
+        IEM_MC_ARG(PRTUINT128U,                 puDst, 0);
+        IEM_MC_ARG(PCRTUINT128U,                puSrc, 1);
+        IEM_MC_MAYBE_RAISE_SSSE3_RELATED_XCPT();
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_REF_XREG_U128_CONST(puSrc,       IEM_GET_MODRM_RM(pVCpu, bRm));
+        IEM_MC_CALL_SSE_AIMPL_2(pfnU128, puDst, puSrc);
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    else
+    {
+        /*
+         * Register, memory.
+         */
+        IEM_MC_BEGIN(2, 2);
+        IEM_MC_ARG(PRTUINT128U,                 puDst,       0);
+        IEM_MC_LOCAL(RTUINT128U,                uSrc);
+        IEM_MC_ARG_LOCAL_REF(PCRTUINT128U,      puSrc, uSrc, 1);
+        IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc);
+
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_MAYBE_RAISE_SSSE3_RELATED_XCPT();
+        IEM_MC_FETCH_MEM_U128_ALIGN_SSE(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_CALL_SSE_AIMPL_2(pfnU128, puDst, puSrc);
+
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Common worker for SSE4.1 instructions on the forms:
+ *      pxxx    xmm1, xmm2/mem128
+ *
+ * Proper alignment of the 128-bit operand is enforced.
+ * Exceptions type 4. SSE4.1 cpuid checks.
+ *
+ * @sa  iemOpCommonSse2_FullFull_To_Full, iemOpCommonSsse3_FullFull_To_Full,
+ *      iemOpCommonSse42_FullFull_To_Full
+ */
+FNIEMOP_DEF_1(iemOpCommonSse41_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U128, pfnU128)
+{
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_REG_MODE(bRm))
+    {
+        /*
+         * Register, register.
+         */
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_BEGIN(2, 0);
+        IEM_MC_ARG(PRTUINT128U,                 puDst, 0);
+        IEM_MC_ARG(PCRTUINT128U,                puSrc, 1);
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_REF_XREG_U128_CONST(puSrc,       IEM_GET_MODRM_RM(pVCpu, bRm));
+        IEM_MC_CALL_SSE_AIMPL_2(pfnU128, puDst, puSrc);
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    else
+    {
+        /*
+         * Register, memory.
+         */
+        IEM_MC_BEGIN(2, 2);
+        IEM_MC_ARG(PRTUINT128U,                 puDst,       0);
+        IEM_MC_LOCAL(RTUINT128U,                uSrc);
+        IEM_MC_ARG_LOCAL_REF(PCRTUINT128U,      puSrc, uSrc, 1);
+        IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc);
+
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();
+        IEM_MC_FETCH_MEM_U128_ALIGN_SSE(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_CALL_SSE_AIMPL_2(pfnU128, puDst, puSrc);
+
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Common worker for SSE4.1 instructions on the forms:
+ *      pxxx    xmm1, xmm2/mem128
+ *
+ * Proper alignment of the 128-bit operand is enforced.
+ * Exceptions type 4. SSE4.1 cpuid checks.
+ *
+ * Unlike iemOpCommonSse41_FullFull_To_Full, the @a pfnU128 worker function
+ * takes no FXSAVE state, just the operands.
+ *
+ * @sa  iemOpCommonSse2_FullFull_To_Full, iemOpCommonSsse3_FullFull_To_Full,
+ *      iemOpCommonSse41_FullFull_To_Full, iemOpCommonSse42_FullFull_To_Full
+ */
+FNIEMOP_DEF_1(iemOpCommonSse41Opt_FullFull_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU128)
+{
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_REG_MODE(bRm))
+    {
+        /*
+         * Register, register.
+         */
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_BEGIN(2, 0);
+        IEM_MC_ARG(PRTUINT128U,                 puDst, 0);
+        IEM_MC_ARG(PCRTUINT128U,                puSrc, 1);
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_REF_XREG_U128_CONST(puSrc,       IEM_GET_MODRM_RM(pVCpu, bRm));
+        IEM_MC_CALL_VOID_AIMPL_2(pfnU128, puDst, puSrc);
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    else
+    {
+        /*
+         * Register, memory.
+         */
+        IEM_MC_BEGIN(2, 2);
+        IEM_MC_ARG(PRTUINT128U,                 puDst,       0);
+        IEM_MC_LOCAL(RTUINT128U,                uSrc);
+        IEM_MC_ARG_LOCAL_REF(PCRTUINT128U,      puSrc, uSrc, 1);
+        IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc);
+
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();
+        IEM_MC_FETCH_MEM_U128_ALIGN_SSE(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_CALL_VOID_AIMPL_2(pfnU128, puDst, puSrc);
+
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Common worker for SSE4.2 instructions on the forms:
+ *      pxxx    xmm1, xmm2/mem128
+ *
+ * Proper alignment of the 128-bit operand is enforced.
+ * Exceptions type 4. SSE4.2 cpuid checks.
+ *
+ * @sa  iemOpCommonSse2_FullFull_To_Full, iemOpCommonSsse3_FullFull_To_Full,
+ *      iemOpCommonSse41_FullFull_To_Full
+ */
+FNIEMOP_DEF_1(iemOpCommonSse42_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U128, pfnU128)
+{
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_REG_MODE(bRm))
+    {
+        /*
+         * Register, register.
+         */
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_BEGIN(2, 0);
+        IEM_MC_ARG(PRTUINT128U,                 puDst, 0);
+        IEM_MC_ARG(PCRTUINT128U,                puSrc, 1);
+        IEM_MC_MAYBE_RAISE_SSE42_RELATED_XCPT();
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_REF_XREG_U128_CONST(puSrc,       IEM_GET_MODRM_RM(pVCpu, bRm));
+        IEM_MC_CALL_SSE_AIMPL_2(pfnU128, puDst, puSrc);
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    else
+    {
+        /*
+         * Register, memory.
+         */
+        IEM_MC_BEGIN(2, 2);
+        IEM_MC_ARG(PRTUINT128U,                 puDst,       0);
+        IEM_MC_LOCAL(RTUINT128U,                uSrc);
+        IEM_MC_ARG_LOCAL_REF(PCRTUINT128U,      puSrc, uSrc, 1);
+        IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc);
+
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_MAYBE_RAISE_SSE42_RELATED_XCPT();
+        IEM_MC_FETCH_MEM_U128_ALIGN_SSE(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128(puDst,             IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_CALL_SSE_AIMPL_2(pfnU128, puDst, puSrc);
+
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    return VINF_SUCCESS;
+}
+
+
+/** Opcode      0x0f 0x38 0x00. */
+FNIEMOP_DEF(iemOp_pshufb_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PSHUFB, pshufb, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pshufb_u64,&iemAImpl_pshufb_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
+/** Opcode 0x66 0x0f 0x38 0x00. */
+FNIEMOP_DEF(iemOp_pshufb_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PSHUFB, pshufb, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pshufb_u128, iemAImpl_pshufb_u128_fallback));
+
+}
+
+
 /*  Opcode      0x0f 0x38 0x01. */
-FNIEMOP_STUB(iemOp_phaddw_Pq_Qq);
+FNIEMOP_DEF(iemOp_phaddw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PHADDW, phaddw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phaddw_u64,&iemAImpl_phaddw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x01. */
-FNIEMOP_STUB(iemOp_phaddw_Vx_Wx);
+FNIEMOP_DEF(iemOp_phaddw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PHADDW, phaddw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phaddw_u128, iemAImpl_phaddw_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x02. */
-FNIEMOP_STUB(iemOp_phaddd_Pq_Qq);
+FNIEMOP_DEF(iemOp_phaddd_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PHADDD, phaddd, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phaddd_u64,&iemAImpl_phaddd_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x02. */
-FNIEMOP_STUB(iemOp_phaddd_Vx_Wx);
+FNIEMOP_DEF(iemOp_phaddd_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PHADDD, phaddd, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phaddd_u128, iemAImpl_phaddd_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x03. */
-FNIEMOP_STUB(iemOp_phaddsw_Pq_Qq);
+FNIEMOP_DEF(iemOp_phaddsw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PHADDSW, phaddsw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phaddsw_u64,&iemAImpl_phaddsw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x03. */
-FNIEMOP_STUB(iemOp_phaddsw_Vx_Wx);
+FNIEMOP_DEF(iemOp_phaddsw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PHADDSW, phaddsw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phaddsw_u128, iemAImpl_phaddsw_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x04. */
-FNIEMOP_STUB(iemOp_pmaddubsw_Pq_Qq);
+FNIEMOP_DEF(iemOp_pmaddubsw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PMADDUBSW, pmaddubsw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pmaddubsw_u64, &iemAImpl_pmaddubsw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x04. */
-FNIEMOP_STUB(iemOp_pmaddubsw_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmaddubsw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMADDUBSW, pmaddubsw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pmaddubsw_u128, iemAImpl_pmaddubsw_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x05. */
-FNIEMOP_STUB(iemOp_phsubw_Pq_Qq);
+FNIEMOP_DEF(iemOp_phsubw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PHSUBW, phsubw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phsubw_u64,&iemAImpl_phsubw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x05. */
-FNIEMOP_STUB(iemOp_phsubw_Vx_Wx);
+FNIEMOP_DEF(iemOp_phsubw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PHSUBW, phsubw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phsubw_u128, iemAImpl_phsubw_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x06. */
-FNIEMOP_STUB(iemOp_phsubd_Pq_Qq);
+FNIEMOP_DEF(iemOp_phsubd_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PHSUBD, phsubd, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phsubd_u64,&iemAImpl_phsubd_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
+
 /** Opcode 0x66 0x0f 0x38 0x06. */
-FNIEMOP_STUB(iemOp_phsubdq_Vx_Wx);
+FNIEMOP_DEF(iemOp_phsubd_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PHSUBD, phsubd, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phsubd_u128, iemAImpl_phsubd_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x07. */
-FNIEMOP_STUB(iemOp_phsubsw_Pq_Qq);
+FNIEMOP_DEF(iemOp_phsubsw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PHSUBSW, phsubsw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phsubsw_u64,&iemAImpl_phsubsw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x07. */
-FNIEMOP_STUB(iemOp_phsubsw_Vx_Wx);
+FNIEMOP_DEF(iemOp_phsubsw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PHSUBSW, phsubsw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_phsubsw_u128, iemAImpl_phsubsw_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x08. */
-FNIEMOP_STUB(iemOp_psignb_Pq_Qq);
+FNIEMOP_DEF(iemOp_psignb_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PSIGNB, psignb, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_psignb_u64, &iemAImpl_psignb_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x08. */
-FNIEMOP_STUB(iemOp_psignb_Vx_Wx);
+FNIEMOP_DEF(iemOp_psignb_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PSIGNB, psignb, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_psignb_u128, iemAImpl_psignb_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x09. */
-FNIEMOP_STUB(iemOp_psignw_Pq_Qq);
+FNIEMOP_DEF(iemOp_psignw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PSIGNW, psignw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_psignw_u64, &iemAImpl_psignw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x09. */
-FNIEMOP_STUB(iemOp_psignw_Vx_Wx);
+FNIEMOP_DEF(iemOp_psignw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PSIGNW, psignw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_psignw_u128, iemAImpl_psignw_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x0a. */
-FNIEMOP_STUB(iemOp_psignd_Pq_Qq);
+FNIEMOP_DEF(iemOp_psignd_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PSIGND, psignd, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_psignd_u64, &iemAImpl_psignd_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x0a. */
-FNIEMOP_STUB(iemOp_psignd_Vx_Wx);
+FNIEMOP_DEF(iemOp_psignd_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PSIGND, psignd, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_psignd_u128, iemAImpl_psignd_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x0b. */
-FNIEMOP_STUB(iemOp_pmulhrsw_Pq_Qq);
+FNIEMOP_DEF(iemOp_pmulhrsw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PMULHRSW, pmulhrsw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pmulhrsw_u64, &iemAImpl_pmulhrsw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x0b. */
-FNIEMOP_STUB(iemOp_pmulhrsw_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmulhrsw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMULHRSW, pmulhrsw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pmulhrsw_u128, iemAImpl_pmulhrsw_u128_fallback));
+
+}
+
+
 /*  Opcode      0x0f 0x38 0x0c - invalid. */
 /*  Opcode 0x66 0x0f 0x38 0x0c - invalid (vex only). */
 /*  Opcode      0x0f 0x38 0x0d - invalid. */
@@ -82,8 +518,68 @@ FNIEMOP_STUB(iemOp_pmulhrsw_Vx_Wx);
 
 
 /*  Opcode      0x0f 0x38 0x10 - invalid */
+
+
+/** Body for the *blend* instructions. */
+#define IEMOP_BODY_P_BLEND_X(a_Instr) \
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm); \
+    if (IEM_IS_MODRM_REG_MODE(bRm)) \
+    { \
+        /* \
+         * Register, register. \
+         */ \
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX(); \
+        IEM_MC_BEGIN(3, 0); \
+        IEM_MC_ARG(PRTUINT128U,  puDst,  0); \
+        IEM_MC_ARG(PCRTUINT128U, puSrc,  1); \
+        IEM_MC_ARG(PCRTUINT128U, puMask, 2); \
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();  \
+        IEM_MC_PREPARE_SSE_USAGE();  \
+        IEM_MC_REF_XREG_U128(puDst,  IEM_GET_MODRM_REG(pVCpu, bRm)); \
+        IEM_MC_REF_XREG_U128_CONST(puSrc,  IEM_GET_MODRM_RM(pVCpu, bRm)); \
+        IEM_MC_REF_XREG_U128_CONST(puMask, 0); \
+        IEM_MC_CALL_VOID_AIMPL_3(IEM_SELECT_HOST_OR_FALLBACK(fSse41, \
+                                                             iemAImpl_ ## a_Instr ## _u128, \
+                                                             iemAImpl_ ## a_Instr ## _u128_fallback), \
+                                 puDst, puSrc, puMask); \
+        IEM_MC_ADVANCE_RIP(); \
+        IEM_MC_END(); \
+    } \
+    else \
+    { \
+        /* \
+         * Register, memory. \
+         */ \
+        IEM_MC_BEGIN(3, 2); \
+        IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc); \
+        IEM_MC_LOCAL(RTUINT128U,                uSrc); \
+        IEM_MC_ARG(PRTUINT128U,            puDst,       0); \
+        IEM_MC_ARG_LOCAL_REF(PCRTUINT128U, puSrc, uSrc, 1); \
+        IEM_MC_ARG(PCRTUINT128U,           puMask,      2); \
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0); \
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX(); \
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT(); \
+        IEM_MC_PREPARE_SSE_USAGE(); \
+        IEM_MC_FETCH_MEM_U128_ALIGN_SSE(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc); \
+        IEM_MC_REF_XREG_U128(puDst, IEM_GET_MODRM_REG(pVCpu, bRm)); \
+        IEM_MC_REF_XREG_U128_CONST(puMask, 0); \
+        IEM_MC_CALL_VOID_AIMPL_3(IEM_SELECT_HOST_OR_FALLBACK(fSse41, \
+                                                             iemAImpl_ ## a_Instr ## _u128, \
+                                                             iemAImpl_ ## a_Instr ## _u128_fallback), \
+                                 puDst, puSrc, puMask); \
+        IEM_MC_ADVANCE_RIP(); \
+        IEM_MC_END(); \
+    } \
+    return VINF_SUCCESS
+
 /** Opcode 0x66 0x0f 0x38 0x10 (legacy only). */
-FNIEMOP_STUB(iemOp_pblendvb_Vdq_Wdq);
+FNIEMOP_DEF(iemOp_pblendvb_Vdq_Wdq)
+{
+    IEMOP_MNEMONIC2(RM, PBLENDVB, pblendvb, Vdq, Wdq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES); /** @todo RM0 */
+    IEMOP_BODY_P_BLEND_X(pblendvb);
+}
+
+
 /*  Opcode      0x0f 0x38 0x11 - invalid */
 /*  Opcode 0x66 0x0f 0x38 0x11 - invalid */
 /*  Opcode      0x0f 0x38 0x12 - invalid */
@@ -91,16 +587,85 @@ FNIEMOP_STUB(iemOp_pblendvb_Vdq_Wdq);
 /*  Opcode      0x0f 0x38 0x13 - invalid */
 /*  Opcode 0x66 0x0f 0x38 0x13 - invalid (vex only). */
 /*  Opcode      0x0f 0x38 0x14 - invalid */
+
+
 /** Opcode 0x66 0x0f 0x38 0x14 (legacy only). */
-FNIEMOP_STUB(iemOp_blendvps_Vdq_Wdq);
+FNIEMOP_DEF(iemOp_blendvps_Vdq_Wdq)
+{
+    IEMOP_MNEMONIC2(RM, BLENDVPS, blendvps, Vdq, Wdq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES); /** @todo RM0 */
+    IEMOP_BODY_P_BLEND_X(blendvps);
+}
+
+
 /*  Opcode      0x0f 0x38 0x15 - invalid */
+
+
 /** Opcode 0x66 0x0f 0x38 0x15 (legacy only). */
-FNIEMOP_STUB(iemOp_blendvpd_Vdq_Wdq);
+FNIEMOP_DEF(iemOp_blendvpd_Vdq_Wdq)
+{
+    IEMOP_MNEMONIC2(RM, BLENDVPD, blendvpd, Vdq, Wdq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES); /** @todo RM0 */
+    IEMOP_BODY_P_BLEND_X(blendvpd);
+}
+
+
 /*  Opcode      0x0f 0x38 0x16 - invalid */
 /*  Opcode 0x66 0x0f 0x38 0x16 - invalid (vex only). */
 /*  Opcode      0x0f 0x38 0x17 - invalid */
+
+
 /** Opcode 0x66 0x0f 0x38 0x17 - invalid */
-FNIEMOP_STUB(iemOp_ptest_Vx_Wx);
+FNIEMOP_DEF(iemOp_ptest_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PTEST, ptest, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_REG_MODE(bRm))
+    {
+        /*
+         * Register, register.
+         */
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_BEGIN(3, 0);
+        IEM_MC_ARG(PCRTUINT128U,                puSrc1,  0);
+        IEM_MC_ARG(PCRTUINT128U,                puSrc2,  1);
+        IEM_MC_ARG(uint32_t *,                  pEFlags, 2);
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128_CONST(puSrc1,      IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_REF_XREG_U128_CONST(puSrc2,      IEM_GET_MODRM_RM(pVCpu, bRm));
+        IEM_MC_REF_EFLAGS(pEFlags);
+        IEM_MC_CALL_VOID_AIMPL_3(iemAImpl_ptest_u128, puSrc1, puSrc2, pEFlags);
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    else
+    {
+        /*
+         * Register, memory.
+         */
+        IEM_MC_BEGIN(3, 2);
+        IEM_MC_ARG(PCRTUINT128U,                puSrc1,        0);
+        IEM_MC_LOCAL(RTUINT128U,                uSrc2);
+        IEM_MC_ARG_LOCAL_REF(PCRTUINT128U,      puSrc2, uSrc2, 1);
+        IEM_MC_ARG(uint32_t *,                  pEFlags,       2);
+        IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc);
+
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();
+        IEM_MC_FETCH_MEM_U128_ALIGN_SSE(uSrc2, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+        IEM_MC_PREPARE_SSE_USAGE();
+        IEM_MC_REF_XREG_U128_CONST(puSrc1,      IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_REF_EFLAGS(pEFlags);
+        IEM_MC_CALL_VOID_AIMPL_3(iemAImpl_ptest_u128, puSrc1, puSrc2, pEFlags);
+
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    return VINF_SUCCESS;
+}
+
+
 /*  Opcode      0x0f 0x38 0x18 - invalid */
 /*  Opcode 0x66 0x0f 0x38 0x18 - invalid (vex only). */
 /*  Opcode      0x0f 0x38 0x19 - invalid */
@@ -109,40 +674,195 @@ FNIEMOP_STUB(iemOp_ptest_Vx_Wx);
 /*  Opcode 0x66 0x0f 0x38 0x1a - invalid (vex only). */
 /*  Opcode      0x0f 0x38 0x1b - invalid */
 /*  Opcode 0x66 0x0f 0x38 0x1b - invalid */
+
+
 /** Opcode      0x0f 0x38 0x1c. */
-FNIEMOP_STUB(iemOp_pabsb_Pq_Qq);
+FNIEMOP_DEF(iemOp_pabsb_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PABSB, pabsb, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pabsb_u64, &iemAImpl_pabsb_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x1c. */
-FNIEMOP_STUB(iemOp_pabsb_Vx_Wx);
+FNIEMOP_DEF(iemOp_pabsb_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PABSB, pabsb, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pabsb_u128, iemAImpl_pabsb_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x1d. */
-FNIEMOP_STUB(iemOp_pabsw_Pq_Qq);
+FNIEMOP_DEF(iemOp_pabsw_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PABSW, pabsw, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pabsw_u64, &iemAImpl_pabsw_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x1d. */
-FNIEMOP_STUB(iemOp_pabsw_Vx_Wx);
+FNIEMOP_DEF(iemOp_pabsw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PABSW, pabsw, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pabsw_u128, iemAImpl_pabsw_u128_fallback));
+
+}
+
+
 /** Opcode      0x0f 0x38 0x1e. */
-FNIEMOP_STUB(iemOp_pabsd_Pq_Qq);
+FNIEMOP_DEF(iemOp_pabsd_Pq_Qq)
+{
+    IEMOP_MNEMONIC2(RM, PABSD, pabsd, Pq, Qq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_2(iemOpCommonMmx_FullFull_To_Full_Ex,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pabsd_u64, &iemAImpl_pabsd_u64_fallback),
+                          IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSsse3);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x1e. */
-FNIEMOP_STUB(iemOp_pabsd_Vx_Wx);
+FNIEMOP_DEF(iemOp_pabsd_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PABSD, pabsd, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSsse3_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSsse3, iemAImpl_pabsd_u128, iemAImpl_pabsd_u128_fallback));
+
+}
+
+
 /*  Opcode      0x0f 0x38 0x1f - invalid */
 /*  Opcode 0x66 0x0f 0x38 0x1f - invalid */
 
 
+/** Body for the pmov{s,z}x* instructions. */
+#define IEMOP_BODY_PMOV_S_Z(a_Instr, a_SrcWidth) \
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm); \
+    if (IEM_IS_MODRM_REG_MODE(bRm)) \
+    { \
+        /* \
+         * Register, register. \
+         */ \
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX(); \
+        IEM_MC_BEGIN(2, 0); \
+        IEM_MC_ARG(PRTUINT128U,                 puDst, 0); \
+        IEM_MC_ARG(uint64_t,    uSrc, 1); \
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT();  \
+        IEM_MC_PREPARE_SSE_USAGE();  \
+        IEM_MC_FETCH_XREG_U64(uSrc, IEM_GET_MODRM_RM(pVCpu, bRm)); \
+        IEM_MC_REF_XREG_U128(puDst, IEM_GET_MODRM_REG(pVCpu, bRm)); \
+        IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse41, \
+                                                             iemAImpl_ ## a_Instr ## _u128, \
+                                                             iemAImpl_v ## a_Instr ## _u128_fallback), \
+                                 puDst, uSrc); \
+        IEM_MC_ADVANCE_RIP(); \
+        IEM_MC_END(); \
+    } \
+    else \
+    { \
+        /* \
+         * Register, memory. \
+         */ \
+        IEM_MC_BEGIN(2, 2); \
+        IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc); \
+        IEM_MC_ARG(PRTUINT128U,                 puDst, 0); \
+        IEM_MC_ARG(uint ## a_SrcWidth ## _t,    uSrc, 1); \
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0); \
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX(); \
+        IEM_MC_MAYBE_RAISE_SSE41_RELATED_XCPT(); \
+        IEM_MC_PREPARE_SSE_USAGE(); \
+        IEM_MC_FETCH_MEM_U## a_SrcWidth (uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc); \
+        IEM_MC_REF_XREG_U128(puDst, IEM_GET_MODRM_REG(pVCpu, bRm)); \
+        IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse41, \
+                                                             iemAImpl_ ## a_Instr ## _u128, \
+                                                             iemAImpl_v ## a_Instr ## _u128_fallback), \
+                                 puDst, uSrc); \
+        IEM_MC_ADVANCE_RIP(); \
+        IEM_MC_END(); \
+    } \
+    return VINF_SUCCESS
+
+
 /** Opcode 0x66 0x0f 0x38 0x20. */
-FNIEMOP_STUB(iemOp_pmovsxbw_Vx_UxMq);
+FNIEMOP_DEF(iemOp_pmovsxbw_Vx_UxMq)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVSXBW, pmovsxbw, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovsxbw, 64);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x21. */
-FNIEMOP_STUB(iemOp_pmovsxbd_Vx_UxMd);
+FNIEMOP_DEF(iemOp_pmovsxbd_Vx_UxMd)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVSXBD, pmovsxbd, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovsxbd, 32);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x22. */
-FNIEMOP_STUB(iemOp_pmovsxbq_Vx_UxMw);
+FNIEMOP_DEF(iemOp_pmovsxbq_Vx_UxMw)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVSXBQ, pmovsxbq, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovsxbq, 16);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x23. */
-FNIEMOP_STUB(iemOp_pmovsxwd_Vx_UxMq);
+FNIEMOP_DEF(iemOp_pmovsxwd_Vx_UxMq)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVSXWD, pmovsxwd, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovsxwd, 64);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x24. */
-FNIEMOP_STUB(iemOp_pmovsxwq_Vx_UxMd);
+FNIEMOP_DEF(iemOp_pmovsxwq_Vx_UxMd)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVSXWQ, pmovsxwq, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovsxwq, 32);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x25. */
-FNIEMOP_STUB(iemOp_pmovsxdq_Vx_UxMq);
+FNIEMOP_DEF(iemOp_pmovsxdq_Vx_UxMq)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVSXDQ, pmovsxdq, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovsxdq, 64);
+}
+
+
 /*  Opcode 0x66 0x0f 0x38 0x26 - invalid */
 /*  Opcode 0x66 0x0f 0x38 0x27 - invalid */
+
+
 /** Opcode 0x66 0x0f 0x38 0x28. */
-FNIEMOP_STUB(iemOp_pmuldq_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmuldq_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMULDQ, pmuldq, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41Opt_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pmuldq_u128, iemAImpl_pmuldq_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x29. */
-FNIEMOP_STUB(iemOp_pcmpeqq_Vx_Wx);
+FNIEMOP_DEF(iemOp_pcmpeqq_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PCMPEQQ, pcmpeqq, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pcmpeqq_u128, iemAImpl_pcmpeqq_u128_fallback));
+}
+
 
 /**
  * @opcode      0x2a
@@ -156,9 +876,9 @@ FNIEMOP_STUB(iemOp_pcmpeqq_Vx_Wx);
  */
 FNIEMOP_DEF(iemOp_movntdqa_Vdq_Mdq)
 {
-    IEMOP_MNEMONIC2(RM_MEM, MOVNTDQA, movntdqa, Vdq_WO, Mdq, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_MNEMONIC2(RM_MEM, MOVNTDQA, movntdqa, Vdq_WO, Mdq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
-    if ((bRm & X86_MODRM_MOD_MASK) != (3 << X86_MODRM_MOD_SHIFT))
+    if (IEM_IS_MODRM_MEM_MODE(bRm))
     {
         /* Register, memory. */
         IEM_MC_BEGIN(0, 2);
@@ -171,7 +891,7 @@ FNIEMOP_DEF(iemOp_movntdqa_Vdq_Mdq)
         IEM_MC_ACTUALIZE_SSE_STATE_FOR_CHANGE();
 
         IEM_MC_FETCH_MEM_U128_ALIGN_SSE(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
-        IEM_MC_STORE_XREG_U128(((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg, uSrc);
+        IEM_MC_STORE_XREG_U128(IEM_GET_MODRM_REG(pVCpu, bRm), uSrc);
 
         IEM_MC_ADVANCE_RIP();
         IEM_MC_END();
@@ -191,50 +911,176 @@ FNIEMOP_DEF(iemOp_movntdqa_Vdq_Mdq)
     return IEMOP_RAISE_INVALID_OPCODE();
 }
 
+
 /** Opcode 0x66 0x0f 0x38 0x2b. */
-FNIEMOP_STUB(iemOp_packusdw_Vx_Wx);
+FNIEMOP_DEF(iemOp_packusdw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PACKUSDW, packusdw, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, 0);
+    return FNIEMOP_CALL_1(iemOpCommonSse41Opt_FullFull_To_Full, iemAImpl_packusdw_u128);
+}
+
+
 /*  Opcode 0x66 0x0f 0x38 0x2c - invalid (vex only). */
 /*  Opcode 0x66 0x0f 0x38 0x2d - invalid (vex only). */
 /*  Opcode 0x66 0x0f 0x38 0x2e - invalid (vex only). */
 /*  Opcode 0x66 0x0f 0x38 0x2f - invalid (vex only). */
 
 /** Opcode 0x66 0x0f 0x38 0x30. */
-FNIEMOP_STUB(iemOp_pmovzxbw_Vx_UxMq);
+FNIEMOP_DEF(iemOp_pmovzxbw_Vx_UxMq)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVZXBW, pmovzxbw, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovzxbw, 64);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x31. */
-FNIEMOP_STUB(iemOp_pmovzxbd_Vx_UxMd);
+FNIEMOP_DEF(iemOp_pmovzxbd_Vx_UxMd)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVZXBD, pmovzxbd, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovzxbd, 32);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x32. */
-FNIEMOP_STUB(iemOp_pmovzxbq_Vx_UxMw);
+FNIEMOP_DEF(iemOp_pmovzxbq_Vx_UxMw)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVZXBQ, pmovzxbq, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovzxbq, 16);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x33. */
-FNIEMOP_STUB(iemOp_pmovzxwd_Vx_UxMq);
+FNIEMOP_DEF(iemOp_pmovzxwd_Vx_UxMq)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVZXWD, pmovzxwd, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovzxwd, 64);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x34. */
-FNIEMOP_STUB(iemOp_pmovzxwq_Vx_UxMd);
+FNIEMOP_DEF(iemOp_pmovzxwq_Vx_UxMd)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVZXWQ, pmovzxwq, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovzxwq, 32);
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x35. */
-FNIEMOP_STUB(iemOp_pmovzxdq_Vx_UxMq);
+FNIEMOP_DEF(iemOp_pmovzxdq_Vx_UxMq)
+{
+     /** @todo r=aeichner Review code, the naming of this function and the parameter type specifiers. */
+    IEMOP_MNEMONIC2(RM, PMOVZXDQ, pmovzxdq, Vx, Wq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    IEMOP_BODY_PMOV_S_Z(pmovzxdq, 64);
+}
+
+
 /*  Opcode 0x66 0x0f 0x38 0x36 - invalid (vex only). */
+
+
 /** Opcode 0x66 0x0f 0x38 0x37. */
-FNIEMOP_STUB(iemOp_pcmpgtq_Vx_Wx);
+FNIEMOP_DEF(iemOp_pcmpgtq_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PCMPGTQ, pcmpgtq, Vx, Wx, DISOPTYPE_HARMLESS, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse42_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_pcmpgtq_u128, iemAImpl_pcmpgtq_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x38. */
-FNIEMOP_STUB(iemOp_pminsb_Vx_Wx);
+FNIEMOP_DEF(iemOp_pminsb_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMINSB, pminsb, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pminsb_u128, iemAImpl_pminsb_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x39. */
-FNIEMOP_STUB(iemOp_pminsd_Vx_Wx);
+FNIEMOP_DEF(iemOp_pminsd_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMINSD, pminsd, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pminsd_u128, iemAImpl_pminsd_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x3a. */
-FNIEMOP_STUB(iemOp_pminuw_Vx_Wx);
+FNIEMOP_DEF(iemOp_pminuw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMINUW, pminuw, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pminuw_u128, iemAImpl_pminuw_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x3b. */
-FNIEMOP_STUB(iemOp_pminud_Vx_Wx);
+FNIEMOP_DEF(iemOp_pminud_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMINUD, pminud, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pminud_u128, iemAImpl_pminud_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x3c. */
-FNIEMOP_STUB(iemOp_pmaxsb_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmaxsb_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMAXSB, pmaxsb, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pmaxsb_u128, iemAImpl_pmaxsb_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x3d. */
-FNIEMOP_STUB(iemOp_pmaxsd_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmaxsd_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMAXSD, pmaxsd, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pmaxsd_u128, iemAImpl_pmaxsd_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x3e. */
-FNIEMOP_STUB(iemOp_pmaxuw_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmaxuw_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMAXUW, pmaxuw, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pmaxuw_u128, iemAImpl_pmaxuw_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x3f. */
-FNIEMOP_STUB(iemOp_pmaxud_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmaxud_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMAXUD, pmaxud, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pmaxud_u128, iemAImpl_pmaxud_u128_fallback));
+}
 
 
 /** Opcode 0x66 0x0f 0x38 0x40. */
-FNIEMOP_STUB(iemOp_pmulld_Vx_Wx);
+FNIEMOP_DEF(iemOp_pmulld_Vx_Wx)
+{
+    IEMOP_MNEMONIC2(RM, PMULLD, pmulld, Vx, Wx, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_pmulld_u128, iemAImpl_pmulld_u128_fallback));
+}
+
+
 /** Opcode 0x66 0x0f 0x38 0x41. */
-FNIEMOP_STUB(iemOp_phminposuw_Vdq_Wdq);
+FNIEMOP_DEF(iemOp_phminposuw_Vdq_Wdq)
+{
+    IEMOP_MNEMONIC2(RM, PHMINPOSUW, phminposuw, Vdq, Wdq, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, IEMOPHINT_IGNORES_OP_SIZES);
+    return FNIEMOP_CALL_1(iemOpCommonSse41Opt_FullFull_To_Full,
+                          IEM_SELECT_HOST_OR_FALLBACK(fSse41, iemAImpl_phminposuw_u128, iemAImpl_phminposuw_u128_fallback));
+}
+
+
 /*  Opcode 0x66 0x0f 0x38 0x42 - invalid. */
 /*  Opcode 0x66 0x0f 0x38 0x43 - invalid. */
 /*  Opcode 0x66 0x0f 0x38 0x44 - invalid. */
@@ -302,7 +1148,48 @@ FNIEMOP_STUB(iemOp_phminposuw_Vdq_Wdq);
 /*  Opcode 0x66 0x0f 0x38 0x7f - invalid. */
 
 /** Opcode 0x66 0x0f 0x38 0x80. */
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+FNIEMOP_DEF(iemOp_invept_Gy_Mdq)
+{
+    IEMOP_MNEMONIC(invept, "invept Gy,Mdq");
+    IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+    IEMOP_HLP_IN_VMX_OPERATION("invept", kVmxVDiag_Invept);
+    IEMOP_HLP_VMX_INSTR("invept", kVmxVDiag_Invept);
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_MEM_MODE(bRm))
+    {
+        /* Register, memory. */
+        if (pVCpu->iem.s.enmEffOpSize == IEMMODE_64BIT)
+        {
+            IEM_MC_BEGIN(3, 0);
+            IEM_MC_ARG(uint8_t,  iEffSeg,         0);
+            IEM_MC_ARG(RTGCPTR,  GCPtrInveptDesc, 1);
+            IEM_MC_ARG(uint64_t, uInveptType,     2);
+            IEM_MC_FETCH_GREG_U64(uInveptType, IEM_GET_MODRM_REG(pVCpu, bRm));
+            IEM_MC_CALC_RM_EFF_ADDR(GCPtrInveptDesc, bRm, 0);
+            IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
+            IEM_MC_CALL_CIMPL_3(iemCImpl_invept, iEffSeg, GCPtrInveptDesc, uInveptType);
+            IEM_MC_END();
+        }
+        else
+        {
+            IEM_MC_BEGIN(3, 0);
+            IEM_MC_ARG(uint8_t,  iEffSeg,         0);
+            IEM_MC_ARG(RTGCPTR,  GCPtrInveptDesc, 1);
+            IEM_MC_ARG(uint32_t, uInveptType,     2);
+            IEM_MC_FETCH_GREG_U32(uInveptType, IEM_GET_MODRM_REG(pVCpu, bRm));
+            IEM_MC_CALC_RM_EFF_ADDR(GCPtrInveptDesc, bRm, 0);
+            IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
+            IEM_MC_CALL_CIMPL_3(iemCImpl_invept, iEffSeg, GCPtrInveptDesc, uInveptType);
+            IEM_MC_END();
+        }
+    }
+    Log(("iemOp_invept_Gy_Mdq: invalid encoding -> #UD\n"));
+    return IEMOP_RAISE_INVALID_OPCODE();
+}
+#else
 FNIEMOP_STUB(iemOp_invept_Gy_Mdq);
+#endif
 
 /** Opcode 0x66 0x0f 0x38 0x81. */
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
@@ -313,7 +1200,7 @@ FNIEMOP_DEF(iemOp_invvpid_Gy_Mdq)
     IEMOP_HLP_IN_VMX_OPERATION("invvpid", kVmxVDiag_Invvpid);
     IEMOP_HLP_VMX_INSTR("invvpid", kVmxVDiag_Invvpid);
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
-    if ((bRm & X86_MODRM_MOD_MASK) != (3 << X86_MODRM_MOD_SHIFT))
+    if (IEM_IS_MODRM_MEM_MODE(bRm))
     {
         /* Register, memory. */
         if (pVCpu->iem.s.enmEffOpSize == IEMMODE_64BIT)
@@ -322,7 +1209,7 @@ FNIEMOP_DEF(iemOp_invvpid_Gy_Mdq)
             IEM_MC_ARG(uint8_t,  iEffSeg,          0);
             IEM_MC_ARG(RTGCPTR,  GCPtrInvvpidDesc, 1);
             IEM_MC_ARG(uint64_t, uInvvpidType,     2);
-            IEM_MC_FETCH_GREG_U64(uInvvpidType, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
+            IEM_MC_FETCH_GREG_U64(uInvvpidType, IEM_GET_MODRM_REG(pVCpu, bRm));
             IEM_MC_CALC_RM_EFF_ADDR(GCPtrInvvpidDesc, bRm, 0);
             IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
             IEM_MC_CALL_CIMPL_3(iemCImpl_invvpid, iEffSeg, GCPtrInvvpidDesc, uInvvpidType);
@@ -334,7 +1221,7 @@ FNIEMOP_DEF(iemOp_invvpid_Gy_Mdq)
             IEM_MC_ARG(uint8_t,  iEffSeg,          0);
             IEM_MC_ARG(RTGCPTR,  GCPtrInvvpidDesc, 1);
             IEM_MC_ARG(uint32_t, uInvvpidType,     2);
-            IEM_MC_FETCH_GREG_U32(uInvvpidType, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
+            IEM_MC_FETCH_GREG_U32(uInvvpidType, IEM_GET_MODRM_REG(pVCpu, bRm));
             IEM_MC_CALC_RM_EFF_ADDR(GCPtrInvvpidDesc, bRm, 0);
             IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
             IEM_MC_CALL_CIMPL_3(iemCImpl_invvpid, iEffSeg, GCPtrInvvpidDesc, uInvvpidType);
@@ -354,7 +1241,7 @@ FNIEMOP_DEF(iemOp_invpcid_Gy_Mdq)
     IEMOP_MNEMONIC(invpcid, "invpcid Gy,Mdq");
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
-    if ((bRm & X86_MODRM_MOD_MASK) != (3 << X86_MODRM_MOD_SHIFT))
+    if (IEM_IS_MODRM_MEM_MODE(bRm))
     {
         /* Register, memory. */
         if (pVCpu->iem.s.enmEffOpSize == IEMMODE_64BIT)
@@ -363,7 +1250,7 @@ FNIEMOP_DEF(iemOp_invpcid_Gy_Mdq)
             IEM_MC_ARG(uint8_t,  iEffSeg,          0);
             IEM_MC_ARG(RTGCPTR,  GCPtrInvpcidDesc, 1);
             IEM_MC_ARG(uint64_t, uInvpcidType,     2);
-            IEM_MC_FETCH_GREG_U64(uInvpcidType, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
+            IEM_MC_FETCH_GREG_U64(uInvpcidType, IEM_GET_MODRM_REG(pVCpu, bRm));
             IEM_MC_CALC_RM_EFF_ADDR(GCPtrInvpcidDesc, bRm, 0);
             IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
             IEM_MC_CALL_CIMPL_3(iemCImpl_invpcid, iEffSeg, GCPtrInvpcidDesc, uInvpcidType);
@@ -375,7 +1262,7 @@ FNIEMOP_DEF(iemOp_invpcid_Gy_Mdq)
             IEM_MC_ARG(uint8_t,  iEffSeg,          0);
             IEM_MC_ARG(RTGCPTR,  GCPtrInvpcidDesc, 1);
             IEM_MC_ARG(uint32_t, uInvpcidType,     2);
-            IEM_MC_FETCH_GREG_U32(uInvpcidType, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
+            IEM_MC_FETCH_GREG_U32(uInvpcidType, IEM_GET_MODRM_REG(pVCpu, bRm));
             IEM_MC_CALC_RM_EFF_ADDR(GCPtrInvpcidDesc, bRm, 0);
             IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
             IEM_MC_CALL_CIMPL_3(iemCImpl_invpcid, iEffSeg, GCPtrInvpcidDesc, uInvpcidType);
@@ -536,16 +1423,191 @@ FNIEMOP_STUB(iemOp_movbe_Gy_My);
 /** Opcode 0x66 0x0f 0x38 0xf0. */
 FNIEMOP_STUB(iemOp_movbe_Gw_Mw);
 /*  Opcode 0xf3 0x0f 0x38 0xf0 - invalid. */
+
+
 /** Opcode 0xf2 0x0f 0x38 0xf0. */
-FNIEMOP_STUB(iemOp_crc32_Gb_Eb);
+FNIEMOP_DEF(iemOp_crc32_Gd_Eb)
+{
+    IEMOP_MNEMONIC2(RM, CRC32, crc32, Gd, Eb, DISOPTYPE_HARMLESS, 0);
+    if (!IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSse42)
+        return iemOp_InvalidNeedRM(pVCpu);
+
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_REG_MODE(bRm))
+    {
+        /*
+         * Register, register.
+         */
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_BEGIN(2, 0);
+        IEM_MC_ARG(uint32_t *,          puDst, 0);
+        IEM_MC_ARG(uint8_t,             uSrc,  1);
+        IEM_MC_REF_GREG_U32(puDst,  IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_FETCH_GREG_U8(uSrc,  IEM_GET_MODRM_RM(pVCpu, bRm));
+        IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u8, iemAImpl_crc32_u8_fallback), puDst, uSrc);
+        IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    else
+    {
+        /*
+         * Register, memory.
+         */
+        IEM_MC_BEGIN(2, 1);
+        IEM_MC_ARG(uint32_t *,          puDst, 0);
+        IEM_MC_ARG(uint8_t,             uSrc,  1);
+        IEM_MC_LOCAL(RTGCPTR,           GCPtrEffSrc);
+
+        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        IEM_MC_FETCH_MEM_U8(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+        IEM_MC_REF_GREG_U32(puDst, IEM_GET_MODRM_REG(pVCpu, bRm));
+        IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u8, iemAImpl_crc32_u8_fallback), puDst, uSrc);
+        IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+
+        IEM_MC_ADVANCE_RIP();
+        IEM_MC_END();
+    }
+    return VINF_SUCCESS;
+}
+
 
 /** Opcode      0x0f 0x38 0xf1. */
 FNIEMOP_STUB(iemOp_movbe_My_Gy);
 /** Opcode 0x66 0x0f 0x38 0xf1. */
 FNIEMOP_STUB(iemOp_movbe_Mw_Gw);
 /*  Opcode 0xf3 0x0f 0x38 0xf1 - invalid. */
+
+
 /** Opcode 0xf2 0x0f 0x38 0xf1. */
-FNIEMOP_STUB(iemOp_crc32_Gv_Ev);
+FNIEMOP_DEF(iemOp_crc32_Gv_Ev)
+{
+    IEMOP_MNEMONIC2(RM, CRC32, crc32, Gd, Ev, DISOPTYPE_HARMLESS, 0);
+    if (!IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSse42)
+        return iemOp_InvalidNeedRM(pVCpu);
+
+    uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
+    if (IEM_IS_MODRM_REG_MODE(bRm))
+    {
+        /*
+         * Register, register.
+         */
+        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+        switch (pVCpu->iem.s.enmEffOpSize)
+        {
+            case IEMMODE_16BIT:
+                IEM_MC_BEGIN(2, 0);
+                IEM_MC_ARG(uint32_t *,          puDst, 0);
+                IEM_MC_ARG(uint16_t,            uSrc,  1);
+                IEM_MC_REF_GREG_U32(puDst,  IEM_GET_MODRM_REG(pVCpu, bRm));
+                IEM_MC_FETCH_GREG_U16(uSrc, IEM_GET_MODRM_RM(pVCpu, bRm));
+                IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u16, iemAImpl_crc32_u16_fallback),
+                                         puDst, uSrc);
+                IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+                IEM_MC_ADVANCE_RIP();
+                IEM_MC_END();
+                return VINF_SUCCESS;
+
+            case IEMMODE_32BIT:
+                IEM_MC_BEGIN(2, 0);
+                IEM_MC_ARG(uint32_t *,          puDst, 0);
+                IEM_MC_ARG(uint32_t,            uSrc,  1);
+                IEM_MC_REF_GREG_U32(puDst,  IEM_GET_MODRM_REG(pVCpu, bRm));
+                IEM_MC_FETCH_GREG_U32(uSrc, IEM_GET_MODRM_RM(pVCpu, bRm));
+                IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u32, iemAImpl_crc32_u32_fallback),
+                                         puDst, uSrc);
+                IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+                IEM_MC_ADVANCE_RIP();
+                IEM_MC_END();
+                return VINF_SUCCESS;
+
+            case IEMMODE_64BIT:
+                IEM_MC_BEGIN(2, 0);
+                IEM_MC_ARG(uint32_t *,          puDst, 0);
+                IEM_MC_ARG(uint64_t,            uSrc,  1);
+                IEM_MC_REF_GREG_U32(puDst,  IEM_GET_MODRM_REG(pVCpu, bRm));
+                IEM_MC_FETCH_GREG_U64(uSrc, IEM_GET_MODRM_RM(pVCpu, bRm));
+                IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u64, iemAImpl_crc32_u64_fallback),
+                                         puDst, uSrc);
+                IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+                IEM_MC_ADVANCE_RIP();
+                IEM_MC_END();
+                return VINF_SUCCESS;
+
+            IEM_NOT_REACHED_DEFAULT_CASE_RET();
+        }
+    }
+    else
+    {
+        /*
+         * Register, memory.
+         */
+        switch (pVCpu->iem.s.enmEffOpSize)
+        {
+            case IEMMODE_16BIT:
+                IEM_MC_BEGIN(2, 1);
+                IEM_MC_ARG(uint32_t *,          puDst, 0);
+                IEM_MC_ARG(uint16_t,            uSrc,  1);
+                IEM_MC_LOCAL(RTGCPTR,           GCPtrEffSrc);
+
+                IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+                IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+                IEM_MC_FETCH_MEM_U16(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+                IEM_MC_REF_GREG_U32(puDst, IEM_GET_MODRM_REG(pVCpu, bRm));
+                IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u16, iemAImpl_crc32_u16_fallback),
+                                         puDst, uSrc);
+                IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+
+                IEM_MC_ADVANCE_RIP();
+                IEM_MC_END();
+                return VINF_SUCCESS;
+
+            case IEMMODE_32BIT:
+                IEM_MC_BEGIN(2, 1);
+                IEM_MC_ARG(uint32_t *,          puDst, 0);
+                IEM_MC_ARG(uint32_t,            uSrc,  1);
+                IEM_MC_LOCAL(RTGCPTR,           GCPtrEffSrc);
+
+                IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+                IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+                IEM_MC_FETCH_MEM_U32(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+                IEM_MC_REF_GREG_U32(puDst, IEM_GET_MODRM_REG(pVCpu, bRm));
+                IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u32, iemAImpl_crc32_u32_fallback),
+                                         puDst, uSrc);
+                IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+
+                IEM_MC_ADVANCE_RIP();
+                IEM_MC_END();
+                return VINF_SUCCESS;
+
+            case IEMMODE_64BIT:
+                IEM_MC_BEGIN(2, 1);
+                IEM_MC_ARG(uint32_t *,          puDst, 0);
+                IEM_MC_ARG(uint64_t,            uSrc,  1);
+                IEM_MC_LOCAL(RTGCPTR,           GCPtrEffSrc);
+
+                IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+                IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+                IEM_MC_FETCH_MEM_U64(uSrc, pVCpu->iem.s.iEffSeg, GCPtrEffSrc);
+
+                IEM_MC_REF_GREG_U32(puDst, IEM_GET_MODRM_REG(pVCpu, bRm));
+                IEM_MC_CALL_VOID_AIMPL_2(IEM_SELECT_HOST_OR_FALLBACK(fSse42, iemAImpl_crc32_u64, iemAImpl_crc32_u64_fallback),
+                                         puDst, uSrc);
+                IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(puDst);
+
+                IEM_MC_ADVANCE_RIP();
+                IEM_MC_END();
+                return VINF_SUCCESS;
+
+            IEM_NOT_REACHED_DEFAULT_CASE_RET();
+        }
+    }
+}
+
 
 /*  Opcode      0x0f 0x38 0xf2 - invalid (vex only). */
 /*  Opcode 0x66 0x0f 0x38 0xf2 - invalid. */
@@ -633,7 +1695,7 @@ IEM_STATIC const PFNIEMOP g_apfnThreeByte0f38[] =
     /* 0x03 */  iemOp_phaddsw_Pq_Qq,        iemOp_phaddsw_Vx_Wx,        iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
     /* 0x04 */  iemOp_pmaddubsw_Pq_Qq,      iemOp_pmaddubsw_Vx_Wx,      iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
     /* 0x05 */  iemOp_phsubw_Pq_Qq,         iemOp_phsubw_Vx_Wx,         iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
-    /* 0x06 */  iemOp_phsubd_Pq_Qq,         iemOp_phsubdq_Vx_Wx,        iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
+    /* 0x06 */  iemOp_phsubd_Pq_Qq,         iemOp_phsubd_Vx_Wx,         iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
     /* 0x07 */  iemOp_phsubsw_Pq_Qq,        iemOp_phsubsw_Vx_Wx,        iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
     /* 0x08 */  iemOp_psignb_Pq_Qq,         iemOp_psignb_Vx_Wx,         iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
     /* 0x09 */  iemOp_psignw_Pq_Qq,         iemOp_psignw_Vx_Wx,         iemOp_InvalidNeedRM,        iemOp_InvalidNeedRM,
@@ -882,7 +1944,7 @@ IEM_STATIC const PFNIEMOP g_apfnThreeByte0f38[] =
     /* 0xee */  IEMOP_X4(iemOp_InvalidNeedRM),
     /* 0xef */  IEMOP_X4(iemOp_InvalidNeedRM),
 
-    /* 0xf0 */  iemOp_movbe_Gy_My,          iemOp_movbe_Gw_Mw,          iemOp_InvalidNeedRM,        iemOp_crc32_Gb_Eb,
+    /* 0xf0 */  iemOp_movbe_Gy_My,          iemOp_movbe_Gw_Mw,          iemOp_InvalidNeedRM,        iemOp_crc32_Gd_Eb,
     /* 0xf1 */  iemOp_movbe_My_Gy,          iemOp_movbe_Mw_Gw,          iemOp_InvalidNeedRM,        iemOp_crc32_Gv_Ev,
     /* 0xf2 */  IEMOP_X4(iemOp_InvalidNeedRM),
     /* 0xf3 */  IEMOP_X4(iemOp_InvalidNeedRM),

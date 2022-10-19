@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -83,6 +83,7 @@ static const VBOXEXTPACKREG g_vboxBusMouseExtPackReg =
 {
     VBOXEXTPACKREG_VERSION,
     /* .uVBoxFullVersion =  */  VBOX_FULL_VERSION,
+    /* .pszNlsBaseName =    */  NULL,
     /* .pfnInstalled =      */  NULL,
     /* .pfnUninstall =      */  NULL,
     /* .pfnVirtualBoxReady =*/  NULL,

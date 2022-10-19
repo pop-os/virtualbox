@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pgm_h
@@ -33,6 +43,7 @@
 #include <VBox/sup.h>
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/gmm.h>               /* for PGMMREGISTERSHAREDMODULEREQ */
+#include <VBox/vmm/hm_vmx.h>
 #include <iprt/x86.h>
 #include <VBox/param.h>
 
@@ -55,12 +66,6 @@ typedef enum PGMRELOCATECALL
 } PGMRELOCATECALL;
 
 
-/** No guest context mappings (might be removed entirely later, if we don't
- *  need it again (see new raw-mode ideas)).
- * @internal  */
-#define PGM_WITHOUT_MAPPINGS
-
-
 /**
  * Callback function which will be called when PGM is trying to find
  * a new location for the mapping.
@@ -80,7 +85,7 @@ typedef enum PGMRELOCATECALL
  * @remark  The return value is no a failure indicator, it's an acceptance
  *          indicator. Relocation can not fail!
  */
-typedef DECLCALLBACK(bool) FNPGMRELOCATE(PVM pVM, RTGCPTR GCPtrOld, RTGCPTR GCPtrNew, PGMRELOCATECALL enmMode, void *pvUser);
+typedef DECLCALLBACKTYPE(bool, FNPGMRELOCATE,(PVM pVM, RTGCPTR GCPtrOld, RTGCPTR GCPtrNew, PGMRELOCATECALL enmMode, void *pvUser));
 /** Pointer to a relocation callback function. */
 typedef FNPGMRELOCATE *PFNPGMRELOCATE;
 
@@ -120,13 +125,18 @@ typedef enum PGMACCESSORIGIN
  */
 typedef enum PGMPHYSHANDLERKIND
 {
+    /** Invalid zero value. */
+    PGMPHYSHANDLERKIND_INVALID = 0,
     /** MMIO range. Pages are not present, all access is done in interpreter or recompiler. */
-    PGMPHYSHANDLERKIND_MMIO = 1,
+    PGMPHYSHANDLERKIND_MMIO,
     /** Handler all write access to a physical page range. */
     PGMPHYSHANDLERKIND_WRITE,
     /** Handler all access to a physical page range. */
-    PGMPHYSHANDLERKIND_ALL
-
+    PGMPHYSHANDLERKIND_ALL,
+    /** End of the valid values. */
+    PGMPHYSHANDLERKIND_END,
+    /** Type size hack. */
+    PGMPHYSHANDLERKIND_32BIT_HACK = 0x7fffffff
 } PGMPHYSHANDLERKIND;
 
 /**
@@ -168,7 +178,7 @@ typedef enum PGMACCESSTYPE
 #  define PGM_ALL_CB2_DECL(type)    DECLCALLBACK(DECLEXPORT(type))
 # endif
 #else
-# define PGM_ALL_CB2_DECL(type)     DECLCALLBACK(DECLHIDDEN(type))
+# define PGM_ALL_CB2_DECL(type)     DECL_HIDDEN_CALLBACK(type)
 #endif
 
 /** @def PGM_ALL_CB2_PROTO
@@ -199,11 +209,11 @@ typedef enum PGMACCESSTYPE
  *                      NULL on DMA and other non CPU access.
  * @param   pvFault     The fault address (cr2).
  * @param   GCPhysFault The GC physical address corresponding to pvFault.
- * @param   pvUser      User argument.
+ * @param   uUser       User argument (not a pointer).
  * @thread  EMT(pVCpu)
  */
-typedef DECLCALLBACK(VBOXSTRICTRC) FNPGMRZPHYSPFHANDLER(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
-                                                        RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser);
+typedef DECLCALLBACKTYPE(VBOXSTRICTRC, FNPGMRZPHYSPFHANDLER,(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+                                                             RTGCPTR pvFault, RTGCPHYS GCPhysFault, uint64_t uUser));
 /** Pointer to PGM access callback. */
 typedef FNPGMRZPHYSPFHANDLER *PFNPGMRZPHYSPFHANDLER;
 
@@ -230,11 +240,12 @@ typedef FNPGMRZPHYSPFHANDLER *PFNPGMRZPHYSPFHANDLER;
  * @param   cbBuf           How much it's reading/writing.
  * @param   enmAccessType   The access type.
  * @param   enmOrigin       The origin of this call.
- * @param   pvUser          User argument.
+ * @param   uUser           User argument (not a pointer).
  * @thread  EMT(pVCpu)
  */
-typedef DECLCALLBACK(VBOXSTRICTRC) FNPGMPHYSHANDLER(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, void *pvPhys, void *pvBuf, size_t cbBuf,
-                                                    PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser);
+typedef DECLCALLBACKTYPE(VBOXSTRICTRC, FNPGMPHYSHANDLER,(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, void *pvPhys,
+                                                         void *pvBuf, size_t cbBuf, PGMACCESSTYPE enmAccessType,
+                                                         PGMACCESSORIGIN enmOrigin, uint64_t uUser));
 /** Pointer to PGM access callback. */
 typedef FNPGMPHYSHANDLER *PFNPGMPHYSHANDLER;
 
@@ -278,6 +289,295 @@ typedef enum PGMMODE
     PGMMODE_32BIT_HACK = 0x7fffffff
 } PGMMODE;
 
+/**
+ * Second level address translation (SLAT) mode.
+ */
+typedef enum PGMSLAT
+{
+    /** The usual invalid value. */
+    PGMSLAT_INVALID = 0,
+    /** No second level translation. */
+    PGMSLAT_DIRECT,
+    /** Intel Extended Page Tables (EPT). */
+    PGMSLAT_EPT,
+    /** AMD-V Nested Paging 32-bit. */
+    PGMSLAT_32BIT,
+    /** AMD-V Nested Paging PAE. */
+    PGMSLAT_PAE,
+    /** AMD-V Nested Paging 64-bit. */
+    PGMSLAT_AMD64,
+    /** 32bit hackishness. */
+    PGMSLAT_32BIT_HACK = 0x7fffffff
+} PGMSLAT;
+
+
+/** @name PGMPTWALK::fFailed flags.
+ * These flags indicate the type of a page-walk failure.
+ * @{
+ */
+typedef uint32_t PGMWALKFAIL;
+/** Regular page fault (MBZ since guest Walk code don't set these explicitly). */
+#define PGM_WALKFAIL_PAGE_FAULT                     UINT32_C(0)
+/** EPT violation - Intel. */
+#define PGM_WALKFAIL_EPT_VIOLATION                  RT_BIT_32(0)
+/** EPT violation, convertible to \#VE exception - Intel. */
+#define PGM_WALKFAIL_EPT_VIOLATION_CONVERTIBLE      RT_BIT_32(1)
+/** EPT misconfiguration - Intel. */
+#define PGM_WALKFAIL_EPT_MISCONFIG                  RT_BIT_32(2)
+
+/** Mask of all EPT induced page-walk failures - Intel. */
+#define PGM_WALKFAIL_EPT                            (  PGM_WALKFAIL_EPT_VIOLATION \
+                                                     | PGM_WALKFAIL_EPT_VIOLATION_CONVERTIBLE \
+                                                     | PGM_WALKFAIL_EPT_MISCONFIG)
+/** @} */
+
+
+/** @name PGMPTATTRS - PGM page-table attributes.
+ *
+ * This is VirtualBox's combined page table attributes. It combines regular page
+ * table and Intel EPT attributes. It's 64-bit in size so there's ample room for
+ * bits added in the future to EPT or regular page tables (for e.g. Protection Key).
+ *
+ * The following bits map 1:1 (shifted by PGM_PTATTRS_EPT_SHIFT) to the Intel EPT
+ * attributes as these are unique to EPT and fit within 64-bits despite the shift:
+ *   - EPT_R         : Read access.
+ *   - EPT_W         : Write access.
+ *   - EPT_X_SUPER   : Execute or execute for supervisor-mode linear addr access.
+ *   - EPT_MEMTYPE   : EPT memory type.
+ *   - EPT_IGNORE_PAT: Ignore PAT memory type.
+ *   - EPT_X_USER    : Execute access for user-mode linear addresses.
+ *
+ * For regular page tables, the R bit is always 1 (same as P bit).
+ * For Intel EPT, the EPT_R and EPT_W bits are copied to R and W bits respectively.
+ *
+ * The following EPT attributes are mapped to the following positions because they
+ * exist in the regular page tables at these positions OR are exclusive to EPT and
+ * have been mapped to arbitrarily chosen positions:
+ *   - EPT_A               : Accessed                (EPT bit  8 maps to bit  5).
+ *   - EPT_D               : Dirty                   (EPT bit  9 maps to bit  6).
+ *   - EPT_SUPER_SHW_STACK : Supervisor Shadow Stack (EPT bit 60 maps to bit 24).
+ *   - EPT_SUPPRESS_VE_XCPT: Suppress \#VE exception (EPT bit 63 maps to bit 25).
+ *
+ * Bits 12, 11:9 and 43 are deliberately kept unused (correspond to bit PS and bits
+ * 11:9 in the regular page-table structures and to bit 11 in the EPT structures
+ * respectively) as bit 12 is the page-size bit and bits 11:9 are reserved for
+ * use by software and we may want to use/preserve them in the future.
+ *
+ * @{ */
+typedef uint64_t PGMPTATTRS;
+/** Pointer to a PGMPTATTRS type. */
+typedef PGMPTATTRS *PPGMPTATTRS;
+
+/** Read bit (always 1 for regular PT, copy of EPT_R for EPT). */
+#define PGM_PTATTRS_R_SHIFT                         0
+#define PGM_PTATTRS_R_MASK                          RT_BIT_64(PGM_PTATTRS_R_SHIFT)
+/** Write access bit (aka read/write bit for regular PT). */
+#define PGM_PTATTRS_W_SHIFT                         1
+#define PGM_PTATTRS_W_MASK                          RT_BIT_64(PGM_PTATTRS_W_SHIFT)
+/** User-mode access bit. */
+#define PGM_PTATTRS_US_SHIFT                        2
+#define PGM_PTATTRS_US_MASK                         RT_BIT_64(PGM_PTATTRS_US_SHIFT)
+/** Write through cache bit. */
+#define PGM_PTATTRS_PWT_SHIFT                       3
+#define PGM_PTATTRS_PWT_MASK                        RT_BIT_64(PGM_PTATTRS_PWT_SHIFT)
+/** Cache disabled bit. */
+#define PGM_PTATTRS_PCD_SHIFT                       4
+#define PGM_PTATTRS_PCD_MASK                        RT_BIT_64(PGM_PTATTRS_PCD_SHIFT)
+/** Accessed bit. */
+#define PGM_PTATTRS_A_SHIFT                         5
+#define PGM_PTATTRS_A_MASK                          RT_BIT_64(PGM_PTATTRS_A_SHIFT)
+/** Dirty bit. */
+#define PGM_PTATTRS_D_SHIFT                         6
+#define PGM_PTATTRS_D_MASK                          RT_BIT_64(PGM_PTATTRS_D_SHIFT)
+/** The PAT bit. */
+#define PGM_PTATTRS_PAT_SHIFT                       7
+#define PGM_PTATTRS_PAT_MASK                        RT_BIT_64(PGM_PTATTRS_PAT_SHIFT)
+/** The global bit. */
+#define PGM_PTATTRS_G_SHIFT                         8
+#define PGM_PTATTRS_G_MASK                          RT_BIT_64(PGM_PTATTRS_G_SHIFT)
+/** Reserved (bits 12:9) unused. */
+#define PGM_PTATTRS_RSVD_12_9_SHIFT                 9
+#define PGM_PTATTRS_RSVD_12_9_MASK                  UINT64_C(0x0000000000001e00)
+/** Read access bit - EPT only. */
+#define PGM_PTATTRS_EPT_R_SHIFT                     13
+#define PGM_PTATTRS_EPT_R_MASK                      RT_BIT_64(PGM_PTATTRS_EPT_R_SHIFT)
+/** Write access bit - EPT only. */
+#define PGM_PTATTRS_EPT_W_SHIFT                     14
+#define PGM_PTATTRS_EPT_W_MASK                      RT_BIT_64(PGM_PTATTRS_EPT_W_SHIFT)
+/** Execute or execute access for supervisor-mode linear addresses - EPT only. */
+#define PGM_PTATTRS_EPT_X_SUPER_SHIFT               15
+#define PGM_PTATTRS_EPT_X_SUPER_MASK                RT_BIT_64(PGM_PTATTRS_EPT_X_SUPER_SHIFT)
+/** EPT memory type - EPT only. */
+#define PGM_PTATTRS_EPT_MEMTYPE_SHIFT               16
+#define PGM_PTATTRS_EPT_MEMTYPE_MASK                UINT64_C(0x0000000000070000)
+/** Ignore PAT memory type - EPT only. */
+#define PGM_PTATTRS_EPT_IGNORE_PAT_SHIFT            19
+#define PGM_PTATTRS_EPT_IGNORE_PAT_MASK             RT_BIT_64(PGM_PTATTRS_EPT_IGNORE_PAT_SHIFT)
+/** Leaf paging entry (big or regular) - EPT only. */
+#define PGM_PTATTRS_EPT_LEAF_SHIFT                  20
+#define PGM_PTATTRS_EPT_LEAF_MASK                   RT_BIT_64(PGM_PTATTRS_EPT_LEAF_SHIFT)
+/** Accessed bit - EPT only. */
+#define PGM_PTATTRS_EPT_A_SHIFT                     21
+#define PGM_PTATTRS_EPT_A_MASK                      RT_BIT_64(PGM_PTATTRS_EPT_A_SHIFT)
+/** Dirty bit - EPT only. */
+#define PGM_PTATTRS_EPT_D_SHIFT                     22
+#define PGM_PTATTRS_EPT_D_MASK                      RT_BIT_64(PGM_PTATTRS_EPT_D_SHIFT)
+/** Execute access for user-mode linear addresses - EPT only. */
+#define PGM_PTATTRS_EPT_X_USER_SHIFT                23
+#define PGM_PTATTRS_EPT_X_USER_MASK                 RT_BIT_64(PGM_PTATTRS_EPT_X_USER_SHIFT)
+/** Reserved (bits 29:24) - unused. */
+#define PGM_PTATTRS_RSVD_29_24_SHIFT                24
+#define PGM_PTATTRS_RSVD_29_24_MASK                 UINT64_C(0x000000003f000000)
+/** Verify Guest Paging - EPT only. */
+#define PGM_PTATTRS_EPT_VGP_SHIFT                   30
+#define PGM_PTATTRS_EPT_VGP_MASK                    RT_BIT_64(PGM_PTATTRS_EPT_VGP_SHIFT)
+/** Paging-write - EPT only. */
+#define PGM_PTATTRS_EPT_PW_SHIFT                    31
+#define PGM_PTATTRS_EPT_PW_MASK                     RT_BIT_64(PGM_PTATTRS_EPT_PW_SHIFT)
+/** Reserved (bit 32) - unused. */
+#define PGM_PTATTRS_RSVD_32_SHIFT                   32
+#define PGM_PTATTRS_RSVD_32_MASK                    UINT64_C(0x0000000100000000)
+/** Supervisor shadow stack - EPT only. */
+#define PGM_PTATTRS_EPT_SSS_SHIFT                   33
+#define PGM_PTATTRS_EPT_SSS_MASK                    RT_BIT_64(PGM_PTATTRS_EPT_SSS_SHIFT)
+/** Sub-page write permission - EPT only. */
+#define PGM_PTATTRS_EPT_SPP_SHIFT                   34
+#define PGM_PTATTRS_EPT_SPP_MASK                    RT_BIT_64(PGM_PTATTRS_EPT_SPP_SHIFT)
+/** Reserved (bit 35) - unused. */
+#define PGM_PTATTRS_RSVD_35_SHIFT                   35
+#define PGM_PTATTRS_RSVD_35_MASK                    UINT64_C(0x0000000800000000)
+/** Suppress \#VE exception - EPT only. */
+#define PGM_PTATTRS_EPT_SVE_SHIFT                   36
+#define PGM_PTATTRS_EPT_SVE_MASK                    RT_BIT_64(PGM_PTATTRS_EPT_SVE_SHIFT)
+/** Reserved (bits 62:37) - unused. */
+#define PGM_PTATTRS_RSVD_62_37_SHIFT                37
+#define PGM_PTATTRS_RSVD_62_37_MASK                 UINT64_C(0x7fffffe000000000)
+/** No-execute bit. */
+#define PGM_PTATTRS_NX_SHIFT                        63
+#define PGM_PTATTRS_NX_MASK                         RT_BIT_64(PGM_PTATTRS_NX_SHIFT)
+
+RT_BF_ASSERT_COMPILE_CHECKS(PGM_PTATTRS_, UINT64_C(0), UINT64_MAX,
+                            (R, W, US, PWT, PCD, A, D, PAT, G, RSVD_12_9, EPT_R, EPT_W, EPT_X_SUPER, EPT_MEMTYPE, EPT_IGNORE_PAT,
+                             EPT_LEAF, EPT_A, EPT_D, EPT_X_USER, RSVD_29_24, EPT_VGP, EPT_PW, RSVD_32, EPT_SSS, EPT_SPP,
+                             RSVD_35, EPT_SVE, RSVD_62_37, NX));
+
+/** The bit position where the EPT specific attributes begin. */
+#define PGM_PTATTRS_EPT_SHIFT                       PGM_PTATTRS_EPT_R_SHIFT
+/** The mask of EPT bits (bits 36:ATTR_SHIFT). In the future we might choose to
+ *  use higher unused bits for something else, in that case adjust this mask. */
+#define PGM_PTATTRS_EPT_MASK                        UINT64_C(0x0000001fffffe000)
+
+/** The mask of all PGM page attribute bits for regular page-tables. */
+#define PGM_PTATTRS_PT_VALID_MASK                   (  PGM_PTATTRS_R_MASK \
+                                                     | PGM_PTATTRS_W_MASK \
+                                                     | PGM_PTATTRS_US_MASK \
+                                                     | PGM_PTATTRS_PWT_MASK \
+                                                     | PGM_PTATTRS_PCD_MASK \
+                                                     | PGM_PTATTRS_A_MASK \
+                                                     | PGM_PTATTRS_D_MASK \
+                                                     | PGM_PTATTRS_PAT_MASK \
+                                                     | PGM_PTATTRS_G_MASK \
+                                                     | PGM_PTATTRS_NX_MASK)
+
+/** The mask of all PGM page attribute bits for EPT. */
+#define PGM_PTATTRS_EPT_VALID_MASK                  (  PGM_PTATTRS_EPT_R_MASK \
+                                                     | PGM_PTATTRS_EPT_W_MASK \
+                                                     | PGM_PTATTRS_EPT_X_SUPER_MASK \
+                                                     | PGM_PTATTRS_EPT_MEMTYPE_MASK \
+                                                     | PGM_PTATTRS_EPT_IGNORE_PAT_MASK \
+                                                     | PGM_PTATTRS_EPT_LEAF_MASK \
+                                                     | PGM_PTATTRS_EPT_A_MASK \
+                                                     | PGM_PTATTRS_EPT_D_MASK \
+                                                     | PGM_PTATTRS_EPT_X_USER_MASK \
+                                                     | PGM_PTATTRS_EPT_VGP_MASK \
+                                                     | PGM_PTATTRS_EPT_PW_MASK \
+                                                     | PGM_PTATTRS_EPT_SSS_MASK \
+                                                     | PGM_PTATTRS_EPT_SPP_MASK \
+                                                     | PGM_PTATTRS_EPT_SVE_MASK)
+
+/* The mask of all PGM page attribute bits (combined). */
+#define PGM_PTATTRS_VALID_MASK                      (PGM_PTATTRS_PT_VALID_MASK | PGM_PTATTRS_EPT_VALID_MASK)
+
+/* Verify bits match the regular PT bits. */
+AssertCompile(PGM_PTATTRS_W_SHIFT   == X86_PTE_BIT_RW);
+AssertCompile(PGM_PTATTRS_US_SHIFT  == X86_PTE_BIT_US);
+AssertCompile(PGM_PTATTRS_PWT_SHIFT == X86_PTE_BIT_PWT);
+AssertCompile(PGM_PTATTRS_PCD_SHIFT == X86_PTE_BIT_PCD);
+AssertCompile(PGM_PTATTRS_A_SHIFT   == X86_PTE_BIT_A);
+AssertCompile(PGM_PTATTRS_D_SHIFT   == X86_PTE_BIT_D);
+AssertCompile(PGM_PTATTRS_PAT_SHIFT == X86_PTE_BIT_PAT);
+AssertCompile(PGM_PTATTRS_G_SHIFT   == X86_PTE_BIT_G);
+AssertCompile(PGM_PTATTRS_W_MASK    == X86_PTE_RW);
+AssertCompile(PGM_PTATTRS_US_MASK   == X86_PTE_US);
+AssertCompile(PGM_PTATTRS_PWT_MASK  == X86_PTE_PWT);
+AssertCompile(PGM_PTATTRS_PCD_MASK  == X86_PTE_PCD);
+AssertCompile(PGM_PTATTRS_A_MASK    == X86_PTE_A);
+AssertCompile(PGM_PTATTRS_D_MASK    == X86_PTE_D);
+AssertCompile(PGM_PTATTRS_PAT_MASK  == X86_PTE_PAT);
+AssertCompile(PGM_PTATTRS_G_MASK    == X86_PTE_G);
+AssertCompile(PGM_PTATTRS_NX_MASK   == X86_PTE_PAE_NX);
+
+/* Verify those EPT bits that must map 1:1 (after shifting). */
+AssertCompile(PGM_PTATTRS_EPT_R_SHIFT          - PGM_PTATTRS_EPT_SHIFT == EPT_E_BIT_READ);
+AssertCompile(PGM_PTATTRS_EPT_W_SHIFT          - PGM_PTATTRS_EPT_SHIFT == EPT_E_BIT_WRITE);
+AssertCompile(PGM_PTATTRS_EPT_X_SUPER_SHIFT    - PGM_PTATTRS_EPT_SHIFT == EPT_E_BIT_EXECUTE);
+AssertCompile(PGM_PTATTRS_EPT_IGNORE_PAT_SHIFT - PGM_PTATTRS_EPT_SHIFT == EPT_E_BIT_IGNORE_PAT);
+AssertCompile(PGM_PTATTRS_EPT_X_USER_SHIFT     - PGM_PTATTRS_EPT_SHIFT == EPT_E_BIT_USER_EXECUTE);
+/** @} */
+
+
+/**
+ * Page table walk information.
+ *
+ * This provides extensive information regarding page faults (or EPT
+ * violations/misconfigurations) while traversing page tables.
+ */
+typedef struct PGMPTWALK
+{
+    /** The linear address that is being resolved (input). */
+    RTGCPTR         GCPtr;
+
+    /** The second-level physical address (input/output).
+     *  @remarks only valid if fIsSlat is set. */
+    RTGCPHYS        GCPhysNested;
+
+    /** The physical address that is the result of the walk (output). */
+    RTGCPHYS        GCPhys;
+
+    /** Set if the walk succeeded. */
+    bool            fSucceeded;
+    /** Whether this is a second-level address translation. */
+    bool            fIsSlat;
+    /** Whether the linear address (GCPtr) caused the second-level
+     *  address translation. */
+    bool            fIsLinearAddrValid;
+    /** The level problem arrised at.
+     * PTE is level 1, PDE is level 2, PDPE is level 3, PML4 is level 4, CR3 is
+     * level 8.  This is 0 on success. */
+    uint8_t         uLevel;
+    /** Set if the page isn't present. */
+    bool            fNotPresent;
+    /** Encountered a bad physical address. */
+    bool            fBadPhysAddr;
+    /** Set if there was reserved bit violations. */
+    bool            fRsvdError;
+    /** Set if it involves a big page (2/4 MB). */
+    bool            fBigPage;
+    /** Set if it involves a gigantic page (1 GB). */
+    bool            fGigantPage;
+    bool            afPadding[3];
+    /** Page-walk failure type, PGM_WALKFAIL_XXX. */
+    PGMWALKFAIL     fFailed;
+
+    /** The effective page-table attributes, PGM_PTATTRS_XXX. */
+    PGMPTATTRS      fEffective;
+} PGMPTWALK;
+/** Pointer to page walk information. */
+typedef PGMPTWALK *PPGMPTWALK;
+/** Pointer to const page walk information. */
+typedef PGMPTWALK const *PCPGMPTWALK;
+
+
 /** Macro for checking if the guest is using paging.
  * @param enmMode   PGMMODE_*.
  * @remark  ASSUMES certain order of the PGMMODE_* values.
@@ -296,6 +596,12 @@ typedef enum PGMMODE
                                      || (enmMode) == PGMMODE_NESTED_PAE \
                                      || (enmMode) == PGMMODE_NESTED_AMD64)
 
+/** Macro for checking if it's one of the PAE modes.
+ * @param enmMode   PGMMODE_*.
+ */
+#define PGMMODE_IS_PAE(enmMode)     (   (enmMode) == PGMMODE_PAE \
+                                     || (enmMode) == PGMMODE_PAE_NX)
+
 /**
  * Is the ROM mapped (true) or is the shadow RAM mapped (false).
  *
@@ -307,28 +613,14 @@ typedef enum PGMMODE
       || (enmProt) == PGMROMPROT_READ_ROM_WRITE_RAM )
 
 
-VMMDECL(bool)           PGMIsLockOwner(PVM pVM);
+VMMDECL(bool)           PGMIsLockOwner(PVMCC pVM);
 
 VMMDECL(int)            PGMRegisterStringFormatTypes(void);
 VMMDECL(void)           PGMDeregisterStringFormatTypes(void);
 VMMDECL(RTHCPHYS)       PGMGetHyperCR3(PVMCPU pVCpu);
 VMMDECL(int)            PGMTrap0eHandler(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault);
 VMMDECL(int)            PGMPrefetchPage(PVMCPUCC pVCpu, RTGCPTR GCPtrPage);
-VMMDECL(int)            PGMVerifyAccess(PVMCPUCC pVCpu, RTGCPTR Addr, uint32_t cbSize, uint32_t fAccess);
-VMMDECL(int)            PGMIsValidAccess(PVMCPUCC pVCpu, RTGCPTR Addr, uint32_t cbSize, uint32_t fAccess);
 VMMDECL(VBOXSTRICTRC)   PGMInterpretInstruction(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault);
-#ifndef PGM_WITHOUT_MAPPINGS
-VMMDECL(int)            PGMMap(PVM pVM, RTGCPTR GCPtr, RTHCPHYS HCPhys, uint32_t cbPages, unsigned fFlags);
-VMMDECL(int)            PGMMapGetPage(PVM pVM, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
-VMMDECL(int)            PGMMapSetPage(PVM pVM, RTGCPTR GCPtr, uint64_t cb, uint64_t fFlags);
-VMMDECL(int)            PGMMapModifyPage(PVM pVM, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
-# ifndef IN_RING0
-VMMDECL(bool)           PGMMapHasConflicts(PVM pVM);
-# endif
-# ifdef VBOX_STRICT
-VMMDECL(void)           PGMMapCheck(PVM pVM);
-# endif
-#endif  /* !PGM_WITHOUT_MAPPINGS */
 VMMDECL(int)            PGMShwGetPage(PVMCPUCC pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
 VMMDECL(int)            PGMShwMakePageReadonly(PVMCPUCC pVCpu, RTGCPTR GCPtr, uint32_t fFlags);
 VMMDECL(int)            PGMShwMakePageWritable(PVMCPUCC pVCpu, RTGCPTR GCPtr, uint32_t fFlags);
@@ -342,45 +634,44 @@ VMMDECL(int)            PGMShwMakePageNotPresent(PVMCPUCC pVCpu, RTGCPTR GCPtr, 
 /** The page is an MMIO2. */
 #define PGM_MK_PG_IS_MMIO2           RT_BIT(1)
 /** @}*/
-VMMDECL(int)        PGMGstGetPage(PVMCPUCC pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGCPHYS pGCPhys);
-VMMDECL(bool)       PGMGstIsPagePresent(PVMCPUCC pVCpu, RTGCPTR GCPtr);
-VMMDECL(int)        PGMGstSetPage(PVMCPUCC pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags);
+VMMDECL(int)        PGMGstGetPage(PVMCPUCC pVCpu, RTGCPTR GCPtr, PPGMPTWALK pWalk);
 VMMDECL(int)        PGMGstModifyPage(PVMCPUCC pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask);
-VMM_INT_DECL(int)   PGMGstGetPaePdpes(PVMCPUCC pVCpu, PX86PDPE paPdpes);
-VMM_INT_DECL(void)  PGMGstUpdatePaePdpes(PVMCPUCC pVCpu, PCX86PDPE paPdpes);
+VMM_INT_DECL(bool)  PGMGstArePaePdpesValid(PVMCPUCC pVCpu, PCX86PDPE paPaePdpes);
+VMM_INT_DECL(int)   PGMGstMapPaePdpes(PVMCPUCC pVCpu, PCX86PDPE paPaePdpes);
+VMM_INT_DECL(int)   PGMGstMapPaePdpesAtCr3(PVMCPUCC pVCpu, uint64_t cr3);
 
 VMMDECL(int)        PGMInvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCPtrPage);
 VMMDECL(int)        PGMFlushTLB(PVMCPUCC pVCpu, uint64_t cr3, bool fGlobal);
 VMMDECL(int)        PGMSyncCR3(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal);
 VMMDECL(int)        PGMUpdateCR3(PVMCPUCC pVCpu, uint64_t cr3);
-VMMDECL(int)        PGMChangeMode(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr4, uint64_t efer);
-VMM_INT_DECL(int)   PGMHCChangeMode(PVMCC pVM, PVMCPUCC pVCpu, PGMMODE enmGuestMode);
+VMMDECL(int)        PGMChangeMode(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr4, uint64_t efer, bool fForce);
+VMM_INT_DECL(int)   PGMHCChangeMode(PVMCC pVM, PVMCPUCC pVCpu, PGMMODE enmGuestMode, bool fForce);
 VMMDECL(void)       PGMCr0WpEnabled(PVMCPUCC pVCpu);
 VMMDECL(PGMMODE)    PGMGetGuestMode(PVMCPU pVCpu);
 VMMDECL(PGMMODE)    PGMGetShadowMode(PVMCPU pVCpu);
 VMMDECL(PGMMODE)    PGMGetHostMode(PVM pVM);
 VMMDECL(const char *) PGMGetModeName(PGMMODE enmMode);
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+VMM_INT_DECL(const char *) PGMGetSlatModeName(PGMSLAT enmSlatMode);
+#endif
 VMM_INT_DECL(RTGCPHYS) PGMGetGuestCR3Phys(PVMCPU pVCpu);
 VMM_INT_DECL(void)  PGMNotifyNxeChanged(PVMCPU pVCpu, bool fNxe);
 VMMDECL(bool)       PGMHasDirtyPages(PVM pVM);
+VMM_INT_DECL(void)  PGMSetGuestEptPtr(PVMCPUCC pVCpu, uint64_t uEptPtr);
 
 /** PGM physical access handler type registration handle (heap offset, valid
  * cross contexts without needing fixing up).  Callbacks and handler type is
  * associated with this and it is shared by all handler registrations. */
-typedef uint32_t PGMPHYSHANDLERTYPE;
+typedef uint64_t PGMPHYSHANDLERTYPE;
 /** Pointer to a PGM physical handler type registration handle. */
 typedef PGMPHYSHANDLERTYPE *PPGMPHYSHANDLERTYPE;
 /** NIL value for PGM physical access handler type handle. */
-#define NIL_PGMPHYSHANDLERTYPE  UINT32_MAX
-VMMDECL(uint32_t)   PGMHandlerPhysicalTypeRelease(PVMCC pVM, PGMPHYSHANDLERTYPE hType);
-VMMDECL(uint32_t)   PGMHandlerPhysicalTypeRetain(PVM pVM, PGMPHYSHANDLERTYPE hType);
-
+#define NIL_PGMPHYSHANDLERTYPE  UINT64_MAX
 VMMDECL(int)        PGMHandlerPhysicalRegister(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast, PGMPHYSHANDLERTYPE hType,
-                                               RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC,
-                                               R3PTRTYPE(const char *) pszDesc);
+                                               uint64_t uUser, R3PTRTYPE(const char *) pszDesc);
 VMMDECL(int)        PGMHandlerPhysicalModify(PVMCC pVM, RTGCPHYS GCPhysCurrent, RTGCPHYS GCPhys, RTGCPHYS GCPhysLast);
 VMMDECL(int)        PGMHandlerPhysicalDeregister(PVMCC pVM, RTGCPHYS GCPhys);
-VMMDECL(int)        PGMHandlerPhysicalChangeUserArgs(PVMCC pVM, RTGCPHYS GCPhys, RTR3PTR pvUserR3, RTR0PTR pvUserR0);
+VMMDECL(int)        PGMHandlerPhysicalChangeUserArg(PVMCC pVM, RTGCPHYS GCPhys, uint64_t uUser);
 VMMDECL(int)        PGMHandlerPhysicalSplit(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysSplit);
 VMMDECL(int)        PGMHandlerPhysicalJoin(PVMCC pVM, RTGCPHYS GCPhys1, RTGCPHYS GCPhys2);
 VMMDECL(int)        PGMHandlerPhysicalPageTempOff(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage);
@@ -389,6 +680,22 @@ VMMDECL(int)        PGMHandlerPhysicalPageAliasMmio2(PVMCC pVM, RTGCPHYS GCPhys,
 VMMDECL(int)        PGMHandlerPhysicalPageAliasHC(PVMCC pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage, RTHCPHYS HCPhysPageRemap);
 VMMDECL(int)        PGMHandlerPhysicalReset(PVMCC pVM, RTGCPHYS GCPhys);
 VMMDECL(bool)       PGMHandlerPhysicalIsRegistered(PVMCC pVM, RTGCPHYS GCPhys);
+
+/** @name PGMPHYSHANDLER_F_XXX - flags for PGMR3HandlerPhysicalTypeRegister and PGMR0HandlerPhysicalTypeRegister
+ * @{ */
+/** Whether to hold the PGM lock while calling the handler or not.
+ *  Mainly an optimization for PGM callers. */
+#define PGMPHYSHANDLER_F_KEEP_PGM_LOCK  RT_BIT_32(0)
+/** The uUser value is a ring-0 device instance index that needs translating
+ * into a PDMDEVINS pointer before calling the handler.  This is a hack to make
+ * it possible to use access handlers in devices. */
+#define PGMPHYSHANDLER_F_R0_DEVINS_IDX  RT_BIT_32(1)
+/** Don't apply the access handler to VT-x and AMD-V. Only works with full pages.
+ * This is a trick for the VT-x APIC access page in nested VT-x setups. */
+#define PGMPHYSHANDLER_F_NOT_IN_HM      RT_BIT_32(2)
+/** Mask of valid bits.   */
+#define PGMPHYSHANDLER_F_VALID_MASK     UINT32_C(7)
+/** @} */
 
 
 /**
@@ -554,14 +861,11 @@ VMMDECL(int)        PGMPhysSimpleWriteGCPhys(PVMCC pVM, RTGCPHYS GCPhysDst, cons
 VMMDECL(int)        PGMPhysSimpleReadGCPtr(PVMCPUCC pVCpu, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
 VMMDECL(int)        PGMPhysSimpleWriteGCPtr(PVMCPUCC pVCpu, RTGCPTR GCPtrDst, const void *pvSrc, size_t cb);
 VMMDECL(int)        PGMPhysSimpleDirtyWriteGCPtr(PVMCPUCC pVCpu, RTGCPTR GCPtrDst, const void *pvSrc, size_t cb);
-VMMDECL(int)        PGMPhysInterpretedRead(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
-VMMDECL(int)        PGMPhysInterpretedReadNoHandlers(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, void *pvDst, RTGCUINTPTR GCPtrSrc, size_t cb, bool fRaiseTrap);
-VMMDECL(int)        PGMPhysInterpretedWriteNoHandlers(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, RTGCPTR GCPtrDst, void const *pvSrc, size_t cb, bool fRaiseTrap);
 
 VMM_INT_DECL(int)   PGMPhysIemGCPhys2Ptr(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, bool fWritable, bool fByPassHandlers, void **ppv, PPGMPAGEMAPLOCK pLock);
 VMM_INT_DECL(int)   PGMPhysIemQueryAccess(PVMCC pVM, RTGCPHYS GCPhys, bool fWritable, bool fByPassHandlers);
 VMM_INT_DECL(int)   PGMPhysIemGCPhys2PtrNoLock(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, uint64_t const volatile *puTlbPhysRev,
-#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0)
+#if defined(IN_RC)
                                                R3PTRTYPE(uint8_t *) *ppb,
 #else
                                                R3R0PTRTYPE(uint8_t *) *ppb,
@@ -572,6 +876,7 @@ VMM_INT_DECL(int)   PGMPhysIemGCPhys2PtrNoLock(PVMCC pVM, PVMCPUCC pVCpu, RTGCPH
 #define PGMIEMGCPHYS2PTR_F_NO_WRITE     RT_BIT_32(3)    /**< Not writable (IEMTLBE_F_PG_NO_WRITE). */
 #define PGMIEMGCPHYS2PTR_F_NO_READ      RT_BIT_32(4)    /**< Not readable (IEMTLBE_F_PG_NO_READ). */
 #define PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3 RT_BIT_32(7)    /**< No ring-3 mapping (IEMTLBE_F_NO_MAPPINGR3). */
+#define PGMIEMGCPHYS2PTR_F_UNASSIGNED   RT_BIT_32(8)    /**< Unassgined memory (IEMTLBE_F_PG_UNASSIGNED). */
 /** @} */
 
 /** Information returned by PGMPhysNemQueryPageInfo. */
@@ -610,7 +915,7 @@ typedef PGMPHYSNEMPAGEINFO *PPGMPHYSNEMPAGEINFO;
  *                      copy accordingly.
  * @param   pvUser      Callback user argument.
  */
-typedef DECLCALLBACK(int) FNPGMPHYSNEMCHECKPAGE(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, PPGMPHYSNEMPAGEINFO pInfo, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNPGMPHYSNEMCHECKPAGE,(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, PPGMPHYSNEMPAGEINFO pInfo, void *pvUser));
 /** Pointer to a FNPGMPHYSNEMCHECKPAGE function. */
 typedef FNPGMPHYSNEMCHECKPAGE *PFNPGMPHYSNEMCHECKPAGE;
 
@@ -629,7 +934,8 @@ VMM_INT_DECL(int)   PGMPhysNemPageInfoChecker(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHY
  *                      update.
  * @param   pvUser      The user argument.
  */
-typedef DECLCALLBACK(int) FNPGMPHYSNEMENUMCALLBACK(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, uint8_t *pu2NemState, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNPGMPHYSNEMENUMCALLBACK,(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys,
+                                                        uint8_t *pu2NemState, void *pvUser));
 /** Pointer to a FNPGMPHYSNEMENUMCALLBACK function. */
 typedef FNPGMPHYSNEMENUMCALLBACK *PFNPGMPHYSNEMENUMCALLBACK;
 VMM_INT_DECL(int) PGMPhysNemEnumPagesByState(PVMCC pVM, PVMCPUCC VCpu, uint8_t uMinState,
@@ -637,18 +943,10 @@ VMM_INT_DECL(int) PGMPhysNemEnumPagesByState(PVMCC pVM, PVMCPUCC VCpu, uint8_t u
 
 
 #ifdef VBOX_STRICT
-VMMDECL(unsigned)   PGMAssertHandlerAndFlagsInSync(PVM pVM);
+VMMDECL(unsigned)   PGMAssertHandlerAndFlagsInSync(PVMCC pVM);
 VMMDECL(unsigned)   PGMAssertNoMappingConflicts(PVM pVM);
 VMMDECL(unsigned)   PGMAssertCR3(PVMCC pVM, PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4);
 #endif /* VBOX_STRICT */
-
-#if defined(IN_RC) || defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
-VMMDECL(void)       PGMRZDynMapStartAutoSet(PVMCPU pVCpu);
-VMMDECL(void)       PGMRZDynMapReleaseAutoSet(PVMCPU pVCpu);
-VMMDECL(void)       PGMRZDynMapFlushAutoSet(PVMCPU pVCpu);
-VMMDECL(uint32_t)   PGMRZDynMapPushAutoSubset(PVMCPU pVCpu);
-VMMDECL(void)       PGMRZDynMapPopAutoSubset(PVMCPU pVCpu, uint32_t iPrevSubset);
-#endif
 
 VMMDECL(int)        PGMSetLargePageUsage(PVMCC pVM, bool fUseLargePages);
 
@@ -658,47 +956,40 @@ VMMDECL(int)        PGMSetLargePageUsage(PVMCC pVM, bool fUseLargePages);
  * @returns 0 - disabled, 1 - enabled
  * @param   pVM         The cross context VM structure.
  */
-#define PGMIsUsingLargePages(pVM)   ((pVM)->fUseLargePages)
-
-
-#ifdef IN_RC
-/** @defgroup grp_pgm_gc  The PGM Guest Context API
- * @{
- */
-VMMRCDECL(int)      PGMRCDynMapInit(PVM pVM);
-/** @} */
-#endif /* IN_RC */
+#define PGMIsUsingLargePages(pVM)   ((pVM)->pgm.s.fUseLargePages)
 
 
 #ifdef IN_RING0
 /** @defgroup grp_pgm_r0  The PGM Host Context Ring-0 API
  * @{
  */
-VMMR0_INT_DECL(int)  PGMR0InitPerVMData(PGVM pGVM);
+VMMR0_INT_DECL(int)  PGMR0InitPerVMData(PGVM pGVM, RTR0MEMOBJ hMemObj);
 VMMR0_INT_DECL(int)  PGMR0InitVM(PGVM pGVM);
+VMMR0_INT_DECL(void) PGMR0DoneInitVM(PGVM pGVM);
 VMMR0_INT_DECL(void) PGMR0CleanupVM(PGVM pGVM);
 VMMR0_INT_DECL(int)  PGMR0PhysAllocateHandyPages(PGVM pGVM, VMCPUID idCpu);
 VMMR0_INT_DECL(int)  PGMR0PhysFlushHandyPages(PGVM pGVM, VMCPUID idCpu);
-VMMR0_INT_DECL(int)  PGMR0PhysAllocateLargeHandyPage(PGVM pGVM, VMCPUID idCpu);
+VMMR0_INT_DECL(int)  PGMR0PhysAllocateLargePage(PGVM pGVM, VMCPUID idCpu, RTGCPHYS GCPhys);
 VMMR0_INT_DECL(int)  PGMR0PhysMMIO2MapKernel(PGVM pGVM, PPDMDEVINS pDevIns, PGMMMIO2HANDLE hMmio2,
                                              size_t offSub, size_t cbSub, void **ppvMapping);
 VMMR0_INT_DECL(int)  PGMR0PhysSetupIoMmu(PGVM pGVM);
+VMMR0_INT_DECL(int)  PGMR0PhysHandlerInitReqHandler(PGVM pGVM, uint32_t cEntries);
+VMMR0_INT_DECL(int)  PGMR0HandlerPhysicalTypeSetUpContext(PGVM pGVM, PGMPHYSHANDLERKIND enmKind, uint32_t fFlags,
+                                                          PFNPGMPHYSHANDLER pfnHandler, PFNPGMRZPHYSPFHANDLER pfnPfHandler,
+                                                          const char *pszDesc, PGMPHYSHANDLERTYPE hType);
+
 VMMR0DECL(int)       PGMR0SharedModuleCheck(PVMCC pVM, PGVM pGVM, VMCPUID idCpu, PGMMSHAREDMODULE pModule,
                                             PCRTGCPTR64 paRegionsGCPtrs);
 VMMR0DECL(int)       PGMR0Trap0eHandlerNestedPaging(PGVM pGVM, PGVMCPU pGVCpu, PGMMODE enmShwPagingMode, RTGCUINT uErr,
                                                     PCPUMCTXCORE pRegFrame, RTGCPHYS pvFault);
 VMMR0DECL(VBOXSTRICTRC) PGMR0Trap0eHandlerNPMisconfig(PGVM pGVM, PGVMCPU pGVCpu, PGMMODE enmShwPagingMode,
                                                       PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, uint32_t uErr);
-VMMR0_INT_DECL(int)  PGMR0PoolGrow(PGVM pGVM);
+VMMR0_INT_DECL(int)  PGMR0PoolGrow(PGVM pGVM, VMCPUID idCpu);
 
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-VMMR0DECL(int)       PGMR0DynMapInit(void);
-VMMR0DECL(void)      PGMR0DynMapTerm(void);
-VMMR0DECL(int)       PGMR0DynMapInitVM(PVMCC pVM);
-VMMR0DECL(void)      PGMR0DynMapTermVM(PVMCC pVM);
-VMMR0DECL(int)       PGMR0DynMapAssertIntegrity(void);
-VMMR0DECL(bool)      PGMR0DynMapStartOrMigrateAutoSet(PVMCPUCC pVCpu);
-VMMR0DECL(void)      PGMR0DynMapMigrateAutoSet(PVMCPUCC pVCpu);
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+VMMR0DECL(VBOXSTRICTRC) PGMR0NestedTrap0eHandlerNestedPaging(PGVMCPU pGVCpu, PGMMODE enmShwPagingMode, RTGCUINT uErr,
+                                                             PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysNestedFault,
+                                                             bool fIsLinearAddrValid, RTGCPTR GCPtrNestedFault, PPGMPTWALK pWalk);
 # endif
 /** @} */
 #endif /* IN_RING0 */
@@ -712,7 +1003,6 @@ VMMR0DECL(void)      PGMR0DynMapMigrateAutoSet(PVMCPUCC pVCpu);
 VMMR3_INT_DECL(void)    PGMR3EnableNemMode(PVM pVM);
 VMMR3_INT_DECL(bool)    PGMR3IsNemModeEnabled(PVM pVM);
 VMMR3DECL(int)      PGMR3Init(PVM pVM);
-VMMR3DECL(int)      PGMR3InitDynMap(PVM pVM);
 VMMR3DECL(int)      PGMR3InitFinalize(PVM pVM);
 VMMR3_INT_DECL(int) PGMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
 VMMR3DECL(void)     PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
@@ -721,7 +1011,6 @@ VMMR3_INT_DECL(void)    PGMR3Reset(PVM pVM);
 VMMR3_INT_DECL(void)    PGMR3ResetNoMorePhysWritesFlag(PVM pVM);
 VMMR3_INT_DECL(void)    PGMR3MemSetup(PVM pVM, bool fReset);
 VMMR3DECL(int)      PGMR3Term(PVM pVM);
-VMMR3DECL(int)      PGMR3LockCall(PVM pVM);
 
 VMMR3DECL(int)      PGMR3PhysRegisterRam(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, const char *pszDesc);
 VMMR3DECL(int)      PGMR3PhysChangeMemBalloon(PVM pVM, bool fInflate, unsigned cPages, RTGCPHYS *paPhysPage);
@@ -733,7 +1022,7 @@ VMMR3DECL(int)      PGMR3QueryMemoryStats(PUVM pUVM, uint64_t *pcbTotalMem, uint
 VMMR3DECL(int)      PGMR3QueryGlobalMemoryStats(PUVM pUVM, uint64_t *pcbAllocMem, uint64_t *pcbFreeMem, uint64_t *pcbBallonedMem, uint64_t *pcbSharedMem);
 
 VMMR3DECL(int)      PGMR3PhysMMIORegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, PGMPHYSHANDLERTYPE hType,
-                                          RTR3PTR pvUserR3, RTR0PTR pvUserR0, RTRCPTR pvUserRC, const char *pszDesc);
+                                          uint64_t uUser, const char *pszDesc);
 VMMR3DECL(int)      PGMR3PhysMMIODeregister(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb);
 
 /** @name PGMPHYS_MMIO2_FLAGS_XXX - MMIO2 registration flags.
@@ -755,7 +1044,6 @@ VMMR3_INT_DECL(int) PGMR3PhysMmio2Reduce(PVM pVM, PPDMDEVINS pDevIns, PGMMMIO2HA
 VMMR3_INT_DECL(int) PGMR3PhysMmio2ValidateHandle(PVM pVM, PPDMDEVINS pDevIns, PGMMMIO2HANDLE hMmio2);
 VMMR3_INT_DECL(RTGCPHYS) PGMR3PhysMmio2GetMappingAddress(PVM pVM, PPDMDEVINS pDevIns, PGMMMIO2HANDLE hMmio2);
 VMMR3_INT_DECL(int) PGMR3PhysMmio2ChangeRegionNo(PVM pVM, PPDMDEVINS pDevIns, PGMMMIO2HANDLE hMmio2, uint32_t iNewRegion);
-VMMR3_INT_DECL(int) PGMR3PhysMMIO2GetHCPhys(PVM pVM, PPDMDEVINS pDevIns, uint32_t iSubDev, uint32_t iRegion, RTGCPHYS off, PRTHCPHYS pHCPhys);
 VMMR3_INT_DECL(int) PGMR3PhysMmio2QueryAndResetDirtyBitmap(PVM pVM, PPDMDEVINS pDevIns, PGMMMIO2HANDLE hMmio2,
                                                            void *pvBitmap, size_t cbBitmap);
 VMMR3_INT_DECL(int) PGMR3PhysMmio2ControlDirtyPageTracking(PVM pVM, PPDMDEVINS pDevIns, PGMMMIO2HANDLE hMmio2, bool fEnabled);
@@ -778,38 +1066,12 @@ VMMR3_INT_DECL(int) PGMR3PhysMmio2ControlDirtyPageTracking(PVM pVM, PPDMDEVINS p
 VMMR3DECL(int)      PGMR3PhysRomRegister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RTGCPHYS cb,
                                          const void *pvBinary, uint32_t cbBinary, uint8_t fFlags, const char *pszDesc);
 VMMR3DECL(int)      PGMR3PhysRomProtect(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, PGMROMPROT enmProt);
-VMMR3DECL(int)      PGMR3PhysRegister(PVM pVM, void *pvRam, RTGCPHYS GCPhys, size_t cb, unsigned fFlags, const SUPPAGE *paPages, const char *pszDesc);
 VMMDECL(void)       PGMR3PhysSetA20(PVMCPU pVCpu, bool fEnable);
-#ifndef PGM_WITHOUT_MAPPINGS
-/** @name PGMR3MapPT flags.
- * @{ */
-/** The mapping may be unmapped later. The default is permanent mappings. */
-# define PGMR3MAPPT_FLAGS_UNMAPPABLE     RT_BIT(0)
-/** @} */
-VMMR3DECL(int)      PGMR3MapPT(PVM pVM, RTGCPTR GCPtr, uint32_t cb, uint32_t fFlags, PFNPGMRELOCATE pfnRelocate, void *pvUser, const char *pszDesc);
-VMMR3DECL(int)      PGMR3UnmapPT(PVM pVM, RTGCPTR GCPtr);
-VMMR3DECL(int)      PGMR3FinalizeMappings(PVM pVM);
-VMMR3DECL(bool)     PGMR3MappingsNeedReFixing(PVM pVM);
-# if defined(VBOX_WITH_RAW_MODE) || HC_ARCH_BITS == 32 /* (latter for 64-bit guests on 32-bit hosts) */
-VMMR3DECL(int)      PGMR3MapIntermediate(PVM pVM, RTUINTPTR Addr, RTHCPHYS HCPhys, unsigned cbPages);
-# endif
-VMMR3DECL(int)      PGMR3MapRead(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t cb);
-#endif /* !PGM_WITHOUT_MAPPINGS */
-VMMR3DECL(int)      PGMR3MappingsSize(PVM pVM, uint32_t *pcb);
-VMMR3DECL(int)      PGMR3MappingsFix(PVM pVM, RTGCPTR GCPtrBase, uint32_t cb);
-VMMR3DECL(int)      PGMR3MappingsUnfix(PVM pVM);
 
-VMMR3_INT_DECL(int) PGMR3HandlerPhysicalTypeRegisterEx(PVM pVM, PGMPHYSHANDLERKIND enmKind, bool fKeepPgmLock,
-                                                       PFNPGMPHYSHANDLER pfnHandlerR3,
-                                                       R0PTRTYPE(PFNPGMPHYSHANDLER)     pfnHandlerR0,
-                                                       R0PTRTYPE(PFNPGMRZPHYSPFHANDLER) pfnPfHandlerR0,
-                                                       const char *pszDesc, PPGMPHYSHANDLERTYPE phType);
-VMMR3DECL(int)      PGMR3HandlerPhysicalTypeRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, bool fKeepPgmLock,
-                                                     R3PTRTYPE(PFNPGMPHYSHANDLER) pfnHandlerR3,
-                                                     const char *pszModR0, const char *pszHandlerR0, const char *pszPfHandlerR0,
-                                                     const char *pszModRC, const char *pszHandlerRC, const char *pszPfHandlerRC,
-                                                     const char *pszDesc,
+VMMR3_INT_DECL(int) PGMR3HandlerPhysicalTypeRegister(PVM pVM, PGMPHYSHANDLERKIND enmKind, uint32_t fFlags,
+                                                     PFNPGMPHYSHANDLER pfnHandlerR3, const char *pszDesc,
                                                      PPGMPHYSHANDLERTYPE phType);
+
 VMMR3_INT_DECL(int) PGMR3PoolGrow(PVM pVM, PVMCPU pVCpu);
 
 VMMR3DECL(int)      PGMR3PhysTlbGCPhys2Ptr(PVM pVM, RTGCPHYS GCPhys, bool fWritable, void **ppv);
@@ -829,10 +1091,8 @@ VMMR3DECL(int)      PGMR3PhysBulkGCPhys2CCPtrExternal(PVM pVM, uint32_t cPages, 
                                                       void **papvPages, PPGMPAGEMAPLOCK paLocks);
 VMMR3DECL(int)      PGMR3PhysBulkGCPhys2CCPtrReadOnlyExternal(PVM pVM, uint32_t cPages, PCRTGCPHYS paGCPhysPages,
                                                               void const **papvPages, PPGMPAGEMAPLOCK paLocks);
-VMMR3DECL(int)      PGMR3PhysChunkMap(PVM pVM, uint32_t idChunk);
 VMMR3DECL(void)     PGMR3PhysChunkInvalidateTLB(PVM pVM);
 VMMR3DECL(int)      PGMR3PhysAllocateHandyPages(PVM pVM);
-VMMR3DECL(int)      PGMR3PhysAllocateLargeHandyPage(PVM pVM, RTGCPHYS GCPhys);
 
 VMMR3DECL(int)      PGMR3CheckIntegrity(PVM pVM);
 

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_runtime_UISession_h
@@ -61,31 +71,6 @@ class QMenuBar;
 class QIcon;
 #endif /* !VBOX_WS_MAC */
 
-/* CConsole callback event types: */
-enum UIConsoleEventType
-{
-    UIConsoleEventType_MousePointerShapeChange = QEvent::User + 1,
-    UIConsoleEventType_MouseCapabilityChange,
-    UIConsoleEventType_KeyboardLedsChange,
-    UIConsoleEventType_StateChange,
-    UIConsoleEventType_AdditionsStateChange,
-    UIConsoleEventType_NetworkAdapterChange,
-    /* Not used: UIConsoleEventType_SerialPortChange, */
-    /* Not used: UIConsoleEventType_ParallelPortChange, */
-    /* Not used: UIConsoleEventType_StorageControllerChange, */
-    UIConsoleEventType_MediumChange,
-    /* Not used: UIConsoleEventType_CPUChange, */
-    UIConsoleEventType_VRDEServerChange,
-    UIConsoleEventType_VRDEServerInfoChange,
-    UIConsoleEventType_USBControllerChange,
-    UIConsoleEventType_USBDeviceStateChange,
-    UIConsoleEventType_SharedFolderChange,
-    UIConsoleEventType_RuntimeError,
-    UIConsoleEventType_CanShowWindow,
-    UIConsoleEventType_ShowWindow,
-    UIConsoleEventType_MAX
-};
-
 class UISession : public QObject
 {
     Q_OBJECT;
@@ -99,12 +84,16 @@ public:
 
     /* API: Runtime UI stuff: */
     bool initialize();
+    /** Powers VM up. */
     bool powerUp();
-    bool detach();
-    bool saveState();
-    bool shutdown();
-    bool powerOff(bool fIncludingDiscard, bool &fServerCrashed);
-    bool restoreCurrentSnapshot();
+    /** Detaches and closes Runtime UI. */
+    void detachUi();
+    /** Saves VM state, then closes Runtime UI. */
+    void saveState();
+    /** Calls for guest shutdown to close Runtime UI. */
+    void shutdown();
+    /** Powers VM off, then closes Runtime UI. */
+    void powerOff(bool fIncludingDiscard);
 
     /** Returns the session instance. */
     CSession& session() { return m_session; }
@@ -178,15 +167,17 @@ public:
     /** Requests visual-state change. */
     void changeVisualState(UIVisualStateType visualStateType);
     /** Requests visual-state to be entered when possible. */
-    void setRequestedVisualState(UIVisualStateType visualStateType) { m_requestedVisualStateType = visualStateType; }
+    void setRequestedVisualState(UIVisualStateType visualStateType);
     /** Returns requested visual-state to be entered when possible. */
-    UIVisualStateType requestedVisualState() const { return m_requestedVisualStateType; }
+    UIVisualStateType requestedVisualState() const;
 
-    bool isSaved() const { return machineState() == KMachineState_Saved; }
+    bool isSaved() const { return machineState() == KMachineState_Saved ||
+                                  machineState() == KMachineState_AbortedSaved; }
     bool isTurnedOff() const { return machineState() == KMachineState_PoweredOff ||
                                       machineState() == KMachineState_Saved ||
                                       machineState() == KMachineState_Teleported ||
-                                      machineState() == KMachineState_Aborted; }
+                                      machineState() == KMachineState_Aborted ||
+                                      machineState() == KMachineState_AbortedSaved; }
     bool isPaused() const { return machineState() == KMachineState_Paused ||
                                    machineState() == KMachineState_TeleportingPausedVM; }
     bool isRunning() const { return machineState() == KMachineState_Running ||
@@ -196,9 +187,15 @@ public:
     bool wasPaused() const { return machineStatePrevious() == KMachineState_Paused ||
                                     machineStatePrevious() == KMachineState_TeleportingPausedVM; }
     bool isInitialized() const { return m_fInitialized; }
-    bool isFirstTimeStarted() const { return m_fIsFirstTimeStarted; }
     bool isGuestResizeIgnored() const { return m_fIsGuestResizeIgnored; }
     bool isAutoCaptureDisabled() const { return m_fIsAutoCaptureDisabled; }
+
+    /** Returns whether VM is in 'manual-override' mode.
+      * @note S.a. #m_fIsManualOverride description for more information. */
+    bool isManualOverrideMode() const { return m_fIsManualOverride; }
+    /** Defines whether VM is in 'manual-override' mode.
+      * @note S.a. #m_fIsManualOverride description for more information. */
+    void setManualOverrideMode(bool fIsManualOverride) { m_fIsManualOverride = fIsManualOverride; }
 
     /* Guest additions state getters: */
     bool isGuestAdditionsActive() const { return (m_ulGuestAdditionsRunLevel > KAdditionsRunLevelType_None); }
@@ -221,7 +218,8 @@ public:
     int mouseState() const { return m_iMouseState; }
     bool isMouseSupportsAbsolute() const { return m_fIsMouseSupportsAbsolute; }
     bool isMouseSupportsRelative() const { return m_fIsMouseSupportsRelative; }
-    bool isMouseSupportsMultiTouch() const { return m_fIsMouseSupportsMultiTouch; }
+    bool isMouseSupportsTouchScreen() const { return m_fIsMouseSupportsTouchScreen; }
+    bool isMouseSupportsTouchPad() const { return m_fIsMouseSupportsTouchPad; }
     bool isMouseHostCursorNeeded() const { return m_fIsMouseHostCursorNeeded; }
     bool isMouseCaptured() const { return m_fIsMouseCaptured; }
     bool isMouseIntegrated() const { return m_fIsMouseIntegrated; }
@@ -351,7 +349,12 @@ signals:
 
 public slots:
 
+    /** Handles request to install guest additions image.
+      * @param  strSource  Brings the source of image being installed. */
     void sltInstallGuestAdditionsFrom(const QString &strSource);
+    /** Mounts DVD adhoc.
+      * @param  strSource  Brings the source of image being mounted. */
+    void sltMountDVDAdHoc(const QString &strSource);
 
     /** Defines @a iKeyboardState. */
     void setKeyboardState(int iKeyboardState) { m_iKeyboardState = iKeyboardState; emit sigKeyboardStateChange(m_iKeyboardState); }
@@ -359,13 +362,13 @@ public slots:
     /** Defines @a iMouseState. */
     void setMouseState(int iMouseState) { m_iMouseState = iMouseState; emit sigMouseStateChange(m_iMouseState); }
 
+    /** Closes Runtime UI. */
+    void closeRuntimeUI();
+
 private slots:
 
-    /** Marks machine started. */
-    void sltMarkInitialized() { m_fInitialized = true; }
-
-    /** Close Runtime UI. */
-    void sltCloseRuntimeUI();
+    /** Detaches COM. */
+    void sltDetachCOM();
 
 #ifdef RT_OS_DARWIN
     /** Mac OS X: Handles menu-bar configuration-change. */
@@ -375,8 +378,11 @@ private slots:
     /* Console events slots */
     /** Handles signal about mouse pointer @a shapeData change. */
     void sltMousePointerShapeChange(const UIMousePointerShapeData &shapeData);
-    /** Handles signal about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative, @a fSupportsMultiTouch and @a fNeedsHostCursor. */
-    void sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
+    /** Handles signal about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative,
+      * @a fSupportsTouchScreen, @a fSupportsTouchPad and @a fNeedsHostCursor. */
+    void sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative,
+                                  bool fSupportsTouchScreen, bool fSupportsTouchPad,
+                                  bool fNeedsHostCursor);
     /** Handles signal about guest request to change the cursor position to @a uX * @a uY.
       * @param  fContainsData  Brings whether the @a uX and @a uY values are valid and could be used by the GUI now. */
     void sltCursorPositionChange(bool fContainsData, unsigned long uX, unsigned long uY);
@@ -408,6 +414,17 @@ private slots:
     /** Handles host-screen available-area change. */
     void sltHandleHostScreenAvailableAreaChange();
 
+    /** Handles signal about machine state saved.
+      * @param  fSuccess  Brings whether state was saved successfully. */
+    void sltHandleMachineStateSaved(bool fSuccess);
+    /** Handles signal about machine powered off.
+      * @param  fSuccess           Brings whether machine was powered off successfully.
+      * @param  fIncludingDiscard  Brings whether machine state should be discarded. */
+    void sltHandleMachinePoweredOff(bool fSuccess, bool fIncludingDiscard);
+    /** Handles signal about snapshot restored.
+      * @param  fSuccess  Brings whether machine was powered off successfully. */
+    void sltHandleSnapshotRestored(bool fSuccess);
+
 private:
 
     /** Constructor. */
@@ -421,20 +438,27 @@ private:
     /* Prepare helpers: */
     bool prepare();
     bool prepareSession();
+    void prepareNotificationCenter();
+    void prepareConsoleEventHandlers();
+    void prepareFramebuffers();
     void prepareActions();
     void prepareConnections();
-    void prepareConsoleEventHandlers();
+    void prepareMachineWindowIcon();
     void prepareScreens();
-    void prepareFramebuffers();
+    void prepareSignalHandling();
+
+    /* Settings stuff: */
     void loadSessionSettings();
 
     /* Cleanup helpers: */
-    void saveSessionSettings();
-    void cleanupFramebuffers();
+    //void cleanupSignalHandling();
     //void cleanupScreens() {}
-    void cleanupConsoleEventHandlers();
+    void cleanupMachineWindowIcon();
     void cleanupConnections();
     void cleanupActions();
+    void cleanupFramebuffers();
+    void cleanupConsoleEventHandlers();
+    void cleanupNotificationCenter();
     void cleanupSession();
     void cleanup();
 
@@ -528,16 +552,6 @@ private:
 #endif
     /** @} */
 
-    /** @name Visual-state configuration variables.
-     ** @{ */
-    /** Determines which visual-state should be entered when possible. */
-    UIVisualStateType m_requestedVisualStateType;
-    /** @} */
-
-#if defined(VBOX_WS_WIN)
-    HCURSOR m_alphaCursor;
-#endif
-
     /** @name Host-screen configuration variables.
      * @{ */
     /** Holds the list of host-screen geometries we currently have. */
@@ -560,9 +574,12 @@ private:
 
     /* Common flags: */
     bool m_fInitialized : 1;
-    bool m_fIsFirstTimeStarted : 1;
     bool m_fIsGuestResizeIgnored : 1;
     bool m_fIsAutoCaptureDisabled : 1;
+    /** Holds whether VM is in 'manual-override' mode
+      * which means there will be no automatic UI shutdowns,
+      * visual representation mode changes and other stuff. */
+    bool m_fIsManualOverride : 1;
 
     /* Guest additions flags: */
     ULONG m_ulGuestAdditionsRunLevel;
@@ -583,7 +600,8 @@ private:
     int m_iMouseState;
     bool m_fIsMouseSupportsAbsolute : 1;
     bool m_fIsMouseSupportsRelative : 1;
-    bool m_fIsMouseSupportsMultiTouch: 1;
+    bool m_fIsMouseSupportsTouchScreen: 1;
+    bool m_fIsMouseSupportsTouchPad: 1;
     bool m_fIsMouseHostCursorNeeded : 1;
     bool m_fIsMouseCaptured : 1;
     bool m_fIsMouseIntegrated : 1;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -98,8 +108,10 @@ VMMRZ_INT_DECL(void)    CPUMRZFpuStateActualizeForRead(PVMCPUCC pVCpu)
 {
     if (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST)
     {
+        Assert(pVCpu->cpum.s.Guest.fUsedFpuGuest);
         cpumRZSaveGuestFpuState(&pVCpu->cpum.s, false /*fLeaveFpuAccessible*/);
         pVCpu->cpum.s.fUseFlags |= CPUM_USED_FPU_GUEST;
+        pVCpu->cpum.s.Guest.fUsedFpuGuest = true;
         Log7(("CPUMRZFpuStateActualizeForRead\n"));
     }
 }
@@ -119,6 +131,7 @@ VMMRZ_INT_DECL(void)    CPUMRZFpuStateActualizeSseForRead(PVMCPUCC pVCpu)
 #else
     if (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST)
     {
+        Assert(pVCpu->cpum.s.Guest.fUsedFpuGuest);
         cpumRZSaveGuestSseRegisters(&pVCpu->cpum.s);
         Log7(("CPUMRZFpuStateActualizeSseForRead\n"));
     }
@@ -137,6 +150,7 @@ VMMRZ_INT_DECL(void)    CPUMRZFpuStateActualizeAvxForRead(PVMCPUCC pVCpu)
 {
     if (pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST)
     {
+        Assert(pVCpu->cpum.s.Guest.fUsedFpuGuest);
         cpumRZSaveGuestAvxRegisters(&pVCpu->cpum.s);
         Log7(("CPUMRZFpuStateActualizeAvxForRead\n"));
     }

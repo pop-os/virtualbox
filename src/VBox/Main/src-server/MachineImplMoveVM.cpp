@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_MACHINE
@@ -25,6 +35,7 @@
 #include <VBox/com/ErrorInfo.h>
 
 #include "MachineImplMoveVM.h"
+#include "SnapshotImpl.h"
 #include "MediumFormatImpl.h"
 #include "VirtualBoxImpl.h"
 #include "LoggingNew.h"
@@ -133,7 +144,7 @@ HRESULT MachineMoveVM::init()
     {
         size_t len = m_targetPath.length() + 2;
         if (len >= RTPATH_MAX)
-            return m_pMachine->setError(VBOX_E_IPRT_ERROR, m_pMachine->tr("The destination path exceeds the maximum value."));
+            return m_pMachine->setError(VBOX_E_IPRT_ERROR, tr("The destination path exceeds the maximum value."));
 
         /** @todo r=bird: I need to add a Utf8Str method or iprt/cxx/path.h thingy
          *        for doing this.  We need this often and code like this doesn't
@@ -161,9 +172,9 @@ HRESULT MachineMoveVM::init()
 
 
     int vrc = RTFsQuerySizes(strTargetFolder.c_str(), &cbTotal, &cbFree, &cbBlock, &cbSector);
-    if (FAILED(vrc))
+    if (RT_FAILURE(vrc))
         return m_pMachine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                        m_pMachine->tr("Unable to determine free space at move destination ('%s'): %Rrc"),
+                                        tr("Unable to determine free space at move destination ('%s'): %Rrc"),
                                         strTargetFolder.c_str(), vrc);
 
     RTDIR hDir;
@@ -178,7 +189,7 @@ HRESULT MachineMoveVM::init()
     {
         RTDirClose(hDir);
         return m_pMachine->setErrorVrc(vrc,
-                                       m_pMachine->tr("Can't create a test file test.txt in the %s. Check the access rights of the destination folder."),
+                                       tr("Can't create a test file test.txt in the %s. Check the access rights of the destination folder."),
                                        strTargetFolder.c_str());
     }
 
@@ -196,7 +207,7 @@ HRESULT MachineMoveVM::init()
 
     RTFSPROPERTIES properties;
     vrc = RTFsQueryProperties(strTargetFolder.c_str(), &properties);
-    if (FAILED(vrc))
+    if (RT_FAILURE(vrc))
         return m_pMachine->setErrorVrc(vrc, "RTFsQueryProperties(%s): %Rrc", strTargetFolder.c_str(), vrc);
 
     Log2(("disk properties: remote=%RTbool read only=%RTbool compressed=%RTbool\n",
@@ -244,7 +255,7 @@ HRESULT MachineMoveVM::init()
     if (FAILED(hrc))
         return hrc;
 
-    if (machineState == MachineState_Saved)
+    if (machineState == MachineState_Saved || machineState == MachineState_AbortedSaved)
     {
         m_pMachine->COMGETTER(StateFilePath)(bstr_stateFilePath.asOutParam());
         strStateFilePath = bstr_stateFilePath;
@@ -352,7 +363,7 @@ HRESULT MachineMoveVM::init()
                         /* Calculate progress data */
                         ++uCount;
                         uTotalWeight += mtc.chain[a - 1].uWeight;
-                        totalMediumsSize += cbSize;
+                        totalMediumsSize += (uint64_t)cbSize;
                         Log2(("Image %s was added into the moved list\n", name.c_str()));
                     }
                 }
@@ -394,7 +405,7 @@ HRESULT MachineMoveVM::init()
                     Log2(("The state file %s wasn't added into the moved list. Couldn't get the file size.\n",
                           name.c_str()));
                     return m_pMachine->setErrorVrc(vrc,
-                                                   m_pMachine->tr("Failed to get file size for '%s': %Rrc"),
+                                                   tr("Failed to get file size for '%s': %Rrc"),
                                                    name.c_str(), vrc);
                 }
             }
@@ -434,7 +445,7 @@ HRESULT MachineMoveVM::init()
                     Log2(("The NVRAM file %s wasn't added into the moved list. Couldn't get the file size.\n",
                           name.c_str()));
                     return m_pMachine->setErrorVrc(vrc,
-                                                   m_pMachine->tr("Failed to get file size for '%s': %Rrc"),
+                                                   tr("Failed to get file size for '%s': %Rrc"),
                                                    name.c_str(), vrc);
                 }
             }
@@ -456,7 +467,7 @@ HRESULT MachineMoveVM::init()
                 neededFreeSpace += totalLogSize;
                 if (cbFree - neededFreeSpace <= _1M)
                     return m_pMachine->setError(E_FAIL,
-                                                m_pMachine->tr("Insufficient disk space available (%RTfoff needed, %RTfoff free)"),
+                                                tr("Insufficient disk space available (%RTfoff needed, %RTfoff free)"),
                                                 neededFreeSpace, cbFree);
 
                 fileList_t filesList;
@@ -500,7 +511,7 @@ HRESULT MachineMoveVM::init()
     {
         LogRel(("but free space on destination is %RTfoff\n", cbFree));
         return m_pMachine->setError(VBOX_E_IPRT_ERROR,
-                                    m_pMachine->tr("Insufficient disk space available (%RTfoff needed, %RTfoff free)"),
+                                    tr("Insufficient disk space available (%RTfoff needed, %RTfoff free)"),
                                     neededFreeSpace, cbFree);
     }
 
@@ -516,15 +527,15 @@ HRESULT MachineMoveVM::init()
     {
         hrc = m_pProgress->init(m_pMachine->i_getVirtualBox(),
                                 static_cast<IMachine *>(m_pMachine) /* aInitiator */,
-                                Utf8Str(m_pMachine->tr("Moving Machine")),
+                                Utf8Str(tr("Moving Machine")),
                                 true /* fCancellable */,
                                 uCount,
                                 uTotalWeight,
-                                Utf8Str(m_pMachine->tr("Initialize Moving")),
+                                Utf8Str(tr("Initialize Moving")),
                                 1);
         if (FAILED(hrc))
             return m_pMachine->setError(hrc,
-                                        m_pMachine->tr("Couldn't correctly setup the progress object for moving VM operation"));
+                                        tr("Couldn't correctly setup the progress object for moving VM operation"));
     }
 
     /* save all VM data */
@@ -689,7 +700,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                 int vrc = RTDirCreateFullPath(strTrgSnapshotFolder.c_str(), 0700);
                 if (RT_FAILURE(vrc))
                     throw machine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                                taskMoveVM->m_pMachine->tr("Could not create snapshots folder '%s' (%Rrc)"),
+                                                tr("Could not create snapshots folder '%s' (%Rrc)"),
                                                 strTrgSnapshotFolder.c_str(), vrc);
             }
 
@@ -701,7 +712,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                                                             RTPathFilename(sft.strFile.c_str()));
 
                 /* Move to next sub-operation. */
-                hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(machine->tr("Copy the save state file '%s' ..."),
+                hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(tr("Copy the save state file '%s' ..."),
                                                                         RTPathFilename(sft.strFile.c_str())).raw(),
                                                                 sft.uWeight);
                 if (FAILED(hrc))
@@ -711,7 +722,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                                        MachineMoveVM::copyFileProgress, &taskMoveVM->m_pProgress);
                 if (RT_FAILURE(vrc))
                     throw machine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                                taskMoveVM->m_pMachine->tr("Could not copy state file '%s' to '%s' (%Rrc)"),
+                                                tr("Could not copy state file '%s' to '%s' (%Rrc)"),
                                                 sft.strFile.c_str(),
                                                 strTrgSaveState.c_str(),
                                                 vrc);
@@ -731,7 +742,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                                                         RTPATH_DELIMITER, RTPathFilename(sft.strFile.c_str()));
 
                 /* Move to next sub-operation. */
-                hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(machine->tr("Copy the NVRAM file '%s' ..."),
+                hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(tr("Copy the NVRAM file '%s' ..."),
                                                                         RTPathFilename(sft.strFile.c_str())).raw(),
                                                                 sft.uWeight);
                 if (FAILED(hrc))
@@ -741,7 +752,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                                        MachineMoveVM::copyFileProgress, &taskMoveVM->m_pProgress);
                 if (RT_FAILURE(vrc))
                     throw machine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                                taskMoveVM->m_pMachine->tr("Could not copy NVRAM file '%s' to '%s' (%Rrc)"),
+                                                tr("Could not copy NVRAM file '%s' to '%s' (%Rrc)"),
                                                 sft.strFile.c_str(),
                                                 strTrgNVRAM.c_str(),
                                                 vrc);
@@ -785,7 +796,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
         {
             Log2(("Copy Machine settings file\n"));
 
-            hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(machine->tr("Copy Machine settings file '%s' ..."),
+            hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(tr("Copy Machine settings file '%s' ..."),
                                                                     machineConfFile->machineUserData.strName.c_str()).raw(),
                                                             1);
             if (FAILED(hrc))
@@ -799,7 +810,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                 int vrc = RTDirCreateFullPath(strTargetSettingsFilePath.c_str(), 0700);
                 if (RT_FAILURE(vrc))
                     throw machine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                                taskMoveVM->m_pMachine->tr("Could not create a home machine folder '%s' (%Rrc)"),
+                                                tr("Could not create a home machine folder '%s' (%Rrc)"),
                                                 strTargetSettingsFilePath.c_str(), vrc);
 
                 Log2(("Created a home machine folder %s\n", strTargetSettingsFilePath.c_str()));
@@ -824,7 +835,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                                    MachineMoveVM::copyFileProgress, &taskMoveVM->m_pProgress);
             if (RT_FAILURE(vrc))
                 throw machine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                            taskMoveVM->m_pMachine->tr("Could not copy the setting file '%s' to '%s' (%Rrc)"),
+                                            tr("Could not copy the setting file '%s' to '%s' (%Rrc)"),
                                             strSettingsFilePath.c_str(),
                                             strTargetSettingsFilePath.stripFilename().c_str(),
                                             vrc);
@@ -861,7 +872,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                         int vrc = RTDirCreateFullPath(strTargetLogFolderPath.c_str(), 0700);
                         if (RT_FAILURE(vrc))
                             throw machine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                                        taskMoveVM->m_pMachine->tr("Could not create log folder '%s' (%Rrc)"),
+                                                        tr("Could not create log folder '%s' (%Rrc)"),
                                                         strTargetLogFolderPath.c_str(), vrc);
 
                         Log2(("Created a log machine folder %s\n", strTargetLogFolderPath.c_str()));
@@ -879,7 +890,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                         strFullTargetFilePath.append(RTPATH_DELIMITER).append(it->second.c_str());
 
                         /* Move to next sub-operation. */
-                        hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(machine->tr("Copying the log file '%s' ..."),
+                        hrc = taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(tr("Copying the log file '%s' ..."),
                                                                                 RTPathFilename(strFullSourceFilePath.c_str())).raw(),
                                                                        1);
                         if (FAILED(hrc))
@@ -889,7 +900,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                                                MachineMoveVM::copyFileProgress, &taskMoveVM->m_pProgress);
                         if (RT_FAILURE(vrc))
                             throw machine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                                        taskMoveVM->m_pMachine->tr("Could not copy the log file '%s' to '%s' (%Rrc)"),
+                                                        tr("Could not copy the log file '%s' to '%s' (%Rrc)"),
                                                         strFullSourceFilePath.c_str(),
                                                         strFullTargetFilePath.stripFilename().c_str(),
                                                         vrc);
@@ -999,7 +1010,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
                   Utf8Str(bstrMachineName.raw()).c_str(), Utf8Str(bstrOperationDescription.raw()).c_str()));
 
             for (ULONG i = operation + 1; i < operationCount - operation; ++i)
-                taskMoveVM->m_pProgress->SetNextOperation(BstrFmt("Skip the empty operation %d...", i + 1).raw(), 1);
+                taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(tr("Skip the empty operation %d..."), i + 1).raw(), 1);
 
             hrc = taskMoveVM->moveAllDisks(taskMoveVM->m_finalMediumsMap);
             if (FAILED(hrc))
@@ -1026,7 +1037,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
             if (RT_FAILURE(vrc))
             {
                 Log2(("Rollback scenario: can't delete new destination folder.\n"));
-                throw machine->setErrorVrc(vrc, "Rollback scenario: can't delete new destination folder.");
+                throw machine->setErrorVrc(vrc, tr("Rollback scenario: can't delete new destination folder."));
             }
 
             /* save all VM data */
@@ -1100,7 +1111,7 @@ void MachineMoveVM::i_MoveVMThreadTask(MachineMoveVM *task)
         hrc = taskMoveVM->m_pProgress->COMGETTER(Operation)(&operation);
 
         for (ULONG i = operation; i < operation + taskMoveVM->m_finalMediumsMap.size() - 1; ++i)
-            taskMoveVM->m_pProgress->SetNextOperation(BstrFmt("Skip the empty operation %d...", i).raw(), 1);
+            taskMoveVM->m_pProgress->SetNextOperation(BstrFmt(tr("Skip the empty operation %d..."), i).raw(), 1);
 
         hrc = taskMoveVM->deleteFiles(originalFiles);
         if (FAILED(hrc))
@@ -1162,7 +1173,7 @@ HRESULT MachineMoveVM::moveAllDisks(const std::map<Utf8Str, MEDIUMTASKMOVE> &lis
                     strLocation.stripPath();
 
                 strTargetImageName.append(RTPATH_DELIMITER).append(strLocation);
-                rc = m_pProgress->SetNextOperation(BstrFmt(machine->tr("Moving medium '%ls' ..."),
+                rc = m_pProgress->SetNextOperation(BstrFmt(tr("Moving medium '%ls' ..."),
                                                            bstrSrcName.raw()).raw(),
                                                    mt.uWeight);
                 if (FAILED(rc)) throw rc;
@@ -1170,7 +1181,7 @@ HRESULT MachineMoveVM::moveAllDisks(const std::map<Utf8Str, MEDIUMTASKMOVE> &lis
             else
             {
                 strTargetImageName = mt.strBaseName;//Should contain full path to the image
-                rc = m_pProgress->SetNextOperation(BstrFmt(machine->tr("Moving medium '%ls' back..."),
+                rc = m_pProgress->SetNextOperation(BstrFmt(tr("Moving medium '%ls' back..."),
                                                            bstrSrcName.raw()).raw(),
                                                    mt.uWeight);
                 if (FAILED(rc)) throw rc;
@@ -1261,8 +1272,8 @@ void MachineMoveVM::updatePathsToNVRAMFiles(const Utf8Str &sourcePath, const Utf
     if (SUCCEEDED(rc) && !pSnapshot.isNull())
         pSnapshot->i_updateNVRAMPaths(sourcePath.c_str(),
                                       targetPath.c_str());
-    ComObjPtr<BIOSSettings> pBIOSSettings(m_pMachine->mBIOSSettings);
-    const Utf8Str NVRAMFile(pBIOSSettings->i_getNonVolatileStorageFile());
+    ComObjPtr<NvramStore> pNvramStore(m_pMachine->mNvramStore);
+    const Utf8Str NVRAMFile(pNvramStore->i_getNonVolatileStorageFile());
     if (NVRAMFile.isNotEmpty())
     {
         Utf8Str newNVRAMFile;
@@ -1270,7 +1281,7 @@ void MachineMoveVM::updatePathsToNVRAMFiles(const Utf8Str &sourcePath, const Utf
             newNVRAMFile = Utf8StrFmt("%s%s", targetPath.c_str(), NVRAMFile.c_str() + sourcePath.length());
         else
             newNVRAMFile = Utf8StrFmt("%s%c%s", targetPath.c_str(), RTPATH_DELIMITER, RTPathFilename(newNVRAMFile.c_str()));
-        pBIOSSettings->i_updateNonVolatileStorageFile(newNVRAMFile);
+        pNvramStore->i_updateNonVolatileStorageFile(newNVRAMFile);
     }
 }
 
@@ -1323,11 +1334,11 @@ HRESULT MachineMoveVM::getFilesList(const Utf8Str &strRootFolder, fileList_t &fi
     }
     else if (vrc == VERR_FILE_NOT_FOUND)
         hrc = m_pMachine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                       m_pMachine->tr("Folder '%s' doesn't exist (%Rrc)"),
+                                       tr("Folder '%s' doesn't exist (%Rrc)"),
                                        strRootFolder.c_str(), vrc);
     else
         hrc = m_pMachine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                       m_pMachine->tr("Could not open folder '%s' (%Rrc)"),
+                                       tr("Could not open folder '%s' (%Rrc)"),
                                        strRootFolder.c_str(), vrc);
 
     return hrc;
@@ -1340,13 +1351,13 @@ HRESULT MachineMoveVM::deleteFiles(const RTCList<Utf8Str> &listOfFiles)
     for (size_t i = 0; i < listOfFiles.size(); ++i)
     {
         Log2(("Deleting file %s ...\n", listOfFiles.at(i).c_str()));
-        hrc = m_pProgress->SetNextOperation(BstrFmt("Deleting file %s...", listOfFiles.at(i).c_str()).raw(), 1);
+        hrc = m_pProgress->SetNextOperation(BstrFmt(tr("Deleting file %s..."), listOfFiles.at(i).c_str()).raw(), 1);
         if (FAILED(hrc)) return hrc;
 
         int vrc = RTFileDelete(listOfFiles.at(i).c_str());
         if (RT_FAILURE(vrc))
             return m_pMachine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                            m_pMachine->tr("Could not delete file '%s' (%Rrc)"),
+                                            tr("Could not delete file '%s' (%Rrc)"),
                                             listOfFiles.at(i).c_str(), vrc);
 
         else
@@ -1382,7 +1393,7 @@ HRESULT MachineMoveVM::getFolderSize(const Utf8Str &strRootFolder, uint64_t &siz
                 }
                 else
                     return m_pMachine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                                    m_pMachine->tr("Could not get the size of file '%s': %Rrc"),
+                                                    tr("Could not get the size of file '%s': %Rrc"),
                                                     fullPath.c_str(),
                                                     vrc);
 
@@ -1568,7 +1579,7 @@ HRESULT MachineMoveVM::addSaveState(const ComObjPtr<Machine> &machine)
         int vrc = RTFileQuerySizeByPath(sft.strFile.c_str(), &cbSize);
         if (RT_FAILURE(vrc))
             return m_pMachine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                            m_pMachine->tr("Could not get file size of '%s': %Rrc"),
+                                            tr("Could not get file size of '%s': %Rrc"),
                                             sft.strFile.c_str(),
                                             vrc);
 
@@ -1582,11 +1593,11 @@ HRESULT MachineMoveVM::addSaveState(const ComObjPtr<Machine> &machine)
 
 HRESULT MachineMoveVM::addNVRAM(const ComObjPtr<Machine> &machine)
 {
-    ComPtr<IBIOSSettings> pBIOSSettings;
-    HRESULT rc = machine->COMGETTER(BIOSSettings)(pBIOSSettings.asOutParam());
+    ComPtr<INvramStore> pNvramStore;
+    HRESULT rc = machine->COMGETTER(NonVolatileStore)(pNvramStore.asOutParam());
     if (FAILED(rc)) return rc;
     Bstr bstrSrcNVRAMPath;
-    rc = pBIOSSettings->COMGETTER(NonVolatileStorageFile)(bstrSrcNVRAMPath.asOutParam());
+    rc = pNvramStore->COMGETTER(NonVolatileStorageFile)(bstrSrcNVRAMPath.asOutParam());
     if (FAILED(rc)) return rc;
     Utf8Str strSrcNVRAMPath(bstrSrcNVRAMPath);
     if (!strSrcNVRAMPath.isEmpty() && RTFileExists(strSrcNVRAMPath.c_str()))
@@ -1600,7 +1611,7 @@ HRESULT MachineMoveVM::addNVRAM(const ComObjPtr<Machine> &machine)
         int vrc = RTFileQuerySizeByPath(sft.strFile.c_str(), &cbSize);
         if (RT_FAILURE(vrc))
             return m_pMachine->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                            m_pMachine->tr("Could not get file size of '%s': %Rrc"),
+                                            tr("Could not get file size of '%s': %Rrc"),
                                             sft.strFile.c_str(),
                                             vrc);
 

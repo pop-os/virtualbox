@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_VBoxDrvCfg_win_h
@@ -52,27 +62,28 @@ typedef enum
     VBOXDRVCFG_LOG_SEVERITY_FLOW = 1,
     VBOXDRVCFG_LOG_SEVERITY_REGULAR,
     VBOXDRVCFG_LOG_SEVERITY_REL
-} VBOXDRVCFG_LOG_SEVERITY;
+} VBOXDRVCFG_LOG_SEVERITY_T;
 
-typedef DECLCALLBACK(void) FNVBOXDRVCFG_LOG(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char *pszMsg, void *pvContext);
-typedef FNVBOXDRVCFG_LOG *PFNVBOXDRVCFG_LOG;
+typedef DECLCALLBACKTYPE(void, FNVBOXDRVCFGLOG,(VBOXDRVCFG_LOG_SEVERITY_T enmSeverity, char *pszMsg, void *pvContext));
+typedef FNVBOXDRVCFGLOG *PFNVBOXDRVCFGLOG;
 
-VBOXDRVCFG_DECL(void) VBoxDrvCfgLoggerSet(PFNVBOXDRVCFG_LOG pfnLog, void *pvLog);
+VBOXDRVCFG_DECL(void) VBoxDrvCfgLoggerSet(PFNVBOXDRVCFGLOG pfnLog, void *pvLog);
 
-typedef DECLCALLBACK(void) FNVBOXDRVCFG_PANIC(void * pvPanic);
-typedef FNVBOXDRVCFG_PANIC *PFNVBOXDRVCFG_PANIC;
-VBOXDRVCFG_DECL(void) VBoxDrvCfgPanicSet(PFNVBOXDRVCFG_PANIC pfnPanic, void *pvPanic);
+typedef DECLCALLBACKTYPE(void, FNVBOXDRVCFGPANIC,(void *pvPanic));
+typedef FNVBOXDRVCFGPANIC *PFNVBOXDRVCFGPANIC;
+VBOXDRVCFG_DECL(void) VBoxDrvCfgPanicSet(PFNVBOXDRVCFGPANIC pfnPanic, void *pvPanic);
 
 /* Driver package API*/
-VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfInstall(IN LPCWSTR lpszInfPath);
-VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfUninstall(IN LPCWSTR lpszInfPath, IN DWORD fFlags);
-VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfUninstallAllSetupDi(IN const GUID * pGuidClass, IN LPCWSTR lpszClassName, IN LPCWSTR lpszPnPId, IN DWORD fFlags);
-VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfUninstallAllF(IN LPCWSTR lpszClassName, IN LPCWSTR lpszPnPId, IN DWORD fFlags);
+VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfInstall(IN LPCWSTR pwszInfPath);
+VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfUninstall(IN LPCWSTR pwszInfPath, IN DWORD fFlags);
+VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfUninstallAllSetupDi(IN const GUID * pGuidClass, IN LPCWSTR pwszClassName,
+                                                          IN LPCWSTR pwszPnPId, IN DWORD fFlags);
+VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgInfUninstallAllF(IN LPCWSTR pwszClassName, IN LPCWSTR pwszPnPId, IN DWORD fFlags);
 
 /* Service API */
-VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgSvcStart(LPCWSTR lpszSvcName);
+VBOXDRVCFG_DECL(HRESULT) VBoxDrvCfgSvcStart(LPCWSTR pwszSvcName);
 
-HRESULT VBoxDrvCfgDrvUpdate(LPCWSTR pcszwHwId, LPCWSTR pcsxwInf, BOOL *pbRebootRequired);
+HRESULT VBoxDrvCfgDrvUpdate(LPCWSTR pszwHwId, LPCWSTR psxwInf, BOOL *pfRebootRequired);
 
 RT_C_DECLS_END
 

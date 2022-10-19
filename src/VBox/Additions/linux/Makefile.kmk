@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../../..
@@ -116,6 +126,10 @@ VBOX_LNX_ADD_STRIP_BIN += \
 	VBoxControl \
 	VBoxDRMClient \
 	VBoxClient
+ifdef VBOX_WITH_ADDITIONS_SHIPPING_AUDIO_TEST
+ VBOX_LNX_ADD_STRIP_BIN += \
+	VBoxAudioTest
+endif
 
 VBOX_LNX_ADD_STRIP_SBIN += \
 	VBoxService \
@@ -430,7 +444,6 @@ $(PATH_STAGE_BIN)/additions/VBoxLinuxAdditions.run: \
 	$(QUIET)$(RM) -f $(foreach file, $(wildcard $(VBOX_LNX_ADD_INST_STAGE_DIR)$(VBOX_LNX_ADD_PACKAGE_NAME)-*.tar.bz2), $(file))
 	$(QUIET)$(foreach file, $(VBOX_LNX_ADD_ARCHIVES), \
 		$(CP) -f $(file) $(VBOX_LNX_ADD_INST_STAGE_DIR)$(subst -r$(VBOX_SVN_REV),,$(notdir $(file)))$(NLTAB) )
-	$(QUIET)$(VBOX_MAKESELF) --nocomp $(VBOX_LNX_ADD_INST_STAGE_DIR) $@ \
+	$(QUIET)$(VBOX_MAKESELF) --nocomp $(if $(VBOX_OSE),,--tar-no-format) $(VBOX_LNX_ADD_INST_STAGE_DIR) $@ \
 		"VirtualBox $(VBOX_VERSION_STRING) Guest Additions for Linux" \
 		/bin/sh ./install.sh "\$$0"
-

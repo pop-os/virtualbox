@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -69,7 +79,7 @@ extern "C"
 #include "netif/etharp.h"
 }
 
-#include <string>
+#include <iprt/sanitized/string>
 #include <vector>
 #include <memory>
 
@@ -146,8 +156,6 @@ private:
     void ifPump();
     int ifInput(void *pvSegFrame, uint32_t cbSegFrame);
 
-    int ifOutput(PCINTNETSEG paSegs, size_t cSegs, size_t cbFrame);
-
 
     /*
      * lwIP callbacks
@@ -155,14 +163,14 @@ private:
     static DECLCALLBACK(void) lwipInitCB(void *pvArg);
     void lwipInit();
 
-    static err_t netifInitCB(netif *pNetif);
+    static err_t netifInitCB(netif *pNetif) RT_NOTHROW_PROTO;
     err_t netifInit(netif *pNetif);
 
-    static err_t netifLinkOutputCB(netif *pNetif, pbuf *pPBuf);
+    static err_t netifLinkOutputCB(netif *pNetif, pbuf *pPBuf) RT_NOTHROW_PROTO;
     err_t netifLinkOutput(pbuf *pPBuf);
 
     static void dhcp4RecvCB(void *arg, struct udp_pcb *pcb, struct pbuf *p,
-                            ip_addr_t *addr, u16_t port);
+                            ip_addr_t *addr, u16_t port) RT_NOTHROW_PROTO;
     void dhcp4Recv(struct udp_pcb *pcb, struct pbuf *p, ip_addr_t *addr, u16_t port);
 };
 
@@ -577,7 +585,7 @@ int VBoxNetDhcpd::ifClose()
 }
 
 
-/* static */ err_t VBoxNetDhcpd::netifInitCB(netif *pNetif)
+/* static */ err_t VBoxNetDhcpd::netifInitCB(netif *pNetif) RT_NOTHROW_DEF
 {
     AssertPtrReturn(pNetif, ERR_ARG);
 
@@ -586,7 +594,7 @@ int VBoxNetDhcpd::ifClose()
 }
 
 
-/* static */ err_t VBoxNetDhcpd::netifLinkOutputCB(netif *pNetif, pbuf *pPBuf)
+/* static */ err_t VBoxNetDhcpd::netifLinkOutputCB(netif *pNetif, pbuf *pPBuf) RT_NOTHROW_DEF
 {
     AssertPtrReturn(pNetif, ERR_ARG);
     AssertPtrReturn(pPBuf, ERR_ARG);
@@ -600,7 +608,7 @@ int VBoxNetDhcpd::ifClose()
 
 /* static */ void VBoxNetDhcpd::dhcp4RecvCB(void *arg, struct udp_pcb *pcb,
                                             struct pbuf *p,
-                                            ip_addr_t *addr, u16_t port)
+                                            ip_addr_t *addr, u16_t port) RT_NOTHROW_DEF
 {
     AssertPtrReturnVoid(arg);
 
@@ -777,7 +785,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv)
 {
     VBoxNetDhcpd Dhcpd;
     int rc = Dhcpd.main(argc, argv);
-
     return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
@@ -787,10 +794,9 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv)
 int main(int argc, char **argv)
 {
     int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
-
-    return TrustedMain(argc, argv);
+    if (RT_SUCCESS(rc))
+        return TrustedMain(argc, argv);
+    return RTMsgInitFailure(rc);
 }
 
 

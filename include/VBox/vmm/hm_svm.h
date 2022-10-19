@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_hm_svm_h
@@ -1061,66 +1071,22 @@ typedef SVMMSRS *PSVMMSRS;
 typedef const SVMMSRS *PCSVMMSRS;
 
 /**
- * SVM nested-guest VMCB cache.
+ * SVM VM-exit auxiliary information.
  *
- * Contains VMCB fields from the nested-guest VMCB before they're modified by
- * SVM R0 code for hardware-assisted SVM execution of a nested-guest.
- *
- * A VMCB field needs to be cached when it needs to be modified for execution using
- * hardware-assisted SVM and any of the following are true:
- *   - If the original field needs to be inspected during execution of the
- *     nested-guest or \#VMEXIT processing.
- *   - If the field is written back to memory on \#VMEXIT by the physical CPU.
- *
- * A VMCB field needs to be restored only when the field is written back to
- * memory on \#VMEXIT by the physical CPU and thus would be visible to the
- * guest.
- *
- * @remarks Please update hmR3InfoSvmNstGstVmcbCache() when changes are made to
- *          this structure.
+ * This includes information that isn't necessarily stored in the guest-CPU
+ * context but provided as part of \#VMEXITs.
  */
-#pragma pack(1)
-typedef struct SVMNESTEDVMCBCACHE
+typedef struct
 {
-    /** Cache of CRX read intercepts. */
-    uint16_t            u16InterceptRdCRx;
-    /** Cache of CRX write intercepts. */
-    uint16_t            u16InterceptWrCRx;
-    /** Cache of DRX read intercepts. */
-    uint16_t            u16InterceptRdDRx;
-    /** Cache of DRX write intercepts. */
-    uint16_t            u16InterceptWrDRx;
-
-    /** Cache of the pause-filter threshold. */
-    uint16_t            u16PauseFilterThreshold;
-    /** Cache of the pause-filter count. */
-    uint16_t            u16PauseFilterCount;
-
-    /** Cache of exception intercepts. */
-    uint32_t            u32InterceptXcpt;
-    /** Cache of control intercepts. */
-    uint64_t            u64InterceptCtrl;
-
-    /** Cache of the TSC offset. */
-    uint64_t            u64TSCOffset;
-
-    /** Cache of V_INTR_MASKING bit. */
-    bool                fVIntrMasking;
-    /** Cache of the nested-paging bit. */
-    bool                fNestedPaging;
-    /** Cache of the LBR virtualization bit. */
-    bool                fLbrVirt;
-    /** Whether the VMCB is cached by HM.  */
-    bool                fCacheValid;
-    /** Alignment. */
-    bool                afPadding0[4];
-} SVMNESTEDVMCBCACHE;
-#pragma pack()
-/** Pointer to the SVMNESTEDVMCBCACHE structure. */
-typedef SVMNESTEDVMCBCACHE *PSVMNESTEDVMCBCACHE;
-/** Pointer to a const SVMNESTEDVMCBCACHE structure. */
-typedef const SVMNESTEDVMCBCACHE *PCSVMNESTEDVMCBCACHE;
-AssertCompileSizeAlignment(SVMNESTEDVMCBCACHE, 8);
+    uint64_t        u64ExitCode;
+    uint64_t        u64ExitInfo1;
+    uint64_t        u64ExitInfo2;
+    SVMEVENT        ExitIntInfo;
+} SVMEXITAUX;
+/** Pointer to a SVMEXITAUX struct. */
+typedef SVMEXITAUX *PSVMEXITAUX;
+/** Pointer to a const SVMEXITAUX struct. */
+typedef const SVMEXITAUX *PCSVMEXITAUX;
 
 /**
  * Segment attribute conversion between CPU and AMD-V VMCB format.

@@ -1,7 +1,7 @@
 #ifndef _IPXE_TEST_H
 #define _IPXE_TEST_H
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 /** @file
  *
@@ -31,15 +31,19 @@ struct self_test {
 /** Declare a self-test */
 #define __self_test __table_entry ( SELF_TESTS, 01 )
 
-extern void test_ok ( int success, const char *file, unsigned int line );
+extern void test_ok ( int success, const char *file, unsigned int line,
+		      const char *test );
 
 /**
  * Report test result
  *
  * @v success		Test succeeded
+ * @v file		File name
+ * @v line		Line number
  */
-#define ok( success ) do {				\
-	test_ok ( (success), __FILE__, __LINE__ );	\
-	} while ( 0 )
+#define okx( success, file, line ) \
+	test_ok ( success, file, line, #success )
+#define ok( success ) \
+	okx ( success, __FILE__, __LINE__ )
 
 #endif /* _IPXE_TEST_H */

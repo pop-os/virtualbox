@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -158,6 +168,9 @@ RTDECL(int)  RTFileOpenEx(const char *pszFilename, uint64_t fOpen, PRTFILE phFil
         return rc;
 #ifndef O_NONBLOCK
     AssertReturn(!(fOpen & RTFILE_O_NON_BLOCK), VERR_INVALID_FLAGS);
+#endif
+#if defined(RT_OS_OS2) /* Cannot delete open files on OS/2. */
+    AssertReturn(!(fOpen & RTFILE_O_TEMP_AUTO_DELETE), VERR_NOT_SUPPORTED);
 #endif
 
     /*
@@ -342,6 +355,18 @@ RTDECL(int)  RTFileOpenEx(const char *pszFilename, uint64_t fOpen, PRTFILE phFil
     if (fh >= 0)
     {
         iErr = 0;
+
+        /*
+         * If temporary file, delete it.
+         */
+        if (fOpen & RTFILE_O_TEMP_AUTO_DELETE)
+        {
+            /** @todo Use funlinkat/funlink or similar here when available!  Or better,
+             *        use O_TMPFILE, only that may require fallback as not supported by
+             *        all file system on linux. */
+            iErr = unlink(pszNativeFilename);
+            Assert(iErr == 0);
+        }
 
         /*
          * Mark the file handle close on exec, unless inherit is specified.
@@ -679,9 +704,9 @@ RTR3DECL(int) RTFileQuerySize(RTFILE hFile, uint64_t *pcbSize)
     {
         *pcbSize = st.st_size;
         if (   st.st_size != 0
-#if defined(RT_OS_SOLARIS)
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_DARWIN)
             || (!S_ISBLK(st.st_mode) && !S_ISCHR(st.st_mode))
-#elif defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD)
+#elif defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD) || defined(RT_OS_DARWIN)
             || !S_ISCHR(st.st_mode)
 #else
             || !S_ISBLK(st.st_mode)
@@ -704,7 +729,12 @@ RTR3DECL(int) RTFileQuerySize(RTFILE hFile, uint64_t *pcbSize)
                 return VINF_SUCCESS;
             }
         }
-        /* must be a block device, fail on failure. */
+
+        /* Always fail block devices.  Character devices doesn't all need to be
+           /dev/rdisk* nodes, they should return ENOTTY but /dev/null returns ENODEV
+           and we include EINVAL just in case. */
+        if (!S_ISBLK(st.st_mode) && (errno == ENOTTY || errno == ENODEV || errno == EINVAL))
+            return VINF_SUCCESS;
 
 #elif defined(RT_OS_SOLARIS)
         struct dk_minfo MediaInfo;
@@ -827,11 +857,15 @@ RTR3DECL(bool) RTFileIsValid(RTFILE hFile)
 }
 
 
-RTR3DECL(int)  RTFileFlush(RTFILE hFile)
+RTR3DECL(int) RTFileFlush(RTFILE hFile)
 {
-    if (fsync(RTFileToNative(hFile)))
-        return RTErrConvertFromErrno(errno);
-    return VINF_SUCCESS;
+    if (!fsync(RTFileToNative(hFile)))
+        return VINF_SUCCESS;
+    /* Ignore EINVAL here as that's what returned for pseudo ttys
+       and other odd handles. */
+    if (errno == EINVAL)
+        return VINF_NOT_SUPPORTED;
+    return RTErrConvertFromErrno(errno);
 }
 
 
@@ -882,8 +916,8 @@ RTR3DECL(int) RTFileRename(const char *pszSrc, const char *pszDst, unsigned fRen
     /*
      * Validate input.
      */
-    AssertMsgReturn(VALID_PTR(pszSrc), ("%p\n", pszSrc), VERR_INVALID_POINTER);
-    AssertMsgReturn(VALID_PTR(pszDst), ("%p\n", pszDst), VERR_INVALID_POINTER);
+    AssertPtrReturn(pszSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDst, VERR_INVALID_POINTER);
     AssertMsgReturn(*pszSrc, ("%p\n", pszSrc), VERR_INVALID_PARAMETER);
     AssertMsgReturn(*pszDst, ("%p\n", pszDst), VERR_INVALID_PARAMETER);
     AssertMsgReturn(!(fRename & ~RTPATHRENAME_FLAGS_REPLACE), ("%#x\n", fRename), VERR_INVALID_PARAMETER);

@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
+
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
 <!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
 "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
 <!ENTITY % all.entities SYSTEM "all-entities.ent">
@@ -146,11 +167,10 @@
       </para>
 
       <para>
-        For convenience, for each virtual machine, the VirtualBox
-        Manager window can show these logs in a window. To access it,
-        select a virtual machine from the list on the left and select
-        <emphasis role="bold">Show Log</emphasis> from the
-        <emphasis role="bold">Machine</emphasis> menu.
+        For convenience, for each virtual machine, &vbox-mgr; can show
+        these logs in a window. Select a virtual machine from the
+        machine list on the left and click
+        <emphasis role="bold">Logs</emphasis> in the machine tools menu.
       </para>
 
       <para>
@@ -170,8 +190,8 @@
         In case of crashes, it is very important to collect
         <emphasis>crash dumps</emphasis>. This is true for both host and
         guest crashes. For information about enabling core dumps on
-        Linux, Oracle Solaris, and Mac OS X systems, refer to the
-        following core dump article on the &product-name; website:
+        Linux, Oracle Solaris, and macOS systems, refer to the following
+        core dump article on the &product-name; website:
       </para>
 
       <para>
@@ -1650,10 +1670,9 @@ VirtualBox</screen>
 
       <para>
         If a host-only adapter cannot be created, either with the
-        VirtualBox Manager or the <command>VBoxManage</command> command,
-        then the INF cache is probably corrupt. In this case, the
-        install log at
-        <filename>%windir%\inf\setupapi.dev.log</filename> would
+        &vbox-mgr; or the <command>VBoxManage</command> command, then
+        the INF cache is probably corrupt. In this case, the install log
+        at <filename>%windir%\inf\setupapi.dev.log</filename> would
         typically mention the failure to find a suitable driver package
         for the <filename>sun_VBoxNetAdp</filename> component. Again, as
         with the bridged networking problem described above, the

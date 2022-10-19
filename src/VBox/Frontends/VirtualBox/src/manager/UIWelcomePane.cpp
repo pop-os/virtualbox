@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -54,16 +64,16 @@ public:
 protected:
 
     /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+    virtual void resizeEvent(QResizeEvent *pEvent) RT_OVERRIDE;
 
     /** Returns whether the widget's preferred height depends on its width. */
-    virtual bool hasHeightForWidth() const /* override */;
+    virtual bool hasHeightForWidth() const RT_OVERRIDE;
 
     /** Holds the minimum widget size. */
-    virtual QSize minimumSizeHint() const /* override */;
+    virtual QSize minimumSizeHint() const RT_OVERRIDE;
 
     /** Holds the preferred widget size. */
-    virtual QSize sizeHint() const /* override */;
+    virtual QSize sizeHint() const RT_OVERRIDE;
 };
 
 
@@ -98,7 +108,7 @@ bool UIWrappableLabel::hasHeightForWidth() const
            : QLabel::hasHeightForWidth();
 }
 
-QSize UIWrappableLabel::minimumSizeHint() const /* override */
+QSize UIWrappableLabel::minimumSizeHint() const
 {
     // WORKAROUND:
     // We should calculate hint height on the basis of width,
@@ -108,7 +118,7 @@ QSize UIWrappableLabel::minimumSizeHint() const /* override */
            : QLabel::minimumSizeHint();
 }
 
-QSize UIWrappableLabel::sizeHint() const /* override */
+QSize UIWrappableLabel::sizeHint() const
 {
     // WORKAROUND:
     // Keep widget always minimal.
@@ -219,6 +229,8 @@ void UIWelcomePane::prepare()
         /* Add stretch: */
         pMainLayout->addStretch();
     }
+
+    uiCommon().setHelpKeyword(this, "intro-starting");
 
     /* Translate finally: */
     retranslateUi();

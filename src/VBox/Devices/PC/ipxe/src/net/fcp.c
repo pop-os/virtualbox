@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stddef.h>
 #include <stdint.h>
@@ -38,6 +43,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/scsi.h>
 #include <ipxe/device.h>
 #include <ipxe/edd.h>
+#include <ipxe/efi/efi_path.h>
 #include <ipxe/fc.h>
 #include <ipxe/fcels.h>
 #include <ipxe/fcp.h>
@@ -153,10 +159,8 @@ struct fcp_device {
 	/** List of active commands */
 	struct list_head fcpcmds;
 
-	/** Fibre Channel WWN (for boot firmware table) */
-	struct fc_name wwn;
-	/** SCSI LUN (for boot firmware table) */
-	struct scsi_lun lun;
+	/** Device description (for boot firmware table) */
+	struct fcp_description desc;
 };
 
 /** An FCP command */
@@ -550,7 +554,6 @@ static int fcpcmd_recv_rsp ( struct fcp_command *fcpcmd,
 	struct fcp_device *fcpdev = fcpcmd->fcpdev;
 	struct scsi_cmd *command = &fcpcmd->command;
 	struct fcp_rsp *rsp = iobuf->data;
-	struct scsi_sense *sense;
 	struct scsi_rsp response;
 	int rc;
 
@@ -606,8 +609,8 @@ static int fcpcmd_recv_rsp ( struct fcp_command *fcpcmd,
 		if ( rsp->flags & FCP_RSP_RESIDUAL_UNDERRUN )
 			response.overrun = -response.overrun;
 	}
-	if ( ( sense = fcp_rsp_sense_data ( rsp ) ) != NULL )
-		memcpy ( &response.sense, sense, sizeof ( response.sense ) );
+	scsi_parse_sense ( fcp_rsp_sense_data ( rsp ),
+			   fcp_rsp_sense_data_len ( rsp ), &response.sense );
 
 	/* Free buffer before sending response, to minimise
 	 * out-of-memory errors.
@@ -840,25 +843,6 @@ static size_t fcpdev_window ( struct fcp_device *fcpdev ) {
 }
 
 /**
- * Describe FCP device in an ACPI table
- *
- * @v fcpdev		FCP device
- * @v acpi		ACPI table
- * @v len		Length of ACPI table
- * @ret rc		Return status code
- */
-static int fcpdev_acpi_describe ( struct fcp_device *fcpdev,
-				  struct acpi_description_header *acpi,
-				  size_t len ) {
-
-	DBGC ( fcpdev, "FCP %p cannot yet describe device in an ACPI table\n",
-	       fcpdev );
-	( void ) acpi;
-	( void ) len;
-	return 0;
-}
-
-/**
  * Describe FCP device using EDD
  *
  * @v fcpdev		FCP device
@@ -879,9 +863,9 @@ static int fcpdev_edd_describe ( struct fcp_device *fcpdev,
 	} lun;
 
 	type->type = cpu_to_le64 ( EDD_INTF_TYPE_FIBRE );
-	memcpy ( &wwn.fc, &fcpdev->wwn, sizeof ( wwn.fc ) );
+	memcpy ( &wwn.fc, &fcpdev->desc.wwn, sizeof ( wwn.fc ) );
 	path->fibre.wwn = be64_to_cpu ( wwn.u64 );
-	memcpy ( &lun.scsi, &fcpdev->lun, sizeof ( lun.scsi ) );
+	memcpy ( &lun.scsi, &fcpdev->desc.lun, sizeof ( lun.scsi ) );
 	path->fibre.lun = be64_to_cpu ( lun.u64 );
 	return 0;
 }
@@ -908,15 +892,27 @@ static struct device * fcpdev_identify_device ( struct fcp_device *fcpdev ) {
 	return identify_device ( &fcpdev->user.ulp->peer->port->transport );
 }
 
+/**
+ * Describe as an EFI device path
+ *
+ * @v fcp		FCP device
+ * @ret path		EFI device path, or NULL on error
+ */
+static EFI_DEVICE_PATH_PROTOCOL *
+fcpdev_efi_describe ( struct fcp_device *fcpdev ) {
+
+	return efi_fcp_path ( &fcpdev->desc );
+}
+
 /** FCP device SCSI interface operations */
 static struct interface_operation fcpdev_scsi_op[] = {
 	INTF_OP ( scsi_command, struct fcp_device *, fcpdev_scsi_command ),
 	INTF_OP ( xfer_window, struct fcp_device *, fcpdev_window ),
 	INTF_OP ( intf_close, struct fcp_device *, fcpdev_close ),
-	INTF_OP ( acpi_describe, struct fcp_device *, fcpdev_acpi_describe ),
 	INTF_OP ( edd_describe, struct fcp_device *, fcpdev_edd_describe ),
 	INTF_OP ( identify_device, struct fcp_device *,
 		  fcpdev_identify_device ),
+	EFI_INTF_OP ( efi_describe, struct fcp_device *, fcpdev_efi_describe ),
 };
 
 /** FCP device SCSI interface descriptor */
@@ -981,8 +977,8 @@ static int fcpdev_open ( struct interface *parent, struct fc_name *wwn,
 	fc_ulp_attach ( ulp, &fcpdev->user );
 
 	/* Preserve parameters required for boot firmware table */
-	memcpy ( &fcpdev->wwn, wwn, sizeof ( fcpdev->wwn ) );
-	memcpy ( &fcpdev->lun, lun, sizeof ( fcpdev->lun ) );
+	memcpy ( &fcpdev->desc.wwn, wwn, sizeof ( fcpdev->desc.wwn ) );
+	memcpy ( &fcpdev->desc.lun, lun, sizeof ( fcpdev->desc.lun ) );
 
 	/* Attach SCSI device to parent interface */
 	if ( ( rc = scsi_open ( parent, &fcpdev->scsi, lun ) ) != 0 ) {

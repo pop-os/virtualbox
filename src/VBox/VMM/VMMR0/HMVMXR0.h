@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VMM_INCLUDED_SRC_VMMR0_HMVMXR0_h
@@ -32,7 +42,7 @@ RT_C_DECLS_BEGIN
 #ifdef IN_RING0
 VMMR0DECL(int)          VMXR0Enter(PVMCPUCC pVCpu);
 VMMR0DECL(void)         VMXR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPUCC pVCpu, bool fGlobalInit);
-VMMR0DECL(int)          VMXR0CallRing3Callback(PVMCPUCC pVCpu, VMMCALLRING3 enmOperation);
+VMMR0DECL(int)          VMXR0AssertionCallback(PVMCPUCC pVCpu);
 VMMR0DECL(int)          VMXR0EnableCpu(PHMPHYSCPU pHostCpu, PVMCC pVM, void *pvPageCpu, RTHCPHYS pPageCpuPhys,
                                        bool fEnabledBySystem, PCSUPHWVIRTMSRS pHwvirtMsrs);
 VMMR0DECL(int)          VMXR0DisableCpu(PHMPHYSCPU pHostCpu, void *pvPageCpu, RTHCPHYS pPageCpuPhys);
@@ -44,8 +54,8 @@ VMMR0DECL(int)          VMXR0SetupVM(PVMCC pVM);
 VMMR0DECL(int)          VMXR0ExportHostState(PVMCPUCC pVCpu);
 VMMR0DECL(int)          VMXR0InvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCVirt);
 VMMR0DECL(int)          VMXR0ImportStateOnDemand(PVMCPUCC pVCpu, uint64_t fWhat);
+VMMR0DECL(int)          VMXR0GetExitAuxInfo(PVMCPUCC pVCpu, PVMXEXITAUX pVmxExitAux, uint32_t fWhat);
 VMMR0DECL(VBOXSTRICTRC) VMXR0RunGuestCode(PVMCPUCC pVCpu);
-DECLASM(int)            VMXR0StartVM64(RTHCUINT fResume, PCPUMCTX pCtx, void *pvUnused, PVMCC pVM, PVMCPUCC pVCpu);
 #endif /* IN_RING0 */
 
 /** @} */

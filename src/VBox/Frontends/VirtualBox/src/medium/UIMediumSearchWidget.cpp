@@ -4,25 +4,35 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
+#include <QComboBox>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QPainter>
 #include <QHBoxLayout>
 
 /* GUI includes: */
-#include "QIComboBox.h"
 #include "QIToolButton.h"
 #include "QITreeWidget.h"
 #include "UIIconPool.h"
@@ -97,7 +107,7 @@ void UIMediumSearchWidget::prepareWidgets()
     pLayout->setContentsMargins(0, 0, 0, 0);
     pLayout->setSpacing(0);
 
-    m_pSearchComboxBox = new QIComboBox;
+    m_pSearchComboxBox = new QComboBox;
     if (m_pSearchComboxBox)
     {
         m_pSearchComboxBox->setEditable(false);
@@ -105,7 +115,7 @@ void UIMediumSearchWidget::prepareWidgets()
         m_pSearchComboxBox->insertItem(SearchByUUID, "Search By UUID");
         pLayout->addWidget(m_pSearchComboxBox);
 
-        connect(m_pSearchComboxBox, static_cast<void(QIComboBox::*)(int)>(&QIComboBox::currentIndexChanged),
+        connect(m_pSearchComboxBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
                 this, &UIMediumSearchWidget::sigPerformSearch);
 
     }
@@ -177,16 +187,16 @@ void UIMediumSearchWidget::retranslateUi()
 {
     if (m_pSearchComboxBox)
     {
-        m_pSearchComboxBox->setItemText(SearchByName, UIMediumSearchWidget::tr("Search By Name"));
-        m_pSearchComboxBox->setItemText(SearchByUUID, UIMediumSearchWidget::tr("Search By UUID"));
-        m_pSearchComboxBox->setToolTip(UIMediumSearchWidget::tr("Select the search type"));
+        m_pSearchComboxBox->setItemText(SearchByName, tr("Search By Name"));
+        m_pSearchComboxBox->setItemText(SearchByUUID, tr("Search By UUID"));
+        m_pSearchComboxBox->setToolTip(tr("Select the search type"));
     }
     if (m_pSearchTermLineEdit)
-        m_pSearchTermLineEdit->setToolTip("Enter the search term and press Return");
+        m_pSearchTermLineEdit->setToolTip(tr("Enter the search term and press Enter/Return"));
     if (m_pShowPreviousMatchButton)
-        m_pShowPreviousMatchButton->setToolTip("Show the previous item matching the search term");
+        m_pShowPreviousMatchButton->setToolTip(tr("Show the previous item matching the search term"));
     if (m_pShowNextMatchButton)
-        m_pShowNextMatchButton->setToolTip("Show the next item matching the search term");
+        m_pShowNextMatchButton->setToolTip(tr("Show the next item matching the search term"));
 }
 
 void UIMediumSearchWidget::showEvent(QShowEvent *pEvent)
@@ -261,5 +271,5 @@ void UIMediumSearchWidget::updateSearchLineEdit(int iMatchCount, int iScrollToIn
     if (!m_pSearchTermLineEdit)
         return;
     m_pSearchTermLineEdit->setMatchCount(iMatchCount);
-    m_pSearchTermLineEdit->setScroolToIndex(iScrollToIndex);
+    m_pSearchTermLineEdit->setScrollToIndex(iScrollToIndex);
 }

@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_dvm_h
@@ -100,6 +110,9 @@ typedef enum RTDVMVOLTYPE
     /** Volume hosts an IBM general parallel file system (GPFS). */
     RTDVMVOLTYPE_IBM_GPFS,
 
+    /** OS/2 (Arca Noae) type 1 partition. */
+    RTDVMVOLTYPE_ARCA_OS2,
+
     /** End of the valid values. */
     RTDVMVOLTYPE_END,
     /** Usual 32bit hack. */
@@ -153,8 +166,7 @@ typedef RTDVMVOLUME                *PRTDVMVOLUME;
  * @param   cb             Range to check in bytes.
  * @param   pfAllocated    Where to store the allocation status on success.
  */
-typedef DECLCALLBACK(int) FNDVMVOLUMEQUERYBLOCKSTATUS(void *pvUser, uint64_t off,
-                                                      uint64_t cb, bool *pfAllocated);
+typedef DECLCALLBACKTYPE(int, FNDVMVOLUMEQUERYBLOCKSTATUS,(void *pvUser, uint64_t off, uint64_t cb, bool *pfAllocated));
 /** Pointer to a query block allocation status callback. */
 typedef FNDVMVOLUMEQUERYBLOCKSTATUS *PFNDVMVOLUMEQUERYBLOCKSTATUS;
 
@@ -241,6 +253,23 @@ typedef enum RTDVMFORMATTYPE
 RTDECL(RTDVMFORMATTYPE) RTDvmMapGetFormatType(RTDVM hVolMgr);
 
 /**
+ * Gets the UUID of the disk if applicable.
+ *
+ * Disks using the MBR format may return the 32-bit disk identity in the
+ * u32TimeLow field and set the rest to zero.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if the partition scheme doesn't do UUIDs.
+ * @retval  VINF_NOT_SUPPORTED if non-UUID disk ID is returned.
+ * @param   hVolMgr     The volume manager handle.
+ * @param   pUuid       Where to return the UUID.
+ *
+ * @todo It's quite possible this should be turned into a map-level edition of
+ *       RTDvmVolumeQueryProp...
+ */
+RTDECL(int) RTDvmMapQueryDiskUuid(RTDVM hVolMgr, PRTUUID pUuid);
+
+/**
  * Gets the number of valid partitions in the map.
  *
  * @returns The number of valid volumes in the map or UINT32_MAX on failure.
@@ -281,7 +310,7 @@ RTDECL(int) RTDvmMapQueryNextVolume(RTDVM hVolMgr, RTDVMVOLUME hVol, PRTDVMVOLUM
  * Returns whether the given block on the disk is in use.
  *
  * @returns IPRT status code.
- * @param   hVolMgr         The volume manager handler.
+ * @param   hVolMgr         The volume manager handle.
  * @param   off             The start offset to check for.
  * @param   cb              The range in bytes to check.
  * @param   pfAllocated     Where to store the in-use status on success.
@@ -289,6 +318,56 @@ RTDECL(int) RTDvmMapQueryNextVolume(RTDVM hVolMgr, RTDVMVOLUME hVol, PRTDVMVOLUM
  * @remark This method will return true even if a part of the range is not in use.
  */
 RTDECL(int) RTDvmMapQueryBlockStatus(RTDVM hVolMgr, uint64_t off, uint64_t cb, bool *pfAllocated);
+
+/**
+ * Partition/map table location information.
+ * @sa RTDvmMapQueryTableLocations
+ */
+typedef struct RTDVMTABLELOCATION
+{
+    /** The byte offset on the underlying media. */
+    uint64_t    off;
+    /** The table size in bytes. */
+    uint64_t    cb;
+    /** Number of padding bytes / free space between the actual table and
+     *  first partition. */
+    uint64_t    cbPadding;
+} RTDVMTABLELOCATION;
+/** Pointer to partition table location info. */
+typedef RTDVMTABLELOCATION *PRTDVMTABLELOCATION;
+/** Pointer to const partition table location info. */
+typedef RTDVMTABLELOCATION const *PCRTDVMTABLELOCATION;
+
+
+/** @name RTDVMMAPQTABLOC_F_XXX - Flags for RTDvmMapQueryTableLocations
+ * @{ */
+/** Make sure GPT includes the protective MBR. */
+#define RTDVMMAPQTABLOC_F_INCLUDE_LEGACY    RT_BIT_32(0)
+/** Valid flags.   */
+#define RTDVMMAPQTABLOC_F_VALID_MASK        UINT32_C(1)
+/** @} */
+
+/**
+ * Query the partition table locations.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_BUFFER_OVERFLOW if the table is too small, @a *pcActual will be
+ *          set to the required size.
+ * @retval  VERR_BUFFER_UNDERFLOW if the table is too big and @a pcActual is
+ *          NULL.
+ * @param   hVolMgr         The volume manager handle.
+ * @param   fFlags          Flags, see RTDVMMAPQTABLOC_F_XXX.
+ * @param   paLocations     Where to return the info.  This can be NULL if @a
+ *                          cLocations is zero and @a pcActual is given.
+ * @param   cLocations      The size of @a paLocations in items.
+ * @param   pcActual        Where to return the actual number of locations, or
+ *                          on VERR_BUFFER_OVERFLOW the necessary table size.
+ *                          Optional, when not specified the cLocations value
+ *                          must match exactly or it fails with
+ *                          VERR_BUFFER_UNDERFLOW.
+ */
+RTDECL(int) RTDvmMapQueryTableLocations(RTDVM hVolMgr, uint32_t fFlags,
+                                        PRTDVMTABLELOCATION paLocations, size_t cLocations, size_t *pcActual);
 
 /**
  * Retains a valid volume handle.
@@ -355,15 +434,160 @@ RTDECL(RTDVMVOLTYPE) RTDvmVolumeGetType(RTDVMVOLUME hVol);
 RTDECL(uint64_t) RTDvmVolumeGetFlags(RTDVMVOLUME hVol);
 
 /**
- * Queries the range of the given volume on the underyling medium.
+ * Queries the range of the given volume on the underlying medium.
  *
  * @returns IPRT status code.
  * @retval  VERR_NOT_SUPPORTED if the DVMVOLUME_F_CONTIGUOUS flag is not returned by RTDvmVolumeGetFlags().
  * @param   hVol            The volume handle.
  * @param   poffStart       Where to store the start offset in bytes on the underlying medium.
- * @param   poffEnd         Where to store the end offset in bytes on the underlying medium (inclusive).
+ * @param   poffLast        Where to store the last offset in bytes on the underlying medium (inclusive).
  */
-RTDECL(int) RTDvmVolumeQueryRange(RTDVMVOLUME hVol, uint64_t *poffStart, uint64_t *poffEnd);
+RTDECL(int) RTDvmVolumeQueryRange(RTDVMVOLUME hVol, uint64_t *poffStart, uint64_t *poffLast);
+
+/**
+ * Returns the partition/whatever table location of the volume.
+ *
+ * For volume format with a single table, like GPT and BSD-labels, it will
+ * return the location of that table.  Though for GPT, the fake MBR will not be
+ * included.
+ *
+ * For logical (extended) MBR-style volumes, this will return the location of
+ * the extended partition table.  For primary volumes the MBR location is
+ * returned.  The special MBR case is why this operation is done on the volume
+ * rather than the volume manager.
+ *
+ * Using RTDvmVolumeGetIndex with RTDVMVOLIDX_IN_PART_TABLE should get you
+ * the index in the table returned by this function.
+ *
+ * @returns IPRT status code.
+ * @param   hVol            The volume handle.
+ * @param   poffTable       Where to return the byte offset on the underlying
+ *                          media of the (partition/volume/whatever) table.
+ * @param   pcbTable        Where to return the table size in bytes.  (This does
+ *                          not include any alignment padding or such, just
+ *                          padding up to sector/block size.)
+ */
+RTDECL(int) RTDvmVolumeQueryTableLocation(RTDVMVOLUME hVol, uint64_t *poffTable, uint64_t *pcbTable);
+
+/**
+ * RTDvmVolumeGetIndex indexes.
+ */
+typedef enum RTDVMVOLIDX
+{
+    /** Invalid zero value. */
+    RTDVMVOLIDX_INVALID = 0,
+    /** Index matching the host's volume numbering.
+     * This is a pseudo index, that gets translated to one of the others depending
+     * on which host we're running on. */
+    RTDVMVOLIDX_HOST,
+    /** Only consider user visible ones, i.e. don't count MBR extended partition
+     *  entries and such like. */
+    RTDVMVOLIDX_USER_VISIBLE,
+    /** Index when all volumes, user visible, hidden, special, whatever ones are
+     * included.
+     *
+     * For MBR this is 1-based index where all primary entires are included whether
+     * in use or not.  Only non-empty entries in extended tables are counted, though
+     * the forward link is included. */
+    RTDVMVOLIDX_ALL,
+    /** The raw index within the partition/volume/whatever table.  This have a kind
+     *  of special meaning to MBR, where there are multiple tables. */
+    RTDVMVOLIDX_IN_TABLE,
+    /** Follows the linux /dev/sdaX convention as closely as absolutely possible. */
+    RTDVMVOLIDX_LINUX,
+    /** End of valid indexes. */
+    RTDVMVOLIDX_END,
+    /** Make sure the type is 32-bit.   */
+    RTDVMVOLIDX_32BIT_HACK = 0x7fffffff
+} RTDVMVOLIDX;
+
+/**
+ * Gets the tiven index for the specified volume.
+ *
+ * @returns The requested index, UINT32_MAX on failure.
+ * @param   hVol            The volume handle.
+ * @param   enmIndex        Which kind of index to get for the volume.
+ */
+RTDECL(uint32_t) RTDvmVolumeGetIndex(RTDVMVOLUME hVol, RTDVMVOLIDX enmIndex);
+
+/**
+ * Volume properties queriable via RTDvmVolumeQueryProp.
+ *
+ * @note Integer values can typically be queried in multiple sizes.  This is
+ *       handled by the frontend code.  The format specific backends only
+ *       have to handle the smallest allowed size.
+ */
+typedef enum RTDVMVOLPROP
+{
+    /** Customary invalid zero value. */
+    RTDVMVOLPROP_INVALID = 0,
+    /** unsigned[16,32,64]:     MBR first cylinder (0-based, CHS). */
+    RTDVMVOLPROP_MBR_FIRST_CYLINDER,
+    /** unsigned[8,16,32,64]:   MBR first head (0-based, CHS). */
+    RTDVMVOLPROP_MBR_FIRST_HEAD,
+    /** unsigned[8,16,32,64]:   MBR first sector (1-based, CHS). */
+    RTDVMVOLPROP_MBR_FIRST_SECTOR,
+    /** unsigned[16,32,64]:     MBR last cylinder (0-based, CHS). */
+    RTDVMVOLPROP_MBR_LAST_CYLINDER,
+    /** unsigned[8,16,32,64]:   MBR last head (0-based, CHS). */
+    RTDVMVOLPROP_MBR_LAST_HEAD,
+    /** unsigned[8,16,32,64]:   MBR last sector (1-based, CHS). */
+    RTDVMVOLPROP_MBR_LAST_SECTOR,
+    /** unsigned[8,16,32,64]:   MBR partition type. */
+    RTDVMVOLPROP_MBR_TYPE,
+    /** RTUUID:                 GPT volume type. */
+    RTDVMVOLPROP_GPT_TYPE,
+    /** RTUUID:                 GPT volume UUID. */
+    RTDVMVOLPROP_GPT_UUID,
+    /** End of valid values. */
+    RTDVMVOLPROP_END,
+    /** Make sure the type is 32-bit. */
+    RTDVMVOLPROP_32BIT_HACK = 0x7fffffff
+} RTDVMVOLPROP;
+
+/**
+ * Query a generic volume property.
+ *
+ * This is an extensible interface for retrieving mostly format specific
+ * information, or information that's not commonly used.  (It's modeled after
+ * RTLdrQueryPropEx.)
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if the property query isn't supported (either all
+ *          or that specific property).  The caller  must  handle this result.
+ * @retval  VERR_NOT_FOUND is currently not returned, but intended for cases
+ *          where it wasn't present in the tables.
+ * @retval  VERR_INVALID_FUNCTION if the @a enmProperty value is wrong.
+ * @retval  VERR_INVALID_PARAMETER if the fixed buffer size is wrong. Correct
+ *          size in @a *pcbBuf.
+ * @retval  VERR_BUFFER_OVERFLOW if the property doesn't have a fixed size
+ *          buffer and the buffer isn't big enough. Correct size in @a *pcbBuf.
+ * @retval  VERR_INVALID_HANDLE if the handle is invalid.
+ * @param   hVol        Handle to the volume.
+ * @param   enmProperty The property to query.
+ * @param   pvBuf       Pointer to the input / output buffer.  In most cases
+ *                      it's only used for returning data.
+ * @param   cbBuf       The size of the buffer.
+ * @param   pcbBuf      Where to return the amount of data returned.  On
+ *                      buffer size errors, this is set to the correct size.
+ *                      Optional.
+ * @sa      RTDvmVolumeGetPropU64
+ */
+RTDECL(int) RTDvmVolumeQueryProp(RTDVMVOLUME hVol, RTDVMVOLPROP enmProperty, void *pvBuf, size_t cbBuf, size_t *pcbBuf);
+
+/**
+ * Wrapper around RTDvmVolumeQueryProp for simplifying getting unimportant
+ * integer properties.
+ *
+ * @returns The property value if supported and found, the default value if not.
+ *          Errors other than VERR_NOT_SUPPORTED and VERR_NOT_FOUND are
+ *          asserted.
+ * @param   hVol        Handle to the volume.
+ * @param   enmProperty The property to query.
+ * @param   uDefault    The value to return on error.
+ * @sa      RTDvmVolumeQueryProp
+ */
+RTDECL(uint64_t) RTDvmVolumeGetPropU64(RTDVMVOLUME hVol, RTDVMVOLPROP enmProperty, uint64_t uDefault);
 
 /**
  * Reads data from the given volume.

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_UnattendedInstaller_h
@@ -73,6 +83,8 @@ private:
     UnattendedInstaller(); /* no default constructors */
 
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedInstaller)
+
     /**
      * Regular constructor.
      *
@@ -99,8 +111,8 @@ public:
      * Instantiates the appropriate child class.
      *
      * @returns Pointer to the new instance, NULL if no appropriate installer.
-     * @param   enmOsType               The guest OS type value.
-     * @param   strGuestOsType          The guest OS type string
+     * @param   enmDetectedOSType       The detected guest OS type value.
+     * @param   strDetectedOSType       The detected guest OS type string
      * @param   strDetectedOSVersion    The detected guest OS version.
      * @param   strDetectedOSFlavor     The detected guest OS flavor.
      * @param   strDetectedOSHints      Hints about the detected guest OS.
@@ -108,7 +120,7 @@ public:
      *                                  and querying attributes.
      * @throws  std::bad_alloc
      */
-    static UnattendedInstaller *createInstance(VBOXOSTYPE enmOsType, const Utf8Str &strGuestOsType,
+    static UnattendedInstaller *createInstance(VBOXOSTYPE enmDetectedOSType, const Utf8Str &strDetectedOSType,
                                                const Utf8Str &strDetectedOSVersion, const Utf8Str &strDetectedOSFlavor,
                                                const Utf8Str &strDetectedOSHints, Unattended *pParent);
 
@@ -123,7 +135,7 @@ public:
 
 #if 0 /* These are now in the AUX VISO. */
     /**
-     * Whether the VBox guest additions ISO is needed or not.
+     * Whether the VBox Guest Additions ISO is needed or not.
      *
      * The default implementation always returns false when a VISO is used, see
      * UnattendedInstaller::addFilesToAuxVisoVectors.
@@ -216,15 +228,18 @@ protected:
     HRESULT prepareAuxFloppyImage(bool fOverwrite);
 
     /**
-     * Creates and formats (FAT12) a floppy image, then opens a VFS for it.
+     * Creates and formats (FAT12) a floppy image.
+     *
+     * This can be overridden to do more preparation work or/and create a different
+     * sized floppy.
      *
      * @returns COM status code.
      * @param   pszFilename     The path to the image file.
      * @param   fOverwrite      Whether to overwrite the file.
-     * @param   phVfs           Where to return a writable VFS handle to the newly
+     * @param   phVfsFile       Where to return a read-writable handle to the newly
      *                          created image.
      */
-    HRESULT newAuxFloppyImage(const char *pszFilename, bool fOverwrite, PRTVFS phVfs);
+    virtual HRESULT newAuxFloppyImage(const char *pszFilename, bool fOverwrite, PRTVFSFILE phVfsFile);
 
     /**
      * Copies files to the auxiliary floppy image.
@@ -247,6 +262,16 @@ protected:
      * @param   hVfs            The VFS to add it to.
      */
     HRESULT addScriptToFloppyImage(BaseTextScript *pEditor, RTVFS hVfs);
+
+    /**
+     * Copy an arbritrary file onto the floopy image.
+     *
+     * @returns COM status code.
+     * @param   hVfs            The VFS to add it to.
+     * @param   pszSrc          The source filename.
+     * @param   pszDst          The destination filename (on @a hVfs).
+     */
+    HRESULT addFileToFloppyImage(RTVFS hVfs, const char *pszSrc, const char *pszDst);
 
     /**
      * Prepares (creates) the auxiliary ISO image.
@@ -373,6 +398,8 @@ protected:
 class UnattendedWindowsSifInstaller : public UnattendedInstaller
 {
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedWindowsSifInstaller)
+
     UnattendedWindowsSifInstaller(Unattended *pParent)
         : UnattendedInstaller(pParent,
                               "win_nt5_unattended.sif", "win_postinstall.cmd",
@@ -394,6 +421,8 @@ public:
 class UnattendedWindowsXmlInstaller : public UnattendedInstaller
 {
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedWindowsXmlInstaller)
+
     UnattendedWindowsXmlInstaller(Unattended *pParent)
         : UnattendedInstaller(pParent,
                               "win_nt6_unattended.xml", "win_postinstall.cmd",
@@ -417,6 +446,75 @@ public:
 
 
 /**
+ * OS/2 installer.
+ */
+class UnattendedOs2Installer : public UnattendedInstaller
+{
+public:
+    DECLARE_TRANSLATE_METHODS(UnattendedOs2Installer)
+
+    UnattendedOs2Installer(Unattended *pParent, Utf8Str const &rStrHints);
+    ~UnattendedOs2Installer()                           {}
+
+    /* Remaster original ISO with auxiliary floppy used for el torito floppy emulation: */
+    bool isOriginalIsoNeeded()     const RT_OVERRIDE    { return false; }
+    bool isAuxiliaryFloppyNeeded() const RT_OVERRIDE    { return true; }
+    bool isAuxiliaryIsoNeeded()    const RT_OVERRIDE    { return true; }
+
+protected:
+    HRESULT replaceAuxFloppyImageBootSector(RTVFSFILE hVfsFile) RT_NOEXCEPT;
+    HRESULT newAuxFloppyImage(const char *pszFilename, bool fOverwrite, PRTVFSFILE phVfsFile) RT_OVERRIDE;
+    HRESULT copyFilesToAuxFloppyImage(RTVFS hVfs) RT_OVERRIDE;
+    HRESULT addFilesToAuxVisoVectors(RTCList<RTCString> &rVecArgs, RTCList<RTCString> &rVecFiles,
+                                     RTVFS hVfsOrgIso, bool fOverwrite) RT_OVERRIDE;
+
+    HRESULT splitResponseFile() RT_NOEXCEPT;
+
+    /**
+     * Splits up the given file into sub-files and writes them out with the auxilary
+     * path base as prefix.
+     *
+     * The source file contains @@VBOX_SPLITTER_START[filename]@@ and
+     * @@VBOX_SPLITTER_END[filename]@@  markup that is used to split it up.  Any
+     * text between END and START tags are ignored and can be used for comments.
+     *
+     * @returns COM status code (error info set).
+     * @param   pszFileToSplit      The name of the file to split.
+     * @param   rVecSplitFiles      Vector where names of the sub-files are appended
+     *                              (without any path or prefix).
+     */
+    HRESULT splitFile(const char *pszFileToSplit, RTCList<RTCString> &rVecSplitFiles) RT_NOEXCEPT;
+
+    /**
+     * Splits up the given editor output into sub-files and writes them out with the
+     * auxilary path base as prefix.
+     *
+     * The source file contains @@VBOX_SPLITTER_START[filename]@@ and
+     * @@VBOX_SPLITTER_END[filename]@@  markup that is used to split it up.  Any
+     * text between END and START tags are ignored and can be used for comments.
+     *
+     * @returns COM status code (error info set).
+     * @param   pEditor             The editor which output should be split.
+     * @param   rVecSplitFiles      Vector where names of the sub-files are appended
+     *                              (without any path or prefix).
+     */
+    HRESULT splitFile(BaseTextScript *pEditor, RTCList<RTCString> &rVecSplitFiles) RT_NOEXCEPT;
+
+    HRESULT splitFileInner(const char *pszFileToSplit, RTCList<RTCString> &rVecSplitFiles,
+                           const char *pszSrc, size_t cbLeft) RT_NOEXCEPT;
+
+    static int patchTestCfg(uint8_t *pbFile, size_t cbFile, const char *pszFilename, UnattendedOs2Installer *pThis);
+    static int patchOs2Ldr(uint8_t *pbFile, size_t cbFile, const char *pszFilename, UnattendedOs2Installer *pThis);
+
+    /** The OS2SE20.SRC path ("\\OS2IMAGES"). */
+    Utf8Str mStrOs2Images;
+    /** Files split out from os2_response_files.rsp (bare filenames, no paths). */
+    RTCList<RTCString> mVecSplitFiles;
+};
+
+
+
+/**
  * Base class for the unattended linux installers.
  */
 class UnattendedLinuxInstaller : public UnattendedInstaller
@@ -427,6 +525,8 @@ protected:
     RTCList<RTCString, RTCString *> mArrStrRemoveInstallKernelParameters;
 
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedLinuxInstaller)
+
     UnattendedLinuxInstaller(Unattended *pParent,
                              const char *pszMainScriptTemplateName, const char *pszPostScriptTemplateName,
                              const char *pszMainScriptFilename,     const char *pszPostScriptFilename = "vboxpostinstall.sh")
@@ -442,9 +542,16 @@ protected:
      * Performs basic edits on a isolinux.cfg file.
      *
      * @returns COM status code
-     * @param   pEditor         Editor with the isolinux.cfg file loaded and parsed.
+     * @param   pEditor               Editor with the isolinux.cfg file loaded and parsed.
      */
     virtual HRESULT editIsoLinuxCfg(GeneralTextScript *pEditor);
+    /**
+     * Performs basic common edits on a isolinux.cfg and menu configuration file(s) (txt.cfg or menu.cfg etc).
+     *
+     * @returns COM status code
+     * @param   pEditor         Editor with the isolinux.cfg file loaded and parsed.
+     */
+    virtual HRESULT editIsoLinuxCommon(GeneralTextScript *pEditor);
 };
 
 
@@ -456,6 +563,8 @@ protected:
 class UnattendedDebianInstaller : public UnattendedLinuxInstaller
 {
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedDebianInstaller)
+
     UnattendedDebianInstaller(Unattended *pParent,
                               const char *pszMainScriptTemplateName = "debian_preseed.cfg",
                               const char *pszPostScriptTemplateName = "debian_postinstall.sh",
@@ -488,8 +597,44 @@ public:
 protected:
     HRESULT addFilesToAuxVisoVectors(RTCList<RTCString> &rVecArgs, RTCList<RTCString> &rVecFiles,
                                      RTVFS hVfsOrgIso, bool fOverwrite);
-    HRESULT editDebianTxtCfg(GeneralTextScript *pEditor);
+    /**
+     * Performs basic edits on menu configuration file(s) of isolinux (txt.cfg or menu.cfg etc).
+     *
+     * @returns COM status code
+     * @param   pEditor                  Editor with the menu config. file loaded and parsed.
+     */
+    HRESULT editDebianMenuCfg(GeneralTextScript *pEditor);
+    /**
+     * Performs basic edits on grub configuration file (grub.cfg).
+     *
+     * @returns COM status code
+     * @param   pEditor                 Editor with the grub.cfg file loaded and parsed.
+     */
+    HRESULT editDebianGrubCfg(GeneralTextScript *pEditor);
 
+    /**
+     * Performs basic edits on a isolinux.cfg file.
+     *
+     * @returns COM status code
+     * @param   pEditor               Editor with the isolinux.cfg file loaded and parsed.
+     * @param   pszMenuConfigFileName Name of the menu config file to include in isolinux.txt. On Debians (at least)
+                                      it includes the kernel command line with our preseed file and command line argument.
+     */
+    virtual HRESULT editIsoLinuxCfg(GeneralTextScript *pEditor, const char *pszMenuConfigFileName);
+
+private:
+
+    /**
+     * Tries to set label name of a label line.
+     *
+     * @returns                 true if label line is found and label name can be set.
+     * @param   pEditor         Editor with the menu configuration file loaded and parsed.
+     * @param   vecLineNumbers  Indices of the label lines (within pEditor data).
+     * @param   pszKeyWord      The keyword searched within the original label name.
+     * @param   pszNewLabelName The new name of the label.
+     */
+    bool modifyLabelLine(GeneralTextScript *pEditor, const std::vector<size_t> &vecLineNumbers,
+                         const char *pszKeyWord, const char *pszNewLabelName);
 };
 
 
@@ -499,6 +644,8 @@ protected:
 class UnattendedUbuntuInstaller : public UnattendedDebianInstaller
 {
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedUbuntuInstaller)
+
     UnattendedUbuntuInstaller(Unattended *pParent)
         : UnattendedDebianInstaller(pParent, "ubuntu_preseed.cfg")
     { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
@@ -507,25 +654,27 @@ public:
 
 
 /**
- * RHEL 6 and 7 installer.
+ * RHEL 6 installer.
  *
  * This serves as a base for the kickstart based installers.
  */
-class UnattendedRhel6And7Installer : public UnattendedLinuxInstaller
+class UnattendedRhel6Installer : public UnattendedLinuxInstaller
 {
 public:
-    UnattendedRhel6And7Installer(Unattended *pParent,
-                                 const char *pszMainScriptTemplateName = "redhat67_ks.cfg",
-                                 const char *pszPostScriptTemplateName = "redhat_postinstall.sh",
-                                 const char *pszMainScriptFilename     = "ks.cfg")
-          : UnattendedLinuxInstaller(pParent, pszMainScriptTemplateName, pszPostScriptTemplateName, pszMainScriptFilename)
+    DECLARE_TRANSLATE_METHODS(UnattendedRhel6Installer)
+
+    UnattendedRhel6Installer(Unattended *pParent,
+                             const char *pszMainScriptTemplateName = "redhat67_ks.cfg",
+                             const char *pszPostScriptTemplateName = "redhat_postinstall.sh",
+                             const char *pszMainScriptFilename     = "ks.cfg")
+        : UnattendedLinuxInstaller(pParent, pszMainScriptTemplateName, pszPostScriptTemplateName, pszMainScriptFilename)
     {
         Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded());
         Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO());
         mStrDefaultExtraInstallKernelParameters.assign(" ks=cdrom:/").append(pszMainScriptFilename).append(' ');
         mArrStrRemoveInstallKernelParameters.append("rd.live.check"); /* Disables the checkisomd5 step. Required for VISO. */
     }
-    ~UnattendedRhel6And7Installer() {}
+    ~UnattendedRhel6Installer() {}
 
     bool isAuxiliaryIsoIsVISO()             { return true; }
     bool isOriginalIsoNeeded() const        { return false; }
@@ -535,65 +684,169 @@ protected:
                                      RTVFS hVfsOrgIso, bool fOverwrite);
 };
 
-
 /**
- * RHEL 5 installer (same as RHEL 6 & 7, except for the kickstart template).
+ * RHEL 7 installer (same as RHEL 6).
+ * The class was added for better handling any possible subtle difference between RHEL6 and RHEL7.
  */
-class UnattendedRhel5Installer : public UnattendedRhel6And7Installer
+class UnattendedRhel7Installer : public UnattendedRhel6Installer
 {
 public:
-    UnattendedRhel5Installer(Unattended *pParent) : UnattendedRhel6And7Installer(pParent, "rhel5_ks.cfg") {}
+    DECLARE_TRANSLATE_METHODS(UnattendedRhel7Installer)
+
+    UnattendedRhel7Installer(Unattended *pParent)
+        : UnattendedRhel6Installer(pParent)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+
+    UnattendedRhel7Installer(Unattended *pParent,
+                             const char *pszMainScriptTemplateName,
+                             const char *pszPostScriptTemplateName,
+                             const char *pszMainScriptFilename)
+        : UnattendedRhel6Installer(pParent, pszMainScriptTemplateName, pszPostScriptTemplateName, pszMainScriptFilename)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+    ~UnattendedRhel7Installer() {}
+};
+
+
+/**
+ * RHEL 8 installer (same as RHEL 7).
+ * The class was added for better handling any possible subtle difference between RHEL7 and RHEL8.
+ */
+class UnattendedRhel8Installer : public UnattendedRhel7Installer
+{
+public:
+    DECLARE_TRANSLATE_METHODS(UnattendedRhel8Installer)
+
+    UnattendedRhel8Installer(Unattended *pParent)
+        : UnattendedRhel7Installer(pParent)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+
+    UnattendedRhel8Installer(Unattended *pParent,
+                             const char *pszMainScriptTemplateName,
+                             const char *pszPostScriptTemplateName,
+                             const char *pszMainScriptFilename)
+        : UnattendedRhel7Installer(pParent, pszMainScriptTemplateName, pszPostScriptTemplateName, pszMainScriptFilename)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+    ~UnattendedRhel8Installer() {}
+};
+
+
+/**
+ * RHEL 5 installer (same as RHEL 6, except for the kickstart template).
+ */
+class UnattendedRhel5Installer : public UnattendedRhel6Installer
+{
+public:
+    DECLARE_TRANSLATE_METHODS(UnattendedRhel5Installer)
+
+    UnattendedRhel5Installer(Unattended *pParent) : UnattendedRhel6Installer(pParent, "rhel5_ks.cfg") {}
     ~UnattendedRhel5Installer() {}
 };
 
 
 /**
- * RHEL 4 installer (same as RHEL 6 & 7, except for the kickstart template).
+ * RHEL 4 installer (same as RHEL 6, except for the kickstart template).
  */
-class UnattendedRhel4Installer : public UnattendedRhel6And7Installer
+class UnattendedRhel4Installer : public UnattendedRhel6Installer
 {
 public:
-    UnattendedRhel4Installer(Unattended *pParent) : UnattendedRhel6And7Installer(pParent, "rhel4_ks.cfg") {}
+    DECLARE_TRANSLATE_METHODS(UnattendedRhel4Installer)
+
+    UnattendedRhel4Installer(Unattended *pParent) : UnattendedRhel6Installer(pParent, "rhel4_ks.cfg") {}
     ~UnattendedRhel4Installer() {}
 };
 
 
 /**
- * RHEL 3 installer (same as RHEL 6 & 7, except for the kickstart template).
+ * RHEL 3 installer (same as RHEL 6, except for the kickstart template).
  */
-class UnattendedRhel3Installer : public UnattendedRhel6And7Installer
+class UnattendedRhel3Installer : public UnattendedRhel6Installer
 {
 public:
-    UnattendedRhel3Installer(Unattended *pParent) : UnattendedRhel6And7Installer(pParent, "rhel3_ks.cfg") {}
+    DECLARE_TRANSLATE_METHODS(UnattendedRhel3Installer)
+
+    UnattendedRhel3Installer(Unattended *pParent) : UnattendedRhel6Installer(pParent, "rhel3_ks.cfg") {}
     ~UnattendedRhel3Installer() {}
 };
 
 
 /**
- * Fedora installer (same as RHEL 6 & 7, except for the template).
+ * Fedora installer (same as RHEL 6, except for the template).
  */
-class UnattendedFedoraInstaller : public UnattendedRhel6And7Installer
+class UnattendedFedoraInstaller : public UnattendedRhel6Installer
 {
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedFedoraInstaller)
+
     UnattendedFedoraInstaller(Unattended *pParent)
-        : UnattendedRhel6And7Installer(pParent, "fedora_ks.cfg")
+        : UnattendedRhel6Installer(pParent, "fedora_ks.cfg")
     { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
     ~UnattendedFedoraInstaller() {}
 };
 
 
 /**
- * Oracle Linux installer (same as RHEL 6 & 7, except for the template).
+ * Oracle Linux 6 installer. Same as RHEL 6, except for the templates.
+ * The reason of adding new class is to sepatate the RHEL from OL.
  */
-class UnattendedOracleLinuxInstaller : public UnattendedRhel6And7Installer
+class UnattendedOracleLinux6Installer : public UnattendedRhel6Installer
 {
 public:
-    UnattendedOracleLinuxInstaller(Unattended *pParent)
-        : UnattendedRhel6And7Installer(pParent, "ol_ks.cfg")
+    DECLARE_TRANSLATE_METHODS(UnattendedOracleLinux6Installer)
+
+    UnattendedOracleLinux6Installer(Unattended *pParent,
+                                    const char *pszMainScriptTemplateName = "ol_ks.cfg",
+                                    const char *pszPostScriptTemplateName = "ol_postinstall.sh",
+                                    const char *pszMainScriptFilename = "ks.cfg")
+        : UnattendedRhel6Installer(pParent, pszMainScriptTemplateName, pszPostScriptTemplateName, pszMainScriptFilename)
     { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
-    ~UnattendedOracleLinuxInstaller() {}
+    ~UnattendedOracleLinux6Installer() {}
 };
 
+
+/**
+ * Oracle Linux 7 installer. Same as OL 6.
+ * The class was added for better handling any possible subtle difference between OL6 and OL7.
+ */
+class UnattendedOracleLinux7Installer : public UnattendedOracleLinux6Installer
+{
+public:
+    DECLARE_TRANSLATE_METHODS(UnattendedOracleLinux7Installer)
+
+    UnattendedOracleLinux7Installer(Unattended *pParent)
+        : UnattendedOracleLinux6Installer(pParent)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+
+    UnattendedOracleLinux7Installer(Unattended *pParent,
+                                    const char *pszMainScriptTemplateName,
+                                    const char *pszPostScriptTemplateName,
+                                    const char *pszMainScriptFilename)
+        : UnattendedOracleLinux6Installer(pParent, pszMainScriptTemplateName, pszPostScriptTemplateName, pszMainScriptFilename)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+    ~UnattendedOracleLinux7Installer() {}
+};
+
+
+/**
+ * Oracle Linux 8 installer. Same as OL 7.
+ * The class was added for better handling any possible subtle difference between OL7 and OL8.
+ */
+class UnattendedOracleLinux8Installer : public UnattendedOracleLinux7Installer
+{
+public:
+    DECLARE_TRANSLATE_METHODS(UnattendedOracleLinux8Installer)
+
+    UnattendedOracleLinux8Installer(Unattended *pParent)
+        : UnattendedOracleLinux7Installer(pParent)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+
+    UnattendedOracleLinux8Installer(Unattended *pParent,
+                                    const char *pszMainScriptTemplateName,
+                                    const char *pszPostScriptTemplateName,
+                                    const char *pszMainScriptFilename)
+        : UnattendedOracleLinux7Installer(pParent, pszMainScriptTemplateName, pszPostScriptTemplateName, pszMainScriptFilename)
+    { Assert(!isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(isAuxiliaryIsoIsVISO()); }
+    ~UnattendedOracleLinux8Installer() {}
+};
 
 #if 0 /* fixme */
 /**
@@ -604,6 +857,8 @@ public:
 class UnattendedSuseInstaller : public UnattendedLinuxInstaller
 {
 public:
+    DECLARE_TRANSLATE_METHODS(UnattendedSuseInstaller)
+
     UnattendedSuseInstaller(BaseTextScript *pAlg, Unattended *pParent)
         : UnattendedLinuxInstaller(pAlg, pParent, "suse_autoinstall.xml")
     { Assert(isOriginalIsoNeeded()); Assert(isAuxiliaryIsoNeeded()); Assert(!isAuxiliaryFloppyNeeded()); Assert(!isAuxiliaryIsoIsVISO()); }
@@ -613,5 +868,24 @@ public:
 };
 #endif
 
-#endif /* !MAIN_INCLUDED_UnattendedInstaller_h */
+/**
+ * Base class for the unattended FreeBSD installers.
+ */
+class UnattendedFreeBsdInstaller : public UnattendedInstaller
+{
+public:
+    UnattendedFreeBsdInstaller(Unattended *pParent)
+        : UnattendedInstaller(pParent,
+                              "freebsd_installer.cfg", "freebsd_postinstall.sh",
+                              "installerconfig", "vboxpostinstall.sh") {}
+    ~UnattendedFreeBsdInstaller() {}
 
+    bool isAuxiliaryIsoNeeded() const       { return true;  }
+    bool isOriginalIsoNeeded() const        { return false; }
+
+protected:
+    HRESULT addFilesToAuxVisoVectors(RTCList<RTCString> &rVecArgs, RTCList<RTCString> &rVecFiles,
+                                     RTVFS hVfsOrgIso, bool fOverwrite);
+};
+
+#endif /* !MAIN_INCLUDED_UnattendedInstaller_h */

@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../..
@@ -64,6 +74,7 @@ ifeq ($(KBUILD_TARGET),solaris)
  include $(PATH_SUB_CURRENT)/solaris/Makefile.kmk
 endif
 ifeq ($(KBUILD_TARGET),win)
+ include $(PATH_SUB_CURRENT)/3D/win/VBoxWddmUmHlp/Makefile.kmk
  ifdef VBOX_WITH_MESA3D
   include $(PATH_SUB_CURRENT)/3D/Makefile.kmk
  endif
@@ -216,6 +227,7 @@ ifdef VBOX_WITH_ADDITIONS_ISO.os2.x86
 	OS2/VBoxService.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxService.exe \
 	OS2/VBoxControl.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxControl.exe \
 	OS2/VBoxReplaceDll.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxReplaceDll.exe \
+	OS2/VBoxOs2AdditionsInstall.exe=$(VBOX_PATH_ADDITIONS.os2.x86)/VBoxOs2AdditionsInstall.exe \
 	OS2/libc06.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc06.dll \
 	OS2/libc061.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc061.dll \
 	OS2/libc062.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/libc062.dll \
@@ -226,7 +238,7 @@ ifdef VBOX_WITH_ADDITIONS_ISO.os2.x86
 	OS2/readme.txt=$(VBOX_PATH_ADDITIONS.os2.x86)/readme.txt \
        \
 	OS2/gengradd.dll=$(VBOX_PATH_ADDITIONS.os2.x86)/gengradd.dll \
-	OS2/vboxmouse.sys=$(VBOX_PATH_ADDITIONS.os2.x86)/vboxmouse.sys
+	OS2/VBoxMouse.sys=$(VBOX_PATH_ADDITIONS.os2.x86)/vboxmouse.sys
 endif
 
 # Oracle Solaris.
@@ -271,31 +283,41 @@ ifdef VBOX_WITH_ADDITIONS_ISO.win.x86
 	cert/VBoxCertUtil.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxCertUtil.exe \
 	NT3x/Readme.txt=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/Installer/ISO/NT3xReadme.txt \
 	NT3x/VBoxGuest.sys=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxGuest.sys \
-	$(if-expr defined(VBOX_SIGN_ADDITIONS),NT3x/VBoxGuest.cat=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxGuest.cat,) \
-	NT3x/VBoxGuest.inf=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxGuest.inf \
 	NT3x/VBoxMouseNT.sys=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouseNT.sys \
-	NT3x/VBoxMouse.inf=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouse.inf \
-	$(if-expr defined(VBOX_SIGN_ADDITIONS),NT3x/VBoxMouse.cat=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouse.cat,) \
-	NT3x/VBoxMouse.sys=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxMouse.sys \
+	NT3x/VBoxService.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxService.exe \
 	NT3x/VBoxControl.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxControl.exe \
-	NT3x/VBoxService.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxService.exe
+	NT3x/VBoxAddInstallNt3x.exe=$(VBOX_PATH_ADDITIONS.win.x86)/VBoxAddInstallNt3x.exe
 endif # win.x86
 
 if defined(VBOX_WITH_ADDITIONS_ISO.win.amd64) || defined(VBOX_WITH_ADDITIONS_ISO.win.x86)
+ # Note! This probably only work reliably when packing is also done on a windows host!
  ifndef VBOX_SIGNING_MODE
   GUESTADDITIONS_FILESPEC.win =
  else if !defined(VBOX_CERTIFICATE_SHA2_SUBJECT_NAME) && !$(intersects win all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
-  GUESTADDITIONS_FILESPEC.win = cert/vbox.cer=$(VBOX_PATH_ADDITIONS.win)/vbox.cer
+  GUESTADDITIONS_FILESPEC.win = \
+  	cert/vbox.cer=$(VBOX_PATH_ADDITIONS.win)/vbox.cer \
+  	cert/vbox-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-root.cer
+  ifdef VBOX_TSA_URL_ARGS
+   GUESTADDITIONS_FILESPEC.win += cert/vbox-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-timestamp-root.cer
+  endif
  else
   GUESTADDITIONS_FILESPEC.win = \
   	cert/vbox-sha1.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1.cer \
+  	cert/vbox-sha1-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1-root.cer \
+  	cert/vbox-sha256-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-root.cer \
   	cert/vbox-sha256.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256.cer
-  if $(intersects win_planb,$(VBOX_WITH_CORP_CODE_SIGNING))
-   GUESTADDITIONS_FILESPEC.win += cert/vbox-sha256-r3.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-r3.cer
+  ifdef VBOX_TSA_URL_ARGS
+   GUESTADDITIONS_FILESPEC.win += cert/vbox-sha1-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha1-timestamp-root.cer
   endif
- endif
- ifdef VBOX_WITH_VBOX_LEGACY_TS_CA
-  GUESTADDITIONS_FILESPEC.win += cert/vbox-legacy-timestamp-ca.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-legacy-timestamp-ca.cer
+  ifdef VBOX_TSA_SHA2_URL_ARGS
+   GUESTADDITIONS_FILESPEC.win += cert/vbox-sha256-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-timestamp-root.cer
+  endif
+  if $(intersects win_planb,$(VBOX_WITH_CORP_CODE_SIGNING))
+   GUESTADDITIONS_FILESPEC.win += \
+   	cert/vbox-sha256-r3.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-r3.cer \
+   	cert/vbox-sha256-r3-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-r3-root.cer \
+   	cert/vbox-sha256-r3-timestamp-root.cer=$(VBOX_PATH_ADDITIONS.win)/vbox-sha256-r3-timestamp-root.cer
+  endif
  endif
  GUESTADDITIONS_FILESPEC.win += windows11-bypass.reg=$(VBOX_PATH_ADDITIONS_SRC)/WINNT/tools/windows11-bypass.reg
 endif

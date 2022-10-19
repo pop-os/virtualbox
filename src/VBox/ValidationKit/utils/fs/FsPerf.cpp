@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -3532,7 +3542,7 @@ int fsPerfIoPrepFile(RTFILE hFile1, uint64_t cbFile, uint8_t **ppbFree)
         size_t cbToRead = cbBuf;
         if (cbToRead > cbLeft)
             cbToRead = (size_t)cbLeft;
-        pbBuf[cbToRead] = 0xff;
+        pbBuf[cbToRead - 1] = 0xff;
 
         RTTESTI_CHECK_RC_RET(RTFileRead(hFile1, pbBuf, cbToRead, NULL), VINF_SUCCESS, rcCheck);
         RTTESTI_CHECK_RET(ASMMemIsZero(pbBuf, cbToRead), VERR_MISMATCH);
@@ -4507,7 +4517,7 @@ static void fsPerfSpliceToFile(RTFILE hFile1, uint64_t cbFile)
         } \
         RTTestIValueF(ns / iIteration, \
                       RTTESTUNIT_NS_PER_OCCURRENCE, a_szOperation "/seq/%RU32 latency", cbBlock); \
-        RTTestIValueF((uint64_t)((uint64_t)iIteration * cbBlock / ((double)ns / RT_NS_1SEC)), \
+        RTTestIValueF((uint64_t)((double)(iIteration * cbBlock) / ((double)ns / RT_NS_1SEC)), \
                       RTTESTUNIT_BYTES_PER_SEC,     a_szOperation "/seq/%RU32 throughput", cbBlock); \
         RTTestIValueF(iIteration, \
                       RTTESTUNIT_CALLS,             a_szOperation "/seq/%RU32 calls", cbBlock); \
@@ -6105,7 +6115,7 @@ static void fsPerfCopy(void)
                 } \
                 RTTestIValueF(ns / iIteration, \
                               RTTESTUNIT_NS_PER_OCCURRENCE, a_szOperation " latency"); \
-                RTTestIValueF((uint64_t)((uint64_t)iIteration * cbFile / ((double)ns / RT_NS_1SEC)), \
+                RTTestIValueF((uint64_t)((double)(iIteration * cbFile) / ((double)ns / RT_NS_1SEC)), \
                               RTTESTUNIT_BYTES_PER_SEC,     a_szOperation " throughput"); \
                 RTTestIValueF((uint64_t)iIteration * cbFile, \
                               RTTESTUNIT_BYTES,             a_szOperation " bytes"); \
@@ -6379,9 +6389,30 @@ int main(int argc, char *argv[])
     /*
      * Default values.
      */
-    char szDefaultDir[32];
+    char szDefaultDir[RTPATH_MAX];
     const char *pszDir = szDefaultDir;
-    RTStrPrintf(szDefaultDir, sizeof(szDefaultDir), "fstestdir-%u" RTPATH_SLASH_STR, RTProcSelf());
+
+    /* As default retrieve the system's temporary directory and create a test directory beneath it,
+     * as this binary might get executed from a read-only medium such as ${CDROM}. */
+    rc = RTPathTemp(szDefaultDir, sizeof(szDefaultDir));
+    if (RT_SUCCESS(rc))
+    {
+        char szDirName[32];
+        RTStrPrintf2(szDirName, sizeof(szDirName), "fstestdir-%u" RTPATH_SLASH_STR, RTProcSelf());
+        rc = RTPathAppend(szDefaultDir, sizeof(szDefaultDir), szDirName);
+        if (RT_FAILURE(rc))
+        {
+            RTTestFailed(g_hTest, "Unable to append dir name in temp dir, rc=%Rrc\n", rc);
+            return RTTestSummaryAndDestroy(g_hTest);
+        }
+    }
+    else
+    {
+        RTTestFailed(g_hTest, "Unable to retrieve temp dir, rc=%Rrc\n", rc);
+        return RTTestSummaryAndDestroy(g_hTest);
+    }
+
+    RTTestIPrintf(RTTESTLVL_INFO, "Default directory is: %s\n", szDefaultDir);
 
     bool fCommsSlave = false;
 
@@ -6673,7 +6704,7 @@ int main(int argc, char *argv[])
 
             case 'V':
             {
-                char szRev[] = "$Revision: 142330 $";
+                char szRev[] = "$Revision: 153224 $";
                 szRev[RT_ELEMENTS(szRev) - 2] = '\0';
                 RTPrintf(RTStrStrip(strchr(szRev, ':') + 1));
                 return RTEXITCODE_SUCCESS;

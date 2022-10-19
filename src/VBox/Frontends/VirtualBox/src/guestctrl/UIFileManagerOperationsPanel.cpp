@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -51,22 +61,22 @@ class UIFileOperationProgressWidget : public QIWithRetranslateUI<QFrame>
 signals:
 
     void sigProgressComplete(QUuid progressId);
-    void sigProgressFail(QString strErrorString, FileManagerLogType eLogType);
+    void sigProgressFail(QString strErrorString, QString strSourceTableName, FileManagerLogType eLogType);
     void sigFocusIn(QWidget *pWidget);
     void sigFocusOut(QWidget *pWidget);
 
 public:
 
-    UIFileOperationProgressWidget(const CProgress &comProgress, QWidget *pParent = 0);
+    UIFileOperationProgressWidget(const CProgress &comProgress, const QString &strSourceTableName, QWidget *pParent = 0);
     ~UIFileOperationProgressWidget();
     bool isCompleted() const;
     bool isCanceled() const;
 
 protected:
 
-    virtual void retranslateUi() /* override */;
-    virtual void focusInEvent(QFocusEvent *pEvent) /* override */;
-    virtual void focusOutEvent(QFocusEvent *pEvent) /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
+    virtual void focusInEvent(QFocusEvent *pEvent) RT_OVERRIDE;
+    virtual void focusOutEvent(QFocusEvent *pEvent) RT_OVERRIDE;
 
 private slots:
 
@@ -100,6 +110,8 @@ private:
     QIToolButton           *m_pCancelButton;
     QILabel                *m_pStatusLabel;
     QILabel                *m_pOperationDescriptionLabel;
+    /** Name of the table from which this operation has originated. */
+    QString                 m_strSourceTableName;
 };
 
 
@@ -107,7 +119,7 @@ private:
 *   UIFileOperationProgressWidget implementation.                                                                                *
 *********************************************************************************************************************************/
 
-UIFileOperationProgressWidget::UIFileOperationProgressWidget(const CProgress &comProgress, QWidget *pParent /* = 0 */)
+UIFileOperationProgressWidget::UIFileOperationProgressWidget(const CProgress &comProgress, const QString &strSourceTableName, QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QFrame>(pParent)
     , m_eStatus(OperationStatus_NotStarted)
     , m_comProgress(comProgress)
@@ -117,6 +129,7 @@ UIFileOperationProgressWidget::UIFileOperationProgressWidget(const CProgress &co
     , m_pCancelButton(0)
     , m_pStatusLabel(0)
     , m_pOperationDescriptionLabel(0)
+    , m_strSourceTableName(strSourceTableName)
 {
     prepare();
     setFocusPolicy(Qt::ClickFocus);
@@ -275,7 +288,7 @@ void UIFileOperationProgressWidget::sltHandleProgressComplete(const QUuid &uProg
 
     if (!m_comProgress.isOk() || m_comProgress.GetResultCode() != 0)
     {
-        emit sigProgressFail(UIErrorString::formatErrorInfo(m_comProgress), FileManagerLogType_Error);
+        emit sigProgressFail(UIErrorString::formatErrorInfo(m_comProgress), m_strSourceTableName, FileManagerLogType_Error);
         m_eStatus = OperationStatus_Failed;
     }
     else
@@ -318,12 +331,12 @@ UIFileManagerOperationsPanel::UIFileManagerOperationsPanel(QWidget *pParent /* =
     prepare();
 }
 
-void UIFileManagerOperationsPanel::addNewProgress(const CProgress &comProgress)
+void UIFileManagerOperationsPanel::addNewProgress(const CProgress &comProgress, const QString &strSourceTableName)
 {
     if (!m_pContainerLayout)
         return;
 
-    UIFileOperationProgressWidget *pOperationsWidget = new UIFileOperationProgressWidget(comProgress);
+    UIFileOperationProgressWidget *pOperationsWidget = new UIFileOperationProgressWidget(comProgress, strSourceTableName);
     if (!pOperationsWidget)
         return;
     m_widgetSet.insert(pOperationsWidget);
@@ -350,9 +363,9 @@ void UIFileManagerOperationsPanel::prepareWidgets()
     if (!mainLayout())
         return;
 
-    QPalette mPalette = palette();
-    mPalette.setColor(QPalette::Window, qApp->palette().color(QPalette::Light));
-    setPalette(mPalette);
+    QPalette pal = QApplication::palette();
+    pal.setColor(QPalette::Active, QPalette::Window, pal.color(QPalette::Active, QPalette::Base));
+    setPalette(pal);
 
     m_pScrollArea = new QScrollArea;
     m_pContainerWidget = new QWidget;

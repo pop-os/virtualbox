@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -58,13 +68,25 @@
 #include <sys/socket.h>
 #include <sys/sockio.h>
 #include <sys/kern_event.h>
-#include <net/kpi_interface.h>
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101500 /* The 10.15 SDK has a slightly butchered API deprecation attempt. */
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wmacro-redefined"      /* Each header redefines __NKE_API_DEPRECATED. */
+# pragma clang diagnostic ignored "-Wmissing-declarations" /* Misplaced __NKE_API_DEPRECATED; in kpi_mbuf.h. */
+# include <sys/kpi_socket.h>
+# include <net/kpi_interface.h>
+# include <sys/kpi_mbuf.h>
+# include <net/kpi_interfacefilter.h>
+# pragma clang diagnostic pop
+#else /* < 10.15*/
+# include <sys/kpi_socket.h>
+# include <net/kpi_interface.h>
 RT_C_DECLS_BEGIN /* Buggy 10.4 headers, fixed in 10.5. */
-#include <sys/kpi_mbuf.h>
-#include <net/kpi_interfacefilter.h>
+# include <sys/kpi_mbuf.h>
+# include <net/kpi_interfacefilter.h>
 RT_C_DECLS_END
+#endif /* < 10.15*/
 
-#include <sys/kpi_socket.h>
+
 #include <net/if.h>
 #include <net/if_var.h>
 RT_C_DECLS_BEGIN
@@ -140,9 +162,9 @@ extern kern_return_t _start(struct kmod_info *pKModInfo, void *pvData);
 extern kern_return_t _stop(struct kmod_info *pKModInfo, void *pvData);
 
 KMOD_EXPLICIT_DECL(VBoxNetFlt, VBOX_VERSION_STRING, _start, _stop)
-DECLHIDDEN(kmod_start_func_t *) _realmain = VBoxNetFltDarwinStart;
-DECLHIDDEN(kmod_stop_func_t  *) _antimain = VBoxNetFltDarwinStop;
-DECLHIDDEN(int)                 _kext_apple_cc = __APPLE_CC__;
+DECL_HIDDEN_DATA(kmod_start_func_t *) _realmain = VBoxNetFltDarwinStart;
+DECL_HIDDEN_DATA(kmod_stop_func_t  *) _antimain = VBoxNetFltDarwinStop;
+DECL_HIDDEN_DATA(int)                 _kext_apple_cc = __APPLE_CC__;
 RT_C_DECLS_END
 
 
@@ -739,7 +761,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
     PVBOXNETFLTINS pThis = (PVBOXNETFLTINS)pvThis;
     uint64_t NanoTS = RTTimeSystemNanoTS();
     LogFlow(("vboxNetFltDarwinIffDetached: pThis=%p NanoTS=%RU64 (%d)\n",
-             pThis, NanoTS, VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) :  -1));
+             pThis, NanoTS, RT_VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) :  -1));
 
     Assert(!pThis->fDisconnectedFromHost);
     Assert(!pThis->fRediscoveryPending);
@@ -758,7 +780,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
     RTSpinlockAcquire(pThis->hSpinlock);
 
     pIfNet = ASMAtomicUoReadPtrT(&pThis->u.s.pIfNet, ifnet_t);
-    int cPromisc = VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) : - 1;
+    int cPromisc = RT_VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) : - 1;
 
     ASMAtomicUoWriteNullPtr(&pThis->u.s.pIfNet);
     ASMAtomicUoWriteNullPtr(&pThis->u.s.pIfFilter);
@@ -823,11 +845,11 @@ static void vboxNetFltDarwinIffEvent(void *pvThis, ifnet_t pIfNet, protocol_fami
     /*
      * Watch out for the interface going online / offline.
      */
-    if (    VALID_PTR(pThis)
-        &&  VALID_PTR(pEvMsg)
-        &&  pEvMsg->vendor_code  == KEV_VENDOR_APPLE
-        &&  pEvMsg->kev_class    == KEV_NETWORK_CLASS
-        &&  pEvMsg->kev_subclass == KEV_DL_SUBCLASS)
+    if (   RT_VALID_PTR(pThis)
+        && RT_VALID_PTR(pEvMsg)
+        && pEvMsg->vendor_code  == KEV_VENDOR_APPLE
+        && pEvMsg->kev_class    == KEV_NETWORK_CLASS
+        && pEvMsg->kev_subclass == KEV_DL_SUBCLASS)
     {
         if (pThis->u.s.pIfNet    == pIfNet)
         {
@@ -868,9 +890,9 @@ static void vboxNetFltDarwinIffEvent(void *pvThis, ifnet_t pIfNet, protocol_fami
 /** @todo KEV_DL_SIFFLAGS              -> pfnReportPromiscuousMode */
         }
         else
-            Log(("vboxNetFltDarwinIffEvent: pThis->u.s.pIfNet=%p pIfNet=%p (%d)\n", pThis->u.s.pIfNet, pIfNet, VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) : -1));
+            Log(("vboxNetFltDarwinIffEvent: pThis->u.s.pIfNet=%p pIfNet=%p (%d)\n", pThis->u.s.pIfNet, pIfNet, RT_VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) : -1));
     }
-    else if (VALID_PTR(pEvMsg))
+    else if (RT_VALID_PTR(pEvMsg))
         Log(("vboxNetFltDarwinIffEvent: vendor_code=%#x kev_class=%#x kev_subclass=%#x event_code=%#x\n",
              pEvMsg->vendor_code, pEvMsg->kev_class, pEvMsg->kev_subclass, pEvMsg->event_code));
 }
@@ -1374,8 +1396,12 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 
     if (pThis->u.s.pSysSock != NULL)
     {
+        RT_GCC_NO_WARN_DEPRECATED_BEGIN
+
         sock_close(pThis->u.s.pSysSock);
         pThis->u.s.pSysSock = NULL;
+
+        RT_GCC_NO_WARN_DEPRECATED_END
     }
 
     IPRT_DARWIN_RESTORE_EFL_AC();
@@ -1405,7 +1431,20 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     IPRT_DARWIN_SAVE_EFL_AC();
     errno_t error;
 
+    /** @todo Figure out how to replace the socket stuff we use to detect
+     *        addresses here as 10.5 deprecates it. */
+    RT_GCC_NO_WARN_DEPRECATED_BEGIN
+
     /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+    /** @todo reorg code to not have numerous returns with duplicate code... */
+
     error = sock_socket(PF_SYSTEM, SOCK_RAW, SYSPROTO_EVENT,
                         vboxNetFltDarwinSysSockUpcall, pThis,
                         &pThis->u.s.pSysSock);
@@ -1447,6 +1486,7 @@ int  vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
         IPRT_DARWIN_RESTORE_EFL_AC();
         return rc;
     }
+    RT_GCC_NO_WARN_DEPRECATED_END
 
     ifnet_t pIfNet = pThis->u.s.pIfNet; /* already retained */
 
@@ -1526,8 +1566,7 @@ static void vboxNetFltDarwinSysSockUpcall(socket_t pSysSock, void *pvData, int f
 
     if (RT_UNLIKELY(pSysSock != pThis->u.s.pSysSock))
     {
-        Log(("vboxNetFltDarwinSysSockUpcall: %p != %p?\n",
-             pSysSock, pThis->u.s.pSysSock));
+        Log(("vboxNetFltDarwinSysSockUpcall: %p != %p?\n", pSysSock, pThis->u.s.pSysSock));
         return;
     }
 
@@ -1540,7 +1579,9 @@ static void vboxNetFltDarwinSysSockUpcall(socket_t pSysSock, void *pvData, int f
         mbuf_t m;
         size_t len = sizeof(struct kern_event_msg) - sizeof(u_int32_t) + sizeof(struct kev_in6_data);
 
+        RT_GCC_NO_WARN_DEPRECATED_BEGIN
         error = sock_receivembuf(pSysSock, NULL, &m, 0, &len);
+        RT_GCC_NO_WARN_DEPRECATED_END
         if (error != 0)
         {
             if (error == EWOULDBLOCK)
@@ -1565,8 +1606,7 @@ static void vboxNetFltDarwinSysSockUpcall(socket_t pSysSock, void *pvData, int f
         {
             if (len - (sizeof(struct kern_event_msg) - sizeof(u_int32_t)) < sizeof(struct kev_in_data))
             {
-                Log(("vboxNetFltDarwinSysSockUpcall: %u bytes is too short for KEV_INET_SUBCLASS\n",
-                     (unsigned int)len));
+                Log(("vboxNetFltDarwinSysSockUpcall: %u bytes is too short for KEV_INET_SUBCLASS\n", (unsigned int)len));
                 mbuf_freem(m);
                 return;
             }
@@ -1612,7 +1652,7 @@ static void vboxNetFltDarwinSysSockUpcall(socket_t pSysSock, void *pvData, int f
             if (len - (sizeof(struct kern_event_msg) - sizeof(u_int32_t)) < sizeof(struct kev_in6_data))
             {
                 Log(("vboxNetFltDarwinSysSockUpcall: %u bytes is too short for KEV_INET6_SUBCLASS\n",
-                        (unsigned int)len));
+                     (unsigned int)len));
                 mbuf_freem(m);
                 return;
             }
@@ -1652,16 +1692,14 @@ static void vboxNetFltDarwinSysSockUpcall(socket_t pSysSock, void *pvData, int f
                     goto kev_inet6_new;
 
                 kev_inet6_new:
-                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                        /* :fAdded */ true, kIntNetAddrType_IPv6, pAddr);
+                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort, true /*fAdded*/, kIntNetAddrType_IPv6, pAddr);
                     break;
 
                 case KEV_INET6_ADDR_DELETED:
                     Log(("KEV_INET6_ADDR_DELETED %.*s%d: %RTnaipv6\n",
                          IFNAMSIZ, link->if_name, link->if_unit, pAddr));
 
-                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort,
-                        /* :fAdded */ false, kIntNetAddrType_IPv6, pAddr);
+                    pThis->pSwitchPort->pfnNotifyHostAddress(pThis->pSwitchPort, false /*fAdded*/, kIntNetAddrType_IPv6, pAddr);
                     break;
 
                 default:

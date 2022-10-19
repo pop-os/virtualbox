@@ -4,15 +4,25 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
+;
+; SPDX-License-Identifier: GPL-3.0-only
 ; --------------------------------------------------------------------
 ;
 ; This code is based on:
@@ -52,9 +62,7 @@
 
 include commondefs.inc
 
-EBDA_SEG        equ     09FC0h          ; starts at 639K
-EBDA_SIZE       equ     1               ; 1K
-BASE_MEM_IN_K   equ     (640 - EBDA_SIZE)
+EBDA_SIZE       equ     1               ; 1K minimum -- other modules may add to it
 
 CMOS_ADDR       equ     070h
 CMOS_DATA       equ     071h
@@ -68,10 +76,11 @@ BIOS_FIX_BASE   equ     0E000h
 
 if VBOX_BIOS_CPU ge 80286
 SYS_MODEL_ID    equ     0FCh            ; PC/AT
+SYS_SUBMODEL_ID equ     1
 else
 SYS_MODEL_ID    equ     0FBh            ; PC/XT
-endif
 SYS_SUBMODEL_ID equ     0
+endif
 BIOS_REVISION   equ     1
 
 BIOS_BUILD_DATE equ     '06/23/99'
@@ -142,9 +151,6 @@ extrn           _inv_op_handler:near
 extrn           rom_scan_:near
 ifdef VBOX_WITH_AHCI
 extrn           _ahci_init:near
-endif
-ifdef VBOX_WITH_VIRTIO_SCSI
-extrn           _virtio_scsi_init:near
 endif
 if VBOX_BIOS_CPU ge 80286
 extrn           _int15_blkmove:near
@@ -448,7 +454,14 @@ endif
                 call    set_int_vects
 
                 ;; base memory in K to 40:13
-                mov     ax, BASE_MEM_IN_K
+                mov     al, 16h
+                out     CMOS_ADDR, al
+                in      al, CMOS_DATA
+                mov     ah, al
+                mov     al, 15h
+                out     CMOS_ADDR, al
+                in      al, CMOS_DATA
+                sub     ax, EBDA_SIZE
                 mov     ds:[413h], ax
 
                 ;; manufacturing test at 40:12
@@ -491,12 +504,6 @@ endif
 
                 xor     ax, ax
                 mov     ds, ax
-                ;; TODO: What's the point? The BDA is zeroed already?!
-                mov     ds:[417h], al   ; keyboard shift flags, set 1
-                mov     ds:[418h], al   ; keyboard shift flags, set 2
-                mov     ds:[419h], al   ; keyboard Alt-numpad work area
-                mov     ds:[471h], al   ; keyboard Ctrl-Break flag
-                mov     ds:[497h], al   ; keyboard status flags 4
                 mov     al, 10h
                 mov     ds:[496h], al   ; keyboard status flags 3
 
@@ -647,11 +654,6 @@ ifdef VBOX_WITH_SCSI
                 call    _scsi_init
 endif
 
-ifdef VBOX_WITH_VIRTIO_SCSI
-                ; VirtIO-SCSI driver setup
-                call    _virtio_scsi_init
-endif
-
                 ;; floppy setup
                 call    floppy_post
 
@@ -736,12 +738,53 @@ int13_handler:
                 jmp     int13_relocated
 
 
+;; Fixed disk table entry
+fd_entry	struc
+	cyls	dw	?		; Cylinders
+	heads	db	?		; Heads
+	res_1	dw	?
+	wpcomp	dw	?		; Write pre-compensation start cylinder
+	res_2	db	?
+	ctrl	db	?		; Control byte
+	res_3	db	?
+	res_4	db	?
+	res_5	db	?
+	lzone	dw	?		; Landing zone cylinder
+	spt	db	?		; Sectors per track
+	res_6	db	?
+fd_entry	ends
+
 ;; --------------------------------------------------------
 ;; Fixed Disk Parameter Table
 ;; --------------------------------------------------------
                 BIOSORG_CHECK   0E401h  ; fixed wrt preceding
 
 rom_fdpt:
+	fd_entry	< 306,  4, 0, 128, 0, 0, 0, 0, 0, 305, 17, 0>	; Type  1,  10 MB
+	fd_entry	< 615,  4, 0, 300, 0, 0, 0, 0, 0, 615, 17, 0>	; Type  2,  20 MB
+	fd_entry	< 615,  6, 0, 300, 0, 0, 0, 0, 0, 615, 17, 0>	; Type  3,  30 MB
+	fd_entry	< 940,  8, 0, 512, 0, 0, 0, 0, 0, 940, 17, 0>	; Type  4,  62 MB
+	fd_entry	< 940,  6, 0, 512, 0, 0, 0, 0, 0, 940, 17, 0>	; Type  5,  46 MB
+	fd_entry	< 615,  4, 0,  -1, 0, 0, 0, 0, 0, 615, 17, 0>	; Type  6,  20 MB
+	fd_entry	< 462,  8, 0, 256, 0, 0, 0, 0, 0, 511, 17, 0>	; Type  7,  31 MB
+	fd_entry	< 733,  5, 0,  -1, 0, 0, 0, 0, 0, 733, 17, 0>	; Type  8,  30 MB
+	fd_entry	< 900, 15, 0,  -1, 0, 8, 0, 0, 0, 901, 17, 0>	; Type  9, 112 MB
+	fd_entry	< 820,  3, 0,  -1, 0, 0, 0, 0, 0, 820, 17, 0>	; Type 10,  20 MB
+
+	fd_entry	< 855,  5, 0,  -1, 0, 0, 0, 0, 0, 855, 17, 0>	; Type 11,  35 MB
+	fd_entry	< 855,  7, 0,  -1, 0, 0, 0, 0, 0, 855, 17, 0>	; Type 12,  49 MB
+	fd_entry	< 306,  8, 0, 128, 0, 0, 0, 0, 0, 319, 17, 0>	; Type 13,  20 MB
+	fd_entry	< 733,  7, 0,  -1, 0, 0, 0, 0, 0, 733, 17, 0>	; Type 14,  42 MB
+	fd_entry	<   0,  0, 0,   0, 0, 0, 0, 0, 0,   0,  0, 0>	; Reserved
+	fd_entry	< 612,  4, 0,  -1, 0, 0, 0, 0, 0, 633, 17, 0>	; Type 16,  20 MB
+	fd_entry	< 977,  5, 0, 300, 0, 0, 0, 0, 0, 977, 17, 0>	; Type 17,  40 MB
+	fd_entry	< 977,  7, 0,  -1, 0, 0, 0, 0, 0, 977, 17, 0>	; Type 18,  56 MB
+	fd_entry	<1024,  7, 0, 512, 0, 0, 0, 0, 0,1023, 17, 0>	; Type 19,  59 MB
+	fd_entry	< 733,  5, 0, 300, 0, 0, 0, 0, 0, 732, 17, 0>	; Type 20,  30 MB
+
+	fd_entry	< 733,  7, 0, 300, 0, 0, 0, 0, 0, 732, 17, 0>	; Type 21,  42 MB
+	fd_entry	< 733,  5, 0, 300, 0, 0, 0, 0, 0, 733, 17, 0>	; Type 22,  30 MB
+	fd_entry	< 306,  4, 0,   0, 0, 0, 0, 0, 0, 336, 17, 0>	; Type 23,  10 MB
 
 ;; --------------------------------------------------------
 ;; INT 19h handler - Boot load service
@@ -881,13 +924,20 @@ ebda_post       proc    near
                 SET_INT_VECTOR 73h, BIOSSEG, dummy_isr  ; IRQ 11
                 SET_INT_VECTOR 77h, BIOSSEG, dummy_isr  ; IRQ 15
 
-                mov     ax, EBDA_SEG
-                mov     ds, ax
-                mov     byte ptr ds:[0], EBDA_SIZE
-                ;; store EBDA seg in 40:0E
+                ;; calculate EBDA segment
                 xor     ax, ax
                 mov     ds, ax
-                mov     word ptr ds:[40Eh], EBDA_SEG
+                mov     ax, ds:[413h]   ; conventional memory size minus EBDA size
+                mov     cx, 64          ; 64 paras per KB
+                mul     cx
+                ;; store EBDA seg in 40:0E
+                mov     word ptr ds:[40Eh], ax
+                ;; store EBDA size in the first word of EBDA
+                mov     ds, ax
+                mov     byte ptr ds:[0], EBDA_SIZE
+                ;; must reset DS to zero again
+                xor     ax, ax
+                mov     ds, ax
                 ret
 
 ebda_post       endp
@@ -1579,30 +1629,15 @@ int18_handler:
                 C_SETUP
                 call    _int18_panic_msg
                 ;; TODO: handle failure better?
+                sti
+stay_here:
                 hlt
-                iret
+                jmp     stay_here
 
 ;;
 ;; INT 19h - boot service - relocated
 ;;
 int19_relocated:
-; If an already booted OS calls int 0x19 to reboot, it is not sufficient
-; just to try booting from the configured drives. All BIOS variables and
-; interrupt vectors need to be reset, otherwise strange things may happen.
-; The approach used is faking a warm reboot (which just skips showing the
-; logo), which is a bit more than what we need, but hey, it's fast.
-                mov     bp, sp
-                mov     ax, [bp+2]      ; TODO: redundant? address via sp?
-                cmp     ax, BIOSSEG     ; check caller's segment
-                jz      bios_initiated_boot
-
-                xor     ax, ax
-                mov     ds, ax
-                mov     ax, 1234h
-                mov     ds:[472], ax
-                jmp     post
-
-bios_initiated_boot:
                 ;; The C worker function returns the boot drive in bl and
                 ;; the boot segment in ax. In case of failure, the boot
                 ;; segment will be zero.
@@ -1678,6 +1713,22 @@ endif
 include pcibios.inc
 include pirq.inc
 
+if 0    ; Sample VPD table
+
+;; IBM style VPD (Vital Product Data) information. Most IBM systems
+;; had a VPD table since about 1992, later the same information was
+;; also reported through DMI.
+
+align 16
+        db      0AAh, 055h, 'VPD'
+        db      48                      ; VPD size
+        db      'RESERVE'               ; reserved... for what?
+        db      'INET35WW '             ; BIOS build ID
+        db      '5238NXU'               ; system serial number
+        db      'J1Y3581338D'           ; unique ID
+        db      '8643MD0'               ; IBM machine type
+        db      0                       ; checksum (to be calculated)
+endif
 
 ;; --------------------------------------------------------
 ;; INT 12h handler - Memory size
@@ -2064,7 +2115,7 @@ cpu_reset:
 
                 ;; BIOS build date
                 db      BIOS_BUILD_DATE
-                db      0                       ; padding
+                db      0                       ; null terminator
                 ;; System model ID
                 db      SYS_MODEL_ID
                 ;; Checksum byte

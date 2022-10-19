@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QITreeWidget_h
@@ -31,11 +41,16 @@
 /* Forward declarations: */
 class QITreeWidget;
 
-/** A functor base to be passed to QITabWidget::filterItems(..). Overload operator()(..) to filter out
- *  tree items. */
+/** A functor base to be passed to QITabWidget::filterItems(..).
+  * Overload operator()(..) to filter out tree items. */
 class SHARED_LIBRARY_STUFF QITreeWidgetItemFilter
 {
- public:
+public:
+
+    /** Destructs item filter. */
+    virtual ~QITreeWidgetItemFilter() { /* Make VC++ 19.2 happy. */ }
+
+    /** Returns whether item can pass the filter. */
     virtual bool operator()(QTreeWidgetItem*) const
     {
         return true;
@@ -95,7 +110,7 @@ signals:
     /** Notifies about tree-widget being resized from @a oldSize to @a size. */
     void resized(const QSize &size, const QSize &oldSize);
 
- public:
+public:
 
     /** Constructs tree-widget passing @a pParent to the base-class. */
     QITreeWidget(QWidget *pParent = 0);
@@ -107,10 +122,11 @@ signals:
     int childCount() const;
     /** Returns the child item with @a iIndex. */
     QITreeWidgetItem *childItem(int iIndex) const;
+    /** Returns a model-index of @a pItem specified. */
     QModelIndex itemIndex(QTreeWidgetItem *pItem);
-    /** Recurses thru the subtree with a root pParent and returns a list of tree items filtered by @a filter.
-     *  When @a pParent is null than QTreeWidget::invisibleRootItem() is used as the root item. */
-    QList<QTreeWidgetItem*> filterItems(const QITreeWidgetItemFilter &filter, QTreeWidgetItem* pParent = 0);
+    /** Recurses thru the subtree with a root @a pParent and returns a list of tree-items filtered by @a filter.
+      * When @a pParent is null then QTreeWidget::invisibleRootItem() is used as the root item. */
+    QList<QTreeWidgetItem*> filterItems(const QITreeWidgetItemFilter &filter, QTreeWidgetItem *pParent = 0);
 
 protected:
 
@@ -119,10 +135,11 @@ protected:
     /** Handles resize @a pEvent. */
     void resizeEvent(QResizeEvent *pEvent);
 
- private:
+private:
 
-    /* Recurses thru the tree and append filtered items to @a filteredItemList. */
-    void filterItemsInternal(const QITreeWidgetItemFilter &filter, QTreeWidgetItem* pParent,
+    /** Recurses thru the subtree with a root @a pParent and appends a
+      * list of tree-items filtered by @a filter to @a filteredItemList. */
+    void filterItemsInternal(const QITreeWidgetItemFilter &filter, QTreeWidgetItem *pParent,
                              QList<QTreeWidgetItem*> &filteredItemList);
 };
 

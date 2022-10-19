@@ -7,26 +7,36 @@ Test Manager WUI - Log viewer
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 # Validation Kit imports.
 from common                             import webutils;
@@ -64,7 +74,7 @@ class WuiLogViewer(WuiContentBase):
         del dParams2[WuiMain.ksParamLogChunkNo];
         sHrefFmt        = '<a href="?%s&%s=%%s" title="%%s">%%s</a>' \
                         % (webutils.encodeUrlParams(dParams2).replace('%', '%%'), WuiMain.ksParamLogChunkNo,);
-        sHtmlWalker = self.genericPageWalker(self._iChunk, (cbFile + self._cbChunk - 1) / self._cbChunk,
+        sHtmlWalker = self.genericPageWalker(self._iChunk, (cbFile + self._cbChunk - 1) // self._cbChunk,
                                              sHrefFmt, 11, 0, 'chunk');
 
         #
@@ -94,14 +104,14 @@ class WuiLogViewer(WuiContentBase):
                                     WuiMain.ksParamGetFileId:         self._oLogFile.idTestResultFile,
                                     WuiMain.ksParamGetFileDownloadIt: False,
                                   },
-                                  sTitle = '%u MiB' % ((cbFile + 1048576 - 1) / 1048576,) );
+                                  sTitle = '%u MiB' % ((cbFile + 1048576 - 1) // 1048576,) );
         oDownloadLink = WuiTmLink('Download Log', '',
                                   { WuiMain.ksParamAction:            WuiMain.ksActionGetFile,
                                     WuiMain.ksParamGetFileSetId:      self._oTestSet.idTestSet,
                                     WuiMain.ksParamGetFileId:         self._oLogFile.idTestResultFile,
                                     WuiMain.ksParamGetFileDownloadIt: True,
                                   },
-                                  sTitle = '%u MiB' % ((cbFile + 1048576 - 1) / 1048576,) );
+                                  sTitle = '%u MiB' % ((cbFile + 1048576 - 1) // 1048576,) );
         oTestSetLink  = WuiTmLink('Test Set', '',
                                   { WuiMain.ksParamAction:            WuiMain.ksActionTestResultDetails,
                                     TestSetData.ksParam_idTestSet:    self._oTestSet.idTestSet,
@@ -149,8 +159,7 @@ class WuiLogViewer(WuiContentBase):
 
         # Figure the end offset.
         offEnd = offFile + self._cbChunk;
-        if offEnd > cbFile:
-            offEnd = cbFile;
+        offEnd = min(offEnd, cbFile);
 
         #
         # Here is an annoying thing, we cannot seek in zip file members. So,

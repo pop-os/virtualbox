@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_medium_UIMediumManager_h
@@ -40,7 +50,7 @@ class UIMedium;
 class UIMediumDetailsWidget;
 class UIMediumItem;
 class UIMediumSearchWidget;
-class UIToolBar;
+class QIToolBar;
 
 
 /** Functor interface allowing to check if passed UIMediumItem is suitable. */
@@ -119,7 +129,7 @@ public:
 
 #ifdef VBOX_WS_MAC
     /** Returns the toolbar. */
-    UIToolBar *toolbar() const { return m_pToolBar; }
+    QIToolBar *toolbar() const { return m_pToolBar; }
 #endif
 
     /** Defines @a pProgressBar reference. */
@@ -130,7 +140,7 @@ protected:
     /** @name Event-handling stuff.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
     /** @} */
 
 public slots:
@@ -178,12 +188,22 @@ private slots:
         void sltRemoveMedium();
         /** Handles command to release medium. */
         void sltReleaseMedium();
+        /** Removes all inaccessible media. */
+        void sltClear();
         /** Handles command to make medium details @a fVisible. */
         void sltToggleMediumDetailsVisibility(bool fVisible);
         /** Handles command to make medium search pane @a fVisible. */
         void sltToggleMediumSearchVisibility(bool fVisible);
         /** Handles command to refresh medium. */
         void sltRefreshAll();
+    /** @} */
+
+    /** @name Menu/action handler stuff.
+      * @{ */
+        /** Handles medium move progress finished signal. */
+        void sltHandleMoveProgressFinished();
+        /** Handles medium resize progress finished signal. */
+        void sltHandleResizeProgressFinished();
     /** @} */
 
     /** @name Tab-widget stuff.
@@ -202,10 +222,16 @@ private slots:
         void sltPerformTablesAdjustment();
     /** @} */
 
-   /** @name Medium search stuff.
+    /** @name Medium search stuff.
       * @{ */
         /** Adjusts tree-widgets according content. */
         void sltHandlePerformSearch();
+    /** @} */
+
+    /** @name Medium search stuff.
+      * @{ */
+        /** Handles command to detach COM stuff. */
+        void sltDetachCOM();
     /** @} */
 
 private:
@@ -283,6 +309,8 @@ private:
 
         /** Defines current item for passed @a pTreeWidget as @a pItem. */
         void setCurrentItem(QITreeWidget *pTreeWidget, QTreeWidgetItem *pItem);
+
+    void enableClearAction();
     /** @} */
 
     /** @name Search stuff.
@@ -363,7 +391,7 @@ private:
     /** @name Toolbar and menu variables.
       * @{ */
         /** Holds the toolbar widget instance. */
-        UIToolBar *m_pToolBar;
+        QIToolBar *m_pToolBar;
     /** @} */
 
     /** @name Progress-bar variables.
@@ -394,7 +422,7 @@ protected:
 
     /** Creates derived @a pDialog instance.
       * @param  pCenterWidget  Brings the widget reference to center according to. */
-    virtual void create(QIManagerDialog *&pDialog, QWidget *pCenterWidget) /* override */;
+    virtual void create(QIManagerDialog *&pDialog, QWidget *pCenterWidget) RT_OVERRIDE;
 
     /** Holds the action-pool reference. */
     UIActionPool *m_pActionPool;
@@ -423,7 +451,7 @@ private slots:
 
 private:
 
-    /** Constructs Host Network Manager dialog.
+    /** Constructs Medium Manager dialog.
       * @param  pCenterWidget  Brings the widget reference to center according to.
       * @param  pActionPool    Brings the action-pool reference. */
     UIMediumManager(QWidget *pCenterWidget, UIActionPool *pActionPool);
@@ -431,25 +459,25 @@ private:
     /** @name Event-handling stuff.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
     /** @} */
 
     /** @name Prepare/cleanup cascade.
       * @{ */
         /** Configures all. */
-        virtual void configure() /* override */;
+        virtual void configure() RT_OVERRIDE;
         /** Configures central-widget. */
-        virtual void configureCentralWidget() /* override */;
+        virtual void configureCentralWidget() RT_OVERRIDE;
         /** Configures button-box. */
-        virtual void configureButtonBox() /* override */;
+        virtual void configureButtonBox() RT_OVERRIDE;
         /** Perform final preparations. */
-        virtual void finalize() /* override */;
+        virtual void finalize() RT_OVERRIDE;
     /** @} */
 
     /** @name Widget stuff.
       * @{ */
         /** Returns the widget. */
-        virtual UIMediumManagerWidget *widget() /* override */;
+        virtual UIMediumManagerWidget *widget() RT_OVERRIDE;
     /** @} */
 
     /** @name Action related variables.

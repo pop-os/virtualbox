@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -20,12 +30,13 @@
 #include <QDir>
 
 /* GUI includes: */
-#include "UIMedium.h"
 #include "UICommon.h"
 #include "UIConverter.h"
 #include "UIErrorString.h"
 #include "UIExtraDataManager.h"
 #include "UIIconPool.h"
+#include "UIMedium.h"
+#include "UITranslator.h"
 
 /* COM includes: */
 #include "CMachine.h"
@@ -225,11 +236,11 @@ void UIMedium::refresh()
             if (m_state != KMediumState_Inaccessible && m_state != KMediumState_NotCreated)
             {
                 m_uSize = m_medium.GetSize();
-                m_strSize = uiCommon().formatSize(m_uSize);
+                m_strSize = UITranslator::formatSize(m_uSize);
                 if (m_type == UIMediumDeviceType_HardDisk)
                 {
                     m_uLogicalSize = m_medium.GetLogicalSize();
-                    m_strLogicalSize = uiCommon().formatSize(m_uLogicalSize);
+                    m_strLogicalSize = UITranslator::formatSize(m_uLogicalSize);
                 }
                 else
                 {
@@ -408,7 +419,7 @@ void UIMedium::refresh()
                 if (m_result.isOk())
                 {
                     /* Not Accessible: */
-                    m_strToolTip += m_sstrRow.arg("<hr>") + m_sstrRow.arg(UICommon::highlight(m_strLastAccessError, true /* aToolTip */));
+                    m_strToolTip += m_sstrRow.arg("<hr>") + m_sstrRow.arg(UITranslator::highlight(m_strLastAccessError, true /* aToolTip */));
                 }
                 else
                 {
@@ -467,12 +478,12 @@ QPixmap UIMedium::icon(bool fNoDiffs /* = false */, bool fCheckRO /* = false */)
     QPixmap pixmap;
 
     if (state(fNoDiffs) == KMediumState_Inaccessible)
-        pixmap = result(fNoDiffs).isOk() ? uiCommon().warningIcon() : uiCommon().errorIcon();
+        pixmap = result(fNoDiffs).isOk() ? generalIconPool().warningIcon() : generalIconPool().errorIcon();
 
     if (fCheckRO && m_fReadOnly)
     {
         QIcon icon = UIIconPool::iconSet(":/hd_create_16px.png");
-        pixmap = UICommon::joinPixmaps(pixmap, icon.pixmap(icon.availableSizes().value(0, QSize(16, 16))));
+        pixmap = UIIconPool::joinPixmaps(pixmap, icon.pixmap(icon.availableSizes().value(0, QSize(16, 16))));
     }
 
     return pixmap;

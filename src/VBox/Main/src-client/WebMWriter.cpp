@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /**
@@ -21,7 +31,7 @@
  * - https://www.webmproject.org/docs/container/#muxer-guidelines
  */
 
-#define LOG_GROUP LOG_GROUP_MAIN_DISPLAY
+#define LOG_GROUP LOG_GROUP_RECORDING
 #include "LoggingNew.h"
 
 #include <iprt/buildconfig.h>
@@ -29,6 +39,7 @@
 
 #include <VBox/version.h>
 
+#include "RecordingInternals.h"
 #include "WebMWriter.h"
 
 
@@ -56,26 +67,23 @@ WebMWriter::~WebMWriter(void)
  * @param   a_enmVideoCodec Video codec to use.
  */
 int WebMWriter::OpenEx(const char *a_pszFilename, PRTFILE a_phFile,
-                       WebMWriter::AudioCodec a_enmAudioCodec, WebMWriter::VideoCodec a_enmVideoCodec)
+                       RecordingAudioCodec_T a_enmAudioCodec, RecordingVideoCodec_T a_enmVideoCodec)
 {
     try
     {
-        m_enmAudioCodec = a_enmAudioCodec;
-        m_enmVideoCodec = a_enmVideoCodec;
-
         LogFunc(("Creating '%s'\n", a_pszFilename));
 
-        int rc = createEx(a_pszFilename, a_phFile);
-        if (RT_SUCCESS(rc))
+        int vrc = createEx(a_pszFilename, a_phFile);
+        if (RT_SUCCESS(vrc))
         {
-            rc = init();
-            if (RT_SUCCESS(rc))
-                rc = writeHeader();
+            vrc = init(a_enmAudioCodec, a_enmVideoCodec);
+            if (RT_SUCCESS(vrc))
+                vrc = writeHeader();
         }
     }
-    catch(int rc)
+    catch(int vrc)
     {
-        return rc;
+        return vrc;
     }
     return VINF_SUCCESS;
 }
@@ -90,26 +98,23 @@ int WebMWriter::OpenEx(const char *a_pszFilename, PRTFILE a_phFile,
  * @param   a_enmVideoCodec Video codec to use.
  */
 int WebMWriter::Open(const char *a_pszFilename, uint64_t a_fOpen,
-                     WebMWriter::AudioCodec a_enmAudioCodec, WebMWriter::VideoCodec a_enmVideoCodec)
+                     RecordingAudioCodec_T a_enmAudioCodec, RecordingVideoCodec_T a_enmVideoCodec)
 {
     try
     {
-        m_enmAudioCodec = a_enmAudioCodec;
-        m_enmVideoCodec = a_enmVideoCodec;
-
         LogFunc(("Creating '%s'\n", a_pszFilename));
 
-        int rc = create(a_pszFilename, a_fOpen);
-        if (RT_SUCCESS(rc))
+        int vrc = create(a_pszFilename, a_fOpen);
+        if (RT_SUCCESS(vrc))
         {
-            rc = init();
-            if (RT_SUCCESS(rc))
-                rc = writeHeader();
+            vrc = init(a_enmAudioCodec, a_enmVideoCodec);
+            if (RT_SUCCESS(vrc))
+                vrc = writeHeader();
         }
     }
-    catch(int rc)
+    catch(int vrc)
     {
-        return rc;
+        return vrc;
     }
     return VINF_SUCCESS;
 }
@@ -117,7 +122,7 @@ int WebMWriter::Open(const char *a_pszFilename, uint64_t a_fOpen,
 /**
  * Closes the WebM file and drains all queues.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  */
 int WebMWriter::Close(void)
 {
@@ -127,24 +132,24 @@ int WebMWriter::Close(void)
         return VINF_SUCCESS;
 
     /* Make sure to drain all queues. */
-    processQueue(&CurSeg.queueBlocks, true /* fForce */);
+    processQueue(&m_CurSeg.m_queueBlocks, true /* fForce */);
 
     writeFooter();
 
-    WebMTracks::iterator itTrack = CurSeg.mapTracks.begin();
-    while (itTrack != CurSeg.mapTracks.end())
+    WebMTracks::iterator itTrack = m_CurSeg.m_mapTracks.begin();
+    while (itTrack != m_CurSeg.m_mapTracks.end())
     {
         WebMTrack *pTrack = itTrack->second;
         if (pTrack) /* Paranoia. */
             delete pTrack;
 
-        CurSeg.mapTracks.erase(itTrack);
+        m_CurSeg.m_mapTracks.erase(itTrack);
 
-        itTrack = CurSeg.mapTracks.begin();
+        itTrack = m_CurSeg.m_mapTracks.begin();
     }
 
-    Assert(CurSeg.queueBlocks.Map.size() == 0);
-    Assert(CurSeg.mapTracks.size() == 0);
+    Assert(m_CurSeg.m_queueBlocks.Map.size() == 0);
+    Assert(m_CurSeg.m_mapTracks.size() == 0);
 
     com::Utf8Str strFileName = getFileName().c_str();
 
@@ -156,37 +161,23 @@ int WebMWriter::Close(void)
 /**
  * Adds an audio track.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
+ * @param   pCodec          Audio codec to use.
  * @param   uHz             Input sampling rate.
  *                          Must be supported by the selected audio codec.
  * @param   cChannels       Number of input audio channels.
  * @param   cBits           Number of input bits per channel.
  * @param   puTrack         Track number on successful creation. Optional.
  */
-int WebMWriter::AddAudioTrack(uint16_t uHz, uint8_t cChannels, uint8_t cBits, uint8_t *puTrack)
+int WebMWriter::AddAudioTrack(PRECORDINGCODEC pCodec, uint16_t uHz, uint8_t cChannels, uint8_t cBits, uint8_t *puTrack)
 {
-#ifdef VBOX_WITH_LIBOPUS
     AssertReturn(uHz,       VERR_INVALID_PARAMETER);
     AssertReturn(cBits,     VERR_INVALID_PARAMETER);
     AssertReturn(cChannels, VERR_INVALID_PARAMETER);
 
-    /*
-     * Adjust the handed-in Hz rate to values which are supported by the Opus codec.
-     *
-     * Only the following values are supported by an Opus standard build
-     * -- every other rate only is supported by a custom build.
-     *
-     * See opus_encoder_create() for more information.
-     */
-    if      (uHz > 24000) uHz = 48000;
-    else if (uHz > 16000) uHz = 24000;
-    else if (uHz > 12000) uHz = 16000;
-    else if (uHz > 8000 ) uHz = 12000;
-    else     uHz = 8000;
-
     /* Some players (e.g. Firefox with Nestegg) rely on track numbers starting at 1.
      * Using a track number 0 will show those files as being corrupted. */
-    const uint8_t uTrack = (uint8_t)CurSeg.mapTracks.size() + 1;
+    const uint8_t uTrack = (uint8_t)m_CurSeg.m_mapTracks.size() + 1;
 
     subStart(MkvElem_TrackEntry);
 
@@ -194,57 +185,117 @@ int WebMWriter::AddAudioTrack(uint16_t uHz, uint8_t cChannels, uint8_t cBits, ui
     serializeString         (MkvElem_Language,    "und" /* "Undefined"; see ISO-639-2. */);
     serializeUnsignedInteger(MkvElem_FlagLacing,  (uint8_t)0);
 
-    WebMTrack *pTrack = new WebMTrack(WebMTrackType_Audio, uTrack, RTFileTell(getFile()));
+    int vrc = VINF_SUCCESS;
 
-    pTrack->Audio.uHz            = uHz;
-    pTrack->Audio.msPerBlock     = 20; /** Opus uses 20ms by default. Make this configurable? */
-    pTrack->Audio.framesPerBlock = uHz / (1000 /* s in ms */ / pTrack->Audio.msPerBlock);
+    WebMTrack *pTrack = NULL;
+    try
+    {
+        pTrack = new WebMTrack(WebMTrackType_Audio, pCodec, uTrack, RTFileTell(getFile()));
+    }
+    catch (std::bad_alloc &)
+    {
+        vrc = VERR_NO_MEMORY;
+    }
 
-    WEBMOPUSPRIVDATA opusPrivData(uHz, cChannels);
+    if (RT_SUCCESS(vrc))
+    {
+        serializeUnsignedInteger(MkvElem_TrackUID,     pTrack->uUUID, 4)
+              .serializeUnsignedInteger(MkvElem_TrackType,    2 /* Audio */);
 
-    LogFunc(("Opus @ %RU16Hz (%RU16ms + %RU16 frames per block)\n",
-             pTrack->Audio.uHz, pTrack->Audio.msPerBlock, pTrack->Audio.framesPerBlock));
+        switch (m_enmAudioCodec)
+        {
+# ifdef VBOX_WITH_LIBVORBIS
+            case RecordingAudioCodec_OggVorbis:
+            {
+                pTrack->Audio.msPerBlock = 0; /** @todo */
+                if (!pTrack->Audio.msPerBlock) /* No ms per frame defined? Use default. */
+                    pTrack->Audio.msPerBlock = VBOX_RECORDING_VORBIS_FRAME_MS_DEFAULT;
 
-    serializeUnsignedInteger(MkvElem_TrackUID,     pTrack->uUUID, 4)
-          .serializeUnsignedInteger(MkvElem_TrackType,    2 /* Audio */)
-          .serializeString(MkvElem_CodecID,               "A_OPUS")
-          .serializeData(MkvElem_CodecPrivate,            &opusPrivData, sizeof(opusPrivData))
-          .serializeUnsignedInteger(MkvElem_CodecDelay,   0)
-          .serializeUnsignedInteger(MkvElem_SeekPreRoll,  80 * 1000000) /* 80ms in ns. */
-          .subStart(MkvElem_Audio)
-              .serializeFloat(MkvElem_SamplingFrequency,  (float)uHz)
-              .serializeUnsignedInteger(MkvElem_Channels, cChannels)
-              .serializeUnsignedInteger(MkvElem_BitDepth, cBits)
-          .subEnd(MkvElem_Audio)
-          .subEnd(MkvElem_TrackEntry);
+                vorbis_comment vc;
+                vorbis_comment_init(&vc);
+                vorbis_comment_add_tag(&vc,"ENCODER", vorbis_version_string());
 
-    CurSeg.mapTracks[uTrack] = pTrack;
+                ogg_packet pkt_ident;
+                ogg_packet pkt_comments;
+                ogg_packet pkt_setup;
+                vorbis_analysis_headerout(&pCodec->Audio.Vorbis.dsp_state, &vc, &pkt_ident, &pkt_comments, &pkt_setup);
+                AssertMsgBreakStmt(pkt_ident.bytes <= 255 && pkt_comments.bytes <= 255,
+                                   ("Too long header / comment packets\n"), vrc = VERR_INVALID_PARAMETER);
 
-    if (puTrack)
-        *puTrack = uTrack;
+                WEBMOGGVORBISPRIVDATA vorbisPrivData(pkt_ident.bytes, pkt_comments.bytes, pkt_setup.bytes);
 
-    return VINF_SUCCESS;
-#else
-    RT_NOREF(uHz, cChannels, cBits, puTrack);
-    return VERR_NOT_SUPPORTED;
-#endif
+                uint8_t *pabHdr = &vorbisPrivData.abHdr[0];
+                memcpy(pabHdr, pkt_ident.packet, pkt_ident.bytes);
+                pabHdr += pkt_ident.bytes;
+                memcpy(pabHdr, pkt_comments.packet, pkt_comments.bytes);
+                pabHdr += pkt_comments.bytes;
+                memcpy(pabHdr, pkt_setup.packet, pkt_setup.bytes);
+                pabHdr += pkt_setup.bytes;
+
+                vorbis_comment_clear(&vc);
+
+                size_t const offHeaders = RT_OFFSETOF(WEBMOGGVORBISPRIVDATA, abHdr);
+
+                serializeString(MkvElem_CodecID,    "A_VORBIS");
+                serializeData(MkvElem_CodecPrivate, &vorbisPrivData,
+                              offHeaders + pkt_ident.bytes + pkt_comments.bytes + pkt_setup.bytes);
+                break;
+            }
+# endif /* VBOX_WITH_LIBVORBIS */
+            default:
+                AssertFailedStmt(vrc = VERR_NOT_SUPPORTED); /* Shouldn't ever happen (tm). */
+                break;
+        }
+
+        if (RT_SUCCESS(vrc))
+        {
+            serializeUnsignedInteger(MkvElem_CodecDelay,   0)
+           .serializeUnsignedInteger(MkvElem_SeekPreRoll,  80 * 1000000) /* 80ms in ns. */
+                  .subStart(MkvElem_Audio)
+                      .serializeFloat(MkvElem_SamplingFrequency,  (float)uHz)
+                      .serializeUnsignedInteger(MkvElem_Channels, cChannels)
+                      .serializeUnsignedInteger(MkvElem_BitDepth, cBits)
+                  .subEnd(MkvElem_Audio)
+                  .subEnd(MkvElem_TrackEntry);
+
+            pTrack->Audio.uHz            = uHz;
+            pTrack->Audio.framesPerBlock = uHz / (1000 /* s in ms */ / pTrack->Audio.msPerBlock);
+
+            LogRel2(("Recording: WebM track #%RU8: Audio codec @ %RU16Hz (%RU16ms, %RU16 frames per block)\n",
+                     pTrack->uTrack, pTrack->Audio.uHz, pTrack->Audio.msPerBlock, pTrack->Audio.framesPerBlock));
+
+            m_CurSeg.m_mapTracks[uTrack] = pTrack;
+
+            if (puTrack)
+                *puTrack = uTrack;
+
+            return VINF_SUCCESS;
+        }
+    }
+
+    if (pTrack)
+        delete pTrack;
+
+    LogFlowFuncLeaveRC(vrc);
+    return vrc;
 }
 
 /**
  * Adds a video track.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
+ * @param   pCodec              Codec data to use.
  * @param   uWidth              Width (in pixels) of the video track.
  * @param   uHeight             Height (in pixels) of the video track.
  * @param   uFPS                FPS (Frames Per Second) of the video track.
  * @param   puTrack             Track number of the added video track on success. Optional.
  */
-int WebMWriter::AddVideoTrack(uint16_t uWidth, uint16_t uHeight, uint32_t uFPS, uint8_t *puTrack)
+int WebMWriter::AddVideoTrack(PRECORDINGCODEC pCodec, uint16_t uWidth, uint16_t uHeight, uint32_t uFPS, uint8_t *puTrack)
 {
 #ifdef VBOX_WITH_LIBVPX
     /* Some players (e.g. Firefox with Nestegg) rely on track numbers starting at 1.
      * Using a track number 0 will show those files as being corrupted. */
-    const uint8_t uTrack = (uint8_t)CurSeg.mapTracks.size() + 1;
+    const uint8_t uTrack = (uint8_t)m_CurSeg.m_mapTracks.size() + 1;
 
     subStart(MkvElem_TrackEntry);
 
@@ -252,7 +303,7 @@ int WebMWriter::AddVideoTrack(uint16_t uWidth, uint16_t uHeight, uint32_t uFPS, 
     serializeString         (MkvElem_Language,    "und" /* "Undefined"; see ISO-639-2. */);
     serializeUnsignedInteger(MkvElem_FlagLacing,  (uint8_t)0);
 
-    WebMTrack *pTrack = new WebMTrack(WebMTrackType_Video, uTrack, RTFileTell(getFile()));
+    WebMTrack *pTrack = new WebMTrack(WebMTrackType_Video, pCodec, uTrack, RTFileTell(getFile()));
 
     /** @todo Resolve codec type. */
     serializeUnsignedInteger(MkvElem_TrackUID,    pTrack->uUUID /* UID */, 4)
@@ -268,14 +319,16 @@ int WebMWriter::AddVideoTrack(uint16_t uWidth, uint16_t uHeight, uint32_t uFPS, 
 
     subEnd(MkvElem_TrackEntry);
 
-    CurSeg.mapTracks[uTrack] = pTrack;
+    LogRel2(("Recording: WebM track #%RU8: Video\n", pTrack->uTrack));
+
+    m_CurSeg.m_mapTracks[uTrack] = pTrack;
 
     if (puTrack)
         *puTrack = uTrack;
 
     return VINF_SUCCESS;
 #else
-    RT_NOREF(uWidth, uHeight, dbFPS, puTrack);
+    RT_NOREF(pCodec, uWidth, uHeight, uFPS, puTrack);
     return VERR_NOT_SUPPORTED;
 #endif
 }
@@ -313,11 +366,23 @@ uint64_t WebMWriter::GetAvailableSpace(void)
 /**
  * Takes care of the initialization of the instance.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
+ * @retval  VERR_NOT_SUPPORTED if a given codec is not supported.
+ * @param   enmAudioCodec       Audio codec to use.
+ * @param   enmVideoCodec       Video codec to use.
  */
-int WebMWriter::init(void)
+int WebMWriter::init(RecordingAudioCodec_T enmAudioCodec, RecordingVideoCodec_T enmVideoCodec)
 {
-    return CurSeg.init();
+#ifndef VBOX_WITH_LIBVORBIS
+    AssertReturn(enmAudioCodec != RecordingAudioCodec_OggVorbis, VERR_NOT_SUPPORTED);
+#endif
+    AssertReturn(   enmVideoCodec == RecordingVideoCodec_None
+                 || enmVideoCodec == RecordingVideoCodec_VP8, VERR_NOT_SUPPORTED);
+
+    m_enmAudioCodec = enmAudioCodec;
+    m_enmVideoCodec = enmVideoCodec;
+
+    return m_CurSeg.init();
 }
 
 /**
@@ -325,13 +390,13 @@ int WebMWriter::init(void)
  */
 void WebMWriter::destroy(void)
 {
-    CurSeg.uninit();
+    m_CurSeg.uninit();
 }
 
 /**
  * Writes the WebM file header.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  */
 int WebMWriter::writeHeader(void)
 {
@@ -350,12 +415,12 @@ int WebMWriter::writeHeader(void)
     subStart(MkvElem_Segment);
 
     /* Save offset of current segment. */
-    CurSeg.offStart = RTFileTell(getFile());
+    m_CurSeg.m_offStart = RTFileTell(getFile());
 
     writeSeekHeader();
 
     /* Save offset of upcoming tracks segment. */
-    CurSeg.offTracks = RTFileTell(getFile());
+    m_CurSeg.m_offTracks = RTFileTell(getFile());
 
     /* The tracks segment starts right after this header. */
     subStart(MkvElem_Tracks);
@@ -367,14 +432,14 @@ int WebMWriter::writeHeader(void)
 /**
  * Writes a simple block into the EBML structure.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  * @param   a_pTrack        Track the simple block is assigned to.
  * @param   a_pBlock        Simple block to write.
  */
 int WebMWriter::writeSimpleBlockEBML(WebMTrack *a_pTrack, WebMSimpleBlock *a_pBlock)
 {
 #ifdef LOG_ENABLED
-    WebMCluster &Cluster = CurSeg.CurCluster;
+    WebMCluster &Cluster = m_CurSeg.m_CurCluster;
 
     Log3Func(("[T%RU8C%RU64] Off=%RU64, AbsPTSMs=%RU64, RelToClusterMs=%RU16, %zu bytes\n",
               a_pTrack->uTrack, Cluster.uID, RTFileTell(getFile()),
@@ -404,7 +469,7 @@ int WebMWriter::writeSimpleBlockEBML(WebMTrack *a_pTrack, WebMSimpleBlock *a_pBl
 /**
  * Writes a simple block and enqueues it into the segment's render queue.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  * @param   a_pTrack        Track the simple block is assigned to.
  * @param   a_pBlock        Simple block to write and enqueue.
  */
@@ -412,15 +477,15 @@ int WebMWriter::writeSimpleBlockQueued(WebMTrack *a_pTrack, WebMSimpleBlock *a_p
 {
     RT_NOREF(a_pTrack);
 
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
 
     try
     {
         const WebMTimecodeAbs tcAbsPTS = a_pBlock->Data.tcAbsPTSMs;
 
         /* See if we already have an entry for the specified timecode in our queue. */
-        WebMBlockMap::iterator itQueue = CurSeg.queueBlocks.Map.find(tcAbsPTS);
-        if (itQueue != CurSeg.queueBlocks.Map.end()) /* Use existing queue. */
+        WebMBlockMap::iterator itQueue = m_CurSeg.m_queueBlocks.Map.find(tcAbsPTS);
+        if (itQueue != m_CurSeg.m_queueBlocks.Map.end()) /* Use existing queue. */
         {
             WebMTimecodeBlocks &Blocks = itQueue->second;
             Blocks.Enqueue(a_pBlock);
@@ -430,104 +495,41 @@ int WebMWriter::writeSimpleBlockQueued(WebMTrack *a_pTrack, WebMSimpleBlock *a_p
             WebMTimecodeBlocks Blocks;
             Blocks.Enqueue(a_pBlock);
 
-            CurSeg.queueBlocks.Map[tcAbsPTS] = Blocks;
+            m_CurSeg.m_queueBlocks.Map[tcAbsPTS] = Blocks;
         }
 
-        rc = processQueue(&CurSeg.queueBlocks, false /* fForce */);
+        vrc = processQueue(&m_CurSeg.m_queueBlocks, false /* fForce */);
     }
     catch(...)
     {
         delete a_pBlock;
         a_pBlock = NULL;
 
-        rc = VERR_NO_MEMORY;
+        vrc = VERR_NO_MEMORY;
     }
 
-    return rc;
+    return vrc;
 }
-
-#ifdef VBOX_WITH_LIBVPX
-/**
- * Writes VPX (VP8 video) simple data block.
- *
- * @returns IPRT status code.
- * @param   a_pTrack        Track ID to write data to.
- * @param   a_pCfg          VPX encoder configuration to use.
- * @param   a_pPkt          VPX packet video data packet to write.
- */
-int WebMWriter::writeSimpleBlockVP8(WebMTrack *a_pTrack, const vpx_codec_enc_cfg_t *a_pCfg, const vpx_codec_cx_pkt_t *a_pPkt)
-{
-    RT_NOREF(a_pTrack);
-
-    /* Calculate the absolute PTS of this frame (in ms). */
-    WebMTimecodeAbs tcAbsPTSMs =   a_pPkt->data.frame.pts * 1000
-                                 * (uint64_t) a_pCfg->g_timebase.num / a_pCfg->g_timebase.den;
-    if (   tcAbsPTSMs
-        && tcAbsPTSMs <= a_pTrack->tcAbsLastWrittenMs)
-    {
-        AssertFailed(); /* Should never happen. */
-        tcAbsPTSMs = a_pTrack->tcAbsLastWrittenMs + 1;
-    }
-
-    const bool fKeyframe = RT_BOOL(a_pPkt->data.frame.flags & VPX_FRAME_IS_KEY);
-
-    uint8_t fFlags = VBOX_WEBM_BLOCK_FLAG_NONE;
-    if (fKeyframe)
-        fFlags |= VBOX_WEBM_BLOCK_FLAG_KEY_FRAME;
-    if (a_pPkt->data.frame.flags & VPX_FRAME_IS_INVISIBLE)
-        fFlags |= VBOX_WEBM_BLOCK_FLAG_INVISIBLE;
-
-    return writeSimpleBlockQueued(a_pTrack,
-                                  new WebMSimpleBlock(a_pTrack,
-                                                      tcAbsPTSMs, a_pPkt->data.frame.buf, a_pPkt->data.frame.sz, fFlags));
-}
-#endif /* VBOX_WITH_LIBVPX */
-
-#ifdef VBOX_WITH_LIBOPUS
-/**
- * Writes an Opus (audio) simple data block.
- *
- * @returns IPRT status code.
- * @param   a_pTrack        Track ID to write data to.
- * @param   pvData          Pointer to simple data block to write.
- * @param   cbData          Size (in bytes) of simple data block to write.
- * @param   tcAbsPTSMs      Absolute PTS of simple data block.
- *
- * @remarks Audio blocks that have same absolute timecode as video blocks SHOULD be written before the video blocks.
- */
-int WebMWriter::writeSimpleBlockOpus(WebMTrack *a_pTrack, const void *pvData, size_t cbData, WebMTimecodeAbs tcAbsPTSMs)
-{
-    AssertPtrReturn(a_pTrack, VERR_INVALID_POINTER);
-    AssertPtrReturn(pvData,   VERR_INVALID_POINTER);
-    AssertReturn(cbData,      VERR_INVALID_PARAMETER);
-
-    /* Every Opus frame is a key frame. */
-    const uint8_t fFlags = VBOX_WEBM_BLOCK_FLAG_KEY_FRAME;
-
-    return writeSimpleBlockQueued(a_pTrack,
-                                  new WebMSimpleBlock(a_pTrack, tcAbsPTSMs, pvData, cbData, fFlags));
-}
-#endif /* VBOX_WITH_LIBOPUS */
 
 /**
  * Writes a data block to the specified track.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  * @param   uTrack          Track ID to write data to.
  * @param   pvData          Pointer to data block to write.
  * @param   cbData          Size (in bytes) of data block to write.
+ * @param   tcAbsPTSMs      Absolute PTS of simple data block.
+ * @param   uFlags          WebM block flags to use for this block.
  */
-int WebMWriter::WriteBlock(uint8_t uTrack, const void *pvData, size_t cbData)
+int WebMWriter::WriteBlock(uint8_t uTrack, const void *pvData, size_t cbData, WebMTimecodeAbs tcAbsPTSMs, WebMBlockFlags uFlags)
 {
-    RT_NOREF(cbData); /* Only needed for assertions for now. */
+    int vrc = RTCritSectEnter(&m_CurSeg.m_CritSect);
+    AssertRC(vrc);
 
-    int rc = RTCritSectEnter(&CurSeg.CritSect);
-    AssertRC(rc);
-
-    WebMTracks::iterator itTrack = CurSeg.mapTracks.find(uTrack);
-    if (itTrack == CurSeg.mapTracks.end())
+    WebMTracks::iterator itTrack = m_CurSeg.m_mapTracks.find(uTrack);
+    if (itTrack == m_CurSeg.m_mapTracks.end())
     {
-        RTCritSectLeave(&CurSeg.CritSect);
+        RTCritSectLeave(&m_CurSeg.m_CritSect);
         return VERR_NOT_FOUND;
     }
 
@@ -540,54 +542,27 @@ int WebMWriter::WriteBlock(uint8_t uTrack, const void *pvData, size_t cbData)
         m_fInTracksSection = false;
     }
 
-    switch (pTrack->enmType)
+    try
     {
-
-        case WebMTrackType_Audio:
-        {
-#ifdef VBOX_WITH_LIBOPUS
-            if (m_enmAudioCodec == WebMWriter::AudioCodec_Opus)
-            {
-                Assert(cbData == sizeof(WebMWriter::BlockData_Opus));
-                WebMWriter::BlockData_Opus *pData = (WebMWriter::BlockData_Opus *)pvData;
-                rc = writeSimpleBlockOpus(pTrack, pData->pvData, pData->cbData, pData->uPTSMs);
-            }
-            else
-#endif /* VBOX_WITH_LIBOPUS */
-                rc = VERR_NOT_SUPPORTED;
-            break;
-        }
-
-        case WebMTrackType_Video:
-        {
-#ifdef VBOX_WITH_LIBVPX
-            if (m_enmVideoCodec == WebMWriter::VideoCodec_VP8)
-            {
-                Assert(cbData == sizeof(WebMWriter::BlockData_VP8));
-                WebMWriter::BlockData_VP8 *pData = (WebMWriter::BlockData_VP8 *)pvData;
-                rc = writeSimpleBlockVP8(pTrack, pData->pCfg, pData->pPkt);
-            }
-            else
-#endif /* VBOX_WITH_LIBVPX */
-                rc = VERR_NOT_SUPPORTED;
-            break;
-        }
-
-        default:
-            rc = VERR_NOT_SUPPORTED;
-            break;
+        vrc = writeSimpleBlockQueued(pTrack,
+                                     new WebMSimpleBlock(pTrack,
+                                                         tcAbsPTSMs, pvData, cbData, uFlags));
+    }
+    catch (std::bad_alloc &)
+    {
+        vrc = VERR_NO_MEMORY;
     }
 
-    int rc2 = RTCritSectLeave(&CurSeg.CritSect);
-    AssertRC(rc2);
+    int vrc2 = RTCritSectLeave(&m_CurSeg.m_CritSect);
+    AssertRC(vrc2);
 
-    return rc;
+    return vrc;
 }
 
 /**
  * Processes a render queue.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  * @param   pQueue          Queue to process.
  * @param   fForce          Whether forcing to process the render queue or not.
  *                          Needed to drain the queues when terminating.
@@ -604,11 +579,11 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
             return VINF_SUCCESS;
     }
 
-    WebMCluster &Cluster = CurSeg.CurCluster;
+    WebMCluster &Cluster = m_CurSeg.m_CurCluster;
 
     /* Iterate through the block map. */
     WebMBlockMap::iterator it = pQueue->Map.begin();
-    while (it != CurSeg.queueBlocks.Map.end())
+    while (it != m_CurSeg.m_queueBlocks.Map.end())
     {
         WebMTimecodeAbs    mapAbsPTSMs = it->first;
         WebMTimecodeBlocks mapBlocks   = it->second;
@@ -618,9 +593,9 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
 
         /* If the current segment does not have any clusters (yet),
          * take the first absolute PTS as the starting point for that segment. */
-        if (CurSeg.cClusters == 0)
+        if (m_CurSeg.m_cClusters == 0)
         {
-            CurSeg.tcAbsStartMs = mapAbsPTSMs;
+            m_CurSeg.m_tcAbsStartMs = mapAbsPTSMs;
             fClusterStart = true;
         }
 
@@ -657,10 +632,10 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
                 Cluster.fOpen = false;
             }
             else /* First cluster ever? Use the segment's starting timecode. */
-                tcAbsClusterLastWrittenMs = CurSeg.tcAbsStartMs;
+                tcAbsClusterLastWrittenMs = m_CurSeg.m_tcAbsStartMs;
 
             Cluster.fOpen              = true;
-            Cluster.uID                = CurSeg.cClusters;
+            Cluster.uID                = m_CurSeg.m_cClusters;
             /* Use the block map's currently processed TC as the cluster's starting TC. */
             Cluster.tcAbsStartMs       = mapAbsPTSMs;
             Cluster.tcAbsLastWrittenMs = Cluster.tcAbsStartMs;
@@ -677,25 +652,25 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
             /* Insert cue points for all tracks if a new cluster has been started. */
             WebMCuePoint *pCuePoint = new WebMCuePoint(Cluster.tcAbsStartMs);
 
-            WebMTracks::iterator itTrack = CurSeg.mapTracks.begin();
-            while (itTrack != CurSeg.mapTracks.end())
+            WebMTracks::iterator itTrack = m_CurSeg.m_mapTracks.begin();
+            while (itTrack != m_CurSeg.m_mapTracks.end())
             {
                 pCuePoint->Pos[itTrack->first] = new WebMCueTrackPosEntry(Cluster.offStart);
                 ++itTrack;
             }
 
-            CurSeg.lstCuePoints.push_back(pCuePoint);
+            m_CurSeg.m_lstCuePoints.push_back(pCuePoint);
 
             subStart(MkvElem_Cluster)
-                .serializeUnsignedInteger(MkvElem_Timecode, Cluster.tcAbsStartMs - CurSeg.tcAbsStartMs);
+                .serializeUnsignedInteger(MkvElem_Timecode, Cluster.tcAbsStartMs - m_CurSeg.m_tcAbsStartMs);
 
-            CurSeg.cClusters++;
+            m_CurSeg.m_cClusters++;
 
             mapBlocks.fClusterStarted = true;
         }
 
         Log2Func(("[C%RU64] SegTcAbsStartMs=%RU64, ClusterTcAbsStartMs=%RU64, ClusterTcAbsLastWrittenMs=%RU64, mapAbsPTSMs=%RU64\n",
-                   Cluster.uID, CurSeg.tcAbsStartMs, Cluster.tcAbsStartMs, Cluster.tcAbsLastWrittenMs, mapAbsPTSMs));
+                   Cluster.uID, m_CurSeg.m_tcAbsStartMs, Cluster.tcAbsStartMs, Cluster.tcAbsLastWrittenMs, mapAbsPTSMs));
 
         /* Iterate through all blocks related to the current timecode. */
         while (!mapBlocks.Queue.empty())
@@ -710,8 +685,8 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
             Assert(pBlock->Data.tcAbsPTSMs >= Cluster.tcAbsStartMs);
             pBlock->Data.tcRelToClusterMs = pBlock->Data.tcAbsPTSMs - Cluster.tcAbsStartMs;
 
-            int rc2 = writeSimpleBlockEBML(pTrack, pBlock);
-            AssertRC(rc2);
+            int vrc2 = writeSimpleBlockEBML(pTrack, pBlock);
+            AssertRC(vrc2);
 
             Cluster.cBlocks++;
             Cluster.tcAbsLastWrittenMs = pBlock->Data.tcAbsPTSMs;
@@ -719,8 +694,8 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
             pTrack->cTotalBlocks++;
             pTrack->tcAbsLastWrittenMs = Cluster.tcAbsLastWrittenMs;
 
-            if (CurSeg.tcAbsLastWrittenMs < pTrack->tcAbsLastWrittenMs)
-                CurSeg.tcAbsLastWrittenMs = pTrack->tcAbsLastWrittenMs;
+            if (m_CurSeg.m_tcAbsLastWrittenMs < pTrack->tcAbsLastWrittenMs)
+                m_CurSeg.m_tcAbsLastWrittenMs = pTrack->tcAbsLastWrittenMs;
 
             /* Save a cue point if this is a keyframe (if no new cluster has been started,
              * as this implies that a cue point already is present. */
@@ -730,14 +705,14 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
                 /* Insert cue points for all tracks if a new cluster has been started. */
                 WebMCuePoint *pCuePoint = new WebMCuePoint(Cluster.tcAbsLastWrittenMs);
 
-                WebMTracks::iterator itTrack = CurSeg.mapTracks.begin();
-                while (itTrack != CurSeg.mapTracks.end())
+                WebMTracks::iterator itTrack = m_CurSeg.m_mapTracks.begin();
+                while (itTrack != m_CurSeg.m_mapTracks.end())
                 {
                     pCuePoint->Pos[itTrack->first] = new WebMCueTrackPosEntry(Cluster.offStart);
                     ++itTrack;
                 }
 
-                CurSeg.lstCuePoints.push_back(pCuePoint);
+                m_CurSeg.m_lstCuePoints.push_back(pCuePoint);
             }
 
             delete pBlock;
@@ -748,12 +723,12 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
 
         Assert(mapBlocks.Queue.empty());
 
-        CurSeg.queueBlocks.Map.erase(it);
+        m_CurSeg.m_queueBlocks.Map.erase(it);
 
-        it = CurSeg.queueBlocks.Map.begin();
+        it = m_CurSeg.m_queueBlocks.Map.begin();
     }
 
-    Assert(CurSeg.queueBlocks.Map.empty());
+    Assert(m_CurSeg.m_queueBlocks.Map.empty());
 
     pQueue->tsLastProcessedMs = RTTimeMilliTS();
 
@@ -763,7 +738,7 @@ int WebMWriter::processQueue(WebMQueue *pQueue, bool fForce)
 /**
  * Writes the WebM footer.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  */
 int WebMWriter::writeFooter(void)
 {
@@ -775,22 +750,22 @@ int WebMWriter::writeFooter(void)
         m_fInTracksSection = false;
     }
 
-    if (CurSeg.CurCluster.fOpen)
+    if (m_CurSeg.m_CurCluster.fOpen)
     {
         subEnd(MkvElem_Cluster);
-        CurSeg.CurCluster.fOpen = false;
+        m_CurSeg.m_CurCluster.fOpen = false;
     }
 
     /*
      * Write Cues element.
      */
-    CurSeg.offCues = RTFileTell(getFile());
-    LogFunc(("Cues @ %RU64\n", CurSeg.offCues));
+    m_CurSeg.m_offCues = RTFileTell(getFile());
+    LogFunc(("Cues @ %RU64\n", m_CurSeg.m_offCues));
 
     subStart(MkvElem_Cues);
 
-    WebMCuePointList::iterator itCuePoint = CurSeg.lstCuePoints.begin();
-    while (itCuePoint != CurSeg.lstCuePoints.end())
+    WebMCuePointList::iterator itCuePoint = m_CurSeg.m_lstCuePoints.begin();
+    while (itCuePoint != m_CurSeg.m_lstCuePoints.end())
     {
         WebMCuePoint *pCuePoint = (*itCuePoint);
         AssertPtr(pCuePoint);
@@ -812,7 +787,7 @@ int WebMWriter::writeFooter(void)
 
                 subStart(MkvElem_CueTrackPositions)
                     .serializeUnsignedInteger(MkvElem_CueTrack,           itTrackPos->first)
-                    .serializeUnsignedInteger(MkvElem_CueClusterPosition, pTrackPos->offCluster - CurSeg.offStart, 8)
+                    .serializeUnsignedInteger(MkvElem_CueClusterPosition, pTrackPos->offCluster - m_CurSeg.m_offStart, 8)
                     .subEnd(MkvElem_CueTrackPositions);
 
                 ++itTrackPos;
@@ -840,31 +815,31 @@ int WebMWriter::writeFooter(void)
  */
 void WebMWriter::writeSeekHeader(void)
 {
-    if (CurSeg.offSeekInfo)
-        RTFileSeek(getFile(), CurSeg.offSeekInfo, RTFILE_SEEK_BEGIN, NULL);
+    if (m_CurSeg.m_offSeekInfo)
+        RTFileSeek(getFile(), m_CurSeg.m_offSeekInfo, RTFILE_SEEK_BEGIN, NULL);
     else
-        CurSeg.offSeekInfo = RTFileTell(getFile());
+        m_CurSeg.m_offSeekInfo = RTFileTell(getFile());
 
-    LogFunc(("Seek Header @ %RU64\n", CurSeg.offSeekInfo));
+    LogFunc(("Seek Header @ %RU64\n", m_CurSeg.m_offSeekInfo));
 
     subStart(MkvElem_SeekHead);
 
     subStart(MkvElem_Seek)
           .serializeUnsignedInteger(MkvElem_SeekID, MkvElem_Tracks)
-          .serializeUnsignedInteger(MkvElem_SeekPosition, CurSeg.offTracks - CurSeg.offStart, 8)
+          .serializeUnsignedInteger(MkvElem_SeekPosition, m_CurSeg.m_offTracks - m_CurSeg.m_offStart, 8)
           .subEnd(MkvElem_Seek);
 
-    if (CurSeg.offCues)
-        LogFunc(("Updating Cues @ %RU64\n", CurSeg.offCues));
+    if (m_CurSeg.m_offCues)
+        LogFunc(("Updating Cues @ %RU64\n", m_CurSeg.m_offCues));
 
     subStart(MkvElem_Seek)
           .serializeUnsignedInteger(MkvElem_SeekID, MkvElem_Cues)
-          .serializeUnsignedInteger(MkvElem_SeekPosition, CurSeg.offCues - CurSeg.offStart, 8)
+          .serializeUnsignedInteger(MkvElem_SeekPosition, m_CurSeg.m_offCues - m_CurSeg.m_offStart, 8)
           .subEnd(MkvElem_Seek);
 
     subStart(MkvElem_Seek)
           .serializeUnsignedInteger(MkvElem_SeekID, MkvElem_Info)
-          .serializeUnsignedInteger(MkvElem_SeekPosition, CurSeg.offInfo - CurSeg.offStart, 8)
+          .serializeUnsignedInteger(MkvElem_SeekPosition, m_CurSeg.m_offInfo - m_CurSeg.m_offStart, 8)
           .subEnd(MkvElem_Seek);
 
     subEnd(MkvElem_SeekHead);
@@ -874,33 +849,33 @@ void WebMWriter::writeSeekHeader(void)
      */
 
     /* Save offset of the segment's info element. */
-    CurSeg.offInfo = RTFileTell(getFile());
+    m_CurSeg.m_offInfo = RTFileTell(getFile());
 
-    LogFunc(("Info @ %RU64\n", CurSeg.offInfo));
+    LogFunc(("Info @ %RU64\n", m_CurSeg.m_offInfo));
 
     char szMux[64];
     RTStrPrintf(szMux, sizeof(szMux),
 #ifdef VBOX_WITH_LIBVPX
-                 "vpxenc%s", vpx_codec_version_str());
+                 "vpxenc%s", vpx_codec_version_str()
 #else
-                 "unknown");
+                 "unknown"
 #endif
+                );
     char szApp[64];
     RTStrPrintf(szApp, sizeof(szApp), VBOX_PRODUCT " %sr%u", VBOX_VERSION_STRING, RTBldCfgRevision());
 
-    const WebMTimecodeAbs tcAbsDurationMs = CurSeg.tcAbsLastWrittenMs - CurSeg.tcAbsStartMs;
+    const WebMTimecodeAbs tcAbsDurationMs = m_CurSeg.m_tcAbsLastWrittenMs - m_CurSeg.m_tcAbsStartMs;
 
-    if (!CurSeg.lstCuePoints.empty())
+    if (!m_CurSeg.m_lstCuePoints.empty())
     {
         LogFunc(("tcAbsDurationMs=%RU64\n", tcAbsDurationMs));
         AssertMsg(tcAbsDurationMs, ("Segment seems to be empty (duration is 0)\n"));
     }
 
     subStart(MkvElem_Info)
-        .serializeUnsignedInteger(MkvElem_TimecodeScale, CurSeg.uTimecodeScaleFactor)
+        .serializeUnsignedInteger(MkvElem_TimecodeScale, m_CurSeg.m_uTimecodeScaleFactor)
         .serializeFloat(MkvElem_Segment_Duration, tcAbsDurationMs)
         .serializeString(MkvElem_MuxingApp, szMux)
         .serializeString(MkvElem_WritingApp, szApp)
         .subEnd(MkvElem_Info);
 }
-

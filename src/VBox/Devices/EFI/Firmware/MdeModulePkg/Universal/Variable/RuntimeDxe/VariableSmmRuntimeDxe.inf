@@ -13,7 +13,8 @@
 #  may not be modified without authorization. If platform fails to protect these resources,
 #  the authentication service provided in this driver will be broken, and the behavior is undefined.
 #
-# Copyright (c) 2010 - 2017, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2010 - 2019, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) Microsoft Corporation.<BR>
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 #
 ##
@@ -39,6 +40,10 @@
   VariableSmmRuntimeDxe.c
   PrivilegePolymorphic.h
   Measurement.c
+  VariableParsing.c
+  VariableParsing.h
+  Variable.h
+  VariablePolicySmmDxe.c
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -54,19 +59,40 @@
   DxeServicesTableLib
   UefiDriverEntryPoint
   TpmMeasurementLib
+  SafeIntLib
+  PcdLib
+  MmUnblockMemoryLib
 
 [Protocols]
   gEfiVariableWriteArchProtocolGuid             ## PRODUCES
   gEfiVariableArchProtocolGuid                  ## PRODUCES
-  gEfiSmmCommunicationProtocolGuid              ## CONSUMES
+  gEfiMmCommunication2ProtocolGuid              ## CONSUMES
   ## CONSUMES
   ## NOTIFY
   ## UNDEFINED # Used to do smm communication
   gEfiSmmVariableProtocolGuid
   gEdkiiVariableLockProtocolGuid                ## PRODUCES
   gEdkiiVarCheckProtocolGuid                    ## PRODUCES
+  gEdkiiVariablePolicyProtocolGuid              ## PRODUCES
+
+[FeaturePcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdEnableVariableRuntimeCache           ## CONSUMES
+  gEfiMdeModulePkgTokenSpaceGuid.PcdVariableCollectStatistics            ## CONSUMES
+
+[Pcd]
+  gEfiMdeModulePkgTokenSpaceGuid.PcdAllowVariablePolicyEnforcementDisable     ## CONSUMES
 
 [Guids]
+  ## PRODUCES             ## GUID # Signature of Variable store header
+  ## CONSUMES             ## GUID # Signature of Variable store header
+  ## SOMETIMES_PRODUCES   ## SystemTable
+  gEfiAuthenticatedVariableGuid
+
+  ## PRODUCES             ## GUID # Signature of Variable store header
+  ## CONSUMES             ## GUID # Signature of Variable store header
+  ## SOMETIMES_PRODUCES   ## SystemTable
+  gEfiVariableGuid
+
   gEfiEventVirtualAddressChangeGuid             ## CONSUMES ## Event
   gEfiEventExitBootServicesGuid                 ## CONSUMES ## Event
   ## CONSUMES ## GUID # Locate protocol
@@ -83,8 +109,11 @@
   ## SOMETIMES_CONSUMES   ## Variable:L"dbt"
   gEfiImageSecurityDatabaseGuid
 
+  gVarCheckPolicyLibMmiHandlerGuid
+  gEfiEndOfDxeEventGroupGuid
+
 [Depex]
-  gEfiSmmCommunicationProtocolGuid
+  gEfiMmCommunication2ProtocolGuid
 
 [UserExtensions.TianoCore."ExtraFiles"]
   VariableSmmRuntimeDxeExtra.uni

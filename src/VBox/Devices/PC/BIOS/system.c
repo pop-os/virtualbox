@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -53,6 +63,7 @@
  */
 
 
+#include <iprt/cdefs.h>
 #include <stdint.h>
 #include "biosint.h"
 #include "inlines.h"
@@ -284,27 +295,6 @@ void pm_unwind(uint16_t args);
     "retf"                  \
     parm [ax] modify nomemory aborts;
 
-/// @todo This method is silly. The RTC should be programmed to fire an interrupt
-// instead of hogging the CPU with inaccurate code.
-void timer_wait(uint32_t usec_wait)
-{
-    uint32_t    cycles;
-    uint8_t     old_val;
-    uint8_t     cur_val;
-
-    /* We wait in 15 usec increments. */
-    cycles = usec_wait / 15;
-
-    old_val = inp(0x61) & 0x10;
-    while (cycles--) {
-        /* Wait 15us. */
-        do {
-            cur_val = inp(0x61) & 0x10;
-        } while (cur_val != old_val);
-        old_val = cur_val;
-    }
-}
-
 bx_bool set_enable_a20(bx_bool val)
 {
     uint8_t     oldval;
@@ -426,15 +416,16 @@ void BIOSCALL int15_function(sys_regs_t r)
                 write_word( 0x40, 0x9C, DX ); // Low word, delay
                 write_word( 0x40, 0x9E, CX ); // High word, delay.
                 CLEAR_CF( );
+                // Unmask IRQ8 so INT70 will get through.
                 irqDisable = inb( 0xA1 );
                 outb( 0xA1, irqDisable & 0xFE );
-                bRegister = inb_cmos( 0xB );  // Unmask IRQ8 so INT70 will get through.
-                outb_cmos( 0xB, bRegister | 0x40 ); // Turn on the Periodic Interrupt timer
+                bRegister = inb_cmos( 0xB );
+                // Turn on the Periodic Interrupt timer
+                outb_cmos( 0xB, bRegister | 0x40 );
             } else {
                 // Interval already set.
                 BX_DEBUG_INT15("int15: Func 83h, failed, already waiting.\n" );
-                SET_CF();
-                SET_AH(UNSUPPORTED_FUNCTION);
+                SET_CF();   // AH is left unmodified
             }
         } else if( GET_AL() == 1 ) {
             // Clear Interval requested
@@ -453,16 +444,40 @@ void BIOSCALL int15_function(sys_regs_t r)
         }
 
     case 0x86:
-        // Wait for CX:DX microseconds. currently using the
-        // refresh request port 0x61 bit4, toggling every 15usec
-        int_enable();
-        timer_wait(((uint32_t)CX << 16) | DX);
+        // Set Interval requested.
+        if( ( read_byte( 0x40, 0xA0 ) & 1 ) == 0 ) {
+            // Interval not already set.
+            write_byte( 0x40, 0xA0, 1 );    // Set status byte.
+            write_word( 0x40, 0x98, 0x40 ); // Byte location, segment
+            write_word( 0x40, 0x9A, 0xA0 ); // Byte location, offset
+            write_word( 0x40, 0x9C, DX );   // Low word, delay
+            write_word( 0x40, 0x9E, CX );   // High word, delay.
+            // Unmask IRQ8 so INT70 will get through.
+            irqDisable = inb( 0xA1 );
+            outb( 0xA1, irqDisable & 0xFE );
+            bRegister = inb_cmos( 0xB );
+            // Turn on the Periodic Interrupt timer
+            outb_cmos( 0xB, bRegister | 0x40 );
+            // Now wait until timer interrupt says wait is done.
+            int_enable();
+            do {
+                halt();
+                bRegister = read_byte( 0x40, 0xA0 );
+            }
+            while( !(bRegister & 0x80) );
+            write_byte( 0x40, 0xA0, 0 );    // Deactivate wait.
+            CLEAR_CF( );
+        } else {
+            // Interval already set.
+            BX_DEBUG_INT15("int15: Func 86h, failed, already waiting.\n" );
+            SET_CF();   // AH is left unmodified
+        }
         break;
 
     case 0x88:
         // Get the amount of extended memory (above 1M)
 #if VBOX_BIOS_CPU >= 80286
-        AX = (inb_cmos(0x31) << 8) | inb_cmos(0x30);
+        AX = get_cmos_word(0x30 /*, 0x31*/);
 
 #if VBOX_BIOS_CPU >= 80386
         // According to Ralf Brown's interrupt the limit should be 15M,
@@ -587,28 +602,30 @@ typedef struct {
     uint32_t    type;
 } mem_range_t;
 
-void set_e820_range(uint16_t reg_ES, uint16_t reg_DI, uint32_t start, uint32_t end,
-                    uint8_t extra_start, uint8_t extra_end, uint16_t type)
+static void set_e820_range_len(uint16_t reg_ES, uint16_t reg_DI, uint32_t start, uint32_t len, uint8_t type)
 {
-    mem_range_t __far   *range;
+    mem_range_t __far *fpRange = reg_ES :> (mem_range_t *)reg_DI;
+    fpRange->start  = start;
+    fpRange->len    = len;
+    fpRange->type   = type;
+    fpRange->xlen   = 0;
+    fpRange->xstart = 0;
+}
 
-    range = reg_ES :> (mem_range_t *)reg_DI;
-    range->start  = start;
-    range->xstart = extra_start;
-    end -= start;
-    extra_end -= extra_start;
-    range->len    = end;
-    range->xlen   = extra_end;
-    range->type   = type;
+#define set_e820_range_end(reg_ES, reg_DI, start, end, type) set_e820_range_len(reg_ES, reg_DI, start, end - start, type)
+
+static void set_e820_range_above_4g(uint16_t reg_ES, uint16_t reg_DI, uint16_t c64k_above_4G_low, uint16_t c64k_above_4G_high)
+{
+    mem_range_t __far *fpRange = reg_ES :> (mem_range_t *)reg_DI;
+    fpRange->start  = 0;        /* Starts at 4G, so low start address dword is zero */
+    fpRange->xstart = 1;        /* And the high start dword is 1. */
+    fpRange->len    = (uint32_t)c64k_above_4G_low << 16;
+    fpRange->xlen   = c64k_above_4G_high;
+    fpRange->type   = 1;        /* type is usable */
 }
 
 void BIOSCALL int15_function32(sys32_regs_t r)
 {
-    uint32_t    extended_memory_size=0; // 64bits long
-    uint32_t    extra_lowbits_memory_size=0;
-    uint8_t     extra_highbits_memory_size=0;
-    uint32_t    mcfgStart, mcfgSize;
-
     BX_DEBUG_INT15("int15 AX=%04x\n",AX);
 
     switch (GET_AH()) {
@@ -630,48 +647,45 @@ void BIOSCALL int15_function32(sys32_regs_t r)
         switch(GET_AL()) {
         case 0x20: // coded by osmaker aka K.J.
             if(EDX == 0x534D4150) {
-                extended_memory_size = inb_cmos(0x35);
-                extended_memory_size <<= 8;
-                extended_memory_size |= inb_cmos(0x34);
-                extended_memory_size *= 64;
-#ifndef VBOX /* The following excludes 0xf0000000 thru 0xffffffff. Trust DevPcBios.cpp to get this right. */
-                // greater than EFF00000???
-                if(extended_memory_size > 0x3bc000) {
-                    extended_memory_size = 0x3bc000; // everything after this is reserved memory until we get to 0x100000000
+                uint32_t extended_memory_size; // 64bits long
+                uint16_t c64k_above_4G_low;
+                uint16_t c64k_above_4G_high;
+#ifdef BIOS_WITH_MCFG_E820
+                uint32_t mcfgStart, mcfgSize;
+#endif
+
+                /* Go for the amount of memory above 16MB first. */
+                extended_memory_size  = get_cmos_word(0x34 /*, 0x35*/);
+                if (extended_memory_size > 0)
+                {
+                    extended_memory_size  += _16M / _64K;
+                    extended_memory_size <<= 16;
                 }
-#endif /* !VBOX */
-                extended_memory_size *= 1024;
-                extended_memory_size += (16L * 1024 * 1024);
-
-                if(extended_memory_size <= (16L * 1024 * 1024)) {
-                    extended_memory_size = inb_cmos(0x31);
-                    extended_memory_size <<= 8;
-                    extended_memory_size |= inb_cmos(0x30);
-                    extended_memory_size *= 1024;
-                    extended_memory_size += (1L * 1024 * 1024);
+                else
+                {
+                    /* No memory above 16MB, query memory above 1MB ASSUMING we have at least 1MB. */
+                    extended_memory_size  = get_cmos_word(0x30 /*, 0x31*/);
+                    extended_memory_size += _1M / _1K;
+                    extended_memory_size *= _1K;
                 }
 
-                /* This is the amount of memory above 4GB measured in 64KB units. */
-                extra_lowbits_memory_size = inb_cmos(0x62);
-                extra_lowbits_memory_size <<= 8;
-                extra_lowbits_memory_size |= inb_cmos(0x61);
-                extra_lowbits_memory_size <<= 16;
-                extra_highbits_memory_size = inb_cmos(0x63);
-                /* 0x64 and 0x65 can be used if we need to dig 1 TB or more at a later point. */
+                /* This is the amount of memory above 4GB measured in 64KB units.
+                   Note! 0x65 can be used when we need to go beyond 255 TiB */
+                c64k_above_4G_low  = get_cmos_word(0x61 /*, 0x62*/);
+                c64k_above_4G_high = get_cmos_word(0x63 /*, 0x64*/);
 
+#ifdef BIOS_WITH_MCFG_E820 /** @todo Actually implement the mcfg reporting. */
                 mcfgStart = 0;
                 mcfgSize  = 0;
-
-                switch(BX)
+#endif
+                switch (BX)
                 {
                     case 0:
-                        set_e820_range(ES, DI,
-                                       0x0000000L, 0x0009fc00L, 0, 0, 1);
+                        set_e820_range_end(ES, DI, 0x0000000L, 0x0009fc00L, 1);
                         EBX = 1;
                         break;
                     case 1:
-                        set_e820_range(ES, DI,
-                                       0x0009fc00L, 0x000a0000L, 0, 0, 2);
+                        set_e820_range_end(ES, DI, 0x0009fc00L, 0x000a0000L, 2);
                         EBX = 2;
                         break;
                     case 2:
@@ -686,71 +700,53 @@ void BIOSCALL int15_function32(sys32_regs_t r)
                          * they trigger the "Too many similar traps" assertion)
                          * a single reserved range from 0xd0000 to 0xffffff.
                          * A 128K area starting from 0xd0000 works. */
-                        set_e820_range(ES, DI,
-                                       0x000f0000L, 0x00100000L, 0, 0, 2);
+                        set_e820_range_end(ES, DI, 0x000f0000L, 0x00100000L, 2);
                         EBX = 3;
                         break;
                     case 3:
-                        set_e820_range(ES, DI,
-                                       0x00100000L,
-                                       extended_memory_size - ACPI_DATA_SIZE, 0, 0, 1);
+                        set_e820_range_end(ES, DI, 0x00100000L, extended_memory_size - ACPI_DATA_SIZE, 1);
                         EBX = 4;
                         break;
                     case 4:
-                        set_e820_range(ES, DI,
-                                       extended_memory_size - ACPI_DATA_SIZE,
-                                       extended_memory_size, 0, 0, 3); // ACPI RAM
+                        set_e820_range_len(ES, DI, extended_memory_size - ACPI_DATA_SIZE, ACPI_DATA_SIZE, 3); // ACPI RAM
                         EBX = 5;
                         break;
                     case 5:
-                        set_e820_range(ES, DI,
-                                       0xfec00000,
-                                       0xfec00000 + 0x1000, 0, 0, 2); // I/O APIC
+                        set_e820_range_len(ES, DI, 0xfec00000, 0x1000, 2); // I/O APIC
                         EBX = 6;
                         break;
                     case 6:
-                        set_e820_range(ES, DI,
-                                       0xfee00000,
-                                       0xfee00000 + 0x1000, 0, 0, 2); // Local APIC
+                        set_e820_range_len(ES, DI, 0xfee00000, 0x1000, 2); // Local APIC
                         EBX = 7;
                         break;
                     case 7:
                         /* 256KB BIOS area at the end of 4 GB */
-                        /* We don't set the end to 1GB here and rely on the 32-bit
-                           unsigned wrap around effect (0-0xfffc0000L). */
-                        set_e820_range(ES, DI,
-                                       0xfffc0000L, 0x00000000L, 0, 0, 2);
+                        set_e820_range_len(ES, DI, 0xfffc0000L, 0x40000, 2);
+#ifdef BIOS_WITH_MCFG_E820
                         if (mcfgStart != 0)
                             EBX = 8;
                         else
-                        {
-                            if (extra_highbits_memory_size || extra_lowbits_memory_size)
-                                EBX = 9;
-                            else
-                                EBX = 0;
-                        }
-                        break;
-                     case 8:
-                        /* PCI MMIO config space (MCFG) */
-                        set_e820_range(ES, DI,
-                                       mcfgStart, mcfgStart + mcfgSize, 0, 0, 2);
-
-                        if (extra_highbits_memory_size || extra_lowbits_memory_size)
+#endif
+                        if (c64k_above_4G_low || c64k_above_4G_high)
                             EBX = 9;
                         else
                             EBX = 0;
                         break;
+#ifdef BIOS_WITH_MCFG_E820
+                     case 8:
+                        /* PCI MMIO config space (MCFG) */
+                        set_e820_range_len(ES, DI, mcfgStart, mcfgSize, 2);
+                        if (c64k_above_4G_low || c64k_above_4G_high)
+                            EBX = 9;
+                        else
+                            EBX = 0;
+                        break;
+#endif
                     case 9:
-                        /* Mapping of memory above 4 GB if present.
-                           Note1: set_e820_range needs do no borrowing in the
-                                  subtraction because of the nice numbers.
-                           Note2* works only up to 1TB because of uint8_t for
-                                  the upper bits!*/
-                        if (extra_highbits_memory_size || extra_lowbits_memory_size)
+                        /* Mapping of memory above 4 GB if present. */
+                        if (c64k_above_4G_low || c64k_above_4G_high)
                         {
-                            set_e820_range(ES, DI,
-                                           0x00000000L, extra_lowbits_memory_size,
-                                           1 /*x4GB*/, extra_highbits_memory_size + 1 /*x4GB*/, 1);
+                            set_e820_range_above_4g(ES, DI, c64k_above_4G_low, c64k_above_4G_high);
                             EBX = 0;
                             break;
                         }
@@ -780,14 +776,14 @@ void BIOSCALL int15_function32(sys32_regs_t r)
             // regs.u.r16.bx = 0;
 
             // Get the amount of extended memory (above 1M)
-            CX = (inb_cmos(0x31) << 8) | inb_cmos(0x30);
+            CX = get_cmos_word(0x30 /*, 0x31*/);
 
             // limit to 15M
             if(CX > 0x3c00)
                 CX = 0x3c00;
 
             // Get the amount of extended memory above 16M in 64k blocks
-            DX = (inb_cmos(0x35) << 8) | inb_cmos(0x34);
+            DX = get_cmos_word(0x34 /*, 0x35*/);
 
             // Set configured memory equal to extended memory
             AX = CX;

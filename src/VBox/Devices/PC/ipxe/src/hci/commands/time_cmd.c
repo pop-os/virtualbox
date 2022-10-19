@@ -13,7 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  * March-19-2009 @ 02:44: Added sleep command.
  * Shao Miller <shao.miller@yrdsb.edu.on.ca>.
@@ -56,7 +57,8 @@ static struct command_descriptor time_cmd =
 static int time_exec ( int argc, char **argv ) {
 	struct time_options opts;
 	unsigned long start;
-	int secs;
+	unsigned long elapsed;
+	int decisecs;
 	int rc;
 
 	/* Parse options */
@@ -65,9 +67,11 @@ static int time_exec ( int argc, char **argv ) {
 
 	start = currticks();
 	rc = execv ( argv[1], argv + 1 );
-	secs = (currticks() - start) / ticks_per_sec();
+	elapsed = ( currticks() - start );
+	decisecs = ( 10 * elapsed / TICKS_PER_SEC );
 
-	printf ( "%s: %ds\n", argv[0], secs );
+	printf ( "%s: %d.%ds\n", argv[0],
+		 ( decisecs / 10 ), ( decisecs % 10 ) );
 
 	return rc;
 }

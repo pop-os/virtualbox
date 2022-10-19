@@ -25,7 +25,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  *
  *
  *              date       version  by      what
@@ -52,15 +53,6 @@
  * ftp://download.intel.com/design/network/manuals/8255X_OpenSDM.pdf
  *    - Michael Brown
  * */
-
-/*
- * Oracle GPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
- * the General Public License version 2 (GPLv2) at this time for any software where
- * a choice of GPL license versions is made available with the language indicating
- * that GPLv2 or any later version may be used, or where a choice of which version
- * of the GPL is applied is otherwise unspecified.
- */
 
 FILE_LICENCE ( GPL2_OR_LATER );
 
@@ -101,7 +93,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
 
 /*
  * Debugging levels:
- *	- DBG() is for any errors, i.e. failed alloc_iob(), malloc_dma(),
+ *	- DBG() is for any errors, i.e. failed alloc_iob(), malloc_phys(),
  *	  TX overflow, corrupted packets, ...
  *	- DBG2() is for successful events, like packet received,
  *	  packet transmitted, and other general notifications.
@@ -343,7 +335,7 @@ static int ifec_net_open ( struct net_device *netdev )
 	ifec_mdio_setup ( netdev, options );
 
 	/* Prepare MAC address w/ Individual Address Setup (ias) command.*/
-	ias = malloc_dma ( sizeof ( *ias ), CB_ALIGN );
+	ias = malloc_phys ( sizeof ( *ias ), CB_ALIGN );
 	if ( !ias ) {
 		rc = -ENOMEM;
 		goto error;
@@ -353,7 +345,7 @@ static int ifec_net_open ( struct net_device *netdev )
 	memcpy ( ias->ia, netdev->ll_addr, ETH_ALEN );
 
 	/* Prepare operating parameters w/ a configure command. */
-	cfg = malloc_dma ( sizeof ( *cfg ), CB_ALIGN );
+	cfg = malloc_phys ( sizeof ( *cfg ), CB_ALIGN );
 	if ( !cfg ) {
 		rc = -ENOMEM;
 		goto error;
@@ -375,8 +367,8 @@ static int ifec_net_open ( struct net_device *netdev )
 		DBG ( "Failed to initiate!\n" );
 		goto error;
 	}
-	free_dma ( ias, sizeof ( *ias ) );
-	free_dma ( cfg, sizeof ( *cfg ) );
+	free_phys ( ias, sizeof ( *ias ) );
+	free_phys ( cfg, sizeof ( *cfg ) );
 	DBG2 ( "cfg " );
 
 	/* Enable rx by sending ring address to card */
@@ -389,8 +381,8 @@ static int ifec_net_open ( struct net_device *netdev )
 	return 0;
 
 error:
-	free_dma ( cfg, sizeof ( *cfg ) );
-	free_dma ( ias, sizeof ( *ias ) );
+	free_phys ( cfg, sizeof ( *cfg ) );
+	free_phys ( ias, sizeof ( *ias ) );
 	ifec_free ( netdev );
 	ifec_reset ( netdev );
 	return rc;
@@ -711,7 +703,7 @@ static void ifec_free ( struct net_device *netdev )
 	}
 
 	/* free TX ring buffer */
-	free_dma ( priv->tcbs, TX_RING_BYTES );
+	free_phys ( priv->tcbs, TX_RING_BYTES );
 
 	priv->tcbs = NULL;
 }
@@ -918,7 +910,7 @@ static void ifec_refill_rx_ring ( struct net_device *netdev )
  * Initial allocation & initialization of the rx ring.
  *
  * @v netdev  		Device of rx ring.
- * @ret rc    		Non-zero if error occured
+ * @ret rc    		Non-zero if error occurred
  */
 static int ifec_rx_setup ( struct net_device *netdev )
 {
@@ -1033,7 +1025,7 @@ static int ifec_tx_setup ( struct net_device *netdev )
 	DBGP ( "ifec_tx_setup\n" );
 
 	/* allocate tx ring */
-	priv->tcbs = malloc_dma ( TX_RING_BYTES, CB_ALIGN );
+	priv->tcbs = malloc_phys ( TX_RING_BYTES, CB_ALIGN );
 	if ( !priv->tcbs ) {
 		DBG ( "TX-ring allocation failed\n" );
 		return -ENOMEM;
@@ -1144,7 +1136,6 @@ PCI_ROM(0x8086, 0x2449, "82562em",       "Intel EtherExpressPro100 82562EM", 0),
 PCI_ROM(0x8086, 0x2459, "82562-1",       "Intel 82562 based Fast Ethernet Connection", 0),
 PCI_ROM(0x8086, 0x245d, "82562-2",       "Intel 82562 based Fast Ethernet Connection", 0),
 PCI_ROM(0x8086, 0x1050, "82562ez",       "Intel 82562EZ Network Connection", 0),
-PCI_ROM(0x8086, 0x1051, "eepro100-1051", "Intel 82801EB/ER (ICH5/ICH5R) Chipset Ethernet Controller", 0),
 PCI_ROM(0x8086, 0x1065, "82562-3",       "Intel 82562 based Fast Ethernet Connection", 0),
 PCI_ROM(0x8086, 0x5200, "eepro100-5200", "Intel EtherExpress PRO/100 Intelligent Server", 0),
 PCI_ROM(0x8086, 0x5201, "eepro100-5201", "Intel EtherExpress PRO/100 Intelligent Server", 0),

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -40,6 +50,8 @@
 #include "internal/fileaio.h"
 
 #include <iprt/win/windows.h>
+
+#include "internal-r3-win.h"
 
 
 /*********************************************************************************************************************************
@@ -272,31 +284,33 @@ RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransfered)
 
 RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax, uint32_t fFlags)
 {
-    PRTFILEAIOCTXINTERNAL pCtxInt;
     AssertPtrReturn(phAioCtx, VERR_INVALID_POINTER);
     AssertReturn(!(fFlags & ~RTFILEAIOCTX_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
     RT_NOREF_PV(cAioReqsMax);
 
-    pCtxInt = (PRTFILEAIOCTXINTERNAL)RTMemAllocZ(sizeof(RTFILEAIOCTXINTERNAL));
-    if (RT_UNLIKELY(!pCtxInt))
-        return VERR_NO_MEMORY;
-
-    pCtxInt->hIoCompletionPort = CreateIoCompletionPort(INVALID_HANDLE_VALUE,
-                                                        NULL,
-                                                        0,
-                                                        0);
-    if (RT_UNLIKELY(!pCtxInt->hIoCompletionPort))
+    if (   g_pfnCreateIoCompletionPort
+        && g_pfnGetQueuedCompletionStatus
+        && g_pfnPostQueuedCompletionStatus)
     {
-        RTMemFree(pCtxInt);
-        return VERR_NO_MEMORY;
+        PRTFILEAIOCTXINTERNAL pCtxInt = (PRTFILEAIOCTXINTERNAL)RTMemAllocZ(sizeof(RTFILEAIOCTXINTERNAL));
+        if (RT_UNLIKELY(!pCtxInt))
+            return VERR_NO_MEMORY;
+
+        pCtxInt->hIoCompletionPort = g_pfnCreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, 0, 0);
+        if (RT_UNLIKELY(!pCtxInt->hIoCompletionPort))
+        {
+            RTMemFree(pCtxInt);
+            return VERR_NO_MEMORY;
+        }
+
+        pCtxInt->fFlags   = fFlags;
+        pCtxInt->u32Magic = RTFILEAIOCTX_MAGIC;
+
+        *phAioCtx = (RTFILEAIOCTX)pCtxInt;
+
+        return VINF_SUCCESS;
     }
-
-    pCtxInt->fFlags   = fFlags;
-    pCtxInt->u32Magic = RTFILEAIOCTX_MAGIC;
-
-    *phAioCtx = (RTFILEAIOCTX)pCtxInt;
-
-    return VINF_SUCCESS;
+    return VERR_NOT_SUPPORTED;
 }
 
 RTDECL(int) RTFileAioCtxDestroy(RTFILEAIOCTX hAioCtx)
@@ -320,15 +334,21 @@ RTDECL(int) RTFileAioCtxDestroy(RTFILEAIOCTX hAioCtx)
 
 RTDECL(int) RTFileAioCtxAssociateWithFile(RTFILEAIOCTX hAioCtx, RTFILE hFile)
 {
-    int rc = VINF_SUCCESS;
     PRTFILEAIOCTXINTERNAL pCtxInt = hAioCtx;
     RTFILEAIOCTX_VALID_RETURN(pCtxInt);
 
-    HANDLE hTemp = CreateIoCompletionPort((HANDLE)RTFileToNative(hFile), pCtxInt->hIoCompletionPort, 0, 1);
-    if (hTemp != pCtxInt->hIoCompletionPort)
-        rc = RTErrConvertFromWin32(GetLastError());
+    if (   g_pfnCreateIoCompletionPort
+        && g_pfnGetQueuedCompletionStatus
+        && g_pfnPostQueuedCompletionStatus)
+    {
+        int rc = VINF_SUCCESS;
+        HANDLE hTemp = g_pfnCreateIoCompletionPort((HANDLE)RTFileToNative(hFile), pCtxInt->hIoCompletionPort, 0, 1);
+        if (hTemp != pCtxInt->hIoCompletionPort)
+            rc = RTErrConvertFromWin32(GetLastError());
 
-    return rc;
+        return rc;
+    }
+    return VERR_NOT_SUPPORTED;
 }
 
 RTDECL(uint32_t) RTFileAioCtxGetMaxReqCount(RTFILEAIOCTX hAioCtx)
@@ -434,11 +454,11 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL
             StartNanoTS = RTTimeNanoTS();
 
         ASMAtomicXchgBool(&pCtxInt->fWaiting, true);
-        fSucceeded = GetQueuedCompletionStatus(pCtxInt->hIoCompletionPort,
-                                               &cbTransfered,
-                                               &lCompletionKey,
-                                               &pOverlapped,
-                                               dwTimeout);
+        fSucceeded = g_pfnGetQueuedCompletionStatus(pCtxInt->hIoCompletionPort,
+                                                    &cbTransfered,
+                                                    &lCompletionKey,
+                                                    &pOverlapped,
+                                                    dwTimeout);
         ASMAtomicXchgBool(&pCtxInt->fWaiting, false);
         if (   !fSucceeded
             && !pOverlapped)
@@ -521,9 +541,9 @@ RTDECL(int) RTFileAioCtxWakeup(RTFILEAIOCTX hAioCtx)
     if (   !fWokenUp
         && fWaiting)
     {
-        BOOL fSucceeded = PostQueuedCompletionStatus(pCtxInt->hIoCompletionPort,
-                                                     0, AIO_CONTEXT_WAKEUP_EVENT,
-                                                     NULL);
+        BOOL fSucceeded = g_pfnPostQueuedCompletionStatus(pCtxInt->hIoCompletionPort,
+                                                          0, AIO_CONTEXT_WAKEUP_EVENT,
+                                                          NULL);
 
         if (!fSucceeded)
             rc = RTErrConvertFromWin32(GetLastError());

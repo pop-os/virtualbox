@@ -8,15 +8,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 // shared webservice header
@@ -1076,8 +1086,7 @@ int main(int argc, char *argv[])
     g_mapThreads[RTThreadSelf()] = "[M  ]";
 
     RTStrmPrintf(g_pStdErr, VBOX_PRODUCT " web service Version " VBOX_VERSION_STRING "\n"
-                            "(C) 2007-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                            "All rights reserved.\n");
+                            "Copyright (C) 2007-" VBOX_C_YEAR " " VBOX_VENDOR "\n");
 
     int c;
     const char *pszLogFile = NULL;
@@ -2330,28 +2339,27 @@ int __vbox__IManagedObjectRef_USCORErelease(
     _vbox__IManagedObjectRef_USCOREreleaseResponse *resp)
 {
     RT_NOREF(resp);
-    HRESULT rc = S_OK;
+    HRESULT rc;
     WEBDEBUG(("-- entering %s\n", __FUNCTION__));
 
-    do
     {
         // findRefFromId and the delete call below require the lock
         util::AutoWriteLock lock(g_pWebsessionsLockHandle COMMA_LOCKVAL_SRC_POS);
 
         ManagedObjectRef *pRef;
-        if ((rc = ManagedObjectRef::findRefFromId(req->_USCOREthis, &pRef, false)))
+        rc = ManagedObjectRef::findRefFromId(req->_USCOREthis, &pRef, false);
+        if (rc == S_OK)
         {
-            RaiseSoapInvalidObjectFault(soap, req->_USCOREthis);
-            break;
+            WEBDEBUG(("   found reference; deleting!\n"));
+            // this removes the object from all stacks; since
+            // there's a ComPtr<> hidden inside the reference,
+            // this should also invoke Release() on the COM
+            // object
+            delete pRef;
         }
-
-        WEBDEBUG(("   found reference; deleting!\n"));
-        // this removes the object from all stacks; since
-        // there's a ComPtr<> hidden inside the reference,
-        // this should also invoke Release() on the COM
-        // object
-        delete pRef;
-    } while (0);
+        else
+            RaiseSoapInvalidObjectFault(soap, req->_USCOREthis);
+    }
 
     WEBDEBUG(("-- leaving %s, rc: %#lx\n", __FUNCTION__, rc));
     if (FAILED(rc))

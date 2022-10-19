@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_crypto_pkcs7_h
@@ -99,17 +109,23 @@ typedef enum RTCRPKCS7ATTRIBUTETYPE
     RTCRPKCS7ATTRIBUTETYPE_OBJ_IDS,
     /** Octet strings, use pOctetStrings. */
     RTCRPKCS7ATTRIBUTETYPE_OCTET_STRINGS,
-    /** Counter signatures (PKCS \#9), use pCounterSignatures. */
+    /** Counter signatures (PKCS \#9), use pCounterSignatures.
+     * RTCR_PKCS9_ID_COUNTER_SIGNATURE_OID - 1.2.840.113549.1.9.6.  */
     RTCRPKCS7ATTRIBUTETYPE_COUNTER_SIGNATURES,
-    /** Signing time (PKCS \#9), use pSigningTime. */
+    /** Signing time (PKCS \#9), use pSigningTime.
+     * RTCR_PKCS9_ID_SIGNING_TIME_OID - 1.2.840.113549.1.9.5.  */
     RTCRPKCS7ATTRIBUTETYPE_SIGNING_TIME,
-    /** Microsoft timestamp info (RFC-3161) signed data, use pContentInfo. */
+    /** Microsoft timestamp info (RFC-3161) signed data, use pContentInfo.
+     * RTCR_PKCS9_ID_MS_TIMESTAMP - 1.3.6.1.4.1.311.3.3.1. */
     RTCRPKCS7ATTRIBUTETYPE_MS_TIMESTAMP,
-    /** Microsoft nested PKCS\#7 signature (signtool /as). */
+    /** Microsoft nested PKCS\#7 signature (signtool /as).
+     * RTCR_PKCS9_ID_MS_NESTED_SIGNATURE  - 1.3.6.1.4.1.311.2.4.1. */
     RTCRPKCS7ATTRIBUTETYPE_MS_NESTED_SIGNATURE,
-    /** Microsoft statement type, use pObjIdSeqs. */
+    /** Microsoft statement type, use pObjIdSeqs.
+     * RTCR_PKCS9_ID_MS_STATEMENT_TYPE - 1.3.6.1.4.1.311.2.1.11. */
     RTCRPKCS7ATTRIBUTETYPE_MS_STATEMENT_TYPE,
-    /** Apple plist with the all code directory digests, use pOctetStrings. */
+    /** Apple plist with the all code directory digests, use pOctetStrings.
+     * RTCR_PKCS9_ID_APPLE_MULTI_CD_PLIST - 1.2.840.113635.100.9.1.  */
     RTCRPKCS7ATTRIBUTETYPE_APPLE_MULTI_CD_PLIST,
     /** Blow the type up to 32-bits. */
     RTCRPKCS7ATTRIBUTETYPE_32BIT_HACK = 0x7fffffff
@@ -516,8 +532,8 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTCRPKCS7DIGESTINFO, RTDECL, RTCrPkcs7DigestInfo,
  * @param   pvUser              The user argument.
  * @param   pErrInfo            Optional error info buffer.
  */
-typedef DECLCALLBACK(int) FNRTCRPKCS7VERIFYCERTCALLBACK(PCRTCRX509CERTIFICATE pCert, RTCRX509CERTPATHS hCertPaths,
-                                                        uint32_t fFlags, void *pvUser, PRTERRINFO pErrInfo);
+typedef DECLCALLBACKTYPE(int, FNRTCRPKCS7VERIFYCERTCALLBACK,(PCRTCRX509CERTIFICATE pCert, RTCRX509CERTPATHS hCertPaths,
+                                                             uint32_t fFlags, void *pvUser, PRTERRINFO pErrInfo));
 /** Pointer to a FNRTCRPKCS7VERIFYCERTCALLBACK callback. */
 typedef FNRTCRPKCS7VERIFYCERTCALLBACK *PFNRTCRPKCS7VERIFYCERTCALLBACK;
 
@@ -558,6 +574,9 @@ RTDECL(int) RTCrPkcs7VerifyCertCallbackCodeSigning(PCRTCRX509CERTIFICATE pCert, 
  * @param   pValidationTime     The time we're supposed to validate the
  *                              certificates chains at.  Ignored for signatures
  *                              with valid signing time attributes.
+ *                              When RTCRPKCS7VERIFY_SD_F_UPDATE_VALIDATION_TIME
+ *                              is set, this is updated to the actual validation
+ *                              time used.
  * @param   pfnVerifyCert       Callback for checking that a certificate used
  *                              for signing the data is suitable.
  * @param   pvUser              User argument for the callback.
@@ -585,6 +604,9 @@ RTDECL(int) RTCrPkcs7VerifySignedData(PCRTCRPKCS7CONTENTINFO pContentInfo, uint3
  * @param   pValidationTime     The time we're supposed to validate the
  *                              certificates chains at.  Ignored for signatures
  *                              with valid signing time attributes.
+ *                              When RTCRPKCS7VERIFY_SD_F_UPDATE_VALIDATION_TIME
+ *                              is set, this is updated to the actual validation
+ *                              time used.
  * @param   pfnVerifyCert       Callback for checking that a certificate used
  *                              for signing the data is suitable.
  * @param   pvUser              User argument for the callback.
@@ -628,6 +650,27 @@ RTDECL(int) RTCrPkcs7VerifySignedDataWithExternalData(PCRTCRPKCS7CONTENTINFO pCo
 /** Skip the verification of the certificate trust paths, taking all
  * certificates to be trustworthy. */
 #define RTCRPKCS7VERIFY_SD_F_TRUST_ALL_CERTS                        RT_BIT_32(7)
+/** Update @a pValidationTime with the actual validation time used.
+ * This requires RTCRPKCS7VERIFY_SD_F_HAS_SIGNER_INDEX to get a consistent
+ * result.  And yeah, it unconst the parameter, which is patently ugly. */
+#define RTCRPKCS7VERIFY_SD_F_UPDATE_VALIDATION_TIME                 RT_BIT_32(8)
+/** Check trust anchors (@sa RTCrX509CertPathsSetTrustAnchorChecks). */
+#define RTCRPKCS7VERIFY_SD_F_CHECK_TRUST_ANCHORS                    RT_BIT_32(9)
+
+/** This can be used to only verify one given signer info.
+ * Max index value is 15.  */
+#define RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX(a_idxSignerInfo) \
+    (  RTCRPKCS7VERIFY_SD_F_HAS_SIGNER_INDEX \
+     | (((a_idxSignerInfo) & RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_MAX) << RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_SHIFT) )
+/** Has a valid value in RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_MASK. */
+#define RTCRPKCS7VERIFY_SD_F_HAS_SIGNER_INDEX                       RT_BIT_32(23)
+/** Signer index shift value. */
+#define RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_SHIFT                     24
+/** Signer index mask. */
+#define RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_MASK                      UINT32_C(0x0f000000)
+/** Max signer index value (inclusive). */
+#define RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_MAX \
+    (RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_MASK >> RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_SHIFT)
 
 /** Indicates internally that we're validating a counter signature and should
  * use different rules when checking out the authenticated attributes.

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QIDialog_h
@@ -40,7 +50,7 @@ class SHARED_LIBRARY_STUFF QIDialog : public QDialog
 public:
 
     /** Constructs the dialog passing @a pParent and @a enmFlags to the base-class. */
-    QIDialog(QWidget *pParent = 0, Qt::WindowFlags enmFlags = 0);
+    QIDialog(QWidget *pParent = 0, Qt::WindowFlags enmFlags = Qt::WindowFlags());
 
     /** Defines whether the dialog is @a fVisible. */
     void setVisible(bool fVisible);
@@ -53,12 +63,12 @@ public slots:
     virtual int execute(bool fShow = true, bool fApplicationModal = false);
 
     /** Shows the dialog as a modal one, blocking until the user closes it. */
-    virtual int exec() /* override */ { return execute(); }
+    virtual int exec() RT_OVERRIDE { return execute(); }
 
 protected:
 
     /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
+    virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
     /** Handles show @a pEvent sent for the first time. */
     virtual void polishEvent(QShowEvent *pEvent);
 

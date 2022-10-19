@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /*
@@ -143,11 +153,6 @@ DECLINLINE(int) tftpSecurityFilenameCheck(PNATState pData, PTFTPSESSION pTftpSes
 {
     int rc = VERR_FILE_NOT_FOUND; /* guilty until proved innocent */
 
-    char *s;
-    const char *dotdot;
-    char *pszPathHostAbs;
-    int cbLen;
-
     AssertPtrReturn(pTftpSession, VERR_INVALID_PARAMETER);
     AssertReturn(pTftpSession->pcszFilenameHost == NULL, VERR_INVALID_PARAMETER);
 
@@ -156,7 +161,7 @@ DECLINLINE(int) tftpSecurityFilenameCheck(PNATState pData, PTFTPSESSION pTftpSes
         goto done;
 
     /* replace backslashes with forward slashes */
-    s = pTftpSession->szFilename;
+    char *s = pTftpSession->szFilename;
     while ((s = strchr(s, '\\')) != NULL)
         *s++ = '/';
 
@@ -172,12 +177,13 @@ DECLINLINE(int) tftpSecurityFilenameCheck(PNATState pData, PTFTPSESSION pTftpSes
         goto done;
 
     /* deny dot-dot at the end (there's no RTStrEndsWith) */
-    dotdot = RTStrStr(pTftpSession->szFilename, "/..");
+    const char *dotdot = RTStrStr(pTftpSession->szFilename, "/..");
     if (dotdot != NULL && dotdot[3] == '\0')
         goto done;
 
-    cbLen = RTStrAPrintf(&pszPathHostAbs, "%s/%s",
-                         tftp_prefix, pTftpSession->szFilename);
+    char *pszPathHostAbs;
+    int cbLen = RTStrAPrintf(&pszPathHostAbs, "%s/%s",
+                           tftp_prefix, pTftpSession->szFilename);
     if (cbLen == -1)
         goto done;
 
@@ -391,8 +397,6 @@ static int tftpAllocateSession(PNATState pData, PCTFTPIPHDR pcTftpIpHeader, PPTF
     PTFTPSESSION pTftpSession = NULL;
     int rc = VINF_SUCCESS;
     int idxSession;
-    const char *pszPrefix;
-
     AssertPtrReturn(pData, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pcTftpIpHeader, VERR_INVALID_PARAMETER);
     AssertPtrReturn(ppTftpSession, VERR_INVALID_PARAMETER);
@@ -415,9 +419,7 @@ static int tftpAllocateSession(PNATState pData, PCTFTPIPHDR pcTftpIpHeader, PPTF
     if (pTftpSession->pcszFilenameHost != NULL)
     {
         RTStrFree((char *)pTftpSession->pcszFilenameHost);
-#if 0
-        pTftpSession->pcszFilenameHost = NULL; /* will be zeroed out below */
-#endif
+        // pTftpSession->pcszFilenameHost = NULL; /* will be zeroed out below */
     }
     RT_ZERO(*pTftpSession);
 
@@ -428,7 +430,7 @@ static int tftpAllocateSession(PNATState pData, PCTFTPIPHDR pcTftpIpHeader, PPTF
     *ppTftpSession = pTftpSession;
 
     LogRel(("NAT: TFTP RRQ %s", pTftpSession->szFilename));
-    pszPrefix = " ";
+    const char *pszPrefix = " ";
     if (pTftpSession->OptionBlkSize.fRequested)
     {
         LogRel(("%s" "blksize=%RU64", pszPrefix, pTftpSession->OptionBlkSize.u64Value));

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -110,8 +120,9 @@ bool UIChooserHandlerMouse::handleMousePress(QGraphicsSceneMouseEvent *pEvent) c
                     {
                         /* Calculate positions: */
                         UIChooserItem *pFirstItem = model()->firstSelectedItem();
-                        int iFirstPosition = model()->navigationItems().indexOf(pFirstItem);
-                        int iClickedPosition = model()->navigationItems().indexOf(pClickedItem);
+                        AssertPtrReturn(pFirstItem, false); // is failure possible?
+                        const int iFirstPosition = model()->navigationItems().indexOf(pFirstItem);
+                        const int iClickedPosition = model()->navigationItems().indexOf(pClickedItem);
                         /* Populate list of items from 'first' to 'clicked': */
                         QList<UIChooserItem*> items;
                         if (iFirstPosition <= iClickedPosition)
@@ -120,10 +131,24 @@ bool UIChooserHandlerMouse::handleMousePress(QGraphicsSceneMouseEvent *pEvent) c
                         else
                             for (int i = iFirstPosition; i >= iClickedPosition; --i)
                                 items << model()->navigationItems().at(i);
+                        /* Wipe out items of inconsistent types: */
+                        QList<UIChooserItem*> filteredItems;
+                        foreach (UIChooserItem *pIteratedItem, items)
+                        {
+                            /* So, the logic is to add intermediate item if
+                             * - first and intermediate selected items are global or
+                             * - first and intermediate selected items are NOT global. */
+                            if (   (   pFirstItem->type() == UIChooserNodeType_Global
+                                    && pIteratedItem->type() == UIChooserNodeType_Global)
+                                || (   pFirstItem->type() != UIChooserNodeType_Global
+                                    && pIteratedItem->type() != UIChooserNodeType_Global))
+                                filteredItems << pIteratedItem;
+                        }
                         /* Make that list selected: */
-                        model()->setSelectedItems(items);
-                        /* Make clicked item current one: */
-                        model()->setCurrentItem(pClickedItem);
+                        model()->setSelectedItems(filteredItems);
+                        /* Make item closest to clicked the current one: */
+                        if (!filteredItems.isEmpty())
+                            model()->setCurrentItem(filteredItems.last());
                     }
                     /* Was 'control' modifier pressed? */
                     else if (pEvent->modifiers() == Qt::ControlModifier)
@@ -132,10 +157,20 @@ bool UIChooserHandlerMouse::handleMousePress(QGraphicsSceneMouseEvent *pEvent) c
                         if (model()->selectedItems().contains(pClickedItem))
                             model()->removeFromSelectedItems(pClickedItem);
                         else
-                            model()->addToSelectedItems(pClickedItem);
+                        {
+                            /* So, the logic is to add newly clicked item if
+                             * - previously and newly selected items are global or
+                             * - previously and newly selected items are NOT global. */
+                            UIChooserItem *pFirstItem = model()->firstSelectedItem();
+                            AssertPtrReturn(pFirstItem, false); // is failure possible?
+                            if (   (   pFirstItem->type() == UIChooserNodeType_Global
+                                    && pClickedItem->type() == UIChooserNodeType_Global)
+                                || (   pFirstItem->type() != UIChooserNodeType_Global
+                                    && pClickedItem->type() != UIChooserNodeType_Global))
+                                model()->addToSelectedItems(pClickedItem);
+                        }
                         /* Make clicked item current one: */
                         model()->setCurrentItem(pClickedItem);
-                        model()->makeSureSomeItemIsSelected();
                     }
                     /* Was no modifiers pressed? */
                     else if (pEvent->modifiers() == Qt::NoModifier)
@@ -211,10 +246,10 @@ bool UIChooserHandlerMouse::handleMouseDoubleClick(QGraphicsSceneMouseEvent *pEv
                     return true;
                 }
                 /* Or a machine one? */
-                else if (pItemUnderMouse->type() == UIChooserItemType_Machine)
+                else if (pItemUnderMouse->type() == UIChooserNodeType_Machine)
                 {
-                    /* Activate machine-item: */
-                    model()->activateMachineItem();
+                    /* Start or show selected items: */
+                    model()->startOrShowSelectedItems();
                 }
                 break;
             }

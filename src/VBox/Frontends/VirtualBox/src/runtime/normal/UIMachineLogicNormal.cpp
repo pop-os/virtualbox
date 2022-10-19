@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -68,7 +78,7 @@ void UIMachineLogicNormal::sltCheckForRequestedVisualStateType()
         return;
 
     /* Do not try to change visual-state type in 'manual override' mode: */
-    if (isManualOverrideMode())
+    if (uisession()->isManualOverrideMode())
         return;
 
     /* Check requested visual-state types: */
@@ -215,37 +225,6 @@ void UIMachineLogicNormal::sltToggleStatusBar()
     gEDataManager->setStatusBarEnabled(!fEnabled, uiCommon().managedVMUuid());
 }
 
-void UIMachineLogicNormal::sltHandleActionTriggerViewScreenToggle(int iIndex, bool fEnabled)
-{
-    /* Enable/disable guest keeping current size: */
-    ULONG uWidth, uHeight, uBitsPerPixel;
-    LONG uOriginX, uOriginY;
-    KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
-    display().GetScreenResolution(iIndex, uWidth, uHeight, uBitsPerPixel, uOriginX, uOriginY, monitorStatus);
-    if (!fEnabled)
-    {
-        uisession()->setScreenVisibleHostDesires(iIndex, false);
-        display().SetVideoModeHint(iIndex, false, false, 0, 0, 0, 0, 0, true);
-    }
-    else
-    {
-        /* Defaults: */
-        if (!uWidth)
-            uWidth = 800;
-        if (!uHeight)
-            uHeight = 600;
-        uisession()->setScreenVisibleHostDesires(iIndex, true);
-        display().SetVideoModeHint(iIndex, true, false, 0, 0, uWidth, uHeight, 32, true);
-    }
-}
-
-void UIMachineLogicNormal::sltHandleActionTriggerViewScreenResize(int iIndex, const QSize &size)
-{
-    /* Resize guest to required size: */
-    display().SetVideoModeHint(iIndex, uisession()->isScreenVisible(iIndex),
-                             false, 0, 0, size.width(), size.height(), 0, true);
-}
-
 void UIMachineLogicNormal::sltHostScreenAvailableAreaChange()
 {
 #if defined(VBOX_WS_X11) && !defined(VBOX_GUI_WITH_CUSTOMIZATIONS1)
@@ -296,14 +275,6 @@ void UIMachineLogicNormal::prepareActionConnections()
             this, &UIMachineLogicNormal::sltOpenStatusBarSettings);
     connect(actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_T_Visibility), &UIAction::triggered,
             this, &UIMachineLogicNormal::sltToggleStatusBar);
-    UIActionPoolRuntime* pActionPoolRuntime = qobject_cast<UIActionPoolRuntime*>(actionPool());
-    AssertPtrReturnVoid(pActionPoolRuntime);
-    {
-        connect(pActionPoolRuntime, &UIActionPoolRuntime::sigNotifyAboutTriggeringViewScreenToggle,
-                this, &UIMachineLogicNormal::sltHandleActionTriggerViewScreenToggle);
-        connect(pActionPoolRuntime, &UIActionPoolRuntime::sigNotifyAboutTriggeringViewScreenResize,
-                this, &UIMachineLogicNormal::sltHandleActionTriggerViewScreenResize);
-    }
 }
 
 void UIMachineLogicNormal::prepareMachineWindows()

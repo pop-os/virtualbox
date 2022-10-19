@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_types_h
@@ -36,7 +46,7 @@
 /*
  * Include standard C types.
  */
-#ifndef IPRT_NO_CRT
+#if !defined(IPRT_NO_CRT) && !defined(DOXYGEN_RUNNING)
 
 # if defined(IN_XF86_MODULE) && !defined(NO_ANSIC)
     /*
@@ -183,16 +193,25 @@ RT_C_DECLS_END
 #  undef false
 #  undef true
 #  undef bool
+
+# elif !defined(DOXYGEN_RUNNING) && RT_MSC_PREREQ(RT_MSC_VER_VC140) && defined(RT_OS_AGNOSTIC)
+    /* Try avoid needing the UCRT just for stddef.h and sys/types.h. */
+    /** @todo refine the RT_OS_AGNOSTIC test? */
+#  include <vcruntime.h>
+
 # else
 #  include <stddef.h>
 #  include <sys/types.h>
 # endif
 
 
-/* Define any types missing from sys/types.h on windows. */
+/* Define any types missing from sys/types.h on Windows and OS/2. */
 # ifdef _MSC_VER
 #  undef ssize_t
-   typedef intptr_t ssize_t;
+typedef intptr_t ssize_t;
+# endif
+# if defined(RT_OS_OS2) && (defined(__IBMC__) || defined(__IBMCPP__))
+typedef signed long ssize_t;
 # endif
 
 #else  /* no crt */
@@ -262,9 +281,7 @@ typedef _Bool bool;
      typedef _Bool bool;
 #   endif
 #  else
-#   if (defined(RT_OS_DARWIN) || defined(RT_OS_HAIKU)) && (defined(_STDBOOL_H) || defined(__STDBOOL_H))
-#    undef bool
-#   endif
+#   undef bool /* see above netbsd explanation */
 typedef _Bool bool;
 #  endif
 # else
@@ -282,10 +299,11 @@ typedef unsigned char bool;
 # endif
 #endif
 
+
 /**
  * 128-bit unsigned integer.
  */
-#if defined(__GNUC__) && defined(RT_ARCH_AMD64)
+#ifdef RT_COMPILER_WITH_128BIT_INT_TYPES
 typedef __uint128_t uint128_t;
 #else
 typedef struct uint128_s
@@ -304,7 +322,7 @@ typedef struct uint128_s
 /**
  * 128-bit signed integer.
  */
-#if defined(__GNUC__) && defined(RT_ARCH_AMD64)
+#ifdef RT_COMPILER_WITH_128BIT_INT_TYPES
 typedef __int128_t int128_t;
 #else
 typedef struct int128_s
@@ -328,10 +346,6 @@ typedef union RTUINT16U
     /** natural view. */
     uint16_t    u;
 
-    /** 16-bit view. */
-    uint16_t    au16[1];
-    /** 8-bit view. */
-    uint8_t     au8[2];
     /** 16-bit hi/lo view. */
     struct
     {
@@ -343,6 +357,16 @@ typedef union RTUINT16U
         uint8_t    Hi;
 #endif
     } s;
+
+    /** Unsigned 16-bit view. */
+    uint16_t    au16[1];
+    /** Unsigned 8-bit view. */
+    uint8_t     au8[2];
+
+    /** Signed 16-bit view. */
+    int16_t     ai16[1];
+    /** Signed 8-bit view. */
+    int8_t      ai8[2];
 } RTUINT16U;
 /** Pointer to a 16-bit unsigned integer union. */
 typedef RTUINT16U RT_FAR *PRTUINT16U;
@@ -380,12 +404,19 @@ typedef union RTUINT32U
 #endif
     } Words;
 
-    /** 32-bit view. */
+    /** Unsigned 32-bit view. */
     uint32_t    au32[1];
-    /** 16-bit view. */
+    /** Unsigned 16-bit view. */
     uint16_t    au16[2];
-    /** 8-bit view. */
+    /** Unsigned 8-bit view. */
     uint8_t     au8[4];
+
+    /** Signed 32-bit view. */
+    int32_t     ai32[1];
+    /** Signed 16-bit view. */
+    int16_t     ai16[2];
+    /** Signed 8-bit view. */
+    int8_t      ai8[4];
 } RTUINT32U;
 /** Pointer to a 32-bit unsigned integer union. */
 typedef RTUINT32U RT_FAR *PRTUINT32U;
@@ -438,14 +469,23 @@ typedef union RTUINT64U
 #endif
     } Words;
 
-    /** 64-bit view. */
+    /** Unsigned 64-bit view. */
     uint64_t    au64[1];
-    /** 32-bit view. */
+    /** Unsigned 32-bit view. */
     uint32_t    au32[2];
-    /** 16-bit view. */
+    /** Unsigned 16-bit view. */
     uint16_t    au16[4];
-    /** 8-bit view. */
+    /** Unsigned 8-bit view. */
     uint8_t     au8[8];
+
+    /** Signed 64-bit view. */
+    int64_t     ai64[1];
+    /** Signed 32-bit view. */
+    int32_t     ai32[2];
+    /** Signed 16-bit view. */
+    int16_t     ai16[4];
+    /** Signed 8-bit view. */
+    int8_t      ai8[8];
 } RTUINT64U;
 /** Pointer to a 64-bit unsigned integer union. */
 typedef RTUINT64U RT_FAR *PRTUINT64U;
@@ -527,14 +567,23 @@ typedef union RTUINT128U
 #endif
     } Words;
 
-    /** 64-bit view. */
+    /** Unsigned 64-bit view. */
     uint64_t    au64[2];
-    /** 32-bit view. */
+    /** Unsigned 32-bit view. */
     uint32_t    au32[4];
-    /** 16-bit view. */
+    /** Unsigned 16-bit view. */
     uint16_t    au16[8];
-    /** 8-bit view. */
+    /** Unsigned 8-bit view. */
     uint8_t     au8[16];
+
+    /** Signed 64-bit view. */
+    int64_t     ai64[2];
+    /** Signed 32-bit view. */
+    int32_t     ai32[4];
+    /** Signed 16-bit view. */
+    int16_t     ai16[8];
+    /** Signed 8-bit view. */
+    int8_t      ai8[16];
 } RTUINT128U;
 #pragma pack()
 /** Pointer to a 128-bit unsigned integer union. */
@@ -655,16 +704,25 @@ typedef union RTUINT256U
 #endif
     } DQWords;
 
-    /** 128-bit view. */
+    /** Unsigned 128-bit view. */
     RTUINT128U  au128[2];
-    /** 64-bit view. */
+    /** Unsigned 64-bit view. */
     uint64_t    au64[4];
-    /** 32-bit view. */
+    /** Unsigned 32-bit view. */
     uint32_t    au32[8];
-    /** 16-bit view. */
+    /** Unsigned 16-bit view. */
     uint16_t    au16[16];
-    /** 8-bit view. */
+    /** Unsigned 8-bit view. */
     uint8_t     au8[32];
+
+    /** Signed 64-bit view. */
+    int64_t     ai64[4];
+    /** Signed 32-bit view. */
+    int32_t     ai32[8];
+    /** Signed 16-bit view. */
+    int16_t     ai16[16];
+    /** Signed 8-bit view. */
+    int8_t      ai8[32];
 } RTUINT256U;
 #pragma pack()
 /** Pointer to a 256-bit unsigned integer union. */
@@ -895,32 +953,115 @@ typedef const RTUINT512U RT_FAR *PCRTUINT512U;
 
 
 /**
- * Double precision floating point format (64-bit).
+ * Single precision floating point format (32-bit).
  */
-typedef union RTFLOAT64U
+typedef union RTFLOAT32U
 {
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-    /** Double view. */
-    double      rd;
-#endif
     /** Format using regular bitfields.  */
     struct
     {
 # ifdef RT_BIG_ENDIAN
         /** The sign indicator. */
         uint32_t    fSign : 1;
-        /** The exponent (offseted by 1023). */
+        /** The exponent (offsetted by 127). */
+        uint32_t    uExponent : 8;
+        /** The fraction. */
+        uint32_t    uFraction : 23;
+# else
+        /** The fraction. */
+        uint32_t    uFraction : 23;
+        /** The exponent (offsetted by 127). */
+        uint32_t    uExponent : 8;
+        /** The sign indicator. */
+        uint32_t    fSign : 1;
+# endif
+    } s;
+
+#if 1 /** @todo exclude targets which doesn't have a 64-bit double type. (currently none) */
+    /** Double view. */
+    float       r;
+#endif
+    /** Unsigned integer view. */
+    uint32_t    u;
+    /** 32-bit view. */
+    uint32_t    au32[1];
+    /** 16-bit view. */
+    uint16_t    au16[2];
+    /** 8-bit view. */
+    uint8_t     au8[4];
+} RTFLOAT32U;
+/** Pointer to a single precision floating point format union. */
+typedef RTFLOAT32U RT_FAR *PRTFLOAT32U;
+/** Pointer to a const single precision floating point format union. */
+typedef const RTFLOAT32U RT_FAR *PCRTFLOAT32U;
+/** RTFLOAT32U initializer. */
+#ifdef RT_BIG_ENDIAN
+# define RTFLOAT32U_INIT(a_fSign, a_uFraction, a_uExponent)     { { (a_fSign), (a_uExponent), (a_uFraction) } }
+#else
+# define RTFLOAT32U_INIT(a_fSign, a_uFraction, a_uExponent)     { { (a_uFraction), (a_uExponent), (a_fSign) } }
+#endif
+#define RTFLOAT32U_INIT_C(a_fSign, a_uFraction, a_uExponent)    RTFLOAT32U_INIT((a_fSign), UINT32_C(a_uFraction), (a_uExponent))
+#define RTFLOAT32U_INIT_ZERO(a_fSign)               RTFLOAT32U_INIT((a_fSign), 0, 0)
+#define RTFLOAT32U_INIT_INF(a_fSign)                RTFLOAT32U_INIT((a_fSign), 0, RTFLOAT32U_EXP_MAX)
+#define RTFLOAT32U_INIT_SNAN(a_fSign)               RTFLOAT32U_INIT((a_fSign), 1, RTFLOAT32U_EXP_MAX)
+#define RTFLOAT32U_INIT_SNAN_EX(a_fSign, a_uVal)    RTFLOAT32U_INIT((a_fSign), (a_uVal) ? (a_uVal) : 1, RTFLOAT32U_EXP_MAX)
+#define RTFLOAT32U_INIT_SIGNALLING_NAN(a_fSign)     RTFLOAT32U_INIT_SNAN(a_fSign)
+#define RTFLOAT32U_INIT_QNAN(a_fSign)               RTFLOAT32U_INIT((a_fSign), RT_BIT_32(RTFLOAT32U_FRACTION_BITS - 1), RTFLOAT32U_EXP_MAX)
+#define RTFLOAT32U_INIT_QNAN_EX(a_fSign, a_uVal)    RTFLOAT32U_INIT((a_fSign), RT_BIT_32(RTFLOAT32U_FRACTION_BITS - 1) | (a_uVal), RTFLOAT32U_EXP_MAX)
+#define RTFLOAT32U_INIT_QUIET_NAN(a_fSign)          RTFLOAT32U_INIT_QNAN(a_fSign)
+#define RTFLOAT32U_INIT_NAN_EX(a_fQuiet, a_fSign, a_uVal) \
+    RTFLOAT32U_INIT((a_fSign), \
+                    ((a_uVal) || (a_fQuiet) ? (a_uVal) : 1) | ((a_fQuiet) ? RT_BIT_32(RTFLOAT32U_FRACTION_BITS - 1) : 0), \
+                    RTFLOAT32U_EXP_MAX)
+
+/** The exponent bias for the RTFLOAT32U format. */
+#define RTFLOAT32U_EXP_BIAS                     (127)
+/** The max exponent value for the RTFLOAT32U format. */
+#define RTFLOAT32U_EXP_MAX                      (255)
+/** The exponent bias overflow/underflow adjust for the RTFLOAT32U format.
+ * @note 754-1985 sec 7.3 & 7.4, not mentioned in later standard versions. */
+#define RTFLOAT32U_EXP_BIAS_ADJUST              (192)
+/** Fraction width (in bits) for the RTFLOAT32U format. */
+#define RTFLOAT32U_FRACTION_BITS                (23)
+/** Check if two 32-bit floating values are identical (memcmp, not
+ *  numerically). */
+#define RTFLOAT32U_ARE_IDENTICAL(a_pLeft, a_pRight)             ((a_pLeft)->u == (a_pRight)->u)
+/** @name RTFLOAT32U classification macros
+ * @{ */
+#define RTFLOAT32U_IS_ZERO(a_pr32)              (((a_pr32)->u & (RT_BIT_32(31) - 1)) == 0)
+#define RTFLOAT32U_IS_SUBNORMAL(a_pr32)         ((a_pr32)->s.uExponent == 0    && (a_pr32)->s.uFraction != 0)
+#define RTFLOAT32U_IS_INF(a_pr32)               ((a_pr32)->s.uExponent == 0xff && (a_pr32)->s.uFraction == 0)
+#define RTFLOAT32U_IS_SIGNALLING_NAN(a_pr32)    ((a_pr32)->s.uExponent == 0xff && !((a_pr32)->s.uFraction & RT_BIT_32(22)) \
+                                                 && (a_pr32)->s.uFraction != 0)
+#define RTFLOAT32U_IS_QUIET_NAN(a_pr32)         ((a_pr32)->s.uExponent == 0xff && ((a_pr32)->s.uFraction & RT_BIT_32(22)))
+#define RTFLOAT32U_IS_NAN(a_pr32)               ((a_pr32)->s.uExponent == 0xff && (a_pr32)->s.uFraction != 0)
+#define RTFLOAT32U_IS_NORMAL(a_pr32)            ((a_pr32)->s.uExponent > 0 && (a_pr32)->s.uExponent < 0xff)
+/** @} */
+
+
+/**
+ * Double precision floating point format (64-bit).
+ */
+typedef union RTFLOAT64U
+{
+    /** Format using regular bitfields.  */
+    struct
+    {
+# ifdef RT_BIG_ENDIAN
+        /** The sign indicator. */
+        uint32_t    fSign : 1;
+        /** The exponent (offsetted by 1023). */
         uint32_t    uExponent : 11;
         /** The fraction, bits 32 thru 51. */
-        uint32_t    u20FractionHigh : 20;
+        uint32_t    uFractionHigh : 20;
         /** The fraction, bits 0 thru 31. */
-        uint32_t    u32FractionLow;
+        uint32_t    uFractionLow;
 # else
         /** The fraction, bits 0 thru 31. */
-        uint32_t    u32FractionLow;
+        uint32_t    uFractionLow;
         /** The fraction, bits 32 thru 51. */
-        uint32_t    u20FractionHigh : 20;
-        /** The exponent (offseted by 1023). */
+        uint32_t    uFractionHigh : 20;
+        /** The exponent (offsetted by 1023). */
         uint32_t    uExponent : 11;
         /** The sign indicator. */
         uint32_t    fSign : 1;
@@ -934,14 +1075,14 @@ typedef union RTFLOAT64U
 # ifdef RT_BIG_ENDIAN
         /** The sign indicator. */
         RT_GCC_EXTENSION uint64_t    fSign : 1;
-        /** The exponent (offseted by 1023). */
+        /** The exponent (offsetted by 1023). */
         RT_GCC_EXTENSION uint64_t    uExponent : 11;
         /** The fraction. */
         RT_GCC_EXTENSION uint64_t    uFraction : 52;
 # else
         /** The fraction. */
         RT_GCC_EXTENSION uint64_t    uFraction : 52;
-        /** The exponent (offseted by 1023). */
+        /** The exponent (offsetted by 1023). */
         RT_GCC_EXTENSION uint64_t    uExponent : 11;
         /** The sign indicator. */
         RT_GCC_EXTENSION uint64_t    fSign : 1;
@@ -949,6 +1090,16 @@ typedef union RTFLOAT64U
     } s64;
 #endif
 
+#if 1 /** @todo exclude targets which doesn't have a 64-bit double type. (currently none) */
+    /** Double view. */
+    double      rd, r;
+#endif
+#ifdef RT_COMPILER_WITH_64BIT_LONG_DOUBLE
+    /** Long double view. */
+    long double lrd;
+#endif
+    /** Unsigned integer view. */
+    uint64_t    u;
     /** 64-bit view. */
     uint64_t    au64[1];
     /** 32-bit view. */
@@ -962,6 +1113,56 @@ typedef union RTFLOAT64U
 typedef RTFLOAT64U RT_FAR *PRTFLOAT64U;
 /** Pointer to a const double precision floating point format union. */
 typedef const RTFLOAT64U RT_FAR *PCRTFLOAT64U;
+/** RTFLOAT64U initializer. */
+#ifdef RT_BIG_ENDIAN
+# define RTFLOAT64U_INIT(a_fSign, a_uFraction, a_uExponent)     \
+    { { (a_fSign), (a_uExponent), (uint32_t)((a_uFraction) >> 32), (uint32_t)((a_uFraction) & UINT32_MAX) } }
+#else
+# define RTFLOAT64U_INIT(a_fSign, a_uFraction, a_uExponent)     \
+    { { (uint32_t)((a_uFraction) & UINT32_MAX), (uint32_t)((a_uFraction) >> 32), (a_uExponent), (a_fSign) } }
+#endif
+#define RTFLOAT64U_INIT_C(a_fSign, a_uFraction, a_uExponent)    RTFLOAT64U_INIT((a_fSign), UINT64_C(a_uFraction), (a_uExponent))
+#define RTFLOAT64U_INIT_ZERO(a_fSign)               RTFLOAT64U_INIT((a_fSign), UINT64_C(0), 0)
+#define RTFLOAT64U_INIT_INF(a_fSign)                RTFLOAT64U_INIT((a_fSign), UINT64_C(0), RTFLOAT64U_EXP_MAX)
+#define RTFLOAT64U_INIT_SNAN(a_fSign)               RTFLOAT64U_INIT((a_fSign), UINT64_C(1), RTFLOAT64U_EXP_MAX)
+#define RTFLOAT64U_INIT_SNAN_EX(a_fSign, a_uVal)    RTFLOAT64U_INIT((a_fSign), (a_uVal) ? (a_uVal) : UINT64_C(1), RTFLOAT64U_EXP_MAX)
+#define RTFLOAT64U_INIT_SIGNALLING_NAN(a_fSign)     RTFLOAT64U_INIT_SNAN(a_fSign)
+#define RTFLOAT64U_INIT_QNAN(a_fSign)               RTFLOAT64U_INIT((a_fSign), RT_BIT_64(RTFLOAT64U_FRACTION_BITS - 1), RTFLOAT64U_EXP_MAX)
+#define RTFLOAT64U_INIT_QNAN_EX(a_fSign, a_uVal)    RTFLOAT64U_INIT((a_fSign), RT_BIT_64(RTFLOAT64U_FRACTION_BITS - 1) | (a_uVal), RTFLOAT64U_EXP_MAX)
+#define RTFLOAT64U_INIT_QUIET_NAN(a_fSign)          RTFLOAT64U_INIT_QNAN(a_fSign)
+#define RTFLOAT64U_INIT_NAN_EX(a_fQuiet, a_fSign, a_uVal) \
+    RTFLOAT64U_INIT((a_fSign), \
+                    ((a_uVal) || (a_fQuiet) ? (a_uVal) : UINT64_C(1)) | ((a_fQuiet) ? RT_BIT_64(RTFLOAT64U_FRACTION_BITS - 1) : UINT64_C(0)), \
+                    RTFLOAT64U_EXP_MAX)
+
+/** The exponent bias for the RTFLOAT64U format. */
+#define RTFLOAT64U_EXP_BIAS                     (1023)
+/** The max exponent value for the RTFLOAT64U format. */
+#define RTFLOAT64U_EXP_MAX                      (2047)
+/** The exponent bias overflow/underflow adjust for the RTFLOAT64U format.
+ * @note 754-1985 sec 7.3 & 7.4, not mentioned in later standard versions. */
+#define RTFLOAT64U_EXP_BIAS_ADJUST              (1536)
+/** Fraction width (in bits) for the RTFLOAT64U format. */
+#define RTFLOAT64U_FRACTION_BITS                (52)
+/** Check if two 64-bit floating values are identical (memcmp, not
+ *  numerically). */
+#define RTFLOAT64U_ARE_IDENTICAL(a_pLeft, a_pRight)             ((a_pLeft)->u == (a_pRight)->u)
+/** @name RTFLOAT64U classification macros
+ * @{ */
+#define RTFLOAT64U_IS_ZERO(a_pr64)              (((a_pr64)->u & (RT_BIT_64(63) - 1)) == 0)
+#define RTFLOAT64U_IS_SUBNORMAL(a_pr64)         (   (a_pr64)->s.uExponent == 0 \
+                                                 && ((a_pr64)->s.uFractionLow != 0 || (a_pr64)->s.uFractionHigh != 0) )
+#define RTFLOAT64U_IS_INF(a_pr64)               (   (a_pr64)->s.uExponent == 0x7ff \
+                                                 && (a_pr64)->s.uFractionLow == 0 && (a_pr64)->s.uFractionHigh == 0)
+#define RTFLOAT64U_IS_SIGNALLING_NAN(a_pr64)    (   (a_pr64)->s.uExponent == 0x7ff \
+                                                 && !((a_pr64)->s.uFractionHigh & RT_BIT_32(19)) \
+                                                 && ((a_pr64)->s.uFractionHigh != 0 || (a_pr64)->s.uFractionLow != 0) )
+#define RTFLOAT64U_IS_QUIET_NAN(a_pr64)         ((a_pr64)->s.uExponent == 0x7ff && ((a_pr64)->s.uFractionHigh & RT_BIT_32(19)))
+#define RTFLOAT64U_IS_NAN(a_pr64)               (   (a_pr64)->s.uExponent == 0x7ff \
+                                                 && ((a_pr64)->s.uFractionHigh != 0 || (a_pr64)->s.uFractionLow != 0) )
+#define RTFLOAT64U_IS_NORMAL(a_pr64)            ((a_pr64)->s.uExponent > 0 && (a_pr64)->s.uExponent < 0x7ff)
+/** @} */
+
 
 
 #if !defined(__IBMCPP__) && !defined(__IBMC__)
@@ -969,28 +1170,70 @@ typedef const RTFLOAT64U RT_FAR *PCRTFLOAT64U;
 /**
  * Extended Double precision floating point format (80-bit).
  */
-#pragma pack(1)
+# pragma pack(1)
 typedef union RTFLOAT80U
 {
     /** Format using bitfields.  */
     RT_GCC_EXTENSION struct
     {
-# ifdef RT_BIG_ENDIAN
+# ifdef RT_BIG_ENDIAN /** @todo big endian mapping is wrong. */
         /** The sign indicator. */
         RT_GCC_EXTENSION uint16_t   fSign : 1;
-        /** The exponent (offseted by 16383). */
+        /** The exponent (offsetted by 16383). */
         RT_GCC_EXTENSION uint16_t   uExponent : 15;
         /** The mantissa. */
-        uint64_t                    u64Mantissa;
+        uint64_t                    uMantissa;
 # else
         /** The mantissa. */
-        uint64_t                    u64Mantissa;
-        /** The exponent (offseted by 16383). */
+        uint64_t                    uMantissa;
+        /** The exponent (offsetted by 16383). */
         RT_GCC_EXTENSION uint16_t   uExponent : 15;
         /** The sign indicator. */
         RT_GCC_EXTENSION uint16_t   fSign : 1;
 # endif
     } s;
+
+    /** Format for accessing it as two separate components. */
+    RT_GCC_EXTENSION struct
+    {
+# ifdef RT_BIG_ENDIAN /** @todo big endian mapping is wrong. */
+        /** The sign bit and exponent. */
+        uint16_t                    uSignAndExponent;
+        /** The mantissa. */
+        uint64_t                    uMantissa;
+# else
+        /** The mantissa. */
+        uint64_t                    uMantissa;
+        /** The sign bit and exponent. */
+        uint16_t                    uSignAndExponent;
+# endif
+    } s2;
+
+# ifdef RT_COMPILER_GROKS_64BIT_BITFIELDS
+    /** 64-bit bitfields exposing the J bit and the fraction.  */
+    RT_GCC_EXTENSION struct
+    {
+#  ifdef RT_BIG_ENDIAN /** @todo big endian mapping is wrong. */
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint16_t   fSign : 1;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint16_t   uExponent : 15;
+        /** The J bit, aka the integer bit. */
+        RT_GCC_EXTENSION uint64_t   fInteger : 1;
+        /** The fraction. */
+        RT_GCC_EXTENSION uint64_t   uFraction : 63;
+#  else
+        /** The fraction. */
+        RT_GCC_EXTENSION uint64_t   uFraction : 63;
+        /** The J bit, aka the integer bit. */
+        RT_GCC_EXTENSION uint64_t   fInteger : 1;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint16_t   uExponent : 15;
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint16_t   fSign : 1;
+#  endif
+    } sj64;
+# endif
 
     /** 64-bit view. */
     uint64_t    au64[1];
@@ -1001,98 +1244,221 @@ typedef union RTFLOAT80U
     /** 8-bit view. */
     uint8_t     au8[10];
 } RTFLOAT80U;
-#pragma pack()
+# pragma pack()
 /** Pointer to a extended precision floating point format union. */
 typedef RTFLOAT80U RT_FAR *PRTFLOAT80U;
 /** Pointer to a const extended precision floating point format union. */
 typedef const RTFLOAT80U RT_FAR *PCRTFLOAT80U;
+/** RTFLOAT80U initializer. */
+# ifdef RT_BIG_ENDIAN
+#  define RTFLOAT80U_INIT(a_fSign, a_uMantissa, a_uExponent)  { { (a_fSign), (a_uExponent), (a_uMantissa) } }
+# else
+#  define RTFLOAT80U_INIT(a_fSign, a_uMantissa, a_uExponent)  { { (a_uMantissa), (a_uExponent), (a_fSign) } }
+# endif
+# define RTFLOAT80U_INIT_C(a_fSign, a_uMantissa, a_uExponent) RTFLOAT80U_INIT((a_fSign), UINT64_C(a_uMantissa), (a_uExponent))
+# define RTFLOAT80U_INIT_ZERO(a_fSign)              RTFLOAT80U_INIT((a_fSign), 0, 0)
+# define RTFLOAT80U_INIT_INF(a_fSign)               RTFLOAT80U_INIT((a_fSign), RT_BIT_64(63), RTFLOAT80U_EXP_MAX)
+# define RTFLOAT80U_INIT_SIGNALLING_NAN(a_fSign)    RTFLOAT80U_INIT_SNAN((a_fSign))
+# define RTFLOAT80U_INIT_SNAN(a_fSign)              RTFLOAT80U_INIT((a_fSign), RT_BIT_64(63) | 1, RTFLOAT80U_EXP_MAX)
+# define RTFLOAT80U_INIT_SNAN_EX(a_fSign, a_uVal)   RTFLOAT80U_INIT((a_fSign), RT_BIT_64(63) | (a_uVal), RTFLOAT80U_EXP_MAX)
+# define RTFLOAT80U_INIT_QUIET_NAN(a_fSign)         RTFLOAT80U_INIT_QNAN((a_fSign))
+# define RTFLOAT80U_INIT_QNAN(a_fSign)              RTFLOAT80U_INIT((a_fSign), RT_BIT_64(63) | RT_BIT_64(62), RTFLOAT80U_EXP_MAX)
+# define RTFLOAT80U_INIT_QNAN_EX(a_fSign, a_uVal)   RTFLOAT80U_INIT((a_fSign), RT_BIT_64(63) | RT_BIT_64(62) | (a_uVal), RTFLOAT80U_EXP_MAX)
+#define RTFLOAT80U_INIT_NAN_EX(a_fQuiet, a_fSign, a_uVal) \
+    RTFLOAT80U_INIT((a_fSign), \
+                    ((a_uVal) || (a_fQuiet) ? (a_uVal) : UINT64_C(1)) | ((a_fQuiet) ? RT_BIT_64(63) | RT_BIT_64(62) : RT_BIT_64(63)), \
+                    RTFLOAT80U_EXP_MAX)
+# define RTFLOAT80U_INIT_INDEFINITE(a_fSign)        RTFLOAT80U_INIT((a_fSign), RT_BIT_64(63) | RT_BIT_64(62), RTFLOAT80U_EXP_MAX)
+# define RTFLOAT80U_INIT_IND(a_fSign)               RTFLOAT80U_INIT_INDEFINITE(a_fSign)
+/** The exponent bias for the RTFLOAT80U format. */
+# define RTFLOAT80U_EXP_BIAS                    (16383)
+/** The max exponent value for the RTFLOAT80U format. */
+# define RTFLOAT80U_EXP_MAX                     (32767)
+/** The exponent bias overflow/underflow adjust for the RTFLOAT80U format.
+ * @note 754-1985 sec 7.3 & 7.4, not mentioned in later standard versions. */
+# define RTFLOAT80U_EXP_BIAS_ADJUST             (24576)
+/** Fraction width (in bits) for the RTFLOAT80U format. */
+# define RTFLOAT80U_FRACTION_BITS               (63)
+/** Check if two 80-bit floating values are identical (memcmp, not
+ *  numberically). */
+# define RTFLOAT80U_ARE_IDENTICAL(a_pLeft, a_pRight) \
+    (   (a_pLeft)->au64[0] == (a_pRight)->au64[0] \
+     && (a_pLeft)->au16[4] == (a_pRight)->au16[4] )
+/** @name RTFLOAT80U classification macros
+ * @{ */
+/** Is @a a_pr80 +0 or -0. */
+# define RTFLOAT80U_IS_ZERO(a_pr80)                 RTFLOAT80U_IS_ZERO_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_ZERO_EX(a_uMantissa, a_uExponent) \
+    ((a_uExponent) == 0 && (a_uMantissa) == 0)
+/** Is @a a_pr80 a denormal (does not match psuedo-denormal). */
+# define RTFLOAT80U_IS_DENORMAL(a_pr80)             RTFLOAT80U_IS_DENORMAL_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_DENORMAL_EX(a_uMantissa, a_uExponent) \
+    ((a_uExponent) == 0 && (a_uMantissa) <  RT_BIT_64(63) && (a_uMantissa) != 0)
+/** Is @a a_pr80 a pseudo-denormal. */
+# define RTFLOAT80U_IS_PSEUDO_DENORMAL(a_pr80)      RTFLOAT80U_IS_PSEUDO_DENORMAL_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_PSEUDO_DENORMAL_EX(a_uMantissa, a_uExponent) \
+    ((a_uExponent) == 0 && (a_uMantissa) >= RT_BIT_64(63))
+/** Is @a a_pr80 denormal or pseudo-denormal. */
+# define RTFLOAT80U_IS_DENORMAL_OR_PSEUDO_DENORMAL(a_pr80) \
+    RTFLOAT80U_IS_DENORMAL_OR_PSEUDO_DENORMAL_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_DENORMAL_OR_PSEUDO_DENORMAL_EX(a_uMantissa, a_uExponent)     ((a_uExponent) == 0 && (a_uMantissa) != 0)
+/** Is @a a_pr80 +/-pseudo-infinity. */
+# define RTFLOAT80U_IS_PSEUDO_INF(a_pr80)           RTFLOAT80U_IS_PSEUDO_INF_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_PSEUDO_INF_EX(a_uMantissa, a_uExponent)  ((a_uExponent) == 0x7fff && (a_uMantissa) == 0)
+/** Is @a a_pr80 pseudo-not-a-number. */
+# define RTFLOAT80U_IS_PSEUDO_NAN(a_pr80)           RTFLOAT80U_IS_PSEUDO_NAN_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_PSEUDO_NAN_EX(a_uMantissa, a_uExponent)  ((a_uExponent) == 0x7fff && !((a_uMantissa) & RT_BIT_64(63)))
+/** Is @a a_pr80 infinity (does not match pseudo-infinity). */
+# define RTFLOAT80U_IS_INF(a_pr80)                  RTFLOAT80U_IS_INF_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_INF_EX(a_uMantissa, a_uExponent)         ((a_uExponent) == 0x7fff && (a_uMantissa) == RT_BIT_64(63))
+/** Is @a a_pr80 a signalling not-a-number value. */
+# define RTFLOAT80U_IS_SIGNALLING_NAN(a_pr80)       RTFLOAT80U_IS_SIGNALLING_NAN_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_SIGNALLING_NAN_EX(a_uMantissa, a_uExponent) \
+    (   (a_uExponent) == 0x7fff \
+     && ((a_uMantissa) & (RT_BIT_64(63) | RT_BIT_64(62))) == RT_BIT_64(63) \
+     && ((a_uMantissa) & (RT_BIT_64(62) - 1)) != 0)
+/** Is @a a_pr80 a quiet not-a-number value. */
+# define RTFLOAT80U_IS_QUIET_NAN(a_pr80)            RTFLOAT80U_IS_QUIET_NAN_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_QUIET_NAN_EX(a_uMantissa, a_uExponent) \
+    (   (a_uExponent) == 0x7fff \
+     && ((a_uMantissa) & (RT_BIT_64(63) | RT_BIT_64(62))) == (RT_BIT_64(63) | RT_BIT_64(62)) \
+     && ((a_uMantissa) & (RT_BIT_64(62) - 1)) != 0)
+/** Is @a a_pr80 Signalling-, Quiet- or Pseudo-NaN. */
+# define RTFLOAT80U_IS_NAN(a_pr80)                  RTFLOAT80U_IS_NAN_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_NAN_EX(a_uMantissa, a_uExponent) ((a_uExponent) == 0x7fff && ((a_uMantissa) & (RT_BIT_64(63) - 1)) != 0)
+/** Is @a a_pr80 Signalling- or Quiet-Nan, but not Pseudo-NaN. */
+# define RTFLOAT80U_IS_QUIET_OR_SIGNALLING_NAN(a_pr80) \
+     RTFLOAT80U_IS_QUIET_OR_SIGNALLING_NAN_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_QUIET_OR_SIGNALLING_NAN_EX(a_uMantissa, a_uExponent) \
+    ((a_uExponent) == 0x7fff && ((a_uMantissa) > RT_BIT_64(63)))
+/** Is @a a_pr80 indefinite (ignoring sign). */
+# define RTFLOAT80U_IS_INDEFINITE(a_pr80)           RTFLOAT80U_IS_INDEFINITE_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_INDEFINITE_EX(a_uMantissa, a_uExponent) \
+    ((a_uExponent) == 0x7fff && (a_uMantissa) == (RT_BIT_64(63) | RT_BIT_64(62)))
+/** Is @a a_pr80 Indefinite, Signalling- or Quiet-Nan, but not Pseudo-NaN (nor Infinity). */
+# define RTFLOAT80U_IS_INDEFINITE_OR_QUIET_OR_SIGNALLING_NAN(a_pr80) \
+    RTFLOAT80U_IS_INDEFINITE_OR_QUIET_OR_SIGNALLING_NAN_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_INDEFINITE_OR_QUIET_OR_SIGNALLING_NAN_EX(a_uMantissa, a_uExponent) \
+    ((a_uExponent) == 0x7fff && (a_uMantissa) > RT_BIT_64(63))
+/** Is @a a_pr80 an unnormal value (invalid operand on 387+). */
+# define RTFLOAT80U_IS_UNNORMAL(a_pr80)             RTFLOAT80U_IS_UNNORMAL_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_UNNORMAL_EX(a_uMantissa, a_uExponent) \
+    (!((a_uMantissa) & RT_BIT_64(63)) && (a_uExponent) > 0 && (a_uExponent) < 0x7fff) /* a_uExponent can be signed and up to 64-bit wide */
+/** Is @a a_pr80 a normal value (excludes zero). */
+# define RTFLOAT80U_IS_NORMAL(a_pr80)               RTFLOAT80U_IS_NORMAL_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+# define RTFLOAT80U_IS_NORMAL_EX(a_uMantissa, a_uExponent) \
+    (((a_uMantissa) & RT_BIT_64(63))  && (a_uExponent) > 0 && (a_uExponent) < 0x7fff) /* a_uExponent can be signed and up to 64-bit wide */
+/** Invalid 387 (and later) operands: Pseudo-Infinity, Psuedo-NaN, Unnormals. */
+#define RTFLOAT80U_IS_387_INVALID(a_pr80)           RTFLOAT80U_IS_387_INVALID_EX((a_pr80)->s.uMantissa, (a_pr80)->s.uExponent)
+#define RTFLOAT80U_IS_387_INVALID_EX(a_uMantissa, a_uExponent) \
+    (!((a_uMantissa) & RT_BIT_64(63)) && (a_uExponent) > 0)
+/** @} */
 
 
 /**
  * A variant of RTFLOAT80U that may be larger than 80-bits depending on how the
  * compiler implements long double.
+ *
+ * @note On AMD64 systems implementing the System V ABI, this will be 16 bytes!
+ *       The last 6 bytes are unused padding taken up by the long double view.
  */
-#pragma pack(1)
+# pragma pack(1)
 typedef union RTFLOAT80U2
 {
-#ifdef RT_COMPILER_WITH_80BIT_LONG_DOUBLE
-    /** Long double view. */
-    long double     lrd;
-#endif
     /** Format using bitfields.  */
     RT_GCC_EXTENSION struct
     {
-#ifdef RT_BIG_ENDIAN
+# ifdef RT_BIG_ENDIAN /** @todo big endian mapping is wrong. */
         /** The sign indicator. */
         RT_GCC_EXTENSION uint16_t   fSign : 1;
-        /** The exponent (offseted by 16383). */
+        /** The exponent (offsetted by 16383). */
         RT_GCC_EXTENSION uint16_t   uExponent : 15;
         /** The mantissa. */
-        uint64_t                    u64Mantissa;
-#else
-        /** The mantissa. */
-        uint64_t                    u64Mantissa;
-        /** The exponent (offseted by 16383). */
-        RT_GCC_EXTENSION uint16_t   uExponent : 15;
-        /** The sign indicator. */
-        RT_GCC_EXTENSION uint16_t   fSign : 1;
-#endif
-    } s;
-
-    /** Bitfield exposing the J bit and the fraction.  */
-    RT_GCC_EXTENSION struct
-    {
-#ifdef RT_BIG_ENDIAN
-        /** The sign indicator. */
-        RT_GCC_EXTENSION uint16_t   fSign : 1;
-        /** The exponent (offseted by 16383). */
-        RT_GCC_EXTENSION uint16_t   uExponent : 15;
-        /** The J bit, aka the integer bit. */
-        uint32_t                    fInteger;
-        /** The fraction, bits 32 thru 62. */
-        uint32_t                    u31FractionHigh : 31;
-        /** The fraction, bits 0 thru 31. */
-        uint32_t                    u32FractionLow : 32;
-#else
-        /** The fraction, bits 0 thru 31. */
-        uint32_t                    u32FractionLow : 32;
-        /** The fraction, bits 32 thru 62. */
-        uint32_t                    u31FractionHigh : 31;
-        /** The J bit, aka the integer bit. */
-        uint32_t                    fInteger;
-        /** The exponent (offseted by 16383). */
-        RT_GCC_EXTENSION uint16_t   uExponent : 15;
-        /** The sign indicator. */
-        RT_GCC_EXTENSION uint16_t   fSign : 1;
-#endif
-    } sj;
-
-#ifdef RT_COMPILER_GROKS_64BIT_BITFIELDS
-    /** 64-bit bitfields exposing the J bit and the fraction.  */
-    RT_GCC_EXTENSION struct
-    {
-# ifdef RT_BIG_ENDIAN
-        /** The sign indicator. */
-        RT_GCC_EXTENSION uint16_t   fSign : 1;
-        /** The exponent (offseted by 16383). */
-        RT_GCC_EXTENSION uint16_t   uExponent : 15;
-        /** The J bit, aka the integer bit. */
-        RT_GCC_EXTENSION uint64_t   fInteger : 1;
-        /** The fraction. */
-        RT_GCC_EXTENSION uint64_t   u63Fraction : 63;
+        uint64_t                    uMantissa;
 # else
-        /** The fraction. */
-        RT_GCC_EXTENSION uint64_t   u63Fraction : 63;
-        /** The J bit, aka the integer bit. */
-        RT_GCC_EXTENSION uint64_t   fInteger : 1;
-        /** The exponent (offseted by 16383). */
+        /** The mantissa. */
+        uint64_t                    uMantissa;
+        /** The exponent (offsetted by 16383). */
         RT_GCC_EXTENSION uint16_t   uExponent : 15;
         /** The sign indicator. */
         RT_GCC_EXTENSION uint16_t   fSign : 1;
 # endif
-    } sj64;
-#endif
+    } s;
 
+    /** Format for accessing it as two separate components. */
+    RT_GCC_EXTENSION struct
+    {
+# ifdef RT_BIG_ENDIAN /** @todo big endian mapping is wrong. */
+        /** The sign bit and exponent. */
+        uint16_t                    uSignAndExponent;
+        /** The mantissa. */
+        uint64_t                    uMantissa;
+# else
+        /** The mantissa. */
+        uint64_t                    uMantissa;
+        /** The sign bit and exponent. */
+        uint16_t                    uSignAndExponent;
+# endif
+    } s2;
+
+    /** Bitfield exposing the J bit and the fraction.  */
+    RT_GCC_EXTENSION struct
+    {
+# ifdef RT_BIG_ENDIAN /** @todo big endian mapping is wrong. */
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint16_t   fSign : 1;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint16_t   uExponent : 15;
+        /** The J bit, aka the integer bit. */
+        uint32_t                    fInteger : 1;
+        /** The fraction, bits 32 thru 62. */
+        uint32_t                    uFractionHigh : 31;
+        /** The fraction, bits 0 thru 31. */
+        uint32_t                    uFractionLow : 32;
+# else
+        /** The fraction, bits 0 thru 31. */
+        uint32_t                    uFractionLow : 32;
+        /** The fraction, bits 32 thru 62. */
+        uint32_t                    uFractionHigh : 31;
+        /** The J bit, aka the integer bit. */
+        uint32_t                    fInteger : 1;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint16_t   uExponent : 15;
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint16_t   fSign : 1;
+# endif
+    } sj;
+
+# ifdef RT_COMPILER_GROKS_64BIT_BITFIELDS
+    /** 64-bit bitfields exposing the J bit and the fraction.  */
+    RT_GCC_EXTENSION struct
+    {
+#  ifdef RT_BIG_ENDIAN /** @todo big endian mapping is wrong. */
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint16_t   fSign : 1;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint16_t   uExponent : 15;
+        /** The J bit, aka the integer bit. */
+        RT_GCC_EXTENSION uint64_t   fInteger : 1;
+        /** The fraction. */
+        RT_GCC_EXTENSION uint64_t   uFraction : 63;
+#  else
+        /** The fraction. */
+        RT_GCC_EXTENSION uint64_t   uFraction : 63;
+        /** The J bit, aka the integer bit. */
+        RT_GCC_EXTENSION uint64_t   fInteger : 1;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint16_t   uExponent : 15;
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint16_t   fSign : 1;
+#  endif
+    } sj64;
+# endif
+
+# ifdef RT_COMPILER_WITH_80BIT_LONG_DOUBLE
+    /** Long double view. */
+    long double lrd, r;
+# endif
     /** 64-bit view. */
     uint64_t    au64[1];
     /** 32-bit view. */
@@ -1102,7 +1468,7 @@ typedef union RTFLOAT80U2
     /** 8-bit view. */
     uint8_t     au8[10];
 } RTFLOAT80U2;
-#pragma pack()
+# pragma pack()
 /** Pointer to a extended precision floating point format union, 2nd
  * variant. */
 typedef RTFLOAT80U2 RT_FAR *PRTFLOAT80U2;
@@ -1113,10 +1479,265 @@ typedef const RTFLOAT80U2 RT_FAR *PCRTFLOAT80U2;
 #endif /* uint16_t bitfields doesn't work */
 
 
+/**
+ * Quadruple precision floating point format (128-bit).
+ */
+typedef union RTFLOAT128U
+{
+    /** Format using regular bitfields.  */
+    struct
+    {
+# ifdef RT_BIG_ENDIAN
+        /** The sign indicator. */
+        uint32_t    fSign : 1;
+        /** The exponent (offsetted by 16383). */
+        uint32_t    uExponent : 15;
+        /** The fraction, bits 96 thru 111. */
+        uint32_t    uFractionHigh : 16;
+        /** The fraction, bits 64 thru 95. */
+        uint32_t    uFractionMid;
+        /** The fraction, bits 0 thru 63. */
+        uint64_t    uFractionLow;
+# else
+        /** The fraction, bits 0 thru 63. */
+        uint64_t    uFractionLow;
+        /** The fraction, bits 64 thru 95. */
+        uint32_t    uFractionMid;
+        /** The fraction, bits 96 thru 111. */
+        uint32_t    uFractionHigh : 16;
+        /** The exponent (offsetted by 16383). */
+        uint32_t    uExponent : 15;
+        /** The sign indicator. */
+        uint32_t    fSign : 1;
+# endif
+    } s;
+
+    /** Format for accessing it as two separate components.  */
+    struct
+    {
+# ifdef RT_BIG_ENDIAN
+        /** The sign bit and exponent. */
+        uint16_t    uSignAndExponent;
+        /** The fraction, bits 96 thru 111. */
+        uint16_t    uFractionHigh;
+        /** The fraction, bits 64 thru 95. */
+        uint32_t    uFractionMid;
+        /** The fraction, bits 0 thru 63. */
+        uint64_t    uFractionLow;
+# else
+        /** The fraction, bits 0 thru 63. */
+        uint64_t    uFractionLow;
+        /** The fraction, bits 64 thru 95. */
+        uint32_t    uFractionMid;
+        /** The fraction, bits 96 thru 111. */
+        uint16_t    uFractionHigh;
+        /** The sign bit and exponent. */
+        uint16_t    uSignAndExponent;
+# endif
+    } s2;
+
+#ifdef RT_COMPILER_GROKS_64BIT_BITFIELDS
+    /** Format using 64-bit bitfields.  */
+    RT_GCC_EXTENSION struct
+    {
+# ifdef RT_BIG_ENDIAN
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint64_t   fSign : 1;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint64_t   uExponent : 15;
+        /** The fraction, bits 64 thru 111. */
+        RT_GCC_EXTENSION uint64_t   uFractionHi : 48;
+        /** The fraction, bits 0 thru 63. */
+        uint64_t                    uFractionLo;
+# else
+        /** The fraction, bits 0 thru 63. */
+        uint64_t                    uFractionLo;
+        /** The fraction, bits 64 thru 111. */
+        RT_GCC_EXTENSION uint64_t   uFractionHi : 48;
+        /** The exponent (offsetted by 16383). */
+        RT_GCC_EXTENSION uint64_t   uExponent : 15;
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint64_t   fSign : 1;
+# endif
+    } s64;
+#endif
+
+#ifdef RT_COMPILER_WITH_128BIT_LONG_DOUBLE
+    /** Long double view. */
+    long double lrd, r;
+#endif
+    /** 128-bit view. */
+    RTUINT128U  u128;
+    /** 64-bit view. */
+    uint64_t    au64[2];
+    /** 32-bit view. */
+    uint32_t    au32[4];
+    /** 16-bit view. */
+    uint16_t    au16[8];
+    /** 8-bit view. */
+    uint8_t     au8[16];
+} RTFLOAT128U;
+/** Pointer to a quadruple precision floating point format union. */
+typedef RTFLOAT128U RT_FAR *PRTFLOAT128U;
+/** Pointer to a const quadruple precision floating point format union. */
+typedef const RTFLOAT128U RT_FAR *PCRTFLOAT128U;
+/** RTFLOAT128U initializer. */
+#ifdef RT_BIG_ENDIAN
+# define RTFLOAT128U_INIT(a_fSign, a_uFractionHi, a_uFractionLo, a_uExponent)     \
+    { { (a_fSign), (a_uExponent), (uint32_t)((a_uFractionHi) >> 32), (uint32_t)((a_uFractionHi) & UINT32_MAX), (a_uFractionLo) } }
+#else
+# define RTFLOAT128U_INIT(a_fSign, a_uFractionHi, a_uFractionLo, a_uExponent)     \
+    { { (a_uFractionLo), (uint32_t)((a_uFractionHi) & UINT32_MAX), (uint32_t)((a_uFractionHi) >> 32), (a_uExponent), (a_fSign) } }
+#endif
+#define RTFLOAT128U_INIT_C(a_fSign, a_uFractionHi, a_uFractionLo, a_uExponent) \
+    RTFLOAT128U_INIT((a_fSign), UINT64_C(a_uFractionHi), UINT64_C(a_uFractionLo), (a_uExponent))
+
+#define RTFLOAT128U_INIT_ZERO(a_fSign)               RTFLOAT128U_INIT((a_fSign), UINT64_C(0), UINT64_C(0), 0)
+#define RTFLOAT128U_INIT_INF(a_fSign)                RTFLOAT128U_INIT((a_fSign), UINT64_C(0), UINT64_C(0), RTFLOAT128U_EXP_MAX)
+#define RTFLOAT128U_INIT_SNAN(a_fSign)               RTFLOAT128U_INIT((a_fSign), UINT64_C(0), UINT64_C(1), RTFLOAT128U_EXP_MAX)
+#define RTFLOAT128U_INIT_SNAN_EX(a_fSign, a_uValHi, a_uValLo) \
+    RTFLOAT128U_INIT((a_fSign), (a_uValHi), (a_uValHi) || (a_uValLo) ? (a_uValLo) : UINT64_C(1), RTFLOAT128U_EXP_MAX)
+#define RTFLOAT128U_INIT_SIGNALLING_NAN(a_fSign)     RTFLOAT128U_INIT_SNAN(a_fSign)
+#define RTFLOAT128U_INIT_QNAN(a_fSign) \
+    RTFLOAT128U_INIT((a_fSign), RT_BIT_64(RTFLOAT128U_FRACTION_BITS - 1 - 64), UINT64_C(0), RTFLOAT128U_EXP_MAX)
+#define RTFLOAT128U_INIT_QNAN_EX(a_fSign, a_uValHi, a_uValLo) \
+    RTFLOAT128U_INIT((a_fSign), RT_BIT_64(RTFLOAT128U_FRACTION_BITS - 1 - 64) | (a_uValHi), (a_uValLo), RTFLOAT128U_EXP_MAX)
+#define RTFLOAT128U_INIT_QUIET_NAN(a_fSign)          RTFLOAT128U_INIT_QNAN(a_fSign)
+#define RTFLOAT128U_INIT_NAN_EX(a_fQuiet, a_fSign, a_uValHi, a_uValLo) \
+    RTFLOAT128U_INIT((a_fSign), \
+                     ((a_fQuiet) ? RT_BIT_64(RTFLOAT128U_FRACTION_BITS - 1 - 64) : 0) | (a_uValHi), \
+                     (a_uValLo) || (a_uValHi) || (a_fQuiet) ? (a_uValLo) : UINT64_C(1), \
+                     RTFLOAT128U_EXP_MAX)
+
+/** The exponent bias for the RTFLOAT128U format. */
+#define RTFLOAT128U_EXP_BIAS                    (16383)
+/** The max exponent value for the RTFLOAT128U format. */
+#define RTFLOAT128U_EXP_MAX                     (32767)
+/** The exponent bias overflow/underflow adjust for the RTFLOAT128U format.
+ * @note This is stipulated based on RTFLOAT80U, it doesn't appear in any
+ *       standard text as far as we know. */
+#define RTFLOAT128U_EXP_BIAS_ADJUST             (24576)
+/** Fraction width (in bits) for the RTFLOAT128U format. */
+#define RTFLOAT128U_FRACTION_BITS               (112)
+/** Check if two 128-bit floating values are identical (memcmp, not
+ *  numerically). */
+#define RTFLOAT128U_ARE_IDENTICAL(a_pLeft, a_pRight) \
+    ( (a_pLeft)->au64[0] == (a_pRight)->au64[0] && (a_pLeft)->au64[1] == (a_pRight)->au64[1] )
+/** @name RTFLOAT128U classification macros
+ * @{ */
+#define RTFLOAT128U_IS_ZERO(a_pr128)            (   (a_pr128)->u128.s.Lo == 0 \
+                                                 && ((a_pr128)->u128.s.Hi & (RT_BIT_64(63) - 1)) == 0)
+#define RTFLOAT128U_IS_SUBNORMAL(a_pr128)       (   (a_pr128)->s.uExponent == 0 \
+                                                 && (   (a_pr128)->s.uFractionLow  != 0 \
+                                                     || (a_pr128)->s.uFractionMid  != 0 \
+                                                     || (a_pr128)->s.uFractionHigh != 0 ) )
+#define RTFLOAT128U_IS_INF(a_pr128)             (   (a_pr128)->s.uExponent     == RTFLOAT128U_EXP_MAX \
+                                                 && (a_pr128)->s.uFractionHigh == 0 \
+                                                 && (a_pr128)->s.uFractionMid  == 0 \
+                                                 && (a_pr128)->s.uFractionLow  == 0 )
+#define RTFLOAT128U_IS_SIGNALLING_NAN(a_pr128)  (   (a_pr128)->s.uExponent == RTFLOAT128U_EXP_MAX \
+                                                 && !((a_pr128)->s.uFractionHigh & RT_BIT_32(15)) \
+                                                 && (   (a_pr128)->s.uFractionHigh != 0 \
+                                                     || (a_pr128)->s.uFractionMid  != 0 \
+                                                     || (a_pr128)->s.uFractionLow  != 0) )
+#define RTFLOAT128U_IS_QUIET_NAN(a_pr128)       (   (a_pr128)->s.uExponent == RTFLOAT128U_EXP_MAX \
+                                                 && ((a_pr128)->s.uFractionHigh & RT_BIT_32(15)))
+#define RTFLOAT128U_IS_NAN(a_pr128)             (   (a_pr128)->s.uExponent == RTFLOAT128U_EXP_MAX \
+                                                 && (   (a_pr128)->s.uFractionLow  != 0 \
+                                                     || (a_pr128)->s.uFractionMid  != 0 \
+                                                     || (a_pr128)->s.uFractionHigh != 0) )
+#define RTFLOAT128U_IS_NORMAL(a_pr128)          ((a_pr128)->s.uExponent > 0 && (a_pr128)->s.uExponent < RTFLOAT128U_EXP_MAX)
+/** @} */
+
+
+/**
+ * Packed BCD 18-digit signed integer format (80-bit).
+ */
+#pragma pack(1)
+typedef union RTPBCD80U
+{
+    /** Format using bitfields.  */
+    RT_GCC_EXTENSION struct
+    {
+        /** 18 packed BCD digits, two to a byte. */
+        uint8_t                     abPairs[9];
+        /** Padding, non-zero if indefinite. */
+        RT_GCC_EXTENSION uint8_t    uPad : 7;
+        /** The sign indicator. */
+        RT_GCC_EXTENSION uint8_t    fSign : 1;
+    } s;
+
+    /** 64-bit view. */
+    uint64_t    au64[1];
+    /** 32-bit view. */
+    uint32_t    au32[2];
+    /** 16-bit view. */
+    uint16_t    au16[5];
+    /** 8-bit view. */
+    uint8_t     au8[10];
+} RTPBCD80U;
+#pragma pack()
+/** Pointer to a packed BCD integer format union. */
+typedef RTPBCD80U RT_FAR *PRTPBCD80U;
+/** Pointer to a const packed BCD integer format union. */
+typedef const RTPBCD80U RT_FAR *PCRTPBCD80U;
+/** RTPBCD80U initializer. */
+#define RTPBCD80U_INIT_C(a_fSign, a_D17, a_D16, a_D15, a_D14, a_D13, a_D12, a_D11, a_D10, \
+                         a_D9, a_D8, a_D7, a_D6, a_D5, a_D4, a_D3, a_D2, a_D1, a_D0) \
+    RTPBCD80U_INIT_EX_C(0, a_fSign, a_D17, a_D16, a_D15, a_D14, a_D13, a_D12, a_D11, a_D10, \
+                        a_D9, a_D8, a_D7, a_D6, a_D5, a_D4, a_D3, a_D2, a_D1, a_D0)
+/** Extended RTPBCD80U initializer. */
+#define RTPBCD80U_INIT_EX_C(a_uPad, a_fSign, a_D17, a_D16, a_D15, a_D14, a_D13, a_D12, a_D11, a_D10, \
+                            a_D9, a_D8, a_D7, a_D6, a_D5, a_D4, a_D3, a_D2, a_D1, a_D0) \
+    { { { RTPBCD80U_MAKE_PAIR(a_D1, a_D0), \
+          RTPBCD80U_MAKE_PAIR(a_D3, a_D2), \
+          RTPBCD80U_MAKE_PAIR(a_D5, a_D4), \
+          RTPBCD80U_MAKE_PAIR(a_D7, a_D6), \
+          RTPBCD80U_MAKE_PAIR(a_D9, a_D8), \
+          RTPBCD80U_MAKE_PAIR(a_D11, a_D10), \
+          RTPBCD80U_MAKE_PAIR(a_D13, a_D12), \
+          RTPBCD80U_MAKE_PAIR(a_D15, a_D14), \
+          RTPBCD80U_MAKE_PAIR(a_D17, a_D16), }, (a_uPad), (a_fSign) } }
+/** RTPBCD80U initializer for the zero value. */
+#define RTPBCD80U_INIT_ZERO(a_fSign)    RTPBCD80U_INIT_C(a_fSign, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0)
+/** RTPBCD80U initializer for the indefinite value. */
+#define RTPBCD80U_INIT_INDEFINITE()     RTPBCD80U_INIT_EX_C(0x7f,1, 0xf,0xf, 0xc,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0, 0,0)
+/** RTPBCD80U initializer for the minimum value. */
+#define RTPBCD80U_INIT_MIN()            RTPBCD80U_INIT_C(1, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9)
+/** RTPBCD80U initializer for the maximum value. */
+#define RTPBCD80U_INIT_MAX()            RTPBCD80U_INIT_C(0, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9, 9,9)
+/** RTPBCD80U minimum value. */
+#define RTPBCD80U_MIN                   INT64_C(-999999999999999999)
+/** RTPBCD80U maximum value. */
+#define RTPBCD80U_MAX                   INT64_C(999999999999999999)
+/** Makes a packs a pair of BCD digits. */
+#define RTPBCD80U_MAKE_PAIR(a_D1, a_D0) ((a_D0) | ((a_D1) << 4))
+/** Retrieves the lower digit of a BCD digit pair. */
+#define RTPBCD80U_LO_DIGIT(a_bPair)     ((a_bPair) & 0xf)
+/** Retrieves the higher digit of a BCD digit pair. */
+#define RTPBCD80U_HI_DIGIT(a_bPair)     ((a_bPair) >> 4)
+/** Checks if the packaged BCD number is representing indefinite. */
+#define RTPBCD80U_IS_INDEFINITE(a_pd80) \
+    (   (a_pd80)->s.uPad       == 0x7f \
+     && (a_pd80)->s.fSign      == 1 \
+     && (a_pd80)->s.abPairs[8] == 0xff \
+     && (a_pd80)->s.abPairs[7] == RTPBCD80U_MAKE_PAIR(0xc, 0) \
+     && (a_pd80)->s.abPairs[6] == 0 \
+     && (a_pd80)->s.abPairs[5] == 0 \
+     && (a_pd80)->s.abPairs[4] == 0 \
+     && (a_pd80)->s.abPairs[3] == 0 \
+     && (a_pd80)->s.abPairs[2] == 0 \
+     && (a_pd80)->s.abPairs[1] == 0 \
+     && (a_pd80)->s.abPairs[0] == 0)
+/** Check if @a a_pd80Left and @a a_pd80Right are exactly the same. */
+#define RTPBCD80U_ARE_IDENTICAL(a_pd80Left, a_pd80Right) \
+    ( (a_pd80Left)->au64[0] == (a_pd80Right)->au64[0] && (a_pd80Left)->au16[4] == (a_pd80Right)->au16[4] )
+
+
 /** Generic function type.
  * @see PFNRT
  */
-typedef DECLCALLBACK(void) FNRT(void);
+typedef DECLCALLBACKTYPE(void, FNRT,(void));
 
 /** Generic function pointer.
  * With -pedantic, gcc-4 complains when casting a function to a data object, for
@@ -1136,6 +1757,11 @@ typedef DECLCALLBACK(void) FNRT(void);
  * something dangerous, assigning a pointer to executable code to a data object.
  */
 typedef FNRT *PFNRT;
+
+/** Variant on PFNRT that takes one pointer argument. */
+typedef DECLCALLBACKTYPE(void, FNRT1,(void *pvArg));
+/** Pointer to FNRT1. */
+typedef FNRT1 *PFNRT1;
 
 /** Millisecond interval. */
 typedef uint32_t                        RTMSINTERVAL;
@@ -2037,6 +2663,8 @@ typedef RTCCINTXREG const RT_FAR *PCRTCCINTXREG;
  * Generic IPRT format specifier for RTCCINTXREG. */
 /** @def RTCCINTXREG_XFMT
  * Generic IPRT format specifier for RTCCINTXREG, hexadecimal. */
+/** @def RTCCINTXREG_BITS
+ * The width of RTCCINTXREG in bits (32 or 64). */
 #if ARCH_BITS == 16 && defined(RT_ARCH_X86)
 # define RTCCUINTXREG_C(a_Value)    UINT32_C(a_Value)
 # define RTCCUINTXREG_MAX           UINT32_MAX
@@ -2047,6 +2675,7 @@ typedef RTCCINTXREG const RT_FAR *PCRTCCINTXREG;
 # define RTCCINTXREG_MIN            INT32_MIN
 # define RTCCINTXREG_FMT            "RI32"
 # define RTCCINTXREG_XFMT           "RX32"
+# define RTCCINTXREG_BITS           32
 #else
 # define RTCCUINTXREG_C(a_Value)    RTCCUINTREG_C(a_Value)
 # define RTCCUINTXREG_MAX           RTCCUINTREG_MAX
@@ -2057,6 +2686,7 @@ typedef RTCCINTXREG const RT_FAR *PCRTCCINTXREG;
 # define RTCCINTXREG_MIN            RTCCINTREG_MIN
 # define RTCCINTXREG_FMT            RTCCINTREG_FMT
 # define RTCCINTXREG_XFMT           RTCCINTREG_XFMT
+# define RTCCINTXREG_BITS           ARCH_BITS
 #endif
 /** @} */
 
@@ -2557,6 +3187,14 @@ typedef RTSHMEM                             RT_FAR *PRTSHMEM;
 /** A NIL shared memory object handle. */
 #define NIL_RTSHMEM                                ((RTSHMEM)~(uintptr_t)0)
 
+/** EFI signature database handle. */
+typedef struct RTEFISIGDBINT                RT_FAR *RTEFISIGDB;
+/** Pointer to a EFI signature database handle. */
+typedef RTEFISIGDB                          RT_FAR *PRTEFISIGDB;
+/** A NIL EFI signature database handle. */
+#define NIL_RTEFISIGDB                             ((RTEFISIGDB)~(uintptr_t)0)
+
+
 /**
  * Handle type.
  *
@@ -2787,7 +3425,7 @@ typedef RTSTRTUPLE const RT_FAR *PCRTSTRTUPLE;
  * @param   uPercentage     The percentage of the operation which has been completed.
  * @param   pvUser          The user specified argument.
  */
-typedef DECLCALLBACK(int) FNRTPROGRESS(unsigned uPrecentage, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNRTPROGRESS,(unsigned uPercentage, void *pvUser));
 /** Pointer to a generic progress callback function, FNRTPROCESS(). */
 typedef FNRTPROGRESS *PFNRTPROGRESS;
 
@@ -2798,7 +3436,7 @@ typedef FNRTPROGRESS *PFNRTPROGRESS;
  * @param   pszFormat       The format string.
  * @param   va              Arguments for the format string.
  */
-typedef DECLCALLBACK(void) FNRTDUMPPRINTFV(void *pvUser, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(2, 0);
+typedef DECLCALLBACKTYPE(void, FNRTDUMPPRINTFV,(void *pvUser, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(2, 0));
 /** Pointer to a generic printf-like function for dumping. */
 typedef FNRTDUMPPRINTFV *PFNRTDUMPPRINTFV;
 
@@ -3247,5 +3885,6 @@ public:
 #endif /* __cplusplus */
 /** @} */
 
+#define IPRT_COMPLETED_types_h /* hack for watcom and nocrt headers depending on this one. */
 #endif /* !IPRT_INCLUDED_types_h */
 

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef DEBUGGER_INCLUDED_SRC_VBoxDbgConsole_h
@@ -37,6 +47,7 @@
 #ifdef VBOX_WITH_XPCOM
 # include <VirtualBox_XPCOM.h>
 #else
+# include <iprt/win/windows.h> /* Include via cleanup wrapper before VirtualBox.h includes it via rpc.h. */
 # include <VirtualBox.h>
 #endif
 
@@ -288,7 +299,7 @@ protected:
      * @param   pBack       Pointer to VBoxDbgConsole::m_Back.
      * @param   cMillies    Number of milliseconds to wait on input data.
      */
-    static DECLCALLBACK(bool) backInput(PDBGCBACK pBack, uint32_t cMillies);
+    static DECLCALLBACK(bool) backInput(PCDBGCIO pIo, uint32_t cMillies);
 
     /**
      * Read input.
@@ -301,7 +312,7 @@ protected:
      *                      If NULL the entire buffer must be filled for a
      *                      successful return.
      */
-    static DECLCALLBACK(int) backRead(PDBGCBACK pBack, void *pvBuf, size_t cbBuf, size_t *pcbRead);
+    static DECLCALLBACK(int) backRead(PCDBGCIO pIo, void *pvBuf, size_t cbBuf, size_t *pcbRead);
 
     /**
      * Write (output).
@@ -313,12 +324,12 @@ protected:
      * @param   pcbWritten  Where to store the number of bytes actually written.
      *                      If NULL the entire buffer must be successfully written.
      */
-    static DECLCALLBACK(int) backWrite(PDBGCBACK pBack, const void *pvBuf, size_t cbBuf, size_t *pcbWritten);
+    static DECLCALLBACK(int) backWrite(PCDBGCIO pIo, const void *pvBuf, size_t cbBuf, size_t *pcbWritten);
 
     /**
-     * @copydoc FNDBGCBACKSETREADY
+     * @copydoc DBGCIO::pfnSetReady
      */
-    static DECLCALLBACK(void) backSetReady(PDBGCBACK pBack, bool fReady);
+    static DECLCALLBACK(void) backSetReady(PCDBGCIO pIo, bool fReady);
 
     /**
      * The Debugger Console Thread
@@ -387,10 +398,10 @@ protected:
     bool volatile m_fThreadTerminated;
 
     /** The debug console backend structure.
-     * Use VBOXDBGCONSOLE_FROM_DBGCBACK to convert the DBGCBACK pointer to a object pointer. */
+     * Use VBOXDBGCONSOLE_FROM_DBGCIO to convert the DBGCIO pointer to a object pointer. */
     struct VBoxDbgConsoleBack
     {
-        DBGCBACK Core;
+        DBGCIO Core;
         VBoxDbgConsole *pSelf;
     } m_Back;
 
@@ -398,7 +409,7 @@ protected:
      * Converts a pointer to VBoxDbgConsole::m_Back to VBoxDbgConsole pointer.
      * @todo find a better way because offsetof is undefined on objects and g++ gets very noisy because of that.
      */
-#   define VBOXDBGCONSOLE_FROM_DBGCBACK(pBack) ( ((struct VBoxDbgConsoleBack *)(pBack))->pSelf )
+#   define VBOXDBGCONSOLE_FROM_DBGCIO(pIo) ( ((struct VBoxDbgConsoleBack *)(pBack))->pSelf )
 
     /** Change focus to the input field. */
     QAction *m_pFocusToInput;

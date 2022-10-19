@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <ipxe/spi.h>
 #include <ipxe/spi_bit.h>
@@ -132,11 +132,24 @@ enum realtek_legacy_status {
 /** Interrupt Status Register (word) */
 #define RTL_ISR 0x3e
 
+/** Transmit (Tx) Configuration Register (dword) */
+#define RTL_TCR 0x40
+#define RTL_TCR_MXDMA(x)	( (x) << 8 ) /**< Max DMA burst size */
+#define RTL_TCR_MXDMA_MASK	RTL_TCR_MXDMA ( 0x7 )
+#define RTL_TCR_MXDMA_DEFAULT	RTL_TCR_MXDMA ( 0x7 /* Unlimited */ )
+
 /** Receive (Rx) Configuration Register (dword) */
 #define RTL_RCR 0x44
+#define RTL_RCR_STOP_WORKING	0x01000000UL /**< Here be dragons */
+#define RTL_RCR_RXFTH(x)	( (x) << 13 ) /**< Receive FIFO threshold */
+#define RTL_RCR_RXFTH_MASK	RTL_RCR_RXFTH ( 0x7 )
+#define RTL_RCR_RXFTH_DEFAULT	RTL_RCR_RXFTH ( 0x7 /* Whole packet */ )
 #define RTL_RCR_RBLEN(x)	( (x) << 11 ) /**< Receive buffer length */
 #define RTL_RCR_RBLEN_MASK	RTL_RCR_RBLEN ( 0x3 )
 #define RTL_RCR_RBLEN_DEFAULT	RTL_RCR_RBLEN ( 0 /* 8kB */ )
+#define RTL_RCR_MXDMA(x)	( (x) << 8 ) /**< Max DMA burst size */
+#define RTL_RCR_MXDMA_MASK	RTL_RCR_MXDMA ( 0x7 )
+#define RTL_RCR_MXDMA_DEFAULT	RTL_RCR_MXDMA ( 0x7 /* Unlimited */ )
 #define RTL_RCR_WRAP		0x00000080UL /**< Overrun receive buffer */
 #define RTL_RCR_9356SEL		0x00000040UL /**< EEPROM is a 93C56 */
 #define RTL_RCR_AB		0x00000008UL /**< Accept broadcast packets */
@@ -146,12 +159,19 @@ enum realtek_legacy_status {
 
 /** 93C46 (93C56) Command Register (byte) */
 #define RTL_9346CR 0x50
-#define RTL_9346CR_EEM1		0x80	/**< Mode select bit 1 */
-#define RTL_9346CR_EEM0		0x40	/**< Mode select bit 0 */
+#define RTL_9346CR_EEM(x)	( (x) << 6 ) /**< Mode select */
+#define RTL_9346CR_EEM_EEPROM	RTL_9346CR_EEM ( 0x2 ) /**< EEPROM mode */
+#define RTL_9346CR_EEM_NORMAL	RTL_9346CR_EEM ( 0x0 ) /**< Normal mode */
 #define RTL_9346CR_EECS		0x08	/**< Chip select */
 #define RTL_9346CR_EESK		0x04	/**< Clock */
 #define RTL_9346CR_EEDI		0x02	/**< Data in */
 #define RTL_9346CR_EEDO		0x01	/**< Data out */
+
+/** Word offset of ID code word within EEPROM */
+#define RTL_EEPROM_ID ( 0x00 / 2 )
+
+/** EEPROM code word magic value */
+#define RTL_EEPROM_ID_MAGIC 0x8129
 
 /** Word offset of MAC address within EEPROM */
 #define RTL_EEPROM_MAC ( 0x0e / 2 )
@@ -168,7 +188,13 @@ enum realtek_legacy_status {
 
 /** Media Status Register (byte, 8139 only) */
 #define RTL_MSR 0x58
+#define RTL_MSR_TXFCE		0x80	/**< TX flow control enabled */
+#define RTL_MSR_RXFCE		0x40	/**< RX flow control enabled */
+#define RTL_MSR_AUX_STATUS	0x10	/**< Aux power present */
+#define RTL_MSR_SPEED_10	0x08	/**< 10Mbps */
 #define RTL_MSR_LINKB		0x04	/**< Inverse of link status */
+#define RTL_MSR_TXPF		0x02	/**< TX pause flag */
+#define RTL_MSR_RXPF		0x01	/**< RX pause flag */
 
 /** PHY Access Register (dword, 8169 only) */
 #define RTL_PHYAR 0x60
@@ -185,7 +211,14 @@ enum realtek_legacy_status {
 
 /** PHY (GMII, MII, or TBI) Status Register (byte, 8169 only) */
 #define RTL_PHYSTATUS 0x6c
+#define RTL_PHYSTATUS_ENTBI	0x80	/**< TBI / GMII mode */
+#define RTL_PHYSTATUS_TXFLOW	0x40	/**< TX flow control enabled */
+#define RTL_PHYSTATUS_RXFLOW	0x20	/**< RX flow control enabled */
+#define RTL_PHYSTATUS_1000MF	0x10	/**< 1000Mbps full-duplex */
+#define RTL_PHYSTATUS_100M	0x08	/**< 100Mbps */
+#define RTL_PHYSTATUS_10M	0x04	/**< 10Mbps */
 #define RTL_PHYSTATUS_LINKSTS	0x02	/**< Link ok */
+#define RTL_PHYSTATUS_FULLDUP	0x01	/**< Full duplex */
 
 /** Transmit Priority Polling Register (byte, 8139C+ only) */
 #define RTL_TPPOLL_8139CP 0xd9
@@ -207,12 +240,15 @@ enum realtek_legacy_status {
 #define RTL_NUM_RX_DESC 4
 
 /** Receive buffer length */
-#define RTL_RX_MAX_LEN ( ETH_FRAME_LEN + 4 /* VLAN */ + 4 /* CRC */ )
+#define RTL_RX_MAX_LEN \
+	( ETH_FRAME_LEN + 4 /* VLAN */ + 4 /* CRC */ + 4 /* extra space */ )
 
 /** A Realtek descriptor ring */
 struct realtek_ring {
 	/** Descriptors */
 	struct realtek_descriptor *desc;
+	/** Descriptor ring DMA mapping */
+	struct dma_mapping map;
 	/** Producer index */
 	unsigned int prod;
 	/** Consumer index */
@@ -238,10 +274,22 @@ realtek_init_ring ( struct realtek_ring *ring, unsigned int count,
 	ring->reg = reg;
 }
 
+/** Receive buffer (legacy mode *) */
+struct realtek_rx_buffer {
+	/** Buffer */
+	void *data;
+	/** Buffer DMA mapping */
+	struct dma_mapping map;
+	/** Offset within buffer */
+	unsigned int offset;
+};
+
 /** A Realtek network card */
 struct realtek_nic {
 	/** Registers */
 	void *regs;
+	/** DMA device */
+	struct dma_device *dma;
 	/** SPI bit-bashing interface */
 	struct spi_bit_basher spibit;
 	/** EEPROM */
@@ -249,7 +297,9 @@ struct realtek_nic {
 	/** Non-volatile options */
 	struct nvo_block nvo;
 	/** MII interface */
-	struct mii_interface mii;
+	struct mii_interface mdio;
+	/** MII device */
+	struct mii_device mii;
 
 	/** Legacy datapath mode */
 	int legacy;
@@ -265,9 +315,7 @@ struct realtek_nic {
 	/** Receive I/O buffers */
 	struct io_buffer *rx_iobuf[RTL_NUM_RX_DESC];
 	/** Receive buffer (legacy mode) */
-	void *rx_buffer;
-	/** Offset within receive buffer (legacy mode) */
-	unsigned int rx_offset;
+	struct realtek_rx_buffer rxbuf;
 };
 
 #endif /* _REALTEK_H */

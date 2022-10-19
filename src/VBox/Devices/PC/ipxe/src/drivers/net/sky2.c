@@ -21,7 +21,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  */
 
 FILE_LICENCE ( GPL2_ONLY );
@@ -245,7 +246,7 @@ static void sky2_power_aux(struct sky2_hw *hw)
 			    Y2_COR_CLK_LNK2_DIS | Y2_CLK_GAT_LNK2_DIS);
 
 	/* switch power to VAUX */
-	if (sky2_read16(hw, B0_CTST) & Y2_VAUX_AVAIL)
+	if (sky2_read32(hw, B0_CTST) & Y2_VAUX_AVAIL)
 		sky2_write8(hw, B0_POWER_CTRL,
 			    (PC_VAUX_ENA | PC_VCC_ENA |
 			     PC_VAUX_ON | PC_VCC_OFF));
@@ -782,7 +783,7 @@ static void sky2_mac_init(struct sky2_hw *hw, unsigned port)
 	sky2_write8(hw, SK_REG(port, TX_GMF_CTRL_T), GMF_RST_CLR);
 	sky2_write16(hw, SK_REG(port, TX_GMF_CTRL_T), GMF_OPER_ON);
 
-	/* On chips without ram buffer, pause is controled by MAC level */
+	/* On chips without ram buffer, pause is controlled by MAC level */
 	if (!(hw->flags & SKY2_HW_RAM_BUFFER)) {
 		sky2_write8(hw, SK_REG(port, RX_GMF_LP_THR), 768/8);
 		sky2_write8(hw, SK_REG(port, RX_GMF_UP_THR), 1024/8);
@@ -1111,10 +1112,10 @@ nomem:
 /* Free the le and ring buffers */
 static void sky2_free_rings(struct sky2_port *sky2)
 {
-	free_dma(sky2->rx_le, RX_LE_BYTES);
+	free_phys(sky2->rx_le, RX_LE_BYTES);
 	free(sky2->rx_ring);
 
-	free_dma(sky2->tx_le, TX_RING_SIZE * sizeof(struct sky2_tx_le));
+	free_phys(sky2->tx_le, TX_RING_SIZE * sizeof(struct sky2_tx_le));
 	free(sky2->tx_ring);
 
 	sky2->tx_le = NULL;
@@ -1136,7 +1137,7 @@ static int sky2_up(struct net_device *dev)
 	netdev_link_down(dev);
 
 	/* must be power of 2 */
-	sky2->tx_le = malloc_dma(TX_RING_SIZE * sizeof(struct sky2_tx_le), TX_RING_ALIGN);
+	sky2->tx_le = malloc_phys(TX_RING_SIZE * sizeof(struct sky2_tx_le), TX_RING_ALIGN);
 	sky2->tx_le_map = virt_to_bus(sky2->tx_le);
 	if (!sky2->tx_le)
 		goto err_out;
@@ -1148,7 +1149,7 @@ static int sky2_up(struct net_device *dev)
 
 	tx_init(sky2);
 
-	sky2->rx_le = malloc_dma(RX_LE_BYTES, RX_RING_ALIGN);
+	sky2->rx_le = malloc_phys(RX_LE_BYTES, RX_RING_ALIGN);
 	sky2->rx_le_map = virt_to_bus(sky2->rx_le);
 	if (!sky2->rx_le)
 		goto err_out;
@@ -2277,14 +2278,14 @@ static int sky2_probe(struct pci_device *pdev)
 
 	hw->pdev = pdev;
 
-	hw->regs = (unsigned long)ioremap(pci_bar_start(pdev, PCI_BASE_ADDRESS_0), 0x4000);
+	hw->regs = (unsigned long)pci_ioremap(pdev, pci_bar_start(pdev, PCI_BASE_ADDRESS_0), 0x4000);
 	if (!hw->regs) {
 		DBG(PFX "cannot map device registers\n");
 		goto err_out_free_hw;
 	}
 
 	/* ring for status responses */
-	hw->st_le = malloc_dma(STATUS_LE_BYTES, STATUS_RING_ALIGN);
+	hw->st_le = malloc_phys(STATUS_LE_BYTES, STATUS_RING_ALIGN);
 	if (!hw->st_le)
 		goto err_out_iounmap;
 	hw->st_dma = virt_to_bus(hw->st_le);
@@ -2334,7 +2335,7 @@ static int sky2_probe(struct pci_device *pdev)
 			sky2_show_addr(dev1);
 	}
 
-	pci_set_drvdata(pdev, dev);
+	pci_set_drvdata(pdev, hw);
 
 	return 0;
 
@@ -2343,7 +2344,7 @@ err_out_free_netdev:
 	netdev_put(dev);
 err_out_free_pci:
 	sky2_write8(hw, B0_CTST, CS_RST_SET);
-	free_dma(hw->st_le, STATUS_LE_BYTES);
+	free_phys(hw->st_le, STATUS_LE_BYTES);
 err_out_iounmap:
 	iounmap((void *)hw->regs);
 err_out_free_hw:
@@ -2372,7 +2373,7 @@ static void sky2_remove(struct pci_device *pdev)
 	sky2_write8(hw, B0_CTST, CS_RST_SET);
 	sky2_read8(hw, B0_CTST);
 
-	free_dma(hw->st_le, STATUS_LE_BYTES);
+	free_phys(hw->st_le, STATUS_LE_BYTES);
 
 	for (i = hw->ports-1; i >= 0; --i) {
 		netdev_nullify(hw->dev[i]);

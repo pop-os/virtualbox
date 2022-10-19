@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -89,7 +99,7 @@
 
 #if !defined(IPRT_USE_PAM) \
  && !defined(IPRT_WITHOUT_PAM) \
- && ( defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_LINUX) || defined(RT_OS_NETBSD) || defined(RT_OS_OPENBSD) )
+ && ( defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_LINUX) || defined(RT_OS_NETBSD) || defined(RT_OS_OPENBSD) || defined(RT_OS_SOLARIS) )
 # define IPRT_USE_PAM
 #endif
 #ifdef IPRT_USE_PAM
@@ -170,8 +180,8 @@
 #  define IPRT_LIBPAM_FILE_2_END_VER   1
 # else
 #  define IPRT_LIBPAM_FILE_1           "libpam.so"
-#  define IPRT_LIBPAM_FILE_1_MIN_VER   16
-#  define IPRT_LIBPAM_FILE_1_MAX_VER   0
+#  define IPRT_LIBPAM_FILE_1_FIRST_VER 16
+#  define IPRT_LIBPAM_FILE_1_END_VER   0
 # endif
 #endif
 
@@ -218,7 +228,11 @@ static int rtProcPosixCreateInner(const char *pszExec, const char * const *papsz
  * @param   ppaResponses    Where to put our responses.
  * @param   pvAppData       Pointer to RTPROCPAMARGS.
  */
+#if defined(RT_OS_SOLARIS)
+static int rtPamConv(int cMessages, struct pam_message **papMessages, struct pam_response **ppaResponses, void *pvAppData)
+#else
 static int rtPamConv(int cMessages, const struct pam_message **papMessages, struct pam_response **ppaResponses, void *pvAppData)
+#endif
 {
     LogFlow(("rtPamConv: cMessages=%d\n", cMessages));
     PRTPROCPAMARGS pArgs = (PRTPROCPAMARGS)pvAppData;
@@ -366,15 +380,63 @@ static int rtProcPosixAuthenticateUsingPam(const char *pszPamService, const char
     if (rc == PAM_SUCCESS)
     {
         rc = pam_set_item(hPam, PAM_RUSER, pszUser);
+        LogRel2(("rtProcPosixAuthenticateUsingPam(%s): pam_setitem/PAM_RUSER: %s\n", pszPamService, pszUser));
         if (rc == PAM_SUCCESS)
         {
-            /* We also need to set PAM_TTY (if available) to make PAM stacks work which
-             * require a secure TTY via pam_securetty (Debian 10 + 11, for example). See @bugref{10225}. */
-            char const *pszTTY = RTEnvGet("DISPLAY");
-            if (!pszTTY) /* No display set or available? Try the TTY's name instead. */
-                pszTTY = ttyname(0);
-            if (pszTTY) /* Only try using PAM_TTY if we have something to set. */
-                rc = pam_set_item(hPam, PAM_TTY, pszTTY);
+            /*
+             * Secure TTY fun ahead (for pam_securetty).
+             *
+             * We need to set PAM_TTY (if available) to make PAM stacks work which
+             * require a secure TTY via pam_securetty (Debian 10 + 11, for example). This
+             * is typically an issue when launching as 'root'.  See @bugref{10225}.
+             *
+             * Note! We only can try (or better: guess) to a certain amount, as it really
+             *       depends on the distribution or Administrator which has set up the
+             *       system which (and how) things are allowed (see /etc/securetty).
+             *
+             * Note! We don't acctually try or guess anything about the distro like
+             *       suggested by the above note, we just try determine the TTY of
+             *       the _parent_ process and hope for the best. (bird)
+             */
+            char szTTY[64];
+            int rc2 = RTEnvGetEx(RTENV_DEFAULT, "DISPLAY", szTTY, sizeof(szTTY), NULL);
+            if (RT_FAILURE(rc2))
+            {
+                /* Virtual terminal hint given? */
+                static char const s_szPrefix[] = "tty";
+                memcpy(szTTY, s_szPrefix, sizeof(s_szPrefix));
+                rc2 = RTEnvGetEx(RTENV_DEFAULT, "XDG_VTNR", &szTTY[sizeof(s_szPrefix) - 1], sizeof(s_szPrefix) - 1, NULL);
+            }
+
+            /** @todo Should we - distinguished from the login service - also set the hostname as PAM_TTY?
+             *        The pam_access and pam_systemd talk about this. Similarly, SSH and cron use "ssh" and "cron" for PAM_TTY
+             *        (see PAM_TTY_KLUDGE). */
+#ifdef IPRT_WITH_PAM_TTY_KLUDGE
+            if (RT_FAILURE(rc2))
+                if (!RTStrICmp(pszPamService, "access")) /* Access management needed? */
+                {
+                    int err = gethostname(szTTY, sizeof(szTTY));
+                    if (err == 0)
+                        rc2 = VINF_SUCCESS;
+                }
+#endif
+            /* As a last resort, try stdin's TTY name instead (if any). */
+            if (RT_FAILURE(rc2))
+            {
+                rc2 = ttyname_r(0 /*stdin*/, szTTY, sizeof(szTTY));
+                if (rc2 != 0)
+                    rc2 = RTErrConvertFromErrno(rc2);
+            }
+
+            LogRel2(("rtProcPosixAuthenticateUsingPam(%s): pam_setitem/PAM_TTY: %s, rc2=%Rrc\n", pszPamService, szTTY, rc2));
+            if (szTTY[0] == '\0')
+                LogRel2(("rtProcPosixAuthenticateUsingPam(%s): Hint: Looks like running as a non-interactive user (no TTY/PTY).\n"
+                         "Authentication requiring a secure terminal might fail.\n", pszPamService));
+
+            if (   RT_SUCCESS(rc2)
+                && szTTY[0] != '\0') /* Only try using PAM_TTY if we have something to set. */
+                rc = pam_set_item(hPam, PAM_TTY, szTTY);
+
             if (rc == PAM_SUCCESS)
             {
                 /* From this point on we don't allow falling back to other auth methods. */
@@ -431,6 +493,8 @@ static int rtProcPosixAuthenticateUsingPam(const char *pszPamService, const char
     }
     else
         LogFunc(("pam_start(%s) -> %d\n", pszPamService, rc));
+
+    LogRel2(("rtProcPosixAuthenticateUsingPam(%s): Failed authenticating user '%s' with %d\n", pszPamService, pszUser, rc));
     return VERR_AUTHENTICATION_FAILURE;
 }
 
@@ -464,7 +528,7 @@ static bool rtProcPosixPamServiceExists(const char *pszService)
 typedef char *(*PFNCRYPTR)(const char *, const char *, struct crypt_data *);
 
 /**
- * Wrapper for resolving and calling crypt_r dynamcially.
+ * Wrapper for resolving and calling crypt_r dynamically.
  *
  * The reason for this is that fedora 30+ wants to use libxcrypt rather than the
  * glibc libcrypt.  The two libraries has different crypt_data sizes and layout,
@@ -1414,15 +1478,16 @@ static int rtProcPosixConvertArgv(const char * const *papszArgs, RTENV hEnvToUse
     {
         /*
          * LC_ALL overrides everything else.  The LC_* environment variables are often set
-         * to the empty string so move on the next variable if that is the case.
+         * to the empty string so move on the next variable if that is the case (that's
+         * what setlocale in glibc does).
          */
         const char *pszVar;
         int rc = RTEnvGetEx(hEnvToUse, pszVar = "LC_ALL", szEncoding, sizeof(szEncoding), NULL);
-        if (rc == VERR_ENV_VAR_NOT_FOUND || (RT_SUCCESS(rc) && !*szEncoding))
+        if (rc == VERR_ENV_VAR_NOT_FOUND || (RT_SUCCESS(rc) && szEncoding[0] == '\0'))
             rc = RTEnvGetEx(hEnvToUse, pszVar = "LC_CTYPE", szEncoding, sizeof(szEncoding), NULL);
-        if (rc == VERR_ENV_VAR_NOT_FOUND || (RT_SUCCESS(rc) && !*szEncoding))
+        if (rc == VERR_ENV_VAR_NOT_FOUND || (RT_SUCCESS(rc) && szEncoding[0] == '\0'))
             rc = RTEnvGetEx(hEnvToUse, pszVar = "LANG", szEncoding, sizeof(szEncoding), NULL);
-        if (RT_SUCCESS(rc) && *szEncoding)
+        if (RT_SUCCESS(rc) && szEncoding[0] != '\0')
         {
             /*
              * LC_ALL can contain a composite locale consisting of the locales of each of the
@@ -1432,11 +1497,13 @@ static int rtProcPosixConvertArgv(const char * const *papszArgs, RTENV hEnvToUse
              *   LC_CTYPE/LC_NUMERIC/LC_TIME/LC_COLLATE/LC_MONETARY/LC_MESSAGES
              * e.g.:
              *   en_US.UTF-8/POSIX/el_GR.UTF-8/el_CY.UTF-8/en_GB.UTF-8/es_ES.UTF-8
-             * N.B. On Solaris there is also a leading slash.
-             * On Linux the composite locale format is made up of key-value pairs of category
-             * names and locales of the form 'name=value' with each element separated by a
-             * semicolon in the same order as above with following additional categories
-             * included as well:
+             *
+             * On Solaris there is also a leading slash.
+             *
+             * On Linux and OS/2 the composite locale format is made up of key-value pairs
+             * of category names and locales of the form 'name=value' with each element
+             * separated by a semicolon in the same order as above with following additional
+             * categories included as well:
              *   LC_PAPER/LC_NAME/LC_ADDRESS/LC_TELEPHONE/LC_MEASUREMENT/LC_IDENTIFICATION
              * e.g.
              *   LC_CTYPE=fr_BE;LC_NUMERIC=fr_BE@euro;LC_TIME=fr_BE.utf8;LC_COLLATE=fr_CA;\
@@ -1444,50 +1511,53 @@ static int rtProcPosixConvertArgv(const char * const *papszArgs, RTENV hEnvToUse
              *   LC_ADDRESS=fr_FR.utf8;LC_TELEPHONE=fr_LU;LC_MEASUREMENT=fr_LU@euro;\
              *   LC_IDENTIFICATION=fr_LU.utf8
              */
-#if !defined(RT_OS_LINUX)
-# if defined(RT_OS_SOLARIS)
-            if (RTPATH_IS_SLASH(*szEncoding))
-                (void) memmove(szEncoding, szEncoding + 1, strlen(szEncoding));
-# endif
-            char *pszSlash = strchr(szEncoding, '/');
+            char *pszEncodingStart = szEncoding;
+#if !defined(RT_OS_LINUX) && !defined(RT_OS_OS2)
+            if (*pszEncodingStart == '/')
+                pszEncodingStart++;
+            char *pszSlash = strchr(pszEncodingStart, '/');
             if (pszSlash)
-                *pszSlash = '\0';
+                *pszSlash = '\0';       /* This ASSUMES the first one is LC_CTYPE! */
 #else
-            char *pszSemicolon = strchr(szEncoding, ';');
-            if (pszSemicolon)
+            char *pszCType = strstr(pszEncodingStart, "LC_CTYPE=");
+            if (pszCType)
             {
-                *pszSemicolon = '\0';
-                size_t cchPrefix = strlen("LC_CTYPE=");
-                if (!RTStrNCmp(szEncoding, "LC_CTYPE=", cchPrefix))
-                    (void) memmove(szEncoding, szEncoding + cchPrefix, strlen(szEncoding));
+                pszEncodingStart = pszCType + sizeof("LC_CTYPE=") - 1;
+
+                char *pszSemiColon = strchr(pszEncodingStart, ';');
+                if (pszSemiColon)
+                    *pszSemiColon = '\0';
             }
 #endif
+
             /*
              * Use newlocale and nl_langinfo_l to determine the default codeset for the locale
              * specified in the child's environment.  These routines have been around since
              * ancient days on Linux and for quite a long time on macOS, Solaris, and *BSD but
              * to ensure their availability check that LC_CTYPE_MASK is defined.
+             *
+             * Note! The macOS nl_langinfo(3)/nl_langinfo_l(3) routines return a pointer to an
+             *       empty string for "short" locale names like en_NZ, it_IT, el_GR, etc. so use
+             *       UTF-8 in those cases as it is the default for short name locales on macOS
+             *       (see also rtStrGetLocaleCodeset).
              */
 #ifdef LC_CTYPE_MASK
-            locale_t hLocale = newlocale(LC_CTYPE_MASK, szEncoding, (locale_t)0);
+            locale_t hLocale = newlocale(LC_CTYPE_MASK, pszEncodingStart, (locale_t)0);
             if (hLocale != (locale_t)0)
             {
                 const char *pszCodeset = nl_langinfo_l(CODESET, hLocale);
+                Log2Func(("nl_langinfo_l(CODESET, %s=%s) -> %s\n", pszVar, pszEncodingStart, pszCodeset));
+                if (!pszCodeset || *pszCodeset == '\0')
 # ifdef RT_OS_DARWIN
-                /*
-                 * The macOS nl_langinfo(3)/nl_langinfo_l(3) routines return a pointer to an
-                 * empty string for "short" locale names like en_NZ, it_IT, el_GR, etc. so
-                 * fallback to UTF-8 in those cases which is the default for short name locales
-                 * on macOS anyhow.
-                 */
-                if (pszCodeset && !*pszCodeset)
-                    pszCodeset = "UTF-8";
+                    pszEncoding = "UTF-8";
+# else
+                    pszEncoding = "ASCII";
 # endif
-                Log2Func(("nl_langinfo_l(CODESET, %s=%s) -> %s\n", pszVar, szEncoding, pszCodeset));
-                Assert(pszCodeset && *pszCodeset != '\0');
-
-                rc = RTStrCopy(szEncoding, sizeof(szEncoding), pszCodeset);
-                AssertRC(rc); /* cannot possibly overflow */
+                else
+                {
+                    rc = RTStrCopy(szEncoding, sizeof(szEncoding), pszCodeset);
+                    AssertRC(rc); /* cannot possibly overflow */
+                }
 
                 freelocale(hLocale);
                 pszEncoding = szEncoding;
@@ -1495,10 +1565,22 @@ static int rtProcPosixConvertArgv(const char * const *papszArgs, RTENV hEnvToUse
              else
 #endif
              {
-                 /* This is mostly wrong, but I cannot think of anything better now: */
-                 pszEncoding = rtStrGetLocaleCodeset();
-                 LogFunc(("No newlocale or it failed (on '%s=%s', errno=%d), falling back on %s that we're using...\n",
-                          pszVar, szEncoding, errno, pszEncoding));
+                 /* If there is something that ought to be a character set encoding, try use it: */
+                 const char *pszDot = strchr(pszEncodingStart, '.');
+                 if (pszDot)
+                     pszDot = RTStrStripL(pszDot + 1);
+                 if (pszDot && *pszDot != '\0')
+                 {
+                     pszEncoding = pszDot;
+                     Log2Func(("%s=%s -> %s (simple)\n", pszVar, szEncoding, pszEncoding));
+                 }
+                 else
+                 {
+                     /* This is mostly wrong, but I cannot think of anything better now: */
+                     pszEncoding = rtStrGetLocaleCodeset();
+                     LogFunc(("No newlocale or it failed (on '%s=%s', errno=%d), falling back on %s that we're using...\n",
+                              pszVar, pszEncodingStart, errno, pszEncoding));
+                 }
              }
              RT_NOREF_PV(pszVar);
         }
@@ -1579,7 +1661,8 @@ static DECLCALLBACK(int) rtPathFindExec(char const *pchPath, size_t cchPath, voi
 {
     const char      *pszExec = (const char *)pvUser1;
     PRTPATHINTSEARCH pResult = (PRTPATHINTSEARCH)pvUser2;
-    int rc = RTPathJoinEx(pResult->szFound, sizeof(pResult->szFound), pchPath, cchPath, pszExec, RTSTR_MAX);
+    int rc = RTPathJoinEx(pResult->szFound, sizeof(pResult->szFound), pchPath, cchPath, pszExec, RTSTR_MAX,
+                          RTPATH_STR_F_STYLE_HOST);
     if (RT_SUCCESS(rc))
     {
         const char *pszNativeExec = NULL;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -44,15 +54,17 @@
 *********************************************************************************************************************************/
 
 UIVMLogViewerDialogFactory::UIVMLogViewerDialogFactory(UIActionPool *pActionPool /* = 0 */,
-                                                       const CMachine &comMachine /* = CMachine() */)
+                                                       const QUuid &uMachineId /* = QUuid()*/,
+                                                       const QString &strMachineName /* = QString() */)
     : m_pActionPool(pActionPool)
-    , m_comMachine(comMachine)
+    , m_uMachineId(uMachineId)
+    , m_strMachineName(strMachineName)
 {
 }
 
 void UIVMLogViewerDialogFactory::create(QIManagerDialog *&pDialog, QWidget *pCenterWidget)
 {
-    pDialog = new UIVMLogViewerDialog(pCenterWidget, m_pActionPool, m_comMachine);
+    pDialog = new UIVMLogViewerDialog(pCenterWidget, m_pActionPool, m_uMachineId, m_strMachineName);
 }
 
 
@@ -60,23 +72,83 @@ void UIVMLogViewerDialogFactory::create(QIManagerDialog *&pDialog, QWidget *pCen
 *   Class UIVMLogViewerDialog implementation.                                                                                    *
 *********************************************************************************************************************************/
 
-UIVMLogViewerDialog::UIVMLogViewerDialog(QWidget *pCenterWidget, UIActionPool *pActionPool, const CMachine &comMachine)
+UIVMLogViewerDialog::UIVMLogViewerDialog(QWidget *pCenterWidget, UIActionPool *pActionPool,
+                                         const QUuid &uMachineId /* = QUuid()*/,
+                                         const QString &strMachineName /* = QString() */)
     : QIWithRetranslateUI<QIManagerDialog>(pCenterWidget)
     , m_pActionPool(pActionPool)
-    , m_comMachine(comMachine)
+    , m_uMachineId(uMachineId)
+    , m_iGeometrySaveTimerId(-1)
+    , m_strMachineName(strMachineName)
 {
+}
+
+UIVMLogViewerDialog::~UIVMLogViewerDialog()
+{
+}
+
+void UIVMLogViewerDialog::setSelectedVMListItems(const QList<UIVirtualMachineItem*> &items)
+{
+    Q_UNUSED(items);
+    UIVMLogViewerWidget *pLogViewerWidget = qobject_cast<UIVMLogViewerWidget*>(widget());
+    if (pLogViewerWidget)
+        pLogViewerWidget->setSelectedVMListItems(items);
+}
+
+void UIVMLogViewerDialog::addSelectedVMListItems(const QList<UIVirtualMachineItem*> &items)
+{
+    Q_UNUSED(items);
+    UIVMLogViewerWidget *pLogViewerWidget = qobject_cast<UIVMLogViewerWidget*>(widget());
+    if (pLogViewerWidget)
+        pLogViewerWidget->addSelectedVMListItems(items);
 }
 
 void UIVMLogViewerDialog::retranslateUi()
 {
     /* Translate window title: */
-    if (!m_comMachine.isNull())
-        setWindowTitle(tr("%1 - Log Viewer").arg(m_comMachine.GetName()));
+    if (!m_strMachineName.isEmpty())
+        setWindowTitle(UIVMLogViewerWidget::tr("%1 - Log Viewer").arg(m_strMachineName));
     else
         setWindowTitle(UIVMLogViewerWidget::tr("Log Viewer"));
 
     /* Translate buttons: */
     button(ButtonType_Close)->setText(UIVMLogViewerWidget::tr("Close"));
+    button(ButtonType_Help)->setText(UIVMLogViewerWidget::tr("Help"));
+    button(ButtonType_Close)->setStatusTip(UIVMLogViewerWidget::tr("Close dialog"));
+    button(ButtonType_Help)->setStatusTip(UIVMLogViewerWidget::tr("Show dialog help"));
+    button(ButtonType_Close)->setShortcut(Qt::Key_Escape);
+    button(ButtonType_Help)->setShortcut(QKeySequence::HelpContents);
+    button(ButtonType_Close)->setToolTip(UIVMLogViewerWidget::tr("Close Window (%1)").arg(button(ButtonType_Close)->shortcut().toString()));
+    button(ButtonType_Help)->setToolTip(UIVMLogViewerWidget::tr("Show Help (%1)").arg(button(ButtonType_Help)->shortcut().toString()));
+}
+
+bool UIVMLogViewerDialog::event(QEvent *pEvent)
+{
+    switch (pEvent->type())
+    {
+        case QEvent::Resize:
+        case QEvent::Move:
+        {
+            if (m_iGeometrySaveTimerId != -1)
+                killTimer(m_iGeometrySaveTimerId);
+            m_iGeometrySaveTimerId = startTimer(300);
+            break;
+        }
+        case QEvent::Timer:
+        {
+            QTimerEvent *pTimerEvent = static_cast<QTimerEvent*>(pEvent);
+            if (pTimerEvent->timerId() == m_iGeometrySaveTimerId)
+            {
+                killTimer(m_iGeometrySaveTimerId);
+                m_iGeometrySaveTimerId = -1;
+                saveDialogGeometry();
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    return QIWithRetranslateUI<QIManagerDialog>::event(pEvent);
 }
 
 void UIVMLogViewerDialog::configure()
@@ -88,7 +160,7 @@ void UIVMLogViewerDialog::configure()
 void UIVMLogViewerDialog::configureCentralWidget()
 {
     /* Create widget: */
-    UIVMLogViewerWidget *pWidget = new UIVMLogViewerWidget(EmbedTo_Dialog, m_pActionPool, true /* show toolbar */, m_comMachine, this);
+    UIVMLogViewerWidget *pWidget = new UIVMLogViewerWidget(EmbedTo_Dialog, m_pActionPool, true /* show toolbar */, m_uMachineId, this);
     if (pWidget)
     {
         /* Configure widget: */
@@ -110,11 +182,12 @@ void UIVMLogViewerDialog::finalize()
     /* Apply language settings: */
     retranslateUi();
     manageEscapeShortCut();
+    loadDialogGeometry();
 }
 
-void UIVMLogViewerDialog::loadSettings()
+void UIVMLogViewerDialog::loadDialogGeometry()
 {
-    /* Invent default window geometry: */
+
     const QRect availableGeo = gpDesktop->availableGeometry(this);
     int iDefaultWidth = availableGeo.width() / 2;
     int iDefaultHeight = availableGeo.height() * 3 / 4;
@@ -135,7 +208,7 @@ void UIVMLogViewerDialog::loadSettings()
     restoreGeometry(geo);
 }
 
-void UIVMLogViewerDialog::saveSettings() const
+void UIVMLogViewerDialog::saveDialogGeometry()
 {
     /* Save geometry to extradata: */
     const QRect geo = currentGeometry();
@@ -151,7 +224,7 @@ bool UIVMLogViewerDialog::shouldBeMaximized() const
 
 void UIVMLogViewerDialog::sltSetCloseButtonShortCut(QKeySequence shortcut)
 {
-    if (button(ButtonType_Close))
+    if (!closeEmitted() &&  button(ButtonType_Close))
         button(ButtonType_Close)->setShortcut(shortcut);
 }
 

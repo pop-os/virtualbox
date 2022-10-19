@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_3D_WIN_VBoxGaHwSVGA_h
@@ -45,8 +55,8 @@ typedef struct VBOXGAHWINFOSVGA
     /* Copy of FIFO registers, up to 1024, currently 290 are used. */
     uint32_t au32Fifo[1024];
 
-    /* Currently SVGA has 244 caps, 512 should be ok for near future.
-     * This is a copy of SVGA_REG_DEV_CAP enumeration.
+    /* Currently SVGA has 260 caps, 512 should be ok for near future.
+     * This is a copy of SVGA3D_DEVCAP_* values returned by the host.
      * Only valid if SVGA_CAP_GBOBJECTS is set in SVGA_REG_CAPABILITIES.
      */
     uint32_t au32Caps[512];

@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -190,7 +200,7 @@ DECLCALLBACK(int) pdmacFileAioMgrFailsafe(RTTHREAD hThreadSelf, void *pvUser)
                 case PDMACEPFILEAIOMGRBLOCKINGEVENT_ADD_ENDPOINT:
                 {
                     PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointNew = pAioMgr->BlockingEventData.AddEndpoint.pEndpoint;
-                    AssertMsg(VALID_PTR(pEndpointNew), ("Adding endpoint event without a endpoint to add\n"));
+                    AssertMsg(RT_VALID_PTR(pEndpointNew), ("Adding endpoint event without a endpoint to add\n"));
 
                     pEndpointNew->enmState = PDMASYNCCOMPLETIONENDPOINTFILESTATE_ACTIVE;
 
@@ -213,7 +223,7 @@ DECLCALLBACK(int) pdmacFileAioMgrFailsafe(RTTHREAD hThreadSelf, void *pvUser)
                 case PDMACEPFILEAIOMGRBLOCKINGEVENT_REMOVE_ENDPOINT:
                 {
                     PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointRemove = pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint;
-                    AssertMsg(VALID_PTR(pEndpointRemove), ("Removing endpoint event without a endpoint to remove\n"));
+                    AssertMsg(RT_VALID_PTR(pEndpointRemove), ("Removing endpoint event without a endpoint to remove\n"));
 
                     pEndpointRemove->enmState = PDMASYNCCOMPLETIONENDPOINTFILESTATE_REMOVING;
 
@@ -234,7 +244,7 @@ DECLCALLBACK(int) pdmacFileAioMgrFailsafe(RTTHREAD hThreadSelf, void *pvUser)
                 case PDMACEPFILEAIOMGRBLOCKINGEVENT_CLOSE_ENDPOINT:
                 {
                     PPDMASYNCCOMPLETIONENDPOINTFILE pEndpointClose = pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint;
-                    AssertMsg(VALID_PTR(pEndpointClose), ("Close endpoint event without a endpoint to Close\n"));
+                    AssertMsg(RT_VALID_PTR(pEndpointClose), ("Close endpoint event without a endpoint to Close\n"));
 
                     pEndpointClose->enmState = PDMASYNCCOMPLETIONENDPOINTFILESTATE_CLOSING;
 

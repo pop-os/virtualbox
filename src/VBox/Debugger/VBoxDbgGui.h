@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef DEBUGGER_INCLUDED_SRC_VBoxDbgGui_h
@@ -25,6 +35,7 @@
 #ifdef VBOX_WITH_XPCOM
 # include <VirtualBox_XPCOM.h>
 #else
+# include <iprt/win/windows.h> /* Include via cleanup wrapper before VirtualBox.h includes it via rpc.h. */
 # include <VirtualBox.h>
 #endif
 
@@ -62,8 +73,9 @@ public:
      * @returns VBox status code.
      * @param   pUVM        The user mode VM handle. The caller's reference will be
      *                      consumed on success.
+     * @param   pVMM        The VMM function table.
      */
-    int init(PUVM pUVM);
+    int init(PUVM pUVM, PCVMMR3VTABLE pVMM);
 
     /**
      * Destroys the VBoxDbgGui object.
@@ -90,8 +102,10 @@ public:
      * Show the default statistics window, creating it if necessary.
      *
      * @returns VBox status code.
+     * @param   pszFilter   Filter pattern.
+     * @param   pszExpand   Expand pattern.
      */
-    int showStatistics();
+    int showStatistics(const char *pszFilter, const char *pszExpand);
 
     /**
      * Repositions and resizes (optionally) the statistics to its defaults
@@ -141,6 +155,15 @@ public:
     }
 
     /**
+     * Gets the VMM function table.
+     * @returns The VMM function table.
+     */
+    PCVMMR3VTABLE getVMMFunctionTable() const
+    {
+        return m_pVMM;
+    }
+
+    /**
      * @returns The name of the machine.
      */
     QString getMachineName() const;
@@ -171,6 +194,8 @@ protected:
     PVM m_pVM;
     /** The user mode VM handle. */
     PUVM m_pUVM;
+    /** The VMM function table. */
+    PCVMMR3VTABLE m_pVMM;
 
     /** The parent widget. */
     QWidget *m_pParent;

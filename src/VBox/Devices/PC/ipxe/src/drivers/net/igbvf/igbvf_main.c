@@ -46,7 +46,7 @@ int igbvf_setup_tx_resources ( struct igbvf_adapter *adapter )
 
 	/* Allocate transmit descriptor ring memory.
 	   It must not cross a 64K boundary because of hardware errata #23
-	   so we use malloc_dma() requesting a 128 byte block that is
+	   so we use malloc_phys() requesting a 128 byte block that is
 	   128 byte aligned. This should guarantee that the memory
 	   allocated will not cross a 64K boundary, because 128 is an
 	   even multiple of 65536 ( 65536 / 128 == 512 ), so all possible
@@ -55,7 +55,7 @@ int igbvf_setup_tx_resources ( struct igbvf_adapter *adapter )
 	 */
 
 	adapter->tx_base =
-		malloc_dma ( adapter->tx_ring_size, adapter->tx_ring_size );
+		malloc_phys ( adapter->tx_ring_size, adapter->tx_ring_size );
 
 	if ( ! adapter->tx_base ) {
 		return -ENOMEM;
@@ -78,7 +78,7 @@ void igbvf_free_tx_resources ( struct igbvf_adapter *adapter )
 {
 	DBG ( "igbvf_free_tx_resources\n" );
 
-	free_dma ( adapter->tx_base, adapter->tx_ring_size );
+	free_phys ( adapter->tx_base, adapter->tx_ring_size );
 }
 
 /**
@@ -93,7 +93,7 @@ void igbvf_free_rx_resources ( struct igbvf_adapter *adapter )
 
 	DBG ( "igbvf_free_rx_resources\n" );
 
-	free_dma ( adapter->rx_base, adapter->rx_ring_size );
+	free_phys ( adapter->rx_base, adapter->rx_ring_size );
 
 	for ( i = 0; i < NUM_RX_DESC; i++ ) {
 		free_iob ( adapter->rx_iobuf[i] );
@@ -461,7 +461,7 @@ static int __devinit igbvf_sw_init ( struct igbvf_adapter *adapter )
         hw->vendor_id = pdev->vendor;
         hw->device_id = pdev->device;
 
-        pci_read_config_byte ( pdev, PCI_REVISION_ID, &hw->revision_id );
+        pci_read_config_byte ( pdev, PCI_REVISION, &hw->revision_id );
 
         pci_read_config_word ( pdev, PCI_COMMAND, &hw->bus.pci_cmd_word );
 
@@ -574,7 +574,7 @@ int igbvf_setup_rx_resources ( struct igbvf_adapter *adapter )
 	 */
 
 	adapter->rx_base =
-		malloc_dma ( adapter->rx_ring_size, adapter->rx_ring_size );
+		malloc_phys ( adapter->rx_ring_size, adapter->rx_ring_size );
 
 	if ( ! adapter->rx_base ) {
 		return -ENOMEM;
@@ -616,6 +616,10 @@ static int igbvf_open ( struct net_device *netdev )
 	int err;
 
 	DBG ("igbvf_open\n");
+
+	/* Update MAC address */
+	memcpy ( adapter->hw.mac.addr, netdev->ll_addr, ETH_ALEN );
+	igbvf_reset( adapter );
 
 	/* allocate transmit descriptors */
 	err = igbvf_setup_tx_resources ( adapter );
@@ -839,7 +843,7 @@ int igbvf_probe ( struct pci_device *pdev )
 	DBG ( "mmio_start: %#08lx\n", mmio_start );
 	DBG ( "mmio_len: %#08lx\n", mmio_len );
 
-	adapter->hw.hw_addr = ioremap ( mmio_start, mmio_len );
+	adapter->hw.hw_addr = pci_ioremap ( pdev, mmio_start, mmio_len );
 	DBG ( "adapter->hw.hw_addr: %p\n", adapter->hw.hw_addr );
 
 	if ( ! adapter->hw.hw_addr ) {
@@ -871,19 +875,13 @@ int igbvf_probe ( struct pci_device *pdev )
 			DBG ("Error reading MAC address\n");
 			goto err_hw_init;
 		}
+		if ( ! is_valid_ether_addr(adapter->hw.mac.addr) ) {
+			/* Assign random MAC address */
+			eth_random_addr(adapter->hw.mac.addr);
+		}
 	}
 
 	memcpy ( netdev->hw_addr, adapter->hw.mac.addr, ETH_ALEN );
-
-	if ( ! is_valid_ether_addr( netdev->hw_addr ) ) {
-		DBG ("Invalid MAC Address: "
-		        "%02x:%02x:%02x:%02x:%02x:%02x\n",
-		        netdev->hw_addr[0], netdev->hw_addr[1],
-		        netdev->hw_addr[2], netdev->hw_addr[3],
-		        netdev->hw_addr[4], netdev->hw_addr[5]);
-		err = -EIO;
-		goto err_hw_init;
-	}
 
 	/* reset the hardware with the new settings */
 	igbvf_reset ( adapter );

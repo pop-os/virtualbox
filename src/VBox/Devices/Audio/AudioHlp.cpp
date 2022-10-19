@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -127,7 +137,7 @@ bool AudioHlpStreamCfgIsValid(PCPDMAUDIOSTREAMCFG pCfg)
         {
             if (   pCfg->enmDir == PDMAUDIODIR_IN
                 || pCfg->enmDir == PDMAUDIODIR_OUT)
-                return AudioHlpPcmPropsAreValid(&pCfg->Props);
+                return AudioHlpPcmPropsAreValidAndSupported(&pCfg->Props);
         }
     }
     return false;
@@ -151,37 +161,32 @@ uint32_t AudioHlpCalcBitrate(uint8_t cBits, uint32_t uHz, uint8_t cChannels)
 
 
 /**
- * Checks whether given PCM properties are valid or not.
+ * Checks whether given PCM properties are valid *and* supported by the audio stack or not.
  *
- * @note  This is more of a supported than valid check.  There is code for
- *        unsigned samples elsewhere (like DrvAudioHlpClearBuf()), but this
- *        function will flag such properties as not valid.
- *
- * @todo  r=bird: See note and explain properly. Perhaps rename to
- *        AudioHlpPcmPropsAreValidAndSupported?
- *
- * @returns @c true if the properties are valid, @c false if not.
+ * @returns @c true if the properties are valid and supported, @c false if not.
  * @param   pProps      The PCM properties to check.
+ *
+ * @note    Use PDMAudioPropsAreValid() to just check the validation bits.
  */
-bool AudioHlpPcmPropsAreValid(PCPDMAUDIOPCMPROPS pProps)
+bool AudioHlpPcmPropsAreValidAndSupported(PCPDMAUDIOPCMPROPS pProps)
 {
     AssertPtrReturn(pProps, false);
-    AssertReturn(PDMAudioPropsAreValid(pProps), false);
 
+    if (!PDMAudioPropsAreValid(pProps))
+        return false;
+
+    /* Properties seem valid, now check if we actually support those. */
     switch (PDMAudioPropsSampleSize(pProps))
     {
         case 1: /* 8 bit */
-           if (PDMAudioPropsIsSigned(pProps))
-               return false;
-           break;
+            /* Signed / unsigned. */
+            break;
         case 2: /* 16 bit */
-            if (!PDMAudioPropsIsSigned(pProps))
-                return false;
+            /* Signed / unsigned. */
             break;
         /** @todo Do we need support for 24 bit samples? */
         case 4: /* 32 bit */
-            if (!PDMAudioPropsIsSigned(pProps))
-                return false;
+            /* Signed / unsigned. */
             break;
         case 8: /* 64-bit raw */
             if (   !PDMAudioPropsIsSigned(pProps)

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_pgm_pool       PGM Shadow Page Pool
@@ -71,10 +81,10 @@
  *
  * @section sec_pgm_pool_monitoring Monitoring
  *
- * We always monitor PAGE_SIZE chunks of memory. When we've got multiple shadow
- * pages for the same PAGE_SIZE of guest memory (PAE and mixed PD/PT) the pages
- * sharing the monitor get linked using the iMonitoredNext/Prev. The head page
- * is the pvUser to the access handlers.
+ * We always monitor GUEST_PAGE_SIZE chunks of memory. When we've got multiple
+ * shadow pages for the same GUEST_PAGE_SIZE of guest memory (PAE and mixed
+ * PD/PT) the pages sharing the monitor get linked using the
+ * iMonitoredNext/Prev. The head page is the pvUser to the access handlers.
  *
  *
  * @section sec_pgm_pool_impl       Implementation
@@ -96,10 +106,11 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM_POOL
+#define VBOX_WITHOUT_PAGING_BIT_FIELDS /* 64-bit bitfields are just asking for trouble. See @bugref{9841} and others. */
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/mm.h>
 #include "PGMInternal.h"
-#include <VBox/vmm/vm.h>
+#include <VBox/vmm/vmcc.h>
 #include <VBox/vmm/uvm.h>
 #include "PGMInline.h"
 
@@ -111,13 +122,30 @@
 
 
 /*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
+typedef struct PGMPOOLCHECKERSTATE
+{
+    PDBGCCMDHLP     pCmdHlp;
+    PVM             pVM;
+    PPGMPOOL        pPool;
+    PPGMPOOLPAGE    pPage;
+    bool            fFirstMsg;
+    uint32_t        cErrors;
+} PGMPOOLCHECKERSTATE;
+typedef PGMPOOLCHECKERSTATE *PPGMPOOLCHECKERSTATE;
+
+
+
+/*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-#ifdef VBOX_WITH_DEBUGGER
-static FNDBGCCMD pgmR3PoolCmdCheck;
-#endif
+static FNDBGFHANDLERINT pgmR3PoolInfoPages;
+static FNDBGFHANDLERINT pgmR3PoolInfoRoots;
 
 #ifdef VBOX_WITH_DEBUGGER
+static FNDBGCCMD pgmR3PoolCmdCheck;
+
 /** Command descriptors. */
 static const DBGCCMD    g_aCmds[] =
 {
@@ -151,11 +179,12 @@ int pgmR3PoolInit(PVM pVM)
     /* Adjust it up relative to the RAM size, using the nested paging formula. */
     uint64_t cbRam;
     rc = CFGMR3QueryU64Def(CFGMR3GetRoot(pVM), "RamSize", &cbRam, 0); AssertRCReturn(rc, rc);
+    /** @todo guest x86 specific */
     uint64_t u64MaxPages = (cbRam >> 9)
                          + (cbRam >> 18)
                          + (cbRam >> 27)
-                         + 32 * PAGE_SIZE;
-    u64MaxPages >>= PAGE_SHIFT;
+                         + 32 * GUEST_PAGE_SIZE;
+    u64MaxPages >>= GUEST_PAGE_SHIFT;
     if (u64MaxPages > PGMPOOL_IDX_LAST)
         cMaxPages = PGMPOOL_IDX_LAST;
     else
@@ -230,11 +259,13 @@ int pgmR3PoolInit(PVM pVM)
     cb += cMaxUsers * sizeof(PGMPOOLUSER);
     cb += cMaxPhysExts * sizeof(PGMPOOLPHYSEXT);
     PPGMPOOL pPool;
-    rc = MMR3HyperAllocOnceNoRel(pVM, cb, 0, MM_TAG_PGM_POOL, (void **)&pPool);
+    RTR0PTR  pPoolR0;
+    rc = SUPR3PageAllocEx(RT_ALIGN_32(cb, HOST_PAGE_SIZE) >> HOST_PAGE_SHIFT, 0 /*fFlags*/, (void **)&pPool, &pPoolR0, NULL);
     if (RT_FAILURE(rc))
         return rc;
-    pVM->pgm.s.pPoolR3 = pPool;
-    pVM->pgm.s.pPoolR0 = MMHyperR3ToR0(pVM, pPool);
+    Assert(ASMMemIsZero(pPool, cb));
+    pVM->pgm.s.pPoolR3 = pPool->pPoolR3 = pPool;
+    pVM->pgm.s.pPoolR0 = pPool->pPoolR0 = pPoolR0;
 
     /*
      * Initialize it.
@@ -247,7 +278,7 @@ int pgmR3PoolInit(PVM pVM)
     pPool->cMaxUsers = cMaxUsers;
     PPGMPOOLUSER paUsers = (PPGMPOOLUSER)&pPool->aPages[pPool->cMaxPages];
     pPool->paUsersR3 = paUsers;
-    pPool->paUsersR0 = MMHyperR3ToR0(pVM, paUsers);
+    pPool->paUsersR0 = pPoolR0 + (uintptr_t)paUsers - (uintptr_t)pPool;
     for (unsigned i = 0; i < cMaxUsers; i++)
     {
         paUsers[i].iNext = i + 1;
@@ -259,7 +290,7 @@ int pgmR3PoolInit(PVM pVM)
     pPool->cMaxPhysExts = cMaxPhysExts;
     PPGMPOOLPHYSEXT paPhysExts = (PPGMPOOLPHYSEXT)&paUsers[cMaxUsers];
     pPool->paPhysExtsR3 = paPhysExts;
-    pPool->paPhysExtsR0 = MMHyperR3ToR0(pVM, paPhysExts);
+    pPool->paPhysExtsR0 = pPoolR0 + (uintptr_t)paPhysExts - (uintptr_t)pPool;
     for (unsigned i = 0; i < cMaxPhysExts; i++)
     {
         paPhysExts[i].iNext = i + 1;
@@ -278,12 +309,8 @@ int pgmR3PoolInit(PVM pVM)
     pPool->fCacheEnabled = fCacheEnabled;
 
     pPool->hAccessHandlerType = NIL_PGMPHYSHANDLERTYPE;
-    rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE, true /*fKeepPgmLock*/,
-                                          pgmPoolAccessHandler,
-                                          NULL, "pgmPoolAccessHandler", "pgmRZPoolAccessPfHandler",
-                                          NULL, "pgmPoolAccessHandler", "pgmRZPoolAccessPfHandler",
-                                          "Guest Paging Access Handler",
-                                          &pPool->hAccessHandlerType);
+    rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE, PGMPHYSHANDLER_F_KEEP_PGM_LOCK,
+                                          pgmPoolAccessHandler, "Guest Paging Access Handler", &pPool->hAccessHandlerType);
     AssertLogRelRCReturn(rc, rc);
 
     pPool->HCPhysTree = 0;
@@ -318,7 +345,7 @@ int pgmR3PoolInit(PVM pVM)
     /*
      * Register statistics.
      */
-    STAM_REL_REG(pVM, &pPool->StatGrow,                 STAMTYPE_PROFILE,   "/PGM/Pool/Grow",           STAMUNIT_TICKS, "Profiling PGMR0PoolGrow");
+    STAM_REL_REG(pVM, &pPool->StatGrow,                 STAMTYPE_PROFILE,   "/PGM/Pool/Grow",           STAMUNIT_TICKS_PER_CALL,    "Profiling PGMR0PoolGrow");
 #ifdef VBOX_WITH_STATISTICS
     STAM_REG(pVM, &pPool->cCurPages,                    STAMTYPE_U16,       "/PGM/Pool/cCurPages",      STAMUNIT_PAGES,             "Current pool size.");
     STAM_REG(pVM, &pPool->cMaxPages,                    STAMTYPE_U16,       "/PGM/Pool/cMaxPages",      STAMUNIT_PAGES,             "Max pool size.");
@@ -360,32 +387,32 @@ int pgmR3PoolInit(PVM pVM)
 
     STAM_REG(pVM, &pPool->StatMonitorRZ,                  STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM",                 STAMUNIT_TICKS_PER_CALL, "Profiling the regular access handler.");
     STAM_REG(pVM, &pPool->StatMonitorRZFlushPage,         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/FlushPage",       STAMUNIT_TICKS_PER_CALL, "Profiling the pgmPoolFlushPage calls made from the regular access handler.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[0],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size01",          STAMUNIT_OCCURENCES,     "Number of 1 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[1],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size02",          STAMUNIT_OCCURENCES,     "Number of 2 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[2],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size03",          STAMUNIT_OCCURENCES,     "Number of 3 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[3],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size04",          STAMUNIT_OCCURENCES,     "Number of 4 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[4],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size05",          STAMUNIT_OCCURENCES,     "Number of 5 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[5],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size06",          STAMUNIT_OCCURENCES,     "Number of 6 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[6],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size07",          STAMUNIT_OCCURENCES,     "Number of 7 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[7],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size08",          STAMUNIT_OCCURENCES,     "Number of 8 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[8],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size09",          STAMUNIT_OCCURENCES,     "Number of 9 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[9],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size0a",          STAMUNIT_OCCURENCES,     "Number of 10 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[10],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size0b",          STAMUNIT_OCCURENCES,     "Number of 11 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[11],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size0c",          STAMUNIT_OCCURENCES,     "Number of 12 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[12],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size0d",          STAMUNIT_OCCURENCES,     "Number of 13 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[13],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size0e",          STAMUNIT_OCCURENCES,     "Number of 14 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[14],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size0f",          STAMUNIT_OCCURENCES,     "Number of 15 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[15],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size10",          STAMUNIT_OCCURENCES,     "Number of 16 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[16],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size11-2f",       STAMUNIT_OCCURENCES,     "Number of 17-31 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[17],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size20-3f",       STAMUNIT_OCCURENCES,     "Number of 32-63 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[18],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Size40+",         STAMUNIT_OCCURENCES,     "Number of 64+ byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[0],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Misaligned1",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 1.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[1],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Misaligned2",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 2.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[2],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Misaligned3",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 3.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[3],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Misaligned4",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 4.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[4],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Misaligned5",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 5.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[5],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Misaligned6",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 6.");
-    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[6],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/RZ/IEM/Misaligned7",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 7.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[0],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size01",          STAMUNIT_OCCURENCES,     "Number of 1 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[1],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size02",          STAMUNIT_OCCURENCES,     "Number of 2 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[2],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size03",          STAMUNIT_OCCURENCES,     "Number of 3 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[3],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size04",          STAMUNIT_OCCURENCES,     "Number of 4 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[4],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size05",          STAMUNIT_OCCURENCES,     "Number of 5 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[5],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size06",          STAMUNIT_OCCURENCES,     "Number of 6 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[6],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size07",          STAMUNIT_OCCURENCES,     "Number of 7 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[7],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size08",          STAMUNIT_OCCURENCES,     "Number of 8 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[8],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size09",          STAMUNIT_OCCURENCES,     "Number of 9 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[9],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size0a",          STAMUNIT_OCCURENCES,     "Number of 10 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[10],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size0b",          STAMUNIT_OCCURENCES,     "Number of 11 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[11],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size0c",          STAMUNIT_OCCURENCES,     "Number of 12 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[12],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size0d",          STAMUNIT_OCCURENCES,     "Number of 13 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[13],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size0e",          STAMUNIT_OCCURENCES,     "Number of 14 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[14],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size0f",          STAMUNIT_OCCURENCES,     "Number of 15 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[15],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size10",          STAMUNIT_OCCURENCES,     "Number of 16 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[16],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size11-2f",       STAMUNIT_OCCURENCES,     "Number of 17-31 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[17],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size20-3f",       STAMUNIT_OCCURENCES,     "Number of 32-63 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZSizes[18],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Size40+",         STAMUNIT_OCCURENCES,     "Number of 64+ byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[0],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Misaligned1",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 1.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[1],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Misaligned2",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 2.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[2],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Misaligned3",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 3.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[3],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Misaligned4",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 4.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[4],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Misaligned5",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 5.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[5],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Misaligned6",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 6.");
+    STAM_REG(pVM, &pPool->aStatMonitorRZMisaligned[6],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/IEM/Misaligned7",     STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 7.");
 
     STAM_REG(pVM, &pPool->StatMonitorRZFaultPT,           STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/Fault/PT",            STAMUNIT_OCCURENCES,     "Nr of handled PT faults.");
     STAM_REG(pVM, &pPool->StatMonitorRZFaultPD,           STAMTYPE_COUNTER, "/PGM/Pool/Monitor/RZ/Fault/PD",            STAMUNIT_OCCURENCES,     "Nr of handled PD faults.");
@@ -394,32 +421,32 @@ int pgmR3PoolInit(PVM pVM)
 
     STAM_REG(pVM, &pPool->StatMonitorR3,                  STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3",                     STAMUNIT_TICKS_PER_CALL, "Profiling the R3 access handler.");
     STAM_REG(pVM, &pPool->StatMonitorR3FlushPage,         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/FlushPage",           STAMUNIT_TICKS_PER_CALL, "Profiling the pgmPoolFlushPage calls made from the R3 access handler.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[0],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size01",              STAMUNIT_OCCURENCES,     "Number of 1 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[1],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size02",              STAMUNIT_OCCURENCES,     "Number of 2 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[2],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size03",              STAMUNIT_OCCURENCES,     "Number of 3 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[3],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size04",              STAMUNIT_OCCURENCES,     "Number of 4 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[4],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size05",              STAMUNIT_OCCURENCES,     "Number of 5 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[5],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size06",              STAMUNIT_OCCURENCES,     "Number of 6 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[6],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size07",              STAMUNIT_OCCURENCES,     "Number of 7 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[7],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size08",              STAMUNIT_OCCURENCES,     "Number of 8 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[8],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size09",              STAMUNIT_OCCURENCES,     "Number of 9 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[9],         STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size0a",              STAMUNIT_OCCURENCES,     "Number of 10 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[10],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size0b",              STAMUNIT_OCCURENCES,     "Number of 11 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[11],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size0c",              STAMUNIT_OCCURENCES,     "Number of 12 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[12],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size0d",              STAMUNIT_OCCURENCES,     "Number of 13 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[13],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size0e",              STAMUNIT_OCCURENCES,     "Number of 14 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[14],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size0f",              STAMUNIT_OCCURENCES,     "Number of 15 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[15],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size10",              STAMUNIT_OCCURENCES,     "Number of 16 byte accesses (R3).");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[16],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size11-2f",           STAMUNIT_OCCURENCES,     "Number of 17-31 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[17],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size20-3f",           STAMUNIT_OCCURENCES,     "Number of 32-63 byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[18],        STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Size40+",             STAMUNIT_OCCURENCES,     "Number of 64+ byte accesses.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[0],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Misaligned1",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 1 in R3.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[1],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Misaligned2",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 2 in R3.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[2],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Misaligned3",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 3 in R3.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[3],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Misaligned4",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 4 in R3.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[4],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Misaligned5",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 5 in R3.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[5],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Misaligned6",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 6 in R3.");
-    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[6],    STAMTYPE_PROFILE, "/PGM/Pool/Monitor/R3/Misaligned7",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 7 in R3.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[0],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size01",              STAMUNIT_OCCURENCES,     "Number of 1 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[1],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size02",              STAMUNIT_OCCURENCES,     "Number of 2 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[2],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size03",              STAMUNIT_OCCURENCES,     "Number of 3 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[3],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size04",              STAMUNIT_OCCURENCES,     "Number of 4 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[4],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size05",              STAMUNIT_OCCURENCES,     "Number of 5 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[5],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size06",              STAMUNIT_OCCURENCES,     "Number of 6 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[6],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size07",              STAMUNIT_OCCURENCES,     "Number of 7 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[7],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size08",              STAMUNIT_OCCURENCES,     "Number of 8 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[8],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size09",              STAMUNIT_OCCURENCES,     "Number of 9 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[9],         STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size0a",              STAMUNIT_OCCURENCES,     "Number of 10 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[10],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size0b",              STAMUNIT_OCCURENCES,     "Number of 11 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[11],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size0c",              STAMUNIT_OCCURENCES,     "Number of 12 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[12],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size0d",              STAMUNIT_OCCURENCES,     "Number of 13 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[13],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size0e",              STAMUNIT_OCCURENCES,     "Number of 14 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[14],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size0f",              STAMUNIT_OCCURENCES,     "Number of 15 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[15],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size10",              STAMUNIT_OCCURENCES,     "Number of 16 byte accesses (R3).");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[16],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size11-2f",           STAMUNIT_OCCURENCES,     "Number of 17-31 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[17],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size20-3f",           STAMUNIT_OCCURENCES,     "Number of 32-63 byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Sizes[18],        STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Size40+",             STAMUNIT_OCCURENCES,     "Number of 64+ byte accesses.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[0],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Misaligned1",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 1 in R3.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[1],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Misaligned2",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 2 in R3.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[2],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Misaligned3",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 3 in R3.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[3],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Misaligned4",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 4 in R3.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[4],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Misaligned5",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 5 in R3.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[5],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Misaligned6",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 6 in R3.");
+    STAM_REG(pVM, &pPool->aStatMonitorR3Misaligned[6],    STAMTYPE_COUNTER, "/PGM/Pool/Monitor/R3/Misaligned7",         STAMUNIT_OCCURENCES,     "Number of misaligned access with offset 7 in R3.");
 
     STAM_REG(pVM, &pPool->StatMonitorR3FaultPT,         STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Fault/PT",        STAMUNIT_OCCURENCES,     "Nr of handled PT faults.");
     STAM_REG(pVM, &pPool->StatMonitorR3FaultPD,         STAMTYPE_COUNTER,   "/PGM/Pool/Monitor/R3/Fault/PD",        STAMUNIT_OCCURENCES,     "Nr of handled PD faults.");
@@ -439,6 +466,9 @@ int pgmR3PoolInit(PVM pVM)
     STAM_REG(pVM, &pPool->StatCacheCacheable,           STAMTYPE_COUNTER,   "/PGM/Pool/Cache/Cacheable",            STAMUNIT_OCCURENCES, "The number of cacheable allocations.");
     STAM_REG(pVM, &pPool->StatCacheUncacheable,         STAMTYPE_COUNTER,   "/PGM/Pool/Cache/Uncacheable",          STAMUNIT_OCCURENCES, "The number of uncacheable allocations.");
 #endif /* VBOX_WITH_STATISTICS */
+
+    DBGFR3InfoRegisterInternalEx(pVM, "pgmpoolpages", "Lists page pool pages.", pgmR3PoolInfoPages, 0);
+    DBGFR3InfoRegisterInternalEx(pVM, "pgmpoolroots", "Lists page pool roots.", pgmR3PoolInfoRoots, 0);
 
 #ifdef VBOX_WITH_DEBUGGER
     /*
@@ -512,7 +542,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
     STAM_PROFILE_START(&pPool->StatClearAll, c);
     NOREF(pVCpu);
 
-    pgmLock(pVM);
+    PGM_LOCK_VOID(pVM);
     Log(("pgmR3PoolClearAllRendezvous: cUsedPages=%d fpvFlushRemTlb=%RTbool\n", pPool->cUsedPages, !!fpvFlushRemTlb));
 
     /*
@@ -533,16 +563,15 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                  * We only care about shadow page tables that reference physical memory
                  */
 #ifdef PGM_WITH_LARGE_PAGES
-                case PGMPOOLKIND_EPT_PD_FOR_PHYS: /* Large pages reference 2 MB of physical memory, so we must clear them. */
+                case PGMPOOLKIND_PAE_PD_PHYS:   /* Large pages reference 2 MB of physical memory, so we must clear them. */
                     if (pPage->cPresent)
                     {
                         PX86PDPAE pShwPD = (PX86PDPAE)PGMPOOL_PAGE_2_PTR_V2(pPool->CTX_SUFF(pVM), pVCpu, pPage);
                         for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
                         {
-                            if (    pShwPD->a[i].n.u1Present
-                                &&  pShwPD->a[i].b.u1Size)
+                            //Assert((pShwPD->a[i].u & UINT64_C(0xfff0000000000f80)) == 0); - bogus, includes X86_PDE_PS.
+                            if ((pShwPD->a[i].u & (X86_PDE_P | X86_PDE_PS)) == (X86_PDE_P | X86_PDE_PS))
                             {
-                                Assert(!(pShwPD->a[i].u & PGM_PDFLAGS_MAPPING));
                                 pShwPD->a[i].u = 0;
                                 Assert(pPage->cPresent);
                                 pPage->cPresent--;
@@ -553,17 +582,14 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                     }
                     goto default_case;
 
-                case PGMPOOLKIND_PAE_PD_PHYS:   /* Large pages reference 2 MB of physical memory, so we must clear them. */
+                case PGMPOOLKIND_EPT_PD_FOR_PHYS: /* Large pages reference 2 MB of physical memory, so we must clear them. */
                     if (pPage->cPresent)
                     {
                         PEPTPD pShwPD = (PEPTPD)PGMPOOL_PAGE_2_PTR_V2(pPool->CTX_SUFF(pVM), pVCpu, pPage);
                         for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
                         {
-                            Assert((pShwPD->a[i].u & UINT64_C(0xfff0000000000f80)) == 0);
-                            if (    pShwPD->a[i].n.u1Present
-                                &&  pShwPD->a[i].b.u1Size)
+                            if ((pShwPD->a[i].u & (EPT_E_READ | EPT_E_LEAF)) == (EPT_E_READ | EPT_E_LEAF))
                             {
-                                Assert(!(pShwPD->a[i].u & PGM_PDFLAGS_MAPPING));
                                 pShwPD->a[i].u = 0;
                                 Assert(pPage->cPresent);
                                 pPage->cPresent--;
@@ -584,11 +610,26 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                 case PGMPOOLKIND_32BIT_PT_FOR_PHYS:
                 case PGMPOOLKIND_PAE_PT_FOR_PHYS:
                 case PGMPOOLKIND_EPT_PT_FOR_PHYS:
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+                case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
+                case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
+                case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
+                case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
+#endif
                 {
                     if (pPage->cPresent)
                     {
                         void *pvShw = PGMPOOL_PAGE_2_PTR_V2(pPool->CTX_SUFF(pVM), pVCpu, pPage);
                         STAM_PROFILE_START(&pPool->StatZeroPage, z);
+#ifdef VBOX_STRICT
+                        if (PGMPOOL_PAGE_IS_NESTED(pPage))
+                        {
+                            PEPTPT pPT = (PEPTPT)pvShw;
+                            for (unsigned idxPt = 0; idxPt < RT_ELEMENTS(pPT->a); idxPt++)
+                                if (pPT->a[idxPt].u & EPT_PRESENT_MASK)
+                                    Assert(!(pPT->a[idxPt].u & EPT_E_LEAF));  /* We don't support large pages as of yet. */
+                        }
+#endif
 #if 0
                         /* Useful check for leaking references; *very* expensive though. */
                         switch (pPage->enmKind)
@@ -634,10 +675,10 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
                     }
                 }
                 RT_FALL_THRU();
+                default:
 #ifdef PGM_WITH_LARGE_PAGES
                 default_case:
 #endif
-                default:
                     Assert(!pPage->cModifications || ++cModifiedPages);
                     Assert(pPage->iModifiedNext == NIL_PGMPOOL_IDX || pPage->cModifications);
                     Assert(pPage->iModifiedPrev == NIL_PGMPOOL_IDX || pPage->cModifications);
@@ -665,7 +706,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
          pRam;
          pRam = pRam->CTX_SUFF(pNext))
     {
-        iPage = pRam->cb >> PAGE_SHIFT;
+        iPage = pRam->cb >> GUEST_PAGE_SHIFT;
         while (iPage-- > 0)
             PGM_PAGE_SET_TRACKING(pVM, &pRam->aPages[iPage], 0);
     }
@@ -706,7 +747,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
         Log(("Reactivate dirty page %RGp\n", pPage->GCPhys));
 
         /* First write protect the page again to catch all write accesses. (before checking for changes -> SMP) */
-        int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys & PAGE_BASE_GC_MASK);
+        int rc = PGMHandlerPhysicalReset(pVM, pPage->GCPhys & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK);
         AssertRCSuccess(rc);
         pPage->fDirty = false;
 
@@ -725,7 +766,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmR3PoolClearAllRendezvous(PVM pVM, PVMCPU pVCpu, vo
     /* Flush job finished. */
     VM_FF_CLEAR(pVM, VM_FF_PGM_POOL_FLUSH_PENDING);
     pPool->cPresent = 0;
-    pgmUnlock(pVM);
+    PGM_UNLOCK(pVM);
 
     PGM_INVL_ALL_VCPU_TLBS(pVM);
 
@@ -749,6 +790,85 @@ void pgmR3PoolClearAll(PVM pVM, bool fFlushRemTlb)
 {
     int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, pgmR3PoolClearAllRendezvous, &fFlushRemTlb);
     AssertRC(rc);
+}
+
+/**
+ * Stringifies a PGMPOOLKIND value.
+ */
+static const char *pgmPoolPoolKindToStr(uint8_t enmKind)
+{
+    switch ((PGMPOOLKIND)enmKind)
+    {
+        case PGMPOOLKIND_INVALID:
+            return "INVALID";
+        case PGMPOOLKIND_FREE:
+            return "FREE";
+        case PGMPOOLKIND_32BIT_PT_FOR_PHYS:
+            return "32BIT_PT_FOR_PHYS";
+        case PGMPOOLKIND_32BIT_PT_FOR_32BIT_PT:
+            return "32BIT_PT_FOR_32BIT_PT";
+        case PGMPOOLKIND_32BIT_PT_FOR_32BIT_4MB:
+            return "32BIT_PT_FOR_32BIT_4MB";
+        case PGMPOOLKIND_PAE_PT_FOR_PHYS:
+            return "PAE_PT_FOR_PHYS";
+        case PGMPOOLKIND_PAE_PT_FOR_32BIT_PT:
+            return "PAE_PT_FOR_32BIT_PT";
+        case PGMPOOLKIND_PAE_PT_FOR_32BIT_4MB:
+            return "PAE_PT_FOR_32BIT_4MB";
+        case PGMPOOLKIND_PAE_PT_FOR_PAE_PT:
+            return "PAE_PT_FOR_PAE_PT";
+        case PGMPOOLKIND_PAE_PT_FOR_PAE_2MB:
+            return "PAE_PT_FOR_PAE_2MB";
+        case PGMPOOLKIND_32BIT_PD:
+            return "32BIT_PD";
+        case PGMPOOLKIND_32BIT_PD_PHYS:
+            return "32BIT_PD_PHYS";
+        case PGMPOOLKIND_PAE_PD0_FOR_32BIT_PD:
+            return "PAE_PD0_FOR_32BIT_PD";
+        case PGMPOOLKIND_PAE_PD1_FOR_32BIT_PD:
+            return "PAE_PD1_FOR_32BIT_PD";
+        case PGMPOOLKIND_PAE_PD2_FOR_32BIT_PD:
+            return "PAE_PD2_FOR_32BIT_PD";
+        case PGMPOOLKIND_PAE_PD3_FOR_32BIT_PD:
+            return "PAE_PD3_FOR_32BIT_PD";
+        case PGMPOOLKIND_PAE_PD_FOR_PAE_PD:
+            return "PAE_PD_FOR_PAE_PD";
+        case PGMPOOLKIND_PAE_PD_PHYS:
+            return "PAE_PD_PHYS";
+        case PGMPOOLKIND_PAE_PDPT_FOR_32BIT:
+            return "PAE_PDPT_FOR_32BIT";
+        case PGMPOOLKIND_PAE_PDPT:
+            return "PAE_PDPT";
+        case PGMPOOLKIND_PAE_PDPT_PHYS:
+            return "PAE_PDPT_PHYS";
+        case PGMPOOLKIND_64BIT_PDPT_FOR_64BIT_PDPT:
+            return "64BIT_PDPT_FOR_64BIT_PDPT";
+        case PGMPOOLKIND_64BIT_PDPT_FOR_PHYS:
+            return "64BIT_PDPT_FOR_PHYS";
+        case PGMPOOLKIND_64BIT_PD_FOR_64BIT_PD:
+            return "64BIT_PD_FOR_64BIT_PD";
+        case PGMPOOLKIND_64BIT_PD_FOR_PHYS:
+            return "64BIT_PD_FOR_PHYS";
+        case PGMPOOLKIND_64BIT_PML4:
+            return "64BIT_PML4";
+        case PGMPOOLKIND_EPT_PDPT_FOR_PHYS:
+            return "EPT_PDPT_FOR_PHYS";
+        case PGMPOOLKIND_EPT_PD_FOR_PHYS:
+            return "EPT_PD_FOR_PHYS";
+        case PGMPOOLKIND_EPT_PT_FOR_PHYS:
+            return "EPT_PT_FOR_PHYS";
+        case PGMPOOLKIND_ROOT_NESTED:
+            return "ROOT_NESTED";
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
+            return "EPT_PT_FOR_EPT_PT";
+        case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
+            return "EPT_PD_FOR_EPT_PD";
+        case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
+            return "EPT_PDPT_FOR_EPT_PDPT";
+        case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
+            return "EPT_PML4_FOR_EPT_PML4";
+    }
+    return "Unknown kind!";
 }
 
 
@@ -789,10 +909,8 @@ void pgmR3PoolWriteProtectPages(PVM pVM)
                 case PGMPOOLKIND_32BIT_PT_FOR_32BIT_4MB:
                 case PGMPOOLKIND_32BIT_PT_FOR_PHYS:
                     for (unsigned iShw = 0; iShw < RT_ELEMENTS(uShw.pPT->a); iShw++)
-                    {
-                        if (uShw.pPT->a[iShw].n.u1Present)
-                            uShw.pPT->a[iShw].n.u1Write = 0;
-                    }
+                        if (uShw.pPT->a[iShw].u & X86_PTE_P)
+                            uShw.pPT->a[iShw].u = ~(X86PGUINT)X86_PTE_RW;
                     break;
 
                 case PGMPOOLKIND_PAE_PT_FOR_32BIT_PT:
@@ -801,18 +919,14 @@ void pgmR3PoolWriteProtectPages(PVM pVM)
                 case PGMPOOLKIND_PAE_PT_FOR_PAE_2MB:
                 case PGMPOOLKIND_PAE_PT_FOR_PHYS:
                     for (unsigned iShw = 0; iShw < RT_ELEMENTS(uShw.pPTPae->a); iShw++)
-                    {
                         if (PGMSHWPTEPAE_IS_P(uShw.pPTPae->a[iShw]))
                             PGMSHWPTEPAE_SET_RO(uShw.pPTPae->a[iShw]);
-                    }
                     break;
 
                 case PGMPOOLKIND_EPT_PT_FOR_PHYS:
                     for (unsigned iShw = 0; iShw < RT_ELEMENTS(uShw.pPTEpt->a); iShw++)
-                    {
-                        if (uShw.pPTEpt->a[iShw].n.u1Present)
-                            uShw.pPTEpt->a[iShw].n.u1Write = 0;
-                    }
+                        if (uShw.pPTEpt->a[iShw].u & EPT_E_READ)
+                            uShw.pPTEpt->a[iShw].u &= ~(X86PGPAEUINT)EPT_E_WRITE;
                     break;
 
                 default:
@@ -824,7 +938,97 @@ void pgmR3PoolWriteProtectPages(PVM pVM)
     }
 }
 
+
+/**
+ * @callback_method_impl{FNDBGFHANDLERINT, pgmpoolpages}
+ */
+static DECLCALLBACK(void) pgmR3PoolInfoPages(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    RT_NOREF(pszArgs);
+
+    PPGMPOOL const pPool  = pVM->pgm.s.CTX_SUFF(pPool);
+    unsigned const cPages = pPool->cCurPages;
+    unsigned       cLeft  = pPool->cUsedPages;
+    for (unsigned iPage = 0; iPage < cPages; iPage++)
+    {
+        PGMPOOLPAGE volatile const *pPage = (PGMPOOLPAGE volatile const *)&pPool->aPages[iPage];
+        RTGCPHYS const GCPhys = pPage->GCPhys;
+        uint8_t const enmKind = pPage->enmKind;
+        if (   enmKind != PGMPOOLKIND_INVALID
+            && enmKind != PGMPOOLKIND_FREE)
+        {
+            pHlp->pfnPrintf(pHlp, "#%04x: HCPhys=%RHp GCPhys=%RGp %s %s%s%s\n",
+                            iPage, pPage->Core.Key, GCPhys, pPage->fA20Enabled ? "A20 " : "!A20",
+                            pgmPoolPoolKindToStr(enmKind),
+                            pPage->fCached ? " cached" : "",
+                            pPage->fMonitored ? " monitored" : "");
+            if (!--cLeft)
+                break;
+        }
+    }
+}
+
+
+/**
+ * @callback_method_impl{FNDBGFHANDLERINT, pgmpoolroots}
+ */
+static DECLCALLBACK(void) pgmR3PoolInfoRoots(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    RT_NOREF(pszArgs);
+
+    PPGMPOOL const pPool  = pVM->pgm.s.CTX_SUFF(pPool);
+    unsigned const cPages = pPool->cCurPages;
+    unsigned       cLeft  = pPool->cUsedPages;
+    for (unsigned iPage = 0; iPage < cPages; iPage++)
+    {
+        PGMPOOLPAGE volatile const *pPage = (PGMPOOLPAGE volatile const *)&pPool->aPages[iPage];
+        RTGCPHYS const GCPhys = pPage->GCPhys;
+        if (GCPhys != NIL_RTGCPHYS)
+        {
+            uint8_t const enmKind = pPage->enmKind;
+            switch (enmKind)
+            {
+                default:
+                    break;
+
+                case PGMPOOLKIND_PAE_PDPT_FOR_32BIT:
+                case PGMPOOLKIND_PAE_PDPT:
+                case PGMPOOLKIND_PAE_PDPT_PHYS:
+                case PGMPOOLKIND_64BIT_PML4:
+                case PGMPOOLKIND_ROOT_NESTED:
+                case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
+                    pHlp->pfnPrintf(pHlp, "#%04x: HCPhys=%RHp GCPhys=%RGp %s %s %s\n",
+                                    iPage, pPage->Core.Key, GCPhys, pPage->fA20Enabled ? "A20 " : "!A20",
+                                    pgmPoolPoolKindToStr(enmKind), pPage->fMonitored ? " monitored" : "");
+                    break;
+            }
+            if (!--cLeft)
+                break;
+        }
+    }
+}
+
 #ifdef VBOX_WITH_DEBUGGER
+
+/**
+ * Helper for pgmR3PoolCmdCheck that reports an error.
+ */
+static void pgmR3PoolCheckError(PPGMPOOLCHECKERSTATE pState, const char *pszFormat, ...)
+{
+    if (pState->fFirstMsg)
+    {
+        DBGCCmdHlpPrintf(pState->pCmdHlp, "Checking pool page #%i for %RGp %s\n",
+                         pState->pPage->idx, pState->pPage->GCPhys, pgmPoolPoolKindToStr(pState->pPage->enmKind));
+        pState->fFirstMsg = false;
+    }
+
+    va_list va;
+    va_start(va, pszFormat);
+    pState->pCmdHlp->pfnPrintfV(pState->pCmdHlp, NULL, pszFormat, va);
+    va_end(va);
+}
+
+
 /**
  * @callback_method_impl{FNDBGCCMD, The '.pgmpoolcheck' command.}
  */
@@ -834,96 +1038,251 @@ static DECLCALLBACK(int) pgmR3PoolCmdCheck(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 0);
-    uint32_t cErrors = 0;
     NOREF(paArgs);
 
-    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+    PGM_LOCK_VOID(pVM);
+    PPGMPOOL            pPool = pVM->pgm.s.CTX_SUFF(pPool);
+    PGMPOOLCHECKERSTATE State = { pCmdHlp, pVM, pPool, NULL, true, 0 };
     for (unsigned i = 0; i < pPool->cCurPages; i++)
     {
-        PPGMPOOLPAGE    pPage     = &pPool->aPages[i];
-        bool            fFirstMsg = true;
+        PPGMPOOLPAGE pPage = &pPool->aPages[i];
+        State.pPage     = pPage;
+        State.fFirstMsg = true;
 
-        /** @todo cover other paging modes too. */
-        if (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
+        if (pPage->idx != i)
+            pgmR3PoolCheckError(&State, "Invalid idx value: %#x, expected %#x", pPage->idx, i);
+
+        if (pPage->enmKind == PGMPOOLKIND_FREE)
+            continue;
+        if (pPage->enmKind > PGMPOOLKIND_LAST || pPage->enmKind <= PGMPOOLKIND_INVALID)
         {
-            PPGMSHWPTPAE pShwPT = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
-            {
-                PX86PTPAE       pGstPT;
-                PGMPAGEMAPLOCK  LockPage;
-                int rc = PGMPhysGCPhys2CCPtrReadOnly(pVM, pPage->GCPhys, (const void **)&pGstPT, &LockPage);     AssertReleaseRC(rc);
+            if (pPage->enmKind != PGMPOOLKIND_INVALID || pPage->idx != 0)
+                pgmR3PoolCheckError(&State, "Invalid enmKind value: %#x\n", pPage->enmKind);
+            continue;
+        }
 
-                /* Check if any PTEs are out of sync. */
+        void const     *pvGuestPage = NULL;
+        PGMPAGEMAPLOCK  LockPage;
+        if (   pPage->enmKind != PGMPOOLKIND_EPT_PDPT_FOR_PHYS
+            && pPage->enmKind != PGMPOOLKIND_EPT_PD_FOR_PHYS
+            && pPage->enmKind != PGMPOOLKIND_EPT_PT_FOR_PHYS
+            && pPage->enmKind != PGMPOOLKIND_ROOT_NESTED)
+        {
+            int rc = PGMPhysGCPhys2CCPtrReadOnly(pVM, pPage->GCPhys, &pvGuestPage, &LockPage);
+            if (RT_FAILURE(rc))
+            {
+                pgmR3PoolCheckError(&State, "PGMPhysGCPhys2CCPtrReadOnly failed for %RGp: %Rrc\n", pPage->GCPhys, rc);
+                continue;
+            }
+        }
+# define HCPHYS_TO_POOL_PAGE(a_HCPhys) (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, (a_HCPhys))
+
+        /*
+         * Check if something obvious is out of sync.
+         */
+        switch (pPage->enmKind)
+        {
+            case PGMPOOLKIND_PAE_PT_FOR_PAE_PT:
+            {
+                PCPGMSHWPTPAE const pShwPT = (PCPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                PCX86PDPAE const    pGstPT = (PCX86PDPAE)pvGuestPage;
                 for (unsigned j = 0; j < RT_ELEMENTS(pShwPT->a); j++)
-                {
                     if (PGMSHWPTEPAE_IS_P(pShwPT->a[j]))
                     {
                         RTHCPHYS HCPhys = NIL_RTHCPHYS;
-                        rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[j].u & X86_PTE_PAE_PG_MASK, &HCPhys);
+                        int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pGstPT->a[j].u & X86_PTE_PAE_PG_MASK, &HCPhys);
                         if (   rc != VINF_SUCCESS
                             || PGMSHWPTEPAE_GET_HCPHYS(pShwPT->a[j]) != HCPhys)
-                        {
-                            if (fFirstMsg)
-                            {
-                                DBGCCmdHlpPrintf(pCmdHlp, "Check pool page %RGp\n", pPage->GCPhys);
-                                fFirstMsg = false;
-                            }
-                            DBGCCmdHlpPrintf(pCmdHlp, "Mismatch HCPhys: rc=%Rrc idx=%d guest %RX64 shw=%RX64 vs %RHp\n", rc, j, pGstPT->a[j].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), HCPhys);
-                            cErrors++;
-                        }
+                            pgmR3PoolCheckError(&State, "Mismatch HCPhys: rc=%Rrc idx=%#x guest %RX64 shw=%RX64 vs %RHp\n",
+                                                rc, j, pGstPT->a[j].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), HCPhys);
                         else if (   PGMSHWPTEPAE_IS_RW(pShwPT->a[j])
-                                 && !pGstPT->a[j].n.u1Write)
-                        {
-                            if (fFirstMsg)
-                            {
-                                DBGCCmdHlpPrintf(pCmdHlp, "Check pool page %RGp\n", pPage->GCPhys);
-                                fFirstMsg = false;
-                            }
-                            DBGCCmdHlpPrintf(pCmdHlp, "Mismatch r/w gst/shw: idx=%d guest %RX64 shw=%RX64 vs %RHp\n", j, pGstPT->a[j].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), HCPhys);
-                            cErrors++;
-                        }
+                                 && !(pGstPT->a[j].u & X86_PTE_RW))
+                            pgmR3PoolCheckError(&State, "Mismatch r/w gst/shw: idx=%#x guest %RX64 shw=%RX64 vs %RHp\n",
+                                                j, pGstPT->a[j].u, PGMSHWPTEPAE_GET_LOG(pShwPT->a[j]), HCPhys);
                     }
-                }
-                PGMPhysReleasePageMappingLock(pVM, &LockPage);
+                break;
             }
 
-            /* Make sure this page table can't be written to from any shadow mapping. */
-            RTHCPHYS HCPhysPT = NIL_RTHCPHYS;
-            int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), pPage->GCPhys, &HCPhysPT);
-            AssertMsgRC(rc, ("PGMPhysGCPhys2HCPhys failed with rc=%d for %RGp\n", rc, pPage->GCPhys));
-            if (rc == VINF_SUCCESS)
+            case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
             {
-                for (unsigned j = 0; j < pPool->cCurPages; j++)
+                PCEPTPT const pShwPT = (PCEPTPT)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                PCEPTPT const pGstPT = (PCEPTPT)pvGuestPage;
+                for (unsigned j = 0; j < RT_ELEMENTS(pShwPT->a); j++)
                 {
-                    PPGMPOOLPAGE pTempPage = &pPool->aPages[j];
-
-                    if (pTempPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT)
+                    uint64_t const uShw = pShwPT->a[j].u;
+                    if (uShw & EPT_PRESENT_MASK)
                     {
-                        PPGMSHWPTPAE pShwPT2 = (PPGMSHWPTPAE)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pTempPage);
-
-                        for (unsigned k = 0; k < RT_ELEMENTS(pShwPT->a); k++)
-                        {
-                            if (    PGMSHWPTEPAE_IS_P_RW(pShwPT2->a[k])
-# ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
-                                &&  !pPage->fDirty
-# endif
-                                &&  PGMSHWPTEPAE_GET_HCPHYS(pShwPT2->a[k]) == HCPhysPT)
-                            {
-                                if (fFirstMsg)
-                                {
-                                    DBGCCmdHlpPrintf(pCmdHlp, "Check pool page %RGp\n", pPage->GCPhys);
-                                    fFirstMsg = false;
-                                }
-                                DBGCCmdHlpPrintf(pCmdHlp, "Mismatch: r/w: GCPhys=%RGp idx=%d shw %RX64 %RX64\n", pTempPage->GCPhys, k, PGMSHWPTEPAE_GET_LOG(pShwPT->a[k]), PGMSHWPTEPAE_GET_LOG(pShwPT2->a[k]));
-                                cErrors++;
-                            }
-                        }
+                        uint64_t const uGst   = pGstPT->a[j].u;
+                        RTHCPHYS       HCPhys = NIL_RTHCPHYS;
+                        int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), uGst & EPT_E_PG_MASK, &HCPhys);
+                        if (   rc != VINF_SUCCESS
+                            || (uShw & EPT_E_PG_MASK) != HCPhys)
+                            pgmR3PoolCheckError(&State, "Mismatch HCPhys: rc=%Rrc idx=%#x guest %RX64 shw=%RX64 vs %RHp\n",
+                                                rc, j, uGst, uShw, HCPhys);
+                        if (      (uShw & (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE))
+                               != (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE)
+                            && (   ((uShw & EPT_E_READ)    && !(uGst & EPT_E_READ))
+                                || ((uShw & EPT_E_WRITE)   && !(uGst & EPT_E_WRITE))
+                                || ((uShw & EPT_E_EXECUTE) && !(uGst & EPT_E_EXECUTE)) ) )
+                            pgmR3PoolCheckError(&State, "Mismatch r/w/x: idx=%#x guest %RX64 shw=%RX64\n", j, uGst, uShw);
                     }
                 }
+                break;
+            }
+
+            case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
+            {
+                PCEPTPD const pShwPD = (PCEPTPD)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                PCEPTPD const pGstPD = (PCEPTPD)pvGuestPage;
+                for (unsigned j = 0; j < RT_ELEMENTS(pShwPD->a); j++)
+                {
+                    uint64_t const uShw = pShwPD->a[j].u;
+                    if (uShw & EPT_PRESENT_MASK)
+                    {
+                        uint64_t const uGst = pGstPD->a[j].u;
+                        if (uShw & EPT_E_LEAF)
+                        {
+                            if (!(uGst & EPT_E_LEAF))
+                                pgmR3PoolCheckError(&State, "Leafness-mismatch: idx=%#x guest %RX64 shw=%RX64\n", j, uGst, uShw);
+                            else
+                            {
+                                RTHCPHYS HCPhys = NIL_RTHCPHYS;
+                                int rc = PGMPhysGCPhys2HCPhys(pPool->CTX_SUFF(pVM), uGst & EPT_PDE2M_PG_MASK, &HCPhys);
+                                if (   rc != VINF_SUCCESS
+                                    || (uShw & EPT_E_PG_MASK) != HCPhys)
+                                    pgmR3PoolCheckError(&State, "Mismatch HCPhys: rc=%Rrc idx=%#x guest %RX64 shw=%RX64 vs %RHp (2MB)\n",
+                                                        rc, j, uGst, uShw, HCPhys);
+                            }
+                        }
+                        else
+                        {
+                            PPGMPOOLPAGE pSubPage = HCPHYS_TO_POOL_PAGE(uShw & EPT_E_PG_MASK);
+                            if (pSubPage)
+                            {
+                                /** @todo adjust for 2M page to shadow PT mapping.   */
+                                if (pSubPage->enmKind != PGMPOOLKIND_EPT_PT_FOR_EPT_PT)
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table type: idx=%#x guest %RX64 shw=%RX64: idxSub=%#x %s\n",
+                                                        j, uGst, uShw, pSubPage->idx, pgmPoolPoolKindToStr(pSubPage->enmKind));
+                                if (pSubPage->fA20Enabled != pPage->fA20Enabled)
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table A20: idx=%#x guest %RX64 shw=%RX64: idxSub=%#x A20=%d, expected %d\n",
+                                                        j, uGst, uShw, pSubPage->idx, pSubPage->fA20Enabled, pPage->fA20Enabled);
+                                if (pSubPage->GCPhys != (uGst & EPT_E_PG_MASK))
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table GCPhys: idx=%#x guest %RX64 shw=%RX64: GCPhys=%#RGp idxSub=%#x\n",
+                                                        j, uGst, uShw, pSubPage->GCPhys, pSubPage->idx);
+                            }
+                            else
+                                pgmR3PoolCheckError(&State, "sub table not found: idx=%#x shw=%RX64\n", j, uShw);
+
+                        }
+                        if (      (uShw & (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE))
+                               != (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE)
+                            && (   ((uShw & EPT_E_READ)    && !(uGst & EPT_E_READ))
+                                || ((uShw & EPT_E_WRITE)   && !(uGst & EPT_E_WRITE))
+                                || ((uShw & EPT_E_EXECUTE) && !(uGst & EPT_E_EXECUTE)) ) )
+                            pgmR3PoolCheckError(&State, "Mismatch r/w/x: idx=%#x guest %RX64 shw=%RX64\n",
+                                                j, uGst, uShw);
+                    }
+                }
+                break;
+            }
+
+            case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
+            {
+                PCEPTPDPT const pShwPDPT = (PCEPTPDPT)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                PCEPTPDPT const pGstPDPT = (PCEPTPDPT)pvGuestPage;
+                for (unsigned j = 0; j < RT_ELEMENTS(pShwPDPT->a); j++)
+                {
+                    uint64_t const uShw = pShwPDPT->a[j].u;
+                    if (uShw & EPT_PRESENT_MASK)
+                    {
+                        uint64_t const uGst = pGstPDPT->a[j].u;
+                        if (uShw & EPT_E_LEAF)
+                            pgmR3PoolCheckError(&State, "No 1GiB shadow pages: idx=%#x guest %RX64 shw=%RX64\n", j, uGst, uShw);
+                        else
+                        {
+                            PPGMPOOLPAGE pSubPage = HCPHYS_TO_POOL_PAGE(uShw & EPT_E_PG_MASK);
+                            if (pSubPage)
+                            {
+                                if (pSubPage->enmKind != PGMPOOLKIND_EPT_PD_FOR_EPT_PD)
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table type: idx=%#x guest %RX64 shw=%RX64: idxSub=%#x %s\n",
+                                                        j, uGst, uShw, pSubPage->idx, pgmPoolPoolKindToStr(pSubPage->enmKind));
+                                if (pSubPage->fA20Enabled != pPage->fA20Enabled)
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table A20: idx=%#x guest %RX64 shw=%RX64: idxSub=%#x A20=%d, expected %d\n",
+                                                        j, uGst, uShw, pSubPage->idx, pSubPage->fA20Enabled, pPage->fA20Enabled);
+                                if (pSubPage->GCPhys != (uGst & EPT_E_PG_MASK))
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table GCPhys: idx=%#x guest %RX64 shw=%RX64: GCPhys=%#RGp idxSub=%#x\n",
+                                                        j, uGst, uShw, pSubPage->GCPhys, pSubPage->idx);
+                            }
+                            else
+                                pgmR3PoolCheckError(&State, "sub table not found: idx=%#x shw=%RX64\n", j, uShw);
+
+                        }
+                        if (      (uShw & (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE))
+                               != (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE)
+                            && (   ((uShw & EPT_E_READ)    && !(uGst & EPT_E_READ))
+                                || ((uShw & EPT_E_WRITE)   && !(uGst & EPT_E_WRITE))
+                                || ((uShw & EPT_E_EXECUTE) && !(uGst & EPT_E_EXECUTE)) ) )
+                            pgmR3PoolCheckError(&State, "Mismatch r/w/x: idx=%#x guest %RX64 shw=%RX64\n",
+                                                j, uGst, uShw);
+                    }
+                }
+                break;
+            }
+
+            case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
+            {
+                PCEPTPML4 const pShwPML4 = (PCEPTPML4)PGMPOOL_PAGE_2_PTR(pPool->CTX_SUFF(pVM), pPage);
+                PCEPTPML4 const pGstPML4 = (PCEPTPML4)pvGuestPage;
+                for (unsigned j = 0; j < RT_ELEMENTS(pShwPML4->a); j++)
+                {
+                    uint64_t const uShw = pShwPML4->a[j].u;
+                    if (uShw & EPT_PRESENT_MASK)
+                    {
+                        uint64_t const uGst = pGstPML4->a[j].u;
+                        if (uShw & EPT_E_LEAF)
+                            pgmR3PoolCheckError(&State, "No 0.5TiB shadow pages: idx=%#x guest %RX64 shw=%RX64\n", j, uGst, uShw);
+                        else
+                        {
+                            PPGMPOOLPAGE pSubPage = HCPHYS_TO_POOL_PAGE(uShw & EPT_E_PG_MASK);
+                            if (pSubPage)
+                            {
+                                if (pSubPage->enmKind != PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT)
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table type: idx=%#x guest %RX64 shw=%RX64: idxSub=%#x %s\n",
+                                                        j, uGst, uShw, pSubPage->idx, pgmPoolPoolKindToStr(pSubPage->enmKind));
+                                if (pSubPage->fA20Enabled != pPage->fA20Enabled)
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table A20: idx=%#x guest %RX64 shw=%RX64: idxSub=%#x A20=%d, expected %d\n",
+                                                        j, uGst, uShw, pSubPage->idx, pSubPage->fA20Enabled, pPage->fA20Enabled);
+                                if (pSubPage->GCPhys != (uGst & EPT_E_PG_MASK))
+                                    pgmR3PoolCheckError(&State, "Wrong sub-table GCPhys: idx=%#x guest %RX64 shw=%RX64: GCPhys=%#RGp idxSub=%#x\n",
+                                                        j, uGst, uShw, pSubPage->GCPhys, pSubPage->idx);
+                            }
+                            else
+                                pgmR3PoolCheckError(&State, "sub table not found: idx=%#x shw=%RX64\n", j, uShw);
+
+                        }
+                        if (      (uShw & (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE))
+                               != (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE)
+                            && (   ((uShw & EPT_E_READ)    && !(uGst & EPT_E_READ))
+                                || ((uShw & EPT_E_WRITE)   && !(uGst & EPT_E_WRITE))
+                                || ((uShw & EPT_E_EXECUTE) && !(uGst & EPT_E_EXECUTE)) ) )
+                            pgmR3PoolCheckError(&State, "Mismatch r/w/x: idx=%#x guest %RX64 shw=%RX64\n",
+                                                j, uGst, uShw);
+                    }
+                }
+                break;
             }
         }
+
+#undef HCPHYS_TO_POOL_PAGE
+        if (pvGuestPage)
+            PGMPhysReleasePageMappingLock(pVM, &LockPage);
     }
-    if (cErrors > 0)
-        return DBGCCmdHlpFail(pCmdHlp, pCmd, "Found %#x errors", cErrors);
+    PGM_UNLOCK(pVM);
+
+    if (State.cErrors > 0)
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "Found %#x errors", State.cErrors);
+    DBGCCmdHlpPrintf(pCmdHlp, "no errors found\n");
     return VINF_SUCCESS;
 }
+
 #endif /* VBOX_WITH_DEBUGGER */

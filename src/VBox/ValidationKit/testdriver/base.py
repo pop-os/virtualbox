@@ -8,26 +8,36 @@ Base testdriver module.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard Python imports.
@@ -264,16 +274,7 @@ def processExists(uPid):
 
     Returns True if it positively exists, False otherwise.
     """
-    if sys.platform == 'win32':
-        fRc = winbase.processExists(uPid);
-    else:
-        try:
-            os.kill(uPid, 0);
-            fRc = True;
-        except:
-            reporter.logXcpt('uPid=%s' % (uPid,));
-            fRc = False;
-    return fRc;
+    return utils.processExists(uPid);
 
 def processCheckPidAndName(uPid, sName):
     """
@@ -294,7 +295,7 @@ def processCheckPidAndName(uPid, sName):
 
         if asPsCmd is not None:
             try:
-                oPs = subprocess.Popen(asPsCmd, stdout=subprocess.PIPE);
+                oPs = subprocess.Popen(asPsCmd, stdout=subprocess.PIPE); # pylint: disable=consider-using-with
                 sCurName = oPs.communicate()[0];
                 iExitCode = oPs.wait();
             except:
@@ -555,8 +556,7 @@ class TdTaskBase(object):
                     break;
 
                 cMsWait = cMsTimeout - cMsElapsed
-                if cMsWait > 1000:
-                    cMsWait = 1000;
+                cMsWait = min(cMsWait, 1000);
                 try:
                     self.oCv.wait(cMsWait / 1000.0);
                 except:
@@ -652,7 +652,10 @@ class Process(TdTaskBase):
             if sys.platform == 'win32':
                 if winbase.processPollByHandle(self.hWin):
                     try:
-                        (uPid, uStatus) = os.waitpid(self.hWin, 0);
+                        if hasattr(self.hWin, '__int__'): # Needed for newer pywin32 versions.
+                            (uPid, uStatus) = os.waitpid(self.hWin.__int__(), 0);
+                        else:
+                            (uPid, uStatus) = os.waitpid(self.hWin, 0);
                         if uPid in (self.hWin, self.uPid,):
                             self.hWin.Detach(); # waitpid closed it, so it's now invalid.
                             self.hWin = None;
@@ -736,6 +739,16 @@ class Process(TdTaskBase):
         if self.isRunning():
             return -127;
         return self.uExitCode >> 8;
+
+    def isNormalExit(self):
+        """
+        Returns True if regular exit(), False if signal or still running.
+        """
+        if self.isRunning():
+            return False;
+        if sys.platform == 'win32':
+            return True;
+        return os.WIFEXITED(self.uExitCode); # pylint: disable=no-member
 
     def interrupt(self):
         """
@@ -860,7 +873,7 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
             self.sBinPath = os.path.join(g_ksValidationKitDir, utils.getHostOs(), utils.getHostArch());
         else:
             self.sBinPath = os.path.join(g_ksValidationKitDir, os.pardir, os.pardir, os.pardir, 'out', utils.getHostOsDotArch(),
-                                         os.environ.get('KBUILD_TYPE', os.environ.get('BUILD_TYPE', 'debug')),
+                                         os.environ.get('KBUILD_TYPE', 'debug'),
                                          'validationkit', utils.getHostOs(), utils.getHostArch());
         self.sOrgShell = os.environ.get('SHELL');
         self.sOurShell = os.path.join(self.sBinPath, 'vts_shell' + exeSuff()); # No shell yet.
@@ -1132,8 +1145,7 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
                     if cMsElapsed > cMsTimeout: # not ==, we want the final waitForEvents.
                         break;
                     cMsSleep = cMsTimeout - cMsElapsed;
-                    if cMsSleep > 1000:
-                        cMsSleep = 1000;
+                    cMsSleep = min(cMsSleep, 1000);
                     fMore = self.waitForTasksSleepWorker(cMsSleep);
         except KeyboardInterrupt:
             self.fInterrupted = True;
@@ -1207,8 +1219,8 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
         del dPids[iPid];
 
         sPid = '';
-        for iPid2 in dPids:
-            sPid += '%s:%s:%s\n' % (iPid2, 'sudo' if dPids[iPid2][1] else 'normal', dPids[iPid2][0]);
+        for iPid2, tNameSudo in dPids.items():
+            sPid += '%s:%s:%s\n' % (iPid2, 'sudo' if tNameSudo[1] else 'normal', tNameSudo[0]);
 
         try:
             oFile = utils.openNoInherit(self.sPidFile, 'w');
@@ -1580,18 +1592,26 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
         else:
             afnMethods = [ sendUserSignal1, processInterrupt, processTerminate, processKill ];
         for fnMethod in afnMethods:
-            for iPid in dPids:
-                fnMethod(iPid, fSudo = dPids[iPid][1]);
+            for iPid, tNameSudo in dPids.items():
+                fnMethod(iPid, fSudo = tNameSudo[1]);
 
             for i in range(10):
                 if i > 0:
                     time.sleep(1);
 
-                for iPid in dPids:
+                dPidsToRemove = []; # Temporary dict to append PIDs to remove later.
+
+                for iPid, tNameSudo in dPids.items():
                     if not processExists(iPid):
-                        reporter.log('%s (%s) terminated' % (dPids[iPid][0], iPid,));
+                        reporter.log('%s (%s) terminated' % (tNameSudo[0], iPid,));
                         self.pidFileRemove(iPid, fQuiet = True);
-                        del dPids[iPid];
+                        dPidsToRemove.append(iPid);
+                        continue;
+
+                # Remove PIDs from original dictionary, as removing keys from a
+                # dictionary while iterating on it won't work and will result in a RuntimeError.
+                for iPidToRemove in dPidsToRemove:
+                    del dPids[iPidToRemove];
 
                 if not dPids:
                     reporter.log('All done.');
@@ -1651,7 +1671,9 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
         Exception wrapped main() worker.
         """
 
-        # parse the arguments.
+        #
+        # Parse the arguments.
+        #
         if asArgs is None:
             asArgs = list(sys.argv);
         iArg = 1;
@@ -1681,9 +1703,11 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
             reporter.error('valid actions: %s' % (self.asNormalActions + self.asSpecialActions + ['all']));
             return rtexitcode.RTEXITCODE_SYNTAX;
 
-        # execte the actions.
+        #
+        # Execte the actions.
+        #
         fRc = True;         # Tristate - True (success), False (failure), None (skipped).
-        asActions = self.asActions;
+        asActions = list(self.asActions); # Must copy it or vboxinstaller.py breaks.
         if 'extract' in asActions:
             reporter.log('*** extract action ***');
             asActions.remove('extract');
@@ -1697,7 +1721,7 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
             reporter.log('*** abort action completed (fRc=%s) ***' % (fRc));
         else:
             if asActions == [ 'all' ]:
-                asActions = self.asNormalActions;
+                asActions = list(self.asNormalActions);
 
             if 'verify' in asActions:
                 reporter.log('*** verify action ***');
@@ -1750,7 +1774,9 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
             reporter.error('unhandled actions: %s' % (asActions,));
             fRc = False;
 
-        # Done
+        #
+        # Done - report the final result.
+        #
         if fRc is None:
             if self.fBadTestbox:
                 reporter.log('****************************************************************');
@@ -1810,4 +1836,3 @@ class TestDriverBaseTestCase(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main();
     # not reached.
-

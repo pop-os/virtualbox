@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -58,9 +68,7 @@
 #include <VBox/param.h>
 #include <iprt/x86.h>
 #include <iprt/assert.h>
-
-/* we don't use iprt here because we wish to run without trouble. */
-#include <stdio.h>
+#include <iprt/stream.h>
 
 
 int main()
@@ -68,44 +76,44 @@ int main()
     /*
      * File header and pragmas.
      */
-    printf("#pragma D option quiet\n");
-//    printf("#pragma D depends_on library x86.d\n");
-//    printf("#pragma D depends_on library cpumctx.d\n");
-//    printf("#pragma D depends_on library CPUMInternal.d\n");
-//    printf("#pragma D depends_on library vm.d\n");
+    RTPrintf("#pragma D option quiet\n");
+//    RTPrintf("#pragma D depends_on library x86.d\n");
+//    RTPrintf("#pragma D depends_on library cpumctx.d\n");
+//    RTPrintf("#pragma D depends_on library CPUMInternal.d\n");
+//    RTPrintf("#pragma D depends_on library vm.d\n");
 
-    printf("int g_cErrors;\n"
-           "\n"
-           "dtrace:::BEGIN\n"
-           "{\n"
-           "    g_cErrors = 0;\n"
-           "}\n"
-           "\n"
-           );
+    RTPrintf("int g_cErrors;\n"
+             "\n"
+             "dtrace:::BEGIN\n"
+             "{\n"
+             "    g_cErrors = 0;\n"
+             "}\n"
+             "\n"
+             );
 
     /*
      * Test generator macros.
      */
 #define GEN_CHECK_SIZE(s) \
-    printf("dtrace:::BEGIN\n" \
-           "/sizeof(" #s ") != %u/\n" \
-           "{\n" \
-           "    printf(\"error: sizeof(" #s ") should be %u, not %%u\\n\", sizeof(" #s "));\n" \
-           "    g_cErrors++;\n" \
-           "}\n" \
-           "\n", \
-           (unsigned)sizeof(s), (unsigned)sizeof(s))
+    RTPrintf("dtrace:::BEGIN\n" \
+             "/sizeof(" #s ") != %u/\n" \
+             "{\n" \
+             "    printf(\"error: sizeof(" #s ") should be %u, not %%u\\n\", sizeof(" #s "));\n" \
+             "    g_cErrors++;\n" \
+             "}\n" \
+             "\n", \
+             (unsigned)sizeof(s), (unsigned)sizeof(s))
 
 #if 1
 # define GEN_CHECK_OFF(s, m) \
-   printf("dtrace:::BEGIN\n" \
-          "/offsetof(" #s ", " #m ") != %u/\n" \
-          "{\n" \
-          "    printf(\"error: offsetof(" #s ", " #m ") should be %u, not %%u\\n\", offsetof(" #s ", " #m "));\n" \
-          "    g_cErrors++;\n" \
-          "}\n" \
-          "\n", \
-          (unsigned)RT_OFFSETOF(s, m), (unsigned)RT_OFFSETOF(s, m))
+   RTPrintf("dtrace:::BEGIN\n" \
+            "/offsetof(" #s ", " #m ") != %u/\n" \
+            "{\n" \
+            "    printf(\"error: offsetof(" #s ", " #m ") should be %u, not %%u\\n\", offsetof(" #s ", " #m "));\n" \
+            "    g_cErrors++;\n" \
+            "}\n" \
+            "\n", \
+            (unsigned)RT_OFFSETOF(s, m), (unsigned)RT_OFFSETOF(s, m))
 
 #else
 # define GEN_CHECK_OFF(s, m) do { } while (0)
@@ -123,20 +131,20 @@ int main()
     /*
      * Footer.
      */
-    printf("dtrace:::BEGIN\n"
-           "/g_cErrors != 0/\n"
-           "{\n"
-           "    printf(\"%%u errors!\\n\", g_cErrors);\n"
-           "    exit(1);\n"
-           "}\n"
-           "\n"
-           "dtrace:::BEGIN\n"
-           "{\n"
-           "    printf(\"Success!\\n\");\n"
-           "    exit(0);\n"
-           "}\n"
-           "\n"
-           );
+    RTPrintf("dtrace:::BEGIN\n"
+             "/g_cErrors != 0/\n"
+             "{\n"
+             "    printf(\"%%u errors!\\n\", g_cErrors);\n"
+             "    exit(1);\n"
+             "}\n"
+             "\n"
+             "dtrace:::BEGIN\n"
+             "{\n"
+             "    printf(\"Success!\\n\");\n"
+             "    exit(0);\n"
+             "}\n"
+             "\n"
+             );
 
 
     return (0);

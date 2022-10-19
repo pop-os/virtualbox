@@ -4,18 +4,29 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
+#include <QAccessibleWidget>
 #include <QHBoxLayout>
 #include <QDateTime>
 #include <QDir>
@@ -24,6 +35,7 @@
 #include <QLineEdit>
 #include <QPainter>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QScrollArea>
 #include <QTabWidget>
 #include <QTextBrowser>
@@ -33,16 +45,19 @@
 /* GUI includes: */
 #include "QIDialogButtonBox.h"
 #include "QIFlowLayout.h"
+#include "UICommon.h"
 #include "UIConverter.h"
+#include "UICursor.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIIconPool.h"
 #include "UISnapshotDetailsWidget.h"
 #include "UIMessageCenter.h"
-#include "UICommon.h"
+#include "UITranslator.h"
 #include "VBoxUtils.h"
 
 /* COM includes: */
 #include "CAudioAdapter.h"
+#include "CAudioSettings.h"
 #include "CRecordingSettings.h"
 #include "CRecordingScreenSettings.h"
 #include "CMachine.h"
@@ -57,6 +72,40 @@
 #include "CUSBDeviceFilter.h"
 #include "CUSBDeviceFilters.h"
 #include "CVRDEServer.h"
+
+/* Forward declarations: */
+class UISnapshotDetailsElement;
+
+
+/** QAccessibleObject extension used as an accessibility interface for UISnapshotDetailsElement. */
+class UIAccessibilityInterfaceForUISnapshotDetailsElement : public QAccessibleWidget
+{
+public:
+
+    /** Returns an accessibility interface for passed @a strClassname and @a pObject. */
+    static QAccessibleInterface *pFactory(const QString &strClassname, QObject *pObject)
+    {
+        /* Creating UISnapshotDetailsElement accessibility interface: */
+        if (pObject && strClassname == QLatin1String("UISnapshotDetailsElement"))
+            return new UIAccessibilityInterfaceForUISnapshotDetailsElement(qobject_cast<QWidget*>(pObject));
+
+        /* Null by default: */
+        return 0;
+    }
+
+    /** Constructs an accessibility interface passing @a pWidget to the base-class. */
+    UIAccessibilityInterfaceForUISnapshotDetailsElement(QWidget *pWidget)
+        : QAccessibleWidget(pWidget, QAccessible::StaticText)
+    {}
+
+    /** Returns a text for the passed @a enmTextRole. */
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
+
+private:
+
+    /** Returns corresponding UISnapshotDetailsElement. */
+    UISnapshotDetailsElement *browser() const;
+};
 
 
 /** QWiget extension providing GUI with snapshot details elements. */
@@ -91,10 +140,10 @@ public:
 protected:
 
     /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    virtual bool event(QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
 
 private:
 
@@ -136,20 +185,20 @@ public:
 protected:
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
+    virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
     /** Handles polish @a pEvent. */
     virtual void polishEvent(QShowEvent *pEvent);
 
     /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+    virtual void resizeEvent(QResizeEvent *pEvent) RT_OVERRIDE;
 
     /** Handles mouse press @a pEvent. */
-    virtual void mousePressEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mousePressEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles key press @a pEvent. */
-    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
+    virtual void keyPressEvent(QKeyEvent *pEvent) RT_OVERRIDE;
 
 private:
 
@@ -180,6 +229,33 @@ private:
     /** Holds whether we are in zoom mode. */
     bool  m_fZoomMode;
 };
+
+
+/*********************************************************************************************************************************
+*   Class UIAccessibilityInterfaceForUISnapshotDetailsElement implementation.                                                    *
+*********************************************************************************************************************************/
+
+QString UIAccessibilityInterfaceForUISnapshotDetailsElement::text(QAccessible::Text enmTextRole) const
+{
+    /* Make sure browser still alive: */
+    AssertPtrReturn(browser(), QString());
+
+    /* Return the description: */
+    if (enmTextRole == QAccessible::Description)
+    {
+        /* Sanity check: */
+        AssertPtrReturn(browser()->document(), QString());
+        return browser()->document()->toPlainText();
+    }
+
+    /* Null-string by default: */
+    return QString();
+}
+
+UISnapshotDetailsElement *UIAccessibilityInterfaceForUISnapshotDetailsElement::browser() const
+{
+    return qobject_cast<UISnapshotDetailsElement*>(widget());
+}
 
 
 /*********************************************************************************************************************************
@@ -251,7 +327,7 @@ void UISnapshotDetailsElement::paintEvent(QPaintEvent * /* pEvent */)
     QPainter painter(this);
 
     /* Prepare palette colors: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
     QColor color0 = pal.color(QPalette::Window);
     QColor color1 = pal.color(QPalette::Window).lighter(110);
     color1.setAlpha(0);
@@ -324,6 +400,9 @@ void UISnapshotDetailsElement::paintEvent(QPaintEvent * /* pEvent */)
 
 void UISnapshotDetailsElement::prepare()
 {
+    /* Install QIComboBox accessibility interface factory: */
+    QAccessible::installFactory(UIAccessibilityInterfaceForUISnapshotDetailsElement::pFactory);
+
     /* Create layout: */
     new QHBoxLayout(this);
     AssertPtrReturnVoid(layout());
@@ -461,7 +540,7 @@ void UIScreenshotViewer::prepare()
     /* Screenshot viewer is an application-modal window: */
     setWindowModality(Qt::ApplicationModal);
     /* With the pointing-hand cursor: */
-    UICommon::setCursor(this, Qt::PointingHandCursor);
+    UICursor::setCursor(this, Qt::PointingHandCursor);
     /* And it's being deleted when closed: */
     setAttribute(Qt::WA_DeleteOnClose);
 
@@ -499,7 +578,7 @@ void UIScreenshotViewer::prepare()
     adjustWindowSize();
 
     /* Center according requested widget: */
-    UICommon::centerWidget(this, parentWidget(), false);
+    UIDesktopWidgetWatchdog::centerWidget(this, parentWidget(), false);
 }
 
 void UIScreenshotViewer::adjustWindowSize()
@@ -700,14 +779,14 @@ void UISnapshotDetailsWidget::retranslateButtons()
 
 void UISnapshotDetailsWidget::sltHandleNameChange()
 {
-    m_newData.m_strName = m_pEditorName->text();
+    m_newData.setName(m_pEditorName->text());
     revalidate(m_pErrorPaneName);
     updateButtonStates();
 }
 
 void UISnapshotDetailsWidget::sltHandleDescriptionChange()
 {
-    m_newData.m_strDescription = m_pBrowserDescription->toPlainText();
+    m_newData.setDescription(m_pBrowserDescription->toPlainText());
     revalidate(m_pErrorPaneDescription);
     updateButtonStates();
 }
@@ -1070,8 +1149,8 @@ UISnapshotDetailsElement *UISnapshotDetailsWidget::createDetailsElement(DetailsE
 void UISnapshotDetailsWidget::loadSnapshotData()
 {
     /* Read general snapshot properties: */
-    m_pEditorName->setText(m_newData.m_strName);
-    m_pBrowserDescription->setText(m_newData.m_strDescription);
+    m_pEditorName->setText(m_newData.name());
+    m_pBrowserDescription->setText(m_newData.description());
     revalidate();
 
     /* If there is a machine: */
@@ -1117,7 +1196,7 @@ void UISnapshotDetailsWidget::revalidate(QWidget *pWidget /* = 0 */)
 {
     if (!pWidget || pWidget == m_pErrorPaneName)
     {
-        const bool fError = m_newData.m_strName.isEmpty();
+        const bool fError = m_newData.name().isEmpty();
         m_pErrorPaneName->setVisible(fError && m_comMachine.isNull());
     }
     if (!pWidget || pWidget == m_pErrorPaneDescription)
@@ -1592,7 +1671,7 @@ QString UISnapshotDetailsWidget::detailsReport(DetailsElementType enmType,
             .arg(1 + iRowCount) /* rows */
             .arg(QString("details://%1").arg(gpConverter->toInternalString(enmType)), /* icon */
                  QString::number(iIconArea), /* icon area */
-                 gpConverter->toString(enmType), /* title */
+                 QString("%1:").arg(gpConverter->toString(enmType)), /* title */
                  strItem /* items */);
 
     /* Return report as table: */
@@ -1717,13 +1796,8 @@ QString UISnapshotDetailsWidget::displayAccelerationReport(CGraphicsAdapter comG
 {
     /* Prepare report: */
     QStringList aReport;
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /* 2D Video Acceleration? */
-    if (comGraphics.GetAccelerate2DVideoEnabled())
-        aReport << QApplication::translate("UIDetails", "2D Video", "details (display)");
-#endif
     /* 3D Acceleration? */
-    if (comGraphics.GetAccelerate3DEnabled() && uiCommon().is3DAvailable())
+    if (comGraphics.GetAccelerate3DEnabled())
         aReport << QApplication::translate("UIDetails", "3D", "details (display)");
     /* Compose and return report: */
     return aReport.isEmpty() ? QString() : aReport.join(", ");
@@ -1797,7 +1871,7 @@ QPair<QStringList, QList<QMap<QString, QString> > > UISnapshotDetailsWidget::sto
 
             /* Prepare current medium information: */
             const QString strMediumInfo = comAttachment.isOk()
-                                        ? wipeHtmlStuff(uiCommon().details(comAttachment.GetMedium(), false))
+                                        ? wipeHtmlStuff(uiCommon().storageDetails(comAttachment.GetMedium(), false))
                                         : QString();
 
             /* Cache current slot/medium information: */
@@ -1817,7 +1891,8 @@ QStringList UISnapshotDetailsWidget::audioReport(CMachine comMachine)
     /* Prepare report: */
     QStringList aReport;
     /* Acquire audio adapter: */
-    const CAudioAdapter &comAdapter = comMachine.GetAudioAdapter();
+    const CAudioSettings comAudioSettings = comMachine.GetAudioSettings();
+    const CAudioAdapter &comAdapter       = comAudioSettings.GetAdapter();
     if (comAdapter.GetEnabled())
     {
         /* Host Driver: */
@@ -1856,7 +1931,7 @@ QStringList UISnapshotDetailsWidget::networkReport(CMachine comMachine)
         if (comAdapter.GetEnabled())
         {
             /* Use adapter type string as template: */
-            QString strInfo = gpConverter->toString(comAdapter.GetAdapterType()).replace(QRegExp("\\s\\(.+\\)"), " (%1)");
+            QString strInfo = gpConverter->toString(comAdapter.GetAdapterType()).replace(QRegularExpression("\\s\\(.+\\)"), " (%1)");
             /* Don't use the adapter type string for types that have an additional
              * symbolic network/interface name field, use this name instead: */
             const KNetworkAttachmentType enmType = comAdapter.GetAttachmentType();
@@ -1917,7 +1992,7 @@ QStringList UISnapshotDetailsWidget::serialReport(CMachine comMachine)
             const KPortMode enmMode = comPort.GetHostMode();
             /* Compose the data: */
             QStringList aInfo;
-            aInfo << uiCommon().toCOMPortName(comPort.GetIRQ(), comPort.GetIOBase());
+            aInfo << UITranslator::toCOMPortName(comPort.GetIRQ(), comPort.GetIOBase());
             if (   enmMode == KPortMode_HostPipe
                 || enmMode == KPortMode_HostDevice
                 || enmMode == KPortMode_TCP
@@ -1972,7 +2047,7 @@ QStringList UISnapshotDetailsWidget::usbReport(CMachine comMachine)
 /* static */
 QString UISnapshotDetailsWidget::wipeHtmlStuff(const QString &strString)
 {
-    return QString(strString).remove(QRegExp("<i>|</i>|<b>|</b>"));
+    return QString(strString).remove(QRegularExpression("<i>|</i>|<b>|</b>"));
 }
 
 /* static */

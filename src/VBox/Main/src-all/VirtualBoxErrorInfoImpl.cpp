@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN
@@ -46,10 +56,10 @@ HRESULT VirtualBoxErrorInfo::initEx(HRESULT aResultCode,
                                     const Utf8Str &strText,
                                     IVirtualBoxErrorInfo *aNext)
 {
-    HRESULT hr = init(aResultCode, aIID, pcszComponent, strText, aNext);
+    HRESULT hrc = init(aResultCode, aIID, pcszComponent, strText, aNext);
     m_resultDetail = aResultDetail;
 
-    return hr;
+    return hrc;
 }
 
 HRESULT VirtualBoxErrorInfo::init(const com::ErrorInfo &info,
@@ -66,10 +76,10 @@ HRESULT VirtualBoxErrorInfo::init(const com::ErrorInfo &info,
     if (pInfo)
     {
         ComObjPtr<VirtualBoxErrorInfo> nextEI;
-        HRESULT rc = nextEI.createObject();
-        if (FAILED(rc)) return rc;
-        rc = nextEI->init(*pInfo, aNext);
-        if (FAILED(rc)) return rc;
+        HRESULT hrc = nextEI.createObject();
+        if (FAILED(hrc)) return hrc;
+        hrc = nextEI->init(*pInfo, aNext);
+        if (FAILED(hrc)) return hrc;
         mNext = nextEI;
     }
     else
@@ -85,7 +95,7 @@ STDMETHODIMP VirtualBoxErrorInfo::COMGETTER(ResultCode)(LONG *aResultCode)
 {
     CheckComArgOutPointerValid(aResultCode);
 
-    *aResultCode = m_resultCode;
+    *aResultCode = (LONG)m_resultCode;
     return S_OK;
 }
 
@@ -139,23 +149,21 @@ HRESULT VirtualBoxErrorInfo::init(IErrorInfo *aInfo)
 {
     AssertReturn(aInfo, E_FAIL);
 
-    HRESULT rc = S_OK;
-
     /* We don't return a failure if talking to IErrorInfo fails below to
      * protect ourselves from bad IErrorInfo implementations (the
      * corresponding fields will simply remain null in this case). */
 
     m_resultCode = S_OK;
     m_resultDetail = 0;
-    rc = aInfo->GetGUID(m_IID.asOutParam());
-    AssertComRC(rc);
+    HRESULT hrc = aInfo->GetGUID(m_IID.asOutParam());
+    AssertComRC(hrc);
     Bstr bstrComponent;
-    rc = aInfo->GetSource(bstrComponent.asOutParam());
-    AssertComRC(rc);
+    hrc = aInfo->GetSource(bstrComponent.asOutParam());
+    AssertComRC(hrc);
     m_strComponent = bstrComponent;
     Bstr bstrText;
-    rc = aInfo->GetDescription(bstrText.asOutParam());
-    AssertComRC(rc);
+    hrc = aInfo->GetDescription(bstrText.asOutParam());
+    AssertComRC(hrc);
     m_strText = bstrText;
 
     return S_OK;
@@ -172,10 +180,10 @@ STDMETHODIMP VirtualBoxErrorInfo::GetDescription(BSTR *description)
 STDMETHODIMP VirtualBoxErrorInfo::GetGUID(GUID *guid)
 {
     Bstr iid;
-    HRESULT rc = COMGETTER(InterfaceID)(iid.asOutParam());
-    if (SUCCEEDED(rc))
+    HRESULT hrc = COMGETTER(InterfaceID)(iid.asOutParam());
+    if (SUCCEEDED(hrc))
         *guid = Guid(iid).ref();
-    return rc;
+    return hrc;
 }
 
 STDMETHODIMP VirtualBoxErrorInfo::GetHelpContext(DWORD *pdwHelpContext)
@@ -205,20 +213,18 @@ HRESULT VirtualBoxErrorInfo::init(nsIException *aInfo)
 {
     AssertReturn(aInfo, E_FAIL);
 
-    HRESULT rc = S_OK;
-
     /* We don't return a failure if talking to nsIException fails below to
      * protect ourselves from bad nsIException implementations (the
      * corresponding fields will simply remain null in this case). */
 
-    rc = aInfo->GetResult(&m_resultCode);
-    AssertComRC(rc);
+    HRESULT hrc = aInfo->GetResult(&m_resultCode);
+    AssertComRC(hrc);
     m_resultDetail = 0; /* Not being used. */
 
     char *pszMsg;             /* No Utf8Str.asOutParam, different allocator! */
-    rc = aInfo->GetMessage(&pszMsg);
-    AssertComRC(rc);
-    if (NS_SUCCEEDED(rc))
+    hrc = aInfo->GetMessage(&pszMsg);
+    AssertComRC(hrc);
+    if (NS_SUCCEEDED(hrc))
     {
         m_strText = pszMsg;
         nsMemory::Free(pszMsg);
@@ -244,14 +250,13 @@ NS_IMETHODIMP VirtualBoxErrorInfo::GetMessage(char **aMessage)
 /* readonly attribute nsresult result; */
 NS_IMETHODIMP VirtualBoxErrorInfo::GetResult(nsresult *aResult)
 {
-    if (!aResult)
-      return NS_ERROR_INVALID_POINTER;
+    AssertReturn(aResult, NS_ERROR_INVALID_POINTER);
 
     PRInt32 lrc;
-    nsresult rc = COMGETTER(ResultCode)(&lrc);
-    if (SUCCEEDED(rc))
-      *aResult = lrc;
-    return rc;
+    nsresult hrc = COMGETTER(ResultCode)(&lrc);
+    if (SUCCEEDED(hrc))
+      *aResult = (nsresult)lrc;
+    return hrc;
 }
 
 /* readonly attribute string name; */

@@ -16,10 +16,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -634,8 +639,8 @@ static int arbel_create_cq ( struct ib_device *ibdev,
 
 	/* Allocate completion queue itself */
 	arbel_cq->cqe_size = ( cq->num_cqes * sizeof ( arbel_cq->cqe[0] ) );
-	arbel_cq->cqe = malloc_dma ( arbel_cq->cqe_size,
-				     sizeof ( arbel_cq->cqe[0] ) );
+	arbel_cq->cqe = malloc_phys ( arbel_cq->cqe_size,
+				      sizeof ( arbel_cq->cqe[0] ) );
 	if ( ! arbel_cq->cqe ) {
 		rc = -ENOMEM;
 		goto err_cqe;
@@ -692,7 +697,7 @@ static int arbel_create_cq ( struct ib_device *ibdev,
  err_sw2hw_cq:
 	MLX_FILL_1 ( ci_db_rec, 1, res, ARBEL_UAR_RES_NONE );
 	MLX_FILL_1 ( arm_db_rec, 1, res, ARBEL_UAR_RES_NONE );
-	free_dma ( arbel_cq->cqe, arbel_cq->cqe_size );
+	free_phys ( arbel_cq->cqe, arbel_cq->cqe_size );
  err_cqe:
 	free ( arbel_cq );
  err_arbel_cq:
@@ -732,7 +737,7 @@ static void arbel_destroy_cq ( struct ib_device *ibdev,
 	MLX_FILL_1 ( arm_db_rec, 1, res, ARBEL_UAR_RES_NONE );
 
 	/* Free memory */
-	free_dma ( arbel_cq->cqe, arbel_cq->cqe_size );
+	free_phys ( arbel_cq->cqe, arbel_cq->cqe_size );
 	free ( arbel_cq );
 
 	/* Mark queue number as free */
@@ -868,8 +873,8 @@ static int arbel_create_send_wq ( struct arbel_send_work_queue *arbel_send_wq,
 	/* Allocate work queue */
 	arbel_send_wq->wqe_size = ( num_wqes *
 				    sizeof ( arbel_send_wq->wqe[0] ) );
-	arbel_send_wq->wqe = malloc_dma ( arbel_send_wq->wqe_size,
-					  sizeof ( arbel_send_wq->wqe[0] ) );
+	arbel_send_wq->wqe = malloc_phys ( arbel_send_wq->wqe_size,
+					   sizeof ( arbel_send_wq->wqe[0] ) );
 	if ( ! arbel_send_wq->wqe )
 		return -ENOMEM;
 	memset ( arbel_send_wq->wqe, 0, arbel_send_wq->wqe_size );
@@ -892,25 +897,43 @@ static int arbel_create_send_wq ( struct arbel_send_work_queue *arbel_send_wq,
  *
  * @v arbel_recv_wq	Receive work queue
  * @v num_wqes		Number of work queue entries
+ * @v type		Queue pair type
  * @ret rc		Return status code
  */
 static int arbel_create_recv_wq ( struct arbel_recv_work_queue *arbel_recv_wq,
-				  unsigned int num_wqes ) {
+				  unsigned int num_wqes,
+				  enum ib_queue_pair_type type ) {
 	struct arbelprm_recv_wqe *wqe;
 	struct arbelprm_recv_wqe *next_wqe;
 	unsigned int wqe_idx_mask;
 	size_t nds;
 	unsigned int i;
 	unsigned int j;
+	int rc;
 
 	/* Allocate work queue */
 	arbel_recv_wq->wqe_size = ( num_wqes *
 				    sizeof ( arbel_recv_wq->wqe[0] ) );
-	arbel_recv_wq->wqe = malloc_dma ( arbel_recv_wq->wqe_size,
-					  sizeof ( arbel_recv_wq->wqe[0] ) );
-	if ( ! arbel_recv_wq->wqe )
-		return -ENOMEM;
+	arbel_recv_wq->wqe = malloc_phys ( arbel_recv_wq->wqe_size,
+					   sizeof ( arbel_recv_wq->wqe[0] ) );
+	if ( ! arbel_recv_wq->wqe ) {
+		rc = -ENOMEM;
+		goto err_alloc_wqe;
+	}
 	memset ( arbel_recv_wq->wqe, 0, arbel_recv_wq->wqe_size );
+
+	/* Allocate GRH entries, if needed */
+	if ( ( type == IB_QPT_SMI ) || ( type == IB_QPT_GSI ) ||
+	     ( type == IB_QPT_UD ) ) {
+		arbel_recv_wq->grh_size = ( num_wqes *
+					    sizeof ( arbel_recv_wq->grh[0] ) );
+		arbel_recv_wq->grh = malloc_phys ( arbel_recv_wq->grh_size,
+						   sizeof ( void * ) );
+		if ( ! arbel_recv_wq->grh ) {
+			rc = -ENOMEM;
+			goto err_alloc_grh;
+		}
+	}
 
 	/* Link work queue entries */
 	wqe_idx_mask = ( num_wqes - 1 );
@@ -930,6 +953,12 @@ static int arbel_create_recv_wq ( struct arbel_recv_work_queue *arbel_recv_wq,
 	}
 	
 	return 0;
+
+	free_phys ( arbel_recv_wq->grh, arbel_recv_wq->grh_size );
+ err_alloc_grh:
+	free_phys ( arbel_recv_wq->wqe, arbel_recv_wq->wqe_size );
+ err_alloc_wqe:
+	return rc;
 }
 
 /**
@@ -980,8 +1009,8 @@ static int arbel_create_qp ( struct ib_device *ibdev,
 	if ( ( rc = arbel_create_send_wq ( &arbel_qp->send,
 					   qp->send.num_wqes ) ) != 0 )
 		goto err_create_send_wq;
-	if ( ( rc = arbel_create_recv_wq ( &arbel_qp->recv,
-					   qp->recv.num_wqes ) ) != 0 )
+	if ( ( rc = arbel_create_recv_wq ( &arbel_qp->recv, qp->recv.num_wqes,
+					   qp->type ) ) != 0 )
 		goto err_create_recv_wq;
 
 	/* Send and receive work queue entries must be within the same 4GB */
@@ -1073,9 +1102,10 @@ static int arbel_create_qp ( struct ib_device *ibdev,
 	MLX_FILL_1 ( send_db_rec, 1, res, ARBEL_UAR_RES_NONE );
 	MLX_FILL_1 ( recv_db_rec, 1, res, ARBEL_UAR_RES_NONE );
  err_unsupported_address_split:
-	free_dma ( arbel_qp->recv.wqe, arbel_qp->recv.wqe_size );
+	free_phys ( arbel_qp->recv.grh, arbel_qp->recv.grh_size );
+	free_phys ( arbel_qp->recv.wqe, arbel_qp->recv.wqe_size );
  err_create_recv_wq:
-	free_dma ( arbel_qp->send.wqe, arbel_qp->send.wqe_size );
+	free_phys ( arbel_qp->send.wqe, arbel_qp->send.wqe_size );
  err_create_send_wq:
 	free ( arbel_qp );
  err_arbel_qp:
@@ -1201,8 +1231,9 @@ static void arbel_destroy_qp ( struct ib_device *ibdev,
 	MLX_FILL_1 ( recv_db_rec, 1, res, ARBEL_UAR_RES_NONE );
 
 	/* Free memory */
-	free_dma ( arbel_qp->send.wqe, arbel_qp->send.wqe_size );
-	free_dma ( arbel_qp->recv.wqe, arbel_qp->recv.wqe_size );
+	free_phys ( arbel_qp->recv.grh, arbel_qp->recv.grh_size );
+	free_phys ( arbel_qp->recv.wqe, arbel_qp->recv.wqe_size );
+	free_phys ( arbel_qp->send.wqe, arbel_qp->send.wqe_size );
 	free ( arbel_qp );
 
 	/* Mark queue number as free */
@@ -1249,14 +1280,14 @@ static const union ib_gid arbel_no_gid = {
  *
  * @v ibdev		Infiniband device
  * @v qp		Queue pair
- * @v av		Address vector
+ * @v dest		Destination address vector
  * @v iobuf		I/O buffer
  * @v wqe		Send work queue entry
  * @ret nds		Work queue entry size
  */
 static size_t arbel_fill_ud_send_wqe ( struct ib_device *ibdev,
 				       struct ib_queue_pair *qp __unused,
-				       struct ib_address_vector *av,
+				       struct ib_address_vector *dest,
 				       struct io_buffer *iobuf,
 				       union arbel_send_wqe *wqe ) {
 	struct arbel *arbel = ib_get_drvdata ( ibdev );
@@ -1268,16 +1299,16 @@ static size_t arbel_fill_ud_send_wqe ( struct ib_device *ibdev,
 		     ud_address_vector.pd, ARBEL_GLOBAL_PD,
 		     ud_address_vector.port_number, ibdev->port );
 	MLX_FILL_2 ( &wqe->ud.ud, 1,
-		     ud_address_vector.rlid, av->lid,
-		     ud_address_vector.g, av->gid_present );
+		     ud_address_vector.rlid, dest->lid,
+		     ud_address_vector.g, dest->gid_present );
 	MLX_FILL_2 ( &wqe->ud.ud, 2,
-		     ud_address_vector.max_stat_rate, arbel_rate ( av ),
+		     ud_address_vector.max_stat_rate, arbel_rate ( dest ),
 		     ud_address_vector.msg, 3 );
-	MLX_FILL_1 ( &wqe->ud.ud, 3, ud_address_vector.sl, av->sl );
-	gid = ( av->gid_present ? &av->gid : &arbel_no_gid );
+	MLX_FILL_1 ( &wqe->ud.ud, 3, ud_address_vector.sl, dest->sl );
+	gid = ( dest->gid_present ? &dest->gid : &arbel_no_gid );
 	memcpy ( &wqe->ud.ud.u.dwords[4], gid, sizeof ( *gid ) );
-	MLX_FILL_1 ( &wqe->ud.ud, 8, destination_qp, av->qpn );
-	MLX_FILL_1 ( &wqe->ud.ud, 9, q_key, av->qkey );
+	MLX_FILL_1 ( &wqe->ud.ud, 8, destination_qp, dest->qpn );
+	MLX_FILL_1 ( &wqe->ud.ud, 9, q_key, dest->qkey );
 	MLX_FILL_1 ( &wqe->ud.data[0], 0, byte_count, iob_len ( iobuf ) );
 	MLX_FILL_1 ( &wqe->ud.data[0], 1, l_key, arbel->lkey );
 	MLX_FILL_H ( &wqe->ud.data[0], 2,
@@ -1293,15 +1324,14 @@ static size_t arbel_fill_ud_send_wqe ( struct ib_device *ibdev,
  *
  * @v ibdev		Infiniband device
  * @v qp		Queue pair
- * @v av		Address vector
+ * @v dest		Destination address vector
  * @v iobuf		I/O buffer
  * @v wqe		Send work queue entry
- * @v next		Previous work queue entry's "next" field
  * @ret nds		Work queue entry size
  */
 static size_t arbel_fill_mlx_send_wqe ( struct ib_device *ibdev,
 					struct ib_queue_pair *qp,
-					struct ib_address_vector *av,
+					struct ib_address_vector *dest,
 					struct io_buffer *iobuf,
 					union arbel_send_wqe *wqe ) {
 	struct arbel *arbel = ib_get_drvdata ( ibdev );
@@ -1311,16 +1341,16 @@ static size_t arbel_fill_mlx_send_wqe ( struct ib_device *ibdev,
 	iob_populate ( &headers, &wqe->mlx.headers, 0,
 		       sizeof ( wqe->mlx.headers ) );
 	iob_reserve ( &headers, sizeof ( wqe->mlx.headers ) );
-	ib_push ( ibdev, &headers, qp, iob_len ( iobuf ), av );
+	ib_push ( ibdev, &headers, qp, iob_len ( iobuf ), dest );
 
 	/* Construct this work queue entry */
 	MLX_FILL_5 ( &wqe->mlx.ctrl, 0,
 		     c, 1 /* generate completion */,
 		     icrc, 0 /* generate ICRC */,
-		     max_statrate, arbel_rate ( av ),
+		     max_statrate, arbel_rate ( dest ),
 		     slr, 0,
 		     v15, ( ( qp->ext_qpn == IB_QPN_SMI ) ? 1 : 0 ) );
-	MLX_FILL_1 ( &wqe->mlx.ctrl, 1, rlid, av->lid );
+	MLX_FILL_1 ( &wqe->mlx.ctrl, 1, rlid, dest->lid );
 	MLX_FILL_1 ( &wqe->mlx.data[0], 0,
 		     byte_count, iob_len ( &headers ) );
 	MLX_FILL_1 ( &wqe->mlx.data[0], 1, l_key, arbel->lkey );
@@ -1344,15 +1374,14 @@ static size_t arbel_fill_mlx_send_wqe ( struct ib_device *ibdev,
  *
  * @v ibdev		Infiniband device
  * @v qp		Queue pair
- * @v av		Address vector
+ * @v dest		Destination address vector
  * @v iobuf		I/O buffer
  * @v wqe		Send work queue entry
- * @v next		Previous work queue entry's "next" field
  * @ret nds		Work queue entry size
  */
 static size_t arbel_fill_rc_send_wqe ( struct ib_device *ibdev,
 				       struct ib_queue_pair *qp __unused,
-				       struct ib_address_vector *av __unused,
+				       struct ib_address_vector *dest __unused,
 				       struct io_buffer *iobuf,
 				       union arbel_send_wqe *wqe ) {
 	struct arbel *arbel = ib_get_drvdata ( ibdev );
@@ -1373,7 +1402,7 @@ static size_t arbel_fill_rc_send_wqe ( struct ib_device *ibdev,
 static size_t
 ( * arbel_fill_send_wqe[] ) ( struct ib_device *ibdev,
 			      struct ib_queue_pair *qp,
-			      struct ib_address_vector *av,
+			      struct ib_address_vector *dest,
 			      struct io_buffer *iobuf,
 			      union arbel_send_wqe *wqe ) = {
 	[IB_QPT_SMI] = arbel_fill_mlx_send_wqe,
@@ -1387,13 +1416,13 @@ static size_t
  *
  * @v ibdev		Infiniband device
  * @v qp		Queue pair
- * @v av		Address vector
+ * @v dest		Destination address vector
  * @v iobuf		I/O buffer
  * @ret rc		Return status code
  */
 static int arbel_post_send ( struct ib_device *ibdev,
 			     struct ib_queue_pair *qp,
-			     struct ib_address_vector *av,
+			     struct ib_address_vector *dest,
 			     struct io_buffer *iobuf ) {
 	struct arbel *arbel = ib_get_drvdata ( ibdev );
 	struct arbel_queue_pair *arbel_qp = ib_qp_get_drvdata ( qp );
@@ -1423,7 +1452,7 @@ static int arbel_post_send ( struct ib_device *ibdev,
 	assert ( qp->type < ( sizeof ( arbel_fill_send_wqe ) /
 			      sizeof ( arbel_fill_send_wqe[0] ) ) );
 	assert ( arbel_fill_send_wqe[qp->type] != NULL );
-	nds = arbel_fill_send_wqe[qp->type] ( ibdev, qp, av, iobuf, wqe );
+	nds = arbel_fill_send_wqe[qp->type] ( ibdev, qp, dest, iobuf, wqe );
 	DBGCP ( arbel, "Arbel %p QPN %#lx posting send WQE %#lx:\n",
 		arbel, qp->qpn, ( wq->next_idx & wqe_idx_mask ) );
 	DBGCP_HDA ( arbel, virt_to_phys ( wqe ), wqe, sizeof ( *wqe ) );
@@ -1474,6 +1503,8 @@ static int arbel_post_recv ( struct ib_device *ibdev,
 	struct ib_work_queue *wq = &qp->recv;
 	struct arbel_recv_work_queue *arbel_recv_wq = &arbel_qp->recv;
 	struct arbelprm_recv_wqe *wqe;
+	struct arbelprm_wqe_segment_data_ptr *data;
+	struct ib_global_route_header *grh;
 	union arbelprm_doorbell_record *db_rec;
 	unsigned int wqe_idx_mask;
 
@@ -1488,12 +1519,19 @@ static int arbel_post_recv ( struct ib_device *ibdev,
 	wqe = &arbel_recv_wq->wqe[wq->next_idx & wqe_idx_mask].recv;
 
 	/* Construct work queue entry */
-	MLX_FILL_1 ( &wqe->data[0], 0, byte_count, iob_tailroom ( iobuf ) );
-	MLX_FILL_1 ( &wqe->data[0], 1, l_key, arbel->lkey );
-	MLX_FILL_H ( &wqe->data[0], 2,
-		     local_address_h, virt_to_bus ( iobuf->data ) );
-	MLX_FILL_1 ( &wqe->data[0], 3,
-		     local_address_l, virt_to_bus ( iobuf->data ) );
+	data = &wqe->data[0];
+	if ( arbel_recv_wq->grh ) {
+		grh = &arbel_recv_wq->grh[wq->next_idx & wqe_idx_mask];
+		MLX_FILL_1 ( data, 0, byte_count, sizeof ( *grh ) );
+		MLX_FILL_1 ( data, 1, l_key, arbel->lkey );
+		MLX_FILL_H ( data, 2, local_address_h, virt_to_bus ( grh ) );
+		MLX_FILL_1 ( data, 3, local_address_l, virt_to_bus ( grh ) );
+		data++;
+	}
+	MLX_FILL_1 ( data, 0, byte_count, iob_tailroom ( iobuf ) );
+	MLX_FILL_1 ( data, 1, l_key, arbel->lkey );
+	MLX_FILL_H ( data, 2, local_address_h, virt_to_bus ( iobuf->data ) );
+	MLX_FILL_1 ( data, 3, local_address_l, virt_to_bus ( iobuf->data ) );
 
 	/* Update doorbell record */
 	barrier();
@@ -1526,9 +1564,10 @@ static int arbel_complete ( struct ib_device *ibdev,
 	struct arbel_recv_work_queue *arbel_recv_wq;
 	struct arbelprm_recv_wqe *recv_wqe;
 	struct io_buffer *iobuf;
-	struct ib_address_vector recv_av;
+	struct ib_address_vector recv_dest;
+	struct ib_address_vector recv_source;
 	struct ib_global_route_header *grh;
-	struct ib_address_vector *av;
+	struct ib_address_vector *source;
 	unsigned int opcode;
 	unsigned long qpn;
 	int is_send;
@@ -1607,33 +1646,40 @@ static int arbel_complete ( struct ib_device *ibdev,
 		MLX_FILL_1 ( &recv_wqe->data[0], 0, byte_count, 0 );
 		MLX_FILL_1 ( &recv_wqe->data[0], 1,
 			     l_key, ARBEL_INVALID_LKEY );
-		assert ( len <= iob_tailroom ( iobuf ) );
-		iob_put ( iobuf, len );
+		memset ( &recv_dest, 0, sizeof ( recv_dest ) );
+		recv_dest.qpn = qpn;
 		switch ( qp->type ) {
 		case IB_QPT_SMI:
 		case IB_QPT_GSI:
 		case IB_QPT_UD:
-			assert ( iob_len ( iobuf ) >= sizeof ( *grh ) );
-			grh = iobuf->data;
-			iob_pull ( iobuf, sizeof ( *grh ) );
+			/* Locate corresponding GRH */
+			assert ( arbel_recv_wq->grh != NULL );
+			grh = &arbel_recv_wq->grh[wqe_idx];
+			len -= sizeof ( *grh );
 			/* Construct address vector */
-			av = &recv_av;
-			memset ( av, 0, sizeof ( *av ) );
-			av->qpn = MLX_GET ( &cqe->normal, rqpn );
-			av->lid = MLX_GET ( &cqe->normal, rlid );
-			av->sl = MLX_GET ( &cqe->normal, sl );
-			av->gid_present = MLX_GET ( &cqe->normal, g );
-			memcpy ( &av->gid, &grh->sgid, sizeof ( av->gid ) );
+			source = &recv_source;
+			memset ( source, 0, sizeof ( *source ) );
+			source->qpn = MLX_GET ( &cqe->normal, rqpn );
+			source->lid = MLX_GET ( &cqe->normal, rlid );
+			source->sl = MLX_GET ( &cqe->normal, sl );
+			recv_dest.gid_present = source->gid_present =
+				MLX_GET ( &cqe->normal, g );
+			memcpy ( &recv_dest.gid, &grh->dgid,
+				 sizeof ( recv_dest.gid ) );
+			memcpy ( &source->gid, &grh->sgid,
+				 sizeof ( source->gid ) );
 			break;
 		case IB_QPT_RC:
-			av = &qp->av;
+			source = &qp->av;
 			break;
 		default:
 			assert ( 0 );
 			return -EINVAL;
 		}
+		assert ( len <= iob_tailroom ( iobuf ) );
+		iob_put ( iobuf, len );
 		/* Hand off to completion handler */
-		ib_complete_recv ( ibdev, qp, av, iobuf, rc );
+		ib_complete_recv ( ibdev, qp, &recv_dest, source, iobuf, rc );
 	}
 
 	return rc;
@@ -1712,8 +1758,8 @@ static int arbel_create_eq ( struct arbel *arbel ) {
 	/* Allocate event queue itself */
 	arbel_eq->eqe_size =
 		( ARBEL_NUM_EQES * sizeof ( arbel_eq->eqe[0] ) );
-	arbel_eq->eqe = malloc_dma ( arbel_eq->eqe_size,
-				     sizeof ( arbel_eq->eqe[0] ) );
+	arbel_eq->eqe = malloc_phys ( arbel_eq->eqe_size,
+				      sizeof ( arbel_eq->eqe[0] ) );
 	if ( ! arbel_eq->eqe ) {
 		rc = -ENOMEM;
 		goto err_eqe;
@@ -1760,7 +1806,7 @@ static int arbel_create_eq ( struct arbel *arbel ) {
  err_map_eq:
 	arbel_cmd_hw2sw_eq ( arbel, arbel_eq->eqn, &eqctx );
  err_sw2hw_eq:
-	free_dma ( arbel_eq->eqe, arbel_eq->eqe_size );
+	free_phys ( arbel_eq->eqe, arbel_eq->eqe_size );
  err_eqe:
 	memset ( arbel_eq, 0, sizeof ( *arbel_eq ) );
 	return rc;
@@ -1798,7 +1844,7 @@ static void arbel_destroy_eq ( struct arbel *arbel ) {
 	}
 
 	/* Free memory */
-	free_dma ( arbel_eq->eqe, arbel_eq->eqe_size );
+	free_phys ( arbel_eq->eqe, arbel_eq->eqe_size );
 	memset ( arbel_eq, 0, sizeof ( *arbel_eq ) );
 }
 
@@ -1926,6 +1972,7 @@ static int arbel_map_vpm ( struct arbel *arbel,
 	assert ( ( va & ( ARBEL_PAGE_SIZE - 1 ) ) == 0 );
 	assert ( ( pa & ( ARBEL_PAGE_SIZE - 1 ) ) == 0 );
 	assert ( ( len & ( ARBEL_PAGE_SIZE - 1 ) ) == 0 );
+	assert ( len != 0 );
 
 	/* Calculate starting points */
 	start = pa;
@@ -1948,7 +1995,7 @@ static int arbel_map_vpm ( struct arbel *arbel,
 		if ( ( low - size ) >= start ) {
 			low -= size;
 			pa = low;
-		} else if ( ( high + size ) <= end ) {
+		} else if ( high <= ( end - size ) ) {
 			pa = high;
 			high += size;
 		} else {
@@ -2012,7 +2059,8 @@ static int arbel_start_firmware ( struct arbel *arbel ) {
 	eq_set_ci_base_addr =
 		( ( (uint64_t) MLX_GET ( &fw, eq_set_ci_base_addr_h ) << 32 ) |
 		  ( (uint64_t) MLX_GET ( &fw, eq_set_ci_base_addr_l ) ) );
-	arbel->eq_ci_doorbells = ioremap ( eq_set_ci_base_addr, 0x200 );
+	arbel->eq_ci_doorbells = pci_ioremap ( arbel->pci, eq_set_ci_base_addr,
+					       0x200 );
 
 	/* Enable locally-attached memory.  Ignore failure; there may
 	 * be no attached memory.
@@ -2407,7 +2455,7 @@ static int arbel_alloc_icm ( struct arbel *arbel,
 	icm_phys = user_to_phys ( arbel->icm, 0 );
 
 	/* Allocate doorbell UAR */
-	arbel->db_rec = malloc_dma ( ARBEL_PAGE_SIZE, ARBEL_PAGE_SIZE );
+	arbel->db_rec = malloc_phys ( ARBEL_PAGE_SIZE, ARBEL_PAGE_SIZE );
 	if ( ! arbel->db_rec ) {
 		rc = -ENOMEM;
 		goto err_alloc_doorbell;
@@ -2465,7 +2513,7 @@ static int arbel_alloc_icm ( struct arbel *arbel,
  err_map_icm:
 	arbel_cmd_unmap_icm_aux ( arbel );
  err_map_icm_aux:
-	free_dma ( arbel->db_rec, ARBEL_PAGE_SIZE );
+	free_phys ( arbel->db_rec, ARBEL_PAGE_SIZE );
 	arbel->db_rec= NULL;
  err_alloc_doorbell:
  err_alloc_icm:
@@ -2488,7 +2536,7 @@ static void arbel_free_icm ( struct arbel *arbel ) {
 	arbel_cmd_unmap_icm ( arbel, ( arbel->icm_len / ARBEL_PAGE_SIZE ),
 			      &unmap_icm );
 	arbel_cmd_unmap_icm_aux ( arbel );
-	free_dma ( arbel->db_rec, ARBEL_PAGE_SIZE );
+	free_phys ( arbel->db_rec, ARBEL_PAGE_SIZE );
 	arbel->db_rec = NULL;
 }
 
@@ -2936,18 +2984,18 @@ static struct arbel * arbel_alloc ( void ) {
 		goto err_arbel;
 
 	/* Allocate space for mailboxes */
-	arbel->mailbox_in = malloc_dma ( ARBEL_MBOX_SIZE, ARBEL_MBOX_ALIGN );
+	arbel->mailbox_in = malloc_phys ( ARBEL_MBOX_SIZE, ARBEL_MBOX_ALIGN );
 	if ( ! arbel->mailbox_in )
 		goto err_mailbox_in;
-	arbel->mailbox_out = malloc_dma ( ARBEL_MBOX_SIZE, ARBEL_MBOX_ALIGN );
+	arbel->mailbox_out = malloc_phys ( ARBEL_MBOX_SIZE, ARBEL_MBOX_ALIGN );
 	if ( ! arbel->mailbox_out )
 		goto err_mailbox_out;
 
 	return arbel;
 
-	free_dma ( arbel->mailbox_out, ARBEL_MBOX_SIZE );
+	free_phys ( arbel->mailbox_out, ARBEL_MBOX_SIZE );
  err_mailbox_out:
-	free_dma ( arbel->mailbox_in, ARBEL_MBOX_SIZE );
+	free_phys ( arbel->mailbox_in, ARBEL_MBOX_SIZE );
  err_mailbox_in:
 	free ( arbel );
  err_arbel:
@@ -2963,8 +3011,8 @@ static void arbel_free ( struct arbel *arbel ) {
 
 	ufree ( arbel->icm );
 	ufree ( arbel->firmware_area );
-	free_dma ( arbel->mailbox_out, ARBEL_MBOX_SIZE );
-	free_dma ( arbel->mailbox_in, ARBEL_MBOX_SIZE );
+	free_phys ( arbel->mailbox_out, ARBEL_MBOX_SIZE );
+	free_phys ( arbel->mailbox_in, ARBEL_MBOX_SIZE );
 	free ( arbel );
 }
 
@@ -2978,6 +3026,8 @@ static void arbel_free ( struct arbel *arbel ) {
 static int arbel_probe ( struct pci_device *pci ) {
 	struct arbel *arbel;
 	struct ib_device *ibdev;
+	unsigned long config;
+	unsigned long uar;
 	int i;
 	int rc;
 
@@ -2989,6 +3039,16 @@ static int arbel_probe ( struct pci_device *pci ) {
 	}
 	pci_set_drvdata ( pci, arbel );
 	arbel->pci = pci;
+
+	/* Fix up PCI device */
+	adjust_pci_device ( pci );
+
+	/* Map PCI BARs */
+	config = pci_bar_start ( pci, ARBEL_PCI_CONFIG_BAR );
+	arbel->config = pci_ioremap ( pci, config, ARBEL_PCI_CONFIG_BAR_SIZE );
+	uar = ( pci_bar_start ( pci, ARBEL_PCI_UAR_BAR ) +
+		ARBEL_PCI_UAR_IDX * ARBEL_PCI_UAR_SIZE );
+	arbel->uar = pci_ioremap ( pci, uar, ARBEL_PCI_UAR_SIZE );
 
 	/* Allocate Infiniband devices */
 	for ( i = 0 ; i < ARBEL_NUM_PORTS ; i++ ) {
@@ -3003,16 +3063,6 @@ static int arbel_probe ( struct pci_device *pci ) {
 		ibdev->port = ( ARBEL_PORT_BASE + i );
 		ib_set_drvdata ( ibdev, arbel );
 	}
-
-	/* Fix up PCI device */
-	adjust_pci_device ( pci );
-
-	/* Get PCI BARs */
-	arbel->config = ioremap ( pci_bar_start ( pci, ARBEL_PCI_CONFIG_BAR ),
-				  ARBEL_PCI_CONFIG_BAR_SIZE );
-	arbel->uar = ioremap ( ( pci_bar_start ( pci, ARBEL_PCI_UAR_BAR ) +
-				 ARBEL_PCI_UAR_IDX * ARBEL_PCI_UAR_SIZE ),
-			       ARBEL_PCI_UAR_SIZE );
 
 	/* Reset device */
 	arbel_reset ( arbel );
@@ -3062,6 +3112,8 @@ static int arbel_probe ( struct pci_device *pci ) {
  err_alloc_ibdev:
 	for ( i-- ; i >= 0 ; i-- )
 		ibdev_put ( arbel->ibdev[i] );
+	iounmap ( arbel->uar );
+	iounmap ( arbel->config );
 	arbel_free ( arbel );
  err_alloc:
 	return rc;
@@ -3080,6 +3132,8 @@ static void arbel_remove ( struct pci_device *pci ) {
 		unregister_ibdev ( arbel->ibdev[i] );
 	for ( i = ( ARBEL_NUM_PORTS - 1 ) ; i >= 0 ; i-- )
 		ibdev_put ( arbel->ibdev[i] );
+	iounmap ( arbel->uar );
+	iounmap ( arbel->config );
 	arbel_free ( arbel );
 }
 

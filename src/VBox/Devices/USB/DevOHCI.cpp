@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_dev_ohci   OHCI - Open Host Controller Interface Emulation.
@@ -242,7 +252,7 @@ typedef struct OHCIPAGECACHE
     /** Last read physical page address. */
     RTGCPHYS            GCPhysReadCacheAddr;
     /** Copy of last read physical page. */
-    uint8_t             abPhysReadCache[PAGE_SIZE];
+    uint8_t             abPhysReadCache[GUEST_PAGE_SIZE];
 } OHCIPAGECACHE;
 typedef OHCIPAGECACHE *POHCIPAGECACHE;
 #endif
@@ -1011,15 +1021,18 @@ static DECLCALLBACK(unsigned) ohciR3RhGetAvailablePorts(PVUSBIROOTHUBPORT pInter
 
     memset(pAvailable, 0, sizeof(*pAvailable));
 
-    PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, pDevIns->pCritSectRoR3, rcLock);
+
+
     for (unsigned iPort = 0; iPort < OHCI_NDP_CFG(pThis); iPort++)
         if (!pThis->RootHub.aPorts[iPort].fAttached)
         {
             cPorts++;
             ASMBitSet(pAvailable, iPort + 1);
         }
-    PDMDevHlpCritSectLeave(pDevIns, pDevIns->pCritSectRoR3);
 
+    PDMDevHlpCritSectLeave(pDevIns, pDevIns->pCritSectRoR3);
     return cPorts;
 }
 
@@ -1044,7 +1057,8 @@ static DECLCALLBACK(int) ohciR3RhAttach(PVUSBIROOTHUBPORT pInterface, uint32_t u
     PPDMDEVINS pDevIns = pThisCC->pDevInsR3;
     POHCI      pThis   = PDMDEVINS_2_DATA(pDevIns, POHCI);
     LogFlow(("ohciR3RhAttach: uPort=%u\n", uPort));
-    PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, pDevIns->pCritSectRoR3, rcLock);
 
     /*
      * Validate and adjust input.
@@ -1084,7 +1098,8 @@ static DECLCALLBACK(void) ohciR3RhDetach(PVUSBIROOTHUBPORT pInterface, uint32_t 
     PPDMDEVINS pDevIns = pThisCC->pDevInsR3;
     POHCI      pThis   = PDMDEVINS_2_DATA(pDevIns, POHCI);
     LogFlow(("ohciR3RhDetach: uPort=%u\n", uPort));
-    PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, pDevIns->pCritSectRoR3, rcLock);
 
     /*
      * Validate and adjust input.
@@ -1144,7 +1159,8 @@ static DECLCALLBACK(int) ohciR3RhReset(PVUSBIROOTHUBPORT pInterface, bool fReset
     POHCICC    pThisCC = VUSBIROOTHUBPORT_2_OHCI(pInterface);
     PPDMDEVINS pDevIns = pThisCC->pDevInsR3;
     POHCI      pThis   = PDMDEVINS_2_DATA(pDevIns, POHCI);
-    PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    int const  rcLock  = PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, pDevIns->pCritSectRoR3, rcLock);
 
     Log(("ohci: root hub reset%s\n", fResetOnLinux ? " (reset on linux)" : ""));
 
@@ -1211,6 +1227,9 @@ static void ohciR3DoReset(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThisCC, uint
 {
     Log(("ohci: %s reset%s\n", fNewMode == OHCI_USB_RESET ? "hardware" : "software",
          fResetOnLinux ? " (reset on linux)" : ""));
+
+    /* Clear list enable bits first, so that any processing currently in progress terminates quickly. */
+    pThis->ctl &= ~(OHCI_CTL_BLE | OHCI_CTL_CLE | OHCI_CTL_PLE);
 
     /* Stop the bus in any case, disabling walking the lists. */
     ohciR3BusStop(pThisCC);
@@ -1279,7 +1298,16 @@ static void ohciR3DoReset(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThisCC, uint
 DECLINLINE(void) ohciR3PhysRead(PPDMDEVINS pDevIns, uint32_t Addr, void *pvBuf, size_t cbBuf)
 {
     if (cbBuf)
-        PDMDevHlpPhysRead(pDevIns, Addr, pvBuf, cbBuf);
+        PDMDevHlpPCIPhysReadUser(pDevIns, Addr, pvBuf, cbBuf);
+}
+
+/**
+ * Reads physical memory - metadata.
+ */
+DECLINLINE(void) ohciR3PhysReadMeta(PPDMDEVINS pDevIns, uint32_t Addr, void *pvBuf, size_t cbBuf)
+{
+    if (cbBuf)
+        PDMDevHlpPCIPhysReadMeta(pDevIns, Addr, pvBuf, cbBuf);
 }
 
 /**
@@ -1288,7 +1316,16 @@ DECLINLINE(void) ohciR3PhysRead(PPDMDEVINS pDevIns, uint32_t Addr, void *pvBuf, 
 DECLINLINE(void) ohciR3PhysWrite(PPDMDEVINS pDevIns, uint32_t Addr, const void *pvBuf, size_t cbBuf)
 {
     if (cbBuf)
-        PDMDevHlpPCIPhysWrite(pDevIns, Addr, pvBuf, cbBuf);
+        PDMDevHlpPCIPhysWriteUser(pDevIns, Addr, pvBuf, cbBuf);
+}
+
+/**
+ * Writes physical memory - metadata.
+ */
+DECLINLINE(void) ohciR3PhysWriteMeta(PPDMDEVINS pDevIns, uint32_t Addr, const void *pvBuf, size_t cbBuf)
+{
+    if (cbBuf)
+        PDMDevHlpPCIPhysWriteMeta(pDevIns, Addr, pvBuf, cbBuf);
 }
 
 /**
@@ -1296,7 +1333,7 @@ DECLINLINE(void) ohciR3PhysWrite(PPDMDEVINS pDevIns, uint32_t Addr, const void *
  */
 DECLINLINE(void) ohciR3GetDWords(PPDMDEVINS pDevIns, uint32_t Addr, uint32_t *pau32s, int c32s)
 {
-    ohciR3PhysRead(pDevIns, Addr, pau32s, c32s * sizeof(uint32_t));
+    ohciR3PhysReadMeta(pDevIns, Addr, pau32s, c32s * sizeof(uint32_t));
 # ifndef RT_LITTLE_ENDIAN
     for(int i = 0; i < c32s; i++)
         pau32s[i] = RT_H2LE_U32(pau32s[i]);
@@ -1309,12 +1346,12 @@ DECLINLINE(void) ohciR3GetDWords(PPDMDEVINS pDevIns, uint32_t Addr, uint32_t *pa
 DECLINLINE(void) ohciR3PutDWords(PPDMDEVINS pDevIns, uint32_t Addr, const uint32_t *pau32s, int cu32s)
 {
 # ifdef RT_LITTLE_ENDIAN
-    ohciR3PhysWrite(pDevIns, Addr, pau32s, cu32s << 2);
+    ohciR3PhysWriteMeta(pDevIns, Addr, pau32s, cu32s << 2);
 # else
     for (int i = 0; i < c32s; i++, pau32s++, Addr += sizeof(*pau32s))
     {
         uint32_t u32Tmp = RT_H2LE_U32(*pau32s);
-        ohciR3PhysWrite(pDevIns, Addr, (uint8_t *)&u32Tmp, sizeof(u32Tmp));
+        ohciR3PhysWriteMeta(pDevIns, Addr, (uint8_t *)&u32Tmp, sizeof(u32Tmp));
     }
 # endif
 }
@@ -1411,27 +1448,27 @@ static void ohciR3PhysReadCacheInvalidate(POHCIPAGECACHE pPageCache)
 
 static void ohciR3PhysReadCacheRead(PPDMDEVINS pDevIns, POHCIPAGECACHE pPageCache, RTGCPHYS GCPhys, void *pvBuf, size_t cbBuf)
 {
-    const RTGCPHYS PageAddr = PAGE_ADDRESS(GCPhys);
+    const RTGCPHYS PageAddr = GCPhys & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
 
-    if (PageAddr == PAGE_ADDRESS(GCPhys + cbBuf))
+    if (PageAddr == ((GCPhys + cbBuf) & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK))
     {
         if (PageAddr != pPageCache->GCPhysReadCacheAddr)
         {
-            PDMDevHlpPhysRead(pDevIns, PageAddr, pPageCache->abPhysReadCache, sizeof(pPageCache->abPhysReadCache));
+            PDMDevHlpPCIPhysRead(pDevIns, PageAddr, pPageCache->abPhysReadCache, sizeof(pPageCache->abPhysReadCache));
             pPageCache->GCPhysReadCacheAddr = PageAddr;
 #  ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
             ++g_PhysReadState.cPageReads;
 #  endif
         }
 
-        memcpy(pvBuf, &pPageCache->abPhysReadCache[GCPhys & PAGE_OFFSET_MASK], cbBuf);
+        memcpy(pvBuf, &pPageCache->abPhysReadCache[GCPhys & GUEST_PAGE_OFFSET_MASK], cbBuf);
 #  ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
         ++g_PhysReadState.cCacheReads;
 #  endif
     }
     else
     {
-        PDMDevHlpPhysRead(pDevIns, GCPhys, pvBuf, cbBuf);
+        PDMDevHlpPCIPhysRead(pDevIns, GCPhys, pvBuf, cbBuf);
 #  ifdef VBOX_WITH_OHCI_PHYS_READ_STATS
         ++g_PhysReadState.cCrossReads;
 #  endif
@@ -1451,12 +1488,12 @@ static void ohciR3PhysReadCacheRead(PPDMDEVINS pDevIns, POHCIPAGECACHE pPageCach
  */
 static void ohciR3PhysCacheUpdate(POHCIPAGECACHE pPageCache, RTGCPHYS GCPhys, const void *pvBuf, size_t cbBuf)
 {
-    const RTGCPHYS GCPhysPage = PAGE_ADDRESS(GCPhys);
+    const RTGCPHYS GCPhysPage = GCPhys & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
 
     if (GCPhysPage == pPageCache->GCPhysReadCacheAddr)
     {
-        uint32_t offPage = GCPhys & PAGE_OFFSET_MASK;
-        memcpy(&pPageCache->abPhysReadCache[offPage], pvBuf, RT_MIN(PAGE_SIZE - offPage, cbBuf));
+        uint32_t offPage = GCPhys & GUEST_PAGE_OFFSET_MASK;
+        memcpy(&pPageCache->abPhysReadCache[offPage], pvBuf, RT_MIN(GUEST_PAGE_SIZE - offPage, cbBuf));
     }
 }
 
@@ -3136,8 +3173,8 @@ static bool ohciR3ServiceTdMultiple(PPDMDEVINS pDevIns, POHCI pThis, VUSBXFERTYP
         struct OHCITDENTRY *pNext;
     }   Head;
 
-# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
     POHCICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, POHCICC);
+# ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
     ohciR3PhysReadCacheInvalidate(&pThisCC->CacheTD);
 # endif
 
@@ -3752,9 +3789,11 @@ static void ohciR3ServiceBulkList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThis
             }
         }
 
-        /* next end point */
+        /* Trivial loop detection. */
+        if (EdAddr == (Ed.NextED & ED_PTR_MASK))
+            break;
+        /* Proceed to the next endpoint. */
         EdAddr = Ed.NextED & ED_PTR_MASK;
-
     }
 
 # ifdef LOG_ENABLED
@@ -3804,7 +3843,11 @@ static void ohciR3UndoBulkList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThisCC)
                     pThisCC->RootHub.pIRhConn->pfnCancelUrbsEp(pThisCC->RootHub.pIRhConn, pUrb);
             }
         }
-        /* next endpoint */
+
+        /* Trivial loop detection. */
+        if (EdAddr == (Ed.NextED & ED_PTR_MASK))
+            break;
+        /* Proceed to the next endpoint. */
         EdAddr = Ed.NextED & ED_PTR_MASK;
     }
 }
@@ -3873,7 +3916,10 @@ static void ohciR3ServiceCtrlList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThis
 # endif
         }
 
-        /* next end point */
+        /* Trivial loop detection. */
+        if (EdAddr == (Ed.NextED & ED_PTR_MASK))
+            break;
+        /* Proceed to the next endpoint. */
         EdAddr = Ed.NextED & ED_PTR_MASK;
     }
 
@@ -3963,7 +4009,10 @@ static void ohciR3ServicePeriodicList(PPDMDEVINS pDevIns, POHCI pThis, POHCICC p
                     pThisCC->RootHub.pIRhConn->pfnCancelUrbsEp(pThisCC->RootHub.pIRhConn, pUrb);
             }
         }
-        /* next end point */
+        /* Trivial loop detection. */
+        if (EdAddr == (Ed.NextED & ED_PTR_MASK))
+            break;
+        /* Proceed to the next endpoint. */
         EdAddr = Ed.NextED & ED_PTR_MASK;
     }
 
@@ -4020,7 +4069,7 @@ static void ohciR3UpdateHCCA(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pThisCC)
     }
 
     Log3(("ohci: Updating HCCA on frame %#x\n", pThis->HcFmNumber));
-    ohciR3PhysWrite(pDevIns, pThis->hcca + OHCI_HCCA_OFS, (uint8_t *)&hcca, sizeof(hcca));
+    ohciR3PhysWriteMeta(pDevIns, pThis->hcca + OHCI_HCCA_OFS, (uint8_t *)&hcca, sizeof(hcca));
     if (fWriteDoneHeadInterrupt)
         ohciR3SetInterrupt(pDevIns, pThis, OHCI_INTR_WRITE_DONE_HEAD);
     RT_NOREF(pThisCC);
@@ -4060,7 +4109,7 @@ static void ohciR3CancelOrphanedURBs(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pT
     Assert(cLeft == 0);
 
 # ifdef VBOX_WITH_OHCI_PHYS_READ_CACHE
-    /* Get hcca data to minimize calls to ohciR3GetDWords/PDMDevHlpPhysRead. */
+    /* Get hcca data to minimize calls to ohciR3GetDWords/PDMDevHlpPCIPhysRead. */
     uint32_t au32HCCA[OHCI_HCCA_NUM_INTR];
     ohciR3GetDWords(pDevIns, pThis->hcca, au32HCCA, OHCI_HCCA_NUM_INTR);
 # endif
@@ -4125,6 +4174,10 @@ static void ohciR3CancelOrphanedURBs(PPDMDEVINS pDevIns, POHCI pThis, POHCICC pT
                         break;
                 } while (TdAddr != (Ed.TailP & ED_PTR_MASK));
             }
+            /* Trivial loop detection. */
+            if (EdAddr == (Ed.NextED & ED_PTR_MASK))
+                break;
+            /* Proceed to the next endpoint. */
             EdAddr = Ed.NextED & ED_PTR_MASK;
         }
     }
@@ -5504,7 +5557,7 @@ static DECLCALLBACK(VBOXSTRICTRC) ohciMmioRead(PPDMDEVINS pDevIns, void *pvUser,
 /**
  * @callback_method_impl{FNIOMMMIONEWWRITE}
  */
-PDMBOTHCBDECL(VBOXSTRICTRC) ohciMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void const *pv, unsigned cb)
+static DECLCALLBACK(VBOXSTRICTRC) ohciMmioWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS off, void const *pv, unsigned cb)
 {
     POHCI pThis = PDMDEVINS_2_DATA(pDevIns, POHCI);
     RT_NOREF(pvUser);
@@ -5758,7 +5811,7 @@ static DECLCALLBACK(int) ohciR3Destruct(PPDMDEVINS pDevIns)
 
     if (RTCritSectIsInitialized(&pThisCC->CritSect))
         RTCritSectDelete(&pThisCC->CritSect);
-    PDMR3CritSectDelete(&pThis->CsIrq);
+    PDMDevHlpCritSectDelete(pDevIns, &pThis->CsIrq);
 
     /*
      * Tear down the per endpoint in-flight tracking...

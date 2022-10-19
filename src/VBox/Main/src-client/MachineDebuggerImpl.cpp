@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -26,9 +36,11 @@
 
 #include "Global.h"
 #include "ConsoleImpl.h"
+#include "ProgressImpl.h"
 
 #include "AutoCaller.h"
 
+#include <VBox/vmm/vmmr3vtable.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/uvm.h>
 #include <VBox/vmm/tm.h>
@@ -85,13 +97,11 @@ HRESULT MachineDebugger::init(Console *aParent)
     for (unsigned i = 0; i < RT_ELEMENTS(maiQueuedEmExecPolicyParams); i++)
         maiQueuedEmExecPolicyParams[i] = UINT8_MAX;
     mSingleStepQueued = -1;
-    mRecompileUserQueued = -1;
-    mRecompileSupervisorQueued = -1;
-    mPatmEnabledQueued = -1;
-    mCsamEnabledQueued = -1;
     mLogEnabledQueued = -1;
     mVirtualTimeRateQueued = UINT32_MAX;
     mFlushMode = false;
+
+    m_hSampleReport = NULL;
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -114,6 +124,40 @@ void MachineDebugger::uninit()
 
     unconst(mParent) = NULL;
     mFlushMode = false;
+}
+
+/**
+ * @callback_method_impl{FNDBGFPROGRESS}
+ */
+/*static*/ DECLCALLBACK(int) MachineDebugger::i_dbgfProgressCallback(void *pvUser, unsigned uPercentage)
+{
+    MachineDebugger *pThis = (MachineDebugger *)pvUser;
+
+    int vrc = pThis->m_Progress->i_iprtProgressCallback(uPercentage, static_cast<Progress *>(pThis->m_Progress));
+    if (   RT_SUCCESS(vrc)
+        && uPercentage == 100)
+    {
+        PCVMMR3VTABLE const pVMM = pThis->mParent->i_getVMMVTable();
+        AssertPtrReturn(pVMM, VERR_INTERNAL_ERROR_3);
+
+        vrc = pVMM->pfnDBGFR3SampleReportDumpToFile(pThis->m_hSampleReport, pThis->m_strFilename.c_str());
+        pVMM->pfnDBGFR3SampleReportRelease(pThis->m_hSampleReport);
+        pThis->m_hSampleReport = NULL;
+        if (RT_SUCCESS(vrc))
+            pThis->m_Progress->i_notifyComplete(S_OK);
+        else
+        {
+            HRESULT hrc = pThis->setError(VBOX_E_IPRT_ERROR,
+                                          tr("Writing the sample report to '%s' failed with %Rrc"),
+                                          pThis->m_strFilename.c_str(), vrc);
+            pThis->m_Progress->i_notifyComplete(hrc);
+        }
+        pThis->m_Progress.setNull();
+    }
+    else if (vrc == VERR_CANCELLED)
+        vrc = VERR_DBGF_CANCELLED;
+
+    return vrc;
 }
 
 // IMachineDebugger properties
@@ -181,7 +225,7 @@ HRESULT MachineDebugger::i_getEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL 
             Console::SafeVMPtrQuiet ptrVM(mParent);
             hrc = ptrVM.rc();
             if (SUCCEEDED(hrc))
-                EMR3QueryExecutionPolicy(ptrVM.rawUVM(), enmPolicy, &fEnforced);
+                ptrVM.vtable()->pfnEMR3QueryExecutionPolicy(ptrVM.rawUVM(), enmPolicy, &fEnforced);
             *pfEnforced = fEnforced;
         }
     }
@@ -210,59 +254,13 @@ HRESULT MachineDebugger::i_setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL 
             hrc = ptrVM.rc();
             if (SUCCEEDED(hrc))
             {
-                int vrc = EMR3SetExecutionPolicy(ptrVM.rawUVM(), enmPolicy, fEnforce != FALSE);
+                int vrc = ptrVM.vtable()->pfnEMR3SetExecutionPolicy(ptrVM.rawUVM(), enmPolicy, fEnforce != FALSE);
                 if (RT_FAILURE(vrc))
                     hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("EMR3SetExecutionPolicy failed with %Rrc"), vrc);
             }
         }
     }
     return hrc;
-}
-
-/**
- * Returns the current recompile user mode code flag.
- *
- * @returns COM status code
- * @param   aRecompileUser  address of result variable
- */
-HRESULT MachineDebugger::getRecompileUser(BOOL *aRecompileUser)
-{
-    return i_getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aRecompileUser);
-}
-
-/**
- * Sets the recompile user mode code flag.
- *
- * @returns COM status
- * @param   aRecompileUser  new user mode code recompile flag.
- */
-HRESULT MachineDebugger::setRecompileUser(BOOL aRecompileUser)
-{
-    LogFlowThisFunc(("enable=%d\n", aRecompileUser));
-    return i_setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING3, aRecompileUser);
-}
-
-/**
- * Returns the current recompile supervisor code flag.
- *
- * @returns COM status code
- * @param   aRecompileSupervisor    address of result variable
- */
-HRESULT MachineDebugger::getRecompileSupervisor(BOOL *aRecompileSupervisor)
-{
-    return i_getEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aRecompileSupervisor);
-}
-
-/**
- * Sets the new recompile supervisor code flag.
- *
- * @returns COM status code
- * @param   aRecompileSupervisor    new recompile supervisor code flag
- */
-HRESULT MachineDebugger::setRecompileSupervisor(BOOL aRecompileSupervisor)
-{
-    LogFlowThisFunc(("enable=%d\n", aRecompileSupervisor));
-    return i_setEmExecPolicyProperty(EMEXECPOLICY_RECOMPILE_RING0, aRecompileSupervisor);
 }
 
 /**
@@ -289,60 +287,6 @@ HRESULT MachineDebugger::setExecuteAllInIEM(BOOL aExecuteAllInIEM)
 }
 
 /**
- * Returns the current patch manager enabled flag.
- *
- * @returns COM status code
- * @param   aPATMEnabled    address of result variable
- */
-HRESULT MachineDebugger::getPATMEnabled(BOOL *aPATMEnabled)
-{
-    *aPATMEnabled = false;
-    return S_OK;
-}
-
-/**
- * Set the new patch manager enabled flag.
- *
- * @returns COM status code
- * @param   aPATMEnabled    new patch manager enabled flag
- */
-HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
-{
-    LogFlowThisFunc(("enable=%d\n", aPATMEnabled));
-
-    if (aPATMEnabled)
-        return setErrorBoth(VBOX_E_VM_ERROR, VERR_RAW_MODE_NOT_SUPPORTED, tr("PATM not present"), VERR_NOT_SUPPORTED);
-    return S_OK;
-}
-
-/**
- * Returns the current code scanner enabled flag.
- *
- * @returns COM status code
- * @param   aCSAMEnabled    address of result variable
- */
-HRESULT MachineDebugger::getCSAMEnabled(BOOL *aCSAMEnabled)
-{
-    *aCSAMEnabled = false;
-    return S_OK;
-}
-
-/**
- * Sets the new code scanner enabled flag.
- *
- * @returns COM status code
- * @param   aCSAMEnabled    new code scanner enabled flag
- */
-HRESULT MachineDebugger::setCSAMEnabled(BOOL aCSAMEnabled)
-{
-    LogFlowThisFunc(("enable=%d\n", aCSAMEnabled));
-
-    if (aCSAMEnabled)
-        return setErrorBoth(VBOX_E_VM_ERROR, VERR_RAW_MODE_NOT_SUPPORTED, tr("CASM not present"));
-    return S_OK;
-}
-
-/**
  * Returns the log enabled / disabled status.
  *
  * @returns COM status code
@@ -354,7 +298,7 @@ HRESULT MachineDebugger::getLogEnabled(BOOL *aLogEnabled)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     const PRTLOGGER pLogInstance = RTLogDefaultInstance();
-    *aLogEnabled = pLogInstance && !(pLogInstance->fFlags & RTLOGFLAGS_DISABLED);
+    *aLogEnabled = pLogInstance && !(RTLogGetFlags(pLogInstance) & RTLOGFLAGS_DISABLED);
 #else
     *aLogEnabled = false;
 #endif
@@ -385,7 +329,7 @@ HRESULT MachineDebugger::setLogEnabled(BOOL aLogEnabled)
     if (FAILED(ptrVM.rc())) return ptrVM.rc();
 
 #ifdef LOG_ENABLED
-    int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), aLogEnabled ? "enabled" : "disabled");
+    int vrc = ptrVM.vtable()->pfnDBGFR3LogModifyFlags(ptrVM.rawUVM(), aLogEnabled ? "enabled" : "disabled");
     if (RT_FAILURE(vrc))
     {
         /** @todo handle error code. */
@@ -442,32 +386,32 @@ HRESULT MachineDebugger::i_logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLog
 
 HRESULT MachineDebugger::getLogDbgFlags(com::Utf8Str &aLogDbgFlags)
 {
-    return i_logStringProps(RTLogGetDefaultInstance(), RTLogGetFlags, "RTGetFlags", &aLogDbgFlags);
+    return i_logStringProps(RTLogGetDefaultInstance(), RTLogQueryFlags, "RTLogQueryFlags", &aLogDbgFlags);
 }
 
 HRESULT MachineDebugger::getLogDbgGroups(com::Utf8Str &aLogDbgGroups)
 {
-    return i_logStringProps(RTLogGetDefaultInstance(), RTLogGetGroupSettings, "RTLogGetGroupSettings", &aLogDbgGroups);
+    return i_logStringProps(RTLogGetDefaultInstance(), RTLogQueryGroupSettings, "RTLogQueryGroupSettings", &aLogDbgGroups);
 }
 
 HRESULT MachineDebugger::getLogDbgDestinations(com::Utf8Str &aLogDbgDestinations)
 {
-    return i_logStringProps(RTLogGetDefaultInstance(), RTLogGetDestinations, "RTLogGetDestinations", &aLogDbgDestinations);
+    return i_logStringProps(RTLogGetDefaultInstance(), RTLogQueryDestinations, "RTLogQueryDestinations", &aLogDbgDestinations);
 }
 
 HRESULT MachineDebugger::getLogRelFlags(com::Utf8Str &aLogRelFlags)
 {
-    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogGetFlags, "RTGetFlags", &aLogRelFlags);
+    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogQueryFlags, "RTLogQueryFlags", &aLogRelFlags);
 }
 
 HRESULT MachineDebugger::getLogRelGroups(com::Utf8Str &aLogRelGroups)
 {
-    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogGetGroupSettings, "RTLogGetGroupSettings", &aLogRelGroups);
+    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogQueryGroupSettings, "RTLogQueryGroupSettings", &aLogRelGroups);
 }
 
 HRESULT MachineDebugger::getLogRelDestinations(com::Utf8Str &aLogRelDestinations)
 {
-    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogGetDestinations, "RTLogGetDestinations", &aLogRelDestinations);
+    return i_logStringProps(RTLogRelGetDefaultInstance(), RTLogQueryDestinations, "RTLogQueryDestinations", &aLogRelDestinations);
 }
 
 /**
@@ -485,38 +429,16 @@ HRESULT MachineDebugger::getExecutionEngine(VMExecutionEngine_T *apenmEngine)
     if (ptrVM.isOk())
     {
         uint8_t bEngine = UINT8_MAX;
-        int rc = EMR3QueryMainExecutionEngine(ptrVM.rawUVM(), &bEngine);
-        if (RT_SUCCESS(rc))
+        int vrc = ptrVM.vtable()->pfnEMR3QueryMainExecutionEngine(ptrVM.rawUVM(), &bEngine);
+        if (RT_SUCCESS(vrc))
             switch (bEngine)
             {
                 case VM_EXEC_ENGINE_NOT_SET:    *apenmEngine = VMExecutionEngine_NotSet; break;
-                case VM_EXEC_ENGINE_RAW_MODE:   *apenmEngine = VMExecutionEngine_RawMode; break;
+                case VM_EXEC_ENGINE_IEM:        *apenmEngine = VMExecutionEngine_Emulated; break;
                 case VM_EXEC_ENGINE_HW_VIRT:    *apenmEngine = VMExecutionEngine_HwVirt; break;
                 case VM_EXEC_ENGINE_NATIVE_API: *apenmEngine = VMExecutionEngine_NativeApi; break;
                 default: AssertMsgFailed(("bEngine=%d\n", bEngine));
             }
-    }
-
-    return S_OK;
-}
-
-/**
- * Returns the current hardware virtualization flag.
- *
- * @returns COM status code
- * @param   aHWVirtExEnabled    address of result variable
- */
-HRESULT MachineDebugger::getHWVirtExEnabled(BOOL *aHWVirtExEnabled)
-{
-    *aHWVirtExEnabled = false;
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    Console::SafeVMPtrQuiet ptrVM(mParent);
-    if (ptrVM.isOk())
-    {
-        uint8_t bEngine = UINT8_MAX;
-        int rc = EMR3QueryMainExecutionEngine(ptrVM.rawUVM(), &bEngine);
-        *aHWVirtExEnabled = RT_SUCCESS(rc) && bEngine == VM_EXEC_ENGINE_HW_VIRT;
     }
 
     return S_OK;
@@ -533,9 +455,8 @@ HRESULT MachineDebugger::getHWVirtExNestedPagingEnabled(BOOL *aHWVirtExNestedPag
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (ptrVM.isOk())
-        *aHWVirtExNestedPagingEnabled = HMR3IsNestedPagingActive(ptrVM.rawUVM());
+        *aHWVirtExNestedPagingEnabled = ptrVM.vtable()->pfnHMR3IsNestedPagingActive(ptrVM.rawUVM());
     else
         *aHWVirtExNestedPagingEnabled = false;
 
@@ -553,9 +474,8 @@ HRESULT MachineDebugger::getHWVirtExVPIDEnabled(BOOL *aHWVirtExVPIDEnabled)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (ptrVM.isOk())
-        *aHWVirtExVPIDEnabled = HMR3IsVpidActive(ptrVM.rawUVM());
+        *aHWVirtExVPIDEnabled = ptrVM.vtable()->pfnHMR3IsVpidActive(ptrVM.rawUVM());
     else
         *aHWVirtExVPIDEnabled = false;
 
@@ -573,9 +493,8 @@ HRESULT MachineDebugger::getHWVirtExUXEnabled(BOOL *aHWVirtExUXEnabled)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (ptrVM.isOk())
-        *aHWVirtExUXEnabled = HMR3IsUXActive(ptrVM.rawUVM());
+        *aHWVirtExUXEnabled = ptrVM.vtable()->pfnHMR3IsUXActive(ptrVM.rawUVM());
     else
         *aHWVirtExUXEnabled = false;
 
@@ -586,6 +505,7 @@ HRESULT MachineDebugger::getOSName(com::Utf8Str &aOSName)
 {
     LogFlowThisFunc(("\n"));
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     Console::SafeVMPtr ptrVM(mParent);
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
@@ -594,19 +514,9 @@ HRESULT MachineDebugger::getOSName(com::Utf8Str &aOSName)
          * Do the job and try convert the name.
          */
         char szName[64];
-        int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), szName, sizeof(szName), NULL, 0);
+        int vrc = ptrVM.vtable()->pfnDBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), szName, sizeof(szName), NULL, 0);
         if (RT_SUCCESS(vrc))
-        {
-            try
-            {
-                Bstr bstrName(szName);
-                aOSName = Utf8Str(bstrName);
-            }
-            catch (std::bad_alloc &)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
-        }
+            hrc = aOSName.assignEx(szName);
         else
             hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
     }
@@ -617,6 +527,7 @@ HRESULT MachineDebugger::getOSVersion(com::Utf8Str &aOSVersion)
 {
     LogFlowThisFunc(("\n"));
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     Console::SafeVMPtr ptrVM(mParent);
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
@@ -625,19 +536,9 @@ HRESULT MachineDebugger::getOSVersion(com::Utf8Str &aOSVersion)
          * Do the job and try convert the name.
          */
         char szVersion[256];
-        int vrc = DBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), NULL, 0, szVersion, sizeof(szVersion));
+        int vrc = ptrVM.vtable()->pfnDBGFR3OSQueryNameAndVersion(ptrVM.rawUVM(), NULL, 0, szVersion, sizeof(szVersion));
         if (RT_SUCCESS(vrc))
-        {
-            try
-            {
-                Bstr bstrVersion(szVersion);
-                aOSVersion = Utf8Str(bstrVersion);
-            }
-            catch (std::bad_alloc &)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
-        }
+            hrc = aOSVersion.assignEx(szVersion);
         else
             hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("DBGFR3OSQueryNameAndVersion failed with %Rrc"), vrc);
     }
@@ -655,11 +556,10 @@ HRESULT MachineDebugger::getPAEEnabled(BOOL *aPAEEnabled)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (ptrVM.isOk())
     {
         uint32_t cr4;
-        int rc = DBGFR3RegCpuQueryU32(ptrVM.rawUVM(), 0 /*idCpu*/,  DBGFREG_CR4, &cr4); AssertRC(rc);
+        int vrc = ptrVM.vtable()->pfnDBGFR3RegCpuQueryU32(ptrVM.rawUVM(), 0 /*idCpu*/,  DBGFREG_CR4, &cr4); AssertRC(vrc);
         *aPAEEnabled = RT_BOOL(cr4 & X86_CR4_PAE);
     }
     else
@@ -681,7 +581,7 @@ HRESULT MachineDebugger::getVirtualTimeRate(ULONG *aVirtualTimeRate)
     Console::SafeVMPtr ptrVM(mParent);
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
-        *aVirtualTimeRate = TMR3GetWarpDrive(ptrVM.rawUVM());
+        *aVirtualTimeRate = ptrVM.vtable()->pfnTMR3GetWarpDrive(ptrVM.rawUVM());
 
     return hrc;
 }
@@ -708,43 +608,12 @@ HRESULT MachineDebugger::setVirtualTimeRate(ULONG aVirtualTimeRate)
         hrc = ptrVM.rc();
         if (SUCCEEDED(hrc))
         {
-            int vrc = TMR3SetWarpDrive(ptrVM.rawUVM(), aVirtualTimeRate);
+            int vrc = ptrVM.vtable()->pfnTMR3SetWarpDrive(ptrVM.rawUVM(), aVirtualTimeRate);
             if (RT_FAILURE(vrc))
                 hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("TMR3SetWarpDrive(, %u) failed with rc=%Rrc"), aVirtualTimeRate, vrc);
         }
     }
 
-    return hrc;
-}
-
-/**
- * Hack for getting the user mode VM handle (UVM).
- *
- * This is only temporary (promise) while prototyping the debugger.
- *
- * @returns COM status code
- * @param   aVM         Where to store the vm handle. Since there is no
- *                      uintptr_t in COM, we're using the max integer.
- *                      (No, ULONG is not pointer sized!)
- * @remarks The returned handle must be passed to VMR3ReleaseUVM()!
- * @remarks Prior to 4.3 this returned PVM.
- */
-HRESULT MachineDebugger::getVM(LONG64 *aVM)
-{
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    Console::SafeVMPtr ptrVM(mParent);
-    HRESULT hrc = ptrVM.rc();
-    if (SUCCEEDED(hrc))
-    {
-        VMR3RetainUVM(ptrVM.rawUVM());
-        *aVM = (intptr_t)ptrVM.rawUVM();
-    }
-
-    /*
-     * Note! ptrVM protection provided by SafeVMPtr is no long effective
-     *       after we return from this method.
-     */
     return hrc;
 }
 
@@ -761,7 +630,7 @@ HRESULT MachineDebugger::getUptime(LONG64 *aUptime)
     Console::SafeVMPtr ptrVM(mParent);
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
-        *aUptime = (int64_t)TMR3TimeVirtGetMilli(ptrVM.rawUVM());
+        *aUptime = (int64_t)ptrVM.vtable()->pfnTMR3TimeVirtGetMilli(ptrVM.rawUVM());
 
     return hrc;
 }
@@ -779,7 +648,7 @@ HRESULT MachineDebugger::dumpGuestCore(const com::Utf8Str &aFilename, const com:
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        int vrc = DBGFR3CoreWrite(ptrVM.rawUVM(), aFilename.c_str(), false /*fReplaceFile*/);
+        int vrc = ptrVM.vtable()->pfnDBGFR3CoreWrite(ptrVM.rawUVM(), aFilename.c_str(), false /*fReplaceFile*/);
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
@@ -884,13 +753,14 @@ static DECLCALLBACK(void) MachineDebuggerInfoPrintf(PCDBGFINFOHLP pHlp, const ch
 /**
  * Initializes the debug info string buffer formatter
  *
- * @param   pHlp                The help structure to init.
+ * @param   pHlp    The help structure to init.
+ * @param   pVMM    The VMM vtable.
  */
-static void MachineDebuggerInfoInit(PMACHINEDEBUGGERINOFHLP pHlp)
+static void MachineDebuggerInfoInit(PMACHINEDEBUGGERINOFHLP pHlp, PCVMMR3VTABLE pVMM)
 {
     pHlp->Core.pfnPrintf        = MachineDebuggerInfoPrintf;
     pHlp->Core.pfnPrintfV       = MachineDebuggerInfoPrintfV;
-    pHlp->Core.pfnGetOptError   = DBGFR3InfoGenricGetOptError;
+    pHlp->Core.pfnGetOptError   = pVMM->pfnDBGFR3InfoGenericGetOptError;
     pHlp->pszBuf                = NULL;
     pHlp->cbBuf                 = 0;
     pHlp->offBuf                = 0;
@@ -927,25 +797,12 @@ HRESULT MachineDebugger::info(const com::Utf8Str &aName, const com::Utf8Str &aAr
              * Create a helper and call DBGFR3Info.
              */
             MACHINEDEBUGGERINOFHLP Hlp;
-            MachineDebuggerInfoInit(&Hlp);
-            int vrc = DBGFR3Info(ptrVM.rawUVM(),  aName.c_str(),  aArgs.c_str(), &Hlp.Core);
+            MachineDebuggerInfoInit(&Hlp, ptrVM.vtable());
+            int vrc = ptrVM.vtable()->pfnDBGFR3Info(ptrVM.rawUVM(),  aName.c_str(),  aArgs.c_str(), &Hlp.Core);
             if (RT_SUCCESS(vrc))
             {
                 if (!Hlp.fOutOfMemory)
-                {
-                    /*
-                     * Convert the info string, watching out for allocation errors.
-                     */
-                    try
-                    {
-                        Bstr bstrInfo(Hlp.pszBuf);
-                        aInfo = bstrInfo;
-                    }
-                    catch (std::bad_alloc &)
-                    {
-                        hrc = E_OUTOFMEMORY;
-                    }
-                }
+                    hrc = aInfo.assignEx(Hlp.pszBuf);
                 else
                     hrc = E_OUTOFMEMORY;
             }
@@ -966,7 +823,7 @@ HRESULT MachineDebugger::injectNMI()
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        int vrc = DBGFR3InjectNMI(ptrVM.rawUVM(), 0);
+        int vrc = ptrVM.vtable()->pfnDBGFR3InjectNMI(ptrVM.rawUVM(), 0);
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
@@ -983,7 +840,7 @@ HRESULT MachineDebugger::modifyLogFlags(const com::Utf8Str &aSettings)
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        int vrc = DBGFR3LogModifyFlags(ptrVM.rawUVM(), aSettings.c_str());
+        int vrc = ptrVM.vtable()->pfnDBGFR3LogModifyFlags(ptrVM.rawUVM(), aSettings.c_str());
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
@@ -1000,7 +857,7 @@ HRESULT MachineDebugger::modifyLogGroups(const com::Utf8Str &aSettings)
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        int vrc = DBGFR3LogModifyGroups(ptrVM.rawUVM(), aSettings.c_str());
+        int vrc = ptrVM.vtable()->pfnDBGFR3LogModifyGroups(ptrVM.rawUVM(), aSettings.c_str());
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
@@ -1017,7 +874,7 @@ HRESULT MachineDebugger::modifyLogDestinations(const com::Utf8Str &aSettings)
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        int vrc = DBGFR3LogModifyDestinations(ptrVM.rawUVM(), aSettings.c_str());
+        int vrc = ptrVM.vtable()->pfnDBGFR3LogModifyDestinations(ptrVM.rawUVM(), aSettings.c_str());
         if (RT_SUCCESS(vrc))
             hrc = S_OK;
         else
@@ -1065,34 +922,16 @@ HRESULT MachineDebugger::loadPlugIn(const com::Utf8Str &aName, com::Utf8Str &aPl
          */
         if (aName.equals("all"))
         {
-            DBGFR3PlugInLoadAll(ptrVM.rawUVM());
-            try
-            {
-                aPlugInName = "all";
-                hrc = S_OK;
-            }
-            catch (std::bad_alloc &)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
+            ptrVM.vtable()->pfnDBGFR3PlugInLoadAll(ptrVM.rawUVM());
+            hrc = aPlugInName.assignEx("all");
         }
         else
         {
             RTERRINFOSTATIC ErrInfo;
             char            szName[80];
-            int vrc = DBGFR3PlugInLoad(ptrVM.rawUVM(), aName.c_str(), szName, sizeof(szName), RTErrInfoInitStatic(&ErrInfo));
+            int vrc = ptrVM.vtable()->pfnDBGFR3PlugInLoad(ptrVM.rawUVM(), aName.c_str(), szName, sizeof(szName), RTErrInfoInitStatic(&ErrInfo));
             if (RT_SUCCESS(vrc))
-            {
-                try
-                {
-                    aPlugInName = szName;
-                    hrc = S_OK;
-                }
-                catch (std::bad_alloc &)
-                {
-                    hrc = E_OUTOFMEMORY;
-                }
-            }
+                hrc = aPlugInName.assignEx(szName);
             else
                 hrc = setErrorVrc(vrc, "%s", ErrInfo.szMsg);
         }
@@ -1116,18 +955,18 @@ HRESULT MachineDebugger::unloadPlugIn(const com::Utf8Str &aName)
          */
         if (aName.equals("all"))
         {
-            DBGFR3PlugInUnloadAll(ptrVM.rawUVM());
+            ptrVM.vtable()->pfnDBGFR3PlugInUnloadAll(ptrVM.rawUVM());
             hrc = S_OK;
         }
         else
         {
-            int vrc = DBGFR3PlugInUnload(ptrVM.rawUVM(), aName.c_str());
+            int vrc = ptrVM.vtable()->pfnDBGFR3PlugInUnload(ptrVM.rawUVM(), aName.c_str());
             if (RT_SUCCESS(vrc))
                 hrc = S_OK;
             else if (vrc == VERR_NOT_FOUND)
-                hrc = setErrorBoth(E_FAIL, vrc, "Plug-in '%s' was not found", aName.c_str());
+                hrc = setErrorBoth(E_FAIL, vrc, tr("Plug-in '%s' was not found"), aName.c_str());
             else
-                hrc = setErrorVrc(vrc, "Error unloading '%s': %Rrc", aName.c_str(), vrc);
+                hrc = setErrorVrc(vrc, tr("Error unloading '%s': %Rrc"), aName.c_str(), vrc);
         }
     }
     return hrc;
@@ -1150,18 +989,9 @@ HRESULT MachineDebugger::detectOS(com::Utf8Str &aOs)
          * Do the job.
          */
         char szName[64];
-        int vrc = DBGFR3OSDetect(ptrVM.rawUVM(), szName, sizeof(szName));
+        int vrc = ptrVM.vtable()->pfnDBGFR3OSDetect(ptrVM.rawUVM(), szName, sizeof(szName));
         if (RT_SUCCESS(vrc) && vrc != VINF_DBGF_OS_NOT_DETCTED)
-        {
-            try
-            {
-                aOs = szName;
-            }
-            catch (std::bad_alloc &)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
-        }
+            hrc = aOs.assignEx(szName);
         else
             hrc = setErrorBoth(VBOX_E_VM_ERROR, vrc, tr("DBGFR3OSDetect failed with %Rrc"), vrc);
     }
@@ -1178,7 +1008,7 @@ HRESULT MachineDebugger::queryOSKernelLog(ULONG aMaxMessages, com::Utf8Str &aDme
     HRESULT hrc = ptrVM.rc();
     if (SUCCEEDED(hrc))
     {
-        PDBGFOSIDMESG pDmesg = (PDBGFOSIDMESG)DBGFR3OSQueryInterface(ptrVM.rawUVM(), DBGFOSINTERFACE_DMESG);
+        PDBGFOSIDMESG pDmesg = (PDBGFOSIDMESG)ptrVM.vtable()->pfnDBGFR3OSQueryInterface(ptrVM.rawUVM(), DBGFOSINTERFACE_DMESG);
         if (pDmesg)
         {
             size_t   cbActual;
@@ -1187,7 +1017,7 @@ HRESULT MachineDebugger::queryOSKernelLog(ULONG aMaxMessages, com::Utf8Str &aDme
             if (RT_SUCCESS(vrc))
             {
                 uint32_t cMessages = aMaxMessages == 0 ? UINT32_MAX : aMaxMessages;
-                vrc = pDmesg->pfnQueryKernelLog(pDmesg, ptrVM.rawUVM(), 0 /*fFlags*/, cMessages,
+                vrc = pDmesg->pfnQueryKernelLog(pDmesg, ptrVM.rawUVM(), ptrVM.vtable(), 0 /*fFlags*/, cMessages,
                                                 aDmesg.mutableRaw(), cbBuf, &cbActual);
 
                 uint32_t cTries = 10;
@@ -1196,13 +1026,13 @@ HRESULT MachineDebugger::queryOSKernelLog(ULONG aMaxMessages, com::Utf8Str &aDme
                     cbBuf = RT_ALIGN_Z(cbActual + _4K, _4K);
                     vrc = aDmesg.reserveNoThrow(cbBuf);
                     if (RT_SUCCESS(vrc))
-                        vrc = pDmesg->pfnQueryKernelLog(pDmesg, ptrVM.rawUVM(), 0 /*fFlags*/, cMessages,
+                        vrc = pDmesg->pfnQueryKernelLog(pDmesg, ptrVM.rawUVM(), ptrVM.vtable(), 0 /*fFlags*/, cMessages,
                                                         aDmesg.mutableRaw(), cbBuf, &cbActual);
                 }
                 if (RT_SUCCESS(vrc))
                     aDmesg.jolt();
                 else if (vrc == VERR_BUFFER_OVERFLOW)
-                    hrc = setError(E_FAIL, "Too much log available, must use the maxMessages parameter to restrict.");
+                    hrc = setError(E_FAIL, tr("Too much log available, must use the maxMessages parameter to restrict."));
                 else
                     hrc = setErrorVrc(vrc);
             }
@@ -1210,29 +1040,9 @@ HRESULT MachineDebugger::queryOSKernelLog(ULONG aMaxMessages, com::Utf8Str &aDme
                 hrc = setErrorBoth(E_OUTOFMEMORY, vrc);
         }
         else
-            hrc = setError(E_FAIL, "The dmesg interface isn't implemented by guest OS digger, or detectOS() has not been called.");
+            hrc = setError(E_FAIL, tr("The dmesg interface isn't implemented by guest OS digger, or detectOS() has not been called."));
     }
     return hrc;
-}
-
-/**
- * Formats a register value.
- *
- * This is used by both register getter methods.
- *
- * @returns
- * @param   a_pbstr             The output Bstr variable.
- * @param   a_pValue            The value to format.
- * @param   a_enmType           The type of the value.
- */
-DECLINLINE(HRESULT) formatRegisterValue(Bstr *a_pbstr, PCDBGFREGVAL a_pValue, DBGFREGVALTYPE a_enmType)
-{
-    char szHex[160];
-    ssize_t cch = DBGFR3RegFormatValue(szHex, sizeof(szHex), a_pValue, a_enmType, true /*fSpecial*/);
-    if (RT_UNLIKELY(cch <= 0))
-        return E_UNEXPECTED;
-    *a_pbstr = szHex;
-    return S_OK;
 }
 
 HRESULT MachineDebugger::getRegister(ULONG aCpuId, const com::Utf8Str &aName, com::Utf8Str &aValue)
@@ -1251,20 +1061,15 @@ HRESULT MachineDebugger::getRegister(ULONG aCpuId, const com::Utf8Str &aName, co
          */
         DBGFREGVAL      Value;
         DBGFREGVALTYPE  enmType;
-        int vrc = DBGFR3RegNmQuery(ptrVM.rawUVM(), aCpuId, aName.c_str(), &Value, &enmType);
+        int vrc = ptrVM.vtable()->pfnDBGFR3RegNmQuery(ptrVM.rawUVM(), aCpuId, aName.c_str(), &Value, &enmType);
         if (RT_SUCCESS(vrc))
         {
-            try
-            {
-                Bstr bstrValue;
-                hrc = formatRegisterValue(&bstrValue, &Value, enmType);
-                if (SUCCEEDED(hrc))
-                    aValue = Utf8Str(bstrValue);
-            }
-            catch (std::bad_alloc &)
-            {
-                hrc = E_OUTOFMEMORY;
-            }
+            char szHex[160];
+            ssize_t cch = ptrVM.vtable()->pfnDBGFR3RegFormatValue(szHex, sizeof(szHex), &Value, enmType, true /*fSpecial*/);
+            if (cch > 0)
+                hrc = aValue.assignEx(szHex);
+            else
+                hrc = E_UNEXPECTED;
         }
         else if (vrc == VERR_DBGF_REGISTER_NOT_FOUND)
             hrc = setErrorBoth(E_FAIL, vrc, tr("Register '%s' was not found"), aName.c_str());
@@ -1296,13 +1101,13 @@ HRESULT MachineDebugger::getRegisters(ULONG aCpuId, std::vector<com::Utf8Str> &a
          * Real work.
          */
         size_t cRegs;
-        int vrc = DBGFR3RegNmQueryAllCount(ptrVM.rawUVM(), &cRegs);
+        int vrc = ptrVM.vtable()->pfnDBGFR3RegNmQueryAllCount(ptrVM.rawUVM(), &cRegs);
         if (RT_SUCCESS(vrc))
         {
             PDBGFREGENTRYNM paRegs = (PDBGFREGENTRYNM)RTMemAllocZ(sizeof(paRegs[0]) * cRegs);
             if (paRegs)
             {
-                vrc = DBGFR3RegNmQueryAll(ptrVM.rawUVM(), paRegs, cRegs);
+                vrc = ptrVM.vtable()->pfnDBGFR3RegNmQueryAll(ptrVM.rawUVM(), paRegs, cRegs);
                 if (RT_SUCCESS(vrc))
                 {
                     try
@@ -1313,11 +1118,11 @@ HRESULT MachineDebugger::getRegisters(ULONG aCpuId, std::vector<com::Utf8Str> &a
                         {
                             char szHex[160];
                             szHex[159] = szHex[0] = '\0';
-                            ssize_t cch = DBGFR3RegFormatValue(szHex, sizeof(szHex), &paRegs[iReg].Val,
-                                                               paRegs[iReg].enmType, true /*fSpecial*/);
+                            ssize_t cch = ptrVM.vtable()->pfnDBGFR3RegFormatValue(szHex, sizeof(szHex), &paRegs[iReg].Val,
+                                                                                  paRegs[iReg].enmType, true /*fSpecial*/);
                             Assert(cch > 0); NOREF(cch);
-                            aNames[iReg] = Utf8Str(paRegs[iReg].pszName);
-                            aValues[iReg] = Utf8Str(szHex);
+                            aNames[iReg]  = paRegs[iReg].pszName;
+                            aValues[iReg] = szHex;
                         }
                     }
                     catch (std::bad_alloc &)
@@ -1376,12 +1181,12 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
         bool fPaused = false;
         if (aCpuId != 0)
         {
-            VMSTATE enmVmState = VMR3GetStateU(ptrVM.rawUVM());
+            VMSTATE enmVmState = ptrVM.vtable()->pfnVMR3GetStateU(ptrVM.rawUVM());
             if (   enmVmState == VMSTATE_RUNNING
                 || enmVmState == VMSTATE_RUNNING_LS)
             {
                 alock.release();
-                vrc = VMR3Suspend(ptrVM.rawUVM(), VMSUSPENDREASON_USER);
+                vrc = ptrVM.vtable()->pfnVMR3Suspend(ptrVM.rawUVM(), VMSUSPENDREASON_USER);
                 alock.acquire();
                 fPaused = RT_SUCCESS(vrc);
             }
@@ -1389,7 +1194,7 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
         if (RT_SUCCESS(vrc))
         {
             PCDBGFSTACKFRAME pFirstFrame;
-            vrc = DBGFR3StackWalkBegin(ptrVM.rawUVM(), aCpuId, DBGFCODETYPE_GUEST, &pFirstFrame);
+            vrc = ptrVM.vtable()->pfnDBGFR3StackWalkBegin(ptrVM.rawUVM(), aCpuId, DBGFCODETYPE_GUEST, &pFirstFrame);
             if (RT_SUCCESS(vrc))
             {
                 /*
@@ -1400,70 +1205,70 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
                     uint32_t fBitFlags = 0;
                     for (PCDBGFSTACKFRAME pFrame = pFirstFrame;
                          pFrame;
-                         pFrame = DBGFR3StackWalkNext(pFrame))
+                         pFrame = ptrVM.vtable()->pfnDBGFR3StackWalkNext(pFrame))
                     {
                         uint32_t const fCurBitFlags = pFrame->fFlags & (DBGFSTACKFRAME_FLAGS_16BIT | DBGFSTACKFRAME_FLAGS_32BIT | DBGFSTACKFRAME_FLAGS_64BIT);
                         if (fCurBitFlags & DBGFSTACKFRAME_FLAGS_16BIT)
                         {
                             if (fCurBitFlags != fBitFlags)
                                 aStack.append("SS:BP     Ret SS:BP Ret CS:EIP    Arg0     Arg1     Arg2     Arg3     CS:EIP / Symbol [line]\n");
-                            aStack.append(Utf8StrFmt("%04RX16:%04RX16 %04RX16:%04RX16 %04RX32:%08RX32 %08RX32 %08RX32 %08RX32 %08RX32",
-                                                     pFrame->AddrFrame.Sel,
-                                                     (uint16_t)pFrame->AddrFrame.off,
-                                                     pFrame->AddrReturnFrame.Sel,
-                                                     (uint16_t)pFrame->AddrReturnFrame.off,
-                                                     (uint32_t)pFrame->AddrReturnPC.Sel,
-                                                     (uint32_t)pFrame->AddrReturnPC.off,
-                                                     pFrame->Args.au32[0],
-                                                     pFrame->Args.au32[1],
-                                                     pFrame->Args.au32[2],
-                                                     pFrame->Args.au32[3]));
+                            aStack.appendPrintf("%04RX16:%04RX16 %04RX16:%04RX16 %04RX32:%08RX32 %08RX32 %08RX32 %08RX32 %08RX32",
+                                                pFrame->AddrFrame.Sel,
+                                                (uint16_t)pFrame->AddrFrame.off,
+                                                pFrame->AddrReturnFrame.Sel,
+                                                (uint16_t)pFrame->AddrReturnFrame.off,
+                                                (uint32_t)pFrame->AddrReturnPC.Sel,
+                                                (uint32_t)pFrame->AddrReturnPC.off,
+                                                pFrame->Args.au32[0],
+                                                pFrame->Args.au32[1],
+                                                pFrame->Args.au32[2],
+                                                pFrame->Args.au32[3]);
                         }
                         else if (fCurBitFlags & DBGFSTACKFRAME_FLAGS_32BIT)
                         {
                             if (fCurBitFlags != fBitFlags)
                                 aStack.append("EBP      Ret EBP  Ret CS:EIP    Arg0     Arg1     Arg2     Arg3     CS:EIP / Symbol [line]\n");
-                            aStack.append(Utf8StrFmt("%08RX32 %08RX32 %04RX32:%08RX32 %08RX32 %08RX32 %08RX32 %08RX32",
-                                                     (uint32_t)pFrame->AddrFrame.off,
-                                                     (uint32_t)pFrame->AddrReturnFrame.off,
-                                                     (uint32_t)pFrame->AddrReturnPC.Sel,
-                                                     (uint32_t)pFrame->AddrReturnPC.off,
-                                                     pFrame->Args.au32[0],
-                                                     pFrame->Args.au32[1],
-                                                     pFrame->Args.au32[2],
-                                                     pFrame->Args.au32[3]));
+                            aStack.appendPrintf("%08RX32 %08RX32 %04RX32:%08RX32 %08RX32 %08RX32 %08RX32 %08RX32",
+                                                (uint32_t)pFrame->AddrFrame.off,
+                                                (uint32_t)pFrame->AddrReturnFrame.off,
+                                                (uint32_t)pFrame->AddrReturnPC.Sel,
+                                                (uint32_t)pFrame->AddrReturnPC.off,
+                                                pFrame->Args.au32[0],
+                                                pFrame->Args.au32[1],
+                                                pFrame->Args.au32[2],
+                                                pFrame->Args.au32[3]);
                         }
                         else if (fCurBitFlags & DBGFSTACKFRAME_FLAGS_64BIT)
                         {
                             if (fCurBitFlags != fBitFlags)
                                 aStack.append("RBP              Ret SS:RBP            Ret RIP          CS:RIP / Symbol [line]\n");
-                            aStack.append(Utf8StrFmt("%016RX64 %04RX16:%016RX64 %016RX64",
-                                                     (uint64_t)pFrame->AddrFrame.off,
-                                                     pFrame->AddrReturnFrame.Sel,
-                                                     (uint64_t)pFrame->AddrReturnFrame.off,
-                                                     (uint64_t)pFrame->AddrReturnPC.off));
+                            aStack.appendPrintf("%016RX64 %04RX16:%016RX64 %016RX64",
+                                                (uint64_t)pFrame->AddrFrame.off,
+                                                pFrame->AddrReturnFrame.Sel,
+                                                (uint64_t)pFrame->AddrReturnFrame.off,
+                                                (uint64_t)pFrame->AddrReturnPC.off);
                         }
 
                         if (!pFrame->pSymPC)
-                            aStack.append(Utf8StrFmt(fCurBitFlags & DBGFSTACKFRAME_FLAGS_64BIT
-                                                     ? " %RTsel:%016RGv"
-                                                     : fCurBitFlags & DBGFSTACKFRAME_FLAGS_32BIT
-                                                     ? " %RTsel:%08RGv"
-                                                     : " %RTsel:%04RGv"
-                                                     , pFrame->AddrPC.Sel, pFrame->AddrPC.off));
+                            aStack.appendPrintf(fCurBitFlags & DBGFSTACKFRAME_FLAGS_64BIT
+                                                ? " %RTsel:%016RGv"
+                                                : fCurBitFlags & DBGFSTACKFRAME_FLAGS_32BIT
+                                                ? " %RTsel:%08RGv"
+                                                : " %RTsel:%04RGv"
+                                                , pFrame->AddrPC.Sel, pFrame->AddrPC.off);
                         else
                         {
                             RTGCINTPTR offDisp = pFrame->AddrPC.FlatPtr - pFrame->pSymPC->Value; /** @todo this isn't 100% correct for segmented stuff. */
                             if (offDisp > 0)
-                                aStack.append(Utf8StrFmt(" %s+%llx", pFrame->pSymPC->szName, (int64_t)offDisp));
+                                aStack.appendPrintf(" %s+%llx", pFrame->pSymPC->szName, (int64_t)offDisp);
                             else if (offDisp < 0)
-                                aStack.append(Utf8StrFmt(" %s-%llx", pFrame->pSymPC->szName, -(int64_t)offDisp));
+                                aStack.appendPrintf(" %s-%llx", pFrame->pSymPC->szName, -(int64_t)offDisp);
                             else
-                                aStack.append(Utf8StrFmt(" %s", pFrame->pSymPC->szName));
+                                aStack.appendPrintf(" %s", pFrame->pSymPC->szName);
                         }
                         if (pFrame->pLinePC)
-                            aStack.append(Utf8StrFmt(" [%s @ 0i%d]", pFrame->pLinePC->szFilename, pFrame->pLinePC->uLineNo));
-                        aStack.append(Utf8StrFmt("\n"));
+                            aStack.appendPrintf(" [%s @ 0i%d]", pFrame->pLinePC->szFilename, pFrame->pLinePC->uLineNo);
+                        aStack.append("\n");
 
                         fBitFlags = fCurBitFlags;
                     }
@@ -1473,7 +1278,7 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
                     hrc = E_OUTOFMEMORY;
                 }
 
-                DBGFR3StackWalkEnd(pFirstFrame);
+                ptrVM.vtable()->pfnDBGFR3StackWalkEnd(pFirstFrame);
             }
             else
                 hrc = setErrorBoth(E_FAIL, vrc, tr("DBGFR3StackWalkBegin failed with %Rrc"), vrc);
@@ -1484,7 +1289,7 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
             if (fPaused)
             {
                 alock.release();
-                VMR3Resume(ptrVM.rawUVM(), VMRESUMEREASON_USER);
+                ptrVM.vtable()->pfnVMR3Resume(ptrVM.rawUVM(), VMRESUMEREASON_USER);
             }
         }
         else
@@ -1503,11 +1308,10 @@ HRESULT MachineDebugger::dumpGuestStack(ULONG aCpuId, com::Utf8Str &aStack)
 HRESULT MachineDebugger::resetStats(const com::Utf8Str &aPattern)
 {
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (!ptrVM.isOk())
-        return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
+        return setError(VBOX_E_INVALID_VM_STATE, tr("Machine is not running"));
 
-    STAMR3Reset(ptrVM.rawUVM(), aPattern.c_str());
+    ptrVM.vtable()->pfnSTAMR3Reset(ptrVM.rawUVM(), aPattern.c_str());
 
     return S_OK;
 }
@@ -1521,11 +1325,10 @@ HRESULT MachineDebugger::resetStats(const com::Utf8Str &aPattern)
 HRESULT MachineDebugger::dumpStats(const com::Utf8Str &aPattern)
 {
     Console::SafeVMPtrQuiet ptrVM(mParent);
-
     if (!ptrVM.isOk())
-        return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
+        return setError(VBOX_E_INVALID_VM_STATE, tr("Machine is not running"));
 
-    STAMR3Dump(ptrVM.rawUVM(), aPattern.c_str());
+    ptrVM.vtable()->pfnSTAMR3Dump(ptrVM.rawUVM(), aPattern.c_str());
 
     return S_OK;
 }
@@ -1542,11 +1345,10 @@ HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescri
 {
     Console::SafeVMPtrQuiet ptrVM(mParent);
     if (!ptrVM.isOk())
-        return setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
+        return setError(VBOX_E_INVALID_VM_STATE, tr("Machine is not running"));
 
     char *pszSnapshot;
-    int vrc = STAMR3Snapshot(ptrVM.rawUVM(), aPattern.c_str(), &pszSnapshot, NULL,
-                             !!aWithDescriptions);
+    int vrc = ptrVM.vtable()->pfnSTAMR3Snapshot(ptrVM.rawUVM(), aPattern.c_str(), &pszSnapshot, NULL, !!aWithDescriptions);
     if (RT_FAILURE(vrc))
         return vrc == VERR_NO_MEMORY ? E_OUTOFMEMORY : E_FAIL;
 
@@ -1554,10 +1356,10 @@ HRESULT MachineDebugger::getStats(const com::Utf8Str &aPattern, BOOL aWithDescri
      * Must use UTF-8 or ASCII here and completely avoid these two extra copy operations.
      * Until that's done, this method is kind of useless for debugger statistics GUI because
      * of the amount statistics in a debug build. */
-    aStats = Utf8Str(pszSnapshot);
-    STAMR3SnapshotFree(ptrVM.rawUVM(), pszSnapshot);
+    HRESULT hrc = aStats.assignEx(pszSnapshot);
+    ptrVM.vtable()->pfnSTAMR3SnapshotFree(ptrVM.rawUVM(), pszSnapshot);
 
-    return S_OK;
+    return hrc;
 }
 
 
@@ -1572,8 +1374,8 @@ HRESULT MachineDebugger::getCPULoad(ULONG aCpuId, ULONG *aPctExecuting, ULONG *a
         uint8_t uPctHalted    = 0;
         uint8_t uPctOther     = 0;
         uint64_t msInterval   = 0;
-        int vrc = TMR3GetCpuLoadPercents(ptrVM.rawUVM(), aCpuId >= UINT32_MAX / 2 ? VMCPUID_ALL : aCpuId,
-                                         &msInterval, &uPctExecuting, &uPctHalted, &uPctOther);
+        int vrc = ptrVM.vtable()->pfnTMR3GetCpuLoadPercents(ptrVM.rawUVM(), aCpuId >= UINT32_MAX / 2 ? VMCPUID_ALL : aCpuId,
+                                                            &msInterval, &uPctExecuting, &uPctHalted, &uPctOther);
         if (RT_SUCCESS(vrc))
         {
             *aPctExecuting = uPctExecuting;
@@ -1586,9 +1388,117 @@ HRESULT MachineDebugger::getCPULoad(ULONG aCpuId, ULONG *aPctExecuting, ULONG *a
             hrc = setErrorVrc(vrc);
     }
     else
-        hrc = setError(VBOX_E_INVALID_VM_STATE, "Machine is not running");
+        hrc = setError(VBOX_E_INVALID_VM_STATE, tr("Machine is not running"));
     return hrc;
 }
+
+
+HRESULT MachineDebugger::takeGuestSample(const com::Utf8Str &aFilename, ULONG aUsInterval, LONG64 aUsSampleTime, ComPtr<IProgress> &pProgress)
+{
+    /*
+     * The prologue.
+     */
+    LogFlowThisFunc(("\n"));
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    Console::SafeVMPtr ptrVM(mParent);
+    HRESULT hrc = ptrVM.rc();
+    if (SUCCEEDED(hrc))
+    {
+        if (!m_hSampleReport)
+        {
+            m_strFilename = aFilename;
+
+            int vrc = ptrVM.vtable()->pfnDBGFR3SampleReportCreate(ptrVM.rawUVM(), aUsInterval,
+                                                                  DBGF_SAMPLE_REPORT_F_STACK_REVERSE, &m_hSampleReport);
+            if (RT_SUCCESS(vrc))
+            {
+                hrc = m_Progress.createObject();
+                if (SUCCEEDED(hrc))
+                {
+                    hrc = m_Progress->init(static_cast<IMachineDebugger*>(this),
+                                           tr("Creating guest sample report..."),
+                                           TRUE /* aCancelable */);
+                    if (SUCCEEDED(hrc))
+                    {
+                        vrc = ptrVM.vtable()->pfnDBGFR3SampleReportStart(m_hSampleReport, aUsSampleTime, i_dbgfProgressCallback,
+                                                                         static_cast<MachineDebugger*>(this));
+                        if (RT_SUCCESS(vrc))
+                            hrc = m_Progress.queryInterfaceTo(pProgress.asOutParam());
+                        else
+                            hrc = setErrorVrc(vrc);
+                    }
+                }
+
+                if (FAILED(hrc))
+                {
+                    ptrVM.vtable()->pfnDBGFR3SampleReportRelease(m_hSampleReport);
+                    m_hSampleReport = NULL;
+                }
+            }
+            else
+                hrc = setErrorVrc(vrc);
+        }
+        else
+            hrc = setError(VBOX_E_INVALID_VM_STATE, tr("A sample report is already in progress"));
+    }
+
+    return hrc;
+}
+
+/**
+ * Hack for getting the user mode VM handle (UVM) and VMM function table.
+ *
+ * @returns COM status code
+ * @param   aMagicVersion       The VMMR3VTABLE_MAGIC_VERSION value of the
+ *                              caller so we can check that the function table
+ *                              is compatible.  (Otherwise, the caller can't
+ *                              safely release the UVM reference.)
+ * @param   aUVM                Where to store the vm handle. Since there is no
+ *                              uintptr_t in COM, we're using the max integer. (No,
+ *                              ULONG is not pointer sized!)
+ * @param   aVMMFunctionTable   Where to store the vm handle.
+ *
+ * @remarks The returned handle must be passed to VMR3ReleaseUVM()!
+ */
+HRESULT MachineDebugger::getUVMAndVMMFunctionTable(LONG64 aMagicVersion, LONG64 *aVMMFunctionTable, LONG64 *aUVM)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /*
+     * Make sure it is a local call.
+     */
+    RTTHREAD hThread = RTThreadSelf();
+    if (hThread != NIL_RTTHREAD)
+    {
+        const char *pszName = RTThreadGetName(hThread);
+        if (   !RTStrStartsWith(pszName, "ALIEN-") /* COM worker threads are aliens */
+            && !RTStrStartsWith(pszName, "nspr-")  /* XPCOM worker threads are nspr-X */ )
+        {
+            /*
+             * Use safe VM pointer to get both the UVM and VMM function table.
+             */
+            Console::SafeVMPtr ptrVM(mParent);
+            HRESULT hrc = ptrVM.rc();
+            if (SUCCEEDED(hrc))
+            {
+                if (VMMR3VTABLE_IS_COMPATIBLE_EX(ptrVM.vtable()->uMagicVersion, (uint64_t)aMagicVersion))
+                {
+                    ptrVM.vtable()->pfnVMR3RetainUVM(ptrVM.rawUVM());
+                    *aUVM              = (intptr_t)ptrVM.rawUVM();
+                    *aVMMFunctionTable = (intptr_t)ptrVM.vtable();
+                    hrc = S_OK;
+                }
+                else
+                    hrc = setError(E_FAIL, tr("Incompatible VMM function table: %RX64 vs %RX64 (caller)"),
+                                   ptrVM.vtable()->uMagicVersion, (uint64_t)aMagicVersion);
+            }
+            return hrc;
+        }
+    }
+
+    return setError(E_ACCESSDENIED, tr("The method getUVMAndVMMFunctionTable is only for local calls"));
+}
+
 
 
 // public methods only for internal purposes
@@ -1608,16 +1518,6 @@ void MachineDebugger::i_flushQueuedSettings()
             i_setEmExecPolicyProperty((EMEXECPOLICY)i, RT_BOOL(maiQueuedEmExecPolicyParams[i]));
             maiQueuedEmExecPolicyParams[i] = UINT8_MAX;
         }
-    if (mPatmEnabledQueued != -1)
-    {
-        COMSETTER(PATMEnabled)(mPatmEnabledQueued);
-        mPatmEnabledQueued = -1;
-    }
-    if (mCsamEnabledQueued != -1)
-    {
-        COMSETTER(CSAMEnabled)(mCsamEnabledQueued);
-        mCsamEnabledQueued = -1;
-    }
     if (mLogEnabledQueued != -1)
     {
         COMSETTER(LogEnabled)(mLogEnabledQueued);

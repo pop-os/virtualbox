@@ -4,23 +4,30 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../VBoxSharedClipboardSvc-internal.h"
 
 #include <VBox/HostServices/VBoxClipboardSvc.h>
-#ifdef RT_OS_WINDOWS
-# include <VBox/GuestHost/SharedClipboard-win.h>
-#endif
 
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -132,7 +139,7 @@ static void testSetTransferMode(void)
 /* Adds a host data read request message to the client's message queue. */
 static void testMsgAddReadData(PSHCLCLIENT pClient, SHCLFORMATS fFormats)
 {
-    int rc = ShClSvcDataReadRequest(pClient, fFormats, NULL /* pidEvent */);
+    int rc = ShClSvcGuestDataRequest(pClient, fFormats, NULL /* pidEvent */);
     RTTESTI_CHECK_RC_OK(rc);
 }
 
@@ -152,10 +159,9 @@ static void testGetHostMsgOld(void)
     rc = table.pfnHostCall(NULL, VBOX_SHCL_HOST_FN_SET_MODE, 1, parms);
     RTTESTI_CHECK_RC_OK(rc);
 
-    rc = shClSvcClientInit(&g_Client, 1 /* clientId */);
-    RTTESTI_CHECK_RC_OK(rc);
 
     RTTestISub("Testing one format, waiting guest call.");
+    RT_ZERO(g_Client);
     HGCMSvcSetU32(&parms[0], 0);
     HGCMSvcSetU32(&parms[1], 0);
     call.rc = VERR_IPE_UNINITIALIZED_STATUS;
@@ -172,6 +178,7 @@ static void testGetHostMsgOld(void)
     table.pfnDisconnect(NULL, 1 /* clientId */, &g_Client);
 
     RTTestISub("Testing one format, no waiting guest calls.");
+    RT_ZERO(g_Client);
     table.pfnConnect(NULL, 1 /* clientId */, &g_Client, 0, 0);
     testMsgAddReadData(&g_Client, VBOX_SHCL_FMT_HTML);
     HGCMSvcSetU32(&parms[0], 0);
@@ -187,6 +194,7 @@ static void testGetHostMsgOld(void)
     table.pfnDisconnect(NULL, 1 /* clientId */, &g_Client);
 
     RTTestISub("Testing two formats, waiting guest call.");
+    RT_ZERO(g_Client);
     table.pfnConnect(NULL, 1 /* clientId */, &g_Client, 0, 0);
     HGCMSvcSetU32(&parms[0], 0);
     HGCMSvcSetU32(&parms[1], 0);
@@ -208,6 +216,7 @@ static void testGetHostMsgOld(void)
     table.pfnDisconnect(NULL, 1 /* clientId */, &g_Client);
 
     RTTestISub("Testing two formats, no waiting guest calls.");
+    RT_ZERO(g_Client);
     table.pfnConnect(NULL, 1 /* clientId */, &g_Client, 0, 0);
     testMsgAddReadData(&g_Client, VBOX_SHCL_FMT_UNICODETEXT | VBOX_SHCL_FMT_HTML);
     HGCMSvcSetU32(&parms[0], 0);
@@ -280,85 +289,6 @@ static void testHostCall(void)
     testSetHeadless();
 }
 
-#ifdef RT_OS_WINDOWS
-# include "VBoxOrgCfHtml1.h"    /* From chrome 97.0.4692.71 */
-# include "VBoxOrgMimeHtml1.h"
-
-static void testHtmlCf(void)
-{
-    RTTestISub("CF_HTML");
-
-    char    *pszOutput = NULL;
-    uint32_t cbOutput  = UINT32_MAX/2;
-    RTTestIDisableAssertions();
-    RTTESTI_CHECK_RC(SharedClipboardWinConvertCFHTMLToMIME("", 0, &pszOutput, &cbOutput), VERR_INVALID_PARAMETER);
-    RTTestIRestoreAssertions();
-
-    pszOutput = NULL;
-    cbOutput  = UINT32_MAX/2;
-    RTTESTI_CHECK_RC(SharedClipboardWinConvertCFHTMLToMIME((char *)&g_abVBoxOrgCfHtml1[0], g_cbVBoxOrgCfHtml1,
-                                                           &pszOutput, &cbOutput), VINF_SUCCESS);
-    RTTESTI_CHECK(cbOutput == g_cbVBoxOrgMimeHtml1);
-    RTTESTI_CHECK(memcmp(pszOutput, g_abVBoxOrgMimeHtml1, cbOutput) == 0);
-    RTMemFree(pszOutput);
-
-
-    static RTSTRTUPLE const s_aRoundTrips[] =
-    {
-        { RT_STR_TUPLE("") },
-        { RT_STR_TUPLE("1") },
-        { RT_STR_TUPLE("12") },
-        { RT_STR_TUPLE("123") },
-        { RT_STR_TUPLE("1234") },
-        { RT_STR_TUPLE("12345") },
-        { RT_STR_TUPLE("123456") },
-        { RT_STR_TUPLE("1234567") },
-        { RT_STR_TUPLE("12345678") },
-        { RT_STR_TUPLE("123456789") },
-        { RT_STR_TUPLE("1234567890") },
-        { RT_STR_TUPLE("<h2>asdfkjhasdflhj</h2>") },
-        { RT_STR_TUPLE("<h2>asdfkjhasdflhj</h2>\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0") },
-        { (const char *)g_abVBoxOrgMimeHtml1, sizeof(g_abVBoxOrgMimeHtml1) },
-    };
-
-    for (size_t i = 0; i < RT_ELEMENTS(s_aRoundTrips); i++)
-    {
-        int      rc;
-        char    *pszCfHtml = NULL;
-        uint32_t cbCfHtml  = UINT32_MAX/2;
-        rc = SharedClipboardWinConvertMIMEToCFHTML(s_aRoundTrips[i].psz, s_aRoundTrips[i].cch + 1, &pszCfHtml, &cbCfHtml);
-        if (rc == VINF_SUCCESS)
-        {
-            if (strlen(pszCfHtml) + 1 != cbCfHtml)
-                RTTestIFailed("#%u: SharedClipboardWinConvertMIMEToCFHTML(%s, %#zx,,) returned incorrect length: %#x, actual %#zx",
-                              i, s_aRoundTrips[i].psz, s_aRoundTrips[i].cch, cbCfHtml, strlen(pszCfHtml) + 1);
-
-            char     *pszHtml = NULL;
-            uint32_t  cbHtml  = UINT32_MAX/4;
-            rc = SharedClipboardWinConvertCFHTMLToMIME(pszCfHtml, (uint32_t)strlen(pszCfHtml), &pszHtml, &cbHtml);
-            if (rc == VINF_SUCCESS)
-            {
-                if (strlen(pszHtml) + 1 != cbHtml)
-                    RTTestIFailed("#%u: SharedClipboardWinConvertCFHTMLToMIME(%s, %#zx,,) returned incorrect length: %#x, actual %#zx",
-                                  i, pszHtml, strlen(pszHtml), cbHtml, strlen(pszHtml) + 1);
-                if (strcmp(pszHtml, s_aRoundTrips[i].psz) != 0)
-                    RTTestIFailed("#%u: roundtrip for '%s' LB %#zx failed, ended up with '%s'",
-                                  i, s_aRoundTrips[i].psz, s_aRoundTrips[i].cch, pszHtml);
-                RTMemFree(pszHtml);
-            }
-            else
-                RTTestIFailed("#%u: SharedClipboardWinConvertCFHTMLToMIME(%s, %#zx,,) returned %Rrc, expected VINF_SUCCESS",
-                              i, pszCfHtml, strlen(pszCfHtml), rc);
-            RTMemFree(pszCfHtml);
-        }
-        else
-            RTTestIFailed("#%u: SharedClipboardWinConvertMIMEToCFHTML(%s, %#zx,,) returned %Rrc, expected VINF_SUCCESS",
-                          i, s_aRoundTrips[i].psz, s_aRoundTrips[i].cch, rc);
-    }
-}
-
-#endif /* RT_OS_WINDOWS */
-
 int main(int argc, char *argv[])
 {
     /*
@@ -382,9 +312,6 @@ int main(int argc, char *argv[])
      */
     testHostCall();
     testGetHostMsgOld();
-#ifdef RT_OS_WINDOWS
-    testHtmlCf();
-#endif
 
     /*
      * Summary
@@ -392,18 +319,18 @@ int main(int argc, char *argv[])
     return RTTestSummaryAndDestroy(hTest);
 }
 
-int ShClSvcImplInit(VBOXHGCMSVCFNTABLE *) { return VINF_SUCCESS; }
-void ShClSvcImplDestroy() { }
-int ShClSvcImplDisconnect(PSHCLCLIENT) { return VINF_SUCCESS; }
-int ShClSvcImplConnect(PSHCLCLIENT, bool) { return VINF_SUCCESS; }
-int ShClSvcImplFormatAnnounce(PSHCLCLIENT, SHCLFORMATS) { AssertFailed(); return VINF_SUCCESS; }
-int ShClSvcImplReadData(PSHCLCLIENT, PSHCLCLIENTCMDCTX, SHCLFORMAT, void *, uint32_t, unsigned int *) { AssertFailed(); return VERR_WRONG_ORDER; }
-int ShClSvcImplWriteData(PSHCLCLIENT, PSHCLCLIENTCMDCTX, SHCLFORMAT, void *, uint32_t) { AssertFailed(); return VINF_SUCCESS; }
-int ShClSvcImplSync(PSHCLCLIENT) { return VINF_SUCCESS; }
+int ShClBackendInit(PSHCLBACKEND, VBOXHGCMSVCFNTABLE *) { return VINF_SUCCESS; }
+void ShClBackendDestroy(PSHCLBACKEND) { }
+int ShClBackendDisconnect(PSHCLBACKEND, PSHCLCLIENT) { return VINF_SUCCESS; }
+int ShClBackendConnect(PSHCLBACKEND, PSHCLCLIENT, bool) { return VINF_SUCCESS; }
+int ShClBackendReportFormats(PSHCLBACKEND, PSHCLCLIENT, SHCLFORMATS) { AssertFailed(); return VINF_SUCCESS; }
+int ShClBackendReadData(PSHCLBACKEND, PSHCLCLIENT, PSHCLCLIENTCMDCTX, SHCLFORMAT, void *, uint32_t, unsigned int *) { AssertFailed(); return VERR_WRONG_ORDER; }
+int ShClBackendWriteData(PSHCLBACKEND, PSHCLCLIENT, PSHCLCLIENTCMDCTX, SHCLFORMAT, void *, uint32_t) { AssertFailed(); return VINF_SUCCESS; }
+int ShClBackendSync(PSHCLBACKEND, PSHCLCLIENT) { return VINF_SUCCESS; }
 
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-int ShClSvcImplTransferCreate(PSHCLCLIENT, PSHCLTRANSFER) { return VINF_SUCCESS; }
-int ShClSvcImplTransferDestroy(PSHCLCLIENT, PSHCLTRANSFER) { return VINF_SUCCESS; }
-int ShClSvcImplTransferGetRoots(PSHCLCLIENT, PSHCLTRANSFER) { return VINF_SUCCESS; }
+int ShClBackendTransferCreate(PSHCLBACKEND, PSHCLCLIENT, PSHCLTRANSFER) { return VINF_SUCCESS; }
+int ShClBackendTransferDestroy(PSHCLBACKEND, PSHCLCLIENT, PSHCLTRANSFER) { return VINF_SUCCESS; }
+int ShClBackendTransferGetRoots(PSHCLBACKEND, PSHCLCLIENT, PSHCLTRANSFER) { return VINF_SUCCESS; }
 #endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
 

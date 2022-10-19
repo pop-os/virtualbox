@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 /** @page pg_rtlog      Runtime - Logging
@@ -130,6 +140,7 @@
 # if defined(RT_OS_WINDOWS)
 #  include <iprt/win/windows.h>
 # elif defined(RT_OS_LINUX)
+#  include <stdio.h>
 #  include <unistd.h>
 # elif defined(RT_OS_FREEBSD) || defined(RT_OS_NETBSD)
 #  include <sys/param.h>
@@ -144,6 +155,7 @@
 # elif defined(RT_OS_SOLARIS)
 #  define _STRUCTURED_PROC 1
 #  undef _FILE_OFFSET_BITS /* procfs doesn't like this */
+#  include <stdio.h>
 #  include <sys/procfs.h>
 #  include <unistd.h>
 # elif defined(RT_OS_OS2)
@@ -162,7 +174,11 @@
 # include <iprt/process.h>
 # include <iprt/string.h>
 # include <iprt/mem.h>
-# include <stdio.h>
+# ifdef IPRT_NO_CRT
+#  include <iprt/stream.h>
+# else
+#  include <stdio.h>
+# endif
 #endif
 #if defined(IN_RING0) && defined(RT_OS_DARWIN)
 # include <iprt/asm-amd64-x86.h>
@@ -204,8 +220,13 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
      * Assert the group definitions.
      */
 #define ASSERT_LOG_GROUP(grp)  ASSERT_LOG_GROUP2(LOG_GROUP_##grp, #grp)
-#define ASSERT_LOG_GROUP2(def, str) \
-    do { if (strcmp(g_apszGroups[def], str)) {printf("%s='%s' expects '%s'\n", #def, g_apszGroups[def], str); RTAssertDoPanic(); } } while (0)
+#ifdef IPRT_NO_CRT
+#  define ASSERT_LOG_GROUP2(def, str) \
+    do { if (strcmp(g_apszGroups[def], str)) { RTPrintf("%s='%s' expects '%s'\n", #def, g_apszGroups[def], str); RTAssertDoPanic(); } } while (0)
+# else
+#  define ASSERT_LOG_GROUP2(def, str) \
+    do { if (strcmp(g_apszGroups[def], str)) { printf("%s='%s' expects '%s'\n", #def, g_apszGroups[def], str); RTAssertDoPanic(); } } while (0)
+# endif
     ASSERT_LOG_GROUP(DEFAULT);
     ASSERT_LOG_GROUP(AUDIO_MIXER);
     ASSERT_LOG_GROUP(AUDIO_MIXER_BUFFER);
@@ -667,9 +688,8 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 # if defined(DEBUG_bird)
         /*RTLogGroupSettings(pLogger, "all=~0 -default.l6.l5.l4.l3");*/
         RTLogFlags(pLogger, "enabled unbuffered pid tid");
-#  ifndef IN_GUEST
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
-#  else
+        RTLogDestinations(pLogger, "debugger stdout");
+#  ifdef IN_GUEST
         /*RTLogGroupSettings(pLogger, "all=~0 -default.l6.l5.l4.l3");*/
         RTLogGroupSettings(pLogger, "all=~0");
 #  endif
@@ -677,36 +697,36 @@ RTDECL(PRTLOGGER) RTLogDefaultInit(void)
 # if defined(DEBUG_sandervl) && !defined(IN_GUEST)
         RTLogGroupSettings(pLogger, "+all");
         RTLogFlags(pLogger, "enabled unbuffered");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
+        RTLogDestinations(pLogger, "debugger");
 # endif
 # if defined(DEBUG_ramshankar)  /* Guest ring-0 as well */
         RTLogGroupSettings(pLogger, "+all.e.l.f");
         RTLogFlags(pLogger, "enabled unbuffered");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
+        RTLogDestinations(pLogger, "debugger");
 # endif
 # if defined(DEBUG_aleksey)  /* Guest ring-0 as well */
         RTLogGroupSettings(pLogger, "net_flt_drv.e.l.f.l3.l4.l5.l6 +net_adp_drv.e.l.f.l3.l4.l5.l6");
         RTLogFlags(pLogger, "enabled unbuffered");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
+        RTLogDestinations(pLogger, "debugger stdout");
 # endif
 # if defined(DEBUG_andy)  /* Guest ring-0 as well */
         RTLogGroupSettings(pLogger, "+all.e.l.f");
         RTLogFlags(pLogger, "enabled unbuffered pid tid");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
+        RTLogDestinations(pLogger, "debugger stdout");
 # endif
 # if defined(DEBUG_misha) /* Guest ring-0 as well */
         RTLogFlags(pLogger, "enabled unbuffered");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER;
+        RTLogDestinations(pLogger, "debugger");
 # endif
 # if defined(DEBUG_michael) && defined(IN_GUEST)
         RTLogGroupSettings(pLogger, "+vga.e.l.f");
         RTLogFlags(pLogger, "enabled unbuffered");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
+        RTLogDestinations(pLogger, "debugger stdout");
 # endif
 # if 0 /* vboxdrv logging - ATTENTION: this is what we're referring to guys! Change to '# if 1'. */
         RTLogGroupSettings(pLogger, "all=~0 -default.l6.l5.l4.l3");
         RTLogFlags(pLogger, "enabled unbuffered tid");
-        pLogger->fDestFlags |= RTLOGDEST_DEBUGGER | RTLOGDEST_STDOUT;
+        RTLogDestinations(pLogger, "debugger stdout");
 # endif
     }
 #endif /* IN_RING0 */

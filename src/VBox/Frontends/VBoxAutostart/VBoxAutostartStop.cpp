@@ -4,16 +4,33 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
+
+#include <iprt/assert.h>
+#include <iprt/log.h>
+#include <iprt/message.h>
+#include <iprt/stream.h>
+#include <iprt/thread.h>
+#include <iprt/time.h>
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
@@ -22,15 +39,7 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 
-#include <iprt/thread.h>
-#include <iprt/stream.h>
-#include <iprt/log.h>
-#include <iprt/assert.h>
-#include <iprt/message.h>
-
-#include <algorithm>
 #include <list>
-#include <string>
 
 #include "VBoxAutostart.h"
 
@@ -49,7 +58,7 @@ typedef struct AUTOSTOPVM
 
 static HRESULT autostartSaveVMState(ComPtr<IConsole> &console)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     ComPtr<IMachine> machine;
     ComPtr<IProgress> progress;
 
@@ -57,17 +66,17 @@ static HRESULT autostartSaveVMState(ComPtr<IConsole> &console)
     {
         /* first pause so we don't trigger a live save which needs more time/resources */
         bool fPaused = false;
-        rc = console->Pause();
-        if (FAILED(rc))
+        hrc = console->Pause();
+        if (FAILED(hrc))
         {
             bool fError = true;
-            if (rc == VBOX_E_INVALID_VM_STATE)
+            if (hrc == VBOX_E_INVALID_VM_STATE)
             {
                 /* check if we are already paused */
                 MachineState_T machineState;
                 CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));
                 /* the error code was lost by the previous instruction */
-                rc = VBOX_E_INVALID_VM_STATE;
+                hrc = VBOX_E_INVALID_VM_STATE;
                 if (machineState != MachineState_Paused)
                 {
                     RTMsgError("Machine in invalid state %d -- %s\n",
@@ -85,38 +94,39 @@ static HRESULT autostartSaveVMState(ComPtr<IConsole> &console)
 
         CHECK_ERROR(console, COMGETTER(Machine)(machine.asOutParam()));
         CHECK_ERROR(machine, SaveState(progress.asOutParam()));
-        if (FAILED(rc))
+        if (FAILED(hrc))
         {
             if (!fPaused)
                 console->Resume();
             break;
         }
 
-        rc = showProgress(progress);
+        hrc = showProgress(progress);
         CHECK_PROGRESS_ERROR(progress, ("Failed to save machine state"));
-        if (FAILED(rc))
+        if (FAILED(hrc))
         {
             if (!fPaused)
                 console->Resume();
         }
     } while (0);
 
-    return rc;
+    return hrc;
 }
 
-DECLHIDDEN(RTEXITCODE) autostartStopMain(PCFGAST pCfgAst)
+DECLHIDDEN(int) autostartStopMain(PCFGAST pCfgAst)
 {
     RT_NOREF(pCfgAst);
-    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
     std::list<AUTOSTOPVM> listVM;
+
+    autostartSvcLogVerbose(1, "Stopping machines ...\n");
 
     /*
      * Build a list of all VMs we need to autostop first, apply the overrides
      * from the configuration and start the VMs afterwards.
      */
     com::SafeIfaceArray<IMachine> machines;
-    HRESULT rc = g_pVirtualBox->COMGETTER(Machines)(ComSafeArrayAsOutParam(machines));
-    if (SUCCEEDED(rc))
+    HRESULT hrc = g_pVirtualBox->COMGETTER(Machines)(ComSafeArrayAsOutParam(machines));
+    if (SUCCEEDED(hrc))
     {
         /*
          * Iterate through the collection and construct a list of machines
@@ -126,26 +136,35 @@ DECLHIDDEN(RTEXITCODE) autostartStopMain(PCFGAST pCfgAst)
         {
             if (machines[i])
             {
+                Bstr strName;
+                CHECK_ERROR_BREAK(machines[i], COMGETTER(Name)(strName.asOutParam()));
+
                 BOOL fAccessible;
                 CHECK_ERROR_BREAK(machines[i], COMGETTER(Accessible)(&fAccessible));
                 if (!fAccessible)
+                {
+                    autostartSvcLogVerbose(1, "Machine '%ls' is not accessible, skipping\n", strName.raw());
                     continue;
+                }
+
+                AUTOSTOPVM autostopVM;
 
                 AutostopType_T enmAutostopType;
                 CHECK_ERROR_BREAK(machines[i], COMGETTER(AutostopType)(&enmAutostopType));
                 if (enmAutostopType != AutostopType_Disabled)
                 {
-                    AUTOSTOPVM autostopVM;
-
                     CHECK_ERROR_BREAK(machines[i], COMGETTER(Id)(autostopVM.strId.asOutParam()));
                     autostopVM.enmAutostopType = enmAutostopType;
 
                     listVM.push_back(autostopVM);
                 }
+
+                autostartSvcLogVerbose(1, "Machine '%ls': Autostop type is %#x\n",
+                                       strName.raw(), autostopVM.enmAutostopType);
             }
         }
 
-        if (   SUCCEEDED(rc)
+        if (   SUCCEEDED(hrc)
             && !listVM.empty())
         {
             std::list<AUTOSTOPVM>::iterator it;
@@ -156,6 +175,9 @@ DECLHIDDEN(RTEXITCODE) autostartStopMain(PCFGAST pCfgAst)
 
                 CHECK_ERROR_BREAK(g_pVirtualBox, FindMachine((*it).strId.raw(),
                                                              machine.asOutParam()));
+
+                Bstr strName;
+                CHECK_ERROR_BREAK(machine, COMGETTER(Name)(strName.asOutParam()));
 
                 CHECK_ERROR_BREAK(machine, COMGETTER(State)(&enmMachineState));
 
@@ -184,44 +206,55 @@ DECLHIDDEN(RTEXITCODE) autostartStopMain(PCFGAST pCfgAst)
                     {
                         case AutostopType_SaveState:
                         {
-                            rc = autostartSaveVMState(console);
+                            hrc = autostartSaveVMState(console);
                             break;
                         }
                         case AutostopType_PowerOff:
                         {
                             CHECK_ERROR_BREAK(console, PowerDown(progress.asOutParam()));
 
-                            rc = showProgress(progress);
-                            CHECK_PROGRESS_ERROR(progress, ("Failed to power off machine"));
+                            hrc = showProgress(progress);
+                            CHECK_PROGRESS_ERROR(progress, ("Failed to powering off machine '%ls'", strName.raw()));
+                            if (FAILED(hrc))
+                                autostartSvcLogError("Powering off machine '%ls' failed with %Rhrc\n", strName.raw(), hrc);
                             break;
                         }
                         case AutostopType_AcpiShutdown:
                         {
                             BOOL fGuestEnteredACPI = false;
                             CHECK_ERROR_BREAK(console, GetGuestEnteredACPIMode(&fGuestEnteredACPI));
-                            if (fGuestEnteredACPI && enmMachineState == MachineState_Running)
+                            if (   fGuestEnteredACPI
+                                && enmMachineState == MachineState_Running)
                             {
                                 CHECK_ERROR_BREAK(console, PowerButton());
 
-                                autostartSvcLogInfo("Waiting for VM \"%ls\" to power off...\n", (*it).strId.raw());
+                                autostartSvcLogVerbose(1, "Waiting for machine '%ls' to power off...\n", strName.raw());
 
-                                do
+                                uint64_t     const tsStartMs = RTTimeMilliTS();
+                                RTMSINTERVAL const msTimeout = RT_MS_5MIN; /* Should be enough time, shouldn't it? */
+
+                                while (RTTimeMilliTS() - tsStartMs <= msTimeout)
                                 {
-                                    RTThreadSleep(1000);
                                     CHECK_ERROR_BREAK(machine, COMGETTER(State)(&enmMachineState));
-                                } while (enmMachineState == MachineState_Running);
+                                    if (enmMachineState != MachineState_Running)
+                                        break;
+                                    RTThreadSleep(RT_MS_1SEC);
+                                }
+
+                                if (RTTimeMilliTS() - tsStartMs > msTimeout)
+                                    autostartSvcLogWarning("Machine '%ls' did not power off via ACPI within time\n", strName.raw());
                             }
                             else
                             {
                                 /* Use save state instead and log this to the console. */
-                                autostartSvcLogWarning("The guest of VM \"%ls\" does not support ACPI shutdown or is currently paused, saving state...\n",
-                                                       (*it).strId.raw());
-                                rc = autostartSaveVMState(console);
+                                autostartSvcLogWarning("The guest of machine '%ls' does not support ACPI shutdown or is currently paused, saving state...\n",
+                                                       strName.raw());
+                                hrc = autostartSaveVMState(console);
                             }
                             break;
                         }
                         default:
-                            autostartSvcLogWarning("Unknown autostop type for VM \"%ls\"\n", (*it).strId.raw());
+                            autostartSvcLogWarning("Unknown autostop type for machine '%ls', skipping\n", strName.raw());
                     }
                     g_pSession->UnlockMachine();
                 }
@@ -229,6 +262,6 @@ DECLHIDDEN(RTEXITCODE) autostartStopMain(PCFGAST pCfgAst)
         }
     }
 
-    return rcExit;
+    return VINF_SUCCESS; /** @todo r=andy Report back the overall status here. */
 }
 

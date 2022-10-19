@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_thread_h
@@ -237,7 +247,7 @@ RTDECL(bool) RTThreadYield(void);
  * @param   ThreadSelf  Thread handle to this thread.
  * @param   pvUser      User argument.
  */
-typedef DECLCALLBACK(int) FNRTTHREAD(RTTHREAD ThreadSelf, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNRTTHREAD,(RTTHREAD ThreadSelf, void *pvUser));
 /** Pointer to a FNRTTHREAD(). */
 typedef FNRTTHREAD *PFNRTTHREAD;
 
@@ -261,10 +271,17 @@ typedef enum RTTHREADFLAGS
      *  COINIT_SPEED_OVER_MEMORY.   Ignored on non-windows platforms.  */
     RTTHREADFLAGS_COM_STA = RT_BIT(2),
 
+    /** Mask all signals that we can mask.  Ignored on most non-posix platforms.
+     * @note RTThreadPoke() will not necessarily work for a thread create with
+     *       this flag. */
+    RTTHREADFLAGS_NO_SIGNALS = RT_BIT(3),
+
     /** Mask of valid flags, use for validation. */
-    RTTHREADFLAGS_MASK = UINT32_C(0x7)
+    RTTHREADFLAGS_MASK = UINT32_C(0xf)
 } RTTHREADFLAGS;
 
+/** Max thread name length (including zero terminator). */
+#define RTTHREAD_NAME_LEN       16
 
 /**
  * Create a new thread.
@@ -447,12 +464,22 @@ RTDECL(bool) RTThreadIsSelfKnown(void);
  */
 RTDECL(bool) RTThreadIsSelfAlive(void);
 
+#ifdef IN_RING0
 /**
- * Checks if the calling thread is known to IPRT.
+ * Checks whether the specified thread is terminating.
  *
- * @returns @c true if it is, @c false if it isn't.
+ * @retval  VINF_SUCCESS if not terminating.
+ * @retval  VINF_THREAD_IS_TERMINATING if terminating.
+ * @retval  VERR_INVALID_HANDLE if hThread is not NIL_RTTHREAD.
+ * @retval  VERR_NOT_SUPPORTED if the OS doesn't provide ways to check.
+ *
+ * @param   hThread     The thread to query about, NIL_RTTHREAD is an alias for
+ *                      the calling thread.  Must be NIL_RTTHREAD for now.
+ *
+ * @note    Not suppored on all OSes, so check for VERR_NOT_SUPPORTED.
  */
-RTDECL(bool) RTThreadIsOperational(void);
+RTDECL(int) RTThreadQueryTerminationStatus(RTTHREAD hThread);
+#endif
 
 /**
  * Signal the user event.
@@ -514,6 +541,20 @@ RTDECL(int) RTThreadUserReset(RTTHREAD Thread);
  *
  */
 RTDECL(int) RTThreadPoke(RTTHREAD hThread);
+
+/**
+ * Controls the masking of the signal used by RTThreadPoke on posix systems.
+ *
+ * This function is not available on non-posix systems.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hThread     The current thread.
+ * @param   fEnable     Whether to enable poking (unblock) or to disable it
+ *                      (block the signal).
+ */
+RTDECL(int) RTThreadControlPokeSignal(RTTHREAD hThread, bool fEnable);
+
 
 # ifdef IN_RING0
 
@@ -651,7 +692,7 @@ typedef enum RTTHREADCTXEVENT
  *                      events, we may add more (thread exit, ++) later.
  * @param   pvUser      User argument.
  */
-typedef DECLCALLBACK(void) FNRTTHREADCTXHOOK(RTTHREADCTXEVENT enmEvent, void *pvUser);
+typedef DECLCALLBACKTYPE(void, FNRTTHREADCTXHOOK,(RTTHREADCTXEVENT enmEvent, void *pvUser));
 /** Pointer to a context switching hook. */
 typedef FNRTTHREADCTXHOOK *PFNRTTHREADCTXHOOK;
 
@@ -879,7 +920,7 @@ RTR3DECL(int) RTThreadGetExecutionTimeMilli(uint64_t *pKernelTime, uint64_t *pUs
  *
  * @param   pvValue     The current value.
  */
-typedef DECLCALLBACK(void) FNRTTLSDTOR(void *pvValue);
+typedef DECLCALLBACKTYPE(void, FNRTTLSDTOR,(void *pvValue));
 /** Pointer to a FNRTTLSDTOR. */
 typedef FNRTTLSDTOR *PFNRTTLSDTOR;
 

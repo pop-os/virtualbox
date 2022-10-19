@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -35,7 +45,11 @@
 #include <iprt/string.h>
 #include <iprt/err.h>
 
-#include <NSSystemDirectories.h>
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+# include <sysdir.h>
+#else
+# include <NSSystemDirectories.h>
+#endif
 #include <sys/syslimits.h>
 #ifdef IPRT_USE_CORE_SERVICE_FOR_USER_DOCUMENTS
 # include <CoreServices/CoreServices.h>
@@ -52,14 +66,24 @@ RTDECL(int) RTPathUserDocuments(char *pszPath, size_t cchPath)
 
     /*
      * Try NSSystemDirectories first since that works for directories that doesn't exist.
+     * The NSSystemDirectories API was renamed in 10.12 to sysdir.
      */
     int rc = VERR_PATH_NOT_FOUND;
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+    sysdir_search_path_enumeration_state EnmState = sysdir_start_search_path_enumeration(SYSDIR_DIRECTORY_DOCUMENT,
+                                                                                         SYSDIR_DOMAIN_MASK_USER);
+#else
     NSSearchPathEnumerationState EnmState = NSStartSearchPathEnumeration(NSDocumentDirectory, NSUserDomainMask);
+#endif
     if (EnmState != 0)
     {
         char szTmp[PATH_MAX];
         szTmp[0] = szTmp[PATH_MAX - 1] = '\0';
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 101200
+        EnmState = sysdir_get_next_search_path_enumeration(EnmState, szTmp);
+#else
         EnmState = NSGetNextSearchPathEnumeration(EnmState, szTmp);
+#endif
         if (EnmState != 0)
         {
             size_t cchTmp = strlen(szTmp);

@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <time.h>
 #include <ipxe/asn1.h>
@@ -70,6 +70,7 @@ cms_put ( struct cms_signature *sig ) {
 extern int cms_signature ( const void *data, size_t len,
 			   struct cms_signature **sig );
 extern int cms_verify ( struct cms_signature *sig, userptr_t data, size_t len,
-			const char *name, time_t time, struct x509_root *root );
+			const char *name, time_t time, struct x509_chain *store,
+			struct x509_root *root );
 
 #endif /* _IPXE_CMS_H */

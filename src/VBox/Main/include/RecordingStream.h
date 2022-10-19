@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_RecordingStream_h
@@ -101,12 +111,13 @@ struct RecordingBlockSet
 
 /**
  * Class for managing a recording stream.
+ *
+ * A recording stream represents one entity to record (e.g. on screen / monitor),
+ * so there is a 1:1 mapping (stream <-> monitors).
  */
 class RecordingStream
 {
 public:
-
-    RecordingStream(RecordingContext *pCtx);
 
     RecordingStream(RecordingContext *pCtx, uint32_t uScreen, const settings::RecordingScreenSettings &Settings);
 
@@ -118,39 +129,43 @@ public:
     int Uninit(void);
 
     int Process(RecordingBlockMap &mapBlocksCommon);
+    int SendAudioFrame(const void *pvData, size_t cbData, uint64_t msTimestamp);
     int SendVideoFrame(uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBPP, uint32_t uBytesPerLine,
                        uint32_t uSrcWidth, uint32_t uSrcHeight, uint8_t *puSrcData, uint64_t msTimestamp);
 
     const settings::RecordingScreenSettings &GetConfig(void) const;
-    uint16_t GetID(void) const { return this->uScreenID; };
+    uint16_t GetID(void) const { return this->m_uScreenID; };
+#ifdef VBOX_WITH_AUDIO_RECORDING
+    PRECORDINGCODEC GetAudioCodec(void) { return this->m_pCodecAudio; };
+#endif
+    PRECORDINGCODEC GetVideoCodec(void) { return &this->m_CodecVideo; };
+
     bool IsLimitReached(uint64_t msTimestamp) const;
     bool IsReady(void) const;
+    bool NeedsUpdate(uint64_t msTimestamp) const;
+
+public:
+
+    static DECLCALLBACK(int) codecWriteDataCallback(PRECORDINGCODEC pCodec, const void *pvData, size_t cbData, uint64_t msAbsPTS, uint32_t uFlags, void *pvUser);
 
 protected:
 
-    int open(const settings::RecordingScreenSettings &Settings);
+    int open(const settings::RecordingScreenSettings &screenSettings);
     int close(void);
 
-    int initInternal(RecordingContext *pCtx, uint32_t uScreen, const settings::RecordingScreenSettings &Settings);
+    int initInternal(RecordingContext *pCtx, uint32_t uScreen, const settings::RecordingScreenSettings &screenSettings);
     int uninitInternal(void);
 
-    int initVideo(void);
+    int initVideo(const settings::RecordingScreenSettings &screenSettings);
     int unitVideo(void);
-
-    int initAudio(void);
 
     bool isLimitReachedInternal(uint64_t msTimestamp) const;
     int iterateInternal(uint64_t msTimestamp);
 
-#ifdef VBOX_WITH_LIBVPX
-    int initVideoVPX(void);
-    int uninitVideoVPX(void);
-    int writeVideoVPX(uint64_t msTimestamp, PRECORDINGVIDEOFRAME pFrame);
-#endif
+    int codecWriteToWebM(PRECORDINGCODEC pCodec, const void *pvData, size_t cbData, uint64_t msAbsPTS, uint32_t uFlags);
+
     void lock(void);
     void unlock(void);
-
-    int parseOptionsString(const com::Utf8Str &strOptions);
 
 protected:
 
@@ -168,46 +183,48 @@ protected:
     };
 
     /** Recording context this stream is associated to. */
-    RecordingContext       *pCtx;
+    RecordingContext       *m_pCtx;
     /** The current state. */
-    RECORDINGSTREAMSTATE    enmState;
+    RECORDINGSTREAMSTATE    m_enmState;
     struct
     {
         /** File handle to use for writing. */
-        RTFILE              hFile;
+        RTFILE              m_hFile;
         /** Pointer to WebM writer instance being used. */
-        WebMWriter         *pWEBM;
+        WebMWriter         *m_pWEBM;
     } File;
-    bool                fEnabled;
-#ifdef VBOX_WITH_AUDIO_RECORDING
-    /** Track number of audio stream. */
-    uint8_t             uTrackAudio;
-#endif
-    /** Track number of video stream. */
-    uint8_t             uTrackVideo;
+    bool                m_fEnabled;
+    /** Track number of audio stream.
+     *  Set to UINT8_MAX if not being used. */
+    uint8_t             m_uTrackAudio;
+    /** Track number of video stream.
+     *  Set to UINT8_MAX if not being used. */
+    uint8_t             m_uTrackVideo;
     /** Screen ID. */
-    uint16_t            uScreenID;
+    uint16_t            m_uScreenID;
     /** Critical section to serialize access. */
-    RTCRITSECT          CritSect;
-    /** Timestamp (in ms) of when recording has been start. */
-    uint64_t            tsStartMs;
-
-    struct
-    {
-        /** Minimal delay (in ms) between two video frames.
-         *  This value is based on the configured FPS rate. */
-        uint32_t            uDelayMs;
-        /** Timestamp (in ms) of the last video frame we encoded. */
-        uint64_t            uLastTimeStampMs;
-        /** Number of failed attempts to encode the current video frame in a row. */
-        uint16_t            cFailedEncodingFrames;
-        RECORDINGVIDEOCODEC Codec;
-    } Video;
-
-    settings::RecordingScreenSettings ScreenSettings;
+    RTCRITSECT          m_CritSect;
+    /** Timestamp (in ms) of when recording has been started. */
+    uint64_t            m_tsStartMs;
+#ifdef VBOX_WITH_AUDIO_RECORDING
+    /** Pointer to audio codec instance data to use.
+     *
+     *  We multiplex audio data from the recording context to all streams,
+     *  to avoid encoding the same audio data for each stream. We ASSUME that
+     *  all audio data of a VM will be the same for each stream at a given
+     *  point in time.
+     *
+     *  Might be NULL if not being used. */
+    PRECORDINGCODEC     m_pCodecAudio;
+#endif /* VBOX_WITH_AUDIO_RECORDING */
+    /** Video codec instance data to use. */
+    RECORDINGCODEC      m_CodecVideo;
+    /** Screen settings to use. */
+    settings::RecordingScreenSettings
+                        m_ScreenSettings;
     /** Common set of recording (data) blocks, needed for
      *  multiplexing to all recording streams. */
-    RecordingBlockSet                 Blocks;
+    RecordingBlockSet   m_Blocks;
 };
 
 /** Vector of recording streams. */

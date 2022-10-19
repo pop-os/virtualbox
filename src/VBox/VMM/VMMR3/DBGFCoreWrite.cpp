@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_dbgf_vmcore    VMCore Format
@@ -376,12 +386,13 @@ static void dbgfR3GetCoreCpu(PVMCPU pVCpu, PDBGFCORECPU pDbgfCpu)
     pDbgfCpu->msrSFMASK       = pCtx->msrSFMASK;
     pDbgfCpu->msrKernelGSBase = pCtx->msrKERNELGSBASE;
     pDbgfCpu->msrApicBase     = APICGetBaseMsrNoCheck(pVCpu);
+    pDbgfCpu->msrTscAux       = CPUMGetGuestTscAux(pVCpu);
     pDbgfCpu->aXcr[0]         = pCtx->aXcr[0];
     pDbgfCpu->aXcr[1]         = pCtx->aXcr[1];
-    AssertCompile(sizeof(pDbgfCpu->ext) == sizeof(*pCtx->pXStateR3));
+    AssertCompile(sizeof(pDbgfCpu->ext) == sizeof(pCtx->XState));
     pDbgfCpu->cbExt = pVM->cpum.ro.GuestFeatures.cbMaxExtendedState;
     if (RT_LIKELY(pDbgfCpu->cbExt))
-        memcpy(&pDbgfCpu->ext, pCtx->pXStateR3, pDbgfCpu->cbExt);
+        memcpy(&pDbgfCpu->ext, &pCtx->XState, pDbgfCpu->cbExt);
 
 #undef DBGFCOPYSEL
 }
@@ -559,11 +570,11 @@ static int dbgfR3CoreWriteWorker(PVM pVM, RTFILE hFile)
          * pages for now (would be nice to have the VGA bits there though).
          */
         uint64_t cbMemRange  = GCPhysEnd - GCPhysStart + 1;
-        uint64_t cPages      = cbMemRange >> PAGE_SHIFT;
+        uint64_t cPages      = cbMemRange >> GUEST_PAGE_SHIFT;
         for (uint64_t iPage = 0; iPage < cPages; iPage++)
         {
-            uint8_t abPage[PAGE_SIZE];
-            rc = PGMPhysSimpleReadGCPhys(pVM, abPage, GCPhysStart + (iPage << PAGE_SHIFT),  sizeof(abPage));
+            uint8_t abPage[GUEST_PAGE_SIZE];
+            rc = PGMPhysSimpleReadGCPhys(pVM, abPage, GCPhysStart + (iPage << GUEST_PAGE_SHIFT),  sizeof(abPage));
             if (RT_FAILURE(rc))
             {
                 if (rc != VERR_PGM_PHYS_PAGE_RESERVED)

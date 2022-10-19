@@ -4,16 +4,27 @@
     apiwrap-server.xsl:
         XSLT stylesheet that generates C++ API wrappers (server side) from
         VirtualBox.xidl.
+-->
+<!--
+    Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2010-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <xsl:stylesheet
@@ -80,15 +91,25 @@ templates for file headers/footers
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see &lt;https://www.gnu.org/licenses&gt;.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 </xsl:text>
@@ -170,7 +191,7 @@ public:
     <xsl:text>    END_COM_MAP()
 
 </xsl:text>
-    <xsl:value-of select="concat('    DECLARE_EMPTY_CTOR_DTOR(', substring(@name, 2), 'Wrap)', $G_sNewLine)"/>
+    <xsl:value-of select="concat('    DECLARE_COMMON_CLASS_METHODS(', substring(@name, 2), 'Wrap)', $G_sNewLine)"/>
 </xsl:template>
 
 <xsl:template match="interface" mode="classfooter">
@@ -1806,7 +1827,7 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
     </xsl:for-each>
     <xsl:text>)
 {
-    LogRelFlow(("{%p} %s:enter</xsl:text>
+    LogRelFlow(("{%p} %s: enter</xsl:text>
     <xsl:for-each select="param">
         <xsl:text> </xsl:text>
         <xsl:apply-templates select="@type" mode="logparamtext">

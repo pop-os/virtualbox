@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -148,6 +158,9 @@ typedef struct RTSOCKETINT
     /** Indicates whether the socket is operating in blocking or non-blocking mode
      * currently. */
     bool                fBlocking;
+    /** Whether to leave the native socket open rather than closing it (for
+     * RTHandleGetStandard). */
+    bool                fLeaveOpen;
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     /** The pollset currently polling this socket.  This is NIL if no one is
      * polling. */
@@ -384,9 +397,11 @@ static int rtSocketNetAddrFromAddr(RTSOCKADDRUNION const *pSrc, size_t cbSrc, PR
 static int rtSocketAddrFromNetAddr(PCRTNETADDR pAddr, RTSOCKADDRUNION *pDst, size_t cbDst, int *pcbAddr)
 {
     RT_BZERO(pDst, cbDst);
-    if (   pAddr->enmType == RTNETADDRTYPE_IPV4
-        && cbDst >= sizeof(struct sockaddr_in))
+    if (pAddr->enmType == RTNETADDRTYPE_IPV4)
     {
+        if (cbDst < sizeof(struct sockaddr_in))
+            return VERR_BUFFER_OVERFLOW;
+
         pDst->Addr.sa_family       = AF_INET;
         pDst->IPv4.sin_port        = RT_H2N_U16(pAddr->uPort);
         pDst->IPv4.sin_addr.s_addr = pAddr->uAddr.IPv4.u;
@@ -394,9 +409,11 @@ static int rtSocketAddrFromNetAddr(PCRTNETADDR pAddr, RTSOCKADDRUNION *pDst, siz
             *pcbAddr = sizeof(pDst->IPv4);
     }
 #ifdef IPRT_WITH_TCPIP_V6
-    else if (   pAddr->enmType == RTNETADDRTYPE_IPV6
-             && cbDst >= sizeof(struct sockaddr_in6))
+    else if (pAddr->enmType == RTNETADDRTYPE_IPV6)
     {
+        if (cbDst < sizeof(struct sockaddr_in6))
+            return VERR_BUFFER_OVERFLOW;
+
         pDst->Addr.sa_family              = AF_INET6;
         pDst->IPv6.sin6_port              = RT_H2N_U16(pAddr->uPort);
         pSrc->IPv6.sin6_addr.s6_addr32[0] = pAddr->uAddr.IPv6.au32[0];
@@ -495,8 +512,10 @@ DECLINLINE(int) rtSocketSwitchBlockingMode(RTSOCKETINT *pThis, bool fBlocking)
  * @returns IPRT status code.
  * @param   ppSocket        Where to return the IPRT socket handle.
  * @param   hNative         The native handle.
+ * @param   fLeaveOpen      Whether to leave the native socket handle open when
+ *                          closed.
  */
-DECLHIDDEN(int) rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative)
+DECLHIDDEN(int) rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative, bool fLeaveOpen)
 {
     RTSOCKETINT *pThis = (RTSOCKETINT *)RTMemPoolAlloc(RTMEMPOOL_DEFAULT, sizeof(*pThis));
     if (!pThis)
@@ -505,6 +524,7 @@ DECLHIDDEN(int) rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE h
     pThis->cUsers           = 0;
     pThis->hNative          = hNative;
     pThis->fClosed          = false;
+    pThis->fLeaveOpen       = fLeaveOpen;
     pThis->fBlocking        = true;
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     pThis->hPollSet         = NIL_RTPOLLSET;
@@ -538,7 +558,7 @@ RTDECL(int) RTSocketFromNative(PRTSOCKET phSocket, RTHCINTPTR uNative)
     AssertReturn(uNative >= 0, VERR_INVALID_PARAMETER);
 #endif
     AssertPtrReturn(phSocket, VERR_INVALID_POINTER);
-    return rtSocketCreateForNative(phSocket, uNative);
+    return rtSocketCreateForNative(phSocket, uNative, false /*fLeaveOpen*/);
 }
 
 
@@ -551,8 +571,10 @@ RTDECL(int) RTSocketFromNative(PRTSOCKET phSocket, RTHCINTPTR uNative)
  * @param   iDomain             The protocol family (PF_XXX).
  * @param   iType               The socket type (SOCK_XXX).
  * @param   iProtocol           Socket parameter, usually 0.
+ * @param   fInheritable        Set to true if the socket should be inherted by
+ *                              child processes, false if not inheritable.
  */
-DECLHIDDEN(int) rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol)
+DECLHIDDEN(int) rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol, bool fInheritable)
 {
 #ifdef RT_OS_WINDOWS
     AssertReturn(g_pfnsocket, VERR_NET_NOT_UNSUPPORTED);
@@ -566,20 +588,51 @@ DECLHIDDEN(int) rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int i
 
     /*
      * Create the socket.
+     *
+     * The RTSocketSetInheritance operation isn't necessarily reliable on windows,
+     * so try use WSA_FLAG_NO_HANDLE_INHERIT with WSASocketW when possible.
      */
 #ifdef RT_OS_WINDOWS
-    RTSOCKETNATIVE hNative = g_pfnsocket(iDomain, iType, iProtocol);
+    bool           fCallSetInheritance = true;
+    RTSOCKETNATIVE hNative;
+    if (g_pfnWSASocketW)
+    {
+        DWORD fWsaFlags = WSA_FLAG_OVERLAPPED | (!fInheritable ? WSA_FLAG_NO_HANDLE_INHERIT : 0);
+        hNative = g_pfnWSASocketW(iDomain, iType, iProtocol, NULL, 0 /*Group*/, fWsaFlags);
+        if (hNative != NIL_RTSOCKETNATIVE)
+            fCallSetInheritance = false;
+        else
+        {
+            if (!fInheritable)
+                hNative = g_pfnsocket(iDomain, iType, iProtocol);
+            if (hNative == NIL_RTSOCKETNATIVE)
+                return rtSocketError();
+        }
+    }
+    else
+    {
+        hNative = g_pfnsocket(iDomain, iType, iProtocol);
+        if (hNative == NIL_RTSOCKETNATIVE)
+            return rtSocketError();
+    }
 #else
     RTSOCKETNATIVE hNative = socket(iDomain, iType, iProtocol);
-#endif
     if (hNative == NIL_RTSOCKETNATIVE)
         return rtSocketError();
+#endif
 
     /*
      * Wrap it.
      */
-    int rc = rtSocketCreateForNative(phSocket, hNative);
-    if (RT_FAILURE(rc))
+    int rc = rtSocketCreateForNative(phSocket, hNative, false /*fLeaveOpen*/);
+    if (RT_SUCCESS(rc))
+    {
+#ifdef RT_OS_WINDOWS
+        if (fCallSetInheritance)
+#endif
+            RTSocketSetInheritance(*phSocket, fInheritable);
+    }
+    else
     {
 #ifdef RT_OS_WINDOWS
         g_pfnclosesocket(hNative);
@@ -723,10 +776,10 @@ DECLHIDDEN(int) rtSocketCreateTcpPair(RTSOCKET *phServer, RTSOCKET *phClient)
     int rc = rtSocketCreateNativeTcpPair(&hServer, &hClient);
     if (RT_SUCCESS(rc))
     {
-        rc = rtSocketCreateForNative(phServer, hServer);
+        rc = rtSocketCreateForNative(phServer, hServer, false /*fLeaveOpen*/);
         if (RT_SUCCESS(rc))
         {
-            rc = rtSocketCreateForNative(phClient, hClient);
+            rc = rtSocketCreateForNative(phClient, hClient, false /*fLeaveOpen*/);
             if (RT_SUCCESS(rc))
                 return VINF_SUCCESS;
             RTSocketRelease(*phServer);
@@ -805,19 +858,22 @@ static int rtSocketCloseIt(RTSOCKETINT *pThis, bool fDestroy)
         {
             pThis->hNative = NIL_RTSOCKETNATIVE;
 
-#ifdef RT_OS_WINDOWS
-            AssertReturn(g_pfnclosesocket, VERR_NET_NOT_UNSUPPORTED);
-            if (g_pfnclosesocket(hNative))
-#else
-            if (close(hNative))
-#endif
+            if (!pThis->fLeaveOpen)
             {
-                rc = rtSocketError();
 #ifdef RT_OS_WINDOWS
-                AssertMsgFailed(("closesocket(%p) -> %Rrc\n", (uintptr_t)hNative, rc));
+                AssertReturn(g_pfnclosesocket, VERR_NET_NOT_UNSUPPORTED);
+                if (g_pfnclosesocket(hNative))
 #else
-                AssertMsgFailed(("close(%d) -> %Rrc\n", hNative, rc));
+                if (close(hNative))
 #endif
+                {
+                    rc = rtSocketError();
+#ifdef RT_OS_WINDOWS
+                    AssertMsgFailed(("closesocket(%p) -> %Rrc\n", (uintptr_t)hNative, rc));
+#else
+                    AssertMsgFailed(("close(%d) -> %Rrc\n", hNative, rc));
+#endif
+                }
             }
         }
 
@@ -919,16 +975,38 @@ RTDECL(int) RTSocketSetInheritance(RTSOCKET hSocket, bool fInheritable)
     AssertReturn(pThis->u32Magic == RTSOCKET_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(RTMemPoolRefCount(pThis) >= (pThis->cUsers ? 2U : 1U), VERR_CALLER_NO_REFERENCE);
 
-    int rc = VINF_SUCCESS;
-#ifdef RT_OS_WINDOWS
-    if (!SetHandleInformation((HANDLE)pThis->hNative, HANDLE_FLAG_INHERIT, fInheritable ? HANDLE_FLAG_INHERIT : 0))
-        rc = RTErrConvertFromWin32(GetLastError());
-#else
+#ifndef RT_OS_WINDOWS
     if (fcntl(pThis->hNative, F_SETFD, fInheritable ? 0 : FD_CLOEXEC) < 0)
-        rc = RTErrConvertFromErrno(errno);
-#endif
+        return RTErrConvertFromErrno(errno);
+    return VINF_SUCCESS;
+#else
+    /* Windows is more complicated as sockets are complicated wrt inheritance
+       (see stackoverflow for details).  In general, though we cannot hope to
+       make a socket really non-inheritable before vista as other layers in
+       the winsock maze may have additional handles associated with the socket. */
+    if (g_pfnGetHandleInformation)
+    {
+        /* Check if the handle is already in what seems to be the right state
+           before we try doing anything. */
+        DWORD fFlags;
+        if (g_pfnGetHandleInformation((HANDLE)pThis->hNative, &fFlags))
+        {
+            if (RT_BOOL(fFlags & HANDLE_FLAG_INHERIT) == fInheritable)
+                return VINF_SUCCESS;
+        }
+    }
 
-    return rc;
+    if (!g_pfnSetHandleInformation)
+        return VERR_NET_NOT_UNSUPPORTED;
+
+    if (!g_pfnSetHandleInformation((HANDLE)pThis->hNative, HANDLE_FLAG_INHERIT, fInheritable ? HANDLE_FLAG_INHERIT : 0))
+        return RTErrConvertFromWin32(GetLastError());
+    /** @todo Need we do something related to WS_SIO_ASSOCIATE_HANDLE or
+     *        WS_SIO_TRANSLATE_HANDLE? Or what  other handles could be associated
+     *        with the socket? that we need to modify? */
+
+    return VINF_SUCCESS;
+#endif
 }
 
 
@@ -1005,7 +1083,8 @@ RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRT
     if (!pHostEnt)
     {
         rc = rtSocketResolverError();
-        AssertMsgFailed(("Could not resolve '%s', rc=%Rrc\n", pszAddress, rc));
+        AssertMsg(rc == VERR_NET_HOST_NOT_FOUND,
+                  ("Could not resolve '%s', rc=%Rrc\n", pszAddress, rc));
         return rc;
     }
 
@@ -2298,7 +2377,7 @@ DECLHIDDEN(int) rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sock
         /*
          * Wrap the client socket.
          */
-        rc = rtSocketCreateForNative(phClient, hNativeClient);
+        rc = rtSocketCreateForNative(phClient, hNativeClient, false /*fLeaveOpen*/);
         if (RT_FAILURE(rc))
         {
 #ifdef RT_OS_WINDOWS

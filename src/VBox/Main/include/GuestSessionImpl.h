@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_GuestSessionImpl_h
@@ -47,7 +57,7 @@ class ATL_NO_VTABLE GuestSession
 public:
     /** @name COM and internal init/term/mapping cruft.
      * @{ */
-    DECLARE_EMPTY_CTOR_DTOR(GuestSession)
+    DECLARE_COMMON_CLASS_METHODS(GuestSession)
 
     int     init(Guest *pGuest, const GuestSessionStartupInfo &ssInfo, const GuestCredentials &guestCreds);
     void    uninit(void);
@@ -170,6 +180,8 @@ private:
     HRESULT fileQuerySize(const com::Utf8Str &aPath,
                           BOOL aFollowSymlinks,
                           LONG64 *aSize);
+    HRESULT fsQueryFreeSpace(const com::Utf8Str &aPath, LONG64 *aFreeSpace);
+    HRESULT fsQueryInfo(const com::Utf8Str &aPath, ComPtr<IGuestFsInfo> &aInfo);
     HRESULT fsObjExists(const com::Utf8Str &aPath,
                         BOOL aFollowSymlinks,
                         BOOL *pfExists);
@@ -241,8 +253,8 @@ private:
     /** Guest session object type enumeration. */
     enum SESSIONOBJECTTYPE
     {
-        /** Anonymous object. */
-        SESSIONOBJECTTYPE_ANONYMOUS  = 0,
+        /** Invalid session object type. */
+        SESSIONOBJECTTYPE_INVALID    = 0,
         /** Session object. */
         SESSIONOBJECTTYPE_SESSION    = 1,
         /** Directory object. */
@@ -250,9 +262,7 @@ private:
         /** File object. */
         SESSIONOBJECTTYPE_FILE       = 3,
         /** Process object. */
-        SESSIONOBJECTTYPE_PROCESS    = 4,
-        /** The usual 32-bit hack. */
-        SESSIONOBJECTTYPE_32BIT_HACK = 0x7fffffff
+        SESSIONOBJECTTYPE_PROCESS    = 4
     };
 
     struct SessionObject
@@ -262,13 +272,15 @@ private:
         uint64_t          msBirth;
         /** The object type. */
         SESSIONOBJECTTYPE enmType;
-        /** Weak pointer to the object itself. */
+        /** Weak pointer to the object itself.
+         * Is NULL for SESSIONOBJECTTYPE_SESSION because GuestSession doesn't
+         * inherit from GuestObject. */
         GuestObject      *pObject;
     };
 
     /** Map containing all objects bound to a guest session.
      *  The key specifies the (global) context ID. */
-    typedef std::map <uint32_t, SessionObject> SessionObjects;
+    typedef std::map<uint32_t, SessionObject> SessionObjects;
 
 public:
     /** @name Public internal methods.
@@ -280,6 +292,7 @@ public:
                                           ComPtr<IProgress> &pProgress);
     int                     i_closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc);
     HRESULT                 i_directoryCopyFlagFromStr(const com::Utf8Str &strFlags, DirectoryCopyFlag_T *pfFlags);
+    bool                    i_directoryExists(const Utf8Str &strPath);
     inline bool             i_directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir);
     int                     i_directoryUnregister(GuestDirectory *pDirectory);
     int                     i_directoryRemove(const Utf8Str &strPath, uint32_t fFlags, int *pGuestRc);
@@ -301,7 +314,7 @@ public:
     int                     i_fileQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
     int                     i_fileQuerySize(const Utf8Str &strPath, bool fFollowSymlinks, int64_t *pllSize, int *pGuestRc);
     int                     i_fsCreateTemp(const Utf8Str &strTemplate, const Utf8Str &strPath, bool fDirectory,
-                                           Utf8Str &strName, int *pGuestRc);
+                                           Utf8Str &strName, uint32_t fMode, bool fSecure, int *pGuestRc);
     int                     i_fsQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
     const GuestCredentials &i_getCredentials(void);
     EventSource            *i_getEventSource(void) { return mEventSource; }
@@ -332,6 +345,7 @@ public:
                                           uint64_t fDst = VBOX_GUESTCTRL_DST_SESSION);
     int                     i_setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc);
     int                     i_signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */);
+    int                     i_shutdown(uint32_t fFlags, int *prcGuest);
     int                     i_determineProtocolVersion(void);
     int                     i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWaitResult_T &waitResult, int *pGuestRc);
     int                     i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS,
@@ -384,7 +398,9 @@ private:
         GuestEnvironmentChanges     mEnvironmentChanges;
         /** Pointer to the immutable base environment for the session.
          * @note This is not allocated until the guest reports it to the host. It is
-         *       also shared with child processes. */
+         *       also shared with child processes.
+         * @todo This is actually not yet implemented, see
+         *       GuestSession::i_onSessionStatusChange. */
         GuestEnvironment const     *mpBaseEnvironment;
         /** Directory objects bound to this session. */
         SessionDirectories          mDirectories;

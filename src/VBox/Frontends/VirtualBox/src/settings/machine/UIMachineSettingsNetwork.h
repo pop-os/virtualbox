@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsNetwork_h
@@ -23,7 +33,6 @@
 
 /* GUI includes: */
 #include "UISettingsPage.h"
-#include "UIMachineSettingsNetwork.gen.h"
 #include "UIMachineSettingsPortForwardingDlg.h"
 
 /* Forward declarations: */
@@ -44,7 +53,7 @@ public:
     /** Constructs Network settings page. */
     UIMachineSettingsNetworkPage();
     /** Destructs Network settings page. */
-    ~UIMachineSettingsNetworkPage();
+    virtual ~UIMachineSettingsNetworkPage() RT_OVERRIDE;
 
     /** Returns the bridged adapter list. */
     const QStringList &bridgedAdapterList() const { return m_bridgedAdapterList; }
@@ -59,43 +68,44 @@ public:
 #ifdef VBOX_WITH_CLOUD_NET
     /** Returns the cloud network list. */
     const QStringList &cloudNetworkList() const { return m_cloudNetworkList; }
-#endif /* VBOX_WITH_CLOUD_NET */
-
- public slots:
-
-    /** Handles particular tab update. */
-    void sltHandleTabUpdate();
+#endif
+#ifdef VBOX_WITH_VMNET
+    /** Returns the host-only network list. */
+    const QStringList &hostOnlyNetworkList() const { return m_hostOnlyNetworkList; }
+#endif
 
 protected:
 
     /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */;
+    virtual bool changed() const RT_OVERRIDE;
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Performs validation, updates @a messages list if something is wrong. */
-    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
+    virtual bool validate(QList<UIValidationMessage> &messages) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Performs final page polishing. */
-    virtual void polishPage() /* override */;
+    virtual void polishPage() RT_OVERRIDE;
 
 private slots:
 
+    /** Handles adapter alternative name change. */
+    void sltHandleAlternativeNameChange();
     /** Handles whether the advanced button is @a fExpanded. */
     void sltHandleAdvancedButtonStateChange(bool fExpanded);
 
@@ -119,20 +129,21 @@ private:
 #ifdef VBOX_WITH_CLOUD_NET
     /** Repopulates cloud network list. */
     void refreshCloudNetworkList();
-#endif /* VBOX_WITH_CLOUD_NET */
+#endif
+#ifdef VBOX_WITH_VMNET
+    /** Repopulates host-only network list. */
+    void refreshHostOnlyNetworkList();
+#endif
 
     /** Loads generic properties from passed @a adapter. */
     static QString loadGenericProperties(const CNetworkAdapter &adapter);
     /** Saves generic @a strProperties to passed @a adapter. */
     static bool saveGenericProperties(CNetworkAdapter &comAdapter, const QString &strProperties);
 
-    /** Saves existing network data from the cache. */
-    bool saveNetworkData();
-    /** Saves existing adapter data from the cache. */
+    /** Saves existing data from cache. */
+    bool saveData();
+    /** Saves existing adapter data from cache. */
     bool saveAdapterData(int iSlot);
-
-    /** Holds the tab-widget instance. */
-    QITabWidget *m_pTabWidget;
 
     /** Holds the bridged adapter list. */
     QStringList  m_bridgedAdapterList;
@@ -151,10 +162,17 @@ private:
 #ifdef VBOX_WITH_CLOUD_NET
     /** Holds the cloud network list. */
     QStringList  m_cloudNetworkList;
-#endif /* VBOX_WITH_CLOUD_NET */
+#endif
+#ifdef VBOX_WITH_VMNET
+    /** Holds the host-only network list. */
+    QStringList  m_hostOnlyNetworkList;
+#endif
 
     /** Holds the page data cache instance. */
     UISettingsCacheMachineNetwork *m_pCache;
+
+    /** Holds the tab-widget instance. */
+    QITabWidget *m_pTabWidget;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsNetwork_h */

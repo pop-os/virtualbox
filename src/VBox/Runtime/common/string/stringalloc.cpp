@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -115,22 +125,24 @@ RTDECL(char *) RTStrDupTag(const char *pszString, const char *pszTag)
 RT_EXPORT_SYMBOL(RTStrDupTag);
 
 
-RTDECL(int)  RTStrDupExTag(char **ppszString, const char *pszString, const char *pszTag)
+RTDECL(int)  RTStrDupExTag(char **ppszCopy, const char *pszString, const char *pszTag)
 {
 #if defined(__cplusplus)
-    AssertPtr(ppszString);
+    AssertPtr(ppszCopy);
     AssertPtr(pszString);
 #endif
 
-    size_t cch = strlen(pszString) + 1;
-    char *psz = (char *)RTMemAllocTag(cch, pszTag);
-    if (psz)
+    size_t cch = strlen(pszString);
+    char *pszDst = (char *)RTMemAllocTag(cch + 1, pszTag);
+    if (pszDst)
     {
-        memcpy(psz, pszString, cch);
-        *ppszString = psz;
+        memcpy(pszDst, pszString, cch);
+        pszDst[cch] = '\0';
+        *ppszCopy = pszDst;
         return VINF_SUCCESS;
     }
-    return VERR_NO_MEMORY;
+    *ppszCopy = NULL;
+    return VERR_NO_STR_MEMORY;
 }
 RT_EXPORT_SYMBOL(RTStrDupExTag);
 
@@ -151,6 +163,27 @@ RTDECL(char *) RTStrDupNTag(const char *pszString, size_t cchMax, const char *ps
     return pszDst;
 }
 RT_EXPORT_SYMBOL(RTStrDupNTag);
+
+
+RTDECL(int) RTStrDupNExTag(char **ppszCopy, const char *pszString, size_t cchMax, const char *pszTag)
+{
+#if defined(__cplusplus)
+    AssertPtr(pszString);
+#endif
+    char const *pszEnd = RTStrEnd(pszString, cchMax);
+    size_t      cch    = pszEnd ? (uintptr_t)pszEnd - (uintptr_t)pszString : cchMax;
+    char       *pszDst = (char *)RTMemAllocTag(cch + 1, pszTag);
+    if (pszDst)
+    {
+        memcpy(pszDst, pszString, cch);
+        pszDst[cch] = '\0';
+        *ppszCopy = pszDst;
+        return VINF_SUCCESS;
+    }
+    *ppszCopy = NULL;
+    return VERR_NO_STR_MEMORY;
+}
+RT_EXPORT_SYMBOL(RTStrDupNExTag);
 
 
 RTDECL(int) RTStrAAppendTag(char **ppsz, const char *pszAppend, const char *pszTag)
@@ -186,7 +219,7 @@ RTDECL(int) RTStrAAppendNTag(char **ppsz, const char *pszAppend, size_t cchAppen
 }
 
 
-#ifndef IN_RING0
+#if !defined(IN_RING0) && !defined(IPRT_NO_ALLOCA_TROUBLE)
 
 /* XXX Currently not needed anywhere. alloca() induces some linker problems for ring 0 code
  * with newer versions of VCC */

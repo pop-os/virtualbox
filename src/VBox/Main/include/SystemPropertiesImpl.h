@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_SystemPropertiesImpl_h
@@ -26,6 +36,7 @@
 #include "MediumFormatImpl.h"
 #include "SystemPropertiesWrap.h"
 
+class CPUProfile;
 
 namespace settings
 {
@@ -37,8 +48,9 @@ class ATL_NO_VTABLE SystemProperties :
 {
 public:
     typedef std::list<ComObjPtr<MediumFormat> > MediumFormatList;
+    typedef std::list<ComObjPtr<CPUProfile> > CPUProfileList_T;
 
-    DECLARE_EMPTY_CTOR_DTOR(SystemProperties)
+    DECLARE_COMMON_CLASS_METHODS(SystemProperties)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -98,6 +110,8 @@ private:
     HRESULT setWebServiceAuthLibrary(const com::Utf8Str &aWebServiceAuthLibrary) RT_OVERRIDE;
     HRESULT getDefaultVRDEExtPack(com::Utf8Str &aDefaultVRDEExtPack) RT_OVERRIDE;
     HRESULT setDefaultVRDEExtPack(const com::Utf8Str &aDefaultVRDEExtPack) RT_OVERRIDE;
+    HRESULT getDefaultCryptoExtPack(com::Utf8Str &aDefaultCryptoExtPack) RT_OVERRIDE;
+    HRESULT setDefaultCryptoExtPack(const com::Utf8Str &aDefaultCryptoExtPack) RT_OVERRIDE;
     HRESULT getLogHistoryCount(ULONG *aLogHistoryCount) RT_OVERRIDE;
     HRESULT setLogHistoryCount(ULONG aLogHistoryCount) RT_OVERRIDE;
     HRESULT getDefaultAudioDriver(AudioDriverType_T *aDefaultAudioDriver) RT_OVERRIDE;
@@ -121,10 +135,12 @@ private:
     HRESULT getSupportedVFSTypes(std::vector<VFSType_T> &aSupportedVFSTypes) RT_OVERRIDE;
     HRESULT getSupportedImportOptions(std::vector<ImportOptions_T> &aSupportedImportOptions) RT_OVERRIDE;
     HRESULT getSupportedExportOptions(std::vector<ExportOptions_T> &aSupportedExportOptions) RT_OVERRIDE;
+    HRESULT getSupportedRecordingFeatures(std::vector<RecordingFeature_T> &aSupportedRecordingFeatures) RT_OVERRIDE;
     HRESULT getSupportedRecordingAudioCodecs(std::vector<RecordingAudioCodec_T> &aSupportedRecordingAudioCodecs) RT_OVERRIDE;
     HRESULT getSupportedRecordingVideoCodecs(std::vector<RecordingVideoCodec_T> &aSupportedRecordingVideoCodecs) RT_OVERRIDE;
-    HRESULT getSupportedRecordingVSMethods(std::vector<RecordingVideoScalingMethod_T> &aSupportedRecordingVideoScalingMethods) RT_OVERRIDE;
-    HRESULT getSupportedRecordingVRCModes(std::vector<RecordingVideoRateControlMode_T> &aSupportedRecordingVideoRateControlModes) RT_OVERRIDE;
+    HRESULT getSupportedRecordingVSModes(std::vector<RecordingVideoScalingMode_T> &aSupportedRecordingVideoScalingModes) RT_OVERRIDE;
+    HRESULT getSupportedRecordingARCModes(std::vector<RecordingRateControlMode_T> &aSupportedRecordingAudioRateControlModes) RT_OVERRIDE;
+    HRESULT getSupportedRecordingVRCModes(std::vector<RecordingRateControlMode_T> &aSupportedRecordingVideoRateControlModes) RT_OVERRIDE;
     HRESULT getSupportedGraphicsControllerTypes(std::vector<GraphicsControllerType_T> &aSupportedGraphicsControllerTypes) RT_OVERRIDE;
     HRESULT getSupportedCloneOptions(std::vector<CloneOptions_T> &aSupportedCloneOptions) RT_OVERRIDE;
     HRESULT getSupportedAutostopTypes(std::vector<AutostopType_T> &aSupportedAutostopTypes) RT_OVERRIDE;
@@ -139,6 +155,10 @@ private:
     HRESULT getSupportedStorageBuses(std::vector<StorageBus_T> &aSupportedStorageBuses) RT_OVERRIDE;
     HRESULT getSupportedStorageControllerTypes(std::vector<StorageControllerType_T> &aSupportedStorageControllerTypes) RT_OVERRIDE;
     HRESULT getSupportedChipsetTypes(std::vector<ChipsetType_T> &aSupportedChipsetTypes) RT_OVERRIDE;
+    HRESULT getSupportedIommuTypes(std::vector<IommuType_T> &aSupportedIommuTypes) RT_OVERRIDE;
+    HRESULT getSupportedTpmTypes(std::vector<TpmType_T> &aSupportedTpmTypes) RT_OVERRIDE;
+    HRESULT getLanguageId(com::Utf8Str &aLanguageId) RT_OVERRIDE;
+    HRESULT setLanguageId(const com::Utf8Str &aLanguageId) RT_OVERRIDE;
 
     // wrapped ISystemProperties methods
     HRESULT getMaxNetworkAdapters(ChipsetType_T aChipset,
@@ -168,6 +188,8 @@ private:
     HRESULT getMaxInstancesOfUSBControllerType(ChipsetType_T aChipset,
                                                USBControllerType_T aType,
                                                ULONG *aMaxInstances) RT_OVERRIDE;
+    HRESULT getCPUProfiles(CPUArchitecture_T aArchitecture, const com::Utf8Str &aNamePattern,
+                           std::vector<ComPtr<ICPUProfile> > &aProfiles) RT_OVERRIDE;
 
     HRESULT i_getUserHomeDirectory(Utf8Str &strPath);
     HRESULT i_setDefaultMachineFolder(const Utf8Str &strPath);
@@ -177,6 +199,7 @@ private:
 
     HRESULT i_setWebServiceAuthLibrary(const com::Utf8Str &aPath);
     HRESULT i_setDefaultVRDEExtPack(const com::Utf8Str &aExtPack);
+    HRESULT i_setDefaultCryptoExtPack(const com::Utf8Str &aExtPack);
     HRESULT i_setAutostartDatabasePath(const com::Utf8Str &aPath);
     HRESULT i_setDefaultAdditionsISO(const com::Utf8Str &aPath);
     HRESULT i_setDefaultFrontend(const com::Utf8Str &aDefaultFrontend);
@@ -186,6 +209,9 @@ private:
     settings::SystemProperties *m;
 
     MediumFormatList m_llMediumFormats;
+
+    bool                m_fLoadedX86CPUProfiles;    /**< Set if we've loaded the x86 and AMD64 CPU profiles. */
+    CPUProfileList_T    m_llCPUProfiles;            /**< List of loaded CPU profiles. */
 
     friend class VirtualBox;
 };

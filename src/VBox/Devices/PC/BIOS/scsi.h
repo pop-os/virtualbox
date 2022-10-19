@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_PC_BIOS_scsi_h
@@ -55,6 +65,24 @@ typedef struct {
 
 ct_assert(sizeof(cdb_rw10) == 10);
 ct_assert(sizeof(cdb_rw16) == 16);
+
+extern int lsilogic_scsi_init(void __far *pvHba, uint8_t u8Bus, uint8_t u8DevFn);
+extern int lsilogic_scsi_cmd_data_out(void __far *pvHba, uint8_t idTgt, uint8_t __far *aCDB,
+                                      uint8_t cbCDB, uint8_t __far *buffer, uint32_t length);
+extern int lsilogic_scsi_cmd_data_in(void __far *pvHba, uint8_t idTgt, uint8_t __far *aCDB,
+                                     uint8_t cbCDB, uint8_t __far *buffer, uint32_t length);
+
+extern int buslogic_scsi_init(void __far *pvHba, uint8_t u8Bus, uint8_t u8DevFn);
+extern int buslogic_scsi_cmd_data_out(void __far *pvHba, uint8_t idTgt, uint8_t __far *aCDB,
+                                      uint8_t cbCDB, uint8_t __far *buffer, uint32_t length);
+extern int buslogic_scsi_cmd_data_in(void __far *pvHba, uint8_t idTgt, uint8_t __far *aCDB,
+                                     uint8_t cbCDB, uint8_t __far *buffer, uint32_t length);
+
+extern int virtio_scsi_init(void __far *pvHba, uint8_t u8Bus, uint8_t u8DevFn);
+extern int virtio_scsi_cmd_data_out(void __far *pvHba, uint8_t idTgt, uint8_t __far *aCDB,
+                                    uint8_t cbCDB, uint8_t __far *buffer, uint32_t length);
+extern int virtio_scsi_cmd_data_in(void __far *pvHba, uint8_t idTgt, uint8_t __far *aCDB,
+                                   uint8_t cbCDB, uint8_t __far *buffer, uint32_t length);
 
 #endif /* !VBOX_INCLUDED_SRC_PC_BIOS_scsi_h */
 

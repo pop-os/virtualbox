@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -39,13 +49,14 @@
 #include "UIChooserNodeGlobal.h"
 #include "UIChooserNodeMachine.h"
 #include "UIChooserView.h"
+#include "UICloudNetworkingStuff.h"
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
 #include "UIModalWindowManager.h"
+#include "UINotificationCenter.h"
 #include "UIVirtualBoxManagerWidget.h"
-#include "UIVirtualMachineItem.h"
-#include "UIWizardNewCloudVM.h"
-#include "UIWizardNewVM.h"
+#include "UIVirtualMachineItemCloud.h"
+#include "UIVirtualMachineItemLocal.h"
 
 /* COM includes: */
 #include "CExtPack.h"
@@ -55,18 +66,18 @@
 typedef QSet<QString> UIStringSet;
 
 
-UIChooserModel:: UIChooserModel(UIChooser *pParent)
+UIChooserModel::UIChooserModel(UIChooser *pParent, UIActionPool *pActionPool)
     : UIChooserAbstractModel(pParent)
-    , m_pChooser(pParent)
+    , m_pActionPool(pActionPool)
     , m_pScene(0)
     , m_pMouseHandler(0)
     , m_pKeyboardHandler(0)
-    , m_pContextMenuGlobal(0)
-    , m_pContextMenuGroup(0)
-    , m_pContextMenuMachine(0)
+    , m_fSelectionSaveAllowed(false)
     , m_iCurrentSearchResultIndex(-1)
     , m_iScrollingTokenSize(30)
     , m_fIsScrollingInProgress(false)
+    , m_iGlobalItemHeightHint(0)
+    , m_pTimerCloudProfileUpdate(0)
 {
     prepare();
 }
@@ -83,33 +94,13 @@ void UIChooserModel::init()
 
     /* Build tree for main root: */
     buildTreeForMainRoot();
-    updateNavigationItemList();
-    updateLayout();
-
-    /* Load last selected-item: */
-    loadLastSelectedItem();
-}
-
-void UIChooserModel::deinit()
-{
-    /* Save last selected-item: */
-    saveLastSelectedItem();
-
-    /* Clear list of selected-items: */
-    clearSelectedItems();
-
-    /* Call to base-class: */
-    UIChooserAbstractModel::deinit();
-}
-
-UIChooser *UIChooserModel::chooser() const
-{
-    return m_pChooser;
+    /* Load settings: */
+    loadSettings();
 }
 
 UIActionPool *UIChooserModel::actionPool() const
 {
-    return chooser() ? chooser()->actionPool() : 0;
+    return m_pActionPool;
 }
 
 QGraphicsScene *UIChooserModel::scene() const
@@ -136,10 +127,10 @@ void UIChooserModel::handleToolButtonClick(UIChooserItem *pItem)
 {
     switch (pItem->type())
     {
-        case UIChooserItemType_Global:
+        case UIChooserNodeType_Global:
             emit sigToolMenuRequested(UIToolClass_Global, pItem->mapToScene(QPointF(pItem->size().width(), 0)).toPoint());
             break;
-        case UIChooserItemType_Machine:
+        case UIChooserNodeType_Machine:
             emit sigToolMenuRequested(UIToolClass_Machine, pItem->mapToScene(QPointF(pItem->size().width(), 0)).toPoint());
             break;
         default:
@@ -151,7 +142,7 @@ void UIChooserModel::handlePinButtonClick(UIChooserItem *pItem)
 {
     switch (pItem->type())
     {
-        case UIChooserItemType_Global:
+        case UIChooserNodeType_Global:
             pItem->setFavorite(!pItem->isFavorite());
             break;
         default:
@@ -181,16 +172,48 @@ void UIChooserModel::setSelectedItems(const QList<UIChooserItem*> &items)
             AssertMsgFailed(("Passed item is not in navigation list!"));
     }
 
+    /* Make sure selection list is never empty if current-item present: */
+    if (m_selectedItems.isEmpty() && currentItem() && navigationItems().contains(currentItem()))
+        m_selectedItems << currentItem();
+
     /* Is there something really changed? */
     if (oldCurrentItems == m_selectedItems)
         return;
 
     /* Update all the old items (they are no longer selected): */
     foreach (UIChooserItem *pItem, oldCurrentItems)
+    {
+        pItem->setSelected(false);
         pItem->update();
+    }
     /* Update all the new items (they are selected now): */
     foreach (UIChooserItem *pItem, m_selectedItems)
+    {
+        pItem->setSelected(true);
         pItem->update();
+    }
+
+    /* Should the selection changes be saved? */
+    if (m_fSelectionSaveAllowed)
+    {
+        /* Acquire first selected item: */
+        UIChooserItem *pFirstSelectedItem = m_selectedItems.value(0);
+        /* If this item is of machine type: */
+        if (   pFirstSelectedItem
+            && pFirstSelectedItem->type() == UIChooserNodeType_Machine)
+        {
+            /* Cast to machine item: */
+            UIChooserItemMachine *pMachineItem = pFirstSelectedItem->toMachineItem();
+            /* If this machine item is of cloud type =>
+             * Choose the parent (profile) group item as the last one selected: */
+            if (   pMachineItem
+                && (   pMachineItem->cacheType() == UIVirtualMachineItemType_CloudFake
+                    || pMachineItem->cacheType() == UIVirtualMachineItemType_CloudReal))
+                pFirstSelectedItem = pMachineItem->parentItem();
+        }
+        /* Save last selected-item: */
+        gEDataManager->setSelectorWindowLastItemChosen(pFirstSelectedItem ? pFirstSelectedItem->definition() : QString());
+    }
 
     /* Notify about selection changes: */
     emit sigSelectionChanged();
@@ -210,35 +233,8 @@ void UIChooserModel::setSelectedItem(UIChooserItem *pItem)
 
 void UIChooserModel::setSelectedItem(const QString &strDefinition)
 {
-    /* Ignore if empty definition passed: */
-    if (strDefinition.isEmpty())
-        return;
-
-    /* Parse definition: */
-    UIChooserItem *pItem = 0;
-    const QString strItemType = strDefinition.section('=', 0, 0);
-    const QString strItemDescriptor = strDefinition.section('=', 1, -1);
-    /* Its a group-item definition? */
-    if (strItemType == "g")
-    {
-        /* Search for group-item with passed descriptor (name): */
-        pItem = root()->searchForItem(strItemDescriptor,
-                                      UIChooserItemSearchFlag_Group |
-                                      UIChooserItemSearchFlag_ExactName);
-    }
-    /* Its a machine-item definition? */
-    else if (strItemType == "m")
-    {
-        /* Check if machine-item with passed descriptor (name or id) registered: */
-        CMachine comMachine = uiCommon().virtualBox().FindMachine(strItemDescriptor);
-        if (!comMachine.isNull())
-        {
-            /* Search for machine-item with required name: */
-            pItem = root()->searchForItem(comMachine.GetName(),
-                                          UIChooserItemSearchFlag_Machine |
-                                          UIChooserItemSearchFlag_ExactName);
-        }
-    }
+    /* Search an item by definition: */
+    UIChooserItem *pItem = searchItemByDefinition(strDefinition);
 
     /* Make sure found item is in navigation list: */
     if (!pItem || !navigationItems().contains(pItem))
@@ -254,16 +250,24 @@ void UIChooserModel::clearSelectedItems()
     setSelectedItem(0);
 }
 
+const QList<UIChooserItem*> &UIChooserModel::selectedItems() const
+{
+    return m_selectedItems;
+}
+
 void UIChooserModel::addToSelectedItems(UIChooserItem *pItem)
 {
+    /* Prepare updated list: */
+    QList<UIChooserItem*> list(selectedItems());
+    list << pItem;
     /* Call for wrapper above: */
-    setSelectedItems(QList<UIChooserItem*>(m_selectedItems) << pItem);
+    setSelectedItems(list);
 }
 
 void UIChooserModel::removeFromSelectedItems(UIChooserItem *pItem)
 {
-    /* Prepare filtered list: */
-    QList<UIChooserItem*> list(m_selectedItems);
+    /* Prepare updated list: */
+    QList<UIChooserItem*> list(selectedItems());
     list.removeAll(pItem);
     /* Call for wrapper above: */
     setSelectedItems(list);
@@ -272,12 +276,7 @@ void UIChooserModel::removeFromSelectedItems(UIChooserItem *pItem)
 UIChooserItem *UIChooserModel::firstSelectedItem() const
 {
     /* Return first of selected-items, if any: */
-    return selectedItems().isEmpty() ? 0 : selectedItems().first();
-}
-
-const QList<UIChooserItem*> &UIChooserModel::selectedItems() const
-{
-    return m_selectedItems;
+    return selectedItems().value(0);
 }
 
 UIVirtualMachineItem *UIChooserModel::firstSelectedMachineItem() const
@@ -285,9 +284,8 @@ UIVirtualMachineItem *UIChooserModel::firstSelectedMachineItem() const
     /* Return first machine-item of the selected-item: */
     return      firstSelectedItem()
              && firstSelectedItem()->firstMachineItem()
-             && firstSelectedItem()->firstMachineItem()->node()
-             && firstSelectedItem()->firstMachineItem()->node()->toMachineNode()
-           ? firstSelectedItem()->firstMachineItem()->node()->toMachineNode()->cache()
+             && firstSelectedItem()->firstMachineItem()->toMachineItem()
+           ? firstSelectedItem()->firstMachineItem()->toMachineItem()->cache()
            : 0;
 }
 
@@ -301,29 +299,59 @@ QList<UIVirtualMachineItem*> UIChooserModel::selectedMachineItems() const
     /* Reintegrate machine-items into valid format: */
     QList<UIVirtualMachineItem*> currentMachineList;
     foreach (UIChooserItemMachine *pItem, currentMachineItemList)
-        currentMachineList << pItem->node()->toMachineNode()->cache();
+        currentMachineList << pItem->cache();
     return currentMachineList;
 }
 
 bool UIChooserModel::isGroupItemSelected() const
 {
-    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserItemType_Group;
+    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Group;
 }
 
 bool UIChooserModel::isGlobalItemSelected() const
 {
-    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserItemType_Global;
+    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Global;
 }
 
 bool UIChooserModel::isMachineItemSelected() const
 {
-    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserItemType_Machine;
+    return firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Machine;
+}
+
+bool UIChooserModel::isLocalMachineItemSelected() const
+{
+    return    isMachineItemSelected()
+           && firstSelectedItem()->toMachineItem()->cacheType() == UIVirtualMachineItemType_Local;
+}
+
+bool UIChooserModel::isCloudMachineItemSelected() const
+{
+    return    isMachineItemSelected()
+           && firstSelectedItem()->toMachineItem()->cacheType() == UIVirtualMachineItemType_CloudReal;
 }
 
 bool UIChooserModel::isSingleGroupSelected() const
 {
     return    selectedItems().size() == 1
-           && firstSelectedItem()->type() == UIChooserItemType_Group;
+           && firstSelectedItem()->type() == UIChooserNodeType_Group;
+}
+
+bool UIChooserModel::isSingleLocalGroupSelected() const
+{
+    return    isSingleGroupSelected()
+           && firstSelectedItem()->toGroupItem()->groupType() == UIChooserNodeGroupType_Local;
+}
+
+bool UIChooserModel::isSingleCloudProviderGroupSelected() const
+{
+    return    isSingleGroupSelected()
+           && firstSelectedItem()->toGroupItem()->groupType() == UIChooserNodeGroupType_Provider;
+}
+
+bool UIChooserModel::isSingleCloudProfileGroupSelected() const
+{
+    return    isSingleGroupSelected()
+           && firstSelectedItem()->toGroupItem()->groupType() == UIChooserNodeGroupType_Profile;
 }
 
 bool UIChooserModel::isAllItemsOfOneGroupSelected() const
@@ -353,6 +381,11 @@ bool UIChooserModel::isAllItemsOfOneGroupSelected() const
     return currentItemSet == firstParentItemSet;
 }
 
+QString UIChooserModel::fullGroupName() const
+{
+    return isSingleGroupSelected() ? firstSelectedItem()->fullName() : firstSelectedItem()->parentItem()->fullName();
+}
+
 UIChooserItem *UIChooserModel::findClosestUnselectedItem() const
 {
     /* Take the current-item (if any) as a starting point
@@ -366,31 +399,72 @@ UIChooserItem *UIChooserModel::findClosestUnselectedItem() const
         int idxAfter  = idxBefore + 2;
         while (idxBefore >= 0 || idxAfter < navigationItems().size())
         {
-            if (idxBefore >= 0)
-            {
-                pItem = navigationItems().at(idxBefore);
-                if (!selectedItems().contains(pItem) && pItem->type() == UIChooserItemType_Machine)
-                    return pItem;
-                --idxBefore;
-            }
             if (idxAfter < navigationItems().size())
             {
                 pItem = navigationItems().at(idxAfter);
-                if (!selectedItems().contains(pItem) && pItem->type() == UIChooserItemType_Machine)
+                if (   !selectedItems().contains(pItem)
+                    && (   pItem->type() == UIChooserNodeType_Machine
+                        || pItem->type() == UIChooserNodeType_Global))
                     return pItem;
                 ++idxAfter;
+            }
+            if (idxBefore >= 0)
+            {
+                pItem = navigationItems().at(idxBefore);
+                if (   !selectedItems().contains(pItem)
+                    && (   pItem->type() == UIChooserNodeType_Machine
+                        || pItem->type() == UIChooserNodeType_Global))
+                    return pItem;
+                --idxBefore;
             }
         }
     }
     return 0;
 }
 
-void UIChooserModel::makeSureSomeItemIsSelected()
+void UIChooserModel::makeSureNoItemWithCertainIdSelected(const QUuid &uId)
 {
-    /* Make sure selection list is never empty if at
-     * least one item (for example 'current') present: */
-    if (!firstSelectedItem() && currentItem())
-        setSelectedItem(currentItem());
+    /* Look for all nodes with passed uId: */
+    QList<UIChooserNode*> matchedNodes;
+    invisibleRoot()->searchForNodes(uId.toString(),
+                                    UIChooserItemSearchFlag_Machine |
+                                    UIChooserItemSearchFlag_ExactId,
+                                    matchedNodes);
+
+    /* Compose a set of items with passed uId: */
+    QSet<UIChooserItem*> matchedItems;
+    foreach (UIChooserNode *pNode, matchedNodes)
+        if (pNode && pNode->item())
+            matchedItems << pNode->item();
+
+    /* If we have at least one of those items currently selected: */
+#ifdef VBOX_IS_QT6_OR_LATER
+    {
+        QList<UIChooserItem *> selectedItemsList = selectedItems();
+        QSet<UIChooserItem *> selectedItemsSet(selectedItemsList.begin(), selectedItemsList.end());
+        if (selectedItemsSet.intersects(matchedItems))
+            setSelectedItem(findClosestUnselectedItem());
+    }
+#else
+    if (selectedItems().toSet().intersects(matchedItems))
+        setSelectedItem(findClosestUnselectedItem());
+#endif
+
+    /* If global item is currently chosen, selection should be invalidated: */
+    if (firstSelectedItem() && firstSelectedItem()->type() == UIChooserNodeType_Global)
+        emit sigSelectionInvalidated();
+}
+
+void UIChooserModel::makeSureAtLeastOneItemSelected()
+{
+    /* If we have no item selected but
+     * at least one in the navigation list (global item): */
+    if (!firstSelectedItem() && !navigationItems().isEmpty())
+    {
+        /* We are choosing it, selection should be invalidated: */
+        setSelectedItem(navigationItems().first());
+        emit sigSelectionInvalidated();
+    }
 }
 
 void UIChooserModel::setCurrentItem(UIChooserItem *pItem)
@@ -419,6 +493,10 @@ void UIChooserModel::setCurrentItem(UIChooserItem *pItem)
     if (view() && view()->window() && root())
         if (view()->window()->isVisible() && pItem)
             root()->toGroupItem()->makeSureItemIsVisible(pItem);
+
+    /* Make sure selection list is never empty if current-item present: */
+    if (!firstSelectedItem() && m_pCurrentItem)
+        setSelectedItem(m_pCurrentItem);
 }
 
 UIChooserItem *UIChooserModel::currentItem() const
@@ -443,10 +521,65 @@ void UIChooserModel::updateNavigationItemList()
     m_navigationItems = createNavigationItemList(root());
 }
 
-void UIChooserModel::performSearch(const QString &strSearchTerm, int iItemSearchFlags)
+UIChooserItem *UIChooserModel::searchItemByDefinition(const QString &strDefinition) const
+{
+    /* Null if empty definition passed: */
+    if (strDefinition.isEmpty())
+        return 0;
+
+    /* Parse definition: */
+    UIChooserItem *pItem = 0;
+    const QString strItemType = strDefinition.section('=', 0, 0);
+    const QString strItemDescriptor = strDefinition.section('=', 1, -1);
+    /* Its a local group-item definition? */
+    if (strItemType == prefixToString(UIChooserNodeDataPrefixType_Local))
+    {
+        /* Search for group-item with passed descriptor (name): */
+        pItem = root()->searchForItem(strItemDescriptor,
+                                      UIChooserItemSearchFlag_LocalGroup |
+                                      UIChooserItemSearchFlag_FullName);
+    }
+    /* Its a provider group-item definition? */
+    else if (strItemType == prefixToString(UIChooserNodeDataPrefixType_Provider))
+    {
+        /* Search for group-item with passed descriptor (name): */
+        pItem = root()->searchForItem(strItemDescriptor,
+                                      UIChooserItemSearchFlag_CloudProvider |
+                                      UIChooserItemSearchFlag_FullName);
+    }
+    /* Its a profile group-item definition? */
+    else if (strItemType == prefixToString(UIChooserNodeDataPrefixType_Profile))
+    {
+        /* Search for group-item with passed descriptor (name): */
+        pItem = root()->searchForItem(strItemDescriptor,
+                                      UIChooserItemSearchFlag_CloudProfile |
+                                      UIChooserItemSearchFlag_FullName);
+    }
+    /* Its a global-item definition? */
+    else if (strItemType == prefixToString(UIChooserNodeDataPrefixType_Global))
+    {
+        /* Search for global-item with required name: */
+        pItem = root()->searchForItem(strItemDescriptor,
+                                      UIChooserItemSearchFlag_Global |
+                                      UIChooserItemSearchFlag_ExactName);
+    }
+    /* Its a machine-item definition? */
+    else if (strItemType == prefixToString(UIChooserNodeDataPrefixType_Machine))
+    {
+        /* Search for machine-item with required ID: */
+        pItem = root()->searchForItem(strItemDescriptor,
+                                      UIChooserItemSearchFlag_Machine |
+                                      UIChooserItemSearchFlag_ExactId);
+    }
+
+    /* Return result: */
+    return pItem;
+}
+
+void UIChooserModel::performSearch(const QString &strSearchTerm, int iSearchFlags)
 {
     /* Call to base-class: */
-    UIChooserAbstractModel::performSearch(strSearchTerm, iItemSearchFlags);
+    UIChooserAbstractModel::performSearch(strSearchTerm, iSearchFlags);
 
     /* Select 1st found item: */
     selectSearchResult(true);
@@ -514,14 +647,409 @@ UIChooserItem *UIChooserModel::root() const
     return m_pRoot.data();
 }
 
-void UIChooserModel::startEditingGroupItemName()
+void UIChooserModel::startEditingSelectedGroupItemName()
 {
-    sltEditGroupName();
+    /* Only for single selected local group: */
+    if (!isSingleLocalGroupSelected())
+        return;
+
+    /* Start editing first selected item name: */
+    firstSelectedItem()->startEditing();
 }
 
-void UIChooserModel::activateMachineItem()
+void UIChooserModel::disbandSelectedGroupItem()
 {
-    actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow)->activate(QAction::Trigger);
+    /* Only for single selected local group: */
+    if (!isSingleLocalGroupSelected())
+        return;
+
+    /* Check if we have collisions between disbandable group children and their potential siblings: */
+    UIChooserItem *pCurrentItem = currentItem();
+    UIChooserNode *pCurrentNode = pCurrentItem->node();
+    UIChooserItem *pParentItem = pCurrentItem->parentItem();
+    UIChooserNode *pParentNode = pParentItem->node();
+    QList<UIChooserNode*> childrenToBeRenamed;
+    foreach (UIChooserNode *pChildNode, pCurrentNode->nodes())
+    {
+        /* Acquire disbandable group child name to check for collision with group siblings: */
+        const QString strChildName = pChildNode->name();
+        UIChooserNode *pCollisionSibling = 0;
+        /* And then compare this child name with all the sibling names: */
+        foreach (UIChooserNode *pSiblingNode, pParentNode->nodes())
+        {
+            /* There can't be a collision between local child and cloud provider sibling: */
+            if (   pSiblingNode->type() == UIChooserNodeType_Group
+                && pSiblingNode->toGroupNode()->groupType() == UIChooserNodeGroupType_Provider)
+                continue;
+            /* If sibling isn't disbandable group itself and has name similar to one of group children: */
+            if (pSiblingNode != pCurrentNode && pSiblingNode->name() == strChildName)
+            {
+                /* We have a collision sibling: */
+                pCollisionSibling = pSiblingNode;
+                break;
+            }
+        }
+        /* If there is a collision sibling: */
+        if (pCollisionSibling)
+        {
+            switch (pChildNode->type())
+            {
+                /* We can't resolve collision automatically for VMs: */
+                case UIChooserNodeType_Machine:
+                {
+                    UINotificationMessage::cannotResolveCollisionAutomatically(strChildName, pParentNode->name());
+                    return;
+                }
+                /* But we can do it for VM groups: */
+                case UIChooserNodeType_Group:
+                {
+                    if (!msgCenter().confirmAutomaticCollisionResolve(strChildName, pParentNode->name()))
+                        return;
+                    childrenToBeRenamed << pChildNode;
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+    }
+
+    /* Copy all the children into our parent: */
+    QList<UIChooserItem*> ungroupedItems;
+    foreach (UIChooserNode *pNode, pCurrentNode->nodes())
+    {
+        switch (pNode->type())
+        {
+            case UIChooserNodeType_Group:
+            {
+                UIChooserNodeGroup *pGroupNode = new UIChooserNodeGroup(pParentNode,
+                                                                        pParentNode->nodes().size(),
+                                                                        pNode->toGroupNode());
+                UIChooserItemGroup *pGroupItem = new UIChooserItemGroup(pParentItem, pGroupNode);
+                if (childrenToBeRenamed.contains(pNode))
+                    pGroupNode->setName(uniqueGroupName(pParentNode));
+                ungroupedItems << pGroupItem;
+                break;
+            }
+            case UIChooserNodeType_Machine:
+            {
+                UIChooserNodeMachine *pMachineNode = new UIChooserNodeMachine(pParentNode,
+                                                                              pParentNode->nodes().size(),
+                                                                              pNode->toMachineNode());
+                UIChooserItemMachine *pMachineItem = new UIChooserItemMachine(pParentItem, pMachineNode);
+                ungroupedItems << pMachineItem;
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    /* Delete current group: */
+    delete pCurrentNode;
+
+    /* And update model: */
+    updateTreeForMainRoot();
+
+    /* Choose ungrouped items if present: */
+    if (!ungroupedItems.isEmpty())
+    {
+        setSelectedItems(ungroupedItems);
+        setCurrentItem(firstSelectedItem());
+    }
+    makeSureAtLeastOneItemSelected();
+
+    /* Save groups finally: */
+    saveGroups();
+}
+
+void UIChooserModel::removeSelectedMachineItems()
+{
+    /* Enumerate all the selected machine-items: */
+    QList<UIChooserItemMachine*> selectedMachineItemList;
+    UIChooserItemMachine::enumerateMachineItems(selectedItems(), selectedMachineItemList);
+    /* Enumerate all the existing machine-items: */
+    QList<UIChooserItemMachine*> existingMachineItemList;
+    UIChooserItemMachine::enumerateMachineItems(root()->items(), existingMachineItemList);
+
+    /* Prepare arrays: */
+    QMap<QUuid, bool> verdicts;
+    QList<UIChooserItemMachine*> localMachineItemsToRemove;
+    QList<CMachine> localMachinesToUnregister;
+    QList<UIChooserItemMachine*> cloudMachineItemsToUnregister;
+
+    /* For each selected machine-item: */
+    foreach (UIChooserItemMachine *pMachineItem, selectedMachineItemList)
+    {
+        /* Get machine-item id: */
+        AssertPtrReturnVoid(pMachineItem);
+        const QUuid uId = pMachineItem->id();
+
+        /* We already decided for that machine? */
+        if (verdicts.contains(uId))
+        {
+            /* To remove similar machine items? */
+            if (!verdicts.value(uId))
+                localMachineItemsToRemove << pMachineItem;
+            continue;
+        }
+
+        /* Selected copy count: */
+        int iSelectedCopyCount = 0;
+        foreach (UIChooserItemMachine *pSelectedItem, selectedMachineItemList)
+        {
+            AssertPtrReturnVoid(pSelectedItem);
+            if (pSelectedItem->id() == uId)
+                ++iSelectedCopyCount;
+        }
+        /* Existing copy count: */
+        int iExistingCopyCount = 0;
+        foreach (UIChooserItemMachine *pExistingItem, existingMachineItemList)
+        {
+            AssertPtrReturnVoid(pExistingItem);
+            if (pExistingItem->id() == uId)
+                ++iExistingCopyCount;
+        }
+        /* If selected copy count equal to existing copy count,
+         * we will propose ro unregister machine fully else
+         * we will just propose to remove selected-items: */
+        const bool fVerdict = iSelectedCopyCount == iExistingCopyCount;
+        verdicts.insert(uId, fVerdict);
+        if (fVerdict)
+        {
+            if (pMachineItem->cacheType() == UIVirtualMachineItemType_Local)
+                localMachinesToUnregister.append(pMachineItem->cache()->toLocal()->machine());
+            else if (pMachineItem->cacheType() == UIVirtualMachineItemType_CloudReal)
+                cloudMachineItemsToUnregister.append(pMachineItem);
+        }
+        else
+            localMachineItemsToRemove << pMachineItem;
+    }
+
+    /* If we have something to remove: */
+    if (!localMachineItemsToRemove.isEmpty())
+        removeLocalMachineItems(localMachineItemsToRemove);
+    /* If we have something local to unregister: */
+    if (!localMachinesToUnregister.isEmpty())
+        unregisterLocalMachines(localMachinesToUnregister);
+    /* If we have something cloud to unregister: */
+    if (!cloudMachineItemsToUnregister.isEmpty())
+        unregisterCloudMachineItems(cloudMachineItemsToUnregister);
+}
+
+void UIChooserModel::moveSelectedMachineItemsToGroupItem(const QString &strName /* = QString() */)
+{
+    /* Prepare target group pointers: */
+    UIChooserNodeGroup *pTargetGroupNode = 0;
+    UIChooserItemGroup *pTargetGroupItem = 0;
+    if (strName.isNull())
+    {
+        /* Create new group node in the current root: */
+        pTargetGroupNode = new UIChooserNodeGroup(invisibleRoot(),
+                                                  invisibleRoot()->nodes().size() /* position */,
+                                                  QUuid() /* id */,
+                                                  uniqueGroupName(invisibleRoot()),
+                                                  UIChooserNodeGroupType_Local,
+                                                  true /* opened */);
+        pTargetGroupItem = new UIChooserItemGroup(root(), pTargetGroupNode);
+    }
+    else
+    {
+        /* Search for existing group with certain name: */
+        UIChooserItem *pTargetItem = root()->searchForItem(strName,
+                                                           UIChooserItemSearchFlag_LocalGroup |
+                                                           UIChooserItemSearchFlag_FullName);
+        AssertPtrReturnVoid(pTargetItem);
+        pTargetGroupItem = pTargetItem->toGroupItem();
+        UIChooserNode *pTargetNode = pTargetItem->node();
+        AssertPtrReturnVoid(pTargetNode);
+        pTargetGroupNode = pTargetNode->toGroupNode();
+    }
+    AssertPtrReturnVoid(pTargetGroupNode);
+    AssertPtrReturnVoid(pTargetGroupItem);
+
+    /* For each of currently selected-items: */
+    QStringList busyGroupNames;
+    QStringList busyMachineNames;
+    QList<UIChooserItem*> copiedItems;
+    foreach (UIChooserItem *pItem, selectedItems())
+    {
+        /* For each of known types: */
+        switch (pItem->type())
+        {
+            case UIChooserNodeType_Group:
+            {
+                /* Avoid name collisions: */
+                if (busyGroupNames.contains(pItem->name()))
+                    break;
+                /* Add name to busy: */
+                busyGroupNames << pItem->name();
+                /* Copy or move group-item: */
+                UIChooserNodeGroup *pNewGroupSubNode = new UIChooserNodeGroup(pTargetGroupNode,
+                                                                              pTargetGroupNode->nodes().size(),
+                                                                              pItem->node()->toGroupNode());
+                copiedItems << new UIChooserItemGroup(pTargetGroupItem, pNewGroupSubNode);
+                delete pItem->node();
+                break;
+            }
+            case UIChooserNodeType_Machine:
+            {
+                /* Avoid name collisions: */
+                if (busyMachineNames.contains(pItem->name()))
+                    break;
+                /* Add name to busy: */
+                busyMachineNames << pItem->name();
+                /* Copy or move machine-item: */
+                UIChooserNodeMachine *pNewMachineSubNode = new UIChooserNodeMachine(pTargetGroupNode,
+                                                                                    pTargetGroupNode->nodes().size(),
+                                                                                    pItem->node()->toMachineNode());
+                copiedItems << new UIChooserItemMachine(pTargetGroupItem, pNewMachineSubNode);
+                delete pItem->node();
+                break;
+            }
+        }
+    }
+
+    /* Update model: */
+    wipeOutEmptyGroups();
+    updateTreeForMainRoot();
+
+    /* Check if we can select copied items: */
+    QList<UIChooserItem*> itemsToSelect;
+    foreach (UIChooserItem *pCopiedItem, copiedItems)
+        if (navigationItems().contains(pCopiedItem))
+            itemsToSelect << pCopiedItem;
+    if (!itemsToSelect.isEmpty())
+    {
+        setSelectedItems(itemsToSelect);
+        setCurrentItem(firstSelectedItem());
+    }
+    else
+    {
+        /* Otherwise check if we can select one of our parents: */
+        UIChooserItem *pItemToSelect = pTargetGroupItem;
+        while (   !navigationItems().contains(pItemToSelect)
+               && pItemToSelect->parentItem() != root())
+            pItemToSelect = pItemToSelect->parentItem();
+        if (navigationItems().contains(pItemToSelect))
+            setSelectedItem(pItemToSelect);
+    }
+
+    /* Save groups finally: */
+    saveGroups();
+}
+
+void UIChooserModel::startOrShowSelectedItems()
+{
+    emit sigStartOrShowRequest();
+}
+
+void UIChooserModel::refreshSelectedMachineItems()
+{
+    /* Gather list of current unique inaccessible machine-items: */
+    QList<UIChooserItemMachine*> inaccessibleMachineItemList;
+    UIChooserItemMachine::enumerateMachineItems(selectedItems(), inaccessibleMachineItemList,
+                                                UIChooserItemMachineEnumerationFlag_Unique |
+                                                UIChooserItemMachineEnumerationFlag_Inaccessible);
+
+    /* Prepare item to be selected: */
+    UIChooserItem *pSelectedItem = 0;
+
+    /* For each machine-item: */
+    foreach (UIChooserItemMachine *pItem, inaccessibleMachineItemList)
+    {
+        AssertPtrReturnVoid(pItem);
+        switch (pItem->cacheType())
+        {
+            case UIVirtualMachineItemType_Local:
+            {
+                /* Recache: */
+                pItem->recache();
+
+                /* Became accessible? */
+                if (pItem->accessible())
+                {
+                    /* Acquire machine ID: */
+                    const QUuid uId = pItem->id();
+                    /* Reload this machine: */
+                    sltReloadMachine(uId);
+                    /* Select first of reloaded items: */
+                    if (!pSelectedItem)
+                        pSelectedItem = root()->searchForItem(uId.toString(),
+                                                              UIChooserItemSearchFlag_Machine |
+                                                              UIChooserItemSearchFlag_ExactId);
+                }
+
+                break;
+            }
+            case UIVirtualMachineItemType_CloudFake:
+            {
+                /* Compose cloud entity key: */
+                UIChooserItem *pParent = pItem->parentItem();
+                AssertPtrReturnVoid(pParent);
+                UIChooserItem *pParentOfParent = pParent->parentItem();
+                AssertPtrReturnVoid(pParentOfParent);
+
+                /* Create read cloud machine list task: */
+                const UICloudEntityKey guiCloudProfileKey = UICloudEntityKey(pParentOfParent->name(), pParent->name());
+                createReadCloudMachineListTask(guiCloudProfileKey, true /* with refresh? */);
+
+                break;
+            }
+            case UIVirtualMachineItemType_CloudReal:
+            {
+                /* Much more simple than for local items, we are not reloading them, just refreshing: */
+                pItem->cache()->toCloud()->updateInfoAsync(false /* delayed */);
+
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    /* Some item to be selected? */
+    if (pSelectedItem)
+    {
+        pSelectedItem->makeSureItsVisible();
+        setSelectedItem(pSelectedItem);
+    }
+}
+
+void UIChooserModel::sortSelectedGroupItem()
+{
+    /* For single selected group, sort first selected item children: */
+    if (isSingleGroupSelected())
+        firstSelectedItem()->node()->sortNodes();
+    /* Otherwise, sort first selected item neighbors: */
+    else
+        firstSelectedItem()->parentItem()->node()->sortNodes();
+
+    /* Rebuild tree for main root: */
+    buildTreeForMainRoot(true /* preserve selection */);
+}
+
+void UIChooserModel::setCurrentMachineItem(const QUuid &uId)
+{
+    /* Look whether we have such item at all: */
+    UIChooserItem *pItem = root()->searchForItem(uId.toString(),
+                                                 UIChooserItemSearchFlag_Machine |
+                                                 UIChooserItemSearchFlag_ExactId);
+
+    /* Select item if exists: */
+    if (pItem)
+        setSelectedItem(pItem);
+}
+
+void UIChooserModel::setCurrentGlobalItem()
+{
+    /* Look whether we have such item at all: */
+    UIChooserItem *pItem = root()->searchForItem(QString(),
+                                                 UIChooserItemSearchFlag_Global);
+
+    /* Select item if exists: */
+    if (pItem)
+        setSelectedItem(pItem);
 }
 
 void UIChooserModel::setCurrentDragObject(QDrag *pDragObject)
@@ -546,38 +1074,29 @@ void UIChooserModel::lookFor(const QString &strLookupText)
 
 void UIChooserModel::updateLayout()
 {
+    /* Sanity check.  This method can be called when invisible root is
+     * temporary deleted.  We should ignore request in such case. */
     if (!view() || !root())
         return;
 
     /* Initialize variables: */
     const QSize viewportSize = view()->size();
     const int iViewportWidth = viewportSize.width();
-    const int iViewportHeight = viewportSize.height();
+    const int iViewportHeight = root()->minimumSizeHint().toSize().height();
 
-    /* Set root-item position: */
+    /* Move root: */
     root()->setPos(0, 0);
-    /* Set root-item size: */
+    /* Resize root: */
     root()->resize(iViewportWidth, iViewportHeight);
-    /* Relayout root-item: */
+    /* Layout root content: */
     root()->updateLayout();
-    /* Make sure root-item is shown: */
-    root()->show();
 }
 
 void UIChooserModel::setGlobalItemHeightHint(int iHint)
 {
-    /* Walk thrugh all the items of navigation list: */
-    foreach (UIChooserItem *pItem, navigationItems())
-    {
-        /* And for each global item: */
-        if (pItem->type() == UIChooserItemType_Global)
-        {
-            /* Apply the height hint we have: */
-            UIChooserItemGlobal *pGlobalItem = pItem->toGlobalItem();
-            if (pGlobalItem)
-                pGlobalItem->setHeightHint(iHint);
-        }
-    }
+    /* Save and apply global item height hint: */
+    m_iGlobalItemHeightHint = iHint;
+    applyGlobalItemHeightHint();
 }
 
 void UIChooserModel::sltHandleViewResized()
@@ -630,95 +1149,155 @@ bool UIChooserModel::eventFilter(QObject *pWatched, QEvent *pEvent)
     return QObject::eventFilter(pWatched, pEvent);
 }
 
-void UIChooserModel::sltMachineRegistered(const QUuid &uId, const bool fRegistered)
+void UIChooserModel::sltLocalMachineRegistrationChanged(const QUuid &uMachineId, const bool fRegistered)
 {
+    /* Existing VM unregistered => make sure no item with passed uMachineId is selected: */
+    if (!fRegistered)
+        makeSureNoItemWithCertainIdSelected(uMachineId);
+
     /* Call to base-class: */
-    UIChooserAbstractModel::sltMachineRegistered(uId, fRegistered);
+    UIChooserAbstractModel::sltLocalMachineRegistrationChanged(uMachineId, fRegistered);
 
     /* Existing VM unregistered? */
     if (!fRegistered)
     {
         /* Update tree for main root: */
-        updateNavigationItemList();
-        updateLayout();
-
-        /* Make sure selected-item present, if possible: */
-        if (!firstSelectedItem() && !navigationItems().isEmpty())
-        {
-            setSelectedItem(navigationItems().first());
-            emit sigSelectionInvalidated();
-        }
-        /* Make sure current-item present, if possible: */
-        else if (!currentItem() && firstSelectedItem())
-            setCurrentItem(firstSelectedItem());
-        /* Notify about selected-item change: */
-        emit sigSelectionChanged();
+        updateTreeForMainRoot();
     }
     /* New VM registered? */
     else
     {
         /* Should we show this VM? */
-        if (gEDataManager->showMachineInVirtualBoxManagerChooser(uId))
+        if (gEDataManager->showMachineInVirtualBoxManagerChooser(uMachineId))
         {
             /* Rebuild tree for main root: */
-            buildTreeForMainRoot();
-            updateNavigationItemList();
-            updateLayout();
-
-            /* Select newly added item: */
-            CMachine comMachine = uiCommon().virtualBox().FindMachine(uId.toString());
-            setSelectedItem(root()->searchForItem(comMachine.GetName(),
-                                                 UIChooserItemSearchFlag_Machine |
-                                                 UIChooserItemSearchFlag_ExactName));
+            buildTreeForMainRoot(true /* preserve selection */);
+            /* Search for newly added item: */
+            UIChooserItem *pNewItem = root()->searchForItem(uMachineId.toString(),
+                                                            UIChooserItemSearchFlag_Machine |
+                                                            UIChooserItemSearchFlag_ExactId);
+            /* Select newly added item if any: */
+            if (pNewItem)
+                setSelectedItem(pNewItem);
         }
     }
 }
 
-void UIChooserModel::sltReloadMachine(const QUuid &uId)
+void UIChooserModel::sltHandleCloudProviderUninstall(const QUuid &uProviderId)
 {
     /* Call to base-class: */
-    UIChooserAbstractModel::sltReloadMachine(uId);
+    UIChooserAbstractModel::sltHandleCloudProviderUninstall(uProviderId);
 
-    /* Show machine if we should: */
-    if (gEDataManager->showMachineInVirtualBoxManagerChooser(uId))
+    /* Notify about selection invalidated: */
+    emit sigSelectionInvalidated();
+}
+
+void UIChooserModel::sltReloadMachine(const QUuid &uMachineId)
+{
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltReloadMachine(uMachineId);
+
+    /* Should we show this VM? */
+    if (gEDataManager->showMachineInVirtualBoxManagerChooser(uMachineId))
     {
         /* Rebuild tree for main root: */
-        buildTreeForMainRoot();
-        updateNavigationItemList();
-        updateLayout();
-
+        buildTreeForMainRoot(false /* preserve selection */);
         /* Select newly added item: */
-        CMachine comMachine = uiCommon().virtualBox().FindMachine(uId.toString());
-        setSelectedItem(root()->searchForItem(comMachine.GetName(),
-                                             UIChooserItemSearchFlag_Machine |
-                                             UIChooserItemSearchFlag_ExactName));
+        setSelectedItem(root()->searchForItem(uMachineId.toString(),
+                                              UIChooserItemSearchFlag_Machine |
+                                              UIChooserItemSearchFlag_ExactId));
     }
-    else
-    {
-        /* Make sure at least one item selected after that: */
-        if (!firstSelectedItem() && !navigationItems().isEmpty())
-        {
-            setSelectedItem(navigationItems().first());
-            emit sigSelectionInvalidated();
-        }
-    }
+    makeSureAtLeastOneItemSelected();
 
     /* Notify listeners about selection change: */
     emit sigSelectionChanged();
 }
 
-#ifdef VBOX_GUI_WITH_CLOUD_VMS
-void UIChooserModel::sltHandleCloudAcquireInstancesTaskComplete(UITask *pTask)
+void UIChooserModel::sltDetachCOM()
 {
+    /* Clean tree for main root: */
+    clearTreeForMainRoot();
+    emit sigSelectionInvalidated();
+
     /* Call to base-class: */
-    UIChooserAbstractModel::sltHandleCloudAcquireInstancesTaskComplete(pTask);
+    UIChooserAbstractModel::sltDetachCOM();
+}
+
+void UIChooserModel::sltCloudMachineUnregistered(const QString &strProviderShortName,
+                                                 const QString &strProfileName,
+                                                 const QUuid &uId)
+{
+    /* Make sure no item with passed uId is selected: */
+    makeSureNoItemWithCertainIdSelected(uId);
+
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltCloudMachineUnregistered(strProviderShortName, strProfileName, uId);
 
     /* Rebuild tree for main root: */
-    buildTreeForMainRoot();
-    updateNavigationItemList();
-    updateLayout();
+    buildTreeForMainRoot(true /* preserve selection */);
 }
-#endif /* VBOX_GUI_WITH_CLOUD_VMS */
+
+void UIChooserModel::sltCloudMachinesUnregistered(const QString &strProviderShortName,
+                                                  const QString &strProfileName,
+                                                  const QList<QUuid> &ids)
+{
+    /* Make sure no item with one of passed ids is selected: */
+    foreach (const QUuid &uId, ids)
+        makeSureNoItemWithCertainIdSelected(uId);
+
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltCloudMachinesUnregistered(strProviderShortName, strProfileName, ids);
+
+    /* Rebuild tree for main root: */
+    buildTreeForMainRoot(true /* preserve selection */);
+}
+
+void UIChooserModel::sltCloudMachineRegistered(const QString &strProviderShortName,
+                                               const QString &strProfileName,
+                                               const CCloudMachine &comMachine)
+{
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltCloudMachineRegistered(strProviderShortName, strProfileName, comMachine);
+
+    /* Rebuild tree for main root: */
+    buildTreeForMainRoot(false /* preserve selection */);
+
+    /* Select newly added item: */
+    QUuid uMachineId;
+    if (cloudMachineId(comMachine, uMachineId))
+        setSelectedItem(root()->searchForItem(uMachineId.toString(),
+                                              UIChooserItemSearchFlag_Machine |
+                                              UIChooserItemSearchFlag_ExactId));
+}
+
+void UIChooserModel::sltCloudMachinesRegistered(const QString &strProviderShortName,
+                                                const QString &strProfileName,
+                                                const QVector<CCloudMachine> &machines)
+{
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltCloudMachinesRegistered(strProviderShortName, strProfileName, machines);
+
+    /* Rebuild tree for main root: */
+    buildTreeForMainRoot(true /* preserve selection */);
+}
+
+void UIChooserModel::sltHandleReadCloudMachineListTaskComplete()
+{
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltHandleReadCloudMachineListTaskComplete();
+
+    /* Restart cloud profile update timer: */
+    m_pTimerCloudProfileUpdate->start(10000);
+}
+
+void UIChooserModel::sltHandleCloudProfileManagerCumulativeChange()
+{
+    /* Call to base-class: */
+    UIChooserAbstractModel::sltHandleCloudProfileManagerCumulativeChange();
+
+    /* Build tree for main root: */
+    buildTreeForMainRoot(true /* preserve selection */);
+}
 
 void UIChooserModel::sltMakeSureCurrentItemVisible()
 {
@@ -728,376 +1307,6 @@ void UIChooserModel::sltMakeSureCurrentItemVisible()
 void UIChooserModel::sltCurrentItemDestroyed()
 {
     AssertMsgFailed(("Current-item destroyed!"));
-}
-
-void UIChooserModel::sltEditGroupName()
-{
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Rename)->isEnabled())
-        return;
-    /* Only for single selected group: */
-    if (!isSingleGroupSelected())
-        return;
-
-    /* Start editing group name: */
-    firstSelectedItem()->startEditing();
-}
-
-void UIChooserModel::sltSortGroup()
-{
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Sort)->isEnabled())
-        return;
-    /* Only for single selected group: */
-    if (!isSingleGroupSelected())
-        return;
-
-    /* Sort nodes: */
-    firstSelectedItem()->node()->sortNodes();
-
-    /* Rebuild tree for main root: */
-    buildTreeForMainRoot();
-    updateNavigationItemList();
-    updateLayout();
-}
-
-void UIChooserModel::sltUngroupSelectedGroup()
-{
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Remove)->isEnabled())
-        return;
-
-    /* Make sure current-item is of group type! */
-    AssertMsg(currentItem()->type() == UIChooserItemType_Group, ("This is not group-item!"));
-
-    /* Check if we have collisions with our siblings: */
-    UIChooserItem *pCurrentItem = currentItem();
-    UIChooserNode *pCurrentNode = pCurrentItem->node();
-    UIChooserItem *pParentItem = pCurrentItem->parentItem();
-    UIChooserNode *pParentNode = pParentItem->node();
-    QList<UIChooserNode*> siblings = pParentNode->nodes();
-    QList<UIChooserNode*> toBeRenamed;
-    QList<UIChooserNode*> toBeRemoved;
-    foreach (UIChooserNode *pNode, pCurrentNode->nodes())
-    {
-        QString strItemName = pNode->name();
-        UIChooserNode *pCollisionSibling = 0;
-        foreach (UIChooserNode *pSibling, siblings)
-            if (pSibling != pCurrentNode && pSibling->name() == strItemName)
-                pCollisionSibling = pSibling;
-        if (pCollisionSibling)
-        {
-            if (pNode->type() == UIChooserItemType_Machine)
-            {
-                if (pCollisionSibling->type() == UIChooserItemType_Machine)
-                    toBeRemoved << pNode;
-                else if (pCollisionSibling->type() == UIChooserItemType_Group)
-                {
-                    msgCenter().cannotResolveCollisionAutomatically(strItemName, pParentNode->name());
-                    return;
-                }
-            }
-            else if (pNode->type() == UIChooserItemType_Group)
-            {
-                if (msgCenter().confirmAutomaticCollisionResolve(strItemName, pParentNode->name()))
-                    toBeRenamed << pNode;
-                else
-                    return;
-            }
-        }
-    }
-
-    /* Copy all the children into our parent: */
-    QList<UIChooserItem*> copiedItems;
-    foreach (UIChooserNode *pNode, pCurrentNode->nodes())
-    {
-        if (toBeRemoved.contains(pNode))
-            continue;
-        switch (pNode->type())
-        {
-            case UIChooserItemType_Group:
-            {
-                UIChooserNodeGroup *pGroupNode = new UIChooserNodeGroup(pParentNode,
-                                                                        pNode->toGroupNode(),
-                                                                        pParentNode->nodes().size());
-                UIChooserItemGroup *pGroupItem = new UIChooserItemGroup(pParentItem, pGroupNode);
-                if (toBeRenamed.contains(pNode))
-                    pGroupNode->setName(uniqueGroupName(pParentNode));
-                copiedItems << pGroupItem;
-                break;
-            }
-            case UIChooserItemType_Machine:
-            {
-                UIChooserNodeMachine *pMachineNode = new UIChooserNodeMachine(pParentNode,
-                                                                              pNode->toMachineNode(),
-                                                                              pParentNode->nodes().size());
-                UIChooserItemMachine *pMachineItem = new UIChooserItemMachine(pParentItem, pMachineNode);
-                copiedItems << pMachineItem;
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
-    /* Delete current group: */
-    delete pCurrentNode;
-
-    /* And update model: */
-    updateNavigationItemList();
-    updateLayout();
-    if (!copiedItems.isEmpty())
-    {
-        setSelectedItems(copiedItems);
-        setCurrentItem(firstSelectedItem());
-    }
-    else
-    {
-        setSelectedItem(navigationItems().first());
-        emit sigSelectionInvalidated();
-    }
-    saveGroupSettings();
-}
-
-void UIChooserModel::sltCreateNewMachine()
-{
-    /* Check if at least one of actions is enabled: */
-    if (   !actionPool()->action(UIActionIndexST_M_Welcome_S_New)->isEnabled()
-        && !actionPool()->action(UIActionIndexST_M_Machine_S_New)->isEnabled()
-        && !actionPool()->action(UIActionIndexST_M_Group_S_New)->isEnabled())
-        return;
-
-    /* Select the parent: */
-    UIChooserItem *pGroup = 0;
-    if (isSingleGroupSelected())
-        pGroup = firstSelectedItem();
-    else if (!selectedItems().isEmpty())
-        pGroup = firstSelectedItem()->parentItem();
-    QString strGroupName;
-    if (pGroup)
-        strGroupName = pGroup->fullName();
-
-    /* Lock the action preventing cascade calls: */
-    actionPool()->action(UIActionIndexST_M_Welcome_S_New)->setEnabled(false);
-    actionPool()->action(UIActionIndexST_M_Machine_S_New)->setEnabled(false);
-    actionPool()->action(UIActionIndexST_M_Group_S_New)->setEnabled(false);
-
-    /* What first item do we have? */
-    if (  !firstSelectedMachineItem()
-        ||firstSelectedMachineItem()->itemType() == UIVirtualMachineItem::ItemType_Local)
-    {
-        /* Use the "safe way" to open stack of Mac OS X Sheets: */
-        QWidget *pWizardParent = windowManager().realParentWindow(chooser()->managerWidget());
-        UISafePointerWizardNewVM pWizard = new UIWizardNewVM(pWizardParent, strGroupName);
-        windowManager().registerNewParent(pWizard, pWizardParent);
-        pWizard->prepare();
-
-        /* Execute wizard: */
-        pWizard->exec();
-        delete pWizard;
-    }
-    else
-    {
-        /* Use the "safe way" to open stack of Mac OS X Sheets: */
-        QWidget *pWizardParent = windowManager().realParentWindow(chooser()->managerWidget());
-        UISafePointerWizardNewCloudVM pWizard = new UIWizardNewCloudVM(pWizardParent);
-        windowManager().registerNewParent(pWizard, pWizardParent);
-        pWizard->prepare();
-
-        /* Execute wizard: */
-        pWizard->exec();
-        delete pWizard;
-    }
-
-    /* Unlock the action allowing further calls: */
-    actionPool()->action(UIActionIndexST_M_Welcome_S_New)->setEnabled(true);
-    actionPool()->action(UIActionIndexST_M_Machine_S_New)->setEnabled(true);
-    actionPool()->action(UIActionIndexST_M_Group_S_New)->setEnabled(true);
-}
-
-void UIChooserModel::sltGroupSelectedMachines()
-{
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup)->isEnabled())
-        return;
-
-    /* Create new group node in the current root: */
-    UIChooserNodeGroup *pNewGroupNode = new UIChooserNodeGroup(invisibleRoot(),
-                                                               false /* favorite */,
-                                                               invisibleRoot()->nodes().size() /* position */,
-                                                               uniqueGroupName(invisibleRoot()),
-                                                               true /* opened */);
-    UIChooserItemGroup *pNewGroupItem = new UIChooserItemGroup(root(), pNewGroupNode);
-
-    /* Enumerate all the currently selected-items: */
-    QStringList busyGroupNames;
-    QStringList busyMachineNames;
-    foreach (UIChooserItem *pItem, selectedItems())
-    {
-        /* For each of known types: */
-        switch (pItem->type())
-        {
-            case UIChooserItemType_Group:
-            {
-                /* Avoid name collisions: */
-                if (busyGroupNames.contains(pItem->name()))
-                    break;
-                /* Add name to busy: */
-                busyGroupNames << pItem->name();
-                /* Copy or move group-item: */
-                UIChooserNodeGroup *pNewGroupSubNode = new UIChooserNodeGroup(pNewGroupNode,
-                                                                              pItem->node()->toGroupNode(),
-                                                                              pNewGroupNode->nodes().size());
-                new UIChooserItemGroup(pNewGroupItem, pNewGroupSubNode);
-                delete pItem->node();
-                break;
-            }
-            case UIChooserItemType_Machine:
-            {
-                /* Avoid name collisions: */
-                if (busyMachineNames.contains(pItem->name()))
-                    break;
-                /* Add name to busy: */
-                busyMachineNames << pItem->name();
-                /* Copy or move machine-item: */
-                UIChooserNodeMachine *pNewMachineSubNode = new UIChooserNodeMachine(pNewGroupNode,
-                                                                                    pItem->node()->toMachineNode(),
-                                                                                    pNewGroupNode->nodes().size());
-                new UIChooserItemMachine(pNewGroupItem, pNewMachineSubNode);
-                delete pItem->node();
-                break;
-            }
-        }
-    }
-
-    /* Update model: */
-    wipeOutEmptyGroups();
-    updateNavigationItemList();
-    updateLayout();
-    setSelectedItem(pNewGroupItem);
-    saveGroupSettings();
-}
-
-void UIChooserModel::sltSortParentGroup()
-{
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_SortParent)->isEnabled())
-        return;
-
-    /* Only if some item selected: */
-    if (!firstSelectedItem())
-        return;
-
-    /* Sort nodes: */
-    firstSelectedItem()->parentItem()->node()->sortNodes();
-
-    /* Rebuild tree for main root: */
-    buildTreeForMainRoot();
-    updateNavigationItemList();
-    updateLayout();
-}
-
-void UIChooserModel::sltPerformRefreshAction()
-{
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Group_S_Refresh)->isEnabled())
-        return;
-
-    /* Gather list of current unique inaccessible machine-items: */
-    QList<UIChooserItemMachine*> inaccessibleMachineItemList;
-    UIChooserItemMachine::enumerateMachineItems(selectedItems(), inaccessibleMachineItemList,
-                                                UIChooserItemMachineEnumerationFlag_Unique |
-                                                UIChooserItemMachineEnumerationFlag_Inaccessible);
-
-    /* For each machine-item: */
-    UIChooserItem *pSelectedItem = 0;
-    foreach (UIChooserItemMachine *pItem, inaccessibleMachineItemList)
-    {
-        /* Recache: */
-        pItem->recache();
-        /* Become accessible? */
-        if (pItem->accessible())
-        {
-            /* Machine name: */
-            const QString strMachineName = ((UIChooserItem*)pItem)->name();
-            /* We should reload this machine: */
-            sltReloadMachine(pItem->id());
-            /* Select first of reloaded items: */
-            if (!pSelectedItem)
-                pSelectedItem = root()->searchForItem(strMachineName,
-                                                      UIChooserItemSearchFlag_Machine |
-                                                      UIChooserItemSearchFlag_ExactName);
-        }
-    }
-
-    /* Some item to be selected? */
-    if (pSelectedItem)
-    {
-        pSelectedItem->makeSureItsVisible();
-        setSelectedItem(pSelectedItem);
-    }
-}
-
-void UIChooserModel::sltRemoveSelectedMachine()
-{
-    /* Check if action is enabled: */
-    if (!actionPool()->action(UIActionIndexST_M_Machine_S_Remove)->isEnabled())
-        return;
-
-    /* Enumerate all the selected machine-items: */
-    QList<UIChooserItemMachine*> selectedMachineItemList;
-    UIChooserItemMachine::enumerateMachineItems(selectedItems(), selectedMachineItemList);
-    /* Enumerate all the existing machine-items: */
-    QList<UIChooserItemMachine*> existingMachineItemList;
-    UIChooserItemMachine::enumerateMachineItems(root()->items(), existingMachineItemList);
-
-    /* Prepare arrays: */
-    QMap<QUuid, bool> verdicts;
-    QList<UIChooserItem*> itemsToRemove;
-    QList<QUuid> machinesToUnregister;
-
-    /* For each selected machine-item: */
-    foreach (UIChooserItem *pItem, selectedMachineItemList)
-    {
-        /* Get machine-item id: */
-        QUuid uId = pItem->toMachineItem()->id();
-
-        /* We already decided for that machine? */
-        if (verdicts.contains(uId))
-        {
-            /* To remove similar machine items? */
-            if (!verdicts[uId])
-                itemsToRemove << pItem;
-            continue;
-        }
-
-        /* Selected copy count: */
-        int iSelectedCopyCount = 0;
-        foreach (UIChooserItem *pSelectedItem, selectedMachineItemList)
-            if (pSelectedItem->toMachineItem()->id() == uId)
-                ++iSelectedCopyCount;
-        /* Existing copy count: */
-        int iExistingCopyCount = 0;
-        foreach (UIChooserItem *pExistingItem, existingMachineItemList)
-            if (pExistingItem->toMachineItem()->id() == uId)
-                ++iExistingCopyCount;
-        /* If selected copy count equal to existing copy count,
-         * we will propose ro unregister machine fully else
-         * we will just propose to remove selected-items: */
-        bool fVerdict = iSelectedCopyCount == iExistingCopyCount;
-        verdicts.insert(uId, fVerdict);
-        if (fVerdict)
-            machinesToUnregister.append(uId);
-        else
-            itemsToRemove << pItem;
-    }
-
-    /* If we have something to remove: */
-    if (!itemsToRemove.isEmpty())
-        removeItems(itemsToRemove);
-    /* If we have something to unregister: */
-    if (!machinesToUnregister.isEmpty())
-        unregisterMachines(machinesToUnregister);
 }
 
 void UIChooserModel::sltStartScrolling()
@@ -1145,10 +1354,79 @@ void UIChooserModel::sltCurrentDragObjectDestroyed()
     root()->resetDragToken();
 }
 
-void UIChooserModel::sltShowHideSearchWidget()
+void UIChooserModel::sltHandleCloudMachineRemoved(const QString &strProviderShortName,
+                                                  const QString &strProfileName,
+                                                  const QString &strName)
 {
-    if (view())
-        setSearchWidgetVisible(!view()->isSearchWidgetVisible());
+    Q_UNUSED(strName);
+
+    /* Update profile to make sure it has no stale instances: */
+    const UICloudEntityKey cloudEntityKeyForProfile = UICloudEntityKey(strProviderShortName, strProfileName);
+    createReadCloudMachineListTask(cloudEntityKeyForProfile, false /* with refresh? */);
+}
+
+void UIChooserModel::sltUpdateSelectedCloudProfiles()
+{
+    /* For every selected item: */
+    QSet<UICloudEntityKey> selectedCloudProfileKeys;
+    foreach (UIChooserItem *pSelectedItem, selectedItems())
+    {
+        /* Enumerate cloud profile keys to update: */
+        switch (pSelectedItem->type())
+        {
+            case UIChooserNodeType_Group:
+            {
+                UIChooserItemGroup *pGroupItem = pSelectedItem->toGroupItem();
+                AssertPtrReturnVoid(pGroupItem);
+                switch (pGroupItem->groupType())
+                {
+                    case UIChooserNodeGroupType_Provider:
+                    {
+                        const QString strProviderShortName = pSelectedItem->name();
+                        foreach (UIChooserItem *pChildItem, pSelectedItem->items(UIChooserNodeType_Group))
+                        {
+                            const QString strProfileName = pChildItem->name();
+                            const UICloudEntityKey guiCloudProfileKey = UICloudEntityKey(strProviderShortName, strProfileName);
+                            if (!selectedCloudProfileKeys.contains(guiCloudProfileKey))
+                                selectedCloudProfileKeys.insert(guiCloudProfileKey);
+                        }
+                        break;
+                    }
+                    case UIChooserNodeGroupType_Profile:
+                    {
+                        const QString strProviderShortName = pSelectedItem->parentItem()->name();
+                        const QString strProfileName = pSelectedItem->name();
+                        const UICloudEntityKey guiCloudProfileKey = UICloudEntityKey(strProviderShortName, strProfileName);
+                        if (!selectedCloudProfileKeys.contains(guiCloudProfileKey))
+                            selectedCloudProfileKeys.insert(guiCloudProfileKey);
+                        break;
+                    }
+                    default:
+                        break;
+                }
+                break;
+            }
+            case UIChooserNodeType_Machine:
+            {
+                UIChooserItemMachine *pMachineItem = pSelectedItem->toMachineItem();
+                AssertPtrReturnVoid(pMachineItem);
+                if (   pMachineItem->cacheType() == UIVirtualMachineItemType_CloudFake
+                    || pMachineItem->cacheType() == UIVirtualMachineItemType_CloudReal)
+                {
+                    const QString strProviderShortName = pMachineItem->parentItem()->parentItem()->name();
+                    const QString strProfileName = pMachineItem->parentItem()->name();
+                    const UICloudEntityKey guiCloudProfileKey = UICloudEntityKey(strProviderShortName, strProfileName);
+                    if (!selectedCloudProfileKeys.contains(guiCloudProfileKey))
+                        selectedCloudProfileKeys.insert(guiCloudProfileKey);
+                }
+                break;
+            }
+        }
+    }
+
+    /* Restart List Cloud Machines task for selected profile keys: */
+    foreach (const UICloudEntityKey &guiCloudProfileKey, selectedCloudProfileKeys)
+        createReadCloudMachineListTask(guiCloudProfileKey, false /* with refresh? */);
 }
 
 void UIChooserModel::prepare()
@@ -1156,6 +1434,7 @@ void UIChooserModel::prepare()
     prepareScene();
     prepareContextMenu();
     prepareHandlers();
+    prepareCloudUpdateTimer();
     prepareConnections();
 }
 
@@ -1169,102 +1448,128 @@ void UIChooserModel::prepareScene()
 void UIChooserModel::prepareContextMenu()
 {
     /* Context menu for global(s): */
-    m_pContextMenuGlobal = new QMenu;
-    if (m_pContextMenuGlobal)
+    m_localMenus[UIChooserNodeType_Global] = new QMenu;
+    if (QMenu *pMenuGlobal = m_localMenus.value(UIChooserNodeType_Global))
     {
-        /* Check if Ext Pack is ready, some of actions my depend on it: */
-        CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
-        const bool fExtPackAccessible = !extPack.isNull() && extPack.GetUsable();
-
 #ifdef VBOX_WS_MAC
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
-        m_pContextMenuGlobal->addSeparator();
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
-        m_pContextMenuGlobal->addSeparator();
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_NewCloudVM));
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
+        pMenuGlobal->addSeparator();
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
+        pMenuGlobal->addSeparator();
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ImportAppliance));
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ExportAppliance));
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ShowExtraDataManager));
+        pMenuGlobal->addSeparator();
 # endif
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowVirtualMediumManager));
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowHostNetworkManager));
-        if (fExtPackAccessible)
-            m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowCloudProfileManager));
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_M_Tools));
 
 #else /* !VBOX_WS_MAC */
 
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
-        m_pContextMenuGlobal->addSeparator();
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_NewCloudVM));
-        m_pContextMenuGlobal->addSeparator();
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
+        pMenuGlobal->addSeparator();
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ImportAppliance));
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ExportAppliance));
+        pMenuGlobal->addSeparator();
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_S_ShowExtraDataManager));
+        pMenuGlobal->addSeparator();
 # endif
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowVirtualMediumManager));
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowHostNetworkManager));
-        if (fExtPackAccessible)
-            m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowCloudProfileManager));
+        pMenuGlobal->addAction(actionPool()->action(UIActionIndexMN_M_File_M_Tools));
+        pMenuGlobal->addSeparator();
 # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-        m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
         if (gEDataManager->applicationUpdateEnabled())
-            m_pContextMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
+            pMenuGlobal->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
 # endif
 #endif /* !VBOX_WS_MAC */
     }
 
-    /* Context menu for group(s): */
-    m_pContextMenuGroup = new QMenu;
-    if (m_pContextMenuGroup)
+    /* Context menu for local group(s): */
+    m_localMenus[UIChooserNodeType_Group] = new QMenu;
+    if (QMenu *pMenuGroup = m_localMenus.value(UIChooserNodeType_Group))
     {
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_New));
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Add));
-        m_pContextMenuGroup->addSeparator();
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Rename));
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Remove));
-        m_pContextMenuGroup->addSeparator();
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_M_StartOrShow));
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_T_Pause));
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Reset));
-        m_pContextMenuGroup->addMenu(actionPool()->action(UIActionIndexST_M_Group_M_Close)->menu());
-        m_pContextMenuGroup->addSeparator();
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Discard));
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_ShowLogDialog));
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Refresh));
-        m_pContextMenuGroup->addSeparator();
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_ShowInFileManager));
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_CreateShortcut));
-        m_pContextMenuGroup->addSeparator();
-        m_pContextMenuGroup->addAction(actionPool()->action(UIActionIndexST_M_Group_S_Sort));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_New));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Add));
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Rename));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Remove));
+        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_MoveToGroup)->menu());
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_M_StartOrShow));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Pause));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Reset));
+        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Close)->menu());
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Discard));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_ShowLogDialog));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Refresh));
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_ShowInFileManager));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_CreateShortcut));
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Sort));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Search));
     }
 
-    /* Context menu for machine(s): */
-    m_pContextMenuMachine = new QMenu;
-    if (m_pContextMenuMachine)
+    /* Context menu for local machine(s): */
+    m_localMenus[UIChooserNodeType_Machine] = new QMenu;
+    if (QMenu *pMenuMachine = m_localMenus.value(UIChooserNodeType_Machine))
     {
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Clone));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Move));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_ExportToOCI));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Remove));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup));
-        m_pContextMenuMachine->addSeparator();
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_T_Pause));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Reset));
-        m_pContextMenuMachine->addMenu(actionPool()->action(UIActionIndexST_M_Machine_M_Close)->menu());
-        m_pContextMenuMachine->addSeparator();
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_ShowLogDialog));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh));
-        m_pContextMenuMachine->addSeparator();
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_ShowInFileManager));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_CreateShortcut));
-        m_pContextMenuMachine->addSeparator();
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent));
-        m_pContextMenuMachine->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Search));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Settings));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Clone));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Move));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_ExportToOCI));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Remove));
+        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_MoveToGroup)->menu());
+        pMenuMachine->addSeparator();
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_M_StartOrShow));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Pause));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Reset));
+        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Close)->menu());
+        pMenuMachine->addSeparator();
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Discard));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_ShowLogDialog));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Refresh));
+        pMenuMachine->addSeparator();
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_ShowInFileManager));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_CreateShortcut));
+        pMenuMachine->addSeparator();
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_SortParent));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Search));
+    }
+
+    /* Context menu for cloud group(s): */
+    m_cloudMenus[UIChooserNodeType_Group] = new QMenu;
+    if (QMenu *pMenuGroup = m_cloudMenus.value(UIChooserNodeType_Group))
+    {
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_New));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Add));
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_M_StartOrShow));
+        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Console)->menu());
+        pMenuGroup->addMenu(actionPool()->action(UIActionIndexMN_M_Group_M_Close)->menu());
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Refresh));
+        pMenuGroup->addSeparator();
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_S_Sort));
+        pMenuGroup->addAction(actionPool()->action(UIActionIndexMN_M_Group_T_Search));
+    }
+
+    /* Context menu for cloud machine(s): */
+    m_cloudMenus[UIChooserNodeType_Machine] = new QMenu;
+    if (QMenu *pMenuMachine = m_cloudMenus.value(UIChooserNodeType_Machine))
+    {
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Settings));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Remove));
+        pMenuMachine->addSeparator();
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_M_StartOrShow));
+        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Console)->menu());
+        pMenuMachine->addMenu(actionPool()->action(UIActionIndexMN_M_Machine_M_Close)->menu());
+        pMenuMachine->addSeparator();
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_Refresh));
+        pMenuMachine->addSeparator();
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_S_SortParent));
+        pMenuMachine->addAction(actionPool()->action(UIActionIndexMN_M_Machine_T_Search));
     }
 }
 
@@ -1274,75 +1579,40 @@ void UIChooserModel::prepareHandlers()
     m_pKeyboardHandler = new UIChooserHandlerKeyboard(this);
 }
 
-void UIChooserModel::prepareConnections()
+void UIChooserModel::prepareCloudUpdateTimer()
 {
-    UIChooser* pChooser = qobject_cast<UIChooser*>(parent());
-    AssertPtrReturnVoid(pChooser);
-    {
-        /* Setup parent connections: */
-        connect(this, &UIChooserModel::sigSelectionChanged,
-                pChooser, &UIChooser::sigSelectionChanged);
-        connect(this, &UIChooserModel::sigSelectionInvalidated,
-                pChooser, &UIChooser::sigSelectionInvalidated);
-        connect(this, &UIChooserModel::sigToggleStarted,
-                pChooser, &UIChooser::sigToggleStarted);
-        connect(this, &UIChooserModel::sigToggleFinished,
-                pChooser, &UIChooser::sigToggleFinished);
-    }
-
-    /* Setup action connections: */
-    connect(actionPool()->action(UIActionIndexST_M_Welcome_S_New), &UIAction::triggered,
-            this, &UIChooserModel::sltCreateNewMachine);
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_New), &UIAction::triggered,
-            this, &UIChooserModel::sltCreateNewMachine);
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_New), &UIAction::triggered,
-            this, &UIChooserModel::sltCreateNewMachine);
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Rename), &UIAction::triggered,
-            this, &UIChooserModel::sltEditGroupName);
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Remove), &UIAction::triggered,
-            this, &UIChooserModel::sltUngroupSelectedGroup);
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Remove), &UIAction::triggered,
-            this, &UIChooserModel::sltRemoveSelectedMachine);
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_AddGroup), &UIAction::triggered,
-            this, &UIChooserModel::sltGroupSelectedMachines);
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Refresh), &UIAction::triggered,
-            this, &UIChooserModel::sltPerformRefreshAction);
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Refresh), &UIAction::triggered,
-            this, &UIChooserModel::sltPerformRefreshAction);
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_SortParent), &UIAction::triggered,
-            this, &UIChooserModel::sltSortParentGroup);
-    connect(actionPool()->action(UIActionIndexST_M_Group_S_Sort), &UIAction::triggered,
-            this, &UIChooserModel::sltSortGroup);
-    connect(actionPool()->action(UIActionIndexST_M_Machine_S_Search), &UIAction::triggered,
-            this, &UIChooserModel::sltShowHideSearchWidget);
+    m_pTimerCloudProfileUpdate = new QTimer;
+    if (m_pTimerCloudProfileUpdate)
+        m_pTimerCloudProfileUpdate->setSingleShot(true);
 }
 
-void UIChooserModel::loadLastSelectedItem()
+void UIChooserModel::prepareConnections()
+{
+    connect(this, &UIChooserModel::sigSelectionChanged,
+            this, &UIChooserModel::sltUpdateSelectedCloudProfiles);
+    connect(m_pTimerCloudProfileUpdate, &QTimer::timeout,
+            this, &UIChooserModel::sltUpdateSelectedCloudProfiles);
+}
+
+void UIChooserModel::loadSettings()
 {
     /* Load last selected-item (choose first if unable to load): */
     setSelectedItem(gEDataManager->selectorWindowLastItemChosen());
-    if (!firstSelectedItem() && !navigationItems().isEmpty())
-    {
-        setSelectedItem(navigationItems().first());
-        emit sigSelectionInvalidated();
-    }
-}
-
-void UIChooserModel::saveLastSelectedItem()
-{
-    /* Save last selected-item: */
-    gEDataManager->setSelectorWindowLastItemChosen(firstSelectedItem() ? firstSelectedItem()->definition() : QString());
+    makeSureAtLeastOneItemSelected();
 }
 
 void UIChooserModel::cleanupConnections()
 {
-    /* Disconnect selection-changed & selection-invalidated signal prematurelly.
-     * Keep in mind, we are using static_cast instead of qobject_cast here to be
-     * sure connection is disconnected even if parent is self-destroyed. */
     disconnect(this, &UIChooserModel::sigSelectionChanged,
-               static_cast<UIChooser*>(parent()), &UIChooser::sigSelectionChanged);
-    disconnect(this, &UIChooserModel::sigSelectionInvalidated,
-               static_cast<UIChooser*>(parent()), &UIChooser::sigSelectionInvalidated);
+               this, &UIChooserModel::sltUpdateSelectedCloudProfiles);
+    disconnect(m_pTimerCloudProfileUpdate, &QTimer::timeout,
+               this, &UIChooserModel::sltUpdateSelectedCloudProfiles);
+}
+
+void UIChooserModel::cleanupCloudUpdateTimer()
+{
+    delete m_pTimerCloudProfileUpdate;
+    m_pTimerCloudProfileUpdate = 0;
 }
 
 void UIChooserModel::cleanupHandlers()
@@ -1355,12 +1625,10 @@ void UIChooserModel::cleanupHandlers()
 
 void UIChooserModel::cleanupContextMenu()
 {
-    delete m_pContextMenuGlobal;
-    m_pContextMenuGlobal = 0;
-    delete m_pContextMenuGroup;
-    m_pContextMenuGroup = 0;
-    delete m_pContextMenuMachine;
-    m_pContextMenuMachine = 0;
+    qDeleteAll(m_localMenus);
+    m_localMenus.clear();
+    qDeleteAll(m_cloudMenus);
+    m_cloudMenus.clear();
 }
 
 void UIChooserModel::cleanupScene()
@@ -1372,6 +1640,7 @@ void UIChooserModel::cleanupScene()
 void UIChooserModel::cleanup()
 {
     cleanupConnections();
+    cleanupCloudUpdateTimer();
     cleanupHandlers();
     cleanupContextMenu();
     cleanupScene();
@@ -1384,44 +1653,53 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
     {
         case QGraphicsSceneContextMenuEvent::Mouse:
         {
-            /* First of all we should look for an item under cursor: */
+            /* Look for an item under cursor: */
             if (QGraphicsItem *pItem = itemAt(pEvent->scenePos()))
             {
-                /* If this item of known type? */
                 switch (pItem->type())
                 {
-                    case UIChooserItemType_Global:
+                    case UIChooserNodeType_Global:
                     {
-                        /* Global context menu for global item cases: */
-                        popupContextMenu(UIGraphicsSelectorContextMenuType_Global, pEvent->screenPos());
-                        return true;
+                        /* Global context menu for all global item cases: */
+                        m_localMenus.value(UIChooserNodeType_Global)->exec(pEvent->screenPos());
+                        break;
                     }
-                    case UIChooserItemType_Group:
+                    case UIChooserNodeType_Group:
                     {
                         /* Get group-item: */
-                        UIChooserItem *pGroupItem = qgraphicsitem_cast<UIChooserItemGroup*>(pItem);
-                        /* Make sure thats not root: */
+                        UIChooserItemGroup *pGroupItem = qgraphicsitem_cast<UIChooserItemGroup*>(pItem);
+                        /* Don't show context menu for root-item: */
                         if (pGroupItem->isRoot())
-                            return false;
-                        /* Is this group-item only the one selected? */
+                            break;
+                        /* Make sure we have group-item selected exclusively: */
                         if (selectedItems().contains(pGroupItem) && selectedItems().size() == 1)
                         {
                             /* Group context menu in that case: */
-                            popupContextMenu(UIGraphicsSelectorContextMenuType_Group, pEvent->screenPos());
-                            return true;
+                            if (pGroupItem->groupType() == UIChooserNodeGroupType_Local)
+                                m_localMenus.value(UIChooserNodeType_Group)->exec(pEvent->screenPos());
+                            else if (   pGroupItem->groupType() == UIChooserNodeGroupType_Provider
+                                     || pGroupItem->groupType() == UIChooserNodeGroupType_Profile)
+                                m_cloudMenus.value(UIChooserNodeType_Group)->exec(pEvent->screenPos());
+                            break;
                         }
                     }
                     RT_FALL_THRU();
-                    case UIChooserItemType_Machine:
+                    case UIChooserNodeType_Machine:
                     {
+                        /* Get machine-item: */
+                        UIChooserItemMachine *pMachineItem = qgraphicsitem_cast<UIChooserItemMachine*>(pItem);
                         /* Machine context menu for other Group/Machine cases: */
-                        popupContextMenu(UIGraphicsSelectorContextMenuType_Machine, pEvent->screenPos());
-                        return true;
+                        if (pMachineItem->cacheType() == UIVirtualMachineItemType_Local)
+                            m_localMenus.value(UIChooserNodeType_Machine)->exec(pEvent->screenPos());
+                        else if (pMachineItem->cacheType() == UIVirtualMachineItemType_CloudReal)
+                            m_cloudMenus.value(UIChooserNodeType_Machine)->exec(pEvent->screenPos());
+                        break;
                     }
                     default:
                         break;
                 }
             }
+            /* Filter out by default: */
             return true;
         }
         case QGraphicsSceneContextMenuEvent::Keyboard:
@@ -1429,36 +1707,47 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
             /* Get first selected-item: */
             if (UIChooserItem *pItem = firstSelectedItem())
             {
-                /* If this item of known type? */
                 switch (pItem->type())
                 {
-                    case UIChooserItemType_Global:
+                    case UIChooserNodeType_Global:
                     {
-                        /* Global context menu for global item cases: */
-                        popupContextMenu(UIGraphicsSelectorContextMenuType_Machine, pEvent->screenPos());
-                        return true;
+                        /* Global context menu for all global item cases: */
+                        m_localMenus.value(UIChooserNodeType_Global)->exec(pEvent->screenPos());
+                        break;
                     }
-                    case UIChooserItemType_Group:
+                    case UIChooserNodeType_Group:
                     {
-                        /* Is this group-item only the one selected? */
-                        if (selectedItems().size() == 1)
+                        /* Get group-item: */
+                        UIChooserItemGroup *pGroupItem = qgraphicsitem_cast<UIChooserItemGroup*>(pItem);
+                        /* Make sure we have group-item selected exclusively: */
+                        if (selectedItems().contains(pGroupItem) && selectedItems().size() == 1)
                         {
                             /* Group context menu in that case: */
-                            popupContextMenu(UIGraphicsSelectorContextMenuType_Group, pEvent->screenPos());
-                            return true;
+                            if (pGroupItem->groupType() == UIChooserNodeGroupType_Local)
+                                m_localMenus.value(UIChooserNodeType_Group)->exec(pEvent->screenPos());
+                            else if (   pGroupItem->groupType() == UIChooserNodeGroupType_Provider
+                                     || pGroupItem->groupType() == UIChooserNodeGroupType_Profile)
+                                m_cloudMenus.value(UIChooserNodeType_Group)->exec(pEvent->screenPos());
+                            break;
                         }
                     }
                     RT_FALL_THRU();
-                    case UIChooserItemType_Machine:
+                    case UIChooserNodeType_Machine:
                     {
+                        /* Get machine-item: */
+                        UIChooserItemMachine *pMachineItem = qgraphicsitem_cast<UIChooserItemMachine*>(pItem);
                         /* Machine context menu for other Group/Machine cases: */
-                        popupContextMenu(UIGraphicsSelectorContextMenuType_Machine, pEvent->screenPos());
-                        return true;
+                        if (pMachineItem->cacheType() == UIVirtualMachineItemType_Local)
+                            m_localMenus.value(UIChooserNodeType_Machine)->exec(pEvent->screenPos());
+                        else if (pMachineItem->cacheType() == UIVirtualMachineItemType_CloudReal)
+                            m_cloudMenus.value(UIChooserNodeType_Machine)->exec(pEvent->screenPos());
+                        break;
                     }
                     default:
                         break;
                 }
             }
+            /* Filter out by default: */
             return true;
         }
         default:
@@ -1466,32 +1755,6 @@ bool UIChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pEv
     }
     /* Pass others context menu events: */
     return false;
-}
-
-void UIChooserModel::popupContextMenu(UIGraphicsSelectorContextMenuType enmType, QPoint point)
-{
-    /* Which type of context-menu requested? */
-    switch (enmType)
-    {
-        /* For global item? */
-        case UIGraphicsSelectorContextMenuType_Global:
-        {
-            m_pContextMenuGlobal->exec(point);
-            break;
-        }
-        /* For group? */
-        case UIGraphicsSelectorContextMenuType_Group:
-        {
-            m_pContextMenuGroup->exec(point);
-            break;
-        }
-        /* For machine(s)? */
-        case UIGraphicsSelectorContextMenuType_Machine:
-        {
-            m_pContextMenuMachine->exec(point);
-            break;
-        }
-    }
 }
 
 void UIChooserModel::clearRealFocus()
@@ -1506,28 +1769,54 @@ QList<UIChooserItem*> UIChooserModel::createNavigationItemList(UIChooserItem *pI
     QList<UIChooserItem*> navigationItems;
 
     /* Iterate over all the global-items: */
-    foreach (UIChooserItem *pGlobalItem, pItem->items(UIChooserItemType_Global))
+    foreach (UIChooserItem *pGlobalItem, pItem->items(UIChooserNodeType_Global))
         navigationItems << pGlobalItem;
     /* Iterate over all the group-items: */
-    foreach (UIChooserItem *pGroupItem, pItem->items(UIChooserItemType_Group))
+    foreach (UIChooserItem *pGroupItem, pItem->items(UIChooserNodeType_Group))
     {
         navigationItems << pGroupItem;
         if (pGroupItem->toGroupItem()->isOpened())
             navigationItems << createNavigationItemList(pGroupItem);
     }
     /* Iterate over all the machine-items: */
-    foreach (UIChooserItem *pMachineItem, pItem->items(UIChooserItemType_Machine))
+    foreach (UIChooserItem *pMachineItem, pItem->items(UIChooserNodeType_Machine))
         navigationItems << pMachineItem;
 
     /* Return navigation list: */
     return navigationItems;
 }
 
-void UIChooserModel::buildTreeForMainRoot()
+void UIChooserModel::clearTreeForMainRoot()
 {
-    /* Cleanup previous tree if exists: */
+    /* Forbid to save selection changes: */
+    m_fSelectionSaveAllowed = false;
+
+    /* Cleanup tree if exists: */
     delete m_pRoot;
     m_pRoot = 0;
+}
+
+void UIChooserModel::buildTreeForMainRoot(bool fPreserveSelection /* = false */)
+{
+    /* This isn't safe if dragging is started and needs to be fixed properly,
+     * but for now we will just ignore build request: */
+    /// @todo Make sure D&D is safe on tree rebuild
+    if (m_pCurrentDragObject)
+        return;
+
+    /* Remember scrolling location: */
+    const int iScrollLocation = m_pRoot ? m_pRoot->toGroupItem()->scrollingValue() : 0;
+
+    /* Remember all selected items if requested: */
+    QStringList selectedItemDefinitions;
+    if (fPreserveSelection && !selectedItems().isEmpty())
+    {
+        foreach (UIChooserItem *pSelectedItem, selectedItems())
+            selectedItemDefinitions << pSelectedItem->definition();
+    }
+
+    /* Clean tree for main root: */
+    clearTreeForMainRoot();
 
     /* Build whole tree for invisible root item: */
     m_pRoot = new UIChooserItemGroup(scene(), invisibleRoot()->toGroupNode());
@@ -1535,100 +1824,155 @@ void UIChooserModel::buildTreeForMainRoot()
     /* Install root as event-filter for scene view,
      * we need QEvent::Scroll events from it: */
     root()->installEventFilterHelper(view());
+
+    /* Update tree for main root: */
+    updateTreeForMainRoot();
+
+    /* Apply current global item height hint: */
+    applyGlobalItemHeightHint();
+
+    /* Restore all selected items if requested: */
+    if (fPreserveSelection)
+    {
+        QList<UIChooserItem*> selectedItems;
+        foreach (const QString &strSelectedItemDefinition, selectedItemDefinitions)
+        {
+            UIChooserItem *pSelectedItem = searchItemByDefinition(strSelectedItemDefinition);
+            if (pSelectedItem)
+                selectedItems << pSelectedItem;
+        }
+        setSelectedItems(selectedItems);
+        setCurrentItem(firstSelectedItem());
+        makeSureAtLeastOneItemSelected();
+    }
+
+    /* Restore scrolling location: */
+    m_pRoot->toGroupItem()->setScrollingValue(iScrollLocation);
+
+    /* Repeat search if search widget is visible: */
+    if (view() && view()->isSearchWidgetVisible())
+        view()->redoSearch();
+
+    /* Allow to save selection changes: */
+    m_fSelectionSaveAllowed = true;
 }
 
-void UIChooserModel::removeItems(const QList<UIChooserItem*> &itemsToRemove)
+void UIChooserModel::updateTreeForMainRoot()
+{
+    updateNavigationItemList();
+    updateLayout();
+}
+
+void UIChooserModel::removeLocalMachineItems(const QList<UIChooserItemMachine*> &machineItems)
 {
     /* Confirm machine-items removal: */
     QStringList names;
-    foreach (UIChooserItem *pItem, itemsToRemove)
+    foreach (UIChooserItemMachine *pItem, machineItems)
         names << pItem->name();
     if (!msgCenter().confirmMachineItemRemoval(names))
         return;
 
-    /* Remove all the passed nodes: */
-    foreach (UIChooserItem *pItem, itemsToRemove)
+    /* Find and select closest unselected item: */
+    setSelectedItem(findClosestUnselectedItem());
+
+    /* Remove nodes of all the passed items: */
+    foreach (UIChooserItemMachine *pItem, machineItems)
         delete pItem->node();
 
     /* And update model: */
     wipeOutEmptyGroups();
-    updateNavigationItemList();
-    updateLayout();
-    if (!navigationItems().isEmpty())
-    {
-        setSelectedItem(navigationItems().first());
-        emit sigSelectionInvalidated();
-    }
-    else
-        clearSelectedItems();
-    saveGroupSettings();
+    updateTreeForMainRoot();
+
+    /* Save groups finally: */
+    saveGroups();
 }
 
-void UIChooserModel::unregisterMachines(const QList<QUuid> &ids)
+void UIChooserModel::unregisterLocalMachines(const QList<CMachine> &machines)
 {
-    /* Populate machine list: */
-    QList<CMachine> machines;
-    CVirtualBox vbox = uiCommon().virtualBox();
-    foreach (const QUuid &uId, ids)
-    {
-        CMachine machine = vbox.FindMachine(uId.toString());
-        if (!machine.isNull())
-            machines << machine;
-    }
-
     /* Confirm machine removal: */
-    int iResultCode = msgCenter().confirmMachineRemoval(machines);
+    const int iResultCode = msgCenter().confirmMachineRemoval(machines);
     if (iResultCode == AlertButton_Cancel)
         return;
 
-    /* Change selection to some close by item: */
-    setSelectedItem(findClosestUnselectedItem());
-
-    /* For every selected-item: */
-    for (int iMachineIndex = 0; iMachineIndex < machines.size(); ++iMachineIndex)
+    /* For every selected machine: */
+    foreach (CMachine comMachine, machines)
     {
-        /* Get iterated machine: */
-        CMachine &machine = machines[iMachineIndex];
         if (iResultCode == AlertButton_Choice1)
         {
             /* Unregister machine first: */
-            CMediumVector media = machine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
-            if (!machine.isOk())
+            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
+            if (!comMachine.isOk())
             {
-                msgCenter().cannotRemoveMachine(machine);
+                UINotificationMessage::cannotRemoveMachine(comMachine);
                 continue;
             }
-            /* Prepare cleanup progress: */
-            CProgress progress = machine.DeleteConfig(media);
-            if (!machine.isOk())
-            {
-                msgCenter().cannotRemoveMachine(machine);
-                continue;
-            }
-            /* And show cleanup progress finally: */
-            msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_delete_90px.png");
-            if (!progress.isOk() || progress.GetResultCode() != 0)
-            {
-                msgCenter().cannotRemoveMachine(machine, progress);
-                continue;
-            }
+            /* Removing machine: */
+            UINotificationProgressMachineMediaRemove *pNotification = new UINotificationProgressMachineMediaRemove(comMachine, media);
+            gpNotificationCenter->append(pNotification);
         }
         else if (iResultCode == AlertButton_Choice2 || iResultCode == AlertButton_Ok)
         {
             /* Unregister machine first: */
-            CMediumVector media = machine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
-            if (!machine.isOk())
+            CMediumVector media = comMachine.Unregister(KCleanupMode_DetachAllReturnHardDisksOnly);
+            if (!comMachine.isOk())
             {
-                msgCenter().cannotRemoveMachine(machine);
+                UINotificationMessage::cannotRemoveMachine(comMachine);
                 continue;
             }
             /* Finally close all media, deliberately ignoring errors: */
-            foreach (CMedium medium, media)
+            foreach (CMedium comMedium, media)
             {
-                if (!medium.isNull())
-                    medium.Close();
+                if (!comMedium.isNull())
+                    comMedium.Close();
             }
         }
+    }
+}
+
+void UIChooserModel::unregisterCloudMachineItems(const QList<UIChooserItemMachine*> &machineItems)
+{
+    /* Compose a list of machines: */
+    QList<CCloudMachine> machines;
+    foreach (UIChooserItemMachine *pMachineItem, machineItems)
+        machines << pMachineItem->cache()->toCloud()->machine();
+
+    /* Stop cloud profile update prematurely: */
+    m_pTimerCloudProfileUpdate->stop();
+
+    /* Confirm machine removal: */
+    const int iResultCode = msgCenter().confirmCloudMachineRemoval(machines);
+    if (iResultCode == AlertButton_Cancel)
+    {
+        /* Resume cloud profile update if cancelled: */
+        m_pTimerCloudProfileUpdate->start(10000);
+        return;
+    }
+
+    /* For every selected machine-item: */
+    foreach (UIChooserItemMachine *pMachineItem, machineItems)
+    {
+        /* Compose cloud entity keys for profile and machine: */
+        const QString strProviderShortName = pMachineItem->parentItem()->parentItem()->name();
+        const QString strProfileName = pMachineItem->parentItem()->name();
+        const QUuid uMachineId = pMachineItem->id();
+        const UICloudEntityKey cloudEntityKeyForMachine = UICloudEntityKey(strProviderShortName, strProfileName, uMachineId);
+
+        /* Stop refreshing machine being deleted: */
+        if (containsCloudEntityKey(cloudEntityKeyForMachine))
+            pMachineItem->cache()->toCloud()->waitForAsyncInfoUpdateFinished();
+
+        /* Acquire cloud machine: */
+        CCloudMachine comMachine = pMachineItem->cache()->toCloud()->machine();
+
+        /* Removing cloud machine: */
+        UINotificationProgressCloudMachineRemove *pNotification =
+            new UINotificationProgressCloudMachineRemove(comMachine,
+                                                         iResultCode == AlertButton_Choice1,
+                                                         strProviderShortName,
+                                                         strProfileName);
+        connect(pNotification, &UINotificationProgressCloudMachineRemove::sigCloudMachineRemoved,
+                this, &UIChooserModel::sltHandleCloudMachineRemoved);
+        gpNotificationCenter->append(pNotification);
     }
 }
 
@@ -1667,4 +2011,24 @@ bool UIChooserModel::processDragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent)
 
     /* Pass event: */
     return false;
+}
+
+void UIChooserModel::applyGlobalItemHeightHint()
+{
+    /* Make sure there is something to apply: */
+    if (m_iGlobalItemHeightHint == 0)
+        return;
+
+    /* Walk thrugh all the items of navigation list: */
+    foreach (UIChooserItem *pItem, navigationItems())
+    {
+        /* And for each global item: */
+        if (pItem->type() == UIChooserNodeType_Global)
+        {
+            /* Apply the height hint we have: */
+            UIChooserItemGlobal *pGlobalItem = pItem->toGlobalItem();
+            if (pGlobalItem)
+                pGlobalItem->setHeightHint(m_iGlobalItemHeightHint);
+        }
+    }
 }

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_QMTranslator_h
@@ -29,27 +39,36 @@ public:
     QMTranslator();
     virtual ~QMTranslator();
 
-    /* Gets translation from loaded QM file
+    /**
+     * Gets translation from loaded QM file
      *
-     * @param   context   QM context to look for translation
-     * @param   source    Source string in one-byte encoding
-     * @param   disamb    Disambiguationg comment, empty by default
+     * @param   pszContext      QM context to look for translation
+     * @param   pszSource       Source string in one-byte encoding
+     * @param   ppszSafeSource  Where to return pointer to a safe copy of @a
+     *                          pszSource for the purpose of reverse translation.
+     *                          Will be set to NULL if @a pszSource is returned.
+     * @param   pszDisamb       Disambiguationg comment, empty by default
+     * @param   aNum            Plural form indicator.
      *
-     * @returns Pointer to a translation in UTF-8 encoding, empty string on failure */
+     * @returns Pointer to a translation (UTF-8 encoding), source string on failure.
+     */
+    const char *translate(const char *pszContext, const char *pszSource, const char **ppszSafeSource,
+                          const char *pszDisamb = NULL, const size_t aNum = ~(size_t)0) const RT_NOEXCEPT;
 
-    const char *translate(const char *pszContext, const char *pszSource, const char *pszDisamb = "") const throw();
-
-    /* Loads and parses QM file
+    /**
+     * Loads and parses QM file
      *
-     * @param       filename    The name of the file to load
+     * @param   pszFilename The name of the file to load
+     * @param   hStrCache   The string cache to use for storing strings.
      *
-     * @returns VINF_SUCCESS if successful */
-    int load(const char *pszFilename) throw();
+     * @returns VBox status code.
+     */
+    int load(const char *pszFilename, RTSTRCACHE hStrCache) RT_NOEXCEPT;
 
 private:
-        /* QMTranslator implementation.
-         * To separate all the code from the interface */
-    QMTranslator_Impl *_impl;
+    /** QMTranslator implementation.
+     * To separate all the code from the interface */
+    QMTranslator_Impl *m_impl;
 
     /* If copying is required, please define the following operators */
     void operator=(QMTranslator &);

@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -27,9 +32,6 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/crypto.h>
 #include <ipxe/bigint.h>
 #include <ipxe/random_nz.h>
-#include <ipxe/md5.h>
-#include <ipxe/sha1.h>
-#include <ipxe/sha256.h>
 #include <ipxe/rsa.h>
 
 /** @file
@@ -44,86 +46,6 @@ FILE_LICENCE ( GPL2_OR_LATER );
 	__einfo_error ( EINFO_EACCES_VERIFY )
 #define EINFO_EACCES_VERIFY \
 	__einfo_uniqify ( EINFO_EACCES, 0x01, "RSA signature incorrect" )
-
-/** "rsaEncryption" object identifier */
-static uint8_t oid_rsa_encryption[] = { ASN1_OID_RSAENCRYPTION };
-
-/** "md5WithRSAEncryption" object identifier */
-static uint8_t oid_md5_with_rsa_encryption[] =
-	{ ASN1_OID_MD5WITHRSAENCRYPTION };
-
-/** "sha1WithRSAEncryption" object identifier */
-static uint8_t oid_sha1_with_rsa_encryption[] =
-	{ ASN1_OID_SHA1WITHRSAENCRYPTION };
-
-/** "sha256WithRSAEncryption" object identifier */
-static uint8_t oid_sha256_with_rsa_encryption[] =
-	{ ASN1_OID_SHA256WITHRSAENCRYPTION };
-
-/** "rsaEncryption" OID-identified algorithm */
-struct asn1_algorithm rsa_encryption_algorithm __asn1_algorithm = {
-	.name = "rsaEncryption",
-	.pubkey = &rsa_algorithm,
-	.digest = NULL,
-	.oid = ASN1_OID_CURSOR ( oid_rsa_encryption ),
-};
-
-/** "md5WithRSAEncryption" OID-identified algorithm */
-struct asn1_algorithm md5_with_rsa_encryption_algorithm __asn1_algorithm = {
-	.name = "md5WithRSAEncryption",
-	.pubkey = &rsa_algorithm,
-	.digest = &md5_algorithm,
-	.oid = ASN1_OID_CURSOR ( oid_md5_with_rsa_encryption ),
-};
-
-/** "sha1WithRSAEncryption" OID-identified algorithm */
-struct asn1_algorithm sha1_with_rsa_encryption_algorithm __asn1_algorithm = {
-	.name = "sha1WithRSAEncryption",
-	.pubkey = &rsa_algorithm,
-	.digest = &sha1_algorithm,
-	.oid = ASN1_OID_CURSOR ( oid_sha1_with_rsa_encryption ),
-};
-
-/** "sha256WithRSAEncryption" OID-identified algorithm */
-struct asn1_algorithm sha256_with_rsa_encryption_algorithm __asn1_algorithm = {
-	.name = "sha256WithRSAEncryption",
-	.pubkey = &rsa_algorithm,
-	.digest = &sha256_algorithm,
-	.oid = ASN1_OID_CURSOR ( oid_sha256_with_rsa_encryption ),
-};
-
-/** MD5 digestInfo prefix */
-static const uint8_t rsa_md5_prefix_data[] =
-	{ RSA_DIGESTINFO_PREFIX ( MD5_DIGEST_SIZE, ASN1_OID_MD5 ) };
-
-/** SHA-1 digestInfo prefix */
-static const uint8_t rsa_sha1_prefix_data[] =
-	{ RSA_DIGESTINFO_PREFIX ( SHA1_DIGEST_SIZE, ASN1_OID_SHA1 ) };
-
-/** SHA-256 digestInfo prefix */
-static const uint8_t rsa_sha256_prefix_data[] =
-	{ RSA_DIGESTINFO_PREFIX ( SHA256_DIGEST_SIZE, ASN1_OID_SHA256 ) };
-
-/** MD5 digestInfo prefix */
-struct rsa_digestinfo_prefix rsa_md5_prefix __rsa_digestinfo_prefix = {
-	.digest = &md5_algorithm,
-	.data = rsa_md5_prefix_data,
-	.len = sizeof ( rsa_md5_prefix_data ),
-};
-
-/** SHA-1 digestInfo prefix */
-struct rsa_digestinfo_prefix rsa_sha1_prefix __rsa_digestinfo_prefix = {
-	.digest = &sha1_algorithm,
-	.data = rsa_sha1_prefix_data,
-	.len = sizeof ( rsa_sha1_prefix_data ),
-};
-
-/** SHA-256 digestInfo prefix */
-struct rsa_digestinfo_prefix rsa_sha256_prefix __rsa_digestinfo_prefix = {
-	.digest = &sha256_algorithm,
-	.data = rsa_sha256_prefix_data,
-	.len = sizeof ( rsa_sha256_prefix_data ),
-};
 
 /**
  * Identify RSA prefix
@@ -201,13 +123,11 @@ static int rsa_alloc ( struct rsa_context *context, size_t modulus_len,
 /**
  * Parse RSA integer
  *
- * @v context		RSA context
  * @v integer		Integer to fill in
  * @v raw		ASN.1 cursor
  * @ret rc		Return status code
  */
-static int rsa_parse_integer ( struct rsa_context *context,
-			       struct asn1_cursor *integer,
+static int rsa_parse_integer ( struct asn1_cursor *integer,
 			       const struct asn1_cursor *raw ) {
 
 	/* Enter integer */
@@ -222,11 +142,71 @@ static int rsa_parse_integer ( struct rsa_context *context,
 	}
 
 	/* Fail if cursor or integer are invalid */
-	if ( ! integer->len ) {
-		DBGC ( context, "RSA %p invalid integer:\n", context );
-		DBGC_HDA ( context, 0, raw->data, raw->len );
+	if ( ! integer->len )
 		return -EINVAL;
+
+	return 0;
+}
+
+/**
+ * Parse RSA modulus and exponent
+ *
+ * @v modulus		Modulus to fill in
+ * @v exponent		Exponent to fill in
+ * @v raw		ASN.1 cursor
+ * @ret rc		Return status code
+ */
+static int rsa_parse_mod_exp ( struct asn1_cursor *modulus,
+			       struct asn1_cursor *exponent,
+			       const struct asn1_cursor *raw ) {
+	struct asn1_bit_string bits;
+	struct asn1_cursor cursor;
+	int is_private;
+	int rc;
+
+	/* Enter subjectPublicKeyInfo/RSAPrivateKey */
+	memcpy ( &cursor, raw, sizeof ( cursor ) );
+	asn1_enter ( &cursor, ASN1_SEQUENCE );
+
+	/* Determine key format */
+	if ( asn1_type ( &cursor ) == ASN1_INTEGER ) {
+
+		/* Private key */
+		is_private = 1;
+
+		/* Skip version */
+		asn1_skip_any ( &cursor );
+
+	} else {
+
+		/* Public key */
+		is_private = 0;
+
+		/* Skip algorithm */
+		asn1_skip ( &cursor, ASN1_SEQUENCE );
+
+		/* Enter subjectPublicKey */
+		if ( ( rc = asn1_integral_bit_string ( &cursor, &bits ) ) != 0 )
+			return rc;
+		cursor.data = bits.data;
+		cursor.len = bits.len;
+
+		/* Enter RSAPublicKey */
+		asn1_enter ( &cursor, ASN1_SEQUENCE );
 	}
+
+	/* Extract modulus */
+	if ( ( rc = rsa_parse_integer ( modulus, &cursor ) ) != 0 )
+		return rc;
+	asn1_skip_any ( &cursor );
+
+	/* Skip public exponent, if applicable */
+	if ( is_private )
+		asn1_skip ( &cursor, ASN1_INTEGER );
+
+	/* Extract publicExponent/privateExponent */
+	if ( ( rc = rsa_parse_integer ( exponent, &cursor ) ) != 0 )
+		return rc;
 
 	return 0;
 }
@@ -241,11 +221,9 @@ static int rsa_parse_integer ( struct rsa_context *context,
  */
 static int rsa_init ( void *ctx, const void *key, size_t key_len ) {
 	struct rsa_context *context = ctx;
-	struct asn1_bit_string bits;
 	struct asn1_cursor modulus;
 	struct asn1_cursor exponent;
 	struct asn1_cursor cursor;
-	int is_private;
 	int rc;
 
 	/* Initialise context */
@@ -255,46 +233,12 @@ static int rsa_init ( void *ctx, const void *key, size_t key_len ) {
 	cursor.data = key;
 	cursor.len = key_len;
 
-	/* Enter subjectPublicKeyInfo/RSAPrivateKey */
-	asn1_enter ( &cursor, ASN1_SEQUENCE );
-
-	/* Determine key format */
-	if ( asn1_type ( &cursor ) == ASN1_INTEGER ) {
-		/* Private key */
-		is_private = 1;
-
-		/* Skip version */
-		asn1_skip_any ( &cursor );
-
-	} else {
-		/* Public key */
-		is_private = 0;
-
-		/* Skip algorithm */
-		asn1_skip ( &cursor, ASN1_SEQUENCE );
-
-		/* Enter subjectPublicKey */
-		if ( ( rc = asn1_integral_bit_string ( &cursor, &bits ) ) != 0 )
-			goto err_parse;
-		cursor.data = bits.data;
-		cursor.len = bits.len;
-
-		/* Enter RSAPublicKey */
-		asn1_enter ( &cursor, ASN1_SEQUENCE );
+	/* Parse modulus and exponent */
+	if ( ( rc = rsa_parse_mod_exp ( &modulus, &exponent, &cursor ) ) != 0 ){
+		DBGC ( context, "RSA %p invalid modulus/exponent:\n", context );
+		DBGC_HDA ( context, 0, cursor.data, cursor.len );
+		goto err_parse;
 	}
-
-	/* Extract modulus */
-	if ( ( rc = rsa_parse_integer ( context, &modulus, &cursor ) ) != 0 )
-		goto err_parse;
-	asn1_skip_any ( &cursor );
-
-	/* Skip public exponent, if applicable */
-	if ( is_private )
-		asn1_skip ( &cursor, ASN1_INTEGER );
-
-	/* Extract publicExponent/privateExponent */
-	if ( ( rc = rsa_parse_integer ( context, &exponent, &cursor ) ) != 0 )
-		goto err_parse;
 
 	DBGC ( context, "RSA %p modulus:\n", context );
 	DBGC_HDA ( context, 0, modulus.data, modulus.len );
@@ -627,10 +571,50 @@ static void rsa_final ( void *ctx ) {
 	rsa_free ( context );
 }
 
+/**
+ * Check for matching RSA public/private key pair
+ *
+ * @v private_key	Private key
+ * @v private_key_len	Private key length
+ * @v public_key	Public key
+ * @v public_key_len	Public key length
+ * @ret rc		Return status code
+ */
+static int rsa_match ( const void *private_key, size_t private_key_len,
+		       const void *public_key, size_t public_key_len ) {
+	struct asn1_cursor private_modulus;
+	struct asn1_cursor private_exponent;
+	struct asn1_cursor private_cursor;
+	struct asn1_cursor public_modulus;
+	struct asn1_cursor public_exponent;
+	struct asn1_cursor public_cursor;
+	int rc;
+
+	/* Initialise cursors */
+	private_cursor.data = private_key;
+	private_cursor.len = private_key_len;
+	public_cursor.data = public_key;
+	public_cursor.len = public_key_len;
+
+	/* Parse moduli and exponents */
+	if ( ( rc = rsa_parse_mod_exp ( &private_modulus, &private_exponent,
+					&private_cursor ) ) != 0 )
+		return rc;
+	if ( ( rc = rsa_parse_mod_exp ( &public_modulus, &public_exponent,
+					&public_cursor ) ) != 0 )
+		return rc;
+
+	/* Compare moduli */
+	if ( asn1_compare ( &private_modulus, &public_modulus ) != 0 )
+		return -ENOTTY;
+
+	return 0;
+}
+
 /** RSA public-key algorithm */
 struct pubkey_algorithm rsa_algorithm = {
 	.name		= "rsa",
-	.ctxsize	= sizeof ( struct rsa_context ),
+	.ctxsize	= RSA_CTX_SIZE,
 	.init		= rsa_init,
 	.max_len	= rsa_max_len,
 	.encrypt	= rsa_encrypt,
@@ -638,4 +622,11 @@ struct pubkey_algorithm rsa_algorithm = {
 	.sign		= rsa_sign,
 	.verify		= rsa_verify,
 	.final		= rsa_final,
+	.match		= rsa_match,
 };
+
+/* Drag in objects via rsa_algorithm */
+REQUIRING_SYMBOL ( rsa_algorithm );
+
+/* Drag in crypto configuration */
+REQUIRE_OBJECT ( config_crypto );

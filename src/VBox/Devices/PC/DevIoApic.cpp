@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -23,10 +33,12 @@
 #include <VBox/log.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/msi.h>
+#include <VBox/pci.h>
 #include <VBox/vmm/pdmdev.h>
 
 #include "VBoxDD.h"
 #include <iprt/x86.h>
+#include <iprt/string.h>
 
 
 /*********************************************************************************************************************************
@@ -92,9 +104,9 @@ Controller" */
 #define IOAPIC_RTE_REMOTE_IRR                   RT_BIT_64(14)
 /** Redirection table entry - Trigger Mode. */
 #define IOAPIC_RTE_TRIGGER_MODE                 RT_BIT_64(15)
-/** Redirection table entry - the mask bit number. */
+/** Redirection table entry - Number of bits to shift to get the Mask. */
 #define IOAPIC_RTE_MASK_BIT                     16
-/** Redirection table entry - the mask. */
+/** Redirection table entry - The Mask. */
 #define IOAPIC_RTE_MASK                         RT_BIT_64(IOAPIC_RTE_MASK_BIT)
 /** Redirection table entry - Extended Destination ID. */
 #define IOAPIC_RTE_EXT_DEST_ID                  UINT64_C(0x00ff000000000000)
@@ -122,6 +134,30 @@ Controller" */
 /** Redirection table entry - Gets the vector. */
 #define IOAPIC_RTE_GET_VECTOR(a_Reg)            ((a_Reg) & IOAPIC_RTE_VECTOR)
 
+/** @name DMAR variant interpretation of RTE fields.
+ * @{ */
+/** Redirection table entry - Number of bits to shift to get Interrupt
+ *  Index[14:0]. */
+#define IOAPIC_RTE_INTR_INDEX_LO_BIT            49
+/** Redirection table entry - Interrupt Index[14:0]. */
+#define IOAPIC_RTE_INTR_INDEX_LO                UINT64_C(0xfffe000000000000)
+/** Redirection table entry - Number of bits to shift to get interrupt format. */
+#define IOAPIC_RTE_INTR_FORMAT_BIT              48
+/** Redirection table entry - Interrupt format. */
+#define IOAPIC_RTE_INTR_FORMAT                  RT_BIT_64(IOAPIC_RTE_INTR_FORMAT_BIT)
+/** Redirection table entry - Number of bits to shift to get Interrupt Index[15]. */
+#define IOAPIC_RTE_INTR_INDEX_HI_BIT            11
+/** Redirection table entry - Interrupt Index[15]. */
+#define IOAPIC_RTE_INTR_INDEX_HI                RT_BIT_64(11)
+
+/** Redirection table entry - Gets the Interrupt Index[14:0]. */
+#define IOAPIC_RTE_GET_INTR_INDEX_LO(a_Reg)     ((a_Reg) >> IOAPIC_RTE_INTR_INDEX_LO_BIT)
+/** Redirection table entry - Gets the Interrupt format. */
+#define IOAPIC_RTE_GET_INTR_FORMAT(a_Reg)       (((a_Reg) >> IOAPIC_RTE_INTR_FORMAT_BIT) & 0x1)
+/** Redirection table entry - Gets the Interrupt Index[15]. */
+#define IOAPIC_RTE_GET_INTR_INDEX_HI(a_Reg)     (((a_Reg) >> IOAPIC_RTE_INTR_INDEX_HI_BIT) & 0x1)
+/** @} */
+
 /** Redirection table entry - Valid write mask for 82093AA. */
 #define IOAPIC_RTE_VALID_WRITE_MASK_82093AA     (  IOAPIC_RTE_DEST     | IOAPIC_RTE_MASK      | IOAPIC_RTE_TRIGGER_MODE \
                                                  | IOAPIC_RTE_POLARITY | IOAPIC_RTE_DEST_MODE | IOAPIC_RTE_DELIVERY_MODE \
@@ -134,13 +170,23 @@ Controller" */
 /** Redirection table entry - Valid write mask for ICH9. */
 /** @note The remote IRR bit has been reverted to read-only as it turns out the
  *        ICH9 spec. is wrong, see @bugref{8386#c46}. */
-#define IOAPIC_RTE_VALID_WRITE_MASK_ICH9        (  IOAPIC_RTE_DEST       | IOAPIC_RTE_MASK      | IOAPIC_RTE_TRIGGER_MODE \
+#define IOAPIC_RTE_VALID_WRITE_MASK_ICH9        (  IOAPIC_RTE_DEST           | IOAPIC_RTE_MASK      | IOAPIC_RTE_TRIGGER_MODE \
                                                  /*| IOAPIC_RTE_REMOTE_IRR */| IOAPIC_RTE_POLARITY  | IOAPIC_RTE_DEST_MODE \
-                                                 | IOAPIC_RTE_DELIVERY_MODE | IOAPIC_RTE_VECTOR)
+                                                 | IOAPIC_RTE_DELIVERY_MODE  | IOAPIC_RTE_VECTOR)
 /** Redirection table entry - Valid read mask (incl. ExtDestID) for ICH9. */
 #define IOAPIC_RTE_VALID_READ_MASK_ICH9         (  IOAPIC_RTE_DEST            | IOAPIC_RTE_EXT_DEST_ID | IOAPIC_RTE_MASK \
                                                  | IOAPIC_RTE_TRIGGER_MODE    | IOAPIC_RTE_REMOTE_IRR  | IOAPIC_RTE_POLARITY \
                                                  | IOAPIC_RTE_DELIVERY_STATUS | IOAPIC_RTE_DEST_MODE   | IOAPIC_RTE_DELIVERY_MODE \
+                                                 | IOAPIC_RTE_VECTOR)
+
+/** Redirection table entry - Valid write mask for DMAR variant. */
+#define IOAPIC_RTE_VALID_WRITE_MASK_DMAR        (  IOAPIC_RTE_INTR_INDEX_LO  | IOAPIC_RTE_INTR_FORMAT |  IOAPIC_RTE_MASK \
+                                                 | IOAPIC_RTE_TRIGGER_MODE   | IOAPIC_RTE_POLARITY    | IOAPIC_RTE_INTR_INDEX_HI \
+                                                 | IOAPIC_RTE_DELIVERY_MODE  | IOAPIC_RTE_VECTOR)
+/** Redirection table entry - Valid read mask for DMAR variant. */
+#define IOAPIC_RTE_VALID_READ_MASK_DMAR         (  IOAPIC_RTE_INTR_INDEX_LO   | IOAPIC_RTE_INTR_FORMAT   | IOAPIC_RTE_MASK \
+                                                 | IOAPIC_RTE_TRIGGER_MODE    | IOAPIC_RTE_REMOTE_IRR    | IOAPIC_RTE_POLARITY \
+                                                 | IOAPIC_RTE_DELIVERY_STATUS | IOAPIC_RTE_INTR_INDEX_HI | IOAPIC_RTE_DELIVERY_MODE \
                                                  | IOAPIC_RTE_VECTOR)
 
 /** Redirection table entry - Trigger mode edge. */
@@ -171,15 +217,30 @@ Controller" */
 #ifdef IOAPIC_WITH_PDM_CRITSECT
 # define IOAPIC_LOCK(a_pDevIns, a_pThis, a_pThisCC, rcBusy)  (a_pThisCC)->pIoApicHlp->pfnLock((a_pDevIns), (rcBusy))
 # define IOAPIC_UNLOCK(a_pDevIns, a_pThis, a_pThisCC)        (a_pThisCC)->pIoApicHlp->pfnUnlock((a_pDevIns))
+# define IOAPIC_LOCK_IS_OWNER(a_pDevIns, a_pThis, a_pThisCC) (a_pThisCC)->pIoApicHlp->pfnLockIsOwner((a_pDevIns))
 #else
 # define IOAPIC_LOCK(a_pDevIns, a_pThis, a_pThisCC, rcBusy)  PDMDevHlpCritSectEnter((a_pDevIns), &(a_pThis)->CritSect, (rcBusy))
 # define IOAPIC_UNLOCK(a_pDevIns, a_pThis, a_pThisCC)        PDMDevHlpCritSectLeave((a_pDevIns), &(a_pThis)->CritSect)
+# define IOAPIC_LOCK_IS_OWNER(a_pDevIns, a_pThis, a_pThisCC) PDMDevHlpCritSectIsOwner((a_pDevIns), &(a_pThis)->CritSect)
 #endif
 
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
+/**
+ * I/O APIC chipset (and variants) we support.
+ */
+typedef enum IOAPICTYPE
+{
+    IOAPICTYPE_ICH9 = 1,
+    IOAPICTYPE_DMAR,
+    IOAPICTYPE_82093AA,
+    IOAPICTYPE_82379AB,
+    IOAPICTYPE_32BIT_HACK = 0x7fffffff
+} IOAPICTYPE;
+AssertCompileSize(IOAPICTYPE, 4);
+
 /**
  * The shared I/O APIC device state.
  */
@@ -210,13 +271,19 @@ typedef struct IOAPIC
     uint64_t                au64RedirTable[IOAPIC_NUM_INTR_PINS];
     /** The IRQ tags and source IDs for each pin (tracing purposes). */
     uint32_t                au32TagSrc[IOAPIC_NUM_INTR_PINS];
-    /** Bitmap keeping the flip-flop-ness of pending interrupts. */
+    /** Bitmap keeping the flip-flop-ness of pending interrupts.
+     * The information held here is only relevan between SetIrq and the
+     * delivery, thus no real need to initialize or reset this. */
     uint64_t                bmFlipFlop[(IOAPIC_NUM_INTR_PINS + 63) / 64];
 
     /** The internal IRR reflecting state of the interrupt lines. */
     uint32_t                uIrr;
-    /** Alignment padding. */
-    uint32_t                u32Padding2;
+    /** The I/O APIC chipset type. */
+    IOAPICTYPE              enmType;
+    /** The I/O APIC PCI address. */
+    PCIBDF                  uPciAddress;
+    /** Padding. */
+    uint32_t                uPadding0;
 
 #ifndef IOAPIC_WITH_PDM_CRITSECT
     /** The critsect for updating to the RTEs. */
@@ -253,8 +320,14 @@ typedef struct IOAPIC
     STAMCOUNTER             StatRedundantLevelIntr;
     /** Number of suppressed level-triggered interrupts (by remote IRR). */
     STAMCOUNTER             StatSuppressedLevelIntr;
-    /** Number of returns to ring-3 due to EOI broadcast lock contention. */
-    STAMCOUNTER             StatEoiContention;
+    /** Number of IOMMU remapped interrupts (signaled by RTE). */
+    STAMCOUNTER             StatIommuRemappedIntr;
+    /** Number of IOMMU discarded interrupts (signaled by RTE). */
+    STAMCOUNTER             StatIommuDiscardedIntr;
+    /** Number of IOMMU remapped MSIs. */
+    STAMCOUNTER             StatIommuRemappedMsi;
+    /** Number of IOMMU denied or failed MSIs. */
+    STAMCOUNTER             StatIommuDiscardedMsi;
     /** Number of returns to ring-3 due to Set RTE lock contention. */
     STAMCOUNTER             StatSetRteContention;
     /** Number of level-triggered interrupts dispatched to the local APIC(s). */
@@ -262,7 +335,11 @@ typedef struct IOAPIC
     /** Number of EOIs received for level-triggered interrupts from the local
      *  APIC(s). */
     STAMCOUNTER             StatEoiReceived;
+    /** The time an interrupt level spent in the pending state. */
+    STAMPROFILEADV          aStatLevelAct[IOAPIC_NUM_INTR_PINS];
 #endif
+    /** Per-vector stats. */
+    STAMCOUNTER             aStatVectors[256];
 } IOAPIC;
 AssertCompileMemberAlignment(IOAPIC, au64RedirTable, 8);
 /** Pointer to shared IOAPIC data. */
@@ -311,6 +388,34 @@ typedef IOAPICRC *PIOAPICRC;
 typedef CTX_SUFF(IOAPIC) IOAPICCC;
 /** Pointer to the I/O APIC device state for the current context. */
 typedef CTX_SUFF(PIOAPIC) PIOAPICCC;
+
+
+/**
+ * xAPIC interrupt.
+ */
+typedef struct XAPICINTR
+{
+    /** The interrupt vector. */
+    uint8_t         u8Vector;
+    /** The destination (mask or ID). */
+    uint8_t         u8Dest;
+    /** The destination mode. */
+    uint8_t         u8DestMode;
+    /** Delivery mode. */
+    uint8_t         u8DeliveryMode;
+    /** Trigger mode. */
+    uint8_t         u8TriggerMode;
+    /** Redirection hint. */
+    uint8_t         u8RedirHint;
+    /** Polarity. */
+    uint8_t         u8Polarity;
+    /** Padding. */
+    uint8_t         abPadding0;
+} XAPICINTR;
+/** Pointer to an I/O xAPIC interrupt struct. */
+typedef XAPICINTR *PXAPICINTR;
+/** Pointer to a const xAPIC interrupt struct. */
+typedef XAPICINTR const *PCXAPICINTR;
 
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
@@ -394,6 +499,80 @@ DECLINLINE(uint32_t) ioapicGetIndex(PCIOAPIC pThis)
 
 
 /**
+ * Converts an MSI message to an APIC interrupt.
+ *
+ * @param   pMsi    The MSI message to convert.
+ * @param   pIntr   Where to store the APIC interrupt.
+ */
+DECLINLINE(void) ioapicGetApicIntrFromMsi(PCMSIMSG pMsi, PXAPICINTR pIntr)
+{
+    /*
+     * Parse the message from the physical address and data.
+     * Do -not- zero out other fields in the APIC interrupt.
+     *
+     * See Intel spec. 10.11.1 "Message Address Register Format".
+     * See Intel spec. 10.11.2 "Message Data Register Format".
+     */
+    pIntr->u8Dest         = pMsi->Addr.n.u8DestId;
+    pIntr->u8DestMode     = pMsi->Addr.n.u1DestMode;
+    pIntr->u8RedirHint    = pMsi->Addr.n.u1RedirHint;
+
+    pIntr->u8Vector       = pMsi->Data.n.u8Vector;
+    pIntr->u8TriggerMode  = pMsi->Data.n.u1TriggerMode;
+    pIntr->u8DeliveryMode = pMsi->Data.n.u3DeliveryMode;
+}
+
+
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+/**
+ * Convert an RTE into an MSI message.
+ *
+ * @param   u64Rte      The RTE to convert.
+ * @param   enmType     The I/O APIC chipset type.
+ * @param   pMsi        Where to store the MSI message.
+ */
+DECLINLINE(void) ioapicGetMsiFromRte(uint64_t u64Rte, IOAPICTYPE enmType, PMSIMSG pMsi)
+{
+    bool const fRemappable = IOAPIC_RTE_GET_INTR_FORMAT(u64Rte);
+    if (!fRemappable)
+    {
+        pMsi->Addr.n.u12Addr        = VBOX_MSI_ADDR_BASE >> VBOX_MSI_ADDR_SHIFT;
+        pMsi->Addr.n.u8DestId       = IOAPIC_RTE_GET_DEST(u64Rte);
+        pMsi->Addr.n.u1RedirHint    = 0;
+        pMsi->Addr.n.u1DestMode     = IOAPIC_RTE_GET_DEST_MODE(u64Rte);
+
+        pMsi->Data.n.u8Vector       = IOAPIC_RTE_GET_VECTOR(u64Rte);
+        pMsi->Data.n.u3DeliveryMode = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
+        pMsi->Data.n.u1TriggerMode  = IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte);
+        /* pMsi->Data.n.u1Level     = ??? */
+        /** @todo r=ramshankar: Level triggered MSIs don't make much sense though
+         *        possible in theory? Maybe document this more explicitly... */
+    }
+    else
+    {
+        Assert(enmType == IOAPICTYPE_DMAR);
+        NOREF(enmType);
+
+        /*
+         * The spec. mentions that SHV will be 0 when delivery mode is 0 (fixed), but
+         * not what SHV will be if delivery mode is not 0. I ASSUME copying delivery
+         * mode into SHV here is what hardware actually does.
+         *
+         * See Intel VT-d spec. 5.1.5.1 "I/OxAPIC Programming".
+         */
+        pMsi->Addr.dmar_remap.u12Addr        = VBOX_MSI_ADDR_BASE >> VBOX_MSI_ADDR_SHIFT;
+        pMsi->Addr.dmar_remap.u14IntrIndexLo = IOAPIC_RTE_GET_INTR_INDEX_LO(u64Rte);
+        pMsi->Addr.dmar_remap.fIntrFormat    = 1;
+        pMsi->Addr.dmar_remap.fShv           = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
+        pMsi->Addr.dmar_remap.u1IntrIndexHi  = IOAPIC_RTE_GET_INTR_INDEX_HI(u64Rte);
+
+        pMsi->Data.dmar_remap.u16SubHandle   = 0;
+    }
+}
+#endif
+
+
+/**
  * Signals the next pending interrupt for the specified Redirection Table Entry
  * (RTE).
  *
@@ -408,82 +587,125 @@ DECLINLINE(uint32_t) ioapicGetIndex(PCIOAPIC pThis)
  */
 static void ioapicSignalIntrForRte(PPDMDEVINS pDevIns, PIOAPIC pThis, PIOAPICCC pThisCC, uint8_t idxRte)
 {
-#ifndef IOAPIC_WITH_PDM_CRITSECT
-    Assert(PDMCritSectIsOwner(&pThis->CritSect));
-#endif
+    Assert(IOAPIC_LOCK_IS_OWNER(pDevIns, pThis, pThisCC));
 
-    /* Ensure the RTE isn't masked. */
+    /*
+     * Ensure the interrupt isn't masked.
+     */
     uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
     if (!IOAPIC_RTE_IS_MASKED(u64Rte))
+    { /* likely */ }
+    else
+        return;
+
+    /* We cannot accept another level-triggered interrupt until remote IRR has been cleared. */
+    uint8_t const u8TriggerMode = IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte);
+    if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
     {
-        /* We cannot accept another level-triggered interrupt until remote IRR has been cleared. */
-        uint8_t const u8TriggerMode = IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte);
-        if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
+        uint8_t const u8RemoteIrr = IOAPIC_RTE_GET_REMOTE_IRR(u64Rte);
+        if (u8RemoteIrr)
         {
-            uint8_t const u8RemoteIrr = IOAPIC_RTE_GET_REMOTE_IRR(u64Rte);
-            if (u8RemoteIrr)
-            {
-                STAM_COUNTER_INC(&pThis->StatSuppressedLevelIntr);
-                return;
-            }
+            STAM_COUNTER_INC(&pThis->StatSuppressedLevelIntr);
+            return;
         }
+    }
 
-        uint8_t const  u8Vector       = IOAPIC_RTE_GET_VECTOR(u64Rte);
-        uint8_t const  u8DeliveryMode = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
-        uint8_t const  u8DestMode     = IOAPIC_RTE_GET_DEST_MODE(u64Rte);
-        uint8_t const  u8Polarity     = IOAPIC_RTE_GET_POLARITY(u64Rte);
-        uint8_t const  u8Dest         = IOAPIC_RTE_GET_DEST(u64Rte);
-        uint32_t const u32TagSrc      = pThis->au32TagSrc[idxRte];
+    XAPICINTR ApicIntr;
+    RT_ZERO(ApicIntr);
+    ApicIntr.u8Vector       = IOAPIC_RTE_GET_VECTOR(u64Rte);
+    ApicIntr.u8Dest         = IOAPIC_RTE_GET_DEST(u64Rte);
+    ApicIntr.u8DestMode     = IOAPIC_RTE_GET_DEST_MODE(u64Rte);
+    ApicIntr.u8DeliveryMode = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
+    ApicIntr.u8Polarity     = IOAPIC_RTE_GET_POLARITY(u64Rte);
+    ApicIntr.u8TriggerMode  = u8TriggerMode;
+    //ApicIntr.u8RedirHint    = 0;
 
-        Log2(("IOAPIC: Signaling %s-triggered interrupt. Dest=%#x DestMode=%s Vector=%#x (%u)\n",
-              u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_EDGE ? "edge" : "level", u8Dest,
-              u8DestMode == IOAPIC_RTE_DEST_MODE_PHYSICAL ? "physical" : "logical", u8Vector, u8Vector));
+    /** @todo We might be able to release the IOAPIC(PDM) lock here and re-acquire it
+     *        before setting the remote IRR bit below. The APIC and IOMMU should not
+     *        require the caller to hold the PDM lock. */
 
-        /*
-         * Deliver to the local APIC via the system/3-wire-APIC bus.
-         */
-        int rc = pThisCC->pIoApicHlp->pfnApicBusDeliver(pDevIns,
-                                                        u8Dest,
-                                                        u8DestMode,
-                                                        u8DeliveryMode,
-                                                        u8Vector,
-                                                        u8Polarity,
-                                                        u8TriggerMode,
-                                                        u32TagSrc);
-        /* Can't reschedule to R3. */
-        Assert(rc == VINF_SUCCESS || rc == VERR_APIC_INTR_DISCARDED);
-#ifdef DEBUG_ramshankar
-        if (rc == VERR_APIC_INTR_DISCARDED)
-            AssertMsgFailed(("APIC: Interrupt discarded u8Vector=%#x (%u) u64Rte=%#RX64\n", u8Vector, u8Vector, u64Rte));
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    /*
+     * The interrupt may need to be remapped (or discarded) if an IOMMU is present.
+     * For line-based interrupts we must use the southbridge I/O APIC's BDF as
+     * the origin of the interrupt, see @bugref{9654#c74}.
+     */
+    MSIMSG MsiIn;
+    RT_ZERO(MsiIn);
+    ioapicGetMsiFromRte(u64Rte, pThis->enmType, &MsiIn);
+
+    MSIMSG MsiOut;
+    int const rcRemap = pThisCC->pIoApicHlp->pfnIommuMsiRemap(pDevIns, pThis->uPciAddress, &MsiIn, &MsiOut);
+    if (   rcRemap == VERR_IOMMU_NOT_PRESENT
+        || rcRemap == VERR_IOMMU_CANNOT_CALL_SELF)
+    { /* likely - assuming majority of VMs don't have IOMMU configured. */ }
+    else if (RT_SUCCESS(rcRemap))
+    {
+        /* Update the APIC interrupt with the remapped data. */
+        ioapicGetApicIntrFromMsi(&MsiOut, &ApicIntr);
+
+        /* Ensure polarity hasn't changed (trigger mode might change with Intel IOMMUs). */
+        Assert(ApicIntr.u8Polarity == IOAPIC_RTE_GET_POLARITY(u64Rte));
+        STAM_COUNTER_INC(&pThis->StatIommuRemappedIntr);
+    }
+    else
+    {
+        STAM_COUNTER_INC(&pThis->StatIommuDiscardedIntr);
+        return;
+    }
 #endif
 
-        if (rc == VINF_SUCCESS)
+    uint32_t const u32TagSrc = pThis->au32TagSrc[idxRte];
+    Log2(("IOAPIC: Signaling %s-triggered interrupt. Dest=%#x DestMode=%s Vector=%#x (%u)\n",
+          ApicIntr.u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_EDGE ? "edge" : "level", ApicIntr.u8Dest,
+          ApicIntr.u8DestMode == IOAPIC_RTE_DEST_MODE_PHYSICAL ? "physical" : "logical",
+          ApicIntr.u8Vector, ApicIntr.u8Vector));
+
+    /*
+     * Deliver to the local APIC via the system/3-wire-APIC bus.
+     */
+    int rc = pThisCC->pIoApicHlp->pfnApicBusDeliver(pDevIns,
+                                                    ApicIntr.u8Dest,
+                                                    ApicIntr.u8DestMode,
+                                                    ApicIntr.u8DeliveryMode,
+                                                    ApicIntr.u8Vector,
+                                                    ApicIntr.u8Polarity,
+                                                    ApicIntr.u8TriggerMode,
+                                                    u32TagSrc);
+    /* Can't reschedule to R3. */
+    Assert(rc == VINF_SUCCESS || rc == VERR_APIC_INTR_DISCARDED);
+#ifdef DEBUG_ramshankar
+    if (rc == VERR_APIC_INTR_DISCARDED)
+        AssertMsgFailed(("APIC: Interrupt discarded u8Vector=%#x (%u) u64Rte=%#RX64\n", u8Vector, u8Vector, u64Rte));
+#endif
+
+    if (rc == VINF_SUCCESS)
+    {
+        /*
+         * For level-triggered interrupts, we set the remote IRR bit to indicate
+         * the local APIC has accepted the interrupt.
+         *
+         * For edge-triggered interrupts, we should not clear the IRR bit as it
+         * should remain intact to reflect the state of the interrupt line.
+         * The device will explicitly transition to inactive state via the
+         * ioapicSetIrq() callback.
+         */
+        if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
         {
-            /*
-             * For level-triggered interrupts, we set the remote IRR bit to indicate
-             * the local APIC has accepted the interrupt.
-             *
-             * For edge-triggered interrupts, we should not clear the IRR bit as it
-             * should remain intact to reflect the state of the interrupt line.
-             * The device will explicitly transition to inactive state via the
-             * ioapicSetIrq() callback.
-             */
-            if (u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL)
-            {
-                Assert(u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL);
-                pThis->au64RedirTable[idxRte] |= IOAPIC_RTE_REMOTE_IRR;
-                STAM_COUNTER_INC(&pThis->StatLevelIrqSent);
-            }
-            /*
-             * Edge-triggered flip-flops gets cleaned up here as the device code will
-             * not do any explicit ioapicSetIrq and we won't receive any EOI either.
-             */
-            else if (ASMBitTest(pThis->bmFlipFlop, idxRte))
-            {
-                Log2(("IOAPIC: Clearing IRR for edge flip-flop %#x uTagSrc=%#x\n", idxRte, pThis->au32TagSrc[idxRte]));
-                pThis->au32TagSrc[idxRte] = 0;
-                pThis->uIrr &= ~RT_BIT_32(idxRte);
-            }
+            Assert(u8TriggerMode == IOAPIC_RTE_TRIGGER_MODE_LEVEL);
+            pThis->au64RedirTable[idxRte] |= IOAPIC_RTE_REMOTE_IRR;
+            STAM_COUNTER_INC(&pThis->StatLevelIrqSent);
+            STAM_PROFILE_ADV_START(&pThis->aStatLevelAct[idxRte], a);
+        }
+        /*
+         * Edge-triggered flip-flops gets cleaned up here as the device code will
+         * not do any explicit ioapicSetIrq and we won't receive any EOI either.
+         */
+        else if (ASMBitTest(pThis->bmFlipFlop, idxRte))
+        {
+            Log2(("IOAPIC: Clearing IRR for edge flip-flop %#x uTagSrc=%#x\n", idxRte, pThis->au32TagSrc[idxRte]));
+            pThis->au32TagSrc[idxRte] = 0;
+            pThis->uIrr &= ~RT_BIT_32(idxRte);
         }
     }
 }
@@ -557,15 +779,19 @@ static VBOXSTRICTRC ioapicSetRedirTableEntry(PPDMDEVINS pDevIns, PIOAPIC pThis, 
             pThis->au64RedirTable[idxRte]   = u64RteNewHi | u32RteLo;
         }
 
+        LogFlow(("IOAPIC: ioapicSetRedirTableEntry: uIndex=%#RX32 idxRte=%u uValue=%#RX32\n", uIndex, idxRte, uValue));
+
         /*
          * Signal the next pending interrupt for this RTE.
          */
         uint32_t const uPinMask = UINT32_C(1) << idxRte;
         if (pThis->uIrr & uPinMask)
+        {
+            LogFlow(("IOAPIC: ioapicSetRedirTableEntry: Signalling pending interrupt. idxRte=%u\n", idxRte));
             ioapicSignalIntrForRte(pDevIns, pThis, pThisCC, idxRte);
+        }
 
         IOAPIC_UNLOCK(pDevIns, pThis, pThisCC);
-        LogFlow(("IOAPIC: ioapicSetRedirTableEntry: uIndex=%#RX32 idxRte=%u uValue=%#RX32\n", uIndex, idxRte, uValue));
     }
     else
         STAM_COUNTER_INC(&pThis->StatSetRteContention);
@@ -647,64 +873,65 @@ static VBOXSTRICTRC ioapicSetData(PPDMDEVINS pDevIns, PIOAPIC pThis, PIOAPICCC p
 /**
  * @interface_method_impl{PDMIOAPICREG,pfnSetEoi}
  */
-static DECLCALLBACK(VBOXSTRICTRC) ioapicSetEoi(PPDMDEVINS pDevIns, uint8_t u8Vector)
+static DECLCALLBACK(void) ioapicSetEoi(PPDMDEVINS pDevIns, uint8_t u8Vector)
 {
     PIOAPIC   pThis   = PDMDEVINS_2_DATA(pDevIns, PIOAPIC);
     PIOAPICCC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PIOAPICCC);
-    STAM_COUNTER_INC(&pThis->CTX_SUFF_Z(StatSetEoi));
+
     LogFlow(("IOAPIC: ioapicSetEoi: u8Vector=%#x (%u)\n", u8Vector, u8Vector));
+    STAM_COUNTER_INC(&pThis->CTX_SUFF_Z(StatSetEoi));
 
     bool fRemoteIrrCleared = false;
-    VBOXSTRICTRC rc = IOAPIC_LOCK(pDevIns, pThis, pThisCC, VINF_IOM_R3_MMIO_WRITE);
-    if (rc == VINF_SUCCESS)
+    int rc = IOAPIC_LOCK(pDevIns, pThis, pThisCC, VINF_SUCCESS);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, NULL, rc);
+
+    for (uint8_t idxRte = 0; idxRte < RT_ELEMENTS(pThis->au64RedirTable); idxRte++)
     {
-        for (uint8_t idxRte = 0; idxRte < RT_ELEMENTS(pThis->au64RedirTable); idxRte++)
+        uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
+/** @todo r=bird: bugref:10073: I've changed it to ignore edge triggered
+ * entries here since the APIC will only call us for those?  Not doing so
+ * confuses ended up with spurious HPET/RTC IRQs in SMP linux because of it
+ * sharing the vector with a level-triggered IRQ (like vboxguest) delivered on a
+ * different CPU.
+ *
+ * Maybe we should also/instead filter on the source APIC number? */
+        if (   IOAPIC_RTE_GET_VECTOR(u64Rte) == u8Vector
+            && IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte) != IOAPIC_RTE_TRIGGER_MODE_EDGE)
         {
-            uint64_t const u64Rte = pThis->au64RedirTable[idxRte];
-            /** @todo r=bird: bugref:10073: I've changed it to ignore edge triggered
-             * entries here since the APIC will only call us for those?  Not doing so
-             * confuses ended up with spurious HPET/RTC IRQs in SMP linux because of it
-             * sharing the vector with a level-triggered IRQ (like vboxguest) delivered on a
-             * different CPU.
-             *
-             * Maybe we should also/instead filter on the source APIC number? */
-            if (   IOAPIC_RTE_GET_VECTOR(u64Rte) == u8Vector
-                && IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte) != IOAPIC_RTE_TRIGGER_MODE_EDGE)
-            {
 #ifdef DEBUG_ramshankar
-                /* This assertion may trigger when restoring saved-states created using the old, incorrect I/O APIC code. */
-                Assert(IOAPIC_RTE_GET_REMOTE_IRR(u64Rte));
+            /* This assertion may trigger when restoring saved-states created using the old, incorrect I/O APIC code. */
+            Assert(IOAPIC_RTE_GET_REMOTE_IRR(u64Rte));
 #endif
-                pThis->au64RedirTable[idxRte] &= ~IOAPIC_RTE_REMOTE_IRR;
-                fRemoteIrrCleared = true;
-                STAM_COUNTER_INC(&pThis->StatEoiReceived);
-                Log2(("IOAPIC: ioapicSetEoi: Cleared remote IRR, idxRte=%u vector=%#x (%u)\n", idxRte, u8Vector, u8Vector));
+            pThis->au64RedirTable[idxRte] &= ~IOAPIC_RTE_REMOTE_IRR;
+            fRemoteIrrCleared = true;
+            STAM_PROFILE_ADV_STOP(&pThis->aStatLevelAct[idxRte], a);
+            STAM_COUNTER_INC(&pThis->StatEoiReceived);
+            Log2(("IOAPIC: ioapicSetEoi: Cleared remote IRR, idxRte=%u vector=%#x (%u)\n", idxRte, u8Vector, u8Vector));
 
-                /*
-                 * Signal the next pending interrupt for this RTE.
-                 */
-                uint32_t const uPinMask = UINT32_C(1) << idxRte;
-                if (pThis->uIrr & uPinMask)
-                    ioapicSignalIntrForRte(pDevIns, pThis, pThisCC, idxRte);
-            }
+            /*
+             * Signal the next pending interrupt for this RTE.
+             */
+            uint32_t const uPinMask = UINT32_C(1) << idxRte;
+            if (pThis->uIrr & uPinMask)
+                ioapicSignalIntrForRte(pDevIns, pThis, pThisCC, idxRte);
         }
-
-        IOAPIC_UNLOCK(pDevIns, pThis, pThisCC);
-        AssertMsg(fRemoteIrrCleared, ("Failed to clear remote IRR for vector %#x (%u)\n", u8Vector, u8Vector));
     }
-    else
-        STAM_COUNTER_INC(&pThis->StatEoiContention);
 
-    return rc;
+    IOAPIC_UNLOCK(pDevIns, pThis, pThisCC);
+
+#ifndef VBOX_WITH_IOMMU_AMD
+    AssertMsg(fRemoteIrrCleared, ("Failed to clear remote IRR for vector %#x (%u)\n", u8Vector, u8Vector));
+#endif
 }
 
 
 /**
  * @interface_method_impl{PDMIOAPICREG,pfnSetIrq}
  */
-static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
+static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, PCIBDF uBusDevFn, int iIrq, int iLevel, uint32_t uTagSrc)
 {
-#define IOAPIC_ASSERT_IRQ(a_idxRte, a_PinMask, a_fForceTag) do { \
+    RT_NOREF(uBusDevFn);    /** @todo r=ramshankar: Remove this argument if it's also unnecessary with Intel IOMMU. */
+#define IOAPIC_ASSERT_IRQ(a_uBusDevFn, a_idxRte, a_PinMask, a_fForceTag) do { \
         pThis->au32TagSrc[(a_idxRte)] = (a_fForceTag) || !pThis->au32TagSrc[(a_idxRte)] ? uTagSrc : RT_BIT_32(31); \
         pThis->uIrr |= a_PinMask; \
         ioapicSignalIntrForRte(pDevIns, pThis, pThisCC, (a_idxRte)); \
@@ -719,7 +946,7 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
     if (RT_LIKELY((unsigned)iIrq < RT_ELEMENTS(pThis->au64RedirTable)))
     {
         int rc = IOAPIC_LOCK(pDevIns, pThis, pThisCC, VINF_SUCCESS);
-        AssertRC(rc);
+        PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, NULL, rc);
 
         uint8_t  const idxRte        = iIrq;
         uint32_t const uPinMask      = UINT32_C(1) << idxRte;
@@ -754,7 +981,7 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
                  * See ICH9 spec. 13.5.7 "REDIR_TBL: Redirection Table (LPC I/F-D31:F0)".
                  */
                 if (!uPrevIrr)
-                    IOAPIC_ASSERT_IRQ(idxRte, uPinMask, false);
+                    IOAPIC_ASSERT_IRQ(uBusDevFn, idxRte, uPinMask, false);
                 else
                 {
                     STAM_COUNTER_INC(&pThis->StatRedundantEdgeIntr);
@@ -778,7 +1005,7 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
                     Log2(("IOAPIC: Redundant level-triggered interrupt %#x (%u)\n", idxRte, idxRte));
                 }
 
-                IOAPIC_ASSERT_IRQ(idxRte, uPinMask, false);
+                IOAPIC_ASSERT_IRQ(uBusDevFn, idxRte, uPinMask, false);
             }
         }
         else
@@ -788,9 +1015,17 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
              * and assert the interrupt line. The interrupt line is left in the asserted state
              * after a flip-flop request. The de-assert is a NOP wrts to signaling an interrupt
              * hence just the assert is done.
-             */
+             *
+             * Update @bugref{10073}: We now de-assert the interrupt line once it has been
+             * delivered to the APIC to prevent it from getting re-delivered by accident (e.g.
+             * on RTE write or by buggy EOI code).  The XT-PIC works differently because of the
+             * INTA, so it's set IRQ function will do what's described above: first lower the
+             * interrupt line and then immediately raising it again, leaving the IRR flag set
+             * most of the time.  (How a real HPET/IOAPIC does this is a really good question
+             * and would be observable if we could get at the IRR register of the IOAPIC...
+             * Maybe by modifying the RTE? Our code will retrigger the interrupt that way.) */
             ASMBitSet(pThis->bmFlipFlop, idxRte);
-            IOAPIC_ASSERT_IRQ(idxRte, uPinMask, true);
+            IOAPIC_ASSERT_IRQ(uBusDevFn, idxRte, uPinMask, true);
         }
 
         IOAPIC_UNLOCK(pDevIns, pThis, pThisCC);
@@ -802,38 +1037,64 @@ static DECLCALLBACK(void) ioapicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel,
 /**
  * @interface_method_impl{PDMIOAPICREG,pfnSendMsi}
  */
-static DECLCALLBACK(void) ioapicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, uint32_t uValue, uint32_t uTagSrc)
+static DECLCALLBACK(void) ioapicSendMsi(PPDMDEVINS pDevIns, PCIBDF uBusDevFn, PCMSIMSG pMsi, uint32_t uTagSrc)
 {
     PIOAPICCC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PIOAPICCC);
-    LogFlow(("IOAPIC: ioapicSendMsi: GCPhys=%#RGp uValue=%#RX32 uTagSrc=%#x\n", GCPhys, uValue, uTagSrc));
+    PIOAPIC   pThis   = PDMDEVINS_2_DATA(pDevIns, PIOAPIC);
+    LogFlow(("IOAPIC: ioapicSendMsi: uBusDevFn=%#x Addr=%#RX64 Data=%#RX32 uTagSrc=%#x\n",
+             uBusDevFn, pMsi->Addr.u64, pMsi->Data.u32, uTagSrc));
 
-    /*
-     * Parse the message from the physical address.
-     * See Intel spec. 10.11.1 "Message Address Register Format".
-     */
-    uint8_t const u8DestAddr = (GCPhys & VBOX_MSI_ADDR_DEST_ID_MASK) >> VBOX_MSI_ADDR_DEST_ID_SHIFT;
-    uint8_t const u8DestMode = (GCPhys >> VBOX_MSI_ADDR_DEST_MODE_SHIFT) & 0x1;
-    /** @todo Check if we need to implement Redirection Hint Indicator. */
-    /* uint8_t const uRedirectHint  = (GCPhys >> VBOX_MSI_ADDR_REDIRECTION_SHIFT) & 0x1; */
+    XAPICINTR ApicIntr;
+    RT_ZERO(ApicIntr);
 
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
     /*
-     * Parse the message data.
-     * See Intel spec. 10.11.2 "Message Data Register Format".
+     * The MSI may need to be remapped (or discarded) if an IOMMU is present.
+     *
+     * If the Bus:Dev:Fn isn't valid, it is ASSUMED the device generating the
+     * MSI is the IOMMU itself and hence isn't subjected to remapping. This
+     * is the case with Intel IOMMUs.
+     *
+     * AMD IOMMUs are full fledged PCI devices, hence the BDF will be a
+     * valid PCI slot, but interrupts generated by the IOMMU will be handled
+     * by VERR_IOMMU_CANNOT_CALL_SELF case.
      */
-    uint8_t const u8Vector       = (uValue & VBOX_MSI_DATA_VECTOR_MASK)  >> VBOX_MSI_DATA_VECTOR_SHIFT;
-    uint8_t const u8TriggerMode  = (uValue >> VBOX_MSI_DATA_TRIGGER_SHIFT) & 0x1;
-    uint8_t const u8DeliveryMode = (uValue >> VBOX_MSI_DATA_DELIVERY_MODE_SHIFT) & 0x7;
+    MSIMSG MsiOut;
+    if (PCIBDF_IS_VALID(uBusDevFn))
+    {
+        int const rcRemap = pThisCC->pIoApicHlp->pfnIommuMsiRemap(pDevIns, uBusDevFn, pMsi, &MsiOut);
+        if (   rcRemap == VERR_IOMMU_NOT_PRESENT
+            || rcRemap == VERR_IOMMU_CANNOT_CALL_SELF)
+        { /* likely - assuming majority of VMs don't have IOMMU configured. */ }
+        else if (RT_SUCCESS(rcRemap))
+        {
+            STAM_COUNTER_INC(&pThis->StatIommuRemappedMsi);
+            pMsi = &MsiOut;
+        }
+        else
+        {
+            STAM_COUNTER_INC(&pThis->StatIommuDiscardedMsi);
+            return;
+        }
+    }
+#else
+    NOREF(uBusDevFn);
+#endif
+
+    ioapicGetApicIntrFromMsi(pMsi, &ApicIntr);
 
     /*
      * Deliver to the local APIC via the system/3-wire-APIC bus.
      */
+    STAM_REL_COUNTER_INC(&pThis->aStatVectors[ApicIntr.u8Vector]);
+
     int rc = pThisCC->pIoApicHlp->pfnApicBusDeliver(pDevIns,
-                                                    u8DestAddr,
-                                                    u8DestMode,
-                                                    u8DeliveryMode,
-                                                    u8Vector,
+                                                    ApicIntr.u8Dest,
+                                                    ApicIntr.u8DestMode,
+                                                    ApicIntr.u8DeliveryMode,
+                                                    ApicIntr.u8Vector,
                                                     0 /* u8Polarity - N/A */,
-                                                    u8TriggerMode,
+                                                    ApicIntr.u8TriggerMode,
                                                     uTagSrc);
     /* Can't reschedule to R3. */
     Assert(rc == VINF_SUCCESS || rc == VERR_APIC_INTR_DISCARDED); NOREF(rc);
@@ -905,7 +1166,7 @@ static DECLCALLBACK(VBOXSTRICTRC) ioapicMmioWrite(PPDMDEVINS pDevIns, void *pvUs
 
         case IOAPIC_DIRECT_OFF_EOI:
             if (pThis->u8ApicVer == IOAPIC_VERSION_ICH9)
-                rc = ioapicSetEoi(pDevIns, uValue);
+                ioapicSetEoi(pDevIns, uValue);
             else
                 Log(("IOAPIC: ioapicMmioWrite: Write to EOI register ignored!\n"));
             break;
@@ -1061,6 +1322,24 @@ static DECLCALLBACK(void) ioapicR3DbgInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp
     PCIOAPIC pThis = PDMDEVINS_2_DATA(pDevIns, PIOAPIC);
     LogFlow(("IOAPIC: ioapicR3DbgInfo: pThis=%p pszArgs=%s\n", pThis, pszArgs));
 
+    bool const fLegacy = RTStrCmp(pszArgs, "legacy") == 0;
+
+    static const char * const s_apszDeliveryModes[] =
+    {
+        " fixed",
+        "lowpri",
+        "   smi",
+        "  rsvd",
+        "   nmi",
+        "  init",
+        "  rsvd",
+        "extint"
+    };
+    static const char * const s_apszDestMode[]       = { "phys", "log " };
+    static const char * const s_apszTrigMode[]       = { " edge", "level" };
+    static const char * const s_apszPolarity[]       = { "acthi", "actlo" };
+    static const char * const s_apszDeliveryStatus[] = { "idle", "pend" };
+
     pHlp->pfnPrintf(pHlp, "I/O APIC at %#010x:\n", IOAPIC_MMIO_BASE_PHYSADDR);
 
     uint32_t const uId = ioapicGetId(pThis);
@@ -1083,49 +1362,79 @@ static DECLCALLBACK(void) ioapicR3DbgInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp
     pHlp->pfnPrintf(pHlp, "  Current index           = %#x\n",     ioapicGetIndex(pThis));
 
     pHlp->pfnPrintf(pHlp, "  I/O Redirection Table and IRR:\n");
-    pHlp->pfnPrintf(pHlp, "  idx dst_mode dst_addr mask irr trigger rirr polar dlvr_st dlvr_mode vector\n");
-
-    uint8_t const idxMaxRte = RT_MIN(pThis->u8MaxRte, RT_ELEMENTS(pThis->au64RedirTable) - 1);
-    for (uint8_t idxRte = 0; idxRte <= idxMaxRte; idxRte++)
+    if (   pThis->enmType != IOAPICTYPE_DMAR
+        || fLegacy)
     {
-        static const char * const s_apszDeliveryModes[] =
+        pHlp->pfnPrintf(pHlp, "  idx dst_mode dst_addr mask irr trigger rirr polar dlvr_st dlvr_mode vector rte\n");
+        pHlp->pfnPrintf(pHlp, "  ---------------------------------------------------------------------------------------------\n");
+
+        uint8_t const idxMaxRte = RT_MIN(pThis->u8MaxRte, RT_ELEMENTS(pThis->au64RedirTable) - 1);
+        for (uint8_t idxRte = 0; idxRte <= idxMaxRte; idxRte++)
         {
-            "Fixed ",
-            "LowPri",
-            "SMI   ",
-            "Rsvd  ",
-            "NMI   ",
-            "INIT  ",
-            "Rsvd  ",
-            "ExtINT"
-        };
+            const uint64_t u64Rte = pThis->au64RedirTable[idxRte];
+            const char    *pszDestMode       = s_apszDestMode[IOAPIC_RTE_GET_DEST_MODE(u64Rte)];
+            const uint8_t  uDest             = IOAPIC_RTE_GET_DEST(u64Rte);
+            const uint8_t  uMask             = IOAPIC_RTE_GET_MASK(u64Rte);
+            const char    *pszTriggerMode    = s_apszTrigMode[IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte)];
+            const uint8_t  uRemoteIrr        = IOAPIC_RTE_GET_REMOTE_IRR(u64Rte);
+            const char    *pszPolarity       = s_apszPolarity[IOAPIC_RTE_GET_POLARITY(u64Rte)];
+            const char    *pszDeliveryStatus = s_apszDeliveryStatus[IOAPIC_RTE_GET_DELIVERY_STATUS(u64Rte)];
+            const uint8_t  uDeliveryMode     = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
+            Assert(uDeliveryMode < RT_ELEMENTS(s_apszDeliveryModes));
+            const char    *pszDeliveryMode   = s_apszDeliveryModes[uDeliveryMode];
+            const uint8_t  uVector           = IOAPIC_RTE_GET_VECTOR(u64Rte);
 
-        const uint64_t u64Rte = pThis->au64RedirTable[idxRte];
-        const char    *pszDestMode       = IOAPIC_RTE_GET_DEST_MODE(u64Rte) == 0 ? "phys" : "log ";
-        const uint8_t  uDest             = IOAPIC_RTE_GET_DEST(u64Rte);
-        const uint8_t  uMask             = IOAPIC_RTE_GET_MASK(u64Rte);
-        const char    *pszTriggerMode    = IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte) == 0 ? "edge " : "level";
-        const uint8_t  uRemoteIrr        = IOAPIC_RTE_GET_REMOTE_IRR(u64Rte);
-        const char    *pszPolarity       = IOAPIC_RTE_GET_POLARITY(u64Rte) == 0 ? "acthi" : "actlo";
-        const char    *pszDeliveryStatus = IOAPIC_RTE_GET_DELIVERY_STATUS(u64Rte) == 0 ? "idle" : "pend";
-        const uint8_t  uDeliveryMode     = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
-        Assert(uDeliveryMode < RT_ELEMENTS(s_apszDeliveryModes));
-        const char    *pszDeliveryMode   = s_apszDeliveryModes[uDeliveryMode];
-        const uint8_t  uVector           = IOAPIC_RTE_GET_VECTOR(u64Rte);
+            pHlp->pfnPrintf(pHlp, "   %02d     %s       %02x    %u   %u   %s    %u %s    %s    %s    %3u (%016llx)\n",
+                            idxRte,
+                            pszDestMode,
+                            uDest,
+                            uMask,
+                            (pThis->uIrr >> idxRte) & 1,
+                            pszTriggerMode,
+                            uRemoteIrr,
+                            pszPolarity,
+                            pszDeliveryStatus,
+                            pszDeliveryMode,
+                            uVector,
+                            u64Rte);
+        }
+    }
+    else
+    {
+        pHlp->pfnPrintf(pHlp, "  idx intr_idx fmt mask irr trigger rirr polar dlvr_st dlvr_mode vector rte\n");
+        pHlp->pfnPrintf(pHlp, "  ----------------------------------------------------------------------------------------\n");
 
-        pHlp->pfnPrintf(pHlp, "   %02d   %s      %02x     %u    %u   %s   %u   %s  %s     %s   %3u (%016llx)\n",
-                        idxRte,
-                        pszDestMode,
-                        uDest,
-                        uMask,
-                        (pThis->uIrr >> idxRte) & 1,
-                        pszTriggerMode,
-                        uRemoteIrr,
-                        pszPolarity,
-                        pszDeliveryStatus,
-                        pszDeliveryMode,
-                        uVector,
-                        u64Rte);
+        uint8_t const idxMaxRte = RT_MIN(pThis->u8MaxRte, RT_ELEMENTS(pThis->au64RedirTable) - 1);
+        for (uint8_t idxRte = 0; idxRte <= idxMaxRte; idxRte++)
+        {
+            const uint64_t u64Rte = pThis->au64RedirTable[idxRte];
+            const uint16_t idxIntrLo         = IOAPIC_RTE_GET_INTR_INDEX_LO(u64Rte);
+            const uint8_t  fIntrFormat       = IOAPIC_RTE_GET_INTR_FORMAT(u64Rte);
+            const uint8_t  uMask             = IOAPIC_RTE_GET_MASK(u64Rte);
+            const char    *pszTriggerMode    = s_apszTrigMode[IOAPIC_RTE_GET_TRIGGER_MODE(u64Rte)];
+            const uint8_t  uRemoteIrr        = IOAPIC_RTE_GET_REMOTE_IRR(u64Rte);
+            const char    *pszPolarity       = s_apszPolarity[IOAPIC_RTE_GET_POLARITY(u64Rte)];
+            const char    *pszDeliveryStatus = s_apszDeliveryStatus[IOAPIC_RTE_GET_DELIVERY_STATUS(u64Rte)];
+            const uint8_t  uDeliveryMode     = IOAPIC_RTE_GET_DELIVERY_MODE(u64Rte);
+            Assert(uDeliveryMode < RT_ELEMENTS(s_apszDeliveryModes));
+            const char    *pszDeliveryMode   = s_apszDeliveryModes[uDeliveryMode];
+            const uint16_t idxIntrHi         = IOAPIC_RTE_GET_INTR_INDEX_HI(u64Rte);
+            const uint8_t  uVector           = IOAPIC_RTE_GET_VECTOR(u64Rte);
+            const uint16_t idxIntr           = idxIntrLo | (idxIntrHi << 15);
+            pHlp->pfnPrintf(pHlp, "   %02d     %4u   %u    %u   %u   %s    %u %s    %s    %s    %3u (%016llx)\n",
+                            idxRte,
+                            idxIntr,
+                            fIntrFormat,
+                            uMask,
+                            (pThis->uIrr >> idxRte) & 1,
+                            pszTriggerMode,
+                            uRemoteIrr,
+                            pszPolarity,
+                            pszDeliveryStatus,
+                            pszDeliveryMode,
+                            uVector,
+                            u64Rte);
+        }
     }
 }
 
@@ -1240,8 +1549,8 @@ static DECLCALLBACK(int) ioapicR3Destruct(PPDMDEVINS pDevIns)
     /*
      * Destroy the RTE critical section.
      */
-    if (PDMCritSectIsInitialized(&pThis->CritSect))
-        PDMR3CritSectDelete(&pThis->CritSect);
+    if (PDMDevHlpCritSectIsInitialized(pDevIns, &pThis->CritSect))
+        PDMDevHlpCritSectDelete(pDevIns, &pThis->CritSect);
 # else
     RT_NOREF_PV(pThis);
 # endif
@@ -1265,10 +1574,10 @@ static DECLCALLBACK(int) ioapicR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
     /*
      * Validate and read the configuration.
      */
-    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "NumCPUs|ChipType", "");
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "NumCPUs|ChipType|PCIAddress", "");
 
-    /* The number of CPUs is currently unused, but left in CFGM and saved-state in case an ID of 0 is
-       upsets some guest which we haven't yet tested. */
+    /* The number of CPUs is currently unused, but left in CFGM and saved-state in case an ID of 0
+       upsets some guest which we haven't yet been tested. */
     uint32_t cCpus;
     int rc = pHlp->pfnCFGMQueryU32Def(pCfg, "NumCPUs", &cCpus, 1);
     if (RT_FAILURE(rc))
@@ -1280,9 +1589,14 @@ static DECLCALLBACK(int) ioapicR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to query string value \"ChipType\""));
 
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "PCIAddress", &pThis->uPciAddress, NIL_PCIBDF);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to query 32-bit integer \"PCIAddress\""));
+
     if (!strcmp(szChipType, "ICH9"))
     {
         /* Newer 2007-ish I/O APIC integrated into ICH southbridges. */
+        pThis->enmType         = IOAPICTYPE_ICH9;
         pThis->u8ApicVer       = IOAPIC_VERSION_ICH9;
         pThis->u8IdMask        = 0xff;
         pThis->u8MaxRte        = IOAPIC_MAX_RTE_INDEX;
@@ -1290,9 +1604,22 @@ static DECLCALLBACK(int) ioapicR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
         pThis->u64RteWriteMask = IOAPIC_RTE_VALID_WRITE_MASK_ICH9;
         pThis->u64RteReadMask  = IOAPIC_RTE_VALID_READ_MASK_ICH9;
     }
+    else if (!strcmp(szChipType, "DMAR"))
+    {
+        /* Intel DMAR compatible I/O APIC integrated into ICH southbridges. */
+        /* Identical to ICH9, but interprets RTEs and MSI address and data fields differently. */
+        pThis->enmType         = IOAPICTYPE_DMAR;
+        pThis->u8ApicVer       = IOAPIC_VERSION_ICH9;
+        pThis->u8IdMask        = 0xff;
+        pThis->u8MaxRte        = IOAPIC_MAX_RTE_INDEX;
+        pThis->u8LastRteRegIdx = IOAPIC_INDIRECT_INDEX_RTE_END;
+        pThis->u64RteWriteMask = IOAPIC_RTE_VALID_WRITE_MASK_DMAR;
+        pThis->u64RteReadMask  = IOAPIC_RTE_VALID_READ_MASK_DMAR;
+    }
     else if (!strcmp(szChipType, "82093AA"))
     {
         /* Older 1995-ish discrete I/O APIC, used in P6 class systems. */
+        pThis->enmType         = IOAPICTYPE_82093AA;
         pThis->u8ApicVer       = IOAPIC_VERSION_82093AA;
         pThis->u8IdMask        = 0x0f;
         pThis->u8MaxRte        = IOAPIC_MAX_RTE_INDEX;
@@ -1304,6 +1631,7 @@ static DECLCALLBACK(int) ioapicR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
     {
         /* Even older 1993-ish I/O APIC built into SIO.A, used in EISA and early PCI systems. */
         /* Exact same version and behavior as 82093AA, only the number of RTEs is different. */
+        pThis->enmType         = IOAPICTYPE_82379AB;
         pThis->u8ApicVer       = IOAPIC_VERSION_82093AA;
         pThis->u8IdMask        = 0x0f;
         pThis->u8MaxRte        = IOAPIC_REDUCED_MAX_RTE_INDEX;
@@ -1341,6 +1669,11 @@ static DECLCALLBACK(int) ioapicR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
     IoApicReg.u32TheEnd    = PDM_IOAPICREG_VERSION;
     rc = PDMDevHlpIoApicRegister(pDevIns, &IoApicReg, &pThisCC->pIoApicHlp);
     AssertRCReturn(rc, rc);
+    AssertPtr(pThisCC->pIoApicHlp->pfnApicBusDeliver);
+    AssertPtr(pThisCC->pIoApicHlp->pfnLock);
+    AssertPtr(pThisCC->pIoApicHlp->pfnUnlock);
+    AssertPtr(pThisCC->pIoApicHlp->pfnLockIsOwner);
+    AssertPtr(pThisCC->pIoApicHlp->pfnIommuMsiRemap);
 
     /*
      * Register MMIO region.
@@ -1371,31 +1704,41 @@ static DECLCALLBACK(int) ioapicR3Construct(PPDMDEVINS pDevIns, int iInstance, PC
     /*
      * Statistics.
      */
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioReadRZ,  STAMTYPE_COUNTER, "RZ/MmioReadRZ",  STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO reads in RZ.");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioWriteRZ, STAMTYPE_COUNTER, "RZ/MmioWriteRZ", STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO writes in RZ.");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetIrqRZ,    STAMTYPE_COUNTER, "RZ/SetIrqRZ",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetIrq calls in RZ.");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetEoiRZ,    STAMTYPE_COUNTER, "RZ/SetEoiRZ",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetEoi calls in RZ.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioReadRZ,  STAMTYPE_COUNTER, "RZ/MmioRead",  STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO reads in RZ.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioWriteRZ, STAMTYPE_COUNTER, "RZ/MmioWrite", STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO writes in RZ.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetIrqRZ,    STAMTYPE_COUNTER, "RZ/SetIrq",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetIrq calls in RZ.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetEoiRZ,    STAMTYPE_COUNTER, "RZ/SetEoi",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetEoi calls in RZ.");
 
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioReadR3,  STAMTYPE_COUNTER, "R3/MmioReadR3",  STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO reads in R3");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioWriteR3, STAMTYPE_COUNTER, "R3/MmioWriteR3", STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO writes in R3.");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetIrqR3,    STAMTYPE_COUNTER, "R3/SetIrqR3",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetIrq calls in R3.");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetEoiR3,    STAMTYPE_COUNTER, "R3/SetEoiR3",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetEoi calls in R3.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioReadR3,  STAMTYPE_COUNTER, "R3/MmioRead",  STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO reads in R3");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatMmioWriteR3, STAMTYPE_COUNTER, "R3/MmioWrite", STAMUNIT_OCCURENCES, "Number of IOAPIC MMIO writes in R3.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetIrqR3,    STAMTYPE_COUNTER, "R3/SetIrq",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetIrq calls in R3.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetEoiR3,    STAMTYPE_COUNTER, "R3/SetEoi",    STAMUNIT_OCCURENCES, "Number of IOAPIC SetEoi calls in R3.");
 
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatRedundantEdgeIntr,   STAMTYPE_COUNTER, "RedundantEdgeIntr",   STAMUNIT_OCCURENCES, "Number of redundant edge-triggered interrupts (no IRR change).");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatRedundantLevelIntr,  STAMTYPE_COUNTER, "RedundantLevelIntr",  STAMUNIT_OCCURENCES, "Number of redundant level-triggered interrupts (no IRR change).");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSuppressedLevelIntr, STAMTYPE_COUNTER, "SuppressedLevelIntr", STAMUNIT_OCCURENCES, "Number of suppressed level-triggered interrupts by remote IRR.");
 
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatEoiContention,    STAMTYPE_COUNTER, "CritSect/ContentionSetEoi", STAMUNIT_OCCURENCES, "Number of times the critsect is busy during EOI writes causing trips to R3.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatIommuRemappedIntr,  STAMTYPE_COUNTER, "Iommu/RemappedIntr",  STAMUNIT_OCCURENCES, "Number of interrupts remapped by the IOMMU.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatIommuRemappedMsi,   STAMTYPE_COUNTER, "Iommu/RemappedMsi",   STAMUNIT_OCCURENCES, "Number of MSIs remapped by the IOMMU.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatIommuDiscardedIntr, STAMTYPE_COUNTER, "Iommu/DiscardedIntr", STAMUNIT_OCCURENCES, "Number of interrupts discarded by the IOMMU.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatIommuDiscardedMsi,  STAMTYPE_COUNTER, "Iommu/DiscardedMsi",  STAMUNIT_OCCURENCES, "Number of MSIs discarded by the IOMMU.");
+
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatSetRteContention, STAMTYPE_COUNTER, "CritSect/ContentionSetRte", STAMUNIT_OCCURENCES, "Number of times the critsect is busy during RTE writes causing trips to R3.");
 
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatLevelIrqSent, STAMTYPE_COUNTER, "LevelIntr/Sent", STAMUNIT_OCCURENCES, "Number of level-triggered interrupts sent to the local APIC(s).");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatEoiReceived,  STAMTYPE_COUNTER, "LevelIntr/Recv", STAMUNIT_OCCURENCES, "Number of EOIs received for level-triggered interrupts from the local APIC(s).");
+
+    for (size_t i = 0; i < RT_ELEMENTS(pThis->aStatLevelAct); ++i)
+        PDMDevHlpSTAMRegisterF(pDevIns, &pThis->aStatLevelAct[i], STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Time spent in the level active state", "IntPending/%02x", i);
 # endif
+    for (size_t i = 0; i < RT_ELEMENTS(pThis->aStatVectors); i++)
+        PDMDevHlpSTAMRegisterF(pDevIns, &pThis->aStatVectors[i], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                               "Number of ioapicSendMsi/pfnApicBusDeliver calls for the vector.", "Vectors/%02x", i);
 
     /*
      * Init. the device state.
      */
-    LogRel(("IOAPIC: Using implementation 2.0! Chipset type %s\n", szChipType));
+    LogRel(("IOAPIC: Version=%d.%d ChipType=%s\n", pThis->u8ApicVer >> 4, pThis->u8ApicVer & 0x0f, szChipType));
     ioapicR3Reset(pDevIns);
 
     return VINF_SUCCESS;
@@ -1423,6 +1766,11 @@ static DECLCALLBACK(int) ioapicRZConstruct(PPDMDEVINS pDevIns)
     IoApicReg.u32TheEnd    = PDM_IOAPICREG_VERSION;
     rc = PDMDevHlpIoApicSetUpContext(pDevIns, &IoApicReg, &pThisCC->pIoApicHlp);
     AssertRCReturn(rc, rc);
+    AssertPtr(pThisCC->pIoApicHlp->pfnApicBusDeliver);
+    AssertPtr(pThisCC->pIoApicHlp->pfnLock);
+    AssertPtr(pThisCC->pIoApicHlp->pfnUnlock);
+    AssertPtr(pThisCC->pIoApicHlp->pfnLockIsOwner);
+    AssertPtr(pThisCC->pIoApicHlp->pfnIommuMsiRemap);
 
     rc = PDMDevHlpMmioSetUpContext(pDevIns, pThis->hMmio, ioapicMmioWrite, ioapicMmioRead, NULL /*pvUser*/);
     AssertRCReturn(rc, rc);

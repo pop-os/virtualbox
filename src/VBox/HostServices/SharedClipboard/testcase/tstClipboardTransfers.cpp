@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "../VBoxSharedClipboardSvc-internal.h"
@@ -234,7 +244,7 @@ static void testTransferObjOpenSingle(RTTEST hTest,
     int rc = ShClTransferCreate(&pTransfer);
     RTTESTI_CHECK_RC_OK(rc);
 
-    rc = ShClTransferInit(pTransfer, 0 /* ID */, SHCLTRANSFERDIR_FROM_REMOTE, SHCLSOURCE_LOCAL);
+    rc = ShClTransferInit(pTransfer, SHCLTRANSFERDIR_FROM_REMOTE, SHCLSOURCE_LOCAL);
     RTTESTI_CHECK_RC_OK(rc);
 
     char szTestTransferObjOpenDir[RTPATH_MAX];
@@ -272,6 +282,24 @@ static void testTransferObjOpenSingle(RTTEST hTest,
         RTTESTI_CHECK_RC_OK(rc);
     }
 
+    rc = ShClTransferDestroy(pTransfer);
+    RTTESTI_CHECK_RC_OK(rc);
+}
+
+static void testTransferBasics(RTTEST hTest)
+{
+    RT_NOREF(hTest);
+
+    RTTestISub("Testing transfer basics");
+
+    SHCLEVENTSOURCE Source;
+    int rc = ShClEventSourceCreate(&Source, 0);
+    RTTESTI_CHECK_RC_OK(rc);
+    rc = ShClEventSourceDestroy(&Source);
+    RTTESTI_CHECK_RC_OK(rc);
+    PSHCLTRANSFER pTransfer;
+    rc = ShClTransferCreate(&pTransfer);
+    RTTESTI_CHECK_RC_OK(rc);
     rc = ShClTransferDestroy(pTransfer);
     RTTESTI_CHECK_RC_OK(rc);
 }
@@ -346,6 +374,7 @@ int main(int argc, char *argv[])
         return rcExit;
     RTTestBanner(hTest);
 
+    testTransferBasics(hTest);
     testTransferRootsSet(hTest);
     testTransferObjOpen(hTest);
 

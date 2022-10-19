@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -1049,6 +1059,7 @@ static int vgsvcGstCtrlProcessAllocateArgv(const char *pszArgv0, const char * co
 
     AssertPtrReturn(pszArgv0,   VERR_INVALID_POINTER);
     AssertPtrReturn(ppapszArgv, VERR_INVALID_POINTER);
+    AssertReturn(!(fFlags & GUEST_PROC_CREATE_FLAG_EXPAND_ARGUMENTS), VERR_INVALID_FLAGS); /** @todo implement me */
 
 #ifndef VBOXSERVICE_ARG1_UTF8_ARGV
     fExecutingSelf = false;
@@ -1078,21 +1089,15 @@ static int vgsvcGstCtrlProcessAllocateArgv(const char *pszArgv0, const char * co
     }
 #endif
 
-    /* HACK ALERT! Older hosts (< VBox 6.1.x) did not allow the user to really specify the first
-                   argument separately from the executable image, so we have to fudge
-                   a little in the unquoted argument case to deal with executables
-                   containing spaces. */
-    /** @todo r=bird: WTF!?? This makes absolutely no sense on non-windows.  An
-     * on windows the first flag test must be inverted, as it's when RTProcCreateEx
-     * doesn't do any quoting that we have to do it here, isn't it?
-     * Aaaaaaaaaaaaaaaaaaarrrrrrrrrrrrrrrrrrrrrrrrrrgggggggggggggggggggggggg! */
-    if (   !(fFlags & EXECUTEPROCESSFLAG_UNQUOTED_ARGS)
-        || !strpbrk(pszArgv0, " \t\n\r")
-        || pszArgv0[0] == '"')
-    {
-        rc = RTStrDupEx(&papszNewArgv[0], pszArgv0);
-    }
-    else
+    /* HACK ALERT! Older hosts (< VBox 6.1.x) did not allow the user to really specify
+                   the first argument separately from the executable image, so we have
+                   to fudge a little in the unquoted argument case to deal with executables
+                   containing spaces.  Windows only, as RTPROC_FLAGS_UNQUOTED_ARGS is
+                   ignored on all other hosts. */
+#ifdef RT_OS_WINDOWS
+    if (   (fFlags & GUEST_PROC_CREATE_FLAG_UNQUOTED_ARGS)
+        && strpbrk(pszArgv0, " \t\n\r")
+        && pszArgv0[0] == '"')
     {
         size_t cchArgv0 = strlen(pszArgv0);
         AssertReturn(cchArgv0, VERR_INVALID_PARAMETER); /* Paranoia. */
@@ -1107,7 +1112,9 @@ static int vgsvcGstCtrlProcessAllocateArgv(const char *pszArgv0, const char * co
             *pszDst   = '\0';
         }
     }
-
+    else
+#endif
+        rc = RTStrDupEx(&papszNewArgv[0], pszArgv0);
     if (RT_SUCCESS(rc))
     {
         size_t iDst = 1;
@@ -1126,7 +1133,7 @@ static int vgsvcGstCtrlProcessAllocateArgv(const char *pszArgv0, const char * co
             for (size_t iSrc = 0; iSrc < cArgs; iSrc++)
             {
 #if 0 /* Arguments expansion -- untested. */
-                if (fFlags & EXECUTEPROCESSFLAG_EXPAND_ARGUMENTS)
+                if (fFlags & GUEST_PROC_CREATE_FLAG_EXPAND_ARGUMENTS)
                 {
 /** @todo r=bird: If you want this, we need a generic implementation, preferably in RTEnv or somewhere like that.  The marking
  * up of the variables must be the same on all platforms.  */
@@ -1342,10 +1349,10 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
 
     bool fExecutingSelf = false;
 #ifdef VBOX_WITH_VBOXSERVICE_TOOLBOX
-    if (RTStrStr(pszExec, "vbox_") == pszExec) /** @todo WTF search the whole string for "vbox_" when all you want is to know if whether string starts with "vbox_" or not. geee^2 */
+    /* The "vbox_" prefix is reserved for the toolbox (vbox_cat, vbox_mkdir,
+       et al.) and we will replace pszExec with the full VBoxService path instead.  */
+    if (RTStrStartsWith(pszExec, "vbox_"))
     {
-        /* We want to use the internal toolbox (all internal
-         * tools are starting with "vbox_" (e.g. "vbox_cat"). */
         fExecutingSelf = true;
         rc = vgsvcGstCtrlProcessResolveExecutable(VBOXSERVICE_NAME, szExecExp, sizeof(szExecExp));
     }
@@ -1361,7 +1368,7 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
 #endif
     if (RT_SUCCESS(rc))
     {
-        /**
+        /*
          * This one is a bit tricky to also support older hosts:
          *
          * - If the host does not provide a dedicated argv[0] (< VBox 6.1.x), we use the
@@ -1396,11 +1403,11 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
                 fProcCreateFlags |= VBOXSERVICE_PROC_F_UTF8_ARGV;
             if (fFlags)
             {
-                if (fFlags & EXECUTEPROCESSFLAG_HIDDEN)
+                if (fFlags & GUEST_PROC_CREATE_FLAG_HIDDEN)
                     fProcCreateFlags |= RTPROC_FLAGS_HIDDEN;
-                if (fFlags & EXECUTEPROCESSFLAG_PROFILE)
+                if (fFlags & GUEST_PROC_CREATE_FLAG_PROFILE)
                     fProcCreateFlags |= RTPROC_FLAGS_PROFILE;
-                if (fFlags & EXECUTEPROCESSFLAG_UNQUOTED_ARGS)
+                if (fFlags & GUEST_PROC_CREATE_FLAG_UNQUOTED_ARGS)
                     fProcCreateFlags |= RTPROC_FLAGS_UNQUOTED_ARGS;
             }
 
@@ -1419,36 +1426,34 @@ static int vgsvcGstCtrlProcessCreateProcess(const char *pszExec, const char * co
 #endif
             VGSvcVerbose(3, "Starting process '%s' ...\n", szExecExp);
 
-            const char *pszUser = pszAsUser;
 #ifdef RT_OS_WINDOWS
             /* If a domain name is given, construct an UPN (User Principle Name) with
              * the domain name built-in, e.g. "joedoe@example.com". */
             char *pszUserUPN = NULL;
-            if (   pszDomain
-                && *pszDomain != '\0')
+            if (pszDomain && *pszDomain != '\0')
             {
-                int cbUserUPN = RTStrAPrintf(&pszUserUPN, "%s@%s", pszAsUser, pszDomain);
-                if (cbUserUPN > 0)
-                {
-                    pszUser = pszUserUPN;
-                    VGSvcVerbose(3, "Using UPN: %s\n", pszUserUPN);
-                }
+                pszAsUser = pszUserUPN = RTStrAPrintf2("%s@%s", pszAsUser, pszDomain);
+                if (pszAsUser)
+                    VGSvcVerbose(3, "Using UPN: %s\n", pszAsUser);
+                else
+                    rc = VERR_NO_STR_MEMORY;
             }
+            if (RT_SUCCESS(rc))
 #endif
+            {
+                /* Do normal execution. */
+                rc = RTProcCreateEx(szExecExp, papszArgsExp, hEnv, fProcCreateFlags,
+                                    phStdIn, phStdOut, phStdErr,
+                                    pszAsUser,
+                                    pszPassword && *pszPassword ? pszPassword : NULL,
+                                    NULL /*pvExtraData*/,
+                                    phProcess);
 
-            /* Do normal execution. */
-            rc = RTProcCreateEx(szExecExp, papszArgsExp, hEnv, fProcCreateFlags,
-                                phStdIn, phStdOut, phStdErr,
-                                pszUser,
-                                pszPassword && *pszPassword ? pszPassword : NULL,
-                                NULL /*pvExtraData*/,
-                                phProcess);
 #ifdef RT_OS_WINDOWS
-            if (pszUserUPN)
                 RTStrFree(pszUserUPN);
 #endif
-            VGSvcVerbose(3, "Starting process '%s' returned rc=%Rrc\n", szExecExp, rc);
-
+                VGSvcVerbose(3, "Starting process '%s' returned rc=%Rrc\n", szExecExp, rc);
+            }
             vgsvcGstCtrlProcessFreeArgv(papszArgsExp);
         }
     }
@@ -1570,7 +1575,7 @@ static int vgsvcGstCtrlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
      */
     uint32_t const cbEnv = pProcess->pStartupInfo->cbEnv;
     if (RT_SUCCESS(rc))
-        AssertStmt(   cbEnv <= GUESTPROCESS_MAX_ENV_LEN
+        AssertStmt(   cbEnv <= GUEST_PROC_MAX_ENV_LEN
                    || pProcess->pStartupInfo->cEnvVars == 0,
                    rc = VERR_INVALID_PARAMETER);
     if (RT_SUCCESS(rc))
@@ -1617,7 +1622,7 @@ static int vgsvcGstCtrlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
                 {
                     RTHANDLE    hStdOut;
                     PRTHANDLE   phStdOut;
-                    rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->pStartupInfo->fFlags & EXECUTEPROCESSFLAG_WAIT_STDOUT)
+                    rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->pStartupInfo->fFlags & GUEST_PROC_CREATE_FLAG_WAIT_STDOUT)
                                                  ? "|" : "/dev/null",
                                                  1 /*STDOUT_FILENO*/,
                                                  &hStdOut, &phStdOut, &pProcess->hPipeStdOutR);
@@ -1625,7 +1630,7 @@ static int vgsvcGstCtrlProcessProcessWorker(PVBOXSERVICECTRLPROCESS pProcess)
                     {
                         RTHANDLE    hStdErr;
                         PRTHANDLE   phStdErr;
-                        rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->pStartupInfo->fFlags & EXECUTEPROCESSFLAG_WAIT_STDERR)
+                        rc = vgsvcGstCtrlProcessSetupPipe(  (pProcess->pStartupInfo->fFlags & GUEST_PROC_CREATE_FLAG_WAIT_STDERR)
                                                      ? "|" : "/dev/null",
                                                      2 /*STDERR_FILENO*/,
                                                      &hStdErr, &phStdErr, &pProcess->hPipeStdErrR);
@@ -1961,7 +1966,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnInput(PVBOXSERVICECTRLPROCESS pThi
 #ifdef DEBUG
     VGSvcVerbose(3, "[PID %RU32]: vgsvcGstCtrlProcessOnInput returned with rc=%Rrc\n", pThis->uPID, rc);
 #endif
-    return VINF_SUCCESS; /** @todo Return rc here as soon as RTReqQueue todos are fixed. */
+    return rc;
 }
 
 
@@ -1981,7 +1986,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnOutput(PVBOXSERVICECTRLPROCESS pTh
     uint8_t *pvBuf = (uint8_t *)RTMemAlloc(cbBuf);
     if (pvBuf)
     {
-        PRTPIPE phPipe = uHandle == OUTPUT_HANDLE_ID_STDOUT
+        PRTPIPE phPipe = uHandle == GUEST_PROC_OUT_H_STDOUT
                        ? &pThis->hPipeStdOutR
                        : &pThis->hPipeStdErrR;
         AssertPtr(phPipe);
@@ -1992,7 +1997,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnOutput(PVBOXSERVICECTRLPROCESS pTh
             rc = RTPipeRead(*phPipe, pvBuf, cbBuf, &cbRead);
             if (RT_FAILURE(rc))
             {
-                RTPollSetRemove(pThis->hPollSet,   uHandle == OUTPUT_HANDLE_ID_STDERR
+                RTPollSetRemove(pThis->hPollSet,   uHandle == GUEST_PROC_OUT_H_STDERR
                                                  ? VBOXSERVICECTRLPIPEID_STDERR : VBOXSERVICECTRLPIPEID_STDOUT);
                 RTPipeClose(*phPipe);
                 *phPipe = NIL_RTPIPE;
@@ -2007,8 +2012,8 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnOutput(PVBOXSERVICECTRLPROCESS pTh
         if (RT_SUCCESS(rc))
         {
             if (   pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDOUT
-                && (   uHandle == OUTPUT_HANDLE_ID_STDOUT
-                    || uHandle == OUTPUT_HANDLE_ID_STDOUT_DEPRECATED)
+                && (   uHandle == GUEST_PROC_OUT_H_STDOUT
+                    || uHandle == GUEST_PROC_OUT_H_STDOUT_DEPRECATED)
                )
             {
                 rc = vgsvcGstCtrlProcessDbgDumpToFileF(pvBuf, cbRead, "VBoxService_Session%RU32_PID%RU32_StdOut.txt",
@@ -2016,7 +2021,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnOutput(PVBOXSERVICECTRLPROCESS pTh
                 AssertRC(rc);
             }
             else if (   pSession->fFlags & VBOXSERVICECTRLSESSION_FLAG_DUMPSTDERR
-                     && uHandle == OUTPUT_HANDLE_ID_STDERR)
+                     && uHandle == GUEST_PROC_OUT_H_STDERR)
             {
                 rc = vgsvcGstCtrlProcessDbgDumpToFileF(pvBuf, cbRead, "VBoxService_Session%RU32_PID%RU32_StdErr.txt",
                                                 pSession->StartupInfo.uSessionID, pThis->uPID);
@@ -2052,7 +2057,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnOutput(PVBOXSERVICECTRLPROCESS pTh
 #ifdef DEBUG
     VGSvcVerbose(3, "[PID %RU32]: Reading output returned with rc=%Rrc\n", pThis->uPID, rc);
 #endif
-    return VINF_SUCCESS; /** @todo Return rc here as soon as RTReqQueue todos are fixed. */
+    return rc;
 }
 
 
@@ -2063,7 +2068,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlProcessOnTerm(PVBOXSERVICECTRLPROCESS pThis
     if (!ASMAtomicXchgBool(&pThis->fShutdown, true))
         VGSvcVerbose(3, "[PID %RU32]: Setting shutdown flag ...\n", pThis->uPID);
 
-    return VINF_SUCCESS; /** @todo Return rc here as soon as RTReqQueue todos are fixed. */
+    return VINF_SUCCESS;
 }
 
 
@@ -2193,3 +2198,4 @@ int VGSvcGstCtrlProcessHandleTerm(PVBOXSERVICECTRLPROCESS pProcess)
 
     return vgsvcGstCtrlProcessOnTerm(pProcess);
 }
+

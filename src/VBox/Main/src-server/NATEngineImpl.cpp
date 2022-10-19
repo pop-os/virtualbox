@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_NATENGINE
@@ -187,7 +197,7 @@ void NATEngine::i_applyDefaults()
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    /* so far nothing to do */
+    mData->m->fLocalhostReachable = false; /* Applies to new VMs only, see @bugref{9896} */
 }
 
 bool NATEngine::i_hasDefaults()
@@ -198,7 +208,7 @@ bool NATEngine::i_hasDefaults()
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    return mData->m->areDefaultSettings();
+    return mData->m->areDefaultSettings(mParent->i_getSettingsVersion());
 }
 
 HRESULT NATEngine::getNetworkSettings(ULONG *aMtu, ULONG *aSockSnd, ULONG *aSockRcv, ULONG *aTcpWndSnd, ULONG *aTcpWndRcv)
@@ -325,8 +335,7 @@ HRESULT NATEngine::addRedirect(const com::Utf8Str &aName, NATProtocol_T aProto, 
     mAdapter->COMGETTER(Slot)(&ulSlot);
 
     alock.release();
-    mParent->i_onNATRedirectRuleChange(ulSlot, FALSE, Bstr(name).raw(), aProto, Bstr(r.strHostIP).raw(),
-                                       r.u16HostPort, Bstr(r.strGuestIP).raw(), r.u16GuestPort);
+    mParent->i_onNATRedirectRuleChanged(ulSlot, FALSE, name, aProto, r.strHostIP, r.u16HostPort, r.strGuestIP, r.u16GuestPort);
     return S_OK;
 }
 
@@ -349,8 +358,7 @@ HRESULT NATEngine::removeRedirect(const com::Utf8Str &aName)
     mData->m->mapRules.erase(aName); /* NB: erase by key, "it" may not be valid */
     mParent->i_setModified(Machine::IsModified_NetworkAdapters);
     alock.release();
-    mParent->i_onNATRedirectRuleChange(ulSlot, TRUE, Bstr(aName).raw(), r.proto, Bstr(r.strHostIP).raw(),
-                                       r.u16HostPort, Bstr(r.strGuestIP).raw(), r.u16GuestPort);
+    mParent->i_onNATRedirectRuleChanged(ulSlot, TRUE, aName, r.proto, r.strHostIP, r.u16HostPort, r.strGuestIP, r.u16GuestPort);
     return S_OK;
 }
 
@@ -432,6 +440,26 @@ HRESULT NATEngine::getHostIP(com::Utf8Str &aBindIP)
 
     if (!mData->m->strBindIP.isEmpty())
         aBindIP = mData->m->strBindIP;
+    return S_OK;
+}
+
+HRESULT NATEngine::setLocalhostReachable(BOOL fLocalhostReachable)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->m->fLocalhostReachable != RT_BOOL(fLocalhostReachable))
+    {
+        mData->m.backup();
+        mData->m->fLocalhostReachable = RT_BOOL(fLocalhostReachable);
+        mParent->i_setModified(Machine::IsModified_NetworkAdapters);
+    }
+    return S_OK;
+}
+
+HRESULT NATEngine::getLocalhostReachable(BOOL *pfLocalhostReachable)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    *pfLocalhostReachable = mData->m->fLocalhostReachable;
     return S_OK;
 }
 

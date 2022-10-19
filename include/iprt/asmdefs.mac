@@ -3,24 +3,34 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 ; Special hack for bs3kit.
@@ -77,6 +87,17 @@
 
 
 ;;
+; Define RT_STRICT for debug builds like iprt/cdefs.h does.
+%ifndef RT_STRICT
+ %ifdef DEBUG
+  %define RT_STRICT
+ %endif
+%endif
+%ifdef RT_NO_STRICT
+ %undef RT_STRICT
+%endif
+
+;;
 ; Make the mask for the given bit.
 %define RT_BIT(bit)        (1 << bit)
 
@@ -100,6 +121,34 @@
 ;; Preprocessor concatenation macro, four arguments.
 %define RT_CONCAT4(a_1,a_2,a_3,a_4)     a_1 %+ a_2 %+ a_3 %+ a_4
 
+;;
+; Trick for using RT_CONCAT and the like on %define names.
+; @param 1  The name (expression.
+; @param 2  The value.
+%macro RT_DEFINE_EX 2
+ %error 1=%1 2=%2
+ %define %1 %2
+%endmacro
+
+;;
+; Trick for using RT_CONCAT and the like on %xdefine names.
+; @param 1  The name (expression.
+; @param 2  The value.
+%macro RT_XDEFINE_EX 2
+ %xdefine %1 %2
+%endmacro
+
+;;
+; Trick for using RT_CONCAT and the like on %undef names.
+; @param 1  The name (expression.
+%macro RT_UNDEF_EX 1
+ %error 1=%1
+ %undef %1
+%endmacro
+
+;;
+; Empty define
+%define RT_NOTHING
 
 ;; Define ASM_FORMAT_PE64 if applicable.
 %ifdef ASM_FORMAT_PE
@@ -116,11 +165,98 @@
  %endif
 %endif
 
+%ifdef RT_ASM_WITH_SEH64_ALT
+ %ifdef ASM_FORMAT_PE64
+  ;; @name Register numbers. Used with RT_CONCAT to convert macro inputs to numbers.
+  ;; @{
+  %define SEH64_PE_GREG_rax     0
+  %define SEH64_PE_GREG_xAX     0
+  %define SEH64_PE_GREG_rcx     1
+  %define SEH64_PE_GREG_xCX     1
+  %define SEH64_PE_GREG_rdx     2
+  %define SEH64_PE_GREG_xDX     2
+  %define SEH64_PE_GREG_rbx     3
+  %define SEH64_PE_GREG_xBX     3
+  %define SEH64_PE_GREG_rsp     4
+  %define SEH64_PE_GREG_xSP     4
+  %define SEH64_PE_GREG_rbp     5
+  %define SEH64_PE_GREG_xBP     5
+  %define SEH64_PE_GREG_rsi     6
+  %define SEH64_PE_GREG_xSI     6
+  %define SEH64_PE_GREG_rdi     7
+  %define SEH64_PE_GREG_xDI     7
+  %define SEH64_PE_GREG_r8      8
+  %define SEH64_PE_GREG_r9      9
+  %define SEH64_PE_GREG_r10     10
+  %define SEH64_PE_GREG_r11     11
+  %define SEH64_PE_GREG_r12     12
+  %define SEH64_PE_GREG_r13     13
+  %define SEH64_PE_GREG_r14     14
+  %define SEH64_PE_GREG_r15     15
+  ;; @}
+
+  ;; @name PE unwind operations.
+  ;; @{
+  %define SEH64_PE_PUSH_NONVOL      0
+  %define SEH64_PE_ALLOC_LARGE      1
+  %define SEH64_PE_ALLOC_SMALL      2
+  %define SEH64_PE_SET_FPREG        3
+  %define SEH64_PE_SAVE_NONVOL      4
+  %define SEH64_PE_SAVE_NONVOL_FAR  5
+  %define SEH64_PE_SAVE_XMM128      8
+  %define SEH64_PE_SAVE_XMM128_FAR  9
+  ;; @}
+
+  ;;
+  ; Starts the unwind info for the manual SEH64 info generation.
+  ; @param 1 Function name.
+  %macro SEH64_ALT_START_UNWIND_INFO 1
+   %assign seh64_idxOps   0
+   %assign seh64_FrameReg SEH64_PE_GREG_rsp
+   %assign seh64_offFrame 0
+   %define asm_seh64_proc %1
+   %undef  seh64_slot_bytes
+  %endmacro
+
+  ;; We keep the unwind bytes in the seh64_slot_bytes (x)define, in reverse order as per spec.
+  %macro SEH64_APPEND_SLOT_PAIR 2
+   %ifdef seh64_slot_bytes
+    %xdefine seh64_slot_bytes %1, %2, seh64_slot_bytes
+   %else
+    %xdefine seh64_slot_bytes %1, %2
+   %endif
+  %endmacro
+
+  ;; For multi-slot unwind info.
+  %macro SEH64_APPEND_SLOT_BYTES 2+
+   %rep %0
+    %rotate -1
+    %ifdef seh64_slot_bytes
+     %xdefine seh64_slot_bytes %1, seh64_slot_bytes
+    %else
+     %xdefine seh64_slot_bytes %1
+    %endif
+   %endrep
+  %endmacro
+
+ %else
+  %undef RT_ASM_WITH_SEH64_ALT
+ %endif
+%endif
+
 ;;
 ; Records a xBP push.
 %macro SEH64_PUSH_xBP 0
  %ifdef RT_ASM_WITH_SEH64
-  [pushreg rbp]
+        [pushreg rbp]
+
+ %elifdef RT_ASM_WITH_SEH64_ALT
+RT_CONCAT(.seh64_op_label_,seh64_idxOps):
+  %ifdef ASM_FORMAT_PE64
+   SEH64_APPEND_SLOT_PAIR   RT_CONCAT(.seh64_op_label_,seh64_idxOps) - .start_of_prologue, \
+                            SEH64_PE_PUSH_NONVOL | (SEH64_PE_GREG_rbp << 4)
+  %endif
+  %assign seh64_idxOps      seh64_idxOps + 1
  %endif
 %endmacro
 
@@ -129,7 +265,15 @@
 ; @param 1 Register name.
 %macro SEH64_PUSH_GREG 1
  %ifdef RT_ASM_WITH_SEH64
-  [pushreg %1]
+        [pushreg %1]
+
+ %elifdef RT_ASM_WITH_SEH64_ALT
+RT_CONCAT(.seh64_op_label_,seh64_idxOps):
+  %ifdef ASM_FORMAT_PE64
+   SEH64_APPEND_SLOT_PAIR   RT_CONCAT(.seh64_op_label_,seh64_idxOps) - .start_of_prologue, \
+                            SEH64_PE_PUSH_NONVOL | (RT_CONCAT(SEH64_PE_GREG_,%1) << 4)
+  %endif
+  %assign seh64_idxOps      seh64_idxOps + 1
  %endif
 %endmacro
 
@@ -138,6 +282,16 @@
 %macro SEH64_SET_FRAME_xBP 1
  %ifdef RT_ASM_WITH_SEH64
   [setframe rbp, %1]
+
+ %elifdef RT_ASM_WITH_SEH64_ALT
+RT_CONCAT(.seh64_op_label_,seh64_idxOps):
+  %ifdef ASM_FORMAT_PE64
+   SEH64_APPEND_SLOT_PAIR   RT_CONCAT(.seh64_op_label_,seh64_idxOps) - .start_of_prologue, \
+                            SEH64_PE_SET_FPREG | 0 ; vs2019 seems to put the offset in the info field
+   %assign seh64_FrameReg   SEH64_PE_GREG_rbp
+   %assign seh64_offFrame   %1
+  %endif
+  %assign seh64_idxOps      seh64_idxOps + 1
  %endif
 %endmacro
 
@@ -145,15 +299,72 @@
 ; Records an ADD xSP, %1.
 %macro SEH64_ALLOCATE_STACK 1
  %ifdef RT_ASM_WITH_SEH64
-  [allocstack %1]
+        [allocstack %1]
+
+ %elifdef RT_ASM_WITH_SEH64_ALT
+RT_CONCAT(.seh64_op_label_,seh64_idxOps):
+  %ifdef ASM_FORMAT_PE64
+   %if (%1) & 7
+    %error "SEH64_ALLOCATE_STACK must be a multiple of 8"
+   %endif
+   %if (%1) < 8
+    %error "SEH64_ALLOCATE_STACK must have an argument that's 8 or higher."
+   %elif (%1) <= 128
+    SEH64_APPEND_SLOT_PAIR RT_CONCAT(.seh64_op_label_,seh64_idxOps) - .start_of_prologue, \
+                           SEH64_PE_ALLOC_SMALL | ((((%1) / 8) - 1) << 4)
+   %elif (%1) < 512
+    SEH64_APPEND_SLOT_BYTES RT_CONCAT(.seh64_op_label_,seh64_idxOps) - .start_of_prologue, \
+                            SEH64_PE_ALLOC_LARGE | 0, \
+                            ((%1) / 8) & 0xff, ((%1) / 8) >> 8
+   %else
+    SEH64_APPEND_SLOT_BYTES RT_CONCAT(.seh64_op_label_,seh64_idxOps) - .start_of_prologue, \
+                            SEH64_PE_ALLOC_LARGE | 1, \
+                            (%1) & 0xff, ((%1) >> 8) & 0xff, ((%1) >> 16) & 0xff, ((%1) >> 24) & 0xff
+   %endif
+  %endif
+  %assign seh64_idxOps      seh64_idxOps + 1
  %endif
+%endmacro
+
+%macro SEH64_INFO_HELPER 1
+%if defined(%1)
+        dw      %1
+%endif
 %endmacro
 
 ;;
 ; Ends the prologue.
 %macro SEH64_END_PROLOGUE 0
+.end_of_prologue:
  %ifdef RT_ASM_WITH_SEH64
- [endprolog]
+        [endprolog]
+
+ %elifdef RT_ASM_WITH_SEH64_ALT
+  %ifdef ASM_FORMAT_PE
+        ; Emit the unwind info now.
+   %ifndef ASM_DEFINED_XDATA_SECTION
+    %define ASM_DEFINED_XDATA_SECTION
+        section .xdata rdata align=4
+   %else
+        section .xdata
+        align   4, db 0
+   %endif
+.unwind_info:
+        db      1                       ; version 1 (3 bit), no flags (5 bits)
+        db      .end_of_prologue - .start_of_prologue
+
+        db      (.unwind_info_array_end - .unwind_info_array) / 2
+        db      seh64_FrameReg | (seh64_offFrame & 0xf0) ; framereg and offset/16.
+.unwind_info_array:
+   %ifdef seh64_slot_bytes
+        db      seh64_slot_bytes
+    %undef seh64_slot_bytes
+   %endif
+.unwind_info_array_end:
+
+        ; Reset the segment
+        BEGINCODE
+  %endif
  %endif
 %endmacro
 
@@ -175,7 +386,11 @@
 ; names created using the name macros in this files.
 ; This is handy when you've got some kind of template code.
 %ifndef NAME_OVERLOAD
- %define NAME_OVERLOAD(name) name
+ %ifdef RT_MANGLER_PREFIX
+  %define NAME_OVERLOAD(name) RT_MANGLER_PREFIX %+ name
+ %else
+  %define NAME_OVERLOAD(name) name
+ %endif
 %endif
 
 ;;
@@ -265,6 +480,12 @@
 %endif
 
 
+;;
+; Define a label as given, with a '$' prepended to permit using instruction
+; names like fdiv as labels.
+%macro SAFE_LABEL 1
+$%1:
+%endmacro
 
 ;;
 ; Global marker which is DECLASM() compatible.
@@ -272,7 +493,7 @@
 %ifndef ASM_FORMAT_BIN
 global NAME(%1)
 %endif
-NAME(%1):
+SAFE_LABEL NAME(%1)
 %endmacro
 
 ;;
@@ -290,71 +511,187 @@ GLOBALNAME %1
 %endmacro
 
 ;;
-; Global marker which is DECLASM() compatible.
-%macro GLOBALNAME_EX 2
-%ifndef ASM_FORMAT_BIN
- %ifdef ASM_FORMAT_ELF
-global NAME(%1):%2
+; Same as GLOBALNAME_EX, but without the name mangling.
+;
+; @param %1     The symbol name - subjected to NAME().
+; @param %2     ELF and PE attributes: 'function', 'object', 'data', 'notype'.
+;               PE ignores all but 'function' (yasm only).  Other formats ignores
+;               this completely.
+; @param %3     Symbol visibility: 'hidden', 'protected', 'internal', and
+;                                   RT_NOTHING (for 'default' visibility).
+;               These are ELF attributes, but 'hidden' is translated to
+;               'private_extern' for the Macho-O format.
+;               Ignored by other formats.
+;
+%macro GLOBALNAME_RAW 3
+%ifdef ASM_FORMAT_ELF
+global %1:%2 %3
+
+%elifdef ASM_FORMAT_PE
+ %ifidn %2,function
+  %ifdef __YASM__      ; nasm does not support any attributes, it errors out. So, nasm is no good with control flow guard atm.
+global %1:function
+  %else
+global %1
+  %endif
  %else
-global NAME(%1)
+global %1
  %endif
+
+%elifdef ASM_FORMAT_MACHO
+ %ifidn %3,hidden
+global %1:private_extern
+ %else
+global %1
+ %endif
+
+%elifndef ASM_FORMAT_BIN
+global %1
+
 %endif
-NAME(%1):
+
+%1:
+%endmacro
+
+;;
+; Global marker which is DECLASM() compatible.
+;
+; @param %1     The symbol name - subjected to NAME().
+; @param %2     ELF and PE attributes: 'function', 'object', 'data', 'notype'.
+;               PE ignores all but 'function' (yasm only).  Other formats ignores
+;               this completely.
+; @param %3     Symbol visibility: 'hidden', 'protected', 'internal', and
+;                                   RT_NOTHING (for 'default' visibility).
+;               These are ELF attributes, but 'hidden' is translated to
+;               'private_extern' for the Macho-O format.
+;               Ignored by other formats.
+;
+%macro GLOBALNAME_EX 3
+GLOBALNAME_RAW NAME(%1), %2, %3
+%endmacro
+
+
+;;
+; Global exported marker, raw version w/o automatic name mangling.
+;
+; @param %1     The internal symbol name.
+; @param %2     The external symbol name.
+; @param %3     ELF and PE attributes: 'function', 'object', 'data', 'notype'.
+;               PE ignores all but 'function' (yasm only).  Other formats ignores
+;               this completely.
+;
+%macro EXPORTEDNAME_RAW 3
+ %ifdef ASM_FORMAT_PE
+  export %2=%1
+ %endif
+ %ifdef __NASM__
+  %ifdef ASM_FORMAT_OMF
+   export %1 %2
+  %endif
+%endif
+GLOBALNAME_RAW %1, %3, RT_NOTHING
 %endmacro
 
 ;;
 ; Global exported marker which is DECLASM() compatible.
+;
+; @param %1     The symbol name - subjected to NAME().
+; @param %2     ELF and PE attributes: 'function', 'object', 'data', 'notype'.
+;               PE ignores all but 'function' (yasm only).  Other formats ignores
+;               this completely.
+;
 %macro EXPORTEDNAME_EX 2
- %ifdef ASM_FORMAT_PE
-  export %1=NAME(%1)
- %endif
- %ifdef __NASM__
-  %ifdef ASM_FORMAT_OMF
-   export NAME(%1) NAME(%1)
-  %endif
-%endif
-GLOBALNAME_EX %1, %2
+EXPORTEDNAME_RAW NAME(%1), %1, %2
 %endmacro
 
+
 ;;
-; Begins a C callable procedure.
-%macro BEGINPROC 1
+; Begins a procedure, raw version w/o automatic name mangling.
+%macro BEGINPROC_RAW 1
+ %ifdef RT_ASM_WITH_SEH64_ALT
+  SEH64_ALT_START_UNWIND_INFO %1
+ %endif
  %ifdef RT_ASM_WITH_SEH64
-global     NAME(%1):function
-proc_frame NAME(%1)
+global     %1:function
+proc_frame %1
  %else
-GLOBALNAME_EX %1, function hidden
+GLOBALNAME_RAW %1, function, hidden
  %endif
+.start_of_prologue:
 %endmacro
 
 ;;
-; Begins a C callable exported procedure.
-%macro BEGINPROC_EXPORTED 1
+; Begins a C callable (DECLASM) procedure.
+%macro BEGINPROC 1
+BEGINPROC_RAW NAME(%1)
+%endmacro
+
+
+;;
+; Begins a exported procedure, raw version w/o automatic name mangling.
+; @param 1  Internal name.
+; @param 2  Exported name.
+%macro BEGINPROC_EXPORTED_RAW 2
+ %ifdef RT_ASM_WITH_SEH64_ALT
+  SEH64_ALT_START_UNWIND_INFO %1
+ %endif
  %ifdef RT_ASM_WITH_SEH64
   %ifdef ASM_FORMAT_PE
-export  %1=NAME(%1)
+export  %2=%1
   %endif
-global     NAME(%1):function
-proc_frame NAME(%1)
+global     %1:function
+proc_frame %1
  %else
-EXPORTEDNAME_EX %1, function
+EXPORTEDNAME_RAW %1, %2, function
+ %endif
+.start_of_prologue:
+%endmacro
+
+;;
+; Begins a C callable (DECLASM) exported procedure.
+%macro BEGINPROC_EXPORTED 1
+BEGINPROC_EXPORTED_RAW NAME(%1), %1
+%endmacro
+
+
+;;
+; Ends a procedure, raw version w/o automatic name mangling.
+%macro ENDPROC_RAW 1
+ %ifdef RT_ASM_WITH_SEH64
+endproc_frame
+ %endif
+GLOBALNAME_RAW %1 %+ _EndProc, , hidden ; no function here, this isn't a valid code flow target.
+%ifdef ASM_FORMAT_ELF
+ %ifndef __NASM__ ; nasm does this in the global directive.
+size %1               %1 %+ _EndProc - %1
+size %1 %+ _EndProc   4 ; make it non-zero to shut up warnigns from Linux's objtool.
+ %endif
+%endif
+    db  0xCC, 0xCC, 0xCC, 0xCC
+
+ %ifdef RT_ASM_WITH_SEH64_ALT
+  %ifdef ASM_FORMAT_PE
+        ; Emit the RUNTIME_FUNCTION entry.  The linker is picky here, no label.
+   %ifndef ASM_DEFINED_PDATA_SECTION
+    %define ASM_DEFINED_PDATA_SECTION
+        section .pdata rdata align=4
+   %else
+        section .pdata
+   %endif
+        dd      %1                    wrt ..imagebase
+        dd      %1 %+ _EndProc        wrt ..imagebase
+        dd      %1 %+ .unwind_info    wrt ..imagebase
+
+        ; Restore code section.
+        BEGINCODE
+  %endif
  %endif
 %endmacro
 
 ;;
 ; Ends a C callable procedure.
 %macro ENDPROC 1
- %ifdef RT_ASM_WITH_SEH64
-endproc_frame
- %endif
-GLOBALNAME_EX %1 %+ _EndProc, function hidden
-%ifdef ASM_FORMAT_ELF
- %ifndef __NASM__ ; nasm does this in the global directive.
-size NAME(%1)               NAME(%1 %+ _EndProc) - NAME(%1)
-size NAME(%1 %+ _EndProc)   0
- %endif
-%endif
-    db  0xCC, 0xCC, 0xCC, 0xCC
+ENDPROC_RAW NAME(%1)
 %endmacro
 
 
@@ -778,6 +1115,20 @@ size NAME(%1 %+ _EndProc)   0
   %define RTLRD_CB          16
 %endif
 
+;; @name Floating point constants along the lines of the iprt/types.h types.
+; @note YASM does support special  the __Infinity__ and __NaN__ nasm tokens.
+; @{
+%define RTFLOAT32U_QNAN_PLUS    0x7fc00000
+%define RTFLOAT32U_QNAN_MINUS   0xffc00000
+%define RTFLOAT32U_INF_PLUS     0x7f800000
+%define RTFLOAT32U_INF_MINUS    0xff800000
+
+%define RTFLOAT64U_QNAN_PLUS    0x7ff8000000000000
+%define RTFLOAT64U_QNAN_MINUS   0xfff8000000000000
+%define RTFLOAT64U_INF_PLUS     0x7ff0000000000000
+%define RTFLOAT64U_INF_MINUS    0xfff0000000000000
+; @}
+
 
 
 ;; @def ASM_CALL64_GCC
@@ -817,6 +1168,19 @@ size NAME(%1 %+ _EndProc)   0
 %endif
 
 
+;; @def RT_BEGINPROC
+; Starts an IPRT procedure that should be exported unless IN_RT_STATIC is defined.
+;
+; @param    1       The function name.  Will apply NAME macro to it.
+%macro RT_BEGINPROC 1
+ %ifdef IN_RT_STATIC
+BEGINPROC          %1
+ %else
+BEGINPROC_EXPORTED %1
+ %endif
+%endmacro ; RT_BEGINPROC
+
+
 ;; @def RT_NOCRT
 ; Symbol name wrapper for the No-CRT bits.
 ;
@@ -837,29 +1201,37 @@ size NAME(%1 %+ _EndProc)   0
 ;; @def RT_NOCRT_BEGINPROC
 ; Starts a NOCRT procedure, taking care of name wrapping and aliasing.
 ;
-; Aliasing (weak ones, if supported) will be created when RT_WITH_NOCRT_ALIASES
-; is defined and RT_WITHOUT_NOCRT_WRAPPERS isn't.
+; Weak aliases for regular crt (%1) names to the nocrt_ prefixed ones will be
+; added when RT_WITH_NOCRT_ALIASES is defined and the output is ELF.  If
+; RT_WITH_GENALIAS_NOCRT_ALIASES is undefined, strong aliases will be added for
+; for non-ELF targets, otherwise it's assumed the genalias build tool will do
+; the weak aliasing for us.
 ;
 %macro RT_NOCRT_BEGINPROC 1
  %ifdef RT_WITH_NOCRT_ALIASES
 BEGINPROC_EXPORTED RT_NOCRT(%1)
   %ifdef ASM_FORMAT_ELF
-global NAME(%1)
+   ; ELF
+   %ifdef RT_WITH_NOCRT_UNDERSCORE_ALIASES
+global NAME(_ %+ %1):function
+weak NAME(_ %+ %1)
+SAFE_LABEL NAME(_ %+ %1)
+   %endif
+global NAME(%1):function
 weak NAME(%1)
-NAME(%1):
-  %else
+SAFE_LABEL NAME(%1)
+
+  %elifndef RT_WITH_GENALIAS_NOCRT_ALIASES
+   ; non-ELF when not using genalias.
+   %ifdef RT_WITH_NOCRT_UNDERSCORE_ALIASES
+GLOBALNAME _%1
+   %endif
 GLOBALNAME %1
   %endif
  %else  ; !RT_WITH_NOCRT_ALIASES
 BEGINPROC_EXPORTED RT_NOCRT(%1)
  %endif ; !RT_WITH_NOCRT_ALIASES
 %endmacro ; RT_NOCRT_BEGINPROC
-
-%ifdef RT_WITH_NOCRT_ALIASES
- %ifdef RT_WITHOUT_NOCRT_WRAPPERS
-  %error "RT_WITH_NOCRT_ALIASES and RT_WITHOUT_NOCRT_WRAPPERS doesn't mix."
- %endif
-%endif
 
 
 

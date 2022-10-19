@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -52,9 +62,6 @@
 #include <iprt/ctype.h>
 #include <iprt/dir.h>
 
-#include <algorithm>
-#include <list>
-#include <string>
 #include <signal.h>
 
 #include "VBoxAutostart.h"
@@ -66,7 +73,6 @@ using namespace com;
 #endif
 
 ComPtr<IVirtualBoxClient> g_pVirtualBoxClient = NULL;
-bool                      g_fVerbose    = false;
 ComPtr<IVirtualBox>       g_pVirtualBox = NULL;
 ComPtr<ISession>          g_pSession    = NULL;
 
@@ -74,6 +80,9 @@ ComPtr<ISession>          g_pSession    = NULL;
 static uint32_t      g_cHistory = 10;                   /* Enable log rotation, 10 files. */
 static uint32_t      g_uHistoryFileTime = RT_SEC_1DAY;  /* Max 1 day per file. */
 static uint64_t      g_uHistoryFileSize = 100 * _1M;    /* Max 100MB per file. */
+
+/** Verbosity level. */
+unsigned             g_cVerbosity = 0;
 
 /** Run in background. */
 static bool          g_fDaemonize = false;
@@ -242,58 +251,41 @@ DECLHIDDEN(HRESULT) showProgress(ComPtr<IProgress> progress)
 DECLHIDDEN(void) autostartSvcOsLogStr(const char *pszMsg, AUTOSTARTLOGTYPE enmLogType)
 {
     if (   enmLogType == AUTOSTARTLOGTYPE_VERBOSE
-        && !g_fVerbose)
+        && !g_cVerbosity)
         return;
 
     LogRel(("%s", pszMsg));
 }
 
-static void displayHeader()
-{
-    RTStrmPrintf(g_pStdErr, VBOX_PRODUCT " Autostart " VBOX_VERSION_STRING "\n"
-                 "(C) " VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                 "All rights reserved.\n\n");
-}
-
 /**
- * Displays the help.
+ * Shows the help.
  *
  * @param   pszImage                Name of program name (image).
  */
-static void displayHelp(const char *pszImage)
+static void showHelp(const char *pszImage)
 {
     AssertPtrReturnVoid(pszImage);
 
-    displayHeader();
+    autostartSvcShowHeader();
 
     RTStrmPrintf(g_pStdErr,
-                 "Usage:\n"
-                 " %s [-v|--verbose] [-h|-?|--help]\n"
-                 " [-F|--logfile=<file>] [-R|--logrotate=<num>] [-S|--logsize=<bytes>]\n"
-                 " [-I|--loginterval=<seconds>]\n"
-                 " [-c|--config=<config file>]\n", pszImage);
+                 "Usage: %s [-v|--verbose] [-h|-?|--help]\n"
+                 "           [-V|--version]\n"
+                 "           [-F|--logfile=<file>] [-R|--logrotate=<num>]\n"
+                 "           [-S|--logsize=<bytes>] [-I|--loginterval=<seconds>]\n"
+                 "           [-c|--config=<config file>]\n",
+                 pszImage);
 
-    RTStrmPrintf(g_pStdErr, "\n"
+    RTStrmPrintf(g_pStdErr,
+                 "\n"
                  "Options:\n");
-
-    for (unsigned i = 0;
-         i < RT_ELEMENTS(g_aOptions);
-         ++i)
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aOptions); i++)
     {
-        std::string str(g_aOptions[i].pszLong);
-        if (g_aOptions[i].iShort < 1000) /* Don't show short options which are defined by an ID! */
-        {
-            str += ", -";
-            str += g_aOptions[i].iShort;
-        }
-        str += ":";
-
-        const char *pcszDescr = "";
-
+        const char *pcszDescr;
         switch (g_aOptions[i].iShort)
         {
             case 'h':
-                pcszDescr = "Print this help message and exit.";
+                pcszDescr = "Prints this help message and exit.";
                 break;
 
 #ifdef VBOXAUTOSTART_DAEMONIZE
@@ -321,12 +313,28 @@ static void displayHelp(const char *pszImage)
             case 'c':
                 pcszDescr = "Name of the configuration file for the global overrides.";
                 break;
+
+            case 'V':
+                pcszDescr = "Shows the service version.";
+                break;
+
+            default:
+                AssertFailedBreakStmt(pcszDescr = "");
         }
 
-        RTStrmPrintf(g_pStdErr, "%-23s%s\n", str.c_str(), pcszDescr);
+        if (g_aOptions[i].iShort < 1000)
+            RTStrmPrintf(g_pStdErr,
+                         "  %s, -%c\n"
+                         "      %s\n", g_aOptions[i].pszLong, g_aOptions[i].iShort, pcszDescr);
+        else
+            RTStrmPrintf(g_pStdErr,
+                         "  %s\n"
+                         "      %s\n", g_aOptions[i].pszLong, pcszDescr);
     }
 
-    RTStrmPrintf(g_pStdErr, "\nUse environment variable VBOXAUTOSTART_RELEASE_LOG for logging options.\n");
+    RTStrmPrintf(g_pStdErr,
+                 "\n"
+                 "Use environment variable VBOXAUTOSTART_RELEASE_LOG for logging options.\n");
 }
 
 int main(int argc, char *argv[])
@@ -357,11 +365,11 @@ int main(int argc, char *argv[])
         switch (c)
         {
             case 'h':
-                displayHelp(argv[0]);
-                return 0;
+                showHelp(argv[0]);
+                return RTEXITCODE_SUCCESS;
 
             case 'v':
-                g_fVerbose = true;
+                g_cVerbosity++;
                 break;
 
 #ifdef VBOXAUTOSTART_DAEMONIZE
@@ -370,8 +378,8 @@ int main(int argc, char *argv[])
                 break;
 #endif
             case 'V':
-                RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
-                return 0;
+                autostartSvcShowVersion(false);
+                return RTEXITCODE_SUCCESS;
 
             case 'F':
                 pszLogFile = ValueUnion.psz;
@@ -412,23 +420,23 @@ int main(int argc, char *argv[])
 
     if (!fStart && !fStop)
     {
-        displayHelp(argv[0]);
+        showHelp(argv[0]);
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Either --start or --stop must be present");
     }
     else if (fStart && fStop)
     {
-        displayHelp(argv[0]);
+        showHelp(argv[0]);
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "--start or --stop are mutually exclusive");
     }
 
     if (!pszConfigFile)
     {
-        displayHelp(argv[0]);
+        showHelp(argv[0]);
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "--config <config file> is missing");
     }
 
     if (!fQuiet)
-        displayHeader();
+        autostartSvcShowHeader();
 
     PCFGAST pCfgAst = NULL;
     char *pszUser = NULL;
@@ -544,19 +552,18 @@ int main(int argc, char *argv[])
     if (RT_FAILURE(rc))
         return RTEXITCODE_FAILURE;
 
-    RTEXITCODE rcExit;
     if (fStart)
-        rcExit = autostartStartMain(pCfgAstUser);
+        rc = autostartStartMain(pCfgAstUser);
     else
     {
         Assert(fStop);
-        rcExit = autostartStopMain(pCfgAstUser);
+        rc = autostartStopMain(pCfgAstUser);
     }
 
     autostartConfigAstDestroy(pCfgAst);
     NativeEventQueue::getMainEventQueue()->processEventQueue(0);
-
     autostartShutdown();
-    return rcExit;
+
+    return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 

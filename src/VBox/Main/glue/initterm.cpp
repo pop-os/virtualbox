@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN
@@ -200,7 +210,8 @@ static unsigned int gXPCOMInitCount = 0;
 /**
  * Replacement function for the InvokeStub method for the IRundown stub.
  */
-static HRESULT STDMETHODCALLTYPE Rundown_InvokeStub(IRpcStubBuffer *pThis, RPCOLEMESSAGE *pMsg, IRpcChannelBuffer *pBuf)
+static HRESULT STDMETHODCALLTYPE
+Rundown_InvokeStub(IRpcStubBuffer *pThis, RPCOLEMESSAGE *pMsg, IRpcChannelBuffer *pBuf) RT_NOTHROW_DEF
 {
     /*
      * Our mission here is to prevent remote calls to methods #8 and #9,
@@ -236,7 +247,7 @@ static HRESULT STDMETHODCALLTYPE Rundown_InvokeStub(IRpcStubBuffer *pThis, RPCOL
  * Replacement function for the InvokeStub method for the IDLLHost stub.
  */
 static HRESULT STDMETHODCALLTYPE
-DLLHost_InvokeStub(IRpcStubBuffer *pThis, RPCOLEMESSAGE *pMsg, IRpcChannelBuffer *pBuf)
+DLLHost_InvokeStub(IRpcStubBuffer *pThis, RPCOLEMESSAGE *pMsg, IRpcChannelBuffer *pBuf) RT_NOTHROW_DEF
 {
     /*
      * Our mission here is to prevent remote calls to this interface as method #3
@@ -251,13 +262,12 @@ DLLHost_InvokeStub(IRpcStubBuffer *pThis, RPCOLEMESSAGE *pMsg, IRpcChannelBuffer
     else
     {
         LogRel(("DLLHost_InvokeStub: Rejected call to CDLLHost::%s: rpcFlags=%#x cbBuffer=%#x dataRepresentation=%d buffer=%p:{%.*Rhxs} reserved1=%p reserved2={%p,%p,%p,%p,%p}\n",
-                iMethod == 0 ? "QueryInterface" :
-                iMethod == 1 ? "AddRef" :
-                iMethod == 2 ? "ReleaseRef" :
-                iMethod == 3 ? "DllGetClassObject" : "Unknown", pMsg->rpcFlags, pMsg->cbBuffer,
+                pMsg->iMethod == 0 ? "QueryInterface" :
+                pMsg->iMethod == 1 ? "AddRef" :
+                pMsg->iMethod == 2 ? "ReleaseRef" :
+                pMsg->iMethod == 3 ? "DllGetClassObject" : "Unknown", pMsg->rpcFlags, pMsg->cbBuffer,
                 pMsg->dataRepresentation, pMsg->Buffer, RT_VALID_PTR(pMsg->Buffer) ? pMsg->cbBuffer : 0, pMsg->Buffer,
                 pMsg->reserved1, pMsg->reserved2[0], pMsg->reserved2[1], pMsg->reserved2[2], pMsg->reserved2[3], pMsg->reserved2[4]));
-        RT_NOREF(iMethod);
         hrc = E_ACCESSDENIED;
     }
     return hrc;
@@ -472,7 +482,7 @@ HRESULT Initialize(uint32_t fInitFlags /*=VBOX_COM_INIT_F_DEFAULT*/)
                     union
                     {
                         void *pv;
-                        DECLCALLBACKMEMBER(uint32_t, pfnRegUpdate)(void);
+                        DECLCALLBACKMEMBER(uint32_t, pfnRegUpdate,(void));
                     } u;
                     vrc = RTLdrGetSymbol(hMod, "VbpsUpdateRegistrations", &u.pv);
                     if (RT_SUCCESS(vrc))
@@ -505,6 +515,21 @@ HRESULT Initialize(uint32_t fInitFlags /*=VBOX_COM_INIT_F_DEFAULT*/)
     /* the overall result must be either S_OK or S_FALSE (S_FALSE means
      * "already initialized using the same apartment model") */
     AssertMsg(rc == S_OK || rc == S_FALSE, ("rc=%08X\n", rc));
+
+#if defined(VBOX_WITH_SDS)
+    // Setup COM Security to enable impersonation
+    HRESULT hrGUICoInitializeSecurity = CoInitializeSecurity(NULL,
+                                                             -1,
+                                                             NULL,
+                                                             NULL,
+                                                             RPC_C_AUTHN_LEVEL_DEFAULT,
+                                                             RPC_C_IMP_LEVEL_IMPERSONATE,
+                                                             NULL,
+                                                             EOAC_NONE,
+                                                             NULL);
+    NOREF(hrGUICoInitializeSecurity);
+    Assert(SUCCEEDED(hrGUICoInitializeSecurity) || hrGUICoInitializeSecurity == RPC_E_TOO_LATE);
+#endif
 
     /*
      * IRundown has unsafe two methods we need to patch to prevent remote access.

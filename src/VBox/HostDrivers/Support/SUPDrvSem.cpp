@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -99,6 +109,7 @@ SUPDECL(int) SUPSemEventCreate(PSUPDRVSESSION pSession, PSUPSEMEVENT phEvent)
     }
     return rc;
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventCreate);
 
 
 SUPDECL(int) SUPSemEventClose(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
@@ -127,6 +138,7 @@ SUPDECL(int) SUPSemEventClose(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
     SUPR0ObjRelease(pObj, pSession);        /* The free call above. */
     return SUPR0ObjRelease(pObj, pSession); /* The handle table reference. */
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventClose);
 
 
 SUPDECL(int) SUPSemEventSignal(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
@@ -154,6 +166,7 @@ SUPDECL(int) SUPSemEventSignal(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent)
     SUPR0ObjRelease(pObj, pSession);
     return rc;
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventSignal);
 
 
 static int supR0SemEventWaitEx(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t fFlags, uint64_t uTimeout)
@@ -190,6 +203,7 @@ SUPDECL(int) SUPSemEventWait(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32
         fFlags |= RTSEMWAIT_FLAGS_INDEFINITE;
     return supR0SemEventWaitEx(pSession, hEvent, fFlags, cMillies);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventWait);
 
 
 SUPDECL(int) SUPSemEventWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint32_t cMillies)
@@ -199,6 +213,7 @@ SUPDECL(int) SUPSemEventWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent
         fFlags |= RTSEMWAIT_FLAGS_INDEFINITE;
     return supR0SemEventWaitEx(pSession, hEvent, fFlags, cMillies);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventWaitNoResume);
 
 
 SUPDECL(int) SUPSemEventWaitNsAbsIntr(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint64_t uNsTimeout)
@@ -206,6 +221,7 @@ SUPDECL(int) SUPSemEventWaitNsAbsIntr(PSUPDRVSESSION pSession, SUPSEMEVENT hEven
     uint32_t fFlags = RTSEMWAIT_FLAGS_ABSOLUTE | RTSEMWAIT_FLAGS_NANOSECS | RTSEMWAIT_FLAGS_INTERRUPTIBLE;
     return supR0SemEventWaitEx(pSession, hEvent, fFlags, uNsTimeout);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventWaitNsAbsIntr);
 
 
 SUPDECL(int) SUPSemEventWaitNsRelIntr(PSUPDRVSESSION pSession, SUPSEMEVENT hEvent, uint64_t cNsTimeout)
@@ -213,6 +229,7 @@ SUPDECL(int) SUPSemEventWaitNsRelIntr(PSUPDRVSESSION pSession, SUPSEMEVENT hEven
     uint32_t fFlags = RTSEMWAIT_FLAGS_RELATIVE | RTSEMWAIT_FLAGS_NANOSECS | RTSEMWAIT_FLAGS_INTERRUPTIBLE;
     return supR0SemEventWaitEx(pSession, hEvent, fFlags, cNsTimeout);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventWaitNsRelIntr);
 
 
 SUPDECL(uint32_t) SUPSemEventGetResolution(PSUPDRVSESSION pSession)
@@ -221,6 +238,7 @@ SUPDECL(uint32_t) SUPSemEventGetResolution(PSUPDRVSESSION pSession)
     Assert(SUP_IS_SESSION_VALID(pSession));
     return RTSemEventGetResolution();
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventGetResolution);
 
 
 /**
@@ -272,6 +290,7 @@ SUPDECL(int) SUPSemEventMultiCreate(PSUPDRVSESSION pSession, PSUPSEMEVENTMULTI p
     }
     return rc;
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiCreate);
 
 
 SUPDECL(int) SUPSemEventMultiClose(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
@@ -300,6 +319,7 @@ SUPDECL(int) SUPSemEventMultiClose(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEv
     SUPR0ObjRelease(pObj, pSession);        /* The free call above. */
     return SUPR0ObjRelease(pObj, pSession); /* The handle table reference. */
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiClose);
 
 
 SUPDECL(int) SUPSemEventMultiSignal(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
@@ -327,6 +347,7 @@ SUPDECL(int) SUPSemEventMultiSignal(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hE
     SUPR0ObjRelease(pObj, pSession);
     return rc;
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiSignal);
 
 
 SUPDECL(int) SUPSemEventMultiReset(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti)
@@ -354,6 +375,7 @@ SUPDECL(int) SUPSemEventMultiReset(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEv
     SUPR0ObjRelease(pObj, pSession);
     return rc;
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiReset);
 
 
 static int supR0SemEventMultiWaitEx(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t fFlags, uint64_t uTimeout)
@@ -382,6 +404,7 @@ static int supR0SemEventMultiWaitEx(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hE
     return rc;
 }
 
+
 SUPDECL(int) SUPSemEventMultiWait(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint32_t cMillies)
 {
     uint32_t fFlags = RTSEMWAIT_FLAGS_RELATIVE | RTSEMWAIT_FLAGS_MILLISECS | RTSEMWAIT_FLAGS_UNINTERRUPTIBLE;
@@ -389,6 +412,7 @@ SUPDECL(int) SUPSemEventMultiWait(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEve
         fFlags |= RTSEMWAIT_FLAGS_INDEFINITE;
     return supR0SemEventMultiWaitEx(pSession, hEventMulti, fFlags, cMillies);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiWait);
 
 
 
@@ -399,6 +423,7 @@ SUPDECL(int) SUPSemEventMultiWaitNoResume(PSUPDRVSESSION pSession, SUPSEMEVENTMU
         fFlags |= RTSEMWAIT_FLAGS_INDEFINITE;
     return supR0SemEventMultiWaitEx(pSession, hEventMulti, fFlags, cMillies);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiWaitNoResume);
 
 
 SUPDECL(int) SUPSemEventMultiWaitNsAbsIntr(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint64_t uNsTimeout)
@@ -406,6 +431,7 @@ SUPDECL(int) SUPSemEventMultiWaitNsAbsIntr(PSUPDRVSESSION pSession, SUPSEMEVENTM
     uint32_t fFlags = RTSEMWAIT_FLAGS_ABSOLUTE | RTSEMWAIT_FLAGS_NANOSECS | RTSEMWAIT_FLAGS_INTERRUPTIBLE;
     return supR0SemEventMultiWaitEx(pSession, hEventMulti, fFlags, uNsTimeout);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiWaitNsAbsIntr);
 
 
 SUPDECL(int) SUPSemEventMultiWaitNsRelIntr(PSUPDRVSESSION pSession, SUPSEMEVENTMULTI hEventMulti, uint64_t cNsTimeout)
@@ -413,6 +439,7 @@ SUPDECL(int) SUPSemEventMultiWaitNsRelIntr(PSUPDRVSESSION pSession, SUPSEMEVENTM
     uint32_t fFlags = RTSEMWAIT_FLAGS_RELATIVE | RTSEMWAIT_FLAGS_NANOSECS | RTSEMWAIT_FLAGS_INTERRUPTIBLE;
     return supR0SemEventMultiWaitEx(pSession, hEventMulti, fFlags, cNsTimeout);
 }
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiWaitNsRelIntr);
 
 
 SUPDECL(uint32_t) SUPSemEventMultiGetResolution(PSUPDRVSESSION pSession)
@@ -421,4 +448,4 @@ SUPDECL(uint32_t) SUPSemEventMultiGetResolution(PSUPDRVSESSION pSession)
     Assert(SUP_IS_SESSION_VALID(pSession));
     return RTSemEventMultiGetResolution();
 }
-
+SUPR0_EXPORT_SYMBOL(SUPSemEventMultiGetResolution);

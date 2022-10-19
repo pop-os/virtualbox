@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -56,6 +66,8 @@ typedef struct
     HANDLE          hDev;
     uint8_t         bInterfaceNumber;
     bool            fClaimed;
+    /** Set if reaper should exit ASAP. */
+    bool            fWakeUpNow;
     /** The allocated size of paHandles and paQueuedUrbs. */
     unsigned        cAllocatedUrbs;
     /** The number of URBs in the array. */
@@ -96,7 +108,7 @@ static int usbProxyWinHandleUnpluggedDevice(PUSBPROXYDEV pProxyDev, DWORD dwErr)
     if (   dwErr == ERROR_INVALID_HANDLE_STATE
         || dwErr == ERROR_BAD_COMMAND)
     {
-        Log(("usbproxy: device %x unplugged!!\n", pPriv->hDev));
+        Log(("usbproxy: device %x unplugged!! (usbProxyWinHandleUnpluggedDevice)\n", pPriv->hDev));
         pProxyDev->fDetached = true;
     }
     else
@@ -109,9 +121,8 @@ static int usbProxyWinHandleUnpluggedDevice(PUSBPROXYDEV pProxyDev, DWORD dwErr)
  *
  * @returns VBox status code.
  */
-static DECLCALLBACK(int) usbProxyWinOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
+static DECLCALLBACK(int) usbProxyWinOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress)
 {
-    RT_NOREF(pvBackend);
     PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
 
     int rc = VINF_SUCCESS;
@@ -276,7 +287,7 @@ static DECLCALLBACK(int) usbProxyWinReset(PUSBPROXYDEV pProxyDev, bool fResetOnL
     rc = GetLastError();
     if (rc == ERROR_DEVICE_REMOVED)
     {
-        Log(("usbproxy: device %p unplugged!!\n", pPriv->hDev));
+        Log(("usbproxy: device %p unplugged!! (usbProxyWinReset)\n", pPriv->hDev));
         pProxyDev->fDetached = true;
     }
     return RTErrConvertFromWin32(rc);
@@ -494,7 +505,7 @@ static DECLCALLBACK(int) usbProxyWinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pU
             if (   dwErr == ERROR_INVALID_HANDLE_STATE
                 || dwErr == ERROR_BAD_COMMAND)
             {
-                Log(("usbproxy: device %p unplugged!!\n", pPriv->hDev));
+                Log(("usbproxy: device %p unplugged!! (usbProxyWinUrbQueue)\n", pPriv->hDev));
                 pProxyDev->fDetached = true;
             }
             else
@@ -565,20 +576,26 @@ static DECLCALLBACK(PVUSBURB) usbProxyWinUrbReap(PUSBPROXYDEV pProxyDev, RTMSINT
     if (   pPriv->cQueuedUrbs <= 0
         && pPriv->cPendingUrbs == 0)
     {
+        Log(("usbproxy: Nothing pending\n"));
         if (   cMillies != 0
             && pPriv->cPendingUrbs == 0)
         {
             /* Wait for the wakeup call. */
+            Log(("usbproxy: Waiting for wakeup call\n"));
             DWORD cMilliesWait = cMillies == RT_INDEFINITE_WAIT ? INFINITE : cMillies;
-            DWORD dwRc = WaitForMultipleObjects(1, &pPriv->hEventWakeup, FALSE, cMilliesWait);
-            NOREF(dwRc);
+            DWORD rc = WaitForMultipleObjects(1, &pPriv->hEventWakeup, FALSE, cMilliesWait);
+            Log(("usbproxy: Initial wait rc=%X\n", rc));
+            if (rc != WAIT_OBJECT_0) {
+                Log(("usbproxy: Initial wait failed, rc=%X\n", rc));
+                return NULL;
+            }
         }
-
         return NULL;
     }
 
 again:
     /* Check for pending URBs. */
+    Log(("usbproxy: %u pending URBs\n", pPriv->cPendingUrbs));
     if (pPriv->cPendingUrbs)
     {
         RTCritSectEnter(&pPriv->CritSect);
@@ -622,24 +639,40 @@ again:
     /*
      * Wait/poll.
      *
-     * ASSUMPTIONS:
-     *   1. The usbProxyWinUrbReap can not be run concurrently with each other
-     *      so racing the cQueuedUrbs access/modification can not occur.
-     *   2. The usbProxyWinUrbReap can not be run concurrently with
-     *      usbProxyWinUrbQueue so they can not race the pPriv->paHandles
-     *      access/realloc.
+     * ASSUMPTION: Multiple usbProxyWinUrbReap calls can not be run concurrently
+     *   with each other so racing the cQueuedUrbs access/modification can not occur.
+     *
+     * However, usbProxyWinUrbReap can be run concurrently with usbProxyWinUrbQueue
+     * and pPriv->paHandles access/realloc must be synchronized.
+     *
+     * NB: Due to the design of Windows overlapped I/O, DeviceIoControl calls to submit
+     * URBs use individual event objects. When a new URB is submitted, we have to add its
+     * event object to the list of objects that WaitForMultipleObjects is waiting on. Thus
+     * hEventWakeup has dual purpose, serving to handle proxy wakeup calls meant to abort
+     * reaper waits, but also waking up the reaper after every URB submit so that the newly
+     * submitted URB can be added to the list of waiters.
      */
     unsigned cQueuedUrbs = ASMAtomicReadU32((volatile uint32_t *)&pPriv->cQueuedUrbs);
     DWORD cMilliesWait = cMillies == RT_INDEFINITE_WAIT ? INFINITE : cMillies;
     PVUSBURB pUrb = NULL;
     DWORD rc = WaitForMultipleObjects(cQueuedUrbs + 1, pPriv->paHandles, FALSE, cMilliesWait);
+    Log(("usbproxy: Wait (%d milliseconds) returned with rc=%X\n", cMilliesWait, rc));
 
     /* If the wakeup event fired return immediately. */
     if (rc == WAIT_OBJECT_0 + cQueuedUrbs)
     {
-        if (pPriv->cPendingUrbs)
-            goto again;
-        return NULL;
+        /* Get outta here flag set? If so, bail now. */
+        if (ASMAtomicXchgBool(&pPriv->fWakeUpNow, false))
+        {
+            Log(("usbproxy: Reaper woken up, returning NULL\n"));
+            return NULL;
+        }
+
+        /* A new URBs was queued through usbProxyWinUrbQueue() and needs to be
+         * added to the wait list. Go again.
+         */
+        Log(("usbproxy: Reaper woken up after queuing new URB, go again.\n"));
+        goto again;
     }
 
     AssertCompile(WAIT_OBJECT_0 == 0);
@@ -723,7 +756,7 @@ static DECLCALLBACK(int) usbProxyWinUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB p
 
     AssertPtrReturn(pQUrbWin, VERR_INVALID_PARAMETER);
 
-    in.bEndpoint = pUrb->EndPt | (pUrb->enmDir == VUSBDIRECTION_IN ? 0x80 : 0);
+    in.bEndpoint = pUrb->EndPt | ((pUrb->EndPt && pUrb->enmDir == VUSBDIRECTION_IN) ? 0x80 : 0);
     Log(("usbproxy: Cancel urb %p, endpoint %x\n", pUrb, in.bEndpoint));
 
     cbReturned = 0;
@@ -734,7 +767,7 @@ static DECLCALLBACK(int) usbProxyWinUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB p
     if (   dwErr == ERROR_INVALID_HANDLE_STATE
         || dwErr == ERROR_BAD_COMMAND)
     {
-        Log(("usbproxy: device %x unplugged!!\n", pPriv->hDev));
+        Log(("usbproxy: device %x unplugged!! (usbProxyWinUrbCancel)\n", pPriv->hDev));
         pProxyDev->fDetached = true;
         return VINF_SUCCESS; /* Fake success and deal with the unplugged device elsewhere. */
     }
@@ -747,6 +780,8 @@ static DECLCALLBACK(int) usbProxyWinWakeup(PUSBPROXYDEV pProxyDev)
 {
     PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
 
+    Log(("usbproxy: device %x wakeup\n", pPriv->hDev));
+    ASMAtomicXchgBool(&pPriv->fWakeUpNow, true);
     SetEvent(pPriv->hEventWakeup);
     return VINF_SUCCESS;
 }

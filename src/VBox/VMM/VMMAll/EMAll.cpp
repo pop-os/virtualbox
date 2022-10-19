@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -325,8 +335,9 @@ VMM_INT_DECL(int) EMUnhaltAndWakeUp(PVMCC pVM, PVMCPUCC pVCpuDst)
     AssertRC(rc);
 
 #elif defined(IN_RING3)
-    int rc = SUPR3CallVMMR0(VMCC_GET_VMR0_FOR_CALL(pVM), pVCpuDst->idCpu, VMMR0_DO_GVMM_SCHED_WAKE_UP, NULL /* pvArg */);
-    AssertRC(rc);
+    VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, 0 /*fFlags*/);
+    int rc = VINF_SUCCESS;
+    RT_NOREF(pVM);
 
 #else
     /* Nothing to do for raw-mode, shouldn't really be used by raw-mode guests anyway. */
@@ -746,7 +757,7 @@ static PCEMEXITREC emHistoryAddOrUpdateRecord(PVMCPU pVCpu, uint64_t uFlagsAndTy
  *          EMHistoryExec().  Take normal exit action when NULL.
  *
  * @param   pVCpu           The cross context virtual CPU structure.
- * @param   uFlagsAndType   Combined flags and type (see EMEXIT_MAKE_FLAGS_AND_TYPE).
+ * @param   uFlagsAndType   Combined flags and type (see EMEXIT_MAKE_FT).
  * @param   uFlatPC         The flattened program counter (RIP).  UINT64_MAX if not available.
  * @param   uTimestamp      The TSC value for the exit, 0 if not available.
  * @thread  EMT(pVCpu)
@@ -783,7 +794,6 @@ VMM_INT_DECL(PCEMEXITREC) EMHistoryAddExit(PVMCPUCC pVCpu, uint32_t uFlagsAndTyp
 }
 
 
-#ifdef IN_RING0
 /**
  * Interface that VT-x uses to supply the PC of an exit when CS:RIP is being read.
  *
@@ -791,8 +801,10 @@ VMM_INT_DECL(PCEMEXITREC) EMHistoryAddExit(PVMCPUCC pVCpu, uint32_t uFlagsAndTyp
  * @param   uFlatPC         The flattened program counter (RIP).
  * @param   fFlattened      Set if RIP was subjected to CS.BASE, clear if not.
  */
-VMMR0_INT_DECL(void) EMR0HistoryUpdatePC(PVMCPU pVCpu, uint64_t uFlatPC, bool fFlattened)
+VMM_INT_DECL(void) EMHistoryUpdatePC(PVMCPUCC pVCpu, uint64_t uFlatPC, bool fFlattened)
 {
+    VMCPU_ASSERT_EMT(pVCpu);
+
     AssertCompile(RT_ELEMENTS(pVCpu->em.s.aExitHistory) == 256);
     uint64_t     uExitNo    = pVCpu->em.s.iNextExit - 1;
     PEMEXITENTRY pHistEntry = &pVCpu->em.s.aExitHistory[(uintptr_t)uExitNo & 0xff];
@@ -802,7 +814,6 @@ VMMR0_INT_DECL(void) EMR0HistoryUpdatePC(PVMCPU pVCpu, uint64_t uFlatPC, bool fF
     else
         pHistEntry->uFlagsAndType |= EMEXIT_F_UNFLATTENED_PC;
 }
-#endif
 
 
 /**
@@ -897,7 +908,7 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
     /*
      * Figure how much we can or must read.
      */
-    size_t      cbToRead = PAGE_SIZE - (uSrcAddr & PAGE_OFFSET_MASK);
+    size_t      cbToRead = GUEST_PAGE_SIZE - (uSrcAddr & (GUEST_PAGE_SIZE - 1));
     if (cbToRead > cbMaxRead)
         cbToRead = cbMaxRead;
     else if (cbToRead < cbMinRead)
@@ -921,7 +932,7 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
             if (rc == VERR_PAGE_TABLE_NOT_PRESENT || rc == VERR_PAGE_NOT_PRESENT)
             {
                 HMInvalidatePage(pVCpu, uSrcAddr);
-                if (((uSrcAddr + cbToRead - 1) >> PAGE_SHIFT) !=  (uSrcAddr >> PAGE_SHIFT))
+                if (((uSrcAddr + cbToRead - 1) >> GUEST_PAGE_SHIFT) != (uSrcAddr >> GUEST_PAGE_SHIFT))
                     HMInvalidatePage(pVCpu, uSrcAddr + cbToRead - 1);
             }
         }

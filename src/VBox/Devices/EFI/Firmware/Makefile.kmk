@@ -7,24 +7,34 @@
 #
 
 #
-# Copyright (C) 2013-2020 Oracle Corporation
+# Copyright (C) 2013-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
+#
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 #
 
 SUB_DEPTH = ../../../../..
@@ -49,12 +59,14 @@ VBOX_EFI_BLDPROGS := $(filter-out $(VBOX_EFI_BLDPROGS),$(BLDPROGS)) VBoxEfiBldPy
 # Binary wrappers for python scripts.
 #
 VBOX_EFI_PYTHON_WRAPPERS = \
+	AmlToC \
 	BPDG \
 	build \
 	Ecc \
 	GenFds \
 	GenPatchPcdTable \
 	PatchPcdValue \
+	Split \
 	Trim \
 	TargetTool \
 	UPT
@@ -215,6 +227,9 @@ VBOX_EFI_BUILD_CMD += \
 	-- $(VBOX_BLD_PYTHON_2X) "$(VBOX_PATH_EFI_FIRMWARE)/BaseTools/Source/Python/build/build.py" \
 	-D VBOX=1 \
 	-D VBOX_WITH_OVMF=1 \
+	$(if $(VBOX_WITH_EFI_SECURE_BOOT),-D "SECURE_BOOT_ENABLE=1") \
+	$(if $(VBOX_WITH_EFI_TPM),-D "TPM_ENABLE=1") \
+	$(if $(VBOX_WITH_EFI_TPM),-D "TPM_CONFIG_ENABLE=1") \
 	-D BUILD_NEW_SHELL=1 \
 	-D VBOX_REV=$(VBOX_SVN_REV) \
 	-D "VBOX_OUTPUT_BASE_DIR=$(VBoxEfiFirmware_0_OUTDIR)" \
@@ -237,6 +252,17 @@ endif
 #
 # Tools configurations.
 #
+ifeq ($(KBUILD_HOST),win)
+ ifndef TOOL_$(VBOX_VCC_TOOL_STEM)X86
+  include $(KBUILD_PATH)/tools/$(VBOX_VCC_TOOL_STEM)X86.kmk
+ endif
+ ifndef TOOL_$(VBOX_VCC_TOOL_STEM)AMD64
+  include $(KBUILD_PATH)/tools/$(VBOX_VCC_TOOL_STEM)AMD64.kmk
+ endif
+ ifndef SDK_WINSDK10
+  include $(KBUILD_PATH)/sdk/WINSDK10.kmk
+ endif
+endif
 $(VBoxEfiFirmware_0_OUTDIR)/x86/Conf/tools_def.txt \
 $(VBoxEfiFirmware_0_OUTDIR)/amd64/Conf/tools_def.txt: \
                $(VBOX_PATH_EFI_FIRMWARE)/vbox-tools_def.txt \
@@ -254,27 +280,20 @@ $(VBoxEfiFirmware_0_OUTDIR)/amd64/Conf/tools_def.txt: \
 		-e 's,@PATH_VS2010@,$(PATH_TOOL_$(VBOX_VCC_TOOL)),' \
 		-e 's,@PATH_VS2010_AMD64_BIN@,$(PATH_TOOL_$(VBOX_VCC_TOOL))/bin/$(subst x86,x86_amd64,$(KBUILD_HOST_ARCH)),' \
                \
+		-e 's,@PATH_VS2017_BIN_HOST@,$(PATH_TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_BIN),' \
+		-e 's,@PATH_VS2017_AMD64_BIN@,$(PATH_TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_BIN),' \
+		-e 's,@PATH_VS2017_X86_BIN@,$(PATH_TOOL_$(VBOX_VCC_TOOL_STEM)X86_BIN),' \
+               \
+		-e 's,@PATH_SDK_WINSDK10_BIN@,$(PATH_SDK_WINSDK10_BIN),' \
+               \
 		--output $@ $<
 
-# This may not really need sed, just a plain file copy.
 $(VBoxEfiFirmware_0_OUTDIR)/x86/Conf/build_rule.txt \
 $(VBoxEfiFirmware_0_OUTDIR)/amd64/Conf/build_rule.txt: \
                $(VBOX_PATH_EFI_FIRMWARE)/BaseTools/Conf/build_rule.template \
 		$(MAKEFILE) | $$(dir $$@)
 	$(RM) -f -- "$@"
-	$(SED) \
-		-e 's,@VBOX_IASLCMD@,$(VBOX_IASLCMD),' \
-		-e 's,@VBOX_YASMCMD@,$(VBOX_YASMCMD),' \
-		-e 's,@VBOX_NASMCMD@,$(VBOX_NASMCMD),' \
-		-e 's,@KMK@,$(MAKE),' \
-               \
-		-e 's,@VBOX_PATH_PREFIX_GCC32@,$(PATH_TOOL_$(VBOX_VCC_TOOL)),' \
-		-e 's,@VBOX_PATH_PREFIX_GCC64@,$(PATH_TOOL_$(VBOX_VCC_TOOL)),' \
-               \
-		-e 's,@PATH_VS2010@,$(PATH_TOOL_$(VBOX_VCC_TOOL)),' \
-		-e 's,@PATH_VS2010_AMD64_BIN@,$(PATH_TOOL_$(VBOX_VCC_TOOL))/bin/$(subst x86,x86_amd64,$(KBUILD_HOST_ARCH)),' \
-               \
-		--output $@ $<
+	$(CP) -f -- "$<" "$@"
 
 
 #

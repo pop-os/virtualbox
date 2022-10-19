@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -32,9 +42,11 @@
 # include "the-darwin-kernel.h"
 # include <sys/kauth.h>
 RT_C_DECLS_BEGIN /* Buggy 10.4 headers, fixed in 10.5. */
-# include <sys/kpi_mbuf.h>
-# include <net/kpi_interfacefilter.h>
-# include <sys/kpi_socket.h>
+# if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+#  include <sys/kpi_mbuf.h>
+#  include <net/kpi_interfacefilter.h>
+#  include <sys/kpi_socket.h>
+# endif
 # include <sys/kpi_socketfilter.h>
 RT_C_DECLS_END
 # include <sys/buf.h>
@@ -94,6 +106,15 @@ RT_C_DECLS_END
 #elif defined(RT_ARCH_AMD64)
 # define MY_CPU_TYPE            CPU_TYPE_X86_64
 # define MY_CPU_SUBTYPE_ALL     CPU_SUBTYPE_X86_64_ALL
+# define MY_MACHO_HEADER        mach_header_64_t
+# define MY_MACHO_MAGIC         IMAGE_MACHO64_SIGNATURE
+# define MY_SEGMENT_COMMAND     segment_command_64_t
+# define MY_SECTION             section_64_t
+# define MY_NLIST               macho_nlist_64_t
+
+#elif defined(RT_ARCH_ARM64)
+# define MY_CPU_TYPE            CPU_TYPE_ARM64
+# define MY_CPU_SUBTYPE_ALL     CPU_SUBTYPE_ARM64_ALL
 # define MY_MACHO_HEADER        mach_header_64_t
 # define MY_MACHO_MAGIC         IMAGE_MACHO64_SIGNATURE
 # define MY_SEGMENT_COMMAND     segment_command_64_t
@@ -452,21 +473,23 @@ static int rtR0DbgKrnlDarwinCheckStandardSymbols(RTDBGKRNLINFOINT *pThis, const 
         KNOWN_ENTRY(buf_size),
         KNOWN_ENTRY(copystr),
         KNOWN_ENTRY(current_proc),
-        KNOWN_ENTRY(ifnet_hdrlen),
-        KNOWN_ENTRY(ifnet_set_promiscuous),
         KNOWN_ENTRY(kauth_getuid),
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
         KNOWN_ENTRY(kauth_cred_unref),
 #else
         KNOWN_ENTRY(kauth_cred_rele),
 #endif
-        KNOWN_ENTRY(mbuf_data),
         KNOWN_ENTRY(msleep),
         KNOWN_ENTRY(nanotime),
         KNOWN_ENTRY(nop_close),
         KNOWN_ENTRY(proc_pid),
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 101500
+        KNOWN_ENTRY(mbuf_data),
+        KNOWN_ENTRY(ifnet_hdrlen),
+        KNOWN_ENTRY(ifnet_set_promiscuous),
         KNOWN_ENTRY(sock_accept),
         KNOWN_ENTRY(sockopt_name),
+#endif
         //KNOWN_ENTRY(spec_write),
         KNOWN_ENTRY(suword),
         //KNOWN_ENTRY(sysctl_int),
@@ -585,7 +608,8 @@ static int rtR0DbgKrnlDarwinParseSymTab(RTDBGKRNLINFOINT *pThis, const char *psz
                         && strcmp(pszSym, "__mh_execute_header"))    /* in 10.8 it's no longer absolute (PIE?). */
                     {
                         LOG_BAD_SYM("RTR0DbgKrnlInfoOpen: %s: Symbol #%u '%s' problem: n_value (%#llx) < section addr (%#llx)\n",
-                                    pszKernelFile, iSym, pszSym, pSym->n_value, pThis->apSections[pSym->n_sect - 1]->addr);
+                                    pszKernelFile, iSym, pszSym, (uint64_t)pSym->n_value,
+                                    (uint64_t)pThis->apSections[pSym->n_sect - 1]->addr);
                         RETURN_VERR_BAD_EXE_FORMAT;
                     }
                     if (      pSym->n_value - pThis->apSections[pSym->n_sect - 1]->addr
@@ -593,8 +617,9 @@ static int rtR0DbgKrnlDarwinParseSymTab(RTDBGKRNLINFOINT *pThis, const char *psz
                         && strcmp(pszSym, "__mh_execute_header"))    /* see above. */
                     {
                         LOG_BAD_SYM("RTR0DbgKrnlInfoOpen: %s: Symbol #%u '%s' problem: n_value (%#llx) >= end of section (%#llx + %#llx)\n",
-                                    pszKernelFile, iSym, pszSym, pSym->n_value, pThis->apSections[pSym->n_sect - 1]->addr,
-                                    pThis->apSections[pSym->n_sect - 1]->size);
+                                    pszKernelFile, iSym, pszSym, (uint64_t)pSym->n_value,
+                                    (uint64_t)pThis->apSections[pSym->n_sect - 1]->addr,
+                                    (uint64_t)pThis->apSections[pSym->n_sect - 1]->size);
                         RETURN_VERR_BAD_EXE_FORMAT;
                     }
                     break;
@@ -1253,7 +1278,7 @@ static bool rtR0DbgKrnlDarwinIsRangePresent(uintptr_t uAddress, size_t cb,
         if (!rtR0DbgKrnlDarwinIsPagePresent(uAddress))
         {
             LOG_NOT_PRESENT("RTR0DbgInfo: %p: Page in %s is not present: %#zx - rva %#zx; in structure %#zx (%#zx LB %#zx)\n",
-                            pHdr, pszWhat, uAddress, uAddress - (uintptr_t)pHdr, uAddress - uStartAddress, uStartAddress, cb);
+                            (void *)pHdr, pszWhat, uAddress, uAddress - (uintptr_t)pHdr, uAddress - uStartAddress, uStartAddress, cb);
             return false;
         }
 
@@ -1326,16 +1351,16 @@ static int rtR0DbgKrnlDarwinOpenInMemory(PRTDBGKRNLINFO phKrnlInfo)
                     pThis->cLoadCmds  = pHdr->ncmds;
                     pThis->cbLoadCmds = pHdr->sizeofcmds;
                     if (pHdr->ncmds < 4)
-                        LOG_MISMATCH("RTR0DbgInfo: %p: ncmds=%u is too small\n", pHdr, pThis->cLoadCmds);
+                        LOG_MISMATCH("RTR0DbgInfo: %p: ncmds=%u is too small\n", (void *)pHdr, pThis->cLoadCmds);
                     else if (pThis->cLoadCmds > 256)
-                        LOG_MISMATCH("RTR0DbgInfo: %p: ncmds=%u is too big\n", pHdr, pThis->cLoadCmds);
+                        LOG_MISMATCH("RTR0DbgInfo: %p: ncmds=%u is too big\n", (void *)pHdr, pThis->cLoadCmds);
                     else if (pThis->cbLoadCmds <= pThis->cLoadCmds * sizeof(load_command_t))
                         LOG_MISMATCH("RTR0DbgInfo: %p: sizeofcmds=%u is too small for ncmds=%u\n",
-                                     pHdr, pThis->cbLoadCmds, pThis->cLoadCmds);
+                                     (void *)pHdr, pThis->cbLoadCmds, pThis->cLoadCmds);
                     else if (pThis->cbLoadCmds >= _1M)
-                        LOG_MISMATCH("RTR0DbgInfo: %p: sizeofcmds=%u is too big\n", pHdr, pThis->cbLoadCmds);
+                        LOG_MISMATCH("RTR0DbgInfo: %p: sizeofcmds=%u is too big\n", (void *)pHdr, pThis->cbLoadCmds);
                     else if (pHdr->flags & ~MH_VALID_FLAGS)
-                        LOG_MISMATCH("RTR0DbgInfo: %p: invalid flags=%#x\n", pHdr, pHdr->flags);
+                        LOG_MISMATCH("RTR0DbgInfo: %p: invalid flags=%#x\n", (void *)pHdr, pHdr->flags);
                     /*
                      * Check that we can safely read the load commands, then parse & validate them.
                      */
@@ -1355,16 +1380,16 @@ static int rtR0DbgKrnlDarwinOpenInMemory(PRTDBGKRNLINFO phKrnlInfo)
                             uintptr_t const offSomeKernAddr = uSomeKernelAddr - uCur;
                             if (offSomeKernAddr >= pThis->cbTextSeg)
                                 LOG_MISMATCH("RTR0DbgInfo: %p: Our symbol at %zx (off %zx) isn't within the text segment (size %#zx)\n",
-                                             pHdr, uSomeKernelAddr, offSomeKernAddr, pThis->cbTextSeg);
+                                             (void *)pHdr, uSomeKernelAddr, offSomeKernAddr, pThis->cbTextSeg);
                             /*
                              * Parse the symbol+string tables.
                              */
                             else if (pThis->uSymTabLinkAddr == 0)
                                 LOG_MISMATCH("RTR0DbgInfo: %p: No symbol table VA (off %#x L %#x)\n",
-                                             pHdr, pThis->offSyms, pThis->cSyms);
+                                             (void *)pHdr, pThis->offSyms, pThis->cSyms);
                             else if (pThis->uStrTabLinkAddr == 0)
                                 LOG_MISMATCH("RTR0DbgInfo: %p: No string table VA (off %#x LB %#x)\n",
-                                             pHdr, pThis->offSyms, pThis->cbStrTab);
+                                             (void *)pHdr, pThis->offSyms, pThis->cbStrTab);
                             else if (   rtR0DbgKrnlDarwinIsRangePresent(pThis->uStrTabLinkAddr + pThis->offLoad,
                                                                         pThis->cbStrTab, "string table", pHdr)
                                      && rtR0DbgKrnlDarwinIsRangePresent(pThis->uSymTabLinkAddr + pThis->offLoad,

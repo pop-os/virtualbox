@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -31,6 +41,8 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 
+
+#ifdef IN_RING3
 
 /**
  * Sets the error message.
@@ -72,7 +84,7 @@ VMMDECL(int) VMSetError(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszForma
  */
 VMMDECL(int) VMSetErrorV(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args)
 {
-#ifdef IN_RING3
+# ifdef IN_RING3
     /*
      * Switch to EMT.
      */
@@ -82,13 +94,13 @@ VMMDECL(int) VMSetErrorV(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszForm
                             pVM->pUVM, rc, RT_SRC_POS_ARGS, pszFormat, &va2);
     va_end(va2);
 
-#else
+# else
     /*
      * We're already on the EMT thread and can safely create a VMERROR chunk.
      */
     vmSetErrorCopy(pVM, rc, RT_SRC_POS_ARGS, pszFormat, args);
     VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VM_SET_ERROR, 0);
-#endif
+# endif
     return rc;
 }
 
@@ -110,7 +122,7 @@ VMMDECL(int) VMSetErrorV(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszForm
 void vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args)
 {
     NOREF(pVM); NOREF(rc); RT_SRC_POS_NOREF(); NOREF(pszFormat); NOREF(args);
-#if 0 /// @todo implement Ring-0 and GC VMSetError
+# if 0 /// @todo implement Ring-0 and GC VMSetError
     /*
      * Create the untranslated message copy.
      */
@@ -168,9 +180,11 @@ void vmSetErrorCopy(PVM pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_
         /* done. */
         pVM->vm.s.pErrorR3 = MMHyper2HC(pVM, (uintptr_t)pArgs.pErr);
     }
-#endif
+# endif
 }
 
+#endif /* IN_RING3 */
+#ifdef IN_RING3
 
 /**
  * Sets the runtime error message.
@@ -244,7 +258,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszError
     AssertPtr(pszFormat);
     Assert(RTStrEnd(pszFormat, 512) != NULL);
 
-#ifdef IN_RING3
+# ifdef IN_RING3
     /*
      * Switch to EMT.
      *
@@ -273,7 +287,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszError
             MMR3HeapFree(pszMessage);
     }
 
-#else
+# else
     /*
      * We're already on the EMT and can safely create a VMRUNTIMEERROR chunk.
      */
@@ -281,7 +295,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszError
     vmSetRuntimeErrorCopy(pVM, fFlags, pszErrorId, pszFormat, va);
 
     int rc = VMMRZCallRing3NoCpu(pVM, VMMCALLRING3_VM_SET_RUNTIME_ERROR, 0);
-#endif
+# endif
 
     Log(("VMSetRuntimeErrorV: returns %Rrc (pszErrorId=%s)\n", rc, pszErrorId));
     return rc;
@@ -306,7 +320,7 @@ VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszError
 void vmSetRuntimeErrorCopy(PVM pVM, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
 {
     NOREF(pVM); NOREF(fFlags); NOREF(pszErrorId); NOREF(pszFormat); NOREF(va);
-#if 0 /// @todo implement Ring-0 and GC VMSetError
+# if 0 /// @todo implement Ring-0 and GC VMSetError
     /*
      * Create the untranslated message copy.
      */
@@ -355,9 +369,10 @@ void vmSetRuntimeErrorCopy(PVM pVM, uint32_t fFlags, const char *pszErrorId, con
         /* done. */
         pVM->vm.s.pErrorRuntimeR3 = MMHyper2HC(pVM, (uintptr_t)pArgs.pErr);
     }
-#endif
+# endif
 }
 
+#endif /* IN_RING3 */
 
 /**
  * Gets the name of VM state.

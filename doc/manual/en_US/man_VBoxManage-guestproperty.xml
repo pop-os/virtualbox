@@ -1,17 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage guestproperty
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
   "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
 <!ENTITY % all.entities SYSTEM "all-entities.ent">
@@ -19,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-guestproperty" lang="en">
   <refentryinfo>
-    <pubdate>September 2019</pubdate>
+    <pubdate>$Date: 2022-09-07 16:31:32 +0200 (Wed, 07 Sep 2022) $</pubdate>
     <title>VBoxManage guestproperty</title>
   </refentryinfo>
 
@@ -31,7 +42,7 @@
   <refnamediv>
     <refname>VBoxManage-guestproperty</refname>
     <refpurpose>manage virtual machine guest properties</refpurpose>
-    <refclass>Oracle VM VirtualBox</refclass>
+    <refclass>&product-name;</refclass>
   </refnamediv>
 
   <refsynopsisdiv>
@@ -52,7 +63,11 @@
         <arg choice="plain"><replaceable>uuid</replaceable></arg>
         <arg choice="plain"><replaceable>vmname</replaceable></arg>
       </group>
-      <arg>--patterns=<replaceable>patterns</replaceable></arg>
+      <arg>--no-timestamp</arg>
+      <arg>--no-flags</arg>
+      <arg>--relative</arg>
+      <arg>--old-format</arg>
+      <arg rep="repeat"><replaceable>patterns</replaceable></arg>
     </cmdsynopsis>
 
     <cmdsynopsis id="synopsis-vboxmanage-guestproperty-set">
@@ -114,16 +129,34 @@
     </refsect2>
     <refsect2 id="vboxmanage-guestproperty-enumerate">
       <title>List All Properties for a Virtual Machine</title>
+      <remark role="help-copy-synopsis"/>
       <para>
-        The <command>VBoxManage guestproperty enumerate</command>
-        command lists each guest property and value for the specified
-        VM. Note that the output is limited if the guest's service
-        process cannot be contacted, for example because the VM is not
+        <!-- @todo the help output doesn't correctly insert a space after the /command tag if it comes last on a line...  -->
+        The <command>VBoxManage guestproperty enumerate</command> command
+        lists each guest property and value for the specified
+        VM. Note that the output is limited if the guest's service is
+        not updating the properties, for example because the VM is not
         running or because the Guest Additions are not installed.
       </para>
       <variablelist>
         <varlistentry>
-          <term><option>--patterns=<replaceable>pattern</replaceable></option></term>
+          <term><option>--relative</option></term>
+          <listitem><para>Display the timestamp relative to current time.</para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option>--no-timestamp</option></term>
+          <listitem><para>Do not display the timestamp of the last update.</para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option>--no-flags</option></term>
+          <listitem><para>Do not display the flags.</para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option>--old-format</option></term>
+          <listitem><para>Use the output format from VirtualBox 6.1 and earlier.</para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option><replaceable>pattern</replaceable></option></term>
           <listitem><para>
               Filters the list of properties based on the specified
               pattern, which can contain the following wildcard
@@ -158,7 +191,8 @@
               </varlistentry>
             </variablelist></listitem>
         </varlistentry>
-      </variablelist>
+
+        </variablelist>
     </refsect2>
     <refsect2 id="vboxmanage-guestproperty-get">
       <title>Retrieve a Property Value for a Virtual Machine</title>

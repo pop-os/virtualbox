@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -20,7 +30,9 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_PGM_SHARED
+#define VBOX_WITHOUT_PAGING_BIT_FIELDS /* 64-bit bitfields are just asking for trouble. See @bugref{9841} and others. */
 #include <VBox/vmm/pgm.h>
+#include <VBox/vmm/iem.h>
 #include <VBox/vmm/gmm.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vmcc.h>
@@ -65,20 +77,19 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVMCC pVM, PGVM pGVM, VMCPUID idCpu, PGMMS
      */
     for (uint32_t idxRegion = 0; idxRegion < pModule->cRegions; idxRegion++)
     {
-        RTGCPTR  GCPtrPage  = paRegionsGCPtrs[idxRegion] & ~(RTGCPTR)PAGE_OFFSET_MASK;
-        uint32_t cbLeft     = pModule->aRegions[idxRegion].cb; Assert(!(cbLeft & PAGE_OFFSET_MASK));
+        RTGCPTR  GCPtrPage  = paRegionsGCPtrs[idxRegion] & ~(RTGCPTR)GUEST_PAGE_OFFSET_MASK;
+        uint32_t cbLeft     = pModule->aRegions[idxRegion].cb; Assert(!(cbLeft & GUEST_PAGE_OFFSET_MASK));
         uint32_t idxPage    = 0;
 
         while (cbLeft)
         {
             /** @todo inefficient to fetch each guest page like this... */
-            RTGCPHYS GCPhys;
-            uint64_t fFlags;
-            rc = PGMGstGetPage(pVCpu, GCPtrPage, &fFlags, &GCPhys);
+            PGMPTWALK Walk;
+            rc = PGMGstGetPage(pVCpu, GCPtrPage, &Walk);
             if (    rc == VINF_SUCCESS
-                &&  !(fFlags & X86_PTE_RW)) /* important as we make assumptions about this below! */
+                &&  !(Walk.fEffective & X86_PTE_RW)) /* important as we make assumptions about this below! */
             {
-                PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
+                PPGMPAGE pPage = pgmPhysGetPage(pVM, Walk.GCPhys);
                 Assert(!pPage || !PGM_PAGE_IS_BALLOONED(pPage));
                 if (    pPage
                     &&  PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_ALLOCATED
@@ -87,7 +98,7 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVMCC pVM, PGVM pGVM, VMCPUID idCpu, PGMMS
                 {
                     PageDesc.idPage = PGM_PAGE_GET_PAGEID(pPage);
                     PageDesc.HCPhys = PGM_PAGE_GET_HCPHYS(pPage);
-                    PageDesc.GCPhys = GCPhys;
+                    PageDesc.GCPhys = Walk.GCPhys;
 
                     rc = GMMR0SharedModuleCheckPage(pGVM, pModule, idxRegion, idxPage, &PageDesc);
                     if (RT_FAILURE(rc))
@@ -123,6 +134,7 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVMCC pVM, PGVM pGVM, VMCPUID idCpu, PGMMS
 
                             /* Invalidate page map TLB entry for this page too. */
                             pgmPhysInvalidatePageMapTLBEntry(pVM, PageDesc.GCPhys);
+                            IEMTlbInvalidateAllPhysicalAllCpus(pVM, NIL_VMCPUID);
                             pVM->pgm.s.cReusedSharedPages++;
                         }
                         /* else: nothing changed (== this page is now a shared
@@ -150,8 +162,8 @@ VMMR0DECL(int) PGMR0SharedModuleCheck(PVMCC pVM, PGVM pGVM, VMCPUID idCpu, PGMMS
             }
 
             idxPage++;
-            GCPtrPage += PAGE_SIZE;
-            cbLeft    -= PAGE_SIZE;
+            GCPtrPage += HOST_PAGE_SIZE;
+            cbLeft    -= HOST_PAGE_SIZE;
         }
     }
 

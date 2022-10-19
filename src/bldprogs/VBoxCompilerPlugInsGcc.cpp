@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -242,13 +252,17 @@ static const struct attribute_spec g_AttribSpecs[] =
         decl_required           : false,
         type_required           : true,
         function_type_required  : true,
-# if RT_GNUC_PREREQ(4, 6)
+// gcc 7.3 at least moves this field to after "handler", and with 8.3 it is back
+#if RT_GNUC_PREREQ(4, 6) && !(RT_GNUC_PREREQ(7, 0) && !RT_GNUC_PREREQ(8, 0))
         affects_type_identity   : false,
 #endif
         handler                 : AttributeHandler,
-# if RT_GNUC_PREREQ(10, 0)
+#if RT_GNUC_PREREQ(7, 0) && !RT_GNUC_PREREQ(8, 0)
+        affects_type_identity   : false,
+#endif
+#if RT_GNUC_PREREQ(8, 0)
         exclude                 : NULL,
-# endif
+#endif
     },
     {
         name                    : "iprt_format_maybe_null",
@@ -257,13 +271,16 @@ static const struct attribute_spec g_AttribSpecs[] =
         decl_required           : false,
         type_required           : true,
         function_type_required  : true,
-# if RT_GNUC_PREREQ(4, 6)
+#if RT_GNUC_PREREQ(4, 6) && !(RT_GNUC_PREREQ(7, 0) && !RT_GNUC_PREREQ(8, 0))
         affects_type_identity   : false,
 #endif
         handler                 : AttributeHandler,
-# if RT_GNUC_PREREQ(10, 0)
+#if RT_GNUC_PREREQ(7, 0) && !RT_GNUC_PREREQ(8, 0)
+        affects_type_identity   : false,
+#endif
+#if RT_GNUC_PREREQ(8, 0)
         exclude                 : NULL,
-# endif
+#endif
     }
 };
 

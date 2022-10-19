@@ -1,7 +1,7 @@
 /** @file
   PCI emumeration support functions implementation for PCI Bus module.
 
-Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2021, Intel Corporation. All rights reserved.<BR>
 (C) Copyright 2015 Hewlett Packard Enterprise Development LP<BR>
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -10,6 +10,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include "PciBus.h"
 
 extern CHAR16  *mBarTypeStr[];
+extern EDKII_DEVICE_SECURITY_PROTOCOL                          *mDeviceSecurityProtocol;
 
 #define OLD_ALIGN   0xFFFFFFFFFFFFFFFFULL
 #define EVEN_ALIGN  0xFFFFFFFFFFFFFFFEULL
@@ -1167,12 +1168,7 @@ ProcessOptionRomLight (
       ProcessOptionRomLight (Temp);
     }
 
-    PciRomGetImageMapping (Temp);
-
-    //
-    // The OpRom has already been processed in the first round
-    //
-    Temp->AllOpRomProcessed = TRUE;
+    Temp->AllOpRomProcessed = PciRomGetImageMapping (Temp);
 
     CurrentLink = CurrentLink->ForwardLink;
   }
@@ -1685,6 +1681,7 @@ PciIovParseVfBar (
                 );
 
       if (EFI_ERROR (Status)) {
+        PciIoDevice->VfPciBar[BarIndex].BarType = PciBarTypeUnknown;
         return Offset + 4;
       }
 
@@ -2071,6 +2068,67 @@ InitializeP2C (
 }
 
 /**
+  Authenticate the PCI device by using DeviceSecurityProtocol.
+
+  @param PciIoDevice  PCI device.
+
+  @retval EFI_SUCCESS     The device passes the authentication.
+  @return not EFI_SUCCESS The device failes the authentication or
+                          unexpected error happen during authentication.
+**/
+EFI_STATUS
+AuthenticatePciDevice (
+  IN PCI_IO_DEVICE            *PciIoDevice
+  )
+{
+  EDKII_DEVICE_IDENTIFIER  DeviceIdentifier;
+  EFI_STATUS               Status;
+
+  if (mDeviceSecurityProtocol != NULL) {
+    //
+    // Prepare the parameter
+    //
+    DeviceIdentifier.Version = EDKII_DEVICE_IDENTIFIER_REVISION;
+    CopyGuid (&DeviceIdentifier.DeviceType, &gEdkiiDeviceIdentifierTypePciGuid);
+    DeviceIdentifier.DeviceHandle = NULL;
+    Status = gBS->InstallMultipleProtocolInterfaces (
+                    &DeviceIdentifier.DeviceHandle,
+                    &gEfiDevicePathProtocolGuid,
+                    PciIoDevice->DevicePath,
+                    &gEdkiiDeviceIdentifierTypePciGuid,
+                    &PciIoDevice->PciIo,
+                    NULL
+                    );
+    if (EFI_ERROR(Status)) {
+      return Status;
+    }
+
+    //
+    // Do DeviceAuthentication
+    //
+    Status = mDeviceSecurityProtocol->DeviceAuthenticate (mDeviceSecurityProtocol, &DeviceIdentifier);
+    //
+    // Always uninstall, because they are only for Authentication.
+    // No need to check return Status.
+    //
+    gBS->UninstallMultipleProtocolInterfaces (
+                    DeviceIdentifier.DeviceHandle,
+                    &gEfiDevicePathProtocolGuid,
+                    PciIoDevice->DevicePath,
+                    &gEdkiiDeviceIdentifierTypePciGuid,
+                    &PciIoDevice->PciIo,
+                    NULL
+                    );
+    return Status;
+  }
+
+  //
+  // Device Security Protocol is not found, just return success
+  //
+  return EFI_SUCCESS;
+}
+
+/**
   Create and initialize general PCI I/O device instance for
   PCI device/bridge device/hotplug bridge device.
 
@@ -2154,6 +2212,21 @@ CreatePciIoDevice (
              );
   if (!EFI_ERROR (Status)) {
     PciIoDevice->IsPciExp = TRUE;
+  }
+
+  //
+  // Now we can do the authentication check for the device.
+  //
+  Status = AuthenticatePciDevice (PciIoDevice);
+  //
+  // If authentication fails, skip this device.
+  //
+  if (EFI_ERROR(Status)) {
+    if (PciIoDevice->DevicePath != NULL) {
+      FreePool (PciIoDevice->DevicePath);
+    }
+    FreePool (PciIoDevice);
+    return NULL;
   }
 
   if (PcdGetBool (PcdAriSupport)) {
@@ -2346,6 +2419,31 @@ CreatePciIoDevice (
                );
     if (!EFI_ERROR (Status)) {
       DEBUG ((EFI_D_INFO, " MR-IOV: CapOffset = 0x%x\n", PciIoDevice->MrIovCapabilityOffset));
+    }
+  }
+
+  PciIoDevice->ResizableBarOffset = 0;
+  if (PcdGetBool (PcdPcieResizableBarSupport)) {
+    Status = LocatePciExpressCapabilityRegBlock (
+               PciIoDevice,
+               PCI_EXPRESS_EXTENDED_CAPABILITY_RESIZABLE_BAR_ID,
+               &PciIoDevice->ResizableBarOffset,
+               NULL
+               );
+    if (!EFI_ERROR (Status)) {
+      PCI_EXPRESS_EXTENDED_CAPABILITIES_RESIZABLE_BAR_CONTROL ResizableBarControl;
+      UINT32                                                  Offset;
+      Offset = PciIoDevice->ResizableBarOffset + sizeof (PCI_EXPRESS_EXTENDED_CAPABILITIES_HEADER)
+                + sizeof (PCI_EXPRESS_EXTENDED_CAPABILITIES_RESIZABLE_BAR_CAPABILITY),
+      PciIo->Pci.Read (
+              PciIo,
+              EfiPciIoWidthUint8,
+              Offset,
+              sizeof (PCI_EXPRESS_EXTENDED_CAPABILITIES_RESIZABLE_BAR_CONTROL),
+              &ResizableBarControl
+              );
+      PciIoDevice->ResizableBarNumber = ResizableBarControl.Bits.ResizableBarNumber;
+      PciProgramResizableBar (PciIoDevice, PciResizableBarMax);
     }
   }
 

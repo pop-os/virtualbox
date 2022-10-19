@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_bldprogs_scm_h
@@ -84,6 +94,7 @@ typedef enum SCMCOMMENTSTYLE
     kScmCommentStyle_Rem_Camel,
     kScmCommentStyle_Sql,
     kScmCommentStyle_Tick,
+    kScmCommentStyle_Xml,
     kScmCommentStyle_End
 } SCMCOMMENTSTYLE;
 
@@ -104,6 +115,7 @@ typedef enum SCMCOMMENTTYPE
     kScmCommentType_MultiLine_Qt,               /**< Multi-line comment, Qt style.  */
     kScmCommentType_MultiLine_Qt_After,         /**< Multi-line comment, Qt after-member style.  */
     kScmCommentType_DocString,                  /**< Triple quoted python doc string. */
+    kScmCommentType_Xml,                        /**< XML comment style. */
     kScmCommentType_End                         /**< Customary exclusive end value. */
 } SCMCOMMENTTYPE;
 
@@ -145,7 +157,7 @@ typedef SCMCOMMENTINFO const *PCSCMCOMMENTINFO;
  * @param   cchBody         The comment body length.
  * @param   pvUser          User callback argument.
  */
-typedef DECLCALLBACK(int) FNSCMCOMMENTENUMERATOR(PCSCMCOMMENTINFO pInfo, const char *pszBody, size_t cchBody, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSCMCOMMENTENUMERATOR,(PCSCMCOMMENTINFO pInfo, const char *pszBody, size_t cchBody, void *pvUser));
 /** Poiter to a omment enumeration callback function. */
 typedef FNSCMCOMMENTENUMERATOR *PFNSCMCOMMENTENUMERATOR;
 
@@ -211,6 +223,8 @@ typedef struct SCMRWSTATE
     /** Set after the printing the first verbose message about a file under
      *  rewrite. */
     bool                fFirst;
+    /** Set if the file requires manual repair. */
+    bool                fNeedsManualRepair;
     /** Cached ScmSvnIsInWorkingCopy response. 0 indicates not known, 1 means it
      * is in WC, -1 means it doesn't. */
     int8_t              fIsInSvnWorkingCopy;
@@ -249,6 +263,9 @@ FNSCMREWRITER rewrite_SvnNoEolStyle;
 FNSCMREWRITER rewrite_SvnBinary;
 FNSCMREWRITER rewrite_SvnKeywords;
 FNSCMREWRITER rewrite_SvnSyncProcess;
+FNSCMREWRITER rewrite_UnicodeChecks;
+FNSCMREWRITER rewrite_PageChecks;
+FNSCMREWRITER rewrite_ForceHrcVrcInsteadOfRc;
 FNSCMREWRITER rewrite_Copyright_CstyleComment;
 FNSCMREWRITER rewrite_Copyright_HashComment;
 FNSCMREWRITER rewrite_Copyright_PythonComment;
@@ -256,6 +273,7 @@ FNSCMREWRITER rewrite_Copyright_RemComment;
 FNSCMREWRITER rewrite_Copyright_SemicolonComment;
 FNSCMREWRITER rewrite_Copyright_SqlComment;
 FNSCMREWRITER rewrite_Copyright_TickComment;
+FNSCMREWRITER rewrite_Copyright_XmlComment;
 FNSCMREWRITER rewrite_Makefile_kup;
 FNSCMREWRITER rewrite_Makefile_kmk;
 FNSCMREWRITER rewrite_FixFlowerBoxMarkers;
@@ -351,6 +369,13 @@ typedef struct SCMSETTINGSBASE
     bool            fFixTodos;
     /** Whether to fix C/C++ err.h/errcore.h usage. */
     bool            fFixErrH;
+    /** No PAGE_SIZE, PAGE_SHIFT, PAGE_OFFSET_MASK allowed in C/C++, only the GUEST_
+     * or HOST_ prefixed versions. */
+    bool            fOnlyGuestHostPage;
+    /** No ASMMemIsZeroPage or ASMMemZeroPage calls allowed (C/C++). */
+    bool            fNoASMMemPageUse;
+    /** No rc declarations allowed, only hrc or vrc depending on the result type. */
+    bool            fOnlyHrcVrcInsteadOfRc;
 
     /** Update the copyright year. */
     bool            fUpdateCopyrightYear;
@@ -373,6 +398,8 @@ typedef struct SCMSETTINGSBASE
     bool            fSetSvnKeywords;
     /** Skip checking svn:sync-process. */
     bool            fSkipSvnSyncProcess;
+    /** Skip the unicode checks. */
+    bool            fSkipUnicodeChecks;
     /** Tab size. */
     uint8_t         cchTab;
     /** Optimal source code width. */
@@ -450,6 +477,7 @@ typedef SCMSETTINGS const *PCSCMSETTINGS;
 void ScmVerboseBanner(PSCMRWSTATE pState, int iLevel);
 void ScmVerbose(PSCMRWSTATE pState, int iLevel, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 bool ScmError(PSCMRWSTATE pState, int rc, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
+bool ScmFixManually(PSCMRWSTATE pState, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(2, 3);
 
 extern const char g_szTabSpaces[16+1];
 extern const char g_szAsterisks[255+1];

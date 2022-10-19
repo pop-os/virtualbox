@@ -36,7 +36,7 @@ typedef struct {
 #define LOAD_FILE_ON_FV2_PRIVATE_DATA_FROM_THIS(a) CR (a, LOAD_FILE_ON_FV2_PRIVATE_DATA, LoadFile, LOAD_FILE_ON_FV2_PRIVATE_DATA_SIGNATURE)
 #define LOAD_FILE_ON_FV2_PRIVATE_DATA_FROM_LINK(a) CR (a, LOAD_FILE_ON_FV2_PRIVATE_DATA, Link, LOAD_FILE_ON_FV2_PRIVATE_DATA_SIGNATURE)
 
-EFI_EVENT  mFvRegistration;
+VOID       *mFvRegistration;
 LIST_ENTRY mPrivateDataList;
 
 /**
@@ -317,7 +317,7 @@ InstallFileLoadProtocol (
   EFI_FIRMWARE_VOLUME_PROTOCOL on the handle of the FFS. This notification function
   also handles the situation when LZMA decoder driver loaded later than FirmwareVolume driver.
 
-  @param  Event                 The event that occured
+  @param  Event                 The event that occurred
   @param  Context               Context of event. Not used in this nofication function.
 
 **/

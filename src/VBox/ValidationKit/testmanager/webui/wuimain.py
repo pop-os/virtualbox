@@ -7,26 +7,36 @@ Test Manager Core - WUI - The Main page.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 # Standard Python imports.
 
@@ -79,7 +89,7 @@ class WuiMain(WuiDispatcherBase):
     ksActionReportTestBoxFailures       = 'ReportTestBoxFailures';
     ksActionReportFailureReasons        = 'ReportFailureReasons';
     ksActionGraphWiz                    = 'GraphWiz';
-    ksActionVcsHistoryTooltip           = 'VcsHistoryTooltip';
+    ksActionVcsHistoryTooltip           = 'VcsHistoryTooltip';  ##< Hardcoded in common.js.
     ## @}
 
     ## @name Standard report parameters
@@ -392,69 +402,6 @@ class WuiMain(WuiDispatcherBase):
         return WuiTmLink('Show all results' if fOnlyFailures else 'Only show failed tests', '', dParams,
                          fBracketed = False).toHtml();
 
-    def _generateTimeSelector(self, dParams, sPreamble, sPostamble):
-        """
-        Generate HTML code for time selector.
-        """
-
-        if WuiDispatcherBase.ksParamEffectiveDate in dParams:
-            tsEffective = dParams[WuiDispatcherBase.ksParamEffectiveDate]
-            del dParams[WuiDispatcherBase.ksParamEffectiveDate]
-        else:
-            tsEffective = ''
-
-        # Forget about page No when changing a period
-        if WuiDispatcherBase.ksParamPageNo in dParams:
-            del dParams[WuiDispatcherBase.ksParamPageNo]
-
-        sHtmlTimeSelector  = '<form name="TimeForm" method="GET">\n'
-        sHtmlTimeSelector += sPreamble;
-        sHtmlTimeSelector += '\n  <select name="%s" onchange="window.location=' % WuiDispatcherBase.ksParamEffectiveDate
-        sHtmlTimeSelector += '\'?%s&%s=\' + ' % (webutils.encodeUrlParams(dParams), WuiDispatcherBase.ksParamEffectiveDate)
-        sHtmlTimeSelector += 'this.options[this.selectedIndex].value;" title="Effective date">\n'
-
-        aoWayBackPoints = [
-            ('+0000-00-00 00:00:00.00', 'Now', ' title="Present Day. Present Time."'), # lain :)
-
-            ('-0000-00-00 01:00:00.00', '1 hour ago', ''),
-            ('-0000-00-00 02:00:00.00', '2 hours ago', ''),
-            ('-0000-00-00 03:00:00.00', '3 hours ago', ''),
-
-            ('-0000-00-01 00:00:00.00', '1 day ago', ''),
-            ('-0000-00-02 00:00:00.00', '2 days ago', ''),
-            ('-0000-00-03 00:00:00.00', '3 days ago', ''),
-
-            ('-0000-00-07 00:00:00.00', '1 week ago', ''),
-            ('-0000-00-14 00:00:00.00', '2 weeks ago', ''),
-            ('-0000-00-21 00:00:00.00', '3 weeks ago', ''),
-
-            ('-0000-01-00 00:00:00.00', '1 month ago', ''),
-            ('-0000-02-00 00:00:00.00', '2 months ago', ''),
-            ('-0000-03-00 00:00:00.00', '3 months ago', ''),
-            ('-0000-04-00 00:00:00.00', '4 months ago', ''),
-            ('-0000-05-00 00:00:00.00', '5 months ago', ''),
-            ('-0000-06-00 00:00:00.00', 'Half a year ago', ''),
-
-            ('-0001-00-00 00:00:00.00', '1 year ago', ''),
-        ]
-        fSelected = False;
-        for sTimestamp, sWayBackPointCaption, sExtraAttrs in aoWayBackPoints:
-            if sTimestamp == tsEffective:
-                fSelected = True;
-            sHtmlTimeSelector += '    <option value="%s"%s%s>%s</option>\n' \
-                              % (webutils.quoteUrl(sTimestamp),
-                                 ' selected="selected"' if sTimestamp == tsEffective else '',
-                                 sExtraAttrs, sWayBackPointCaption)
-        if not fSelected and tsEffective != '':
-            sHtmlTimeSelector += '    <option value="%s" selected>%s</option>\n' \
-                              % (webutils.quoteUrl(tsEffective), tsEffective)
-
-        sHtmlTimeSelector += '  </select>\n';
-        sHtmlTimeSelector += sPostamble;
-        sHtmlTimeSelector += '\n</form>\n'
-
-        return sHtmlTimeSelector
-
     def _generateTimeWalker(self, dParams, tsEffective, sCurPeriod):
         """
         Generates HTML code for walking back and forth in time.
@@ -486,7 +433,9 @@ class WuiMain(WuiDispatcherBase):
         else:
             sNext = '&nbsp;&nbsp;&gt;&gt;';
 
-        return self._generateTimeSelector(self.getParameters(), sPrev, sNext);
+        from testmanager.webui.wuicontentbase import WuiListContentBase; ## @todo move to better place.
+        return WuiListContentBase.generateTimeNavigation('top', self.getParameters(), self.getEffectiveDateParam(),
+                                                         sPrev, sNext, False);
 
     def _generateResultPeriodSelector(self, dParams, sCurPeriod):
         """
@@ -602,30 +551,11 @@ class WuiMain(WuiDispatcherBase):
     def _generateItemPerPageSelector(self, dParams, cItemsPerPage):
         """
         Generate HTML code for items per page selector
+        Note! Modifies dParams!
         """
 
-        if WuiDispatcherBase.ksParamItemsPerPage in dParams:
-            del dParams[WuiDispatcherBase.ksParamItemsPerPage]
-
-        # Forced reset of the page number
-        dParams[WuiDispatcherBase.ksParamPageNo] = 0
-        sHtmlItemsPerPageSelector  = '<form name="AgesPerPageForm" method="GET">\n' \
-                                     '  Max <select name="%s" onchange="window.location=\'?%s&%s=\' + ' \
-                                     'this.options[this.selectedIndex].value;" title="Max items per page">\n' \
-                                   % (WuiDispatcherBase.ksParamItemsPerPage,
-                                      webutils.encodeUrlParams(dParams),
-                                      WuiDispatcherBase.ksParamItemsPerPage)
-
-        aiItemsPerPage = [16, 32, 64, 128, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096];
-        for iItemsPerPage in aiItemsPerPage:
-            sHtmlItemsPerPageSelector += '    <option value="%d" %s>%d</option>\n' \
-                                       % (iItemsPerPage,
-                                          'selected="selected"' if iItemsPerPage == cItemsPerPage else '',
-                                          iItemsPerPage)
-        sHtmlItemsPerPageSelector += '  </select> items per page\n' \
-                                     '</form>\n'
-
-        return sHtmlItemsPerPageSelector
+        from testmanager.webui.wuicontentbase import WuiListContentBase; ## @todo move to better place.
+        return WuiListContentBase.generateItemPerPageSelector('top', dParams, cItemsPerPage);
 
     def _generateResultNavigation(self, cItems, cItemsPerPage, iPage, tsEffective, sCurPeriod, fOnlyFailures,
                                   sHtmlMemberSelector):

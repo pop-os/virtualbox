@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /*
@@ -39,16 +49,16 @@
 
 
 /* static */
-const QRegExp QILabel::s_regExpCopy = QRegExp("<[^>]*>");
+const QRegularExpression QILabel::s_regExpCopy = QRegularExpression("<[^>]*>");
 QRegExp QILabel::s_regExpElide = QRegExp("(<compact\\s+elipsis=\"(start|middle|end)\"?>([^<]*)</compact>)");
 
-QILabel::QILabel(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = 0 */)
+QILabel::QILabel(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = Qt::WindowFlags() */)
     : QLabel(pParent, enmFlags)
 {
     init();
 }
 
-QILabel::QILabel(const QString &strText, QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = 0 */)
+QILabel::QILabel(const QString &strText, QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = Qt::WindowFlags() */)
     : QLabel(pParent, enmFlags)
 {
     init();
@@ -309,7 +319,7 @@ QString QILabel::compressText(const QString &strText) const
     QStringList result;
     QFontMetrics fm = fontMetrics();
     /* Split up any multi-line text: */
-    foreach (QString strLine, strText.split(QRegExp("<br */?>")))
+    foreach (QString strLine, strText.split(QRegularExpression("<br */?>")))
     {
         /* Search for the compact tag: */
         if (s_regExpElide.indexIn(strLine) > -1)
@@ -323,7 +333,11 @@ QString QILabel::compressText(const QString &strText) const
             /* Remove the whole compact tag (also the text): */
             const QString strFlat = removeHtmlTags(QString(strWork).remove(strCompact));
             /* What size will the text have without the compact text: */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+            const int iFlatWidth = fm.horizontalAdvance(strFlat);
+#else
             const int iFlatWidth = fm.width(strFlat);
+#endif
             /* Create the shortened text: */
             const QString strNew = fm.elidedText(strElide, toTextElideMode(strElideMode), width() - (2 * HOR_PADDING) - iFlatWidth);
             /* Replace the compact part with the shortened text in the initial string: */

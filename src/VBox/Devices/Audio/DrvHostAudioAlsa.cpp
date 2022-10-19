@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on: alsaaudio.c
@@ -131,6 +141,8 @@ static int drvHstAudAlsaStreamClose(snd_pcm_t **phPCM)
     if (!phPCM || !*phPCM)
         return VINF_SUCCESS;
 
+    LogRelFlowFuncEnter();
+
     int rc;
     int rc2 = snd_pcm_close(*phPCM);
     if (rc2 == 0)
@@ -144,7 +156,7 @@ static int drvHstAudAlsaStreamClose(snd_pcm_t **phPCM)
         LogRel(("ALSA: Closing PCM descriptor failed: %s (%d, %Rrc)\n", snd_strerror(rc2), rc2, rc));
     }
 
-    LogFlowFuncLeaveRC(rc);
+    LogRelFlowFuncLeaveRC(rc);
     return rc;
 }
 
@@ -693,6 +705,7 @@ static int alsaStreamSetHwParams(snd_pcm_t *hPCM, snd_pcm_format_t enmAlsaFmt,
              PDMAudioPropsHz(&pCfgAcq->Props), pCfgAcq->Backend.cFramesPeriod, pCfgAcq->Backend.cFramesBufferSize,
              PDMAudioPropsChannels(&pCfgAcq->Props), enmAlsaFmt));
 
+#if 0 /* Disabled in the hope to resolve testboxes not being able to drain + crashing when closing the PCM streams. */
     /*
      * Channel config (not fatal).
      */
@@ -700,8 +713,14 @@ static int alsaStreamSetHwParams(snd_pcm_t *hPCM, snd_pcm_format_t enmAlsaFmt,
     {
         err = snd_pcm_set_chmap(hPCM, &u.Map);
         if (err < 0)
-            LogRel2(("ALSA: snd_pcm_set_chmap failed: %s (%d)\n", snd_strerror(err), err));
+        {
+            if (err == -ENXIO)
+                LogRel2(("ALSA: Audio device does not support channel maps, skipping\n"));
+            else
+                LogRel2(("ALSA: snd_pcm_set_chmap failed: %s (%d)\n", snd_strerror(err), err));
+        }
     }
+#endif
 
     return 0;
 }
@@ -828,9 +847,15 @@ static DECLCALLBACK(int) drvHstAudAlsaHA_StreamDestroy(PPDMIHOSTAUDIO pInterface
     AssertPtrReturn(pStreamALSA, VERR_INVALID_POINTER);
     RT_NOREF(fImmediate);
 
+    LogRelFlowFunc(("Stream '%s' state is '%s'\n", pStreamALSA->Cfg.szName, snd_pcm_state_name(snd_pcm_state(pStreamALSA->hPCM))));
+
     /** @todo r=bird: It's not like we can do much with a bad status... Check
      *        what the caller does... */
-    return drvHstAudAlsaStreamClose(&pStreamALSA->hPCM);
+    int rc = drvHstAudAlsaStreamClose(&pStreamALSA->hPCM);
+
+    LogRelFlowFunc(("returns %Rrc\n", rc));
+
+    return rc;
 }
 
 
@@ -930,7 +955,7 @@ static DECLCALLBACK(int) drvHstAudAlsaHA_StreamDrain(PPDMIHOSTAUDIO pInterface, 
     PDRVHSTAUDALSASTREAM pStreamALSA = (PDRVHSTAUDALSASTREAM)pStream;
 
     snd_pcm_state_t const enmState = snd_pcm_state(pStreamALSA->hPCM);
-    LogFlowFunc(("Stream '%s' input state: %s (%d)\n", pStreamALSA->Cfg.szName, snd_pcm_state_name(enmState), enmState));
+    LogRelFlowFunc(("Stream '%s' input state: %s (%d)\n", pStreamALSA->Cfg.szName, snd_pcm_state_name(enmState), enmState));
 
     /* Only for output streams. */
     AssertReturn(pStreamALSA->Cfg.enmDir == PDMAUDIODIR_OUT, VERR_WRONG_ORDER);
@@ -951,7 +976,7 @@ static DECLCALLBACK(int) drvHstAudAlsaHA_StreamDrain(PPDMIHOSTAUDIO pInterface, 
                 if (rc == -EPIPE && enmState2 == enmState)
                 {
                     /* Not entirely sure, but possibly an underrun, so just disable the stream. */
-                    LogFunc(("snd_pcm_drain failed with -EPIPE, stopping stream (%s)\n", pStreamALSA->Cfg.szName));
+                    LogRel2(("ALSA: snd_pcm_drain failed with -EPIPE, stopping stream (%s)\n", pStreamALSA->Cfg.szName));
                     rc = snd_pcm_drop(pStreamALSA->hPCM);
                     if (rc >= 0)
                         rc = VINF_SUCCESS;
@@ -975,7 +1000,7 @@ static DECLCALLBACK(int) drvHstAudAlsaHA_StreamDrain(PPDMIHOSTAUDIO pInterface, 
             rc = VINF_SUCCESS;
             break;
     }
-    LogFlowFunc(("returns %Rrc (state %s)\n", rc, snd_pcm_state_name(snd_pcm_state(pStreamALSA->hPCM))));
+    LogRelFlowFunc(("returns %Rrc (state %s)\n", rc, snd_pcm_state_name(snd_pcm_state(pStreamALSA->hPCM))));
     return rc;
 }
 
@@ -1462,7 +1487,8 @@ static DECLCALLBACK(int) drvHstAudAlsaConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
 {
     RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
-    PDRVHSTAUDALSA pThis = PDMINS_2_DATA(pDrvIns, PDRVHSTAUDALSA);
+    PDRVHSTAUDALSA  pThis = PDMINS_2_DATA(pDrvIns, PDRVHSTAUDALSA);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
     LogRel(("Audio: Initializing ALSA driver\n"));
 
     /*
@@ -1501,9 +1527,9 @@ static DECLCALLBACK(int) drvHstAudAlsaConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
      */
     PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "OutputDeviceID|InputDeviceID", "");
 
-    rc = CFGMR3QueryStringDef(pCfg, "InputDeviceID", pThis->szInputDev, sizeof(pThis->szInputDev), "default");
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "InputDeviceID", pThis->szInputDev, sizeof(pThis->szInputDev), "default");
     AssertRCReturn(rc, rc);
-    rc = CFGMR3QueryStringDef(pCfg, "OutputDeviceID", pThis->szOutputDev, sizeof(pThis->szOutputDev), "default");
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "OutputDeviceID", pThis->szOutputDev, sizeof(pThis->szOutputDev), "default");
     AssertRCReturn(rc, rc);
 
     /*

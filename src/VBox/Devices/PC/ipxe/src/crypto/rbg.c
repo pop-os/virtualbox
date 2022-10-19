@@ -13,10 +13,27 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
+ *
+ * Alternatively, you may distribute this code in source or binary
+ * form, with or without modification, provided that the following
+ * conditions are met:
+ *
+ *  1. Redistributions of source code must retain the above copyright
+ *     notice, this list of conditions and the above disclaimer.
+ *
+ *  2. Redistributions in binary form must reproduce the above
+ *     copyright notice, this list of conditions and the above
+ *     disclaimer in the documentation and/or other materials provided
+ *     with the distribution.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 /** @file
  *
@@ -109,6 +126,7 @@ static void rbg_shutdown_fn ( int booting __unused ) {
 
 /** RBG startup table entry */
 struct startup_fn startup_rbg __startup_fn ( STARTUP_NORMAL ) = {
+	.name = "rbg",
 	.startup = rbg_startup_fn,
 	.shutdown = rbg_shutdown_fn,
 };

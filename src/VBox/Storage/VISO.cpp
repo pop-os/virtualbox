@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -264,7 +274,12 @@ static int visoOpenWorker(PVISOIMAGE pThis)
     PVDIOSTORAGE pStorage = NULL;
     int rc = vdIfIoIntFileOpen(pThis->pIfIo, pThis->pszFilename, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE, &pStorage);
     if (RT_FAILURE(rc))
+    {
+        LogRel(("VISO: Unable to open file '%s': %Rrc\n", pThis->pszFilename, rc));
         return rc;
+    }
+
+    LogRel(("VISO: Handling file '%s'\n", pThis->pszFilename));
 
     /*
      * Read the file into memory, prefixing it with a dummy command name.
@@ -376,14 +391,20 @@ static int visoOpenWorker(PVISOIMAGE pThis)
                                         vdIfError(pThis->pIfError, rc, RT_SRC_POS,
                                                   "VISO: Failed to open parent dir of: %s", pThis->pszFilename);
                                 }
+                                else
+                                    vdIfError(pThis->pIfError, rc, RT_SRC_POS, "VISO: RTGetOptArgvFromString failed: %Rrc", rc);
                             }
                             else
                                 vdIfError(pThis->pIfError, rc, RT_SRC_POS, "VISO: Invalid file encoding");
                         }
+                        else
+                            vdIfError(pThis->pIfError, rc, RT_SRC_POS, "VISO: Parsing UUID failed: %Rrc", rc);
                     }
                     else
                         rc = VERR_VD_GEN_INVALID_HEADER;
                 }
+                else
+                    vdIfError(pThis->pIfError, rc, RT_SRC_POS, "VISO: Reading file failed: %Rrc", rc);
 
                 RTMemTmpFree(pszContent);
             }
@@ -397,6 +418,9 @@ static int visoOpenWorker(PVISOIMAGE pThis)
             rc = VERR_VD_INVALID_SIZE;
         }
     }
+
+    if (RT_FAILURE(rc))
+        LogRel(("VISO: Handling of file '%s' failed with %Rrc\n", pThis->pszFilename, rc));
 
     vdIfIoIntFileClose(pThis->pIfIo, pStorage);
     return rc;

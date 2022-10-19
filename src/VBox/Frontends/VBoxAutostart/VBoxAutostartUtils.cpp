@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <VBox/com/com.h>
@@ -24,20 +34,20 @@
 #include <VBox/com/errorprint.h>
 
 #include <VBox/err.h>
+#include <VBox/version.h>
 
+#include <iprt/buildconfig.h>
 #include <iprt/message.h>
 #include <iprt/thread.h>
 #include <iprt/stream.h>
 #include <iprt/log.h>
-#include <iprt/path.h>
-
-#include <algorithm>
-#include <list>
-#include <string>
+#include <iprt/path.h>      /* RTPATH_MAX */
 
 #include "VBoxAutostart.h"
 
 using namespace com;
+
+extern unsigned g_cVerbosity;
 
 DECLHIDDEN(const char *) machineStateToName(MachineState_T machineState, bool fShort)
 {
@@ -51,6 +61,8 @@ DECLHIDDEN(const char *) machineStateToName(MachineState_T machineState, bool fS
             return "teleported";
         case MachineState_Aborted:
             return "aborted";
+        case MachineState_AbortedSaved:
+            return "aborted-saved";
         case MachineState_Running:
             return "running";
         case MachineState_Paused:
@@ -93,67 +105,109 @@ DECLHIDDEN(const char *) machineStateToName(MachineState_T machineState, bool fS
     return "unknown";
 }
 
-DECLHIDDEN(RTEXITCODE) autostartSvcLogErrorV(const char *pszFormat, va_list va)
+DECLHIDDEN(void) autostartSvcShowHeader(void)
 {
-    if (*pszFormat)
-    {
-        char *pszMsg = NULL;
-        if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
-        {
-            autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_ERROR);
-            RTStrFree(pszMsg);
-        }
-        else
-            autostartSvcOsLogStr(pszFormat, AUTOSTARTLOGTYPE_ERROR);
-    }
-    return RTEXITCODE_FAILURE;
+    RTPrintf(VBOX_PRODUCT " VirtualBox Autostart Service Version " VBOX_VERSION_STRING " - r%s\n"
+             "Copyright (C) " VBOX_C_YEAR " " VBOX_VENDOR "\n\n", RTBldCfgRevisionStr());
 }
 
-DECLHIDDEN(RTEXITCODE) autostartSvcLogError(const char *pszFormat, ...)
+DECLHIDDEN(void) autostartSvcShowVersion(bool fBrief)
 {
+    if (fBrief)
+        RTPrintf("%s\n", VBOX_VERSION_STRING);
+    else
+        autostartSvcShowHeader();
+}
+
+DECLHIDDEN(int) autostartSvcLogErrorV(const char *pszFormat, va_list va)
+{
+    AssertPtrReturn(pszFormat, VERR_INVALID_POINTER);
+
+    char *pszMsg = NULL;
+    if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
+    {
+        autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_ERROR);
+        RTStrFree(pszMsg);
+        return VINF_SUCCESS;
+    }
+
+    return VERR_BUFFER_OVERFLOW;
+}
+
+DECLHIDDEN(int) autostartSvcLogError(const char *pszFormat, ...)
+{
+    AssertPtrReturn(pszFormat, VERR_INVALID_POINTER);
+
     va_list va;
     va_start(va, pszFormat);
-    autostartSvcLogErrorV(pszFormat, va);
+    int rc = autostartSvcLogErrorV(pszFormat, va);
     va_end(va);
-    return RTEXITCODE_FAILURE;
+
+    return rc;
 }
 
-DECLHIDDEN(void) autostartSvcLogVerboseV(const char *pszFormat, va_list va)
+DECLHIDDEN(int) autostartSvcLogErrorRcV(int rc, const char *pszFormat, va_list va)
 {
-    if (*pszFormat)
+    AssertPtrReturn(pszFormat, VERR_INVALID_POINTER);
+
+    int rc2 = autostartSvcLogErrorV(pszFormat, va);
+    if (RT_SUCCESS(rc2))
+        return rc; /* Return handed-in rc. */
+    return rc2;
+}
+
+DECLHIDDEN(int) autostartSvcLogErrorRc(int rc, const char *pszFormat, ...)
+{
+    AssertPtrReturn(pszFormat, VERR_INVALID_POINTER);
+
+    va_list va;
+    va_start(va, pszFormat);
+    int rc2 = autostartSvcLogErrorRcV(rc, pszFormat, va);
+    va_end(va);
+    return rc2;
+}
+
+DECLHIDDEN(void) autostartSvcLogVerboseV(unsigned cVerbosity, const char *pszFormat, va_list va)
+{
+    AssertPtrReturnVoid(pszFormat);
+
+    if (g_cVerbosity < cVerbosity)
+       return;
+
+    char *pszMsg = NULL;
+    if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
     {
-        char *pszMsg = NULL;
-        if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
-        {
-            autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_VERBOSE);
-            RTStrFree(pszMsg);
-        }
-        else
-            autostartSvcOsLogStr(pszFormat, AUTOSTARTLOGTYPE_VERBOSE);
+        autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_VERBOSE);
+        RTStrFree(pszMsg);
     }
 }
 
-DECLHIDDEN(void) autostartSvcLogVerbose(const char *pszFormat, ...)
+DECLHIDDEN(void) autostartSvcLogVerbose(unsigned cVerbosity, const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
-    autostartSvcLogVerboseV(pszFormat, va);
+    autostartSvcLogVerboseV(cVerbosity, pszFormat, va);
     va_end(va);
 }
 
 DECLHIDDEN(void) autostartSvcLogWarningV(const char *pszFormat, va_list va)
 {
-    if (*pszFormat)
+    AssertPtrReturnVoid(pszFormat);
+
+    char *pszMsg = NULL;
+    if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
     {
-        char *pszMsg = NULL;
-        if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
-        {
-            autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_WARNING);
-            RTStrFree(pszMsg);
-        }
-        else
-            autostartSvcOsLogStr(pszFormat, AUTOSTARTLOGTYPE_WARNING);
+        autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_WARNING);
+        RTStrFree(pszMsg);
     }
+}
+
+DECLHIDDEN(void) autostartSvcLogWarning(const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    autostartSvcLogWarningV(pszFormat, va);
+    va_end(va);
 }
 
 DECLHIDDEN(void) autostartSvcLogInfo(const char *pszFormat, ...)
@@ -166,47 +220,35 @@ DECLHIDDEN(void) autostartSvcLogInfo(const char *pszFormat, ...)
 
 DECLHIDDEN(void) autostartSvcLogInfoV(const char *pszFormat, va_list va)
 {
-    if (*pszFormat)
+    AssertPtrReturnVoid(pszFormat);
+
+    char *pszMsg = NULL;
+    if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
     {
-        char *pszMsg = NULL;
-        if (RTStrAPrintfV(&pszMsg, pszFormat, va) != -1)
-        {
-            autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_INFO);
-            RTStrFree(pszMsg);
-        }
-        else
-            autostartSvcOsLogStr(pszFormat, AUTOSTARTLOGTYPE_INFO);
+        autostartSvcOsLogStr(pszMsg, AUTOSTARTLOGTYPE_INFO);
+        RTStrFree(pszMsg);
     }
 }
 
-DECLHIDDEN(void) autostartSvcLogWarning(const char *pszFormat, ...)
+DECLHIDDEN(int) autostartSvcLogGetOptError(const char *pszAction, int rc, int argc, char **argv, int iArg, PCRTGETOPTUNION pValue)
 {
-    va_list va;
-    va_start(va, pszFormat);
-    autostartSvcLogWarningV(pszFormat, va);
-    va_end(va);
+    RT_NOREF(pValue);
+    autostartSvcLogError("%s - RTGetOpt failure, %Rrc (%d): %s", pszAction, rc, rc, iArg < argc ? argv[iArg] : "<null>");
+    return RTEXITCODE_SYNTAX;
 }
 
-DECLHIDDEN(RTEXITCODE) autostartSvcLogGetOptError(const char *pszAction, int rc, int argc, char **argv, int iArg, PCRTGETOPTUNION pValue)
+DECLHIDDEN(int) autostartSvcLogTooManyArgsError(const char *pszAction, int argc, char **argv, int iArg)
 {
-    NOREF(pValue);
-    autostartSvcLogError("%s - RTGetOpt failure, %Rrc (%d): %s",
-                   pszAction, rc, rc, iArg < argc ? argv[iArg] : "<null>");
-    return RTEXITCODE_FAILURE;
-}
-
-DECLHIDDEN(RTEXITCODE) autostartSvcLogTooManyArgsError(const char *pszAction, int argc, char **argv, int iArg)
-{
-    Assert(iArg < argc);
+    AssertReturn(iArg < argc, RTEXITCODE_FAILURE);
     autostartSvcLogError("%s - Too many arguments: %s", pszAction, argv[iArg]);
     for ( ; iArg < argc; iArg++)
         LogRel(("arg#%i: %s\n", iArg, argv[iArg]));
-    return RTEXITCODE_FAILURE;
+    return VERR_INVALID_PARAMETER;
 }
 
 DECLHIDDEN(RTEXITCODE) autostartSvcDisplayErrorV(const char *pszFormat, va_list va)
 {
-    RTStrmPrintf(g_pStdErr, "VBoxSupSvc error: ");
+    RTStrmPrintf(g_pStdErr, "Error: ");
     RTStrmPrintfV(g_pStdErr, pszFormat, va);
     Log(("autostartSvcDisplayErrorV: %s", pszFormat)); /** @todo format it! */
     return RTEXITCODE_FAILURE;
@@ -229,7 +271,7 @@ DECLHIDDEN(RTEXITCODE) autostartSvcDisplayGetOptError(const char *pszAction, int
     return RTEXITCODE_SYNTAX;
 }
 
-DECLHIDDEN(int) autostartSetup()
+DECLHIDDEN(int) autostartSetup(void)
 {
     autostartSvcOsLogStr("Setting up ...\n", AUTOSTARTLOGTYPE_VERBOSE);
 
@@ -243,12 +285,15 @@ DECLHIDDEN(int) autostartSetup()
     {
         char szHome[RTPATH_MAX] = "";
         com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome));
-        return RTMsgErrorExit(RTEXITCODE_FAILURE,
-               "Failed to initialize COM because the global settings directory '%s' is not accessible!", szHome);
+        autostartSvcLogError("Failed to initialize COM because the global settings directory '%s' is not accessible!", szHome);
+        return VERR_COM_FILE_ERROR;
     }
 # endif
     if (FAILED(hrc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize COM (%Rhrc)!", hrc);
+    {
+        autostartSvcLogError("Failed to initialize COM (%Rhrc)!", hrc);
+        return VERR_COM_UNEXPECTED;
+    }
 
     hrc = g_pVirtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
     if (FAILED(hrc))
@@ -258,33 +303,33 @@ DECLHIDDEN(int) autostartSetup()
         if (!info.isFullAvailable() && !info.isBasicAvailable())
         {
             com::GluePrintRCMessage(hrc);
-            RTMsgError("Most likely, the VirtualBox COM server is not running or failed to start.");
+            autostartSvcLogError("Most likely, the VirtualBox COM server is not running or failed to start.");
         }
         else
             com::GluePrintErrorInfo(info);
-        return RTEXITCODE_FAILURE;
+        return VERR_COM_UNEXPECTED;
     }
 
     /*
      * Setup VirtualBox + session interfaces.
      */
-    HRESULT rc = g_pVirtualBoxClient->COMGETTER(VirtualBox)(g_pVirtualBox.asOutParam());
-    if (SUCCEEDED(rc))
+    hrc = g_pVirtualBoxClient->COMGETTER(VirtualBox)(g_pVirtualBox.asOutParam());
+    if (SUCCEEDED(hrc))
     {
-        rc = g_pSession.createInprocObject(CLSID_Session);
-        if (FAILED(rc))
-            RTMsgError("Failed to create a session object (rc=%Rhrc)!", rc);
+        hrc = g_pSession.createInprocObject(CLSID_Session);
+        if (FAILED(hrc))
+            autostartSvcLogError("Failed to create a session object (rc=%Rhrc)!", hrc);
     }
     else
-        RTMsgError("Failed to get VirtualBox object (rc=%Rhrc)!", rc);
+        autostartSvcLogError("Failed to get VirtualBox object (rc=%Rhrc)!", hrc);
 
-    if (FAILED(rc))
+    if (FAILED(hrc))
         return VERR_COM_OBJECT_NOT_FOUND;
 
     return VINF_SUCCESS;
 }
 
-DECLHIDDEN(void) autostartShutdown()
+DECLHIDDEN(void) autostartShutdown(void)
 {
     autostartSvcOsLogStr("Shutting down ...\n", AUTOSTARTLOGTYPE_VERBOSE);
 

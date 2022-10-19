@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QIRichTextLabel_h
@@ -34,6 +44,11 @@ class SHARED_LIBRARY_STUFF QIRichTextLabel : public QWidget
     Q_OBJECT;
     Q_PROPERTY(QString text READ text WRITE setText);
 
+signals:
+
+    /** Notifies listeners about @a link clicked. */
+    void sigLinkClicked(const QUrl &link);
+
 public:
 
     /** Constructs rich text-label passing @a pParent to the base-class. */
@@ -41,9 +56,13 @@ public:
 
     /** Returns text. */
     QString text() const;
+    /** Returns plain text. */
+    QString plainText() const;
 
     /** Registers @a image under a passed @a strName. */
     void registerImage(const QImage &image, const QString &strName);
+    /** Registers @a pixmap under a passed @a strName. */
+    void registerPixmap(const QPixmap &pixmap, const QString &strName);
 
     /** Returns word wrapping policy. */
     QTextOption::WrapMode wordWrapMode() const;
@@ -53,8 +72,15 @@ public:
     /** Installs event filter for a passed @ pFilterObj. */
     void installEventFilter(QObject *pFilterObj);
 
+    /** Returns browser font. */
+    QFont browserFont() const;
+    /** Defines @a newFont for browser. */
+    void setBrowserFont(const QFont &newFont);
+
 public slots:
 
+    /** Returns minimum text width. */
+    int minimumTextWidth() const;
     /** Defines @a iMinimumTextWidth. */
     void setMinimumTextWidth(int iMinimumTextWidth);
 

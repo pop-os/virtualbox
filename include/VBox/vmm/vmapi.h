@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_vmapi_h
@@ -47,8 +57,8 @@ RT_C_DECLS_BEGIN
  * @{ */
 /** Has not yet been set. */
 #define VM_EXEC_ENGINE_NOT_SET              UINT8_C(0)
-/** Raw-mode. */
-#define VM_EXEC_ENGINE_RAW_MODE             UINT8_C(1)
+/** The interpreter (IEM). */
+#define VM_EXEC_ENGINE_IEM                  UINT8_C(1)
 /** Hardware assisted virtualization thru HM. */
 #define VM_EXEC_ENGINE_HW_VIRT              UINT8_C(2)
 /** Hardware assisted virtualization thru native API (NEM). */
@@ -67,12 +77,15 @@ RT_C_DECLS_BEGIN
  * @param   pszFormat       Error message format string.
  * @param   args            Error message arguments.
  */
-typedef DECLCALLBACK(void) FNVMATERROR(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL, const char *pszError, va_list args);
+typedef DECLCALLBACKTYPE(void, FNVMATERROR,(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+                                            const char *pszFormat, va_list args));
 /** Pointer to a VM error callback. */
 typedef FNVMATERROR *PFNVMATERROR;
 
+#ifdef IN_RING3
 VMMDECL(int)    VMSetError(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7);
 VMMDECL(int)    VMSetErrorV(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list args) RT_IPRT_FORMAT_ATTR(6, 7);
+#endif
 
 /** @def VM_SET_ERROR
  * Macro for setting a simple VM error message.
@@ -117,15 +130,17 @@ VMMDECL(int)    VMSetErrorV(PVMCC pVM, int rc, RT_SRC_POS_DECL, const char *pszF
  * @param   pszFormat       Error message format string.
  * @param   va              Error message arguments.
  */
-typedef DECLCALLBACK(void) FNVMATRUNTIMEERROR(PUVM pUVM, void *pvUser, uint32_t fFlags, const char *pszErrorId,
-                                              const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(5, 0);
+typedef DECLCALLBACKTYPE(void, FNVMATRUNTIMEERROR,(PUVM pUVM, void *pvUser, uint32_t fFlags, const char *pszErrorId,
+                                                   const char *pszFormat, va_list va)) RT_IPRT_FORMAT_ATTR(5, 0);
 /** Pointer to a VM runtime error callback. */
 typedef FNVMATRUNTIMEERROR *PFNVMATRUNTIMEERROR;
 
+#ifdef IN_RING3
 VMMDECL(int) VMSetRuntimeError(PVMCC pVM, uint32_t fFlags, const char *pszErrorId,
                                const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(4, 5);
 VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszErrorId,
                                 const char *pszFormat, va_list args) RT_IPRT_FORMAT_ATTR(4, 0);
+#endif
 
 /** @name VMSetRuntimeError fFlags
  * When no flags are given the VM will continue running and it's up to the front
@@ -153,11 +168,12 @@ VMMDECL(int) VMSetRuntimeErrorV(PVMCC pVM, uint32_t fFlags, const char *pszError
  * state callback, except VMR3Destroy().
  *
  * @param   pUVM        The user mode VM handle.
+ * @param   pVMM        The VMM ring-3 vtable.
  * @param   enmState    The new state.
  * @param   enmOldState The old state.
  * @param   pvUser      The user argument.
  */
-typedef DECLCALLBACK(void) FNVMATSTATE(PUVM pUVM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser);
+typedef DECLCALLBACKTYPE(void, FNVMATSTATE,(PUVM pUVM, PCVMMR3VTABLE pVMM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser));
 /** Pointer to a VM state callback. */
 typedef FNVMATSTATE *PFNVMATSTATE;
 
@@ -362,7 +378,7 @@ typedef enum VMSUSPENDREASON
  * @param   uPercent    Completion percentage (0-100).
  * @param   pvUser      User specified argument.
  */
-typedef DECLCALLBACK(int) FNVMPROGRESS(PUVM pUVM, unsigned uPercent, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNVMPROGRESS,(PUVM pUVM, unsigned uPercent, void *pvUser));
 /** Pointer to a FNVMPROGRESS function. */
 typedef FNVMPROGRESS *PFNVMPROGRESS;
 
@@ -379,7 +395,7 @@ VMMR3DECL(VMRESUMEREASON) VMR3GetResumeReason(PUVM);
 VMMR3DECL(int)          VMR3Reset(PUVM pUVM);
 VMMR3_INT_DECL(VBOXSTRICTRC) VMR3ResetFF(PVM pVM);
 VMMR3_INT_DECL(VBOXSTRICTRC) VMR3ResetTripleFault(PVM pVM);
-VMMR3DECL(int)          VMR3Save(PUVM pUVM, const char *pszFilename, bool fContinueAfterwards, PFNVMPROGRESS pfnProgress, void *pvUser, bool *pfSuspended);
+VMMR3DECL(int)          VMR3Save(PUVM pUVM, const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser, bool fContinueAfterwards, PFNVMPROGRESS pfnProgress, void *pvUser, bool *pfSuspended);
 VMMR3DECL(int)          VMR3Teleport(PUVM pUVM, uint32_t cMsDowntime, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser, PFNVMPROGRESS pfnProgress, void *pvProgressUser, bool *pfSuspended);
 VMMR3DECL(int)          VMR3LoadFromFile(PUVM pUVM, const char *pszFilename, PFNVMPROGRESS pfnProgress, void *pvUser);
 VMMR3DECL(int)          VMR3LoadFromStream(PUVM pUVM, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,

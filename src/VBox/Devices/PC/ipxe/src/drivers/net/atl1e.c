@@ -17,8 +17,8 @@
  * more details.
  *
  * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc., 59
- * Temple Place - Suite 330, Boston, MA  02111-1307, USA.
+ * this program; if not, write to the Free Software Foundation, Inc., 51
+ * Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
 FILE_LICENCE ( GPL2_OR_LATER );
@@ -224,7 +224,7 @@ static int atl1e_sw_init(struct atl1e_adapter *adapter)
 	adapter->link_duplex = FULL_DUPLEX;
 
 	/* PCI config space info */
-	pci_read_config_byte(pdev, PCI_REVISION_ID, &rev_id);
+	pci_read_config_byte(pdev, PCI_REVISION, &rev_id);
 
 	phy_status_data = AT_READ_REG(hw, REG_PHY_STATUS);
 	/* nic type */
@@ -370,7 +370,7 @@ static void atl1e_free_ring_resources(struct atl1e_adapter *adapter)
 	atl1e_clean_rx_ring(adapter);
 
 	if (adapter->ring_vir_addr) {
-		free_dma(adapter->ring_vir_addr, adapter->ring_size);
+		free_phys(adapter->ring_vir_addr, adapter->ring_size);
 		adapter->ring_vir_addr = NULL;
 		adapter->ring_dma = 0;
 	}
@@ -405,7 +405,7 @@ static int atl1e_setup_ring_resources(struct atl1e_adapter *adapter)
 	/* real ring DMA buffer */
 
 	size = adapter->ring_size;
-	adapter->ring_vir_addr = malloc_dma(adapter->ring_size, 32);
+	adapter->ring_vir_addr = malloc_phys(adapter->ring_size, 32);
 
 	if (adapter->ring_vir_addr == NULL) {
 		DBG("atl1e: out of memory allocating %d bytes for %s ring\n",

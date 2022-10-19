@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QIComboBox_h
@@ -42,12 +52,18 @@ signals:
     /** Notifies listeners about user chooses an item with @a iIndex in the combo-box. */
     void activated(int iIndex);
     /** Notifies listeners about user chooses an item with @a strText in the combo-box. */
+#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: textHighlighted was added in 5.14 actually */
+    void textActivated(const QString &strText);
+#else
     void activated(const QString &strText);
+#endif
 
     /** Notifies listeners about current item changed to item with @a iIndex. */
     void currentIndexChanged(int iIndex);
+#ifndef VBOX_IS_QT6_OR_LATER
     /** Notifies listeners about current item changed to item with @a strText. */
     void currentIndexChanged(const QString &strText);
+#endif
 
     /** Notifies listeners about current combo-box text is changed to @a strText. */
     void currentTextChanged(const QString &strText);
@@ -57,7 +73,11 @@ signals:
     /** Notifies listeners about user highlighted an item with @a iIndex in the popup list-view. */
     void highlighted(int iIndex);
     /** Notifies listeners about user highlighted an item with @a strText in the popup list-view. */
+#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: textHighlighted was added in 5.14 actually */
+    void textHighlighted(const QString &strText);
+#else
     void highlighted(const QString &strText);
+#endif
 
 public:
 
@@ -94,6 +114,8 @@ public:
     void addItems(const QStringList &items) const;
     /** Adds the @a strText and userData (stored in the Qt::UserRole) into the combo-box. */
     void addItem(const QString &strText, const QVariant &userData = QVariant()) const;
+    /** Inserts the @a items into the combo-box at the given @a iIndex. */
+    void insertItems(int iIndex, const QStringList &items);
     /** Inserts the @a strText and userData (stored in the Qt::UserRole) into the combo-box at the given @a iIndex. */
     void insertItem(int iIndex, const QString &strText, const QVariant &userData = QVariant()) const;
     /** Removes the item from the combo-box at the given @a iIndex. */
@@ -118,6 +140,11 @@ public:
     QComboBox::SizeAdjustPolicy sizeAdjustPolicy() const;
     /** Defines size adjust @a enmPolicy. */
     void setSizeAdjustPolicy(QComboBox::SizeAdjustPolicy enmPolicy);
+    /** Marks the line edit of the combobox. Refer to QILineEdit::mark(..). */
+    void mark(bool fError, const QString &strErrorMessage = QString());
+
+    /** Inserts separator at position with specified @a iIndex. */
+    void insertSeparator(int iIndex);
 
 public slots:
 

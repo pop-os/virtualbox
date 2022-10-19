@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -619,7 +629,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                     } while (ch != '\0');
                     pszFmt = szTmpFmt;
                 }
-                if (strchr ("#@&", *pszFmt))
+                if (strchr("#@&", *pszFmt))
                 {
                     const char *pszDelim = strchr(pszFmt, '/');
                     const char *pszSpace = (pszDelim ? strchr(pszDelim, ' ') : NULL);
@@ -627,7 +637,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                     {
                         char *pszFmtDst = szTmpFmt;
                         if (pszSpace == NULL) pszSpace = strchr(pszDelim, 0);
-                        if (   (*pszFmt == '#' && pDis->bVexWFlag)
+                        if (   (*pszFmt == '#' && !pDis->bVexWFlag) /** @todo check this*/
                             || (*pszFmt == '@' && !VEXREG_IS256B(pDis->bVexDestReg))
                             || (*pszFmt == '&' && (   DISUSE_IS_EFFECTIVE_ADDR(pDis->Param1.fUse)
                                                    || DISUSE_IS_EFFECTIVE_ADDR(pDis->Param2.fUse)
@@ -718,27 +728,27 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                         break; \
                     case OP_PARM_b: PUT_SZ("byte "); break; \
                     case OP_PARM_w: \
-                        if (OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W || \
-                            OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
+                        if (   OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W \
+                            || OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
                         { \
                             if (VEXREG_IS256B(pDis->bVexDestReg)) PUT_SZ("dword "); \
-                                else PUT_SZ("word "); \
+                            else PUT_SZ("word "); \
                         } \
                         break; \
                     case OP_PARM_d: \
-                        if (OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W || \
-                            OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
+                        if (   OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W \
+                            || OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
                         { \
                             if (VEXREG_IS256B(pDis->bVexDestReg)) PUT_SZ("qword "); \
-                                else PUT_SZ("dword "); \
+                            else PUT_SZ("dword "); \
                         } \
                         break; \
                     case OP_PARM_q: \
-                        if (OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W || \
-                            OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
+                        if (   OP_PARM_VTYPE(pParam->fParam) == OP_PARM_W \
+                            || OP_PARM_VTYPE(pParam->fParam) == OP_PARM_M) \
                         { \
                             if (VEXREG_IS256B(pDis->bVexDestReg)) PUT_SZ("oword "); \
-                                else PUT_SZ("qword "); \
+                            else PUT_SZ("qword "); \
                         } \
                        break; \
                     case OP_PARM_ps: \
@@ -794,7 +804,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                 switch (ch)
                 {
                     /*
-                     * ModRM - Register only.
+                     * ModRM - Register only / VEX.vvvv.
                      */
                     case 'C': /* Control register (ParseModRM / UseModRM). */
                     case 'D': /* Debug register (ParseModRM / UseModRM). */
@@ -804,6 +814,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                     case 'V': /* ModRM byte selects an XMM/SSE register (ParseModRM / UseModRM). */
                     case 'P': /* ModRM byte selects MMX register (ParseModRM / UseModRM). */
                     case 'H': /* The VEX.vvvv field of the VEX prefix selects a XMM/YMM register. */
+                    case 'B': /* The VEX.vvvv field of the VEX prefix selects a general register (ParseVexDest). */
                     case 'L': /* The upper 4 bits of the 8-bit immediate selects a XMM/YMM register. */
                     {
                         pszFmt += RT_C_IS_ALPHA(pszFmt[0]) ? RT_C_IS_ALPHA(pszFmt[1]) ? 2 : 1 : 0;
@@ -823,7 +834,8 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                     case 'Q': /* ModRM byte selects MMX register or memory address (ParseModRM / UseModRM). */
                     case 'R': /* ModRM byte may only refer to a general register (ParseModRM / UseModRM). */
                     case 'W': /* ModRM byte selects an XMM/SSE register or a memory address (ParseModRM / UseModRM). */
-                    case 'M': /* ModRM may only refer to memory (ParseModRM / UseModRM). */
+                    case 'U': /* ModRM byte may only refer to a XMM/SSE register (ParseModRM / UseModRM). */
+                    case 'M': /* ModRM byte may only refer to memory (ParseModRM / UseModRM). */
                     {
                         pszFmt += RT_C_IS_ALPHA(pszFmt[0]) ? RT_C_IS_ALPHA(pszFmt[1]) ? 2 : 1 : 0;
 

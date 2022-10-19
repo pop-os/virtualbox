@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -21,19 +31,19 @@
 *********************************************************************************************************************************/
 #include <VBox/shflsvc.h>
 #include <iprt/string.h>
-#include <stdio.h>
+#include <iprt/stream.h>
 
 #define STRUCT(t, size)   \
     do { \
         if (fPrintChecks) \
-            printf("    STRUCT(" #t ", %d);\n", (int)sizeof(t)); \
+            RTPrintf("    STRUCT(" #t ", %d);\n", (int)sizeof(t)); \
         else if ((size) != sizeof(t)) \
         { \
-            printf("%30s: %d expected %d!\n", #t, (int)sizeof(t), (size)); \
+            RTPrintf("%30s: %d expected %d!\n", #t, (int)sizeof(t), (size)); \
             cErrors++; \
         } \
         else if (!fQuiet)\
-            printf("%30s: %d\n", #t, (int)sizeof(t)); \
+            RTPrintf("%30s: %d\n", #t, (int)sizeof(t)); \
     } while (0)
 
 
@@ -47,7 +57,7 @@ int main(int argc, char **argv)
     bool fQuiet = argc == 2 && !strcmp(argv[1], "quiet");
     bool fPrintChecks = !fQuiet && argc != 1;
 
-    printf("tstShflSizes: TESTING\n");
+    RTPrintf("tstShflSizes: TESTING\n");
 
     /*
      * The checks.
@@ -126,9 +136,9 @@ int main(int argc, char **argv)
      * The summary.
      */
     if (!cErrors)
-        printf("tstShflSizes: SUCCESS\n");
+        RTPrintf("tstShflSizes: SUCCESS\n");
     else
-        printf("tstShflSizes: FAILURE - %d errors\n", cErrors);
+        RTPrintf("tstShflSizes: FAILURE - %d errors\n", cErrors);
     return !!cErrors;
 }
 

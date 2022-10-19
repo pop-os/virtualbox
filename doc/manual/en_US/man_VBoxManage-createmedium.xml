@@ -1,17 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage createmedium
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
   "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
 <!ENTITY % all.entities SYSTEM "all-entities.ent">
@@ -19,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-createmedium" lang="en">
   <refentryinfo>
-    <pubdate>August 2019</pubdate>
+    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
     <title>VBoxManage createmedium</title>
   </refentryinfo>
 
@@ -31,7 +42,7 @@
   <refnamediv>
     <refname>VBoxManage-createmedium</refname>
     <refpurpose>create a new medium</refpurpose>
-    <refclass>Oracle VM VirtualBox</refclass>
+    <refclass>&product-name;</refclass>
   </refnamediv>
 
   <refsynopsisdiv>
@@ -44,7 +55,7 @@
         <arg choice="plain"><replaceable>floppy</replaceable></arg>
       </group>
       <arg choice="req">--filename=<replaceable>filename</replaceable></arg>
-      <group choice="opt">
+      <group>
         <arg choice="plain">--size=<replaceable>megabytes</replaceable></arg>
         <arg choice="plain">--sizebyte=<replaceable>bytes</replaceable></arg>
       </group>
@@ -57,7 +68,11 @@
           <arg choice="plain"><replaceable>VMDK</replaceable></arg>
           <arg choice="plain"><replaceable>VHD</replaceable></arg>
         </group></arg>
-      <arg>--variant Standard,Fixed,Split2G,Stream,ESX,Formatted</arg>
+      <arg>--variant Standard,Fixed,Split2G,Stream,ESX,Formatted,RawDisk</arg>
+      <arg choice="plain" rep="repeat">--property
+          <replaceable>name</replaceable>=<replaceable>value</replaceable></arg>
+      <arg choice="plain" rep="repeat">--property-file
+          <replaceable>name</replaceable>=<replaceable>/path/to/file/with/value</replaceable></arg>
     </cmdsynopsis>
   </refsynopsisdiv>
 
@@ -122,7 +137,7 @@
           </para></listitem>
       </varlistentry>
       <varlistentry>
-        <term><option>--variant=Standard,Fixed,Split2G,Stream,ESX, Formatted</option></term>
+        <term><option>--variant=Standard,Fixed,Split2G,Stream,ESX,Formatted,RawDisk</option></term>
         <listitem><para>
             Specifies the file format variant for the target medium,
             which is a comma-separated list of variants. Following are
@@ -154,10 +169,33 @@
                 For floppy images only. Formats the medium
                 automatically.
               </para></listitem>
+            <listitem><para>
+                <literal>RawDisk</literal> used for creating raw disks.
+                This value is for VMDK only. For detailed information
+                about raw disks, see <xref linkend="adv-storage-config"/>
+              </para><para>
+              </para></listitem>
           </itemizedlist><para>
             Note that not all variant combinations are valid. Specifying
             incompatible variant values in the list will produce an
             error message.
+          </para></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--property <replaceable>name</replaceable>=<replaceable>value</replaceable></option></term>
+        <listitem><para>
+            Specifies any required file format dependent parameters in
+            <literal>key=value</literal> form. Optional.
+          </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--property-file <replaceable>name
+          </replaceable>=<replaceable>/path/to/file/with/value</replaceable></option></term>
+        <listitem><para>
+            Specifies any required file format dependent parameters in
+            <literal>key=file/with/value</literal> form. The value is
+            taken from the file. Optional.
           </para></listitem>
       </varlistentry>
     </variablelist>

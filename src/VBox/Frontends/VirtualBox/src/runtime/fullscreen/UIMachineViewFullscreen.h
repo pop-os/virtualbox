@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_runtime_fullscreen_UIMachineViewFullscreen_h
@@ -31,12 +41,7 @@ class UIMachineViewFullscreen : public UIMachineView
 protected:
 
     /* Fullscreen machine-view constructor: */
-    UIMachineViewFullscreen(  UIMachineWindow *pMachineWindow
-                            , ulong uScreenId
-#ifdef VBOX_WITH_VIDEOHWACCEL
-                            , bool bAccelerate2DVideo
-#endif
-    );
+    UIMachineViewFullscreen(UIMachineWindow *pMachineWindow, ulong uScreenId);
     /* Fullscreen machine-view destructor: */
     virtual ~UIMachineViewFullscreen() {}
 
@@ -61,9 +66,9 @@ private:
     //void cleanupCommon() {}
 
     /** Returns whether the guest-screen auto-resize is enabled. */
-    virtual bool isGuestAutoresizeEnabled() const /* override */ { return m_bIsGuestAutoresizeEnabled; }
+    virtual bool isGuestAutoresizeEnabled() const RT_OVERRIDE { return m_bIsGuestAutoresizeEnabled; }
     /** Defines whether the guest-screen auto-resize is @a fEnabled. */
-    virtual void setGuestAutoresizeEnabled(bool bEnabled) /* override */;
+    virtual void setGuestAutoresizeEnabled(bool bEnabled) RT_OVERRIDE;
 
     /** Adjusts guest-screen size to correspond current <i>working area</i> size. */
     void adjustGuestScreenSize();

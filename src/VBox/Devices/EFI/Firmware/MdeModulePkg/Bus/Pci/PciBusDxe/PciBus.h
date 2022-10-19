@@ -1,7 +1,7 @@
 /** @file
   Header files and data structures needed by PCI Bus module.
 
-Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2021, Intel Corporation. All rights reserved.<BR>
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -27,6 +27,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 #include <Protocol/PciOverride.h>
 #include <Protocol/PciEnumerationComplete.h>
 #include <Protocol/IoMmu.h>
+#include <Protocol/DeviceSecurity.h>
 
 #include <Library/DebugLib.h>
 #include <Library/UefiDriverEntryPoint.h>
@@ -279,6 +280,8 @@ struct _PCI_IO_DEVICE {
   // This field is used to support this case.
   //
   UINT16                                    BridgeIoAlignment;
+  UINT32                                    ResizableBarOffset;
+  UINT32                                    ResizableBarNumber;
 };
 
 #define PCI_IO_DEVICE_FROM_PCI_IO_THIS(a) \

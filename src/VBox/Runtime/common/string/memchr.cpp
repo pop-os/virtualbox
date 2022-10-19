@@ -4,30 +4,41 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#include "internal/iprt.h"
 #include <iprt/string.h>
 
 
@@ -40,18 +51,18 @@
  * @param   ch          The character to search for.
  * @param   cb          The size of the block.
  */
-#ifdef _MSC_VER /* Silly 'safeness' from MS. */
-# if _MSC_VER >= 1400
-_CRTIMP __checkReturn _CONST_RETURN void *  __cdecl memchr( __in_bcount_opt(_MaxCount) const void * pv, __in int ch, __in size_t cb)
-# else
-void *memchr(const void *pv, int ch, size_t cb)
-# endif
+#ifdef IPRT_NO_CRT
+# undef memchr
+void *RT_NOCRT(memchr)(const void *pv, int ch, size_t cb)
+#elif RT_MSC_PREREQ(RT_MSC_VER_VS2005)
+_CRTIMP __checkReturn _CONST_RETURN void * __cdecl
+memchr(__in_bcount_opt(_MaxCount) const void *pv, __in int ch, __in size_t cb)
 #else
 void *memchr(const void *pv, int ch, size_t cb)
 #endif
 {
-    register uint8_t const *pu8 = (uint8_t const *)pv;
-    register size_t cb2 = cb;
+    uint8_t const *pu8 = (uint8_t const *)pv;
+    size_t cb2 = cb;
     while (cb2-- > 0)
     {
         if (*pu8 == ch)
@@ -60,4 +71,5 @@ void *memchr(const void *pv, int ch, size_t cb)
     }
     return NULL;
 }
+RT_ALIAS_AND_EXPORT_NOCRT_SYMBOL(memchr);
 

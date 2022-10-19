@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_GuestCtrlImplPrivate_h
@@ -734,6 +744,44 @@ struct GuestFileOpenInfo
         , mCreationMode(0)
         , mfOpenEx(0) { }
 
+    /**
+     * Validates a file open info.
+     *
+     * @returns \c true if valid, \c false if not.
+     */
+    bool IsValid(void) const
+    {
+        if (mfOpenEx) /** @todo Open flags not implemented yet. */
+            return false;
+
+        switch (mOpenAction)
+        {
+            case FileOpenAction_OpenExisting:
+                break;
+            case FileOpenAction_OpenOrCreate:
+                break;
+            case FileOpenAction_CreateNew:
+                break;
+            case FileOpenAction_CreateOrReplace:
+                break;
+            case FileOpenAction_OpenExistingTruncated:
+            {
+                if (   mAccessMode == FileAccessMode_ReadOnly
+                    || mAccessMode == FileAccessMode_AppendOnly
+                    || mAccessMode == FileAccessMode_AppendRead)
+                    return false;
+                break;
+            }
+            case FileOpenAction_AppendOrCreate: /* Deprecated, do not use. */
+                break;
+            default:
+                AssertFailedReturn(false);
+                break;
+        }
+
+        return true; /** @todo Do we need more checks here? */
+    }
+
     /** The filename. */
     Utf8Str                 mFilename;
     /** The file access mode. */
@@ -1238,10 +1286,6 @@ public:
     int registerWaitEventEx(uint32_t uSessionID, uint32_t uObjectID, const GuestEventTypes &lstEvents, GuestWaitEvent **ppEvent);
     int unregisterWaitEvent(GuestWaitEvent *pEvent);
     int waitForEvent(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, VBoxEventType_T *pType, IEvent **ppEvent);
-
-#ifndef VBOX_GUESTCTRL_TEST_CASE
-    HRESULT setErrorExternal(VirtualBoxBase *pInterface, const Utf8Str &strAction, const GuestErrorInfo &guestErrorInfo);
-#endif
 
 public:
 

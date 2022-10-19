@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <string.h>
@@ -31,10 +36,6 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/command.h>
 #include <ipxe/parseopt.h>
 #include <ipxe/settings.h>
-#include <ipxe/console.h>
-#include <ipxe/keys.h>
-#include <ipxe/process.h>
-#include <ipxe/nap.h>
 #include <ipxe/shell.h>
 
 /** @file
@@ -59,18 +60,22 @@ static int stop_state;
 int execv ( const char *command, char * const argv[] ) {
 	struct command *cmd;
 	int argc;
+	int rc;
 
 	/* Count number of arguments */
 	for ( argc = 0 ; argv[argc] ; argc++ ) {}
 
 	/* An empty command is deemed to do nothing, successfully */
-	if ( command == NULL )
-		return 0;
+	if ( command == NULL ) {
+		rc = 0;
+		goto done;
+	}
 
 	/* Sanity checks */
 	if ( argc == 0 ) {
 		DBG ( "%s: empty argument list\n", command );
-		return -EINVAL;
+		rc = -EINVAL;
+		goto done;
 	}
 
 	/* Reset getopt() library ready for use by the command.  This
@@ -82,12 +87,24 @@ int execv ( const char *command, char * const argv[] ) {
 
 	/* Hand off to command implementation */
 	for_each_table_entry ( cmd, COMMANDS ) {
-		if ( strcmp ( command, cmd->name ) == 0 )
-			return cmd->exec ( argc, ( char ** ) argv );
+		if ( strcmp ( command, cmd->name ) == 0 ) {
+			rc = cmd->exec ( argc, ( char ** ) argv );
+			goto done;
+		}
 	}
 
 	printf ( "%s: command not found\n", command );
-	return -ENOEXEC;
+	rc = -ENOEXEC;
+
+ done:
+	/* Store error number, if an error occurred */
+	if ( rc ) {
+		errno = rc;
+		if ( errno < 0 )
+			errno = -errno;
+	}
+
+	return rc;
 }
 
 /**
@@ -358,7 +375,7 @@ char * concat_args ( char **args ) {
 	ptr = string;
 	for ( arg = args ; *arg ; arg++ ) {
 		ptr += sprintf ( ptr, "%s%s",
-				 ( ( ptr == string ) ? "" : " " ), *arg );
+				 ( ( arg == args ) ? "" : " " ), *arg );
 	}
 	assert ( ptr < ( string + len ) );
 
@@ -380,7 +397,7 @@ static struct option_descriptor echo_opts[] = {
 /** "echo" command descriptor */
 static struct command_descriptor echo_cmd =
 	COMMAND_DESC ( struct echo_options, echo_opts, 0, MAX_ARGUMENTS,
-		       "[-n] [...]" );
+		       "[...]" );
 
 /**
  * "echo" command
@@ -552,8 +569,6 @@ static struct command_descriptor sleep_cmd =
 static int sleep_exec ( int argc, char **argv ) {
 	struct sleep_options opts;
 	unsigned int seconds;
-	unsigned long start;
-	unsigned long delay;
 	int rc;
 
 	/* Parse options */
@@ -565,14 +580,8 @@ static int sleep_exec ( int argc, char **argv ) {
 		return rc;
 
 	/* Delay for specified number of seconds */
-	start = currticks();
-	delay = ( seconds * TICKS_PER_SEC );
-	while ( ( currticks() - start ) <= delay ) {
-		step();
-		if ( iskey() && ( getchar() == CTRL_C ) )
-			return -ECANCELED;
-		cpu_nap();
-	}
+	if ( sleep ( seconds ) != 0 )
+		return -ECANCELED;
 
 	return 0;
 }

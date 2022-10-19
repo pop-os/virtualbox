@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -22,6 +32,7 @@
 *********************************************************************************************************************************/
 #include <VBox/sup.h>
 #include <VBox/vmm/cfgm.h>
+#include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
@@ -101,10 +112,11 @@ static void doInVmmTests(RTTEST hTest)
     }
 
     PVM pVM;
-    RTTESTI_CHECK_RC_RETV(SUPR3PageAlloc(RT_ALIGN_Z(sizeof(*pVM), PAGE_SIZE) >> PAGE_SHIFT, (void **)&pVM), VINF_SUCCESS);
+    RTTESTI_CHECK_RC_RETV(SUPR3PageAlloc(RT_ALIGN_Z(sizeof(*pVM), HOST_PAGE_SIZE) >> HOST_PAGE_SHIFT, 0, (void **)&pVM),
+                          VINF_SUCCESS);
 
 
-    PUVM pUVM = (PUVM)RTMemPageAlloc(sizeof(*pUVM));
+    PUVM pUVM = (PUVM)RTMemPageAllocZ(sizeof(*pUVM));
     pUVM->u32Magic = UVM_MAGIC;
     pUVM->pVM = pVM;
     pVM->pUVM = pUVM;
@@ -123,6 +135,10 @@ static void doInVmmTests(RTTEST hTest)
 
     /* done */
     RTTESTI_CHECK_RC_RETV(CFGMR3Term(pVM), VINF_SUCCESS);
+    MMR3TermUVM(pUVM);
+    STAMR3TermUVM(pUVM);
+    DBGFR3TermUVM(pUVM);
+    RTMemPageFree(pUVM, sizeof(*pUVM));
 }
 
 
@@ -147,7 +163,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      * Init runtime.
      */
     RTTEST hTest;
-    RTR3InitExeNoArguments(RTR3INIT_FLAGS_SUPLIB);
+    RTR3InitExeNoArguments(RTR3INIT_FLAGS_TRY_SUPLIB);
     RTEXITCODE rcExit = RTTestInitAndCreate("tstCFGM", &hTest);
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;

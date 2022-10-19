@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_SRC_x11_VBoxClient_seamless_h
@@ -83,34 +93,17 @@ public:
     RTMEM_IMPLEMENT_NEW_AND_DELETE();
 #endif
 
-    /**
-      * Initialise the service.
-      */
+    /** @copydoc VBCLSERVICE::pfnInit */
     int init(void);
 
-    /**
-      * Run the service.
-      * @returns iprt status value
-      */
-    int run(void);
+    /** @copydoc VBCLSERVICE::pfnWorker */
+    int worker(bool volatile *pfShutdown);
 
-    /**
-     * Stops the service.
-     */
-    void stop();
+    /** @copydoc VBCLSERVICE::pfnStop */
+    void stop(void);
 
-    /** Pause the service loop.  This must be safe to call on a different thread
-     * and potentially before @a run is or after it exits.
-     * This is called by the VT monitoring thread to allow the service to disable
-     * itself when the X server is switched out.  If the monitoring functionality
-     * is available then @a pause or @a resume will be called as soon as it starts
-     * up. */
-    int pause();
-    /** Resume after pausing.  The same applies here as for @a pause. */
-    int resume();
-
-    /** Run a few tests to be sure everything is working as intended. */
-    int selfTest();
+    /** @copydoc VBCLSERVICE::pfnTerm */
+    int term(void);
 };
 
 #endif /* !GA_INCLUDED_SRC_x11_VBoxClient_seamless_h */

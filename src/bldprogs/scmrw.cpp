@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -134,6 +144,25 @@ typedef SCMCOPYRIGHTINFO *PSCMCOPYRIGHTINFO;
 *********************************************************************************************************************************/
 /** --license-ose-gpl */
 static const char g_szVBoxOseGpl[] =
+    "This file is part of VirtualBox base platform packages, as\n"
+    "available from https://www.virtualbox.org.\n"
+    "\n"
+    "This program is free software; you can redistribute it and/or\n"
+    "modify it under the terms of the GNU General Public License\n"
+    "as published by the Free Software Foundation, in version 3 of the\n"
+    "License.\n"
+    "\n"
+    "This program is distributed in the hope that it will be useful, but\n"
+    "WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n"
+    "General Public License for more details.\n"
+    "\n"
+    "You should have received a copy of the GNU General Public License\n"
+    "along with this program; if not, see <https://www.gnu.org/licenses>.\n"
+    "\n"
+    "SPDX-License-Identifier: GPL-3.0-only\n";
+
+static const char g_szVBoxOseOldGpl2[] =
     "This file is part of VirtualBox Open Source Edition (OSE), as\n"
     "available from http://www.virtualbox.org. This file is free software;\n"
     "you can redistribute it and/or modify it under the terms of the GNU\n"
@@ -144,6 +173,34 @@ static const char g_szVBoxOseGpl[] =
 
 /** --license-ose-dual */
 static const char g_szVBoxOseDualGplCddl[] =
+    "This file is part of VirtualBox base platform packages, as\n"
+    "available from https://www.virtualbox.org.\n"
+    "\n"
+    "This program is free software; you can redistribute it and/or\n"
+    "modify it under the terms of the GNU General Public License\n"
+    "as published by the Free Software Foundation, in version 3 of the\n"
+    "License.\n"
+    "\n"
+    "This program is distributed in the hope that it will be useful, but\n"
+    "WITHOUT ANY WARRANTY; without even the implied warranty of\n"
+    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU\n"
+    "General Public License for more details.\n"
+    "\n"
+    "You should have received a copy of the GNU General Public License\n"
+    "along with this program; if not, see <https://www.gnu.org/licenses>.\n"
+    "\n"
+    "The contents of this file may alternatively be used under the terms\n"
+    "of the Common Development and Distribution License Version 1.0\n"
+    "(CDDL), a copy of it is provided in the \"COPYING.CDDL\" file included\n"
+    "in the VirtualBox distribution, in which case the provisions of the\n"
+    "CDDL are applicable instead of those of the GPL.\n"
+    "\n"
+    "You may elect to license modified versions of this file under the\n"
+    "terms and conditions of either the GPL or the CDDL or both.\n"
+    "\n"
+    "SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0\n";
+
+static const char g_szVBoxOseOldDualGpl2Cddl[] =
     "This file is part of VirtualBox Open Source Edition (OSE), as\n"
     "available from http://www.virtualbox.org. This file is free software;\n"
     "you can redistribute it and/or modify it under the terms of the GNU\n"
@@ -163,6 +220,16 @@ static const char g_szVBoxOseDualGplCddl[] =
 
 /** --license-ose-cddl   */
 static const char g_szVBoxOseCddl[] =
+    "This file is part of VirtualBox base platform packages, as\n"
+    "available from http://www.virtualbox.org.\n"
+    "\n"
+    "The contents of this file are subject to the terms of the Common\n"
+    "Development and Distribution License Version 1.0 (CDDL) only, as it\n"
+    "comes in the \"COPYING.CDDL\" file of the VirtualBox distribution.\n"
+    "\n"
+    "SPDX-License-Identifier: CDDL-1.0\n";
+
+static const char g_szVBoxOseOldCddl[] =
     "This file is part of VirtualBox Open Source Edition (OSE), as\n"
     "available from http://www.virtualbox.org. This file is free software;\n"
     "you can redistribute it and/or modify it under the terms of the Common\n"
@@ -176,7 +243,7 @@ static const char g_szVBoxLgpl[] =
     "This file is part of a free software library; you can redistribute\n"
     "it and/or modify it under the terms of the GNU Lesser General\n"
     "Public License version 2.1 as published by the Free Software\n"
-    "Foundation and shipped in the \"COPYING\" file with this library.\n"
+    "Foundation and shipped in the \"COPYING.LIB\" file with this library.\n"
     "The library is distributed in the hope that it will be useful,\n"
     "but WITHOUT ANY WARRANTY of any kind.\n"
     "\n"
@@ -187,7 +254,9 @@ static const char g_szVBoxLgpl[] =
     "a choice of LGPL license versions is made available with the\n"
     "language indicating that LGPLv2 or any later version may be used,\n"
     "or where a choice of which version of the LGPL is applied is\n"
-    "otherwise unspecified.\n";
+    "otherwise unspecified.\n"
+    "\n"
+    "SPDX-License-Identifier: LGPL-2.1-only\n";
 
 /** --license-mit
  * @note This isn't detectable as VirtualBox or Oracle specific.
@@ -332,6 +401,10 @@ static const char g_szMitAlt5[] =
 
 /** Oracle confidential. */
 static const char g_szOracleConfidential[] =
+    "Oracle Corporation confidential\n";
+
+/** Oracle confidential, old style. */
+static const char g_szOracleConfidentialOld[] =
     "Oracle Corporation confidential\n"
     "All rights reserved\n";
 
@@ -339,10 +412,14 @@ static const char g_szOracleConfidential[] =
 static const SCMLICENSETEXT g_aLicenses[] =
 {
     { kScmLicenseType_OseGpl,           kScmLicense_OseGpl,         RT_STR_TUPLE(g_szVBoxOseGpl)},
+    { kScmLicenseType_OseGpl,           kScmLicense_OseGpl,         RT_STR_TUPLE(g_szVBoxOseOldGpl2)},
     { kScmLicenseType_OseDualGplCddl,   kScmLicense_OseDualGplCddl, RT_STR_TUPLE(g_szVBoxOseDualGplCddl) },
+    { kScmLicenseType_OseDualGplCddl,   kScmLicense_OseDualGplCddl, RT_STR_TUPLE(g_szVBoxOseOldDualGpl2Cddl) },
     { kScmLicenseType_OseCddl,          kScmLicense_OseCddl,        RT_STR_TUPLE(g_szVBoxOseCddl) },
+    { kScmLicenseType_OseCddl,          kScmLicense_OseCddl,        RT_STR_TUPLE(g_szVBoxOseOldCddl) },
     { kScmLicenseType_VBoxLgpl,         kScmLicense_Lgpl,           RT_STR_TUPLE(g_szVBoxLgpl)},
     { kScmLicenseType_Confidential,     kScmLicense_End,            RT_STR_TUPLE(g_szOracleConfidential) },
+    { kScmLicenseType_Confidential,     kScmLicense_End,            RT_STR_TUPLE(g_szOracleConfidentialOld) },
     { kScmLicenseType_Invalid,          kScmLicense_End,            NULL, 0 },
 };
 
@@ -356,14 +433,20 @@ static const SCMLICENSETEXT g_aLicensesWithMit[] =
     { kScmLicenseType_Mit,              kScmLicense_Mit,            RT_STR_TUPLE(g_szMitAlt4) },
     { kScmLicenseType_Mit,              kScmLicense_Mit,            RT_STR_TUPLE(g_szMitAlt5) },
     { kScmLicenseType_OseGpl,           kScmLicense_OseGpl,         RT_STR_TUPLE(g_szVBoxOseGpl)},
+    { kScmLicenseType_OseGpl,           kScmLicense_OseGpl,         RT_STR_TUPLE(g_szVBoxOseOldGpl2)},
     { kScmLicenseType_OseDualGplCddl,   kScmLicense_OseDualGplCddl, RT_STR_TUPLE(g_szVBoxOseDualGplCddl) },
+    { kScmLicenseType_OseDualGplCddl,   kScmLicense_OseDualGplCddl, RT_STR_TUPLE(g_szVBoxOseOldDualGpl2Cddl) },
     { kScmLicenseType_VBoxLgpl,         kScmLicense_Lgpl,           RT_STR_TUPLE(g_szVBoxLgpl)},
     { kScmLicenseType_Confidential,     kScmLicense_End,            RT_STR_TUPLE(g_szOracleConfidential) },
+    { kScmLicenseType_Confidential,     kScmLicense_End,            RT_STR_TUPLE(g_szOracleConfidentialOld) },
     { kScmLicenseType_Invalid,          kScmLicense_End,            NULL, 0 },
 };
 
 /** Copyright holder. */
-static const char g_szCopyrightHolder[] = "Oracle Corporation";
+static const char g_szCopyrightHolder[] = "Oracle and/or its affiliates.";
+
+/** Old copyright holder. */
+static const char g_szOldCopyrightHolder[] = "Oracle Corporation";
 
 /** LGPL disclaimer. */
 static const char g_szLgplDisclaimer[] =
@@ -387,6 +470,7 @@ static RTSTRTUPLE const g_aCopyrightCommentStart[] =
     { RT_STR_TUPLE("Rem") },
     { RT_STR_TUPLE("--") },
     { RT_STR_TUPLE("'") },
+    { RT_STR_TUPLE("<!--") },
     { RT_STR_TUPLE("<end>") },
 };
 
@@ -403,6 +487,7 @@ static RTSTRTUPLE const g_aCopyrightCommentPrefix[] =
     { RT_STR_TUPLE("Rem ") },
     { RT_STR_TUPLE("-- ") },
     { RT_STR_TUPLE("' ") },
+    { RT_STR_TUPLE("    ") },
     { RT_STR_TUPLE("<end>") },
 };
 
@@ -419,6 +504,7 @@ static RTSTRTUPLE const g_aCopyrightCommentEmpty[] =
     { RT_STR_TUPLE("Rem") },
     { RT_STR_TUPLE("--") },
     { RT_STR_TUPLE("'") },
+    { RT_STR_TUPLE("") },
     { RT_STR_TUPLE("<end>") },
 };
 
@@ -435,6 +521,7 @@ static RTSTRTUPLE const g_aCopyrightCommentEnd[] =
     { RT_STR_TUPLE("Rem") },
     { RT_STR_TUPLE("--") },
     { RT_STR_TUPLE("'") },
+    { RT_STR_TUPLE("-->") },
     { RT_STR_TUPLE("<end>") },
 };
 
@@ -445,7 +532,7 @@ static RTSTRTUPLE const g_aCopyrightCommentEnd[] =
  * @returns Predominant comment style.
  * @param   pIn         The file to scan.  Will be rewound.
  */
-static SCMCOMMENTSTYLE determinBatchFileCommentStyle(PSCMSTREAM pIn)
+static SCMCOMMENTSTYLE determineBatchFileCommentStyle(PSCMSTREAM pIn)
 {
     /*
      * Figure out whether it's using upper or lower case REM comments before
@@ -1063,6 +1150,68 @@ bool rewrite_SvnSyncProcess(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut,
 }
 
 /**
+ * Checks the that there is no bidirectional unicode fun in the file.
+ *
+ * @returns false - the state carries these kinds of changes.
+ * @param   pState              The rewriter state.
+ * @param   pIn                 The input stream.
+ * @param   pOut                The output stream.
+ * @param   pSettings           The settings.
+ */
+bool rewrite_UnicodeChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+{
+    RT_NOREF2(pIn, pOut);
+    if (pSettings->fSkipUnicodeChecks)
+        return false;
+
+    /*
+     * Just scan the input for weird stuff and fail if we find anything we don't like.
+     */
+    uint32_t    iLine = 0;
+    SCMEOL      enmEol;
+    size_t      cchLine;
+    const char *pchLine;
+    while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
+    {
+        iLine++;
+        const char *pchCur  = pchLine;
+        size_t      cchLeft = cchLine;
+        while (cchLeft > 0)
+        {
+            RTUNICP uc = 0;
+            int rc = RTStrGetCpNEx(&pchCur, &cchLeft, &uc);
+            if (RT_SUCCESS(rc))
+            {
+                const char *pszWhat;
+                switch (uc)
+                {
+                    default:
+                        continue;
+
+                    /* Potentially evil bi-directional control codes (Table I, trojan-source.pdf):  */
+                    case 0x202a: pszWhat = "LRE - left-to-right embedding"; break;
+                    case 0x202b: pszWhat = "RLE - right-to-left embedding"; break;
+                    case 0x202d: pszWhat = "LRO - left-to-right override"; break;
+                    case 0x202e: pszWhat = "RLO - right-to-left override"; break;
+                    case 0x2066: pszWhat = "LRI - left-to-right isolate"; break;
+                    case 0x2067: pszWhat = "RLI - right-to-left isolate"; break;
+                    case 0x2068: pszWhat = "FSI - first strong isolate"; break;
+                    case 0x202c: pszWhat = "PDF - pop directional formatting (LRE, RLE, LRO, RLO)"; break;
+                    case 0x2069: pszWhat = "PDI - pop directional isolate (LRI, RLI)"; break;
+
+                    /** @todo add checks for homoglyphs too. */
+                }
+                ScmFixManually(pState, "%u:%zu: Evil unicode codepoint: %s\n", iLine, pchCur - pchLine, pszWhat);
+            }
+            else
+                ScmFixManually(pState, "%u:%zu: Invalid UTF-8 encoding: %Rrc\n", iLine, pchCur - pchLine, rc);
+        }
+    }
+
+    return false;
+}
+
+/**
  * Compares two strings word-by-word, ignoring spaces, punctuation and case.
  *
  * Assumes ASCII strings.
@@ -1270,7 +1419,7 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
     bool     fFoundCopyright = false;
     uint32_t cBlankLinesAfterCopyright = 0;
     if (   pState->iLineCopyright == UINT32_MAX
-        && cchBody > sizeof("Copyright") + sizeof(g_szCopyrightHolder)
+        && cchBody > sizeof("Copyright") + RT_MIN(sizeof(g_szCopyrightHolder), sizeof(g_szOldCopyrightHolder))
         && RTStrNICmp(pszBody, RT_STR_TUPLE("copyright")) == 0)
     {
         const char *pszNextLine = (const char *)memchr(pszBody, '\n', cchBody);
@@ -1279,9 +1428,12 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
         const char *pszEnd  = pszNextLine ? pszNextLine : &pszBody[cchBody];
         while (RT_C_IS_SPACE(pszEnd[-1]))
             pszEnd--;
-        if (   (uintptr_t)(pszEnd - pszBody) > sizeof(g_szCopyrightHolder)
-            && (*(unsigned char *)(pszEnd - sizeof(g_szCopyrightHolder) + 1) & 0x80) == 0 /* to avoid annoying assertion */
-            && RTStrNICmp(pszEnd - sizeof(g_szCopyrightHolder) + 1, RT_STR_TUPLE(g_szCopyrightHolder)) == 0)
+        if (   (   (uintptr_t)(pszEnd - pszBody) > sizeof(g_szCopyrightHolder)
+                && (*(unsigned char *)(pszEnd - sizeof(g_szCopyrightHolder) + 1) & 0x80) == 0 /* to avoid annoying assertion */
+                && RTStrNICmp(pszEnd - sizeof(g_szCopyrightHolder) + 1, RT_STR_TUPLE(g_szCopyrightHolder)) == 0)
+            || (   (uintptr_t)(pszEnd - pszBody) > sizeof(g_szOldCopyrightHolder)
+                && (*(unsigned char *)(pszEnd - sizeof(g_szOldCopyrightHolder) + 1) & 0x80) == 0 /* to avoid annoying assertion */
+                && RTStrNICmp(pszEnd - sizeof(g_szOldCopyrightHolder) + 1, RT_STR_TUPLE(g_szOldCopyrightHolder)) == 0) )
         {
             /* Parse out the year(s). */
             const char *psz = pszBody + sizeof("copyright");
@@ -1298,8 +1450,11 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
                     if (   pState->uFirstYear < 1975
                         || pState->uFirstYear > 3000)
                     {
-                        ScmError(pState->pState, VERR_OUT_OF_RANGE, "Copyright year is out of range: %u ('%.*s')\n",
-                                 pState->uFirstYear, pszEnd - pszBody, pszBody);
+                        char *pszCopy = RTStrDupN(pszBody, pszEnd - pszBody);
+                        RTStrPurgeEncoding(pszCopy);
+                        ScmError(pState->pState, VERR_OUT_OF_RANGE, "Copyright year is out of range: %u ('%s')\n",
+                                 pState->uFirstYear, pszCopy);
+                        RTStrFree(pszCopy);
                         pState->uFirstYear = UINT32_MAX;
                     }
 
@@ -1318,13 +1473,19 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
                             if (   pState->uLastYear < 1975
                                 || pState->uLastYear > 3000)
                             {
-                                ScmError(pState->pState, VERR_OUT_OF_RANGE, "Second copyright year is out of range: %u ('%.*s')\n",
-                                         pState->uLastYear, pszEnd - pszBody, pszBody);
+                                char *pszCopy = RTStrDupN(pszBody, pszEnd - pszBody);
+                                RTStrPurgeEncoding(pszCopy);
+                                ScmError(pState->pState, VERR_OUT_OF_RANGE, "Second copyright year is out of range: %u ('%s')\n",
+                                         pState->uLastYear, pszCopy);
+                                RTStrFree(pszCopy);
                                 pState->uLastYear = UINT32_MAX;
                             }
                             else if (pState->uFirstYear > pState->uLastYear)
                             {
-                                RTMsgWarning("Copyright years switched(?): '%.*s'\n", pszEnd - pszBody, pszBody);
+                                char *pszCopy = RTStrDupN(pszBody, pszEnd - pszBody);
+                                RTStrPurgeEncoding(pszCopy);
+                                RTMsgWarning("Copyright years switched(?): '%s'\n", pszCopy);
+                                RTStrFree(pszCopy);
                                 uint32_t iTmp = pState->uLastYear;
                                 pState->uLastYear = pState->uFirstYear;
                                 pState->uFirstYear = iTmp;
@@ -1333,21 +1494,31 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
                         else
                         {
                             pState->uLastYear = UINT32_MAX;
+                            char *pszCopy = RTStrDupN(pszBody, pszEnd - pszBody);
+                            RTStrPurgeEncoding(pszCopy);
                             ScmError(pState->pState, RT_SUCCESS(rc) ? -rc : rc,
-                                     "Failed to parse second copyright year: '%.*s'\n", pszEnd - pszBody, pszBody);
+                                     "Failed to parse second copyright year: '%s'\n", pszCopy);
+                            RTMemFree(pszCopy);
                         }
                     }
                     else if (*pszNext != g_szCopyrightHolder[0])
+                    {
+                        char *pszCopy = RTStrDupN(pszBody, pszEnd - pszBody);
+                        RTStrPurgeEncoding(pszCopy);
                         ScmError(pState->pState, VERR_PARSE_ERROR,
-                                 "Failed to parse copyright: '%.*s'\n", pszEnd - pszBody, pszBody);
-                    else
+                                 "Failed to parse copyright: '%s'\n", pszCopy);
+                        RTMemFree(pszCopy);
+                    } else
                         pState->uLastYear = pState->uFirstYear;
                 }
                 else
                 {
                     pState->uFirstYear = UINT32_MAX;
+                    char *pszCopy = RTStrDupN(pszBody, pszEnd - pszBody);
+                    RTStrPurgeEncoding(pszCopy);
                     ScmError(pState->pState, RT_SUCCESS(rc) ? -rc : rc,
-                             "Failed to parse copyright year: '%.*s'\n", pszEnd - pszBody, pszBody);
+                             "Failed to parse copyright year: '%s'\n", pszCopy);
+                    RTMemFree(pszCopy);
                 }
             }
 
@@ -1419,7 +1590,12 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
                        pState->uFirstYear, pState->uLastYear, pState->fUpToDateCopyright, pState->fWellFormedCopyright);
         }
         else
-            ScmVerbose(pState->pState, 3, "not oracle copyright: '%.*s'\n", pszEnd - pszBody, pszBody);
+        {
+            char *pszCopy = RTStrDupN(pszBody, pszEnd - pszBody);
+            RTStrPurgeEncoding(pszCopy);
+            ScmVerbose(pState->pState, 3, "not oracle copyright: '%s'\n", pszCopy);
+            RTStrFree(pszCopy);
+        }
 
         if (!pszNextLine)
             return VINF_SUCCESS;
@@ -1548,7 +1724,7 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
                     || fExternal)
                 {
                     /* In C/C++ code, this must be a multiline comment.  While in python it
-                       must be a */
+                       must be a doc-string. */
                     if (pState->enmCommentStyle == kScmCommentStyle_C && pInfo->enmType != kScmCommentType_MultiLine)
                         ScmError(pState->pState, VERR_WRONG_ORDER, "License must appear in a multiline comment (no doxygen stuff)\n");
                     else if (pState->enmCommentStyle == kScmCommentStyle_Python && pInfo->enmType != kScmCommentType_DocString)
@@ -1563,9 +1739,7 @@ rewrite_Copyright_CommentCallback(PCSCMCOMMENTINFO pInfo, const char *pszBody, s
                     pState->cLinesLicense       = CountLinesInSubstring(pszBody, pszNext - pszBody) - fExternal;
                     pState->pCurrentLicense     = pCur;
                     pState->fExternalLicense    = fExternal;
-                    pState->fIsCorrectLicense   = pState->fOpenSource
-                                                ? pCur == pState->pExpectedLicense
-                                                : pCur->enmType == kScmLicenseType_Confidential;
+                    pState->fIsCorrectLicense   = pCur == pState->pExpectedLicense;
                     pState->fWellFormedLicense  = memcmp(pszBody, pCur->psz, pCur->cch - 1) == 0;
                     if (!pState->fWellFormedLicense)
                         ScmVerbose(pState->pState, 1, "* license text isn't well-formed\n");
@@ -1945,7 +2119,7 @@ bool rewrite_Copyright_HashComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREA
 /** Copyright updater for REM-prefixed comments.   */
 bool rewrite_Copyright_RemComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
-    return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, determinBatchFileCommentStyle(pIn));
+    return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, determineBatchFileCommentStyle(pIn));
 }
 
 /** Copyright updater for python comments.   */
@@ -1970,6 +2144,12 @@ bool rewrite_Copyright_SqlComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM
 bool rewrite_Copyright_TickComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Tick);
+}
+
+/** Copyright updater for XML comments.   */
+bool rewrite_Copyright_XmlComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+{
+    return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Xml);
 }
 
 
@@ -3087,7 +3267,7 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
         if (RT_FAILURE(rc))
             return ScmError(pState, rc, "seek error\n");
         fRet |= pSettings->fPragmaOnce;
-        ScmVerbose(pState, 2, "Missing #pragma once\n");
+        ScmVerbose(pState, pSettings->fPragmaOnce ? 2 : 3, "Missing #pragma once\n");
     }
 
     /*
@@ -3186,6 +3366,208 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
     }
 
     return fRet;
+}
+
+
+/**
+ * Checks for PAGE_SIZE, PAGE_SHIFT and PAGE_OFFSET_MASK w/o a GUEST_ or HOST_
+ * prefix as well as banning PAGE_BASE_HC_MASK, PAGE_BASE_GC_MASK and
+ * PAGE_BASE_MASK.
+ *
+ * @returns true if modifications were made, false if not.
+ * @param   pIn                 The input stream.
+ * @param   pOut                The output stream.
+ * @param   pSettings           The settings.
+ */
+bool rewrite_PageChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+{
+    RT_NOREF(pOut);
+    if (!pSettings->fOnlyGuestHostPage && !pSettings->fNoASMMemPageUse)
+        return false;
+
+    static RTSTRTUPLE const g_aWords[] =
+    {
+        { RT_STR_TUPLE("PAGE_SIZE") },
+        { RT_STR_TUPLE("PAGE_SHIFT") },
+        { RT_STR_TUPLE("PAGE_OFFSET_MASK") },
+        { RT_STR_TUPLE("PAGE_BASE_MASK") },
+        { RT_STR_TUPLE("PAGE_BASE_GC_MASK") },
+        { RT_STR_TUPLE("PAGE_BASE_HC_MASK") },
+        { RT_STR_TUPLE("PAGE_ADDRESS") },
+        { RT_STR_TUPLE("PHYS_PAGE_ADDRESS") },
+        { RT_STR_TUPLE("ASMMemIsZeroPage") },
+        { RT_STR_TUPLE("ASMMemZeroPage") },
+    };
+    size_t const iFirstWord = pSettings->fOnlyGuestHostPage ? 0 : 7;
+    size_t const iEndWords  = pSettings->fNoASMMemPageUse   ? 9 : 7;
+
+    uint32_t    iLine = 0;
+    SCMEOL      enmEol;
+    size_t      cchLine;
+    const char *pchLine;
+    while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
+    {
+        iLine++;
+        for (size_t i = iFirstWord; i < iEndWords; i++)
+        {
+            size_t const cchWord = g_aWords[i].cch;
+            if (cchLine >= cchWord)
+            {
+                const char * const pszWord = g_aWords[i].psz;
+                const char        *pchHit  = (const char *)memchr(pchLine, *pszWord, cchLine);
+                while (pchHit)
+                {
+                    size_t cchLeft = (uintptr_t)&pchLine[cchLine] - (uintptr_t)pchHit;
+                    if (   cchLeft >= cchWord
+                        && memcmp(pchHit, pszWord, cchWord) == 0
+                        && (   pchHit == pchLine
+                            || !ScmIsCIdentifierChar(pchHit[-1]))
+                        && (   cchLeft == cchWord
+                            || !ScmIsCIdentifierChar(pchHit[cchWord])) )
+                    {
+                        if (i < 3)
+                            ScmFixManually(pState, "%u:%zu: %s is not allow! Use GUEST_%s or HOST_%s instead.\n",
+                                           iLine, pchHit - pchLine + 1, pszWord, pszWord, pszWord);
+                        else if (i < 7)
+                            ScmFixManually(pState, "%u:%zu: %s is not allow! Rewrite using GUEST/HOST_PAGE_OFFSET_MASK.\n",
+                                           iLine, pchHit - pchLine + 1, pszWord);
+                        else
+                            ScmFixManually(pState, "%u:%zu: %s is not allow! Use %s with correct page size instead.\n",
+                                           iLine, pchHit - pchLine + 1, pszWord, i == 3 ? "ASMMemIsZero" : "RT_BZERO");
+                    }
+
+                    /* next */
+                    cchLeft -= 1;
+                    if (cchLeft < cchWord)
+                        break;
+                    pchHit = (const char *)memchr(pchHit + 1, *pszWord, cchLeft);
+                }
+            }
+        }
+    }
+
+    return false;
+}
+
+
+/**
+ * Checks for usage of rc in code instead of vrc for IPRT status codes (int) and hrc for COM
+ * status codes (HRESULT).
+ *
+ * @returns true if modifications were made, false if not.
+ * @param   pIn                 The input stream.
+ * @param   pOut                The output stream.
+ * @param   pSettings           The settings.
+ *
+ * @note Used in Main to avoid ambiguity when just using rc.
+ */
+bool rewrite_ForceHrcVrcInsteadOfRc(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+{
+    RT_NOREF(pOut);
+    if (!pSettings->fOnlyHrcVrcInsteadOfRc)
+        return false;
+
+    static const SCMMATCHWORD s_aHresultVrc[] =
+    {
+        { RT_STR_TUPLE("HRESULT"),                  0, true, false },
+        { RT_STR_TUPLE("vrc"),                      1, true, false }
+    };
+
+    static const SCMMATCHWORD s_aIntHrc[] =
+    {
+        { RT_STR_TUPLE("int"),                      0, true, false },
+        { RT_STR_TUPLE("hrc"),                      1, true, false }
+    };
+
+    uint32_t        iLine = 0;
+    SCMEOL          enmEol;
+    size_t          cchLine;
+    const char      *pchLine;
+    RTERRINFOSTATIC ErrInfo;
+    while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
+    {
+        iLine++;
+
+        /* Look for forbidden declarations first. */
+        size_t offNext = 0;
+        int rc = ScmMatchWords(pchLine, cchLine, s_aHresultVrc, RT_ELEMENTS(s_aHresultVrc),
+                               &offNext, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+        {
+            ScmFixManually(pState, "%u:%zu: 'HRESULT vrc' is not allowed! Use 'HRESULT hrc' instead.\n",
+                           iLine, offNext);
+            continue;
+        }
+
+        rc = ScmMatchWords(pchLine, cchLine, s_aIntHrc, RT_ELEMENTS(s_aIntHrc),
+                           &offNext, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+        {
+            ScmFixManually(pState, "%u:%zu: 'int hrc' is not allowed! Use 'int vrc' instead.\n",
+                           iLine, offNext);
+            continue;
+        }
+
+#if 0 /* This is too broad and triggers on things we don't want to trigger on (like autoCaller.rc()). */
+        const RTSTRTUPLE RcTuple = { RT_STR_TUPLE("rc") };
+        size_t const cchWord = RcTuple.cch;
+        if (cchLine >= cchWord)
+        {
+            const char        *pchHit  = (const char *)memchr(pchLine, *RcTuple.psz, cchLine);
+            while (pchHit)
+            {
+                size_t cchLeft = (uintptr_t)&pchLine[cchLine] - (uintptr_t)pchHit;
+                if (   cchLeft >= cchWord
+                    && memcmp(pchHit, RcTuple.psz, cchWord) == 0
+                    && (   pchHit == pchLine
+                        || !ScmIsCIdentifierChar(pchHit[-1]))
+                    && (   cchLeft == cchWord
+                        || !ScmIsCIdentifierChar(pchHit[cchWord])) )
+                    ScmFixManually(pState, "%u:%zu: %s is not allowed! Use hrc or vrc instead.\n",
+                                   iLine, pchHit - pchLine + 1, RcTuple.psz);
+
+                /* next */
+                cchLeft -= 1;
+                if (cchLeft < cchWord)
+                    break;
+                pchHit = (const char *)memchr(pchHit + 1, *RcTuple.psz, cchLeft);
+            }
+        }
+#else
+        /* Trigger on declarations of 'HRESULT rc' and 'int rc'. */
+        static const SCMMATCHWORD s_aHresultRc[] =
+        {
+            { RT_STR_TUPLE("HRESULT"),                  0, true, false },
+            { RT_STR_TUPLE("rc"),                       1, true, false }
+        };
+
+        static const SCMMATCHWORD s_aIntRc[] =
+        {
+            { RT_STR_TUPLE("int"),                      0, true, false },
+            { RT_STR_TUPLE("rc"),                       1, true, false }
+        };
+
+        rc = ScmMatchWords(pchLine, cchLine, s_aHresultRc, RT_ELEMENTS(s_aHresultRc),
+                           &offNext, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+        {
+            ScmFixManually(pState, "%u:%zu: 'HRESULT rc' is not allowed! Use 'HRESULT hrc' instead.\n",
+                           iLine, offNext);
+            continue;
+        }
+
+        rc = ScmMatchWords(pchLine, cchLine, s_aIntRc, RT_ELEMENTS(s_aIntRc),
+                           &offNext, NULL /*paIdentifiers*/, RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+        {
+            ScmFixManually(pState, "%u:%zu: 'int rc' is not allowed! Use 'int vrc' instead.\n",
+                           iLine, offNext);
+            continue;
+        }
+#endif
+    }
+
+    return false;
 }
 
 

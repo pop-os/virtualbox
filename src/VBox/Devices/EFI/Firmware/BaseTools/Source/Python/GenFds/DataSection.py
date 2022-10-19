@@ -44,10 +44,12 @@ class DataSection (DataSectionClassObject):
     #   @param  Dict        dictionary contains macro and its value
     #   @retval tuple       (Generated file name list, section alignment)
     #
-    def GenSection(self, OutputPath, ModuleName, SecNum, keyStringList, FfsFile = None, Dict = {}, IsMakefile = False):
+    def GenSection(self, OutputPath, ModuleName, SecNum, keyStringList, FfsFile = None, Dict = None, IsMakefile = False):
         #
         # Prepare the parameter of GenSection
         #
+        if Dict is None:
+            Dict = {}
         if FfsFile is not None:
             self.SectFileName = GenFdsGlobalVariable.ReplaceWorkspaceMacro(self.SectFileName)
             self.SectFileName = GenFdsGlobalVariable.MacroExtend(self.SectFileName, Dict, FfsFile.CurrentArch)
@@ -78,14 +80,7 @@ class DataSection (DataSectionClassObject):
 
         #Get PE Section alignment when align is set to AUTO
         if self.Alignment == 'Auto' and self.SecType in (BINARY_FILE_TYPE_TE, BINARY_FILE_TYPE_PE32):
-            ImageObj = PeImageClass (Filename)
-            if ImageObj.SectionAlignment < 0x400:
-                self.Alignment = str (ImageObj.SectionAlignment)
-            elif ImageObj.SectionAlignment < 0x100000:
-                self.Alignment = str (ImageObj.SectionAlignment // 0x400) + 'K'
-            else:
-                self.Alignment = str (ImageObj.SectionAlignment // 0x100000) + 'M'
-
+            self.Alignment = "0"
         NoStrip = True
         if self.SecType in (BINARY_FILE_TYPE_TE, BINARY_FILE_TYPE_PE32):
             if self.KeepReloc is not None:

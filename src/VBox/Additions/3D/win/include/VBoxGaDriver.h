@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_3D_WIN_VBoxGaDriver_h
@@ -38,39 +48,46 @@ typedef struct WDDMGalliumDriverEnv
     /* The environment context pointer to use in the following callbacks. */
     void *pvEnv;
     /* The callbacks to use by the driver. */
-    DECLCALLBACKMEMBER(uint32_t, pfnContextCreate)(void *pvEnv,
+    DECLCALLBACKMEMBER(uint32_t, pfnContextCreate,(void *pvEnv,
                                                    boolean extended,
-                                                   boolean vgpu10);
-    DECLCALLBACKMEMBER(void, pfnContextDestroy)(void *pvEnv,
-                                                uint32_t u32Cid);
-    DECLCALLBACKMEMBER(int, pfnSurfaceDefine)(void *pvEnv,
+                                                   boolean vgpu10));
+    DECLCALLBACKMEMBER(void, pfnContextDestroy,(void *pvEnv,
+                                                uint32_t u32Cid));
+    DECLCALLBACKMEMBER(int, pfnSurfaceDefine,(void *pvEnv,
                                               GASURFCREATE *pCreateParms,
                                               GASURFSIZE *paSizes,
                                               uint32_t cSizes,
-                                              uint32_t *pu32Sid);
-    DECLCALLBACKMEMBER(void, pfnSurfaceDestroy)(void *pvEnv,
-                                                uint32_t u32Sid);
-    DECLCALLBACKMEMBER(int, pfnRender)(void *pvEnv,
+                                              uint32_t *pu32Sid));
+    DECLCALLBACKMEMBER(void, pfnSurfaceDestroy,(void *pvEnv,
+                                                uint32_t u32Sid));
+    DECLCALLBACKMEMBER(int, pfnRender,(void *pvEnv,
                                        uint32_t u32Cid,
                                        void *pvCommands,
                                        uint32_t cbCommands,
-                                       GAFENCEQUERY *pFenceQuery);
-    DECLCALLBACKMEMBER(void, pfnFenceUnref)(void *pvEnv,
-                                            uint32_t u32FenceHandle);
-    DECLCALLBACKMEMBER(int, pfnFenceQuery)(void *pvEnv,
+                                       GAFENCEQUERY *pFenceQuery));
+    DECLCALLBACKMEMBER(void, pfnFenceUnref,(void *pvEnv,
+                                            uint32_t u32FenceHandle));
+    DECLCALLBACKMEMBER(int, pfnFenceQuery,(void *pvEnv,
                                            uint32_t u32FenceHandle,
-                                           GAFENCEQUERY *pFenceQuery);
-    DECLCALLBACKMEMBER(int, pfnFenceWait)(void *pvEnv,
+                                           GAFENCEQUERY *pFenceQuery));
+    DECLCALLBACKMEMBER(int, pfnFenceWait,(void *pvEnv,
                                           uint32_t u32FenceHandle,
-                                          uint32_t u32TimeoutUS);
-    DECLCALLBACKMEMBER(int, pfnRegionCreate)(void *pvEnv,
+                                          uint32_t u32TimeoutUS));
+    DECLCALLBACKMEMBER(int, pfnRegionCreate,(void *pvEnv,
                                              uint32_t u32RegionSize,
                                              uint32_t *pu32GmrId,
-                                             void **ppvMap);
-    DECLCALLBACKMEMBER(void, pfnRegionDestroy)(void *pvEnv,
+                                             void **ppvMap));
+    DECLCALLBACKMEMBER(void, pfnRegionDestroy,(void *pvEnv,
                                                uint32_t u32GmrId,
-                                               void *pvMap);
+                                               void *pvMap));
+    /* VGPU10 */
+    DECLCALLBACKMEMBER(int, pfnGBSurfaceDefine,(void *pvEnv,
+                                                SVGAGBSURFCREATE *pCreateParms));
 } WDDMGalliumDriverEnv;
+
+struct pipe_context;
+struct pipe_screen;
+struct pipe_resource;
 
 typedef struct pipe_screen * WINAPI FNGaDrvScreenCreate(const WDDMGalliumDriverEnv *pEnv);
 typedef FNGaDrvScreenCreate *PFNGaDrvScreenCreate;

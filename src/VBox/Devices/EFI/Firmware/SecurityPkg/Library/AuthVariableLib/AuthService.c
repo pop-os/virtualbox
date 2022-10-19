@@ -19,11 +19,15 @@
   to verify the signature.
 
 Copyright (c) 2009 - 2019, Intel Corporation. All rights reserved.<BR>
+Copyright (c) Microsoft Corporation.
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
 #include "AuthServiceInternal.h"
+
+#include <Protocol/VariablePolicy.h>
+#include <Library/VariablePolicyLib.h>
 
 //
 // Public Exponent of RSA Key.
@@ -217,9 +221,12 @@ NeedPhysicallyPresent(
   IN     EFI_GUID       *VendorGuid
   )
 {
-  if ((CompareGuid (VendorGuid, &gEfiSecureBootEnableDisableGuid) && (StrCmp (VariableName, EFI_SECURE_BOOT_ENABLE_NAME) == 0))
-    || (CompareGuid (VendorGuid, &gEfiCustomModeEnableGuid) && (StrCmp (VariableName, EFI_CUSTOM_MODE_NAME) == 0))) {
-    return TRUE;
+  // If the VariablePolicy engine is disabled, allow deletion of any authenticated variables.
+  if (IsVariablePolicyEnabled()) {
+    if ((CompareGuid (VendorGuid, &gEfiSecureBootEnableDisableGuid) && (StrCmp (VariableName, EFI_SECURE_BOOT_ENABLE_NAME) == 0))
+      || (CompareGuid (VendorGuid, &gEfiCustomModeEnableGuid) && (StrCmp (VariableName, EFI_CUSTOM_MODE_NAME) == 0))) {
+      return TRUE;
+    }
   }
 
   return FALSE;
@@ -425,7 +432,7 @@ CheckSignatureListFormat(
   RsaContext = NULL;
 
   //
-  // Walk throuth the input signature list and check the data format.
+  // Walk through the input signature list and check the data format.
   // If any signature is incorrectly formed, the whole check will fail.
   //
   while ((SigDataSize > 0) && (SigDataSize >= SigList->SignatureListSize)) {
@@ -842,7 +849,8 @@ ProcessVariable (
              &OrgVariableInfo
              );
 
-  if ((!EFI_ERROR (Status)) && IsDeleteAuthVariable (OrgVariableInfo.Attributes, Data, DataSize, Attributes) && UserPhysicalPresent()) {
+  // If the VariablePolicy engine is disabled, allow deletion of any authenticated variables.
+  if ((!EFI_ERROR (Status)) && IsDeleteAuthVariable (OrgVariableInfo.Attributes, Data, DataSize, Attributes) && (UserPhysicalPresent() || !IsVariablePolicyEnabled())) {
     //
     // Allow the delete operation of common authenticated variable(AT or AW) at user physical presence.
     //
@@ -1069,7 +1077,7 @@ AuthServiceInternalCompareTimeStamp (
   @param[out] Sha256Digest       Sha256 digest calculated.
 
   @return EFI_ABORTED          Digest process failed.
-  @return EFI_SUCCESS          SHA256 Digest is succesfully calculated.
+  @return EFI_SUCCESS          SHA256 Digest is successfully calculated.
 
 **/
 EFI_STATUS
@@ -1920,6 +1928,12 @@ VerifyTimeBasedPayload (
   PayloadPtr = SigData + SigDataSize;
   PayloadSize = DataSize - OFFSET_OF_AUTHINFO2_CERT_DATA - (UINTN) SigDataSize;
 
+  // If the VariablePolicy engine is disabled, allow deletion of any authenticated variables.
+  if (PayloadSize == 0 && (Attributes & EFI_VARIABLE_APPEND_WRITE) == 0 && !IsVariablePolicyEnabled()) {
+    VerifyStatus = TRUE;
+    goto Exit;
+  }
+
   //
   // Construct a serialization buffer of the values of the VariableName, VendorGuid and Attributes
   // parameters of the SetVariable() call and the TimeStamp component of the
@@ -2173,8 +2187,12 @@ VerifyTimeBasedPayload (
 Exit:
 
   if (AuthVarType == AuthVarTypePk || AuthVarType == AuthVarTypePriv) {
-    Pkcs7FreeSigners (TopLevelCert);
-    Pkcs7FreeSigners (SignerCerts);
+    if (TopLevelCert != NULL) {
+        Pkcs7FreeSigners (TopLevelCert);
+    }
+    if (SignerCerts != NULL) {
+        Pkcs7FreeSigners (SignerCerts);
+    }
   }
 
   if (!VerifyStatus) {

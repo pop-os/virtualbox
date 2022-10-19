@@ -4,20 +4,33 @@
  */
 
 /*
- * Copyright (C) 2015-2020 Oracle Corporation
+ * Copyright (C) 2015-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
 #include <QApplication>
-#include <QDesktopWidget>
+#ifndef VBOX_IS_QT6_OR_LATER
+# include <QDesktopWidget>
+#endif
+#include <QWidget>
 #include <QScreen>
 #ifdef VBOX_WS_WIN
 # include <QLibrary>
@@ -28,19 +41,30 @@
 
 /* GUI includes: */
 #include "UIDesktopWidgetWatchdog.h"
+#ifdef VBOX_WS_MAC
+# include "VBoxUtils-darwin.h"
+#endif
+#ifdef VBOX_WS_WIN
+# include "VBoxUtils-win.h"
+#endif
 #ifdef VBOX_WS_X11
 # include "UICommon.h"
-#endif /* VBOX_WS_X11 */
+# include "VBoxUtils-x11.h"
+#endif
 
 /* Other VBox includes: */
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/ldr.h>
 #include <VBox/log.h>
-
-/* Platform includes: */
 #ifdef VBOX_WS_WIN
 # include <iprt/win/windows.h>
+#endif
+
+/* External includes: */
+#include <math.h>
+#ifdef VBOX_WS_X11
+# include <xcb/xcb.h>
 #endif
 
 
@@ -76,7 +100,7 @@ static bool ResolveDynamicImports(void)
     return g_pfnGetDpiForMonitor != NULL;
 }
 
-static BOOL CALLBACK MonitorEnumProcF(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lpClipRect, LPARAM dwData)
+static BOOL CALLBACK MonitorEnumProcF(HMONITOR hMonitor, HDC hdcMonitor, LPRECT lpClipRect, LPARAM dwData) RT_NOTHROW_DEF
 {
     /* These required for clipped screens only: */
     RT_NOREF(hdcMonitor, lpClipRect);
@@ -272,42 +296,110 @@ UIDesktopWidgetWatchdog::~UIDesktopWidgetWatchdog()
 
 int UIDesktopWidgetWatchdog::overallDesktopWidth() const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    /** @todo bird: Not sure if this is entirely correct. */
+    return QGuiApplication::primaryScreen()->geometry().width();
+#else
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->width();
+#endif
 }
 
 int UIDesktopWidgetWatchdog::overallDesktopHeight() const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    /** @todo bird: Not sure if this is entirely correct. */
+    return QGuiApplication::primaryScreen()->geometry().height();
+#else
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->height();
+#endif
 }
 
 int UIDesktopWidgetWatchdog::screenCount() const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    return QGuiApplication::screens().size();
+#else
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->screenCount();
+#endif
 }
+
+#ifdef VBOX_IS_QT6_OR_LATER
+
+/** Helper for generating qt5 screen indexes as best as we can. */
+static int screenToIndex(QScreen *pScreen)
+{
+    if (pScreen)
+    {
+        /** @todo Not at all sure about the sensitibility of this.   */
+        QList<QScreen *> screenList = QGuiApplication::screens();
+        unsigned         iScreen    = 0;
+        foreach (QScreen *pCurScreen, screenList)
+        {
+            if (   pCurScreen == pScreen
+                || (   pCurScreen->geometry() == pScreen->geometry()
+                    && pCurScreen->serialNumber() == pScreen->serialNumber()))
+                return iScreen;
+            iScreen++;
+        }
+    }
+    return -1;
+}
+
+/** Helper for converting a qt5 screen index back to a QScreen pointer. */
+static QScreen *indexToScreen(int idxScreen)
+{
+    if (idxScreen < 0)
+        return QGuiApplication::primaryScreen();
+
+    QList<QScreen *> screenList = QGuiApplication::screens();
+    if (idxScreen >= screenList.size())
+        return QGuiApplication::primaryScreen();
+
+    return screenList.value(idxScreen);
+}
+
+#endif /* VBOX_IS_QT6_OR_LATER */
 
 int UIDesktopWidgetWatchdog::primaryScreen() const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    return screenToIndex(QGuiApplication::primaryScreen());
+#else
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->primaryScreen();
+#endif
 }
 
 int UIDesktopWidgetWatchdog::screenNumber(const QWidget *pWidget) const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    if (pWidget)
+        return screenToIndex(pWidget->screen());
+    return -1;
+#else
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->screenNumber(pWidget);
+#endif
 }
 
 int UIDesktopWidgetWatchdog::screenNumber(const QPoint &point) const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    return screenToIndex(QGuiApplication::screenAt(point));
+#else
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->screenNumber(point);
+#endif
 }
 
 const QRect UIDesktopWidgetWatchdog::screenGeometry(int iHostScreenIndex /* = -1 */) const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    return indexToScreen(iHostScreenIndex)->geometry();
+#else
     /* Make sure index is valid: */
     if (iHostScreenIndex < 0 || iHostScreenIndex >= screenCount())
         iHostScreenIndex = QApplication::desktop()->primaryScreen();
@@ -315,6 +407,7 @@ const QRect UIDesktopWidgetWatchdog::screenGeometry(int iHostScreenIndex /* = -1
 
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->screenGeometry(iHostScreenIndex);
+#endif
 }
 
 const QRect UIDesktopWidgetWatchdog::screenGeometry(const QWidget *pWidget) const
@@ -331,40 +424,58 @@ const QRect UIDesktopWidgetWatchdog::screenGeometry(const QPoint &point) const
 
 const QRect UIDesktopWidgetWatchdog::availableGeometry(int iHostScreenIndex /* = -1 */) const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    /** @todo needs X11 work, see 5.x version of code! */
+    return indexToScreen(iHostScreenIndex)->availableGeometry();
+#else /* < 6.0.0 */
     /* Make sure index is valid: */
     if (iHostScreenIndex < 0 || iHostScreenIndex >= screenCount())
         iHostScreenIndex = QApplication::desktop()->primaryScreen();
     AssertReturn(iHostScreenIndex >= 0 && iHostScreenIndex < screenCount(), QRect());
 
-#ifdef VBOX_WS_X11
-# ifdef VBOX_GUI_WITH_CUSTOMIZATIONS1
+# ifdef VBOX_WS_X11
+#  ifdef VBOX_GUI_WITH_CUSTOMIZATIONS1
     // WORKAROUND:
     // For customer WM we don't want Qt to return wrong available geometry,
     // so we are returning fallback screen geometry in any case..
     return QApplication::desktop()->screenGeometry(iHostScreenIndex);
-# else /* !VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+#  else /* !VBOX_GUI_WITH_CUSTOMIZATIONS1 */
     /* Get cached available-geometry: */
     const QRect availableGeometry = m_availableGeometryData.value(iHostScreenIndex);
     /* Return cached available-geometry if it's valid or screen-geometry otherwise: */
     return availableGeometry.isValid() ? availableGeometry :
            QApplication::desktop()->screenGeometry(iHostScreenIndex);
-# endif /* !VBOX_GUI_WITH_CUSTOMIZATIONS1 */
-#else /* !VBOX_WS_X11 */
+#  endif /* !VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+# else /* !VBOX_WS_X11 */
     /* Redirect call to desktop-widget: */
     return QApplication::desktop()->availableGeometry(iHostScreenIndex);
-#endif /* !VBOX_WS_X11 */
+# endif /* !VBOX_WS_X11 */
+#endif /* < 6.0.0 */
 }
 
 const QRect UIDesktopWidgetWatchdog::availableGeometry(const QWidget *pWidget) const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    if (pWidget && pWidget->screen())
+        return pWidget->screen()->availableGeometry();
+    return QRect();
+#else
     /* Redirect call to wrapper above: */
     return availableGeometry(screenNumber(pWidget));
+#endif
 }
 
 const QRect UIDesktopWidgetWatchdog::availableGeometry(const QPoint &point) const
 {
+#ifdef VBOX_IS_QT6_OR_LATER
+    QScreen *pScreen = QGuiApplication::screenAt(point);
+    if (pScreen)
+        return pScreen->availableGeometry();
+    return QRect();
+#else
     /* Redirect call to wrapper above: */
     return availableGeometry(screenNumber(point));
+#endif
 }
 
 const QRegion UIDesktopWidgetWatchdog::overallScreenRegion() const
@@ -475,6 +586,331 @@ double UIDesktopWidgetWatchdog::devicePixelRatioActual(QWidget *pWidget)
 {
     /* Redirect call to wrapper above: */
     return devicePixelRatioActual(screenNumber(pWidget));
+}
+
+/* static */
+QRect UIDesktopWidgetWatchdog::normalizeGeometry(const QRect &rectangle,
+                                                 const QRegion &boundRegion,
+                                                 bool fCanResize /* = true */)
+{
+    /* Perform direct and flipped search of position for @a rectangle to make sure it is fully contained
+     * inside @a boundRegion region by moving & resizing (if @a fCanResize is specified) @a rectangle if
+     * necessary. Selects the minimum shifted result between direct and flipped variants. */
+
+    /* Direct search for normalized rectangle: */
+    QRect var1(getNormalized(rectangle, boundRegion, fCanResize));
+
+    /* Flipped search for normalized rectangle: */
+    QRect var2(flip(getNormalized(flip(rectangle).boundingRect(),
+                                  flip(boundRegion), fCanResize)).boundingRect());
+
+    /* Calculate shift from starting position for both variants: */
+    double dLength1 = sqrt(pow((double)(var1.x() - rectangle.x()), (double)2) +
+                           pow((double)(var1.y() - rectangle.y()), (double)2));
+    double dLength2 = sqrt(pow((double)(var2.x() - rectangle.x()), (double)2) +
+                           pow((double)(var2.y() - rectangle.y()), (double)2));
+
+    /* Return minimum shifted variant: */
+    return dLength1 > dLength2 ? var2 : var1;
+}
+
+/* static */
+QRect UIDesktopWidgetWatchdog::getNormalized(const QRect &rectangle,
+                                             const QRegion &boundRegion,
+                                             bool /* fCanResize = true */)
+{
+    /* Ensures that the given rectangle @a rectangle is fully contained within the region @a boundRegion
+     * by moving @a rectangle if necessary. If @a rectangle is larger than @a boundRegion, top left
+     * corner of @a rectangle is aligned with the top left corner of maximum available rectangle and,
+     * if @a fCanResize is true, @a rectangle is shrinked to become fully visible. */
+
+    /* Storing available horizontal sub-rectangles & vertical shifts: */
+    const int iWindowVertical = rectangle.center().y();
+    QList<QRect> rectanglesList;
+    QList<int> shiftsList;
+    for (QRegion::const_iterator it = boundRegion.begin(); it != boundRegion.end(); ++it)
+    {
+        QRect currentItem = *it;
+        const int iCurrentDelta = qAbs(iWindowVertical - currentItem.center().y());
+        const int iShift2Top = currentItem.top() - rectangle.top();
+        const int iShift2Bot = currentItem.bottom() - rectangle.bottom();
+
+        int iTtemPosition = 0;
+        foreach (QRect item, rectanglesList)
+        {
+            const int iDelta = qAbs(iWindowVertical - item.center().y());
+            if (iDelta > iCurrentDelta)
+                break;
+            else
+                ++iTtemPosition;
+        }
+        rectanglesList.insert(iTtemPosition, currentItem);
+
+        int iShift2TopPos = 0;
+        foreach (int iShift, shiftsList)
+            if (qAbs(iShift) > qAbs(iShift2Top))
+                break;
+            else
+                ++iShift2TopPos;
+        shiftsList.insert(iShift2TopPos, iShift2Top);
+
+        int iShift2BotPos = 0;
+        foreach (int iShift, shiftsList)
+            if (qAbs(iShift) > qAbs(iShift2Bot))
+                break;
+            else
+                ++iShift2BotPos;
+        shiftsList.insert(iShift2BotPos, iShift2Bot);
+    }
+
+    /* Trying to find the appropriate place for window: */
+    QRect result;
+    for (int i = -1; i < shiftsList.size(); ++i)
+    {
+        /* Move to appropriate vertical: */
+        QRect newRectangle(rectangle);
+        if (i >= 0)
+            newRectangle.translate(0, shiftsList[i]);
+
+        /* Search horizontal shift: */
+        int iMaxShift = 0;
+        foreach (QRect item, rectanglesList)
+        {
+            QRect trectangle(newRectangle.translated(item.left() - newRectangle.left(), 0));
+            if (!item.intersects(trectangle))
+                continue;
+
+            if (newRectangle.left() < item.left())
+            {
+                const int iShift = item.left() - newRectangle.left();
+                iMaxShift = qAbs(iShift) > qAbs(iMaxShift) ? iShift : iMaxShift;
+            }
+            else if (newRectangle.right() > item.right())
+            {
+                const int iShift = item.right() - newRectangle.right();
+                iMaxShift = qAbs(iShift) > qAbs(iMaxShift) ? iShift : iMaxShift;
+            }
+        }
+
+        /* Shift across the horizontal direction: */
+        newRectangle.translate(iMaxShift, 0);
+
+        /* Check the translated rectangle to feat the rules: */
+        if (boundRegion.united(newRectangle) == boundRegion)
+            result = newRectangle;
+
+        if (!result.isNull())
+            break;
+    }
+
+    if (result.isNull())
+    {
+        /* Resize window to feat desirable size
+         * using max of available rectangles: */
+        QRect maxRectangle;
+        quint64 uMaxSquare = 0;
+        foreach (QRect item, rectanglesList)
+        {
+            const quint64 uSquare = item.width() * item.height();
+            if (uSquare > uMaxSquare)
+            {
+                uMaxSquare = uSquare;
+                maxRectangle = item;
+            }
+        }
+
+        result = rectangle;
+        result.moveTo(maxRectangle.x(), maxRectangle.y());
+        if (maxRectangle.right() < result.right())
+            result.setRight(maxRectangle.right());
+        if (maxRectangle.bottom() < result.bottom())
+            result.setBottom(maxRectangle.bottom());
+    }
+
+    return result;
+}
+
+/* static */
+void UIDesktopWidgetWatchdog::centerWidget(QWidget *pWidget,
+                                           QWidget *pRelative,
+                                           bool fCanResize /* = true */)
+{
+    /* If necessary, pWidget's position is adjusted to make it fully visible within
+     * the available desktop area. If pWidget is bigger then this area, it will also
+     * be resized unless fCanResize is false or there is an inappropriate minimum
+     * size limit (in which case the top left corner will be simply aligned with the top
+     * left corner of the available desktop area). pWidget must be a top-level widget.
+     * pRelative may be any widget, but if it's not top-level itself, its top-level
+     * widget will be used for calculations. pRelative can also be NULL, in which case
+     * pWidget will be centered relative to the available desktop area. */
+
+    AssertReturnVoid(pWidget);
+    AssertReturnVoid(pWidget->isTopLevel());
+
+    QRect deskGeo, parentGeo;
+    if (pRelative)
+    {
+        pRelative = pRelative->window();
+        deskGeo = gpDesktop->availableGeometry(pRelative);
+        parentGeo = pRelative->frameGeometry();
+        // WORKAROUND:
+        // On X11/Gnome, geo/frameGeo.x() and y() are always 0 for top level
+        // widgets with parents, what a shame. Use mapToGlobal() to workaround.
+        QPoint d = pRelative->mapToGlobal(QPoint(0, 0));
+        d.rx() -= pRelative->geometry().x() - pRelative->x();
+        d.ry() -= pRelative->geometry().y() - pRelative->y();
+        parentGeo.moveTopLeft(d);
+    }
+    else
+    {
+        deskGeo = gpDesktop->availableGeometry();
+        parentGeo = deskGeo;
+    }
+
+    // WORKAROUND:
+    // On X11, there is no way to determine frame geometry (including WM
+    // decorations) before the widget is shown for the first time. Stupidly
+    // enumerate other top level widgets to find the thickest frame. The code
+    // is based on the idea taken from QDialog::adjustPositionInternal().
+
+    int iExtraW = 0;
+    int iExtraH = 0;
+
+    QWidgetList list = QApplication::topLevelWidgets();
+    QListIterator<QWidget*> it(list);
+    while ((iExtraW == 0 || iExtraH == 0) && it.hasNext())
+    {
+        int iFrameW, iFrameH;
+        QWidget *pCurrent = it.next();
+        if (!pCurrent->isVisible())
+            continue;
+
+        iFrameW = pCurrent->frameGeometry().width() - pCurrent->width();
+        iFrameH = pCurrent->frameGeometry().height() - pCurrent->height();
+
+        iExtraW = qMax(iExtraW, iFrameW);
+        iExtraH = qMax(iExtraH, iFrameH);
+    }
+
+    /* On non-X11 platforms, the following would be enough instead of the above workaround: */
+    // QRect geo = frameGeometry();
+    QRect geo = QRect(0, 0, pWidget->width() + iExtraW,
+                            pWidget->height() + iExtraH);
+
+    geo.moveCenter(QPoint(parentGeo.x() + (parentGeo.width() - 1) / 2,
+                          parentGeo.y() + (parentGeo.height() - 1) / 2));
+
+    /* Ensure the widget is within the available desktop area: */
+    QRect newGeo = normalizeGeometry(geo, deskGeo, fCanResize);
+#ifdef VBOX_WS_MAC
+    // WORKAROUND:
+    // No idea why, but Qt doesn't respect if there is a unified toolbar on the
+    // ::move call. So manually add the height of the toolbar before setting
+    // the position.
+    if (pRelative)
+        newGeo.translate(0, ::darwinWindowToolBarHeight(pWidget));
+#endif /* VBOX_WS_MAC */
+
+    pWidget->move(newGeo.topLeft());
+
+    if (   fCanResize
+        && (geo.width() != newGeo.width() || geo.height() != newGeo.height()))
+        pWidget->resize(newGeo.width() - iExtraW, newGeo.height() - iExtraH);
+}
+
+/* static */
+void UIDesktopWidgetWatchdog::setTopLevelGeometry(QWidget *pWidget, int x, int y, int w, int h)
+{
+    AssertPtrReturnVoid(pWidget);
+#ifdef VBOX_WS_X11
+# define QWINDOWSIZE_MAX ((1<<24)-1)
+    if (pWidget->isWindow() && pWidget->isVisible())
+    {
+        // WORKAROUND:
+        // X11 window managers are not required to accept geometry changes on
+        // the top-level window.  Unfortunately, current at Qt 5.6 and 5.7, Qt
+        // assumes that the change will succeed, and resizes all sub-windows
+        // unconditionally.  By calling ConfigureWindow directly, Qt will see
+        // our change request as an externally triggered one on success and not
+        // at all if it is rejected.
+        const double dDPR = gpDesktop->devicePixelRatio(pWidget);
+        uint16_t fMask =   XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y
+                         | XCB_CONFIG_WINDOW_WIDTH | XCB_CONFIG_WINDOW_HEIGHT;
+        uint32_t values[] = { (uint32_t)(x * dDPR), (uint32_t)(y * dDPR), (uint32_t)(w * dDPR), (uint32_t)(h * dDPR) };
+        xcb_configure_window(NativeWindowSubsystem::X11GetConnection(), (xcb_window_t)pWidget->winId(),
+                             fMask, values);
+        xcb_size_hints_t hints;
+        hints.flags =   1 /* XCB_ICCCM_SIZE_HINT_US_POSITION */
+                      | 2 /* XCB_ICCCM_SIZE_HINT_US_SIZE */
+                      | 512 /* XCB_ICCCM_SIZE_P_WIN_GRAVITY */;
+        hints.x           = x * dDPR;
+        hints.y           = y * dDPR;
+        hints.width       = w * dDPR;
+        hints.height      = h * dDPR;
+        hints.min_width   = pWidget->minimumSize().width() * dDPR;
+        hints.min_height  = pWidget->minimumSize().height() * dDPR;
+        hints.max_width   = pWidget->maximumSize().width() * dDPR;
+        hints.max_height  = pWidget->maximumSize().height() * dDPR;
+        hints.width_inc   = pWidget->sizeIncrement().width() * dDPR;
+        hints.height_inc  = pWidget->sizeIncrement().height() * dDPR;
+        hints.base_width  = pWidget->baseSize().width() * dDPR;
+        hints.base_height = pWidget->baseSize().height() * dDPR;
+        hints.win_gravity = XCB_GRAVITY_STATIC;
+        if (hints.min_width > 0 || hints.min_height > 0)
+            hints.flags |= 16 /* XCB_ICCCM_SIZE_HINT_P_MIN_SIZE */;
+        if (hints.max_width < QWINDOWSIZE_MAX || hints.max_height < QWINDOWSIZE_MAX)
+            hints.flags |= 32 /* XCB_ICCCM_SIZE_HINT_P_MAX_SIZE */;
+        if (hints.width_inc > 0 || hints.height_inc)
+            hints.flags |=   64 /* XCB_ICCCM_SIZE_HINT_P_MIN_SIZE */
+                           | 256 /* XCB_ICCCM_SIZE_HINT_BASE_SIZE */;
+        xcb_change_property(NativeWindowSubsystem::X11GetConnection(), XCB_PROP_MODE_REPLACE,
+                            (xcb_window_t)pWidget->winId(), XCB_ATOM_WM_NORMAL_HINTS,
+                            XCB_ATOM_WM_SIZE_HINTS, 32, sizeof(hints) >> 2, &hints);
+        xcb_flush(NativeWindowSubsystem::X11GetConnection());
+    }
+    else
+        // WORKAROUND:
+        // Call the Qt method if the window is not visible as otherwise no
+        // Configure event will arrive to tell Qt what geometry we want.
+        pWidget->setGeometry(x, y, w, h);
+# else /* !VBOX_WS_X11 */
+    pWidget->setGeometry(x, y, w, h);
+# endif /* !VBOX_WS_X11 */
+}
+
+/* static */
+void UIDesktopWidgetWatchdog::setTopLevelGeometry(QWidget *pWidget, const QRect &rect)
+{
+    UIDesktopWidgetWatchdog::setTopLevelGeometry(pWidget, rect.x(), rect.y(), rect.width(), rect.height());
+}
+
+/* static */
+bool UIDesktopWidgetWatchdog::activateWindow(WId wId, bool fSwitchDesktop /* = true */)
+{
+    Q_UNUSED(fSwitchDesktop);
+    bool fResult = true;
+
+#if defined(VBOX_WS_WIN)
+
+    fResult &= NativeWindowSubsystem::WinActivateWindow(wId, fSwitchDesktop);
+
+#elif defined(VBOX_WS_X11)
+
+    fResult &= NativeWindowSubsystem::X11ActivateWindow(wId, fSwitchDesktop);
+
+#else
+
+    NOREF(wId);
+    NOREF(fSwitchDesktop);
+    AssertFailed();
+    fResult = false;
+
+#endif
+
+    if (!fResult)
+        Log1WarningFunc(("Couldn't activate wId=%08X\n", wId));
+
+    return fResult;
 }
 
 void UIDesktopWidgetWatchdog::sltHostScreenAdded(QScreen *pHostScreen)
@@ -626,6 +1062,16 @@ void UIDesktopWidgetWatchdog::cleanup()
 #endif /* VBOX_WS_X11 && !VBOX_GUI_WITH_CUSTOMIZATIONS1 */
 }
 
+/* static */
+QRegion UIDesktopWidgetWatchdog::flip(const QRegion &region)
+{
+    QRegion result;
+    for (QRegion::const_iterator it = region.begin(); it != region.end(); ++it)
+        result += QRect(it->y(),      it->x(),
+                        it->height(), it->width());
+    return result;
+}
+
 #if defined(VBOX_WS_X11) && !defined(VBOX_GUI_WITH_CUSTOMIZATIONS1)
 void UIDesktopWidgetWatchdog::updateHostScreenConfiguration(int cHostScreenCount /* = -1 */)
 {
@@ -649,8 +1095,10 @@ void UIDesktopWidgetWatchdog::updateHostScreenAvailableGeometry(int iHostScreenI
 {
     /* Make sure index is valid: */
     if (iHostScreenIndex < 0 || iHostScreenIndex >= screenCount())
-        iHostScreenIndex = QApplication::desktop()->primaryScreen();
-    AssertReturnVoid(iHostScreenIndex >= 0 && iHostScreenIndex < screenCount());
+    {
+        iHostScreenIndex = UIDesktopWidgetWatchdog::primaryScreen();
+        AssertReturnVoid(iHostScreenIndex >= 0 && iHostScreenIndex < screenCount());
+    }
 
     /* Create invisible frame-less window worker: */
     UIInvisibleWindow *pWorker = new UIInvisibleWindow(iHostScreenIndex);

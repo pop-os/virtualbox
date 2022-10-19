@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2015-2020 Oracle Corporation
+ * Copyright (C) 2015-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -46,7 +56,11 @@ bool QIGraphicsView::event(QEvent *pEvent)
             QTouchEvent *pTouchEvent = static_cast<QTouchEvent*>(pEvent);
             AssertPtrReturn(pTouchEvent, QGraphicsView::event(pEvent));
             /* For touch-screen event we have something special: */
+#ifdef VBOX_IS_QT6_OR_LATER
+            if (pTouchEvent->device()->type() == QInputDevice::DeviceType::TouchScreen)
+#else
             if (pTouchEvent->device()->type() == QTouchDevice::TouchScreen)
+#endif
             {
                 /* Remember where the scrolling was started: */
                 m_iVerticalScrollBarPosition = verticalScrollBar()->value();
@@ -63,7 +77,11 @@ bool QIGraphicsView::event(QEvent *pEvent)
             QTouchEvent *pTouchEvent = static_cast<QTouchEvent*>(pEvent);
             AssertPtrReturn(pTouchEvent, QGraphicsView::event(pEvent));
             /* For touch-screen event we have something special: */
+#ifdef VBOX_IS_QT6_OR_LATER
+            if (pTouchEvent->device()->type() == QInputDevice::DeviceType::TouchScreen)
+#else
             if (pTouchEvent->device()->type() == QTouchDevice::TouchScreen)
+#endif
             {
                 /* Determine vertical shift (inverted): */
                 const QTouchEvent::TouchPoint point = pTouchEvent->touchPoints().first();
@@ -86,7 +104,11 @@ bool QIGraphicsView::event(QEvent *pEvent)
             QTouchEvent *pTouchEvent = static_cast<QTouchEvent*>(pEvent);
             AssertPtrReturn(pTouchEvent, QGraphicsView::event(pEvent));
             /* For touch-screen event we have something special: */
+#ifdef VBOX_IS_QT6_OR_LATER
+            if (pTouchEvent->device()->type() == QInputDevice::DeviceType::TouchScreen)
+#else
             if (pTouchEvent->device()->type() == QTouchDevice::TouchScreen)
+#endif
             {
                 /* Reset the scrolling start position: */
                 m_iVerticalScrollBarPosition = 0;

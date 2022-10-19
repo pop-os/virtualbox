@@ -50,7 +50,18 @@
 #include <nsXPCOM.h>
 #include <nsISupportsPrimitives.h>
 
+#if defined(Py_LIMITED_API) && defined(RT_OS_LINUX)
+# include <features.h>
+# ifdef __GLIBC_PREREQ
+#  if __GLIBC_PREREQ(2,9)
+#   define PYXPCOM_HAVE_PIPE2
+#   include <fcntl.h>
+#  endif
+# endif
+#endif
 
+
+#ifndef Py_LIMITED_API
 static PyTypeObject PyInterfaceType_Type = {
 	PyVarObject_HEAD_INIT(&PyType_Type, 0)
 	"interface-type",			/* Name of this type */
@@ -75,13 +86,125 @@ static PyTypeObject PyInterfaceType_Type = {
 	"Define the behavior of a PythonCOM Interface type.",
 };
 
+#else  /* Py_LIMITED_API */
+
+/** The offset of PyTypeObject::ob_name. */
+static size_t g_offObTypeNameMember = sizeof(PyVarObject);
+
+/**
+ * Base type object for XPCOM interfaces.  Created dynamicially.
+ */
+static PyTypeObject *g_pPyInterfaceTypeObj = NULL;
+
+/**
+ * Gets the base XPCOM interface type object, creating it if needed.
+ */
+static PyTypeObject *PyXPCOM_CreateInterfaceType(void)
+{
+	static char g_szTypeDoc[] = "Define the behavior of a PythonCOM Interface type."; /* need non-const */
+	PyType_Slot aTypeSlots[] = {
+		{ Py_tp_doc,    	g_szTypeDoc },
+		{ 0, NULL } /* terminator */
+	};
+	static const char g_szClassNm[] = "interface-type";
+	PyType_Spec TypeSpec = {
+		/* .name: */ 		g_szClassNm,
+		/* .basicsize: */       0,
+		/* .itemsize: */	0,
+		/* .flags: */   	Py_TPFLAGS_BASETYPE,
+		/* .slots: */		aTypeSlots,
+	};
+
+        PyObject *exc_typ = NULL, *exc_val = NULL, *exc_tb = NULL;
+        PyErr_Fetch(&exc_typ, &exc_val, &exc_tb); /* goes south in PyType_Ready if we don't clear exceptions first. */
+
+	PyTypeObject *pTypeObj = (PyTypeObject *)PyType_FromSpec(&TypeSpec);
+	assert(pTypeObj);
+
+        PyErr_Restore(exc_typ, exc_val, exc_tb);
+	g_pPyInterfaceTypeObj = pTypeObj;
+
+	/*
+	 * Verify/correct g_offObTypeNameMember.
+	 *
+	 * Using pipe+write to probe the memory content, banking on the kernel
+	 * to return EFAULT when we pass it an invalid address.
+	 */
+	for (size_t off = sizeof(PyVarObject); off < sizeof(PyVarObject) + 64; off += sizeof(char *)) {
+		const char * const pszProbe = *(const char **)((uintptr_t)(pTypeObj) + off);
+		if (RT_VALID_PTR(pszProbe)) {
+			int fds[2] = { -1, -1 };
+# ifdef PYXPCOM_HAVE_PIPE2
+			int rc = pipe2(fds, O_CLOEXEC);
+# else
+			int rc = pipe(fds);
+# endif
+			if (rc)
+				break;
+
+			ssize_t cbWritten = write(fds[1], pszProbe, sizeof(g_szClassNm));
+			if (cbWritten == (ssize_t)sizeof(g_szClassNm)) {
+				char szReadBack[sizeof(g_szClassNm)];
+				ssize_t offRead = 0;
+				while (offRead < cbWritten) {
+					ssize_t cbRead = read(fds[0], &szReadBack[offRead], cbWritten - offRead);
+					if (cbRead >= 0) {
+						offRead += cbRead;
+					} else if (errno != EINTR)
+						break;
+				}
+				if (   cbWritten == offRead
+				    && memcmp(szReadBack, g_szClassNm, sizeof(szReadBack)) == 0) {
+					g_offObTypeNameMember = off;
+					close(fds[0]);
+					close(fds[1]);
+					return pTypeObj;
+				}
+			}
+			close(fds[0]);
+			close(fds[1]);
+		}
+	}
+	assert(0);
+
+	return pTypeObj;
+}
+
+/**
+ * Gets the base XPCOM interface type object, creating it if needed.
+ */
+static PyTypeObject *PyXPCOM_GetInterfaceType(void)
+{
+	PyTypeObject *pTypeObj = g_pPyInterfaceTypeObj;
+	if (pTypeObj)
+		return pTypeObj;
+	return PyXPCOM_CreateInterfaceType();
+}
+
+/**
+ * Get the PyTypeObject::ob_name value.
+ *
+ * @todo This is _horrible_, but there appears to be no simple tp_name getter
+ *       till https://bugs.python.org/issue31497 (2017 / 3.7.0).  But even then
+ *       it is not part of the limited API.
+ */
+const char *PyXPCOMGetObTypeName(PyTypeObject *pTypeObj)
+{
+	return *(const char **)((uintptr_t)(pTypeObj) + g_offObTypeNameMember);
+}
+
+#endif /* Py_LIMITED_API */
+
 /*static*/ PRBool
 PyXPCOM_TypeObject::IsType(PyTypeObject *t)
 {
 #if PY_MAJOR_VERSION <= 2
 	return t->ob_type == &PyInterfaceType_Type;
-#else
+#elif !defined(Py_LIMITED_API)
 	return Py_TYPE(t) == &PyInterfaceType_Type;
+#else
+	return Py_TYPE(t) == g_pPyInterfaceTypeObj         /* Typically not the case as t->ob_type is &PyType_Type */
+	    || PyType_IsSubtype(t, g_pPyInterfaceTypeObj); /* rather than g_pPyInterfaceTypeObj because of PyType_FromSpec(). */
 #endif
 }
 
@@ -240,6 +363,7 @@ PyXPCOM_TypeObject::Py_dealloc(PyObject *self)
 
 PyXPCOM_TypeObject::PyXPCOM_TypeObject( const char *name, PyXPCOM_TypeObject *pBase, int typeSize, struct PyMethodDef* methodList, PyXPCOM_I_CTOR thector)
 {
+#ifndef Py_LIMITED_API
 	static const PyTypeObject type_template = {
 		PyVarObject_HEAD_INIT(&PyInterfaceType_Type, 0)
 		"XPCOMTypeTemplate",                         /*tp_name*/
@@ -279,6 +403,40 @@ PyXPCOM_TypeObject::PyXPCOM_TypeObject( const char *name, PyXPCOM_TypeObject *pB
 	};
 
 	*((PyTypeObject *)this) = type_template;
+#else  /* Py_LIMITED_API */
+	/* Create the type specs: */
+	PyType_Slot aTypeSlots[] = {
+		{ Py_tp_base, 		PyXPCOM_GetInterfaceType() },
+		{ Py_tp_dealloc, 	(void *)(uintptr_t)&PyXPCOM_TypeObject::Py_dealloc },
+		{ Py_tp_getattr, 	(void *)(uintptr_t)&PyXPCOM_TypeObject::Py_getattr },
+		{ Py_tp_setattr, 	(void *)(uintptr_t)&PyXPCOM_TypeObject::Py_setattr },
+		{ Py_tp_repr, 		(void *)(uintptr_t)&PyXPCOM_TypeObject::Py_repr },
+		{ Py_tp_hash, 		(void *)(uintptr_t)&PyXPCOM_TypeObject::Py_hash },
+		{ Py_tp_str, 		(void *)(uintptr_t)&PyXPCOM_TypeObject::Py_str },
+		{ Py_tp_richcompare, 	(void *)(uintptr_t)&PyXPCOM_TypeObject::Py_richcmp },
+		{ 0, NULL } /* terminator */
+	};
+	PyType_Spec TypeSpec = {
+		/* .name: */ 		name,
+		/* .basicsize: */       typeSize,
+		/* .itemsize: */	0,
+		/* .flags: */   	Py_TPFLAGS_BASETYPE /*?*/,
+		/* .slots: */		aTypeSlots,
+	};
+
+	PyObject *exc_typ = NULL, *exc_val = NULL, *exc_tb = NULL;
+	PyErr_Fetch(&exc_typ, &exc_val, &exc_tb); /* goes south in PyType_Ready if we don't clear exceptions first. */
+
+	m_pTypeObj = (PyTypeObject *)PyType_FromSpec(&TypeSpec);
+	assert(m_pTypeObj);
+
+        PyErr_Restore(exc_typ, exc_val, exc_tb);
+
+	/* Initialize the PyObject part - needed so we can keep instance in a PyDict: */
+	ob_type = PyXPCOM_GetInterfaceType();
+	PyObject_Init(this, ob_type); /* VBox: Needed for 3.9 and up (also works on Python 2.7), includes _Py_NewReferences. @bugref{10079} */
+
+#endif /* Py_LIMITED_API */
 
 	chain.methods = methodList;
 	chain.link = pBase ? &pBase->chain : NULL;
@@ -286,11 +444,14 @@ PyXPCOM_TypeObject::PyXPCOM_TypeObject( const char *name, PyXPCOM_TypeObject *pB
 	baseType = pBase;
 	ctor = thector;
 
+#ifndef Py_LIMITED_API
 	// cast away const, as Python doesnt use it.
 	tp_name = (char *)name;
 	tp_basicsize = typeSize;
+#endif
 }
 
 PyXPCOM_TypeObject::~PyXPCOM_TypeObject()
 {
 }
+

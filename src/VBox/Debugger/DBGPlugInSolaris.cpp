@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -23,6 +33,7 @@
 #include "DBGPlugIns.h"
 #include "DBGPlugInCommonELF.h"
 #include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/vmmr3vtable.h>
 #include <iprt/asm.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
@@ -350,18 +361,18 @@ typedef DBGDIGGERSOLARIS *PDBGDIGGERSOLARIS;
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData);
+static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData);
 
 
 
 /**
  * @copydoc DBGFOSREG::pfnStackUnwindAssist
  */
-static DECLCALLBACK(int) dbgDiggerSolarisStackUnwindAssist(PUVM pUVM, void *pvData, VMCPUID idCpu, PDBGFSTACKFRAME pFrame,
-                                                           PRTDBGUNWINDSTATE pState, PCCPUMCTX pInitialCtx, RTDBGAS hAs,
-                                                           uint64_t *puScratch)
+static DECLCALLBACK(int) dbgDiggerSolarisStackUnwindAssist(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData, VMCPUID idCpu,
+                                                           PDBGFSTACKFRAME pFrame, PRTDBGUNWINDSTATE pState,
+                                                           PCCPUMCTX pInitialCtx, RTDBGAS hAs, uint64_t *puScratch)
 {
-    RT_NOREF(pUVM, pvData, idCpu, pFrame, pState, pInitialCtx, hAs, puScratch);
+    RT_NOREF(pUVM, pVMM, pvData, idCpu, pFrame, pState, pInitialCtx, hAs, puScratch);
     return VINF_SUCCESS;
 }
 
@@ -369,9 +380,9 @@ static DECLCALLBACK(int) dbgDiggerSolarisStackUnwindAssist(PUVM pUVM, void *pvDa
 /**
  * @copydoc DBGFOSREG::pfnQueryInterface
  */
-static DECLCALLBACK(void *) dbgDiggerSolarisQueryInterface(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf)
+static DECLCALLBACK(void *) dbgDiggerSolarisQueryInterface(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData, DBGFOSINTERFACE enmIf)
 {
-    RT_NOREF3(pUVM, pvData, enmIf);
+    RT_NOREF(pUVM, pVMM, pvData, enmIf);
     return NULL;
 }
 
@@ -379,7 +390,8 @@ static DECLCALLBACK(void *) dbgDiggerSolarisQueryInterface(PUVM pUVM, void *pvDa
 /**
  * @copydoc DBGFOSREG::pfnQueryVersion
  */
-static DECLCALLBACK(int)  dbgDiggerSolarisQueryVersion(PUVM pUVM, void *pvData, char *pszVersion, size_t cchVersion)
+static DECLCALLBACK(int)  dbgDiggerSolarisQueryVersion(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData,
+                                                       char *pszVersion, size_t cchVersion)
 {
     PDBGDIGGERSOLARIS pThis = (PDBGDIGGERSOLARIS)pvData;
     Assert(pThis->fValid);
@@ -391,9 +403,10 @@ static DECLCALLBACK(int)  dbgDiggerSolarisQueryVersion(PUVM pUVM, void *pvData, 
     RT_ZERO(UtsName);                   /* Make MSC happy. */
     DBGFADDRESS Addr;
     RTDBGSYMBOL SymUtsName;
-    int rc = DBGFR3AsSymbolByName(pUVM, DBGF_AS_KERNEL, "utsname", &SymUtsName, NULL);
+    int rc = pVMM->pfnDBGFR3AsSymbolByName(pUVM, DBGF_AS_KERNEL, "utsname", &SymUtsName, NULL);
     if (RT_SUCCESS(rc))
-        rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, SymUtsName.Value), &UtsName, sizeof(UtsName));
+        rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, SymUtsName.Value),
+                                    &UtsName, sizeof(UtsName));
     if (RT_FAILURE(rc))
     {
         /*
@@ -401,11 +414,12 @@ static DECLCALLBACK(int)  dbgDiggerSolarisQueryVersion(PUVM pUVM, void *pvData, 
          */
         memset(&UtsName, '\0', sizeof(UtsName));
         strcpy(&UtsName.sysname[0], "SunOS");
-        rc = DBGFR3MemScan(pUVM, 0, &pThis->AddrUnixData, SOL_UNIX_MAX_DATA_SEG_SIZE, 1,
-                           &UtsName.sysname[0], sizeof(UtsName.sysname), &Addr);
+        rc = pVMM->pfnDBGFR3MemScan(pUVM, 0, &pThis->AddrUnixData, SOL_UNIX_MAX_DATA_SEG_SIZE, 1,
+                                    &UtsName.sysname[0], sizeof(UtsName.sysname), &Addr);
         if (RT_SUCCESS(rc))
-            rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, Addr.FlatPtr - RT_OFFSETOF(SOL_utsname_t, sysname)),
-                               &UtsName, sizeof(UtsName));
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr,
+                                                                             Addr.FlatPtr - RT_OFFSETOF(SOL_utsname_t, sysname)),
+                                        &UtsName, sizeof(UtsName));
     }
 
     /*
@@ -438,10 +452,11 @@ static DECLCALLBACK(int)  dbgDiggerSolarisQueryVersion(PUVM pUVM, void *pvData, 
  * Processes a modctl_t.
  *
  * @param   pUVM    The user mode VM handle.
+ * @param   pVMM    The VMM function table.
  * @param   pThis   Our instance data.
  * @param   pModCtl Pointer to the modctl structure.
  */
-static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, SOL_modctl_t const *pModCtl)
+static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PCVMMR3VTABLE pVMM, PDBGDIGGERSOLARIS pThis, SOL_modctl_t const *pModCtl)
 {
     RT_NOREF1(pThis);
 
@@ -460,7 +475,8 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_32.mod_modname, v9_32.mod_modname);
     char szModName[64];
     DBGFADDRESS Addr;
-    int rc = DBGFR3MemReadString(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_32.mod_modname), szModName, sizeof(szModName));
+    int rc = pVMM->pfnDBGFR3MemReadString(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_32.mod_modname),
+                                          szModName, sizeof(szModName));
     if (RT_FAILURE(rc))
         return;
     if (!RTStrEnd(szModName, sizeof(szModName)))
@@ -468,7 +484,8 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
 
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_32.mod_filename, v9_32.mod_filename);
     char szFilename[256];
-    rc = DBGFR3MemReadString(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_32.mod_filename), szFilename, sizeof(szFilename));
+    rc = pVMM->pfnDBGFR3MemReadString(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_32.mod_filename),
+                                      szFilename, sizeof(szFilename));
     if (RT_FAILURE(rc))
         strcpy(szFilename, szModName);
     else if (!RTStrEnd(szFilename, sizeof(szFilename)))
@@ -479,7 +496,7 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
      */
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_32.mod_mp, v9_32.mod_mp);
     struct SOL32_module Module;
-    rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_32.mod_mp), &Module, sizeof(Module));
+    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_32.mod_mp), &Module, sizeof(Module));
     if (RT_FAILURE(rc))
         return;
 
@@ -549,13 +566,14 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
     Elf32_Shdr *paShdrs = (Elf32_Shdr *)RTMemTmpAlloc(cb);
     if (!paShdrs)
         return;
-    rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, Module.shdrs), paShdrs, cb);
+    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, Module.shdrs), paShdrs, cb);
     if (RT_SUCCESS(rc))
     {
         void *pvSymSpace = RTMemTmpAlloc(Module.symsize + 1);
         if (pvSymSpace)
         {
-            rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, Module.symspace), pvSymSpace, Module.symsize);
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, Module.symspace),
+                                        pvSymSpace, Module.symsize);
             if (RT_SUCCESS(rc))
             {
                 ((uint8_t *)pvSymSpace)[Module.symsize] = 0;
@@ -570,7 +588,7 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
                 size_t cMaxSyms = (Module.symsize - (Module.symtbl - Module.symspace)) / sizeof(Elf32_Sym);
                 cMaxSyms = RT_MIN(cMaxSyms, Module.nsyms);
 
-                DBGDiggerCommonParseElf32Mod(pUVM, szModName, szFilename, DBG_DIGGER_ELF_FUNNY_SHDRS,
+                DBGDiggerCommonParseElf32Mod(pUVM, pVMM, szModName, szFilename, DBG_DIGGER_ELF_FUNNY_SHDRS,
                                              &Module.hdr, paShdrs, paSyms, cMaxSyms, pbStrings, cbMaxStrings,
                                              SOL32_MIN_KRNL_ADDR, SOL32_MAX_KRNL_ADDR - 1, DIG_SOL_MOD_TAG);
             }
@@ -587,10 +605,11 @@ static void dbgDiggerSolarisProcessModCtl32(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
  * Processes a modctl_t.
  *
  * @param   pUVM    The user mode VM handle.
+ * @param   pVMM    The VMM function table.
  * @param   pThis   Our instance data.
  * @param   pModCtl Pointer to the modctl structure.
  */
-static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, SOL_modctl_t const *pModCtl)
+static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PCVMMR3VTABLE pVMM, PDBGDIGGERSOLARIS pThis, SOL_modctl_t const *pModCtl)
 {
     RT_NOREF1(pThis);
 
@@ -609,7 +628,8 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_64.mod_modname, v9_64.mod_modname);
     char szModName[64];
     DBGFADDRESS Addr;
-    int rc = DBGFR3MemReadString(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_64.mod_modname), szModName, sizeof(szModName));
+    int rc = pVMM->pfnDBGFR3MemReadString(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_64.mod_modname),
+                                          szModName, sizeof(szModName));
     if (RT_FAILURE(rc))
         return;
     if (!RTStrEnd(szModName, sizeof(szModName)))
@@ -617,7 +637,8 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
 
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_64.mod_filename, v9_64.mod_filename);
     char szFilename[256];
-    rc = DBGFR3MemReadString(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_64.mod_filename), szFilename, sizeof(szFilename));
+    rc = pVMM->pfnDBGFR3MemReadString(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_64.mod_filename),
+                                      szFilename, sizeof(szFilename));
     if (RT_FAILURE(rc))
         strcpy(szFilename, szModName);
     else if (!RTStrEnd(szFilename, sizeof(szFilename)))
@@ -628,7 +649,7 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
      */
     AssertCompile2MemberOffsets(SOL_modctl_t, v11_64.mod_mp, v9_64.mod_mp);
     struct SOL64_module Module;
-    rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_64.mod_mp), &Module, sizeof(Module));
+    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, pModCtl->v9_64.mod_mp), &Module, sizeof(Module));
     if (RT_FAILURE(rc))
         return;
 
@@ -697,13 +718,14 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
     Elf64_Shdr *paShdrs = (Elf64_Shdr *)RTMemTmpAlloc(cb);
     if (!paShdrs)
         return;
-    rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, Module.shdrs), paShdrs, cb);
+    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, Module.shdrs), paShdrs, cb);
     if (RT_SUCCESS(rc))
     {
         void *pvSymSpace = RTMemTmpAlloc(Module.symsize + 1);
         if (pvSymSpace)
         {
-            rc = DBGFR3MemRead(pUVM, 0, DBGFR3AddrFromFlat(pUVM, &Addr, Module.symspace), pvSymSpace, Module.symsize);
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, Module.symspace),
+                                        pvSymSpace, Module.symsize);
             if (RT_SUCCESS(rc))
             {
                 ((uint8_t *)pvSymSpace)[Module.symsize] = 0;
@@ -718,7 +740,7 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
                 size_t cMaxSyms = (Module.symsize - (Module.symtbl - Module.symspace)) / sizeof(Elf32_Sym);
                 cMaxSyms = RT_MIN(cMaxSyms, Module.nsyms);
 
-                DBGDiggerCommonParseElf64Mod(pUVM, szModName, szFilename, DBG_DIGGER_ELF_FUNNY_SHDRS,
+                DBGDiggerCommonParseElf64Mod(pUVM, pVMM, szModName, szFilename, DBG_DIGGER_ELF_FUNNY_SHDRS,
                                              &Module.hdr, paShdrs, paSyms, cMaxSyms, pbStrings, cbMaxStrings,
                                              SOL64_MIN_KRNL_ADDR, SOL64_MAX_KRNL_ADDR - 1, DIG_SOL_MOD_TAG);
             }
@@ -734,10 +756,10 @@ static void dbgDiggerSolarisProcessModCtl64(PUVM pUVM, PDBGDIGGERSOLARIS pThis, 
 /**
  * @copydoc DBGFOSREG::pfnTerm
  */
-static DECLCALLBACK(void)  dbgDiggerSolarisTerm(PUVM pUVM, void *pvData)
+static DECLCALLBACK(void)  dbgDiggerSolarisTerm(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData)
 {
-    RT_NOREF1(pUVM);
     PDBGDIGGERSOLARIS pThis = (PDBGDIGGERSOLARIS)pvData;
+    RT_NOREF(pUVM, pVMM);
     Assert(pThis->fValid);
 
     pThis->fValid = false;
@@ -747,16 +769,16 @@ static DECLCALLBACK(void)  dbgDiggerSolarisTerm(PUVM pUVM, void *pvData)
 /**
  * @copydoc DBGFOSREG::pfnRefresh
  */
-static DECLCALLBACK(int)  dbgDiggerSolarisRefresh(PUVM pUVM, void *pvData)
+static DECLCALLBACK(int)  dbgDiggerSolarisRefresh(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData)
 {
     PDBGDIGGERSOLARIS pThis = (PDBGDIGGERSOLARIS)pvData;
-    NOREF(pThis);
+    RT_NOREF(pThis);
     Assert(pThis->fValid);
 
     /*
      * For now we'll flush and reload everything.
      */
-    RTDBGAS hDbgAs = DBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
+    RTDBGAS hDbgAs = pVMM->pfnDBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
     if (hDbgAs != NIL_RTDBGAS)
     {
         uint32_t iMod = RTDbgAsModuleCount(hDbgAs);
@@ -776,15 +798,15 @@ static DECLCALLBACK(int)  dbgDiggerSolarisRefresh(PUVM pUVM, void *pvData)
         RTDbgAsRelease(hDbgAs);
     }
 
-    dbgDiggerSolarisTerm(pUVM, pvData);
-    return dbgDiggerSolarisInit(pUVM, pvData);
+    dbgDiggerSolarisTerm(pUVM, pVMM, pvData);
+    return dbgDiggerSolarisInit(pUVM, pVMM, pvData);
 }
 
 
 /**
  * @copydoc DBGFOSREG::pfnInit
  */
-static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
+static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData)
 {
     PDBGDIGGERSOLARIS pThis = (PDBGDIGGERSOLARIS)pvData;
     Assert(!pThis->fValid);
@@ -794,7 +816,7 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
     /*
      * On Solaris the kernel and is the global address space.
      */
-    DBGFR3AsSetAlias(pUVM, DBGF_AS_KERNEL, DBGF_AS_GLOBAL);
+    pVMM->pfnDBGFR3AsSetAlias(pUVM, DBGF_AS_KERNEL, DBGF_AS_GLOBAL);
 
 /** @todo Use debug_info, build 7x / S10U6. */
 
@@ -802,18 +824,18 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
      * Find the 'unix' modctl_t structure (aka modules).
      * We know it resides in the unix data segment.
      */
-    DBGFR3AddrFromFlat(pUVM, &pThis->AddrUnixModCtl, 0);
+    pVMM->pfnDBGFR3AddrFromFlat(pUVM, &pThis->AddrUnixModCtl, 0);
 
     DBGFADDRESS     CurAddr = pThis->AddrUnixData;
     DBGFADDRESS     MaxAddr;
-    DBGFR3AddrFromFlat(pUVM, &MaxAddr, CurAddr.FlatPtr + SOL_UNIX_MAX_DATA_SEG_SIZE);
+    pVMM->pfnDBGFR3AddrFromFlat(pUVM, &MaxAddr, CurAddr.FlatPtr + SOL_UNIX_MAX_DATA_SEG_SIZE);
     const uint8_t  *pbExpr = (const uint8_t *)&pThis->AddrUnixText.FlatPtr;
     const uint32_t  cbExpr = pThis->f64Bit ? sizeof(uint64_t) : sizeof(uint32_t);
     while (   CurAddr.FlatPtr < MaxAddr.FlatPtr
            && CurAddr.FlatPtr >= pThis->AddrUnixData.FlatPtr)
     {
         DBGFADDRESS HitAddr;
-        rc = DBGFR3MemScan(pUVM, 0, &CurAddr, MaxAddr.FlatPtr - CurAddr.FlatPtr, 1, pbExpr, cbExpr, &HitAddr);
+        rc = pVMM->pfnDBGFR3MemScan(pUVM, 0, &CurAddr, MaxAddr.FlatPtr - CurAddr.FlatPtr, 1, pbExpr, cbExpr, &HitAddr);
         if (RT_FAILURE(rc))
             break;
 
@@ -825,9 +847,9 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
         /* v11 */
         if (pThis->f64Bit)
         {
-            DBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL32v11_modctl_t, mod_text));
+            pVMM->pfnDBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL32v11_modctl_t, mod_text));
             SOL64v11_modctl_t ModCtlv11;
-            rc = DBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv11, sizeof(ModCtlv11));
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv11, sizeof(ModCtlv11));
             if (RT_SUCCESS(rc))
             {
                 if (    SOL64_VALID_ADDRESS(ModCtlv11.mod_next)
@@ -847,8 +869,8 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
                 {
                     char szUnix[5];
                     DBGFADDRESS NameAddr;
-                    DBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv11.mod_modname);
-                    rc = DBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
+                    pVMM->pfnDBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv11.mod_modname);
+                    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
                     if (RT_SUCCESS(rc))
                     {
                         if (!strcmp(szUnix, "unix"))
@@ -865,9 +887,9 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
         }
         else
         {
-            DBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL32v11_modctl_t, mod_text));
+            pVMM->pfnDBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL32v11_modctl_t, mod_text));
             SOL32v11_modctl_t ModCtlv11;
-            rc = DBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv11, sizeof(ModCtlv11));
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv11, sizeof(ModCtlv11));
             if (RT_SUCCESS(rc))
             {
                 if (    SOL32_VALID_ADDRESS(ModCtlv11.mod_next)
@@ -887,8 +909,8 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
                 {
                     char szUnix[5];
                     DBGFADDRESS NameAddr;
-                    DBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv11.mod_modname);
-                    rc = DBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
+                    pVMM->pfnDBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv11.mod_modname);
+                    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
                     if (RT_SUCCESS(rc))
                     {
                         if (!strcmp(szUnix, "unix"))
@@ -907,9 +929,9 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
         /* v9 */
         if (pThis->f64Bit)
         {
-            DBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL64v9_modctl_t, mod_text));
+            pVMM->pfnDBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL64v9_modctl_t, mod_text));
             SOL64v9_modctl_t ModCtlv9;
-            rc = DBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv9, sizeof(ModCtlv9));
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv9, sizeof(ModCtlv9));
             if (RT_SUCCESS(rc))
             {
                 if (    SOL64_VALID_ADDRESS(ModCtlv9.mod_next)
@@ -927,8 +949,8 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
                 {
                     char szUnix[5];
                     DBGFADDRESS NameAddr;
-                    DBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv9.mod_modname);
-                    rc = DBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
+                    pVMM->pfnDBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv9.mod_modname);
+                    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
                     if (RT_SUCCESS(rc))
                     {
                         if (!strcmp(szUnix, "unix"))
@@ -945,9 +967,9 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
         }
         else
         {
-            DBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL32v9_modctl_t, mod_text));
+            pVMM->pfnDBGFR3AddrFromFlat(pUVM, &ModCtlAddr, HitAddr.FlatPtr - RT_OFFSETOF(SOL32v9_modctl_t, mod_text));
             SOL32v9_modctl_t ModCtlv9;
-            rc = DBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv9, sizeof(ModCtlv9));
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &ModCtlAddr, &ModCtlv9, sizeof(ModCtlv9));
             if (RT_SUCCESS(rc))
             {
                 if (    SOL32_VALID_ADDRESS(ModCtlv9.mod_next)
@@ -965,8 +987,8 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
                 {
                     char szUnix[5];
                     DBGFADDRESS NameAddr;
-                    DBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv9.mod_modname);
-                    rc = DBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
+                    pVMM->pfnDBGFR3AddrFromFlat(pUVM, &NameAddr, ModCtlv9.mod_modname);
+                    rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &NameAddr, &szUnix, sizeof(szUnix));
                     if (RT_SUCCESS(rc))
                     {
                         if (!strcmp(szUnix, "unix"))
@@ -983,7 +1005,7 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
         }
 
         /* next */
-        DBGFR3AddrFromFlat(pUVM, &CurAddr, HitAddr.FlatPtr + cbExpr);
+        pVMM->pfnDBGFR3AddrFromFlat(pUVM, &CurAddr, HitAddr.FlatPtr + cbExpr);
     }
 
     /*
@@ -997,7 +1019,7 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
         {
             /* read it */
             SOL_modctl_t ModCtl;
-            rc = DBGFR3MemRead(pUVM, 0, &CurAddr, &ModCtl, cbModCtl);
+            rc = pVMM->pfnDBGFR3MemRead(pUVM, 0, &CurAddr, &ModCtl, cbModCtl);
             if (RT_FAILURE(rc))
             {
                 LogRel(("sol: bad modctl_t chain for module %d: %RGv - %Rrc\n", iMod, CurAddr.FlatPtr, rc));
@@ -1006,9 +1028,9 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
 
             /* process it. */
             if (pThis->f64Bit)
-                dbgDiggerSolarisProcessModCtl64(pUVM, pThis, &ModCtl);
+                dbgDiggerSolarisProcessModCtl64(pUVM, pVMM, pThis, &ModCtl);
             else
-                dbgDiggerSolarisProcessModCtl32(pUVM, pThis, &ModCtl);
+                dbgDiggerSolarisProcessModCtl32(pUVM, pVMM, pThis, &ModCtl);
 
             /* next */
             if (pThis->f64Bit)
@@ -1019,7 +1041,7 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
                     LogRel(("sol64: bad modctl_t chain for module %d at %RGv: %RGv\n", iMod, CurAddr.FlatPtr, (RTGCUINTPTR)ModCtl.v9_64.mod_next));
                     break;
                 }
-                DBGFR3AddrFromFlat(pUVM, &CurAddr, ModCtl.v9_64.mod_next);
+                pVMM->pfnDBGFR3AddrFromFlat(pUVM, &CurAddr, ModCtl.v9_64.mod_next);
             }
             else
             {
@@ -1029,7 +1051,7 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
                     LogRel(("sol32: bad modctl_t chain for module %d at %RGv: %RGv\n", iMod, CurAddr.FlatPtr, (RTGCUINTPTR)ModCtl.v9_32.mod_next));
                     break;
                 }
-                DBGFR3AddrFromFlat(pUVM, &CurAddr, ModCtl.v9_32.mod_next);
+                pVMM->pfnDBGFR3AddrFromFlat(pUVM, &CurAddr, ModCtl.v9_32.mod_next);
             }
             if (++iMod >= 1024)
             {
@@ -1047,7 +1069,7 @@ static DECLCALLBACK(int)  dbgDiggerSolarisInit(PUVM pUVM, void *pvData)
 /**
  * @copydoc DBGFOSREG::pfnProbe
  */
-static DECLCALLBACK(bool)  dbgDiggerSolarisProbe(PUVM pUVM, void *pvData)
+static DECLCALLBACK(bool)  dbgDiggerSolarisProbe(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData)
 {
     PDBGDIGGERSOLARIS pThis = (PDBGDIGGERSOLARIS)pvData;
 
@@ -1058,18 +1080,18 @@ static DECLCALLBACK(bool)  dbgDiggerSolarisProbe(PUVM pUVM, void *pvData)
     bool        f64Bit = false;
 
     /* 32-bit search range. */
-    DBGFR3AddrFromFlat(pUVM, &Addr, 0xfe800000);
+    pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, 0xfe800000);
     RTGCUINTPTR cbRange = 0xfec00000 - 0xfe800000;
 
     DBGFADDRESS HitAddr;
     static const uint8_t s_abSunRelease[] = "SunOS Release ";
-    int rc = DBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abSunRelease, sizeof(s_abSunRelease) - 1, &HitAddr);
+    int rc = pVMM->pfnDBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abSunRelease, sizeof(s_abSunRelease) - 1, &HitAddr);
     if (RT_FAILURE(rc))
     {
         /* 64-bit.... */
-        DBGFR3AddrFromFlat(pUVM, &Addr, UINT64_C(0xfffffffffb800000));
+        pVMM->pfnDBGFR3AddrFromFlat(pUVM, &Addr, UINT64_C(0xfffffffffb800000));
         cbRange = UINT64_C(0xfffffffffbd00000) - UINT64_C(0xfffffffffb800000);
-        rc = DBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abSunRelease, sizeof(s_abSunRelease) - 1, &HitAddr);
+        rc = pVMM->pfnDBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abSunRelease, sizeof(s_abSunRelease) - 1, &HitAddr);
         if (RT_FAILURE(rc))
             return false;
         f64Bit = true;
@@ -1080,11 +1102,11 @@ static DECLCALLBACK(bool)  dbgDiggerSolarisProbe(PUVM pUVM, void *pvData)
      */
     static const uint8_t s_abSMI[] = "Sun Microsystems, Inc.";
     static const uint8_t s_abORCL[] = "Oracle and/or its affiliates.";
-    rc = DBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abSMI, sizeof(s_abSMI) - 1, &HitAddr);
+    rc = pVMM->pfnDBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abSMI, sizeof(s_abSMI) - 1, &HitAddr);
     if (RT_FAILURE(rc))
     {
         /* Try the alternate copyright string. */
-        rc = DBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abORCL, sizeof(s_abORCL) - 1, &HitAddr);
+        rc = pVMM->pfnDBGFR3MemScan(pUVM, 0, &Addr, cbRange, 1, s_abORCL, sizeof(s_abORCL) - 1, &HitAddr);
         if (RT_FAILURE(rc))
             return false;
     }
@@ -1093,7 +1115,7 @@ static DECLCALLBACK(bool)  dbgDiggerSolarisProbe(PUVM pUVM, void *pvData)
      * Remember the unix text and data addresses and bitness.
      */
     pThis->AddrUnixText = Addr;
-    DBGFR3AddrAdd(&Addr, SOL_UNIX_MAX_CODE_SEG_SIZE);
+    pVMM->pfnDBGFR3AddrAdd(&Addr, SOL_UNIX_MAX_CODE_SEG_SIZE);
     pThis->AddrUnixData = Addr;
     pThis->f64Bit       = f64Bit;
 
@@ -1104,19 +1126,18 @@ static DECLCALLBACK(bool)  dbgDiggerSolarisProbe(PUVM pUVM, void *pvData)
 /**
  * @copydoc DBGFOSREG::pfnDestruct
  */
-static DECLCALLBACK(void)  dbgDiggerSolarisDestruct(PUVM pUVM, void *pvData)
+static DECLCALLBACK(void)  dbgDiggerSolarisDestruct(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData)
 {
-    RT_NOREF2(pUVM, pvData);
-
+    RT_NOREF(pUVM, pVMM, pvData);
 }
 
 
 /**
  * @copydoc DBGFOSREG::pfnConstruct
  */
-static DECLCALLBACK(int)  dbgDiggerSolarisConstruct(PUVM pUVM, void *pvData)
+static DECLCALLBACK(int)  dbgDiggerSolarisConstruct(PUVM pUVM, PCVMMR3VTABLE pVMM, void *pvData)
 {
-    RT_NOREF2(pUVM, pvData);
+    RT_NOREF(pUVM, pVMM, pvData);
     return VINF_SUCCESS;
 }
 

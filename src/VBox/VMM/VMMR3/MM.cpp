@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -200,13 +210,7 @@ VMMR3DECL(int) MMR3InitUVM(PUVM pUVM)
      */
     int rc = mmR3HeapCreateU(pUVM, &pUVM->mm.s.pHeap);
     if (RT_SUCCESS(rc))
-    {
-        rc = mmR3UkHeapCreateU(pUVM, &pUVM->mm.s.pUkHeap);
-        if (RT_SUCCESS(rc))
-            return VINF_SUCCESS;
-        mmR3HeapDestroy(pUVM->mm.s.pHeap);
-        pUVM->mm.s.pHeap = NULL;
-    }
+        return VINF_SUCCESS;
     return rc;
 }
 
@@ -238,44 +242,28 @@ VMMR3DECL(int) MMR3Init(PVM pVM)
      */
     AssertRelease(!(RT_UOFFSETOF(VM, mm.s) & 31));
     AssertRelease(sizeof(pVM->mm.s) <= sizeof(pVM->mm.padding));
-    AssertMsg(pVM->mm.s.offVM == 0, ("Already initialized!\n"));
 
     /*
-     * Init the structure.
+     * Register the saved state data unit.
      */
-    pVM->mm.s.offVM = RT_UOFFSETOF(VM, mm);
-    pVM->mm.s.offLookupHyper = NIL_OFFSET;
-
-    /*
-     * Init the hypervisor related stuff.
-     */
-    int rc = mmR3HyperInit(pVM);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Register the saved state data unit.
-         */
-        rc = SSMR3RegisterInternal(pVM, "mm", 1, MM_SAVED_STATE_VERSION, sizeof(uint32_t) * 2,
+    int rc = SSMR3RegisterInternal(pVM, "mm", 1, MM_SAVED_STATE_VERSION, sizeof(uint32_t) * 2,
                                    NULL, NULL, NULL,
                                    NULL, mmR3Save, NULL,
                                    NULL, mmR3Load, NULL);
-        if (RT_SUCCESS(rc))
-        {
-            /*
-             * Statistics.
-             */
-            STAM_REG(pVM, &pVM->mm.s.cBasePages,   STAMTYPE_U64, "/MM/Reserved/cBasePages",   STAMUNIT_PAGES, "Reserved number of base pages, ROM and Shadow ROM included.");
-            STAM_REG(pVM, &pVM->mm.s.cHandyPages,  STAMTYPE_U32, "/MM/Reserved/cHandyPages",  STAMUNIT_PAGES, "Reserved number of handy pages.");
-            STAM_REG(pVM, &pVM->mm.s.cShadowPages, STAMTYPE_U32, "/MM/Reserved/cShadowPages", STAMUNIT_PAGES, "Reserved number of shadow paging pages.");
-            STAM_REG(pVM, &pVM->mm.s.cFixedPages,  STAMTYPE_U32, "/MM/Reserved/cFixedPages",  STAMUNIT_PAGES, "Reserved number of fixed pages (MMIO2).");
-            STAM_REG(pVM, &pVM->mm.s.cbRamBase,    STAMTYPE_U64, "/MM/cbRamBase",             STAMUNIT_BYTES, "Size of the base RAM.");
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Statistics.
+         */
+        STAM_REG(pVM, &pVM->mm.s.cBasePages,   STAMTYPE_U64, "/MM/Reserved/cBasePages",   STAMUNIT_PAGES, "Reserved number of base pages, ROM and Shadow ROM included.");
+        STAM_REG(pVM, &pVM->mm.s.cHandyPages,  STAMTYPE_U32, "/MM/Reserved/cHandyPages",  STAMUNIT_PAGES, "Reserved number of handy pages.");
+        STAM_REG(pVM, &pVM->mm.s.cShadowPages, STAMTYPE_U32, "/MM/Reserved/cShadowPages", STAMUNIT_PAGES, "Reserved number of shadow paging pages.");
+        STAM_REG(pVM, &pVM->mm.s.cFixedPages,  STAMTYPE_U32, "/MM/Reserved/cFixedPages",  STAMUNIT_PAGES, "Reserved number of fixed pages (MMIO2).");
+        STAM_REG(pVM, &pVM->mm.s.cbRamBase,    STAMTYPE_U64, "/MM/cbRamBase",             STAMUNIT_BYTES, "Size of the base RAM.");
 
-            return rc;
-        }
-
-        /* .... failure .... */
+        return rc;
     }
-    MMR3Term(pVM);
+
     return rc;
 }
 
@@ -383,7 +371,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
      * Make the initial memory reservation with GMM.
      */
     uint32_t const cbUma      = _1M - 640*_1K;
-    uint64_t       cBasePages = ((cbRam - cbUma) >> PAGE_SHIFT) + pVM->mm.s.cBasePages;
+    uint64_t       cBasePages = ((cbRam - cbUma) >> GUEST_PAGE_SHIFT) + pVM->mm.s.cBasePages;
     rc = GMMR3InitialReservation(pVM,
                                  RT_MAX(cBasePages + pVM->mm.s.cHandyPages, 1),
                                  RT_MAX(pVM->mm.s.cShadowPages, 1),
@@ -397,13 +385,13 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
                               N_("Insufficient free memory to start the VM (cbRam=%#RX64 enmOcPolicy=%d enmPriority=%d)"),
                               cbRam, enmOcPolicy, enmPriority);
         return VMSetError(pVM, rc, RT_SRC_POS, "GMMR3InitialReservation(,%#RX64,0,0,%d,%d)",
-                          cbRam >> PAGE_SHIFT, enmOcPolicy, enmPriority);
+                          cbRam >> GUEST_PAGE_SHIFT, enmOcPolicy, enmPriority);
     }
 
     /*
      * If RamSize is 0 we're done now.
      */
-    if (cbRam < PAGE_SIZE)
+    if (cbRam < GUEST_PAGE_SIZE)
     {
         Log(("MM: No RAM configured\n"));
         return VINF_SUCCESS;
@@ -456,27 +444,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
  */
 VMMR3DECL(int) MMR3Term(PVM pVM)
 {
-    /*
-     * Clean up the hypervisor heap.
-     */
-    mmR3HyperTerm(pVM);
-
-    /*
-     * Zero stuff to detect after termination use of the MM interface
-     */
-    pVM->mm.s.offLookupHyper = NIL_OFFSET;
-    pVM->mm.s.pHyperHeapR3   = NULL;        /* freed above. */
-    pVM->mm.s.pHyperHeapR0   = NIL_RTR0PTR; /* freed above. */
-    pVM->mm.s.pHyperHeapRC   = NIL_RTRCPTR; /* freed above. */
-    pVM->mm.s.offVM          = 0;           /* init assertion on this */
-
-    /*
-     * Destroy the User-kernel heap here since the support driver session
-     * may have been terminated by the time we get to MMR3TermUVM.
-     */
-    mmR3UkHeapDestroy(pVM->pUVM->mm.s.pUkHeap);
-    pVM->pUVM->mm.s.pUkHeap = NULL;
-
+    RT_NOREF(pVM);
     return VINF_SUCCESS;
 }
 
@@ -493,27 +461,10 @@ VMMR3DECL(int) MMR3Term(PVM pVM)
 VMMR3DECL(void) MMR3TermUVM(PUVM pUVM)
 {
     /*
-     * Destroy the heaps.
+     * Destroy the heap.
      */
-    if (pUVM->mm.s.pUkHeap)
-    {
-        mmR3UkHeapDestroy(pUVM->mm.s.pUkHeap);
-        pUVM->mm.s.pUkHeap = NULL;
-    }
     mmR3HeapDestroy(pUVM->mm.s.pHeap);
     pUVM->mm.s.pHeap = NULL;
-}
-
-
-/**
- * Checks if the both VM and UVM parts of MM have been initialized.
- *
- * @returns true if initialized, false if not.
- * @param   pVM         The cross context VM structure.
- */
-VMMR3_INT_DECL(bool) MMR3IsInitialized(PVM pVM)
-{
-    return pVM->mm.s.pHyperHeapR3 != NULL;
 }
 
 
@@ -565,13 +516,13 @@ static DECLCALLBACK(int) mmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
     RTUINT cb1;
 
     /* cBasePages (ignored) */
-    uint64_t cPages;
+    uint64_t cGuestPages;
     if (uVersion >= 2)
-        rc = SSMR3GetU64(pSSM, &cPages);
+        rc = SSMR3GetU64(pSSM, &cGuestPages);
     else
     {
         rc = SSMR3GetUInt(pSSM, &cb1);
-        cPages = cb1 >> PAGE_SHIFT;
+        cGuestPages = cb1 >> GUEST_PAGE_SHIFT;
     }
     if (RT_FAILURE(rc))
         return rc;
@@ -675,7 +626,8 @@ VMMR3DECL(int) MMR3ReserveHandyPages(PVM pVM, uint32_t cHandyPages)
  *
  * @returns VBox status code. Will set VM error on failure.
  * @param   pVM                 The cross context VM structure.
- * @param   cDeltaFixedPages    The number of pages to add (positive) or subtract (negative).
+ * @param   cDeltaFixedPages    The number of guest pages to add (positive) or
+ *                              subtract (negative).
  * @param   pszDesc             Some description associated with the reservation.
  */
 VMMR3DECL(int) MMR3AdjustFixedReservation(PVM pVM, int32_t cDeltaFixedPages, const char *pszDesc)
@@ -716,82 +668,6 @@ VMMR3DECL(int) MMR3UpdateShadowReservation(PVM pVM, uint32_t cShadowPages)
     }
     return rc;
 }
-
-
-/**
- * Convert HC Physical address to HC Virtual address.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   HCPhys      The host context virtual address.
- * @param   ppv         Where to store the resulting address.
- * @thread  The Emulation Thread.
- *
- * @remarks Avoid whenever possible.
- *          Intended for the debugger facility only.
- * @todo    Rename to indicate the special usage.
- */
-VMMR3DECL(int) MMR3HCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys, void **ppv)
-{
-#if 0
-    /*
-     * Try page tables.
-     */
-    int rc = MMPagePhys2PageTry(pVM, HCPhys, ppv);
-    if (RT_SUCCESS(rc))
-        return rc;
-#endif
-
-    /*
-     * Iterate thru the lookup records for HMA.
-     */
-    uint32_t off = HCPhys & PAGE_OFFSET_MASK;
-    HCPhys &= X86_PTE_PAE_PG_MASK;
-    PMMLOOKUPHYPER pCur = (PMMLOOKUPHYPER)((uint8_t *)pVM->mm.s.CTX_SUFF(pHyperHeap) + pVM->mm.s.offLookupHyper);
-    for (;;)
-    {
-        switch (pCur->enmType)
-        {
-            case MMLOOKUPHYPERTYPE_LOCKED:
-            {
-                PCRTHCPHYS  paHCPhysPages = pCur->u.Locked.paHCPhysPages;
-                size_t      iPage         = pCur->cb >> PAGE_SHIFT;
-                while (iPage-- > 0)
-                    if (paHCPhysPages[iPage] == HCPhys)
-                    {
-                        *ppv = (char *)pCur->u.Locked.pvR3 + (iPage << PAGE_SHIFT) + off;
-                        return VINF_SUCCESS;
-                    }
-                break;
-            }
-
-            case MMLOOKUPHYPERTYPE_HCPHYS:
-                if (pCur->u.HCPhys.HCPhys - HCPhys < pCur->cb)
-                {
-                    *ppv = (uint8_t *)pCur->u.HCPhys.pvR3 + pCur->u.HCPhys.HCPhys - HCPhys + off;
-                    return VINF_SUCCESS;
-                }
-                break;
-
-            case MMLOOKUPHYPERTYPE_GCPHYS:  /* (for now we'll not allow these kind of conversions) */
-            case MMLOOKUPHYPERTYPE_MMIO2:
-            case MMLOOKUPHYPERTYPE_DYNAMIC:
-                break;
-
-            default:
-                AssertMsgFailed(("enmType=%d\n", pCur->enmType));
-                break;
-        }
-
-        /* next */
-        if (pCur->offNext ==  (int32_t)NIL_OFFSET)
-            break;
-        pCur = (PMMLOOKUPHYPER)((uint8_t *)pCur + pCur->offNext);
-    }
-    /* give up */
-    return VERR_INVALID_POINTER;
-}
-
 
 
 /**

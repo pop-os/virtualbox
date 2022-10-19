@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
@@ -63,21 +73,21 @@ void UIProgressEventHandler::prepareListener()
         << KVBoxEventType_OnProgressTaskCompleted;
 
     /* Register event listener for CProgress event source: */
-    comEventSourceProgress.RegisterListener(m_comEventListener, eventTypes,
-        gEDataManager->eventHandlingType() == EventHandlingType_Active ? TRUE : FALSE);
+    comEventSourceProgress.RegisterListener(m_comEventListener, eventTypes, FALSE /* active? */);
     AssertWrapperOk(comEventSourceProgress);
 
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
-    {
-        /* Register event sources in their listeners as well: */
-        m_pQtListener->getWrapped()->registerSource(comEventSourceProgress, m_comEventListener);
-    }
+    /* Register event sources in their listeners as well: */
+    m_pQtListener->getWrapped()->registerSource(comEventSourceProgress,
+                                                m_comEventListener,
+                                                QSet<KVBoxEventType>() << KVBoxEventType_OnProgressTaskCompleted);
 }
 
 void UIProgressEventHandler::prepareConnections()
 {
     /* Create direct (sync) connections for signals of main listener: */
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigListeningFinished,
+            this, &UIProgressEventHandler::sigHandlingFinished,
+            Qt::DirectConnection);
     connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigProgressPercentageChange,
             this, &UIProgressEventHandler::sigProgressPercentageChange,
             Qt::DirectConnection);
@@ -93,12 +103,8 @@ void UIProgressEventHandler::cleanupConnections()
 
 void UIProgressEventHandler::cleanupListener()
 {
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
-    {
-        /* Unregister everything: */
-        m_pQtListener->getWrapped()->unregisterSources();
-    }
+    /* Unregister everything: */
+    m_pQtListener->getWrapped()->unregisterSources();
 
     /* Make sure VBoxSVC is available: */
     if (!uiCommon().isVBoxSVCAvailable())

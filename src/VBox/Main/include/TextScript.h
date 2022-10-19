@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_TextScript_h
@@ -31,7 +41,8 @@
  *
  * @todo get rid of this silly bugger.
  */
-class AbstractScript : public RTCNonCopyable
+class AbstractScript
+    : public RTCNonCopyable
 {
 protected:
     /** For setting errors.
@@ -42,6 +53,8 @@ private: /* no default constructors for children. */
     AbstractScript() {}
 
 public:
+    DECLARE_TRANSLATE_METHODS(AbstractScript)
+
     AbstractScript(VirtualBoxBase *pSetError) : mpSetError(pSetError) {}
     virtual ~AbstractScript() {}
 
@@ -100,6 +113,8 @@ protected:
     Utf8Str     mStrSavedPath;          /**< Path where an saved script with user's data is located (set by save()). */
 
 public:
+    DECLARE_TRANSLATE_METHODS(BaseTextScript)
+
     BaseTextScript(VirtualBoxBase *pSetError, const char *pszDefaultTemplateFilename, const char *pszDefaultFilename)
         : AbstractScript(pSetError)
         , mpszDefaultTemplateFilename(pszDefaultTemplateFilename)
@@ -161,6 +176,8 @@ protected:
     bool                mfDataParsed;          /**< Indicates whether the script has been parse() yet.  */
 
 public:
+    DECLARE_TRANSLATE_METHODS(GeneralTextScript)
+
     GeneralTextScript(VirtualBoxBase *pSetError, const char *pszDefaultTemplateFilename = NULL, const char *pszDefaultFilename = NULL)
         : BaseTextScript(pSetError, pszDefaultTemplateFilename, pszDefaultFilename), mfDataParsed(false)
     {}
@@ -223,9 +240,12 @@ public:
      */
     HRESULT prependToLine(size_t idxLine, const Utf8Str &rStrToPrepend);
 
+    /**
+     * Append a new line at the end of the list of line.
+     */
+    HRESULT appendLine(const Utf8Str &rStrLineToAppend);
     //////////////////New functions//////////////////////////////
 };
 
 
 #endif /* !MAIN_INCLUDED_TextScript_h */
-

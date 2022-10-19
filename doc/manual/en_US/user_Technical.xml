@@ -1,4 +1,25 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
+
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
 <!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
 "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
 <!ENTITY % all.entities SYSTEM "all-entities.ent">
@@ -70,7 +91,7 @@
 
         <listitem>
           <para>
-            On Linux, Mac OS X, and Oracle Solaris, this is generally
+            On Linux, macOS, and Oracle Solaris, this is generally
             taken from the environment variable
             <filename>$HOME</filename>, except for the user
             <literal>root</literal> where it is taken from the account
@@ -83,7 +104,7 @@
           <para>
             A typical location on Linux and Oracle Solaris is
             <filename>/home/<replaceable>username</replaceable></filename>
-            and on Mac OS X is
+            and on macOS is
             <filename>/Users/<replaceable>username</replaceable></filename>.
           </para>
         </listitem>
@@ -130,7 +151,7 @@
       <para>
         This is the default layout if you use the
         <emphasis role="bold">Create New Virtual Machine</emphasis>
-        wizard described in <xref linkend="gui-createvm" />. Once you
+        wizard described in <xref linkend="create-vm-wizard" />. Once you
         start working with the VM, additional files are added. Log files
         are in a subfolder called <filename>Logs</filename>, and if you
         have taken snapshots, they are in a
@@ -178,7 +199,7 @@
 
         <listitem>
           <para>
-            <emphasis role="bold">Mac OS X:</emphasis>
+            <emphasis role="bold">macOS:</emphasis>
             <filename>$HOME/Library/VirtualBox</filename>.
           </para>
         </listitem>
@@ -340,7 +361,7 @@
           which always runs in the background. This process is started
           automatically by the first &product-name; client process and
           exits a short time after the last client exits. The first
-          &product-name; service can be the GUI,
+          &product-name; service can be &vbox-mgr;,
           <command>VBoxManage</command>,
           <command>VBoxHeadless</command>, the web service amongst
           others. The service is responsible for bookkeeping,
@@ -367,11 +388,11 @@
           The GUI process, <command>VirtualBoxVM</command>, a client
           application based on the cross-platform Qt library. When
           started without the <option>--startvm</option> option, this
-          application acts as the VirtualBox Manager, displaying the VMs
-          and their settings. It then communicates settings and state
-          changes to <command>VBoxSVC</command> and also reflects
-          changes effected through other means, such as the
-          <command>VBoxManage</command> command.
+          application acts as &vbox-mgr;, displaying the VMs and their
+          settings. It then communicates settings and state changes to
+          <command>VBoxSVC</command> and also reflects changes effected
+          through other means, such as the <command>VBoxManage</command>
+          command.
         </para>
       </listitem>
 
@@ -396,9 +417,9 @@
     </para>
 
     <para>
-      The &product-name; GUI application is only one of several
-      available front ends, or clients. The complete list shipped with
-      &product-name; is as follows:
+      The &product-name; GUI application, called &vbox-mgr;, is only one
+      of several available front ends, or clients. The complete list
+      shipped with &product-name; is as follows:
     </para>
 
     <itemizedlist>
@@ -406,7 +427,7 @@
       <listitem>
         <para>
           <command>VirtualBoxVM</command>: The Qt front end implementing
-          the VirtualBox Manager and running VMs.
+          &vbox-mgr; and running VMs.
         </para>
       </listitem>
 
@@ -907,7 +928,7 @@
           also use <emphasis>large pages</emphasis> to reduce TLB usage
           and overhead. This can yield a performance improvement of up
           to 5%. To enable this feature for a VM, you use the
-          <command>VBoxManage modifyvm --largepages</command> command.
+          <command>VBoxManage modifyvm --large-pages</command> command.
           See <xref linkend="vboxmanage-modifyvm" />.
         </para>
 
@@ -928,8 +949,8 @@
 
         <para>
           To enable these features for a VM, you use the
-          <command>VBoxManage modifyvm --vtxvpid</command> and
-          <command>VBoxManage modifyvm --largepages</command> commands.
+          <command>VBoxManage modifyvm --vtx-vpid</command> and
+          <command>VBoxManage modifyvm --large-pages</command> commands.
           See <xref linkend="vboxmanage-modifyvm" />.
         </para>
       </listitem>

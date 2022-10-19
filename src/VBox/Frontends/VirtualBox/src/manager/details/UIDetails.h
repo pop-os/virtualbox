@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_details_UIDetails_h
@@ -26,6 +36,7 @@
 
 /* Forward declartions: */
 class QString;
+class QVBoxLayout;
 class UIDetailsModel;
 class UIDetailsView;
 class UIVirtualMachineItem;
@@ -37,41 +48,65 @@ class UIDetails : public QWidget
 
 signals:
 
-    /** Notifies listeners about link click.
-      * @param  strCategory  Brings link category.
-      * @param  strControl   Brings control name.
-      * @param  uId        Brings machine ID. */
-    void sigLinkClicked(const QString &strCategory,
-                        const QString &strControl,
-                        const QUuid &uId);
+    /** @name General stuff.
+      * @{ */
+        /** Notifies listeners about link click.
+          * @param  strCategory  Brings link category.
+          * @param  strControl   Brings control name.
+          * @param  uId        Brings machine ID. */
+        void sigLinkClicked(const QString &strCategory,
+                            const QString &strControl,
+                            const QUuid &uId);
 
-    /** Notifies listeners about toggling started. */
-    void sigToggleStarted();
-    /** Notifies listeners about toggling finished. */
-    void sigToggleFinished();
+        /** Notifies listeners about toggling started. */
+        void sigToggleStarted();
+        /** Notifies listeners about toggling finished. */
+        void sigToggleFinished();
+    /** @} */
 
 public:
 
     /** Constructs Details pane passing @a pParent to the base-class. */
     UIDetails(QWidget *pParent = 0);
 
-    /** Return the Details-model instance. */
-    UIDetailsModel *model() const { return m_pDetailsModel; }
-    /** Return the Details-view instance. */
-    UIDetailsView *view() const { return m_pDetailsView; }
+    /** @name General stuff.
+      * @{ */
+        /** Return the Details-model instance. */
+        UIDetailsModel *model() const { return m_pDetailsModel; }
+        /** Return the Details-view instance. */
+        UIDetailsView *view() const { return m_pDetailsView; }
 
-    /** Replaces current model @a items. */
-    void setItems(const QList<UIVirtualMachineItem*> &items);
+        /** Replaces current model @a items. */
+        void setItems(const QList<UIVirtualMachineItem*> &items);
+    /** @} */
 
 private:
 
-    /** Prepares all. */
-    void prepare();
+    /** @name Prepare/Cleanup cascade.
+      * @{ */
+        /** Prepares all. */
+        void prepare();
+        /** Prepares contents. */
+        void prepareContents();
+        /** Prepares model. */
+        void prepareModel();
+        /** Prepares view. */
+        void prepareView();
+        /** Prepares connections. */
+        void prepareConnections();
+        /** Inits model. */
+        void initModel();
+    /** @} */
 
-    /** Holds the details model instance. */
-    UIDetailsModel *m_pDetailsModel;
-    /** Holds the details view instance. */
-    UIDetailsView  *m_pDetailsView;
+    /** @name General stuff.
+      * @{ */
+        /** Holds the main layout instance. */
+        QVBoxLayout    *m_pMainLayout;
+        /** Holds the details model instance. */
+        UIDetailsModel *m_pDetailsModel;
+        /** Holds the details view instance. */
+        UIDetailsView  *m_pDetailsView;
+    /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_manager_details_UIDetails_h */

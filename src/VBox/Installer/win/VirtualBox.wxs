@@ -1,16 +1,27 @@
 <?xml version='1.0' encoding='windows-1252'?>
 <!--
     VirtualBox Windows Installation Script (WiX)
+-->
+<!--
+    Copyright (C) 2014-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2014-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
@@ -91,7 +102,7 @@
     <?include PublicProperties.wxi ?>
 
     <!-- Make sure installation will not start on anything other but the NT family -->
-<?if $(env.BUILD_TARGET_ARCH) = "amd64" ?>
+<?if $(env.KBUILD_TARGET_ARCH) = "amd64" ?>
     <Condition Message="!(loc.Only64Bit)">
         VersionNT64
     </Condition>
@@ -109,6 +120,13 @@
     <Condition Message="!(loc.NeedAdmin)">
         Privileged
     </Condition>
+
+<?if $(env.VBOX_WITH_CRT_PACKING) = "no" ?>
+    <!-- Check if we have the required MS CRT(s) installed when we're not shipping those. -->
+    <Condition Message="!(loc.NeedMSCRT)">
+        Installed OR (VBOX_MSCRT_INSTALLED)
+    </Condition>
+<?endif ?>
 
     <!-- Detect old innotek installation -->
     <!-- Force a manual uninstall of an already installed innotek VirtualBox version first -->
@@ -179,7 +197,7 @@
     <!-- Custom actions -->
 
     <!-- Figure out where a previous installation was, if any -->
-<?if $(env.BUILD_TARGET_ARCH) = "amd64" ?>
+<?if $(env.KBUILD_TARGET_ARCH) = "amd64" ?>
     <CustomAction Id="ca_OriginalTargetDir" Execute="firstSequence" Property="INSTALLDIR"
                   Value="[ProgramFiles64Folder]\$(env.VBOX_VENDOR_SHORT)\VirtualBox" />
 
@@ -209,6 +227,13 @@
             <FileSearch Name="dependency.dep"/>
         </DirectorySearch>
     </Property>
+
+<?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
+    <Property Id="EXISTING_PYTHON_API_FOLDER" Secure="yes" >
+        <RegistrySearch Id="RegistryGetPythonApiInstallPath" Root="HKLM" Key="$(var.Property_RegKey)"
+                        Name="PythonApiInstallDir" Type="raw" Win64="$(var.Property_Win64)"/>
+    </Property>
+<?endif ?>
 
     <!--
                             install upgrade uninstall
@@ -268,6 +293,10 @@
         <Directory Id="$(var.Property_ProgramFiles)" Name="PFiles">
             <Directory Id="VENDOR" Name="$(env.VBOX_VENDOR_SHORT)">
                 <Directory Id="INSTALLDIR" Name="VirtualBox">
+                    <!-- Components for removing empty folder after cleaning traces -->
+                    <Component Id="cp_INSTALLDIR" Guid="374723AF-5990-4552-A1B0-82C72EFA360F">
+                        <RemoveFolder Id="INSTALLDIR" On="uninstall" />
+                    </Component>
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
                 <Merge Id="msm_VBoxApp" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergeApp)" DiskId="1">
                     <ConfigurationData Name="argRegisterExtensions" Value="[VBOX_REGISTERFILEEXTENSIONS]"/>
@@ -352,8 +381,8 @@
 <?endif ?>
                     </Directory>
                 </Directory>
-<?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
                 <Directory Id="dir_SDK" Name="sdk">
+<?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
                     <Directory Id="dir_SDKInstall" Name="install">
     <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
                         <Merge Id="msm_VBoxPython" Language="!(loc.LANG)" SourceFile="$(var.Property_VBoxMergePython)" DiskId="1" />
@@ -363,8 +392,12 @@
                         </Directory>
     <?endif ?>
                     </Directory>
-                </Directory>
 <?endif ?>
+                    <!-- Component for removing empty folder after cleaning traces -->
+                    <Component Id="cp_SDK" Guid="ACA59290-B2D6-4E96-B164-C45F70A90219">
+                        <RemoveFolder Id="dir_SDK" On="uninstall" />
+                    </Component>
+                </Directory>
 
 <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
                 <!-- Set up special directory IDs for referencing to the start menu
@@ -433,6 +466,10 @@
         <ComponentRef Id="cp_DesktopShortcut" />
         <ComponentRef Id="cp_QuickLaunchVBox" />
 <?endif ?>
+        <!-- Components for removing empty folders after cleaning traces -->
+        <ComponentRef Id="cp_INSTALLDIR" />
+        <ComponentRef Id="cp_SDK" />
+
         <!-- Components handled either by the installer itself or
              the merge module -->
 <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
@@ -443,7 +480,7 @@
 <?else ?>
     <!-- Make sure to reference the permissions component, which takes care of setting
          the required ACLs for our files / folders. -->
-    <ComponentRef Id="cp_Permissions" />
+        <ComponentRef Id="cp_Permissions" />
     <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
         <ComponentRef Id="cp_RegisterExtensions" />
     <?endif ?>
@@ -471,6 +508,7 @@
     <?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
         <ComponentRef Id="cp_VBoxPyInst" />
         <ComponentRef Id="cp_VBoxPyMod" />
+        <ComponentRef Id="cp_VBoxPyDel" />
     <?endif ?>
     <?if $(env.VBOX_WITH_VBOXSDL) = "yes" ?>
         <ComponentRef Id="cp_VBoxSDLBinaries" />
@@ -554,7 +592,7 @@
 <?endif ?>
 
 <?if $(env.VBOX_WITH_PYTHON) = "yes" ?>
-        <Feature Id="VBoxPython" Title="VirtualBox Python 2.x Support" Level="1"
+        <Feature Id="VBoxPython" Title="VirtualBox Python Support" Level="1"
                  Description="!(loc.VB_Python)"
                  ConfigurableDirectory="INSTALLDIR" TypicalDefault="install" Display="expand"
                  Absent="allow" AllowAdvertise="no" >

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VMM_INCLUDED_SRC_include_IOMInternal_h
@@ -317,10 +327,6 @@ typedef IOMMMIOSTATSENTRY *PIOMMMIOSTATSENTRY;
  */
 typedef struct IOMCPU
 {
-    /** For saving stack space, the disassembler state is allocated here instead of
-     * on the stack. */
-    DISCPUSTATE                     DisState;
-
     /**
      * Pending I/O port write commit (VINF_IOM_R3_IOPORT_COMMIT_WRITE).
      *
@@ -387,6 +393,13 @@ typedef IOMCPU *PIOMCPU;
  */
 typedef struct IOM
 {
+    /** Lock serializing EMT access to IOM. */
+#ifdef IOM_WITH_CRIT_SECT_RW
+    PDMCRITSECTRW                   CritSect;
+#else
+    PDMCRITSECT                     CritSect;
+#endif
+
     /** @name I/O ports
      * @note The updating of these variables is done exclusively from EMT(0).
      * @{ */
@@ -397,11 +410,13 @@ typedef struct IOM
     /** I/O port registration table for ring-3.
      * There is a parallel table in ring-0, IOMR0PERVM::paIoPortRegs. */
     R3PTRTYPE(PIOMIOPORTENTRYR3)    paIoPortRegs;
-    /** Number of entries in the lookup table. */
-    uint32_t                        cIoPortLookupEntries;
-    uint32_t                        u32Padding1;
     /** I/O port lookup table. */
     R3PTRTYPE(PIOMIOPORTLOOKUPENTRY) paIoPortLookup;
+    /** Number of entries in the lookup table. */
+    uint32_t                        cIoPortLookupEntries;
+    /** Set if I/O port registrations are frozen. */
+    bool                            fIoPortsFrozen;
+    bool                            afPadding1[3];
 
     /** The number of valid entries in paioPortStats. */
     uint32_t                        cIoPortStats;
@@ -425,11 +440,13 @@ typedef struct IOM
     /** MMIO registration table for ring-3.
      * There is a parallel table in ring-0, IOMR0PERVM::paMmioRegs. */
     R3PTRTYPE(PIOMMMIOENTRYR3)      paMmioRegs;
-    /** Number of entries in the lookup table. */
-    uint32_t                        cMmioLookupEntries;
-    uint32_t                        u32Padding2;
     /** MMIO lookup table. */
     R3PTRTYPE(PIOMMMIOLOOKUPENTRY)  paMmioLookup;
+    /** Number of entries in the lookup table. */
+    uint32_t                        cMmioLookupEntries;
+    /** Set if MMIO registrations are frozen. */
+    bool                            fMmioFrozen;
+    bool                            afPadding2[3];
 
     /** The number of valid entries in paioPortStats. */
     uint32_t                        cMmioStats;
@@ -440,14 +457,6 @@ typedef struct IOM
     /** Dummy stats entry so we don't need to check for NULL pointers so much. */
     IOMMMIOSTATSENTRY               MmioDummyStats;
     /** @} */
-
-
-    /** Lock serializing EMT access to IOM. */
-#ifdef IOM_WITH_CRIT_SECT_RW
-    PDMCRITSECTRW                   CritSect;
-#else
-    PDMCRITSECT                     CritSect;
-#endif
 
     /** @name I/O Port statistics.
      * @{ */
@@ -473,6 +482,9 @@ typedef struct IOM
     STAMCOUNTER                     StatMmioDevLockContentionR0;
     /** @} */
 } IOM;
+#ifdef IOM_WITH_CRIT_SECT_RW
+AssertCompileMemberAlignment(IOM, CritSect, 64);
+#endif
 /** Pointer to IOM instance data. */
 typedef IOM *PIOM;
 
@@ -568,31 +580,31 @@ void                iomR0MmioInitPerVMData(PGVM pGVM);
 #endif
 
 #ifndef IN_RING3
-DECLEXPORT(FNPGMRZPHYSPFHANDLER)    iomMmioPfHandlerNew;
+DECLCALLBACK(FNPGMRZPHYSPFHANDLER)  iomMmioPfHandlerNew;
 #endif
-PGM_ALL_CB2_PROTO(FNPGMPHYSHANDLER) iomMmioHandlerNew;
+DECLCALLBACK(FNPGMPHYSHANDLER)      iomMmioHandlerNew;
 
 /* IOM locking helpers. */
 #ifdef IOM_WITH_CRIT_SECT_RW
-# define IOM_LOCK_EXCL(a_pVM)                   PDMCritSectRwEnterExcl(&(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
-# define IOM_UNLOCK_EXCL(a_pVM)                 do { PDMCritSectRwLeaveExcl(&(a_pVM)->iom.s.CritSect); } while (0)
+# define IOM_LOCK_EXCL(a_pVM)                   PDMCritSectRwEnterExcl((a_pVM), &(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
+# define IOM_UNLOCK_EXCL(a_pVM)                 do { PDMCritSectRwLeaveExcl((a_pVM), &(a_pVM)->iom.s.CritSect); } while (0)
 # if 0 /* (in case needed for debugging) */
 # define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectRwEnterExcl(&(a_pVM)->iom.s.CritSect, (a_rcBusy))
 # define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectRwLeaveExcl(&(a_pVM)->iom.s.CritSect); } while (0)
 # define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectRwIsWriteOwner(&(a_pVM)->iom.s.CritSect)
 # else
-# define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectRwEnterShared(&(a_pVM)->iom.s.CritSect, (a_rcBusy))
-# define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectRwLeaveShared(&(a_pVM)->iom.s.CritSect); } while (0)
-# define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectRwIsReadOwner(&(a_pVM)->iom.s.CritSect, true)
+# define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectRwEnterShared((a_pVM), &(a_pVM)->iom.s.CritSect, (a_rcBusy))
+# define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectRwLeaveShared((a_pVM), &(a_pVM)->iom.s.CritSect); } while (0)
+# define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectRwIsReadOwner((a_pVM), &(a_pVM)->iom.s.CritSect, true)
 # endif
-# define IOM_IS_EXCL_LOCK_OWNER(a_pVM)          PDMCritSectRwIsWriteOwner(&(a_pVM)->iom.s.CritSect)
+# define IOM_IS_EXCL_LOCK_OWNER(a_pVM)          PDMCritSectRwIsWriteOwner((a_pVM), &(a_pVM)->iom.s.CritSect)
 #else
-# define IOM_LOCK_EXCL(a_pVM)                   PDMCritSectEnter(&(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
-# define IOM_UNLOCK_EXCL(a_pVM)                 do { PDMCritSectLeave(&(a_pVM)->iom.s.CritSect); } while (0)
-# define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectEnter(&(a_pVM)->iom.s.CritSect, (a_rcBusy))
-# define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectLeave(&(a_pVM)->iom.s.CritSect); } while (0)
-# define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectIsOwner(&(a_pVM)->iom.s.CritSect)
-# define IOM_IS_EXCL_LOCK_OWNER(a_pVM)          PDMCritSectIsOwner(&(a_pVM)->iom.s.CritSect)
+# define IOM_LOCK_EXCL(a_pVM)                   PDMCritSectEnter((a_pVM), &(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
+# define IOM_UNLOCK_EXCL(a_pVM)                 do { PDMCritSectLeave((a_pVM), &(a_pVM)->iom.s.CritSect); } while (0)
+# define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectEnter((a_pVM), &(a_pVM)->iom.s.CritSect, (a_rcBusy))
+# define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectLeave((a_pVM), &(a_pVM)->iom.s.CritSect); } while (0)
+# define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectIsOwner((a_pVM), &(a_pVM)->iom.s.CritSect)
+# define IOM_IS_EXCL_LOCK_OWNER(a_pVM)          PDMCritSectIsOwner((a_pVM), &(a_pVM)->iom.s.CritSect)
 #endif
 #define IOM_LOCK_SHARED(a_pVM)                  IOM_LOCK_SHARED_EX(a_pVM, VERR_SEM_BUSY)
 

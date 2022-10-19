@@ -10,24 +10,34 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -223,7 +233,7 @@ typedef struct RTHTTPINTERNAL
 
     /** @name Upload callback
      * @{ */
-    /** Pointer to the download callback function, if any. */
+    /** Pointer to the upload callback function, if any. */
     PFNRTHTTPUPLOADCALLBACK         pfnUploadCallback;
     /** The user argument for the upload callback function. */
     void                           *pvUploadCallbackUser;
@@ -267,6 +277,8 @@ typedef struct RTHTTPINTERNAL
     void                           *pvHeaderCallbackUser;
     /** @} */
 
+    /** Buffer for human readable error messages from curl on failures or problems. */
+    char szErrorBuffer[CURL_ERROR_SIZE];
 } RTHTTPINTERNAL;
 /** Pointer to an internal HTTP client instance. */
 typedef RTHTTPINTERNAL *PRTHTTPINTERNAL;
@@ -397,6 +409,8 @@ RTR3DECL(int) RTHttpCreate(PRTHTTP phHttp)
                 pThis->cbUploadContent          = UINT64_MAX;
                 pThis->offUploadContent         = 0;
 
+                /* ask curl to give us back error messages */
+                curl_easy_setopt(pThis->pCurl, CURLOPT_ERRORBUFFER, pThis->szErrorBuffer);
 
                 *phHttp = (RTHTTP)pThis;
 
@@ -523,12 +537,12 @@ RTR3DECL(int) RTHttpSetFollowRedirects(RTHTTP hHttp, uint32_t cMaxRedirects)
      */
     if (pThis->cMaxRedirects != cMaxRedirects)
     {
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_MAXREDIRS, (long)cMaxRedirects);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_MAXREDIRS=%u: %d (%#x)\n", cMaxRedirects, rcCurl, rcCurl),
+        CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_MAXREDIRS, (long)cMaxRedirects);
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_MAXREDIRS=%u: %d (%#x)\n", cMaxRedirects, rcCurl, rcCurl),
                         VERR_HTTP_CURL_ERROR);
 
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_FOLLOWLOCATION, (long)(cMaxRedirects > 0));
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_FOLLOWLOCATION=%d: %d (%#x)\n", cMaxRedirects > 0, rcCurl, rcCurl),
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_FOLLOWLOCATION=%d: %d (%#x)\n", cMaxRedirects > 0, rcCurl, rcCurl),
                         VERR_HTTP_CURL_ERROR);
 
         pThis->cMaxRedirects = cMaxRedirects;
@@ -577,26 +591,24 @@ RTR3DECL(int) RTHttpUseSystemProxySettings(RTHTTP hHttp)
 static int rtHttpUpdateProxyConfig(PRTHTTPINTERNAL pThis, curl_proxytype enmProxyType, const char *pszHost,
                                    uint32_t uPort, const char *pszUsername, const char *pszPassword)
 {
-    int rcCurl;
+    CURLcode rcCurl;
     AssertReturn(pszHost, VERR_INVALID_PARAMETER);
     Log(("rtHttpUpdateProxyConfig: pThis=%p type=%d host='%s' port=%u user='%s'%s\n",
          pThis, enmProxyType, pszHost, uPort, pszUsername, pszPassword ? " with password" : " without password"));
 
-#ifdef CURLOPT_NOPROXY
     if (pThis->fNoProxy)
     {
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_NOPROXY, (const char *)NULL);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_NOPROXY=NULL: %d (%#x)\n", rcCurl, rcCurl),
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_NOPROXY=NULL: %d (%#x)\n", rcCurl, rcCurl),
                         VERR_HTTP_CURL_PROXY_CONFIG);
         pThis->fNoProxy = false;
     }
-#endif
 
     if (   pThis->fReapplyProxyInfo
         || enmProxyType != pThis->enmProxyType)
     {
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PROXYTYPE, (long)enmProxyType);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_PROXYTYPE=%d: %d (%#x)\n", enmProxyType, rcCurl, rcCurl),
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_PROXYTYPE=%d: %d (%#x)\n", enmProxyType, rcCurl, rcCurl),
                         VERR_HTTP_CURL_PROXY_CONFIG);
         pThis->enmProxyType = enmProxyType;
     }
@@ -605,7 +617,7 @@ static int rtHttpUpdateProxyConfig(PRTHTTPINTERNAL pThis, curl_proxytype enmProx
         || uPort != pThis->uProxyPort)
     {
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PROXYPORT, (long)uPort);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_PROXYPORT=%d: %d (%#x)\n", uPort, rcCurl, rcCurl),
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_PROXYPORT=%d: %d (%#x)\n", uPort, rcCurl, rcCurl),
                         VERR_HTTP_CURL_PROXY_CONFIG);
         pThis->uProxyPort = uPort;
     }
@@ -615,7 +627,7 @@ static int rtHttpUpdateProxyConfig(PRTHTTPINTERNAL pThis, curl_proxytype enmProx
         || RTStrCmp(pszUsername, pThis->pszProxyUsername))
     {
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PROXYUSERNAME, pszUsername);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_PROXYUSERNAME=%s: %d (%#x)\n", pszUsername, rcCurl, rcCurl),
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_PROXYUSERNAME=%s: %d (%#x)\n", pszUsername, rcCurl, rcCurl),
                         VERR_HTTP_CURL_PROXY_CONFIG);
         if (pThis->pszProxyUsername)
         {
@@ -634,7 +646,7 @@ static int rtHttpUpdateProxyConfig(PRTHTTPINTERNAL pThis, curl_proxytype enmProx
         || RTStrCmp(pszPassword, pThis->pszProxyPassword))
     {
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PROXYPASSWORD, pszPassword);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_PROXYPASSWORD=%s: %d (%#x)\n", pszPassword ? "xxx" : NULL, rcCurl, rcCurl),
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_PROXYPASSWORD=%s: %d (%#x)\n", pszPassword ? "xxx" : NULL, rcCurl, rcCurl),
                         VERR_HTTP_CURL_PROXY_CONFIG);
         if (pThis->pszProxyPassword)
         {
@@ -654,7 +666,7 @@ static int rtHttpUpdateProxyConfig(PRTHTTPINTERNAL pThis, curl_proxytype enmProx
         || RTStrCmp(pszHost, pThis->pszProxyHost))
     {
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PROXY, pszHost);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_PROXY=%s: %d (%#x)\n", pszHost, rcCurl, rcCurl),
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_PROXY=%s: %d (%#x)\n", pszHost, rcCurl, rcCurl),
                         VERR_HTTP_CURL_PROXY_CONFIG);
         if (pThis->pszProxyHost)
         {
@@ -710,11 +722,9 @@ static int rtHttpUpdateAutomaticProxyDisable(PRTHTTPINTERNAL pThis)
         pThis->pszProxyHost = NULL;
     }
 
-#ifdef CURLOPT_NOPROXY
     /* No proxy for everything! */
     AssertReturn(curl_easy_setopt(pThis->pCurl, CURLOPT_NOPROXY, "*") == CURLE_OK, CURLOPT_PROXY);
     pThis->fNoProxy = true;
-#endif
 
     return VINF_SUCCESS;
 }
@@ -1053,7 +1063,10 @@ static DECLCALLBACK(int) rtHttpLibProxyResolveImports(void *pvUser)
         if (RT_SUCCESS(rc))
             rc = RTLdrGetSymbol(hMod, "px_proxy_factory_get_proxies", (void **)&g_pfnLibProxyFactoryGetProxies);
         if (RT_SUCCESS(rc))
+        {
+            RTMEM_WILL_LEAK(hMod);
             g_hLdrLibProxy = hMod;
+        }
         else
             RTLdrClose(hMod);
         AssertRC(rc);
@@ -1150,6 +1163,9 @@ static bool rtHttpDarwinGetBooleanFromDict(CFDictionaryRef hDict, void const *pv
  */
 static CFURLRef rtHttpDarwinUrlToCFURL(const char *pszUrl)
 {
+    /* CFURLCreateStringByAddingPercentEscapes is deprecated, so try use CFURLCreateWithBytes
+       as it doesn't validate as much as as CFUrlCreateWithString does. */
+#if 0
     CFURLRef    hUrl = NULL;
     CFStringRef hStrUrl = CFStringCreateWithCString(kCFAllocatorDefault, pszUrl, kCFStringEncodingUTF8);
     if (hStrUrl)
@@ -1170,6 +1186,11 @@ static CFURLRef rtHttpDarwinUrlToCFURL(const char *pszUrl)
     }
     else
         AssertFailed();
+#else
+    CFURLRef hUrl = CFURLCreateWithBytes(kCFAllocatorDefault, (const uint8_t *)pszUrl, strlen(pszUrl),
+                                         kCFStringEncodingUTF8, NULL /*baseURL*/);
+    Assert(hUrl);
+#endif
     return hUrl;
 }
 
@@ -1523,7 +1544,8 @@ static int rtHttpDarwinConfigureProxyForUrlWorker(PRTHTTPINTERNAL pThis, CFDicti
 
     /* Work around for <rdar://problem/5530166>, whatever that is.  Initializes
        some internal CFNetwork state, they say.  See CFPRoxySupportTool example. */
-    hArray = CFNetworkCopyProxiesForURL(hUrlTarget, NULL);
+    CFDictionaryRef hDictNull = (CFDictionaryRef)(42-42); /*workaround for -Wnonnull warning in Clang 11. */
+    hArray = CFNetworkCopyProxiesForURL(hUrlTarget, hDictNull);
     if (hArray)
         CFRelease(hArray);
 
@@ -2077,7 +2099,7 @@ static int rtHttpUpdateUserAgentHeader(PRTHTTPINTERNAL pThis, PRTHTTPHEADER pNew
         pThis->fHaveUserAgentHeader = true;
         if (pThis->fHaveSetUserAgent)
         {
-            int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_USERAGENT, (char *)NULL);
+            CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_USERAGENT, (char *)NULL);
             Assert(CURL_SUCCESS(rcCurl)); NOREF(rcCurl);
             pThis->fHaveSetUserAgent = false;
         }
@@ -2087,7 +2109,7 @@ static int rtHttpUpdateUserAgentHeader(PRTHTTPINTERNAL pThis, PRTHTTPHEADER pNew
 
 
 /**
- * Free the headers associated with the insance (w/o telling cURL about it).
+ * Free the headers associated with the instance (w/o telling cURL about it).
  *
  * @param   pThis       The HTTP client instance.
  */
@@ -2165,7 +2187,7 @@ static int rtHttpAddHeaderWorker(PRTHTTPINTERNAL pThis, const char *pchName, siz
             pThis->ppHeadersTail = &pHdr->Core.next;
         pThis->pHeaders = &pHdr->Core;
 
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pThis->pHeaders);
+        CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pThis->pHeaders);
         if (CURL_SUCCESS(rcCurl))
             return rtHttpUpdateUserAgentHeader(pThis, pHdr);
         return VERR_HTTP_CURL_ERROR;
@@ -2244,7 +2266,7 @@ RTR3DECL(int) RTHttpAddRawHeader(RTHTTP hHttp, const char *pszHeader, uint32_t f
      */
     if (!pThis->pHeaders)
     {
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pHeaders);
+        CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pHeaders);
         if (CURL_FAILURE(rcCurl))
         {
             curl_slist_free_all(pHeaders);
@@ -2379,6 +2401,9 @@ RTR3DECL(int) RTHttpSignHeaders(RTHTTP hHttp, RTHTTPMETHOD enmMethod, const char
         case RTHTTPMETHOD_HEAD:     pszMethodSp = "head "; break;
         case RTHTTPMETHOD_OPTIONS:  pszMethodSp = "options "; break;
         case RTHTTPMETHOD_TRACE:    pszMethodSp = "trace "; break;
+#ifdef IPRT_HTTP_WITH_WEBDAV
+        case RTHTTPMETHOD_PROPFIND: pszMethodSp = "propfind "; break;
+#endif
         /* no default! */
         case RTHTTPMETHOD_INVALID:
         case RTHTTPMETHOD_END:
@@ -2524,7 +2549,7 @@ RTR3DECL(int) RTHttpSignHeaders(RTHTTP hHttp, RTHTTPMETHOD enmMethod, const char
                                 pThis->ppHeadersTail  = &pHdr->Core.next;
                             pThis->pHeaders = &pHdr->Core;
 
-                            int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pThis->pHeaders);
+                            CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pThis->pHeaders);
                             if (CURL_SUCCESS(rcCurl))
                                 return VINF_SUCCESS;
                             rc = VERR_HTTP_CURL_ERROR;
@@ -2714,8 +2739,8 @@ RTR3DECL(int) RTHttpSetVerifyPeer(RTHTTP hHttp, bool fVerify)
 
     if (pThis->fVerifyPeer != fVerify)
     {
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_SSL_VERIFYPEER, (long)fVerify);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_SSL_VERIFYPEER=%RTbool: %d (%#x)\n", fVerify, rcCurl, rcCurl),
+        CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_SSL_VERIFYPEER, (long)fVerify);
+        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("CURLOPT_SSL_VERIFYPEER=%RTbool: %d (%#x)\n", fVerify, rcCurl, rcCurl),
                         VERR_HTTP_CURL_ERROR);
         pThis->fVerifyPeer = fVerify;
     }
@@ -2739,7 +2764,7 @@ RTR3DECL(int) RTHttpSetVerifyPeer(RTHTTP hHttp, bool fVerify)
  * @param   puHttpStatus    Where to optionally return the HTTP status.  If specified,
  *                          the HTTP statuses are not translated to IPRT status codes.
  */
-static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl, uint32_t *puHttpStatus)
+static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, CURLcode rcCurl, uint32_t *puHttpStatus)
 {
     int rc = VERR_HTTP_CURL_ERROR;
 
@@ -2748,7 +2773,7 @@ static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl, uint32_t *puHt
         RTStrFree(pThis->pszRedirLocation);
         pThis->pszRedirLocation = NULL;
     }
-    if (rcCurl == CURLE_OK)
+    if (CURL_SUCCESS(rcCurl))
     {
         curl_easy_getinfo(pThis->pCurl, CURLINFO_RESPONSE_CODE, &pThis->lLastResp);
         if (puHttpStatus)
@@ -2840,7 +2865,12 @@ static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl, uint32_t *puHt
             default:
                 break;
         }
-        Log(("rtHttpGetCalcStatus: rc=%Rrc rcCurl=%u\n", rc, rcCurl));
+        Log(("%s: %Rrc: %u = %s%s%.*s\n",
+             __FUNCTION__,
+             rc, rcCurl, curl_easy_strerror((CURLcode)rcCurl),
+             pThis->szErrorBuffer[0] != '\0' ? ": " : "",
+             (int) sizeof(pThis->szErrorBuffer),
+             pThis->szErrorBuffer[0] != '\0' ? pThis->szErrorBuffer : ""));
     }
 
     return rc;
@@ -2850,7 +2880,7 @@ static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl, uint32_t *puHt
 /**
  * cURL callback for reporting progress, we use it for checking for abort.
  */
-static int rtHttpProgress(void *pData, double rdTotalDownload, double rdDownloaded, double rdTotalUpload, double rdUploaded)
+static int rtHttpProgress(void *pData, double rdTotalDownload, double rdDownloaded, double rdTotalUpload, double rdUploaded) RT_NOTHROW_DEF
 {
     PRTHTTPINTERNAL pThis = (PRTHTTPINTERNAL)pData;
     AssertReturn(pThis->u32Magic == RTHTTP_MAGIC, 1);
@@ -2890,7 +2920,7 @@ static int rtHttpApplySettings(PRTHTTPINTERNAL pThis, const char *pszUrl)
     /*
      * The URL.
      */
-    int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_URL, pszUrl);
+    CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_URL, pszUrl);
     if (CURL_FAILURE(rcCurl))
         return VERR_INVALID_PARAMETER;
 
@@ -3072,7 +3102,7 @@ static size_t rtHttpWriteDataToMemOutput(PRTHTTPINTERNAL pThis, RTHTTPOUTPUTDATA
 /**
  * cURL callback for writing body data.
  */
-static size_t rtHttpWriteBodyData(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
+static size_t rtHttpWriteBodyData(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser) RT_NOTHROW_DEF
 {
     PRTHTTPINTERNAL   pThis      = (PRTHTTPINTERNAL)pvUser;
     size_t const      cbToAppend = cbUnit * cUnits;
@@ -3112,7 +3142,7 @@ static size_t rtHttpWriteBodyData(char *pchBuf, size_t cbUnit, size_t cUnits, vo
 /**
  * cURL callback for writing header data.
  */
-static size_t rtHttpWriteHeaderData(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
+static size_t rtHttpWriteHeaderData(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser) RT_NOTHROW_DEF
 {
     PRTHTTPINTERNAL   pThis      = (PRTHTTPINTERNAL)pvUser;
     size_t const      cbToAppend = cbUnit * cUnits;
@@ -3200,7 +3230,7 @@ static size_t rtHttpWriteHeaderData(char *pchBuf, size_t cbUnit, size_t cUnits, 
 /**
  * cURL callback for working the upload callback.
  */
-static size_t rtHttpWriteDataToDownloadCallback(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
+static size_t rtHttpWriteDataToDownloadCallback(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser) RT_NOTHROW_DEF
 {
     PRTHTTPINTERNAL   pThis = (PRTHTTPINTERNAL)pvUser;
     size_t const      cbBuf = cbUnit * cUnits;
@@ -3214,7 +3244,7 @@ static size_t rtHttpWriteDataToDownloadCallback(char *pchBuf, size_t cbUnit, siz
         || (pThis->fDownloadCallback & RTHTTPDOWNLOAD_F_ONLY_STATUS_MASK) == pThis->uDownloadHttpStatus)
     {
         int rc = pThis->pfnDownloadCallback(pThis, pchBuf, cbBuf, pThis->uDownloadHttpStatus, pThis->offDownloadContent,
-                                            pThis->cbDownloadContent, pThis->pvUploadCallbackUser);
+                                            pThis->cbDownloadContent, pThis->pvDownloadCallbackUser);
         if (RT_SUCCESS(rc))
         {   /* likely */ }
         else
@@ -3233,7 +3263,7 @@ static size_t rtHttpWriteDataToDownloadCallback(char *pchBuf, size_t cbUnit, siz
 /**
  * Callback feeding cURL data from RTHTTPINTERNAL::ReadData::Mem.
  */
-static size_t rtHttpReadData(void *pvDst, size_t cbUnit, size_t cUnits, void *pvUser)
+static size_t rtHttpReadData(void *pvDst, size_t cbUnit, size_t cUnits, void *pvUser) RT_NOTHROW_DEF
 {
     PRTHTTPINTERNAL pThis = (PRTHTTPINTERNAL)pvUser;
     size_t const cbReq    = cbUnit * cUnits;
@@ -3250,7 +3280,7 @@ static size_t rtHttpReadData(void *pvDst, size_t cbUnit, size_t cUnits, void *pv
 /**
  * Callback feeding cURL data via the user upload callback.
  */
-static size_t rtHttpReadDataFromUploadCallback(void *pvDst, size_t cbUnit, size_t cUnits, void *pvUser)
+static size_t rtHttpReadDataFromUploadCallback(void *pvDst, size_t cbUnit, size_t cUnits, void *pvUser) RT_NOTHROW_DEF
 {
     PRTHTTPINTERNAL pThis = (PRTHTTPINTERNAL)pvUser;
     size_t const cbReq    = cbUnit * cUnits;
@@ -3363,7 +3393,7 @@ static int rtHttpGetToMem(RTHTTP hHttp, const char *pszUrl, bool fNoBody, uint8_
     if (RT_SUCCESS(rc))
     {
         RT_ZERO(pThis->BodyOutput.uData.Mem);
-        int rcCurl = rtHttpSetWriteCallback(pThis, &rtHttpWriteBodyData, pThis);
+        CURLcode rcCurl = rtHttpSetWriteCallback(pThis, &rtHttpWriteBodyData, pThis);
         if (fNoBody)
         {
             if (CURL_SUCCESS(rcCurl))
@@ -3468,7 +3498,7 @@ RTR3DECL(void) RTHttpFreeResponse(void *pvResponse)
 /**
  * cURL callback for writing data to a file.
  */
-static size_t rtHttpWriteDataToFile(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
+static size_t rtHttpWriteDataToFile(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser) RT_NOTHROW_DEF
 {
     RTHTTPOUTPUTDATA *pOutput   = (RTHTTPOUTPUTDATA *)pvUser;
     PRTHTTPINTERNAL   pThis     = pOutput->pHttp;
@@ -3504,7 +3534,7 @@ RTR3DECL(int) RTHttpGetFile(RTHTTP hHttp, const char *pszUrl, const char *pszDst
     if (RT_SUCCESS(rc))
     {
         pThis->BodyOutput.uData.hFile = NIL_RTFILE;
-        int rcCurl = rtHttpSetWriteCallback(pThis, &rtHttpWriteDataToFile, (void *)&pThis->BodyOutput);
+        CURLcode rcCurl = rtHttpSetWriteCallback(pThis, &rtHttpWriteDataToFile, (void *)&pThis->BodyOutput);
         if (CURL_SUCCESS(rcCurl))
         {
             /*
@@ -3683,7 +3713,7 @@ RTR3DECL(int) RTHttpPerform(RTHTTP hHttp, const char *pszUrl, RTHTTPMETHOD enmMe
     if (RT_SUCCESS(rc))
     {
         /* Set the HTTP method. */
-        int rcCurl = 1;
+        CURLcode rcCurl = CURLE_BAD_FUNCTION_ARGUMENT;
         switch (enmMethod)
         {
             case RTHTTPMETHOD_GET:
@@ -3712,6 +3742,10 @@ RTR3DECL(int) RTHttpPerform(RTHTTP hHttp, const char *pszUrl, RTHTTPMETHOD enmMe
             case RTHTTPMETHOD_TRACE:
                 rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_CUSTOMREQUEST, "TRACE");
                 break;
+#ifdef IPRT_HTTP_WITH_WEBDAV
+            case RTHTTPMETHOD_PROPFIND:
+                RT_FALL_THROUGH();
+#endif
             case RTHTTPMETHOD_END:
             case RTHTTPMETHOD_INVALID:
             case RTHTTPMETHOD_32BIT_HACK:
@@ -3737,6 +3771,9 @@ RTR3DECL(int) RTHttpPerform(RTHTTP hHttp, const char *pszUrl, RTHTTPMETHOD enmMe
                 pThis->ReadData.Mem.cbMem  = cbReqBody;
                 pThis->ReadData.Mem.offMem = 0;
                 rcCurl = rtHttpSetReadCallback(pThis, rtHttpReadData, pThis);
+                /* curl will use chunked transfer is it doesn't know the body size */
+                if (enmMethod == RTHTTPMETHOD_PUT && CURL_SUCCESS(rcCurl))
+                    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_INFILESIZE_LARGE, cbReqBody);
             }
         }
         else if (pThis->pfnUploadCallback && CURL_SUCCESS(rcCurl))
@@ -3807,28 +3844,6 @@ RTR3DECL(int) RTHttpPerform(RTHTTP hHttp, const char *pszUrl, RTHTTPMETHOD enmMe
 }
 
 
-RTR3DECL(const char *) RTHttpMethodName(RTHTTPMETHOD enmMethod)
-{
-    switch (enmMethod)
-    {
-        case RTHTTPMETHOD_INVALID:  return "invalid";
-        case RTHTTPMETHOD_GET:      return "GET";
-        case RTHTTPMETHOD_PUT:      return "PUT";
-        case RTHTTPMETHOD_POST:     return "POST";
-        case RTHTTPMETHOD_PATCH:    return "PATCH";
-        case RTHTTPMETHOD_DELETE:   return "DELETE";
-        case RTHTTPMETHOD_HEAD:     return "HEAD";
-        case RTHTTPMETHOD_OPTIONS:  return "OPTIONS";
-        case RTHTTPMETHOD_TRACE:    return "TRACE";
-
-        case RTHTTPMETHOD_END:
-        case RTHTTPMETHOD_32BIT_HACK:
-            break;
-    }
-    return "unknown";
-}
-
-
 /*********************************************************************************************************************************
 *   Callback APIs.                                                                                                               *
 *********************************************************************************************************************************/
@@ -3846,7 +3861,7 @@ RTR3DECL(int) RTHttpSetUploadCallback(RTHTTP hHttp, uint64_t cbContent, PFNRTHTT
     if (cbContent != UINT64_MAX)
     {
         AssertCompile(sizeof(curl_off_t) == sizeof(uint64_t));
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_INFILESIZE_LARGE, cbContent);
+        CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_INFILESIZE_LARGE, cbContent);
         AssertMsgReturn(CURL_SUCCESS(rcCurl), ("%d (%#x)\n", rcCurl, rcCurl), VERR_HTTP_CURL_ERROR);
     }
     return VINF_SUCCESS;

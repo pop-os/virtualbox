@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -188,9 +198,9 @@ static uint32_t balloonGetMaxSize(PVBOXWATCHDOG_MACHINE pMachine)
     char szSource[64];
 
     Bstr strValue;
-    HRESULT hr = g_pVirtualBox->GetExtraData(Bstr("VBoxInternal/Guest/BalloonSizeMax").raw(),
-                                             strValue.asOutParam());
-    if (   SUCCEEDED(hr)
+    HRESULT hrc = g_pVirtualBox->GetExtraData(Bstr("VBoxInternal/Guest/BalloonSizeMax").raw(),
+                                              strValue.asOutParam());
+    if (   SUCCEEDED(hrc)
         && strValue.isNotEmpty())
     {
         cMbBalloonMax = Utf8Str(strValue).toUInt32();
@@ -253,9 +263,9 @@ static uint32_t balloonGetRequestedSize(PVBOXWATCHDOG_MACHINE pMachine)
     char szSource[64];
 
     Bstr strValue;
-    HRESULT hr = rptrMachine->GetExtraData(Bstr("VBoxInternal2/Watchdog/BalloonCtrl/BalloonSizeMax").raw(),
-                                           strValue.asOutParam());
-    if (   SUCCEEDED(hr)
+    HRESULT hrc = rptrMachine->GetExtraData(Bstr("VBoxInternal2/Watchdog/BalloonCtrl/BalloonSizeMax").raw(),
+                                            strValue.asOutParam());
+    if (   SUCCEEDED(hrc)
         && strValue.isNotEmpty())
     {
         cMbBalloonReq = Utf8Str(strValue).toUInt32();
@@ -264,9 +274,9 @@ static uint32_t balloonGetRequestedSize(PVBOXWATCHDOG_MACHINE pMachine)
     }
     else
     {
-        hr = rptrMachine->GetExtraData(Bstr("VBoxInternal/Guest/BalloonSizeMax").raw(),
-                                       strValue.asOutParam());
-        if (   SUCCEEDED(hr)
+        hrc = rptrMachine->GetExtraData(Bstr("VBoxInternal/Guest/BalloonSizeMax").raw(),
+                                        strValue.asOutParam());
+        if (   SUCCEEDED(hrc)
             && strValue.isNotEmpty())
         {
             cMbBalloonReq = Utf8Str(strValue).toUInt32();
@@ -275,7 +285,7 @@ static uint32_t balloonGetRequestedSize(PVBOXWATCHDOG_MACHINE pMachine)
         }
     }
 
-    if (   FAILED(hr)
+    if (   FAILED(hrc)
         || strValue.isEmpty())
     {
         cMbBalloonReq = 0;
@@ -302,9 +312,9 @@ static bool balloonIsEnabled(PVBOXWATCHDOG_MACHINE pMachine)
     char szSource[64];
 
     Bstr strValue;
-    HRESULT hr = g_pVirtualBox->GetExtraData(Bstr("VBoxInternal/Guest/BalloonEnabled").raw(),
-                                             strValue.asOutParam());
-    if (   SUCCEEDED(hr)
+    HRESULT hrc = g_pVirtualBox->GetExtraData(Bstr("VBoxInternal/Guest/BalloonEnabled").raw(),
+                                              strValue.asOutParam());
+    if (   SUCCEEDED(hrc)
         && strValue.isNotEmpty())
     {
        if (g_fVerbose)
@@ -312,9 +322,9 @@ static bool balloonIsEnabled(PVBOXWATCHDOG_MACHINE pMachine)
     }
     else
     {
-        hr = rptrMachine->GetExtraData(Bstr("VBoxInternal2/Watchdog/BalloonCtrl/BalloonEnabled").raw(),
-                                       strValue.asOutParam());
-        if (SUCCEEDED(hr))
+        hrc = rptrMachine->GetExtraData(Bstr("VBoxInternal2/Watchdog/BalloonCtrl/BalloonEnabled").raw(),
+                                        strValue.asOutParam());
+        if (SUCCEEDED(hrc))
         {
             if (g_fVerbose)
                 RTStrPrintf(szSource, sizeof(szSource), "per-VM extra-data");
@@ -378,7 +388,7 @@ int balloonMachineSetup(const Bstr& strUuid)
         Bstr strMetricNames(L"Guest/RAM/Usage");
         strMetricNames.cloneTo(&metricNames[0]);
 
-        HRESULT rc = m.queryInterfaceTo(&metricObjects[0]);
+        HRESULT hrc = m.queryInterfaceTo(&metricObjects[0]);
 
 #ifdef VBOX_WATCHDOG_GLOBAL_PERFCOL
         CHECK_ERROR_BREAK(g_pPerfCollector, SetupMetrics(ComSafeArrayAsInParam(metricNames),
@@ -396,7 +406,7 @@ int balloonMachineSetup(const Bstr& strUuid)
                                              1 /* One sample is enough */,
                                              ComSafeArrayAsOutParam(metricAffected)));
 #endif
-        if (FAILED(rc))
+        if (FAILED(hrc))
             vrc = VERR_COM_IPRT_ERROR; /** @todo Find better rc! */
 
     } while (0);
@@ -514,7 +524,7 @@ static int balloonSetSize(PVBOXWATCHDOG_MACHINE pMachine, uint32_t cMbBalloonCur
         return VINF_SUCCESS;
 
     /* Open a session for the VM. */
-    HRESULT rc;
+    HRESULT hrc;
     CHECK_ERROR_RET(pMachine->machine, LockMachine(g_pSession, LockType_Shared), VERR_ACCESS_DENIED);
 
     do
@@ -524,13 +534,13 @@ static int balloonSetSize(PVBOXWATCHDOG_MACHINE pMachine, uint32_t cMbBalloonCur
         CHECK_ERROR_BREAK(g_pSession, COMGETTER(Console)(console.asOutParam()));
 
         ComPtr <IGuest> guest;
-        rc = console->COMGETTER(Guest)(guest.asOutParam());
-        if (SUCCEEDED(rc))
+        hrc = console->COMGETTER(Guest)(guest.asOutParam());
+        if (SUCCEEDED(hrc))
             CHECK_ERROR_BREAK(guest, COMSETTER(MemoryBalloonSize)((LONG)cMbBalloonCur));
         else
             serviceLog("Error: Unable to set new balloon size %RU32 for machine '%ls', rc=%Rhrc\n",
-                       cMbBalloonCur, pMachine->strName.raw(), rc);
-        if (FAILED(rc))
+                       cMbBalloonCur, pMachine->strName.raw(), hrc);
+        if (FAILED(hrc))
             vrc = VERR_COM_IPRT_ERROR;
 
     } while (0);
@@ -745,22 +755,31 @@ VBOXMODULE g_ModBallooning =
     /* uPriority. */
     0 /* Not used */,
     /* pszUsage. */
-    " [--balloon-dec=<MB>] [--balloon-groups=<string>] [--balloon-inc=<MB>]\n"
-    " [--balloon-interval=<ms>] [--balloon-lower-limit=<MB>]\n"
-    " [--balloon-max=<MB>]\n",
+    "           [--balloon-dec=<MB>] [--balloon-groups=<string>]\n"
+    "           [--balloon-inc=<MB>] [--balloon-interval=<ms>]\n"
+    "           [--balloon-lower-limit=<MB>] [--balloon-max=<MB>]\n"
+    "           [--balloon-safety-margin=<MB]\n",
     /* pszOptions. */
-    "--balloon-dec          Sets the ballooning decrement in MB (128 MB).\n"
-    "--balloon-groups       Sets the VM groups for ballooning (all).\n"
-    "--balloon-inc          Sets the ballooning increment in MB (256 MB).\n"
-    "--balloon-interval     Sets the check interval in ms (30 seconds).\n"
-    "--balloon-lower-limit  Sets the ballooning lower limit in MB (64 MB).\n"
-    "--balloon-max          Sets the balloon maximum limit in MB (0 MB).\n"
-    "                       Specifying \"0\" means disabled ballooning.\n"
+    "  --balloon-dec=<MB>\n"
+    "      Sets the ballooning decrement in MB (128 MB).\n"
+    "  --balloon-groups=<string>\n"
+    "      Sets the VM groups for ballooning (all).\n"
+    "  --balloon-inc=<MB>\n"
+    "      Sets the ballooning increment in MB (256 MB).\n"
+    "  --balloon-interval=<ms>\n"
+    "      Sets the check interval in ms (30 seconds).\n"
+    "  --balloon-lower-limit=<MB>\n"
+    "      Sets the ballooning lower limit in MB (64 MB).\n"
+    "  --balloon-max=<MB>\n"
+    "      Sets the balloon maximum limit in MB (0 MB).\n"
+    "      Specifying \"0\" means disabled ballooning.\n"
 #if 1
     /* (Legacy) note. */
-    "Set \"VBoxInternal/Guest/BalloonSizeMax\" for a per-VM maximum ballooning size.\n"
+    "      Set \"VBoxInternal/Guest/BalloonSizeMax\" for a per-VM\n"
+    "      maximum ballooning size.\n"
 #endif
-    "--balloon-safety-margin Free memory when deflating a balloon in MB (1024 MB).\n"
+    "  --balloon-safety-margin=<MB>\n"
+    "     Free memory when deflating a balloon in MB (1024 MB).\n"
     ,
     /* methods. */
     VBoxModBallooningPreInit,

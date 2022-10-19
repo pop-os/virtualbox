@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_ssm_h
@@ -116,8 +126,8 @@ typedef const struct SSMFIELD *PCSSMFIELD;
  * @param   pvUser          The user argument specified to SSMR3GetStructEx or
  *                          SSMR3PutStructEx.
  */
-typedef DECLCALLBACK(int) FNSSMFIELDGETPUT(PSSMHANDLE pSSM, const struct SSMFIELD *pField, void *pvStruct,
-                                           uint32_t fFlags, bool fGetOrPut, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSSMFIELDGETPUT,(PSSMHANDLE pSSM, const struct SSMFIELD *pField, void *pvStruct,
+                                                uint32_t fFlags, bool fGetOrPut, void *pvUser));
 /** Pointer to a SSMFIELD Get/Put callback. */
 typedef FNSSMFIELDGETPUT *PFNSSMFIELDGETPUT;
 
@@ -237,7 +247,7 @@ typedef struct SSMFIELD
 /** Emit a SSMFIELD array entry.
  * @internal  */
 #define SSMFIELD_ENTRY_INT(Name, off, cb, enmTransformer, uFirstVer) \
-    { (PFNSSMFIELDGETPUT)(uintptr_t)(enmTransformer), (off), (cb), (uFirstVer), Name }
+    { (PFNSSMFIELDGETPUT)(uintptr_t)(enmTransformer), (uint32_t)(off), (uint32_t)(cb), (uFirstVer), Name }
 /** Emit a SSMFIELD array entry.
  * @internal  */
 #define SSMFIELD_ENTRY_TF_INT(Type, Field, enmTransformer, uFirstVer) \
@@ -421,7 +431,7 @@ typedef struct SSMFIELD
  * @remarks The caller enters the device critical section prior to the call.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMDEVLIVEPREP(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVLIVEPREP,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDEVLIVEPREP() function. */
 typedef FNSSMDEVLIVEPREP *PFNSSMDEVLIVEPREP;
 
@@ -438,7 +448,7 @@ typedef FNSSMDEVLIVEPREP *PFNSSMDEVLIVEPREP;
  * @remarks The caller enters the device critical section prior to the call.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMDEVLIVEEXEC(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVLIVEEXEC,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMDEVLIVEEXEC() function. */
 typedef FNSSMDEVLIVEEXEC *PFNSSMDEVLIVEEXEC;
 
@@ -461,7 +471,7 @@ typedef FNSSMDEVLIVEEXEC *PFNSSMDEVLIVEEXEC;
  * @remarks The caller enters the device critical section prior to the call.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMDEVLIVEVOTE(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVLIVEVOTE,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMDEVLIVEVOTE() function. */
 typedef FNSSMDEVLIVEVOTE *PFNSSMDEVLIVEVOTE;
 
@@ -473,7 +483,7 @@ typedef FNSSMDEVLIVEVOTE *PFNSSMDEVLIVEVOTE;
  * @param   pSSM            SSM operation handle.
  * @remarks The caller enters the device critical section prior to the call.
  */
-typedef DECLCALLBACK(int) FNSSMDEVSAVEPREP(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVSAVEPREP,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDEVSAVEPREP() function. */
 typedef FNSSMDEVSAVEPREP *PFNSSMDEVSAVEPREP;
 
@@ -485,7 +495,7 @@ typedef FNSSMDEVSAVEPREP *PFNSSMDEVSAVEPREP;
  * @param   pSSM            SSM operation handle.
  * @remarks The caller enters the device critical section prior to the call.
  */
-typedef DECLCALLBACK(int) FNSSMDEVSAVEEXEC(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVSAVEEXEC,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDEVSAVEEXEC() function. */
 typedef FNSSMDEVSAVEEXEC *PFNSSMDEVSAVEEXEC;
 
@@ -497,7 +507,7 @@ typedef FNSSMDEVSAVEEXEC *PFNSSMDEVSAVEEXEC;
  * @param   pSSM            SSM operation handle.
  * @remarks The caller enters the device critical section prior to the call.
  */
-typedef DECLCALLBACK(int) FNSSMDEVSAVEDONE(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVSAVEDONE,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDEVSAVEDONE() function. */
 typedef FNSSMDEVSAVEDONE *PFNSSMDEVSAVEDONE;
 
@@ -509,7 +519,7 @@ typedef FNSSMDEVSAVEDONE *PFNSSMDEVSAVEDONE;
  * @param   pSSM            SSM operation handle.
  * @remarks The caller enters the device critical section prior to the call.
  */
-typedef DECLCALLBACK(int) FNSSMDEVLOADPREP(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVLOADPREP,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDEVLOADPREP() function. */
 typedef FNSSMDEVLOADPREP *PFNSSMDEVLOADPREP;
 
@@ -524,7 +534,7 @@ typedef FNSSMDEVLOADPREP *PFNSSMDEVLOADPREP;
  *                          that doesn't specify a pfnSaveLive callback.
  * @remarks The caller enters the device critical section prior to the call.
  */
-typedef DECLCALLBACK(int) FNSSMDEVLOADEXEC(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVLOADEXEC,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass));
 /** Pointer to a FNSSMDEVLOADEXEC() function. */
 typedef FNSSMDEVLOADEXEC *PFNSSMDEVLOADEXEC;
 
@@ -536,7 +546,7 @@ typedef FNSSMDEVLOADEXEC *PFNSSMDEVLOADEXEC;
  * @param   pSSM            SSM operation handle.
  * @remarks The caller enters the device critical section prior to the call.
  */
-typedef DECLCALLBACK(int) FNSSMDEVLOADDONE(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDEVLOADDONE,(PPDMDEVINS pDevIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDEVLOADDONE() function. */
 typedef FNSSMDEVLOADDONE *PFNSSMDEVLOADDONE;
 
@@ -556,7 +566,7 @@ typedef FNSSMDEVLOADDONE *PFNSSMDEVLOADDONE;
  * @param   pSSM            SSM operation handle.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMUSBLIVEPREP(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBLIVEPREP,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMUSBLIVEPREP() function. */
 typedef FNSSMUSBLIVEPREP *PFNSSMUSBLIVEPREP;
 
@@ -573,7 +583,7 @@ typedef FNSSMUSBLIVEPREP *PFNSSMUSBLIVEPREP;
  * @param   uPass           The pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMUSBLIVEEXEC(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBLIVEEXEC,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMUSBLIVEEXEC() function. */
 typedef FNSSMUSBLIVEEXEC *PFNSSMUSBLIVEEXEC;
 
@@ -596,7 +606,7 @@ typedef FNSSMUSBLIVEEXEC *PFNSSMUSBLIVEEXEC;
  * @param   uPass           The data pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMUSBLIVEVOTE(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBLIVEVOTE,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMUSBLIVEVOTE() function. */
 typedef FNSSMUSBLIVEVOTE *PFNSSMUSBLIVEVOTE;
 
@@ -608,7 +618,7 @@ typedef FNSSMUSBLIVEVOTE *PFNSSMUSBLIVEVOTE;
  *                          registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMUSBSAVEPREP(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBSAVEPREP,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMUSBSAVEPREP() function. */
 typedef FNSSMUSBSAVEPREP *PFNSSMUSBSAVEPREP;
 
@@ -620,7 +630,7 @@ typedef FNSSMUSBSAVEPREP *PFNSSMUSBSAVEPREP;
  *                          registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMUSBSAVEEXEC(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBSAVEEXEC,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMUSBSAVEEXEC() function. */
 typedef FNSSMUSBSAVEEXEC *PFNSSMUSBSAVEEXEC;
 
@@ -632,7 +642,7 @@ typedef FNSSMUSBSAVEEXEC *PFNSSMUSBSAVEEXEC;
  *                          registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMUSBSAVEDONE(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBSAVEDONE,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMUSBSAVEDONE() function. */
 typedef FNSSMUSBSAVEDONE *PFNSSMUSBSAVEDONE;
 
@@ -644,7 +654,7 @@ typedef FNSSMUSBSAVEDONE *PFNSSMUSBSAVEDONE;
  *                          registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMUSBLOADPREP(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBLOADPREP,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMUSBLOADPREP() function. */
 typedef FNSSMUSBLOADPREP *PFNSSMUSBLOADPREP;
 
@@ -659,7 +669,7 @@ typedef FNSSMUSBLOADPREP *PFNSSMUSBLOADPREP;
  * @param   uPass           The pass. This is always SSM_PASS_FINAL for units
  *                          that doesn't specify a pfnSaveLive callback.
  */
-typedef DECLCALLBACK(int) FNSSMUSBLOADEXEC(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBLOADEXEC,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass));
 /** Pointer to a FNSSMUSBLOADEXEC() function. */
 typedef FNSSMUSBLOADEXEC *PFNSSMUSBLOADEXEC;
 
@@ -671,7 +681,7 @@ typedef FNSSMUSBLOADEXEC *PFNSSMUSBLOADEXEC;
  *                          registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMUSBLOADDONE(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMUSBLOADDONE,(PPDMUSBINS pUsbIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMUSBLOADDONE() function. */
 typedef FNSSMUSBLOADDONE *PFNSSMUSBLOADDONE;
 
@@ -691,7 +701,7 @@ typedef FNSSMUSBLOADDONE *PFNSSMUSBLOADDONE;
  * @param   pSSM            SSM operation handle.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMDRVLIVEPREP(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVLIVEPREP,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDRVLIVEPREP() function. */
 typedef FNSSMDRVLIVEPREP *PFNSSMDRVLIVEPREP;
 
@@ -708,7 +718,7 @@ typedef FNSSMDRVLIVEPREP *PFNSSMDRVLIVEPREP;
  * @param   uPass           The data pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMDRVLIVEEXEC(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVLIVEEXEC,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMDRVLIVEEXEC() function. */
 typedef FNSSMDRVLIVEEXEC *PFNSSMDRVLIVEEXEC;
 
@@ -731,7 +741,7 @@ typedef FNSSMDRVLIVEEXEC *PFNSSMDRVLIVEEXEC;
  * @param   uPass           The data pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMDRVLIVEVOTE(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVLIVEVOTE,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMDRVLIVEVOTE() function. */
 typedef FNSSMDRVLIVEVOTE *PFNSSMDRVLIVEVOTE;
 
@@ -743,7 +753,7 @@ typedef FNSSMDRVLIVEVOTE *PFNSSMDRVLIVEVOTE;
  * @param   pDrvIns         Driver instance of the driver which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMDRVSAVEPREP(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVSAVEPREP,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDRVSAVEPREP() function. */
 typedef FNSSMDRVSAVEPREP *PFNSSMDRVSAVEPREP;
 
@@ -754,7 +764,7 @@ typedef FNSSMDRVSAVEPREP *PFNSSMDRVSAVEPREP;
  * @param   pDrvIns         Driver instance of the driver which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMDRVSAVEEXEC(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVSAVEEXEC,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDRVSAVEEXEC() function. */
 typedef FNSSMDRVSAVEEXEC *PFNSSMDRVSAVEEXEC;
 
@@ -765,7 +775,7 @@ typedef FNSSMDRVSAVEEXEC *PFNSSMDRVSAVEEXEC;
  * @param   pDrvIns         Driver instance of the driver which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMDRVSAVEDONE(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVSAVEDONE,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDRVSAVEDONE() function. */
 typedef FNSSMDRVSAVEDONE *PFNSSMDRVSAVEDONE;
 
@@ -776,7 +786,7 @@ typedef FNSSMDRVSAVEDONE *PFNSSMDRVSAVEDONE;
  * @param   pDrvIns         Driver instance of the driver which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMDRVLOADPREP(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVLOADPREP,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDRVLOADPREP() function. */
 typedef FNSSMDRVLOADPREP *PFNSSMDRVLOADPREP;
 
@@ -790,7 +800,7 @@ typedef FNSSMDRVLOADPREP *PFNSSMDRVLOADPREP;
  * @param   uPass           The pass. This is always SSM_PASS_FINAL for units
  *                          that doesn't specify a pfnSaveLive callback.
  */
-typedef DECLCALLBACK(int) FNSSMDRVLOADEXEC(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVLOADEXEC,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass));
 /** Pointer to a FNSSMDRVLOADEXEC() function. */
 typedef FNSSMDRVLOADEXEC *PFNSSMDRVLOADEXEC;
 
@@ -801,7 +811,7 @@ typedef FNSSMDRVLOADEXEC *PFNSSMDRVLOADEXEC;
  * @param   pDrvIns         Driver instance of the driver which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMDRVLOADDONE(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMDRVLOADDONE,(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMDRVLOADDONE() function. */
 typedef FNSSMDRVLOADDONE *PFNSSMDRVLOADDONE;
 
@@ -821,7 +831,7 @@ typedef FNSSMDRVLOADDONE *PFNSSMDRVLOADDONE;
  * @param   pSSM            SSM operation handle.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMINTLIVEPREP(PVM pVM, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMINTLIVEPREP,(PVM pVM, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMINTLIVEPREP() function. */
 typedef FNSSMINTLIVEPREP *PFNSSMINTLIVEPREP;
 
@@ -837,7 +847,7 @@ typedef FNSSMINTLIVEPREP *PFNSSMINTLIVEPREP;
  * @param   uPass           The data pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMINTLIVEEXEC(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMINTLIVEEXEC,(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMINTLIVEEXEC() function. */
 typedef FNSSMINTLIVEEXEC *PFNSSMINTLIVEEXEC;
 
@@ -859,7 +869,7 @@ typedef FNSSMINTLIVEEXEC *PFNSSMINTLIVEEXEC;
  * @param   uPass           The data pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMINTLIVEVOTE(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMINTLIVEVOTE,(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass));
 /** Pointer to a FNSSMINTLIVEVOTE() function. */
 typedef FNSSMINTLIVEVOTE *PFNSSMINTLIVEVOTE;
 
@@ -870,7 +880,7 @@ typedef FNSSMINTLIVEVOTE *PFNSSMINTLIVEVOTE;
  * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMINTSAVEPREP(PVM pVM, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMINTSAVEPREP,(PVM pVM, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMINTSAVEPREP() function. */
 typedef FNSSMINTSAVEPREP *PFNSSMINTSAVEPREP;
 
@@ -881,7 +891,7 @@ typedef FNSSMINTSAVEPREP *PFNSSMINTSAVEPREP;
  * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMINTSAVEEXEC(PVM pVM, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMINTSAVEEXEC,(PVM pVM, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMINTSAVEEXEC() function. */
 typedef FNSSMINTSAVEEXEC *PFNSSMINTSAVEEXEC;
 
@@ -892,7 +902,7 @@ typedef FNSSMINTSAVEEXEC *PFNSSMINTSAVEEXEC;
  * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMINTSAVEDONE(PVM pVM, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMINTSAVEDONE,(PVM pVM, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMINTSAVEDONE() function. */
 typedef FNSSMINTSAVEDONE *PFNSSMINTSAVEDONE;
 
@@ -903,7 +913,7 @@ typedef FNSSMINTSAVEDONE *PFNSSMINTSAVEDONE;
  * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMINTLOADPREP(PVM pVM, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMINTLOADPREP,(PVM pVM, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMINTLOADPREP() function. */
 typedef FNSSMINTLOADPREP *PFNSSMINTLOADPREP;
 
@@ -917,7 +927,7 @@ typedef FNSSMINTLOADPREP *PFNSSMINTLOADPREP;
  * @param   uPass           The pass. This is always SSM_PASS_FINAL for units
  *                          that doesn't specify a pfnSaveLive callback.
  */
-typedef DECLCALLBACK(int) FNSSMINTLOADEXEC(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMINTLOADEXEC,(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass));
 /** Pointer to a FNSSMINTLOADEXEC() function. */
 typedef FNSSMINTLOADEXEC *PFNSSMINTLOADEXEC;
 
@@ -928,7 +938,7 @@ typedef FNSSMINTLOADEXEC *PFNSSMINTLOADEXEC;
  * @param   pVM             The cross context VM structure.
  * @param   pSSM            SSM operation handle.
  */
-typedef DECLCALLBACK(int) FNSSMINTLOADDONE(PVM pVM, PSSMHANDLE pSSM);
+typedef DECLCALLBACKTYPE(int, FNSSMINTLOADDONE,(PVM pVM, PSSMHANDLE pSSM));
 /** Pointer to a FNSSMINTLOADDONE() function. */
 typedef FNSSMINTLOADDONE *PFNSSMINTLOADDONE;
 
@@ -944,10 +954,11 @@ typedef FNSSMINTLOADDONE *PFNSSMINTLOADDONE;
  *
  * @returns VBox status code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMEXTLIVEPREP(PSSMHANDLE pSSM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTLIVEPREP,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser));
 /** Pointer to a FNSSMEXTLIVEPREP() function. */
 typedef FNSSMEXTLIVEPREP *PFNSSMEXTLIVEPREP;
 
@@ -959,11 +970,12 @@ typedef FNSSMEXTLIVEPREP *PFNSSMEXTLIVEPREP;
  *
  * @returns VBox status code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  * @param   uPass           The data pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMEXTLIVEEXEC(PSSMHANDLE pSSM, void *pvUser, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTLIVEEXEC,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser, uint32_t uPass));
 /** Pointer to a FNSSMEXTLIVEEXEC() function. */
 typedef FNSSMEXTLIVEEXEC *PFNSSMEXTLIVEEXEC;
 
@@ -981,11 +993,12 @@ typedef FNSSMEXTLIVEEXEC *PFNSSMEXTLIVEEXEC;
  * @retval  VERR_SSM_VOTE_FOR_GIVING_UP if its time to give up.
  *
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  * @param   uPass           The data pass.
  * @thread  Any.
  */
-typedef DECLCALLBACK(int) FNSSMEXTLIVEVOTE(PSSMHANDLE pSSM, void *pvUser, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTLIVEVOTE,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser, uint32_t uPass));
 /** Pointer to a FNSSMEXTLIVEVOTE() function. */
 typedef FNSSMEXTLIVEVOTE *PFNSSMEXTLIVEVOTE;
 
@@ -994,20 +1007,22 @@ typedef FNSSMEXTLIVEVOTE *PFNSSMEXTLIVEVOTE;
  *
  * @returns VBox status code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  */
-typedef DECLCALLBACK(int) FNSSMEXTSAVEPREP(PSSMHANDLE pSSM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTSAVEPREP,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser));
 /** Pointer to a FNSSMEXTSAVEPREP() function. */
 typedef FNSSMEXTSAVEPREP *PFNSSMEXTSAVEPREP;
 
 /**
  * Execute state save operation.
  *
+ * @returns VBox status code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
- * @author  The lack of return code is for legacy reasons.
  */
-typedef DECLCALLBACK(void) FNSSMEXTSAVEEXEC(PSSMHANDLE pSSM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTSAVEEXEC,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser));
 /** Pointer to a FNSSMEXTSAVEEXEC() function. */
 typedef FNSSMEXTSAVEEXEC *PFNSSMEXTSAVEEXEC;
 
@@ -1016,9 +1031,10 @@ typedef FNSSMEXTSAVEEXEC *PFNSSMEXTSAVEEXEC;
  *
  * @returns VBox status code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  */
-typedef DECLCALLBACK(int) FNSSMEXTSAVEDONE(PSSMHANDLE pSSM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTSAVEDONE,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser));
 /** Pointer to a FNSSMEXTSAVEDONE() function. */
 typedef FNSSMEXTSAVEDONE *PFNSSMEXTSAVEDONE;
 
@@ -1027,9 +1043,10 @@ typedef FNSSMEXTSAVEDONE *PFNSSMEXTSAVEDONE;
  *
  * @returns VBox status code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  */
-typedef DECLCALLBACK(int) FNSSMEXTLOADPREP(PSSMHANDLE pSSM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTLOADPREP,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser));
 /** Pointer to a FNSSMEXTLOADPREP() function. */
 typedef FNSSMEXTLOADPREP *PFNSSMEXTLOADPREP;
 
@@ -1038,13 +1055,15 @@ typedef FNSSMEXTLOADPREP *PFNSSMEXTLOADPREP;
  *
  * @returns VBox status code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  * @param   uVersion        Data layout version.
  * @param   uPass           The pass. This is always SSM_PASS_FINAL for units
  *                          that doesn't specify a pfnSaveLive callback.
  * @remark  The odd return value is for legacy reasons.
  */
-typedef DECLCALLBACK(int) FNSSMEXTLOADEXEC(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTLOADEXEC,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser,
+                                                uint32_t uVersion, uint32_t uPass));
 /** Pointer to a FNSSMEXTLOADEXEC() function. */
 typedef FNSSMEXTLOADEXEC *PFNSSMEXTLOADEXEC;
 
@@ -1053,9 +1072,10 @@ typedef FNSSMEXTLOADEXEC *PFNSSMEXTLOADEXEC;
  *
  * @returns VBox load code.
  * @param   pSSM            SSM operation handle.
+ * @param   pVMM            The VMM ring-3 vtable.
  * @param   pvUser          User argument.
  */
-typedef DECLCALLBACK(int) FNSSMEXTLOADDONE(PSSMHANDLE pSSM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSSMEXTLOADDONE,(PSSMHANDLE pSSM, PCVMMR3VTABLE pVMM, void *pvUser));
 /** Pointer to a FNSSMEXTLOADDONE() function. */
 typedef FNSSMEXTLOADDONE *PFNSSMEXTLOADDONE;
 
@@ -1083,7 +1103,7 @@ typedef struct SSMSTRMOPS
      * @param   pvBuf               Pointer to the data.
      * @param   cbToWrite           The number of bytes to write.
      */
-    DECLCALLBACKMEMBER(int, pfnWrite)(void *pvUser, uint64_t offStream, const void *pvBuf, size_t cbToWrite);
+    DECLCALLBACKMEMBER(int, pfnWrite,(void *pvUser, uint64_t offStream, const void *pvBuf, size_t cbToWrite));
 
     /**
      * Read bytes to the stream.
@@ -1097,7 +1117,7 @@ typedef struct SSMSTRMOPS
      *                              read.  This may differ from cbToRead when the
      *                              end of the stream is encountered.
      */
-    DECLCALLBACKMEMBER(int, pfnRead)(void *pvUser, uint64_t offStream, void *pvBuf, size_t cbToRead, size_t *pcbRead);
+    DECLCALLBACKMEMBER(int, pfnRead,(void *pvUser, uint64_t offStream, void *pvBuf, size_t cbToRead, size_t *pcbRead));
 
     /**
      * Seeks in the stream.
@@ -1111,7 +1131,7 @@ typedef struct SSMSTRMOPS
      *                              RTFILE_SEEK_CURRENT.
      * @param   poffActual          Where to store the new file position. Optional.
      */
-    DECLCALLBACKMEMBER(int, pfnSeek)(void *pvUser, int64_t offSeek, unsigned uMethod, uint64_t *poffActual);
+    DECLCALLBACKMEMBER(int, pfnSeek,(void *pvUser, int64_t offSeek, unsigned uMethod, uint64_t *poffActual));
 
     /**
      * Get the current stream position.
@@ -1119,7 +1139,7 @@ typedef struct SSMSTRMOPS
      * @returns The correct stream position.
      * @param   pvUser              The user argument.
      */
-    DECLCALLBACKMEMBER(uint64_t, pfnTell)(void *pvUser);
+    DECLCALLBACKMEMBER(uint64_t, pfnTell,(void *pvUser));
 
     /**
      * Get the size/length of the stream.
@@ -1130,7 +1150,7 @@ typedef struct SSMSTRMOPS
      * @param   pvUser              The user argument.
      * @param   pcb                 Where to return the size/length.
      */
-    DECLCALLBACKMEMBER(int, pfnSize)(void *pvUser, uint64_t *pcb);
+    DECLCALLBACKMEMBER(int, pfnSize,(void *pvUser, uint64_t *pcb));
 
     /**
      * Check if the stream is OK or not (cancelled).
@@ -1140,7 +1160,7 @@ typedef struct SSMSTRMOPS
      *
      * @remarks The method is expected to do a LogRel on failure.
      */
-    DECLCALLBACKMEMBER(int, pfnIsOk)(void *pvUser);
+    DECLCALLBACKMEMBER(int, pfnIsOk,(void *pvUser));
 
     /**
      * Close the stream.
@@ -1149,7 +1169,7 @@ typedef struct SSMSTRMOPS
      * @param   pvUser              The user argument.
      * @param   fCancelled          True if the operation was cancelled.
      */
-    DECLCALLBACKMEMBER(int, pfnClose)(void *pvUser, bool fCancelled);
+    DECLCALLBACKMEMBER(int, pfnClose,(void *pvUser, bool fCancelled));
 
     /** Struct magic + version (SSMSTRMOPS_VERSION). */
     uint32_t    u32EndVersion;
@@ -1158,7 +1178,7 @@ typedef struct SSMSTRMOPS
 #define SSMSTRMOPS_VERSION      UINT32_C(0x55aa0001)
 
 
-VMMR3_INT_DECL(void)    SSMR3Term(PVM pVM);
+VMMR3DECL(void)         SSMR3Term(PVM pVM);
 VMMR3_INT_DECL(int)
 SSMR3RegisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName, uint32_t uInstance, uint32_t uVersion,
                     size_t cbGuess, const char *pszBefore,
@@ -1190,7 +1210,7 @@ VMMR3_INT_DECL(int)     SSMR3DeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const
 VMMR3_INT_DECL(int)     SSMR3DeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance);
 VMMR3_INT_DECL(int)     SSMR3DeregisterUsb(PVM pVM, PPDMUSBINS pUsbIns, const char *pszName, uint32_t uInstance);
 VMMR3DECL(int)          SSMR3DeregisterInternal(PVM pVM, const char *pszName);
-VMMR3DECL(int)          SSMR3DeregisterExternal(PVM pVM, const char *pszName);
+VMMR3DECL(int)          SSMR3DeregisterExternal(PUVM pUVM, const char *pszName);
 VMMR3DECL(int)          SSMR3Save(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser, SSMAFTER enmAfter, PFNVMPROGRESS pfnProgress, void *pvUser);
 VMMR3_INT_DECL(int)     SSMR3LiveSave(PVM pVM, uint32_t cMsMaxDowntime,
                                       const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOps,
@@ -1201,8 +1221,10 @@ VMMR3_INT_DECL(int)     SSMR3LiveDoStep2(PSSMHANDLE pSSM);
 VMMR3_INT_DECL(int)     SSMR3LiveDone(PSSMHANDLE pSSM);
 VMMR3DECL(int)          SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOpsUser,
                                   SSMAFTER enmAfter, PFNVMPROGRESS pfnProgress, void *pvProgressUser);
-VMMR3DECL(int)          SSMR3ValidateFile(const char *pszFilename, bool fChecksumIt);
-VMMR3DECL(int)          SSMR3Open(const char *pszFilename, unsigned fFlags, PSSMHANDLE *ppSSM);
+VMMR3DECL(int)          SSMR3ValidateFile(const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOps,
+                                          bool fChecksumIt);
+VMMR3DECL(int)          SSMR3Open(const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOps,
+                                  unsigned fFlags, PSSMHANDLE *ppSSM);
 VMMR3DECL(int)          SSMR3Close(PSSMHANDLE pSSM);
 VMMR3DECL(int)          SSMR3Seek(PSSMHANDLE pSSM, const char *pszUnit, uint32_t iInstance, uint32_t *piVersion);
 VMMR3DECL(int)          SSMR3HandleGetStatus(PSSMHANDLE pSSM);
@@ -1301,7 +1323,6 @@ VMMR3DECL(int) SSMR3GetSel(PSSMHANDLE pSSM, PRTSEL pSel);
 VMMR3DECL(int) SSMR3GetMem(PSSMHANDLE pSSM, void *pv, size_t cb);
 VMMR3DECL(int) SSMR3GetStrZ(PSSMHANDLE pSSM, char *psz, size_t cbMax);
 VMMR3DECL(int) SSMR3GetStrZEx(PSSMHANDLE pSSM, char *psz, size_t cbMax, size_t *pcbStr);
-VMMR3DECL(int) SSMR3GetTimer(PSSMHANDLE pSSM, PTMTIMER pTimer);
 VMMR3DECL(int) SSMR3Skip(PSSMHANDLE pSSM, size_t cb);
 VMMR3DECL(int) SSMR3SkipToEndOfUnit(PSSMHANDLE pSSM);
 VMMR3DECL(int) SSMR3SetLoadError(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7);

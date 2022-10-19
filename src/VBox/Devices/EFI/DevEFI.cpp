@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -29,7 +39,6 @@
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/pdmnvram.h>
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -73,68 +82,6 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
-/**
- * EFI NVRAM variable.
- */
-typedef struct EFIVAR
-{
-    /** The list node for the variable. */
-    RTLISTNODE      ListNode;
-    /** The unique sequence number of the variable.
-     * This is used to find pCurVar when restoring saved state and therefore only
-     * set when saving. */
-    uint32_t        idUniqueSavedState;
-    /** The value attributess. */
-    uint32_t        fAttributes;
-    /** The variable name length (not counting the terminator char). */
-    uint32_t        cchName;
-    /** The size of the value. This cannot be zero. */
-    uint32_t        cbValue;
-    /** The vendor UUID scoping the variable name. */
-    RTUUID          uuid;
-    /** The variable name. */
-    char            szName[EFI_VARIABLE_NAME_MAX];
-    /** The variable value bytes.  */
-    uint8_t         abValue[EFI_VARIABLE_VALUE_MAX];
-} EFIVAR;
-/** Pointer to an EFI NVRAM variable. */
-typedef EFIVAR *PEFIVAR;
-/** Pointer to a const EFI NVRAM variable. */
-typedef EFIVAR const *PCEFIVAR;
-/** Pointer to an EFI NVRAM variable pointer. */
-typedef PEFIVAR *PPEFIVAR;
-
-/**
- * NVRAM state.
- */
-typedef struct NVRAMDESC
-{
-    /** The current operation. */
-    EFIVAROP        enmOp;
-    /** The current status. */
-    uint32_t        u32Status;
-    /** The current  */
-    uint32_t        offOpBuffer;
-    /** The current number of variables. */
-    uint32_t        cVariables;
-    /** The list of variables. */
-    RTLISTANCHOR    VarList;
-
-    /** The unique variable sequence ID, for the saved state only.
-     * @todo It's part of this structure for hysterical raisins, consider remove it
-     *       when changing the saved state format the next time. */
-    uint32_t        idUniqueCurVar;
-    /** Variable buffered used both when adding and querying NVRAM variables.
-     * When querying a variable, a copy of it is stored in this buffer and read
-     * from it.  When adding, updating or deleting a variable, this buffer is used
-     * to set up the parameters before taking action. */
-    EFIVAR          VarOpBuf;
-    /** The current variable. This is only used by EFI_VARIABLE_OP_QUERY_NEXT,
-     * the attribute readers work against the copy in VarOpBuf. */
-    PEFIVAR         pCurVar;
-} NVRAMDESC;
-
-
 /**
  * The EFI device shared state structure.
  */
@@ -259,8 +206,6 @@ typedef struct DEVEFIR3
     /** Start address of the NVRAM flash. */
     RTGCPHYS                GCPhysNvram;
 
-    /** NVRAM state variables. */
-    NVRAMDESC               NVRAM;
     /** Filename of the file containing the NVRAM store. */
     char                    *pszNvramFile;
 
@@ -273,8 +218,8 @@ typedef struct DEVEFIR3
         PDMIBASE            IBase;
         /** The NVRAM driver base interface. */
         PPDMIBASE           pDrvBase;
-        /** The NVRAM interface provided by the driver. */
-        PPDMINVRAMCONNECTOR pNvramDrv;
+        /** The VFS interface of the driver below for NVRAM state loading and storing. */
+        PPDMIVFSCONNECTOR   pDrvVfs;
     } Lun0;
 } DEVEFIR3;
 /** Pointer to the ring-3 EFI state. */
@@ -341,35 +286,6 @@ typedef PDEVEFIRC PDEVEFICC;
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
 #ifdef IN_RING3
-/** Saved state NVRAMDESC field descriptors. */
-static SSMFIELD const g_aEfiNvramDescField[] =
-{
-        SSMFIELD_ENTRY(       NVRAMDESC, enmOp),
-        SSMFIELD_ENTRY(       NVRAMDESC, u32Status),
-        SSMFIELD_ENTRY(       NVRAMDESC, offOpBuffer),
-        SSMFIELD_ENTRY_IGNORE(NVRAMDESC, VarOpBuf),
-        SSMFIELD_ENTRY(       NVRAMDESC, cVariables),
-        SSMFIELD_ENTRY_OLD(   idUnquireLast, 4),
-        SSMFIELD_ENTRY_IGNORE(NVRAMDESC, VarList),
-        SSMFIELD_ENTRY(       NVRAMDESC, idUniqueCurVar),
-        SSMFIELD_ENTRY_IGNORE(NVRAMDESC, pCurVar),
-        SSMFIELD_ENTRY_TERM()
-};
-
-/** Saved state EFIVAR field descriptors. */
-static SSMFIELD const g_aEfiVariableDescFields[] =
-{
-        SSMFIELD_ENTRY_IGNORE(EFIVAR, ListNode),
-        SSMFIELD_ENTRY(       EFIVAR, idUniqueSavedState),
-        SSMFIELD_ENTRY(       EFIVAR, uuid),
-        SSMFIELD_ENTRY(       EFIVAR, szName),
-        SSMFIELD_ENTRY_OLD(   cchName, 4),
-        SSMFIELD_ENTRY(       EFIVAR, abValue),
-        SSMFIELD_ENTRY(       EFIVAR, cbValue),
-        SSMFIELD_ENTRY(       EFIVAR, fAttributes),
-        SSMFIELD_ENTRY_TERM()
-};
-
 /** The EfiSystemNvDataFv GUID for NVRAM storage. */
 static const RTUUID g_UuidNvDataFv = { { 0x8d, 0x2b, 0xf1, 0xff, 0x96, 0x76, 0x8b, 0x4c, 0xa9, 0x85, 0x27, 0x47, 0x07, 0x5b, 0x4f, 0x50} };
 
@@ -383,793 +299,6 @@ static const char g_szEfiBuiltin64[] = "VBoxEFI64.fd";
 
 
 #ifdef IN_RING3
-
-/**
- * Flushes the variable list.
- *
- * @param   pThisCC             The EFI state for the current context.
- */
-static void nvramFlushDeviceVariableList(PDEVEFIR3 pThisCC)
-{
-    while (!RTListIsEmpty(&pThisCC->NVRAM.VarList))
-    {
-        PEFIVAR pEfiVar = RTListNodeGetNext(&pThisCC->NVRAM.VarList, EFIVAR, ListNode);
-        RTListNodeRemove(&pEfiVar->ListNode);
-        RTMemFree(pEfiVar);
-    }
-
-    pThisCC->NVRAM.pCurVar = NULL;
-}
-
-/**
- * This function looks up variable in NVRAM list.
- */
-static int nvramLookupVariableByUuidAndName(PDEVEFIR3 pThisCC, char *pszVariableName, PCRTUUID pUuid, PPEFIVAR ppEfiVar)
-{
-    LogFlowFunc(("%RTuuid::'%s'\n", pUuid, pszVariableName));
-    size_t const    cchVariableName = strlen(pszVariableName);
-    int             rc              = VERR_NOT_FOUND;
-
-    /*
-     * Start by checking the last variable queried.
-     */
-    if (   pThisCC->NVRAM.pCurVar
-        && pThisCC->NVRAM.pCurVar->cchName == cchVariableName
-        && memcmp(pThisCC->NVRAM.pCurVar->szName, pszVariableName, cchVariableName + 1) == 0
-        && RTUuidCompare(&pThisCC->NVRAM.pCurVar->uuid, pUuid) == 0
-        )
-    {
-        *ppEfiVar = pThisCC->NVRAM.pCurVar;
-        rc = VINF_SUCCESS;
-    }
-    else
-    {
-        /*
-         * Linear list search.
-         */
-        PEFIVAR pEfiVar;
-        RTListForEach(&pThisCC->NVRAM.VarList, pEfiVar, EFIVAR, ListNode)
-        {
-            Assert(strlen(pEfiVar->szName) == pEfiVar->cchName);
-            if (   pEfiVar->cchName == cchVariableName
-                && memcmp(pEfiVar->szName, pszVariableName, cchVariableName + 1) == 0
-                && RTUuidCompare(&pEfiVar->uuid, pUuid) == 0)
-            {
-                *ppEfiVar = pEfiVar;
-                rc = VINF_SUCCESS;
-                break;
-            }
-        }
-    }
-
-    LogFlowFunc(("rc=%Rrc pEfiVar=%p\n", rc, *ppEfiVar));
-    return rc;
-}
-
-
-/**
- * Inserts the EFI variable into the list.
- *
- * This enforces the desired list ordering and/or insertion policy.
- *
- * @param   pThisCC         The EFI state for the current context.
- * @param   pEfiVar         The variable to insert.
- */
-static void nvramInsertVariable(PDEVEFIR3 pThisCC, PEFIVAR pEfiVar)
-{
-#if 1
-    /*
-     * Sorted by UUID and name.
-     */
-    PEFIVAR pCurVar;
-    RTListForEach(&pThisCC->NVRAM.VarList, pCurVar, EFIVAR, ListNode)
-    {
-        int iDiff = RTUuidCompare(&pEfiVar->uuid, &pCurVar->uuid);
-        if (!iDiff)
-            iDiff = strcmp(pEfiVar->szName, pCurVar->szName);
-        if (iDiff < 0)
-        {
-            RTListNodeInsertBefore(&pCurVar->ListNode, &pEfiVar->ListNode);
-            return;
-        }
-    }
-#endif
-
-    /*
-     * Add it at the end.
-     */
-    RTListAppend(&pThisCC->NVRAM.VarList, &pEfiVar->ListNode);
-}
-
-
-/**
- * Creates an device internal list of variables.
- *
- * @returns VBox status code.
- * @param   pThisCC         The EFI state for the current context.
- */
-static int nvramLoad(PDEVEFIR3 pThisCC)
-{
-    int rc;
-    for (uint32_t iVar = 0; iVar < EFI_VARIABLE_MAX; iVar++)
-    {
-        PEFIVAR pEfiVar = (PEFIVAR)RTMemAllocZ(sizeof(EFIVAR));
-        AssertReturn(pEfiVar, VERR_NO_MEMORY);
-
-        pEfiVar->cchName = sizeof(pEfiVar->szName);
-        pEfiVar->cbValue = sizeof(pEfiVar->abValue);
-        rc = pThisCC->Lun0.pNvramDrv->pfnVarQueryByIndex(pThisCC->Lun0.pNvramDrv, iVar,
-                                                       &pEfiVar->uuid, &pEfiVar->szName[0], &pEfiVar->cchName,
-                                                       &pEfiVar->fAttributes, &pEfiVar->abValue[0], &pEfiVar->cbValue);
-        if (RT_SUCCESS(rc))
-        {
-            /* Some validations. */
-            rc = RTStrValidateEncoding(pEfiVar->szName);
-            size_t cchName = RTStrNLen(pEfiVar->szName, sizeof(pEfiVar->szName));
-            if (cchName != pEfiVar->cchName)
-                rc = VERR_INVALID_PARAMETER;
-            if (pEfiVar->cbValue == 0)
-                rc = VERR_NO_DATA;
-            if (RT_FAILURE(rc))
-                LogRel(("EFI/nvramLoad: Bad variable #%u: cbValue=%#x cchName=%#x (strlen=%#x) szName=%.*Rhxs\n",
-                        iVar, pEfiVar->cbValue, pEfiVar->cchName, cchName, pEfiVar->cchName + 1, pEfiVar->szName));
-        }
-        if (RT_FAILURE(rc))
-        {
-            RTMemFree(pEfiVar);
-            if (rc == VERR_NOT_FOUND)
-                rc = VINF_SUCCESS;
-            AssertRC(rc);
-            return rc;
-        }
-
-        /* Append it. */
-        nvramInsertVariable(pThisCC, pEfiVar);
-        pThisCC->NVRAM.cVariables++;
-    }
-
-    AssertLogRelMsgFailed(("EFI: Too many variables.\n"));
-    return VERR_TOO_MUCH_DATA;
-}
-
-
-/**
- * Let the NVRAM driver store the internal NVRAM variable list.
- *
- * @returns VBox status code.
- * @param   pThisCC             The EFI state for the current context.
- */
-static int nvramStore(PDEVEFIR3 pThisCC)
-{
-    /*
-     * Count the non-volatile variables and issue the begin call.
-     */
-    PEFIVAR  pEfiVar;
-    uint32_t cNonVolatile = 0;
-    RTListForEach(&pThisCC->NVRAM.VarList, pEfiVar, EFIVAR, ListNode)
-        if (pEfiVar->fAttributes & VBOX_EFI_VARIABLE_NON_VOLATILE)
-            cNonVolatile++;
-    int rc = pThisCC->Lun0.pNvramDrv->pfnVarStoreSeqBegin(pThisCC->Lun0.pNvramDrv, cNonVolatile);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Store each non-volatile variable.
-         */
-        uint32_t    idxVar  = 0;
-        RTListForEach(&pThisCC->NVRAM.VarList, pEfiVar, EFIVAR, ListNode)
-        {
-            /* Skip volatile variables. */
-            if (!(pEfiVar->fAttributes & VBOX_EFI_VARIABLE_NON_VOLATILE))
-                continue;
-
-            int rc2 = pThisCC->Lun0.pNvramDrv->pfnVarStoreSeqPut(pThisCC->Lun0.pNvramDrv, idxVar,
-                                                               &pEfiVar->uuid, pEfiVar->szName,  pEfiVar->cchName,
-                                                               pEfiVar->fAttributes, pEfiVar->abValue, pEfiVar->cbValue);
-            if (RT_FAILURE(rc2) && RT_SUCCESS_NP(rc))
-            {
-                LogRel(("EFI: pfnVarStoreVarByIndex failed: %Rrc\n", rc));
-                rc = rc2;
-            }
-            idxVar++;
-        }
-        Assert(idxVar == cNonVolatile);
-
-        /*
-         * Done.
-         */
-        rc = pThisCC->Lun0.pNvramDrv->pfnVarStoreSeqEnd(pThisCC->Lun0.pNvramDrv, rc);
-    }
-    else
-        LogRel(("EFI: pfnVarStoreBegin failed: %Rrc\n", rc));
-    return rc;
-}
-
-/**
- * EFI_VARIABLE_OP_QUERY and EFI_VARIABLE_OP_QUERY_NEXT worker that copies the
- * variable into the VarOpBuf, set pCurVar and u32Status.
- *
- * @param   pThisCC             The EFI state for the current context.
- * @param   pEfiVar             The resulting variable. NULL if not found / end.
- * @param   fEnumQuery          Set if enumeration query, clear if specific.
- */
-static void nvramWriteVariableOpQueryCopyResult(PDEVEFIR3 pThisCC, PEFIVAR pEfiVar, bool fEnumQuery)
-{
-    RT_ZERO(pThisCC->NVRAM.VarOpBuf.abValue);
-    if (pEfiVar)
-    {
-        RT_ZERO(pThisCC->NVRAM.VarOpBuf.szName);
-        pThisCC->NVRAM.VarOpBuf.uuid        = pEfiVar->uuid;
-        pThisCC->NVRAM.VarOpBuf.cchName     = pEfiVar->cchName;
-        memcpy(pThisCC->NVRAM.VarOpBuf.szName, pEfiVar->szName, pEfiVar->cchName); /* no need for + 1. */
-        pThisCC->NVRAM.VarOpBuf.fAttributes = pEfiVar->fAttributes;
-        pThisCC->NVRAM.VarOpBuf.cbValue     = pEfiVar->cbValue;
-        memcpy(pThisCC->NVRAM.VarOpBuf.abValue, pEfiVar->abValue, pEfiVar->cbValue);
-        pThisCC->NVRAM.pCurVar              = pEfiVar;
-        pThisCC->NVRAM.u32Status            = EFI_VARIABLE_OP_STATUS_OK;
-        LogFlow(("EFI: Variable query -> %RTuuid::'%s' (%d) abValue=%.*Rhxs\n", &pThisCC->NVRAM.VarOpBuf.uuid,
-                 pThisCC->NVRAM.VarOpBuf.szName, pThisCC->NVRAM.VarOpBuf.cchName,
-                 pThisCC->NVRAM.VarOpBuf.cbValue, pThisCC->NVRAM.VarOpBuf.abValue));
-    }
-    else
-    {
-        if (fEnumQuery)
-            LogFlow(("EFI: Variable query -> NOT_FOUND \n"));
-        else
-            LogFlow(("EFI: Variable query %RTuuid::'%s' -> NOT_FOUND \n",
-                     &pThisCC->NVRAM.VarOpBuf.uuid, pThisCC->NVRAM.VarOpBuf.szName));
-        RT_ZERO(pThisCC->NVRAM.VarOpBuf.szName);
-        pThisCC->NVRAM.VarOpBuf.fAttributes = 0;
-        pThisCC->NVRAM.VarOpBuf.cbValue     = 0;
-        pThisCC->NVRAM.VarOpBuf.cchName     = 0;
-        pThisCC->NVRAM.pCurVar              = NULL;
-        pThisCC->NVRAM.u32Status            = EFI_VARIABLE_OP_STATUS_NOT_FOUND;
-    }
-}
-
-/**
- * Implements EFI_VARIABLE_PARAM + EFI_VARIABLE_OP_QUERY.
- *
- * @returns IOM strict status code.
- * @param   pThisCC             The EFI state for the current context.
- */
-static int nvramWriteVariableOpQuery(PDEVEFIR3 pThisCC)
-{
-    Log(("EFI_VARIABLE_OP_QUERY: %RTuuid::'%s'\n", &pThisCC->NVRAM.VarOpBuf.uuid, pThisCC->NVRAM.VarOpBuf.szName));
-
-    PEFIVAR pEfiVar;
-    int rc = nvramLookupVariableByUuidAndName(pThisCC,
-                                              pThisCC->NVRAM.VarOpBuf.szName,
-                                              &pThisCC->NVRAM.VarOpBuf.uuid,
-                                              &pEfiVar);
-    nvramWriteVariableOpQueryCopyResult(pThisCC, RT_SUCCESS(rc) ? pEfiVar : NULL, false /*fEnumQuery*/);
-    return VINF_SUCCESS;
-}
-
-/**
- * Implements EFI_VARIABLE_PARAM + EFI_VARIABLE_OP_QUERY_NEXT.
- *
- * This simply walks the list.
- *
- * @returns IOM strict status code.
- * @param   pThisCC             The EFI state for the current context.
- */
-static int nvramWriteVariableOpQueryNext(PDEVEFIR3 pThisCC)
-{
-    Log(("EFI_VARIABLE_OP_QUERY_NEXT: pCurVar=%p\n", pThisCC->NVRAM.pCurVar));
-    PEFIVAR pEfiVar = pThisCC->NVRAM.pCurVar;
-    if (pEfiVar)
-        pEfiVar = RTListGetNext(&pThisCC->NVRAM.VarList, pEfiVar, EFIVAR, ListNode);
-    else
-        pEfiVar = RTListGetFirst(&pThisCC->NVRAM.VarList, EFIVAR, ListNode);
-    nvramWriteVariableOpQueryCopyResult(pThisCC, pEfiVar, true /* fEnumQuery */);
-    return VINF_SUCCESS;
-}
-
-/**
- * Implements EFI_VARIABLE_PARAM + EFI_VARIABLE_OP_ADD.
- *
- * @returns IOM strict status code.
- * @param   pThisCC             The EFI state for the current context.
- */
-static int nvramWriteVariableOpAdd(PDEVEFIR3 pThisCC)
-{
-    Log(("EFI_VARIABLE_OP_ADD: %RTuuid::'%s' fAttributes=%#x abValue=%.*Rhxs\n",
-         &pThisCC->NVRAM.VarOpBuf.uuid, pThisCC->NVRAM.VarOpBuf.szName, pThisCC->NVRAM.VarOpBuf.fAttributes,
-         pThisCC->NVRAM.VarOpBuf.cbValue, pThisCC->NVRAM.VarOpBuf.abValue));
-
-    /*
-     * Validate and adjust the input a little before we start.
-     */
-    int rc = RTStrValidateEncoding(pThisCC->NVRAM.VarOpBuf.szName);
-    if (RT_FAILURE(rc))
-        LogRel(("EFI: Badly encoded variable name: %.*Rhxs\n", pThisCC->NVRAM.VarOpBuf.cchName + 1, pThisCC->NVRAM.VarOpBuf.szName));
-    if (RT_FAILURE(rc))
-    {
-        pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-        return VINF_SUCCESS;
-    }
-    pThisCC->NVRAM.VarOpBuf.cchName = (uint32_t)RTStrNLen(pThisCC->NVRAM.VarOpBuf.szName, sizeof(pThisCC->NVRAM.VarOpBuf.szName));
-
-    /*
-     * Look it up and see what to do.
-     */
-    PEFIVAR pEfiVar;
-    rc = nvramLookupVariableByUuidAndName(pThisCC,
-                                          pThisCC->NVRAM.VarOpBuf.szName,
-                                          &pThisCC->NVRAM.VarOpBuf.uuid,
-                                          &pEfiVar);
-    if (RT_SUCCESS(rc))
-    {
-        LogFlowFunc(("Old abValue=%.*Rhxs\n", pEfiVar->cbValue, pEfiVar->abValue));
-#if 0 /** @todo Implement read-only EFI variables. */
-        if (pEfiVar->fAttributes & EFI_VARIABLE_XXXXXXX)
-        {
-            pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_RO;
-            break;
-        }
-#endif
-
-        if (pThisCC->NVRAM.VarOpBuf.cbValue == 0)
-        {
-            /*
-             * Delete it.
-             */
-            LogRel(("EFI: Deleting variable %RTuuid::'%s'\n", &pThisCC->NVRAM.VarOpBuf.uuid, pThisCC->NVRAM.VarOpBuf.szName));
-            RTListNodeRemove(&pEfiVar->ListNode);
-            pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_OK;
-            pThisCC->NVRAM.cVariables--;
-
-            if (pThisCC->NVRAM.pCurVar == pEfiVar)
-                pThisCC->NVRAM.pCurVar = NULL;
-            RTMemFree(pEfiVar);
-            pEfiVar = NULL;
-        }
-        else
-        {
-            /*
-             * Update/replace it. (The name and UUID are unchanged, of course.)
-             */
-            LogRel(("EFI: Replacing variable %RTuuid::'%s' fAttrib=%#x cbValue=%#x\n", &pThisCC->NVRAM.VarOpBuf.uuid,
-                    pThisCC->NVRAM.VarOpBuf.szName, pThisCC->NVRAM.VarOpBuf.fAttributes, pThisCC->NVRAM.VarOpBuf.cbValue));
-            pEfiVar->fAttributes   = pThisCC->NVRAM.VarOpBuf.fAttributes;
-            pEfiVar->cbValue       = pThisCC->NVRAM.VarOpBuf.cbValue;
-            memcpy(pEfiVar->abValue, pThisCC->NVRAM.VarOpBuf.abValue, pEfiVar->cbValue);
-            pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_OK;
-        }
-    }
-    else if (pThisCC->NVRAM.VarOpBuf.cbValue == 0)
-    {
-        /* delete operation, but nothing to delete. */
-        LogFlow(("nvramWriteVariableOpAdd: Delete (not found)\n"));
-        pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_OK;
-    }
-    else if (pThisCC->NVRAM.cVariables < EFI_VARIABLE_MAX)
-    {
-        /*
-         * Add a new variable.
-         */
-        LogRel(("EFI: Adding variable %RTuuid::'%s' fAttrib=%#x cbValue=%#x\n", &pThisCC->NVRAM.VarOpBuf.uuid,
-                pThisCC->NVRAM.VarOpBuf.szName, pThisCC->NVRAM.VarOpBuf.fAttributes, pThisCC->NVRAM.VarOpBuf.cbValue));
-        pEfiVar = (PEFIVAR)RTMemAllocZ(sizeof(EFIVAR));
-        if (pEfiVar)
-        {
-            pEfiVar->uuid          = pThisCC->NVRAM.VarOpBuf.uuid;
-            pEfiVar->cchName       = pThisCC->NVRAM.VarOpBuf.cchName;
-            memcpy(pEfiVar->szName, pThisCC->NVRAM.VarOpBuf.szName, pEfiVar->cchName); /* The buffer is zeroed, so skip '\0'. */
-            pEfiVar->fAttributes   = pThisCC->NVRAM.VarOpBuf.fAttributes;
-            pEfiVar->cbValue       = pThisCC->NVRAM.VarOpBuf.cbValue;
-            memcpy(pEfiVar->abValue, pThisCC->NVRAM.VarOpBuf.abValue, pEfiVar->cbValue);
-
-            nvramInsertVariable(pThisCC, pEfiVar);
-            pThisCC->NVRAM.cVariables++;
-            pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_OK;
-        }
-        else
-            pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-    }
-    else
-    {
-        /*
-         * Too many variables.
-         */
-        LogRelMax(5, ("EFI: Too many variables (%RTuuid::'%s' fAttrib=%#x cbValue=%#x)\n", &pThisCC->NVRAM.VarOpBuf.uuid,
-                  pThisCC->NVRAM.VarOpBuf.szName, pThisCC->NVRAM.VarOpBuf.fAttributes, pThisCC->NVRAM.VarOpBuf.cbValue));
-        pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-        Log(("nvramWriteVariableOpAdd: Too many variabled.\n"));
-    }
-
-    /*
-     * Log the value of bugcheck variables.
-     */
-    if (   (   pThisCC->NVRAM.VarOpBuf.cbValue == 4
-            || pThisCC->NVRAM.VarOpBuf.cbValue == 8)
-        && (   strcmp(pThisCC->NVRAM.VarOpBuf.szName, "BugCheckCode") == 0
-            || strcmp(pThisCC->NVRAM.VarOpBuf.szName, "BugCheckParameter0") == 0
-            || strcmp(pThisCC->NVRAM.VarOpBuf.szName, "BugCheckParameter1") == 0
-            || strcmp(pThisCC->NVRAM.VarOpBuf.szName, "BugCheckParameter2") == 0
-            || strcmp(pThisCC->NVRAM.VarOpBuf.szName, "BugCheckParameter3") == 0
-            || strcmp(pThisCC->NVRAM.VarOpBuf.szName, "BugCheckProgress")   == 0 ) )
-    {
-        if (pThisCC->NVRAM.VarOpBuf.cbValue == 4)
-            LogRel(("EFI: %RTuuid::'%s' = %#010RX32\n", &pThisCC->NVRAM.VarOpBuf.uuid, pThisCC->NVRAM.VarOpBuf.szName,
-                    RT_MAKE_U32_FROM_U8(pThisCC->NVRAM.VarOpBuf.abValue[0], pThisCC->NVRAM.VarOpBuf.abValue[1],
-                                        pThisCC->NVRAM.VarOpBuf.abValue[2], pThisCC->NVRAM.VarOpBuf.abValue[3])));
-        else
-            LogRel(("EFI: %RTuuid::'%s' = %#018RX64\n", &pThisCC->NVRAM.VarOpBuf.uuid, pThisCC->NVRAM.VarOpBuf.szName,
-                    RT_MAKE_U64_FROM_U8(pThisCC->NVRAM.VarOpBuf.abValue[0], pThisCC->NVRAM.VarOpBuf.abValue[1],
-                                        pThisCC->NVRAM.VarOpBuf.abValue[2], pThisCC->NVRAM.VarOpBuf.abValue[3],
-                                        pThisCC->NVRAM.VarOpBuf.abValue[4], pThisCC->NVRAM.VarOpBuf.abValue[5],
-                                        pThisCC->NVRAM.VarOpBuf.abValue[6], pThisCC->NVRAM.VarOpBuf.abValue[7])));
-    }
-
-
-    LogFunc(("cVariables=%u u32Status=%#x\n", pThisCC->NVRAM.cVariables, pThisCC->NVRAM.u32Status));
-    return VINF_SUCCESS;
-}
-
-/**
- * Implements EFI_VARIABLE_PARAM writes.
- *
- * @returns IOM strict status code.
- * @param   pThisCC             The EFI state for the current context.
- * @param   u32Value            The value being written.
- */
-static int nvramWriteVariableParam(PDEVEFIR3 pThisCC, uint32_t u32Value)
-{
-    int rc = VINF_SUCCESS;
-    switch (pThisCC->NVRAM.enmOp)
-    {
-        case EFI_VM_VARIABLE_OP_START:
-            switch (u32Value)
-            {
-                case EFI_VARIABLE_OP_QUERY:
-                    rc = nvramWriteVariableOpQuery(pThisCC);
-                    break;
-
-                case EFI_VARIABLE_OP_QUERY_NEXT:
-                    rc = nvramWriteVariableOpQueryNext(pThisCC);
-                    break;
-
-                case EFI_VARIABLE_OP_QUERY_REWIND:
-                    Log2(("EFI_VARIABLE_OP_QUERY_REWIND\n"));
-                    pThisCC->NVRAM.pCurVar   = NULL;
-                    pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_OK;
-                    break;
-
-                case EFI_VARIABLE_OP_ADD:
-                    rc = nvramWriteVariableOpAdd(pThisCC);
-                    break;
-
-                default:
-                    pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-                    LogRel(("EFI: Unknown  EFI_VM_VARIABLE_OP_START value %#x\n", u32Value));
-                    break;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_GUID:
-            Log2(("EFI_VM_VARIABLE_OP_GUID[%#x]=%#x\n", pThisCC->NVRAM.offOpBuffer, u32Value));
-            if (pThisCC->NVRAM.offOpBuffer < sizeof(pThisCC->NVRAM.VarOpBuf.uuid))
-                pThisCC->NVRAM.VarOpBuf.uuid.au8[pThisCC->NVRAM.offOpBuffer++] = (uint8_t)u32Value;
-            else
-            {
-                LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_GUID write (%#x).\n", u32Value));
-                pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_ATTRIBUTE:
-            Log2(("EFI_VM_VARIABLE_OP_ATTRIBUTE=%#x\n", u32Value));
-            pThisCC->NVRAM.VarOpBuf.fAttributes = u32Value;
-            break;
-
-        case EFI_VM_VARIABLE_OP_NAME:
-            Log2(("EFI_VM_VARIABLE_OP_NAME[%#x]=%#x\n", pThisCC->NVRAM.offOpBuffer, u32Value));
-            if (pThisCC->NVRAM.offOpBuffer < pThisCC->NVRAM.VarOpBuf.cchName)
-                pThisCC->NVRAM.VarOpBuf.szName[pThisCC->NVRAM.offOpBuffer++] = (uint8_t)u32Value;
-            else if (u32Value == 0)
-                Assert(pThisCC->NVRAM.VarOpBuf.szName[sizeof(pThisCC->NVRAM.VarOpBuf.szName) - 1] == 0);
-            else
-            {
-                LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_NAME write (%#x).\n", u32Value));
-                pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_NAME_LENGTH:
-            Log2(("EFI_VM_VARIABLE_OP_NAME_LENGTH=%#x\n", u32Value));
-            RT_ZERO(pThisCC->NVRAM.VarOpBuf.szName);
-            if (u32Value < sizeof(pThisCC->NVRAM.VarOpBuf.szName))
-                pThisCC->NVRAM.VarOpBuf.cchName = u32Value;
-            else
-            {
-                LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_NAME_LENGTH write (%#x, max %#x).\n",
-                        u32Value, sizeof(pThisCC->NVRAM.VarOpBuf.szName) - 1));
-                pThisCC->NVRAM.VarOpBuf.cchName = sizeof(pThisCC->NVRAM.VarOpBuf.szName) - 1;
-                pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-            }
-            Assert(pThisCC->NVRAM.offOpBuffer == 0);
-            break;
-
-        case EFI_VM_VARIABLE_OP_NAME_UTF16:
-        {
-            Log2(("EFI_VM_VARIABLE_OP_NAME_UTF16[%#x]=%#x\n", pThisCC->NVRAM.offOpBuffer, u32Value));
-            /* Currently simplifying this to UCS2, i.e. no surrogates. */
-            if (pThisCC->NVRAM.offOpBuffer == 0)
-                RT_ZERO(pThisCC->NVRAM.VarOpBuf.szName);
-            uint32_t cbUtf8 = (uint32_t)RTStrCpSize(u32Value);
-            if (pThisCC->NVRAM.offOpBuffer + cbUtf8 < sizeof(pThisCC->NVRAM.VarOpBuf.szName))
-            {
-                RTStrPutCp(&pThisCC->NVRAM.VarOpBuf.szName[pThisCC->NVRAM.offOpBuffer], u32Value);
-                pThisCC->NVRAM.offOpBuffer += cbUtf8;
-            }
-            else if (u32Value == 0)
-                Assert(pThisCC->NVRAM.VarOpBuf.szName[sizeof(pThisCC->NVRAM.VarOpBuf.szName) - 1] == 0);
-            else
-            {
-                LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_NAME_UTF16 write (%#x).\n", u32Value));
-                pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-            }
-            break;
-        }
-
-        case EFI_VM_VARIABLE_OP_VALUE:
-            Log2(("EFI_VM_VARIABLE_OP_VALUE[%#x]=%#x\n", pThisCC->NVRAM.offOpBuffer, u32Value));
-            if (pThisCC->NVRAM.offOpBuffer < pThisCC->NVRAM.VarOpBuf.cbValue)
-                pThisCC->NVRAM.VarOpBuf.abValue[pThisCC->NVRAM.offOpBuffer++] = (uint8_t)u32Value;
-            else
-            {
-                LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_VALUE write (%#x).\n", u32Value));
-                pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_VALUE_LENGTH:
-            Log2(("EFI_VM_VARIABLE_OP_VALUE_LENGTH=%#x\n", u32Value));
-            RT_ZERO(pThisCC->NVRAM.VarOpBuf.abValue);
-            if (u32Value <= sizeof(pThisCC->NVRAM.VarOpBuf.abValue))
-                pThisCC->NVRAM.VarOpBuf.cbValue = u32Value;
-            else
-            {
-                LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_VALUE_LENGTH write (%#x, max %#x).\n",
-                        u32Value, sizeof(pThisCC->NVRAM.VarOpBuf.abValue)));
-                pThisCC->NVRAM.VarOpBuf.cbValue = sizeof(pThisCC->NVRAM.VarOpBuf.abValue);
-                pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-            }
-            Assert(pThisCC->NVRAM.offOpBuffer == 0);
-            break;
-
-        default:
-            pThisCC->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
-            LogRel(("EFI: Unexpected variable operation %#x\n", pThisCC->NVRAM.enmOp));
-            break;
-    }
-    return VINF_SUCCESS;
-}
-
-/**
- * Implements EFI_VARIABLE_OP reads.
- *
- * @returns IOM strict status code.
- * @param   pThisCC             The EFI state for the current context.
- * @param   u32Value            The value being written.
- */
-static int nvramReadVariableOp(PDEVEFIR3 pThisCC,  uint32_t *pu32, unsigned cb)
-{
-    switch (pThisCC->NVRAM.enmOp)
-    {
-        case EFI_VM_VARIABLE_OP_START:
-            *pu32 = pThisCC->NVRAM.u32Status;
-            break;
-
-        case EFI_VM_VARIABLE_OP_GUID:
-            if (pThisCC->NVRAM.offOpBuffer < sizeof(pThisCC->NVRAM.VarOpBuf.uuid) && cb == 1)
-                *pu32 = pThisCC->NVRAM.VarOpBuf.uuid.au8[pThisCC->NVRAM.offOpBuffer++];
-            else
-            {
-                if (cb == 1)
-                    LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_GUID read.\n"));
-                else
-                    LogRel(("EFI: Invalid EFI_VM_VARIABLE_OP_GUID read size (%d).\n", cb));
-                *pu32 = UINT32_MAX;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_ATTRIBUTE:
-            *pu32 = pThisCC->NVRAM.VarOpBuf.fAttributes;
-            break;
-
-        case EFI_VM_VARIABLE_OP_NAME:
-            /* allow reading terminator char */
-            if (pThisCC->NVRAM.offOpBuffer <= pThisCC->NVRAM.VarOpBuf.cchName && cb == 1)
-                *pu32 = pThisCC->NVRAM.VarOpBuf.szName[pThisCC->NVRAM.offOpBuffer++];
-            else
-            {
-                if (cb == 1)
-                    LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_NAME read.\n"));
-                else
-                    LogRel(("EFI: Invalid EFI_VM_VARIABLE_OP_NAME read size (%d).\n", cb));
-                *pu32 = UINT32_MAX;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_NAME_LENGTH:
-            *pu32 = pThisCC->NVRAM.VarOpBuf.cchName;
-            break;
-
-        case EFI_VM_VARIABLE_OP_NAME_UTF16:
-            /* Lazy bird: ASSUME no surrogate pairs. */
-            if (pThisCC->NVRAM.offOpBuffer <= pThisCC->NVRAM.VarOpBuf.cchName && cb == 2)
-            {
-                char const *psz1 = &pThisCC->NVRAM.VarOpBuf.szName[pThisCC->NVRAM.offOpBuffer];
-                char const *psz2 = psz1;
-                RTUNICP Cp;
-                RTStrGetCpEx(&psz2, &Cp);
-                *pu32 = Cp;
-                Log2(("EFI_VM_VARIABLE_OP_NAME_UTF16[%u] => %#x (+%d)\n", pThisCC->NVRAM.offOpBuffer, *pu32, psz2 - psz1));
-                pThisCC->NVRAM.offOpBuffer += psz2 - psz1;
-            }
-            else
-            {
-                if (cb == 2)
-                    LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_NAME_UTF16 read.\n"));
-                else
-                    LogRel(("EFI: Invalid EFI_VM_VARIABLE_OP_NAME_UTF16 read size (%d).\n", cb));
-                *pu32 = UINT32_MAX;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_NAME_LENGTH_UTF16:
-            /* Lazy bird: ASSUME no surrogate pairs. */
-            *pu32 = (uint32_t)RTStrUniLen(pThisCC->NVRAM.VarOpBuf.szName);
-            break;
-
-        case EFI_VM_VARIABLE_OP_VALUE:
-            if (pThisCC->NVRAM.offOpBuffer < pThisCC->NVRAM.VarOpBuf.cbValue && cb == 1)
-                *pu32 = pThisCC->NVRAM.VarOpBuf.abValue[pThisCC->NVRAM.offOpBuffer++];
-            else
-            {
-                if (cb == 1)
-                    LogRel(("EFI: Out of bounds EFI_VM_VARIABLE_OP_VALUE read.\n"));
-                else
-                    LogRel(("EFI: Invalid EFI_VM_VARIABLE_OP_VALUE read size (%d).\n", cb));
-                *pu32 = UINT32_MAX;
-            }
-            break;
-
-        case EFI_VM_VARIABLE_OP_VALUE_LENGTH:
-            *pu32 = pThisCC->NVRAM.VarOpBuf.cbValue;
-            break;
-
-        default:
-            *pu32 = UINT32_MAX;
-            break;
-    }
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Checks if the EFI variable value looks like a printable UTF-8 string.
- *
- * @returns true if it is, false if not.
- * @param   pEfiVar             The variable.
- * @param   pfZeroTerm          Where to return whether the string is zero
- *                              terminated.
- */
-static bool efiInfoNvramIsUtf8(PCEFIVAR pEfiVar, bool *pfZeroTerm)
-{
-    if (pEfiVar->cbValue < 2)
-        return false;
-    const char *pachValue = (const char *)&pEfiVar->abValue[0];
-    *pfZeroTerm = pachValue[pEfiVar->cbValue - 1] == 0;
-
-    /* Check the length. */
-    size_t cchValue = RTStrNLen((const char *)pEfiVar->abValue, pEfiVar->cbValue);
-    if (cchValue != pEfiVar->cbValue - *pfZeroTerm)
-        return false; /* stray zeros in the value, forget it. */
-
-    /* Check that the string is valid UTF-8 and printable. */
-    const char *pchCur = pachValue;
-    while ((uintptr_t)(pchCur - pachValue) < cchValue)
-    {
-        RTUNICP uc;
-        int rc = RTStrGetCpEx(&pachValue, &uc);
-        if (RT_FAILURE(rc))
-            return false;
-        /** @todo Missing RTUniCpIsPrintable. */
-        if (uc < 128 && !RT_C_IS_PRINT(uc))
-            return false;
-    }
-
-    return true;
-}
-
-
-/**
- * Checks if the EFI variable value looks like a printable UTF-16 string.
- *
- * @returns true if it is, false if not.
- * @param   pEfiVar             The variable.
- * @param   pfZeroTerm          Where to return whether the string is zero
- *                              terminated.
- */
-static bool efiInfoNvramIsUtf16(PCEFIVAR pEfiVar, bool *pfZeroTerm)
-{
-    if (pEfiVar->cbValue < 4 || (pEfiVar->cbValue & 1))
-        return false;
-
-    PCRTUTF16 pwcValue = (PCRTUTF16)&pEfiVar->abValue[0];
-    size_t    cwcValue = pEfiVar->cbValue /  sizeof(RTUTF16);
-    *pfZeroTerm = pwcValue[cwcValue - 1] == 0;
-    if (!*pfZeroTerm && RTUtf16IsHighSurrogate(pwcValue[cwcValue - 1]))
-        return false; /* Catch bad string early, before reading a char too many. */
-    cwcValue -= *pfZeroTerm;
-    if (cwcValue < 2)
-        return false;
-
-    /* Check that the string is valid UTF-16, printable and spans the whole
-       value length. */
-    size_t    cAscii = 0;
-    PCRTUTF16 pwcCur = pwcValue;
-    while ((uintptr_t)(pwcCur - pwcValue) < cwcValue)
-    {
-        RTUNICP uc;
-        int rc = RTUtf16GetCpEx(&pwcCur, &uc);
-        if (RT_FAILURE(rc))
-            return false;
-        /** @todo Missing RTUniCpIsPrintable. */
-        if (uc < 128 && !RT_C_IS_PRINT(uc))
-            return false;
-        cAscii += uc < 128;
-    }
-    if (cAscii < 2)
-        return false;
-
-    return true;
-}
-
-
-/**
- * @implement_callback_method{FNDBGFHANDLERDEV}
- */
-static DECLCALLBACK(void) efiInfoNvram(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
-{
-    RT_NOREF(pszArgs);
-    PDEVEFIR3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PDEVEFIR3);
-    PDMDevHlpCritSectEnter(pDevIns, pDevIns->pCritSectRoR3, VERR_IGNORED);
-
-    pHlp->pfnPrintf(pHlp, "NVRAM variables: %u\n", pThisCC->NVRAM.cVariables);
-    PCEFIVAR pEfiVar;
-    RTListForEach(&pThisCC->NVRAM.VarList, pEfiVar, EFIVAR, ListNode)
-    {
-        /* Detect UTF-8 and UTF-16 strings. */
-        bool fZeroTerm = false;
-        if (efiInfoNvramIsUtf8(pEfiVar, &fZeroTerm))
-            pHlp->pfnPrintf(pHlp,
-                            "Variable - fAttr=%#04x - '%RTuuid:%s' - cb=%#04x\n"
-                            "String value (UTF-8%s): \"%.*s\"\n",
-                            pEfiVar->fAttributes, &pEfiVar->uuid, pEfiVar->szName, pEfiVar->cbValue,
-                            fZeroTerm ? "" : ",nz", pEfiVar->cbValue, pEfiVar->abValue);
-        else if (efiInfoNvramIsUtf16(pEfiVar, &fZeroTerm))
-            pHlp->pfnPrintf(pHlp,
-                            "Variable - fAttr=%#04x - '%RTuuid:%s' - cb=%#04x\n"
-                            "String value (UTF-16%s): \"%.*ls\"\n",
-                            pEfiVar->fAttributes, &pEfiVar->uuid, pEfiVar->szName, pEfiVar->cbValue,
-                            fZeroTerm ? "" : ",nz", pEfiVar->cbValue, pEfiVar->abValue);
-        else
-            pHlp->pfnPrintf(pHlp,
-                            "Variable - fAttr=%#04x - '%RTuuid:%s' - cb=%#04x\n"
-                            "%.*Rhxd\n",
-                            pEfiVar->fAttributes, &pEfiVar->uuid, pEfiVar->szName, pEfiVar->cbValue,
-                            pEfiVar->cbValue, pEfiVar->abValue);
-
-    }
-
-    PDMDevHlpCritSectLeave(pDevIns, pDevIns->pCritSectRoR3);
-}
-
-
 
 /**
  * Gets the info item size.
@@ -1190,6 +319,8 @@ static uint32_t efiInfoSize(PDEVEFIR3 pThisCC)
         case EFI_INFO_INDEX_GRAPHICS_MODE:
         case EFI_INFO_INDEX_VERTICAL_RESOLUTION:
         case EFI_INFO_INDEX_HORIZONTAL_RESOLUTION:
+        case EFI_INFO_INDEX_CPU_COUNT_CURRENT:
+        case EFI_INFO_INDEX_CPU_COUNT_MAX:
             return 4;
         case EFI_INFO_INDEX_BOOT_ARGS:
             return (uint32_t)RTStrNLen(pThisCC->szBootArgs, sizeof(pThisCC->szBootArgs)) + 1;
@@ -1201,8 +332,26 @@ static uint32_t efiInfoSize(PDEVEFIR3 pThisCC)
         case EFI_INFO_INDEX_MCFG_BASE:
         case EFI_INFO_INDEX_MCFG_SIZE:
             return 8;
+        case EFI_INFO_INDEX_APIC_MODE:
+            return 1;
     }
     return UINT32_MAX;
+}
+
+
+/**
+ * efiInfoNextByte for a uint8_t value.
+ *
+ * @returns Next (current) byte.
+ * @param   pThisCC             The EFI state for the current context.
+ * @param   u8                  The value.
+ */
+static uint8_t efiInfoNextByteU8(PDEVEFIR3 pThisCC, uint8_t u8)
+{
+    uint32_t off = pThisCC->offInfo;
+    if (off >= 1)
+        return 0;
+    return (uint8_t)u8;
 }
 
 
@@ -1275,12 +424,15 @@ static uint8_t efiInfoNextByte(PDEVEFIR3 pThisCC)
         case EFI_INFO_INDEX_GRAPHICS_MODE:      return efiInfoNextByteU32(pThisCC, pThisCC->u32GraphicsMode);
         case EFI_INFO_INDEX_HORIZONTAL_RESOLUTION:  return efiInfoNextByteU32(pThisCC, pThisCC->u32HorizontalResolution);
         case EFI_INFO_INDEX_VERTICAL_RESOLUTION:    return efiInfoNextByteU32(pThisCC, pThisCC->u32VerticalResolution);
+        case EFI_INFO_INDEX_CPU_COUNT_CURRENT:      return efiInfoNextByteU32(pThisCC, pThisCC->cCpus); /** @todo CPU hotplugging. */
+        case EFI_INFO_INDEX_CPU_COUNT_MAX:          return efiInfoNextByteU32(pThisCC, pThisCC->cCpus);
 
         /* Keep in sync with value in EfiThunk.asm */
         case EFI_INFO_INDEX_STACK_BASE:         return efiInfoNextByteU32(pThisCC,  VBOX_EFI_TOP_OF_STACK - _128K); /* 2M - 128 K */
         case EFI_INFO_INDEX_STACK_SIZE:         return efiInfoNextByteU32(pThisCC, _128K);
         case EFI_INFO_INDEX_MCFG_BASE:          return efiInfoNextByteU64(pThisCC, pThisCC->u64McfgBase);
         case EFI_INFO_INDEX_MCFG_SIZE:          return efiInfoNextByteU64(pThisCC, pThisCC->cbMcfgLength);
+        case EFI_INFO_INDEX_APIC_MODE:          return efiInfoNextByteU8(pThisCC, pThisCC->u8APIC);
 
         default:
             PDMDevHlpDBGFStop(pThisCC->pDevIns, RT_SRC_POS, "%#x", pThisCC->iInfoSelector);
@@ -1352,17 +504,25 @@ static int efiPortImageEventWrite(PDEVEFIR3 pThisCC, uint32_t u32, unsigned cb)
                     /* ASSUMES the name ends with .pdb and the image file ends with .efi! */
                     case EFI_IMAGE_EVT_CMD_START_LOAD32:
                         LogRel(("EFI: VBoxDbg> loadimage32 '%.*s.efi' %#llx LB %#llx\n",
-                                pThisCC->ImageEvt.offName - 4, pThisCC->ImageEvt.szName, pThisCC->ImageEvt.uAddr0, pThisCC->ImageEvt.cb0));
+                                pThisCC->ImageEvt.offName - 4 - pThisCC->ImageEvt.offNameLastComponent,
+                                &pThisCC->ImageEvt.szName[pThisCC->ImageEvt.offNameLastComponent],
+                                pThisCC->ImageEvt.uAddr0, pThisCC->ImageEvt.cb0));
                         if (pThisCC->ImageEvt.offName > 4)
                             efiVBoxDbgScript("loadimage32 '%.*s.efi' %#llx\n",
-                                             pThisCC->ImageEvt.offName - 4, pThisCC->ImageEvt.szName, pThisCC->ImageEvt.uAddr0);
+                                             pThisCC->ImageEvt.offName - 4 - pThisCC->ImageEvt.offNameLastComponent,
+                                             &pThisCC->ImageEvt.szName[pThisCC->ImageEvt.offNameLastComponent],
+                                             pThisCC->ImageEvt.uAddr0);
                         break;
                     case EFI_IMAGE_EVT_CMD_START_LOAD64:
                         LogRel(("EFI: VBoxDbg> loadimage64 '%.*s.efi' %#llx LB %#llx\n",
-                                pThisCC->ImageEvt.offName - 4, pThisCC->ImageEvt.szName, pThisCC->ImageEvt.uAddr0, pThisCC->ImageEvt.cb0));
+                                pThisCC->ImageEvt.offName - 4 - pThisCC->ImageEvt.offNameLastComponent,
+                                &pThisCC->ImageEvt.szName[pThisCC->ImageEvt.offNameLastComponent],
+                                pThisCC->ImageEvt.uAddr0, pThisCC->ImageEvt.cb0));
                         if (pThisCC->ImageEvt.offName > 4)
                             efiVBoxDbgScript("loadimage64 '%.*s.efi' %#llx\n",
-                                             pThisCC->ImageEvt.offName - 4, pThisCC->ImageEvt.szName, pThisCC->ImageEvt.uAddr0);
+                                             pThisCC->ImageEvt.offName - 4 - pThisCC->ImageEvt.offNameLastComponent,
+                                             &pThisCC->ImageEvt.szName[pThisCC->ImageEvt.offNameLastComponent],
+                                             pThisCC->ImageEvt.uAddr0);
                         break;
                     case EFI_IMAGE_EVT_CMD_START_UNLOAD32:
                     case EFI_IMAGE_EVT_CMD_START_UNLOAD64:
@@ -1472,9 +632,7 @@ static DECLCALLBACK(VBOXSTRICTRC) efiR3IoPortRead(PPDMDEVINS pDevIns, void *pvUs
            return VINF_IOM_R3_IOPORT_READ;
 # endif
 
-        case EFI_PORT_VARIABLE_OP:
-            return nvramReadVariableOp(pThisCC, pu32, cb);
-
+        case EFI_PORT_VARIABLE_OP: /* Obsolete */
         case EFI_PORT_VARIABLE_PARAM:
         case EFI_PORT_DEBUG_POINT:
         case EFI_PORT_IMAGE_EVENT:
@@ -1627,22 +785,12 @@ static DECLCALLBACK(VBOXSTRICTRC) efiR3IoPortWrite(PPDMDEVINS pDevIns, void *pvU
         }
 
         case EFI_PORT_VARIABLE_OP:
+        case EFI_PORT_VARIABLE_PARAM:
         {
-            /* clear buffer index */
-            if (u32 >= (uint32_t)EFI_VM_VARIABLE_OP_MAX)
-            {
-                Log(("EFI: Invalid variable op %#x\n", u32));
-                u32 = EFI_VM_VARIABLE_OP_ERROR;
-            }
-            pThisCC->NVRAM.offOpBuffer = 0;
-            pThisCC->NVRAM.enmOp = (EFIVAROP)u32;
-            Log2(("EFI_VARIABLE_OP: enmOp=%#x (%d)\n", u32, u32));
+            /* Ignore access to the obsolete variable handling port. */
+            Log(("EFI: Write to obsolete variable handling port %RTiop: %#x (cb=%d)\n", offPort, u32, cb));
             break;
         }
-
-        case EFI_PORT_VARIABLE_PARAM:
-            rc = nvramWriteVariableParam(pThisCC, u32);
-            break;
 
         case EFI_PORT_DEBUG_POINT:
 # ifdef IN_RING3
@@ -1708,7 +856,6 @@ static DECLCALLBACK(int) efiSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 static DECLCALLBACK(int) efiLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
     PDEVEFI         pThis   = PDMDEVINS_2_DATA(pDevIns, PDEVEFI);
-    PDEVEFIR3       pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PDEVEFIR3);
     PCPDMDEVHLPR3   pHlp    = pDevIns->pHlpR3;
     LogFlow(("efiLoadExec: uVersion=%d uPass=%d\n", uVersion, uPass));
 
@@ -1729,66 +876,9 @@ static DECLCALLBACK(int) efiLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
     else
     {
         /*
-         * Kill the current variables before loading anything.
+         * Ignore the old NVRAM state.
          */
-        nvramFlushDeviceVariableList(pThisCC);
-
-        /*
-         * Load the NVRAM state.
-         */
-        rc = pHlp->pfnSSMGetStructEx(pSSM, &pThisCC->NVRAM, sizeof(NVRAMDESC), 0, g_aEfiNvramDescField, NULL);
-        AssertRCReturn(rc, rc);
-        pThisCC->NVRAM.pCurVar = NULL;
-
-        rc = pHlp->pfnSSMGetStructEx(pSSM, &pThisCC->NVRAM.VarOpBuf, sizeof(EFIVAR), 0, g_aEfiVariableDescFields, NULL);
-        AssertRCReturn(rc, rc);
-
-        /*
-         * Load variables.
-         */
-        pThisCC->NVRAM.pCurVar = NULL;
-        Assert(RTListIsEmpty(&pThisCC->NVRAM.VarList));
-        RTListInit(&pThisCC->NVRAM.VarList);
-        for (uint32_t i = 0; i < pThisCC->NVRAM.cVariables; i++)
-        {
-            PEFIVAR pEfiVar = (PEFIVAR)RTMemAllocZ(sizeof(EFIVAR));
-            AssertReturn(pEfiVar, VERR_NO_MEMORY);
-
-            rc = pHlp->pfnSSMGetStructEx(pSSM, pEfiVar, sizeof(EFIVAR), 0, g_aEfiVariableDescFields, NULL);
-            if (RT_SUCCESS(rc))
-            {
-                if (   pEfiVar->cbValue > sizeof(pEfiVar->abValue)
-                    || pEfiVar->cbValue == 0)
-                {
-                    rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-                    LogRel(("EFI: Loaded invalid variable value length %#x\n", pEfiVar->cbValue));
-                }
-                uint32_t cchVarName = (uint32_t)RTStrNLen(pEfiVar->szName, sizeof(pEfiVar->szName));
-                if (cchVarName >= sizeof(pEfiVar->szName))
-                {
-                    rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-                    LogRel(("EFI: Loaded variable name is unterminated.\n"));
-                }
-                if (pEfiVar->cchName > cchVarName) /* No check for 0 here, busted load code in 4.2, so now storing 0 here. */
-                {
-                    rc = VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
-                    LogRel(("EFI: Loaded invalid variable name length %#x (cchVarName=%#x)\n", pEfiVar->cchName, cchVarName));
-                }
-                if (RT_SUCCESS(rc))
-                    pEfiVar->cchName = cchVarName;
-            }
-            AssertRCReturnStmt(rc, RTMemFree(pEfiVar), rc);
-
-            /* Add it (not using nvramInsertVariable to preserve saved order),
-               updating the current variable pointer while we're here. */
-#if 1
-            RTListAppend(&pThisCC->NVRAM.VarList, &pEfiVar->ListNode);
-#else
-            nvramInsertVariable(pThisCC, pEfiVar);
-#endif
-            if (pThisCC->NVRAM.idUniqueCurVar == pEfiVar->idUniqueSavedState)
-                pThisCC->NVRAM.pCurVar = pEfiVar;
-        }
+        rc = pHlp->pfnSSMSkipToEndOfUnit(pSSM);
     }
 
     return rc;
@@ -1831,10 +921,9 @@ static DECLCALLBACK(int) efiInitComplete(PPDMDEVINS pDevIns)
 {
     PDEVEFIR3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PDEVEFIR3);
 
-    PVM pVM                    = PDMDevHlpGetVM(pDevIns);
-    uint64_t const  cbRamSize  = MMR3PhysGetRamSize(pVM);
-    uint32_t const  cbBelow4GB = MMR3PhysGetRamSizeBelow4GB(pVM);
-    uint64_t const  cbAbove4GB = MMR3PhysGetRamSizeAbove4GB(pVM);
+    uint64_t const  cbRamSize  = PDMDevHlpMMPhysGetRamSize(pDevIns);
+    uint32_t const  cbBelow4GB = PDMDevHlpMMPhysGetRamSizeBelow4GB(pDevIns);
+    uint64_t const  cbAbove4GB = PDMDevHlpMMPhysGetRamSizeAbove4GB(pDevIns);
     NOREF(cbAbove4GB);
 
     /*
@@ -1880,30 +969,30 @@ static DECLCALLBACK(void) efiMemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPCTX enmC
     /*
      * Re-shadow the Firmware Volume and make it RAM/RAM.
      */
-    uint32_t    cPages = RT_ALIGN_64(pThisCC->cbEfiRom, PAGE_SIZE) >> PAGE_SHIFT;
+    uint32_t    cPages = RT_ALIGN_64(pThisCC->cbEfiRom, GUEST_PAGE_SIZE) >> GUEST_PAGE_SHIFT;
     RTGCPHYS    GCPhys = pThisCC->GCLoadAddress;
     while (cPages > 0)
     {
-        uint8_t abPage[PAGE_SIZE];
+        uint8_t abPage[GUEST_PAGE_SIZE];
 
         /* Read the (original) ROM page and write it back to the RAM page. */
-        int rc = PDMDevHlpROMProtectShadow(pDevIns, GCPhys, PAGE_SIZE, PGMROMPROT_READ_ROM_WRITE_RAM);
+        int rc = PDMDevHlpROMProtectShadow(pDevIns, GCPhys, GUEST_PAGE_SIZE, PGMROMPROT_READ_ROM_WRITE_RAM);
         AssertLogRelRC(rc);
 
-        rc = PDMDevHlpPhysRead(pDevIns, GCPhys, abPage, PAGE_SIZE);
+        rc = PDMDevHlpPhysRead(pDevIns, GCPhys, abPage, GUEST_PAGE_SIZE);
         AssertLogRelRC(rc);
         if (RT_FAILURE(rc))
             memset(abPage, 0xcc, sizeof(abPage));
 
-        rc = PDMDevHlpPhysWrite(pDevIns, GCPhys, abPage, PAGE_SIZE);
+        rc = PDMDevHlpPhysWrite(pDevIns, GCPhys, abPage, GUEST_PAGE_SIZE);
         AssertLogRelRC(rc);
 
         /* Switch to the RAM/RAM mode. */
-        rc = PDMDevHlpROMProtectShadow(pDevIns, GCPhys, PAGE_SIZE, PGMROMPROT_READ_RAM_WRITE_RAM);
+        rc = PDMDevHlpROMProtectShadow(pDevIns, GCPhys, GUEST_PAGE_SIZE, PGMROMPROT_READ_RAM_WRITE_RAM);
         AssertLogRelRC(rc);
 
         /* Advance */
-        GCPhys += PAGE_SIZE;
+        GCPhys += GUEST_PAGE_SIZE;
         cPages--;
     }
 }
@@ -1942,10 +1031,22 @@ static DECLCALLBACK(void) efiReset(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(void) efiPowerOff(PPDMDEVINS pDevIns)
 {
-    PDEVEFIR3  pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PDEVEFIR3);
+    PDEVEFI   pThis   = PDMDEVINS_2_DATA(pDevIns, PDEVEFI);
+    PDEVEFIR3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PDEVEFIR3);
 
-    if (pThisCC->Lun0.pNvramDrv)
-        nvramStore(pThisCC);
+    if (pThisCC->Lun0.pDrvVfs)
+    {
+        int rc = flashR3SaveToVfs(&pThis->Flash, pDevIns, pThisCC->Lun0.pDrvVfs,
+                                  pDevIns->pReg->szName, "nvram");
+        if (RT_FAILURE(rc))
+            LogRel(("EFI: Failed to save flash file to NVRAM store: %Rrc\n", rc));
+    }
+    else if (pThisCC->pszNvramFile)
+    {
+        int rc = flashR3SaveToFile(&pThis->Flash, pDevIns, pThisCC->pszNvramFile);
+        if (RT_FAILURE(rc))
+            LogRel(("EFI: Failed to save flash file to '%s': %Rrc\n", pThisCC->pszNvramFile, rc));
+    }
 }
 
 
@@ -1963,15 +1064,6 @@ static DECLCALLBACK(int) efiDestruct(PPDMDEVINS pDevIns)
     PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
     PDEVEFI   pThis   = PDMDEVINS_2_DATA(pDevIns, PDEVEFI);
     PDEVEFIR3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PDEVEFIR3);
-
-    nvramFlushDeviceVariableList(pThisCC);
-
-    if (pThisCC->pszNvramFile)
-    {
-        int rc = flashR3SaveToFile(&pThis->Flash, pDevIns, pThisCC->pszNvramFile);
-        if (RT_FAILURE(rc))
-            LogRel(("EFI: Failed to save flash file to '%s': %Rrc\n", pThisCC->pszNvramFile, rc));
-    }
 
     flashR3Destruct(&pThis->Flash, pDevIns);
 
@@ -2074,7 +1166,7 @@ static int efiParseFirmware(PPDMDEVINS pDevIns, PDEVEFI pThis, PDEVEFIR3 pThisCC
                           ("%#x, %x\n", pFwVolHdr->BlockMap[0].Length, pFwVolHdr->BlockMap[0].NumBlocks),
                           VERR_INVALID_PARAMETER);
 
-    AssertLogRelMsgReturn(!(pThisCC->cbEfiRom & PAGE_OFFSET_MASK), ("%RX64\n", pThisCC->cbEfiRom), VERR_INVALID_PARAMETER);
+    AssertLogRelMsgReturn(!(pThisCC->cbEfiRom & GUEST_PAGE_OFFSET_MASK), ("%RX64\n", pThisCC->cbEfiRom), VERR_INVALID_PARAMETER);
 
     LogRel(("Found EFI FW Volume, %u bytes (%u %u-byte blocks)\n", pFwVolHdr->FvLength, pFwVolHdr->BlockMap[0].NumBlocks, pFwVolHdr->BlockMap[0].Length));
 
@@ -2086,20 +1178,35 @@ static int efiParseFirmware(PPDMDEVINS pDevIns, PDEVEFI pThis, PDEVEFIR3 pThisCC
     /* Found NVRAM storage, configure flash device. */
     pThisCC->offEfiRom   = pFwVolHdr->FvLength;
     pThisCC->cbNvram     = pFwVolHdr->FvLength;
-    pThisCC->GCPhysNvram = UINT32_C(0xfffff000) - pThisCC->cbEfiRom + PAGE_SIZE;
+    pThisCC->GCPhysNvram = UINT32_C(0xfffff000) - pThisCC->cbEfiRom + GUEST_PAGE_SIZE;
     pThisCC->cbEfiRom   -= pThisCC->cbNvram;
 
     int rc = flashR3Init(&pThis->Flash, pThisCC->pDevIns, 0xA289 /*Intel*/, pThisCC->cbNvram, pFwVolHdr->BlockMap[0].Length);
     if (RT_FAILURE(rc))
         return rc;
 
-    /* If the file does not exist we initialize the NVRAM from the loaded ROM file. */
-    if (!pThisCC->pszNvramFile || !RTPathExists(pThisCC->pszNvramFile))
-        rc = flashR3LoadFromBuf(&pThis->Flash, pThisCC->pu8EfiRom, pThisCC->cbNvram);
+    if (pThisCC->Lun0.pDrvVfs)
+    {
+        rc = flashR3LoadFromVfs(&pThis->Flash, pDevIns, pThisCC->Lun0.pDrvVfs,
+                                pDevIns->pReg->szName, "nvram");
+        if (rc == VERR_NOT_FOUND)
+        {
+            /* Initialize the NVRAM content from the loaded ROM file as the NVRAM wasn't initialized yet. */
+            rc = flashR3LoadFromBuf(&pThis->Flash, pThisCC->pu8EfiRom, pThisCC->cbNvram);
+        }
+        else if (RT_FAILURE(rc))
+            return rc;
+    }
     else
-        rc = flashR3LoadFromFile(&pThis->Flash, pDevIns, pThisCC->pszNvramFile);
-    if (RT_FAILURE(rc))
-        return rc;
+    {
+        /* If the file does not exist we initialize the NVRAM from the loaded ROM file. */
+        if (!pThisCC->pszNvramFile || !RTPathExists(pThisCC->pszNvramFile))
+            rc = flashR3LoadFromBuf(&pThis->Flash, pThisCC->pu8EfiRom, pThisCC->cbNvram);
+        else
+            rc = flashR3LoadFromFile(&pThis->Flash, pDevIns, pThisCC->pszNvramFile);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
 
     pThisCC->GCLoadAddress = pThisCC->GCPhysNvram + pThisCC->cbNvram;
 
@@ -2190,7 +1297,7 @@ static int efiLoadRom(PPDMDEVINS pDevIns, PDEVEFI pThis, PDEVEFIR3 pThisCC, PCFG
                           VERR_IMAGE_TOO_BIG);
 
     uint32_t const  cbChunk = pThisCC->cbNvram + pThisCC->cbEfiRom >= _2M ? _512K
-                            : (uint32_t)RT_ALIGN_64((pThisCC->cbNvram + pThisCC->cbEfiRom) / 4, PAGE_SIZE);
+                            : (uint32_t)RT_ALIGN_64((pThisCC->cbNvram + pThisCC->cbEfiRom) / 4, GUEST_PAGE_SIZE);
     uint32_t        cbLeft  = pThisCC->cbEfiRom;           /* ASSUMES NVRAM comes first! */
     uint32_t        off     = pThisCC->offEfiRom + cbLeft; /* ASSUMES NVRAM comes first! */
     RTGCPHYS64      GCPhys  = pThisCC->GCLoadAddress + cbLeft;
@@ -2234,7 +1341,7 @@ static int efiLoadRom(PPDMDEVINS pDevIns, PDEVEFI pThis, PDEVEFIR3 pThisCC, PCFG
     AssertRCReturn(rc, rc);
 
 #else
-    RTGCPHYS cbQuart = RT_ALIGN_64(pThisCC->cbEfiRom / 4, PAGE_SIZE);
+    RTGCPHYS cbQuart = RT_ALIGN_64(pThisCC->cbEfiRom / 4, GUEST_PAGE_SIZE);
     rc = PDMDevHlpROMRegister(pDevIns,
                               pThisCC->GCLoadAddress,
                               cbQuart,
@@ -2363,7 +1470,6 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
      * Initalize the basic variables so that the destructor always works.
      */
     pThisCC->pDevIns = pDevIns;
-    RTListInit(&pThisCC->NVRAM.VarList);
     pThisCC->Lun0.IBase.pfnQueryInterface = devEfiQueryInterface;
 
     /*
@@ -2498,25 +1604,23 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
                                    N_("Configuration error: Querying \"EfiRom\" as a string failed"));
 
     /*
-     * NVRAM processing.
+     * Saved State handling.
      */
     rc = PDMDevHlpSSMRegister(pDevIns, EFI_SSM_VERSION, sizeof(*pThisCC), efiSaveExec, efiLoadExec);
     AssertRCReturn(rc, rc);
 
+    /*
+     * NVRAM storage.
+     */
     rc = PDMDevHlpDriverAttach(pDevIns, 0, &pThisCC->Lun0.IBase, &pThisCC->Lun0.pDrvBase, "NvramStorage");
     if (RT_SUCCESS(rc))
     {
-        pThisCC->Lun0.pNvramDrv = PDMIBASE_QUERY_INTERFACE(pThisCC->Lun0.pDrvBase, PDMINVRAMCONNECTOR);
-        AssertPtrReturn(pThisCC->Lun0.pNvramDrv, VERR_PDM_MISSING_INTERFACE_BELOW);
-
-        rc = nvramLoad(pThisCC);
-        AssertRCReturn(rc, rc);
+        pThisCC->Lun0.pDrvVfs = PDMIBASE_QUERY_INTERFACE(pThisCC->Lun0.pDrvBase, PDMIVFSCONNECTOR);
+        if (!pThisCC->Lun0.pDrvVfs)
+            return PDMDevHlpVMSetError(pDevIns, VERR_PDM_MISSING_INTERFACE_BELOW, RT_SRC_POS, N_("NVRAM storage driver is missing VFS interface below"));
     }
     else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
-    {
-        pThisCC->Lun0.pNvramDrv = NULL;
         rc = VINF_SUCCESS; /* Missing driver is no error condition. */
-    }
     else
         return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS, N_("Can't attach Nvram Storage driver"));
 
@@ -2558,9 +1662,9 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     /*
      * CPU frequencies.
      */
-    pThisCC->u64TscFrequency = TMCpuTicksPerSecond(PDMDevHlpGetVM(pDevIns));
+    pThisCC->u64TscFrequency = PDMDevHlpTMCpuTicksPerSecond(pDevIns);
     pThisCC->u64CpuFrequency = pThisCC->u64TscFrequency;
-    pThisCC->u64FsbFrequency = CPUMGetGuestScalableBusFrequency(PDMDevHlpGetVM(pDevIns));
+    pThisCC->u64FsbFrequency = PDMDevHlpCpuGetGuestScalableBusFrequency(pDevIns);
 
     /*
      * EFI graphics mode (with new EFI VGA code used only as a fallback, for
@@ -2660,12 +1764,6 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThisCC->au8DMIPage, _4K,
                               PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "DMI tables");
 
-    AssertRCReturn(rc, rc);
-
-    /*
-     * Register info handlers.
-     */
-    rc = PDMDevHlpDBGFInfoRegister(pDevIns, "nvram", "Dumps the NVRAM variables.\n", efiInfoNvram);
     AssertRCReturn(rc, rc);
 
     /*

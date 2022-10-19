@@ -7,26 +7,36 @@ Test Manager - TestBox.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard python imports.
@@ -58,7 +68,7 @@ class TestBoxInSchedGroupData(ModelDataBase):
     ksParam_uidAuthor           = 'TestBoxInSchedGroup_uidAuthor';
     ksParam_iSchedPriority      = 'TestBoxInSchedGroup_iSchedPriority';
 
-    kasAllowNullAttributes      = [ 'idTestBox', 'tsEffective', 'tsExpire', 'uidAuthor', ]
+    kasAllowNullAttributes      = [ 'tsEffective', 'tsExpire', 'uidAuthor', ]
 
     kiMin_iSchedPriority        = 0;
     kiMax_iSchedPriority        = 32;
@@ -108,6 +118,43 @@ class TestBoxInSchedGroupDataEx(TestBoxInSchedGroupData):
         self.initFromDbRow(aoRow);
         self.oSchedGroup        = SchedGroupData().initFromDbWithId(oDb, self.idSchedGroup, tsNow, sPeriodBack);
         return self;
+
+class TestBoxDataForSchedGroup(TestBoxInSchedGroupData):
+    """
+    Extended version of TestBoxInSchedGroupData that adds the testbox data (if available).
+    Used by TestBoxLogic.fetchForSchedGroup
+    """
+
+    def __init__(self):
+        TestBoxInSchedGroupData.__init__(self);
+        self.oTestBox           = None  # type: TestBoxData
+
+    def initFromDbRow(self, aoRow):
+        """
+        The row is: TestBoxesInSchedGroups.*, TestBoxesWithStrings.*
+        """
+        TestBoxInSchedGroupData.initFromDbRow(self, aoRow);
+        if aoRow[self.kcDbColumns]:
+            self.oTestBox = TestBoxData().initFromDbRow(aoRow[self.kcDbColumns:]);
+        else:
+            self.oTestBox = None;
+        return self;
+
+    def getDataAttributes(self):
+        asAttributes = TestBoxInSchedGroupData.getDataAttributes(self);
+        asAttributes.remove('oTestBox');
+        return asAttributes;
+
+    def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ModelDataBase.ksValidateFor_Other):
+        dErrors = TestBoxInSchedGroupData._validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor);
+        if self.ksParam_idTestBox not in dErrors:
+            self.oTestBox = TestBoxData();
+            try:
+                self.oTestBox.initFromDbWithId(oDb, self.idTestBox);
+            except Exception as oXcpt:
+                self.oTestBox = TestBoxData()
+                dErrors[self.ksParam_idTestBox] = str(oXcpt);
+        return dErrors;
 
 
 # pylint: disable=invalid-name
@@ -648,16 +695,26 @@ class TestBoxDataEx(TestBoxData):
         # Note! We'll be returning an error dictionary instead of an string here.
         dErrors = {};
 
+        # HACK ALERT! idTestBox might not have been validated and converted yet, but we need detect
+        #             adding so we can ignore idTestBox being NIL when validating group memberships.
+        ## @todo make base.py pass us the ksValidateFor_Xxxx value.
+        fIsAdding = bool(self.idTestBox in [ None, -1, '-1', 'None', '' ])
+
         for iInGrp, oInSchedGroup in enumerate(self.aoInSchedGroups):
             oInSchedGroup = copy.copy(oInSchedGroup);
             oInSchedGroup.idTestBox = self.idTestBox;
-            dCurErrors = oInSchedGroup.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
+            if fIsAdding:
+                dCurErrors = oInSchedGroup.validateAndConvertEx(['idTestBox',] + oInSchedGroup.kasAllowNullAttributes,
+                                                                oDb, ModelDataBase.ksValidateFor_Add);
+            else:
+                dCurErrors = oInSchedGroup.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
             if not dCurErrors:
                 pass; ## @todo figure out the ID?
             else:
                 asErrors = [];
                 for sKey in dCurErrors:
-                    asErrors.append('%s: %s' % (sKey[len('TestBoxInSchedGroup_'):], dCurErrors[sKey]));
+                    asErrors.append('%s: %s' % (sKey[len('TestBoxInSchedGroup_'):],
+                                                dCurErrors[sKey] + ('{%s}' % self.idTestBox)))
                 dErrors[iInGrp] = '<br>\n'.join(asErrors)
             aoNewValues.append(oInSchedGroup);
 
@@ -698,10 +755,10 @@ class TestBoxLogic(ModelLogicBase):
     kcMaxSortColumns                = 17;
     kdSortColumnMap                 = {
         0:                               'TestBoxesWithStrings.sName',
-        kiSortColumn_sName:              "regexp_replace(TestBoxesWithStrings.sName,'[0-9]*','', 'g'), "\
-                                         "regexp_replace(CONCAT(TestBoxesWithStrings.sName,'0'),'[^0-9]*','', 'g')::int",
-        -kiSortColumn_sName:             "regexp_replace(TestBoxesWithStrings.sName,'[0-9]*','', 'g') DESC, "\
-                                         "regexp_replace(CONCAT(TestBoxesWithStrings.sName,'0'),'[^0-9]*','', 'g')::int DESC",
+        kiSortColumn_sName:              "regexp_replace(TestBoxesWithStrings.sName,'[0-9]*', '', 'g'), " \
+                            "RIGHT(CONCAT(regexp_replace(TestBoxesWithStrings.sName,'[^0-9]*','', 'g'),'0'),8)::int",
+        -kiSortColumn_sName:             "regexp_replace(TestBoxesWithStrings.sName,'[0-9]*', '', 'g') DESC, " \
+                            "RIGHT(CONCAT(regexp_replace(TestBoxesWithStrings.sName,'[^0-9]*','', 'g'),'0'),8)::int DESC",
         kiSortColumn_sOs:                'TestBoxesWithStrings.sOs',
         -kiSortColumn_sOs:               'TestBoxesWithStrings.sOs DESC',
         kiSortColumn_sOsVersion:         'TestBoxesWithStrings.sOsVersion',
@@ -808,6 +865,49 @@ class TestBoxLogic(ModelLogicBase):
             if aoOne[TestBoxData.kcDbColumns] is not None:
                 oTestBox.oStatus = TestBoxStatusData().initFromDbRow(aoOne[TestBoxData.kcDbColumns:]);
             aoRows.append(oTestBox);
+        return aoRows;
+
+    def fetchForSchedGroup(self, idSchedGroup, tsNow, aiSortColumns = None):
+        """
+        Fetches testboxes for listing.
+
+        Returns an array (list) of TestBoxDataForSchedGroup items, empty list if none.
+
+        Raises exception on error.
+        """
+        if not aiSortColumns:
+            aiSortColumns = [self.kiSortColumn_sName,];
+        asSortColumns = [self.kdSortColumnMap[i] for i in aiSortColumns];
+        asSortColumns.append('TestBoxesInSchedGroups.idTestBox');
+
+        if tsNow is None:
+            self._oDb.execute('''
+SELECT  TestBoxesInSchedGroups.*,
+        TestBoxesWithStrings.*
+FROM    TestBoxesInSchedGroups
+        LEFT OUTER JOIN TestBoxesWithStrings
+                     ON TestBoxesWithStrings.idTestBox = TestBoxesInSchedGroups.idTestBox
+                    AND TestBoxesWithStrings.tsExpire  = 'infinity'::TIMESTAMP
+WHERE   TestBoxesInSchedGroups.idSchedGroup = %s
+    AND TestBoxesInSchedGroups.tsExpire     = 'infinity'::TIMESTAMP
+ORDER BY ''' + ', '.join(asSortColumns), (idSchedGroup, ));
+        else:
+            self._oDb.execute('''
+SELECT  TestBoxesInSchedGroups.*,
+        TestBoxesWithStrings.*
+FROM    TestBoxesInSchedGroups
+        LEFT OUTER JOIN TestBoxesWithStrings
+                     ON TestBoxesWithStrings.idTestBox    = TestBoxesInSchedGroups.idTestBox
+                    AND TestBoxesWithStrings.tsExpire     > %s
+                    AND TestBoxesWithStrings.tsEffective <= %s
+WHERE   TestBoxesInSchedGroups.idSchedGroup = %s
+    AND TestBoxesInSchedGroups.tsExpire     > %s
+    AND TestBoxesInSchedGroups.tsEffective <= %s
+ORDER BY ''' + ', '.join(asSortColumns), (tsNow, tsNow, idSchedGroup, tsNow, tsNow, ));
+
+        aoRows = [];
+        for aoOne in self._oDb.fetchAll():
+            aoRows.append(TestBoxDataForSchedGroup().initFromDbRow(aoOne));
         return aoRows;
 
     def fetchForChangeLog(self, idTestBox, iStart, cMaxRows, tsNow): # pylint: disable=too-many-locals
@@ -1062,7 +1162,8 @@ class TestBoxLogic(ModelLogicBase):
         """
         self._oDb.execute('SELECT   *\n'
                           'FROM     TestBoxesWithStrings\n'
-                          'WHERE    tsExpire=\'infinity\'::timestamp;')
+                          'WHERE    tsExpire=\'infinity\'::timestamp\n'
+                          'ORDER BY sName')
 
         aaoRows = self._oDb.fetchAll()
         aoRet = []

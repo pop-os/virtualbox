@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_UISettingsPage_h
@@ -33,6 +43,7 @@
 /* COM includes: */
 #include "COMEnums.h"
 #include "CConsole.h"
+#include "CHost.h"
 #include "CMachine.h"
 #include "CSystemProperties.h"
 
@@ -52,11 +63,13 @@ struct UISettingsDataGlobal
 {
     /** Constructs NULL global settings data struct. */
     UISettingsDataGlobal() {}
-    /** Constructs global settings data struct on the basis of @a comProperties. */
-    UISettingsDataGlobal(const CSystemProperties &comProperties)
-        : m_properties(comProperties) {}
-    /** Holds the global VirtualBox properties. */
-    CSystemProperties m_properties;
+    /** Constructs global settings data struct on the basis of @a comHost and @a comProperties. */
+    UISettingsDataGlobal(const CHost &comHost, const CSystemProperties &comProperties)
+        : m_host(comHost), m_properties(comProperties) {}
+    /** Holds the host reference. */
+    CHost              m_host;
+    /** Holds the properties reference. */
+    CSystemProperties  m_properties;
 };
 Q_DECLARE_METATYPE(UISettingsDataGlobal);
 
@@ -70,9 +83,9 @@ struct UISettingsDataMachine
     UISettingsDataMachine(const CMachine &comMachine, const CConsole &comConsole)
         : m_machine(comMachine), m_console(comConsole) {}
     /** Holds the machine reference. */
-    CMachine m_machine;
+    CMachine  m_machine;
     /** Holds the console reference. */
-    CConsole m_console;
+    CConsole  m_console;
 };
 Q_DECLARE_METATYPE(UISettingsDataMachine);
 
@@ -102,18 +115,18 @@ signals:
 
 public:
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
     virtual void loadToCacheFrom(QVariant &data) = 0;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
     virtual void getFromCache() = 0;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
     virtual void putToCache() = 0;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
     virtual void saveFromCacheTo(QVariant &data) = 0;
 
     /** Notifies listeners about particular COM error.
@@ -220,21 +233,23 @@ protected:
     GlobalSettingsPageType internalID() const;
 
     /** Returns page internal name. */
-    virtual QString internalName() const /* override */;
+    virtual QString internalName() const RT_OVERRIDE;
 
     /** Returns page warning pixmap. */
-    virtual QPixmap warningPixmap() const /* override */;
+    virtual QPixmap warningPixmap() const RT_OVERRIDE;
 
     /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */ { return false; }
+    virtual bool changed() const RT_OVERRIDE { return false; }
 
     /** Fetches data to m_properties & m_settings. */
     void fetchData(const QVariant &data);
     /** Uploads m_properties & m_settings to data. */
     void uploadData(QVariant &data) const;
 
+    /** Holds the source of host preferences. */
+    CHost              m_host;
     /** Holds the source of global preferences. */
-    CSystemProperties m_properties;
+    CSystemProperties  m_properties;
 };
 
 
@@ -252,10 +267,10 @@ protected:
     MachineSettingsPageType internalID() const;
 
     /** Returns page internal name. */
-    virtual QString internalName() const /* override */;
+    virtual QString internalName() const RT_OVERRIDE;
 
     /** Returns page warning pixmap. */
-    virtual QPixmap warningPixmap() const /* override */;
+    virtual QPixmap warningPixmap() const RT_OVERRIDE;
 
     /** Fetches data to m_machine & m_console. */
     void fetchData(const QVariant &data);
@@ -263,9 +278,9 @@ protected:
     void uploadData(QVariant &data) const;
 
     /** Holds the source of machine settings. */
-    CMachine m_machine;
+    CMachine  m_machine;
     /** Holds the source of console settings. */
-    CConsole m_console;
+    CConsole  m_console;
 };
 
 

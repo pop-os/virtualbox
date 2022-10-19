@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2020 Oracle Corporation
+ * Copyright (C) 2020-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <iprt/assert.h>
@@ -51,9 +61,11 @@ int main()
     RT_ZERO(list);
 
     /* Invalid stuff. */
+    RTTestDisableAssertions(hTest);
     RTTEST_CHECK_RC(hTest, DnDTransferListInitEx(&list, "", DNDTRANSFERLISTFMT_NATIVE), VERR_INVALID_PARAMETER);
     RTTEST_CHECK_RC(hTest, DnDTransferListInitEx(&list, szPathWellKnown, DNDTRANSFERLISTFMT_NATIVE), VINF_SUCCESS);
     RTTEST_CHECK_RC(hTest, DnDTransferListInitEx(&list, szPathWellKnown, DNDTRANSFERLISTFMT_NATIVE), VERR_WRONG_ORDER);
+    RTTestRestoreAssertions(hTest);
     DnDTransferListDestroy(&list);
 
     /* Empty. */
@@ -141,10 +153,18 @@ int main()
                                                                 DNDTRANSFERLIST_FLAGS_NONE), VINF_SUCCESS);
     RTTEST_CHECK(hTest, DnDTransferListGetRootCount(&list) == 2);
     RTTEST_CHECK(hTest, RTPathCompare(DnDTransferListGetRootPathAbs(&list), szPathTest) == 0);
+
+    pszBuf = NULL;
     RTTEST_CHECK_RC(hTest, DnDTransferListGetRootsEx(&list, DNDTRANSFERLISTFMT_NATIVE, "/native/base/path", "\n", &pszBuf, &cbBuf), VINF_SUCCESS);
     RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "Roots (URI, new base):\n%s\n", pszBuf);
+    RTStrFree(pszBuf);
+
+    pszBuf = NULL;
     RTTEST_CHECK_RC(hTest, DnDTransferListGetRootsEx(&list, DNDTRANSFERLISTFMT_NATIVE, "\\windows\\path", "\n", &pszBuf, &cbBuf), VINF_SUCCESS);
     RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "Roots (URI, new base):\n%s\n", pszBuf);
+    RTStrFree(pszBuf);
+
+    pszBuf = NULL;
     RTTEST_CHECK_RC(hTest, DnDTransferListGetRootsEx(&list, DNDTRANSFERLISTFMT_NATIVE, "\\\\windows\\\\path", "\n", &pszBuf, &cbBuf), VINF_SUCCESS);
     RTTestPrintf(hTest, RTTESTLVL_ALWAYS, "Roots (URI, new base):\n%s\n", pszBuf);
     RTStrFree(pszBuf);

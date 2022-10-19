@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../../..
@@ -104,10 +114,16 @@ linux-misc_SOURCES = \
 	$(VBOX_PATH_INST_COMMON_SRC)/virtualbox.xml \
 	$(if $(VBOX_OSE),,$(VBOX_BRAND_LICENSE_TXT)=>LICENSE) \
 	$(linux-misc_0_OUTDIR)/generated.sh=>scripts/generated.sh \
-	$(if $(VBOX_WITH_QTGUI),$(linux-misc_0_OUTDIR)/virtualbox.desktop,)
+	$(if $(VBOX_WITH_QTGUI),$(linux-misc_0_OUTDIR)/virtualbox.desktop,) \
+	$(if $(VBOX_WITH_QTGUI),$(linux-misc_0_OUTDIR)/virtualboxvm.desktop,)
+ifeq ($(KBUILD_TYPE),asan)
+linux-misc_SOURCES += $(foreach lib,$(VBOX_GCC_SANITIZER_SO_FILES) \
+	,$(lib)=>$(notdir $(lib)) $(lib)=>testcase/$(notdir $(lib)) $(lib)=>tools/$(notdir $(lib)) )
+endif
 linux-misc_CLEAN = \
 	$(linux-misc_0_OUTDIR)/generated.sh \
-	$(linux-misc_0_OUTDIR)/virtualbox.desktop
+	$(linux-misc_0_OUTDIR)/virtualbox.desktop \
+	$(linux-misc_0_OUTDIR)/virtualboxvm.desktop
 
 $$(linux-misc_0_OUTDIR)/generated.sh: $(VBOX_VERSION_STAMP) $(VBOX_LNX_INST_DEP_ON_MAKEFILE) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
@@ -119,8 +135,12 @@ $$(linux-misc_0_OUTDIR)/generated.sh: $(VBOX_VERSION_STAMP) $(VBOX_LNX_INST_DEP_
 
 $$(linux-misc_0_OUTDIR)/virtualbox.desktop: $(VBOX_PATH_INST_COMMON_SRC)/virtualbox.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
-	$(QUIET)$(SED) -e "s+@VBOX_DOC_PATH@+$(VBOX_LNX_APP_DOCS)+" \
-		-e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+" \
+	$(QUIET)$(SED) -e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+" \
+		--output $@ $<
+
+$$(linux-misc_0_OUTDIR)/virtualboxvm.desktop: $(VBOX_PATH_INST_COMMON_SRC)/virtualboxvm.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
+	$(call MSG_GENERATE,,$@,$<)
+	$(QUIET)$(SED) -e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+" \
 		--output $@ $<
 
 INSTALLS += linux-icons
@@ -165,13 +185,14 @@ VBOX_LNX_STRIP_BIN = \
 		components/VBoxC.so,) \
 	$(if $(VBOX_WITH_QTGUI),VBoxTestOGL,) \
 	$(if $(VBOX_WITH_VMSVGA3D),VBoxSVGA3D.so,) \
+	$(if $(VBOX_WITH_DXVK), VBoxDxVk.so,) \
 	$(if $(VBOX_WITH_PYTHON),$(notdir $(wildcard $(PATH_STAGE_BIN)/VBoxPython*.so)),) \
 	$(if $(VBOX_WITH_JXPCOM),libvboxjxpcom.so,) \
 	$(if $(and $(VBOX_WITH_EXTPACK_VNC),$(VBOX_WITHOUT_EXTPACK_VNC_PACKING)), \
 		ExtensionPacks/VNC/$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/VBoxVNC.so \
 		ExtensionPacks/VNC/$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/VBoxVNCMain.so,) \
 	$(if $(VBOX_WITH_DTRACE),VBoxDTrace,)\
-	VBoxTunctl
+	$(if $(VBOX_WITH_HOST_SHIPPING_AUDIO_TEST),VBoxAudioTest,)
 
 # Do not remove relocation information of these binaries
 VBOX_LNX_STRIP_OBJ = \
@@ -248,14 +269,13 @@ ifdef VBOX_WITH_QTGUI
  endif
  VBOX_LNX_NO_STRIP += \
  	virtualbox.desktop \
+ 	virtualboxvm.desktop \
  	virtualbox.xml \
  	$(VBOX_LICENSE_FILES) \
  	$(if $(VBOX_WITH_ORACLE_QT),$(notdir $(wildcard $(PATH_STAGE_BIN)/lib*VBox*)),) \
+ 	$(if $(VBOX_WITH_ORACLE_QT),$(VBOX_QT_PLUGINS)) \
  	$(foreach f,$(VBOX_APPROVED_GUI_LANGUAGES),nls/VirtualBox_$(f).qm nls/qt_$(f).qm) \
  	icons
- VBOX_LNX_NO_STRIP += \
-  	$(if $(VBOX_WITH_ORACLE_QT),$(VBOX_QT_PLUGINS)) \
-	$(addprefix legacy/,$(VBOX_QT_LEGACY_LIBS))
 endif
 
 # Guest Additions
@@ -269,13 +289,16 @@ ifdef VBOX_WITH_DOCS_PACKING
  VBOX_LNX_NO_STRIP += \
 	UserManual.pdf \
 	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),UserManual_$(f).pdf)
- ifdef VBOX_WITH_DOCS_CHM
+ ifdef VBOX_WITH_DOCS_CHM_PACKING
   VBOX_LNX_NO_STRIP += \
   	VirtualBox.chm \
 	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),VirtualBox_$(f).chm)
  endif
- VBOX_LNX_STRIP_BIN += \
-	$(if $(VBOX_WITH_KCHMVIEWER),kchmviewer,)
+ ifdef VBOX_WITH_DOCS_QHELP_PACKING
+  VBOX_LNX_NO_STRIP += \
+  	UserManual.qch UserManual.qhc \
+	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),UserManual_$(f).qch ,UserManual_$(f).qhc)
+ endif
 endif
 
 # auth stuff
@@ -289,14 +312,6 @@ ifdef VBOX_WITH_VRDP
   VBOX_LNX_STRIP_BIN += \
   	VBoxVRDP.so
  endif
-endif
-ifdef VBOX_WITH_VRDP_RDESKTOP
- VBOX_LNX_NO_STRIP += \
-	rdesktop-vrdp.tar.gz
- VBOX_LNX_NO_STRIP += \
- 	rdesktop-vrdp-keymaps
- VBOX_LNX_STRIP_BIN += \
- 	rdesktop-vrdp
 endif
 
 # Python XPCOM glue
@@ -350,6 +365,11 @@ ifdef VBOX_WITH_DTRACE
  	$(addprefix dtrace/lib/$(KBUILD_TARGET_ARCH)/,$(VBOXINST_DTRACE_LIB_ARCH_FILES)) \
  	$(addprefix dtrace/testcase/$(KBUILD_TARGET_ARCH)/,$(VBOXINST_DTRACE_TESTCASE_ARCH_FILES)) \
  	$(addprefix dtrace/scripts/,$(VBOXINST_DTRACE_SCRIPTS_FILES))
+endif
+
+# The sanitizer shared objects match the compiler we're using (HACK).
+ifeq ($(KBUILD_TYPE),asan)
+ VBOX_LNX_NO_STRIP += $(notdir $(VBOX_GCC_SANITIZER_SO_FILES))
 endif
 
 # Icons
@@ -511,8 +531,10 @@ BLDDIRS += $(foreach d,\
 	$(if $(VBOX_WITH_UNATTENDED),archive/unattended_templates,) \
 	$(if $(VBOX_WITH_ORACLE_QT), \
 	  archive/plugins/platforms \
-	  archive/plugins/xcbglintegrations \
-	  archive/legacy,) \
+	  archive/plugins/platformthemes \
+	  archive/plugins/sqldrivers \
+	  archive/plugins/styles \
+	  archive/plugins/xcbglintegrations,) \
 	$(if $(VBOX_WITH_PYTHON),\
 	  archive/sdk/installer \
 	  archive/sdk/installer/vboxapi \

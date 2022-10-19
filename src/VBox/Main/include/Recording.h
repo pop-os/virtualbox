@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_Recording_h
@@ -35,7 +45,9 @@ class RecordingContext
 {
 public:
 
-    RecordingContext(Console *pConsole, const settings::RecordingSettings &a_Settings);
+    RecordingContext();
+
+    RecordingContext(Console *ptrConsole, const settings::RecordingSettings &Settings);
 
     virtual ~RecordingContext(void);
 
@@ -44,8 +56,11 @@ public:
     const settings::RecordingSettings &GetConfig(void) const;
     RecordingStream *GetStream(unsigned uScreen) const;
     size_t GetStreamCount(void) const;
+#ifdef VBOX_WITH_AUDIO_RECORDING
+    PRECORDINGCODEC GetCodecAudio(void) { return &this->m_CodecAudio; }
+#endif
 
-    int Create(const settings::RecordingSettings &a_Settings);
+    int Create(Console *pConsole, const settings::RecordingSettings &Settings);
     void Destroy(void);
 
     int Start(void);
@@ -64,12 +79,13 @@ public:
     bool IsStarted(void);
     bool IsLimitReached(void);
     bool IsLimitReached(uint32_t uScreen, uint64_t msTimestamp);
+    bool NeedsUpdate( uint32_t uScreen, uint64_t msTimestamp);
 
     DECLCALLBACK(int) OnLimitReached(uint32_t uScreen, int rc);
 
 protected:
 
-    int createInternal(const settings::RecordingSettings &a_Settings);
+    int createInternal(Console *ptrConsole, const settings::RecordingSettings &Settings);
     int startInternal(void);
     int stopInternal(void);
 
@@ -77,12 +93,21 @@ protected:
 
     RecordingStream *getStreamInternal(unsigned uScreen) const;
 
+    int processCommonData(RecordingBlockMap &mapCommon, RTMSINTERVAL msTimeout);
+    int writeCommonData(RecordingBlockMap &mapCommon, PRECORDINGCODEC pCodec, const void *pvData, size_t cbData, uint64_t msAbsPTS, uint32_t uFlags);
+
     int lock(void);
     int unlock(void);
 
     static DECLCALLBACK(int) threadMain(RTTHREAD hThreadSelf, void *pvUser);
 
     int threadNotify(void);
+
+protected:
+
+    int audioInit(const settings::RecordingScreenSettings &screenSettings);
+
+    static DECLCALLBACK(int) audioCodecWriteDataCallback(PRECORDINGCODEC pCodec, const void *pvData, size_t cbData, uint64_t msAbsPTS, uint32_t uFlags, void *pvUser);
 
 protected:
 
@@ -102,34 +127,48 @@ protected:
     };
 
     /** Pointer to the console object. */
-    Console                     *pConsole;
+    Console                     *m_pConsole;
     /** Used recording configuration. */
-    settings::RecordingSettings  Settings;
+    settings::RecordingSettings  m_Settings;
     /** The current state. */
-    RECORDINGSTS                 enmState;
+    RECORDINGSTS                 m_enmState;
     /** Critical section to serialize access. */
-    RTCRITSECT                   CritSect;
+    RTCRITSECT                   m_CritSect;
     /** Semaphore to signal the encoding worker thread. */
-    RTSEMEVENT                   WaitEvent;
+    RTSEMEVENT                   m_WaitEvent;
     /** Shutdown indicator. */
-    bool                         fShutdown;
-    /** Worker thread. */
-    RTTHREAD                     Thread;
+    bool                         m_fShutdown;
+    /** Encoding worker thread. */
+    RTTHREAD                     m_Thread;
     /** Vector of current recording streams.
      *  Per VM screen (display) one recording stream is being used. */
-    RecordingStreams             vecStreams;
+    RecordingStreams             m_vecStreams;
     /** Number of streams in vecStreams which currently are enabled for recording. */
-    uint16_t                     cStreamsEnabled;
+    uint16_t                     m_cStreamsEnabled;
     /** Timestamp (in ms) of when recording has been started. */
-    uint64_t                     tsStartMs;
-    /** Block map of common blocks which need to get multiplexed
-     *  to all recording streams. This common block maps should help
-     *  reducing the time spent in EMT and avoid doing the (expensive)
-     *  multiplexing work in there.
+    uint64_t                     m_tsStartMs;
+#ifdef VBOX_WITH_AUDIO_RECORDING
+    /** Audio codec to use.
+     *
+     *  We multiplex audio data from this recording context to all streams,
+     *  to avoid encoding the same audio data for each stream. We ASSUME that
+     *  all audio data of a VM will be the same for each stream at a given
+     *  point in time. */
+    RECORDINGCODEC               m_CodecAudio;
+#endif /* VBOX_WITH_AUDIO_RECORDING */
+    /** Block map of raw common data blocks which need to get encoded first. */
+    RecordingBlockMap            m_mapBlocksRaw;
+    /** Block map of encoded common blocks.
+     *
+     *  Only do the encoding of common data blocks only once and then multiplex
+     *  the encoded data to all affected recording streams.
+     *
+     *  This avoids doing the (expensive) encoding + multiplexing work in other
+     *  threads like EMT / audio async I/O..
      *
      *  For now this only affects audio, e.g. all recording streams
      *  need to have the same audio data at a specific point in time. */
-    RecordingBlockMap            mapBlocksCommon;
+    RecordingBlockMap            m_mapBlocksEncoded;
 };
 #endif /* !MAIN_INCLUDED_Recording_h */
 

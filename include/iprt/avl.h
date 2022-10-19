@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_avl_h
@@ -67,7 +77,7 @@ typedef PPAVLPVNODECORE    PAVLPVTREE;
 
 /** Callback function for AVLPVDoWithAll().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLPVCALLBACK(PAVLPVNODECORE, void *);
+typedef DECLCALLBACKTYPE(int, AVLPVCALLBACK,(PAVLPVNODECORE, void *));
 /** Pointer to callback function for AVLPVDoWithAll(). */
 typedef AVLPVCALLBACK *PAVLPVCALLBACK;
 
@@ -108,7 +118,7 @@ typedef struct _AVLULNodeCore
 
 /** Callback function for AVLULDoWithAll().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLULCALLBACK(PAVLULNODECORE, void*);
+typedef DECLCALLBACKTYPE(int, AVLULCALLBACK,(PAVLULNODECORE, void*));
 /** Pointer to callback function for AVLULDoWithAll(). */
 typedef AVLULCALLBACK *PAVLULCALLBACK;
 
@@ -156,7 +166,7 @@ typedef PPAVLRPVNODECORE   PAVLRPVTREE;
 
 /** Callback function for AVLPVDoWithAll().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLRPVCALLBACK(PAVLRPVNODECORE, void *);
+typedef DECLCALLBACKTYPE(int, AVLRPVCALLBACK,(PAVLRPVNODECORE, void *));
 /** Pointer to callback function for AVLPVDoWithAll(). */
 typedef AVLRPVCALLBACK *PAVLRPVCALLBACK;
 
@@ -200,7 +210,7 @@ typedef PPAVLU32NODECORE    PAVLU32TREE;
 
 /** Callback function for AVLU32DoWithAll() & AVLU32Destroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLU32CALLBACK(PAVLU32NODECORE, void*);
+typedef DECLCALLBACKTYPE(int, AVLU32CALLBACK,(PAVLU32NODECORE, void*));
 /** Pointer to callback function for AVLU32DoWithAll() & AVLU32Destroy(). */
 typedef AVLU32CALLBACK *PAVLU32CALLBACK;
 
@@ -255,7 +265,7 @@ typedef AVLOU32TREE    *PPAVLOU32NODECORE;
 
 /** Callback function for RTAvloU32DoWithAll().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLOU32CALLBACK(PAVLOU32NODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLOU32CALLBACK,(PAVLOU32NODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvloU32DoWithAll(). */
 typedef AVLOU32CALLBACK *PAVLOU32CALLBACK;
 
@@ -289,7 +299,7 @@ typedef struct _AVLLU32NodeCore
 
 /** Callback function for RTAvllU32DoWithAll() & RTAvllU32Destroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLLU32CALLBACK(PAVLLU32NODECORE, void*);
+typedef DECLCALLBACKTYPE(int, AVLLU32CALLBACK,(PAVLLU32NODECORE, void*));
 /** Pointer to callback function for RTAvllU32DoWithAll() & RTAvllU32Destroy(). */
 typedef AVLLU32CALLBACK *PAVLLU32CALLBACK;
 
@@ -332,7 +342,7 @@ typedef PPAVLU64NODECORE    PAVLU64TREE;
 
 /** Callback function for AVLU64DoWithAll() & AVLU64Destroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLU64CALLBACK(PAVLU64NODECORE, void*);
+typedef DECLCALLBACKTYPE(int, AVLU64CALLBACK,(PAVLU64NODECORE, void*));
 /** Pointer to callback function for AVLU64DoWithAll() & AVLU64Destroy(). */
 typedef AVLU64CALLBACK *PAVLU64CALLBACK;
 
@@ -379,7 +389,7 @@ typedef PPAVLRU64NODECORE   PAVLRU64TREE;
 
 /** Callback function for AVLRU64DoWithAll().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLRU64CALLBACK(PAVLRU64NODECORE, void *);
+typedef DECLCALLBACKTYPE(int, AVLRU64CALLBACK,(PAVLRU64NODECORE, void *));
 /** Pointer to callback function for AVLU64DoWithAll(). */
 typedef AVLRU64CALLBACK *PAVLRU64CALLBACK;
 
@@ -437,7 +447,7 @@ typedef AVLOGCPHYSTREE    *PPAVLOGCPHYSNODECORE;
 
 /** Callback function for RTAvloGCPhysDoWithAll() and RTAvloGCPhysDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLOGCPHYSCALLBACK(PAVLOGCPHYSNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLOGCPHYSCALLBACK,(PAVLOGCPHYSNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvloGCPhysDoWithAll() and RTAvloGCPhysDestroy(). */
 typedef AVLOGCPHYSCALLBACK *PAVLOGCPHYSCALLBACK;
 
@@ -491,7 +501,7 @@ typedef AVLROGCPHYSTREE    *PPAVLROGCPHYSNODECORE;
 
 /** Callback function for RTAvlroGCPhysDoWithAll() and RTAvlroGCPhysDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLROGCPHYSCALLBACK(PAVLROGCPHYSNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLROGCPHYSCALLBACK,(PAVLROGCPHYSNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlroGCPhysDoWithAll() and RTAvlroGCPhysDestroy(). */
 typedef AVLROGCPHYSCALLBACK *PAVLROGCPHYSCALLBACK;
 
@@ -536,7 +546,7 @@ typedef PPAVLGCPTRNODECORE    PAVLGCPTRTREE;
 
 /** Callback function for RTAvlGCPtrDoWithAll().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLGCPTRCALLBACK(PAVLGCPTRNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLGCPTRCALLBACK,(PAVLGCPTRNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlGCPtrDoWithAll(). */
 typedef AVLGCPTRCALLBACK *PAVLGCPTRCALLBACK;
 
@@ -587,7 +597,7 @@ typedef AVLOGCPTRTREE    *PPAVLOGCPTRNODECORE;
 
 /** Callback function for RTAvloGCPtrDoWithAll().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLOGCPTRCALLBACK(PAVLOGCPTRNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLOGCPTRCALLBACK,(PAVLOGCPTRNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvloGCPtrDoWithAll(). */
 typedef AVLOGCPTRCALLBACK *PAVLOGCPTRCALLBACK;
 
@@ -634,7 +644,7 @@ typedef AVLRGCPTRTREE    *PPAVLRGCPTRNODECORE;
 
 /** Callback function for RTAvlrGCPtrDoWithAll() and RTAvlrGCPtrDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLRGCPTRCALLBACK(PAVLRGCPTRNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLRGCPTRCALLBACK,(PAVLRGCPTRNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlrGCPtrDoWithAll() and RTAvlrGCPtrDestroy(). */
 typedef AVLRGCPTRCALLBACK *PAVLRGCPTRCALLBACK;
 
@@ -691,7 +701,7 @@ typedef AVLROGCPTRTREE    *PPAVLROGCPTRNODECORE;
 
 /** Callback function for RTAvlroGCPtrDoWithAll() and RTAvlroGCPtrDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLROGCPTRCALLBACK(PAVLROGCPTRNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLROGCPTRCALLBACK,(PAVLROGCPTRNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlroGCPtrDoWithAll() and RTAvlroGCPtrDestroy(). */
 typedef AVLROGCPTRCALLBACK *PAVLROGCPTRCALLBACK;
 
@@ -750,7 +760,7 @@ typedef AVLROOGCPTRTREE    *PPAVLROOGCPTRNODECORE;
 
 /** Callback function for RTAvlrooGCPtrDoWithAll() and RTAvlrooGCPtrDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLROOGCPTRCALLBACK(PAVLROOGCPTRNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLROOGCPTRCALLBACK,(PAVLROOGCPTRNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlrooGCPtrDoWithAll() and RTAvlrooGCPtrDestroy(). */
 typedef AVLROOGCPTRCALLBACK *PAVLROOGCPTRCALLBACK;
 
@@ -802,7 +812,7 @@ typedef AVLUINTPTRTREE     *PPAVLUINTPTRNODECORE;
 
 /** Callback function for RTAvlUIntPtrDoWithAll() and RTAvlUIntPtrDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)    AVLUINTPTRCALLBACK(PAVLUINTPTRNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLUINTPTRCALLBACK,(PAVLUINTPTRNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlUIntPtrDoWithAll() and RTAvlUIntPtrDestroy(). */
 typedef AVLUINTPTRCALLBACK *PAVLUINTPTRCALLBACK;
 
@@ -853,7 +863,7 @@ typedef AVLRUINTPTRTREE     *PPAVLRUINTPTRNODECORE;
 
 /** Callback function for RTAvlrUIntPtrDoWithAll() and RTAvlrUIntPtrDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)    AVLRUINTPTRCALLBACK(PAVLRUINTPTRNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLRUINTPTRCALLBACK,(PAVLRUINTPTRNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlrUIntPtrDoWithAll() and RTAvlrUIntPtrDestroy(). */
 typedef AVLRUINTPTRCALLBACK *PAVLRUINTPTRCALLBACK;
 
@@ -910,7 +920,7 @@ typedef AVLOHCPHYSTREE    *PPAVLOHCPHYSNODECORE;
 
 /** Callback function for RTAvloHCPhysDoWithAll() and RTAvloHCPhysDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLOHCPHYSCALLBACK(PAVLOHCPHYSNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLOHCPHYSCALLBACK,(PAVLOHCPHYSNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvloHCPhysDoWithAll() and RTAvloHCPhysDestroy(). */
 typedef AVLOHCPHYSCALLBACK *PAVLOHCPHYSCALLBACK;
 
@@ -961,7 +971,7 @@ typedef AVLOIOPORTTREE    *PPAVLOIOPORTNODECORE;
 
 /** Callback function for RTAvloIOPortDoWithAll() and RTAvloIOPortDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLOIOPORTCALLBACK(PAVLOIOPORTNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLOIOPORTCALLBACK,(PAVLOIOPORTNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvloIOPortDoWithAll() and RTAvloIOPortDestroy(). */
 typedef AVLOIOPORTCALLBACK *PAVLOIOPORTCALLBACK;
 
@@ -1013,7 +1023,7 @@ typedef AVLROIOPORTTREE    *PPAVLROIOPORTNODECORE;
 
 /** Callback function for RTAvlroIOPortDoWithAll() and RTAvlroIOPortDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLROIOPORTCALLBACK(PAVLROIOPORTNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLROIOPORTCALLBACK,(PAVLROIOPORTNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlroIOPortDoWithAll() and RTAvlroIOPortDestroy(). */
 typedef AVLROIOPORTCALLBACK *PAVLROIOPORTCALLBACK;
 
@@ -1063,7 +1073,7 @@ typedef AVLHCPHYSTREE    *PPAVLHCPHYSNODECORE;
 
 /** Callback function for RTAvlHCPhysDoWithAll() and RTAvlHCPhysDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLHCPHYSCALLBACK(PAVLHCPHYSNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLHCPHYSCALLBACK,(PAVLHCPHYSNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlHCPhysDoWithAll() and RTAvlHCPhysDestroy(). */
 typedef AVLHCPHYSCALLBACK *PAVLHCPHYSCALLBACK;
 
@@ -1112,7 +1122,7 @@ typedef AVLGCPHYSTREE    *PPAVLGCPHYSNODECORE;
 
 /** Callback function for RTAvlGCPhysDoWithAll() and RTAvlGCPhysDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLGCPHYSCALLBACK(PAVLGCPHYSNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLGCPHYSCALLBACK,(PAVLGCPHYSNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlGCPhysDoWithAll() and RTAvlGCPhysDestroy(). */
 typedef AVLGCPHYSCALLBACK *PAVLGCPHYSCALLBACK;
 
@@ -1159,7 +1169,7 @@ typedef AVLRFOFFTREE    *PPAVLRFOFFNODECORE;
 
 /** Callback function for RTAvlrGCPtrDoWithAll() and RTAvlrGCPtrDestroy().
  *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int)   AVLRFOFFCALLBACK(PAVLRFOFFNODECORE pNode, void *pvUser);
+typedef DECLCALLBACKTYPE(int, AVLRFOFFCALLBACK,(PAVLRFOFFNODECORE pNode, void *pvUser));
 /** Pointer to callback function for RTAvlrGCPtrDoWithAll() and RTAvlrGCPtrDestroy(). */
 typedef AVLRFOFFCALLBACK *PAVLRFOFFCALLBACK;
 

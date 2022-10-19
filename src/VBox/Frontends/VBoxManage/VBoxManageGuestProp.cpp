@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -20,8 +30,6 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include "VBoxManage.h"
-
-#ifndef VBOX_ONLY_DOCS
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
@@ -48,37 +56,14 @@
 
 using namespace com;
 
-#endif /* !VBOX_ONLY_DOCS */
+DECLARE_TRANSLATION_CONTEXT(GuestProp);
 
-void usageGuestProperty(PRTSTREAM pStrm, const char *pcszSep1, const char *pcszSep2)
-{
-    RTStrmPrintf(pStrm,
-                       "%s guestproperty %s   get <uuid|vmname>\n"
-                 "                            <property> [--verbose]\n"
-                 "\n", pcszSep1, pcszSep2);
-    RTStrmPrintf(pStrm,
-                       "%s guestproperty %s   set <uuid|vmname>\n"
-                 "                            <property> [<value> [--flags <flags>]]\n"
-                 "\n", pcszSep1, pcszSep2);
-    RTStrmPrintf(pStrm,
-                       "%s guestproperty %s   delete|unset <uuid|vmname>\n"
-                 "                            <property>\n"
-                 "\n", pcszSep1, pcszSep2);
-    RTStrmPrintf(pStrm,
-                       "%s guestproperty %s   enumerate <uuid|vmname>\n"
-                 "                            [--patterns <patterns>]\n"
-                 "\n", pcszSep1, pcszSep2);
-    RTStrmPrintf(pStrm,
-                       "%s guestproperty %s   wait <uuid|vmname> <patterns>\n"
-                 "                            [--timeout <msec>] [--fail-on-timeout]\n"
-                 "\n", pcszSep1, pcszSep2);
-}
-
-#ifndef VBOX_ONLY_DOCS
 
 static RTEXITCODE handleGetGuestProperty(HandlerArg *a)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
+
+    setCurrentSubcommand(HELP_SCOPE_GUESTPROPERTY_GET);
 
     bool verbose = false;
     if (    a->argc == 3
@@ -86,7 +71,7 @@ static RTEXITCODE handleGetGuestProperty(HandlerArg *a)
              || !strcmp(a->argv[2], "-verbose")))
         verbose = true;
     else if (a->argc != 2)
-        return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+        return errorSyntax(GuestProp::tr("Incorrect parameters"));
 
     ComPtr<IMachine> machine;
     CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
@@ -106,21 +91,23 @@ static RTEXITCODE handleGetGuestProperty(HandlerArg *a)
                                               value.asOutParam(),
                                               &i64Timestamp, flags.asOutParam()));
         if (value.isEmpty())
-            RTPrintf("No value set!\n");
+            RTPrintf(GuestProp::tr("No value set!\n"));
         else
-            RTPrintf("Value: %ls\n", value.raw());
+            RTPrintf(GuestProp::tr("Value: %ls\n"), value.raw());
         if (!value.isEmpty() && verbose)
         {
-            RTPrintf("Timestamp: %lld\n", i64Timestamp);
-            RTPrintf("Flags: %ls\n", flags.raw());
+            RTPrintf(GuestProp::tr("Timestamp: %lld\n"), i64Timestamp);
+            RTPrintf(GuestProp::tr("Flags: %ls\n"), flags.raw());
         }
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 static RTEXITCODE handleSetGuestProperty(HandlerArg *a)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
+
+    setCurrentSubcommand(HELP_SCOPE_GUESTPROPERTY_SET);
 
     /*
      * Check the syntax.  We can deduce the correct syntax from the number of
@@ -145,7 +132,7 @@ static RTEXITCODE handleSetGuestProperty(HandlerArg *a)
     else if (a->argc != 2)
         usageOK = false;
     if (!usageOK)
-        return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+        return errorSyntax(GuestProp::tr("Incorrect parameters"));
     /* This is always needed. */
     pszName = a->argv[1];
 
@@ -168,17 +155,19 @@ static RTEXITCODE handleSetGuestProperty(HandlerArg *a)
                                                   Bstr(pszValue).raw(),
                                                   Bstr(pszFlags).raw()));
 
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             CHECK_ERROR(machine, SaveSettings());
 
         a->session->UnlockMachine();
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
+
+    setCurrentSubcommand(HELP_SCOPE_GUESTPROPERTY_UNSET);
 
     /*
      * Check the syntax.  We can deduce the correct syntax from the number of
@@ -189,7 +178,7 @@ static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
     if (a->argc != 2)
         usageOK = false;
     if (!usageOK)
-        return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+        return errorSyntax(GuestProp::tr("Incorrect parameters"));
     /* This is always needed. */
     pszName = a->argv[1];
 
@@ -206,12 +195,12 @@ static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
 
         CHECK_ERROR(machine, DeleteGuestProperty(Bstr(pszName).raw()));
 
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             CHECK_ERROR(machine, SaveSettings());
 
         a->session->UnlockMachine();
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 /**
@@ -222,58 +211,228 @@ static RTEXITCODE handleDeleteGuestProperty(HandlerArg *a)
  */
 static RTEXITCODE handleEnumGuestProperty(HandlerArg *a)
 {
-    /*
-     * Check the syntax.  We can deduce the correct syntax from the number of
-     * arguments.
-     */
-    if (    a->argc < 1
-        ||  a->argc == 2
-        ||  (   a->argc > 3
-             && strcmp(a->argv[1], "--patterns")
-             && strcmp(a->argv[1], "-patterns")))
-        return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+    setCurrentSubcommand(HELP_SCOPE_GUESTPROPERTY_ENUMERATE);
 
     /*
-     * Pack the patterns
+     * Parse arguments.
+     *
+     * The old syntax was a little boinkers.  The --patterns argument just
+     * indicates that the rest of the arguments are options.  Sort of like '--'.
+     * This has been normalized a little now, by accepting patterns w/o a
+     * preceding --pattern argument via the  VINF_GETOPT_NOT_OPTION.
+     * Though, the first non-option is always the VM name.
      */
-    Utf8Str Utf8Patterns(a->argc > 2 ? a->argv[2] : "");
-    for (int i = 3; i < a->argc; ++i)
-        Utf8Patterns = Utf8StrFmt ("%s,%s", Utf8Patterns.c_str(), a->argv[i]);
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--old-format",          'o',      RTGETOPT_REQ_NOTHING },
+        { "--sort",                's',      RTGETOPT_REQ_NOTHING },
+        { "--unsort",              'u',      RTGETOPT_REQ_NOTHING },
+        { "--timestamp",           't',      RTGETOPT_REQ_NOTHING },
+        { "--ts",                  't',      RTGETOPT_REQ_NOTHING },
+        { "--no-timestamp",        'T',      RTGETOPT_REQ_NOTHING },
+        { "--abs",                 'a',      RTGETOPT_REQ_NOTHING },
+        { "--absolute",            'a',      RTGETOPT_REQ_NOTHING },
+        { "--rel",                 'r',      RTGETOPT_REQ_NOTHING },
+        { "--relative",            'r',      RTGETOPT_REQ_NOTHING },
+        { "--no-ts",               'T',      RTGETOPT_REQ_NOTHING },
+        { "--flags",               'f',      RTGETOPT_REQ_NOTHING },
+        { "--no-flags",            'F',      RTGETOPT_REQ_NOTHING },
+        /* unnecessary legacy: */
+        { "--patterns",            'p',      RTGETOPT_REQ_STRING  },
+        { "-patterns",             'p',      RTGETOPT_REQ_STRING  },
+    };
+
+    int ch;
+    RTGETOPTUNION ValueUnion;
+    RTGETOPTSTATE GetState;
+    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0);
+
+    const char *pszVmNameOrUuid = NULL;
+    Utf8Str     strPatterns;
+    bool        fSort = true;
+    bool        fNewStyle = true;
+    bool        fTimestamp = true;
+    bool        fAbsTime = true;
+    bool        fFlags = true;
+
+    while ((ch = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        /* For options that require an argument, ValueUnion has received the value. */
+        switch (ch)
+        {
+            case VINF_GETOPT_NOT_OPTION:
+                /* The first one is the VM name. */
+                if (!pszVmNameOrUuid)
+                {
+                    pszVmNameOrUuid = ValueUnion.psz;
+                    break;
+                }
+                /* Everything else would be patterns by the new syntax. */
+                RT_FALL_THROUGH();
+            case 'p':
+                if (strPatterns.isNotEmpty())
+                    if (RT_FAILURE(strPatterns.appendNoThrow(',')))
+                        return RTMsgErrorExitFailure("out of memory!");
+                if (RT_FAILURE(strPatterns.appendNoThrow(ValueUnion.psz)))
+                    return RTMsgErrorExitFailure("out of memory!");
+                break;
+
+            case 'o':
+                fNewStyle = false;
+                break;
+
+            case 's':
+                fSort = true;
+                break;
+            case 'u':
+                fSort = false;
+                break;
+
+            case 't':
+                fTimestamp = true;
+                break;
+            case 'T':
+                fTimestamp = false;
+                break;
+
+            case 'a':
+                fAbsTime = true;
+                break;
+            case 'r':
+                fAbsTime = false;
+                break;
+
+            case 'f':
+                fFlags = true;
+                break;
+            case 'F':
+                fFlags = false;
+                break;
+
+            default:
+                return errorGetOpt(ch, &ValueUnion);
+        }
+    }
+
+    /* Only the VM name is required. */
+    if (!pszVmNameOrUuid)
+        return errorSyntax(GuestProp::tr("No VM name or UUID was specified"));
 
     /*
      * Make the actual call to Main.
      */
     ComPtr<IMachine> machine;
-    HRESULT rc;
-    CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
-                                           machine.asOutParam()));
-    if (machine)
+    CHECK_ERROR2I_RET(a->virtualBox, FindMachine(Bstr(pszVmNameOrUuid).raw(), machine.asOutParam()), RTEXITCODE_FAILURE);
+
+    /* open a session for the VM - new or existing */
+    CHECK_ERROR2I_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+
+    /* get the mutable session machine */
+    a->session->COMGETTER(Machine)(machine.asOutParam());
+
+    com::SafeArray<BSTR> names;
+    com::SafeArray<BSTR> values;
+    com::SafeArray<LONG64> timestamps;
+    com::SafeArray<BSTR> flags;
+    CHECK_ERROR2I_RET(machine, EnumerateGuestProperties(Bstr(strPatterns).raw(),
+                                                        ComSafeArrayAsOutParam(names),
+                                                        ComSafeArrayAsOutParam(values),
+                                                        ComSafeArrayAsOutParam(timestamps),
+                                                        ComSafeArrayAsOutParam(flags)),
+                      RTEXITCODE_FAILURE);
+
+    size_t const cEntries = names.size();
+    if (cEntries == 0)
+        RTPrintf(GuestProp::tr("No properties found.\n"));
+    else
     {
-        /* open a session for the VM - new or existing */
-        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), RTEXITCODE_FAILURE);
+        /* Whether we sort it or not, we work it via a indirect index: */
+        size_t *paidxSorted = (size_t *)RTMemAlloc(sizeof(paidxSorted[0]) * cEntries);
+        if (!paidxSorted)
+            return RTMsgErrorExitFailure("out of memory!");
+        for (size_t i = 0; i < cEntries; i++)
+            paidxSorted[i] = i;
 
-        /* get the mutable session machine */
-        a->session->COMGETTER(Machine)(machine.asOutParam());
+        /* Do the sorting: */
+        if (fSort && cEntries > 1)
+            for (size_t i = 0; i < cEntries - 1; i++)
+                for (size_t j = 0; j < cEntries - i - 1; j++)
+                    if (RTUtf16Cmp(names[paidxSorted[j]], names[paidxSorted[j + 1]]) > 0)
+                    {
+                        size_t iTmp = paidxSorted[j];
+                        paidxSorted[j] = paidxSorted[j + 1];
+                        paidxSorted[j + 1] = iTmp;
+                    }
 
-        com::SafeArray<BSTR> names;
-        com::SafeArray<BSTR> values;
-        com::SafeArray<LONG64> timestamps;
-        com::SafeArray<BSTR> flags;
-        CHECK_ERROR(machine, EnumerateGuestProperties(Bstr(Utf8Patterns).raw(),
-                                                      ComSafeArrayAsOutParam(names),
-                                                      ComSafeArrayAsOutParam(values),
-                                                      ComSafeArrayAsOutParam(timestamps),
-                                                      ComSafeArrayAsOutParam(flags)));
-        if (SUCCEEDED(rc))
+        if (fNewStyle)
         {
-            if (names.size() == 0)
-                RTPrintf("No properties found.\n");
-            for (unsigned i = 0; i < names.size(); ++i)
-                RTPrintf("Name: %ls, value: %ls, timestamp: %lld, flags: %ls\n",
-                         names[i], values[i], timestamps[i], flags[i]);
+            /* figure the width of the main columns: */
+            size_t cwcMaxName  = 1;
+            size_t cwcMaxValue = 1;
+            for (size_t i = 0; i < cEntries; ++i)
+            {
+                size_t cwcName = RTUtf16Len(names[i]);
+                cwcMaxName = RT_MAX(cwcMaxName, cwcName);
+                size_t cwcValue = RTUtf16Len(values[i]);
+                cwcMaxValue = RT_MAX(cwcMaxValue, cwcValue);
+            }
+            cwcMaxName  = RT_MIN(cwcMaxName, 48);
+            cwcMaxValue = RT_MIN(cwcMaxValue, 28);
+
+            /* Get the current time for relative time formatting: */
+            RTTIMESPEC Now;
+            RTTimeNow(&Now);
+
+            /* Print the table: */
+            for (size_t iSorted = 0; iSorted < cEntries; ++iSorted)
+            {
+                size_t const i = paidxSorted[iSorted];
+                char            szTime[80];
+                if (fTimestamp)
+                {
+                    RTTIMESPEC TimestampTS;
+                    RTTimeSpecSetNano(&TimestampTS, timestamps[i]);
+                    if (fAbsTime)
+                    {
+                        RTTIME Timestamp;
+                        RTTimeToStringEx(RTTimeExplode(&Timestamp, &TimestampTS), &szTime[2], sizeof(szTime) - 2, 3);
+                    }
+                    else
+                    {
+                        RTTIMESPEC DurationTS = Now;
+                        RTTimeFormatDurationEx(&szTime[2], sizeof(szTime) - 2, RTTimeSpecSub(&DurationTS, &TimestampTS), 3);
+                    }
+                    szTime[0] = '@';
+                    szTime[1] = ' ';
+                }
+                else
+                    szTime[0] = '\0';
+
+                static RTUTF16 s_wszEmpty[] = { 0 };
+                PCRTUTF16 const pwszFlags = fFlags ? flags[i] : s_wszEmpty;
+
+                int cchOut = RTPrintf("%-*ls = '%ls'", cwcMaxName, names[i], values[i]);
+                if (fTimestamp || *pwszFlags)
+                {
+                    size_t const cwcWidth      = cwcMaxName + cwcMaxValue + 6;
+                    size_t const cwcValPadding = (unsigned)cchOut < cwcWidth ? cwcWidth - (unsigned)cchOut : 1;
+                    RTPrintf("%*s%s%s%ls\n", cwcValPadding, "", szTime, *pwszFlags ? " " : "", pwszFlags);
+                }
+                else
+                    RTPrintf("\n");
+            }
         }
+        else
+            for (size_t iSorted = 0; iSorted < cEntries; ++iSorted)
+            {
+                size_t const i = paidxSorted[iSorted];
+                RTPrintf(GuestProp::tr("Name: %ls, value: %ls, timestamp: %lld, flags: %ls\n"),
+                         names[i], values[i], timestamps[i], flags[i]);
+            }
+        RTMemFree(paidxSorted);
     }
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+
+    return RTEXITCODE_SUCCESS;
 }
 
 /**
@@ -284,6 +443,8 @@ static RTEXITCODE handleEnumGuestProperty(HandlerArg *a)
  */
 static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
 {
+    setCurrentSubcommand(HELP_SCOPE_GUESTPROPERTY_WAIT);
+
     /*
      * Handle arguments
      */
@@ -296,7 +457,7 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
     else
         pszPatterns = a->argv[1];
     ComPtr<IMachine> machine;
-    HRESULT rc;
+    HRESULT hrc;
     CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
                                            machine.asOutParam()));
     if (!machine)
@@ -318,7 +479,7 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
             usageOK = false;
     }
     if (!usageOK)
-        return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+        return errorSyntax(GuestProp::tr("Incorrect parameters"));
 
     /*
      * Set up the event listener and wait until found match or timeout.
@@ -350,11 +511,11 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
         }
 
         ComPtr<IEvent> ev;
-        rc = es->GetEvent(listener, cMsWait, ev.asOutParam());
-        if (ev)
+        hrc = es->GetEvent(listener, cMsWait, ev.asOutParam());
+        if (ev) /** @todo r=andy Why not using SUCCEEDED(hrc) here? */
         {
             VBoxEventType_T aType;
-            rc = ev->COMGETTER(Type)(&aType);
+            hrc = ev->COMGETTER(Type)(&aType);
             switch (aType)
             {
                 case VBoxEventType_OnGuestPropertyChanged:
@@ -371,10 +532,15 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
                                                      Utf8Str(aNextName).c_str(), RTSTR_MAX, NULL))
                     {
                         Bstr aNextValue, aNextFlags;
+                        BOOL aNextWasDeleted;
                         gpcev->COMGETTER(Value)(aNextValue.asOutParam());
                         gpcev->COMGETTER(Flags)(aNextFlags.asOutParam());
-                        RTPrintf("Name: %ls, value: %ls, flags: %ls\n",
-                                 aNextName.raw(), aNextValue.raw(), aNextFlags.raw());
+                        gpcev->COMGETTER(FWasDeleted)(&aNextWasDeleted);
+                        if (aNextWasDeleted)
+                            RTPrintf(GuestProp::tr("Property %ls was deleted\n"), aNextName.raw());
+                        else
+                            RTPrintf(GuestProp::tr("Name: %ls, value: %ls, flags: %ls\n"),
+                                     aNextName.raw(), aNextValue.raw(), aNextFlags.raw());
                         fSignalled = true;
                     }
                     break;
@@ -390,7 +556,7 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
     RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
     if (!fSignalled)
     {
-        RTMsgError("Time out or interruption while waiting for a notification.");
+        RTMsgError(GuestProp::tr("Time out or interruption while waiting for a notification."));
         if (fFailOnTimeout)
             /* Hysterical rasins: We always returned 2 here, which now translates to syntax error... Which is bad. */
             rcExit = RTEXITCODE_SYNTAX;
@@ -406,32 +572,30 @@ static RTEXITCODE handleWaitGuestProperty(HandlerArg *a)
  */
 RTEXITCODE handleGuestProperty(HandlerArg *a)
 {
-    HandlerArg arg = *a;
-    arg.argc = a->argc - 1;
-    arg.argv = a->argv + 1;
+    if (a->argc == 0)
+        return errorNoSubcommand();
 
     /** @todo This command does not follow the syntax where the <uuid|vmname>
      * comes between the command and subcommand.  The commands controlvm,
      * snapshot and debugvm puts it between.
      */
 
-    if (a->argc == 0)
-        return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+    const char * const pszSubCmd = a->argv[0];
+    a->argc -= 1;
+    a->argv += 1;
 
     /* switch (cmd) */
-    if (strcmp(a->argv[0], "get") == 0)
-        return handleGetGuestProperty(&arg);
-    if (strcmp(a->argv[0], "set") == 0)
-        return handleSetGuestProperty(&arg);
-    if (strcmp(a->argv[0], "delete") == 0 || strcmp(a->argv[0], "unset") == 0)
-        return handleDeleteGuestProperty(&arg);
-    if (strcmp(a->argv[0], "enumerate") == 0)
-        return handleEnumGuestProperty(&arg);
-    if (strcmp(a->argv[0], "wait") == 0)
-        return handleWaitGuestProperty(&arg);
+    if (strcmp(pszSubCmd, "get") == 0)
+        return handleGetGuestProperty(a);
+    if (strcmp(pszSubCmd, "set") == 0)
+        return handleSetGuestProperty(a);
+    if (strcmp(pszSubCmd, "delete") == 0 || strcmp(pszSubCmd, "unset") == 0)
+        return handleDeleteGuestProperty(a);
+    if (strcmp(pszSubCmd, "enumerate") == 0 || strcmp(pszSubCmd, "enum") == 0)
+        return handleEnumGuestProperty(a);
+    if (strcmp(pszSubCmd, "wait") == 0)
+        return handleWaitGuestProperty(a);
 
     /* default: */
-    return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+    return errorUnknownSubcommand(pszSubCmd);
 }
-
-#endif /* !VBOX_ONLY_DOCS */

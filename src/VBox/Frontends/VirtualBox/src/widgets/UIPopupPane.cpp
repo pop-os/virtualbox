@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -239,7 +249,7 @@ void UIPopupPane::prepare()
 void UIPopupPane::prepareBackground()
 {
     /* Prepare palette: */
-    QPalette pal = palette();
+    QPalette pal = QApplication::palette();
     pal.setColor(QPalette::Window, QApplication::palette().color(QPalette::Window));
     setPalette(pal);
 }
@@ -524,7 +534,11 @@ void UIPopupPane::prepareDetailsList(QStringPairList &aDetailsList) const
         return;
 
     /* Split details into paragraphs: */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    QStringList aParagraphs(m_strDetails.split("<!--EOP-->", Qt::SkipEmptyParts));
+#else
     QStringList aParagraphs(m_strDetails.split("<!--EOP-->", QString::SkipEmptyParts));
+#endif
     /* Make sure details-text has at least one paragraph: */
     AssertReturnVoid(!aParagraphs.isEmpty());
 
@@ -532,7 +546,11 @@ void UIPopupPane::prepareDetailsList(QStringPairList &aDetailsList) const
     foreach (const QString &strParagraph, aParagraphs)
     {
         /* Split each paragraph into pairs: */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+        QStringList aParts(strParagraph.split("<!--EOM-->", Qt::KeepEmptyParts));
+#else
         QStringList aParts(strParagraph.split("<!--EOM-->", QString::KeepEmptyParts));
+#endif
         /* Make sure each paragraph consist of 2 parts: */
         AssertReturnVoid(aParts.size() == 2);
         /* Append each pair into details-list: */

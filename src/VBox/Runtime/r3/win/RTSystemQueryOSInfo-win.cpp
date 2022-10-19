@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -94,7 +104,8 @@ typedef enum RTWINPRODTYPE
 static RTWINPRODTYPE rtSystemWinGetProductInfo(DWORD dwOSMajorVersion, DWORD dwOSMinorVersion, DWORD dwSpMajorVersion, DWORD dwSpMinorVersion)
 {
     BOOL (WINAPI *pfnGetProductInfo)(DWORD, DWORD, DWORD, DWORD, PDWORD);
-    pfnGetProductInfo = (BOOL (WINAPI *)(DWORD, DWORD, DWORD, DWORD, PDWORD))GetProcAddress(GetModuleHandle("kernel32.dll"), "GetProductInfo");
+    pfnGetProductInfo = (BOOL (WINAPI *)(DWORD, DWORD, DWORD, DWORD, PDWORD))GetProcAddress(GetModuleHandle("kernel32.dll"),
+                                                                                            "GetProductInfo");
     if (pfnGetProductInfo)
     {
         DWORD dwProductType = kRTWinProdType_UNDEFINED;
@@ -107,45 +118,46 @@ static RTWINPRODTYPE rtSystemWinGetProductInfo(DWORD dwOSMajorVersion, DWORD dwO
 
 
 /**
- * Appends the product type if available.
+ * Appends the product type if available (Vista & 2003 only for some reason).
  *
- * @param   pszTmp      The buffer. Assumes it's big enough.
+ * @param   pszTmp      The buffer.
+ * @param   cbTmp       The buffer size.
  */
-static void rtSystemWinAppendProductType(char *pszTmp)
+static void rtSystemWinAppendProductType(char *pszTmp, size_t cbTmp)
 {
     RTWINPRODTYPE enmVistaType = rtSystemWinGetProductInfo(6, 0, 0, 0);
     switch (enmVistaType)
     {
-        case kRTWinProdType_BUSINESS:                        strcat(pszTmp, " Business Edition"); break;
-        case kRTWinProdType_BUSINESS_N:                      strcat(pszTmp, " Business Edition"); break;
-        case kRTWinProdType_CLUSTER_SERVER:                  strcat(pszTmp, " Cluster Server Edition"); break;
-        case kRTWinProdType_DATACENTER_SERVER:               strcat(pszTmp, " Server Datacenter Edition (full installation)"); break;
-        case kRTWinProdType_DATACENTER_SERVER_CORE:          strcat(pszTmp, " Server Datacenter Edition (core installation)"); break;
-        case kRTWinProdType_ENTERPRISE:                      strcat(pszTmp, " Enterprise Edition"); break;
-        case kRTWinProdType_ENTERPRISE_N:                    strcat(pszTmp, " Enterprise Edition"); break;
-        case kRTWinProdType_ENTERPRISE_SERVER:               strcat(pszTmp, " Server Enterprise Edition (full installation)"); break;
-        case kRTWinProdType_ENTERPRISE_SERVER_CORE:          strcat(pszTmp, " Server Enterprise Edition (core installation)"); break;
-        case kRTWinProdType_ENTERPRISE_SERVER_IA64:          strcat(pszTmp, " Server Enterprise Edition for Itanium-based Systems"); break;
-        case kRTWinProdType_HOME_BASIC:                      strcat(pszTmp, " Home Basic Edition"); break;
-        case kRTWinProdType_HOME_BASIC_N:                    strcat(pszTmp, " Home Basic Edition"); break;
-        case kRTWinProdType_HOME_PREMIUM:                    strcat(pszTmp, " Home Premium Edition"); break;
-        case kRTWinProdType_HOME_PREMIUM_N:                  strcat(pszTmp, " Home Premium Edition"); break;
-        case kRTWinProdType_HOME_SERVER:                     strcat(pszTmp, " Home Server Edition"); break;
-        case kRTWinProdType_SERVER_FOR_SMALLBUSINESS:        strcat(pszTmp, " Server for Small Business Edition"); break;
-        case kRTWinProdType_SMALLBUSINESS_SERVER:            strcat(pszTmp, " Small Business Server"); break;
-        case kRTWinProdType_SMALLBUSINESS_SERVER_PREMIUM:    strcat(pszTmp, " Small Business Server Premium Edition"); break;
-        case kRTWinProdType_STANDARD_SERVER:                 strcat(pszTmp, " Server Standard Edition (full installation)"); break;
-        case kRTWinProdType_STANDARD_SERVER_CORE:            strcat(pszTmp, " Server Standard Edition (core installation)"); break;
-        case kRTWinProdType_STARTER:                         strcat(pszTmp, " Starter Edition"); break;
-        case kRTWinProdType_STORAGE_ENTERPRISE_SERVER:       strcat(pszTmp, " Storage Server Enterprise Edition"); break;
-        case kRTWinProdType_STORAGE_EXPRESS_SERVER:          strcat(pszTmp, " Storage Server Express Edition"); break;
-        case kRTWinProdType_STORAGE_STANDARD_SERVER:         strcat(pszTmp, " Storage Server Standard Edition"); break;
-        case kRTWinProdType_STORAGE_WORKGROUP_SERVER:        strcat(pszTmp, " Storage Server Workgroup Edition"); break;
-        case kRTWinProdType_ULTIMATE:                        strcat(pszTmp, " Ultimate Edition"); break;
-        case kRTWinProdType_ULTIMATE_N:                      strcat(pszTmp, " Ultimate Edition"); break;
-        case kRTWinProdType_WEB_SERVER:                      strcat(pszTmp, " Web Server Edition (full installation)"); break;
-        case kRTWinProdType_WEB_SERVER_CORE:                 strcat(pszTmp, " Web Server Edition (core installation)"); break;
-        case kRTWinProdType_UNDEFINED:                       break;
+        case kRTWinProdType_BUSINESS:                       RTStrCat(pszTmp, cbTmp, " Business Edition"); break;
+        case kRTWinProdType_BUSINESS_N:                     RTStrCat(pszTmp, cbTmp, " Business Edition"); break;
+        case kRTWinProdType_CLUSTER_SERVER:                 RTStrCat(pszTmp, cbTmp, " Cluster Server Edition"); break;
+        case kRTWinProdType_DATACENTER_SERVER:              RTStrCat(pszTmp, cbTmp, " Server Datacenter Edition (full installation)"); break;
+        case kRTWinProdType_DATACENTER_SERVER_CORE:         RTStrCat(pszTmp, cbTmp, " Server Datacenter Edition (core installation)"); break;
+        case kRTWinProdType_ENTERPRISE:                     RTStrCat(pszTmp, cbTmp, " Enterprise Edition"); break;
+        case kRTWinProdType_ENTERPRISE_N:                   RTStrCat(pszTmp, cbTmp, " Enterprise Edition"); break;
+        case kRTWinProdType_ENTERPRISE_SERVER:              RTStrCat(pszTmp, cbTmp, " Server Enterprise Edition (full installation)"); break;
+        case kRTWinProdType_ENTERPRISE_SERVER_CORE:         RTStrCat(pszTmp, cbTmp, " Server Enterprise Edition (core installation)"); break;
+        case kRTWinProdType_ENTERPRISE_SERVER_IA64:         RTStrCat(pszTmp, cbTmp, " Server Enterprise Edition for Itanium-based Systems"); break;
+        case kRTWinProdType_HOME_BASIC:                     RTStrCat(pszTmp, cbTmp, " Home Basic Edition"); break;
+        case kRTWinProdType_HOME_BASIC_N:                   RTStrCat(pszTmp, cbTmp, " Home Basic Edition"); break;
+        case kRTWinProdType_HOME_PREMIUM:                   RTStrCat(pszTmp, cbTmp, " Home Premium Edition"); break;
+        case kRTWinProdType_HOME_PREMIUM_N:                 RTStrCat(pszTmp, cbTmp, " Home Premium Edition"); break;
+        case kRTWinProdType_HOME_SERVER:                    RTStrCat(pszTmp, cbTmp, " Home Server Edition"); break;
+        case kRTWinProdType_SERVER_FOR_SMALLBUSINESS:       RTStrCat(pszTmp, cbTmp, " Server for Small Business Edition"); break;
+        case kRTWinProdType_SMALLBUSINESS_SERVER:           RTStrCat(pszTmp, cbTmp, " Small Business Server"); break;
+        case kRTWinProdType_SMALLBUSINESS_SERVER_PREMIUM:   RTStrCat(pszTmp, cbTmp, " Small Business Server Premium Edition"); break;
+        case kRTWinProdType_STANDARD_SERVER:                RTStrCat(pszTmp, cbTmp, " Server Standard Edition (full installation)"); break;
+        case kRTWinProdType_STANDARD_SERVER_CORE:           RTStrCat(pszTmp, cbTmp, " Server Standard Edition (core installation)"); break;
+        case kRTWinProdType_STARTER:                        RTStrCat(pszTmp, cbTmp, " Starter Edition"); break;
+        case kRTWinProdType_STORAGE_ENTERPRISE_SERVER:      RTStrCat(pszTmp, cbTmp, " Storage Server Enterprise Edition"); break;
+        case kRTWinProdType_STORAGE_EXPRESS_SERVER:         RTStrCat(pszTmp, cbTmp, " Storage Server Express Edition"); break;
+        case kRTWinProdType_STORAGE_STANDARD_SERVER:        RTStrCat(pszTmp, cbTmp, " Storage Server Standard Edition"); break;
+        case kRTWinProdType_STORAGE_WORKGROUP_SERVER:       RTStrCat(pszTmp, cbTmp, " Storage Server Workgroup Edition"); break;
+        case kRTWinProdType_ULTIMATE:                       RTStrCat(pszTmp, cbTmp, " Ultimate Edition"); break;
+        case kRTWinProdType_ULTIMATE_N:                     RTStrCat(pszTmp, cbTmp, " Ultimate Edition"); break;
+        case kRTWinProdType_WEB_SERVER:                     RTStrCat(pszTmp, cbTmp, " Web Server Edition (full installation)"); break;
+        case kRTWinProdType_WEB_SERVER_CORE:                RTStrCat(pszTmp, cbTmp, " Web Server Edition (core installation)"); break;
+        case kRTWinProdType_UNDEFINED:                      break;
     }
 }
 
@@ -200,13 +212,13 @@ static int rtSystemWinQueryOSVersion(RTSYSOSINFO enmInfo, char *pszInfo, size_t 
                 case kRTWinOSType_XP:
                     strcpy(szTmp, "Windows XP");
                     if (g_WinOsInfoEx.wSuiteMask & VER_SUITE_PERSONAL)
-                        strcat(szTmp, " Home");
+                        RTStrCat(szTmp, sizeof(szTmp), " Home");
                     if (    g_WinOsInfoEx.wProductType == VER_NT_WORKSTATION
                         && !(g_WinOsInfoEx.wSuiteMask & VER_SUITE_PERSONAL))
-                        strcat(szTmp, " Professional");
+                        RTStrCat(szTmp, sizeof(szTmp), " Professional");
 #if 0 /** @todo fixme */
                     if (GetSystemMetrics(SM_MEDIACENTER))
-                        strcat(szTmp, " Media Center");
+                        RTStrCat(szTmp, sizeof(szTmp), " Media Center");
 #endif
                     break;
 
@@ -214,7 +226,7 @@ static int rtSystemWinQueryOSVersion(RTSYSOSINFO enmInfo, char *pszInfo, size_t 
                 case kRTWinOSType_VISTA:
                 {
                     strcpy(szTmp, "Windows Vista");
-                    rtSystemWinAppendProductType(szTmp);
+                    rtSystemWinAppendProductType(szTmp, sizeof(szTmp));
                     break;
                 }
                 case kRTWinOSType_2008:         strcpy(szTmp, "Windows 2008"); break;

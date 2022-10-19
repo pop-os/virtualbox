@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -45,10 +55,6 @@
 # pragma once
 #endif
 
-#if !defined(__GNUC__) /* && !defined(__YOUR_COMPILER__) */
-# error "IPRT: Adjust this header for your compiler"
-#endif
-
 #include <iprt/types.h>
 /*#include <machine/_limits.h>*/
 
@@ -67,14 +73,14 @@
  * ANSI/POSIX
  */
 extern const union __infinity_un {
-    unsigned char   __uc[8];
-    double      __ud;
+    RTFLOAT64U      __uu;
+    double          __ud;
 } RT_NOCRT(__infinity);
 
-extern const union __nan_un {
-    unsigned char   __uc[sizeof(float)];
-    float       __uf;
-} RT_NOCRT(__nan);
+extern const union __nanf_un {
+    RTFLOAT32U      __uu;
+    float           __uf;
+} RT_NOCRT(__nanf);
 
 #if __GNUC_PREREQ__(3, 3) || (defined(__INTEL_COMPILER) && __INTEL_COMPILER >= 800)
 #define __MATH_BUILTIN_CONSTANTS
@@ -84,125 +90,47 @@ extern const union __nan_un {
 #define __MATH_BUILTIN_RELOPS
 #endif
 
-#ifdef __MATH_BUILTIN_CONSTANTS
-#define HUGE_VAL    __builtin_huge_val()
-#else
-#define HUGE_VAL    (RT_NOCRT(__infinity).__ud)
-#endif
+#ifndef IPRT_NOCRT_WITHOUT_CONFLICTING_CONSTANTS
 
-#if 1/* __ISO_C_VISIBLE >= 1999*/
-#define FP_ILOGB0   (-__INT_MAX)
-#define FP_ILOGBNAN __INT_MAX
-
-#ifdef __MATH_BUILTIN_CONSTANTS
-#define HUGE_VALF   __builtin_huge_valf()
-#define HUGE_VALL   __builtin_huge_vall()
-#define INFINITY    __builtin_inf()
-#define NAN     __builtin_nan("")
-#else
-#define HUGE_VALF   (float)HUGE_VAL
-#define HUGE_VALL   (long double)HUGE_VAL
-#define INFINITY    HUGE_VALF
-#define NAN     (__nan.__uf)
-#endif /* __MATH_BUILTIN_CONSTANTS */
-
-#define MATH_ERRNO  1
-#define MATH_ERREXCEPT  2
-#define math_errhandling    MATH_ERREXCEPT
-
-/* XXX We need a <machine/math.h>. */
-#if defined(__ia64__) || defined(__sparc64__)
-#define FP_FAST_FMA
-#endif
-#ifdef __ia64__
-#define FP_FAST_FMAL
-#endif
-#define FP_FAST_FMAF
-
-/* Symbolic constants to classify floating point numbers. */
-#define FP_INFINITE 0x01
-#define FP_NAN      0x02
-#define FP_NORMAL   0x04
-#define FP_SUBNORMAL    0x08
-#define FP_ZERO     0x10
-#define fpclassify(x) \
-    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__fpclassifyf)(x) \
-    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__fpclassifyd)(x) \
-    : RT_NOCRT(__fpclassifyl)(x))
-
-#define isfinite(x)                 \
-    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__isfinitef)(x)    \
-    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__isfinite)(x)   \
-    : RT_NOCRT(__isfinitel)(x))
-#define isinf(x)                    \
-    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__isinff)(x)   \
-    : (sizeof (x) == sizeof (double)) ? isinf(x)    \
-    : RT_NOCRT(__isinfl)(x))
-#define isnan(x)                    \
-    ((sizeof (x) == sizeof (float)) ? isnanf(x)     \
-    : (sizeof (x) == sizeof (double)) ? isnan(x)    \
-    : RT_NOCRT(__isnanl)(x))
-#define isnormal(x)                 \
-    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__isnormalf)(x)    \
-    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__isnormal)(x)   \
-    : RT_NOCRT(__isnormall)(x))
-
-#ifdef __MATH_BUILTIN_RELOPS
-#define isgreater(x, y)     __builtin_isgreater((x), (y))
-#define isgreaterequal(x, y)    __builtin_isgreaterequal((x), (y))
-#define isless(x, y)        __builtin_isless((x), (y))
-#define islessequal(x, y)   __builtin_islessequal((x), (y))
-#define islessgreater(x, y) __builtin_islessgreater((x), (y))
-#define isunordered(x, y)   __builtin_isunordered((x), (y))
-#else
-#define isgreater(x, y)     (!isunordered((x), (y)) && (x) > (y))
-#define isgreaterequal(x, y)    (!isunordered((x), (y)) && (x) >= (y))
-#define isless(x, y)        (!isunordered((x), (y)) && (x) < (y))
-#define islessequal(x, y)   (!isunordered((x), (y)) && (x) <= (y))
-#define islessgreater(x, y) (!isunordered((x), (y)) && \
-                    ((x) > (y) || (y) > (x)))
-#define isunordered(x, y)   (isnan(x) || isnan(y))
-#endif /* __MATH_BUILTIN_RELOPS */
-
-#define signbit(x)                  \
-    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__signbitf)(x) \
-    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__signbit)(x)    \
-    : RT_NOCRT(__signbitl)(x))
-
-typedef double  double_t;
-typedef float   float_t;
-#endif /* __ISO_C_VISIBLE >= 1999 */
+# if defined(__MATH_BUILTIN_CONSTANTS) \
+ || (RT_MSC_PREREQ(RT_MSC_VER_VC140) && defined(__cplusplus)) /** @todo when was this added exactly? 2015, 2017 & 2019 has it for C++. */
+#  define HUGE_VAL   __builtin_huge_val()
+# else
+#  define HUGE_VAL   (RT_NOCRT(__infinity).__ud)
+# endif
 
 /*
  * XOPEN/SVID
  */
-#if 1/* __BSD_VISIBLE || __XSI_VISIBLE*/
-#define M_E     2.7182818284590452354   /* e */
-#define M_LOG2E     1.4426950408889634074   /* log 2e */
-#define M_LOG10E    0.43429448190325182765  /* log 10e */
-#define M_LN2       0.69314718055994530942  /* log e2 */
-#define M_LN10      2.30258509299404568402  /* log e10 */
-#define M_PI        3.14159265358979323846  /* pi */
-#define M_PI_2      1.57079632679489661923  /* pi/2 */
-#define M_PI_4      0.78539816339744830962  /* pi/4 */
-#define M_1_PI      0.31830988618379067154  /* 1/pi */
-#define M_2_PI      0.63661977236758134308  /* 2/pi */
-#define M_2_SQRTPI  1.12837916709551257390  /* 2/sqrt(pi) */
-#define M_SQRT2     1.41421356237309504880  /* sqrt(2) */
-#define M_SQRT1_2   0.70710678118654752440  /* 1/sqrt(2) */
+# if 1/* __BSD_VISIBLE || __XSI_VISIBLE*/
+# define M_E     2.7182818284590452354   /* e */
+# define M_LOG2E     1.4426950408889634074   /* log 2e */
+# define M_LOG10E    0.43429448190325182765  /* log 10e */
+# define M_LN2       0.69314718055994530942  /* log e2 */
+# define M_LN10      2.30258509299404568402  /* log e10 */
+# define M_PI        3.14159265358979323846  /* pi */
+# define M_PI_2      1.57079632679489661923  /* pi/2 */
+# define M_PI_4      0.78539816339744830962  /* pi/4 */
+# define M_1_PI      0.31830988618379067154  /* 1/pi */
+# define M_2_PI      0.63661977236758134308  /* 2/pi */
+# define M_2_SQRTPI  1.12837916709551257390  /* 2/sqrt(pi) */
+# define M_SQRT2     1.41421356237309504880  /* sqrt(2) */
+# define M_SQRT1_2   0.70710678118654752440  /* 1/sqrt(2) */
 
-#define MAXFLOAT    ((float)3.40282346638528860e+38)
+# define MAXFLOAT    ((float)3.40282346638528860e+38)
 extern int RT_NOCRT(signgam);
-#endif /* __BSD_VISIBLE || __XSI_VISIBLE */
+# endif /* __BSD_VISIBLE || __XSI_VISIBLE */
 
-#if 1/* __BSD_VISIBLE*/
-#if 0
+# if 1/* __BSD_VISIBLE*/
+#  if 0
 /* Old value from 4.4BSD-Lite math.h; this is probably better. */
-#define HUGE        HUGE_VAL
-#else
-#define HUGE        MAXFLOAT
-#endif
-#endif /* __BSD_VISIBLE */
+#   define HUGE        HUGE_VAL
+#  else
+#   define HUGE        MAXFLOAT
+#  endif
+# endif /* __BSD_VISIBLE */
+
+#endif /* !IPRT_NOCRT_WITHOUT_MATH_CONSTANTS */
 
 /*
  * Most of these functions depend on the rounding mode and have the side
@@ -270,9 +198,9 @@ double  RT_NOCRT(exp2)(double);
 double  RT_NOCRT(expm1)(double);
 double  RT_NOCRT(fma)(double, double, double);
 double  RT_NOCRT(hypot)(double, double);
-int RT_NOCRT(ilogb)(double) __pure2;
-/*int isinf(double) __pure2;*/
-/*int isnan(double) __pure2;*/
+int     RT_NOCRT(ilogb)(double) __pure2;
+int     RT_NOCRT(isinf)(double) __pure2;
+int     RT_NOCRT(isnan)(double) __pure2;
 double  RT_NOCRT(lgamma)(double);
 long long RT_NOCRT(llrint)(double);
 long long RT_NOCRT(llround)(double);
@@ -515,25 +443,25 @@ float           RT_NOCRT(nanf)(const char *);
 
 #endif /* __ISO_C_VISIBLE >= 1999 */
 
-#if 1/*def __USE_GNU*/
+#ifndef IPRT_NOCRT_WITHOUT_CONFLICTING_CONSTANTS /*def __USE_GNU*/
 /*
  * In GLIBC there are long variants of the XOPEN/SVID constant
  * block some pages ago. We need this to get the math tests going.
  */
-#define M_El                2.7182818284590452353602874713526625L
-#define M_LOG2El            1.4426950408889634073599246810018921L
-#define M_LOG10El           0.4342944819032518276511289189166051L
-#define M_LN2l              0.6931471805599453094172321214581766L
-#define M_LN10l             2.3025850929940456840179914546843642L
-#define M_PIl               3.1415926535897932384626433832795029L
-#define M_PI_2l             1.5707963267948966192313216916397514L
-#define M_PI_4l             0.7853981633974483096156608458198757L
-#define M_1_PIl             0.3183098861837906715377675267450287L
-#define M_2_PIl             0.6366197723675813430755350534900574L
-#define M_2_SQRTPIl         1.1283791670955125738961589031215452L
-#define M_SQRT2l            1.4142135623730950488016887242096981L
-#define M_SQRT1_2l          0.7071067811865475244008443621048490L
-#endif
+# define M_El                2.7182818284590452353602874713526625L
+# define M_LOG2El            1.4426950408889634073599246810018921L
+# define M_LOG10El           0.4342944819032518276511289189166051L
+# define M_LN2l              0.6931471805599453094172321214581766L
+# define M_LN10l             2.3025850929940456840179914546843642L
+# define M_PIl               3.1415926535897932384626433832795029L
+# define M_PI_2l             1.5707963267948966192313216916397514L
+# define M_PI_4l             0.7853981633974483096156608458198757L
+# define M_1_PIl             0.3183098861837906715377675267450287L
+# define M_2_PIl             0.6366197723675813430755350534900574L
+# define M_2_SQRTPIl         1.1283791670955125738961589031215452L
+# define M_SQRT2l            1.4142135623730950488016887242096981L
+# define M_SQRT1_2l          0.7071067811865475244008443621048490L
+#endif /* !IPRT_NOCRT_WITHOUT_MATH_CONSTANTS */
 
 #if 1/*def __USE_GNU*/
 
@@ -558,14 +486,116 @@ long double RT_NOCRT(ynl)(int, long double);
 long double RT_NOCRT(lgammal_r)(long double,int *);
 long double RT_NOCRT(gammal)(long double);
 #endif
+
+
 RT_C_DECLS_END
 
+
+/** @name fpclassify return values
+ * @{  */
+#define RT_NOCRT_FP_INFINITE    0x01
+#define RT_NOCRT_FP_NAN         0x02
+#define RT_NOCRT_FP_NORMAL      0x04
+#define RT_NOCRT_FP_SUBNORMAL   0x08
+#define RT_NOCRT_FP_ZERO        0x10
+/** @} */
+
+/* bird 2022-08-03: moved this block down so we can prototype isnan & isinf without runnning into the macro forms. */
+#ifndef IPRT_NOCRT_WITHOUT_CONFLICTING_CONSTANTS /* __ISO_C_VISIBLE >= 1999*/
+# define FP_ILOGB0   (-__INT_MAX)
+# define FP_ILOGBNAN __INT_MAX
+
+# ifdef __MATH_BUILTIN_CONSTANTS
+#  define HUGE_VALF   __builtin_huge_valf()
+#  define HUGE_VALL   __builtin_huge_vall()
+#  define INFINITY    __builtin_inf()
+#  define NAN         __builtin_nan("")
+# elif RT_MSC_PREREQ(RT_MSC_VER_VC140) && defined(__cplusplus)
+/** @todo When were these introduced exactly? 2015, 2017 & 2019 has them.
+ * However, they only work in C++ even if the c1.dll includes the strings. Oh, well. */
+#  define HUGE_VALF   __builtin_huge_valf()
+#  define HUGE_VALL   __builtin_huge_val()
+#  define INFINITY    __builtin_huge_val()
+#  define NAN         __builtin_nan("0")     /* same as we use in climits */
+# else
+#  define HUGE_VALF   (float)HUGE_VAL
+#  define HUGE_VALL   (long double)HUGE_VAL
+#  define INFINITY    HUGE_VALF
+#  define NAN         (__nanf.__uf)
+# endif /* __MATH_BUILTIN_CONSTANTS */
+
+# ifndef IPRT_NO_CRT
+#  define MATH_ERRNO  1
+# endif
+# define MATH_ERREXCEPT  2
+# define math_errhandling    MATH_ERREXCEPT
+
+/* XXX We need a <machine/math.h>. */
+# if defined(__ia64__) || defined(__sparc64__)
+#  define FP_FAST_FMA
+# endif
+# ifdef __ia64__
+#  define FP_FAST_FMAL
+# endif
+# define FP_FAST_FMAF
+
+/* Symbolic constants to classify floating point numbers. */
+# define FP_INFINITE            RT_NOCRT_FP_INFINITE
+# define FP_NAN                 RT_NOCRT_FP_NAN
+# define FP_NORMAL              RT_NOCRT_FP_NORMAL
+# define FP_SUBNORMAL           RT_NOCRT_FP_SUBNORMAL
+# define FP_ZERO                RT_NOCRT_FP_ZERO
+# define fpclassify(x) \
+    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__fpclassifyf)(x) \
+    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__fpclassifyd)(x) \
+    : RT_NOCRT(__fpclassifyl)(x))
+
+# define isfinite(x)                 \
+    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__isfinitef)(x)    \
+    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__isfinite)(x)   \
+    : RT_NOCRT(__isfinitel)(x))
+# define isinf(x)                    \
+    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__isinff)(x)   \
+    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(isinf)(x)    \
+    : RT_NOCRT(__isinfl)(x))
+# define isnan(x)                    \
+    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(isnanf)(x)     \
+    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(isnan)(x)    \
+    : RT_NOCRT(__isnanl)(x))
+# define isnormal(x)                 \
+    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__isnormalf)(x)    \
+    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__isnormal)(x)   \
+    : RT_NOCRT(__isnormall)(x))
+
+# ifdef __MATH_BUILTIN_RELOPS
+#  define isgreater(x, y)     __builtin_isgreater((x), (y))
+#  define isgreaterequal(x, y)    __builtin_isgreaterequal((x), (y))
+#  define isless(x, y)        __builtin_isless((x), (y))
+#  define islessequal(x, y)   __builtin_islessequal((x), (y))
+#  define islessgreater(x, y) __builtin_islessgreater((x), (y))
+#  define isunordered(x, y)   __builtin_isunordered((x), (y))
+# else
+#  define isgreater(x, y)     (!isunordered((x), (y)) && (x) > (y))
+#  define isgreaterequal(x, y)    (!isunordered((x), (y)) && (x) >= (y))
+#  define isless(x, y)        (!isunordered((x), (y)) && (x) < (y))
+#  define islessequal(x, y)   (!isunordered((x), (y)) && (x) <= (y))
+#  define islessgreater(x, y) (!isunordered((x), (y)) && \
+                    ((x) > (y) || (y) > (x)))
+#  define isunordered(x, y)   (isnan(x) || isnan(y))
+# endif /* __MATH_BUILTIN_RELOPS */
+
+# define signbit(x)                  \
+    ((sizeof (x) == sizeof (float)) ? RT_NOCRT(__signbitf)(x) \
+    : (sizeof (x) == sizeof (double)) ? RT_NOCRT(__signbit)(x)    \
+    : RT_NOCRT(__signbitl)(x))
+
+typedef double  double_t;
+typedef float   float_t;
+#endif /* !IPRT_NOCRT_WITHOUT_MATH_CONSTANTS */ /* __ISO_C_VISIBLE >= 1999 */
 
 
 #if !defined(RT_WITHOUT_NOCRT_WRAPPERS) && !defined(RT_WITHOUT_NOCRT_WRAPPER_ALIASES)
 /* sed -e "/#/d" -e "/RT_NOCRT/!d" -e "s/^.*RT_NOCRT(\([a-z0-9_]*\)).*$/# define \1 RT_NOCRT(\1)/" */
-# define __infinity RT_NOCRT(__infinity)
-# define __nan RT_NOCRT(__nan)
 # define __fpclassifyf RT_NOCRT(__fpclassifyf)
 # define __fpclassifyd RT_NOCRT(__fpclassifyd)
 # define __fpclassifyl RT_NOCRT(__fpclassifyl)
@@ -661,6 +691,8 @@ RT_C_DECLS_END
 # define trunc RT_NOCRT(trunc)
 # define drem RT_NOCRT(drem)
 # define finite RT_NOCRT(finite)
+/*# define isinf RT_NOCRT(isinf) - already a macro */
+/*# define isnan RT_NOCRT(isnan) - already a macro */
 # define isnanf RT_NOCRT(isnanf)
 # define gamma_r RT_NOCRT(gamma_r)
 # define lgamma_r RT_NOCRT(lgamma_r)

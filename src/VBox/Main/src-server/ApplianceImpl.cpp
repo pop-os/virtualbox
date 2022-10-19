@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -133,11 +143,24 @@ static struct
     // Linuxes
     { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux,                VBOXOSTYPE_RedHat },
     { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             VBOXOSTYPE_RedHat_x64 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux,                VBOXOSTYPE_RedHat3 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             VBOXOSTYPE_RedHat3_x64 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux,                VBOXOSTYPE_RedHat4 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             VBOXOSTYPE_RedHat4_x64 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux,                VBOXOSTYPE_RedHat5 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             VBOXOSTYPE_RedHat5_x64 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux,                VBOXOSTYPE_RedHat6 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             VBOXOSTYPE_RedHat6_x64 },
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             VBOXOSTYPE_RedHat7_x64 }, // 64-bit only
+    { ovf::CIMOSType_CIMOS_RedHatEnterpriseLinux_64,             VBOXOSTYPE_RedHat8_x64 }, // 64-bit only
     { ovf::CIMOSType_CIMOS_SUSE,                                 VBOXOSTYPE_OpenSUSE },
-    { ovf::CIMOSType_CIMOS_SLES,                                 VBOXOSTYPE_OpenSUSE },
+    { ovf::CIMOSType_CIMOS_SLES,                                 VBOXOSTYPE_SUSE_LE },
     { ovf::CIMOSType_CIMOS_NovellLinuxDesktop,                   VBOXOSTYPE_OpenSUSE },
     { ovf::CIMOSType_CIMOS_SUSE_64,                              VBOXOSTYPE_OpenSUSE_x64 },
-    { ovf::CIMOSType_CIMOS_SLES_64,                              VBOXOSTYPE_OpenSUSE_x64 },
+    { ovf::CIMOSType_CIMOS_SLES_64,                              VBOXOSTYPE_SUSE_LE_x64 },
+    { ovf::CIMOSType_CIMOS_SUSE_64,                              VBOXOSTYPE_OpenSUSE_Leap_x64 }, // 64-bit only
+    { ovf::CIMOSType_CIMOS_SUSE,                                 VBOXOSTYPE_OpenSUSE_Tumbleweed },
+    { ovf::CIMOSType_CIMOS_SUSE_64,                              VBOXOSTYPE_OpenSUSE_Tumbleweed_x64 },
     { ovf::CIMOSType_CIMOS_LINUX,                                VBOXOSTYPE_Linux },
     { ovf::CIMOSType_CIMOS_LINUX,                                VBOXOSTYPE_Linux22 },
     { ovf::CIMOSType_CIMOS_SunJavaDesktopSystem,                 VBOXOSTYPE_Linux },
@@ -145,10 +168,72 @@ static struct
     { ovf::CIMOSType_CIMOS_TurboLinux_64,                        VBOXOSTYPE_Turbolinux_x64 },
     { ovf::CIMOSType_CIMOS_Mandriva,                             VBOXOSTYPE_Mandriva },
     { ovf::CIMOSType_CIMOS_Mandriva_64,                          VBOXOSTYPE_Mandriva_x64 },
+    { ovf::CIMOSType_CIMOS_Mandriva,                             VBOXOSTYPE_OpenMandriva_Lx },
+    { ovf::CIMOSType_CIMOS_Mandriva_64,                          VBOXOSTYPE_OpenMandriva_Lx_x64 },
+    { ovf::CIMOSType_CIMOS_Mandriva,                             VBOXOSTYPE_PCLinuxOS },
+    { ovf::CIMOSType_CIMOS_Mandriva_64,                          VBOXOSTYPE_PCLinuxOS_x64 },
+    { ovf::CIMOSType_CIMOS_Mandriva,                             VBOXOSTYPE_Mageia },
+    { ovf::CIMOSType_CIMOS_Mandriva_64,                          VBOXOSTYPE_Mageia_x64 },
     { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu },
     { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu10_LTS },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu10_LTS_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu10 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu10_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu11 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu11_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu12_LTS },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu12_LTS_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu12 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu12_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu13 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu13_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu14_LTS },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu14_LTS_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu14 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu14_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu15 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu15_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu16_LTS },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu16_LTS_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu16 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu16_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu17 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu17_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu18_LTS },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu18_LTS_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu18 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu18_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Ubuntu19 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu19_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu20_LTS_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu20_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu21_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu22_LTS_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Ubuntu22_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Lubuntu },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Lubuntu_x64 },
+    { ovf::CIMOSType_CIMOS_Ubuntu,                               VBOXOSTYPE_Xubuntu },
+    { ovf::CIMOSType_CIMOS_Ubuntu_64,                            VBOXOSTYPE_Xubuntu_x64 },
     { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian },
     { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian31 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian4 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian4_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian5 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian5_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian6 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian6_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian7 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian7_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian8 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian8_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian9 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian9_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian10 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian10_x64 },
+    { ovf::CIMOSType_CIMOS_Debian,                               VBOXOSTYPE_Debian11 },
+    { ovf::CIMOSType_CIMOS_Debian_64,                            VBOXOSTYPE_Debian11_x64 },
     { ovf::CIMOSType_CIMOS_Linux_2_4_x,                          VBOXOSTYPE_Linux24 },
     { ovf::CIMOSType_CIMOS_Linux_2_4_x_64,                       VBOXOSTYPE_Linux24_x64 },
     { ovf::CIMOSType_CIMOS_Linux_2_6_x,                          VBOXOSTYPE_Linux26 },
@@ -177,6 +262,14 @@ static struct
     { ovf::CIMOSType_CIMOS_CentOS_64,                            VBOXOSTYPE_RedHat_x64 },
     { ovf::CIMOSType_CIMOS_OracleLinux,                          VBOXOSTYPE_Oracle },
     { ovf::CIMOSType_CIMOS_OracleLinux_64,                       VBOXOSTYPE_Oracle_x64 },
+    { ovf::CIMOSType_CIMOS_OracleLinux,                          VBOXOSTYPE_Oracle4 },
+    { ovf::CIMOSType_CIMOS_OracleLinux_64,                       VBOXOSTYPE_Oracle4_x64 },
+    { ovf::CIMOSType_CIMOS_OracleLinux,                          VBOXOSTYPE_Oracle5 },
+    { ovf::CIMOSType_CIMOS_OracleLinux_64,                       VBOXOSTYPE_Oracle5_x64 },
+    { ovf::CIMOSType_CIMOS_OracleLinux,                          VBOXOSTYPE_Oracle6 },
+    { ovf::CIMOSType_CIMOS_OracleLinux_64,                       VBOXOSTYPE_Oracle6_x64 },
+    { ovf::CIMOSType_CIMOS_OracleLinux_64,                       VBOXOSTYPE_Oracle7_x64 }, // 64-bit only
+    { ovf::CIMOSType_CIMOS_OracleLinux_64,                       VBOXOSTYPE_Oracle8_x64 }, // 64-bit only
     { ovf::CIMOSType_CIMOS_eComStation,                          VBOXOSTYPE_ECS },
 
     { ovf::CIMOSType_CIMOS_WindowsServer2011,                    VBOXOSTYPE_Win2k8_x64 },       // no 1:1 match on the VBox side
@@ -355,6 +448,7 @@ Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type)
         case NetworkAttachmentType_Bridged: strType = "Bridged"; break;
         case NetworkAttachmentType_Internal: strType = "Internal"; break;
         case NetworkAttachmentType_HostOnly: strType = "HostOnly"; break;
+        case NetworkAttachmentType_HostOnlyNetwork: strType = "HostOnlyNetwork"; break;
         case NetworkAttachmentType_Generic: strType = "Generic"; break;
         case NetworkAttachmentType_NATNetwork: strType = "NATNetwork"; break;
         case NetworkAttachmentType_Null: strType = "Null"; break;
@@ -942,7 +1036,7 @@ RTVFSIOSTREAM Appliance::i_manifestSetupDigestCalculationForGivenIoStream(RTVFSI
     if (RT_SUCCESS(vrc))
         return hVfsIosPt;
 
-    setErrorVrc(vrc, "RTManifestEntryAddPassthruIoStream failed with rc=%Rrc", vrc);
+    setErrorVrc(vrc, tr("RTManifestEntryAddPassthruIoStream failed with rc=%Rrc"), vrc);
     return NIL_RTVFSIOSTREAM;
 }
 
@@ -970,12 +1064,12 @@ bool Appliance::i_isApplianceIdle()
     return false;
 }
 
-HRESULT Appliance::i_searchUniqueVMName(Utf8Str& aName) const
+HRESULT Appliance::i_searchUniqueVMName(Utf8Str &aName) const
 {
-    IMachine *machine = NULL;
+    ComPtr<IMachine> ptrMachine;
     char *tmpName = RTStrDup(aName.c_str());
     int i = 1;
-    while (mVirtualBox->FindMachine(Bstr(tmpName).raw(), &machine) != VBOX_E_OBJECT_NOT_FOUND)
+    while (mVirtualBox->FindMachine(Bstr(tmpName).raw(), ptrMachine.asOutParam()) != VBOX_E_OBJECT_NOT_FOUND)
     {
         RTStrFree(tmpName);
         RTStrAPrintf(&tmpName, "%s %d", aName.c_str(), i);
@@ -987,14 +1081,14 @@ HRESULT Appliance::i_searchUniqueVMName(Utf8Str& aName) const
     return S_OK;
 }
 
-HRESULT Appliance::i_searchUniqueImageFilePath(const Utf8Str &aMachineFolder, DeviceType_T aDeviceType, Utf8Str &aName) const
+HRESULT Appliance::i_ensureUniqueImageFilePath(const Utf8Str &aMachineFolder, DeviceType_T aDeviceType, Utf8Str &aName) const
 {
     /*
      * Check if the file exists or if a medium with this path is registered already
      */
     Utf8Str strAbsName;
-    ssize_t offDashNum = -1;
-    ssize_t cchDashNum = 0;
+    size_t  offDashNum = ~(size_t)0;
+    size_t  cchDashNum = 0;
     for (unsigned i = 1;; i++)
     {
         /* Complete the path (could be relative to machine folder). */
@@ -1012,10 +1106,10 @@ HRESULT Appliance::i_searchUniqueImageFilePath(const Utf8Str &aMachineFolder, De
         }
 
         /* Insert '_%i' before the suffix and try again. */
-        if (offDashNum < 0)
+        if (offDashNum == ~(size_t)0)
         {
             const char *pszSuffix = RTPathSuffix(aName.c_str());
-            offDashNum = pszSuffix ? pszSuffix - aName.c_str() : aName.length();
+            offDashNum = pszSuffix ? (size_t)(pszSuffix - aName.c_str()) : aName.length();
         }
         char   szTmp[32];
         size_t cchTmp = RTStrPrintf(szTmp, sizeof(szTmp),  "_%u", i);
@@ -1761,9 +1855,8 @@ void VirtualSystemDescription::i_removeByType(VirtualSystemDescriptionType_T aTy
  * the given reference ID. Useful when needing the controller for a particular
  * virtual disk.
  */
-const VirtualSystemDescriptionEntry* VirtualSystemDescription::i_findControllerFromID(uint32_t id)
+const VirtualSystemDescriptionEntry* VirtualSystemDescription::i_findControllerFromID(const Utf8Str &id)
 {
-    Utf8Str strRef = Utf8StrFmt("%RI32", id);
     vector<VirtualSystemDescriptionEntry>::const_iterator it;
     for (it = m->maDescriptions.begin();
          it != m->maDescriptions.end();
@@ -1777,7 +1870,7 @@ const VirtualSystemDescriptionEntry* VirtualSystemDescription::i_findControllerF
             case VirtualSystemDescriptionType_HardDiskControllerSCSI:
             case VirtualSystemDescriptionType_HardDiskControllerVirtioSCSI:
             case VirtualSystemDescriptionType_HardDiskControllerSAS:
-                if (d.strRef == strRef)
+                if (d.strRef == id)
                     return &d;
                 break;
             default: break; /* Shut up MSC. */

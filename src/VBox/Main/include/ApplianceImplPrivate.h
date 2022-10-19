@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_ApplianceImplPrivate_h
@@ -33,6 +43,7 @@ class VirtualSystemDescription;
 #include <iprt/manifest.h>
 #include <iprt/vfs.h>
 #include <iprt/crypto/x509.h>
+#include <iprt/crypto/pkcs7.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -63,7 +74,9 @@ struct LocationInfo
     Utf8Str strPassword;   /* Password on remote storage locations (could be empty) */
 };
 
-// opaque private instance data of Appliance class
+/**
+ * opaque private instance data of Appliance class
+ */
 struct Appliance::Data
 {
     enum digest_T {SHA1, SHA256};
@@ -85,6 +98,10 @@ struct Appliance::Data
       , pbSignedDigest(NULL)
       , cbSignedDigest(0)
       , enmSignedDigestType(RTDIGESTTYPE_INVALID)
+      , fContentInfoLoaded(false)
+      , fContentInfoOkay(false)
+      , fContentInfoSameCert(false)
+      , fContentInfoValidSignature(false)
       , fExportISOImages(false)
       , pReader(NULL)
       , ulWeightForXmlOperation(0)
@@ -93,6 +110,8 @@ struct Appliance::Data
       , cDisks(0)
       , m_cPwProvided(0)
     {
+        RT_ZERO(SignerCert);
+        RT_ZERO(ContentInfo);
     }
 
     ~Data()
@@ -137,6 +156,7 @@ struct Appliance::Data
             RTCrX509Certificate_Delete(&SignerCert);
             fSignerCertLoaded = false;
         }
+        RT_ZERO(SignerCert);
         enmSignedDigestType      = RTDIGESTTYPE_INVALID;
         fCertificateIsSelfSigned = false;
         fSignatureValid          = false;
@@ -147,6 +167,12 @@ struct Appliance::Data
         fDigestTypes             = RTMANIFEST_ATTR_SHA1 | RTMANIFEST_ATTR_SHA256 | RTMANIFEST_ATTR_SHA512;
         ptrCertificateInfo.setNull();
         strCertError.setNull();
+        if (fContentInfoLoaded)
+        {
+            RTCrPkcs7ContentInfo_Delete(&ContentInfo);
+            fContentInfoLoaded = false;
+        }
+        RT_ZERO(ContentInfo);
     }
 
     Appliance::ApplianceState      state;
@@ -203,6 +229,29 @@ struct Appliance::Data
     /** The certificate info object.  This is NULL if no signature and
      *  successfully loaded certificate. */
     ComObjPtr<Certificate> ptrCertificateInfo;
+
+    /** The PKCS\#7/CMS signed data signing manifest, optional VBox extension.
+     * This contains at least one signature using the same certificate as above
+     * (SignerCert), but should preferrably use a different digest.  The PKCS\#7/CMS
+     * format is a lot more versatile, allow multiple signatures using different
+     * digests and certificates, optionally with counter signed timestamps.
+     * Additional intermediate certificates can also be shipped, helping to bridge
+     * the gap to a trusted root certificate installed on the recieving system.  */
+    RTCRPKCS7CONTENTINFO ContentInfo;
+    /** Set if the ContentInfo member contains usable data. */
+    bool                fContentInfoLoaded;
+    /** Set by read() if the ContentInfo member checked out okay (says nothing about
+     *  the signature or certificates within it). */
+    bool                fContentInfoOkay;
+    /** Set by read() if the ContentInfo member is using the SignerCert too. */
+    bool                fContentInfoSameCert;
+    /** Set by read() if the ContentInfo member contains valid signatures (not
+     * saying anything about valid signing certificates). */
+    bool                fContentInfoValidSignature;
+    /** Set by read() if we've already verified the signed data signature(s). */
+    bool                fContentInfoDoneVerification;
+
+    bool                fContentInfoVerifiedOkay;
     /** @} */
 
     bool                fExportISOImages;// when 1 the ISO images are exported

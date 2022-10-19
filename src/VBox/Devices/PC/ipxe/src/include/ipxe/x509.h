@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stddef.h>
@@ -15,6 +15,8 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/asn1.h>
 #include <ipxe/refcnt.h>
 #include <ipxe/list.h>
+
+struct image;
 
 /** An X.509 serial number */
 struct x509_serial {
@@ -57,7 +59,7 @@ struct x509_subject {
 	/** Raw subject */
 	struct asn1_cursor raw;
 	/** Common name */
-	char *name;
+	struct asn1_cursor common_name;
 	/** Public key information */
 	struct x509_public_key public_key;
 };
@@ -125,7 +127,7 @@ enum x509_extended_key_usage_bits {
 /** X.509 certificate OCSP responder */
 struct x509_ocsp_responder {
 	/** URI */
-	char *uri;
+	struct asn1_cursor uri;
 	/** OCSP status is good */
 	int good;
 };
@@ -134,6 +136,19 @@ struct x509_ocsp_responder {
 struct x509_authority_info_access {
 	/** OCSP responder */
 	struct x509_ocsp_responder ocsp;
+};
+
+/** X.509 certificate subject alternative name */
+struct x509_subject_alt_name {
+	/** Names */
+	struct asn1_cursor names;
+};
+
+/** X.509 certificate general name types */
+enum x509_general_name_types {
+	X509_GENERAL_NAME_DNS = ASN1_IMPLICIT_TAG ( 2 ),
+	X509_GENERAL_NAME_URI = ASN1_IMPLICIT_TAG ( 6 ),
+	X509_GENERAL_NAME_IP = ASN1_IMPLICIT_TAG ( 7 ),
 };
 
 /** An X.509 certificate extensions set */
@@ -146,17 +161,38 @@ struct x509_extensions {
 	struct x509_extended_key_usage ext_usage;
 	/** Authority information access */
 	struct x509_authority_info_access auth_info;
+	/** Subject alternative name */
+	struct x509_subject_alt_name alt_name;
+};
+
+/** A link in an X.509 certificate chain */
+struct x509_link {
+	/** List of links */
+	struct list_head list;
+	/** Certificate */
+	struct x509_certificate *cert;
+};
+
+/** An X.509 certificate chain */
+struct x509_chain {
+	/** Reference count */
+	struct refcnt refcnt;
+	/** List of links */
+	struct list_head links;
 };
 
 /** An X.509 certificate */
 struct x509_certificate {
 	/** Reference count */
 	struct refcnt refcnt;
-	/** List of certificates in cache */
-	struct list_head list;
 
-	/** Certificate has been validated */
-	int valid;
+	/** Link in certificate store */
+	struct x509_link store;
+
+	/** Flags */
+	unsigned int flags;
+	/** Root against which certificate has been validated (if any) */
+	struct x509_root *root;
 	/** Maximum number of subsequent certificates in chain */
 	unsigned int path_remaining;
 
@@ -182,6 +218,14 @@ struct x509_certificate {
 	struct x509_extensions extensions;
 };
 
+/** X.509 certificate flags */
+enum x509_flags {
+	/** Certificate was added at build time */
+	X509_FL_PERMANENT = 0x0001,
+	/** Certificate was added explicitly at run time */
+	X509_FL_EXPLICIT = 0x0002,
+};
+
 /**
  * Get reference to X.509 certificate
  *
@@ -203,22 +247,6 @@ static inline __attribute__ (( always_inline )) void
 x509_put ( struct x509_certificate *cert ) {
 	ref_put ( &cert->refcnt );
 }
-
-/** A link in an X.509 certificate chain */
-struct x509_link {
-	/** List of links */
-	struct list_head list;
-	/** Certificate */
-	struct x509_certificate *cert;
-};
-
-/** An X.509 certificate chain */
-struct x509_chain {
-	/** Reference count */
-	struct refcnt refcnt;
-	/** List of links */
-	struct list_head links;
-};
 
 /**
  * Get reference to X.509 certificate chain
@@ -312,8 +340,10 @@ struct x509_access_method {
 			  const struct asn1_cursor *raw );
 };
 
-/** An X.509 root certificate store */
+/** An X.509 root certificate list */
 struct x509_root {
+	/** Reference count */
+	struct refcnt refcnt;
 	/** Fingerprint digest algorithm */
 	struct digest_algorithm *digest;
 	/** Number of certificates */
@@ -322,11 +352,39 @@ struct x509_root {
 	const void *fingerprints;
 };
 
+/**
+ * Get reference to X.509 root certificate list
+ *
+ * @v root		X.509 root certificate list
+ * @ret root		X.509 root certificate list
+ */
+static inline __attribute__ (( always_inline )) struct x509_root *
+x509_root_get ( struct x509_root *root ) {
+	ref_get ( &root->refcnt );
+	return root;
+}
+
+/**
+ * Drop reference to X.509 root certificate list
+ *
+ * @v root		X.509 root certificate list
+ */
+static inline __attribute__ (( always_inline )) void
+x509_root_put ( struct x509_root *root ) {
+	ref_put ( &root->refcnt );
+}
+
+extern const char * x509_name ( struct x509_certificate *cert );
+extern int x509_parse ( struct x509_certificate *cert,
+			const struct asn1_cursor *raw );
 extern int x509_certificate ( const void *data, size_t len,
 			      struct x509_certificate **cert );
+extern int x509_is_valid ( struct x509_certificate *cert,
+			   struct x509_root *root );
 extern int x509_validate ( struct x509_certificate *cert,
 			   struct x509_certificate *issuer,
 			   time_t time, struct x509_root *root );
+extern int x509_check_name ( struct x509_certificate *cert, const char *name );
 
 extern struct x509_chain * x509_alloc_chain ( void );
 extern int x509_append ( struct x509_chain *chain,
@@ -336,7 +394,10 @@ extern int x509_append_raw ( struct x509_chain *chain, const void *data,
 extern int x509_auto_append ( struct x509_chain *chain,
 			      struct x509_chain *certs );
 extern int x509_validate_chain ( struct x509_chain *chain, time_t time,
+				 struct x509_chain *store,
 				 struct x509_root *root );
+extern int image_x509 ( struct image *image, size_t offset,
+			struct x509_certificate **cert );
 
 /* Functions exposed only for unit testing */
 extern int x509_check_issuer ( struct x509_certificate *cert,
@@ -354,7 +415,8 @@ extern int x509_check_time ( struct x509_certificate *cert, time_t time );
  * @v cert		X.509 certificate
  */
 static inline void x509_invalidate ( struct x509_certificate *cert ) {
-	cert->valid = 0;
+	x509_root_put ( cert->root );
+	cert->root = NULL;
 	cert->path_remaining = 0;
 }
 

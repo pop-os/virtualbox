@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../../..
@@ -20,6 +30,7 @@ include $(KBUILD_PATH)/subheader.kmk
 ifdef VBOX_WITH_TESTCASES
 
 
+if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
 PROGRAMS               += tstDisasm-1
 tstDisasm-1_TEMPLATE    = VBOXR3TSTEXE
 tstDisasm-1_DEFS        = IN_DIS
@@ -29,6 +40,14 @@ tstDisasm-1_SOURCES     = \
 tstDisasm-1_LIBS        = \
 	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB) \
 	$(LIB_RUNTIME)
+
+PROGRAMS               += tstDisasmCore-1
+tstDisasmCore-1_EXTENDS = tstDisasm-1
+tstDisasmCore-1_DEFS    = IN_DIS DIS_CORE_ONLY
+tstDisasmCore-1_LIBS    = \
+	$(PATH_STAGE_LIB)/DisasmCoreR3$(VBOX_SUFF_LIB) \
+	$(LIB_RUNTIME)
+endif
 
 
 PROGRAMS += tstDisasm-2
@@ -220,10 +239,6 @@ $(foreach bits, 32 16, $(foreach binary, $(filter-out $(VBOX_DISAS_TESTS_BINARIE
 # Add the .tst to the clean up.
 VBOX_DISAS_TEST_CLEAN += $(addprefix $(VBOX_DISAS_TEST_OUT_DIR)/, $(VBOX_DISAS_TESTS))
 OTHER_CLEAN += $(VBOX_DISAS_TEST_CLEAN)
-
-# We don't want any of the tests rules to run in parallel because the
-# output will be difficult to follow. Abusing VBOX_DISAS_TEST_CLEAN here...
-.NOTPARALLEL: $$(VBOX_DISAS_TEST_CLEAN)
 
 
 #

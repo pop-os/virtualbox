@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_ovfreader_h
@@ -282,26 +292,41 @@ struct DiskImage
 };
 
 enum ResourceType_T
-{   ResourceType_Other   = 1,
-    ResourceType_ComputerSystem  = 2,
-    ResourceType_Processor   = 3,
-    ResourceType_Memory  = 4,
-    ResourceType_IDEController   = 5,
-    ResourceType_ParallelSCSIHBA = 6,
-    ResourceType_FCHBA   = 7,
-    ResourceType_iSCSIHBA    = 8,
-    ResourceType_IBHCA   = 9,
-    ResourceType_EthernetAdapter = 10,
-    ResourceType_OtherNetworkAdapter = 11,
-    ResourceType_IOSlot  = 12,
-    ResourceType_IODevice    = 13,
-    ResourceType_FloppyDrive = 14,
-    ResourceType_CDDrive = 15,
-    ResourceType_DVDDrive    = 16,
-    ResourceType_HardDisk    = 17,
+{
+    ResourceType_Other  = 1,
+    ResourceType_ComputerSystem = 2,
+    ResourceType_Processor  = 3,
+    ResourceType_Memory = 4,
+    ResourceType_IDEController  = 5,
+    ResourceType_ParallelSCSIHBA    = 6,
+    ResourceType_FCHBA  = 7,
+    ResourceType_iSCSIHBA   = 8,
+    ResourceType_IBHCA  = 9,
+    ResourceType_EthernetAdapter    = 10,
+    ResourceType_OtherNetworkAdapter    = 11,
+    ResourceType_IOSlot = 12,
+    ResourceType_IODevice   = 13,
+    ResourceType_FloppyDrive    = 14,
+    ResourceType_CDDrive    = 15,
+    ResourceType_DVDDrive   = 16,
+    ResourceType_HardDisk   = 17,
+    ResourceType_TapeDrive  = 18,
+    ResourceType_StorageExtent  = 19,
     ResourceType_OtherStorageDevice  = 20,
-    ResourceType_USBController   = 23,
-    ResourceType_SoundCard   = 35
+    ResourceType_SerialPort = 21,
+    ResourceType_ParallelPort   = 22,
+    ResourceType_USBController  = 23,
+    ResourceType_GraphicsController = 24,
+    ResourceType_IEEE1394Controller = 25,
+    ResourceType_PartitionableUnit  = 26,
+    ResourceType_BasePartitionableUnit  = 27,
+    ResourceType_Power  = 28,
+    ResourceType_CoolingCapacity    = 29,
+    ResourceType_EthernetSwitchPort = 30,
+    ResourceType_LogicalDisk    = 31,
+    ResourceType_StorageVolume  = 32,
+    ResourceType_EthernetConnection = 33,
+    ResourceType_SoundCard  = 35    /**< @todo r=klaus: Not part of OVF/CIM spec, should use "Other" or some value from 0x8000..0xffff. */
 };
 
 
@@ -326,54 +351,53 @@ public:
     RTCString strCaption;
     RTCString strElementName;
 
-    uint32_t ulInstanceID;
-    uint32_t ulParent;
+    RTCString strInstanceID;
+    RTCString strParent;
 
     ResourceType_T resourceType;
     RTCString strOtherResourceType;
     RTCString strResourceSubType;
     bool fResourceRequired;
 
-    RTCString strHostResource;   // "Abstractly specifies how a device shall connect to a resource on the deployment platform.
-                                        // Not all devices need a backing." Used with disk items, for which this references a virtual
-                                        // disk from the Disks section.
+    RTCString strHostResource;   ///< "Abstractly specifies how a device shall connect to a resource on the deployment platform.
+                                 /// Not all devices need a backing." Used with disk items, for which this
+                                 /// references a virtual disk from the Disks section.
     bool fAutomaticAllocation;
     bool fAutomaticDeallocation;
-    RTCString strConnection;     // "All Ethernet adapters that specify the same abstract network connection name within an OVF
-                                        // package shall be deployed on the same network. The abstract network connection name shall be
-                                        // listed in the NetworkSection at the outermost envelope level." We ignore this and only set up
-                                        // a network adapter depending on the network name.
-    RTCString strAddress;        // "Device-specific. For an Ethernet adapter, this specifies the MAC address."
-    int32_t lAddress;                   // strAddress as an integer, if applicable.
-    RTCString strAddressOnParent;         // "For a device, this specifies its location on the controller."
-    RTCString strAllocationUnits;         // "Specifies the units of allocation used. For example, “byte * 2^20”."
-    uint64_t ullVirtualQuantity;        // "Specifies the quantity of resources presented. For example, “256”."
-    uint64_t ullReservation;            // "Specifies the minimum quantity of resources guaranteed to be available."
-    uint64_t ullLimit;                  // "Specifies the maximum quantity of resources that will be granted."
-    uint64_t ullWeight;                 // "Specifies a relative priority for this allocation in relation to other allocations."
+    RTCString strConnection;     ///< "All Ethernet adapters that specify the same abstract network connection name within an OVF
+                                 /// package shall be deployed on the same network. The abstract network connection name shall be
+                                 /// listed in the NetworkSection at the outermost envelope level." We ignore this and only set up
+                                 /// a network adapter depending on the network name.
+    RTCString strAddress;        ///< "Device-specific. For an Ethernet adapter, this specifies the MAC address."
+    int32_t lAddress;            ///< strAddress as an integer, if applicable.
+    RTCString strAddressOnParent;///< "For a device, this specifies its location on the controller."
+    RTCString strAllocationUnits;///< "Specifies the units of allocation used. For example, “byte * 2^20”."
+    uint64_t ullVirtualQuantity; ///< "Specifies the quantity of resources presented. For example, “256”."
+    uint64_t ullReservation;     ///< "Specifies the minimum quantity of resources guaranteed to be available."
+    uint64_t ullLimit;           ///< "Specifies the maximum quantity of resources that will be granted."
+    uint64_t ullWeight;          ///< "Specifies a relative priority for this allocation in relation to other allocations."
 
     RTCString strConsumerVisibility;
     RTCString strMappingBehavior;
     RTCString strPoolID;
-    uint32_t ulBusNumber;               // seen with IDE controllers, but not listed in OVF spec
+    uint32_t ulBusNumber;        ///< seen with IDE controllers, but not listed in OVF spec
 
-    uint32_t ulLineNumber;              // line number of <Item> element in XML source; cached for error messages
+    int m_iLineNumber;           ///< line number of \<Item\> element in XML source; cached for error messages
 
     VirtualHardwareItem()
-        : ulInstanceID(0),
-          fResourceRequired(false),
-          fAutomaticAllocation(false),
-          fAutomaticDeallocation(false),
-          ullVirtualQuantity(0),
-          ullReservation(0),
-          ullLimit(0),
-          ullWeight(0),
-          ulBusNumber(0),
-          ulLineNumber(0),
-          fDefault(false)
+        : fResourceRequired(false)
+        , fAutomaticAllocation(false)
+        , fAutomaticDeallocation(false)
+        , ullVirtualQuantity(0)
+        , ullReservation(0)
+        , ullLimit(0)
+        , ullWeight(0)
+        , ulBusNumber(0)
+        , m_iLineNumber(0)
+        , fDefault(false)
     {
         itemName = "Item";
-    };
+    }
 
     virtual ~VirtualHardwareItem() { /* Makes MSC happy. */ }
 
@@ -416,9 +440,11 @@ class StorageItem: public VirtualHardwareItem
     //see DMTF Schema Documentation http://schemas.dmtf.org/wbem/cim-html/2/
     StorageAccessType_T accessType;
     RTCString strHostExtentName;
+#if 0 /* unused */
     int16_t hostExtentNameFormat;
     int16_t hostExtentNameNamespace;
     int64_t hostExtentStartingAddress;
+#endif
     int64_t hostResourceBlockSize;
     int64_t limit;
     RTCString strOtherHostExtentNameFormat;
@@ -429,16 +455,19 @@ class StorageItem: public VirtualHardwareItem
     int64_t virtualResourceBlockSize;
 
 public:
-    StorageItem(): VirtualHardwareItem(),
-        accessType(StorageAccessType_Unknown),
-        hostExtentNameFormat(-1),
-        hostExtentNameNamespace(-1),
-        hostExtentStartingAddress(-1),
-        hostResourceBlockSize(-1),
-        limit(-1),
-        reservation(-1),
-        virtualQuantity(-1),
-        virtualResourceBlockSize(-1)
+    StorageItem()
+        : VirtualHardwareItem()
+        , accessType(StorageAccessType_Unknown)
+#if 0 /* unused */
+        , hostExtentNameFormat(-1)
+        , hostExtentNameNamespace(-1)
+        , hostExtentStartingAddress(-1)
+#endif
+        , hostResourceBlockSize(-1)
+        , limit(-1)
+        , reservation(-1)
+        , virtualQuantity(-1)
+        , virtualResourceBlockSize(-1)
     {
         itemName = "StorageItem";
     };
@@ -460,16 +489,19 @@ private:
 class EthernetPortItem: public VirtualHardwareItem
 {
     //see DMTF Schema Documentation http://schemas.dmtf.org/wbem/cim-html/2/
+#if 0 /* unused */
     uint16_t DefaultPortVID;
     uint16_t DefaultPriority;
     uint16_t DesiredVLANEndpointMode;
     uint32_t GroupID;
     uint32_t ManagerID;
-    RTCString strNetworkPortProfileID;
     uint16_t NetworkPortProfileIDType;
+#endif
+    RTCString strNetworkPortProfileID;
     RTCString strOtherEndpointMode;
     RTCString strOtherNetworkPortProfileIDTypeInfo;
     RTCString strPortCorrelationID;
+#if 0 /* unused */
     uint16_t PortVID;
     bool Promiscuous;
     uint64_t ReceiveBandwidthLimit;
@@ -478,13 +510,14 @@ class EthernetPortItem: public VirtualHardwareItem
     uint32_t VSITypeID;
     uint8_t VSITypeIDVersion;
     uint16_t AllowedPriorities[256];
-    RTCString strAllowedToReceiveMACAddresses;
     uint16_t AllowedToReceiveVLANs[256];
-    RTCString strAllowedToTransmitMACAddresses;
     uint16_t AllowedToTransmitVLANs[256];
+#endif
+    RTCString strAllowedToReceiveMACAddresses;
+    RTCString strAllowedToTransmitMACAddresses;
 
 public:
-    EthernetPortItem(): VirtualHardwareItem()
+    EthernetPortItem() : VirtualHardwareItem()
     {
         itemName = "EthernetPortItem";
     };
@@ -532,12 +565,12 @@ private:
 
 struct HardDiskController
 {
-    uint32_t                idController;       // instance ID (Item/InstanceId); this gets referenced from VirtualDisk
+    RTCString               strIdController;    // instance ID (Item/InstanceId); this gets referenced from VirtualDisk
 
     enum ControllerSystemType { IDE, SATA, SCSI, VIRTIOSCSI };
     ControllerSystemType    system;             // one of IDE, SATA, SCSI, VIRTIOSCSI
 
-    RTCString        strControllerType;
+    RTCString               strControllerType;
             // controller subtype (Item/ResourceSubType); e.g. "LsiLogic"; can be empty (esp. for IDE)
             // note that we treat LsiLogicSAS as a SCSI controller (system == SCSI) even though VirtualBox
             // treats it as a fourth class besides IDE, SATA, SCSI
@@ -548,25 +581,24 @@ struct HardDiskController
                                                 // false for the next (e.g. IDE secondary ctler)
 
     HardDiskController()
-        : idController(0),
-          lAddress(0),
+        : lAddress(0),
           fPrimary(true)
     { }
 };
 
-typedef std::map<uint32_t, HardDiskController> ControllersMap;
+typedef std::map<RTCString, HardDiskController> ControllersMap;
 
 struct VirtualDisk
 {
-    uint32_t    idController;// SCSI (or IDE) controller this disk is connected to;
-                             // this must match HardDiskController.idController and
-                             // points into VirtualSystem.mapControllers
-    uint32_t    ulAddressOnParent;// parsed strAddressOnParent of hardware item; will be 0 or 1 for IDE
-                                  // and possibly higher for disks attached to SCSI controllers (untested)
-    RTCString   strDiskId;// if the hard disk has an ovf:/disk/<id> reference,
-                          // this receives the <id> component; points to one of the
-                          // references in Appliance::Data.mapDisks
-    bool        fEmpty;//true - empty disk, e.g. the component <rasd:HostResource>...</rasd:HostResource> is absent.
+    RTCString   strIdController;    // SCSI (or IDE) controller this disk is connected to;
+                                    // this must match HardDiskController.strIdController and
+                                    // points into VirtualSystem.mapControllers
+    uint32_t    ulAddressOnParent;  // parsed strAddressOnParent of hardware item; will be 0 or 1 for IDE
+                                    // and possibly higher for disks attached to SCSI controllers (untested)
+    RTCString   strDiskId;          // if the hard disk has an ovf:/disk/<id> reference,
+                                    // this receives the <id> component; points to one of the
+                                    // references in Appliance::Data.mapDisks
+    bool        fEmpty; //true - empty disk, e.g. the component <rasd:HostResource>...</rasd:HostResource> is absent.
 };
 
 typedef std::map<RTCString, VirtualDisk> VirtualDisksMap;
@@ -593,7 +625,7 @@ struct VirtualSystem
 
     RTCString    strDescription;         // copy of VirtualSystem/AnnotationSection content, if any
 
-    CIMOSType_T         cimos;
+    CIMOSType_T  cimos;
     RTCString    strCimosDesc;           // readable description of the cimos type in the case of cimos = 0/1/102
     RTCString    strTypeVBox;            // optional type from @vbox:ostype attribute (VirtualBox 4.0 or higher)
 

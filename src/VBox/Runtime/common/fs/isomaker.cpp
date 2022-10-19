@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -641,6 +651,22 @@ typedef struct RTFSISOMAKEROUTPUTFILE
 } RTFSISOMAKEROUTPUTFILE;
 /** Pointer to the instance data of an ISO maker output file. */
 typedef RTFSISOMAKEROUTPUTFILE *PRTFSISOMAKEROUTPUTFILE;
+
+
+/**
+ * Directory entry type.
+ */
+typedef enum RTFSISOMAKERDIRTYPE
+{
+    /** Invalid directory entry. */
+    RTFSISOMAKERDIRTYPE_INVALID = 0,
+    /** Entry for the current directory, aka ".". */
+    RTFSISOMAKERDIRTYPE_CURRENT,
+    /** Entry for the parent directory, aka "..". */
+    RTFSISOMAKERDIRTYPE_PARENT,
+    /** Entry for a regular directory entry. */
+    RTFSISOMAKERDIRTYPE_OTHER
+} RTFSISOMAKERDIRTYPE;
 
 
 
@@ -4670,10 +4696,10 @@ static int rtFsIsoMakerFinalizeIsoDirectoryEntry(PRTFSISOMAKERFINALIZEDDIRS pFin
 {
     /* Set directory and translation table offsets.  (These are for
        helping generating data blocks later.) */
-    pName->offDirRec   = offInDir;
+    pName->offDirRec = offInDir;
 
     /* Calculate the minimal directory record size. */
-    size_t cbDirRec  = RT_UOFFSETOF(ISO9660DIRREC, achFileId) + pName->cbNameInDirRec + !(pName->cbNameInDirRec & 1);
+    size_t cbDirRec = RT_UOFFSETOF(ISO9660DIRREC, achFileId) + pName->cbNameInDirRec + !(pName->cbNameInDirRec & 1);
     AssertReturn(cbDirRec <= UINT8_MAX, VERR_FILENAME_TOO_LONG);
 
     pName->cbDirRec = (uint8_t)cbDirRec;
@@ -4714,7 +4740,7 @@ static int rtFsIsoMakerFinalizeIsoDirectoryEntry(PRTFSISOMAKERFINALIZEDDIRS pFin
         if (   pName->pszRockRidgeNm != pName->szName
             && pName->cchRockRidgeNm > 0
             && (   pName->cbNameInDirRec != 1
-                || (uint8_t)pName->szName[0] > (uint8_t)0x01) )
+                || (uint8_t)pName->szName[0] > (uint8_t)0x01) )  /** @todo only root dir ever uses an ID byte here? [RR NM ./..] */
         {
             uint16_t cchNm = pName->cchRockRidgeNm;
             while (cchNm > ISO9660RRIPNM_MAX_NAME_LEN)
@@ -4785,7 +4811,7 @@ static int rtFsIsoMakerFinalizeIsoDirectoryEntry(PRTFSISOMAKERFINALIZEDDIRS pFin
                 Assert(!(fFlags & (ISO9660RRIP_RR_F_NM | ISO9660RRIP_RR_F_SL | ISO9660RRIP_RR_F_CL | ISO9660RRIP_RR_F_PL | ISO9660RRIP_RR_F_RE)));
                 cbRock += sizeof(ISO9660SUSPSP);
                 Assert(pName->cbDirRec + cbRock < UINT8_MAX);
-                pName->cbRockInDirRec       = cbRock ;
+                pName->cbRockInDirRec       = cbRock;
                 pName->cbRockSpill          = 0;
                 pName->fRockNeedER          = false;
                 pName->fRockNeedRRInDirRec  = false;
@@ -4873,6 +4899,12 @@ static int rtFsIsoMakerFinalizeDirectoriesInIsoNamespace(PRTFSISOMAKERINT pThis,
             /* We don't do anything special for the special '.' and '..' directory
                entries, instead we use the directory entry in the parent directory
                with a 1 byte name (00 or 01). */
+            /** @todo r=bird: This causes trouble with RR NM records, since we'll be
+             *        emitting the real directory name rather than '.' or '..' (or
+             *        whatever we should be emitting for these two special dirs).
+             *        FreeBSD got confused with this.  The RTFSISOMAKERDIRTYPE stuff is a
+             *        workaround for this, however it doesn't hold up if we have to use
+             *        the spill file. [RR NM ./..] */
             Assert(pCurName->cbDirRec != 0);
             Assert(pParentName->cbDirRec != 0);
             pCurDir->cbDirRec00 = pCurName->cbDirRec    - pCurName->cbNameInDirRec    - !(pCurName->cbNameInDirRec    & 1) + 1;
@@ -5835,8 +5867,10 @@ static ssize_t rtFsIsoMakerOutFile_RockRidgeGenSL(const char *pszTarget, uint8_t
  * @param   cbSys           The size of the output buffer.
  * @param   fInSpill        Indicates whether we're in a spill file (true) or
  *                          directory record (false).
+ * @param   enmDirType      The kind of directory entry this is.
  */
-static void rtFsIosMakerOutFile_GenerateRockRidge(PRTFSISOMAKERNAME pName, uint8_t *pbSys, size_t cbSys, bool fInSpill)
+static void rtFsIosMakerOutFile_GenerateRockRidge(PRTFSISOMAKERNAME pName, uint8_t *pbSys, size_t cbSys,
+                                                  bool fInSpill, RTFSISOMAKERDIRTYPE enmDirType)
 {
     /*
      * Deal with records specific to the root directory '.' entry.
@@ -5980,6 +6014,14 @@ static void rtFsIosMakerOutFile_GenerateRockRidge(PRTFSISOMAKERNAME pName, uint8
                 pNM->Hdr.cbEntry    = (uint8_t)(RT_UOFFSETOF(ISO9660RRIPNM, achName) + cchThis);
                 pNM->Hdr.bVersion   = ISO9660RRIPNM_VER;
                 pNM->fFlags         = cchThis == cchSrc ? 0 : ISO9660RRIP_NM_F_CONTINUE;
+                /** @todo r=bird: This only works when not using the spill file. The spill
+                 *        file entry will be shared between the original and all the '.' and
+                 *        '..' entries.  FreeBSD gets confused by this w/o the
+                 *        ISO9660RRIP_NM_F_CURRENT and ISO9660RRIP_NM_F_PARENT flags. */
+                if (enmDirType == RTFSISOMAKERDIRTYPE_CURRENT)
+                    pNM->fFlags    |= ISO9660RRIP_NM_F_CURRENT;
+                else if (enmDirType == RTFSISOMAKERDIRTYPE_PARENT)
+                    pNM->fFlags    |= ISO9660RRIP_NM_F_PARENT;
                 memcpy(&pNM->achName[0], pszSrc, cchThis);
                 pbSys  += RT_UOFFSETOF(ISO9660RRIPNM, achName) + cchThis;
                 cbSys  -= RT_UOFFSETOF(ISO9660RRIPNM, achName) + cchThis;
@@ -6148,7 +6190,11 @@ static int rtFsIsoMakerOutFile_RockRidgeSpillReadSectors(PRTFSISOMAKEROUTPUTFILE
         }
 
         AssertReturn(cbToRead >= pChild->cbRockSpill, VERR_ISOMK_IPE_RR_READ);
-        rtFsIosMakerOutFile_GenerateRockRidge(pDir->pName, pbBuf, cbToRead, true /*fInSpill*/);
+        /** @todo r=bird: using RTFSISOMAKERDIRTYPE_OTHER is correct as we don't seem to
+         *        have separate name entries for '.' and '..'.  However it means that if
+         *        any directory ends up in the spill file we'll end up with the wrong
+         *        data for the '.' and '..' entries. [RR NM ./..] */
+        rtFsIosMakerOutFile_GenerateRockRidge(pDir->pName, pbBuf, cbToRead, true /*fInSpill*/, RTFSISOMAKERDIRTYPE_OTHER);
         cbToRead  -= pChild->cbRockSpill;
         pbBuf     += pChild->cbRockSpill;
         offInFile += pChild->cbRockSpill;
@@ -6655,9 +6701,10 @@ static size_t rtFsIsoMakerOutFile_ReadPathTable(PRTFSISOMAKERNAMEDIR *ppDirHint,
  * @param   pbBuf           The buffer.  This is at least pName->cbDirRec bytes
  *                          big (i.e. at most 256 bytes).
  * @param   pFinalizedDirs  The finalized directory data for the namespace.
+ * @param   enmDirType      The kind of directory entry this is.
  */
 static uint32_t rtFsIsoMakerOutFile_GenerateDirRec(PRTFSISOMAKERNAME pName, bool fUnicode, uint8_t *pbBuf,
-                                                   PRTFSISOMAKERFINALIZEDDIRS pFinalizedDirs)
+                                                   PRTFSISOMAKERFINALIZEDDIRS pFinalizedDirs, RTFSISOMAKERDIRTYPE enmDirType)
 {
     /*
      * Emit a standard ISO-9660 directory record.
@@ -6732,7 +6779,7 @@ static uint32_t rtFsIsoMakerOutFile_GenerateDirRec(PRTFSISOMAKERNAME pName, bool
         if (cbSys > pName->cbRockInDirRec)
             RT_BZERO(&pbSys[pName->cbRockInDirRec], cbSys - pName->cbRockInDirRec);
         if (pName->cbRockSpill == 0)
-            rtFsIosMakerOutFile_GenerateRockRidge(pName, pbSys, cbSys, false /*fInSpill*/);
+            rtFsIosMakerOutFile_GenerateRockRidge(pName, pbSys, cbSys, false /*fInSpill*/, enmDirType);
         else
         {
             /* Maybe emit SP and RR entry, before emitting the CE entry. */
@@ -6797,7 +6844,7 @@ static uint32_t rtFsIsoMakerOutFile_GenerateDirRecDirect(PRTFSISOMAKERNAME pName
     /*
      * Normally there is just a single record without any zero padding.
      */
-    uint32_t cbReturn = rtFsIsoMakerOutFile_GenerateDirRec(pName, fUnicode, pbBuf, pFinalizedDirs);
+    uint32_t cbReturn = rtFsIsoMakerOutFile_GenerateDirRec(pName, fUnicode, pbBuf, pFinalizedDirs, RTFSISOMAKERDIRTYPE_OTHER);
     if (RT_LIKELY(pName->cbDirRecTotal == cbReturn))
         return cbReturn;
     Assert(cbReturn < pName->cbDirRecTotal);
@@ -6873,7 +6920,8 @@ static uint32_t rtFsIsoMakerOutFile_GenerateDirRecPartial(PRTFSISOMAKERNAME pNam
      */
     uint8_t abTmpBuf[256];
     Assert(pName->cbDirRec <= sizeof(abTmpBuf));
-    uint32_t const cbOne = rtFsIsoMakerOutFile_GenerateDirRec(pName, fUnicode, abTmpBuf, pFinalizedDirs);
+    uint32_t const cbOne = rtFsIsoMakerOutFile_GenerateDirRec(pName, fUnicode, abTmpBuf,
+                                                              pFinalizedDirs, RTFSISOMAKERDIRTYPE_OTHER);
     Assert(cbOne == pName->cbDirRec);
     if (cbOne == pName->cbDirRecTotal)
     {
@@ -6992,8 +7040,13 @@ static uint32_t rtFsIsoMakerOutFile_GenerateSpecialDirRec(PRTFSISOMAKERNAME pNam
     /* Generate a regular directory record. */
     uint8_t abTmpBuf[256];
     Assert(off < pName->cbDirRec);
-    size_t cbToCopy = rtFsIsoMakerOutFile_GenerateDirRec(pName, fUnicode, abTmpBuf, pFinalizedDirs);
+    size_t cbToCopy = rtFsIsoMakerOutFile_GenerateDirRec(pName, fUnicode, abTmpBuf, pFinalizedDirs,
+                                                         bDirId == 0 ? RTFSISOMAKERDIRTYPE_CURRENT : RTFSISOMAKERDIRTYPE_PARENT);
     Assert(cbToCopy == pName->cbDirRec);
+
+    /** @todo r=bird: This isn't working quite right as the NM record includes the
+     *        full directory name. Spill file stuff is shared with the (grand)parent
+     *        directory entry. [RR NM ./..] */
 
     /* Replace the filename part. */
     PISO9660DIRREC pDirRec = (PISO9660DIRREC)abTmpBuf;
@@ -7453,6 +7506,7 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoMakerOutputFileOps =
             "ISO Maker Output File",
             rtFsIsoMakerOutFile_Close,
             rtFsIsoMakerOutFile_QueryInfo,
+            NULL,
             RTVFSOBJOPS_VERSION
         },
         RTVFSIOSTREAMOPS_VERSION,

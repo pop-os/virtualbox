@@ -7,22 +7,12 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <assert.h>
 #include <ipxe/list.h>
-
-/**
- * I/O buffer alignment
- *
- * I/O buffers allocated via alloc_iob() are guaranteed to be
- * physically aligned to this boundary.  Some cards cannot DMA across
- * a 4kB boundary.  With a standard Ethernet MTU, aligning to a 2kB
- * boundary is sufficient to guarantee no 4kB boundary crossings.  For
- * a jumbo Ethernet MTU, a packet may be larger than 4kB anyway.
- */
-#define IOB_ALIGN 2048
+#include <ipxe/dma.h>
 
 /**
  * Minimum I/O buffer length
@@ -31,7 +21,7 @@ FILE_LICENCE ( GPL2_OR_LATER );
  * necessary.  This is used on behalf of hardware that is not capable
  * of auto-padding.
  */
-#define IOB_ZLEN 64
+#define IOB_ZLEN 128
 
 /**
  * A persistent I/O buffer
@@ -48,6 +38,9 @@ struct io_buffer {
 	 * retransmission list for TCP).
 	 */
 	struct list_head list;
+
+	/** DMA mapping */
+	struct dma_mapping map;
 
 	/** Start of the buffer */
 	void *head;
@@ -221,9 +214,78 @@ static inline void iob_populate ( struct io_buffer *iobuf,
 	(iobuf) = NULL;					\
 	__iobuf; } )
 
+/**
+ * Map I/O buffer for DMA
+ *
+ * @v iobuf		I/O buffer
+ * @v dma		DMA device
+ * @v len		Length to map
+ * @v flags		Mapping flags
+ * @ret rc		Return status code
+ */
+static inline __always_inline int iob_map ( struct io_buffer *iobuf,
+					    struct dma_device *dma,
+					    size_t len, int flags ) {
+	return dma_map ( dma, &iobuf->map, virt_to_phys ( iobuf->data ),
+			 len, flags );
+}
+
+/**
+ * Map I/O buffer for transmit DMA
+ *
+ * @v iobuf		I/O buffer
+ * @v dma		DMA device
+ * @ret rc		Return status code
+ */
+static inline __always_inline int iob_map_tx ( struct io_buffer *iobuf,
+					       struct dma_device *dma ) {
+	return iob_map ( iobuf, dma, iob_len ( iobuf ), DMA_TX );
+}
+
+/**
+ * Map empty I/O buffer for receive DMA
+ *
+ * @v iobuf		I/O buffer
+ * @v dma		DMA device
+ * @ret rc		Return status code
+ */
+static inline __always_inline int iob_map_rx ( struct io_buffer *iobuf,
+					       struct dma_device *dma ) {
+	assert ( iob_len ( iobuf ) == 0 );
+	return iob_map ( iobuf, dma, iob_tailroom ( iobuf ), DMA_RX );
+}
+
+/**
+ * Get I/O buffer DMA address
+ *
+ * @v iobuf		I/O buffer
+ * @ret addr		DMA address
+ */
+static inline __always_inline physaddr_t iob_dma ( struct io_buffer *iobuf ) {
+	return dma ( &iobuf->map, iobuf->data );
+}
+
+/**
+ * Unmap I/O buffer for DMA
+ *
+ * @v iobuf		I/O buffer
+ * @v dma		DMA device
+ * @ret rc		Return status code
+ */
+static inline __always_inline void iob_unmap ( struct io_buffer *iobuf ) {
+	dma_unmap ( &iobuf->map );
+}
+
+extern struct io_buffer * __malloc alloc_iob_raw ( size_t len, size_t align,
+						   size_t offset );
 extern struct io_buffer * __malloc alloc_iob ( size_t len );
 extern void free_iob ( struct io_buffer *iobuf );
+extern struct io_buffer * __malloc alloc_rx_iob ( size_t len,
+						  struct dma_device *dma );
+extern void free_rx_iob ( struct io_buffer *iobuf );
 extern void iob_pad ( struct io_buffer *iobuf, size_t min_len );
 extern int iob_ensure_headroom ( struct io_buffer *iobuf, size_t len );
+extern struct io_buffer * iob_concatenate ( struct list_head *list );
+extern struct io_buffer * iob_split ( struct io_buffer *iobuf, size_t len );
 
 #endif /* _IPXE_IOBUF_H */

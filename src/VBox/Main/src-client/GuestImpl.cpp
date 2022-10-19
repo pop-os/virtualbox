@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_GUEST
@@ -40,6 +50,7 @@
 #include <iprt/stream.h>
 #include <iprt/timer.h>
 #include <VBox/vmm/pgm.h>
+#include <VBox/vmm/vmmr3vtable.h>
 #include <VBox/version.h>
 
 // defines
@@ -217,10 +228,10 @@ DECLCALLBACK(void) Guest::i_staticUpdateStats(RTTIMERLR hTimerLR, void *pvUser, 
 
 /* static */
 DECLCALLBACK(int)  Guest::i_staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void *pvSample,
-                                                    STAMUNIT enmUnit, STAMVISIBILITY enmVisiblity,
+                                                    STAMUNIT enmUnit, const char *pszUnit, STAMVISIBILITY enmVisiblity,
                                                     const char *pszDesc, void *pvUser)
 {
-    RT_NOREF(enmVisiblity, pszDesc);
+    RT_NOREF(enmVisiblity, pszDesc, pszUnit);
     AssertLogRelMsgReturn(enmType == STAMTYPE_COUNTER, ("Unexpected sample type %d ('%s')\n", enmType, pszName), VINF_SUCCESS);
     AssertLogRelMsgReturn(enmUnit == STAMUNIT_BYTES, ("Unexpected sample unit %d ('%s')\n", enmUnit, pszName), VINF_SUCCESS);
 
@@ -245,9 +256,9 @@ DECLCALLBACK(int)  Guest::i_staticEnumStatsCallback(const char *pszName, STAMTYP
     pszLastSlash++;
 
     uint8_t uInstance;
-    int rc = RTStrToUInt8Ex(pszLastSlash, NULL, 10, &uInstance);
-    AssertLogRelMsgReturn(RT_SUCCESS(rc) && rc != VWRN_NUMBER_TOO_BIG && rc != VWRN_NEGATIVE_UNSIGNED,
-                          ("%Rrc '%s'\n", rc, pszName), VINF_SUCCESS)
+    int vrc = RTStrToUInt8Ex(pszLastSlash, NULL, 10, &uInstance);
+    AssertLogRelMsgReturn(RT_SUCCESS(vrc) && vrc != VWRN_NUMBER_TOO_BIG && vrc != VWRN_NEGATIVE_UNSIGNED,
+                          ("%Rrc '%s'\n", vrc, pszName), VINF_SUCCESS)
 #endif
 
     /* Add the bytes to our counters. */
@@ -300,7 +311,7 @@ void Guest::i_updateStats(uint64_t iTick)
     Console::SafeVMPtrQuiet ptrVM(mParent);
     if (ptrVM.isOk())
     {
-        int rc;
+        int vrc;
 
         /*
          * There is no point in collecting VM shared memory if other memory
@@ -310,16 +321,18 @@ void Guest::i_updateStats(uint64_t iTick)
         {
             /* Query the missing per-VM memory statistics. */
             uint64_t cbTotalMemIgn, cbPrivateMemIgn, cbZeroMemIgn;
-            rc = PGMR3QueryMemoryStats(ptrVM.rawUVM(), &cbTotalMemIgn, &cbPrivateMemIgn, &cbSharedMem, &cbZeroMemIgn);
-            if (rc == VINF_SUCCESS)
+            vrc = ptrVM.vtable()->pfnPGMR3QueryMemoryStats(ptrVM.rawUVM(), &cbTotalMemIgn, &cbPrivateMemIgn,
+                                                           &cbSharedMem, &cbZeroMemIgn);
+            if (vrc == VINF_SUCCESS)
                 validStats |= pm::VMSTATMASK_GUEST_MEMSHARED;
         }
 
         if (mCollectVMMStats)
         {
-            rc = PGMR3QueryGlobalMemoryStats(ptrVM.rawUVM(), &cbAllocTotal, &cbFreeTotal, &cbBalloonedTotal, &cbSharedTotal);
-            AssertRC(rc);
-            if (rc == VINF_SUCCESS)
+            vrc = ptrVM.vtable()->pfnPGMR3QueryGlobalMemoryStats(ptrVM.rawUVM(), &cbAllocTotal, &cbFreeTotal,
+                                                                 &cbBalloonedTotal, &cbSharedTotal);
+            AssertRC(vrc);
+            if (vrc == VINF_SUCCESS)
                 validStats |= pm::VMSTATMASK_VMM_ALLOC  | pm::VMSTATMASK_VMM_FREE
                            |  pm::VMSTATMASK_VMM_BALOON | pm::VMSTATMASK_VMM_SHARED;
         }
@@ -327,8 +340,8 @@ void Guest::i_updateStats(uint64_t iTick)
         uint64_t uRxPrev = mNetStatRx;
         uint64_t uTxPrev = mNetStatTx;
         mNetStatRx = mNetStatTx = 0;
-        rc = STAMR3Enum(ptrVM.rawUVM(), "/Public/Net/*/Bytes*", i_staticEnumStatsCallback, this);
-        AssertRC(rc);
+        vrc = ptrVM.vtable()->pfnSTAMR3Enum(ptrVM.rawUVM(), "/Public/Net/*/Bytes*", i_staticEnumStatsCallback, this);
+        AssertRC(vrc);
 
         uint64_t uTsNow = RTTimeNanoTS();
         uint64_t cNsPassed = uTsNow - mNetStatLastTs;
@@ -414,7 +427,7 @@ HRESULT Guest::getAdditionsVersion(com::Utf8Str &aAdditionsVersion)
     else
     {
         /*
-         * If we're running older guest additions (< 3.2.0) try get it from
+         * If we're running older Guest Additions (< 3.2.0) try get it from
          * the guest properties.  Detected switched around Version and
          * Revision in early 3.1.x releases (see r57115).
          */
@@ -461,7 +474,7 @@ HRESULT Guest::getAdditionsRevision(ULONG *aAdditionsRevision)
     else
     {
         /*
-         * If we're running older guest additions (< 3.2.0) try get it from
+         * If we're running older Guest Additions (< 3.2.0) try get it from
          * the guest properties. Detected switched around Version and
          * Revision in early 3.1.x releases (see r57115).
          */
@@ -632,17 +645,17 @@ HRESULT Guest::setStatisticsUpdateInterval(ULONG aStatisticsUpdateInterval)
         if (mStatTimer == NIL_RTTIMERLR)
         {
             vrc = RTTimerLRCreate(&mStatTimer, aStatisticsUpdateInterval * RT_MS_1SEC, &Guest::i_staticUpdateStats, this);
-            AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to create guest statistics update timer (%Rrc)", vrc));
+            AssertRCStmt(vrc, hrc = setErrorVrc(vrc, tr("Failed to create guest statistics update timer (%Rrc)"), vrc));
         }
         else if (aStatisticsUpdateInterval != mStatUpdateInterval)
         {
             vrc = RTTimerLRChangeInterval(mStatTimer, aStatisticsUpdateInterval * RT_NS_1SEC_64);
-            AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to change guest statistics update timer interval from %u to %u failed (%Rrc)",
+            AssertRCStmt(vrc, hrc = setErrorVrc(vrc, tr("Failed to change guest statistics update timer interval from %u to %u failed (%Rrc)"),
                                                 mStatUpdateInterval, aStatisticsUpdateInterval, vrc));
             if (mStatUpdateInterval == 0)
             {
                 vrc = RTTimerLRStart(mStatTimer, 0);
-                AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to start the guest statistics update timer (%Rrc)", vrc));
+                AssertRCStmt(vrc, hrc = setErrorVrc(vrc, tr("Failed to start the guest statistics update timer (%Rrc)"), vrc));
             }
         }
     }
@@ -650,7 +663,7 @@ HRESULT Guest::setStatisticsUpdateInterval(ULONG aStatisticsUpdateInterval)
     else if (mStatUpdateInterval > 0 && mStatTimer != NIL_RTTIMERLR)
     {
         vrc = RTTimerLRStop(mStatTimer);
-        AssertRCStmt(vrc, hrc = setErrorVrc(vrc, "Failed to stop the guest statistics update timer (%Rrc)", vrc));
+        AssertRCStmt(vrc, hrc = setErrorVrc(vrc, tr("Failed to stop the guest statistics update timer (%Rrc)"), vrc));
     }
 
     /* Update the interval now that the timer is in sync. */
@@ -705,8 +718,9 @@ HRESULT Guest::internalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *
         return E_FAIL;
 
     uint64_t cbFreeTotal, cbAllocTotal, cbBalloonedTotal, cbSharedTotal;
-    int rc = PGMR3QueryGlobalMemoryStats(ptrVM.rawUVM(), &cbAllocTotal, &cbFreeTotal, &cbBalloonedTotal, &cbSharedTotal);
-    AssertRCReturn(rc, E_FAIL);
+    int vrc = ptrVM.vtable()->pfnPGMR3QueryGlobalMemoryStats(ptrVM.rawUVM(), &cbAllocTotal, &cbFreeTotal,
+                                                             &cbBalloonedTotal, &cbSharedTotal);
+    AssertRCReturn(vrc, E_FAIL);
 
     *aMemAllocTotal   = (ULONG)(cbAllocTotal / _1K);  /* bytes -> KB */
     *aMemFreeTotal    = (ULONG)(cbFreeTotal / _1K);
@@ -715,8 +729,8 @@ HRESULT Guest::internalGetStatistics(ULONG *aCpuUser, ULONG *aCpuKernel, ULONG *
 
     /* Query the missing per-VM memory statistics. */
     uint64_t cbTotalMemIgn, cbPrivateMemIgn, cbSharedMem, cbZeroMemIgn;
-    rc = PGMR3QueryMemoryStats(ptrVM.rawUVM(), &cbTotalMemIgn, &cbPrivateMemIgn, &cbSharedMem, &cbZeroMemIgn);
-    AssertRCReturn(rc, E_FAIL);
+    vrc = ptrVM.vtable()->pfnPGMR3QueryMemoryStats(ptrVM.rawUVM(), &cbTotalMemIgn, &cbPrivateMemIgn, &cbSharedMem, &cbZeroMemIgn);
+    AssertRCReturn(vrc, E_FAIL);
     *aMemShared = (ULONG)(cbSharedMem / _1K);
 
     return S_OK;
@@ -808,7 +822,7 @@ HRESULT Guest::getAdditionsStatus(AdditionsRunLevelType_T aLevel, BOOL *aActive)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     switch (aLevel)
     {
         case AdditionsRunLevelType_System:
@@ -824,13 +838,14 @@ HRESULT Guest::getAdditionsStatus(AdditionsRunLevelType_T aLevel, BOOL *aActive)
             break;
 
         default:
-            rc = setError(VBOX_E_NOT_SUPPORTED,
-                          tr("Invalid status level defined: %u"), aLevel);
+            hrc = setError(VBOX_E_NOT_SUPPORTED,
+                           tr("Invalid status level defined: %u"), aLevel);
             break;
     }
 
-    return rc;
+    return hrc;
 }
+
 HRESULT Guest::setCredentials(const com::Utf8Str &aUserName, const com::Utf8Str &aPassword,
                               const com::Utf8Str &aDomain, BOOL aAllowInteractiveLogon)
 {
@@ -959,8 +974,8 @@ void Guest::i_setAdditionsInfo(const com::Utf8Str &aInterfaceVersion, VBOXOSTYPE
      */
     AdditionsRunLevelType_T const enmRunLevel = mData.mAdditionsRunLevel;
     alock.release();
-    fireGuestAdditionsStatusChangedEvent(mEventSource, AdditionsFacilityType_None, AdditionsFacilityStatus_Active,
-                                         enmRunLevel, RTTimeSpecGetMilli(&TimeSpecTS));
+    ::FireGuestAdditionsStatusChangedEvent(mEventSource, AdditionsFacilityType_None, AdditionsFacilityStatus_Active,
+                                           enmRunLevel, RTTimeSpecGetMilli(&TimeSpecTS));
 }
 
 /**
@@ -1072,8 +1087,8 @@ bool Guest::i_facilityUpdate(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacil
  * @param   pbDetails           Pointer to state details. Optional.
  * @param   cbDetails           Size (in bytes) of state details. Pass 0 if not used.
  */
-void Guest::i_onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enmState,
-                                const uint8_t *pbDetails, uint32_t cbDetails)
+void Guest::i_onUserStateChanged(const Utf8Str &aUser, const Utf8Str &aDomain, VBoxGuestUserState enmState,
+                                 const uint8_t *pbDetails, uint32_t cbDetails)
 {
     RT_NOREF(pbDetails, cbDetails);
     LogFlowThisFunc(("\n"));
@@ -1081,10 +1096,9 @@ void Guest::i_onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enm
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
-    Bstr strDetails; /** @todo Implement state details here. */
+    Utf8Str strDetails; /** @todo Implement state details here. */
 
-    fireGuestUserStateChangedEvent(mEventSource, aUser.raw(), aDomain.raw(),
-                                   (GuestUserState_T)enmState, strDetails.raw());
+    ::FireGuestUserStateChangedEvent(mEventSource, aUser, aDomain, (GuestUserState_T)enmState, strDetails);
     LogFlowFuncLeave();
 }
 
@@ -1142,9 +1156,9 @@ void Guest::i_setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestF
     if (fFireEvent || enmNewRunLevel != enmOldRunLevel)
     {
         alock.release();
-        fireGuestAdditionsStatusChangedEvent(mEventSource, (AdditionsFacilityType_T)a_enmFacility,
-                                             (AdditionsFacilityStatus_T)a_enmStatus, enmNewRunLevel,
-                                             RTTimeSpecGetMilli(a_pTimeSpecTS));
+        ::FireGuestAdditionsStatusChangedEvent(mEventSource, (AdditionsFacilityType_T)a_enmFacility,
+                                               (AdditionsFacilityStatus_T)a_enmStatus, enmNewRunLevel,
+                                               RTTimeSpecGetMilli(a_pTimeSpecTS));
     }
 }
 
@@ -1179,9 +1193,9 @@ void Guest::i_setSupportedFeatures(uint32_t aCaps)
     {
         AdditionsRunLevelType_T const enmRunLevel = mData.mAdditionsRunLevel;
         alock.release();
-        fireGuestAdditionsStatusChangedEvent(mEventSource, AdditionsFacilityType_Seamless,
-                                             aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS
-                                             ? AdditionsFacilityStatus_Active : AdditionsFacilityStatus_Inactive, enmRunLevel,
-                                             RTTimeSpecGetMilli(&TimeSpecTS));
+        ::FireGuestAdditionsStatusChangedEvent(mEventSource, AdditionsFacilityType_Seamless,
+                                               aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS
+                                               ? AdditionsFacilityStatus_Active : AdditionsFacilityStatus_Inactive,
+                                               enmRunLevel, RTTimeSpecGetMilli(&TimeSpecTS));
     }
 }

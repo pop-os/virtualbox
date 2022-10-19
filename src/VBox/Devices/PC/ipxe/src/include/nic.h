@@ -1,17 +1,18 @@
- /*
+/*
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2, or (at
- * your option) any later version.
- */
-
-/*
- * Oracle GPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
- * the General Public License version 2 (GPLv2) at this time for any software where
- * a choice of GPL license versions is made available with the language indicating
- * that GPLv2 or any later version may be used, or where a choice of which version
- * of the GPL is applied is otherwise unspecified.
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  */
 
 FILE_LICENCE ( GPL2_OR_LATER );
@@ -208,7 +209,8 @@ static inline void * legacy_isa_get_drvdata ( void *hwdev ) {
 
 #undef DRIVER
 #define DRIVER(_name_text,_unused2,_unused3,_name,_probe,_disable)	  \
-	static const char _name ## _text[] = _name_text;		  \
+	static __attribute__ (( unused )) const char			  \
+	_name ## _text[] = _name_text;					  \
 	static inline int						  \
 	_name ## _probe ( struct nic *nic, void *hwdev ) {		  \
 		return _probe ( nic, hwdev );				  \
@@ -275,6 +277,7 @@ static inline void * legacy_isa_get_drvdata ( void *hwdev ) {
 	_name ## _isa_legacy_remove ( struct isa_device *isa ) {	  \
 		return legacy_remove ( isa, legacy_isa_get_drvdata,	  \
 				       _name ## _disable );		  \
-	}
+	}								  \
+	PROVIDE_REQUIRING_SYMBOL()
 
 #endif	/* NIC_H */

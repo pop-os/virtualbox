@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_stam_h
@@ -32,13 +42,12 @@
 #include <VBox/types.h>
 #include <iprt/stdarg.h>
 #ifdef _MSC_VER
-# if _MSC_VER >= 1400
-#  pragma warning(push)
-#  pragma warning(disable:4668) /* Several incorrect __cplusplus uses. */
-#  pragma warning(disable:4255) /* Incorrect __slwpcb prototype. */
-#  include <intrin.h>
-#  pragma warning(pop)
+# if RT_MSC_PREREQ(RT_MSC_VER_VS2005)
+#  include <iprt/sanitized/intrin.h>
 # endif
+#endif
+#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+# include <iprt/asm-arm.h>
 #endif
 
 RT_C_DECLS_BEGIN
@@ -58,7 +67,9 @@ RT_C_DECLS_BEGIN
  *
  * @param   u64     The 64-bit variable which the timestamp shall be saved in.
  */
-#ifdef __GNUC__
+#if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)
+#  define STAM_GET_TS(u64) do { (u64) = ASMReadTSC(); } while (0)
+#elif defined(__GNUC__)
 # if defined(RT_ARCH_X86)
    /* This produces optimal assembler code for x86 but does not work for AMD64 ('A' means 'either rax or rdx') */
 #  define STAM_GET_TS(u64) __asm__ __volatile__ ("rdtsc\n\t" : "=A" (u64))
@@ -70,7 +81,7 @@ RT_C_DECLS_BEGIN
     } while (0)
 # endif
 #else
-# if _MSC_VER >= 1400
+# if RT_MSC_PREREQ(RT_MSC_VER_VS2005)
 #  pragma intrinsic(__rdtsc)
 #  define STAM_GET_TS(u64)    \
      do { (u64) = __rdtsc(); } while (0)
@@ -200,6 +211,8 @@ typedef enum STAMUNIT
     STAMUNIT_COUNT,
     /** Count of bytes. */
     STAMUNIT_BYTES,
+    /** Count of bytes per call. */
+    STAMUNIT_BYTES_PER_CALL,
     /** Count of bytes. */
     STAMUNIT_PAGES,
     /** Error count. */
@@ -799,6 +812,42 @@ typedef const STAMPROFILE *PCSTAMPROFILE;
 #endif
 
 
+/** @def STAM_REL_PROFILE_STOP_START
+ * Stops one profile counter (if running) and starts another one.
+ *
+ * @param   pProfile1   Pointer to the STAMPROFILE structure to stop.
+ * @param   pProfile2   Pointer to the STAMPROFILE structure to start.
+ * @param   Prefix      Identifier prefix used to internal variables.
+ */
+#ifndef VBOX_WITHOUT_RELEASE_STATISTICS
+# define STAM_REL_PROFILE_STOP_START(pProfile1, pProfile2, Prefix) \
+    do { \
+        uint64_t Prefix##_tsStop; \
+        STAM_GET_TS(Prefix##_tsStop); \
+        STAM_REL_PROFILE_ADD_PERIOD(pProfile1, Prefix##_tsStop - Prefix##_tsStart); \
+        Prefix##_tsStart = Prefix##_tsStop; \
+    } while (0)
+#else
+# define STAM_REL_PROFILE_STOP_START(pProfile1, pProfile2, Prefix) \
+    do { } while (0)
+#endif
+/** @def STAM_PROFILE_STOP_START
+ * Samples the stop time of a profiling period (if running) and updates the
+ * sample.
+ *
+ * @param   pProfile1   Pointer to the STAMPROFILE structure to stop.
+ * @param   pProfile2   Pointer to the STAMPROFILE structure to start.
+ * @param   Prefix      Identifier prefix used to internal variables.
+ */
+#ifdef VBOX_WITH_STATISTICS
+# define STAM_PROFILE_STOP_START(pProfile1, pProfile2, Prefix) \
+    STAM_REL_PROFILE_STOP_START(pProfile1, pProfile2, Prefix)
+#else
+# define STAM_PROFILE_STOP_START(pProfile1, pProfile2, Prefix) \
+    do { } while (0)
+#endif
+
+
 /** @def STAM_REL_PROFILE_START_NS
  * Samples the start time of a profiling period, using RTTimeNanoTS().
  *
@@ -1249,7 +1298,7 @@ VMMR3DECL(int)  STAMR3RegisterV(PVM pVM, void *pvSample, STAMTYPE enmType, STAMV
  * @param   pVM         The cross context VM structure.
  * @param   pvSample    The sample registered using STAMR3RegisterCallback.
  */
-typedef void FNSTAMR3CALLBACKRESET(PVM pVM, void *pvSample);
+typedef DECLCALLBACKTYPE(void, FNSTAMR3CALLBACKRESET,(PVM pVM, void *pvSample));
 /** Pointer to a STAM sample reset callback. */
 typedef FNSTAMR3CALLBACKRESET *PFNSTAMR3CALLBACKRESET;
 
@@ -1261,7 +1310,7 @@ typedef FNSTAMR3CALLBACKRESET *PFNSTAMR3CALLBACKRESET;
  * @param   pszBuf      The buffer to print into.
  * @param   cchBuf      The size of the buffer.
  */
-typedef void FNSTAMR3CALLBACKPRINT(PVM pVM, void *pvSample, char *pszBuf, size_t cchBuf);
+typedef DECLCALLBACKTYPE(void, FNSTAMR3CALLBACKPRINT,(PVM pVM, void *pvSample, char *pszBuf, size_t cchBuf));
 /** Pointer to a STAM sample print callback. */
 typedef FNSTAMR3CALLBACKPRINT *PFNSTAMR3CALLBACKPRINT;
 
@@ -1301,17 +1350,21 @@ VMMR3DECL(int)  STAMR3Print(PUVM pUVM, const char *pszPat);
  * @param   enmType         The type.
  * @param   pvSample        Pointer to the data. enmType indicates the format of this data.
  * @param   enmUnit         The unit.
+ * @param   pszUnit         The unit as string.  This is a permanent string,
+ *                          same as returned by STAMR3GetUnit().
  * @param   enmVisibility   The visibility.
  * @param   pszDesc         The description.
  * @param   pvUser          The pvUser argument given to STAMR3Enum().
  */
-typedef DECLCALLBACK(int) FNSTAMR3ENUM(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
-                                       STAMVISIBILITY enmVisiblity, const char *pszDesc, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNSTAMR3ENUM,(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
+                                            const char *pszUnit, STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser));
 /** Pointer to a FNSTAMR3ENUM(). */
 typedef FNSTAMR3ENUM *PFNSTAMR3ENUM;
 
 VMMR3DECL(int)  STAMR3Enum(PUVM pUVM, const char *pszPat, PFNSTAMR3ENUM pfnEnum, void *pvUser);
 VMMR3DECL(const char *) STAMR3GetUnit(STAMUNIT enmUnit);
+VMMR3DECL(const char *) STAMR3GetUnit1(STAMUNIT enmUnit);
+VMMR3DECL(const char *) STAMR3GetUnit2(STAMUNIT enmUnit);
 
 /** @} */
 

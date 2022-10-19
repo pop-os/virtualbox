@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -1512,7 +1522,9 @@ static DECLCALLBACK(int) qedProbe(const char *pszFilename, PVDINTERFACE pVDIfsDi
     /* Get I/O interface. */
     PVDINTERFACEIOINT pIfIo = VDIfIoIntGet(pVDIfsImage);
     AssertPtrReturn(pIfIo, VERR_INVALID_PARAMETER);
-    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename != '\0', VERR_INVALID_PARAMETER);
+
 
     /*
      * Open the file and read the footer.
@@ -1562,7 +1574,9 @@ static DECLCALLBACK(int) qedOpen(const char *pszFilename, unsigned uOpenFlags,
 
     /* Check open flags. All valid flags are supported. */
     AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename != '\0', VERR_INVALID_PARAMETER);
+
 
     PQEDIMAGE pImage = (PQEDIMAGE)RTMemAllocZ(RT_UOFFSETOF(QEDIMAGE, RegionList.aRegions[1]));
     if (RT_LIKELY(pImage))
@@ -1606,10 +1620,10 @@ static DECLCALLBACK(int) qedCreate(const char *pszFilename, uint64_t cbSize,
 
     /* Check open flags. All valid flags are supported. */
     AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn(   VALID_PTR(pszFilename)
-                 && *pszFilename
-                 && VALID_PTR(pPCHSGeometry)
-                 && VALID_PTR(pLCHSGeometry), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename != '\0', VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pPCHSGeometry, VERR_INVALID_POINTER);
+    AssertPtrReturn(pLCHSGeometry, VERR_INVALID_POINTER);
 
     PQEDIMAGE pImage = (PQEDIMAGE)RTMemAllocZ(RT_UOFFSETOF(QEDIMAGE, RegionList.aRegions[1]));
     if (RT_LIKELY(pImage))
@@ -1713,7 +1727,8 @@ static DECLCALLBACK(int) qedRead(void *pBackendData, uint64_t uOffset, size_t cb
     AssertPtr(pImage);
     Assert(uOffset % 512 == 0);
     Assert(cbToRead % 512 == 0);
-    AssertReturn((VALID_PTR(pIoCtx) && cbToRead), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pIoCtx, VERR_INVALID_POINTER);
+    AssertReturn(cbToRead, VERR_INVALID_PARAMETER);
     AssertReturn(uOffset + cbToRead <= pImage->cbSize, VERR_INVALID_PARAMETER);
 
     qedConvertLogicalOffset(pImage, uOffset, &idxL1, &idxL2, &offCluster);
@@ -1754,7 +1769,8 @@ static DECLCALLBACK(int) qedWrite(void *pBackendData, uint64_t uOffset, size_t c
     AssertPtr(pImage);
     Assert(!(uOffset % 512));
     Assert(!(cbToWrite % 512));
-    AssertReturn((VALID_PTR(pIoCtx) && cbToWrite), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pIoCtx, VERR_INVALID_POINTER);
+    AssertReturn(cbToWrite, VERR_INVALID_PARAMETER);
     AssertReturn(uOffset + cbToWrite <= pImage->cbSize, VERR_INVALID_PARAMETER);
 
     if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))

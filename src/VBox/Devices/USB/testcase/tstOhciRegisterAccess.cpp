@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -453,7 +463,7 @@ static bool TestOhciReads(RTVPTRUNION uPtr)
             /* Test unaligned word access. */
             if (fDone)
             {
-                for (int iWord = ((uintptr_t)uPtr.pv & PAGE_OFFSET_MASK) == 0; iWord < 3; iWord++)
+                for (int iWord = (uPtr.u & HOST_PAGE_OFFSET_MASK) == 0; iWord < 3; iWord++)
                 {
                     u32A = *uPtr.pu32;
                     u32B = *(volatile uint16_t *)&uPtr.pu8[iWord * 2 - 1];
@@ -482,7 +492,7 @@ static bool TestOhciReads(RTVPTRUNION uPtr)
             /* Test unaligned dword access. */
             if (fDone)
             {
-                for (int iByte = ((uintptr_t)uPtr.pv & PAGE_OFFSET_MASK) == 0 ? 0 : -3; iByte < 4; iByte++)
+                for (int iByte = (uPtr.u & HOST_PAGE_OFFSET_MASK) == 0 ? 0 : -3; iByte < 4; iByte++)
                 {
                     u32A = *uPtr.pu32;
                     u32B = *(volatile uint32_t *)&uPtr.pu8[iByte];
@@ -548,7 +558,7 @@ int tstOhciRegisterAccess(RTHCPHYS HCPhysOHCI)
      * Map the OHCI registers so we can access them.
      */
     RTR0MEMOBJ hMemObj;
-    int rc = RTR0MemObjEnterPhys(&hMemObj, HCPhysOHCI, PAGE_SIZE, RTMEM_CACHE_POLICY_MMIO);
+    int rc = RTR0MemObjEnterPhys(&hMemObj, HCPhysOHCI, HOST_PAGE_SIZE, RTMEM_CACHE_POLICY_MMIO);
     if (RT_FAILURE(rc))
     {
         LogRel(("tstOhciRegisterAccess: Failed to enter OHCI memory at %RHp: %Rrc\n", HCPhysOHCI, rc));

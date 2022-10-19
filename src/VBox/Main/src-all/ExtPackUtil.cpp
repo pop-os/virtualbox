@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -37,6 +47,18 @@
 
 #include <VBox/log.h>
 
+#include "../include/VBoxNls.h"
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+DECLARE_TRANSLATION_CONTEXT(ExtPackUtil);
+
+
+/*********************************************************************************************************************************
+*   Functions                                                                                                                    *
+*********************************************************************************************************************************/
 
 /**
  * Worker for VBoxExtPackLoadDesc that loads the plug-in descriptors.
@@ -61,6 +83,7 @@ vboxExtPackLoadPlugInDescs(const xml::ElementNode *pVBoxExtPackElm,
     return NULL;
 }
 
+
 /**
  * Clears the extension pack descriptor.
  *
@@ -76,10 +99,12 @@ static void vboxExtPackClearDesc(PVBOXEXTPACKDESC a_pExtPackDesc)
     a_pExtPackDesc->strMainModule.setNull();
     a_pExtPackDesc->strMainVMModule.setNull();
     a_pExtPackDesc->strVrdeModule.setNull();
+    a_pExtPackDesc->strCryptoModule.setNull();
     a_pExtPackDesc->cPlugIns = 0;
     a_pExtPackDesc->paPlugIns = NULL;
     a_pExtPackDesc->fShowLicense = false;
 }
+
 
 /**
  * Initializes an extension pack descriptor so that it's safe to call free on
@@ -109,41 +134,41 @@ static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACK
     const xml::ElementNode *pVBoxExtPackElm = a_pDoc->getRootElement();
     if (   !pVBoxExtPackElm
         || strcmp(pVBoxExtPackElm->getName(), "VirtualBoxExtensionPack") != 0)
-        return new RTCString("No VirtualBoxExtensionPack element");
+        return new RTCString(ExtPackUtil::tr("No VirtualBoxExtensionPack element"));
 
     RTCString strFormatVersion;
     if (!pVBoxExtPackElm->getAttributeValueN("version", strFormatVersion, RT_XML_ATTR_TINY))
-        return new RTCString("Missing format version");
+        return new RTCString(ExtPackUtil::tr("Missing format version"));
     if (!strFormatVersion.equals("1.0"))
-        return &(new RTCString("Unsupported format version: "))->append(strFormatVersion);
+        return &(new RTCString(ExtPackUtil::tr("Unsupported format version: ")))->append(strFormatVersion);
 
     /*
      * Read and validate mandatory bits.
      */
     const xml::ElementNode *pNameElm = pVBoxExtPackElm->findChildElement("Name");
     if (!pNameElm)
-        return new RTCString("The 'Name' element is missing");
+        return new RTCString(ExtPackUtil::tr("The 'Name' element is missing"));
     const char *pszName = pNameElm->getValueN(RT_XML_CONTENT_SMALL);
     if (!VBoxExtPackIsValidName(pszName))
-        return &(new RTCString("Invalid name: "))->append(pszName);
+        return &(new RTCString(ExtPackUtil::tr("Invalid name: ")))->append(pszName);
 
     const xml::ElementNode *pDescElm = pVBoxExtPackElm->findChildElement("Description");
     if (!pDescElm)
-        return new RTCString("The 'Description' element is missing");
+        return new RTCString(ExtPackUtil::tr("The 'Description' element is missing"));
     const char *pszDesc = pDescElm->getValueN(RT_XML_CONTENT_LARGE);
     if (!pszDesc || *pszDesc == '\0')
-        return new RTCString("The 'Description' element is empty");
+        return new RTCString(ExtPackUtil::tr("The 'Description' element is empty"));
     if (strpbrk(pszDesc, "\n\r\t\v\b") != NULL)
-        return new RTCString("The 'Description' must not contain control characters");
+        return new RTCString(ExtPackUtil::tr("The 'Description' must not contain control characters"));
 
     const xml::ElementNode *pVersionElm = pVBoxExtPackElm->findChildElement("Version");
     if (!pVersionElm)
-        return new RTCString("The 'Version' element is missing");
+        return new RTCString(ExtPackUtil::tr("The 'Version' element is missing"));
     const char *pszVersion = pVersionElm->getValueN(RT_XML_CONTENT_SMALL);
     if (!pszVersion || *pszVersion == '\0')
-        return new RTCString("The 'Version' element is empty");
+        return new RTCString(ExtPackUtil::tr("The 'Version' element is empty"));
     if (!VBoxExtPackIsValidVersionString(pszVersion))
-        return &(new RTCString("Invalid version string: "))->append(pszVersion);
+        return &(new RTCString(ExtPackUtil::tr("Invalid version string: ")))->append(pszVersion);
 
     uint32_t uRevision;
     if (!pVersionElm->getAttributeValue("revision", uRevision))
@@ -153,16 +178,16 @@ static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACK
     if (!pVersionElm->getAttributeValueN("edition", pszEdition, RT_XML_ATTR_TINY))
         pszEdition = "";
     if (!VBoxExtPackIsValidEditionString(pszEdition))
-        return &(new RTCString("Invalid edition string: "))->append(pszEdition);
+        return &(new RTCString(ExtPackUtil::tr("Invalid edition string: ")))->append(pszEdition);
 
     const xml::ElementNode *pMainModuleElm = pVBoxExtPackElm->findChildElement("MainModule");
     if (!pMainModuleElm)
-        return new RTCString("The 'MainModule' element is missing");
+        return new RTCString(ExtPackUtil::tr("The 'MainModule' element is missing"));
     const char *pszMainModule = pMainModuleElm->getValueN(RT_XML_CONTENT_SMALL);
     if (!pszMainModule || *pszMainModule == '\0')
-        return new RTCString("The 'MainModule' element is empty");
+        return new RTCString(ExtPackUtil::tr("The 'MainModule' element is empty"));
     if (!VBoxExtPackIsValidModuleString(pszMainModule))
-        return &(new RTCString("Invalid main module string: "))->append(pszMainModule);
+        return &(new RTCString(ExtPackUtil::tr("Invalid main module string: ")))->append(pszMainModule);
 
     /*
      * The main VM module, optional.
@@ -176,7 +201,7 @@ static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACK
         if (!pszMainVMModule || *pszMainVMModule == '\0')
             pszMainVMModule = NULL;
         else if (!VBoxExtPackIsValidModuleString(pszMainVMModule))
-            return &(new RTCString("Invalid main VM module string: "))->append(pszMainVMModule);
+            return &(new RTCString(ExtPackUtil::tr("Invalid main VM module string: ")))->append(pszMainVMModule);
     }
 
     /*
@@ -191,7 +216,22 @@ static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACK
         if (!pszVrdeModule || *pszVrdeModule == '\0')
             pszVrdeModule = NULL;
         else if (!VBoxExtPackIsValidModuleString(pszVrdeModule))
-            return &(new RTCString("Invalid VRDE module string: "))->append(pszVrdeModule);
+            return &(new RTCString(ExtPackUtil::tr("Invalid VRDE module string: ")))->append(pszVrdeModule);
+    }
+
+    /*
+     * The cryptographic module, optional.
+     * Accept both none and empty as tokens of no cryptographic module.
+     */
+    const char *pszCryptoModule = NULL;
+    const xml::ElementNode *pCryptoModuleElm = pVBoxExtPackElm->findChildElement("CryptoModule");
+    if (pCryptoModuleElm)
+    {
+        pszCryptoModule = pCryptoModuleElm->getValueN(RT_XML_CONTENT_SMALL);
+        if (!pszCryptoModule || *pszCryptoModule == '\0')
+            pszCryptoModule = NULL;
+        else if (!VBoxExtPackIsValidModuleString(pszCryptoModule))
+            return &(new RTCString(ExtPackUtil::tr("Invalid cryptographic module string: ")))->append(pszCryptoModule);
     }
 
     /*
@@ -223,6 +263,7 @@ static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACK
     a_pExtPackDesc->strMainModule   = pszMainModule;
     a_pExtPackDesc->strMainVMModule = pszMainVMModule;
     a_pExtPackDesc->strVrdeModule   = pszVrdeModule;
+    a_pExtPackDesc->strCryptoModule = pszCryptoModule;
     a_pExtPackDesc->cPlugIns        = cPlugIns;
     a_pExtPackDesc->paPlugIns       = paPlugIns;
     a_pExtPackDesc->fShowLicense    = fShowLicense;
@@ -250,19 +291,19 @@ RTCString *VBoxExtPackLoadDesc(const char *a_pszDir, PVBOXEXTPACKDESC a_pExtPack
     char szFilePath[RTPATH_MAX];
     int vrc = RTPathJoin(szFilePath, sizeof(szFilePath), a_pszDir, VBOX_EXTPACK_DESCRIPTION_NAME);
     if (RT_FAILURE(vrc))
-        return new RTCString("RTPathJoin failed with %Rrc", vrc);
+        return new RTCStringFmt(ExtPackUtil::tr("RTPathJoin failed with %Rrc"), vrc);
 
     RTFSOBJINFO ObjInfo;
     vrc = RTPathQueryInfoEx(szFilePath, &ObjInfo,  RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK);
     if (RT_FAILURE(vrc))
-        return &(new RTCString())->printf("RTPathQueryInfoEx failed with %Rrc", vrc);
+        return new RTCStringFmt(ExtPackUtil::tr("RTPathQueryInfoEx failed with %Rrc"), vrc);
     if (a_pObjInfo)
         *a_pObjInfo = ObjInfo;
     if (!RTFS_IS_FILE(ObjInfo.Attr.fMode))
     {
         if (RTFS_IS_SYMLINK(ObjInfo.Attr.fMode))
-            return new RTCString("The XML file is symlinked, that is not allowed");
-        return &(new RTCString)->printf("The XML file is not a file (fMode=%#x)", ObjInfo.Attr.fMode);
+            return new RTCString(ExtPackUtil::tr("The XML file is symlinked, that is not allowed"));
+        return new RTCStringFmt(ExtPackUtil::tr("The XML file is not a file (fMode=%#x)"), ObjInfo.Attr.fMode);
     }
 
     xml::Document       Doc;
@@ -309,9 +350,9 @@ RTCString *VBoxExtPackLoadDescFromVfsFile(RTVFSFILE hVfsFile, PVBOXEXTPACKDESC a
      * Query the object info.
      */
     RTFSOBJINFO ObjInfo;
-    int rc = RTVfsFileQueryInfo(hVfsFile, &ObjInfo, RTFSOBJATTRADD_UNIX);
-    if (RT_FAILURE(rc))
-        return &(new RTCString)->printf("RTVfsFileQueryInfo failed: %Rrc", rc);
+    int vrc = RTVfsFileQueryInfo(hVfsFile, &ObjInfo, RTFSOBJATTRADD_UNIX);
+    if (RT_FAILURE(vrc))
+        return &(new RTCString)->printf(ExtPackUtil::tr("RTVfsFileQueryInfo failed: %Rrc"), vrc);
     if (a_pObjInfo)
         *a_pObjInfo = ObjInfo;
 
@@ -322,29 +363,30 @@ RTCString *VBoxExtPackLoadDescFromVfsFile(RTVFSFILE hVfsFile, PVBOXEXTPACKDESC a
 
     /* Check the file size. */
     if (ObjInfo.cbObject > _1M || ObjInfo.cbObject < 0)
-        return &(new RTCString)->printf("The XML file is too large (%'RU64 bytes)", ObjInfo.cbObject);
+        return &(new RTCString)->printf(ExtPackUtil::tr("The XML file is too large (%'RU64 bytes)", "", (size_t)ObjInfo.cbObject),
+                                        ObjInfo.cbObject);
     size_t const cbFile = (size_t)ObjInfo.cbObject;
 
     /* Rewind to the start of the file. */
-    rc = RTVfsFileSeek(hVfsFile, 0, RTFILE_SEEK_BEGIN, NULL);
-    if (RT_FAILURE(rc))
-        return &(new RTCString)->printf("RTVfsFileSeek(,0,BEGIN) failed: %Rrc", rc);
+    vrc = RTVfsFileSeek(hVfsFile, 0, RTFILE_SEEK_BEGIN, NULL);
+    if (RT_FAILURE(vrc))
+        return &(new RTCString)->printf(ExtPackUtil::tr("RTVfsFileSeek(,0,BEGIN) failed: %Rrc"), vrc);
 
     /* Allocate memory and read the file content into it. */
     void *pvFile = RTMemTmpAlloc(cbFile);
     if (!pvFile)
-        return &(new RTCString)->printf("RTMemTmpAlloc(%zu) failed", cbFile);
+        return &(new RTCString)->printf(ExtPackUtil::tr("RTMemTmpAlloc(%zu) failed"), cbFile);
 
     RTCString *pstrErr = NULL;
-    rc = RTVfsFileRead(hVfsFile, pvFile, cbFile, NULL);
-    if (RT_FAILURE(rc))
-        pstrErr = &(new RTCString)->printf("RTVfsFileRead failed: %Rrc", rc);
+    vrc = RTVfsFileRead(hVfsFile, pvFile, cbFile, NULL);
+    if (RT_FAILURE(vrc))
+        pstrErr = &(new RTCString)->printf(ExtPackUtil::tr("RTVfsFileRead failed: %Rrc"), vrc);
 
     /*
      * Parse the file.
      */
     xml::Document Doc;
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         xml::XmlMemParser   Parser;
         RTCString           strFileName = VBOX_EXTPACK_DESCRIPTION_NAME;
@@ -355,7 +397,7 @@ RTCString *VBoxExtPackLoadDescFromVfsFile(RTVFSFILE hVfsFile, PVBOXEXTPACKDESC a
         catch (xml::XmlError &rErr)
         {
             pstrErr = new RTCString(rErr.what());
-            rc = VERR_PARSE_ERROR;
+            vrc = VERR_PARSE_ERROR;
         }
     }
     RTMemTmpFree(pvFile);
@@ -363,7 +405,7 @@ RTCString *VBoxExtPackLoadDescFromVfsFile(RTVFSFILE hVfsFile, PVBOXEXTPACKDESC a
     /*
      * Hand the xml doc over to the common code.
      */
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
         try
         {
             pstrErr = vboxExtPackLoadDescFromDoc(&Doc, a_pExtPackDesc);
@@ -395,6 +437,7 @@ void VBoxExtPackFreeDesc(PVBOXEXTPACKDESC a_pExtPackDesc)
     a_pExtPackDesc->strMainModule.setNull();
     a_pExtPackDesc->strMainVMModule.setNull();
     a_pExtPackDesc->strVrdeModule.setNull();
+    a_pExtPackDesc->strCryptoModule.setNull();
     a_pExtPackDesc->cPlugIns = 0;
     RTMemFree(a_pExtPackDesc->paPlugIns);
     a_pExtPackDesc->paPlugIns = NULL;
@@ -616,7 +659,7 @@ bool VBoxExtPackIsValidVersionString(const char *pszVersion)
     if (*pszVersion == '-' || *pszVersion == '_')
     {
         /** @todo Should probably restrict this to known build types (alpha,
-         *        beta, rc, ++). */
+         *        beta, release candidate, ++). */
         do
             pszVersion++;
         while (   RT_C_IS_DIGIT(*pszVersion)
@@ -674,20 +717,20 @@ bool VBoxExtPackIsValidModuleString(const char *pszModule)
 /**
  * RTStrPrintfv wrapper.
  *
- * @returns @a rc
- * @param   rc                  The status code to return.
+ * @returns @a vrc
+ * @param   vrc                 The status code to return.
  * @param   pszError            The error buffer.
  * @param   cbError             The size of the buffer.
  * @param   pszFormat           The error message format string.
  * @param   ...                 Format arguments.
  */
-static int vboxExtPackReturnError(int rc, char *pszError, size_t cbError, const char *pszFormat, ...)
+static int vboxExtPackReturnError(int vrc, char *pszError, size_t cbError, const char *pszFormat, ...)
 {
     va_list va;
     va_start(va, pszFormat);
     RTStrPrintfV(pszError, cbError, pszFormat, va);
     va_end(va);
-    return rc;
+    return vrc;
 }
 
 /**
@@ -735,13 +778,13 @@ static int vboxExtPackVerifyXml(RTVFSFILE hXmlFile, const char *pszExtPackName, 
      */
     /** @todo drop this restriction after the old install interface is
      *        dropped. */
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
     if (   pszExtPackName
         && !ExtPackDesc.strName.equalsIgnoreCase(pszExtPackName))
-        rc = vboxExtPackReturnError(VERR_NOT_EQUAL, pszError, cbError,
-                                    "The name of the downloaded file and the name stored inside the extension pack does not match"
-                                    " (xml='%s' file='%s')", ExtPackDesc.strName.c_str(), pszExtPackName);
-    return rc;
+        vrc = vboxExtPackReturnError(VERR_NOT_EQUAL, pszError, cbError,
+                                     ExtPackUtil::tr("The name of the downloaded file and the name stored inside the extension pack does not match"
+                                     " (xml='%s' file='%s')"), ExtPackDesc.strName.c_str(), pszExtPackName);
+    return vrc;
 }
 
 /**
@@ -760,19 +803,19 @@ static int vboxExtPackVerifyManifestAndSignature(RTMANIFEST hOurManifest, RTVFSF
     /*
      * Read the manifest from the extension pack.
      */
-    int rc = RTVfsFileSeek(hManifestFile, 0, RTFILE_SEEK_BEGIN, NULL);
-    if (RT_FAILURE(rc))
-        return vboxExtPackReturnError(rc, pszError, cbError, "RTVfsFileSeek failed: %Rrc", rc);
+    int vrc = RTVfsFileSeek(hManifestFile, 0, RTFILE_SEEK_BEGIN, NULL);
+    if (RT_FAILURE(vrc))
+        return vboxExtPackReturnError(vrc, pszError, cbError, ExtPackUtil::tr("RTVfsFileSeek failed: %Rrc"), vrc);
 
     RTMANIFEST hTheirManifest;
-    rc = RTManifestCreate(0 /*fFlags*/, &hTheirManifest);
-    if (RT_FAILURE(rc))
-        return vboxExtPackReturnError(rc, pszError, cbError, "RTManifestCreate failed: %Rrc", rc);
+    vrc = RTManifestCreate(0 /*fFlags*/, &hTheirManifest);
+    if (RT_FAILURE(vrc))
+        return vboxExtPackReturnError(vrc, pszError, cbError, ExtPackUtil::tr("RTManifestCreate failed: %Rrc"), vrc);
 
     RTVFSIOSTREAM hVfsIos = RTVfsFileToIoStream(hManifestFile);
-    rc = RTManifestReadStandard(hTheirManifest, hVfsIos);
+    vrc = RTManifestReadStandard(hTheirManifest, hVfsIos);
     RTVfsIoStrmRelease(hVfsIos);
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         /*
          * Compare the manifests.
@@ -786,10 +829,10 @@ static int vboxExtPackVerifyManifestAndSignature(RTMANIFEST hOurManifest, RTVFSF
             NULL
         };
         char szError[RTPATH_MAX];
-        rc = RTManifestEqualsEx(hOurManifest, hTheirManifest, &s_apszIgnoreEntries[0], NULL,
-                                RTMANIFEST_EQUALS_IGN_MISSING_ATTRS /*fFlags*/,
-                                szError, sizeof(szError));
-        if (RT_SUCCESS(rc))
+        vrc = RTManifestEqualsEx(hOurManifest, hTheirManifest, &s_apszIgnoreEntries[0], NULL,
+                                 RTMANIFEST_EQUALS_IGN_MISSING_ATTRS /*fFlags*/,
+                                 szError, sizeof(szError));
+        if (RT_SUCCESS(vrc))
         {
             /*
              * Validate the manifest file signature.
@@ -798,10 +841,10 @@ static int vboxExtPackVerifyManifestAndSignature(RTMANIFEST hOurManifest, RTVFSF
             NOREF(hSignatureFile);
 
         }
-        else if (rc == VERR_NOT_EQUAL && szError[0])
-            vboxExtPackSetError(pszError, cbError, "Manifest mismatch: %s", szError);
+        else if (vrc == VERR_NOT_EQUAL && szError[0])
+            vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("Manifest mismatch: %s"), szError);
         else
-            vboxExtPackSetError(pszError, cbError, "RTManifestEqualsEx failed: %Rrc", rc);
+            vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTManifestEqualsEx failed: %Rrc"), vrc);
 #if 0
         RTVFSIOSTREAM hVfsIosStdOut = NIL_RTVFSIOSTREAM;
         RTVfsIoStrmFromStdHandle(RTHANDLESTD_OUTPUT, RTFILE_O_WRITE, true, &hVfsIosStdOut);
@@ -812,10 +855,10 @@ static int vboxExtPackVerifyManifestAndSignature(RTMANIFEST hOurManifest, RTVFSF
 #endif
     }
     else
-        vboxExtPackSetError(pszError, cbError, "Error parsing '%s': %Rrc", VBOX_EXTPACK_MANIFEST_NAME, rc);
+        vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("Error parsing '%s': %Rrc"), VBOX_EXTPACK_MANIFEST_NAME, vrc);
 
     RTManifestRelease(hTheirManifest);
-    return rc;
+    return vrc;
 }
 
 
@@ -837,9 +880,9 @@ static int vboxExtPackVerifyFileDigest(RTMANIFEST hFileManifest, const char *psz
      * Extract the SHA-256 entry for the extpack file.
      */
     char szCalculatedDigest[RTSHA256_DIGEST_LEN + 1];
-    int rc = RTManifestEntryQueryAttr(hFileManifest, "extpack", NULL /*no name*/, RTMANIFEST_ATTR_SHA256,
-                                      szCalculatedDigest, sizeof(szCalculatedDigest), NULL);
-    if (RT_SUCCESS(rc))
+    int vrc = RTManifestEntryQueryAttr(hFileManifest, "extpack", NULL /*no name*/, RTMANIFEST_ATTR_SHA256,
+                                       szCalculatedDigest, sizeof(szCalculatedDigest), NULL);
+    if (RT_SUCCESS(vrc))
     {
         /*
          * Convert the two strings to binary form before comparing.
@@ -847,30 +890,31 @@ static int vboxExtPackVerifyFileDigest(RTMANIFEST hFileManifest, const char *psz
          * compare with, just to validate it.
          */
         uint8_t abCalculatedHash[RTSHA256_HASH_SIZE];
-        rc = RTSha256FromString(szCalculatedDigest, abCalculatedHash);
-        if (RT_SUCCESS(rc))
+        vrc = RTSha256FromString(szCalculatedDigest, abCalculatedHash);
+        if (RT_SUCCESS(vrc))
         {
             if (   pszFileDigest
                 && *pszFileDigest != '\0')
             {
                 uint8_t abFileHash[RTSHA256_HASH_SIZE];
-                rc = RTSha256FromString(pszFileDigest, abFileHash);
-                if (RT_SUCCESS(rc))
+                vrc = RTSha256FromString(pszFileDigest, abFileHash);
+                if (RT_SUCCESS(vrc))
                 {
                     if (memcmp(abFileHash, abCalculatedHash, sizeof(abFileHash)))
                     {
-                        vboxExtPackSetError(pszError, cbError, "The extension pack file has changed (SHA-256 mismatch)");
-                        rc = VERR_NOT_EQUAL;
+                        vboxExtPackSetError(pszError, cbError,
+                                            ExtPackUtil::tr("The extension pack file has changed (SHA-256 mismatch)"));
+                        vrc = VERR_NOT_EQUAL;
                     }
                 }
                 else
-                    vboxExtPackSetError(pszError, cbError, "Bad SHA-256 '%s': %Rrc", szCalculatedDigest, rc);
+                    vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("Bad SHA-256 '%s': %Rrc"), szCalculatedDigest, vrc);
             }
 
             /*
              * Set the output hash on success.
              */
-            if (pStrDigest && RT_SUCCESS(rc))
+            if (pStrDigest && RT_SUCCESS(vrc))
             {
                 try
                 {
@@ -878,16 +922,16 @@ static int vboxExtPackVerifyFileDigest(RTMANIFEST hFileManifest, const char *psz
                 }
                 catch (std::bad_alloc &)
                 {
-                    rc = VERR_NO_MEMORY;
+                    vrc = VERR_NO_MEMORY;
                 }
             }
         }
         else
-            vboxExtPackSetError(pszError, cbError, "Bad SHA-256 '%s': %Rrc", szCalculatedDigest, rc);
+            vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("Bad SHA-256 '%s': %Rrc"), szCalculatedDigest, vrc);
     }
     else
-        vboxExtPackSetError(pszError, cbError, "RTManifestEntryGetAttr: %Rrc", rc);
-    return rc;
+        vboxExtPackSetError(pszError, cbError, "RTManifestEntryGetAttr: %Rrc", vrc);
+    return vrc;
 }
 
 
@@ -910,30 +954,31 @@ static int vboxExtPackVerifyFileDigest(RTMANIFEST hFileManifest, const char *psz
 static int VBoxExtPackValidateStandardFile(const char *pszAdjName, RTVFSOBJTYPE enmType,
                                            PRTVFSOBJ phVfsObj, PRTVFSFILE phVfsFile, char *pszError, size_t cbError)
 {
-    int rc;
+    int vrc;
 
     /*
      * Make sure it's a file and that it isn't too large.
      */
     if (phVfsFile && *phVfsFile != NIL_RTVFSFILE)
-        rc = vboxExtPackReturnError(VERR_DUPLICATE, pszError, cbError,
-                                    "There can only be one '%s'", pszAdjName);
+        vrc = vboxExtPackReturnError(VERR_DUPLICATE, pszError, cbError,
+                                     ExtPackUtil::tr("There can only be one '%s'"), pszAdjName);
     else if (enmType != RTVFSOBJTYPE_IO_STREAM && enmType != RTVFSOBJTYPE_FILE)
-        rc = vboxExtPackReturnError(VERR_NOT_A_FILE, pszError, cbError,
-                                    "Standard member '%s' is not a file", pszAdjName);
+        vrc = vboxExtPackReturnError(VERR_NOT_A_FILE, pszError, cbError,
+                                     ExtPackUtil::tr("Standard member '%s' is not a file"), pszAdjName);
     else
     {
         RTFSOBJINFO ObjInfo;
-        rc = RTVfsObjQueryInfo(*phVfsObj, &ObjInfo, RTFSOBJATTRADD_NOTHING);
-        if (RT_SUCCESS(rc))
+        vrc = RTVfsObjQueryInfo(*phVfsObj, &ObjInfo, RTFSOBJATTRADD_NOTHING);
+        if (RT_SUCCESS(vrc))
         {
             if (!RTFS_IS_FILE(ObjInfo.Attr.fMode))
-                rc = vboxExtPackReturnError(VERR_NOT_A_FILE, pszError, cbError,
-                                            "Standard member '%s' is not a file", pszAdjName);
+                vrc = vboxExtPackReturnError(VERR_NOT_A_FILE, pszError, cbError,
+                                             ExtPackUtil::tr("Standard member '%s' is not a file"), pszAdjName);
             else if (ObjInfo.cbObject >= _1M)
-                rc = vboxExtPackReturnError(VERR_OUT_OF_RANGE, pszError, cbError,
-                                            "Standard member '%s' is too large: %'RU64 bytes (max 1 MB)",
-                                            pszAdjName, (uint64_t)ObjInfo.cbObject);
+                vrc = vboxExtPackReturnError(VERR_OUT_OF_RANGE, pszError, cbError,
+                                             ExtPackUtil::tr("Standard member '%s' is too large: %'RU64 bytes (max 1 MB)", "",
+                                                             (size_t)ObjInfo.cbObject),
+                                             pszAdjName, (uint64_t)ObjInfo.cbObject);
             else
             {
                 /*
@@ -942,41 +987,43 @@ static int VBoxExtPackValidateStandardFile(const char *pszAdjName, RTVFSOBJTYPE 
                  */
                 RTVFSIOSTREAM hVfsIos = RTVfsObjToIoStream(*phVfsObj);
                 RTVFSFILE     hVfsFile;
-                rc = RTVfsMemorizeIoStreamAsFile(hVfsIos, RTFILE_O_READ, &hVfsFile);
-                if (RT_SUCCESS(rc))
+                vrc = RTVfsMemorizeIoStreamAsFile(hVfsIos, RTFILE_O_READ, &hVfsFile);
+                if (RT_SUCCESS(vrc))
                 {
-                    rc = RTVfsIoStrmValidateUtf8Encoding(hVfsIos,
-                                                         RTVFS_VALIDATE_UTF8_BY_RTC_3629 | RTVFS_VALIDATE_UTF8_NO_NULL,
-                                                         NULL);
-                    if (RT_SUCCESS(rc))
+                    vrc = RTVfsIoStrmValidateUtf8Encoding(hVfsIos,
+                                                          RTVFS_VALIDATE_UTF8_BY_RTC_3629 | RTVFS_VALIDATE_UTF8_NO_NULL,
+                                                          NULL);
+                    if (RT_SUCCESS(vrc))
                     {
                         /*
                          * Replace *phVfsObj with the memorized file.
                          */
-                        rc = RTVfsFileSeek(hVfsFile, 0, RTFILE_SEEK_BEGIN, NULL);
-                        if (RT_SUCCESS(rc))
+                        vrc = RTVfsFileSeek(hVfsFile, 0, RTFILE_SEEK_BEGIN, NULL);
+                        if (RT_SUCCESS(vrc))
                         {
                             RTVfsObjRelease(*phVfsObj);
                             *phVfsObj = RTVfsObjFromFile(hVfsFile);
                         }
                         else
-                            vboxExtPackSetError(pszError, cbError, "RTVfsFileSeek failed on '%s': %Rrc", pszAdjName, rc);
+                            vboxExtPackSetError(pszError, cbError,
+                                                ExtPackUtil::tr("RTVfsFileSeek failed on '%s': %Rrc"), pszAdjName, vrc);
                     }
 
-                    if (phVfsFile && RT_SUCCESS(rc))
+                    if (phVfsFile && RT_SUCCESS(vrc))
                         *phVfsFile = hVfsFile;
                     else
                         RTVfsFileRelease(hVfsFile);
                 }
                 else
-                    vboxExtPackSetError(pszError, cbError, "RTVfsMemorizeIoStreamAsFile failed on '%s': %Rrc", pszAdjName, rc);
+                    vboxExtPackSetError(pszError, cbError,
+                                        ExtPackUtil::tr("RTVfsMemorizeIoStreamAsFile failed on '%s': %Rrc"), pszAdjName, vrc);
                 RTVfsIoStrmRelease(hVfsIos);
             }
         }
         else
-            vboxExtPackSetError(pszError, cbError, "RTVfsObjQueryInfo failed on '%s': %Rrc", pszAdjName, rc);
+            vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTVfsObjQueryInfo failed on '%s': %Rrc"), pszAdjName, vrc);
     }
-    return rc;
+    return vrc;
 }
 
 
@@ -994,7 +1041,8 @@ static int VBoxExtPackValidateStandardFile(const char *pszAdjName, RTVFSOBJTYPE 
 static int vboxExtPackValidateMemberName(const char *pszName, char *pszError, size_t cbError)
 {
     if (RTPathStartsWithRoot(pszName))
-        return vboxExtPackReturnError(VERR_PATH_IS_NOT_RELATIVE, pszError, cbError, "'%s': starts with root spec", pszName);
+        return vboxExtPackReturnError(VERR_PATH_IS_NOT_RELATIVE, pszError, cbError,
+                                      ExtPackUtil::tr("'%s': starts with root spec"), pszName);
 
     const char *pszErr = NULL;
     const char *psz = pszName;
@@ -1044,7 +1092,8 @@ static int vboxExtPackValidateMemberName(const char *pszName, char *pszError, si
 
     if (pszErr)
         return vboxExtPackReturnError(VERR_INVALID_NAME, pszError, cbError,
-                                      "Bad member name '%s' (pos %zu): %s", pszName, (size_t)(psz - pszName), pszErr);
+                                      ExtPackUtil::tr("Bad member name '%s' (pos %zu): %s"),
+                                      pszName, (size_t)(psz - pszName), pszErr);
     return RTEXITCODE_SUCCESS;
 }
 
@@ -1060,26 +1109,26 @@ static int vboxExtPackValidateMemberName(const char *pszName, char *pszError, si
  */
 static int vboxExtPackValidateMemberFile(const char *pszName, RTVFSOBJ hVfsObj, char *pszError, size_t cbError)
 {
-    int rc = vboxExtPackValidateMemberName(pszName, pszError, cbError);
-    if (RT_SUCCESS(rc))
+    int vrc = vboxExtPackValidateMemberName(pszName, pszError, cbError);
+    if (RT_SUCCESS(vrc))
     {
         RTFSOBJINFO ObjInfo;
-        rc = RTVfsObjQueryInfo(hVfsObj, &ObjInfo, RTFSOBJATTRADD_NOTHING);
-        if (RT_SUCCESS(rc))
+        vrc = RTVfsObjQueryInfo(hVfsObj, &ObjInfo, RTFSOBJATTRADD_NOTHING);
+        if (RT_SUCCESS(vrc))
         {
             if (ObjInfo.cbObject >= 9*_1G64)
-                rc = vboxExtPackReturnError(VERR_OUT_OF_RANGE, pszError, cbError,
-                                            "'%s': too large (%'RU64 bytes)",
-                                            pszName, (uint64_t)ObjInfo.cbObject);
+                vrc = vboxExtPackReturnError(VERR_OUT_OF_RANGE, pszError, cbError,
+                                             ExtPackUtil::tr("'%s': too large (%'RU64 bytes)", "", (size_t)ObjInfo.cbObject),
+                                             pszName, (uint64_t)ObjInfo.cbObject);
             if (!RTFS_IS_FILE(ObjInfo.Attr.fMode))
-                rc = vboxExtPackReturnError(VERR_NOT_A_FILE, pszError, cbError,
-                                            "The alleged file '%s' has a mode mask stating otherwise (%RTfmode)",
-                                            pszName, ObjInfo.Attr.fMode);
+                vrc = vboxExtPackReturnError(VERR_NOT_A_FILE, pszError, cbError,
+                                             ExtPackUtil::tr("The alleged file '%s' has a mode mask stating otherwise (%RTfmode)"),
+                                             pszName, ObjInfo.Attr.fMode);
         }
         else
-            vboxExtPackSetError(pszError, cbError, "RTVfsObjQueryInfo failed on '%s': %Rrc", pszName, rc);
+            vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTVfsObjQueryInfo failed on '%s': %Rrc"), pszName, vrc);
     }
-    return rc;
+    return vrc;
 }
 
 
@@ -1094,22 +1143,22 @@ static int vboxExtPackValidateMemberFile(const char *pszName, RTVFSOBJ hVfsObj, 
  */
 static int vboxExtPackValidateMemberDir(const char *pszName, RTVFSOBJ hVfsObj, char *pszError, size_t cbError)
 {
-    int rc = vboxExtPackValidateMemberName(pszName, pszError, cbError);
-    if (RT_SUCCESS(rc))
+    int vrc = vboxExtPackValidateMemberName(pszName, pszError, cbError);
+    if (RT_SUCCESS(vrc))
     {
         RTFSOBJINFO ObjInfo;
-        rc = RTVfsObjQueryInfo(hVfsObj, &ObjInfo, RTFSOBJATTRADD_NOTHING);
-        if (RT_SUCCESS(rc))
+        vrc = RTVfsObjQueryInfo(hVfsObj, &ObjInfo, RTFSOBJATTRADD_NOTHING);
+        if (RT_SUCCESS(vrc))
         {
             if (!RTFS_IS_DIRECTORY(ObjInfo.Attr.fMode))
-                rc = vboxExtPackReturnError(VERR_NOT_A_DIRECTORY, pszError, cbError,
-                                            "The alleged directory '%s' has a mode mask saying differently (%RTfmode)",
-                                            pszName, ObjInfo.Attr.fMode);
+                vrc = vboxExtPackReturnError(VERR_NOT_A_DIRECTORY, pszError, cbError,
+                                             ExtPackUtil::tr("The alleged directory '%s' has a mode mask saying differently (%RTfmode)"),
+                                             pszName, ObjInfo.Attr.fMode);
         }
         else
-            vboxExtPackSetError(pszError, cbError, "RTVfsObjQueryInfo failed on '%s': %Rrc", pszName, rc);
+            vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTVfsObjQueryInfo failed on '%s': %Rrc"), pszName, vrc);
     }
-    return rc;
+    return vrc;
 }
 
 /**
@@ -1127,17 +1176,17 @@ int VBoxExtPackValidateMember(const char *pszName, RTVFSOBJTYPE enmType, RTVFSOB
     Assert(cbError > 0);
     *pszError = '\0';
 
-    int rc;
+    int vrc;
     if (   enmType == RTVFSOBJTYPE_FILE
         || enmType == RTVFSOBJTYPE_IO_STREAM)
-        rc = vboxExtPackValidateMemberFile(pszName, hVfsObj, pszError, cbError);
+        vrc = vboxExtPackValidateMemberFile(pszName, hVfsObj, pszError, cbError);
     else if (   enmType == RTVFSOBJTYPE_DIR
              || enmType == RTVFSOBJTYPE_BASE)
-        rc = vboxExtPackValidateMemberDir(pszName, hVfsObj, pszError, cbError);
+        vrc = vboxExtPackValidateMemberDir(pszName, hVfsObj, pszError, cbError);
     else
-        rc = vboxExtPackReturnError(VERR_UNEXPECTED_FS_OBJ_TYPE, pszError, cbError,
-                                    "'%s' is not a file or directory (enmType=%d)", pszName, enmType);
-    return rc;
+        vrc = vboxExtPackReturnError(VERR_UNEXPECTED_FS_OBJ_TYPE, pszError, cbError,
+                                     ExtPackUtil::tr("'%s' is not a file or directory (enmType=%d)"), pszName, enmType);
+    return vrc;
 }
 
 
@@ -1165,32 +1214,33 @@ int VBoxExtPackOpenTarFss(RTFILE hTarballFile, char *pszError, size_t cbError, P
     /*
      * Rewind the file and set up a VFS chain for it.
      */
-    int rc = RTFileSeek(hTarballFile, 0, RTFILE_SEEK_BEGIN, NULL);
-    if (RT_FAILURE(rc))
-        return vboxExtPackReturnError(rc, pszError, cbError, "Failed seeking to the start of the tarball: %Rrc", rc);
+    int vrc = RTFileSeek(hTarballFile, 0, RTFILE_SEEK_BEGIN, NULL);
+    if (RT_FAILURE(vrc))
+        return vboxExtPackReturnError(vrc, pszError, cbError,
+                                      ExtPackUtil::tr("Failed seeking to the start of the tarball: %Rrc"), vrc);
 
     RTVFSIOSTREAM hTarballIos;
-    rc = RTVfsIoStrmFromRTFile(hTarballFile, RTFILE_O_READ | RTFILE_O_DENY_WRITE | RTFILE_O_OPEN, true /*fLeaveOpen*/,
-                               &hTarballIos);
-    if (RT_FAILURE(rc))
-        return vboxExtPackReturnError(rc, pszError, cbError, "RTVfsIoStrmFromRTFile failed: %Rrc", rc);
+    vrc = RTVfsIoStrmFromRTFile(hTarballFile, RTFILE_O_READ | RTFILE_O_DENY_WRITE | RTFILE_O_OPEN, true /*fLeaveOpen*/,
+                                &hTarballIos);
+    if (RT_FAILURE(vrc))
+        return vboxExtPackReturnError(vrc, pszError, cbError, ExtPackUtil::tr("RTVfsIoStrmFromRTFile failed: %Rrc"), vrc);
 
     RTMANIFEST hFileManifest = NIL_RTMANIFEST;
-    rc = RTManifestCreate(0 /*fFlags*/, &hFileManifest);
-    if (RT_SUCCESS(rc))
+    vrc = RTManifestCreate(0 /*fFlags*/, &hFileManifest);
+    if (RT_SUCCESS(vrc))
     {
         RTVFSIOSTREAM hPtIos;
-        rc = RTManifestEntryAddPassthruIoStream(hFileManifest, hTarballIos, "extpack", RTMANIFEST_ATTR_SHA256,
-                                                true /*read*/, &hPtIos);
-        if (RT_SUCCESS(rc))
+        vrc = RTManifestEntryAddPassthruIoStream(hFileManifest, hTarballIos, "extpack", RTMANIFEST_ATTR_SHA256,
+                                                 true /*read*/, &hPtIos);
+        if (RT_SUCCESS(vrc))
         {
             RTVFSIOSTREAM hGunzipIos;
-            rc = RTZipGzipDecompressIoStream(hPtIos, 0 /*fFlags*/, &hGunzipIos);
-            if (RT_SUCCESS(rc))
+            vrc = RTZipGzipDecompressIoStream(hPtIos, 0 /*fFlags*/, &hGunzipIos);
+            if (RT_SUCCESS(vrc))
             {
                 RTVFSFSSTREAM hTarFss;
-                rc = RTZipTarFsStreamFromIoStream(hGunzipIos, 0 /*fFlags*/, &hTarFss);
-                if (RT_SUCCESS(rc))
+                vrc = RTZipTarFsStreamFromIoStream(hGunzipIos, 0 /*fFlags*/, &hTarFss);
+                if (RT_SUCCESS(vrc))
                 {
                     RTVfsIoStrmRelease(hPtIos);
                     RTVfsIoStrmRelease(hGunzipIos);
@@ -1203,22 +1253,22 @@ int VBoxExtPackOpenTarFss(RTFILE hTarballFile, char *pszError, size_t cbError, P
                     return VINF_SUCCESS;
                 }
 
-                vboxExtPackSetError(pszError, cbError, "RTZipTarFsStreamFromIoStream failed: %Rrc", rc);
+                vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTZipTarFsStreamFromIoStream failed: %Rrc"), vrc);
                 RTVfsIoStrmRelease(hGunzipIos);
             }
             else
-                vboxExtPackSetError(pszError, cbError, "RTZipGzipDecompressIoStream failed: %Rrc", rc);
+                vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTZipGzipDecompressIoStream failed: %Rrc"), vrc);
             RTVfsIoStrmRelease(hPtIos);
         }
         else
-            vboxExtPackSetError(pszError, cbError, "RTManifestEntryAddPassthruIoStream failed: %Rrc", rc);
+            vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTManifestEntryAddPassthruIoStream failed: %Rrc"), vrc);
         RTManifestRelease(hFileManifest);
     }
     else
-        vboxExtPackSetError(pszError, cbError, "RTManifestCreate failed: %Rrc", rc);
+        vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTManifestCreate failed: %Rrc"), vrc);
 
     RTVfsIoStrmRelease(hTarballIos);
-    return rc;
+    return vrc;
 }
 
 
@@ -1270,13 +1320,13 @@ int VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *pszExtPackName,
      */
     RTMANIFEST      hFileManifest;
     RTVFSFSSTREAM   hTarFss;
-    int rc = VBoxExtPackOpenTarFss(hTarballFile, pszError, cbError, &hTarFss, &hFileManifest);
-    if (RT_FAILURE(rc))
-        return rc;
+    int vrc = VBoxExtPackOpenTarFss(hTarballFile, pszError, cbError, &hTarFss, &hFileManifest);
+    if (RT_FAILURE(vrc))
+        return vrc;
 
     RTMANIFEST hOurManifest;
-    rc = RTManifestCreate(0 /*fFlags*/, &hOurManifest);
-    if (RT_SUCCESS(rc))
+    vrc = RTManifestCreate(0 /*fFlags*/, &hOurManifest);
+    if (RT_SUCCESS(vrc))
     {
         /*
          * Process the tarball (would be nice to move this to a function).
@@ -1292,13 +1342,13 @@ int VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *pszExtPackName,
             char           *pszName;
             RTVFSOBJ        hVfsObj;
             RTVFSOBJTYPE    enmType;
-            rc = RTVfsFsStrmNext(hTarFss, &pszName, &enmType, &hVfsObj);
-            if (RT_FAILURE(rc))
+            vrc = RTVfsFsStrmNext(hTarFss, &pszName, &enmType, &hVfsObj);
+            if (RT_FAILURE(vrc))
             {
-                if (rc != VERR_EOF)
-                    vboxExtPackSetError(pszError, cbError, "RTVfsFsStrmNext failed: %Rrc", rc);
+                if (vrc != VERR_EOF)
+                    vboxExtPackSetError(pszError, cbError, ExtPackUtil::tr("RTVfsFsStrmNext failed: %Rrc"), vrc);
                 else
-                    rc = VINF_SUCCESS;
+                    vrc = VINF_SUCCESS;
                 break;
             }
             const char     *pszAdjName = pszName[0] == '.' && pszName[1] == '/' ? &pszName[2] : pszName;
@@ -1310,8 +1360,8 @@ int VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *pszExtPackName,
              * N.B. We will always reach the end of the loop before breaking on
              *      failure - cleanup reasons.
              */
-            rc = VBoxExtPackValidateMember(pszName, enmType, hVfsObj, pszError, cbError);
-            if (RT_SUCCESS(rc))
+            vrc = VBoxExtPackValidateMember(pszName, enmType, hVfsObj, pszError, cbError);
+            if (RT_SUCCESS(vrc))
             {
                 PRTVFSFILE phVfsFile = NULL;
                 if (!strcmp(pszAdjName, VBOX_EXTPACK_DESCRIPTION_NAME))
@@ -1321,22 +1371,23 @@ int VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *pszExtPackName,
                 else if (!strcmp(pszAdjName, VBOX_EXTPACK_SIGNATURE_NAME))
                     phVfsFile = &hSignatureFile;
                 else if (!strncmp(pszAdjName, VBOX_EXTPACK_LICENSE_NAME_PREFIX, sizeof(VBOX_EXTPACK_LICENSE_NAME_PREFIX) - 1))
-                    rc = VBoxExtPackValidateStandardFile(pszAdjName, enmType, &hVfsObj, NULL, pszError, cbError);
+                    vrc = VBoxExtPackValidateStandardFile(pszAdjName, enmType, &hVfsObj, NULL, pszError, cbError);
                 if (phVfsFile)
-                    rc = VBoxExtPackValidateStandardFile(pszAdjName, enmType, &hVfsObj, phVfsFile, pszError, cbError);
+                    vrc = VBoxExtPackValidateStandardFile(pszAdjName, enmType, &hVfsObj, phVfsFile, pszError, cbError);
             }
 
             /*
              * Add any I/O stream to the manifest
              */
-            if (   RT_SUCCESS(rc)
+            if (   RT_SUCCESS(vrc)
                 && (   enmType == RTVFSOBJTYPE_FILE
                     || enmType == RTVFSOBJTYPE_IO_STREAM))
             {
                 RTVFSIOSTREAM hVfsIos = RTVfsObjToIoStream(hVfsObj);
-                rc = RTManifestEntryAddIoStream(hOurManifest, hVfsIos, pszAdjName, RTMANIFEST_ATTR_SIZE | RTMANIFEST_ATTR_SHA256);
-                if (RT_FAILURE(rc))
-                    vboxExtPackSetError(pszError, cbError, "RTManifestEntryAddIoStream failed on '%s': %Rrc", pszAdjName, rc);
+                vrc = RTManifestEntryAddIoStream(hOurManifest, hVfsIos, pszAdjName, RTMANIFEST_ATTR_SIZE | RTMANIFEST_ATTR_SHA256);
+                if (RT_FAILURE(vrc))
+                    vboxExtPackSetError(pszError, cbError,
+                                        ExtPackUtil::tr("RTManifestEntryAddIoStream failed on '%s': %Rrc"), pszAdjName, vrc);
                 RTVfsIoStrmRelease(hVfsIos);
             }
 
@@ -1345,53 +1396,53 @@ int VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *pszExtPackName,
              */
             RTVfsObjRelease(hVfsObj);
             RTStrFree(pszName);
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(vrc))
                 break;
         }
 
         /*
          * Check the integrity of the tarball file.
          */
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS(vrc))
         {
             RTVfsFsStrmRelease(hTarFss);
             hTarFss = NIL_RTVFSFSSTREAM;
-            rc = vboxExtPackVerifyFileDigest(hFileManifest, pszTarballDigest, pStrDigest, pszError, cbError);
+            vrc = vboxExtPackVerifyFileDigest(hFileManifest, pszTarballDigest, pStrDigest, pszError, cbError);
         }
 
         /*
          * If we've successfully processed the tarball, verify that the
          * mandatory files are present.
          */
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS(vrc))
         {
             if (hXmlFile == NIL_RTVFSFILE)
-                rc = vboxExtPackReturnError(VERR_MISSING, pszError, cbError, "Mandator file '%s' is missing",
-                                            VBOX_EXTPACK_DESCRIPTION_NAME);
+                vrc = vboxExtPackReturnError(VERR_MISSING, pszError, cbError, ExtPackUtil::tr("Mandator file '%s' is missing"),
+                                             VBOX_EXTPACK_DESCRIPTION_NAME);
             if (hManifestFile == NIL_RTVFSFILE)
-                rc = vboxExtPackReturnError(VERR_MISSING, pszError, cbError, "Mandator file '%s' is missing",
-                                            VBOX_EXTPACK_MANIFEST_NAME);
+                vrc = vboxExtPackReturnError(VERR_MISSING, pszError, cbError, ExtPackUtil::tr("Mandator file '%s' is missing"),
+                                             VBOX_EXTPACK_MANIFEST_NAME);
             if (hSignatureFile == NIL_RTVFSFILE)
-                rc = vboxExtPackReturnError(VERR_MISSING, pszError, cbError, "Mandator file '%s' is missing",
-                                            VBOX_EXTPACK_SIGNATURE_NAME);
+                vrc = vboxExtPackReturnError(VERR_MISSING, pszError, cbError, ExtPackUtil::tr("Mandator file '%s' is missing"),
+                                             VBOX_EXTPACK_SIGNATURE_NAME);
         }
 
         /*
          * Check the manifest and it's signature.
          */
-        if (RT_SUCCESS(rc))
-            rc = vboxExtPackVerifyManifestAndSignature(hOurManifest, hManifestFile, hSignatureFile, pszError, cbError);
+        if (RT_SUCCESS(vrc))
+            vrc = vboxExtPackVerifyManifestAndSignature(hOurManifest, hManifestFile, hSignatureFile, pszError, cbError);
 
         /*
          * Check the XML.
          */
-        if (RT_SUCCESS(rc))
-            rc = vboxExtPackVerifyXml(hXmlFile, pszExtPackName, pszError, cbError);
+        if (RT_SUCCESS(vrc))
+            vrc = vboxExtPackVerifyXml(hXmlFile, pszExtPackName, pszError, cbError);
 
         /*
          * Returns objects.
          */
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS(vrc))
         {
             if (phValidManifest)
             {
@@ -1414,10 +1465,10 @@ int VBoxExtPackValidateTarball(RTFILE hTarballFile, const char *pszExtPackName,
         RTVfsFileRelease(hSignatureFile);
     }
     else
-        vboxExtPackSetError(pszError, cbError, "RTManifestCreate failed: %Rrc", rc);
+        vboxExtPackSetError(pszError, cbError, "RTManifestCreate failed: %Rrc", vrc);
     RTVfsFsStrmRelease(hTarFss);
     RTManifestRelease(hFileManifest);
 
-    return rc;
+    return vrc;
 }
 

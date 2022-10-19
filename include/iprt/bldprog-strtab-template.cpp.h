@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -74,13 +84,20 @@
 #include <string.h>
 
 #ifdef BLDPROG_STRTAB_WITH_COMPRESSION
-# include <algorithm>
 # include <map>
-# include <string>
-# include <vector>
+# include <iprt/sanitized/string>
 
-typedef std::map<std::string, size_t> BLDPROGWORDFREQMAP;
-typedef BLDPROGWORDFREQMAP::value_type BLDPROGWORDFREQPAIR;
+# define BLDPROG_STRTAB_WITH_WORD_SEP_ALTERNATIVE
+typedef struct BLDPROGWORDFREQSTATS
+{
+    uint32_t cWithoutSep;   /**< Number of occurances without a separator. */
+# ifdef BLDPROG_STRTAB_WITH_WORD_SEP_ALTERNATIVE
+    uint32_t cWithSep;      /**< Number of occurance with a separator. */
+    char     chSep;         /**< The separator.  First come basis. */
+# endif
+} BLDPROGWORDFREQSTATS;
+
+typedef std::map<std::string, BLDPROGWORDFREQSTATS> BLDPROGWORDFREQMAP;
 
 #endif
 
@@ -137,8 +154,10 @@ typedef struct BLDPROGSTRTAB
     PBLDPROGSTRING     *papSortedStrings;
 
 #ifdef BLDPROG_STRTAB_WITH_COMPRESSION
-    /** The 127 words we've picked to be indexed by reference.  */
-    BLDPROGSTRING       aCompDict[127];
+    /** The 256 words we've picked to be indexed by reference. */
+    BLDPROGSTRING       aCompDict[256];
+    /** The frequency of the 256 dictionary entries.  */
+    size_t              auCompDictFreq[256];
     /** Incoming strings pending compression. */
     PBLDPROGSTRING     *papPendingStrings;
     /** Current number of entries in papStrPending. */
@@ -148,6 +167,8 @@ typedef struct BLDPROGSTRTAB
     /** Work frequency map.
      * @todo rewrite in plain C.  */
     BLDPROGWORDFREQMAP  Frequencies;
+    /** Map of characters used by input strings. */
+    uint64_t            bmUsedChars[256/64];
 #endif
 
     /** The string table. */
@@ -160,6 +181,33 @@ typedef BLDPROGSTRTAB *PBLDPROGSTRTAB;
 #if RT_CLANG_PREREQ(4, 0) || RT_GNUC_PREREQ(4, 6)
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wunused-function"
+#endif
+
+
+#ifdef BLDPROG_STRTAB_WITH_COMPRESSION
+
+/**
+ * Same as ASMBitTest.
+ *
+ * We cannot safely use ASMBitTest here because it must be inline, as this code
+ * is used to build RuntimeBldProg. */
+DECLINLINE(bool) BldProgBitIsSet(uint64_t const *pbmBitmap, size_t iBit)
+{
+    return RT_BOOL(pbmBitmap[iBit / 64] & RT_BIT_64(iBit % 64));
+}
+
+
+/**
+ * Same as ASMBitSet.
+ *
+ * We cannot safely use ASMBitSet here because it must be inline, as this code
+ * is used to build RuntimeBldProg.
+ */
+DECLINLINE(void) BldProgBitSet(uint64_t *pbmBitmap, size_t iBit)
+{
+    pbmBitmap[iBit / 64] |= RT_BIT_64(iBit % 64);
+}
+
 #endif
 
 
@@ -187,6 +235,11 @@ static bool BldProgStrTab_Init(PBLDPROGSTRTAB pThis, size_t cMaxStrings)
     pThis->papPendingStrings = NULL;
     pThis->cPendingStrings = 0;
     pThis->cMaxPendingStrings = cMaxStrings;
+    memset(pThis->bmUsedChars, 0, sizeof(pThis->bmUsedChars));
+    BldProgBitSet(pThis->bmUsedChars, 0);    /* Some parts of the code still thinks zero is a terminator, so don't use it for now. */
+# ifndef BLDPROG_STRTAB_PURE_ASCII
+    BldProgBitSet(pThis->bmUsedChars, 0xff); /* Reserve escape byte for codepoints above 127. */
+# endif
 #endif
 
     /*
@@ -287,12 +340,18 @@ DECLINLINE(size_t) bldProgStrTab_compressorFindNextWord(const char *pszSrc, char
  */
 static void bldProgStrTab_compressorAnalyzeString(PBLDPROGSTRTAB pThis, PBLDPROGSTRING pStr)
 {
+    /*
+     * Mark all the string characters as used.
+     */
     const char *psz = pStr->pszString;
+    char ch;
+    while ((ch = *psz++) != '\0')
+        BldProgBitSet(pThis->bmUsedChars, (uint8_t)ch);
 
     /*
      * For now we just consider words.
      */
-    char ch;
+    psz = pStr->pszString;
     while ((ch = *psz) != '\0')
     {
         size_t cchWord = bldProgStrTab_compressorFindNextWord(psz, ch, &psz);
@@ -301,12 +360,34 @@ static void bldProgStrTab_compressorAnalyzeString(PBLDPROGSTRTAB pThis, PBLDPROG
             std::string strWord(psz, cchWord);
             BLDPROGWORDFREQMAP::iterator it = pThis->Frequencies.find(strWord);
             if (it != pThis->Frequencies.end())
-                it->second += cchWord - 1;
+            {
+# ifdef BLDPROG_STRTAB_WITH_WORD_SEP_ALTERNATIVE
+                char const chSep = psz[cchWord];
+                if (chSep != '\0' && (it->second.chSep == chSep || it->second.chSep == '\0'))
+                {
+                    it->second.chSep = chSep;
+                    it->second.cWithSep++;
+                }
+                else
+# endif
+                    it->second.cWithoutSep++;
+            }
             else
-                pThis->Frequencies[strWord] = 0;
-
-            /** @todo could gain hits by including the space after the word, but that
-             *        has the same accounting problems as the two words scenario below. */
+            {
+# ifdef BLDPROG_STRTAB_WITH_WORD_SEP_ALTERNATIVE
+                char const chSep = psz[cchWord];
+                if (chSep != '\0')
+                {
+                    BLDPROGWORDFREQSTATS NewWord = { 0, 0, chSep };
+                    pThis->Frequencies[strWord] = NewWord;
+                }
+                else
+# endif
+                {
+                    static BLDPROGWORDFREQSTATS s_NewWord = { 0 };
+                    pThis->Frequencies[strWord] = s_NewWord;
+                }
+            }
 
 # if 0 /** @todo need better accounting for overlapping alternatives before this can be enabled. */
             /* Two words - immediate yields calc may lie when this enabled and we may pick the wrong words. */
@@ -417,6 +498,26 @@ static void BldProgStrTab_AddString(PBLDPROGSTRTAB pThis, PBLDPROGSTRING pStr)
 #endif
 }
 
+
+/**
+ * Adds a string to the string table.
+ *
+ * @param   pThis   The strint table compiler instance.
+ * @param   pStr    The string entry (uninitialized).
+ * @param   psz     The string, will be duplicated if compression is enabled.
+ */
+DECLINLINE(void) BldProgStrTab_AddStringDup(PBLDPROGSTRTAB pThis, PBLDPROGSTRING pStr, const char *psz)
+{
+#ifdef BLDPROG_STRTAB_WITH_COMPRESSION
+    pStr->pszString = strdup(psz);
+    if (!pStr->pszString)
+        abort();
+#else
+    pStr->pszString = (char *)psz;
+#endif
+    BldProgStrTab_AddString(pThis, pStr);
+}
+
 #ifdef BLDPROG_STRTAB_WITH_COMPRESSION
 
 /**
@@ -492,22 +593,25 @@ static bool bldProgStrTab_compressorFixupString(PBLDPROGSTRTAB pThis, PBLDPROGST
             break;
 
         /* Check for g_aWord matches. */
-        size_t cchMax = pszSrcEnd - pszSrc;
-        for (unsigned i = 0; i < RT_ELEMENTS(pThis->aCompDict); i++)
+        if (cchWord > 1)
         {
-            size_t cchLen = pThis->aCompDict[i].cchString;
-            if (   cchLen >= cchWord
-                && cchLen <= cchMax
-                && memcmp(pThis->aCompDict[i].pszString, pszSrc, cchLen) == 0)
+            size_t cchMax = pszSrcEnd - pszSrc;
+            for (unsigned i = 0; i < RT_ELEMENTS(pThis->aCompDict); i++)
             {
-                *pszDst++ = (unsigned char)(0x80 | i);
-                pszSrc += cchLen;
-                cchWord = 0;
-                break;
+                size_t cchLen = pThis->aCompDict[i].cchString;
+                if (   cchLen >= cchWord
+                    && cchLen <= cchMax
+                    && memcmp(pThis->aCompDict[i].pszString, pszSrc, cchLen) == 0)
+                {
+                    *pszDst++ = (unsigned char)i;
+                    pszSrc += cchLen;
+                    cchWord = 0;
+                    break;
+                }
             }
         }
 
-        if (cchWord)
+        if (cchWord > 0)
         {
             /* Copy the current word. */
             pszDst = bldProgStrTab_compressorCopyAndEscape(pszDst, pszSrc, cchWord);
@@ -541,29 +645,143 @@ static bool bldProgStrTab_compressorFixupString(PBLDPROGSTRTAB pThis, PBLDPROGST
 
 
 /**
- * For sorting the frequency fidning in descending order.
+ * Entry in SortedDictionary.
  *
- * Comparison operators are put outside to make older gcc versions (like 4.1.1
- * on lnx64-rel) happy.
+ * Uses variable length string member, so not class and allocated via malloc.
  */
-class WordFreqSortEntry
+struct SortedDictionaryEntry
 {
-public:
-    BLDPROGWORDFREQPAIR const *m_pPair;
+    size_t      m_cchGain;
+    size_t      m_cchString;
+    RT_FLEXIBLE_ARRAY_EXTENSION
+    char        m_szString[RT_FLEXIBLE_ARRAY];
 
-public:
-    WordFreqSortEntry(BLDPROGWORDFREQPAIR const *pPair) : m_pPair(pPair) {}
+    /** Allocates and initializes a new entry. */
+    static SortedDictionaryEntry *allocate(const char *a_pch, size_t a_cch, size_t a_cchGain, char a_chSep)
+    {
+        size_t cbString = a_cch + !!a_chSep + 1;
+        SortedDictionaryEntry *pNew = (SortedDictionaryEntry *)malloc(RT_UOFFSETOF(SortedDictionaryEntry, m_szString) + cbString);
+        if (pNew)
+        {
+            pNew->m_cchGain   = a_cchGain;
+            memcpy(pNew->m_szString, a_pch, a_cch);
+            if (a_chSep)
+                pNew->m_szString[a_cch++] = a_chSep;
+            pNew->m_szString[a_cch] = '\0';
+            pNew->m_cchString = a_cch;
+        }
+        return pNew;
+    }
+
+
+    /** Compares this dictionary entry with an incoming one.
+     * @retval -1 if this entry is of less worth than the new one.
+     * @retval  0 if this entry is of equal worth to the new one.
+     * @retval +1 if this entry is of more worth than the new one.
+     */
+    int compare(size_t a_cchGain, size_t a_cchString)
+    {
+        /* Higher gain is preferred of course: */
+        if (m_cchGain < a_cchGain)
+            return -1;
+        if (m_cchGain > a_cchGain)
+            return 1;
+
+        /* Gain is the same. Prefer the shorter string, as it will result in a shorter string table: */
+        if (m_cchString > a_cchString)
+            return -1;
+        if (m_cchString < a_cchString)
+            return 1;
+        return 0;
+    }
 };
 
-bool operator == (WordFreqSortEntry const &rLeft, WordFreqSortEntry const &rRight)
-{
-    return rLeft.m_pPair->second == rRight.m_pPair->second;
-}
 
-bool operator <  (WordFreqSortEntry const &rLeft, WordFreqSortEntry const &rRight)
+/**
+ * Insertion sort dictionary that keeps the 256 best words.
+ *
+ * Used by bldProgStrTab_compressorDoStringCompression to pick the dictionary
+ * words.
+ */
+class SortedDictionary
 {
-    return rLeft.m_pPair->second >  rRight.m_pPair->second;
-}
+public:
+    size_t                  m_cEntries;
+    SortedDictionaryEntry  *m_apEntries[256];
+
+    SortedDictionary()
+        : m_cEntries(0)
+    {
+        for (size_t i = 0; i < RT_ELEMENTS(m_apEntries); i++)
+            m_apEntries[i] = NULL;
+    }
+
+    ~SortedDictionary()
+    {
+        while (m_cEntries > 0)
+        {
+            free(m_apEntries[--m_cEntries]);
+            m_apEntries[m_cEntries] = NULL;
+        }
+    }
+
+
+    /**
+     * Inserts a new entry, if it's worth it.
+     * @returns true on succes, false if out of memory.
+     */
+    bool insert(const char *a_pchString, size_t a_cchStringBase, size_t a_cchGain, char a_chSep = 0)
+    {
+        size_t const cchString = a_cchStringBase + (a_chSep + 1);
+
+        /*
+         * Drop the insert if the symbol table is full and the insert is less worth the last entry:
+         */
+        if (   m_cEntries >= RT_ELEMENTS(m_apEntries)
+            && m_apEntries[RT_ELEMENTS(m_apEntries) - 1]->compare(a_cchGain, cchString) >= 0)
+            return true;
+
+        /*
+         * Create a new entry to insert.
+         */
+        SortedDictionaryEntry *pNewEntry = SortedDictionaryEntry::allocate(a_pchString, a_cchStringBase, a_cchGain, a_chSep);
+        if (!pNewEntry)
+            return false;
+
+        /*
+         * Find the insert point.
+         */
+        if (m_cEntries == 0)
+        {
+            m_apEntries[0] = pNewEntry;
+            m_cEntries     = 1;
+        }
+        else
+        {
+            /* If table is full, drop the last entry before we start (already made
+               sure the incoming entry is preferable to the one were dropping): */
+            if (m_cEntries >= RT_ELEMENTS(m_apEntries))
+            {
+                free(m_apEntries[RT_ELEMENTS(m_apEntries) - 1]);
+                m_apEntries[RT_ELEMENTS(m_apEntries) - 1] = NULL;
+                m_cEntries = RT_ELEMENTS(m_apEntries) - 1;
+            }
+
+            /* Find where to insert the new entry: */
+            /** @todo use binary search. */
+            size_t i = m_cEntries;
+            while (i > 0 && m_apEntries[i - 1]->compare(a_cchGain, cchString) < 0)
+                i--;
+
+            /* Shift entries to make room and insert the new entry. */
+            if (i < m_cEntries)
+                memmove(&m_apEntries[i + 1], &m_apEntries[i], (m_cEntries - i) * sizeof(m_apEntries[0]));
+            m_apEntries[i] = pNewEntry;
+            m_cEntries++;
+        }
+        return true;
+    }
+};
 
 
 /**
@@ -575,34 +793,63 @@ bool operator <  (WordFreqSortEntry const &rLeft, WordFreqSortEntry const &rRigh
 static bool bldProgStrTab_compressorDoStringCompression(PBLDPROGSTRTAB pThis, bool fVerbose)
 {
     /*
-     * Sort the frequency analyzis result and pick the top 127 ones.
+     * Sort the frequency analyzis result and pick the top entries for any
+     * available dictionary slots.
      */
-    std::vector<WordFreqSortEntry> SortMap;
+    SortedDictionary SortedDict;
     for (BLDPROGWORDFREQMAP::iterator it = pThis->Frequencies.begin(); it != pThis->Frequencies.end(); ++it)
     {
-        BLDPROGWORDFREQPAIR const &rPair = *it;
-        SortMap.push_back(WordFreqSortEntry(&rPair));
+        bool fInsert;
+        size_t const cchString      = it->first.length();
+# ifndef BLDPROG_STRTAB_WITH_WORD_SEP_ALTERNATIVE
+        size_t const cchGainWithout = it->second.cWithoutSep * cchString;
+# else
+        size_t const cchGainWithout = (it->second.cWithoutSep + it->second.cWithSep) * cchString;
+        size_t const cchGainWith    = it->second.cWithSep * (cchString + 1);
+        if (cchGainWith > cchGainWithout)
+            fInsert = SortedDict.insert(it->first.c_str(), cchString, cchGainWith, it->second.chSep);
+        else
+# endif
+            fInsert = SortedDict.insert(it->first.c_str(), cchString, cchGainWithout);
+        if (!fInsert)
+            return false;
     }
 
-    sort(SortMap.begin(), SortMap.end());
-
-    size_t cb = 0;
-    size_t i  = 0;
-    for (std::vector<WordFreqSortEntry>::iterator it = SortMap.begin();
-         it != SortMap.end() && i < RT_ELEMENTS(pThis->aCompDict);
-         ++it, i++)
+    size_t cb     = 0;
+    size_t cWords = 0;
+    size_t iDict  = 0;
+    for (size_t i = 0; i < RT_ELEMENTS(pThis->aCompDict); i++)
     {
-        pThis->aCompDict[i].cchString = it->m_pPair->first.length();
+        char        szTmp[2] = { (char)i, '\0' };
+        const char *psz      = szTmp;
+        if (   BldProgBitIsSet(pThis->bmUsedChars, i)
+            || iDict >= SortedDict.m_cEntries)
+        {
+            /* character entry  */
+            pThis->auCompDictFreq[i]      = 0;
+            pThis->aCompDict[i].cchString = 1;
+        }
+        else
+        {
+            /* word entry */
+            cb += SortedDict.m_apEntries[iDict]->m_cchGain;
+            pThis->auCompDictFreq[i]      = SortedDict.m_apEntries[iDict]->m_cchGain;
+            pThis->aCompDict[i].cchString = SortedDict.m_apEntries[iDict]->m_cchString;
+            psz = SortedDict.m_apEntries[iDict]->m_szString;
+            cWords++;
+            iDict++;
+        }
         pThis->aCompDict[i].pszString = (char *)malloc(pThis->aCompDict[i].cchString + 1);
         if (pThis->aCompDict[i].pszString)
-            memcpy(pThis->aCompDict[i].pszString, it->m_pPair->first.c_str(), pThis->aCompDict[i].cchString + 1);
+            memcpy(pThis->aCompDict[i].pszString, psz, pThis->aCompDict[i].cchString + 1);
         else
             return false;
-        cb += it->m_pPair->second;
     }
 
     if (fVerbose)
-        printf("debug: Estimated string compression saving: %u bytes\n", (unsigned)cb);
+        printf("debug: Estimated string compression saving: %u bytes\n"
+               "debug: %u words, %u characters\n"
+               , (unsigned)cb, (unsigned)cWords, (unsigned)(RT_ELEMENTS(pThis->aCompDict) - cWords));
 
     /*
      * Rework the strings.
@@ -613,7 +860,7 @@ static bool bldProgStrTab_compressorDoStringCompression(PBLDPROGSTRTAB pThis, bo
     size_t cchNew    = 0;
     size_t cchNewMax = 0;
     size_t cchNewMin = BLDPROG_STRTAB_MAX_STRLEN;
-    i = pThis->cPendingStrings;
+    size_t i         = pThis->cPendingStrings;
     while (i-- > 0)
     {
         PBLDPROGSTRING pCurStr = pThis->papPendingStrings[i];
@@ -726,7 +973,12 @@ static bool BldProgStrTab_CompileIt(PBLDPROGSTRTAB pThis, bool fVerbose)
      * Add the dictionary strings.
      */
     for (unsigned i = 0; i < RT_ELEMENTS(pThis->aCompDict); i++)
-        bldProgStrTab_AddStringToHashTab(pThis, &pThis->aCompDict[i]);
+        if (pThis->aCompDict[i].cchString > 1)
+            bldProgStrTab_AddStringToHashTab(pThis, &pThis->aCompDict[i]);
+# ifdef RT_STRICT
+        else if (pThis->aCompDict[i].cchString != 1)
+            abort();
+# endif
 #endif
     if (fVerbose)
         printf("debug: %u unique strings (%u bytes), %u duplicates, %u collisions\n",
@@ -735,7 +987,8 @@ static bool BldProgStrTab_CompileIt(PBLDPROGSTRTAB pThis, bool fVerbose)
 
     /*
      * Create papSortedStrings from the hash table.  The table is sorted by
-     * string length, with the longer strings first.
+     * string length, with the longer strings first, so that we increase our
+     * chances of locating duplicate substrings.
      */
     pThis->papSortedStrings = (PBLDPROGSTRING *)malloc(sizeof(pThis->papSortedStrings[0]) * pThis->cUniqueStrings);
     if (!pThis->papSortedStrings)
@@ -764,7 +1017,7 @@ static bool BldProgStrTab_CompileIt(PBLDPROGSTRTAB pThis, bool fVerbose)
     pThis->cchStrTab  = 0;
     for (size_t i = 0; i < pThis->cSortedStrings; i++)
     {
-        PBLDPROGSTRING       pCur    = pThis->papSortedStrings[i];
+        PBLDPROGSTRING      pCur      = pThis->papSortedStrings[i];
         const char * const  pszCur    = pCur->pszString;
         size_t       const  cchCur    = pCur->cchString;
         size_t              offStrTab = pThis->cchStrTab;
@@ -879,7 +1132,11 @@ static void BldProgStrTab_PrintCStringLitteral(PBLDPROGSTRTAB pThis, PBLDPROGSTR
     unsigned char uch;
     while ((uch = *psz++) != '\0')
     {
+#ifdef BLDPROG_STRTAB_WITH_COMPRESSION
+        if (pThis->aCompDict[uch].cchString == 1)
+#else
         if (!(uch & 0x80))
+#endif
         {
             if (uch != '\'' && uch != '\\')
                 fputc((char)uch, pOut);
@@ -890,18 +1147,17 @@ static void BldProgStrTab_PrintCStringLitteral(PBLDPROGSTRTAB pThis, PBLDPROGSTR
             }
         }
 #ifdef BLDPROG_STRTAB_WITH_COMPRESSION
-        else if (uch != 0xff)
-            fputs(pThis->aCompDict[uch & 0x7f].pszString, pOut);
-        else
+# ifndef BLDPROG_STRTAB_PURE_ASCII
+        else if (uch == 0xff)
         {
-# ifdef BLDPROG_STRTAB_PURE_ASCII
-            abort();
-# else
             RTUNICP uc = RTStrGetCp((const char *)psz);
             psz += RTStrCpSize(uc);
             fprintf(pOut, "\\u%04x", uc);
-# endif
         }
+# else
+        else
+            fputs(pThis->aCompDict[uch].pszString, pOut);
+# endif
 #else
         else
             fprintf(pOut, "\\x%02x", (unsigned)uch);
@@ -933,7 +1189,13 @@ static void BldProgStrTab_WriteStringTable(PBLDPROGSTRTAB pThis, FILE *pOut,
      */
 # ifdef BLDPROG_STRTAB_WITH_COMPRESSION
     for (unsigned i = 0; i < RT_ELEMENTS(pThis->aCompDict); i++)
-        BldProgStrTab_CheckStrTabString(pThis, &pThis->aCompDict[i]);
+    {
+        if (BldProgBitIsSet(pThis->bmUsedChars, i)
+            ? pThis->aCompDict[i].cchString != 1 : pThis->aCompDict[i].cchString < 1)
+            abort();
+        if (pThis->aCompDict[i].cchString > 1)
+            BldProgStrTab_CheckStrTabString(pThis, &pThis->aCompDict[i]);
+    }
 # endif
 #endif
 
@@ -948,6 +1210,11 @@ static void BldProgStrTab_WriteStringTable(PBLDPROGSTRTAB pThis, FILE *pOut,
         abCharCat[i] = 2;
     for (unsigned i = 0x7f; i < 0x100; i++)
         abCharCat[i] = 2;
+#ifdef BLDPROG_STRTAB_WITH_COMPRESSION
+    for (unsigned i = 0; i < 0x100; i++)
+        if (!BldProgBitIsSet(pThis->bmUsedChars, i)) /* Encode table references using '\xYY'. */
+            abCharCat[i] = 2;
+#endif
 
     /*
      * We follow the sorted string table, one string per line.
@@ -966,8 +1233,11 @@ static void BldProgStrTab_WriteStringTable(PBLDPROGSTRTAB pThis, FILE *pOut,
         uint32_t       offEnd = pCur->offStrTab + (uint32_t)pCur->cchString;
         if (offEnd > off)
         {
-            /* Comment with a uncompressed and more readable version of the string. */
-            fprintf(pOut, off == pCur->offStrTab ? "/* 0x%05x = \"" : "/* 0X%05x = \"", off);
+            /* Comment with an uncompressed and more readable version of the string. */
+            if (off == pCur->offStrTab)
+                fprintf(pOut, "/* 0x%05x = \"", off);
+            else
+                fprintf(pOut, "/* 0X%05x = \"", off);
             BldProgStrTab_PrintCStringLitteral(pThis, pCur, pOut);
             fputs("\" */\n", pOut);
 
@@ -1008,8 +1278,20 @@ static void BldProgStrTab_WriteStringTable(PBLDPROGSTRTAB pThis, FILE *pOut,
             "{\n",
             pszBaseName, (unsigned)RT_ELEMENTS(pThis->aCompDict));
     for (unsigned i = 0; i < RT_ELEMENTS(pThis->aCompDict); i++)
-        fprintf(pOut, "    { %#08x, %#04x }, // %s\n",
-                pThis->aCompDict[i].offStrTab, (unsigned)pThis->aCompDict[i].cchString, pThis->aCompDict[i].pszString);
+        if (pThis->aCompDict[i].cchString > 1)
+            fprintf(pOut, "    /*[%3u]=*/ { %#08x, %#04x }, // %6lu - %s\n", i,
+                    pThis->aCompDict[i].offStrTab, (unsigned)pThis->aCompDict[i].cchString,
+                    (unsigned long)pThis->auCompDictFreq[i], pThis->aCompDict[i].pszString);
+# ifndef BLDPROG_STRTAB_PURE_ASCII
+        else if (i == 0xff)
+            fprintf(pOut, "    /*[%3u]=*/ { 0x000000, 0x00 }, // UTF-8 escape\n", i);
+# endif
+        else if (i == 0)
+            fprintf(pOut, "    /*[%3u]=*/ { 0x000000, 0x00 }, // unused, because zero terminator\n", i);
+        else if (i < 0x20)
+            fprintf(pOut, "    /*[%3u]=*/ { 0x000000, 0x00 }, // %02x\n", i, i);
+        else
+            fprintf(pOut, "    /*[%3u]=*/ { 0x000000, 0x00 }, // '%c'\n", i,  (char)i);
     fprintf(pOut, "};\n\n");
 #endif
 
@@ -1029,7 +1311,12 @@ static void BldProgStrTab_WriteStringTable(PBLDPROGSTRTAB pThis, FILE *pOut,
             "    /*.cCompDict  = */ %u,\n"
             "    /*.paCompDict = */ &g_aCompDict%s[0]\n"
             "};\n"
-            , (unsigned)RT_ELEMENTS(pThis->aCompDict), pszBaseName);
+# ifndef BLDPROG_STRTAB_PURE_ASCII /* 255 or 256 entries is how the decoder knows  */
+            , (unsigned)RT_ELEMENTS(pThis->aCompDict) - 1,
+# else
+            , (unsigned)RT_ELEMENTS(pThis->aCompDict),
+# endif
+            pszBaseName);
 #else
     fprintf(pOut,
             "    /*.cCompDict  = */ 0,\n"

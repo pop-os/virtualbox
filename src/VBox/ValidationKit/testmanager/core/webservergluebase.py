@@ -7,26 +7,36 @@ Test Manager Core - Web Server Abstraction Base Class.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard python imports.
@@ -61,6 +71,73 @@ class WebServerGlueBase(object):
     ## Special getUserName return value.
     ksUnknownUser = 'Unknown User';
 
+    ## HTTP status codes and their messages.
+    kdStatusMsgs = {
+        100: 'Continue',
+        101: 'Switching Protocols',
+        102: 'Processing',
+        103: 'Early Hints',
+        200: 'OK',
+        201: 'Created',
+        202: 'Accepted',
+        203: 'Non-Authoritative Information',
+        204: 'No Content',
+        205: 'Reset Content',
+        206: 'Partial Content',
+        207: 'Multi-Status',
+        208: 'Already Reported',
+        226: 'IM Used',
+        300: 'Multiple Choices',
+        301: 'Moved Permantently',
+        302: 'Found',
+        303: 'See Other',
+        304: 'Not Modified',
+        305: 'Use Proxy',
+        306: 'Switch Proxy',
+        307: 'Temporary Redirect',
+        308: 'Permanent Redirect',
+        400: 'Bad Request',
+        401: 'Unauthorized',
+        402: 'Payment Required',
+        403: 'Forbidden',
+        404: 'Not Found',
+        405: 'Method Not Allowed',
+        406: 'Not Acceptable',
+        407: 'Proxy Authentication Required',
+        408: 'Request Timeout',
+        409: 'Conflict',
+        410: 'Gone',
+        411: 'Length Required',
+        412: 'Precondition Failed',
+        413: 'Payload Too Large',
+        414: 'URI Too Long',
+        415: 'Unsupported Media Type',
+        416: 'Range Not Satisfiable',
+        417: 'Expectation Failed',
+        418: 'I\'m a teapot',
+        421: 'Misdirection Request',
+        422: 'Unprocessable Entity',
+        423: 'Locked',
+        424: 'Failed Dependency',
+        425: 'Too Early',
+        426: 'Upgrade Required',
+        428: 'Precondition Required',
+        429: 'Too Many Requests',
+        431: 'Request Header Fields Too Large',
+        451: 'Unavailable For Legal Reasons',
+        500: 'Internal Server Error',
+        501: 'Not Implemented',
+        502: 'Bad Gateway',
+        503: 'Service Unavailable',
+        504: 'Gateway Timeout',
+        505: 'HTTP Version Not Supported',
+        506: 'Variant Also Negotiates',
+        507: 'Insufficient Storage',
+        508: 'Loop Detected',
+        510: 'Not Extended',
+        511: 'Network Authentication Required',
+    };
+
 
     def __init__(self, sValidationKitDir, fHtmlDebugOutput = True):
         self._sValidationKitDir    = sValidationKitDir;
@@ -69,8 +146,14 @@ class WebServerGlueBase(object):
         self.tsStart           = utils.timestampNano();
         self._fHtmlDebugOutput = fHtmlDebugOutput; # For trace
         self._oDbgFile         = sys.stderr;
-        if config.g_ksSrcGlueDebugLogDst is not None and config.g_kfSrvGlueDebug is True:
-            self._oDbgFile = open(config.g_ksSrcGlueDebugLogDst, 'a');
+        if config.g_ksSrvGlueDebugLogDst is not None and config.g_kfSrvGlueDebug is True:
+            self._oDbgFile = open(config.g_ksSrvGlueDebugLogDst, 'a');  # pylint: disable=consider-using-with
+            if config.g_kfSrvGlueCgiDumpArgs:
+                self._oDbgFile.write('Arguments: %s\nEnvironment:\n' % (sys.argv,));
+            if config.g_kfSrvGlueCgiDumpEnv:
+                for sVar in sorted(os.environ):
+                    self._oDbgFile.write('  %s=\'%s\' \\\n' % (sVar, os.environ[sVar],));
+
         self._afnDebugInfo     = [];
 
         # HTTP header.
@@ -206,6 +289,12 @@ class WebServerGlueBase(object):
         """
         raise WebServerGlueException('getUrlPath is not implemented');
 
+    def getBodyIoStreamBinary(self):
+        """
+        Returns file object for reading the binary HTML body.
+        """
+        raise WebServerGlueException('getBodyIoStreamBinary is not implemented');
+
     #
     # Output stuff.
     #
@@ -214,6 +303,7 @@ class WebServerGlueBase(object):
         """
         Worker function which child classes can override.
         """
+        sys.stderr.write('_writeHeader: cch=%s "%s..."\n' % (len(sHeaderLine), sHeaderLine[0:10],))
         self.oOutputText.write(sHeaderLine);
         return True;
 
@@ -222,8 +312,8 @@ class WebServerGlueBase(object):
         Flushes the HTTP header.
         """
         if self._fHeaderWrittenOut is False:
-            for sKey in self._dHeaderFields:
-                self._writeHeader('%s: %s\n' % (sKey, self._dHeaderFields[sKey]));
+            for sKey, sValue in self._dHeaderFields.items():
+                self._writeHeader('%s: %s\n' % (sKey, sValue,));
             self._fHeaderWrittenOut = True;
             self._writeHeader('\n'); # End of header indicator.
         return None;
@@ -250,10 +340,21 @@ class WebServerGlueBase(object):
         self.setHeaderField('Status', '302 Found');
         return True;
 
+    def setStatus(self, iStatus, sMsg = None):
+        """ Sets the status code. """
+        if not sMsg:
+            sMsg = self.kdStatusMsgs[iStatus];
+        return self.setHeaderField('Status', '%u %s' % (iStatus, sMsg));
+
+    def setContentType(self, sType):
+        """ Sets the content type header field. """
+        return self.setHeaderField('Content-Type', sType);
+
     def _writeWorker(self, sChunkOfHtml):
         """
         Worker function which child classes can override.
         """
+        sys.stderr.write('_writeWorker: cch=%s "%s..."\n' % (len(sChunkOfHtml), sChunkOfHtml[0:10],))
         self.oOutputText.write(sChunkOfHtml);
         return True;
 
@@ -279,14 +380,15 @@ class WebServerGlueBase(object):
         No caching.
         """
         if self._sBodyType is None:
-            self._sBodyType = 'html';
-        elif self._sBodyType != 'html':
-            raise WebServerGlueException('Cannot use writeParameter when body type is "%s"' % (self._sBodyType, ));
+            self._sBodyType = 'raw';
+        elif self._sBodyType != 'raw':
+            raise WebServerGlueException('Cannot use writeRaw when body type is "%s"' % (self._sBodyType, ));
 
         self.flushHeader();
         if self._cchCached > 0:
             self.flush();
 
+        sys.stderr.write('writeRaw: cb=%s\n' % (len(abChunk),))
         self.oOutputRaw.write(abChunk);
         return True;
 
@@ -369,20 +471,18 @@ class WebServerGlueBase(object):
         fSaved = self._fHtmlDebugOutput;
 
         try:
-            oFile = open(sLogFile, 'w');
-            oFile.write(sError + '\n\n');
-            if aXcptInfo[0] is not None:
-                oFile.write(' B a c k t r a c e\n');
-                oFile.write('===================\n');
-                oFile.write(cgitb.text(aXcptInfo, 5));
-                oFile.write('\n\n');
+            with open(sLogFile, 'w') as oFile:
+                oFile.write(sError + '\n\n');
+                if aXcptInfo[0] is not None:
+                    oFile.write(' B a c k t r a c e\n');
+                    oFile.write('===================\n');
+                    oFile.write(cgitb.text(aXcptInfo, 5));
+                    oFile.write('\n\n');
 
-            oFile.write(' D e b u g   I n f o\n');
-            oFile.write('=====================\n\n');
-            self._fHtmlDebugOutput = False;
-            self.debugDumpStuff(oFile.write);
-
-            oFile.close();
+                oFile.write(' D e b u g   I n f o\n');
+                oFile.write('=====================\n\n');
+                self._fHtmlDebugOutput = False;
+                self.debugDumpStuff(oFile.write);
         except:
             fRc = False;
 

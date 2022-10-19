@@ -85,46 +85,6 @@ static struct pci_device_id ath5k_nics[] = {
 	PCI_ROM(0x168c, 0x001d, "ath2417", "Atheros 2417 Nala", AR5K_AR5212),
 };
 
-/* Known SREVs */
-static const struct ath5k_srev_name srev_names[] = {
-	{ "5210",	AR5K_VERSION_MAC,	AR5K_SREV_AR5210 },
-	{ "5311",	AR5K_VERSION_MAC,	AR5K_SREV_AR5311 },
-	{ "5311A",	AR5K_VERSION_MAC,	AR5K_SREV_AR5311A },
-	{ "5311B",	AR5K_VERSION_MAC,	AR5K_SREV_AR5311B },
-	{ "5211",	AR5K_VERSION_MAC,	AR5K_SREV_AR5211 },
-	{ "5212",	AR5K_VERSION_MAC,	AR5K_SREV_AR5212 },
-	{ "5213",	AR5K_VERSION_MAC,	AR5K_SREV_AR5213 },
-	{ "5213A",	AR5K_VERSION_MAC,	AR5K_SREV_AR5213A },
-	{ "2413",	AR5K_VERSION_MAC,	AR5K_SREV_AR2413 },
-	{ "2414",	AR5K_VERSION_MAC,	AR5K_SREV_AR2414 },
-	{ "5424",	AR5K_VERSION_MAC,	AR5K_SREV_AR5424 },
-	{ "5413",	AR5K_VERSION_MAC,	AR5K_SREV_AR5413 },
-	{ "5414",	AR5K_VERSION_MAC,	AR5K_SREV_AR5414 },
-	{ "2415",	AR5K_VERSION_MAC,	AR5K_SREV_AR2415 },
-	{ "5416",	AR5K_VERSION_MAC,	AR5K_SREV_AR5416 },
-	{ "5418",	AR5K_VERSION_MAC,	AR5K_SREV_AR5418 },
-	{ "2425",	AR5K_VERSION_MAC,	AR5K_SREV_AR2425 },
-	{ "2417",	AR5K_VERSION_MAC,	AR5K_SREV_AR2417 },
-	{ "xxxxx",	AR5K_VERSION_MAC,	AR5K_SREV_UNKNOWN },
-	{ "5110",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5110 },
-	{ "5111",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5111 },
-	{ "5111A",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5111A },
-	{ "2111",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2111 },
-	{ "5112",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5112 },
-	{ "5112A",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5112A },
-	{ "5112B",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5112B },
-	{ "2112",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2112 },
-	{ "2112A",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2112A },
-	{ "2112B",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2112B },
-	{ "2413",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2413 },
-	{ "5413",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5413 },
-	{ "2316",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2316 },
-	{ "2317",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_2317 },
-	{ "5424",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5424 },
-	{ "5133",	AR5K_VERSION_RAD,	AR5K_SREV_RAD_5133 },
-	{ "xxxxx",	AR5K_VERSION_RAD,	AR5K_SREV_UNKNOWN },
-};
-
 #define ATH5K_SPMBL_NO   1
 #define ATH5K_SPMBL_YES  2
 #define ATH5K_SPMBL_BOTH 3
@@ -320,7 +280,7 @@ static int ath5k_probe(struct pci_device *pdev)
 	 */
 	pci_write_config_byte(pdev, 0x41, 0);
 
-	mem = ioremap(pdev->membase, 0x10000);
+	mem = pci_ioremap(pdev, pdev->membase, 0x10000);
 	if (!mem) {
 		DBG("ath5k: cannot remap PCI memory region\n");
 		ret = -EIO;
@@ -917,7 +877,7 @@ ath5k_desc_alloc(struct ath5k_softc *sc)
 
 	/* allocate descriptors */
 	sc->desc_len = sizeof(struct ath5k_desc) * (ATH_TXBUF + ATH_RXBUF + 1);
-	sc->desc = malloc_dma(sc->desc_len, ATH5K_DESC_ALIGN);
+	sc->desc = malloc_phys(sc->desc_len, ATH5K_DESC_ALIGN);
 	if (sc->desc == NULL) {
 		DBG("ath5k: can't allocate descriptors\n");
 		ret = -ENOMEM;
@@ -955,7 +915,7 @@ ath5k_desc_alloc(struct ath5k_softc *sc)
 	return 0;
 
 err_free:
-	free_dma(sc->desc, sc->desc_len);
+	free_phys(sc->desc, sc->desc_len);
 err:
 	sc->desc = NULL;
 	return ret;
@@ -972,7 +932,7 @@ ath5k_desc_free(struct ath5k_softc *sc)
 		ath5k_rxbuf_free(sc, bf);
 
 	/* Free memory associated with all descriptors */
-	free_dma(sc->desc, sc->desc_len);
+	free_phys(sc->desc, sc->desc_len);
 
 	free(sc->bufptr);
 	sc->bufptr = NULL;
@@ -1421,7 +1381,7 @@ ath5k_poll(struct net80211_device *dev)
 	unsigned int counter = 1000;
 
 	if (currticks() - sc->last_calib_ticks >
-	    ATH5K_CALIB_INTERVAL * ticks_per_sec()) {
+	    ATH5K_CALIB_INTERVAL * TICKS_PER_SEC) {
 		ath5k_calibrate(sc);
 		sc->last_calib_ticks = currticks();
 	}

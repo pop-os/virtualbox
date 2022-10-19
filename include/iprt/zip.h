@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_zip_h
@@ -49,7 +59,7 @@ RT_C_DECLS_BEGIN
  * @param   pvBuf       Compressed data.
  * @param   cbBuf       Size of the compressed data.
  */
-typedef DECLCALLBACK(int) FNRTZIPOUT(void *pvUser, const void *pvBuf, size_t cbBuf);
+typedef DECLCALLBACKTYPE(int, FNRTZIPOUT,(void *pvUser, const void *pvBuf, size_t cbBuf));
 /** Pointer to FNRTZIPOUT() function. */
 typedef FNRTZIPOUT *PFNRTZIPOUT;
 
@@ -62,7 +72,7 @@ typedef FNRTZIPOUT *PFNRTZIPOUT;
  * @param   cbBuf       Size of the buffer.
  * @param   pcbBuf      Number of bytes actually stored in the buffer.
  */
-typedef DECLCALLBACK(int) FNRTZIPIN(void *pvUser, void *pvBuf, size_t cbBuf, size_t *pcbBuf);
+typedef DECLCALLBACKTYPE(int, FNRTZIPIN,(void *pvUser, void *pvBuf, size_t cbBuf, size_t *pcbBuf));
 /** Pointer to FNRTZIPIN() function. */
 typedef FNRTZIPIN *PFNRTZIPIN;
 
@@ -310,7 +320,7 @@ typedef enum RTZIPTARFORMAT
  *                              written.  The reference is not consumed, instead
  *                              another one is retained.
  * @param   enmFormat           The desired output format.
- * @param   fFlags              RTZIPTAR_C_XXX.
+ * @param   fFlags              RTZIPTAR_C_XXX, except RTZIPTAR_C_UPDATE.
  * @param   phVfsFss            Where to return the handle to the TAR
  *                              filesystem stream.
  */
@@ -323,9 +333,28 @@ RTDECL(int) RTZipTarFsStreamToIoStream(RTVFSIOSTREAM hVfsIosOut, RTZIPTARFORMAT 
  * @note Only supported when adding file objects.  The files will be read
  *       twice. */
 #define RTZIPTAR_C_SPARSE           RT_BIT_32(0)
+/** Set if opening for updating. */
+#define RTZIPTAR_C_UPDATE           RT_BIT_32(1)
 /** Valid bits. */
-#define RTZIPTAR_C_VALID_MASK       UINT32_C(0x00000001)
+#define RTZIPTAR_C_VALID_MASK       UINT32_C(0x00000003)
 /** @} */
+
+/**
+ * Opens a TAR filesystem stream for the purpose of create a new TAR archive or
+ * updating an existing one.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hVfsFile            The TAR file handle, i.e. where the tar stuff is
+ *                              written and optionally read/update.  The
+ *                              reference is not consumed, instead another one
+ *                              is retained.
+ * @param   enmFormat           The desired output format.
+ * @param   fFlags              RTZIPTAR_C_XXX.
+ * @param   phVfsFss            Where to return the handle to the TAR
+ *                              filesystem stream.
+ */
+RTDECL(int) RTZipTarFsStreamForFile(RTVFSFILE hVfsFile, RTZIPTARFORMAT enmFormat, uint32_t fFlags, PRTVFSFSSTREAM phVfsFss);
 
 /**
  * Set the owner to store the archive entries with.
@@ -391,6 +420,28 @@ RTDECL(int) RTZipTarFsStreamSetDirMode(RTVFSFSSTREAM hVfsFss, RTFMODE fAndMode, 
  */
 RTDECL(int) RTZipTarFsStreamSetMTime(RTVFSFSSTREAM hVfsFss, PCRTTIMESPEC pModificationTime);
 
+/**
+ * Truncates a TAR creator stream in update mode.
+ *
+ * Use RTVfsFsStrmNext to examine the TAR stream and locate the cut-off point.
+ *
+ * After performing this call, the stream will be in write mode and
+ * RTVfsFsStrmNext will stop working (VERR_WRONG_ORDER).   The RTVfsFsStrmAdd()
+ * and RTVfsFsStrmPushFile() can be used to add new object to the TAR file,
+ * starting at the trunction point.  RTVfsFsStrmEnd() is used to finish the TAR
+ * file (this performs the actual file trunction).
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFss             The handle to a TAR creator in update mode.
+ * @param   hVfsObj             Object returned by RTVfsFsStrmNext that the
+ *                              trunction is relative to.  This doesn't have to
+ *                              be the current stream object, it can be an
+ *                              earlier one too.
+ * @param   fAfter              If set, @a hVfsObj will remain in the update TAR
+ *                              file.  If clear, @a hVfsObj will not be
+ *                              included.
+ */
+RTDECL(int) RTZipTarFsStreamTruncate(RTVFSFSSTREAM hVfsFss, RTVFSOBJ hVfsObj, bool fAfter);
 
 /**
  * A mini TAR program.
@@ -458,6 +509,21 @@ RTDECL(int) RTZipPkzipMemDecompress(void **ppvDst, size_t *pcbDst, const void *p
  *                              stream.
  */
 RTDECL(int) RTZipXarFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags, PRTVFSFSSTREAM phVfsFss);
+
+/**
+ * Opens a CPIO filesystem stream.
+ *
+ * This is used to extract, list or check a CPIO archive.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hVfsIosIn           The input stream.  The reference is not
+ *                              consumed, instead another one is retained.
+ * @param   fFlags              Flags, MBZ.
+ * @param   phVfsFss            Where to return the handle to the CPIO
+ *                              filesystem stream.
+ */
+RTDECL(int) RTZipCpioFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags, PRTVFSFSSTREAM phVfsFss);
 
 /** @} */
 

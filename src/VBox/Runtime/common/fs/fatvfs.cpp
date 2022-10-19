@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -915,7 +925,7 @@ static int rtFsFatClusterMap_FlushWorker(PRTFSFATVOL pThis, uint32_t const iFirs
     uint64_t off     = UINT64_MAX;
     uint64_t offEdge = UINT64_MAX;
     RTSGSEG  aSgSegs[8];
-    RT_ZERO(aSgSegs); /* Shut up GCC. */
+    RT_ZERO(aSgSegs); /* Initialization required for GCC >= 11. */
     RTSGBUF  SgBuf;
     RTSgBufInit(&SgBuf, aSgSegs, RT_ELEMENTS(aSgSegs));
     SgBuf.cSegs = 0; /** @todo RTSgBuf API is stupid, make it smarter. */
@@ -2565,6 +2575,7 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsFatFileOps =
             "FatFile",
             rtFsFatFile_Close,
             rtFsFatFile_QueryInfo,
+            NULL,
             RTVFSOBJOPS_VERSION
         },
         RTVFSIOSTREAMOPS_VERSION,
@@ -4634,6 +4645,7 @@ static const RTVFSDIROPS g_rtFsFatDirOps =
         "FatDir",
         rtFsFatDir_Close,
         rtFsFatDir_QueryInfo,
+        NULL,
         RTVFSOBJOPS_VERSION
     },
     RTVFSDIROPS_VERSION,
@@ -5000,6 +5012,7 @@ DECL_HIDDEN_CONST(const RTVFSOPS) g_rtFsFatVolOps =
         "FatVol",
         rtFsFatVol_Close,
         rtFsFatVol_QueryInfo,
+        NULL,
         RTVFSOBJOPS_VERSION
     },
     RTVFSOPS_VERSION,
@@ -6081,8 +6094,8 @@ RTDECL(int) RTFsFatVolFormat(RTVFSFILE hVfsFile, uint64_t offVol, uint64_t cbVol
         else
             memcpy(pBootSector->Bpb.Fat32Ebpb.u.achType, "FAT32   ", sizeof(pBootSector->Bpb.Fat32Ebpb.u.achType));
     }
-    pbBuf[pBootSector->abJmp[1] + 2 + 0] = 0xcd; /* int 19h */
-    pbBuf[pBootSector->abJmp[1] + 2 + 1] = 0x19;
+    pbBuf[pBootSector->abJmp[1] + 2 + 0] = 0xcd; /* int 18h */ /** @todo find/implement booting of next boot device. */
+    pbBuf[pBootSector->abJmp[1] + 2 + 1] = 0x18;
     pbBuf[pBootSector->abJmp[1] + 2 + 2] = 0xcc; /* int3 */
     pbBuf[pBootSector->abJmp[1] + 2 + 3] = 0xcc;
 
@@ -6233,6 +6246,20 @@ RTDECL(int) RTFsFatVolFormat144(RTVFSFILE hVfsFile, bool fQuick)
 {
     return RTFsFatVolFormat(hVfsFile, 0 /*offVol*/, 1474560, fQuick ? RTFSFATVOL_FMT_F_QUICK : RTFSFATVOL_FMT_F_FULL,
                             512 /*cbSector*/, 1 /*cSectorsPerCluster*/, RTFSFATTYPE_FAT12, 2 /*cHeads*/,  18 /*cSectors*/,
+                            0xf0 /*bMedia*/, 224 /*cRootDirEntries*/, 0 /*cHiddenSectors*/, NULL /*pErrInfo*/);
+}
+
+
+/**
+ * Formats a 2.88MB floppy image.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFile            The image.
+ */
+RTDECL(int) RTFsFatVolFormat288(RTVFSFILE hVfsFile, bool fQuick)
+{
+    return RTFsFatVolFormat(hVfsFile, 0 /*offVol*/, 2949120, fQuick ? RTFSFATVOL_FMT_F_QUICK : RTFSFATVOL_FMT_F_FULL,
+                            512 /*cbSector*/, 2 /*cSectorsPerCluster*/, RTFSFATTYPE_FAT12, 2 /*cHeads*/,  36 /*cSectors*/,
                             0xf0 /*bMedia*/, 224 /*cRootDirEntries*/, 0 /*cHiddenSectors*/, NULL /*pErrInfo*/);
 }
 

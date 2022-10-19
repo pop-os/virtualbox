@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmblkcache_h
@@ -70,7 +80,7 @@ typedef enum PDMBLKCACHEXFERDIR
  * @param   pvUser          User argument given during request initiation.
  * @param   rc              The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMBLKCACHEXFERCOMPLETEDRV(PPDMDRVINS pDrvIns, void *pvUser, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMBLKCACHEXFERCOMPLETEDRV,(PPDMDRVINS pDrvIns, void *pvUser, int rc));
 /** Pointer to a FNPDMBLKCACHEXFERCOMPLETEDRV(). */
 typedef FNPDMBLKCACHEXFERCOMPLETEDRV *PFNPDMBLKCACHEXFERCOMPLETEDRV;
 
@@ -84,8 +94,8 @@ typedef FNPDMBLKCACHEXFERCOMPLETEDRV *PFNPDMBLKCACHEXFERCOMPLETEDRV;
  * @param   pSgBuf          Scather / gather buffer for the transfer.
  * @param   hIoXfer         I/O transfer handle to ping on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDRV(PPDMDRVINS pDrvIns, PDMBLKCACHEXFERDIR enmXferDir,
-                                                      uint64_t off, size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEDRV,(PPDMDRVINS pDrvIns, PDMBLKCACHEXFERDIR enmXferDir, uint64_t off,
+                                                           size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEDRV(). */
 typedef FNPDMBLKCACHEXFERENQUEUEDRV *PFNPDMBLKCACHEXFERENQUEUEDRV;
 
@@ -97,19 +107,19 @@ typedef FNPDMBLKCACHEXFERENQUEUEDRV *PFNPDMBLKCACHEXFERENQUEUEDRV;
  * @param   cRanges         Number of range entries.
  * @param   hIoXfer         I/O handle to return on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDDRV(PPDMDRVINS pDrvIns, PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEDISCARDDRV,(PPDMDRVINS pDrvIns, PCRTRANGE paRanges, unsigned cRanges,
+                                                                  PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDDRV(). */
 typedef FNPDMBLKCACHEXFERENQUEUEDISCARDDRV *PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV;
 
 /**
  * Completion callback for devices.
  *
- * @param   pDrvIns         The device instance.
+ * @param   pDevIns         The device instance.
  * @param   pvUser          User argument given during request initiation.
  * @param   rc              The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMBLKCACHEXFERCOMPLETEDEV(PPDMDEVINS pDevIns, void *pvUser, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMBLKCACHEXFERCOMPLETEDEV,(PPDMDEVINS pDevIns, void *pvUser, int rc));
 /** Pointer to a FNPDMBLKCACHEXFERCOMPLETEDEV(). */
 typedef FNPDMBLKCACHEXFERCOMPLETEDEV *PFNPDMBLKCACHEXFERCOMPLETEDEV;
 
@@ -123,86 +133,86 @@ typedef FNPDMBLKCACHEXFERCOMPLETEDEV *PFNPDMBLKCACHEXFERCOMPLETEDEV;
  * @param   pSgBuf          Scather / gather buffer for the transfer.
  * @param   hIoXfer         I/O transfer handle to ping on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDEV(PPDMDEVINS pDevIns, PDMBLKCACHEXFERDIR enmXferDir,
-                                                      uint64_t off, size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEDEV,(PPDMDEVINS pDevIns, PDMBLKCACHEXFERDIR enmXferDir, uint64_t off,
+                                                           size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEDEV(). */
 typedef FNPDMBLKCACHEXFERENQUEUEDEV *PFNPDMBLKCACHEXFERENQUEUEDEV;
 
 /**
  * Discard enqueue callback for devices.
  *
- * @param   pDrvIns         The driver instance.
+ * @param   pDevIns         The device instance.
  * @param   paRanges        Ranges to discard.
  * @param   cRanges         Number of range entries.
  * @param   hIoXfer         I/O handle to return on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDDEV(PPDMDEVINS pDevIns, PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEDISCARDDEV,(PPDMDEVINS pDevIns, PCRTRANGE paRanges, unsigned cRanges,
+                                                                  PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDDEV(). */
 typedef FNPDMBLKCACHEXFERENQUEUEDISCARDDEV *PFNPDMBLKCACHEXFERENQUEUEDISCARDDEV;
 
 /**
  * Completion callback for drivers.
  *
- * @param   pDrvIns         The driver instance.
+ * @param   pvUserInt       User argument given to PDMR3BlkCacheRetainInt.
  * @param   pvUser          User argument given during request initiation.
  * @param   rc              The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMBLKCACHEXFERCOMPLETEINT(void *pvUserInt, void *pvUser, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMBLKCACHEXFERCOMPLETEINT,(void *pvUserInt, void *pvUser, int rc));
 /** Pointer to a FNPDMBLKCACHEXFERCOMPLETEINT(). */
 typedef FNPDMBLKCACHEXFERCOMPLETEINT *PFNPDMBLKCACHEXFERCOMPLETEINT;
 
 /**
- * I/O enqueue callback for drivers.
+ * I/O enqueue callback for internal users.
  *
- * @param   pDrvIns         The driver instance.
+ * @param   pvUser          User data.
  * @param   enmXferDir      Transfer direction.
  * @param   off             Transfer offset.
  * @param   cbXfer          Transfer size.
  * @param   pSgBuf          Scather / gather buffer for the transfer.
  * @param   hIoXfer         I/O transfer handle to ping on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEINT(void *pvUser, PDMBLKCACHEXFERDIR enmXferDir,
-                                                      uint64_t off, size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEINT,(void *pvUser, PDMBLKCACHEXFERDIR enmXferDir, uint64_t off,
+                                                           size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEINT(). */
 typedef FNPDMBLKCACHEXFERENQUEUEINT *PFNPDMBLKCACHEXFERENQUEUEINT;
 
 /**
  * Discard enqueue callback for VMM internal users.
  *
- * @param   pDrvIns         The driver instance.
+ * @param   pvUser          User data.
  * @param   paRanges        Ranges to discard.
  * @param   cRanges         Number of range entries.
  * @param   hIoXfer         I/O handle to return on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDINT(void *pvUser, PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEDISCARDINT,(void *pvUser, PCRTRANGE paRanges, unsigned cRanges,
+                                                                  PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDINT(). */
 typedef FNPDMBLKCACHEXFERENQUEUEDISCARDINT *PFNPDMBLKCACHEXFERENQUEUEDISCARDINT;
 
 /**
- * Completion callback for USB.
+ * Completion callback for USB devices.
  *
- * @param   pDrvIns         The driver instance.
+ * @param   pUsbIns         The USB device instance.
  * @param   pvUser          User argument given during request initiation.
  * @param   rc              The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMBLKCACHEXFERCOMPLETEUSB(PPDMUSBINS pUsbIns, void *pvUser, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMBLKCACHEXFERCOMPLETEUSB,(PPDMUSBINS pUsbIns, void *pvUser, int rc));
 /** Pointer to a FNPDMBLKCACHEXFERCOMPLETEUSB(). */
 typedef FNPDMBLKCACHEXFERCOMPLETEUSB *PFNPDMBLKCACHEXFERCOMPLETEUSB;
 
 /**
- * I/O enqueue callback for drivers.
+ * I/O enqueue callback for USB devices.
  *
- * @param   pDrvIns         The driver instance.
+ * @param   pUsbIns         The USB device instance.
  * @param   enmXferDir      Transfer direction.
  * @param   off             Transfer offset.
  * @param   cbXfer          Transfer size.
  * @param   pSgBuf          Scather / gather buffer for the transfer.
  * @param   hIoXfer         I/O transfer handle to ping on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEUSB(PPDMUSBINS pUsbIns, PDMBLKCACHEXFERDIR enmXferDir,
-                                                      uint64_t off, size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEUSB,(PPDMUSBINS pUsbIns, PDMBLKCACHEXFERDIR enmXferDir, uint64_t off,
+                                                           size_t cbXfer, PCRTSGBUF pSgBuf, PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEUSB(). */
 typedef FNPDMBLKCACHEXFERENQUEUEUSB *PFNPDMBLKCACHEXFERENQUEUEUSB;
 
@@ -214,8 +224,8 @@ typedef FNPDMBLKCACHEXFERENQUEUEUSB *PFNPDMBLKCACHEXFERENQUEUEUSB;
  * @param   cRanges         Number of range entries.
  * @param   hIoXfer         I/O handle to return on completion.
  */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDUSB(PPDMUSBINS pUsbIns, PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
+typedef DECLCALLBACKTYPE(int, FNPDMBLKCACHEXFERENQUEUEDISCARDUSB,(PPDMUSBINS pUsbIns, PCRTRANGE paRanges, unsigned cRanges,
+                                                                  PPDMBLKCACHEIOXFER hIoXfer));
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDUSB(). */
 typedef FNPDMBLKCACHEXFERENQUEUEDISCARDUSB *PFNPDMBLKCACHEXFERENQUEUEDISCARDUSB;
 

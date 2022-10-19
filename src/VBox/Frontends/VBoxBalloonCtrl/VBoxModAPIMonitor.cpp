@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -136,10 +146,12 @@ static const char *apimonMachineStateToName(MachineState_T machineState, bool fS
             return fShort ? "poweroff"             : "powered off";
         case MachineState_Saved:
             return "saved";
-        case MachineState_Aborted:
-            return "aborted";
         case MachineState_Teleported:
             return "teleported";
+        case MachineState_Aborted:
+            return "aborted";
+        case MachineState_AbortedSaved:
+            return "aborted-saved";
         case MachineState_Running:
             return "running";
         case MachineState_Paused:
@@ -191,7 +203,7 @@ static int apimonMachineControl(const Bstr &strUuid, PVBOXWATCHDOG_MACHINE pMach
         || g_fDryrun)
         return VINF_SUCCESS; /* Nothing to do. */
 
-    HRESULT rc;
+    HRESULT hrc;
     ComPtr <IMachine> machine;
     CHECK_ERROR_RET(g_pVirtualBox, FindMachine(strUuid.raw(),
                                                machine.asOutParam()), VERR_NOT_FOUND);
@@ -245,16 +257,16 @@ static int apimonMachineControl(const Bstr &strUuid, PVBOXWATCHDOG_MACHINE pMach
 
                         /* First pause so we don't trigger a live save which needs more time/resources. */
                         bool fPaused = false;
-                        rc = console->Pause();
-                        if (FAILED(rc))
+                        hrc = console->Pause();
+                        if (FAILED(hrc))
                         {
                             bool fError = true;
-                            if (rc == VBOX_E_INVALID_VM_STATE)
+                            if (hrc == VBOX_E_INVALID_VM_STATE)
                             {
                                 /* Check if we are already paused. */
                                 CHECK_ERROR_BREAK(console, COMGETTER(State)(&machineState));
                                 /* The error code was lost by the previous instruction. */
-                                rc = VBOX_E_INVALID_VM_STATE;
+                                hrc = VBOX_E_INVALID_VM_STATE;
                                 if (machineState != MachineState_Paused)
                                 {
                                     serviceLog("apimon: Machine \"%ls\" in invalid state %d -- %s\n",
@@ -271,14 +283,14 @@ static int apimonMachineControl(const Bstr &strUuid, PVBOXWATCHDOG_MACHINE pMach
                         }
 
                         CHECK_ERROR(sessionMachine, SaveState(progress.asOutParam()));
-                        if (SUCCEEDED(rc))
+                        if (SUCCEEDED(hrc))
                         {
                             progress->WaitForCompletion(cMsTimeout);
                             CHECK_PROGRESS_ERROR(progress, ("Failed to save machine state of machine \"%ls\"",
                                                  strUuid.raw()));
                         }
 
-                        if (SUCCEEDED(rc))
+                        if (SUCCEEDED(hrc))
                         {
                             serviceLogVerbose(("apimon: State of machine \"%ls\" saved, powering off ...\n", strUuid.raw()));
                             CHECK_ERROR_BREAK(console, PowerButton());
@@ -311,7 +323,7 @@ static int apimonMachineControl(const Bstr &strUuid, PVBOXWATCHDOG_MACHINE pMach
 
 
 
-    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR;
+    return SUCCEEDED(hrc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR;
 }
 
 static bool apimonHandleVM(const PVBOXWATCHDOG_MACHINE pMachine)
@@ -455,7 +467,7 @@ static DECLCALLBACK(int) VBoxModAPIMonitorOption(int argc, char *argv[], int *pi
 
 static DECLCALLBACK(int) VBoxModAPIMonitorInit(void)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     do
     {
@@ -515,12 +527,12 @@ static DECLCALLBACK(int) VBoxModAPIMonitorInit(void)
 
     } while (0);
 
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         g_uAPIMonIslnLastBeatMS = 0;
     }
 
-    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR; /** @todo Find a better rc! */
+    return SUCCEEDED(hrc) ? VINF_SUCCESS : VERR_COM_IPRT_ERROR; /** @todo Find a better rc! */
 }
 
 static DECLCALLBACK(int) VBoxModAPIMonitorMain(void)
@@ -533,7 +545,7 @@ static DECLCALLBACK(int) VBoxModAPIMonitorMain(void)
     uLastRun = uNow;
 
     int vrc = VINF_SUCCESS;
-    HRESULT rc;
+    HRESULT hrc;
 
 #ifdef DEBUG
     serviceLogVerbose(("apimon: Checking for API heartbeat (%RU64ms) ...\n",
@@ -545,7 +557,7 @@ static DECLCALLBACK(int) VBoxModAPIMonitorMain(void)
         Bstr strHeartbeat;
         CHECK_ERROR_BREAK(g_pVirtualBox, GetExtraData(Bstr("Watchdog/APIMonitor/Heartbeat").raw(),
                                                       strHeartbeat.asOutParam()));
-        if (   SUCCEEDED(rc)
+        if (   SUCCEEDED(hrc)
             && !strHeartbeat.isEmpty()
             && g_strAPIMonIslnLastBeat.compare(strHeartbeat, Bstr::CaseSensitive))
         {
@@ -568,7 +580,7 @@ static DECLCALLBACK(int) VBoxModAPIMonitorMain(void)
         }
     } while (0);
 
-    if (FAILED(rc))
+    if (FAILED(hrc))
         vrc = VERR_COM_IPRT_ERROR;
 
     return vrc;
@@ -625,17 +637,19 @@ VBOXMODULE g_ModAPIMonitor =
     /* uPriority. */
     0 /* Not used */,
     /* pszUsage. */
-    " [--apimon-groups=<string[,stringN]>]\n"
-    " [--apimon-isln-response=<cmd>] [--apimon-isln-timeout=<ms>]\n"
-    " [--apimon-resp-timeout=<ms>]",
+    "           [--apimon-groups=<string[,stringN]>]\n"
+    "           [--apimon-isln-response=<cmd>] [--apimon-isln-timeout=<ms>]\n"
+    "           [--apimon-resp-timeout=<ms>]",
     /* pszOptions. */
-    "--apimon-groups        Sets the VM groups for monitoring (all),\n"
-    "                       comma-separated list.\n"
-    "--apimon-isln-response Sets the isolation response to one of:\n"
-    "                       none, pause, poweroff, save, shutdown\n"
-    "                       (none).\n"
-    "--apimon-isln-timeout  Sets the isolation timeout in ms (30s).\n"
-    "--apimon-resp-timeout  Sets the response timeout in ms (30s).\n",
+    "  --apimon-groups=<string[,...]>\n"
+    "      Sets the VM groups for monitoring (all), comma-separated list.\n"
+    "  --apimon-isln-response=<cmd>\n"
+    "      Sets the isolation response to one of: none, pause, poweroff,\n"
+    "      save, or shutdown.  Default: none\n"
+    "  --apimon-isln-timeout=<ms>\n"
+    "      Sets the isolation timeout in ms (30s).\n"
+    "  --apimon-resp-timeout=<ms>\n"
+    "      Sets the response timeout in ms (30s).\n",
     /* methods. */
     VBoxModAPIMonitorPreInit,
     VBoxModAPIMonitorOption,

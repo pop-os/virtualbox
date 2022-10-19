@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -21,10 +31,11 @@
 #include <QHeaderView>
 
 /* GUI includes: */
-#include "UIErrorString.h"
-#include "UICustomFileSystemModel.h"
-#include "UIPathOperations.h"
 #include "UICommon.h"
+#include "UICustomFileSystemModel.h"
+#include "UIErrorString.h"
+#include "UIPathOperations.h"
+#include "UITranslator.h"
 
 const char *UICustomFileSystemModel::strUpDirectoryString = "..";
 
@@ -439,7 +450,7 @@ QVariant UICustomFileSystemModel::data(const QModelIndex &index, int role) const
             if (m_fShowHumanReadableSizes)
             {
                 qulonglong size = item->data(index.column()).toULongLong();
-                return uiCommon().formatSize(size);
+                return UITranslator::formatSize(size);
             }
             else
                 return item->data(index.column());
@@ -475,7 +486,7 @@ QVariant UICustomFileSystemModel::data(const QModelIndex &index, int role) const
 Qt::ItemFlags UICustomFileSystemModel::flags(const QModelIndex &index) const
 {
     if (!index.isValid())
-        return 0;
+        return Qt::ItemFlags();
     UICustomFileSystemItem *item = static_cast<UICustomFileSystemItem*>(index.internalPointer());
     if (!item)
         return QAbstractItemModel::flags(index);

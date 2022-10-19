@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_globals_UIMainEventListener_h
@@ -25,6 +35,7 @@
 #include <QList>
 #include <QObject>
 #include <QRect>
+#include <QSet>
 
 /* GUI includes: */
 #include "UILibraryDefs.h"
@@ -37,6 +48,7 @@
 #include "CMediumAttachment.h"
 #include "CNetworkAdapter.h"
 #include "CUSBDevice.h"
+#include "CUpdateAgent.h"
 #include "CVirtualBoxErrorInfo.h"
 
 /* Other VBox includes: */
@@ -71,6 +83,12 @@ class SHARED_LIBRARY_STUFF UIMainEventListener : public QObject
 
 signals:
 
+    /** @name General signals
+      * @{ */
+        /** Notifies about listening has finished. */
+        void sigListeningFinished();
+    /** @} */
+
     /** @name VirtualBoxClient related signals
       * @{ */
         /** Notifies about the VBoxSVC become @a fAvailable. */
@@ -95,6 +113,14 @@ signals:
         void sigSnapshotChange(const QUuid &uId, const QUuid &uSnapshotId);
         /** Notifies about snapshot with @a uSnapshotId was restored for the machine with @a uId. */
         void sigSnapshotRestore(const QUuid &uId, const QUuid &uSnapshotId);
+        /** Notifies about request to uninstall cloud provider with @a uId. */
+        void sigCloudProviderUninstall(const QUuid &uId);
+        /** Notifies about cloud provider list changed. */
+        void sigCloudProviderListChanged();
+        /** Notifies about cloud profile with specified @a strName of provider with specified @a uProviderId is @a fRegistered. */
+        void sigCloudProfileRegistered(const QUuid &uProviderId, const QString &strName, bool fRegistered);
+        /** Notifies about cloud profile with specified @a strName of provider with specified @a uProviderId is changed. */
+        void sigCloudProfileChanged(const QUuid &uProviderId, const QString &strName);
     /** @} */
 
     /** @name VirtualBox Extra-data related signals
@@ -132,8 +158,11 @@ signals:
       * @{ */
         /** Notifies about mouse pointer @a shapeData change. */
         void sigMousePointerShapeChange(const UIMousePointerShapeData &shapeData);
-        /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative, @a fSupportsMultiTouch and @a fNeedsHostCursor. */
-        void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
+        /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative,
+          * @a fSupportsTouchScreen, @a fSupportsTouchPad and @a fNeedsHostCursor. */
+        void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative,
+                                      bool fSupportsTouchScreen, bool fSupportsTouchPad,
+                                      bool fNeedsHostCursor);
         /** Notifies about guest request to change the cursor position to @a uX * @a uY.
           * @param  fContainsData  Brings whether the @a uX and @a uY values are valid and could be used by the GUI now. */
         void sigCursorPositionChange(bool fContainsData, unsigned long uX, unsigned long uY);
@@ -173,6 +202,18 @@ signals:
         void sigDnDModeChange(KDnDMode enmDnDMode);
     /** @} */
 
+    /** @name Update agent signals
+     * @{ */
+       /** Notifies about an available update of an update agent. */
+       void sigUpdateAgentAvailable(CUpdateAgent, QString, KUpdateChannel, KUpdateSeverity, QString, QString, QString);
+       /** Notifies about an error of an update agent. */
+       void sigUpdateAgentError(CUpdateAgent, QString, long);
+       /** Notifies about a state change of an update agent. */
+       void sigUpdateAgentStateChanged(CUpdateAgent, KUpdateState);
+       /** Notifies about update agent @a comAgent settings change. */
+       void sigUpdateAgentSettingsChanged(CUpdateAgent comAgent, const QString &strAttributeHint);
+    /** @} */
+
     /** @name Progress related signals
       * @{ */
         /** Notifies about @a iPercent change for progress with @a uProgressId. */
@@ -204,8 +245,13 @@ public:
     /** Deinitialization routine. */
     void uninit() {}
 
-    /** Registers event @a source for passive event @a listener. */
-    void registerSource(const CEventSource &comSource, const CEventListener &comListener);
+    /** Registers event source for passive event listener by creating a listening thread.
+      * @param  comSource         Brings event source we are creating listening thread for.
+      * @param  comListener       Brings event listener we are creating listening thread for.
+      * @param  escapeEventTypes  Brings a set of escape event types which commands listener to finish. */
+    void registerSource(const CEventSource &comSource,
+                        const CEventListener &comListener,
+                        const QSet<KVBoxEventType> &escapeEventTypes = QSet<KVBoxEventType>());
     /** Unregisters event sources. */
     void unregisterSources();
 
@@ -214,6 +260,11 @@ public:
 
     /** Holds the list of threads handling passive event listening. */
     QList<UIMainEventListeningThread*> m_threads;
+
+private slots:
+
+    /** Handles thread finished signal. */
+    void sltHandleThreadFinished();
 };
 
 /** Wraps the IListener interface around our implementation class. */

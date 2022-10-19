@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -67,7 +77,7 @@
 
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+DECLHIDDEN(int) suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, uint32_t fFlags, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
 {
     /*
      * Nothing to do if pre-inited.
@@ -78,7 +88,8 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
     /*
      * Try open the BSD device.
      */
-    int hDevice = open(fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR, O_RDWR, 0);
+    const char * const *pszDeviceNm = fFlags & SUPR3INIT_F_UNRESTRICTED ? DEVICE_NAME_SYS : DEVICE_NAME_USR;
+    int hDevice = open(pszDeviceNm, O_RDWR, 0);
     if (hDevice < 0)
     {
         int rc;
@@ -90,7 +101,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
             case ENOENT:    rc = VERR_VM_DRIVER_NOT_INSTALLED; break;
             default:        rc = VERR_VM_DRIVER_OPEN_ERROR; break;
         }
-        LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR, errno, rc));
+        LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", pszDeviceNm, errno, rc));
         return rc;
     }
 
@@ -114,12 +125,12 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
      * We're done.
      */
     pThis->hDevice       = hDevice;
-    pThis->fUnrestricted = fUnrestricted;
+    pThis->fUnrestricted = RT_BOOL(fFlags & SUPR3INIT_F_UNRESTRICTED);
     return VINF_SUCCESS;
 }
 
 
-int suplibOsTerm(PSUPLIBDATA pThis)
+DECLHIDDEN(int) suplibOsTerm(PSUPLIBDATA pThis)
 {
     /*
      * Check if we're inited at all.
@@ -136,19 +147,19 @@ int suplibOsTerm(PSUPLIBDATA pThis)
 
 #ifndef IN_SUP_HARDENED_R3
 
-int suplibOsInstall(void)
+DECLHIDDEN(int) suplibOsInstall(void)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
 
-int suplibOsUninstall(void)
+DECLHIDDEN(int) suplibOsUninstall(void)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
 
-int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
+DECLHIDDEN(int) suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {
     if (RT_LIKELY(ioctl(pThis->hDevice, uFunction, pvReq) >= 0))
         return VINF_SUCCESS;
@@ -156,7 +167,7 @@ int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cb
 }
 
 
-int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
+DECLHIDDEN(int) suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 {
     int rc = ioctl(pThis->hDevice, uFunction, idCpu);
     if (rc == -1)
@@ -165,9 +176,9 @@ int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 }
 
 
-int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
+DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFlags, void **ppvPages)
 {
-    NOREF(pThis);
+    RT_NOREF(pThis, fFlags);
     *ppvPages = RTMemPageAllocZ(cPages << PAGE_SHIFT);
     if (*ppvPages)
         return VINF_SUCCESS;
@@ -175,7 +186,7 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 }
 
 
-int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages)
+DECLHIDDEN(int) suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages)
 {
     NOREF(pThis);
     RTMemPageFree(pvPages, cPages * PAGE_SIZE);

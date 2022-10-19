@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -71,6 +81,7 @@
         Assert(*(a_pObjOps)->pszName); \
         AssertPtr((a_pObjOps)->pfnClose); \
         AssertPtr((a_pObjOps)->pfnQueryInfo); \
+        AssertPtrNull((a_pObjOps)->pfnQueryInfoEx); \
         Assert((a_pObjOps)->uEndMarker == RTVFSOBJOPS_VERSION); \
     } while (0)
 
@@ -369,6 +380,32 @@ static int rtVfsTraverseToParent(RTVFSINTERNAL *pThis, PRTVFSPARSEDPATH pPath, u
 static int rtVfsDirFollowSymlinkObjToParent(RTVFSDIRINTERNAL **ppVfsParentDir, RTVFSOBJ hVfsObj,
                                             PRTVFSPARSEDPATH pPath, uint32_t fFlags);
 
+
+
+/**
+ * Translates a RTVFSOBJTYPE value into a string.
+ *
+ * @returns Pointer to readonly name.
+ * @param   enmType             The object type to name.
+ */
+RTDECL(const char *) RTVfsTypeName(RTVFSOBJTYPE enmType)
+{
+    switch (enmType)
+    {
+        case RTVFSOBJTYPE_INVALID:      return "invalid";
+        case RTVFSOBJTYPE_BASE:         return "base";
+        case RTVFSOBJTYPE_VFS:          return "VFS";
+        case RTVFSOBJTYPE_FS_STREAM:    return "FS stream";
+        case RTVFSOBJTYPE_IO_STREAM:    return "I/O stream";
+        case RTVFSOBJTYPE_DIR:          return "directory";
+        case RTVFSOBJTYPE_FILE:         return "file";
+        case RTVFSOBJTYPE_SYMLINK:      return "symlink";
+        case RTVFSOBJTYPE_END:          return "end";
+        case RTVFSOBJTYPE_32BIT_HACK:
+            break;
+    }
+    return "unknown";
+}
 
 
 /*
@@ -812,6 +849,17 @@ RTDECL(int) RTVfsNewBaseObj(PCRTVFSOBJOPS pObjOps, size_t cbInstance, RTVFS hVfs
     *phVfsObj    = pThis;
     *ppvInstance = pThis->pvThis;
     return VINF_SUCCESS;
+}
+
+
+RTDECL(void *) RTVfsObjToPrivate(RTVFSOBJ hVfsObj, PCRTVFSOBJOPS pObjOps)
+{
+    RTVFSOBJINTERNAL *pThis = hVfsObj;
+    AssertPtrReturn(pThis, NULL);
+    AssertReturn(pThis->uMagic == RTVFSOBJ_MAGIC, NULL);
+    if (pThis->pOps != pObjOps)
+        return NULL;
+    return pThis->pvThis;
 }
 
 
@@ -2270,6 +2318,32 @@ RTDECL(int) RTVfsQueryRangeState(RTVFS hVfs, uint64_t off, size_t cb, bool *pfUs
 }
 
 
+RTDECL(int) RTVfsQueryLabel(RTVFS hVfs, bool fAlternative, char *pszLabel, size_t cbLabel, size_t *pcbActual)
+{
+    RTVFSINTERNAL *pThis = hVfs;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->uMagic == RTVFS_MAGIC, VERR_INVALID_HANDLE);
+
+    if (cbLabel > 0)
+        AssertPtrReturn(pszLabel, VERR_INVALID_POINTER);
+
+    int rc;
+    if (pThis->pOps->Obj.pfnQueryInfoEx)
+    {
+        size_t cbActualIgn;
+        if (!pcbActual)
+            pcbActual = &cbActualIgn;
+
+        RTVfsLockAcquireRead(pThis->Base.hLock);
+        rc = pThis->pOps->Obj.pfnQueryInfoEx(pThis->Base.pvThis, !fAlternative ? RTVFSQIEX_VOL_LABEL : RTVFSQIEX_VOL_LABEL_ALT,
+                                             pszLabel, cbLabel, pcbActual);
+        RTVfsLockReleaseRead(pThis->Base.hLock);
+    }
+    else
+        rc = VERR_NOT_SUPPORTED;
+    return rc;
+}
+
 
 
 /*
@@ -2281,7 +2355,7 @@ RTDECL(int) RTVfsQueryRangeState(RTVFS hVfs, uint64_t off, size_t cb, bool *pfUs
  */
 
 
-RTDECL(int) RTVfsNewFsStream(PCRTVFSFSSTREAMOPS pFsStreamOps, size_t cbInstance, RTVFS hVfs, RTVFSLOCK hLock, bool fReadOnly,
+RTDECL(int) RTVfsNewFsStream(PCRTVFSFSSTREAMOPS pFsStreamOps, size_t cbInstance, RTVFS hVfs, RTVFSLOCK hLock, uint32_t fAccess,
                              PRTVFSFSSTREAM phVfsFss, void **ppvInstance)
 {
     /*
@@ -2292,9 +2366,11 @@ RTDECL(int) RTVfsNewFsStream(PCRTVFSFSSTREAMOPS pFsStreamOps, size_t cbInstance,
     AssertReturn(pFsStreamOps->uEndMarker == RTVFSFSSTREAMOPS_VERSION, VERR_VERSION_MISMATCH);
     Assert(!pFsStreamOps->fReserved);
     RTVFSOBJ_ASSERT_OPS(&pFsStreamOps->Obj, RTVFSOBJTYPE_FS_STREAM);
-    if (fReadOnly)
+    Assert((fAccess & (RTFILE_O_READ | RTFILE_O_WRITE)) == fAccess);
+    Assert(fAccess);
+    if (fAccess & RTFILE_O_READ)
         AssertPtr(pFsStreamOps->pfnNext);
-    else
+    if (fAccess & RTFILE_O_WRITE)
     {
         AssertPtr(pFsStreamOps->pfnAdd);
         AssertPtr(pFsStreamOps->pfnEnd);
@@ -2323,10 +2399,14 @@ RTDECL(int) RTVfsNewFsStream(PCRTVFSFSSTREAMOPS pFsStreamOps, size_t cbInstance,
     }
 
     pThis->uMagic = RTVFSFSSTREAM_MAGIC;
-    pThis->fFlags = fReadOnly
-                  ? RTFILE_O_READ  | RTFILE_O_OPEN   | RTFILE_O_DENY_NONE
-                  : RTFILE_O_WRITE | RTFILE_O_CREATE | RTFILE_O_DENY_ALL;
     pThis->pOps   = pFsStreamOps;
+    pThis->fFlags = fAccess;
+    if (fAccess == RTFILE_O_READ)
+        pThis->fFlags |= RTFILE_O_OPEN   | RTFILE_O_DENY_NONE;
+    else if (fAccess == RTFILE_O_WRITE)
+        pThis->fFlags |= RTFILE_O_CREATE | RTFILE_O_DENY_ALL;
+    else
+        pThis->fFlags |= RTFILE_O_OPEN   | RTFILE_O_DENY_ALL;
 
     *phVfsFss     = pThis;
     *ppvInstance  = pThis->Base.pvThis;
@@ -3273,6 +3353,17 @@ RTDECL(int) RTVfsNewSymlink(PCRTVFSSYMLINKOPS pSymlinkOps, size_t cbInstance, RT
     *phVfsSym     = pThis;
     *ppvInstance  = pThis->Base.pvThis;
     return VINF_SUCCESS;
+}
+
+
+RTDECL(void *) RTVfsSymlinkToPrivate(RTVFSSYMLINK hVfsSym, PCRTVFSSYMLINKOPS pSymlinkOps)
+{
+    RTVFSSYMLINKINTERNAL *pThis = hVfsSym;
+    AssertPtrReturn(pThis, NULL);
+    AssertReturn(pThis->uMagic == RTVFSSYMLINK_MAGIC, NULL);
+    if (pThis->pOps != pSymlinkOps)
+        return NULL;
+    return pThis->Base.pvThis;
 }
 
 

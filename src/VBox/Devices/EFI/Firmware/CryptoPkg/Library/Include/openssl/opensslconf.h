@@ -2,7 +2,7 @@
  * WARNING: do not edit!
  * Generated from include/openssl/opensslconf.h.in
  *
- * Copyright 2016-2018 The OpenSSL Project Authors. All Rights Reserved.
+ * Copyright 2016-2020 The OpenSSL Project Authors. All Rights Reserved.
  *
  * Licensed under the OpenSSL license (the "License").  You may not use
  * this file except in compliance with the License.  You can obtain a copy
@@ -49,6 +49,9 @@ extern "C" {
 #ifndef OPENSSL_NO_CT
 # define OPENSSL_NO_CT
 #endif
+#ifndef OPENSSL_NO_DES
+# define OPENSSL_NO_DES
+#endif
 #ifndef OPENSSL_NO_DSA
 # define OPENSSL_NO_DSA
 #endif
@@ -61,6 +64,9 @@ extern "C" {
 #ifndef OPENSSL_NO_MD2
 # define OPENSSL_NO_MD2
 #endif
+#ifndef OPENSSL_NO_MD4
+# define OPENSSL_NO_MD4
+#endif
 #ifndef OPENSSL_NO_MDC2
 # define OPENSSL_NO_MDC2
 #endif
@@ -69,6 +75,9 @@ extern "C" {
 #endif
 #ifndef OPENSSL_NO_RC2
 # define OPENSSL_NO_RC2
+#endif
+#ifndef OPENSSL_NO_RC4
+# define OPENSSL_NO_RC4
 #endif
 #ifndef OPENSSL_NO_RC5
 # define OPENSSL_NO_RC5
@@ -108,9 +117,6 @@ extern "C" {
 #endif
 #ifndef OPENSSL_NO_ASYNC
 # define OPENSSL_NO_ASYNC
-#endif
-#ifndef OPENSSL_NO_AUTOALGINIT
-# define OPENSSL_NO_AUTOALGINIT
 #endif
 #ifndef OPENSSL_NO_AUTOERRINIT
 # define OPENSSL_NO_AUTOERRINIT
@@ -241,9 +247,6 @@ extern "C" {
 #ifndef OPENSSL_NO_DYNAMIC_ENGINE
 # define OPENSSL_NO_DYNAMIC_ENGINE
 #endif
-#ifndef OPENSSL_NO_AFALGENG
-# define OPENSSL_NO_AFALGENG
-#endif
 
 
 /*
@@ -265,6 +268,11 @@ extern "C" {
 #   undef DECLARE_DEPRECATED
 #   define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated));
 #  endif
+#elif defined(__SUNPRO_C)
+#if (__SUNPRO_C >= 0x5130)
+#undef DECLARE_DEPRECATED
+#define DECLARE_DEPRECATED(f)    f __attribute__ ((deprecated));
+#endif
 # endif
 #endif
 

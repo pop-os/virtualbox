@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -213,7 +223,7 @@ RTDECL(uint64_t) RTRandAdvU64(RTRAND hRand) RT_NO_THROW_DEF
 RT_EXPORT_SYMBOL(RTRandAdvU64);
 
 
-DECLHIDDEN(DECLCALLBACK(void))  rtRandAdvSynthesizeBytesFromU32(PRTRANDINT pThis, uint8_t *pb, size_t cb)
+DECL_HIDDEN_CALLBACK(void)  rtRandAdvSynthesizeBytesFromU32(PRTRANDINT pThis, uint8_t *pb, size_t cb)
 {
     while (cb > 0)
     {
@@ -245,7 +255,7 @@ DECLHIDDEN(DECLCALLBACK(void))  rtRandAdvSynthesizeBytesFromU32(PRTRANDINT pThis
 }
 
 
-DECLHIDDEN(DECLCALLBACK(void))  rtRandAdvSynthesizeBytesFromU64(PRTRANDINT pThis, uint8_t *pb, size_t cb)
+DECL_HIDDEN_CALLBACK(void)  rtRandAdvSynthesizeBytesFromU64(PRTRANDINT pThis, uint8_t *pb, size_t cb)
 {
     while (cb > 0)
     {
@@ -289,7 +299,7 @@ DECLHIDDEN(DECLCALLBACK(void))  rtRandAdvSynthesizeBytesFromU64(PRTRANDINT pThis
 }
 
 
-DECLHIDDEN(DECLCALLBACK(uint32_t))  rtRandAdvSynthesizeU32FromBytes(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last)
+DECL_HIDDEN_CALLBACK(uint32_t)  rtRandAdvSynthesizeU32FromBytes(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last)
 {
     union
     {
@@ -323,13 +333,13 @@ DECLHIDDEN(DECLCALLBACK(uint32_t))  rtRandAdvSynthesizeU32FromBytes(PRTRANDINT p
 }
 
 
-DECLHIDDEN(DECLCALLBACK(uint32_t))  rtRandAdvSynthesizeU32FromU64(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last)
+DECL_HIDDEN_CALLBACK(uint32_t)  rtRandAdvSynthesizeU32FromU64(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last)
 {
     return (uint32_t)pThis->pfnGetU64(pThis, u32First, u32Last);
 }
 
 
-DECLHIDDEN(DECLCALLBACK(uint64_t))  rtRandAdvSynthesizeU64FromBytes(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last)
+DECL_HIDDEN_CALLBACK(uint64_t)  rtRandAdvSynthesizeU64FromBytes(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last)
 {
     union
     {
@@ -364,7 +374,7 @@ DECLHIDDEN(DECLCALLBACK(uint64_t))  rtRandAdvSynthesizeU64FromBytes(PRTRANDINT p
 }
 
 
-DECLHIDDEN(DECLCALLBACK(uint64_t))  rtRandAdvSynthesizeU64FromU32(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last)
+DECL_HIDDEN_CALLBACK(uint64_t)  rtRandAdvSynthesizeU64FromU32(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last)
 {
     uint64_t off = u64Last - u64First;
     if (off <= UINT32_MAX)
@@ -377,7 +387,7 @@ DECLHIDDEN(DECLCALLBACK(uint64_t))  rtRandAdvSynthesizeU64FromU32(PRTRANDINT pTh
 
 
 /** @copydoc RTRANDINT::pfnSeed */
-DECLHIDDEN(DECLCALLBACK(int)) rtRandAdvStubSeed(PRTRANDINT pThis, uint64_t u64Seed)
+DECL_HIDDEN_CALLBACK(int) rtRandAdvStubSeed(PRTRANDINT pThis, uint64_t u64Seed)
 {
     NOREF(pThis);
     NOREF(u64Seed);
@@ -386,7 +396,7 @@ DECLHIDDEN(DECLCALLBACK(int)) rtRandAdvStubSeed(PRTRANDINT pThis, uint64_t u64Se
 
 
 /** @copydoc RTRANDINT::pfnSaveState */
-DECLHIDDEN(DECLCALLBACK(int)) rtRandAdvStubSaveState(PRTRANDINT pThis, char *pszState, size_t *pcbState)
+DECL_HIDDEN_CALLBACK(int) rtRandAdvStubSaveState(PRTRANDINT pThis, char *pszState, size_t *pcbState)
 {
     NOREF(pThis);
     NOREF(pszState);
@@ -396,7 +406,7 @@ DECLHIDDEN(DECLCALLBACK(int)) rtRandAdvStubSaveState(PRTRANDINT pThis, char *psz
 
 
 /** @copydoc RTRANDINT::pfnRestoreState */
-DECLHIDDEN(DECLCALLBACK(int)) rtRandAdvStubRestoreState(PRTRANDINT pThis, char const *pszState)
+DECL_HIDDEN_CALLBACK(int) rtRandAdvStubRestoreState(PRTRANDINT pThis, char const *pszState)
 {
     NOREF(pThis);
     NOREF(pszState);
@@ -405,7 +415,7 @@ DECLHIDDEN(DECLCALLBACK(int)) rtRandAdvStubRestoreState(PRTRANDINT pThis, char c
 
 
 /** @copydoc RTRANDINT::pfnDestroy */
-DECLHIDDEN(DECLCALLBACK(int)) rtRandAdvDefaultDestroy(PRTRANDINT pThis)
+DECL_HIDDEN_CALLBACK(int) rtRandAdvDefaultDestroy(PRTRANDINT pThis)
 {
     pThis->u32Magic = ~RTRANDINT_MAGIC;
     RTMemFree(pThis);

@@ -15,7 +15,8 @@
 *
 *    You should have received a copy of the GNU General Public License
 *    along with this program; if not, write to the Free Software
-*    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+*    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+*    02110-1301, USA.
 *
 *    Portions of this code:
 *	Copyright (C) 2001  P.J.H.Fox (fox@roestock.demon.co.uk)
@@ -32,15 +33,6 @@
 *    the 3c515 by Michael Brown <mbrown@fensystems.co.uk>
 *
 ***************************************************************************/
-
-/*
- * Oracle GPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
- * the General Public License version 2 (GPLv2) at this time for any software where
- * a choice of GPL license versions is made available with the language indicating
- * that GPLv2 or any later version may be used, or where a choice of which version
- * of the GPL is applied is otherwise unspecified.
- */
 
 /** @file
  *

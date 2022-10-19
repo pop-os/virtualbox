@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -32,6 +42,7 @@
 
 #include <VBox/param.h>
 #include <iprt/assert.h>
+#include <iprt/mem.h>
 #include <iprt/string.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
@@ -197,6 +208,147 @@ iomR3IOPortDummyNewOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint8
 }
 
 
+#ifdef VBOX_WITH_STATISTICS
+/**
+ * Grows the statistics table.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   cNewEntries     The minimum number of new entrie.
+ * @see     IOMR0IoPortGrowStatisticsTable
+ */
+static int iomR3IoPortGrowStatisticsTable(PVM pVM, uint32_t cNewEntries)
+{
+    AssertReturn(cNewEntries <= _64K, VERR_IOM_TOO_MANY_IOPORT_REGISTRATIONS);
+
+    int rc;
+    if (!SUPR3IsDriverless())
+    {
+        rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_IO_PORT_STATS, cNewEntries, NULL);
+        AssertLogRelRCReturn(rc, rc);
+        AssertReturn(cNewEntries <= pVM->iom.s.cIoPortStatsAllocation, VERR_IOM_IOPORT_IPE_2);
+    }
+    else
+    {
+        /*
+         * Validate input and state.
+         */
+        uint32_t const cOldEntries = pVM->iom.s.cIoPortStatsAllocation;
+        AssertReturn(cNewEntries > cOldEntries, VERR_IOM_IOPORT_IPE_1);
+        AssertReturn(pVM->iom.s.cIoPortStats <= cOldEntries, VERR_IOM_IOPORT_IPE_2);
+
+        /*
+         * Calc size and allocate a new table.
+         */
+        uint32_t const cbNew = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTSTATSENTRY), HOST_PAGE_SIZE);
+        cNewEntries = cbNew / sizeof(IOMIOPORTSTATSENTRY);
+
+        PIOMIOPORTSTATSENTRY const paIoPortStats = (PIOMIOPORTSTATSENTRY)RTMemPageAllocZ(cbNew);
+        if (paIoPortStats)
+        {
+            /*
+             * Anything to copy over, update and free the old one.
+             */
+            PIOMIOPORTSTATSENTRY const pOldIoPortStats = pVM->iom.s.paIoPortStats;
+            if (pOldIoPortStats)
+                memcpy(paIoPortStats, pOldIoPortStats, cOldEntries * sizeof(IOMIOPORTSTATSENTRY));
+
+            pVM->iom.s.paIoPortStats             = paIoPortStats;
+            pVM->iom.s.cIoPortStatsAllocation    = cNewEntries;
+
+            RTMemPageFree(pOldIoPortStats, RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTSTATSENTRY), HOST_PAGE_SIZE));
+
+            rc = VINF_SUCCESS;
+        }
+        else
+            rc = VERR_NO_PAGE_MEMORY;
+    }
+
+    return rc;
+}
+#endif
+
+
+/**
+ * Grows the I/O port registration statistics table.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   cNewEntries     The minimum number of new entrie.
+ * @see     IOMR0IoPortGrowRegistrationTables
+ */
+static int iomR3IoPortGrowTable(PVM pVM, uint32_t cNewEntries)
+{
+    AssertReturn(cNewEntries <= _4K, VERR_IOM_TOO_MANY_IOPORT_REGISTRATIONS);
+
+    int rc;
+    if (!SUPR3IsDriverless())
+    {
+        rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_IO_PORTS, cNewEntries, NULL);
+        AssertLogRelRCReturn(rc, rc);
+        AssertReturn(cNewEntries <= pVM->iom.s.cIoPortAlloc, VERR_IOM_IOPORT_IPE_2);
+    }
+    else
+    {
+        /*
+         * Validate input and state.
+         */
+        uint32_t const cOldEntries = pVM->iom.s.cIoPortAlloc;
+        AssertReturn(cNewEntries >= cOldEntries, VERR_IOM_IOPORT_IPE_1);
+
+        /*
+         * Allocate the new tables.  We use a single allocation for the three tables (ring-0,
+         * ring-3, lookup) and does a partial mapping of the result to ring-3.
+         */
+        uint32_t const cbRing3  = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTENTRYR3),     HOST_PAGE_SIZE);
+        uint32_t const cbShared = RT_ALIGN_32(cNewEntries * sizeof(IOMIOPORTLOOKUPENTRY), HOST_PAGE_SIZE);
+        uint32_t const cbNew    = cbRing3 + cbShared;
+
+        /* Use the rounded up space as best we can. */
+        cNewEntries = RT_MIN(cbRing3 / sizeof(IOMIOPORTENTRYR3), cbShared / sizeof(IOMIOPORTLOOKUPENTRY));
+
+        PIOMIOPORTENTRYR3 const paRing3 = (PIOMIOPORTENTRYR3)RTMemPageAllocZ(cbNew);
+        if (paRing3)
+        {
+            PIOMIOPORTLOOKUPENTRY const paLookup = (PIOMIOPORTLOOKUPENTRY)((uintptr_t)paRing3 + cbRing3);
+
+            /*
+             * Copy over the old info and initialize the idxSelf and idxStats members.
+             */
+            if (pVM->iom.s.paIoPortRegs != NULL)
+            {
+                memcpy(paRing3,  pVM->iom.s.paIoPortRegs,    sizeof(paRing3[0])  * cOldEntries);
+                memcpy(paLookup, pVM->iom.s.paIoPortLookup,  sizeof(paLookup[0]) * cOldEntries);
+            }
+
+            size_t i = cbRing3 / sizeof(*paRing3);
+            while (i-- > cOldEntries)
+            {
+                paRing3[i].idxSelf  = (uint16_t)i;
+                paRing3[i].idxStats = UINT16_MAX;
+            }
+
+            /*
+             * Update the variables and free the old memory.
+             */
+            void * const pvFree =  pVM->iom.s.paIoPortRegs;
+
+            pVM->iom.s.paIoPortRegs     = paRing3;
+            pVM->iom.s.paIoPortLookup   = paLookup;
+            pVM->iom.s.cIoPortAlloc     = cNewEntries;
+
+            RTMemPageFree(pvFree,
+                            RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTENTRYR3),     HOST_PAGE_SIZE)
+                          + RT_ALIGN_32(cOldEntries * sizeof(IOMIOPORTLOOKUPENTRY), HOST_PAGE_SIZE));
+
+            rc = VINF_SUCCESS;
+        }
+        else
+            rc = VERR_NO_PAGE_MEMORY;
+    }
+    return rc;
+}
+
 
 /**
  * Worker for PDMDEVHLPR3::pfnIoPortCreateEx.
@@ -213,6 +365,7 @@ VMMR3_INT_DECL(int)  IOMR3IoPortCreate(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT cPo
     *phIoPorts = UINT32_MAX;
     VM_ASSERT_EMT0_RETURN(pVM, VERR_VM_THREAD_NOT_EMT);
     VM_ASSERT_STATE_RETURN(pVM, VMSTATE_CREATING, VERR_VM_INVALID_VM_STATE);
+    AssertReturn(!pVM->iom.s.fIoPortsFrozen, VERR_WRONG_ORDER);
 
     AssertPtrReturn(pDevIns, VERR_INVALID_POINTER);
 
@@ -253,18 +406,17 @@ VMMR3_INT_DECL(int)  IOMR3IoPortCreate(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT cPo
     AssertReturn(cNewIoPortStats <= _64K, VERR_IOM_TOO_MANY_IOPORT_REGISTRATIONS);
     if (cNewIoPortStats > pVM->iom.s.cIoPortStatsAllocation)
     {
-        int rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_IO_PORT_STATS, cNewIoPortStats, NULL);
-        AssertLogRelRCReturn(rc, rc);
+        int rc = iomR3IoPortGrowStatisticsTable(pVM, cNewIoPortStats);
+        AssertRCReturn(rc, rc);
         AssertReturn(idxStats == pVM->iom.s.cIoPortStats, VERR_IOM_IOPORT_IPE_1);
-        AssertReturn(cNewIoPortStats <= pVM->iom.s.cIoPortStatsAllocation, VERR_IOM_IOPORT_IPE_2);
     }
 #endif
 
     uint32_t idx = pVM->iom.s.cIoPortRegs;
     if (idx >= pVM->iom.s.cIoPortAlloc)
     {
-        int rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_GROW_IO_PORTS, pVM->iom.s.cIoPortAlloc + 1, NULL);
-        AssertLogRelRCReturn(rc, rc);
+        int rc = iomR3IoPortGrowTable(pVM, pVM->iom.s.cIoPortAlloc + 1);
+        AssertRCReturn(rc, rc);
         AssertReturn(idx == pVM->iom.s.cIoPortRegs, VERR_IOM_IOPORT_IPE_1);
         AssertReturn(idx < pVM->iom.s.cIoPortAlloc, VERR_IOM_IOPORT_IPE_2);
     }

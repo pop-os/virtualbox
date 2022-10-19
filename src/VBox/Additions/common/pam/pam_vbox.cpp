@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -39,6 +49,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/buildconfig.h>
+#include <iprt/err.h>
 #include <iprt/env.h>
 #include <iprt/initterm.h>
 #include <iprt/mem.h>
@@ -50,9 +61,7 @@
 #include <VBox/VBoxGuestLib.h>
 
 #include <VBox/log.h>
-#ifdef VBOX_WITH_GUEST_PROPS
-# include <VBox/HostServices/GuestPropertySvc.h>
-#endif
+#include <VBox/HostServices/GuestPropertySvc.h>
 
 #define VBOX_MODULE_NAME                    "pam_vbox"
 
@@ -64,12 +73,12 @@
 #define VBOX_PAM_FLAG_REFRESH_CRED          "PAM_REFRESH_CRED"
 
 RT_C_DECLS_BEGIN
-RTDECL(int) pam_sm_authenticate(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
-RTDECL(int) pam_sm_setcred(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
-RTDECL(int) pam_sm_acct_mgmt(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
-RTDECL(int) pam_sm_open_session(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
-RTDECL(int) pam_sm_close_session(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
-RTDECL(int) pam_sm_chauthtok(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
+DECLEXPORT(int) pam_sm_authenticate(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
+DECLEXPORT(int) pam_sm_setcred(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
+DECLEXPORT(int) pam_sm_acct_mgmt(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
+DECLEXPORT(int) pam_sm_open_session(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
+DECLEXPORT(int) pam_sm_close_session(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
+DECLEXPORT(int) pam_sm_chauthtok(pam_handle_t *hPAM, int iFlags, int argc, const char **argv);
 RT_C_DECLS_END
 
 /** For debugging. */
@@ -381,8 +390,6 @@ static int pam_vbox_check_creds(pam_handle_t *hPAM)
     return rc;
 }
 
-
-#ifdef VBOX_WITH_GUEST_PROPS
 /**
  * Reads a guest property.
  *
@@ -419,7 +426,7 @@ static int pam_vbox_read_prop(pam_handle_t *hPAM, uint32_t uClientID,
      * property and the guest updating it, we loop a few times here and
      * hope.  Actually this should never go wrong, as we are generous
      * enough with buffer space. */
-    for (unsigned i = 0; i < 10; i++)
+    for (unsigned i = 0; ; i++)
     {
         void *pvTmpBuf = RTMemRealloc(pvBuf, cbBuf);
         if (pvTmpBuf)
@@ -428,25 +435,16 @@ static int pam_vbox_read_prop(pam_handle_t *hPAM, uint32_t uClientID,
             rc = VbglR3GuestPropRead(uClientID, pszKey, pvBuf, cbBuf,
                                      &pszValTemp, &u64Timestamp, &pszFlags,
                                      &cbBuf);
-        }
-        else
-            rc = VERR_NO_MEMORY;
-
-        switch (rc)
-        {
-            case VERR_BUFFER_OVERFLOW:
+            if (rc == VERR_BUFFER_OVERFLOW && i < 10)
             {
                 /* Buffer too small, try it with a bigger one next time. */
                 cbBuf += _1K;
                 continue; /* Try next round. */
             }
-
-            default:
-                break;
         }
-
-        /* Everything except VERR_BUFFER_OVERLOW makes us bail out ... */
-        break;
+        else
+            rc = VERR_NO_MEMORY;
+        break; /* Everything except VERR_BUFFER_OVERFLOW makes us bail out ... */
     }
 
     if (RT_SUCCESS(rc))
@@ -459,15 +457,13 @@ static int pam_vbox_read_prop(pam_handle_t *hPAM, uint32_t uClientID,
             {
                 /* If we want a property which is read-only on the guest
                  * and it is *not* marked as such, deny access! */
-                pam_vbox_error(hPAM, "pam_vbox_read_prop: key \"%s\" should be read-only on guest but it is not\n",
-                               pszKey);
+                pam_vbox_error(hPAM, "pam_vbox_read_prop: key \"%s\" should be read-only on guest but it is not\n", pszKey);
                 rc = VERR_ACCESS_DENIED;
             }
         }
         else /* No flags, no access! */
         {
-            pam_vbox_error(hPAM, "pam_vbox_read_prop: key \"%s\" contains no/wrong flags (%s)\n",
-                           pszKey, pszFlags);
+            pam_vbox_error(hPAM, "pam_vbox_read_prop: key \"%s\" contains no/wrong flags (%s)\n", pszKey, pszFlags);
             rc = VERR_ACCESS_DENIED;
         }
 
@@ -476,17 +472,16 @@ static int pam_vbox_read_prop(pam_handle_t *hPAM, uint32_t uClientID,
             /* If everything went well copy property value to our destination buffer. */
             if (!RTStrPrintf(pszValue, cbValue, "%s", pszValTemp))
             {
-                pam_vbox_error(hPAM, "pam_vbox_read_prop: could not store value of key \"%s\"\n",
-                               pszKey);
+                pam_vbox_error(hPAM, "pam_vbox_read_prop: could not store value of key \"%s\"\n", pszKey);
                 rc = VERR_INVALID_PARAMETER;
             }
 
             if (RT_SUCCESS(rc))
-                pam_vbox_log(hPAM, "pam_vbox_read_prop: read key \"%s\"=\"%s\"\n",
-                             pszKey, pszValue);
+                pam_vbox_log(hPAM, "pam_vbox_read_prop: read key \"%s\"=\"%s\"\n", pszKey, pszValue);
         }
     }
 
+    RTMemFree(pvBuf);
     pam_vbox_log(hPAM, "pam_vbox_read_prop: read key \"%s\" with rc=%Rrc\n",
                  pszKey, rc);
     return rc;
@@ -517,7 +512,7 @@ static int pam_vbox_wait_prop(pam_handle_t *hPAM, uint32_t uClientID,
     void *pvBuf = NULL;
     uint32_t cbBuf = GUEST_PROP_MAX_NAME_LEN + GUEST_PROP_MAX_VALUE_LEN + GUEST_PROP_MAX_FLAGS_LEN + _1K;
 
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; ; i++)
     {
         void *pvTmpBuf = RTMemRealloc(pvBuf, cbBuf);
         if (pvTmpBuf)
@@ -531,25 +526,21 @@ static int pam_vbox_wait_prop(pam_handle_t *hPAM, uint32_t uClientID,
             rc = VbglR3GuestPropWait(uClientID, pszKey, pvBuf, cbBuf,
                                      0 /* Last timestamp; just wait for next event */, uTimeoutMS,
                                      &pszName, &pszValue, &u64TimestampOut,
-                                     &pszFlags, &cbBuf);
+                                     &pszFlags, &cbBuf, NULL /* pfWasDeleted */);
+            if (rc == VERR_BUFFER_OVERFLOW && i < 10)
+            {
+                cbBuf += _1K; /* Buffer too small, try it with a bigger one more time. */
+                continue;
+            }
         }
         else
             rc = VERR_NO_MEMORY;
-
-        if (rc == VERR_BUFFER_OVERFLOW)
-        {
-            /* Buffer too small, try it with a bigger one next time. */
-            cbBuf += _1K;
-            continue; /* Try next round. */
-        }
-
-        /* Everything except VERR_BUFFER_OVERLOW makes us bail out ... */
         break;
     }
 
+    RTMemFree(pvBuf);
     return rc;
 }
-#endif
 
 /**
  * Thread function waiting for credentials to arrive.
@@ -569,7 +560,6 @@ static DECLCALLBACK(int) pam_vbox_wait_thread(RTTHREAD hThreadSelf, void *pvUser
     /* Get current time stamp to later calculate rest of timeout left. */
     uint64_t u64StartMS = RTTimeMilliTS();
 
-#ifdef VBOX_WITH_GUEST_PROPS
     uint32_t uClientID = 0;
     rc = VbglR3GuestPropConnect(&uClientID);
     if (RT_FAILURE(rc))
@@ -579,10 +569,10 @@ static DECLCALLBACK(int) pam_vbox_wait_thread(RTTHREAD hThreadSelf, void *pvUser
     else
     {
         pam_vbox_log(pUserData->hPAM, "pam_vbox_wait_thread: clientID=%u\n", uClientID);
-#endif
+
         for (;;)
         {
-#ifdef VBOX_WITH_GUEST_PROPS
+
             if (uClientID)
             {
                 rc = pam_vbox_wait_prop(pUserData->hPAM, uClientID,
@@ -618,7 +608,7 @@ static DECLCALLBACK(int) pam_vbox_wait_thread(RTTHREAD hThreadSelf, void *pvUser
                     break;
                 }
             }
-#endif
+
             if (   RT_SUCCESS(rc)
                 || rc == VERR_TIMEOUT)
             {
@@ -632,9 +622,7 @@ static DECLCALLBACK(int) pam_vbox_wait_thread(RTTHREAD hThreadSelf, void *pvUser
                 {
                     /* No credentials found, but try next round (if there's
                      * time left for) ... */
-#ifndef VBOX_WITH_GUEST_PROPS
                     RTThreadSleep(500); /* Wait 500 ms. */
-#endif
                 }
                 else
                     break; /* Something bad happend ... */
@@ -653,10 +641,8 @@ static DECLCALLBACK(int) pam_vbox_wait_thread(RTTHREAD hThreadSelf, void *pvUser
                 break;
             }
         }
-#ifdef VBOX_WITH_GUEST_PROPS
     }
     VbglR3GuestPropDisconnect(uClientID);
-#endif
 
     /* Save result. */
     pUserData->rc = rc; /** @todo Use ASMAtomicXXX? */
@@ -667,7 +653,6 @@ static DECLCALLBACK(int) pam_vbox_wait_thread(RTTHREAD hThreadSelf, void *pvUser
     pam_vbox_log(pUserData->hPAM, "pam_vbox_wait_thread: Waiting thread returned with rc=%Rrc\n", rc);
     return rc;
 }
-
 
 /**
  * Waits for credentials to arrive by creating and waiting for a thread.
@@ -705,7 +690,6 @@ static int pam_vbox_wait_for_creds(pam_handle_t *hPAM, uint32_t uClientID, uint3
     return rc;
 }
 
-
 DECLEXPORT(int) pam_sm_authenticate(pam_handle_t *hPAM, int iFlags, int argc, const char **argv)
 {
     RT_NOREF1(iFlags);
@@ -726,7 +710,6 @@ DECLEXPORT(int) pam_sm_authenticate(pam_handle_t *hPAM, int iFlags, int argc, co
 
     bool fFallback = true;
 
-#ifdef VBOX_WITH_GUEST_PROPS
     uint32_t uClientId;
     rc = VbglR3GuestPropConnect(&uClientId);
     if (RT_SUCCESS(rc))
@@ -815,7 +798,6 @@ DECLEXPORT(int) pam_sm_authenticate(pam_handle_t *hPAM, int iFlags, int argc, co
 
         VbglR3GuestPropDisconnect(uClientId);
     }
-#endif /* VBOX_WITH_GUEST_PROPS */
 
     if (fFallback)
     {
@@ -885,7 +867,7 @@ DECLEXPORT(int) pam_sm_chauthtok(pam_handle_t *hPAM, int iFlags, int argc, const
 
 
 #ifdef DEBUG
-DECLEXPORT(void) RTAssertMsg1Weak(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
+RTDECL(void) RTAssertMsg1Weak(const char *pszExpr, unsigned uLine, const char *pszFile, const char *pszFunction)
 {
     pam_vbox_log(g_pam_handle,
                  "\n!!Assertion Failed!!\n"

@@ -3,16 +3,27 @@
     docbook-refentry-to-H-help.xsl:
         XSLT stylesheet for generating command and sub-command
         constants header for the built-in help.
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <xsl:stylesheet
@@ -64,7 +75,7 @@ enum
 #define HELP_SCOPE_</xsl:text>
         <xsl:value-of select="$sBaseNm"/>
         <xsl:value-of select="substring('                                               ',1,56 - string-length($sBaseNm) - 11)"/>
-        <xsl:text> RT_BIT_32(HELP_SCOPE_</xsl:text><xsl:value-of select="$sBaseNm"/><xsl:text>_BIT)
+        <xsl:text> RT_BIT_64(HELP_SCOPE_</xsl:text><xsl:value-of select="$sBaseNm"/><xsl:text>_BIT)
         HELP_SCOPE_</xsl:text><xsl:value-of select="$sBaseNm"/><xsl:text>_BIT = 0</xsl:text>
 
         <!-- Synopsis IDs -->
@@ -79,13 +90,13 @@ enum
 #define </xsl:text>
           <xsl:value-of select="$sSubNm"/>
           <xsl:value-of select="substring('                                               ',1,56 - string-length($sSubNm))"/>
-          <xsl:text> RT_BIT_32(</xsl:text><xsl:value-of select="$sSubNm"/><xsl:text>_BIT)
+          <xsl:text> RT_BIT_64(</xsl:text><xsl:value-of select="$sSubNm"/><xsl:text>_BIT)
         </xsl:text>
           <xsl:value-of select="$sSubNm"/><xsl:text>_BIT</xsl:text>
         </xsl:for-each>
 
-        <!-- Add scoping info for refsect1, refsect2 and refsect3 IDs that aren't part of the synopsis. -->
-        <xsl:for-each select=".//refsect1[@id] | .//refsect2[@id] | .//refsect3[@id]">
+        <!-- Add scoping info for refsect1 and refsect2 IDs that aren't part of the synopsis. -->
+        <xsl:for-each select=".//refsect1[@id] | .//refsect2[@id]">
           <xsl:variable name="sThisId" select="@id"/>
           <xsl:if test="not($RefEntry[@id = $sThisId]) and not($RefEntry/refsynopsisdiv/cmdsynopsis[@id = concat('synopsis-', $sThisId)])">
             <xsl:variable name="sSubNm">
@@ -107,7 +118,7 @@ enum
 #define </xsl:text>
             <xsl:value-of select="$sSubNm"/>
             <xsl:value-of select="substring('                                               ',1,56 - string-length($sSubNm))"/>
-            <xsl:text> RT_BIT_32(</xsl:text><xsl:value-of select="$sSubNm"/><xsl:text>_BIT)
+            <xsl:text> RT_BIT_64(</xsl:text><xsl:value-of select="$sSubNm"/><xsl:text>_BIT)
         </xsl:text>
             <xsl:value-of select="$sSubNm"/><xsl:text>_BIT</xsl:text>
           </xsl:if>
@@ -117,6 +128,9 @@ enum
         <xsl:text>,
         HELP_SCOPE_</xsl:text><xsl:value-of select="$sBaseNm"/><xsl:text>_END
 };
+AssertCompile((int)HELP_SCOPE_</xsl:text><xsl:value-of select="$sBaseNm"/><xsl:text>_END &gt;= 1);
+AssertCompile((int)HELP_SCOPE_</xsl:text><xsl:value-of select="$sBaseNm"/><xsl:text>_END &lt; 64);
+AssertCompile(RT_BIT_64(HELP_SCOPE_</xsl:text><xsl:value-of select="$sBaseNm"/><xsl:text>_END - 1) &amp; RTMSGREFENTRYSTR_SCOPE_MASK);
 </xsl:text>
       </xsl:when>
 

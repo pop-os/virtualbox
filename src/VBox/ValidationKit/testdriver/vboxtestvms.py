@@ -7,26 +7,36 @@ VirtualBox Test VMs
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 # Standard Python imports.
 import copy;
@@ -38,11 +48,11 @@ import string;
 import uuid;
 
 # Validation Kit imports.
+from common     import pathutils;
+from common     import utils;
 from testdriver import base;
 from testdriver import reporter;
 from testdriver import vboxcon;
-from common import pathutils;
-from common import utils;
 
 
 # All virtualization modes.
@@ -103,12 +113,17 @@ g_aaNameToDetails = \
     [ 'Windows2008_64', 'Windows2008_64',        g_k64,    1,  64, ['w2k8r2', 'w2k8r2sp[0-9]', 'win2k8r2', 'win2k8r2sp[0-9]']], # max cpus/cores??
     [ 'Windows7',       'Windows7',              g_k32,    1,  32, ['w7',     'w7sp[0-9]', 'win7',]],        # max cpus/cores??
     [ 'Windows7_64',    'Windows7_64',           g_k64,    1,  64, ['w7-64',  'w7sp[0-9]-64', 'win7-64',]],  # max cpus/cores??
+    [ 'Windows2012',    'Windows2012',           g_k64,    1,  64, ['w2k12',  'w2k12sp[0-9]', 'win2k12', 'win2k12sp[0-9]',]], # max cpus/cores??
     [ 'Windows8',       'Windows8',     g_k32 | g_kiNoRaw, 1,  32, ['w8',     'w8sp[0-9]', 'win8',]],        # max cpus/cores??
     [ 'Windows8_64',    'Windows8_64',           g_k64,    1,  64, ['w8-64',  'w8sp[0-9]-64', 'win8-64',]],  # max cpus/cores??
     [ 'Windows81',      'Windows81',    g_k32 | g_kiNoRaw, 1,  32, ['w81',    'w81sp[0-9]', 'win81',]],       # max cpus/cores??
     [ 'Windows81_64',   'Windows81_64',          g_k64,    1,  64, ['w81-64', 'w81sp[0-9]-64', 'win81-64',]], # max cpus/cores??
     [ 'Windows10',      'Windows10',    g_k32 | g_kiNoRaw, 1,  32, ['w10',    'w10sp[0-9]', 'win10',]],       # max cpus/cores??
     [ 'Windows10_64',   'Windows10_64',          g_k64,    1,  64, ['w10-64', 'w10sp[0-9]-64', 'win10-64',]], # max cpus/cores??
+    [ 'Windows2016',    'Windows2016',           g_k64,    1,  64, ['w2k16',  'w2k16sp[0-9]', 'win2k16', 'win2k16sp[0-9]',]], # max cpus/cores??
+    [ 'Windows2019',    'Windows2019',           g_k64,    1,  64, ['w2k19',  'w2k19sp[0-9]', 'win2k19', 'win2k19sp[0-9]',]], # max cpus/cores??
+    [ 'Windows2022',    'Windows2022',           g_k64,    1,  64, ['w2k22',  'w2k22sp[0-9]', 'win2k22', 'win2k22sp[0-9]',]], # max cpus/cores??
+    [ 'Windows11',      'Windows11',             g_k64,    1,  64, ['w11', 'w11-64', 'w11sp[0-9]-64', 'win11', 'win11-64',]], # max cpus/cores??
     [ 'Linux',          'Debian',                g_k32,    1, 256, ['deb[0-9]*', 'debian[0-9]*', ]],
     [ 'Linux_64',       'Debian_64',             g_k64,    1, 256, ['deb[0-9]*-64', 'debian[0-9]*-64', ]],
     [ 'Linux',          'RedHat',                g_k32,    1, 256, ['rhel',   'rhel[0-9]', 'rhel[0-9]u[0-9]']],
@@ -122,6 +137,7 @@ g_aaNameToDetails = \
     [ 'Linux_64',       'Ubuntu_64',             g_k64,    1, 256, ['ubuntu[0-9]*-64', ]],
     [ 'Linux',          'ArchLinux',             g_k32,    1, 256, ['arch[0-9]*', ]],
     [ 'Linux_64',       'ArchLinux_64',          g_k64,    1, 256, ['arch[0-9]*-64', ]],
+    [ 'OS2Warp45',      'OS2Warp45',    g_k32 | g_kiNoRaw, 1, 1,   ['os2.*', 'acp.*','mcp.*', ]], # smp does busy spinning and unattended installer only does UNI at the momen.
     [ 'Solaris',        'Solaris',               g_k32,    1, 256, ['sol10',  'sol10u[0-9]']],
     [ 'Solaris_64',     'Solaris_64',            g_k64,    1, 256, ['sol10-64', 'sol10u-64[0-9]']],
     [ 'Solaris_64',     'Solaris11_64',          g_k64,    1, 256, ['sol11u1']],
@@ -330,7 +346,7 @@ class BaseTestVm(object):
             if _intersects(asSplit, ['uni']):
                 self.acCpusSup = [1];
             elif self.aInfo is not None:
-                self.acCpusSup = list(range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu]));
+                self.acCpusSup = list(range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu] + 1));
             else:
                 self.acCpusSup = [1];
 
@@ -954,6 +970,7 @@ class TestVm(object):
                  fRandomPvPMode = False,                    # type: bool
                  sFirmwareType = 'bios',                    # type: str
                  sChipsetType = 'piix3',                    # type: str
+                 sIommuType = 'none',                       # type: str
                  sHddControllerType = 'IDE Controller',     # type: str
                  sDvdControllerType = 'IDE Controller'      # type: str
                  ):
@@ -980,6 +997,7 @@ class TestVm(object):
         self.fVmmDevTestingMmio      = fVmmDevTestingMmio;
         self.sFirmwareType           = sFirmwareType;
         self.sChipsetType            = sChipsetType;
+        self.sIommuType              = sIommuType;
         self.fCom1RawFile            = False;
 
         self.fSnapshotRestoreCurrent = False;        # Whether to restore execution on the current snapshot.
@@ -1075,7 +1093,7 @@ class TestVm(object):
             if _intersects(asSplit, ['uni']):
                 self.acCpusSup = [1];
             elif self.aInfo is not None:
-                self.acCpusSup = list(range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu]));
+                self.acCpusSup = list(range(self.aInfo[g_iMinCpu], self.aInfo[g_iMaxCpu] + 1));
             else:
                 self.acCpusSup = [1];
 
@@ -1178,6 +1196,7 @@ class TestVm(object):
                                      fVmmDevTestingMmio = self.fVmmDevTestingMmio,
                                      sFirmwareType      = self.sFirmwareType,
                                      sChipsetType       = self.sChipsetType,
+                                     sIommuType         = self.sIommuType,
                                      sCom1RawFile       = self.sCom1RawFile if self.fCom1RawFile else None
                                      );
 
@@ -1901,10 +1920,29 @@ class TestVmManager(object):
     ## @}
 
     kaTestVMs = (
+        # Note: The images in the 6.1 folder all have been pre-configured to allow for Guest Additions installation
+        #       (come with build essentials, kernel headers).
         # Linux
-        TestVm('tst-ubuntu-15_10-64-efi',   kfGrpStdSmoke,        sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
+        TestVm('tst-ubuntu-18_04_3-64',     kfGrpStdSmoke,        sHd = '6.1/ubuntu-18_04_3-amd64-2.vdi',
+               sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True,
+               asParavirtModesSup = [g_ksParavirtProviderKVM,]),
+        # Note: Deprecated; had SELinux + Screensaver (black screen) enabled.
+        #TestVm('tst-ol-8_1-64-efi',         kfGrpStdSmoke,        sHd = '6.1/efi/ol-8_1-efi-amd64.vdi',
+        #       sKind = 'Oracle_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
+        #       asParavirtModesSup = [g_ksParavirtProviderKVM,]),
+        TestVm('tst-ol-8_1-64-efi',         kfGrpStdSmoke,        sHd = '6.1/efi/ol-8_1-efi-amd64-2.vdi',
+               sKind = 'Oracle_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
+               asParavirtModesSup = [g_ksParavirtProviderKVM,]),
+        TestVm('tst-ol-6u2-32',             kfGrpStdSmoke,        sHd = '6.1/ol-6u2-x86.vdi',
+               sKind = 'Oracle',    acCpusSup = range(1, 33), fIoApic = True,
+               asParavirtModesSup = [g_ksParavirtProviderKVM,]),
+        TestVm('tst-ubuntu-15_10-64-efi',   kfGrpStdSmoke,        sHd = '6.1/efi/ubuntu-15_10-efi-amd64-3.vdi',
                sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
                asParavirtModesSup = [g_ksParavirtProviderKVM,]),
+        # Note: Deprecated / buggy; use the one in the 6.1 folder.
+        #TestVm('tst-ubuntu-15_10-64-efi',   kfGrpStdSmoke,        sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
+        #       sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
+        #       asParavirtModesSup = [g_ksParavirtProviderKVM,]),
         TestVm('tst-rhel5',                 kfGrpSmoke,           sHd = '3.0/tcp/rhel5.vdi',
                sKind = 'RedHat', acCpusSup = range(1, 33), fIoApic = True, sNic0AttachType = 'nat'),
         TestVm('tst-arch',                  kfGrpStandard,        sHd = '4.2/usb/tst-arch.vdi',
@@ -1914,6 +1952,14 @@ class TestVmManager(object):
         #       sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True),
         TestVm('tst-ol76-64',   kfGrpStdSmoke,        sHd = '4.2/ol76/t-ol76-64.vdi',
                sKind = 'Oracle_64', acCpusSup = range(1, 33), fIoApic = True),
+        TestVm('tst-ubuntu-20_04-64-amdvi',     kfGrpStdSmoke,    sHd = '6.1/ubuntu-20_04-64.vdi',
+               sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True,
+               asParavirtModesSup = [g_ksParavirtProviderKVM,], sNic0AttachType = 'nat', sChipsetType = 'ich9',
+               sIommuType = 'amd'),
+        TestVm('tst-ubuntu-20_04-64-vtd',     kfGrpStdSmoke,      sHd = '6.1/ubuntu-20_04-64.vdi',
+               sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True,
+               asParavirtModesSup = [g_ksParavirtProviderKVM,], sNic0AttachType = 'nat', sChipsetType = 'ich9',
+               sIommuType = 'intel'),
 
         # Solaris
         TestVm('tst-sol10',                 kfGrpSmoke,           sHd = '3.0/tcp/solaris10.vdi',
@@ -1946,7 +1992,7 @@ class TestVmManager(object):
                sKind = 'WindowsNT4', acCpusSup = range(1, 33)),
 
         # W2K
-        TestVm('tst-2ksp4',                 kfGrpStdSmoke,        sHd = '4.2/win2ksp4/t-win2ksp4.vdi',
+        TestVm('tst-w2ksp4',                kfGrpStdSmoke,        sHd = '4.2/win2ksp4/t-win2ksp4.vdi',
                sKind = 'Windows2000', acCpusSup = range(1, 33)),
 
         # XP
@@ -1970,8 +2016,14 @@ class TestVmManager(object):
                sKind = 'Windows2003', acCpusSup = range(1, 33), fPae = True, sNic0AttachType = 'bridged'),
 
         # W7
-        TestVm('tst-win7',                  kfGrpStdSmoke,        sHd = '4.2/win7-32/t-win7.vdi',
-               sKind = 'Windows7', acCpusSup = range(1, 33), fIoApic = True),
+        TestVm('tst-win7',                  kfGrpStdSmoke,        sHd = '6.1/win7-32/t-win7-32-1.vdi',
+               sKind = 'Windows7',    acCpusSup = range(1, 33), fIoApic = True),
+        # Note: Deprecated due to activation issues; use t-win7-32-1 instead.
+        #TestVm('tst-win7',                  kfGrpStdSmoke,        sHd = '6.1/win7-32/t-win7-32.vdi',
+        #       sKind = 'Windows7',    acCpusSup = range(1, 33), fIoApic = True),
+        # Note: Deprecated; use the one in the 6.1 folder.
+        #TestVm('tst-win7',                  kfGrpStdSmoke,        sHd = '4.2/win7-32/t-win7.vdi',
+        #       sKind = 'Windows7', acCpusSup = range(1, 33), fIoApic = True),
 
         # W8
         TestVm('tst-win8-64',               kfGrpStdSmoke,        sHd = '4.2/win8-64/t-win8-64.vdi',
@@ -1988,9 +2040,13 @@ class TestVmManager(object):
         #       sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi', sChipsetType = 'ich9'),
 
         # Nested hardware-virtualization
-        TestVm('tst-nsthwvirt-ubuntu-64',    kfGrpStdSmoke,       sHd = '5.3/nat/nsthwvirt-ubuntu64/t-nsthwvirt-ubuntu64.vdi',
+        TestVm('tst-nsthwvirt-ubuntu-64',   kfGrpStdSmoke,       sHd = '5.3/nat/nsthwvirt-ubuntu64/t-nsthwvirt-ubuntu64.vdi',
                sKind = 'Ubuntu_64', acCpusSup = range(1, 2), asVirtModesSup = ['hwvirt-np',], fIoApic = True, fNstHwVirt = True,
                sNic0AttachType = 'nat'),
+
+        # Audio testing.
+        TestVm('tst-audio-debian10-64',     kfGrpStdSmoke,       sHd = '6.1/audio/debian10-amd64-7.vdi',
+               sKind = 'Debian_64', acCpusSup = range(1, 33), fIoApic = True),
 
         # DOS and Old Windows.
         AncientTestVm('tst-dos20',              sKind = 'DOS',
@@ -2047,4 +2103,3 @@ class TestVmManager(object):
     def shutUpPyLint(self):
         """ Shut up already! """
         return self.sResourcePath;
-

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -42,132 +52,7 @@
 #include <iprt/vfslowlevel.h>
 
 #include "tar.h"
-
-
-/*********************************************************************************************************************************
-*   Structures and Typedefs                                                                                                      *
-*********************************************************************************************************************************/
-/**
- * TAR reader state machine states.
- */
-typedef enum RTZIPTARREADERSTATE
-{
-    /** Invalid state. */
-    RTZIPTARREADERSTATE_INVALID = 0,
-    /** Expecting the next file/dir/whatever entry. */
-    RTZIPTARREADERSTATE_FIRST,
-    /** Expecting more zero headers or the end of the stream. */
-    RTZIPTARREADERSTATE_ZERO,
-    /** Expecting a GNU long name. */
-    RTZIPTARREADERSTATE_GNU_LONGNAME,
-    /** Expecting a GNU long link. */
-    RTZIPTARREADERSTATE_GNU_LONGLINK,
-    /** Expecting a normal header or another GNU specific one. */
-    RTZIPTARREADERSTATE_GNU_NEXT,
-    /** End of valid states (not included). */
-    RTZIPTARREADERSTATE_END
-} RTZIPTARREADERSTATE;
-
-/**
- * Tar reader instance data.
- */
-typedef struct RTZIPTARREADER
-{
-    /** Zero header counter. */
-    uint32_t                cZeroHdrs;
-    /** The state machine state. */
-    RTZIPTARREADERSTATE     enmState;
-    /** The type of the previous TAR header.
-     * @remarks Same a enmType for the first header in the TAR stream. */
-    RTZIPTARTYPE            enmPrevType;
-    /** The type of the current TAR header. */
-    RTZIPTARTYPE            enmType;
-    /** The current header. */
-    RTZIPTARHDR             Hdr;
-    /** The expected long name/link length (GNU). */
-    uint32_t                cbGnuLongExpect;
-    /** The current long name/link length (GNU). */
-    uint32_t                offGnuLongCur;
-    /** The name of the current object.
-     * This is for handling GNU and PAX long names. */
-    char                    szName[RTPATH_MAX];
-    /** The current link target if symlink or hardlink. */
-    char                    szTarget[RTPATH_MAX];
-} RTZIPTARREADER;
-/** Pointer to the TAR reader instance data. */
-typedef RTZIPTARREADER *PRTZIPTARREADER;
-
-/**
- * Tar directory, character device, block device, fifo socket or symbolic link.
- */
-typedef struct RTZIPTARBASEOBJ
-{
-    /** The stream offset of the (first) header.  */
-    RTFOFF                  offHdr;
-    /** Pointer to the reader instance data (resides in the filesystem
-     * stream).
-     * @todo Fix this so it won't go stale... Back ref from this obj to fss? */
-    PRTZIPTARREADER         pTarReader;
-    /** The object info with unix attributes. */
-    RTFSOBJINFO             ObjInfo;
-} RTZIPTARBASEOBJ;
-/** Pointer to a TAR filesystem stream base object. */
-typedef RTZIPTARBASEOBJ *PRTZIPTARBASEOBJ;
-
-
-/**
- * Tar file represented as a VFS I/O stream.
- */
-typedef struct RTZIPTARIOSTREAM
-{
-    /** The basic TAR object data. */
-    RTZIPTARBASEOBJ         BaseObj;
-    /** The number of bytes in the file. */
-    RTFOFF                  cbFile;
-    /** The current file position. */
-    RTFOFF                  offFile;
-    /** The start position in the hVfsIos (for seekable hVfsIos). */
-    RTFOFF                  offStart;
-    /** The number of padding bytes following the file. */
-    uint32_t                cbPadding;
-    /** Set if we've reached the end of the file. */
-    bool                    fEndOfStream;
-    /** The input I/O stream. */
-    RTVFSIOSTREAM           hVfsIos;
-} RTZIPTARIOSTREAM;
-/** Pointer to a the private data of a TAR file I/O stream. */
-typedef RTZIPTARIOSTREAM *PRTZIPTARIOSTREAM;
-
-
-/**
- * Tar filesystem stream private data.
- */
-typedef struct RTZIPTARFSSTREAM
-{
-    /** The input I/O stream. */
-    RTVFSIOSTREAM           hVfsIos;
-
-    /** The current object (referenced). */
-    RTVFSOBJ                hVfsCurObj;
-    /** Pointer to the private data if hVfsCurObj is representing a file. */
-    PRTZIPTARIOSTREAM       pCurIosData;
-
-    /** The start offset. */
-    RTFOFF                  offStart;
-    /** The offset of the next header. */
-    RTFOFF                  offNextHdr;
-
-    /** Set if we've reached the end of the stream. */
-    bool                    fEndOfStream;
-    /** Set if we've encountered a fatal error. */
-    int                     rcFatal;
-
-    /** The TAR reader instance data. */
-    RTZIPTARREADER          TarReader;
-} RTZIPTARFSSTREAM;
-/** Pointer to a the private data of a TAR filesystem stream. */
-typedef RTZIPTARFSSTREAM *PRTZIPTARFSSTREAM;
-
+#include "tarvfsreader.h"
 
 
 /**
@@ -955,6 +840,7 @@ static const RTVFSOBJOPS g_rtZipTarFssBaseObjOps =
     "TarFsStream::Obj",
     rtZipTarFssBaseObj_Close,
     rtZipTarFssBaseObj_QueryInfo,
+    NULL,
     RTVFSOBJOPS_VERSION
 };
 
@@ -1099,6 +985,7 @@ static const RTVFSIOSTREAMOPS g_rtZipTarFssIosOps =
         "TarFsStream::IoStream",
         rtZipTarFssIos_Close,
         rtZipTarFssIos_QueryInfo,
+        NULL,
         RTVFSOBJOPS_VERSION
     },
     RTVFSIOSTREAMOPS_VERSION,
@@ -1185,6 +1072,7 @@ static const RTVFSSYMLINKOPS g_rtZipTarFssSymOps =
         "TarFsStream::Symlink",
         rtZipTarFssSym_Close,
         rtZipTarFssSym_QueryInfo,
+        NULL,
         RTVFSOBJOPS_VERSION
     },
     RTVFSSYMLINKOPS_VERSION,
@@ -1235,7 +1123,7 @@ static DECLCALLBACK(int) rtZipTarFss_QueryInfo(void *pvThis, PRTFSOBJINFO pObjIn
 /**
  * @interface_method_impl{RTVFSFSSTREAMOPS,pfnNext}
  */
-static DECLCALLBACK(int) rtZipTarFss_Next(void *pvThis, char **ppszName, RTVFSOBJTYPE *penmType, PRTVFSOBJ phVfsObj)
+DECL_HIDDEN_CALLBACK(int) rtZipTarFss_Next(void *pvThis, char **ppszName, RTVFSOBJTYPE *penmType, PRTVFSOBJ phVfsObj)
 {
     PRTZIPTARFSSTREAM pThis = (PRTZIPTARFSSTREAM)pvThis;
 
@@ -1284,6 +1172,8 @@ static DECLCALLBACK(int) rtZipTarFss_Next(void *pvThis, char **ppszName, RTVFSOB
         return pThis->rcFatal = (int)offHdr;
     if (offHdr > pThis->offNextHdr)
         return pThis->rcFatal = VERR_INTERNAL_ERROR_3;
+    Assert(pThis->offNextHdr == offHdr);
+    pThis->offCurHdr = offHdr;
 
     /*
      * Consume TAR headers.
@@ -1355,15 +1245,16 @@ static DECLCALLBACK(int) rtZipTarFss_Next(void *pvThis, char **ppszName, RTVFSOB
             if (RT_FAILURE(rc))
                 return pThis->rcFatal = rc;
 
-            pIosData->BaseObj.offHdr    = offHdr;
-            pIosData->BaseObj.pTarReader= &pThis->TarReader;
-            pIosData->BaseObj.ObjInfo   = Info;
-            pIosData->cbFile            = Info.cbObject;
-            pIosData->offFile           = 0;
-            pIosData->offStart          = RTVfsIoStrmTell(pThis->hVfsIos);
-            pIosData->cbPadding         = (uint32_t)(Info.cbAllocated - Info.cbObject);
-            pIosData->fEndOfStream      = false;
-            pIosData->hVfsIos           = pThis->hVfsIos;
+            pIosData->BaseObj.offHdr     = offHdr;
+            pIosData->BaseObj.offNextHdr = pThis->offNextHdr;
+            pIosData->BaseObj.pTarReader = &pThis->TarReader;
+            pIosData->BaseObj.ObjInfo    = Info;
+            pIosData->cbFile             = Info.cbObject;
+            pIosData->offFile            = 0;
+            pIosData->offStart           = RTVfsIoStrmTell(pThis->hVfsIos);
+            pIosData->cbPadding          = (uint32_t)(Info.cbAllocated - Info.cbObject);
+            pIosData->fEndOfStream       = false;
+            pIosData->hVfsIos            = pThis->hVfsIos;
             RTVfsIoStrmRetain(pThis->hVfsIos);
 
             pThis->pCurIosData = pIosData;
@@ -1393,9 +1284,10 @@ static DECLCALLBACK(int) rtZipTarFss_Next(void *pvThis, char **ppszName, RTVFSOB
             if (RT_FAILURE(rc))
                 return pThis->rcFatal = rc;
 
-            pBaseObjData->offHdr    = offHdr;
-            pBaseObjData->pTarReader= &pThis->TarReader;
-            pBaseObjData->ObjInfo   = Info;
+            pBaseObjData->offHdr     = offHdr;
+            pBaseObjData->offNextHdr = pThis->offNextHdr;
+            pBaseObjData->pTarReader = &pThis->TarReader;
+            pBaseObjData->ObjInfo    = Info;
 
             enmType = RTVFSOBJTYPE_SYMLINK;
             hVfsObj = RTVfsObjFromSymlink(hVfsSym);
@@ -1423,9 +1315,10 @@ static DECLCALLBACK(int) rtZipTarFss_Next(void *pvThis, char **ppszName, RTVFSOB
             if (RT_FAILURE(rc))
                 return pThis->rcFatal = rc;
 
-            pBaseObjData->offHdr    = offHdr;
-            pBaseObjData->pTarReader= &pThis->TarReader;
-            pBaseObjData->ObjInfo   = Info;
+            pBaseObjData->offHdr     = offHdr;
+            pBaseObjData->offNextHdr = pThis->offNextHdr;
+            pBaseObjData->pTarReader = &pThis->TarReader;
+            pBaseObjData->ObjInfo    = Info;
 
             enmType = RTVFSOBJTYPE_BASE;
             break;
@@ -1472,6 +1365,7 @@ static const RTVFSFSSTREAMOPS rtZipTarFssOps =
         "TarFsStream",
         rtZipTarFss_Close,
         rtZipTarFss_QueryInfo,
+        NULL,
         RTVFSOBJOPS_VERSION
     },
     RTVFSFSSTREAMOPS_VERSION,
@@ -1482,6 +1376,28 @@ static const RTVFSFSSTREAMOPS rtZipTarFssOps =
     NULL,
     RTVFSFSSTREAMOPS_VERSION
 };
+
+
+/**
+ * Internal function use both by RTZipTarFsStreamFromIoStream() and by
+ * RTZipTarFsStreamForFile() in updating mode.
+ */
+DECLHIDDEN(void) rtZipTarReaderInit(PRTZIPTARFSSTREAM pThis, RTVFSIOSTREAM hVfsIos, uint64_t offStart)
+{
+    pThis->hVfsIos              = hVfsIos;
+    pThis->hVfsCurObj           = NIL_RTVFSOBJ;
+    pThis->pCurIosData          = NULL;
+    pThis->offStart             = offStart;
+    pThis->offNextHdr           = offStart;
+    pThis->fEndOfStream         = false;
+    pThis->rcFatal              = VINF_SUCCESS;
+    pThis->TarReader.enmPrevType= RTZIPTARTYPE_INVALID;
+    pThis->TarReader.enmType    = RTZIPTARTYPE_INVALID;
+    pThis->TarReader.enmState   = RTZIPTARREADERSTATE_FIRST;
+
+    /* Don't check if it's a TAR stream here, do that in the
+       rtZipTarFss_Next. */
+}
 
 
 RTDECL(int) RTZipTarFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags, PRTVFSFSSTREAM phVfsFss)
@@ -1505,29 +1421,58 @@ RTDECL(int) RTZipTarFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlag
      */
     PRTZIPTARFSSTREAM pThis;
     RTVFSFSSTREAM     hVfsFss;
-    int rc = RTVfsNewFsStream(&rtZipTarFssOps, sizeof(*pThis), NIL_RTVFS, NIL_RTVFSLOCK, true /*fReadOnly*/,
+    int rc = RTVfsNewFsStream(&rtZipTarFssOps, sizeof(*pThis), NIL_RTVFS, NIL_RTVFSLOCK, RTFILE_O_READ,
                               &hVfsFss, (void **)&pThis);
     if (RT_SUCCESS(rc))
     {
-        pThis->hVfsIos              = hVfsIosIn;
-        pThis->hVfsCurObj           = NIL_RTVFSOBJ;
-        pThis->pCurIosData          = NULL;
-        pThis->offStart             = offStart;
-        pThis->offNextHdr           = offStart;
-        pThis->fEndOfStream         = false;
-        pThis->rcFatal              = VINF_SUCCESS;
-        pThis->TarReader.enmPrevType= RTZIPTARTYPE_INVALID;
-        pThis->TarReader.enmType    = RTZIPTARTYPE_INVALID;
-        pThis->TarReader.enmState   = RTZIPTARREADERSTATE_FIRST;
-
-        /* Don't check if it's a TAR stream here, do that in the
-           rtZipTarFss_Next. */
-
+        rtZipTarReaderInit(pThis, hVfsIosIn, fFlags);
         *phVfsFss = hVfsFss;
         return VINF_SUCCESS;
     }
 
     RTVfsIoStrmRelease(hVfsIosIn);
     return rc;
+}
+
+
+/**
+ * Used by RTZipTarFsStreamTruncate to resolve @a hVfsObj.
+ */
+DECLHIDDEN(PRTZIPTARBASEOBJ) rtZipTarFsStreamBaseObjToPrivate(PRTZIPTARFSSTREAM pThis, RTVFSOBJ hVfsObj)
+{
+    PRTZIPTARBASEOBJ pThisObj;
+    RTVFSOBJTYPE enmType = RTVfsObjGetType(hVfsObj);
+    switch (enmType)
+    {
+        case RTVFSOBJTYPE_IO_STREAM:
+        {
+            RTVFSIOSTREAM hVfsIos = RTVfsObjToIoStream(hVfsObj);
+            AssertReturn(hVfsIos != NIL_RTVFSIOSTREAM, NULL);
+            PRTZIPTARIOSTREAM pThisStrm = (PRTZIPTARIOSTREAM)RTVfsIoStreamToPrivate(hVfsIos, &g_rtZipTarFssIosOps);
+            RTVfsIoStrmRelease(hVfsIos);
+            pThisObj = &pThisStrm->BaseObj;
+            break;
+        }
+
+        case RTVFSOBJTYPE_SYMLINK:
+        {
+            RTVFSSYMLINK hVfsSymlink = RTVfsObjToSymlink(hVfsObj);
+            AssertReturn(hVfsSymlink != NIL_RTVFSSYMLINK, NULL);
+            pThisObj = (PRTZIPTARBASEOBJ)RTVfsSymlinkToPrivate(hVfsSymlink, &g_rtZipTarFssSymOps);
+            RTVfsSymlinkRelease(hVfsSymlink);
+            break;
+        }
+
+        case RTVFSOBJTYPE_BASE:
+            pThisObj = (PRTZIPTARBASEOBJ)RTVfsObjToPrivate(hVfsObj, &g_rtZipTarFssBaseObjOps);
+            break;
+
+        default:
+            /** @todo implement.   */
+            AssertFailedReturn(NULL);
+    }
+
+    AssertReturn(pThisObj->pTarReader == &pThis->TarReader, NULL);
+    return pThisObj;
 }
 

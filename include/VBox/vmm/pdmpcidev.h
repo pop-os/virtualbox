@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmpcidev_h
@@ -55,12 +65,14 @@
  * @remarks Called with the PDM lock held.  The device lock is NOT take because
  *          that is very likely be a lock order violation.
  */
-typedef DECLCALLBACK(VBOXSTRICTRC) FNPCICONFIGREAD(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
-                                                   uint32_t uAddress, unsigned cb, uint32_t *pu32Value);
+typedef DECLCALLBACKTYPE(VBOXSTRICTRC, FNPCICONFIGREAD,(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
+                                                        uint32_t uAddress, unsigned cb, uint32_t *pu32Value));
 /** Pointer to a FNPCICONFIGREAD() function. */
 typedef FNPCICONFIGREAD *PFNPCICONFIGREAD;
+#if !RT_CLANG_PREREQ(11, 0) /* Clang 11 (at least) has trouble with nothrow and pointers to function pointers. */
 /** Pointer to a PFNPCICONFIGREAD. */
 typedef PFNPCICONFIGREAD *PPFNPCICONFIGREAD;
+#endif
 
 /**
  * Callback function for writing to the PCI configuration space.
@@ -80,12 +92,14 @@ typedef PFNPCICONFIGREAD *PPFNPCICONFIGREAD;
  * @remarks Called with the PDM lock held.  The device lock is NOT take because
  *          that is very likely be a lock order violation.
  */
-typedef DECLCALLBACK(VBOXSTRICTRC) FNPCICONFIGWRITE(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
-                                                    uint32_t uAddress, unsigned cb, uint32_t u32Value);
+typedef DECLCALLBACKTYPE(VBOXSTRICTRC, FNPCICONFIGWRITE,(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
+                                                         uint32_t uAddress, unsigned cb, uint32_t u32Value));
 /** Pointer to a FNPCICONFIGWRITE() function. */
 typedef FNPCICONFIGWRITE *PFNPCICONFIGWRITE;
+#if !RT_CLANG_PREREQ(11, 0) /* Clang 11 (at least) has trouble with nothrow and pointers to function pointers. */
 /** Pointer to a PFNPCICONFIGWRITE. */
 typedef PFNPCICONFIGWRITE *PPFNPCICONFIGWRITE;
+#endif
 
 /**
  * Callback function for mapping an PCI I/O region.
@@ -122,8 +136,8 @@ typedef PFNPCICONFIGWRITE *PPFNPCICONFIGWRITE;
  * @remarks Called with the PDM lock held.  The device lock is NOT take because
  *          that is very likely be a lock order violation.
  */
-typedef DECLCALLBACK(int) FNPCIIOREGIONMAP(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
-                                           RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType);
+typedef DECLCALLBACKTYPE(int, FNPCIIOREGIONMAP,(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                                RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType));
 /** Pointer to a FNPCIIOREGIONMAP() function. */
 typedef FNPCIIOREGIONMAP *PFNPCIIOREGIONMAP;
 
@@ -138,7 +152,8 @@ typedef FNPCIIOREGIONMAP *PFNPCIIOREGIONMAP;
  * @param   cbRegion        The region size.
  * @param   enmType         Combination of the PCI_ADDRESS_SPACE_* values.
  */
-typedef DECLCALLBACK(int) FNPCIIOREGIONOLDSETTER(PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS cbRegion, PCIADDRESSSPACE enmType);
+typedef DECLCALLBACKTYPE(int, FNPCIIOREGIONOLDSETTER,(PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS cbRegion,
+                                                      PCIADDRESSSPACE enmType));
 /** Pointer to a FNPCIIOREGIONOLDSETTER() function. */
 typedef FNPCIIOREGIONOLDSETTER *PFNPCIIOREGIONOLDSETTER;
 
@@ -152,7 +167,7 @@ typedef FNPCIIOREGIONOLDSETTER *PFNPCIIOREGIONOLDSETTER;
  * @param   iOtherRegion    The number of the region swap with.
  * @sa      @bugref{9359}
  */
-typedef DECLCALLBACK(int) FNPCIIOREGIONSWAP(PPDMPCIDEV pPciDev, uint32_t iRegion, uint32_t iOtherRegion);
+typedef DECLCALLBACKTYPE(int, FNPCIIOREGIONSWAP,(PPDMPCIDEV pPciDev, uint32_t iRegion, uint32_t iOtherRegion));
 /** Pointer to a FNPCIIOREGIONSWAP() function. */
 typedef FNPCIIOREGIONSWAP *PFNPCIIOREGIONSWAP;
 

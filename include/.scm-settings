@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2010-2020 Oracle Corporation
+# Copyright (C) 2010-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 
@@ -23,6 +33,25 @@
 /Makefile.kmk:  --license-ose-gpl
 /.scm-settings: --license-ose-gpl
 
+# /iprt/nocrt/* C++ style header files
+/iprt/nocrt/algorithm:      --treat-as h
+/iprt/nocrt/cassert:        --treat-as h
+/iprt/nocrt/cstddef:        --treat-as h
+/iprt/nocrt/cstdlib:        --treat-as h
+/iprt/nocrt/exception:      --treat-as h
+/iprt/nocrt/fstream:        --treat-as h
+/iprt/nocrt/iomanip:        --treat-as h
+/iprt/nocrt/ios:            --treat-as h
+/iprt/nocrt/iosfwd:         --treat-as h
+/iprt/nocrt/iostream:       --treat-as h
+/iprt/nocrt/limits:         --treat-as h
+/iprt/nocrt/memory:         --treat-as h
+/iprt/nocrt/new:            --treat-as h
+/iprt/nocrt/ostream:        --treat-as h
+/iprt/nocrt/string:         --treat-as h
+/iprt/nocrt/type_traits:    --treat-as h
+/iprt/nocrt/vector:         --treat-as h
+
 # These three have no Oracle license or copyright stuff for some reason.
 /iprt/formats/elf-amd64.h:  --no-update-license  --no-update-copyright-year
 /iprt/formats/elf-common.h: --no-update-license  --no-update-copyright-year
@@ -32,7 +61,7 @@
 # external copyright
 /iprt/formats/lx.h:         --external-copyright
 
-# TODO: This is using LGPL with Oracle disclaimer. Implement.
+# This is using LGPL (from WINE) with Oracle disclaimer.
 /VBox/VBoxKeyboard.h: --external-copyright --lgpl-disclaimer
 
 # Some of the graphics stuff is using MIT.
@@ -64,7 +93,9 @@
 
 # Some headers actually shouldn't have include guards:
 /VBox/dbus-calls.h:                     --no-fix-header-guards
+/VBox/xrandr-calls.h:                   --no-fix-header-guards
 /VBox/VDEPlugSymDefs.h:                 --no-fix-header-guards
+/VBox/vmm/vmmr3vtable-def.h:            --no-fix-header-guards
 /iprt/asn1-generator-core.h:            --no-fix-header-guards
 /iprt/asn1-generator-pass.h:            --no-fix-header-guards
 /iprt/asn1-generator-sanity.h:          --no-fix-header-guards
@@ -77,4 +108,5 @@
 
 /iprt/*.h: --guard-relative-to-dir iprt --guard-prefix IPRT_INCLUDED_
 /VBox/*.h: --guard-relative-to-dir VBox --guard-prefix VBOX_INCLUDED_
+/iprt/sanitized/*: --guard-relative-to-dir iprt --guard-prefix IPRT_INCLUDED_ --treat-as h
 

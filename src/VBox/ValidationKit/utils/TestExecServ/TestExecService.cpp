@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -32,6 +42,7 @@
 #include <iprt/alloca.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/buildconfig.h>
 #include <iprt/cdrom.h>
 #include <iprt/critsect.h>
 #include <iprt/crc.h>
@@ -59,6 +70,13 @@
 #include <iprt/uuid.h>
 #include <iprt/zip.h>
 
+#include <package-generated.h>
+#include "product-generated.h"
+
+#include <VBox/version.h>
+#include <VBox/log.h>
+
+#include "product-generated.h"
 #include "TestExecServiceInternal.h"
 
 
@@ -166,6 +184,8 @@ static const PCTXSTRANSPORT g_apTransports[] =
     //&g_TestDevTransport,
 };
 
+/** The release logger. */
+static PRTLOGGER            g_pRelLogger;
 /** The select transport layer. */
 static PCTXSTRANSPORT       g_pTransport;
 /** The scratch path. */
@@ -550,9 +570,8 @@ static int txsReplaceStringVariables(PCTXSPKTHDR pPktHdr, const char *pszSrc, ch
     size_t  cchNew    = strlen(pszSrc);
     char   *pszNew    = RTStrDup(pszSrc);
     char   *pszDollar = pszNew;
-    while ((pszDollar = strchr(pszDollar, '$')) != NULL)
+    while (pszDollar && (pszDollar = strchr(pszDollar, '$')) != NULL)
     {
-        /** @todo employ $$ as escape sequence here. */
         if (pszDollar[1] == '{')
         {
             char *pszEnd = strchr(&pszDollar[2], '}');
@@ -636,6 +655,8 @@ static int txsReplaceStringVariables(PCTXSPKTHDR pPktHdr, const char *pszSrc, ch
             pszDollar[cchLeft] = '\0';
             cchNew -= 1;
         }
+        else /* No match, move to next char to avoid endless looping. */
+            pszDollar++;
     }
 
     *ppszNew = pszNew;
@@ -648,7 +669,7 @@ static int txsReplaceStringVariables(PCTXSPKTHDR pPktHdr, const char *pszSrc, ch
  *
  * @returns true if valid, false if invalid.
  * @param   pPktHdr             The packet being unpacked.
- * @param   pszArgName           The argument name.
+ * @param   pszArgName          The argument name.
  * @param   psz                 Pointer to the string within pPktHdr.
  * @param   ppszExp             Where to return the expanded string.  Must be
  *                              freed by calling RTStrFree().
@@ -824,6 +845,60 @@ static int txsDoExpandString(PCTXSPKTHDR pPktHdr)
 }
 
 /**
+ * Packs a tar file / directory.
+ *
+ * @returns IPRT status code from send.
+ * @param   pPktHdr             The pack file packet.
+ */
+static int txsDoPackFile(PCTXSPKTHDR pPktHdr)
+{
+    int rc;
+    char *pszFile = NULL;
+    char *pszSource = NULL;
+
+    /* Packet cursor. */
+    const char *pch = (const char *)(pPktHdr + 1);
+
+    if (txsIsStringValid(pPktHdr, "file", pch, &pszFile, &pch, &rc))
+    {
+        if (txsIsStringValid(pPktHdr, "source", pch, &pszSource, &pch, &rc))
+        {
+            char *pszSuff = RTPathSuffix(pszFile);
+
+            const char *apszArgs[7];
+            unsigned cArgs = 0;
+
+            apszArgs[cArgs++] = "RTTar";
+            apszArgs[cArgs++] = "--create";
+
+            apszArgs[cArgs++] = "--file";
+            apszArgs[cArgs++] = pszFile;
+
+            if (   pszSuff
+                && (   !RTStrICmp(pszSuff, ".gz")
+                    || !RTStrICmp(pszSuff, ".tgz")))
+                apszArgs[cArgs++] = "--gzip";
+
+            apszArgs[cArgs++] = pszSource;
+
+            RTEXITCODE rcExit = RTZipTarCmd(cArgs, (char **)apszArgs);
+            if (rcExit != RTEXITCODE_SUCCESS)
+                rc = VERR_GENERAL_FAILURE; /** @todo proper return code. */
+            else
+                rc = VINF_SUCCESS;
+
+            rc = txsReplyRC(pPktHdr, rc, "RTZipTarCmd(\"%s\",\"%s\")",
+                            pszFile, pszSource);
+
+            RTStrFree(pszSource);
+        }
+        RTStrFree(pszFile);
+    }
+
+    return rc;
+}
+
+/**
  * Unpacks a tar file.
  *
  * @returns IPRT status code from send.
@@ -896,7 +971,7 @@ static int txsDoGetFile(PCTXSPKTHDR pPktHdr)
         return rc;
 
     RTFILE hFile;
-    rc = RTFileOpen(&hFile, pszPath, RTFILE_O_READ | RTFILE_O_DENY_WRITE | RTFILE_O_OPEN);
+    rc = RTFileOpen(&hFile, pszPath, RTFILE_O_READ | RTFILE_O_DENY_NONE | RTFILE_O_OPEN);
     if (RT_SUCCESS(rc))
     {
         uint32_t uMyCrc32 = RTCrc32Start();
@@ -941,6 +1016,57 @@ static int txsDoGetFile(PCTXSPKTHDR pPktHdr)
         rc = txsReplyRC(pPktHdr, rc, "RTFileOpen(,\"%s\",)", pszPath);
 
     RTStrFree(pszPath);
+    return rc;
+}
+
+/**
+ * Copies a file from the source to the destination locally.
+ *
+ * @returns IPRT status code from send.
+ * @param   pPktHdr             The copy file packet.
+ */
+static int txsDoCopyFile(PCTXSPKTHDR pPktHdr)
+{
+    /* After the packet header follows a 32-bit file mode,
+     * the remainder of the packet are two zero terminated paths. */
+    size_t const cbMin = sizeof(TXSPKTHDR) + sizeof(RTFMODE) + 2;
+    if (pPktHdr->cb < cbMin)
+        return txsReplyBadMinSize(pPktHdr, cbMin);
+
+    /* Packet cursor. */
+    const char *pch = (const char *)(pPktHdr + 1);
+
+    int rc;
+
+    RTFMODE const fMode = *(RTFMODE const *)pch;
+
+    char *pszSrc;
+    if (txsIsStringValid(pPktHdr, "source", (const char *)pch + sizeof(RTFMODE), &pszSrc, &pch, &rc))
+    {
+        char *pszDst;
+        if (txsIsStringValid(pPktHdr, "dest", pch, &pszDst, NULL /* Check for string termination */, &rc))
+        {
+            rc = RTFileCopy(pszSrc, pszDst);
+            if (RT_SUCCESS(rc))
+            {
+                if (fMode) /* Do we need to set the file mode? */
+                {
+                    rc = RTPathSetMode(pszDst, fMode);
+                    if (RT_FAILURE(rc))
+                        rc = txsReplyRC(pPktHdr, rc, "RTPathSetMode(\"%s\", %#x)", pszDst, fMode);
+                }
+
+                if (RT_SUCCESS(rc))
+                    rc = txsReplyAck(pPktHdr);
+            }
+            else
+                rc = txsReplyRC(pPktHdr, rc, "RTFileCopy");
+            RTStrFree(pszDst);
+        }
+
+        RTStrFree(pszSrc);
+    }
+
     return rc;
 }
 
@@ -1583,7 +1709,7 @@ static int txsDoReboot(PCTXSPKTHDR pPktHdr)
  * Verifies and acknowledges a "UUID" request.
  *
  * @returns IPRT status code.
- * @param   pPktHdr             The howdy packet.
+ * @param   pPktHdr             The UUID packet.
  */
 static int txsDoUuid(PCTXSPKTHDR pPktHdr)
 {
@@ -1607,7 +1733,7 @@ static int txsDoUuid(PCTXSPKTHDR pPktHdr)
  * Verifies and acknowledges a "BYE" request.
  *
  * @returns IPRT status code.
- * @param   pPktHdr             The howdy packet.
+ * @param   pPktHdr             The bye packet.
  */
 static int txsDoBye(PCTXSPKTHDR pPktHdr)
 {
@@ -1618,6 +1744,33 @@ static int txsDoBye(PCTXSPKTHDR pPktHdr)
         rc = txsReplyBadSize(pPktHdr, sizeof(TXSPKTHDR));
     g_pTransport->pfnNotifyBye();
     return rc;
+}
+
+/**
+ * Verifies and acknowledges a "VER" request.
+ *
+ * @returns IPRT status code.
+ * @param   pPktHdr             The version packet.
+ */
+static int txsDoVer(PCTXSPKTHDR pPktHdr)
+{
+    if (pPktHdr->cb != sizeof(TXSPKTHDR))
+        return txsReplyBadSize(pPktHdr, sizeof(TXSPKTHDR));
+
+    struct
+    {
+        TXSPKTHDR   Hdr;
+        char        szVer[96];
+        char        abPadding[TXSPKT_ALIGNMENT];
+    } Pkt;
+
+    if (RTStrPrintf2(Pkt.szVer, sizeof(Pkt.szVer), "%s r%s %s.%s (%s %s)",
+                     RTBldCfgVersion(), RTBldCfgRevisionStr(), KBUILD_TARGET, KBUILD_TARGET_ARCH, __DATE__, __TIME__) > 0)
+    {
+        return txsReplyInternal(&Pkt.Hdr, "ACK VER ", strlen(Pkt.szVer) + 1);
+    }
+
+    return txsReplyRC(pPktHdr, VERR_BUFFER_OVERFLOW, "RTStrPrintf2");
 }
 
 /**
@@ -2094,7 +2247,7 @@ static int txsDoExecHlp2(PTXSEXEC pTxsExec)
     bool                fProcessTimedOut    = false;
     uint64_t            MsProcessKilled     = UINT64_MAX;
     RTMSINTERVAL const  cMsPollBase         = g_pTransport->pfnPollSetAdd || pTxsExec->hStdInW == NIL_RTPIPE
-                                            ? 5000 : 100;
+                                            ? RT_MS_5SEC : 100;
     RTMSINTERVAL        cMsPollCur          = 0;
 
     /*
@@ -2192,9 +2345,10 @@ static int txsDoExecHlp2(PTXSEXEC pTxsExec)
             {
                 fProcessTimedOut = true;
                 if (    MsProcessKilled == UINT64_MAX
-                    ||  u64Now - MsProcessKilled > 1000)
+                    ||  u64Now - MsProcessKilled > RT_MS_1SEC)
                 {
-                    if (u64Now - MsProcessKilled > 20*60*1000)
+                    if (   MsProcessKilled != UINT64_MAX
+                        && u64Now - MsProcessKilled > 20*RT_MS_1MIN)
                         break; /* give up after 20 mins */
                     RTCritSectEnter(&pTxsExec->CritSect);
                     if (pTxsExec->fProcessAlive)
@@ -2203,7 +2357,7 @@ static int txsDoExecHlp2(PTXSEXEC pTxsExec)
                     MsProcessKilled = u64Now;
                     continue;
                 }
-                cMilliesLeft = 10000;
+                cMilliesLeft = RT_MS_10SEC;
             }
             else
                 cMilliesLeft = pTxsExec->cMsTimeout - (uint32_t)cMsElapsed;
@@ -2220,7 +2374,7 @@ static int txsDoExecHlp2(PTXSEXEC pTxsExec)
      */
     for (size_t i = 0; i < 22; i++)
     {
-        rc2 = RTThreadWait(pTxsExec->hThreadWaiter, 500, NULL);
+        rc2 = RTThreadWait(pTxsExec->hThreadWaiter, RT_MS_1SEC / 2, NULL);
         if (RT_SUCCESS(rc))
         {
             pTxsExec->hThreadWaiter = NIL_RTTHREAD;
@@ -2705,46 +2859,53 @@ static int txsDoExecHlp(PCTXSPKTHDR pPktHdr, uint32_t fFlags, const char *pszExe
         rc = txsExecSetupPollSet(pTxsExec);
     if (RT_SUCCESS(rc))
     {
-        /*
-         * Create the process.
-         */
-        if (g_fDisplayOutput)
-        {
-            RTPrintf("txs: Executing \"%s\": ", pszExecName);
-            for (uint32_t i = 0; i < cArgs; i++)
-                RTPrintf(" \"%s\"", papszArgs[i]);
-            RTPrintf("\n");
-        }
-        rc = RTProcCreateEx(pszExecName, papszArgs, pTxsExec->hEnv, 0 /*fFlags*/,
-                            pTxsExec->StdIn.phChild, pTxsExec->StdOut.phChild, pTxsExec->StdErr.phChild,
-                            *pszUsername ? pszUsername : NULL, NULL, NULL,
-                            &pTxsExec->hProcess);
+        char szPathResolved[RTPATH_MAX + 1];
+        rc = RTPathReal(pszExecName, szPathResolved, sizeof(szPathResolved));
         if (RT_SUCCESS(rc))
         {
-            ASMAtomicWriteBool(&pTxsExec->fProcessAlive, true);
-            rc2 = RTThreadUserSignal(pTxsExec->hThreadWaiter); AssertRC(rc2);
-
             /*
-             * Close the child ends of any pipes and redirected files.
+             * Create the process.
              */
-            rc2 = RTHandleClose(pTxsExec->StdIn.phChild);   AssertRC(rc2);
-            pTxsExec->StdIn.phChild     = NULL;
-            rc2 = RTHandleClose(pTxsExec->StdOut.phChild);  AssertRC(rc2);
-            pTxsExec->StdOut.phChild    = NULL;
-            rc2 = RTHandleClose(pTxsExec->StdErr.phChild);  AssertRC(rc2);
-            pTxsExec->StdErr.phChild    = NULL;
-            rc2 = RTPipeClose(pTxsExec->hTestPipeW);        AssertRC(rc2);
-            pTxsExec->hTestPipeW        = NIL_RTPIPE;
+            if (g_fDisplayOutput)
+            {
+                RTPrintf("txs: Executing \"%s\" -> \"%s\": ", pszExecName, szPathResolved);
+                for (uint32_t i = 0; i < cArgs; i++)
+                    RTPrintf(" \"%s\"", papszArgs[i]);
+                RTPrintf("\n");
+            }
 
-            /*
-             * Let another worker function funnel output and input to the
-             * client as well as the process exit code.
-             */
-            rc = txsDoExecHlp2(pTxsExec);
+            rc = RTProcCreateEx(szPathResolved, papszArgs, pTxsExec->hEnv, 0 /*fFlags*/,
+                                pTxsExec->StdIn.phChild, pTxsExec->StdOut.phChild, pTxsExec->StdErr.phChild,
+                                *pszUsername ? pszUsername : NULL, NULL, NULL,
+                                &pTxsExec->hProcess);
+            if (RT_SUCCESS(rc))
+            {
+                ASMAtomicWriteBool(&pTxsExec->fProcessAlive, true);
+                rc2 = RTThreadUserSignal(pTxsExec->hThreadWaiter); AssertRC(rc2);
+
+                /*
+                 * Close the child ends of any pipes and redirected files.
+                 */
+                rc2 = RTHandleClose(pTxsExec->StdIn.phChild);   AssertRC(rc2);
+                pTxsExec->StdIn.phChild     = NULL;
+                rc2 = RTHandleClose(pTxsExec->StdOut.phChild);  AssertRC(rc2);
+                pTxsExec->StdOut.phChild    = NULL;
+                rc2 = RTHandleClose(pTxsExec->StdErr.phChild);  AssertRC(rc2);
+                pTxsExec->StdErr.phChild    = NULL;
+                rc2 = RTPipeClose(pTxsExec->hTestPipeW);        AssertRC(rc2);
+                pTxsExec->hTestPipeW        = NIL_RTPIPE;
+
+                /*
+                 * Let another worker function funnel output and input to the
+                 * client as well as the process exit code.
+                 */
+                rc = txsDoExecHlp2(pTxsExec);
+            }
         }
-        else
-            rc = txsReplyFailure(pPktHdr, "FAILED  ", "Executing process \"%s\" failed with %Rrc",
-                                 pszExecName, rc);
+
+        if (RT_FAILURE(rc))
+           rc = txsReplyFailure(pPktHdr, "FAILED  ", "Executing process \"%s\" failed with %Rrc",
+                                pszExecName, rc);
     }
     else
         rc = pTxsExec->rcReplySend;
@@ -2956,6 +3117,8 @@ static RTEXITCODE txsMainLoop(void)
             rc = txsDoHowdy(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "BYE     "))
             rc = txsDoBye(pPktHdr);
+        else if (txsIsSameOpcode(pPktHdr, "VER     "))
+            rc = txsDoVer(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "UUID    "))
             rc = txsDoUuid(pPktHdr);
         /* Process: */
@@ -3002,12 +3165,16 @@ static RTEXITCODE txsMainLoop(void)
             rc = txsDoLStat(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "LIST    "))
             rc = txsDoList(pPktHdr);
+        else if (txsIsSameOpcode(pPktHdr, "CPFILE  "))
+            rc = txsDoCopyFile(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "PUT FILE"))
             rc = txsDoPutFile(pPktHdr, false /*fHasMode*/);
         else if (txsIsSameOpcode(pPktHdr, "PUT2FILE"))
             rc = txsDoPutFile(pPktHdr, true /*fHasMode*/);
         else if (txsIsSameOpcode(pPktHdr, "GET FILE"))
             rc = txsDoGetFile(pPktHdr);
+        else if (txsIsSameOpcode(pPktHdr, "PKFILE  "))
+            rc = txsDoPackFile(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "UNPKFILE"))
             rc = txsDoUnpackFile(pPktHdr);
         /* Misc: */
@@ -3447,6 +3614,12 @@ static void txsUsage(PRTSTREAM pStrm, const char *pszArgv0)
                  "  --foreground\n"
                  "      Don't daemonize, run in the foreground.\n");
     RTStrmPrintf(pStrm,
+                 "  --verbose, -v\n"
+                 "      Increases the verbosity level. Can be specified multiple times.\n");
+    RTStrmPrintf(pStrm,
+                 "  --quiet, -q\n"
+                 "      Mutes any logging output.\n");
+    RTStrmPrintf(pStrm,
                  "  --help, -h, -?\n"
                  "      Display this message and exit.\n"
                  "  --version, -V\n"
@@ -3605,7 +3778,7 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 135976 $\n");
+                RTPrintf("$Revision: 153224 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 
@@ -3670,6 +3843,77 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
     return RTEXITCODE_SUCCESS;
 }
 
+/**
+ * @callback_method_impl{FNRTLOGPHASE, Release logger callback}
+ */
+static DECLCALLBACK(void) logHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
+{
+    /* Some introductory information. */
+    static RTTIMESPEC s_TimeSpec;
+    char szTmp[256];
+    if (enmPhase == RTLOGPHASE_BEGIN)
+        RTTimeNow(&s_TimeSpec);
+    RTTimeSpecToString(&s_TimeSpec, szTmp, sizeof(szTmp));
+
+    switch (enmPhase)
+    {
+        case RTLOGPHASE_BEGIN:
+        {
+            pfnLog(pLoggerRelease,
+                   "TestExecService (Validation Kit TxS) %s r%s (verbosity: %u) %s %s (%s %s) release log\n"
+                   "Copyright (C) " VBOX_C_YEAR " " VBOX_VENDOR "\n\n"
+                   "Log opened %s\n",
+                   RTBldCfgVersion(), RTBldCfgRevisionStr(), g_cVerbose,
+                   KBUILD_TARGET, KBUILD_TARGET_ARCH,
+                   __DATE__, __TIME__, szTmp);
+
+            int vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pLoggerRelease, "OS Product: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pLoggerRelease, "OS Release: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pLoggerRelease, "OS Version: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pLoggerRelease, "OS Service Pack: %s\n", szTmp);
+
+            /* the package type is interesting for Linux distributions */
+            char szExecName[RTPATH_MAX];
+            char *pszExecName = RTProcGetExecutablePath(szExecName, sizeof(szExecName));
+            pfnLog(pLoggerRelease,
+                   "Executable: %s\n"
+                   "Process ID: %u\n"
+                   "Package type: %s"
+#ifdef VBOX_OSE
+                   " (OSE)"
+#endif
+                   "\n",
+                   pszExecName ? pszExecName : "unknown",
+                   RTProcSelf(),
+                   VBOX_PACKAGE_STRING);
+            break;
+        }
+
+        case RTLOGPHASE_PREROTATE:
+            pfnLog(pLoggerRelease, "Log rotated - Log started %s\n", szTmp);
+            break;
+
+        case RTLOGPHASE_POSTROTATE:
+            pfnLog(pLoggerRelease, "Log continuation - Log started %s\n", szTmp);
+            break;
+
+        case RTLOGPHASE_END:
+            pfnLog(pLoggerRelease, "End of log file - Log started %s\n", szTmp);
+            break;
+
+        default:
+            /* nothing */
+            break;
+    }
+}
 
 int main(int argc, char **argv)
 {
@@ -3688,6 +3932,76 @@ int main(int argc, char **argv)
     RTEXITCODE rcExit = txsParseArgv(argc, argv, &fExit);
     if (rcExit != RTEXITCODE_SUCCESS || fExit)
         return rcExit;
+
+    /*
+     * Enable (release) TxS logging to stdout + file. This is independent from the actual test cases being run.
+     *
+     * Keep the log file path + naming predictable (the OS' temp dir) so that we later can retrieve it
+     * from the host side without guessing much.
+     *
+     * If enabling logging fails for some reason, just tell but don't bail out to not make tests fail.
+     */
+    char szLogFile[RTPATH_MAX];
+    rc = RTPathTemp(szLogFile, sizeof(szLogFile));
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTPathAppend(szLogFile, sizeof(szLogFile), "vbox-txs-release.log");
+        if (RT_FAILURE(rc))
+            RTMsgError("RTPathAppend failed when constructing log file path: %Rrc\n", rc);
+    }
+    else
+        RTMsgError("RTPathTemp failed when constructing log file path: %Rrc\n", rc);
+
+    if (RT_SUCCESS(rc))
+    {
+        RTUINT fFlags  = RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG;
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+               fFlags |= RTLOGFLAGS_USECRLF;
+#endif
+        static const char * const s_apszLogGroups[] = VBOX_LOGGROUP_NAMES;
+        rc = RTLogCreateEx(&g_pRelLogger, "VBOX_TXS_RELEASE_LOG", fFlags, "all",
+                           RT_ELEMENTS(s_apszLogGroups), s_apszLogGroups, UINT32_MAX /* cMaxEntriesPerGroup */,
+                           0 /*cBufDescs*/, NULL /* paBufDescs */, RTLOGDEST_STDOUT | RTLOGDEST_FILE,
+                           logHeaderFooter /* pfnPhase */ ,
+                           10 /* cHistory */, 100 * _1M /* cbHistoryFileMax */, RT_SEC_1DAY /* cSecsHistoryTimeSlot */,
+                           NULL /*pOutputIf*/, NULL /*pvOutputIfUser*/,
+                           NULL /* pErrInfo */, "%s", szLogFile);
+        if (RT_SUCCESS(rc))
+        {
+            RTLogRelSetDefaultInstance(g_pRelLogger);
+            if (g_cVerbose)
+            {
+                RTMsgInfo("Setting verbosity logging to level %u\n", g_cVerbose);
+                switch (g_cVerbose) /* Not very elegant, but has to do it for now. */
+                {
+                    case 1:
+                        rc = RTLogGroupSettings(g_pRelLogger, "all.e.l.l2");
+                        break;
+
+                    case 2:
+                        rc = RTLogGroupSettings(g_pRelLogger, "all.e.l.l2.l3");
+                        break;
+
+                    case 3:
+                        rc = RTLogGroupSettings(g_pRelLogger, "all.e.l.l2.l3.l4");
+                        break;
+
+                    case 4:
+                        RT_FALL_THROUGH();
+                    default:
+                        rc = RTLogGroupSettings(g_pRelLogger, "all.e.l.l2.l3.l4.f");
+                        break;
+                }
+                if (RT_FAILURE(rc))
+                    RTMsgError("Setting logging groups failed, rc=%Rrc\n", rc);
+            }
+        }
+        else
+            RTMsgError("Failed to create release logger: %Rrc", rc);
+
+        if (RT_SUCCESS(rc))
+            RTMsgInfo("Log file written to '%s'\n", szLogFile);
+    }
 
     /*
      * Generate a UUID for this TXS instance.
@@ -3721,4 +4035,3 @@ int main(int argc, char **argv)
 
     return rcExit;
 }
-

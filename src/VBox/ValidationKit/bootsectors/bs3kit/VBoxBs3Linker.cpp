@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -150,7 +160,7 @@ int main(int argc, char **argv)
                     }
 
                     case 'V':
-                        printf("%s\n", "$Revision: 135976 $");
+                        printf("%s\n", "$Revision: 153224 $");
                         free(paInputs);
                         return 0;
 
@@ -315,14 +325,32 @@ int main(int argc, char **argv)
         fclose(paInputs[i].pFile);
     free(paInputs);
 
+    /* Avoid output sizes that makes the FDC code think it's a single sided
+       floppy.  The BIOS always report double sided floppies, and even if we
+       the bootsector adjust it's bMaxHeads value when getting a 20h error
+       we end up with a garbaged image (seems somewhere in the BIOS/FDC it is
+       still treated as a double sided floppy and we get half the data we want and
+       with gaps). */
+    uint32_t cbOutput = ftell(pOutput);
+    if (   cbOutput == 512 * 8 * 40 /* 160kB 5"1/4 */
+        || cbOutput == 512 * 9 * 40 /* 180kB 5"1/4 */)
+    {
+        static uint8_t const s_abZeroSector[512] = { 0 };
+        if (fwrite(s_abZeroSector, sizeof(uint8_t), sizeof(s_abZeroSector), pOutput) != sizeof(s_abZeroSector))
+        {
+            fprintf(stderr, "error: fwrite failed (padding)\n");
+            rcExit = 1;
+        }
+    }
+
     /* Finally, close the output file (can fail because of buffered data). */
-    if (fclose(stderr) != 0)
+    if (fclose(pOutput) != 0)
     {
         fprintf(stderr, "error: Error closing '%s'.\n", pszOutput);
         rcExit = 1;
     }
 
-    fclose(pOutput);
+    fclose(stderr);
     return rcExit;
 }
 

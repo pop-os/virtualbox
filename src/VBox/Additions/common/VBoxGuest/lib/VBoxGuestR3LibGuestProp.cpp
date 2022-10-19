@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #if defined(VBOX_VBGLR3_XFREE86) || defined(VBOX_VBGLR3_XORG)
@@ -37,6 +47,7 @@
 # include <iprt/mem.h>
 #endif
 #include <iprt/assert.h>
+#include <iprt/mem.h>
 #include <iprt/stdarg.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -145,6 +156,19 @@ VBGLR3DECL(int) VbglR3GuestPropConnect(HGCMCLIENTID *pidClient)
 VBGLR3DECL(int) VbglR3GuestPropDisconnect(HGCMCLIENTID idClient)
 {
     return VbglR3HGCMDisconnect(idClient);
+}
+
+
+/**
+ * Checks if @a pszPropName exists.
+ *
+ * @returns \c true if the guest property exists, \c false if not.
+ * @param   idClient            The HGCM client ID for the guest property session.
+ * @param   pszPropName         The property name.
+ */
+VBGLR3DECL(bool) VbglR3GuestPropExist(uint32_t idClient, const char *pszPropName)
+{
+    return RT_SUCCESS(VbglR3GuestPropReadEx(idClient, pszPropName, NULL /*ppszValue*/, NULL /* ppszFlags */, NULL /* puTimestamp */));
 }
 
 
@@ -351,6 +375,81 @@ VBGLR3DECL(int) VbglR3GuestPropRead(HGCMCLIENTID idClient, const char *pszName,
     }
 
     return VINF_SUCCESS;
+}
+
+/**
+ * Reads a guest property by returning allocated values.
+ *
+ * @returns VBox status code, fully bitched.
+ *
+ * @param   idClient            The HGCM client ID for the guest property session.
+ * @param   pszPropName         The property name.
+ * @param   ppszValue           Where to return the value.  This is always set
+ *                              to NULL.  Needs to be free'd using RTStrFree().  Optional.
+ * @param   ppszFlags           Where to return the value flags.
+ *                              Needs to be free'd using RTStrFree().  Optional.
+ * @param   puTimestamp         Where to return the timestamp.  This is only set
+ *                              on success.  Optional.
+ */
+VBGLR3DECL(int) VbglR3GuestPropReadEx(uint32_t idClient,
+                                      const char *pszPropName, char **ppszValue, char **ppszFlags, uint64_t *puTimestamp)
+{
+    AssertPtrReturn(pszPropName, VERR_INVALID_POINTER);
+
+    uint32_t    cbBuf = _1K;
+    void       *pvBuf = NULL;
+    int         rc    = VINF_SUCCESS;  /* MSC can't figure out the loop */
+
+    if (ppszValue)
+        *ppszValue = NULL;
+
+    for (unsigned cTries = 0; cTries < 10; cTries++)
+    {
+        /*
+         * (Re-)Allocate the buffer and try read the property.
+         */
+        RTMemFree(pvBuf);
+        pvBuf = RTMemAlloc(cbBuf);
+        if (!pvBuf)
+        {
+            rc = VERR_NO_MEMORY;
+            break;
+        }
+        char    *pszValue;
+        char    *pszFlags;
+        uint64_t uTimestamp;
+        rc = VbglR3GuestPropRead(idClient, pszPropName, pvBuf, cbBuf, &pszValue, &uTimestamp, &pszFlags, NULL);
+        if (RT_FAILURE(rc))
+        {
+            if (rc == VERR_BUFFER_OVERFLOW)
+            {
+                /* try again with a bigger buffer. */
+                cbBuf *= 2;
+                continue;
+            }
+            break;
+        }
+
+        if (ppszValue)
+        {
+            *ppszValue = RTStrDup(pszValue);
+            if (!*ppszValue)
+            {
+                rc = VERR_NO_MEMORY;
+                break;
+            }
+        }
+
+        if (puTimestamp)
+            *puTimestamp = uTimestamp;
+        if (ppszFlags)
+            *ppszFlags = RTStrDup(pszFlags);
+        break; /* done */
+    }
+
+    if (pvBuf)
+        RTMemFree(pvBuf);
+    return rc;
 }
 
 #ifndef VBOX_VBGLR3_XSERVER
@@ -847,6 +946,8 @@ VBGLR3DECL(int) VbglR3GuestPropDelSet(HGCMCLIENTID idClient,
  * @param   ppszFlags       Where to store the pointer to the flags.  Optional.
  * @param   pcbBufActual    If @a pcBuf is not large enough, the size needed.
  *                          Optional.
+ * @param   pfWasDeleted    A flag which indicates that property was deleted.
+ *                          Optional.
  */
 VBGLR3DECL(int) VbglR3GuestPropWait(HGCMCLIENTID idClient,
                                     const char *pszPatterns,
@@ -854,7 +955,7 @@ VBGLR3DECL(int) VbglR3GuestPropWait(HGCMCLIENTID idClient,
                                     uint64_t u64Timestamp, uint32_t cMillies,
                                     char ** ppszName, char **ppszValue,
                                     uint64_t *pu64Timestamp, char **ppszFlags,
-                                    uint32_t *pcbBufActual)
+                                    uint32_t *pcbBufActual, bool *pfWasDeleted)
 {
     /*
      * Create the GET_NOTIFICATION message and call the host.
@@ -863,6 +964,7 @@ VBGLR3DECL(int) VbglR3GuestPropWait(HGCMCLIENTID idClient,
     VBGL_HGCM_HDR_INIT_TIMED(&Msg.hdr, idClient, GUEST_PROP_FN_GET_NOTIFICATION, 4, cMillies);
 
     VbglHGCMParmPtrSetString(&Msg.patterns, pszPatterns);
+    RT_BZERO(pvBuf, cbBuf);
     VbglHGCMParmPtrSet(&Msg.buffer, pvBuf, cbBuf);
     VbglHGCMParmUInt64Set(&Msg.timestamp, u64Timestamp);
     VbglHGCMParmUInt32Set(&Msg.size, 0);
@@ -874,7 +976,7 @@ VBGLR3DECL(int) VbglR3GuestPropWait(HGCMCLIENTID idClient,
      * adjust their buffer.
      */
     if (    rc == VERR_BUFFER_OVERFLOW
-        ||  pcbBufActual != NULL)
+        &&  pcbBufActual != NULL)
     {
         int rc2 = Msg.size.GetUInt32(pcbBufActual);
         AssertRCReturn(rc2, RT_FAILURE(rc) ? rc : rc2);
@@ -883,13 +985,13 @@ VBGLR3DECL(int) VbglR3GuestPropWait(HGCMCLIENTID idClient,
         return rc;
 
     /*
-     * Buffer layout: Name\0Value\0Flags\0.
+     * Buffer layout: Name\0Value\0Flags\0fWasDeleted\0.
      *
      * If the caller cares about any of these strings, make sure things are
      * properly terminated (paranoia).
      */
     if (    RT_SUCCESS(rc)
-        &&  (ppszName != NULL || ppszValue != NULL || ppszFlags != NULL))
+        &&  (ppszName != NULL || ppszValue != NULL || ppszFlags != NULL || pfWasDeleted != NULL))
     {
         /* Validate / skip 'Name'. */
         char *pszValue = RTStrEnd((char *)pvBuf, cbBuf) + 1;
@@ -904,12 +1006,18 @@ VBGLR3DECL(int) VbglR3GuestPropWait(HGCMCLIENTID idClient,
             *ppszValue = pszValue;
 
         if (ppszFlags)
-        {
-            /* Validate 'Flags'. */
-            char *pszEos = RTStrEnd(pszFlags, cbBuf - (pszFlags - (char *)pvBuf));
-            AssertPtrReturn(pszEos, VERR_TOO_MUCH_DATA);
             *ppszFlags = pszFlags;
-        }
+
+        /* Skip 'Flags' and deal with 'fWasDeleted' if it's present. */
+        char *pszWasDeleted = RTStrEnd(pszFlags, cbBuf - (pszFlags - (char *)pvBuf)) + 1;
+        AssertPtrReturn(pszWasDeleted, VERR_TOO_MUCH_DATA);
+        char chWasDeleted = 0;
+        if (   (size_t)pszWasDeleted - (size_t)pvBuf < cbBuf
+            && (chWasDeleted = *pszWasDeleted) != '\0')
+            AssertMsgReturn((chWasDeleted == '0' || chWasDeleted == '1') && pszWasDeleted[1] == '\0',
+                            ("'%s'\n", pszWasDeleted), VERR_PARSE_ERROR);
+        if (pfWasDeleted)
+            *pfWasDeleted = chWasDeleted == '1';
     }
 
     /* And the timestamp, if requested. */

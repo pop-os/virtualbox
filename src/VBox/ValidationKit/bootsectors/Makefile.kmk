@@ -4,24 +4,34 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
+#
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 #
 
 SUB_DEPTH = ../../../..
@@ -230,15 +240,23 @@ ifdef VBOX_WITH_BS3KIT
 # Bs3kit
 #
 
+#
+# APIC
+#
+MISCBINS += bs3-apic-1
+bs3-apic-1_TEMPLATE = VBoxBS3KitImg
+bs3-apic-1_SOURCES  = \
+	bs3kit/bs3-first-rm.asm \
+	bs3-apic-1.c \
+	bs3-apic-1-32.c32
+
+
 # CPU basics #2 (first being bootsector2-cpu-basic-1).
 MISCBINS += bs3-cpu-basic-2
 bs3-cpu-basic-2_TEMPLATE = VBoxBS3KitImg
 bs3-cpu-basic-2_INCS  = .
 bs3-cpu-basic-2_DEFS  =  BS3_CMN_INSTANTIATE_FILE1=bs3-cpu-basic-2-template.c
 bs3-cpu-basic-2_DEFS += BS3_MODE_INSTANTIATE_FILE1=bs3-cpu-basic-2-template.c
- ifeq ($(KBUILD_HOST),win)
-bs3-cpu-basic-2_DEFS += HAVE_OMF_CONVERTER
- endif
 bs3-cpu-basic-2_SOURCES = \
 	bs3kit/bs3-first-rm.asm \
 	bs3-cpu-basic-2.c \
@@ -255,7 +273,9 @@ bs3-cpu-basic-2-template.o:: \
 	$$(bs3-cpu-basic-2_0_OUTDIR)/bs3kit/bs3-cmn-instantiate.o64 \
 	$$(bs3-cpu-basic-2_0_OUTDIR)/bs3-cpu-basic-2-asm.o16
 
+#
 # CPU weird stuff #1.
+#
 MISCBINS += bs3-cpu-weird-1
 bs3-cpu-weird-1_TEMPLATE = VBoxBS3KitImg
 bs3-cpu-weird-1_INCS  = .
@@ -265,7 +285,9 @@ bs3-cpu-weird-1_SOURCES = \
 	bs3-cpu-weird-1-x0.c \
 	bs3-cpu-weird-1-asm.asm
 
+#
 # 64-bit CPU state #1.
+#
 MISCBINS += bs3-cpu-state64-1
 bs3-cpu-state64-1_TEMPLATE = VBoxBS3KitImg
 bs3-cpu-state64-1_INCS  = .
@@ -274,7 +296,9 @@ bs3-cpu-state64-1_SOURCES = \
 	bs3-cpu-state64-1.c64 \
 	bs3-cpu-state64-1-asm.asm
 
+#
 # FPU state corruption checker.
+#
 MISCBINS += bs3-fpustate-1
 bs3-fpustate-1_TEMPLATE = VBoxBS3KitImg
 bs3-fpustate-1_INCS  = .
@@ -293,7 +317,9 @@ bs3-fpustate-1-template.o:: \
 	$$(bs3-fpustate-1_0_OUTDIR)/bs3kit/bs3-cmn-instantiate.o64 \
 	$$(bs3-fpustate-1_0_OUTDIR)/bs3-fpustate-1-asm.o16
 
+#
 # CPU instruction decoding experiments.
+#
 MISCBINS += bs3-cpu-decoding-1
 bs3-cpu-decoding-1_TEMPLATE = VBoxBS3KitImg
 bs3-cpu-decoding-1_INCS  = .
@@ -313,7 +339,9 @@ bs3-cpu-decoding-1-template.o:: \
 #	$$(bs3-cpu-decoding-1_0_OUTDIR)/bs3kit/bs3-cmn-instantiate.o64 \
 
 
+#
 # CPU instructions #2 (first being bootsector2-cpu-instr-1).
+#
 MISCBINS += bs3-cpu-instr-2
 bs3-cpu-instr-2_TEMPLATE = VBoxBS3KitImg
 bs3-cpu-instr-2_INCS  = .
@@ -332,7 +360,22 @@ bs3-cpu-instr-2-template.o:: \
 	$$(bs3-cpu-instr-2_0_OUTDIR)/bs3kit/bs3-cmn-instantiate.o64 \
 	$$(bs3-cpu-instr-2_0_OUTDIR)/bs3-cpu-instr-2-asm.o16
 
+#
+# CPU instructions #3 - SSE, ++.
+#
+MISCBINS += bs3-cpu-instr-3
+bs3-cpu-instr-3_TEMPLATE = VBoxBS3KitImg
+bs3-cpu-instr-3_INCS  = .
+bs3-cpu-instr-3_SOURCES = \
+	bs3kit/bs3-first-init-all-pe32.asm \
+	bs3-cpu-instr-3.c32 \
+	bs3-cpu-instr-3-asm.asm
+bs3-cpu-instr-3-template.o:: \
+	$$(bs3-cpu-instr-3_0_OUTDIR)/bs3-cpu-instr-3-asm.o16
+
+#
 # CPU generated instruction tests #1
+#
 MISCBINS += bs3-cpu-generated-1
 bs3-cpu-generated-1_TEMPLATE = VBoxBS3KitImg
 bs3-cpu-generated-1_INCS = .
@@ -360,7 +403,63 @@ $$(bs3-cpu-generated-1_0_OUTDIR)/bs3-cpu-generated-1-data.c16: \
                | $$(dir $$@)
 	$(REDIRECT) -0 /dev/null -- $(VBOX_BLD_PYTHON) $< $@
 
+#
+# Memory allocation.
+#
+MISCBINS += bs3-memalloc-1
+bs3-memalloc-1_TEMPLATE = VBoxBS3KitImg
+bs3-memalloc-1_INCS  = .
+bs3-memalloc-1_SOURCES = \
+	bs3kit/bs3-first-init-all-lm64.asm \
+	bs3-memalloc-1.c64
+
+
+#
+# Timer Interrupts
+#
+MISCBINS += bs3-timers-1
+bs3-timers-1_TEMPLATE = VBoxBS3KitImg
+bs3-timers-1_INCS  = .
+bs3-timers-1_DEFS  =  BS3_CMN_INSTANTIATE_FILE1=bs3-timers-1-template.c
+bs3-timers-1_DEFS += BS3_MODE_INSTANTIATE_FILE1=bs3-timers-1-template.c
+bs3-timers-1_SOURCES = \
+	bs3kit/bs3-first-rm.asm \
+	bs3-timers-1.c \
+	bs3-timers-1-x0.c
+
+#
+# Timing
+#
+MISCBINS += bs3-timing-1
+bs3-timing-1_TEMPLATE = VBoxBS3KitImg
+bs3-timing-1_INCS  = .
+bs3-timing-1_DEFS  =  BS3_CMN_INSTANTIATE_FILE1=bs3-timing-1-template.c
+bs3-timing-1_DEFS += BS3_MODE_INSTANTIATE_FILE1=bs3-timing-1-template.c
+bs3-timing-1_SOURCES = \
+	bs3kit/bs3-first-rm.asm \
+	bs3-timing-1.c \
+	bs3-timing-1-32.c32
+
+#
+# Lock contention and interruption.
+#
+MISCBINS += bs3-locking-1
+bs3-locking-1_TEMPLATE = VBoxBS3KitImg
+bs3-locking-1_INCS  = .
+bs3-locking-1_SOURCES = \
+	bs3kit/bs3-first-rm.asm \
+	bs3-locking-1.c
+
 endif # VBOX_WITH_BS3KIT
+
+
+#
+# Executable version of the bs3-timing-1 bootsector.
+#
+PROGRAMS += bs3-timing-1-exe
+bs3-timing-1-exe_TEMPLATE = VBoxValidationKitR3
+bs3-timing-1-exe_NAME     = bs3-timing-1
+bs3-timing-1-exe_SOURCES  = bs3-timing-1-exe.c
 
 
 #

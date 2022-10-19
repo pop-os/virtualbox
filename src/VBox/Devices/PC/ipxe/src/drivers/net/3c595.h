@@ -110,7 +110,7 @@ FILE_LICENCE ( BSD3 );
 /**************************************************************************
  *										  *
  * These are the registers for the 3Com 3c509 and their bit patterns when *
- * applicable.  They have been taken out the "EtherLink III Parallel  *
+ * applicable.  They have been taken out the the "EtherLink III Parallel  *
  * Tasking EISA and ISA Technical Reference" "Beta Draft 10/30/92" manual *
  * from 3com.								  *
  *										  *
@@ -129,7 +129,7 @@ FILE_LICENCE ( BSD3 );
 #define VX_W0_EEPROM_DATA	0x0c
 #define VX_W0_EEPROM_COMMAND	0x0a
 #define VX_W0_RESOURCE_CFG	0x08
-#define VX_W0_ADDRESS_CFG	0x06
+#define VX_W0_ADDRESS_CFG	0x06 
 #define VX_W0_CONFIG_CTRL	0x04
         /* Read */
 #define VX_W0_PRODUCT_ID	0x02
@@ -297,15 +297,15 @@ FILE_LICENCE ( BSD3 );
 
 #define VX_BUSY_WAIT while (inw(BASE + VX_STATUS) & S_COMMAND_IN_PROGRESS)
 
-/* Address Config. Register.
+/* Address Config. Register.    
  * Window 0/Port 06
  */
 
-#define ACF_CONNECTOR_BITS	14
+#define ACF_CONNECTOR_BITS	14  
 #define ACF_CONNECTOR_UTP	0
 #define ACF_CONNECTOR_AUI	1
 #define ACF_CONNECTOR_BNC	3
-
+   
 #define INTERNAL_CONNECTOR_BITS 20
 #define INTERNAL_CONNECTOR_MASK 0x01700000
 
@@ -336,7 +336,7 @@ FILE_LICENCE ( BSD3 );
 #define ERR_DRIBBLE     (unsigned short) (0x1000)
 
 /*
- * TX Status.
+ * TX Status. 
  *
  *   Reports the transmit status of a completed transmission. Writing this
  *   register pops the transmit completion stack.

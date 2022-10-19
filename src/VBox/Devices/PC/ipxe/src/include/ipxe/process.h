@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <ipxe/list.h>
 #include <ipxe/refcnt.h>
@@ -29,6 +29,8 @@ struct process {
 
 /** A process descriptor */
 struct process_descriptor {
+	/** Process name */
+	const char *name;
 	/** Offset of process within containing object */
 	size_t offset;
 	/**
@@ -78,6 +80,7 @@ struct process_descriptor {
  * @ret desc		Object interface descriptor
  */
 #define PROC_DESC( object_type, process, _step ) {			      \
+		.name = #_step,						      \
 		.offset = process_offset ( object_type, process ),	      \
 		.step = PROC_STEP ( object_type, _step ),		      \
 		.reschedule = 1,					      \
@@ -92,6 +95,7 @@ struct process_descriptor {
  * @ret desc		Object interface descriptor
  */
 #define PROC_DESC_ONCE( object_type, process, _step ) {			      \
+		.name = #_step,						      \
 		.offset = process_offset ( object_type, process ),	      \
 		.step = PROC_STEP ( object_type, _step ),		      \
 		.reschedule = 0,					      \
@@ -106,6 +110,7 @@ struct process_descriptor {
  * @ret desc		Object interface descriptor
  */
 #define PROC_DESC_PURE( _step ) {					      \
+		.name = #_step,						      \
 		.offset = 0,						      \
 		.step = PROC_STEP ( struct process, _step ),		      \
 		.reschedule = 1,					      \
@@ -116,6 +121,18 @@ process_object ( struct process *process );
 extern void process_add ( struct process *process );
 extern void process_del ( struct process *process );
 extern void step ( void );
+
+/**
+ * Initialise a static process
+ *
+ * @v process		Process
+ * @v desc		Process descriptor
+ */
+#define PROC_INIT( _process, _desc ) {					      \
+		.list = LIST_HEAD_INIT ( (_process).list ),		      \
+		.desc = (_desc),					      \
+		.refcnt = NULL,						      \
+	}
 
 /**
  * Initialise process without adding to process list
@@ -174,12 +191,8 @@ process_running ( struct process *process ) {
  *
  */
 #define PERMANENT_PROCESS( name, step )					      \
-struct process_descriptor name ## _desc = PROC_DESC_PURE ( step );	      \
-struct process name __permanent_process = {				      \
-	.list = LIST_HEAD_INIT ( name.list ),				      \
-	.desc = & name ## _desc,					      \
-	.refcnt = NULL,							      \
-};
+static struct process_descriptor name ## _desc = PROC_DESC_PURE ( step );     \
+struct process name __permanent_process = PROC_INIT ( name, & name ## _desc );
 
 /**
  * Find debugging colourisation for a process
@@ -192,7 +205,7 @@ struct process name __permanent_process = {				      \
 #define PROC_COL( process ) process_object ( process )
 
 /** printf() format string for PROC_DBG() */
-#define PROC_FMT "%p+%zx"
+#define PROC_FMT "%p %s()"
 
 /**
  * printf() arguments for representing a process
@@ -200,6 +213,6 @@ struct process name __permanent_process = {				      \
  * @v process		Process
  * @ret args		printf() argument list corresponding to PROC_FMT
  */
-#define PROC_DBG( process ) process_object ( process ), (process)->desc->offset
+#define PROC_DBG( process ) process_object ( process ), (process)->desc->name
 
 #endif /* _IPXE_PROCESS_H */

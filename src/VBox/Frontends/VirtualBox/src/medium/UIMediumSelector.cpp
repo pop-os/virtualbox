@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -28,17 +38,18 @@
 #include "QIMessageBox.h"
 #include "QITabWidget.h"
 #include "QIToolButton.h"
+#include "UIActionPool.h"
 #include "UICommon.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
-#include "UIFDCreationDialog.h"
 #include "UIMediumSearchWidget.h"
 #include "UIMediumSelector.h"
 #include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
 #include "UIIconPool.h"
 #include "UIMedium.h"
 #include "UIMediumItem.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -53,10 +64,10 @@
 #endif /* VBOX_WS_MAC */
 
 
-UIMediumSelector::UIMediumSelector(UIMediumDeviceType enmMediumType, const QString &machineName,
+UIMediumSelector::UIMediumSelector(const QUuid &uCurrentMediumId, UIMediumDeviceType enmMediumType, const QString &machineName,
                                    const QString &machineSettingsFilePath, const QString &strMachineGuestOSTypeId,
-                                   const QUuid &uMachineID, QWidget *pParent)
-    :QIWithRetranslateUI<QIMainDialog>(pParent)
+                                   const QUuid &uMachineID, QWidget *pParent, UIActionPool *pActionPool)
+    :QIWithRetranslateUI<QIWithRestorableGeometry<QIMainDialog> >(pParent)
     , m_pCentralWidget(0)
     , m_pMainLayout(0)
     , m_pTreeWidget(0)
@@ -79,12 +90,16 @@ UIMediumSelector::UIMediumSelector(UIMediumDeviceType enmMediumType, const QStri
     , m_strMachineName(machineName)
     , m_strMachineGuestOSTypeId(strMachineGuestOSTypeId)
     , m_uMachineID(uMachineID)
+    , m_pActionPool(pActionPool)
+    , m_iGeometrySaveTimerId(-1)
 {
     /* Start full medium-enumeration (if necessary): */
     if (!uiCommon().isFullMediumEnumerationRequested())
         uiCommon().enumerateMedia();
     configure();
     finalize();
+    selectMedium(uCurrentMediumId);
+    loadSettings();
 }
 
 void UIMediumSelector::setEnableCreateAction(bool fEnable)
@@ -110,38 +125,67 @@ QList<QUuid> UIMediumSelector::selectedMediumIds() const
     return selectedIds;
 }
 
+/* static */
+int UIMediumSelector::openMediumSelectorDialog(QWidget *pParent, UIMediumDeviceType  enmMediumType, const QUuid &uCurrentMediumId,
+                                               QUuid &uSelectedMediumUuid, const QString &strMachineFolder, const QString &strMachineName,
+                                               const QString &strMachineGuestOSTypeId, bool fEnableCreate, const QUuid &uMachineID,
+                                               UIActionPool *pActionPool)
+{
+    QUuid uMachineOrGlobalId = uMachineID == QUuid() ? gEDataManager->GlobalID : uMachineID;
+
+    QWidget *pDialogParent = windowManager().realParentWindow(pParent);
+    QPointer<UIMediumSelector> pSelector = new UIMediumSelector(uCurrentMediumId, enmMediumType, strMachineName,
+                                                                strMachineFolder, strMachineGuestOSTypeId,
+                                                                uMachineOrGlobalId, pDialogParent, pActionPool);
+
+    if (!pSelector)
+        return static_cast<int>(UIMediumSelector::ReturnCode_Rejected);
+    pSelector->setEnableCreateAction(fEnableCreate);
+    windowManager().registerNewParent(pSelector, pDialogParent);
+
+    int iResult = pSelector->exec(false);
+    UIMediumSelector::ReturnCode returnCode;
+
+    if (iResult >= static_cast<int>(UIMediumSelector::ReturnCode_Max) || iResult < 0)
+        returnCode = UIMediumSelector::ReturnCode_Rejected;
+    else
+        returnCode = static_cast<UIMediumSelector::ReturnCode>(iResult);
+
+    if (returnCode == UIMediumSelector::ReturnCode_Accepted)
+    {
+        QList<QUuid> selectedMediumIds = pSelector->selectedMediumIds();
+
+        /* Currently we only care about the 0th since we support single selection by intention: */
+        if (selectedMediumIds.isEmpty())
+            returnCode = UIMediumSelector::ReturnCode_Rejected;
+        else
+        {
+            uSelectedMediumUuid = selectedMediumIds[0];
+            uiCommon().updateRecentlyUsedMediumListAndFolder(enmMediumType, uiCommon().medium(uSelectedMediumUuid).location());
+        }
+    }
+    delete pSelector;
+    return static_cast<int>(returnCode);
+}
+
 void UIMediumSelector::retranslateUi()
 {
-    if (m_pMainMenu)
-        m_pMainMenu->setTitle(tr("Medium"));
-
-    if (m_pActionAdd)
-    {
-        m_pActionAdd->setText(tr("&Add..."));
-        m_pActionAdd->setToolTip(tr("Add Disk Image"));
-        m_pActionAdd->setStatusTip(tr("Add existing disk image file"));
-    }
-
-    if (m_pActionCreate)
-    {
-        m_pActionCreate->setText(tr("&Create..."));
-        m_pActionCreate->setToolTip(tr("Create Disk Image"));
-        m_pActionCreate->setStatusTip(tr("Create new disk image file"));
-    }
-
-    if (m_pActionRefresh)
-    {
-        m_pActionRefresh->setText(tr("&Refresh"));
-        m_pActionRefresh->setToolTip(tr("Refresh Disk Image Files (%1)").arg(m_pActionRefresh->shortcut().toString()));
-        m_pActionRefresh->setStatusTip(tr("Refresh the list of disk image files"));
-    }
-
     if (m_pCancelButton)
-        m_pCancelButton->setText(tr("Cancel"));
+    {
+        m_pCancelButton->setText(tr("&Cancel"));
+        m_pCancelButton->setToolTip(tr("Cancel"));
+    }
     if (m_pLeaveEmptyButton)
-        m_pLeaveEmptyButton->setText(tr("Leave Empty"));
+    {
+        m_pLeaveEmptyButton->setText(tr("Leave &Empty"));
+        m_pLeaveEmptyButton->setToolTip(tr("Leave the drive empty"));
+    }
+
     if (m_pChooseButton)
-        m_pChooseButton->setText(tr("Choose"));
+    {
+        m_pChooseButton->setText(tr("C&hoose"));
+        m_pChooseButton->setToolTip(tr("Attach the selected medium to the drive"));
+    }
 
     if (m_pTreeWidget)
     {
@@ -149,6 +193,27 @@ void UIMediumSelector::retranslateUi()
         m_pTreeWidget->headerItem()->setText(1, tr("Virtual Size"));
         m_pTreeWidget->headerItem()->setText(2, tr("Actual Size"));
     }
+}
+
+bool UIMediumSelector::event(QEvent *pEvent)
+{
+    if (pEvent->type() == QEvent::Resize || pEvent->type() == QEvent::Move)
+    {
+        if (m_iGeometrySaveTimerId != -1)
+            killTimer(m_iGeometrySaveTimerId);
+        m_iGeometrySaveTimerId = startTimer(300);
+    }
+    else if (pEvent->type() == QEvent::Timer)
+    {
+        QTimerEvent *pTimerEvent = static_cast<QTimerEvent*>(pEvent);
+        if (pTimerEvent->timerId() == m_iGeometrySaveTimerId)
+        {
+            killTimer(m_iGeometrySaveTimerId);
+            m_iGeometrySaveTimerId = -1;
+            saveDialogGeometry();
+        }
+    }
+    return QIWithRetranslateUI<QIWithRestorableGeometry<QIMainDialog> >::event(pEvent);
 }
 
 void UIMediumSelector::configure()
@@ -167,53 +232,29 @@ void UIMediumSelector::configure()
 
 void UIMediumSelector::prepareActions()
 {
-    QString strPrefix("hd");
+    if (!m_pActionPool)
+        return;
+
     switch (m_enmMediumType)
     {
         case UIMediumDeviceType_DVD:
-            strPrefix = "cd";
+            m_pActionAdd = m_pActionPool->action(UIActionIndex_M_MediumSelector_AddCD);
+            m_pActionCreate = m_pActionPool->action(UIActionIndex_M_MediumSelector_CreateCD);
             break;
         case UIMediumDeviceType_Floppy:
-            strPrefix = "fd";
+            m_pActionAdd = m_pActionPool->action(UIActionIndex_M_MediumSelector_AddFD);
+            m_pActionCreate = m_pActionPool->action(UIActionIndex_M_MediumSelector_CreateFD);
             break;
         case UIMediumDeviceType_HardDisk:
         case UIMediumDeviceType_All:
         case UIMediumDeviceType_Invalid:
         default:
-            strPrefix = "hd";
+            m_pActionAdd = m_pActionPool->action(UIActionIndex_M_MediumSelector_AddHD);
+            m_pActionCreate = m_pActionPool->action(UIActionIndex_M_MediumSelector_CreateHD);
             break;
     }
 
-    m_pActionAdd = new QAction(this);
-    if (m_pActionAdd)
-    {
-        /* Configure add-action: */
-        m_pActionAdd->setShortcut(QKeySequence(""));
-
-        m_pActionAdd->setIcon(UIIconPool::iconSetFull(QString(":/%1_add_32px.png").arg(strPrefix),
-                                                      QString(":/%1_add_16px.png").arg(strPrefix),
-                                                      QString(":/%1_add_disabled_32px.png").arg(strPrefix),
-                                                      QString(":/%1_add_disabled_16px.png").arg(strPrefix)));
-    }
-
-    m_pActionCreate = new QAction(this);
-    if (m_pActionCreate)
-    {
-        m_pActionCreate->setShortcut(QKeySequence(""));
-        m_pActionCreate->setIcon(UIIconPool::iconSetFull(QString(":/%1_create_32px.png").arg(strPrefix),
-                                                         QString(":/%1_create_16px.png").arg(strPrefix),
-                                                         QString(":/%1_create_disabled_32px.png").arg(strPrefix),
-                                                         QString(":/%1_create_disabled_16px.png").arg(strPrefix)));
-    }
-
-    m_pActionRefresh = new QAction(this);
-    if (m_pActionRefresh)
-    {
-        m_pActionRefresh->setShortcut(QKeySequence());
-        if (m_pActionRefresh && m_pActionRefresh->icon().isNull())
-            m_pActionRefresh->setIcon(UIIconPool::iconSetFull(":/refresh_32px.png", ":/refresh_16px.png",
-                                                              ":/refresh_disabled_32px.png", ":/refresh_disabled_16px.png"));
-    }
+    m_pActionRefresh = m_pActionPool->action(UIActionIndex_M_MediumSelector_Refresh);
 }
 
 void UIMediumSelector::prepareMenuAndToolBar()
@@ -236,6 +277,8 @@ void UIMediumSelector::prepareMenuAndToolBar()
 void UIMediumSelector::prepareConnections()
 {
     /* Configure medium-enumeration connections: */
+    connect(&uiCommon(), &UICommon::sigMediumCreated,
+            this, &UIMediumSelector::sltHandleMediumCreated);
     connect(&uiCommon(), &UICommon::sigMediumEnumerationStarted,
             this, &UIMediumSelector::sltHandleMediumEnumerationStart);
     connect(&uiCommon(), &UICommon::sigMediumEnumerated,
@@ -357,7 +400,6 @@ void UIMediumSelector::restoreSelection(const QList<QUuid> &selectedMediums, QVe
 
     if (!selected)
         m_pTreeWidget->setCurrentItem(0);
-    return;
 }
 
 void UIMediumSelector::prepareWidgets()
@@ -373,9 +415,14 @@ void UIMediumSelector::prepareWidgets()
     if (!m_pMainLayout || !menuBar())
         return;
 
-    m_pMainMenu = menuBar()->addMenu(tr("Medium"));
+    if (m_pActionPool && m_pActionPool->action(UIActionIndex_M_MediumSelector))
+    {
+        m_pMainMenu = m_pActionPool->action(UIActionIndex_M_MediumSelector)->menu();
+        if (m_pMainMenu)
+            menuBar()->addMenu(m_pMainMenu);
+    }
 
-    m_pToolBar = new UIToolBar;
+    m_pToolBar = new QIToolBar;
     if (m_pToolBar)
     {
         /* Configure toolbar: */
@@ -441,7 +488,7 @@ void UIMediumSelector::sltButtonLeaveEmpty()
 
 void UIMediumSelector::sltAddMedium()
 {
-    QUuid uMediumID = uiCommon().openMediumWithFileOpenDialog(m_enmMediumType, this, m_strMachineFolder);
+    QUuid uMediumID = uiCommon().openMediumWithFileOpenDialog(m_enmMediumType, this, m_strMachineFolder, true /* fUseLastFolder */);
     if (uMediumID.isNull())
         return;
     repopulateTreeWidget();
@@ -450,16 +497,10 @@ void UIMediumSelector::sltAddMedium()
 
 void UIMediumSelector::sltCreateMedium()
 {
-    QUuid uMediumId = uiCommon().openMediumCreatorDialog(this, m_enmMediumType, m_strMachineFolder,
-                                                           m_strMachineName, m_strMachineGuestOSTypeId);
-    if (uMediumId.isNull())
-        return;
-    /* Update the tree widget making sure we show the new item: */
-    repopulateTreeWidget();
-    /* Select the new item: */
-    selectMedium(uMediumId);
-    /* Update the search: */
-    m_pSearchWidget->search(m_pTreeWidget);
+    QUuid uMediumId = uiCommon().openMediumCreatorDialog(m_pActionPool, this, m_enmMediumType, m_strMachineFolder,
+                                                         m_strMachineName, m_strMachineGuestOSTypeId);
+    /* Make sure that the data structure is updated and newly created medium is selected and visible: */
+    sltHandleMediumCreated(uMediumId);
 }
 
 void UIMediumSelector::sltHandleItemSelectionChanged()
@@ -475,6 +516,17 @@ void UIMediumSelector::sltHandleTreeWidgetDoubleClick(QTreeWidgetItem * item, in
     accept();
 }
 
+void UIMediumSelector::sltHandleMediumCreated(const QUuid &uMediumId)
+{
+    if (uMediumId.isNull())
+        return;
+    /* Update the tree widget making sure we show the new item: */
+    repopulateTreeWidget();
+    /* Select the new item: */
+    selectMedium(uMediumId);
+    /* Update the search: */
+    m_pSearchWidget->search(m_pTreeWidget);
+}
 
 void UIMediumSelector::sltHandleMediumEnumerationStart()
 {
@@ -504,7 +556,6 @@ void UIMediumSelector::sltHandleRefresh()
 
 void UIMediumSelector::sltHandlePerformSearch()
 {
-    //performMediumSearch();
     if (!m_pSearchWidget)
         return;
     m_pSearchWidget->search(m_pTreeWidget);
@@ -550,16 +601,20 @@ void UIMediumSelector::sltHandleTreeCollapseAllSignal()
 
 void UIMediumSelector::selectMedium(const QUuid &uMediumID)
 {
-    if (!m_pTreeWidget)
+    if (!m_pTreeWidget || uMediumID.isNull())
         return;
     UIMediumItem *pMediumItem = searchItem(0, uMediumID);
     if (pMediumItem)
+    {
         m_pTreeWidget->setCurrentItem(pMediumItem);
+        QModelIndex itemIndex = m_pTreeWidget->itemIndex(pMediumItem);
+        if (itemIndex.isValid())
+            m_pTreeWidget->scrollTo(itemIndex, QAbstractItemView::EnsureVisible);
+    }
 }
 
 void UIMediumSelector::updateChooseButton()
 {
-
     if (!m_pTreeWidget || !m_pChooseButton)
         return;
     QList<QTreeWidgetItem*> selectedItems = m_pTreeWidget->selectedItems();
@@ -592,28 +647,8 @@ void UIMediumSelector::showEvent(QShowEvent *pEvent)
 {
     Q_UNUSED(pEvent);
 
-    /* Try to determine the initial size: */
-    QSize proposedSize;
-    int iHostScreen = 0;
-    if (m_pParent)
-        iHostScreen = gpDesktop->screenNumber(m_pParent);
-    else
-        iHostScreen = gpDesktop->screenNumber(this);
-    if (iHostScreen >= 0 && iHostScreen < gpDesktop->screenCount())
-    {
-        /* On the basis of current host-screen geometry if possible: */
-        const QRect screenGeometry = gpDesktop->screenGeometry(iHostScreen);
-        if (screenGeometry.isValid())
-            proposedSize = screenGeometry.size() * 5 / 15;
-    }
-    /* Fallback to default size if we failed: */
-    if (proposedSize.isNull())
-        proposedSize = QSize(800, 600);
-    /* Resize to initial size: */
-    resize(proposedSize);
-
-    if (m_pParent)
-        UICommon::centerWidget(this, m_pParent, false);
+    if (m_pTreeWidget)
+        m_pTreeWidget->setFocus();
 }
 
 void UIMediumSelector::repopulateTreeWidget()
@@ -709,34 +744,13 @@ UIMediumItem* UIMediumSelector::searchItem(const QTreeWidgetItem *pParent, const
         if (mediumItem)
         {
             if (mediumItem->id() == mediumId)
-            {
                 return mediumItem;
-            }
         }
         UIMediumItem *pResult = searchItem(pChild, mediumId);
         if (pResult)
             return pResult;
     }
     return 0;
-}
-
-void UIMediumSelector::scrollToItem(UIMediumItem* pItem)
-{
-    if (!pItem)
-        return;
-
-    QModelIndex itemIndex = m_pTreeWidget->itemIndex(pItem);
-    for (int i = 0; i < m_mediumItemList.size(); ++i)
-    {
-        QFont font = m_mediumItemList[i]->font(0);
-        font.setBold(false);
-        m_mediumItemList[i]->setFont(0, font);
-    }
-    QFont font = pItem->font(0);
-    font.setBold(true);
-    pItem->setFont(0, font);
-
-    m_pTreeWidget->scrollTo(itemIndex);
 }
 
 void UIMediumSelector::setTitle()
@@ -770,4 +784,28 @@ void UIMediumSelector::setTitle()
                 setWindowTitle(QString("%1").arg(tr("Virtual Medium Selector")));
             break;
     }
+}
+
+void UIMediumSelector::saveDialogGeometry()
+{
+    const QRect geo = currentGeometry();
+    LogRel2(("GUI: UIMediumSelector: Saving geometry as: Origin=%dx%d, Size=%dx%d\n",
+             geo.x(), geo.y(), geo.width(), geo.height()));
+    gEDataManager->setMediumSelectorDialogGeometry(geo, isCurrentlyMaximized());
+}
+
+void UIMediumSelector::loadSettings()
+{
+    const QRect availableGeo = gpDesktop->availableGeometry(this);
+    int iDefaultWidth = availableGeo.width() / 2;
+    int iDefaultHeight = availableGeo.height() * 3 / 4;
+    QRect defaultGeo(0, 0, iDefaultWidth, iDefaultHeight);
+
+    QWidget *pParent = windowManager().realParentWindow(m_pParent ? m_pParent : windowManager().mainWindowShown());
+    /* Load geometry from extradata: */
+    const QRect geo = gEDataManager->mediumSelectorDialogGeometry(this, pParent, defaultGeo);
+    LogRel2(("GUI: UISoftKeyboard: Restoring geometry to: Origin=%dx%d, Size=%dx%d\n",
+             geo.x(), geo.y(), geo.width(), geo.height()));
+
+    restoreGeometry(geo);
 }

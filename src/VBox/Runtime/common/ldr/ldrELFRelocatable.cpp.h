@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -1701,6 +1711,81 @@ static DECLCALLBACK(int) RTLDRELF_NAME(ReadDbgInfo)(PRTLDRMODINTERNAL pMod, uint
 
 
 /**
+ * Handles RTLDRPROP_BUILDID queries.
+ */
+static int RTLDRELF_NAME(QueryPropBuildId)(PRTLDRMODELF pThis, void *pvBuf, size_t cbBuf, size_t *pcbRet)
+{
+    /*
+     * Map the image bits if not already done and setup pointer into it.
+     */
+    int rc = RTLDRELF_NAME(MapBits)(pThis, true);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /*
+     * Search for the build ID.
+     */
+    const Elf_Shdr *paShdrs = pThis->paOrgShdrs;
+    for (unsigned iShdr = 0; iShdr < pThis->Ehdr.e_shnum; iShdr++)
+    {
+        const char *pszSectName = ELF_SH_STR(pThis, paShdrs[iShdr].sh_name);
+
+        if (!strcmp(pszSectName, ".note.gnu.build-id"))
+        {
+            if ((paShdrs[iShdr].sh_size & 3) || paShdrs[iShdr].sh_size < sizeof(Elf_Nhdr))
+                return VERR_BAD_EXE_FORMAT;
+
+            Elf_Nhdr *pNHdr = (Elf_Nhdr *)((uintptr_t)pThis->pvBits + (uintptr_t)paShdrs[iShdr].sh_offset);
+            if (   pNHdr->n_namesz > paShdrs[iShdr].sh_size
+                || pNHdr->n_descsz > paShdrs[iShdr].sh_size
+                || (paShdrs[iShdr].sh_size - pNHdr->n_descsz) < pNHdr->n_namesz
+                || pNHdr->n_type != NT_GNU_BUILD_ID)
+                return VERR_BAD_EXE_FORMAT;
+
+            const char *pszOwner = (const char *)(pNHdr + 1);
+            if (   !RTStrEnd(pszOwner, pNHdr->n_namesz)
+                || strcmp(pszOwner, "GNU"))
+                return VERR_BAD_EXE_FORMAT;
+
+            if (cbBuf < pNHdr->n_descsz)
+                return VERR_BUFFER_OVERFLOW;
+
+            memcpy(pvBuf, pszOwner + pNHdr->n_namesz, pNHdr->n_descsz);
+            *pcbRet = pNHdr->n_descsz;
+            return VINF_SUCCESS;
+        }
+    }
+
+    return VERR_NOT_FOUND;
+}
+
+
+/** @interface_method_impl{RTLDROPS,pfnQueryProp} */
+static DECLCALLBACK(int) RTLDRELF_NAME(QueryProp)(PRTLDRMODINTERNAL pMod, RTLDRPROP enmProp, void const *pvBits,
+                                                  void *pvBuf, size_t cbBuf, size_t *pcbRet)
+{
+    PRTLDRMODELF pThis = (PRTLDRMODELF)pMod;
+    RT_NOREF(pvBits);
+    switch (enmProp)
+    {
+        case RTLDRPROP_BUILDID:
+            return RTLDRELF_NAME(QueryPropBuildId)(pThis, pvBuf, cbBuf, pcbRet);
+
+        case RTLDRPROP_IS_SIGNED:
+            *pcbRet = sizeof(bool);
+            return rtLdrELFLnxKModQueryPropIsSigned(pThis->Core.pReader, (bool *)pvBuf);
+
+        case RTLDRPROP_PKCS7_SIGNED_DATA:
+            *pcbRet = sizeof(bool);
+            return rtLdrELFLnxKModQueryPropPkcs7SignedData(pThis->Core.pReader, pvBuf, cbBuf, pcbRet);
+
+        default:
+            return VERR_NOT_FOUND;
+    }
+}
+
+
+/**
  * @interface_method_impl{RTLDROPS,pfnUnwindFrame}
  */
 static DECLCALLBACK(int)
@@ -1808,9 +1893,9 @@ static RTLDROPS RTLDRELF_MID(s_rtldrElf,Ops) =
     RTLDRELF_NAME(SegOffsetToRva),
     RTLDRELF_NAME(RvaToSegOffset),
     RTLDRELF_NAME(ReadDbgInfo),
-    NULL /*pfnQueryProp*/,
+    RTLDRELF_NAME(QueryProp),
     NULL /*pfnVerifySignature*/,
-    NULL /*pfnHashImage*/,
+    rtldrELFLnxKModHashImage,
     RTLDRELF_NAME(UnwindFrame),
     42
 };
@@ -2329,6 +2414,20 @@ static int RTLDRELF_NAME(ValidateAndProcessDynamicInfo)(PRTLDRMODELF pModElf, ui
                 Elf_Addr        uAddr   = pPhdr->p_vaddr;
                 Elf_Xword       cbMem   = pPhdr->p_memsz;
                 Elf_Xword       cbFile  = pPhdr->p_filesz;
+
+                /* HACK to allow loading isolinux-debug.elf where program headers aren't
+                   sorted by virtual address. */
+                if (   (fFlags & RTLDR_O_FOR_DEBUG)
+                    && uAddr != paShdrs[iLoadShdr].sh_addr)
+                {
+                    for (unsigned iShdr = 1; iShdr < pModElf->Ehdr.e_shnum; iShdr++)
+                        if (uAddr == paShdrs[iShdr].sh_addr)
+                        {
+                            iLoadShdr = iShdr;
+                            break;
+                        }
+                }
+
                 while (cbMem > 0)
                 {
                     if (iLoadShdr < pModElf->Ehdr.e_shnum)
@@ -2416,9 +2515,11 @@ static int RTLDRELF_NAME(ValidateAndProcessDynamicInfo)(PRTLDRMODELF pModElf, ui
                         && (  paShdrs[iLoadShdr].sh_type != SHT_NOBITS
                             ?    off    == paShdrs[iLoadShdr].sh_offset
                               && cbFile >= paShdrs[iLoadShdr].sh_size /* this might be too strict... */
-                            : cbFile == 0) )
+                            :    cbFile == 0
+                              || cbMem > paShdrs[iLoadShdr].sh_size /* isolinux.elf: linker merge no-bits and progbits sections */) )
                     {
-                        if (paShdrs[iLoadShdr].sh_type != SHT_NOBITS)
+                        if (   paShdrs[iLoadShdr].sh_type != SHT_NOBITS
+                            || cbFile != 0)
                         {
                             off    += paShdrs[iLoadShdr].sh_size;
                             cbFile -= paShdrs[iLoadShdr].sh_size;
@@ -2700,8 +2801,9 @@ static int RTLDRELF_NAME(ValidateAndProcessDynamicInfo)(PRTLDRMODELF pModElf, ui
                 ONLY_FOR_DEBUG_OR_VALIDATION_RET("DT_PREINIT_ARRAYSZ");
                 break;
             default:
-                if (   paDynamic[i].d_un.d_val < DT_ENCODING
-                    || (paDynamic[i].d_un.d_val & 1))
+                if (   paDynamic[i].d_tag <  DT_ENCODING
+                    || paDynamic[i].d_tag >= DT_LOOS
+                    || (paDynamic[i].d_tag & 1))
                     Log3(("RTLdrELF: DT[%u]: %#010RX64       %#RX64%s\n", i, (uint64_t)paDynamic[i].d_tag,
                           (uint64_t)paDynamic[i].d_un.d_val, paDynamic[i].d_un.d_val >= DT_ENCODING ? " (val)" : ""));
                 else

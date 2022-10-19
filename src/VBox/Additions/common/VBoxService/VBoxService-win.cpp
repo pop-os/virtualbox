@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -31,7 +41,6 @@
 #undef WIN32_NO_STATUS
 #include <iprt/nt/nt-and-windows.h>
 #include <iprt/win/iphlpapi.h>
-#include <process.h>
 #include <aclapi.h>
 #include <tlhelp32.h>
 #define _NTDEF_
@@ -588,7 +597,7 @@ static DWORD vgsvcWinCtrlHandlerCommon(DWORD dwControl)
 /**
  * Callback registered by RegisterServiceCtrlHandler on NT4 and earlier.
  */
-static VOID WINAPI vgsvcWinCtrlHandlerNt4(DWORD dwControl)
+static VOID WINAPI vgsvcWinCtrlHandlerNt4(DWORD dwControl) RT_NOTHROW_DEF
 {
     VGSvcVerbose(2, "Control handler (NT4): dwControl=%#x\n", dwControl);
     vgsvcWinCtrlHandlerCommon(dwControl);
@@ -598,7 +607,8 @@ static VOID WINAPI vgsvcWinCtrlHandlerNt4(DWORD dwControl)
 /**
  * Callback registered by RegisterServiceCtrlHandler on NT5 and later.
  */
-static DWORD WINAPI vgsvcWinCtrlHandlerNt5Plus(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext)
+static DWORD WINAPI
+vgsvcWinCtrlHandlerNt5Plus(DWORD dwControl, DWORD dwEventType, LPVOID lpEventData, LPVOID lpContext) RT_NOTHROW_DEF
 {
     VGSvcVerbose(2, "Control handler: dwControl=%#x, dwEventType=%#x\n", dwControl, dwEventType);
     RT_NOREF1(lpContext);

@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_test_h
@@ -143,7 +153,6 @@ RTR3DECL(int) RTTestCreateChild(const char *pszTest, PRTTEST phTest);
  *
  * @returns IPRT status code.
  * @param   pszTest         The test name.
- * @param   pszXmlFile      The XML output file/pipe/whatever.
  * @param   fFlags          Flags, see RTTEST_C_XXX.
  * @param   enmMaxLevel     The max message level.  Use RTTESTLVL_INVALID for
  *                          the default output level or one from the
@@ -476,6 +485,10 @@ RTR3DECL(int) RTTestSkippedV(RTTEST hTest, const char *pszFormat, va_list va) RT
  *              - Add it to g_aszBs2TestUnitNames in
  *                ValidationKit/bootsectors/bootsector2-common-routines.mac.
  *              - Add it to g_aszBs3TestUnitNames in bs3kit/bs3-cmn-TestData.c.
+ *              - Add it to ValidationKit/common/constants/valueunit.py both as
+ *                a constant (strip RTTESTUNIT_) and as a name (same as what
+ *                rtTestUnitName returns) for mapping.  Testmanager must be
+ *                updated.
  */
 typedef enum RTTESTUNIT
 {
@@ -520,6 +533,13 @@ typedef enum RTTESTUNIT
     RTTESTUNIT_PAGES_PER_SEC,                   /**< Pages per second. */
     RTTESTUNIT_TICKS_PER_PAGE,                  /**< CPU ticks per page. */
     RTTESTUNIT_NS_PER_PAGE,                     /**< Nanoseconds per page. */
+    RTTESTUNIT_PS,                              /**< Picoseconds. */
+    RTTESTUNIT_PS_PER_CALL,                     /**< Picoseconds per call. */
+    RTTESTUNIT_PS_PER_FRAME,                    /**< Picoseconds per frame. */
+    RTTESTUNIT_PS_PER_OCCURRENCE,               /**< Picoseconds per occurrence. */
+    RTTESTUNIT_PS_PER_PACKET,                   /**< Picoseconds per frame. */
+    RTTESTUNIT_PS_PER_ROUND_TRIP,               /**< Picoseconds per round trip. */
+    RTTESTUNIT_PS_PER_PAGE,                     /**< Picoseconds per page. */
 
     /** The end of valid units. */
     RTTESTUNIT_END
@@ -527,6 +547,7 @@ typedef enum RTTESTUNIT
 AssertCompile(RTTESTUNIT_INSTRS      == 0x19);
 AssertCompile(RTTESTUNIT_NONE        == 0x1b);
 AssertCompile(RTTESTUNIT_NS_PER_PAGE == 0x26);
+AssertCompile(RTTESTUNIT_PS_PER_PAGE == 0x2d);
 
 /**
  * Report a named test result value.
@@ -786,7 +807,7 @@ RTR3DECL(int) RTTestRestoreAssertions(RTTEST hTest);
             return (rcRet); \
          } \
     } while (0)
-/** @def RTTEST_CHECK_MSG_RET
+/** @def RTTEST_CHECK_MSG_RETV
  * Check whether a boolean expression holds true, returns void on false.
  *
  * If the expression is false, call RTTestFailed giving the line number and expression.
@@ -1228,7 +1249,7 @@ RTR3DECL(int) RTTestIRestoreAssertions(void);
             return; \
          } \
     } while (0)
-/** @def RTTESTI_CHECK_RETV
+/** @def RTTESTI_CHECK_BREAK
  * Check whether a boolean expression holds true, returns void on false.
  *
  * If the expression is false, call RTTestIFailed giving the line number and
@@ -1293,7 +1314,7 @@ RTR3DECL(int) RTTestIRestoreAssertions(void);
             return (rcRet); \
          } \
     } while (0)
-/** @def RTTESTI_CHECK_MSG_RET
+/** @def RTTESTI_CHECK_MSG_RETV
  * Check whether a boolean expression holds true, returns void on false.
  *
  * If the expression is false, call RTTestIFailed giving the line number and

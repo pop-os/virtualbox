@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2005-2020 Oracle Corporation
+ * Copyright (C) 2005-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_USBDEVICEFILTERS
@@ -264,7 +274,7 @@ public:
         VBOX_TWEAK_INTERFACE_ENTRY(IUSBDeviceFilter)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR(USBDeviceFilter)
+    DECLARE_COMMON_CLASS_METHODS(USBDeviceFilter)
 
     // IUSBDeviceFilter properties
     STDMETHOD(COMGETTER(Name))(BSTR *aName);
@@ -298,11 +308,8 @@ HRESULT USBDeviceFilters::getDeviceFilters(std::vector<ComPtr<IUSBDeviceFilter> 
 #ifdef VBOX_WITH_USB
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    SafeIfaceArray<IUSBDeviceFilter> collection(*m->llDeviceFilters.data());
-    aDeviceFilters.resize(collection.size());
-    if (collection.size())
-        for (size_t i = 0; i < collection.size(); ++i)
-            aDeviceFilters[i] = collection[i];
+    aDeviceFilters.resize(m->llDeviceFilters.data()->size());
+    std::copy(m->llDeviceFilters.data()->begin(), m->llDeviceFilters.data()->end(), aDeviceFilters.begin());
 
     return S_OK;
 #else

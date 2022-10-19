@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -72,7 +82,7 @@ int main()
         const int rcGetOpt = (expr); \
         CHECK2(rcGetOpt == (chRet), ("got %d, expected %d\n", rcGetOpt, (chRet))); \
         CHECK2(GetState.iNext == (iInc) + iPrev, ("iNext=%d expected %d\n", GetState.iNext, (iInc) + iPrev)); \
-        CHECK2(VALID_PTR(Val.psz) && !strcmp(Val.psz, (str)), ("got %s, expected %s\n", Val.psz, (str))); \
+        CHECK2(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, (str)), ("got %s, expected %s\n", Val.psz, (str))); \
         GetState.iNext = (iInc) + iPrev; \
     } while (0)
 
@@ -108,6 +118,9 @@ int main()
         { "--pair32",           410, RTGETOPT_REQ_UINT32_PAIR  },
         { "--optpair32",        411, RTGETOPT_REQ_UINT32_OPTIONAL_PAIR  },
         { "--optpair64",        412, RTGETOPT_REQ_UINT64_OPTIONAL_PAIR  },
+        { "--boolean0index",    413, RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX | RTGETOPT_FLAG_INDEX_DEF_0 },
+        { "--boolean1index",    414, RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX | RTGETOPT_FLAG_INDEX_DEF_1 },
+        { "--boolean-dash-idx", 415, RTGETOPT_REQ_BOOL_ONOFF | RTGETOPT_FLAG_INDEX | RTGETOPT_FLAG_INDEX_DEF_0 | RTGETOPT_FLAG_INDEX_DEF_DASH },
     };
 
     const char *argv2[] =
@@ -181,6 +194,16 @@ int main()
         "--booleanindex7",   "off",
         "--booleanindex9",   "invalid",
 
+        /* bool on/off with optional index */
+        "--boolean0index9",     "on",
+        "--boolean0index",      "off",
+        "--boolean1index42",    "off",
+        "--boolean1index",      "on",
+        "--boolean-dash-idx",   "off",
+        "--boolean-dash-idx-2", "on",
+        "--boolean-dash-idx-3=off",
+        "--boolean-dash-idx:on",
+
         /* standard options */
         "--help",
         "-help",
@@ -206,37 +229,37 @@ int main()
     CHECK(RT_SUCCESS(RTGetOptInit(&GetState, argc2, (char **)argv2, &s_aOpts2[0], RT_ELEMENTS(s_aOpts2), 0, 0 /* fFlags */)));
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string1"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string1"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string2"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string2"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string3"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string3"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string4"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string4"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string5"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string5"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string6"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string6"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string7"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string7"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 's', 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
     CHECK(GetState.uIndex == UINT32_MAX);
 
     /* -i */
@@ -269,13 +292,13 @@ int main()
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 385, 1);
     CHECK_pDef(s_aOpts2, 5);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 386, 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "myvm"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "myvm"));
 
     /* no-dash options */
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 387, 1);
     CHECK_pDef(s_aOpts2, 7);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 388, 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string9"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string9"));
 
     /* non-option, option, non-option  */
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), VINF_GETOPT_NOT_OPTION, 1);
@@ -318,35 +341,35 @@ int main()
     /* string with indexed argument */
     RTTestSub(hTest, "RTGetOpt - Option w/ Index");
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string10"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string10"));
     CHECK(GetState.uIndex == 786);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string11"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string11"));
     CHECK(GetState.uIndex == 786);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string12"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string12"));
     CHECK(GetState.uIndex == 786);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string13"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string13"));
     CHECK(GetState.uIndex == 687);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string14"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string14"));
     CHECK(GetState.uIndex == 687);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "string15"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "string15"));
     CHECK(GetState.uIndex == 687);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
     CHECK(GetState.uIndex == 688);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 400, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, ""));
     CHECK(GetState.uIndex == 689);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 401, 2);
@@ -371,17 +394,17 @@ int main()
     /* RTGetOptFetchValue tests */
     RTTestSub(hTest, "RTGetOptFetchValue");
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 405, 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "firstvalue"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "firstvalue"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_STRING), VINF_SUCCESS, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "secondvalue"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "secondvalue"));
     CHECK(GetState.uIndex == UINT32_MAX);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 405, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "firstvalue"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "firstvalue"));
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_STRING), VINF_SUCCESS, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "secondvalue"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "secondvalue"));
     CHECK(GetState.uIndex == UINT32_MAX);
 
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 406, 2);
@@ -405,7 +428,7 @@ int main()
     CHECK(Val.u32 == 12);
     CHECK(GetState.uIndex == UINT32_MAX);
     CHECK_GETOPT(RTGetOptFetchValue(&GetState, &Val, RTGETOPT_REQ_STRING), VINF_SUCCESS, 1);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "thirdvalue"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "thirdvalue"));
     CHECK(GetState.uIndex == UINT32_MAX);
 
     /* bool on/off tests */
@@ -415,7 +438,7 @@ int main()
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 408, 2);
     CHECK(!Val.f);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), VERR_GETOPT_UNKNOWN_OPTION, 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "invalid"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "invalid"));
 
     /* bool on/off with indexed argument */
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), 409, 2);
@@ -425,7 +448,40 @@ int main()
     CHECK(!Val.f);
     CHECK(GetState.uIndex == 7);
     CHECK_GETOPT(RTGetOpt(&GetState, &Val), VERR_GETOPT_UNKNOWN_OPTION, 2);
-    CHECK(VALID_PTR(Val.psz) && !strcmp(Val.psz, "invalid"));
+    CHECK(RT_VALID_PTR(Val.psz) && !strcmp(Val.psz, "invalid"));
+
+    /* bool on/off with optional indexed argument  */
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 413, 2);
+    CHECK(Val.f);
+    CHECK(GetState.uIndex == 9);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 413, 2);
+    CHECK(!Val.f);
+    CHECK(GetState.uIndex == 0);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 414, 2);
+    CHECK(!Val.f);
+    CHECK(GetState.uIndex == 42);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 414, 2);
+    CHECK(Val.f);
+    CHECK(GetState.uIndex == 1);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 415, 2);
+    CHECK(!Val.f);
+    CHECK(GetState.uIndex == 0);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 415, 2);
+    CHECK(Val.f);
+    CHECK(GetState.uIndex == 2);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 415, 1);
+    CHECK(!Val.f);
+    CHECK(GetState.uIndex == 3);
+
+    CHECK_GETOPT(RTGetOpt(&GetState, &Val), 415, 1);
+    CHECK(Val.f);
+    CHECK(GetState.uIndex == 0);
 
     /* standard options. */
     RTTestSub(hTest, "Standard options");

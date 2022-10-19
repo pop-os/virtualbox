@@ -18,15 +18,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -2722,7 +2732,8 @@ static DECLCALLBACK(int) drvHstAudCaConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
 {
     RT_NOREF(pCfg, fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
-    PDRVHOSTCOREAUDIO pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+    PDRVHOSTCOREAUDIO   pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTCOREAUDIO);
+    PCPDMDRVHLPR3       pHlp  = pDrvIns->pHlpR3;
     LogRel(("Audio: Initializing Core Audio driver\n"));
 
     /*
@@ -2769,20 +2780,20 @@ static DECLCALLBACK(int) drvHstAudCaConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "InputDeviceID|OutputDeviceID", "");
 
     char *pszTmp = NULL;
-    rc = CFGMR3QueryStringAlloc(pCfg, "InputDeviceID", &pszTmp);
+    rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "InputDeviceID", &pszTmp);
     if (RT_SUCCESS(rc))
     {
         rc = drvHstAudCaSetDevice(pThis, &pThis->InputDevice, true /*fInput*/, false /*fNotify*/, pszTmp);
-        MMR3HeapFree(pszTmp);
+        PDMDrvHlpMMHeapFree(pDrvIns, pszTmp);
     }
     else if (rc != VERR_CFGM_VALUE_NOT_FOUND && rc != VERR_CFGM_NO_PARENT)
         return PDMDRV_SET_ERROR(pDrvIns, rc, "Failed to query 'InputDeviceID'");
 
-    rc = CFGMR3QueryStringAlloc(pCfg, "OutputDeviceID", &pszTmp);
+    rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "OutputDeviceID", &pszTmp);
     if (RT_SUCCESS(rc))
     {
         rc = drvHstAudCaSetDevice(pThis, &pThis->OutputDevice, false /*fInput*/, false /*fNotify*/, pszTmp);
-        MMR3HeapFree(pszTmp);
+        PDMDrvHlpMMHeapFree(pDrvIns, pszTmp);
     }
     else if (rc != VERR_CFGM_VALUE_NOT_FOUND && rc != VERR_CFGM_NO_PARENT)
         return PDMDRV_SET_ERROR(pDrvIns, rc, "Failed to query 'OutputDeviceID'");
@@ -2857,14 +2868,6 @@ static DECLCALLBACK(int) drvHstAudCaConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
         && orc != kAudioHardwareIllegalOperationError)
         LogRel(("CoreAudio: Failed to add the output default device changed listener: %d (%#x)\n", orc, orc));
 
-    /*
-     * Cleanup debug dumps from previous run.
-     */
-#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH
-    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "caConverterCbInput.pcm");
-    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "caPlayback.pcm");
-#endif
-
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
@@ -2920,4 +2923,3 @@ const PDMDRVREG g_DrvHostCoreAudio =
     /* u32EndVersion */
     PDM_DRVREG_VERSION
 };
-

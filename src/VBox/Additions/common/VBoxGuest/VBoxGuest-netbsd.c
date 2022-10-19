@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -170,16 +180,16 @@ extern struct cfattach vboxguest_ca; /* CFATTACH_DECL */
  */
 static struct cdevsw g_VBoxGuestNetBSDChrDevSW =
 {
-    VBoxGuestNetBSDOpen,
-    noclose,
-    noread,
-    nowrite,
-    noioctl,
-    nostop,
-    notty,
-    nopoll,
-    nommap,
-    nokqfilter,
+    .d_open = VBoxGuestNetBSDOpen,
+    .d_close = noclose,
+    .d_read = noread,
+    .d_write = nowrite,
+    .d_ioctl = noioctl,
+    .d_stop = nostop,
+    .d_tty = notty,
+    .d_poll = nopoll,
+    .d_mmap = nommap,
+    .d_kqfilter = nokqfilter,
 };
 
 static const struct fileops vboxguest_fileops = {
@@ -202,11 +212,35 @@ const struct wsmouse_accessops vboxguest_wsm_accessops = {
 };
 
 
+/*
+ * XXX: wsmux(4) doesn't properly handle the case when two mice with
+ * absolute position events but different calibration data are being
+ * multiplexed.  Without GAs the absolute events will be reported
+ * through the tablet ums(4) device with the range of 32k, but with
+ * GAs the absolute events will be reported through the VMM device
+ * (wsmouse at vboxguest) and VMM uses the range of 64k.  Which one
+ * responds to the calibration ioctl depends on the order of
+ * attachment.  On boot kernel attaches ums first and GAs later, so
+ * it's VMM (this driver) that gets the ioctl.  After save/restore the
+ * ums will be detached and re-attached and after that it's ums that
+ * will get the ioctl, but the events (with a wider range) will still
+ * come via the VMM, confusing X, wsmoused, etc.  Hack around that by
+ * forcing the range here to match the tablet's range.
+ *
+ * We force VMM range into the ums range and rely on the fact that no
+ * actual calibration is done and both devices are used in the raw
+ * mode.  See tpcalib_trans call below.
+ *
+ * Cf. src/VBox/Devices/Input/UsbMouse.cpp
+ */
+#define USB_TABLET_RANGE_MIN 0
+#define USB_TABLET_RANGE_MAX 0x7fff
+
 static struct wsmouse_calibcoords vboxguest_wsm_default_calib = {
-    .minx = VMMDEV_MOUSE_RANGE_MIN,
-    .miny = VMMDEV_MOUSE_RANGE_MIN,
-    .maxx = VMMDEV_MOUSE_RANGE_MAX,
-    .maxy = VMMDEV_MOUSE_RANGE_MAX,
+    .minx = USB_TABLET_RANGE_MIN, // VMMDEV_MOUSE_RANGE_MIN,
+    .miny = USB_TABLET_RANGE_MIN, // VMMDEV_MOUSE_RANGE_MIN,
+    .maxx = USB_TABLET_RANGE_MAX, // VMMDEV_MOUSE_RANGE_MAX,
+    .maxy = USB_TABLET_RANGE_MAX, // VMMDEV_MOUSE_RANGE_MAX,
     .samplelen = WSMOUSE_CALIBCOORDS_RESET,
 };
 
@@ -537,10 +571,10 @@ void VGDrvNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
         if (RT_FAILURE(rc))
             return;
 
-        tpcalib_trans(&sc->sc_tpcalib,
-                      sc->sc_vmmmousereq->pointerXPos,
-                      sc->sc_vmmmousereq->pointerYPos,
-                      &x, &y);
+        /* XXX: see the comment for vboxguest_wsm_default_calib */
+        int rawx = (unsigned)sc->sc_vmmmousereq->pointerXPos >> 1;
+        int rawy = (unsigned)sc->sc_vmmmousereq->pointerYPos >> 1;
+        tpcalib_trans(&sc->sc_tpcalib, rawx, rawy, &x, &y);
 
         wsmouse_input(sc->sc_wsmousedev,
                       0,    /* buttons */
@@ -1028,8 +1062,19 @@ vboxguest_modcmd(modcmd_t cmd, void *opaque)
                                  &retval,
 #endif
                                  UIO_SYSSPACE);
-            if (error == EEXIST)
+            if (error == EEXIST) {
                 error = 0;
+
+                /*
+                 * Since NetBSD doesn't yet have a major reserved for
+                 * vboxguest, the (first free) major we get will
+                 * change when new devices are added, so an existing
+                 * /dev/vboxguest may now point to some other device,
+                 * creating confusion (tripped me up a few times).
+                 */
+                aprint_normal("vboxguest: major %d:"
+                              " check existing /dev/vboxguest\n", cmajor);
+            }
             break;
 
         case MODULE_CMD_FINI:

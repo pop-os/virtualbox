@@ -15,18 +15,13 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
  * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-/*
- * Oracle GPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
- * the General Public License version 2 (GPLv2) at this time for any software where
- * a choice of GPL license versions is made available with the language indicating
- * that GPLv2 or any later version may be used, or where a choice of which version
- * of the GPL is applied is otherwise unspecified.
- */
-
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <string.h>
@@ -170,7 +165,7 @@ static int myson_create_ring ( struct myson_nic *myson,
 	int rc;
 
 	/* Allocate descriptor ring */
-	ring->desc = malloc_dma ( len, MYSON_RING_ALIGN );
+	ring->desc = malloc_phys ( len, MYSON_RING_ALIGN );
 	if ( ! ring->desc ) {
 		rc = -ENOMEM;
 		goto err_alloc;
@@ -202,7 +197,7 @@ static int myson_create_ring ( struct myson_nic *myson,
 	return 0;
 
  err_64bit:
-	free_dma ( ring->desc, len );
+	free_phys ( ring->desc, len );
 	ring->desc = NULL;
  err_alloc:
 	return rc;
@@ -222,7 +217,7 @@ static void myson_destroy_ring ( struct myson_nic *myson,
 	writel ( 0, myson->regs + ring->reg );
 
 	/* Free descriptor ring */
-	free_dma ( ring->desc, len );
+	free_phys ( ring->desc, len );
 	ring->desc = NULL;
 	ring->prod = 0;
 	ring->cons = 0;
@@ -611,7 +606,11 @@ static int myson_probe ( struct pci_device *pci ) {
 	adjust_pci_device ( pci );
 
 	/* Map registers */
-	myson->regs = ioremap ( pci->membase, MYSON_BAR_SIZE );
+	myson->regs = pci_ioremap ( pci, pci->membase, MYSON_BAR_SIZE );
+	if ( ! myson->regs ) {
+		rc = -ENODEV;
+		goto err_ioremap;
+	}
 
 	/* Reset the NIC */
 	if ( ( rc = myson_reset ( myson ) ) != 0 )
@@ -635,6 +634,8 @@ static int myson_probe ( struct pci_device *pci ) {
  err_register_netdev:
 	myson_reset ( myson );
  err_reset:
+	iounmap ( myson->regs );
+ err_ioremap:
 	netdev_nullify ( netdev );
 	netdev_put ( netdev );
  err_alloc:
@@ -657,6 +658,7 @@ static void myson_remove ( struct pci_device *pci ) {
 	myson_reset ( myson );
 
 	/* Free network device */
+	iounmap ( myson->regs );
 	netdev_nullify ( netdev );
 	netdev_put ( netdev );
 }

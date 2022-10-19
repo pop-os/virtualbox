@@ -3,15 +3,25 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2021 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 LC_ALL=C
@@ -99,10 +109,12 @@ WITH_EXTPACK=1
 WITH_DOCS=1
 WITH_LIBVPX=1
 WITH_LIBOPUS=1
+WITH_LIBTPMS=1
 BUILD_LIBXML2=
 BUILD_LIBCURL=
 BUILD_LIBSSL=
 BUILD_LIBVPX=
+BUILD_LIBTPMS=
 PASSIVE_MESA=0
 CC="gcc"
 CC32=""
@@ -156,7 +168,7 @@ PYTHONDIR="/usr /usr/local"
 QT5DIR="/usr/lib/qt5 /usr/share/qt5 /usr/lib64/qt5 /usr /usr/local"
 QT5DIR_PKGCONFIG=1
 QT5MAJ=5
-QT5MIN=6
+QT5MIN=9
 KBUILDDIR="`cd \`dirname $0\`; pwd`/kBuild"
 DEVDIR="`cd \`dirname $0\`; pwd`/tools"
 if [ -d "/lib/modules/`uname -r`/build" ]; then
@@ -192,6 +204,8 @@ ECHO_N="printf"
 cleanup()
 {
   rm -f $ODIR.tmp_src.cc $ODIR.tmp_src.c $ODIR.tmp_out $ODIR.test_execute.log
+  [ "$OS" = "darwin" ] && rm -rf $ODIR.tmp_out.dSYM
+  true
 }
 
 fail()
@@ -239,12 +253,21 @@ strip_l()
 
 strip_L()
 {
-  echo "$1"|$KBUILD_SED 's|-L\([^ ]\+\)|\1|g; s|^-[^L][^ ]*||g; s| -[^L][^ ]*||g; s|^ ||; s| *$||g'
+  if [ "$OS" = "darwin" ]; then
+    echo "$1"|$KBUILD_SED 's|-F\([^ ]\+\)|\1|g; s|^-[^F][^ ]*||g; s| -[^F][^ ]*||g; s|^ ||; s| *$||g'
+  else
+    echo "$1"|$KBUILD_SED 's|-L\([^ ]\+\)|\1|g; s|^-[^L][^ ]*||g; s| -[^L][^ ]*||g; s|^ ||; s| *$||g'
+  fi
 }
 
 L_to_PATH()
 {
-  echo "$1"|$KBUILD_SED 's|-L\([^ ]\+\)|\1|g; s|^-[^L][^ ]*||g; s| -[^L][^ ]*||g; s|^ ||; s| *$||g; s| |:|g'
+echo $1 >> $LOG
+  if [ "$OS" = "darwin" ]; then
+    echo "$1"|$KBUILD_SED 's|-F\([^ ]\+\)|\1|g; s|^-[^F][^ ]*||g; s| -[^F][^ ]*||g; s|^ ||; s| *$||g; s| |:|g'
+  else
+    echo "$1"|$KBUILD_SED 's|-L\([^ ]\+\)|\1|g; s|^-[^L][^ ]*||g; s| -[^L][^ ]*||g; s|^ ||; s| *$||g; s| |:|g'
+  fi
 }
 
 strip_I()
@@ -291,7 +314,7 @@ test_compile()
   echo "compiling the following source file:" >> $LOG
   cat $ODIR.tmp_src.cc >> $LOG
   echo "using the following command line:" >> $LOG
-  echo "$CXX $CXX_FLAGS -fPIC -g -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc \"$1\"" >> $LOG
+  echo "$CXX $CXX_FLAGS -fPIC -g -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc $1" >> $LOG
   $CXX $CXX_FLAGS -fPIC -g -O -Wall -o $ODIR.tmp_out $ODIR.tmp_src.cc $1 >> $LOG 2>&1
   if [ $? -ne 0 ]; then
     if [ -z "$4" ]; then
@@ -364,7 +387,7 @@ check_environment()
       ;;
     x86_64|amd64)
       BUILD_MACHINE='amd64'
-      BUILD_CPU='k8'
+      BUILD_CPU='blend'
       if [ "$OS" != "solaris" ]; then
         # on AMD64 systems, 64bit libs are usually located in /usr/lib64
         # see http://www.pathname.com/fhs/pub/fhs-2.3.html#LIB64
@@ -403,18 +426,25 @@ check_environment()
   DEVDIR_BIN="$DEVDIR/$OS.$BUILD_MACHINE/bin"
   log_success "Determined build machine: $OS.$BUILD_MACHINE, target machine: $OS.$TARGET_MACHINE"
 
-  echo "BUILD_PLATFORM=\"$OS\"" >> $ENV
-  echo "export BUILD_PLATFORM" >> $ENV
-  echo "BUILD_PLATFORM_ARCH=\"$BUILD_MACHINE\"" >> $ENV
-  echo "export BUILD_PLATFORM_ARCH" >> $ENV
-  echo "BUILD_TARGET=\"$OS\"" >> $ENV
-  echo "export BUILD_TARGET" >> $ENV
-  echo "BUILD_TARGET_ARCH=\"$TARGET_MACHINE\"" >> $ENV
-  echo "export BUILD_TARGET_ARCH" >> $ENV
-  echo "BUILD_TARGET_CPU=\"$TARGET_CPU\"" >> $ENV
-  echo "export BUILD_TARGET_CPU" >> $ENV
-  echo "BUILD_TYPE=\"$BUILD_TYPE\"" >> $ENV
-  echo "export BUILD_TYPE" >> $ENV
+  echo "KBUILD_HOST=\"$OS\"" >> $ENV
+  echo "KBUILD_HOST_ARCH=\"$BUILD_MACHINE\"" >> $ENV
+  echo "KBUILD_TARGET=\"$OS\"" >> $ENV
+  echo "KBUILD_TARGET_ARCH=\"$TARGET_MACHINE\"" >> $ENV
+  echo "KBUILD_TARGET_CPU=\"$TARGET_CPU\"" >> $ENV
+  echo "KBUILD_TYPE=\"$BUILD_TYPE\"" >> $ENV
+  echo 'export KBUILD_HOST KBUILD_HOST_ARCH KBUILD_TARGET KBUILD_TARGET_ARCH KBUILD_TARGET_CPU KBUILD_TYPE' >> $ENV
+
+  # obsolete legacy stuff:
+  echo '' >> $ENV
+  echo "# Legacy - do not use:" >> $ENV
+  echo 'BUILD_PLATFORM="$KBUILD_HOST"' >> $ENV
+  echo 'BUILD_PLATFORM_ARCH="$KBUILD_HOST_ARCH"' >> $ENV
+  echo 'BUILD_TARGET="$KBUILD_TARGET"' >> $ENV
+  echo 'BUILD_TARGET_ARCH="$KBUILD_TARGET_ARCH"' >> $ENV
+  echo 'BUILD_TARGET_CPU="$KBUILD_TARGET_CPU"' >> $ENV
+  echo 'BUILD_TYPE="$KBUILD_TYPE"' >> $ENV
+  echo 'export BUILD_PLATFORM BUILD_PLATFORM_ARCH BUILD_TARGET BUILD_TARGET_ARCH BUILD_TARGET_CPU BUILD_TYPE' >> $ENV
+  echo '' >> $ENV
 }
 
 #
@@ -613,10 +643,11 @@ check_yasm()
       yasm_min=`echo $yasm_ver|cut -d. -f2`
       yasm_rev=`echo $yasm_ver|cut -d. -f3`
       yasm_ver_mul=`expr $yasm_maj \* 10000 + $yasm_min \* 100 + $yasm_rev`
-      if [ $yasm_ver_mul -lt 501 ]; then
-        log_failure "found version $yasm_ver, expected at least 0.5.1"
+      if [ $yasm_ver_mul -lt 10300 ]; then
+        log_failure "found version $yasm_ver, expected at least 1.3.0"
         fail
       else
+        [ "$YASM" != "yasm" ] && cnf_append "PATH_TOOL_YASM" "`dirname $YASM`"
         log_success "found version $yasm_ver"
       fi
     fi
@@ -1539,17 +1570,24 @@ EOF
     # Now try the user provided directory and some of the standard directories.
     QT_TRIES="$QT5DIR /System/Library /Library"
     for t in $QT_TRIES; do
-      if [ -f "$t/Frameworks/QtCore.framework/QtCore" ]; then
+      if [ -f "$t/Frameworks/QtCore.framework/QtCore" -o -f "$t/clang_64/lib/QtCore.framework/QtCore" ]; then
         PATH_SDK_QT5="$t"
+        foundqt5=1
         break
       fi
     done
     # Add the necessary params for building the test application
     if [ -n "$PATH_SDK_QT5" ]; then
-      foundqt5=1
-      INCQT5=-I$PATH_SDK_QT5/Frameworks/QtCore.framework/Headers
-      LIBQT5=-F$PATH_SDK_QT5/Frameworks
-      FLGQT5="-framework QtCore"
+      if [ -f "$t/clang_64/lib/QtCore.framework/QtCore" ]; then
+        INCQT5=-I$PATH_SDK_QT5/clang_64/lib/QtCore.framework/Headers
+        LIBQT5=-F$PATH_SDK_QT5/clang_64/lib
+        SDKQT5=$PATH_SDK_QT5/clang_64
+      else
+        INCQT5=-I$PATH_SDK_QT5/Frameworks/QtCore.framework/Headers
+        LIBQT5=-F$PATH_SDK_QT5/Frameworks
+        SDKQT5=$PATH_SDK_QT5
+      fi
+      FLGQT5="-framework QtCore -std=c++11 -Wl,-rpath,`L_to_PATH "$LIBQT5"`"
     else
       log_failure "Qt5 framework not found (can be disabled using --disable-qt)"
       fail
@@ -1584,7 +1622,7 @@ EOF
       for q in $QT5DIR "$DEVDIR/linux.$TARGET_MACHINE"/qt/v5.*; do
         echo "(Qt5 from '$q')" >> $LOG
         INCQT5="$q/include $q/include/QtCore"
-        FLGQT5="-DQT_SHARED"
+        FLGQT5="-DQT_SHARED -std=c++11"
         I_INCQT5=`prefix_I "$INCQT5"`
         LIBQT5="-L$q/lib -lQt5CoreVBox -lQt5GuiVBox"
         TOOLQT5="$q"
@@ -1629,12 +1667,12 @@ EOF
         if [ "$OS" = "darwin" ]; then
           # Successful build & run the test application so add the necessary
           # params to AutoConfig.kmk:
-          cnf_append "PATH_SDK_QT5_INC" "$PATH_SDK_QT5/Frameworks"
-          cnf_append "PATH_SDK_QT5_LIB" "$PATH_SDK_QT5/Frameworks"
-          cnf_append "PATH_SDK_QT5" "$PATH_SDK_QT5/Frameworks"
+          cnf_append "PATH_SDK_QT5_INC" "`L_to_PATH "$LIBQT5"`"
+          cnf_append "PATH_SDK_QT5_LIB" "`L_to_PATH "$LIBQT5"`"
+          cnf_append "PATH_SDK_QT5" "$SDKQT5"
           # Check for the moc tool in the Qt directory found & some standard
           # directories.
-          for q in $PATH_SDK_QT5 /usr /Developer/Tools/Qt; do
+          for q in $PATH_SDK_QT5 $PATH_SDK_QT5/clang_64 /usr /Developer/Tools/Qt; do
             if which_wrapper "$q/bin/moc" > /dev/null; then
               cnf_append "PATH_TOOL_QT5_BIN" "$q/bin"
             fi
@@ -1771,6 +1809,43 @@ EOF
 
 
 #
+# Check for libtpms
+#
+check_libtpms()
+{
+  if [ -z "$BUILD_LIBTPMS" ]; then
+    test_header libtpms
+    if which_wrapper pkg-config > /dev/null; then
+      libtpms_ver=`pkg-config libtpms --modversion 2>> $LOG`
+      if [ $? -eq 0 ]; then
+        FLGTPMS=`pkg-config libtpms --cflags`
+        INCTPMS=`strip_I "$FLGTPMS"`
+        LIBTPMS=`pkg-config libtpms --libs`
+      fi
+      cat > $ODIR.tmp_src.cc << EOF
+#include <cstdio>
+#include <libtpms/tpm_library.h>
+extern "C" int main(void)
+{
+  TPMLIB_MainInit();
+  printf("found, OK.\n");
+}
+EOF
+      [ -n "$INCTPMS" ] && I_INCTPMS=`prefix_I "$INCTPMS"`
+      if test_compile "$LIBTPMS $I_INCTPMS" libtpms libtpms nofatal; then
+        if test_execute; then
+          cnf_append "SDK_VBOX_TPMS_INCS" "$INCTPMS"
+          cnf_append "SDK_VBOX_TPMS_LIBS" "`strip_l "$LIBTPMS"`"
+        fi
+      else
+        echo "not found -- building libtpms from in-tree code."
+      fi
+    fi
+  fi
+}
+
+
+#
 # Check whether static libstdc++ is installed. This library is required
 # for the Linux guest additions.
 #
@@ -1862,42 +1937,32 @@ check_kbuild()
   test_header kBuild
   if which_wrapper "$KBUILDDIR/bin/$OS.$BUILD_MACHINE/kmk" > /dev/null; then
     KBUILDDIR_BIN="$KBUILDDIR/bin/$OS.$BUILD_MACHINE"
-    echo "PATH_KBUILD=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
-    echo "export PATH_KBUILD" >> $ENV
-    echo "PATH_DEVTOOLS=\"$DEVDIR\"" >> $ENV
-    echo "export PATH_DEVTOOLS" >> $ENV
-    echo "path_kbuild_bin=\"\$PATH_KBUILD/bin/\$BUILD_TARGET.\$BUILD_PLATFORM_ARCH\"" >> $ENV
-    echo "export PATH_KBUILD_BIN" >> $ENV
-    echo "path_dev_bin=\"\$PATH_DEVTOOLS/\$BUILD_TARGET.\$BUILD_PLATFORM_ARCH\"/bin" >> $ENV
+
+    echo "KBUILD_PATH=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
+    echo "KBUILD_DEVTOOLS=\"$DEVDIR\"" >> $ENV
+    echo 'path_kbuild_bin="$KBUILD_PATH/bin/$BUILD_TARGET.$BUILD_PLATFORM_ARCH"' >> $ENV
+    echo 'path_tools_bin="$KBUILD_DEVTOOLS/$BUILD_TARGET.$BUILD_PLATFORM_ARCH/bin"' >> $ENV
+
     if [ "$OS" = "solaris" ]; then
       # Because of sh being non-default shell in Solaris we need to export PATH again when
       # sourcing env.sh. Simply exporting from ./configure does not export PATH correctly.
       echo "PATH=\"$ORGPATH\"" >> $ENV
       echo "echo \"\$PATH\" | /usr/sfw/bin/ggrep -q \"\$path_kbuild_bin\" || PATH=\"\$path_kbuild_bin:\$PATH\"" >> $ENV
-      echo "echo \"\$PATH\" | /usr/sfw/bin/ggrep -q \"\$path_dev_bin\" || PATH=\"\$path_dev_bin:\$PATH\"" >> $ENV
+      echo "echo \"\$PATH\" | /usr/sfw/bin/ggrep -q \"\$path_tools_bin\"  || PATH=\"\$path_tools_bin:\$PATH\"" >> $ENV
     else
       echo "echo \"\$PATH\" | grep -q \"\$path_kbuild_bin\" || PATH=\"\$path_kbuild_bin:\$PATH\"" >> $ENV
-      echo "echo \"\$PATH\" | grep -q \"\$path_dev_bin\" || PATH=\"\$path_dev_bin:\$PATH\"" >> $ENV
+      echo "echo \"\$PATH\" | grep -q \"\$path_tools_bin\"  || PATH=\"\$path_tools_bin:\$PATH\"" >> $ENV
     fi
-    echo "export PATH" >> $ENV
-    echo "unset path_kbuild_bin path_dev_bin" >> $ENV
+    echo "export KBUILD_PATH KBUILD_DEVTOOLS PATH" >> $ENV
+    echo "unset path_kbuild_bin path_tools_bin" >> $ENV
     KBUILD_SED="$KBUILDDIR_BIN/kmk_sed"
-  elif [ "$OS.$BUILD_MACHINE" = "darwin.amd64" ]; then
-    # Currently there are no amd64 kBuild bins. So use the x86 variant in any case.
-    KBUILDDIR_BIN="$KBUILDDIR/bin/$OS.x86"
-    echo "PATH_KBUILD=\"`cd $KBUILDDIR ; pwd`\"" >> $ENV
-    echo "export PATH_KBUILD" >> $ENV
-    echo "PATH_DEVTOOLS=\"$DEVDIR\"" >> $ENV
-    echo "export PATH_DEVTOOLS" >> $ENV
-    echo "path_kbuild_bin=\"\$PATH_KBUILD/bin/\$BUILD_TARGET.x86\"" >> $ENV
-    echo "PATH_KBUILD_BIN=\"\$path_kbuild_bin\"" >> $ENV
-    echo "export PATH_KBUILD_BIN" >> $ENV
-    echo "path_dev_bin=\"\$PATH_DEVTOOLS/\$BUILD_TARGET.\$BUILD_PLATFORM_ARCH\"/bin" >> $ENV
-    echo "echo \"\$PATH\" | grep -q \"\$path_kbuild_bin\" || PATH=\"\$path_kbuild_bin:\$PATH\"" >> $ENV
-    echo "echo \"\$PATH\" | grep -q \"\$path_dev_bin\" || PATH=\"\$path_dev_bin:\$PATH\"" >> $ENV
-    echo "export PATH" >> $ENV
-    echo "unset path_kbuild_bin path_dev_bin" >> $ENV
-    KBUILD_SED="$KBUILDDIR_BIN/kmk_sed"
+
+    echo '' >> $ENV
+    echo "# Legacy - do not use:" >> $ENV
+    echo 'PATH_KBUILD=${KBUILD_PATH}' >> $ENV
+    echo 'PATH_DEVTOOLS=${KBUILD_DEVTOOLS}' >> $ENV
+    echo 'export PATH_KBUILD PATH_DEVTOOLS' >> $ENV
+    echo '' >> $ENV
   elif check_avail "kmk" KBUILDDIR really; then
     # check for installed kBuild
     KBUILD_SED="`which_wrapper kmk_sed`"
@@ -2212,122 +2277,36 @@ check_gsoap()
 
 
 #
-# Check Xcode path
-#
-check_xcode_sdk_path()
-{
-    # Check if WITH_XCODE_DIR is set.
-    if [ -z "$WITH_XCODE_DIR" ]; then
-        echo "Please specify --with-xcode-dir option."
-        return 0
-    fi
-
-    # Check if specified path exists and is a directory.
-    if [ -d "$1" ]; then
-        return 1
-    else
-        echo "Xcode path [$1] not found."
-        return 0
-    fi
-}
-
-#
 # Determines the Darwin version.
-# @todo This should really check the Xcode/SDK version.
 #
 check_darwinversion()
 {
   test_header "Darwin version"
   darwin_ver=`uname -r`
   case "$darwin_ver" in
+    20\.*)
+      darwin_ver="11.0" # Big Sur
+      ;;
+    19\.*)
+      darwin_ver="10.15" # Catalina
+      ;;
+    18\.*)
+      darwin_ver="10.14" # Mojave
+      ;;
     17\.*)
-      check_xcode_sdk_path "$WITH_XCODE_DIR"
-      [ $? -eq 1 ] || fail
       darwin_ver="10.13" # High Sierra
-      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
       ;;
     16\.*)
-      check_xcode_sdk_path "$WITH_XCODE_DIR"
-      [ $? -eq 1 ] || fail
       darwin_ver="10.12" # Sierra
-      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
       ;;
     15\.*)
-      check_xcode_sdk_path "$WITH_XCODE_DIR"
-      [ $? -eq 1 ] || fail
       darwin_ver="10.11" # El Capitan
-      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
       ;;
     14\.*)
-      check_xcode_sdk_path "$WITH_XCODE_DIR"
-      [ $? -eq 1 ] || fail
       darwin_ver="10.10" # Yosemite
-      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
       ;;
     13\.*)
-      check_xcode_sdk_path "$WITH_XCODE_DIR"
-      [ $? -eq 1 ] || fail
       darwin_ver="10.9" # Mavericks
-      sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-      cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-      cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
-      ;;
-    12\.*)
-      darwin_ver="10.8" # Mountain Lion
-      if [ ! -z "$WITH_XCODE_DIR" ]; then
-        sdk=$WITH_XCODE_DIR/Developer/SDKs/MacOSX10.6.sdk
-        cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
-        cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$WITH_XCODE_DIR/Developer"
-      else
-        sdk=/Developer/SDKs/MacOSX10.6.sdk
-      fi
-      CXX_FLAGS="-mmacosx-version-min=10.6 -isysroot $sdk -Wl,-syslibroot,$sdk"
-      ;;
-    11\.*)
-      darwin_ver="10.7" # Lion
-      sdk=/Developer/SDKs/MacOSX10.6.sdk
-      CXX_FLAGS="-mmacosx-version-min=10.6 -isysroot $sdk -Wl,-syslibroot,$sdk"
-      ;;
-    10\.*)
-      darwin_ver="10.6" # Snow Leopard
-      if [ "$BUILD_MACHINE" = "x86" ]; then
-          sdk=/Developer/SDKs/MacOSX10.5.sdk
-          CXX_FLAGS="-mmacosx-version-min=10.5 -isysroot $sdk -Wl,-syslibroot,$sdk"
-          cnf_append "VBOX_MACOS_10_5_WORKAROUND" "1"
-      else
-          sdk=/Developer/SDKs/MacOSX10.6.sdk
-          CXX_FLAGS="-mmacosx-version-min=10.6 -isysroot $sdk -Wl,-syslibroot,$sdk"
-      fi
-#      test "$CC" = "gcc" && CC="gcc-4.0"
-#      test "$CXX" = "g++" && CXX="g++-4.0"
-      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_7" "1"
-      ;;
-    9\.*)
-      darwin_ver="10.5" # Leopard
-      sdk=/Developer/SDKs/MacOSX10.5.sdk
-      CXX_FLAGS="-mmacosx-version-min=10.5 -isysroot $sdk -Wl,-syslibroot,$sdk"
-#      test "$CC" = "gcc" && CC="gcc-4.0"
-#      test "$CXX" = "g++" && CXX="g++-4.0"
-      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
-      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_7" "1"
-      ;;
-    8\.*)
-      darwin_ver="10.4" # Tiger
-      sdk=/Developer/SDKs/MacOSX10.4u.sdk
-      CXX_FLAGS="-mmacosx-version-min=10.4 -isysroot $sdk -Wl,-syslibroot,$sdk"
-#      test "$CC" = "gcc" && CC="gcc-4.0"
-#      test "$CXX" = "g++" && CXX="g++-4.0"
-      cnf_append "VBOX_WITH_COCOA_QT" ""
-      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
-      cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_7" "1"
       ;;
     *)
       echo "  failed to determine Darwin version. (uname -r: $darwin_ver)"
@@ -2335,7 +2314,80 @@ check_darwinversion()
       darwin_ver="unknown"
       ;;
   esac
-  log_success "found version $darwin_ver (SDK: $sdk)"
+
+  log_success "found version $darwin_ver"
+}
+
+#
+# Check Xcode path
+#
+check_xcode_path()
+{
+    # Check if WITH_XCODE_DIR is set.
+    if [ -z "$WITH_XCODE_DIR" ]; then
+        if [ -d "/Library/Developer/CommandLineTools" -a -f "/Library/Developer/CommandLineTools/usr/bin/clang" ]; then
+            return 1
+        else
+            echo "Please specify --with-xcode-dir option."
+            return 0
+        fi
+    fi
+
+    # Check if specified path exists and is a directory containing Xcode.
+    if [ -d "$1" -a -f "$1/Contents/Developer/usr/bin/xcodebuild" ]; then
+        return 1
+    else
+        echo "Xcode path [$1] not found."
+        return 0
+    fi
+}
+
+check_xcode()
+{
+  test_header "Xcode and SDK"
+  check_xcode_path "$WITH_XCODE_DIR"
+  [ $? -eq 1 ] || fail
+
+  # Pick the oldest SDK offered by Xcode, to get maximum compatibility
+  if [ -z "$WITH_XCODE_DIR" ]; then
+    devel_subdir="/Library/Developer/CommandLineTools"
+    sdk_subdir="$devel_subdir/SDKs"
+  else
+    devel_subdir="$WITH_XCODE_DIR/Contents/Developer"
+    sdk_subdir="$devel_subdir/Platforms/MacOSX.platform/Developer/SDKs"
+  fi
+  sdk_tries="$sdk_subdir"/MacOSX10.?.sdk" $sdk_subdir"/MacOSX10.??.sdk" $sdk_subdir"/MacOSX.sdk
+  for t in $sdk_tries; do
+    if [ -f "$t/SDKSettings.plist" ]; then
+      sdk="$t"
+      sdk_ver=`defaults read "$t/SDKSettings.plist" Version`
+      break
+    fi
+  done
+  if [ -z "$sdk" ]; then
+    echo "  failed to determine SDK directory. ($sdk_subdir/MacOSX*.sdk/SDKSettings.plist should exist)"
+    fail
+  fi
+  xcode_ver=`$devel_subdir/usr/bin/clang --version | sed -n 's/^.*version \([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\).*$/\1/p'`
+  if [ $? -ne 0 -o -z "$xcode_ver" ]; then
+    echo "  failed to determine Xcode version."
+    fail
+  fi
+
+  if [ -z "$WITH_XCODE_DIR" ]; then
+    cnf_append "VBOX_WITH_EVEN_NEWER_XCODE" "1"
+  else
+    cnf_append "VBOX_WITH_MACOSX_COMPILERS_FROM_DEVEL" "1"
+    cnf_append "PATH_TOOL_VBoxXcode62" "$devel_subdir"
+    cnf_append "VBOX_PATH_MACOSX_DEVEL_ROOT" "$devel_subdir"
+  fi
+  cnf_append "VBOX_PATH_MACOSX_SDK" "$sdk"
+  if [ -n "$sdk_ver" ]; then
+    cnf_append "VBOX_DEF_MACOSX_VERSION_MIN" "$sdk_ver"
+    cnf_append "VBOX_WITHOUT_VBOXPYTHON_FOR_OSX_10_6" "1"
+  fi
+
+  log_success "found version $xcode_ver (SDK: $sdk)"
 }
 
 
@@ -2384,15 +2436,17 @@ EOF
 [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
 [ $WITH_LIBVPX  -eq 1 ] && echo "  --disable-libvpx         don't use libvpx for video capturing"
 [ $WITH_LIBOPUS -eq 1 ] && echo "  --disable-libopus        don't use libopus for audio capturing"
+[ $WITH_LIBTPMS -eq 1 ] && echo "  --disable-libtpms        don't use libtpms for TPM emulation"
 [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
   --disable-udptunnel      disable UDP tunnel networking
   --disable-devmapper      disable device mapper library access
   --disable-hardening      don't be strict about /dev/vboxdrv access
   --build-libxml2          build libxml2 from sources
+  --build-libssl           build openssl from sources
+  --build-libtpms          build libtpms from sources
 EOF
 [ $OSE -eq 0 ] && cat << EOF
-  --build-libssl           build openssl from sources
   --build-libcurl          build libcurl from sources
   --build-libvpx           build libvpx from sources
 EOF
@@ -2405,6 +2459,7 @@ Paths:
   --with-g++=PATH          location of the g++ compiler [$CXX]
   --with-kbuild=DIR        kbuild directory [$KBUILDDIR]
   --with-iasl=PATH         location of the iasl compiler [$IASL]
+  --with-yasm=PATH         location of the iasl compiler [$YASM]
   --with-makeself=PATH     location of makeself [$MAKESELF]
 EOF
 [ "$OS"   = "darwin" ] && echo "  --with-xcode-dir=DIR     custom path to Xcode root directory; it is assumed that Xcode"
@@ -2452,6 +2507,7 @@ if [ "$OS" = "darwin" ]; then
   WITH_DBUS=0
   WITH_KMODS=0
   BUILD_LIBXML2=1
+  BUILD_LIBSSL=1
   BUILD_LIBVPX=1
   [ $OSE -eq 1 ] || BUILD_LIBCURL=1
   [ $OSE -eq 1 ] && WITH_LIBVPX=0
@@ -2520,6 +2576,8 @@ for option in "$@"; do
       OPENSSLDIR=`echo $option | cut -d'=' -f2`
       INCCRYPTO="-I${OPENSSLDIR}/include"
       LIBCRYPTO="${OPENSSLDIR}/lib/libssl.a ${OPENSSLDIR}/lib/libcrypto.a"
+      # On Darwin (at least for macports) static OpenSSL also needs zlib.
+      [ "$OS" = "darwin" ] && LIBCRYPTO="$LIBCRYPTO ${OPENSSLDIR}/lib/libz.a"
       # On Linux static OpenSSL typically needs a few additional libraries.
       [ "$OS" = "linux" ] && LIBCRYPTO="-ldl $LIBPTHREAD -lm"
       ;;
@@ -2535,9 +2593,11 @@ for option in "$@"; do
     --with-iasl=*)
       IASL=`echo $option | cut -d'=' -f2`
       ;;
+    --with-yasm=*)
+      YASM=`echo $option | cut -d'=' -f2`
+      ;;
     --with-xcode-dir=*)
       WITH_XCODE_DIR=`echo $option | cut -d'=' -f2`
-      echo $option
       ;;
     --with-linux=*)
       LINUX=`echo $option | cut -d'=' -f2`
@@ -2625,6 +2685,9 @@ for option in "$@"; do
     --disable-libopus)
       WITH_LIBOPUS=0
       ;;
+    --disable-libtpms)
+      WITH_LIBTPMS=0
+      ;;
     --disable-sdl)
       WITH_SDL=0
       ;;
@@ -2672,6 +2735,7 @@ for option in "$@"; do
         if [ $ODIR_OVERRIDE -eq 0 ]; then
           # This variable has not *yet* been overridden.  That can still happen.
           ODIR=$OUT_BASE_PATH/
+          ODIR_OVERRIDE=1
         fi
       else
         echo "Error: invalid folder \"$out_base_dir\" in option \"$option\""
@@ -2754,7 +2818,7 @@ export PATH
 
 # if we will be writing to a different out directory then set this up now
 if [ $ODIR_OVERRIDE -eq 1 ]; then
-  echo "AUTOCFG=$CFG" >> $ENV
+  echo "AUTOCFG=$CNF" >> $ENV
   echo "export AUTOCFG" >> $ENV
 fi
 if [ $OUT_BASE_PATH_OVERRIDE -eq 1 ]; then
@@ -2811,6 +2875,7 @@ fi
 [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
 [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
 [ $WITH_VMMRAW    -eq 0 ] && cnf_append "VBOX_WITH_RAW_MODE" ""
+[ $WITH_LIBTPMS   -eq 0 ] && cnf_append "VBOX_WITH_LIBTPMS" ""
 if [ $WITH_LIBVPX -eq 0 ]; then
   cnf_append "VBOX_WITH_LIBVPX" ""
   cnf_append "VBOX_WITH_RECORDING" ""
@@ -2821,16 +2886,14 @@ if [ $WITH_LIBOPUS -eq 0 ]; then
 fi
 
 # Darwin-specific
-if [ "$OS" = "darwin" ]; then
-  check_darwinversion
-fi
+[ "$OS" = "darwin" ] && check_darwinversion
 # the tools
-check_gcc
+[ "$OS" != "darwin"  ] && check_gcc
+[ "$OS" = "darwin"  ] && check_xcode
 if [ $ONLY_ADDITIONS -eq 0 ]; then
   check_open_watcom
   [ "$OS" != "darwin"  ] && check_iasl
-  # don't check for yasm for the time beeing as 0.40 and 0.50 both have known bugs
-  # [ "$OS" != "darwin" ] && check_yasm
+  [ $OSE -ge 1 ] && check_yasm
   [ "$OS" != "darwin"  ] && check_xsltproc
 fi
 
@@ -2839,12 +2902,13 @@ if [ $ONLY_ADDITIONS -eq 0 ]; then
   [ "$OS" != "darwin"  ] && check_pthread
   check_libxml2
   [ $WITH_LIBIDL -eq 1 ] && check_libidl
+  check_z
   check_lzf
   check_ssl
   check_curl
   [ $WITH_LIBVPX -eq 1 ] && check_vpx
   [ $WITH_LIBOPUS -eq 1 ] && check_libopus
-  [ "$OS" != "darwin"  ] && check_z
+  [ $WITH_LIBTPMS -eq 1 ] && check_libtpms
   [ "$OS" != "darwin"  ] && check_png
   [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
   if [ $WITH_SDL -eq 1 ]; then

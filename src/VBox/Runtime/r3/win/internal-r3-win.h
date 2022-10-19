@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_SRC_r3_win_internal_r3_win_h
@@ -95,29 +105,44 @@ typedef enum RTR3WINLDRPROT
 } RTR3WINLDRPROT;
 
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
-extern DECLHIDDEN(RTR3WINLDRPROT)   g_enmWinLdrProt;
-extern DECLHIDDEN(RTWINOSTYPE)      g_enmWinVer;
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+extern DECL_HIDDEN_DATA(RTR3WINLDRPROT)                 g_enmWinLdrProt;
+extern DECL_HIDDEN_DATA(RTWINOSTYPE)                    g_enmWinVer;
 #ifdef _WINDEF_
-extern DECLHIDDEN(OSVERSIONINFOEXW) g_WinOsInfoEx;
+extern DECL_HIDDEN_DATA(OSVERSIONINFOEXW)               g_WinOsInfoEx;
 
-extern DECLHIDDEN(HMODULE)                         g_hModKernel32;
+extern DECL_HIDDEN_DATA(HMODULE)                        g_hModKernel32;
 typedef UINT (WINAPI *PFNGETWINSYSDIR)(LPWSTR,UINT);
-extern DECLHIDDEN(PFNGETWINSYSDIR)                 g_pfnGetSystemWindowsDirectoryW;
-extern decltype(SystemTimeToTzSpecificLocalTime)  *g_pfnSystemTimeToTzSpecificLocalTime;
+extern DECL_HIDDEN_DATA(PFNGETWINSYSDIR)                                g_pfnGetSystemWindowsDirectoryW;
+typedef HANDLE (WINAPI *PFNCREATEWAITABLETIMEREX)(LPSECURITY_ATTRIBUTES, LPCWSTR, DWORD, DWORD);
+extern DECL_HIDDEN_DATA(PFNCREATEWAITABLETIMEREX)                       g_pfnCreateWaitableTimerExW;
+extern DECL_HIDDEN_DATA(decltype(SystemTimeToTzSpecificLocalTime) *)    g_pfnSystemTimeToTzSpecificLocalTime;
+extern DECL_HIDDEN_DATA(decltype(GetHandleInformation) *)               g_pfnGetHandleInformation;
+extern DECL_HIDDEN_DATA(decltype(SetHandleInformation) *)               g_pfnSetHandleInformation;
+extern DECL_HIDDEN_DATA(decltype(IsDebuggerPresent) *)                  g_pfnIsDebuggerPresent;
+extern DECL_HIDDEN_DATA(decltype(GetSystemTimeAsFileTime) *)            g_pfnGetSystemTimeAsFileTime;
+extern DECL_HIDDEN_DATA(decltype(GetProcessAffinityMask) *)             g_pfnGetProcessAffinityMask;
+extern DECL_HIDDEN_DATA(decltype(SetThreadAffinityMask) *)              g_pfnSetThreadAffinityMask;
+extern DECL_HIDDEN_DATA(decltype(CreateIoCompletionPort) *)             g_pfnCreateIoCompletionPort;
+extern DECL_HIDDEN_DATA(decltype(GetQueuedCompletionStatus) *)          g_pfnGetQueuedCompletionStatus;
+extern DECL_HIDDEN_DATA(decltype(PostQueuedCompletionStatus) *)         g_pfnPostQueuedCompletionStatus;
+extern DECL_HIDDEN_DATA(decltype(SetUnhandledExceptionFilter) *)        g_pfnSetUnhandledExceptionFilter;
+extern DECL_HIDDEN_DATA(decltype(UnhandledExceptionFilter) *)           g_pfnUnhandledExceptionFilter;
+extern DECL_HIDDEN_DATA(decltype(IsProcessorFeaturePresent) *)          g_pfnIsProcessorFeaturePresent;
 
-extern DECLHIDDEN(HMODULE)          g_hModNtDll;
+
+extern DECL_HIDDEN_DATA(HMODULE)                        g_hModNtDll;
 typedef NTSTATUS (NTAPI *PFNNTQUERYFULLATTRIBUTESFILE)(struct _OBJECT_ATTRIBUTES *, struct _FILE_NETWORK_OPEN_INFORMATION *);
-extern DECLHIDDEN(PFNNTQUERYFULLATTRIBUTESFILE) g_pfnNtQueryFullAttributesFile;
+extern DECL_HIDDEN_DATA(PFNNTQUERYFULLATTRIBUTESFILE)   g_pfnNtQueryFullAttributesFile;
 typedef NTSTATUS (NTAPI *PFNNTDUPLICATETOKEN)(HANDLE, ACCESS_MASK, struct _OBJECT_ATTRIBUTES *, BOOLEAN, TOKEN_TYPE, PHANDLE);
-extern DECLHIDDEN(PFNNTDUPLICATETOKEN)             g_pfnNtDuplicateToken;
+extern DECL_HIDDEN_DATA(PFNNTDUPLICATETOKEN)            g_pfnNtDuplicateToken;
 #ifdef IPRT_INCLUDED_nt_nt_h
-extern decltype(NtAlertThread)                    *g_pfnNtAlertThread;
+extern DECL_HIDDEN_DATA(decltype(NtAlertThread) *)      g_pfnNtAlertThread;
 #endif
 
-extern DECLHIDDEN(HMODULE)                         g_hModWinSock;
+extern DECL_HIDDEN_DATA(HMODULE)                        g_hModWinSock;
 
 /** WSAStartup */
 typedef int             (WINAPI *PFNWSASTARTUP)(WORD, struct WSAData *);
@@ -137,8 +162,11 @@ typedef BOOL            (WINAPI *PFNWSACLOSEEVENT)(HANDLE);
 typedef BOOL            (WINAPI *PFNWSAEVENTSELECT)(UINT_PTR, HANDLE, LONG);
 /** WSAEnumNetworkEvents */
 typedef int             (WINAPI *PFNWSAENUMNETWORKEVENTS)(UINT_PTR, HANDLE, struct _WSANETWORKEVENTS *);
+/** WSASocketW */
+typedef UINT_PTR        (WINAPI *PFNWSASOCKETW)(int, int, int, struct _WSAPROTOCOL_INFOW *, unsigned, DWORD);
 /** WSASend */
-typedef int             (WINAPI *PFNWSASend)(UINT_PTR, struct _WSABUF *, DWORD, LPDWORD, DWORD dwFlags, struct _OVERLAPPED *, PFNRT /*LPWSAOVERLAPPED_COMPLETION_ROUTINE*/);
+typedef int             (WINAPI *PFNWSASEND)(UINT_PTR, struct _WSABUF *, DWORD, LPDWORD, DWORD dwFlags,
+                                             struct _OVERLAPPED *, uintptr_t /*LPWSAOVERLAPPED_COMPLETION_ROUTINE*/);
 
 /** socket */
 typedef UINT_PTR        (WINAPI *PFNWINSOCKSOCKET)(int, int, int);
@@ -179,35 +207,36 @@ typedef int             (WINAPI *PFNWINSOCKSELECT)(int, struct fd_set *, struct 
 /** gethostbyname */
 typedef struct hostent *(WINAPI *PFNWINSOCKGETHOSTBYNAME)(const char *);
 
-extern DECLHIDDEN(PFNWSASTARTUP)                   g_pfnWSAStartup;
-extern DECLHIDDEN(PFNWSACLEANUP)                   g_pfnWSACleanup;
-extern PFNWSAGETLASTERROR                          g_pfnWSAGetLastError;
-extern PFNWSASETLASTERROR                          g_pfnWSASetLastError;
-extern DECLHIDDEN(PFNWSACREATEEVENT)               g_pfnWSACreateEvent;
-extern DECLHIDDEN(PFNWSACLOSEEVENT)                g_pfnWSACloseEvent;
-extern DECLHIDDEN(PFNWSASETEVENT)                  g_pfnWSASetEvent;
-extern DECLHIDDEN(PFNWSAEVENTSELECT)               g_pfnWSAEventSelect;
-extern DECLHIDDEN(PFNWSAENUMNETWORKEVENTS)         g_pfnWSAEnumNetworkEvents;
-extern DECLHIDDEN(PFNWSASend)                      g_pfnWSASend;
-extern DECLHIDDEN(PFNWINSOCKSOCKET)                g_pfnsocket;
-extern DECLHIDDEN(PFNWINSOCKCLOSESOCKET)           g_pfnclosesocket;
-extern DECLHIDDEN(PFNWINSOCKRECV)                  g_pfnrecv;
-extern DECLHIDDEN(PFNWINSOCKSEND)                  g_pfnsend;
-extern DECLHIDDEN(PFNWINSOCKRECVFROM)              g_pfnrecvfrom;
-extern DECLHIDDEN(PFNWINSOCKSENDTO)                g_pfnsendto;
-extern DECLHIDDEN(PFNWINSOCKBIND)                  g_pfnbind;
-extern DECLHIDDEN(PFNWINSOCKLISTEN)                g_pfnlisten;
-extern DECLHIDDEN(PFNWINSOCKACCEPT)                g_pfnaccept;
-extern DECLHIDDEN(PFNWINSOCKCONNECT)               g_pfnconnect;
-extern DECLHIDDEN(PFNWINSOCKSHUTDOWN)              g_pfnshutdown;
-extern DECLHIDDEN(PFNWINSOCKGETSOCKOPT)            g_pfngetsockopt;
-extern DECLHIDDEN(PFNWINSOCKSETSOCKOPT)            g_pfnsetsockopt;
-extern DECLHIDDEN(PFNWINSOCKIOCTLSOCKET)           g_pfnioctlsocket;
-extern DECLHIDDEN(PFNWINSOCKGETPEERNAME)           g_pfngetpeername;
-extern DECLHIDDEN(PFNWINSOCKGETSOCKNAME)           g_pfngetsockname;
-extern DECLHIDDEN(PFNWINSOCK__WSAFDISSET)          g_pfn__WSAFDIsSet;
-extern DECLHIDDEN(PFNWINSOCKSELECT)                g_pfnselect;
-extern DECLHIDDEN(PFNWINSOCKGETHOSTBYNAME)         g_pfngethostbyname;
+extern DECL_HIDDEN_DATA(PFNWSASTARTUP)                   g_pfnWSAStartup;
+extern DECL_HIDDEN_DATA(PFNWSACLEANUP)                   g_pfnWSACleanup;
+extern DECL_HIDDEN_DATA(PFNWSAGETLASTERROR)              g_pfnWSAGetLastError;
+extern DECL_HIDDEN_DATA(PFNWSASETLASTERROR)              g_pfnWSASetLastError;
+extern DECL_HIDDEN_DATA(PFNWSACREATEEVENT)               g_pfnWSACreateEvent;
+extern DECL_HIDDEN_DATA(PFNWSACLOSEEVENT)                g_pfnWSACloseEvent;
+extern DECL_HIDDEN_DATA(PFNWSASETEVENT)                  g_pfnWSASetEvent;
+extern DECL_HIDDEN_DATA(PFNWSAEVENTSELECT)               g_pfnWSAEventSelect;
+extern DECL_HIDDEN_DATA(PFNWSAENUMNETWORKEVENTS)         g_pfnWSAEnumNetworkEvents;
+extern DECL_HIDDEN_DATA(PFNWSASOCKETW)                   g_pfnWSASocketW;
+extern DECL_HIDDEN_DATA(PFNWSASEND)                      g_pfnWSASend;
+extern DECL_HIDDEN_DATA(PFNWINSOCKSOCKET)                g_pfnsocket;
+extern DECL_HIDDEN_DATA(PFNWINSOCKCLOSESOCKET)           g_pfnclosesocket;
+extern DECL_HIDDEN_DATA(PFNWINSOCKRECV)                  g_pfnrecv;
+extern DECL_HIDDEN_DATA(PFNWINSOCKSEND)                  g_pfnsend;
+extern DECL_HIDDEN_DATA(PFNWINSOCKRECVFROM)              g_pfnrecvfrom;
+extern DECL_HIDDEN_DATA(PFNWINSOCKSENDTO)                g_pfnsendto;
+extern DECL_HIDDEN_DATA(PFNWINSOCKBIND)                  g_pfnbind;
+extern DECL_HIDDEN_DATA(PFNWINSOCKLISTEN)                g_pfnlisten;
+extern DECL_HIDDEN_DATA(PFNWINSOCKACCEPT)                g_pfnaccept;
+extern DECL_HIDDEN_DATA(PFNWINSOCKCONNECT)               g_pfnconnect;
+extern DECL_HIDDEN_DATA(PFNWINSOCKSHUTDOWN)              g_pfnshutdown;
+extern DECL_HIDDEN_DATA(PFNWINSOCKGETSOCKOPT)            g_pfngetsockopt;
+extern DECL_HIDDEN_DATA(PFNWINSOCKSETSOCKOPT)            g_pfnsetsockopt;
+extern DECL_HIDDEN_DATA(PFNWINSOCKIOCTLSOCKET)           g_pfnioctlsocket;
+extern DECL_HIDDEN_DATA(PFNWINSOCKGETPEERNAME)           g_pfngetpeername;
+extern DECL_HIDDEN_DATA(PFNWINSOCKGETSOCKNAME)           g_pfngetsockname;
+extern DECL_HIDDEN_DATA(PFNWINSOCK__WSAFDISSET)          g_pfn__WSAFDIsSet;
+extern DECL_HIDDEN_DATA(PFNWINSOCKSELECT)                g_pfnselect;
+extern DECL_HIDDEN_DATA(PFNWINSOCKGETHOSTBYNAME)         g_pfngethostbyname;
 #endif
 
 

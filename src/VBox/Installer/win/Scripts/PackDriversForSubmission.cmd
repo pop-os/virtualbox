@@ -5,15 +5,25 @@ rem Windows NT batch script for preparing for signing submission.
 rem
 
 rem
-rem Copyright (C) 2018-2020 Oracle Corporation
+rem Copyright (C) 2018-2022 Oracle and/or its affiliates.
 rem
-rem This file is part of VirtualBox Open Source Edition (OSE), as
-rem available from http://www.virtualbox.org. This file is free software;
-rem you can redistribute it and/or modify it under the terms of the GNU
-rem General Public License (GPL) as published by the Free Software
-rem Foundation, in version 2 as it comes in the "COPYING" file of the
-rem VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-rem hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+rem This file is part of VirtualBox base platform packages, as
+rem available from https://www.virtualbox.org.
+rem
+rem This program is free software; you can redistribute it and/or
+rem modify it under the terms of the GNU General Public License
+rem as published by the Free Software Foundation, in version 3 of the
+rem License.
+rem
+rem This program is distributed in the hope that it will be useful, but
+rem WITHOUT ANY WARRANTY; without even the implied warranty of
+rem MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+rem General Public License for more details.
+rem
+rem You should have received a copy of the GNU General Public License
+rem along with this program; if not, see <https://www.gnu.org/licenses>.
+rem
+rem SPDX-License-Identifier: GPL-3.0-only
 rem
 
 
@@ -267,7 +277,7 @@ if "%_MY_OPT_WITH_PDB%" == "1" echo %_MY_OPT_PDBDIR%\VBoxDDR0.pdb VBoxDDR0.pdb>>
 if "%_MY_OPT_WITH_EXTPACK%" == "0" goto no_extpack_ddf
 echo .Set DestinationDir=VBoxExtPackPuel>>                                              "%_MY_OPT_DDF_FILE%"
 echo .\VBoxExtPackPuel.inf VBoxExtPackPuel.inf>>                                        "%_MY_OPT_DDF_FILE%"
-echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxEhciR0.r0 VBoxEhciR0.r0>>                 "%_MY_OPT_DDF_FILE%"
+rem echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxEhciR0.r0 VBoxEhciR0.r0>>                 "%_MY_OPT_DDF_FILE%"
 echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxNvmeR0.r0 VBoxNvmeR0.r0>>                 "%_MY_OPT_DDF_FILE%"
 rem echo %_MY_EXTPACK_DIR%\win.%_MY_OPT_ARCH%\VBoxPciRawR0.r0 VBoxPciRawR0.r0>>             "%_MY_OPT_DDF_FILE%"
 :no_extpack_ddf
@@ -285,20 +295,20 @@ rem echo %_MY_OPT_GADIR%\VBoxVideo.inf>>                                        
 rem echo %_MY_OPT_GADIR%\VBoxVideo.sys>>                                                    "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxWddm.inf>>                                                     "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxWddm.sys>>                                                     "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxdisp.dll>>                                                     "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxdispd3d.dll>>                                                  "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxnine.dll>>                                                     "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxsvga.dll>>                                                     "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxicd.dll>>                                                      "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxgl.dll>>                                                       "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxDX.dll>>                                                       "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxDisp.dll>>                                                     "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxDispD3D.dll>>                                                  "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxNine.dll>>                                                     "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxSVGA.dll>>                                                     "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxGL.dll>>                                                       "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxMRXNP.dll>>                                                    "%_MY_OPT_DDF_FILE%"
 echo %_MY_OPT_GADIR%\VBoxSF.sys>>                                                       "%_MY_OPT_DDF_FILE%"
 if ".%_MY_OPT_ARCH%" == ".x86" goto skip_amd64_files
-echo %_MY_OPT_GADIR%\vboxdispd3d-x86.dll>>                                              "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxnine-x86.dll>>                                                 "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxsvga-x86.dll>>                                                 "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxicd-x86.dll>>                                                  "%_MY_OPT_DDF_FILE%"
-echo %_MY_OPT_GADIR%\vboxgl-x86.dll>>                                                   "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxDX-x86.dll>>                                                   "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxDispD3D-x86.dll>>                                              "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxNine-x86.dll>>                                                 "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxSVGA-x86.dll>>                                                 "%_MY_OPT_DDF_FILE%"
+echo %_MY_OPT_GADIR%\VBoxGL-x86.dll>>                                                   "%_MY_OPT_DDF_FILE%"
 :skip_amd64_files
 
 :no_additions_ddf

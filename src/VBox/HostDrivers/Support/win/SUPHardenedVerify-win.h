@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_SRC_Support_win_SUPHardenedVerify_win_h
@@ -75,8 +85,8 @@ typedef enum SUPHARDNTVPKIND
  */
 #define SUPHARDNTVP_F_EXEC_ALLOC_REPLACE_WITH_RW        RT_BIT_32(0)
 /** @} */
-DECLHIDDEN(int)     supHardenedWinVerifyProcess(HANDLE hProcess, HANDLE hThread, SUPHARDNTVPKIND enmKind, uint32_t fFlags,
-                                                uint32_t *pcFixes, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)     supHardenedWinVerifyProcess(HANDLE hProcess, HANDLE hThread, SUPHARDNTVPKIND enmKind,
+                                                uint32_t fFlags, uint32_t *pcFixes, PRTERRINFO pErrInfo);
 DECLHIDDEN(int)     supHardNtVpThread(HANDLE hProcess, HANDLE hThread, PRTERRINFO pErrInfo);
 DECLHIDDEN(int)     supHardNtVpDebugger(HANDLE hProcess, PRTERRINFO pErrInfo);
 
@@ -84,7 +94,7 @@ DECLHIDDEN(bool)    supHardViUtf16PathIsEqualEx(PCRTUTF16 pawcLeft, size_t cwcLe
 DECLHIDDEN(bool)    supHardViUniStrPathStartsWithUniStr(UNICODE_STRING const *pUniStrLeft,
                                                         UNICODE_STRING const *pUniStrRight, bool fCheckSlash);
 DECLHIDDEN(bool)    supHardViUtf16PathStartsWithEx(PCRTUTF16 pwszLeft, uint32_t cwcLeft,
-                                                PCRTUTF16 pwszRight, uint32_t cwcRight, bool fCheckSlash);
+                                                   PCRTUTF16 pwszRight, uint32_t cwcRight, bool fCheckSlash);
 DECLHIDDEN(bool)    supHardViIsAppPatchDir(PCRTUTF16 pwszPath, uint32_t cwcName);
 
 
@@ -125,8 +135,8 @@ DECLHIDDEN(int)  supHardNtViRdrCreate(HANDLE hFile, PCRTUTF16 pwszName, uint32_t
 DECLHIDDEN(bool) supHardenedWinIsWinVerifyTrustCallable(void);
 DECLHIDDEN(int)  supHardenedWinVerifyImageTrust(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, int rc,
                                                 bool *pfWinVerifyTrust, PRTERRINFO pErrInfo);
-DECLHIDDEN(int)  supHardenedWinVerifyImageByHandle(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, bool fAvoidWinVerifyTrust,
-                                                   bool *pfWinVerifyTrust, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  supHardenedWinVerifyImageByHandle(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags,
+                                                   bool fAvoidWinVerifyTrust, bool *pfWinVerifyTrust, PRTERRINFO pErrInfo);
 DECLHIDDEN(int)  supHardenedWinVerifyImageByHandleNoName(HANDLE hFile, uint32_t fFlags, PRTERRINFO pErrInfo);
 DECLHIDDEN(int)  supHardenedWinVerifyImageByLdrMod(RTLDRMOD hLdrMod, PCRTUTF16 pwszName, PSUPHNTVIRDR pNtViRdr,
                                                    bool fAvoidWinVerifyTrust, bool *pfWinVerifyTrust, PRTERRINFO pErrInfo);
@@ -221,7 +231,8 @@ extern SUPSYSROOTDIRBUF g_SupLibHardenedAppBinNtPath;
 
 #   ifdef IN_RING0
 /** Pointer to NtQueryVirtualMemory. */
-typedef NTSTATUS (NTAPI *PFNNTQUERYVIRTUALMEMORY)(HANDLE, void const *, MEMORY_INFORMATION_CLASS, PVOID, SIZE_T, PSIZE_T);
+typedef DECLCALLBACKPTR_EX(NTSTATUS, NTAPI, PFNNTQUERYVIRTUALMEMORY,(HANDLE, void const *, MEMORY_INFORMATION_CLASS,
+                                                                     PVOID, SIZE_T, PSIZE_T));
 extern PFNNTQUERYVIRTUALMEMORY g_pfnNtQueryVirtualMemory;
 #   endif
 

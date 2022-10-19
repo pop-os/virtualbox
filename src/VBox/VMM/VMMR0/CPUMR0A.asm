@@ -4,15 +4,25 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
+;
+; SPDX-License-Identifier: GPL-3.0-only
 ;
 
 
@@ -143,7 +153,7 @@ SEH64_END_PROLOGUE
 .already_saved_host:
 %ifdef VBOX_WITH_KERNEL_USING_XMM
         ; If we didn't save the host state, we must save the non-volatile XMM registers.
-        mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateR0]
+        lea     pXState, [pCpumCpu + CPUMCPU.Host.XState]
         stmxcsr [pXState + X86FXSTATE.MXCSR]
         movdqa  [pXState + X86FXSTATE.xmm6 ], xmm6
         movdqa  [pXState + X86FXSTATE.xmm7 ], xmm7
@@ -165,7 +175,7 @@ SEH64_END_PROLOGUE
 
 %ifdef VBOX_WITH_KERNEL_USING_XMM
         ; Restore the non-volatile xmm registers. ASSUMING 64-bit host.
-        mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateR0]
+        lea     pXState, [pCpumCpu + CPUMCPU.Host.XState]
         movdqa  xmm6,  [pXState + X86FXSTATE.xmm6]
         movdqa  xmm7,  [pXState + X86FXSTATE.xmm7]
         movdqa  xmm8,  [pXState + X86FXSTATE.xmm8]
@@ -180,6 +190,7 @@ SEH64_END_PROLOGUE
 %endif
 
         or      dword [pCpumCpu + CPUMCPU.fUseFlags], (CPUM_USED_FPU_GUEST | CPUM_USED_FPU_SINCE_REM | CPUM_USED_FPU_HOST)
+        mov     byte [pCpumCpu + CPUMCPU.Guest.fUsedFpuGuest], 1
         popf
 
         mov     eax, ecx
@@ -240,7 +251,7 @@ SEH64_END_PROLOGUE
         ; Copy non-volatile XMM registers to the host state so we can use
         ; them while saving the guest state (we've gotta do this anyway).
         ;
-        mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateR0]
+        lea     pXState, [pCpumCpu + CPUMCPU.Host.XState]
         stmxcsr [pXState + X86FXSTATE.MXCSR]
         movdqa  [pXState + X86FXSTATE.xmm6], xmm6
         movdqa  [pXState + X86FXSTATE.xmm7], xmm7
@@ -262,7 +273,7 @@ SEH64_END_PROLOGUE
 
  %ifdef VBOX_WITH_KERNEL_USING_XMM
         ; Load the guest XMM register values we already saved in HMR0VMXStartVMWrapXMM.
-        mov     pXState, [pCpumCpu + CPUMCPU.Guest.pXStateR0]
+        lea     pXState, [pCpumCpu + CPUMCPU.Guest.XState]
         movdqa  xmm0,  [pXState + X86FXSTATE.xmm0]
         movdqa  xmm1,  [pXState + X86FXSTATE.xmm1]
         movdqa  xmm2,  [pXState + X86FXSTATE.xmm2]
@@ -294,6 +305,7 @@ SEH64_END_PROLOGUE
         mov     xCX, [pCpumCpu + CPUMCPU.Host.cr0Fpu]
         CPUMRZ_RESTORE_CR0_IF_TS_OR_EM_SET xCX
         and     dword [pCpumCpu + CPUMCPU.fUseFlags], ~(CPUM_USED_FPU_GUEST | CPUM_USED_FPU_HOST)
+        mov     byte [pCpumCpu + CPUMCPU.Guest.fUsedFpuGuest], 0
 
         popf
 %ifdef RT_ARCH_X86

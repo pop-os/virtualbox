@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -253,10 +263,10 @@ static int emR3HmExecuteIOInstruction(PVM pVM, PVMCPU pVCpu)
         CPUM_IMPORT_EXTRN_RET(pVCpu, IEM_CPUMCTX_EXTRN_MUST_MASK);
         rcStrict = EMHistoryExec(pVCpu, &pVCpu->em.s.aExitRecords[idxContinueExitRec], 0);
         LogFlow(("emR3HmExecuteIOInstruction: %Rrc (EMHistoryExec)\n", VBOXSTRICTRC_VAL(rcStrict)));
-        STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->StatIoRestarted);
+        STAM_COUNTER_INC(&pVCpu->em.s.StatIoRestarted);
     }
 
-    STAM_COUNTER_INC(&pVCpu->em.s.CTX_SUFF(pStats)->StatIoIem);
+    STAM_COUNTER_INC(&pVCpu->em.s.StatIoIem);
     STAM_PROFILE_STOP(&pVCpu->em.s.StatIOEmu, a);
     return VBOXSTRICTRC_TODO(rcStrict);
 }
@@ -352,7 +362,7 @@ int emR3HmExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
     LogFlow(("emR3HmExecute%d: (cs:eip=%04x:%RGv)\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, (RTGCPTR)pVCpu->cpum.GstCtx.rip));
     *pfFFDone = false;
 
-    STAM_COUNTER_INC(&pVCpu->em.s.StatHMExecuteCalled);
+    STAM_REL_COUNTER_INC(&pVCpu->em.s.StatHMExecuteCalled);
 
     /*
      * Spin till we get a forced action which returns anything but VINF_SUCCESS.
@@ -414,9 +424,9 @@ int emR3HmExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
 
         if (RT_LIKELY(emR3IsExecutionAllowed(pVM, pVCpu)))
         {
-            STAM_PROFILE_START(&pVCpu->em.s.StatHMExec, x);
+            STAM_REL_PROFILE_START(&pVCpu->em.s.StatHMExec, x);
             rc = VMMR3HmRunGC(pVM, pVCpu);
-            STAM_PROFILE_STOP(&pVCpu->em.s.StatHMExec, x);
+            STAM_REL_PROFILE_STOP(&pVCpu->em.s.StatHMExec, x);
         }
         else
         {

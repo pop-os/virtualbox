@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2004-2020 Oracle Corporation
+ * Copyright (C) 2004-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <stdint.h>
@@ -128,25 +138,11 @@ void set_esi_hi(uint16_t val);
  * 16-bit code. There's no need for separate 16-bit and 32-bit implementation.
  */
 
-/* Output a null-terminated string to a specified port, without the
- * terminating null character.
- */
-static void apm_out_str_asm(uint16_t port, const char *s);
-#pragma aux apm_out_str_asm =   \
-    "mov    al, [bx]"       \
-    "next:"                 \
-    "out    dx, al"         \
-    "inc    bx"             \
-    "mov    al, [bx]"       \
-    "or     al, al"         \
-    "jnz    next"           \
-    parm [dx] [bx] modify exact [ax bx] nomemory;
-
 /* Wrapper to avoid unnecessary inlining. */
-void apm_out_str(const char *s, uint16_t port)
+void apm_out_str(const char *s)
 {
     if (*s)
-        apm_out_str_asm(port, s);
+        out_ctrl_str_asm(VBOX_BIOS_SHUTDOWN_PORT, s);
 }
 
 void BIOSCALL apm_function(sys_regs_t r)
@@ -199,13 +195,13 @@ void BIOSCALL apm_function(sys_regs_t r)
         /// @todo validate current connection state
         switch (CX) {
         case APM_PS_STANDBY:
-            apm_out_str("Standby", VBOX_BIOS_SHUTDOWN_PORT);
+            apm_out_str("Standby");
             break;
         case APM_PS_SUSPEND:
-            apm_out_str("Suspend", VBOX_BIOS_SHUTDOWN_PORT);
+            apm_out_str("Suspend");
             break;
         case APM_PS_OFF:
-            apm_out_str("Shutdown", VBOX_BIOS_SHUTDOWN_PORT);  /* Should not return. */
+            apm_out_str("Shutdown");    /* Should not return. */
             break;
         default:
             SET_AH(APM_ERR_INVAL_PARAM);
@@ -218,6 +214,12 @@ void BIOSCALL apm_function(sys_regs_t r)
     case APM_DISCONN:
         /// @todo actually perform a disconnect...
     case APM_BUSY:      /* Nothing to do as APM Idle doesn't slow CPU clock. */
+        break;
+    case APM_STATUS:
+        /* We do not attempt to report battery status. */
+        BX = 0x01FF;    /* AC line power, battery unknown. */
+        CX = 0x80FF;    /* No battery. */
+        DX = 0xFFFF;    /* No idea about remaining battery life. */
         break;
     case APM_GET_EVT:
         /// @todo error should be different if interface not connected + engaged

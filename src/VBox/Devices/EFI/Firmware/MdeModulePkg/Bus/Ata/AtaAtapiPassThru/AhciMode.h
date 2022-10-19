@@ -1,7 +1,7 @@
 /** @file
   Header file for AHCI mode of ATA host controller.
 
-  Copyright (c) 2010 - 2018, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2010 - 2020, Intel Corporation. All rights reserved.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -96,7 +96,7 @@ typedef union {
 #define EFI_AHCI_PORT_IS                       0x0010
 #define   EFI_AHCI_PORT_IS_DHRS                BIT0
 #define   EFI_AHCI_PORT_IS_PSS                 BIT1
-#define   EFI_AHCI_PORT_IS_SSS                 BIT2
+#define   EFI_AHCI_PORT_IS_DSS                 BIT2
 #define   EFI_AHCI_PORT_IS_SDBS                BIT3
 #define   EFI_AHCI_PORT_IS_UFS                 BIT4
 #define   EFI_AHCI_PORT_IS_DPS                 BIT5
@@ -113,6 +113,8 @@ typedef union {
 #define   EFI_AHCI_PORT_IS_CPDS                BIT31
 #define   EFI_AHCI_PORT_IS_CLEAR               0xFFFFFFFF
 #define   EFI_AHCI_PORT_IS_FIS_CLEAR           0x0000000F
+#define   EFI_AHCI_PORT_IS_ERROR_MASK          (EFI_AHCI_PORT_IS_INFS | EFI_AHCI_PORT_IS_IFS | EFI_AHCI_PORT_IS_HBDS | EFI_AHCI_PORT_IS_HBFS | EFI_AHCI_PORT_IS_TFES)
+#define   EFI_AHCI_PORT_IS_FATAL_ERROR_MASK    (EFI_AHCI_PORT_IS_IFS | EFI_AHCI_PORT_IS_HBDS | EFI_AHCI_PORT_IS_HBFS | EFI_AHCI_PORT_IS_TFES)
 
 #define EFI_AHCI_PORT_IE                       0x0014
 #define EFI_AHCI_PORT_CMD                      0x0018
@@ -121,9 +123,11 @@ typedef union {
 #define   EFI_AHCI_PORT_CMD_SUD                BIT1
 #define   EFI_AHCI_PORT_CMD_POD                BIT2
 #define   EFI_AHCI_PORT_CMD_CLO                BIT3
-#define   EFI_AHCI_PORT_CMD_CR                 BIT15
 #define   EFI_AHCI_PORT_CMD_FRE                BIT4
+#define   EFI_AHCI_PORT_CMD_CCS_MASK           (BIT8 | BIT9 | BIT10 | BIT11 | BIT12)
+#define   EFI_AHCI_PORT_CMD_CCS_SHIFT          8
 #define   EFI_AHCI_PORT_CMD_FR                 BIT14
+#define   EFI_AHCI_PORT_CMD_CR                 BIT15
 #define   EFI_AHCI_PORT_CMD_MASK               ~(EFI_AHCI_PORT_CMD_ST | EFI_AHCI_PORT_CMD_FRE | EFI_AHCI_PORT_CMD_COL)
 #define   EFI_AHCI_PORT_CMD_PMA                BIT17
 #define   EFI_AHCI_PORT_CMD_HPCP               BIT18
@@ -188,6 +192,8 @@ typedef union {
 #define   AHCI_PORT_DEVSLP_DITO_MASK           0x01FF8000
 #define   AHCI_PORT_DEVSLP_DM_MASK             0x1E000000
 
+#define AHCI_COMMAND_RETRIES  5
+
 #pragma pack(1)
 //
 // Command List structure includes total 32 entries.
@@ -240,6 +246,12 @@ typedef struct {
   UINT8    AhciCFisRsvd5[44];
 } EFI_AHCI_COMMAND_FIS;
 
+typedef enum {
+  SataFisD2H = 0,
+  SataFisPioSetup,
+  SataFisDmaSetup
+} SATA_FIS_TYPE;
+
 //
 // ACMD: ATAPI command (12 or 16 bytes)
 //
@@ -263,7 +275,7 @@ typedef struct {
 } EFI_AHCI_COMMAND_PRDT;
 
 //
-// Command table data strucute which is pointed to by the entry in the command list
+// Command table data structure which is pointed to by the entry in the command list
 //
 typedef struct {
   EFI_AHCI_COMMAND_FIS      CommandFis;       // A software constructed FIS.
@@ -283,7 +295,7 @@ typedef struct {
   UINT8    AhciD2HRegisterFis[0x14];      // D2H Register Fis: offset 0x40
   UINT8    AhciD2HRegisterFisRsvd[0x04];
   UINT64   AhciSetDeviceBitsFis;          // Set Device Bits Fix: offset 0x58
-  UINT8    AhciUnknownFis[0x40];          // Unkonwn Fis: offset 0x60
+  UINT8    AhciUnknownFis[0x40];          // Unknown Fis: offset 0x60
   UINT8    AhciUnknownFisRsvd[0x60];
 } EFI_AHCI_RECEIVED_FIS;
 

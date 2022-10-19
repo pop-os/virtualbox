@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -627,7 +637,7 @@ static void drvHostSerialIoLoopError(PDRVHOSTSERIAL pThis, PPDMTHREAD pThread)
              * Sleep a bit to avoid excessive I/O loop CPU usage, timing is not important in
              * this mode.
              */
-            PDMR3ThreadSleep(pThread, 100);
+            PDMDrvHlpThreadSleep(pThis->pDrvIns, pThread, 100);
         }
     }
 }
@@ -762,7 +772,7 @@ static DECLCALLBACK(void) drvHostSerialDestruct(PPDMDRVINS pDrvIns)
 
     if (pThis->pszDevicePath)
     {
-        MMR3HeapFree(pThis->pszDevicePath);
+        PDMDrvHlpMMHeapFree(pDrvIns, pThis->pszDevicePath);
         pThis->pszDevicePath = NULL;
     }
 }
@@ -776,9 +786,11 @@ static DECLCALLBACK(void) drvHostSerialDestruct(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     RT_NOREF1(fFlags);
-    PDRVHOSTSERIAL pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTSERIAL);
-    LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVHOSTSERIAL  pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTSERIAL);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
+
+    LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
 
     /*
      * Init basic data members and interfaces.
@@ -805,10 +817,15 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     pThis->ISerialConnector.pfnQueuesFlush       = drvHostSerialQueuesFlush;
 
     /*
+     * Validate the config.
+     */
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "DevicePath", "");
+
+    /*
      * Query configuration.
      */
     /* Device */
-    int rc = CFGMR3QueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
+    int rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: query for \"DevicePath\" string returned %Rra.\n", rc));

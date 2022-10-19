@@ -1748,59 +1748,60 @@ def CreateIdfFileCode(Info, AutoGenC, StringH, IdfGenCFlag, IdfGenBinBuffer):
                     for FileObj in ImageFiles.ImageFilesDict[Idf]:
                         ID = FileObj.ImageID
                         File = FileObj.File
-                        if not os.path.exists(File.Path) or not os.path.isfile(File.Path):
-                            EdkLogger.error("build", FILE_NOT_FOUND, ExtraData=File.Path)
-                        SearchImageID (FileObj, FileList)
-                        if FileObj.Referenced:
-                            if (ValueStartPtr - len(DEFINE_STR + ID)) <= 0:
-                                Line = DEFINE_STR + ' ' + ID + ' ' + DecToHexStr(Index, 4) + '\n'
-                            else:
-                                Line = DEFINE_STR + ' ' + ID + ' ' * (ValueStartPtr - len(DEFINE_STR + ID)) + DecToHexStr(Index, 4) + '\n'
+                        try:
+                            SearchImageID (FileObj, FileList)
+                            if FileObj.Referenced:
+                                if (ValueStartPtr - len(DEFINE_STR + ID)) <= 0:
+                                    Line = DEFINE_STR + ' ' + ID + ' ' + DecToHexStr(Index, 4) + '\n'
+                                else:
+                                    Line = DEFINE_STR + ' ' + ID + ' ' * (ValueStartPtr - len(DEFINE_STR + ID)) + DecToHexStr(Index, 4) + '\n'
 
-                            if File not in FileDict:
-                                FileDict[File] = Index
-                            else:
-                                DuplicateBlock = pack('B', EFI_HII_IIBT_DUPLICATE)
-                                DuplicateBlock += pack('H', FileDict[File])
-                                ImageBuffer += DuplicateBlock
+                                if File not in FileDict:
+                                    FileDict[File] = Index
+                                else:
+                                    DuplicateBlock = pack('B', EFI_HII_IIBT_DUPLICATE)
+                                    DuplicateBlock += pack('H', FileDict[File])
+                                    ImageBuffer += DuplicateBlock
+                                    BufferStr = WriteLine(BufferStr, '// %s: %s: %s' % (DecToHexStr(Index, 4), ID, DecToHexStr(Index, 4)))
+                                    TempBufferList = AscToHexList(DuplicateBlock)
+                                    BufferStr = WriteLine(BufferStr, CreateArrayItem(TempBufferList, 16) + '\n')
+                                    StringH.Append(Line)
+                                    Index += 1
+                                    continue
+
+                                TmpFile = open(File.Path, 'rb')
+                                Buffer = TmpFile.read()
+                                TmpFile.close()
+                                if File.Ext.upper() == '.PNG':
+                                    TempBuffer = pack('B', EFI_HII_IIBT_IMAGE_PNG)
+                                    TempBuffer += pack('I', len(Buffer))
+                                    TempBuffer += Buffer
+                                elif File.Ext.upper() == '.JPG':
+                                    ImageType, = struct.unpack('4s', Buffer[6:10])
+                                    if ImageType != b'JFIF':
+                                        EdkLogger.error("build", FILE_TYPE_MISMATCH, "The file %s is not a standard JPG file." % File.Path)
+                                    TempBuffer = pack('B', EFI_HII_IIBT_IMAGE_JPEG)
+                                    TempBuffer += pack('I', len(Buffer))
+                                    TempBuffer += Buffer
+                                elif File.Ext.upper() == '.BMP':
+                                    TempBuffer, TempPalette = BmpImageDecoder(File, Buffer, PaletteIndex, FileObj.TransParent)
+                                    if len(TempPalette) > 1:
+                                        PaletteIndex += 1
+                                        NewPalette = pack('H', len(TempPalette))
+                                        NewPalette += TempPalette
+                                        PaletteBuffer += NewPalette
+                                        PaletteStr = WriteLine(PaletteStr, '// %s: %s: %s' % (DecToHexStr(PaletteIndex - 1, 4), ID, DecToHexStr(PaletteIndex - 1, 4)))
+                                        TempPaletteList = AscToHexList(NewPalette)
+                                        PaletteStr = WriteLine(PaletteStr, CreateArrayItem(TempPaletteList, 16) + '\n')
+                                ImageBuffer += TempBuffer
                                 BufferStr = WriteLine(BufferStr, '// %s: %s: %s' % (DecToHexStr(Index, 4), ID, DecToHexStr(Index, 4)))
-                                TempBufferList = AscToHexList(DuplicateBlock)
+                                TempBufferList = AscToHexList(TempBuffer)
                                 BufferStr = WriteLine(BufferStr, CreateArrayItem(TempBufferList, 16) + '\n')
+
                                 StringH.Append(Line)
                                 Index += 1
-                                continue
-
-                            TmpFile = open(File.Path, 'rb')
-                            Buffer = TmpFile.read()
-                            TmpFile.close()
-                            if File.Ext.upper() == '.PNG':
-                                TempBuffer = pack('B', EFI_HII_IIBT_IMAGE_PNG)
-                                TempBuffer += pack('I', len(Buffer))
-                                TempBuffer += Buffer
-                            elif File.Ext.upper() == '.JPG':
-                                ImageType, = struct.unpack('4s', Buffer[6:10])
-                                if ImageType != b'JFIF':
-                                    EdkLogger.error("build", FILE_TYPE_MISMATCH, "The file %s is not a standard JPG file." % File.Path)
-                                TempBuffer = pack('B', EFI_HII_IIBT_IMAGE_JPEG)
-                                TempBuffer += pack('I', len(Buffer))
-                                TempBuffer += Buffer
-                            elif File.Ext.upper() == '.BMP':
-                                TempBuffer, TempPalette = BmpImageDecoder(File, Buffer, PaletteIndex, FileObj.TransParent)
-                                if len(TempPalette) > 1:
-                                    PaletteIndex += 1
-                                    NewPalette = pack('H', len(TempPalette))
-                                    NewPalette += TempPalette
-                                    PaletteBuffer += NewPalette
-                                    PaletteStr = WriteLine(PaletteStr, '// %s: %s: %s' % (DecToHexStr(PaletteIndex - 1, 4), ID, DecToHexStr(PaletteIndex - 1, 4)))
-                                    TempPaletteList = AscToHexList(NewPalette)
-                                    PaletteStr = WriteLine(PaletteStr, CreateArrayItem(TempPaletteList, 16) + '\n')
-                            ImageBuffer += TempBuffer
-                            BufferStr = WriteLine(BufferStr, '// %s: %s: %s' % (DecToHexStr(Index, 4), ID, DecToHexStr(Index, 4)))
-                            TempBufferList = AscToHexList(TempBuffer)
-                            BufferStr = WriteLine(BufferStr, CreateArrayItem(TempBufferList, 16) + '\n')
-
-                            StringH.Append(Line)
-                            Index += 1
+                        except IOError:
+                            EdkLogger.error("build", FILE_NOT_FOUND, ExtraData=File.Path)
 
             BufferStr = WriteLine(BufferStr, '// End of the Image Info')
             BufferStr = WriteLine(BufferStr, CreateArrayItem(DecToHexList(EFI_HII_IIBT_END, 2)) + '\n')
@@ -1979,12 +1980,14 @@ def CreateHeaderCode(Info, AutoGenC, AutoGenH):
         AutoGenH.Append("#include <Library/PcdLib.h>\n")
 
     AutoGenH.Append('\nextern GUID  gEfiCallerIdGuid;')
+    AutoGenH.Append('\nextern GUID  gEdkiiDscPlatformGuid;')
     AutoGenH.Append('\nextern CHAR8 *gEfiCallerBaseName;\n\n')
 
     if Info.IsLibrary:
         return
 
     AutoGenH.Append("#define EFI_CALLER_ID_GUID \\\n  %s\n" % GuidStringToGuidStructureString(Info.Guid))
+    AutoGenH.Append("#define EDKII_DSC_PLATFORM_GUID \\\n  %s\n" % GuidStringToGuidStructureString(Info.PlatformInfo.Guid))
 
     if Info.IsLibrary:
         return
@@ -2001,6 +2004,7 @@ def CreateHeaderCode(Info, AutoGenC, AutoGenH):
     # Publish the CallerId Guid
     #
     AutoGenC.Append('\nGLOBAL_REMOVE_IF_UNREFERENCED GUID gEfiCallerIdGuid = %s;\n' % GuidStringToGuidStructureString(Info.Guid))
+    AutoGenC.Append('\nGLOBAL_REMOVE_IF_UNREFERENCED GUID gEdkiiDscPlatformGuid = %s;\n' % GuidStringToGuidStructureString(Info.PlatformInfo.Guid))
     AutoGenC.Append('\nGLOBAL_REMOVE_IF_UNREFERENCED CHAR8 *gEfiCallerBaseName = "%s";\n' % Info.Name)
 
 ## Create common code for header file

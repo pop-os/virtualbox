@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_HostImpl_h
@@ -28,6 +38,8 @@ class USBProxyService;
 class SessionMachine;
 class Progress;
 class PerformanceCollector;
+class HostDrive;
+class HostDrivePartition;
 
 namespace settings
 {
@@ -41,7 +53,7 @@ class ATL_NO_VTABLE Host :
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR(Host)
+    DECLARE_COMMON_CLASS_METHODS(Host)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -98,6 +110,7 @@ private:
     // wrapped IHost properties
     HRESULT getDVDDrives(std::vector<ComPtr<IMedium> > &aDVDDrives);
     HRESULT getFloppyDrives(std::vector<ComPtr<IMedium> > &aFloppyDrives);
+    HRESULT getAudioDevices(std::vector<ComPtr<IHostAudioDevice> > &aAudioDevices);
     HRESULT getUSBDevices(std::vector<ComPtr<IHostUSBDevice> > &aUSBDevices);
     HRESULT getUSBDeviceFilters(std::vector<ComPtr<IHostUSBDeviceFilter> > &aUSBDeviceFilters);
     HRESULT getNetworkInterfaces(std::vector<ComPtr<IHostNetworkInterface> > &aNetworkInterfaces);
@@ -108,6 +121,7 @@ private:
     HRESULT getProcessorOnlineCount(ULONG *aProcessorOnlineCount);
     HRESULT getProcessorCoreCount(ULONG *aProcessorCoreCount);
     HRESULT getProcessorOnlineCoreCount(ULONG *aProcessorOnlineCoreCount);
+    HRESULT getHostDrives(std::vector<ComPtr<IHostDrive> > &aHostDrives);
     HRESULT getMemorySize(ULONG *aMemorySize);
     HRESULT getMemoryAvailable(ULONG *aMemoryAvailable);
     HRESULT getOperatingSystem(com::Utf8Str &aOperatingSystem);
@@ -115,7 +129,13 @@ private:
     HRESULT getUTCTime(LONG64 *aUTCTime);
     HRESULT getAcceleration3DAvailable(BOOL *aAcceleration3DAvailable);
     HRESULT getVideoInputDevices(std::vector<ComPtr<IHostVideoInputDevice> > &aVideoInputDevices);
-    HRESULT getUpdate(ComPtr<IHostUpdate> &aUpdate);
+    HRESULT getUpdateHost(ComPtr<IUpdateAgent> &aUpdate);
+    HRESULT getUpdateExtPack(ComPtr<IUpdateAgent> &aUpdate);
+    HRESULT getUpdateGuestAdditions(ComPtr<IUpdateAgent> &aUpdate);
+    HRESULT getUpdateResponse(BOOL *aUpdateNeeded);
+    HRESULT getUpdateVersion(com::Utf8Str &aUpdateVersion);
+    HRESULT getUpdateURL(com::Utf8Str &aUpdateURL);
+    HRESULT getUpdateCheckNeeded(BOOL *aUpdateCheckNeeded);
 
     // wrapped IHost methods
     HRESULT getProcessorSpeed(ULONG aCpuId,
@@ -170,12 +190,14 @@ private:
 #if defined(RT_OS_SOLARIS) && defined(VBOX_USE_LIBHAL)
     bool i_getDVDInfoFromHal(std::list< ComObjPtr<Medium> > &list);
     bool i_getFloppyInfoFromHal(std::list< ComObjPtr<Medium> > &list);
+    HRESULT i_getFixedDrivesFromHal(std::list<std::pair<com::Utf8Str, com::Utf8Str> > &list) RT_NOEXCEPT;
 #endif
 
 #if defined(RT_OS_SOLARIS)
     void i_getDVDInfoFromDevTree(std::list< ComObjPtr<Medium> > &list);
     void i_parseMountTable(char *mountTable, std::list< ComObjPtr<Medium> > &list);
     bool i_validateDevice(const char *deviceNode, bool isCDROM);
+    HRESULT i_getFixedDrivesFromDevTree(std::list<std::pair<com::Utf8Str, com::Utf8Str> > &list) RT_NOEXCEPT;
 #endif
 
     HRESULT i_updateNetIfList();
@@ -191,6 +213,11 @@ private:
     void i_registerDiskMetrics(PerformanceCollector *aCollector);
     void i_unregisterMetrics(PerformanceCollector *aCollector);
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
+
+#ifdef RT_OS_WINDOWS
+    HRESULT i_getFixedDrivesFromGlobalNamespace(std::list<std::pair<com::Utf8Str, com::Utf8Str> > &aDriveList) RT_NOEXCEPT;
+#endif
+    HRESULT i_getDrivesPathsList(std::list<std::pair<com::Utf8Str, com::Utf8Str> > &aDriveList) RT_NOEXCEPT;
 
     struct Data;        // opaque data structure, defined in HostImpl.cpp
     Data *m;

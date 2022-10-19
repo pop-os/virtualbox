@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -285,7 +295,7 @@ static DECLCALLBACK(int) pdmR3DrvRegister(PCPDMDRVREGCB pCallbacks, PCPDMDRVREG 
                          && RTStrEnd(pReg->szRCMod, sizeof(pReg->szRCMod))),
                     ("%s: %.*s\n", pReg->szName, sizeof(pReg->szRCMod), pReg->szRCMod),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
-    AssertMsgReturn(VALID_PTR(pReg->pszDescription),
+    AssertMsgReturn(RT_VALID_PTR(pReg->pszDescription),
                     ("%s: %p\n", pReg->szName, pReg->pszDescription),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
     AssertMsgReturn(!(pReg->fFlags & ~(PDM_DRVREG_FLAGS_HOST_BITS_MASK | PDM_DRVREG_FLAGS_R0 | PDM_DRVREG_FLAGS_RC)),
@@ -300,10 +310,10 @@ static DECLCALLBACK(int) pdmR3DrvRegister(PCPDMDRVREGCB pCallbacks, PCPDMDRVREG 
     AssertMsgReturn(pReg->cbInstance <= _1M,
                     ("%s: %#x\n", pReg->szName, pReg->cbInstance),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
-    AssertMsgReturn(VALID_PTR(pReg->pfnConstruct),
+    AssertMsgReturn(RT_VALID_PTR(pReg->pfnConstruct),
                     ("%s: %p\n", pReg->szName, pReg->pfnConstruct),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
-    AssertMsgReturn(VALID_PTR(pReg->pfnRelocate) || !(pReg->fFlags & PDM_DRVREG_FLAGS_RC),
+    AssertMsgReturn(RT_VALID_PTR(pReg->pfnRelocate) || !(pReg->fFlags & PDM_DRVREG_FLAGS_RC),
                     ("%s: %#x\n", pReg->szName, pReg->cbInstance),
                     VERR_PDM_INVALID_DRIVER_REGISTRATION);
     AssertMsgReturn(pReg->pfnSoftReset == NULL,
@@ -703,11 +713,14 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                  */
                 size_t cb = RT_UOFFSETOF_DYN(PDMDRVINS, achInstanceData[pDrv->pReg->cbInstance]);
                 cb = RT_ALIGN_Z(cb, 16);
-                bool const fHyperHeap = !!(pDrv->pReg->fFlags & (PDM_DRVREG_FLAGS_R0 | PDM_DRVREG_FLAGS_RC));
                 PPDMDRVINS pNew;
+#undef PDM_WITH_RING0_DRIVERS
+#ifdef PDM_WITH_RING0_DRIVERS
+                bool const fHyperHeap = !!(pDrv->pReg->fFlags & (PDM_DRVREG_FLAGS_R0 | PDM_DRVREG_FLAGS_RC));
                 if (fHyperHeap)
                     rc = MMHyperAlloc(pVM, cb, 64, MM_TAG_PDM_DRIVER, (void **)&pNew);
                 else
+#endif
                     rc = MMR3HeapAllocZEx(pVM, MM_TAG_PDM_DRIVER, cb, (void **)&pNew);
                 if (RT_SUCCESS(rc))
                 {
@@ -721,12 +734,16 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                     pNew->Internal.s.pLun           = pLun;
                     pNew->Internal.s.pDrv           = pDrv;
                     pNew->Internal.s.pVMR3          = pVM;
+#ifdef PDM_WITH_RING0_DRIVERS
                     pNew->Internal.s.pVMR0          = pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_R0 ? pVM->pVMR0ForCall : NIL_RTR0PTR;
                     pNew->Internal.s.pVMRC          = pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_RC ? pVM->pVMRC : NIL_RTRCPTR;
+#endif
                     //pNew->Internal.s.fDetaching     = false;
                     pNew->Internal.s.fVMSuspended   = true; /** @todo should be 'false', if driver is attached at runtime. */
                     //pNew->Internal.s.fVMReset       = false;
+#ifdef PDM_WITH_RING0_DRIVERS
                     pNew->Internal.s.fHyperHeap     = fHyperHeap;
+#endif
                     //pNew->Internal.s.pfnAsyncNotify = NULL;
                     pNew->Internal.s.pCfgHandle     = pNode;
                     pNew->pReg                      = pDrv->pReg;
@@ -739,12 +756,14 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                     pNew->idTracing                 = ++pVM->pdm.s.idTracingOther;
                     pNew->pHlpR3                    = &g_pdmR3DrvHlp;
                     pNew->pvInstanceDataR3          = &pNew->achInstanceData[0];
+#ifdef PDM_WITH_RING0_DRIVERS
                     if (pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_R0)
                     {
                         pNew->pvInstanceDataR0      = MMHyperR3ToR0(pVM, &pNew->achInstanceData[0]);
                         rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0DrvHlp", &pNew->pHlpR0);
                         AssertReleaseRCReturn(rc, rc);
                     }
+# ifdef VBOX_WITH_RAW_MODE_KEEP
                     if (   (pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_RC)
                         && VM_IS_RAW_MODE_ENABLED(pVM))
                     {
@@ -752,6 +771,8 @@ int pdmR3DrvInstantiate(PVM pVM, PCFGMNODE pNode, PPDMIBASE pBaseInterface, PPDM
                         rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCDrvHlp", &pNew->pHlpRC);
                         AssertReleaseRCReturn(rc, rc);
                     }
+# endif
+#endif
 
                     pDrv->iNextInstance++;
                     pDrv->cInstances++;
@@ -933,9 +954,9 @@ void pdmR3DrvDestroyChain(PPDMDRVINS pDrvIns, uint32_t fFlags)
                 {
                     if (pLun->pDevIns->pReg->pfnDetach)
                     {
-                        PDMCritSectEnter(pLun->pDevIns->pCritSectRoR3, VERR_IGNORED);
+                        PDMCritSectEnter(pVM, pLun->pDevIns->pCritSectRoR3, VERR_IGNORED);
                         pLun->pDevIns->pReg->pfnDetach(pLun->pDevIns, pLun->iLun, fFlags);
-                        PDMCritSectLeave(pLun->pDevIns->pCritSectRoR3);
+                        PDMCritSectLeave(pVM, pLun->pDevIns->pCritSectRoR3);
                     }
                 }
                 else
@@ -993,11 +1014,15 @@ void pdmR3DrvDestroyChain(PPDMDRVINS pDrvIns, uint32_t fFlags)
 #endif
 
         /* Finally, the driver it self. */
-        bool fHyperHeap = pCur->Internal.s.fHyperHeap;
+#ifdef PDM_WITH_RING0_DRIVERS
+        bool const fHyperHeap = pCur->Internal.s.fHyperHeap;
+#endif
         ASMMemFill32(pCur, RT_UOFFSETOF_DYN(PDMDRVINS, achInstanceData[pCur->pReg->cbInstance]), 0xdeadd0d0);
+#ifdef PDM_WITH_RING0_DRIVERS
         if (fHyperHeap)
             MMHyperFree(pVM, pCur);
         else
+#endif
             MMR3HeapFree(pCur);
 
     } while (pCur != pDrvIns);
@@ -1196,35 +1221,11 @@ static DECLCALLBACK(bool) pdmR3DrvHlp_AssertOther(PPDMDRVINS pDrvIns, const char
 }
 
 
-/** @interface_method_impl{PDMDRVHLPR3,pfnVMSetError} */
-static DECLCALLBACK(int) pdmR3DrvHlp_VMSetError(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...)
-{
-    PDMDRV_ASSERT_DRVINS(pDrvIns);
-    va_list args;
-    va_start(args, pszFormat);
-    int rc2 = VMSetErrorV(pDrvIns->Internal.s.pVMR3, rc, RT_SRC_POS_ARGS, pszFormat, args); Assert(rc2 == rc); NOREF(rc2);
-    va_end(args);
-    return rc;
-}
-
-
 /** @interface_method_impl{PDMDRVHLPR3,pfnVMSetErrorV} */
 static DECLCALLBACK(int) pdmR3DrvHlp_VMSetErrorV(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     int rc2 = VMSetErrorV(pDrvIns->Internal.s.pVMR3, rc, RT_SRC_POS_ARGS, pszFormat, va); Assert(rc2 == rc); NOREF(rc2);
-    return rc;
-}
-
-
-/** @interface_method_impl{PDMDRVHLPR3,pfnVMSetRuntimeError} */
-static DECLCALLBACK(int) pdmR3DrvHlp_VMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...)
-{
-    PDMDRV_ASSERT_DRVINS(pDrvIns);
-    va_list args;
-    va_start(args, pszFormat);
-    int rc = VMSetRuntimeErrorV(pDrvIns->Internal.s.pVMR3, fFlags, pszErrorId, pszFormat, args);
-    va_end(args);
     return rc;
 }
 
@@ -1278,11 +1279,11 @@ static DECLCALLBACK(PSUPDRVSESSION) pdmR3DrvHlp_GetSupDrvSession(PPDMDRVINS pDrv
 
 /** @interface_method_impl{PDMDRVHLPR3,pfnQueueCreate} */
 static DECLCALLBACK(int) pdmR3DrvHlp_QueueCreate(PPDMDRVINS pDrvIns, uint32_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
-                                                 PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue)
+                                                 PFNPDMQUEUEDRV pfnCallback, const char *pszName, PDMQUEUEHANDLE *phQueue)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    LogFlow(("pdmR3DrvHlp_PDMQueueCreate: caller='%s'/%d: cbItem=%d cItems=%d cMilliesInterval=%d pfnCallback=%p pszName=%p:{%s} ppQueue=%p\n",
-             pDrvIns->pReg->szName, pDrvIns->iInstance, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, pszName, ppQueue));
+    LogFlow(("pdmR3DrvHlp_PDMQueueCreate: caller='%s'/%d: cbItem=%d cItems=%d cMilliesInterval=%d pfnCallback=%p pszName=%p:{%s} phQueue=%p\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, pszName, phQueue));
     PVM pVM = pDrvIns->Internal.s.pVMR3;
     VM_ASSERT_EMT(pVM);
 
@@ -1292,10 +1293,31 @@ static DECLCALLBACK(int) pdmR3DrvHlp_QueueCreate(PPDMDRVINS pDrvIns, uint32_t cb
         AssertLogRelReturn(pszName, VERR_NO_MEMORY);
     }
 
-    int rc = PDMR3QueueCreateDriver(pVM, pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, ppQueue);
+    int rc = PDMR3QueueCreateDriver(pVM, pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, phQueue);
 
-    LogFlow(("pdmR3DrvHlp_PDMQueueCreate: caller='%s'/%d: returns %Rrc *ppQueue=%p\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc, *ppQueue));
+    LogFlow(("pdmR3DrvHlp_PDMQueueCreate: caller='%s'/%d: returns %Rrc *phQueue=%p\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc, *phQueue));
     return rc;
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnQueueAlloc} */
+static DECLCALLBACK(PPDMQUEUEITEMCORE) pdmR3DrvHlp_QueueAlloc(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue)
+{
+    return PDMQueueAlloc(pDrvIns->Internal.s.pVMR3, hQueue, pDrvIns);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnQueueInsert} */
+static DECLCALLBACK(int) pdmR3DrvHlp_QueueInsert(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue, PPDMQUEUEITEMCORE pItem)
+{
+    return PDMQueueInsert(pDrvIns->Internal.s.pVMR3, hQueue, pDrvIns, pItem);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnQueueFlushIfNecessary} */
+static DECLCALLBACK(bool) pdmR3DrvHlp_QueueFlushIfNecessary(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue)
+{
+    return PDMQueueFlushIfNecessary(pDrvIns->Internal.s.pVMR3, hQueue, pDrvIns) == VINF_SUCCESS;
 }
 
 
@@ -1317,16 +1339,53 @@ static DECLCALLBACK(uint64_t) pdmR3DrvHlp_TMGetVirtualTime(PPDMDRVINS pDrvIns)
 }
 
 
-/** @interface_method_impl{PDMDRVHLPR3,pfnTMTimerCreate} */
-static DECLCALLBACK(int) pdmR3DrvHlp_TMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
+/** @interface_method_impl{PDMDRVHLPR3,pfnTimerCreate} */
+static DECLCALLBACK(int) pdmR3DrvHlp_TimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser,
+                                                 uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
-    LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: enmClock=%d pfnCallback=%p pvUser=%p fFlags=%#x pszDesc=%p:{%s} phTimer=%p\n",
+    LogFlow(("pdmR3DrvHlp_TimerCreate: caller='%s'/%d: enmClock=%d pfnCallback=%p pvUser=%p fFlags=%#x pszDesc=%p:{%s} phTimer=%p\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, enmClock, pfnCallback, pvUser, fFlags, pszDesc, pszDesc, phTimer));
 
-    int rc = TMR3TimerCreateDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, (PPTMTIMERR3)phTimer);
+    /* Mangle the timer name if there are more than once instance of this driver. */
+    char szName[32];
+    AssertReturn(strlen(pszDesc) < sizeof(szName) - 3, VERR_INVALID_NAME);
+    if (pDrvIns->iInstance > 0)
+    {
+        RTStrPrintf(szName, sizeof(szName), "%s[%u]", pszDesc, pDrvIns->iInstance);
+        pszDesc = szName;
+    }
+
+    /* Clear the ring-0 flag if the driver isn't configured for ring-0. */
+    if (fFlags & TMTIMER_FLAGS_RING0)
+    {
+        AssertReturn(!(fFlags & TMTIMER_FLAGS_NO_RING0), VERR_INVALID_FLAGS);
+        Assert(pDrvIns->Internal.s.pDrv->pReg->fFlags & PDM_DRVREG_FLAGS_R0);
+#ifdef PDM_WITH_RING0_DRIVERS
+        if (!(pDrvIns->Internal.s.fIntFlags & PDMDRVINSINT_FLAGS_R0_ENABLED)) /** @todo PDMDRVINSINT_FLAGS_R0_ENABLED? */
+#endif
+            fFlags = (fFlags & ~TMTIMER_FLAGS_RING0) | TMTIMER_FLAGS_NO_RING0;
+    }
+    else
+        fFlags |= TMTIMER_FLAGS_NO_RING0;
+
+    int rc = TMR3TimerCreateDriver(pDrvIns->Internal.s.pVMR3, pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, phTimer);
 
     LogFlow(("pdmR3DrvHlp_TMTimerCreate: caller='%s'/%d: returns %Rrc *phTimer=%p\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc, *phTimer));
+    return rc;
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnTimerDestroy} */
+static DECLCALLBACK(int) pdmR3DrvHlp_TimerDestroy(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    LogFlow(("pdmR3DrvHlp_TimerDestroy: caller='%s'/%d: hTimer=%RX64\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, hTimer));
+
+    int rc = TMR3TimerDestroy(pDrvIns->Internal.s.pVMR3, hTimer);
+
+    LogFlow(("pdmR3DrvHlp_TimerDestroy: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc));
     return rc;
 }
 
@@ -1334,8 +1393,8 @@ static DECLCALLBACK(int) pdmR3DrvHlp_TMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK e
 /** @interface_method_impl{PDMDRVHLPR3,pfnTimerSetMillies} */
 static DECLCALLBACK(int) pdmR3DrvHlp_TimerSetMillies(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer, uint64_t cMilliesToNext)
 {
-    PDMDRV_ASSERT_DRVINS(pDrvIns); RT_NOREF(pDrvIns);
-    return TMTimerSetMillies((PTMTIMER)hTimer, cMilliesToNext);
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return TMTimerSetMillies(pDrvIns->Internal.s.pVMR3, hTimer, cMilliesToNext);
 }
 
 
@@ -1376,6 +1435,19 @@ static DECLCALLBACK(int) pdmR3DrvHlp_SSMDeregister(PPDMDRVINS pDrvIns, const cha
 
     LogFlow(("pdmR3DrvHlp_SSMDeregister: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc));
     return rc;
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnMMHeapFree} */
+static DECLCALLBACK(void) pdmR3DrvHlp_MMHeapFree(PPDMDRVINS pDrvIns, void *pv)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns); RT_NOREF(pDrvIns);
+    LogFlow(("pdmR3DrvHlp_MMHeapFree: caller='%s'/%d: pv=%p\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, pv));
+
+    MMR3HeapFree(pv);
+
+    LogFlow(("pdmR3DrvHlp_MMHeapFree: caller='%s'/%d: returns\n", pDrvIns->pReg->szName, pDrvIns->iInstance));
 }
 
 
@@ -1636,36 +1708,63 @@ static DECLCALLBACK(int) pdmR3DrvHlp_AsyncCompletionTemplateCreate(PPDMDRVINS pD
 }
 
 
-#ifdef VBOX_WITH_NETSHAPER
 /** @interface_method_impl{PDMDRVHLPR3,pfnNetShaperAttach} */
 static DECLCALLBACK(int) pdmR3DrvHlp_NetShaperAttach(PPDMDRVINS pDrvIns, const char *pszBwGroup, PPDMNSFILTER pFilter)
 {
+#ifdef VBOX_WITH_NETSHAPER
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     LogFlow(("pdmR3DrvHlp_NetShaperAttach: caller='%s'/%d: pFilter=%p pszBwGroup=%p:{%s}\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, pFilter, pszBwGroup, pszBwGroup));
 
-    int rc = PDMR3NsAttach(pDrvIns->Internal.s.pVMR3->pUVM, pDrvIns, pszBwGroup, pFilter);
+    int rc = PDMR3NsAttach(pDrvIns->Internal.s.pVMR3, pDrvIns, pszBwGroup, pFilter);
 
     LogFlow(("pdmR3DrvHlp_NetShaperAttach: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName,
              pDrvIns->iInstance, rc));
     return rc;
+#else
+    RT_NOREF(pDrvIns, pszBwGroup, pFilter);
+    return VERR_NOT_IMPLEMENTED;
+#endif
 }
 
 
 /** @interface_method_impl{PDMDRVHLPR3,pfnNetShaperDetach} */
 static DECLCALLBACK(int) pdmR3DrvHlp_NetShaperDetach(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter)
 {
+#ifdef VBOX_WITH_NETSHAPER
     PDMDRV_ASSERT_DRVINS(pDrvIns);
     LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: pFilter=%p\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, pFilter));
 
-    int rc = PDMR3NsDetach(pDrvIns->Internal.s.pVMR3->pUVM, pDrvIns, pFilter);
+    int rc = PDMR3NsDetach(pDrvIns->Internal.s.pVMR3, pDrvIns, pFilter);
 
     LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName,
              pDrvIns->iInstance, rc));
     return rc;
+#else
+    RT_NOREF(pDrvIns, pFilter);
+    return VERR_NOT_IMPLEMENTED;
+#endif
 }
-#endif /* VBOX_WITH_NETSHAPER */
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnNetShaperAllocateBandwidth} */
+static DECLCALLBACK(bool) pdmR3DrvHlp_NetShaperAllocateBandwidth(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter, size_t cbTransfer)
+{
+#ifdef VBOX_WITH_NETSHAPER
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: pFilter=%p cbTransfer=%#zx\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, pFilter, cbTransfer));
+
+    bool const fRc = PDMNetShaperAllocateBandwidth(pDrvIns->Internal.s.pVMR3, pFilter, cbTransfer);
+
+    LogFlow(("pdmR3DrvHlp_NetShaperDetach: caller='%s'/%d: returns %RTbool\n", pDrvIns->pReg->szName, pDrvIns->iInstance, fRc));
+    return fRc;
+#else
+    RT_NOREF(pDrvIns, pFilter, cbTransfer);
+    return true;
+#endif
+}
 
 
 /** @interface_method_impl{PDMDRVHLPR3,pfnLdrGetRCInterfaceSymbols} */
@@ -1682,11 +1781,19 @@ static DECLCALLBACK(int) pdmR3DrvHlp_LdrGetRCInterfaceSymbols(PPDMDRVINS pDrvIns
         && RTStrIStr(pszSymPrefix + 3, pDrvIns->pReg->szName) != NULL)
     {
         if (pDrvIns->pReg->fFlags & PDM_DRVREG_FLAGS_RC)
+#ifdef PDM_WITH_RING0_DRIVERS
             rc = PDMR3LdrGetInterfaceSymbols(pDrvIns->Internal.s.pVMR3,
                                              pvInterface, cbInterface,
                                              pDrvIns->pReg->szRCMod, pDrvIns->Internal.s.pDrv->pszRCSearchPath,
                                              pszSymPrefix, pszSymList,
                                              false /*fRing0OrRC*/);
+#else
+        {
+            AssertLogRelMsgFailed(("ring-0 drivers are not supported in this VBox version!\n"));
+            RT_NOREF(pvInterface, cbInterface, pszSymList);
+            rc = VERR_NOT_SUPPORTED;
+        }
+#endif
         else
         {
             AssertMsgFailed(("Not a raw-mode enabled driver\n"));
@@ -1720,11 +1827,19 @@ static DECLCALLBACK(int) pdmR3DrvHlp_LdrGetR0InterfaceSymbols(PPDMDRVINS pDrvIns
         && RTStrIStr(pszSymPrefix + 3, pDrvIns->pReg->szName) != NULL)
     {
         if (pDrvIns->pReg->fFlags & PDM_DRVREG_FLAGS_R0)
+#ifdef PDM_WITH_RING0_DRIVERS
             rc = PDMR3LdrGetInterfaceSymbols(pDrvIns->Internal.s.pVMR3,
                                              pvInterface, cbInterface,
                                              pDrvIns->pReg->szR0Mod, pDrvIns->Internal.s.pDrv->pszR0SearchPath,
                                              pszSymPrefix, pszSymList,
                                              true /*fRing0OrRC*/);
+#else
+        {
+            AssertLogRelMsgFailed(("ring-0 drivers are not supported in this VBox version!\n"));
+            RT_NOREF(pvInterface, cbInterface, pszSymList);
+            rc = VERR_NOT_SUPPORTED;
+        }
+#endif
         else
         {
             AssertMsgFailed(("Not a ring-0 enabled driver\n"));
@@ -1761,12 +1876,116 @@ static DECLCALLBACK(int) pdmR3DrvHlp_CritSectInit(PPDMDRVINS pDrvIns, PPDMCRITSE
     return rc;
 }
 
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectYield} */
+static DECLCALLBACK(bool)     pdmR3DrvHlp_CritSectYield(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    RT_NOREF(pDrvIns);
+    return PDMR3CritSectYield(pDrvIns->Internal.s.pVMR3, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectEnter} */
+static DECLCALLBACK(int)      pdmR3DrvHlp_CritSectEnter(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMCritSectEnter(pDrvIns->Internal.s.pVMR3, pCritSect, rcBusy);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectEnterDebug} */
+static DECLCALLBACK(int)      pdmR3DrvHlp_CritSectEnterDebug(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy,
+                                                             RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMCritSectEnterDebug(pDrvIns->Internal.s.pVMR3, pCritSect, rcBusy, uId, RT_SRC_POS_ARGS);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectTryEnter} */
+static DECLCALLBACK(int)      pdmR3DrvHlp_CritSectTryEnter(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMCritSectTryEnter(pDrvIns->Internal.s.pVMR3, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectTryEnterDebug} */
+static DECLCALLBACK(int)      pdmR3DrvHlp_CritSectTryEnterDebug(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect,
+                                                                RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMCritSectTryEnterDebug(pDrvIns->Internal.s.pVMR3, pCritSect, uId, RT_SRC_POS_ARGS);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectLeave} */
+static DECLCALLBACK(int)      pdmR3DrvHlp_CritSectLeave(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMCritSectLeave(pDrvIns->Internal.s.pVMR3, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectIsOwner} */
+static DECLCALLBACK(bool)     pdmR3DrvHlp_CritSectIsOwner(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMCritSectIsOwner(pDrvIns->Internal.s.pVMR3, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectIsInitialized} */
+static DECLCALLBACK(bool)     pdmR3DrvHlp_CritSectIsInitialized(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    RT_NOREF(pDrvIns);
+    return PDMCritSectIsInitialized(pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectHasWaiters} */
+static DECLCALLBACK(bool)     pdmR3DrvHlp_CritSectHasWaiters(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMCritSectHasWaiters(pDrvIns->Internal.s.pVMR3, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectGetRecursion} */
+static DECLCALLBACK(uint32_t) pdmR3DrvHlp_CritSectGetRecursion(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    RT_NOREF(pDrvIns);
+    return PDMCritSectGetRecursion(pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectScheduleExitEvent} */
+static DECLCALLBACK(int)      pdmR3DrvHlp_CritSectScheduleExitEvent(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect,
+                                                                    SUPSEMEVENT hEventToSignal)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    RT_NOREF(pDrvIns);
+    return PDMHCCritSectScheduleExitEvent(pCritSect, hEventToSignal);
+}
+
+
+/** @interface_method_impl{PDMDRVHLPR3,pfnCritSectDelete} */
+static DECLCALLBACK(int)      pdmR3DrvHlp_CritSectDelete(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect)
+{
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    return PDMR3CritSectDelete(pDrvIns->Internal.s.pVMR3, pCritSect);
+}
+
 
 /** @interface_method_impl{PDMDRVHLPR3,pfnCallR0} */
 static DECLCALLBACK(int) pdmR3DrvHlp_CallR0(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_t u64Arg)
 {
     PDMDRV_ASSERT_DRVINS(pDrvIns);
+#ifdef PDM_WITH_RING0_DRIVERS
     PVM pVM = pDrvIns->Internal.s.pVMR3;
+#endif
     LogFlow(("pdmR3DrvHlp_CallR0: caller='%s'/%d: uOperation=%#x u64Arg=%#RX64\n",
              pDrvIns->pReg->szName, pDrvIns->iInstance, uOperation, u64Arg));
 
@@ -1779,6 +1998,7 @@ static DECLCALLBACK(int) pdmR3DrvHlp_CallR0(PPDMDRVINS pDrvIns, uint32_t uOperat
     {
         if (pDrvIns->pReg->fFlags & PDM_DRVREG_FLAGS_R0)
         {
+#ifdef PDM_WITH_RING0_DRIVERS
             char szSymbol[          sizeof("drvR0") + sizeof(pDrvIns->pReg->szName) + sizeof("ReqHandler")];
             strcat(strcat(strcpy(szSymbol, "drvR0"),         pDrvIns->pReg->szName),         "ReqHandler");
             szSymbol[sizeof("drvR0") - 1] = RT_C_TO_UPPER(szSymbol[sizeof("drvR0") - 1]);
@@ -1789,12 +2009,17 @@ static DECLCALLBACK(int) pdmR3DrvHlp_CallR0(PPDMDRVINS pDrvIns, uint32_t uOperat
                 pDrvIns->Internal.s.pfnReqHandlerR0 = pfnReqHandlerR0;
             else
                 pfnReqHandlerR0 = NIL_RTR0PTR;
+#else
+            RT_NOREF(uOperation, u64Arg);
+            rc = VERR_NOT_SUPPORTED;
+#endif
         }
         else
             rc = VERR_ACCESS_DENIED;
     }
-    if (RT_LIKELY(pfnReqHandlerR0 != NIL_RTR0PTR))
+    if (RT_LIKELY(pfnReqHandlerR0 != NIL_RTR0PTR && RT_SUCCESS(rc)))
     {
+#ifdef PDM_WITH_RING0_DRIVERS
         /*
          * Make the ring-0 call.
          */
@@ -1806,10 +2031,12 @@ static DECLCALLBACK(int) pdmR3DrvHlp_CallR0(PPDMDRVINS pDrvIns, uint32_t uOperat
         Req.u32Alignment    = 0;
         Req.u64Arg          = u64Arg;
         rc = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), NIL_VMCPUID, VMMR0_DO_PDM_DRIVER_CALL_REQ_HANDLER, 0, &Req.Hdr);
+#else
+        rc = VERR_NOT_SUPPORTED;
+#endif
     }
 
-    LogFlow(("pdmR3DrvHlp_CallR0: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName,
-             pDrvIns->iInstance, rc));
+    LogFlow(("pdmR3DrvHlp_CallR0: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc));
     return rc;
 }
 
@@ -1854,17 +2081,23 @@ static DECLCALLBACK(VMRESUMEREASON) pdmR3DrvHlp_VMGetResumeReason(PPDMDRVINS pDr
 }
 
 
-/** @interface_method_impl{PDMDRVHLPR3,pfnTimerDestroy} */
-static DECLCALLBACK(int) pdmR3DrvHlp_TimerDestroy(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer)
+/** @interface_method_impl{PDMDRVHLPR3,pfnQueryGenericUserObject} */
+static DECLCALLBACK(void *) pdmR3DrvHlp_QueryGenericUserObject(PPDMDRVINS pDrvIns, PCRTUUID pUuid)
 {
-    PDMDRV_ASSERT_DRVINS(pDrvIns); RT_NOREF(pDrvIns);
-    LogFlow(("pdmR3DrvHlp_TimerDestroy: caller='%s'/%d: hTimer=%RX64\n",
-             pDrvIns->pReg->szName, pDrvIns->iInstance, hTimer));
+    PDMDRV_ASSERT_DRVINS(pDrvIns);
+    LogFlow(("pdmR3DrvHlp_QueryGenericUserObject: caller='%s'/%d: pUuid=%p:%RTuuid\n",
+             pDrvIns->pReg->szName, pDrvIns->iInstance, pUuid, pUuid));
 
-    int rc = TMR3TimerDestroy((PTMTIMERR3)hTimer);
+    void *pvRet;
+    PUVM  pUVM = pDrvIns->Internal.s.pVMR3->pUVM;
+    if (pUVM->pVmm2UserMethods->pfnQueryGenericObject)
+        pvRet = pUVM->pVmm2UserMethods->pfnQueryGenericObject(pUVM->pVmm2UserMethods, pUVM, pUuid);
+    else
+        pvRet = NULL;
 
-    LogFlow(("pdmR3DrvHlp_TimerDestroy: caller='%s'/%d: returns %Rrc\n", pDrvIns->pReg->szName, pDrvIns->iInstance, rc));
-    return rc;
+    LogRel(("pdmR3DrvHlp_QueryGenericUserObject: caller='%s'/%d: returns %#p for %RTuuid\n",
+            pDrvIns->pReg->szName, pDrvIns->iInstance, pvRet, pUuid));
+    return pvRet;
 }
 
 
@@ -1880,19 +2113,163 @@ const PDMDRVHLPR3 g_pdmR3DrvHlp =
     pdmR3DrvHlp_MountPrepare,
     pdmR3DrvHlp_AssertEMT,
     pdmR3DrvHlp_AssertOther,
-    pdmR3DrvHlp_VMSetError,
     pdmR3DrvHlp_VMSetErrorV,
-    pdmR3DrvHlp_VMSetRuntimeError,
     pdmR3DrvHlp_VMSetRuntimeErrorV,
     pdmR3DrvHlp_VMState,
     pdmR3DrvHlp_VMTeleportedAndNotFullyResumedYet,
     pdmR3DrvHlp_GetSupDrvSession,
     pdmR3DrvHlp_QueueCreate,
+    pdmR3DrvHlp_QueueAlloc,
+    pdmR3DrvHlp_QueueInsert,
+    pdmR3DrvHlp_QueueFlushIfNecessary,
     pdmR3DrvHlp_TMGetVirtualFreq,
     pdmR3DrvHlp_TMGetVirtualTime,
-    pdmR3DrvHlp_TMTimerCreate,
+    pdmR3DrvHlp_TimerCreate,
+    pdmR3DrvHlp_TimerDestroy,
     pdmR3DrvHlp_SSMRegister,
     pdmR3DrvHlp_SSMDeregister,
+    SSMR3PutStruct,
+    SSMR3PutStructEx,
+    SSMR3PutBool,
+    SSMR3PutU8,
+    SSMR3PutS8,
+    SSMR3PutU16,
+    SSMR3PutS16,
+    SSMR3PutU32,
+    SSMR3PutS32,
+    SSMR3PutU64,
+    SSMR3PutS64,
+    SSMR3PutU128,
+    SSMR3PutS128,
+    SSMR3PutUInt,
+    SSMR3PutSInt,
+    SSMR3PutGCUInt,
+    SSMR3PutGCUIntReg,
+    SSMR3PutGCPhys32,
+    SSMR3PutGCPhys64,
+    SSMR3PutGCPhys,
+    SSMR3PutGCPtr,
+    SSMR3PutGCUIntPtr,
+    SSMR3PutRCPtr,
+    SSMR3PutIOPort,
+    SSMR3PutSel,
+    SSMR3PutMem,
+    SSMR3PutStrZ,
+    SSMR3GetStruct,
+    SSMR3GetStructEx,
+    SSMR3GetBool,
+    SSMR3GetBoolV,
+    SSMR3GetU8,
+    SSMR3GetU8V,
+    SSMR3GetS8,
+    SSMR3GetS8V,
+    SSMR3GetU16,
+    SSMR3GetU16V,
+    SSMR3GetS16,
+    SSMR3GetS16V,
+    SSMR3GetU32,
+    SSMR3GetU32V,
+    SSMR3GetS32,
+    SSMR3GetS32V,
+    SSMR3GetU64,
+    SSMR3GetU64V,
+    SSMR3GetS64,
+    SSMR3GetS64V,
+    SSMR3GetU128,
+    SSMR3GetU128V,
+    SSMR3GetS128,
+    SSMR3GetS128V,
+    SSMR3GetGCPhys32,
+    SSMR3GetGCPhys32V,
+    SSMR3GetGCPhys64,
+    SSMR3GetGCPhys64V,
+    SSMR3GetGCPhys,
+    SSMR3GetGCPhysV,
+    SSMR3GetUInt,
+    SSMR3GetSInt,
+    SSMR3GetGCUInt,
+    SSMR3GetGCUIntReg,
+    SSMR3GetGCPtr,
+    SSMR3GetGCUIntPtr,
+    SSMR3GetRCPtr,
+    SSMR3GetIOPort,
+    SSMR3GetSel,
+    SSMR3GetMem,
+    SSMR3GetStrZ,
+    SSMR3GetStrZEx,
+    SSMR3Skip,
+    SSMR3SkipToEndOfUnit,
+    SSMR3SetLoadError,
+    SSMR3SetLoadErrorV,
+    SSMR3SetCfgError,
+    SSMR3SetCfgErrorV,
+    SSMR3HandleGetStatus,
+    SSMR3HandleGetAfter,
+    SSMR3HandleIsLiveSave,
+    SSMR3HandleMaxDowntime,
+    SSMR3HandleHostBits,
+    SSMR3HandleRevision,
+    SSMR3HandleVersion,
+    SSMR3HandleHostOSAndArch,
+    CFGMR3Exists,
+    CFGMR3QueryType,
+    CFGMR3QuerySize,
+    CFGMR3QueryInteger,
+    CFGMR3QueryIntegerDef,
+    CFGMR3QueryString,
+    CFGMR3QueryStringDef,
+    CFGMR3QueryPassword,
+    CFGMR3QueryPasswordDef,
+    CFGMR3QueryBytes,
+    CFGMR3QueryU64,
+    CFGMR3QueryU64Def,
+    CFGMR3QueryS64,
+    CFGMR3QueryS64Def,
+    CFGMR3QueryU32,
+    CFGMR3QueryU32Def,
+    CFGMR3QueryS32,
+    CFGMR3QueryS32Def,
+    CFGMR3QueryU16,
+    CFGMR3QueryU16Def,
+    CFGMR3QueryS16,
+    CFGMR3QueryS16Def,
+    CFGMR3QueryU8,
+    CFGMR3QueryU8Def,
+    CFGMR3QueryS8,
+    CFGMR3QueryS8Def,
+    CFGMR3QueryBool,
+    CFGMR3QueryBoolDef,
+    CFGMR3QueryPort,
+    CFGMR3QueryPortDef,
+    CFGMR3QueryUInt,
+    CFGMR3QueryUIntDef,
+    CFGMR3QuerySInt,
+    CFGMR3QuerySIntDef,
+    CFGMR3QueryGCPtr,
+    CFGMR3QueryGCPtrDef,
+    CFGMR3QueryGCPtrU,
+    CFGMR3QueryGCPtrUDef,
+    CFGMR3QueryGCPtrS,
+    CFGMR3QueryGCPtrSDef,
+    CFGMR3QueryStringAlloc,
+    CFGMR3QueryStringAllocDef,
+    CFGMR3GetParent,
+    CFGMR3GetChild,
+    CFGMR3GetChildF,
+    CFGMR3GetChildFV,
+    CFGMR3GetFirstChild,
+    CFGMR3GetNextChild,
+    CFGMR3GetName,
+    CFGMR3GetNameLen,
+    CFGMR3AreChildrenValid,
+    CFGMR3GetFirstValue,
+    CFGMR3GetNextValue,
+    CFGMR3GetValueName,
+    CFGMR3GetValueNameLen,
+    CFGMR3GetValueType,
+    CFGMR3AreValuesValid,
+    CFGMR3ValidateConfig,
+    pdmR3DrvHlp_MMHeapFree,
     pdmR3DrvHlp_DBGFInfoRegister,
     pdmR3DrvHlp_DBGFInfoRegisterArgv,
     pdmR3DrvHlp_DBGFInfoDeregister,
@@ -1905,21 +2282,58 @@ const PDMDRVHLPR3 g_pdmR3DrvHlp =
     pdmR3DrvHlp_SetAsyncNotification,
     pdmR3DrvHlp_AsyncNotificationCompleted,
     pdmR3DrvHlp_ThreadCreate,
+    PDMR3ThreadDestroy,
+    PDMR3ThreadIAmSuspending,
+    PDMR3ThreadIAmRunning,
+    PDMR3ThreadSleep,
+    PDMR3ThreadSuspend,
+    PDMR3ThreadResume,
     pdmR3DrvHlp_AsyncCompletionTemplateCreate,
-#ifdef VBOX_WITH_NETSHAPER
+    PDMR3AsyncCompletionTemplateDestroy,
+    PDMR3AsyncCompletionEpCreateForFile,
+    PDMR3AsyncCompletionEpClose,
+    PDMR3AsyncCompletionEpGetSize,
+    PDMR3AsyncCompletionEpSetSize,
+    PDMR3AsyncCompletionEpSetBwMgr,
+    PDMR3AsyncCompletionEpFlush,
+    PDMR3AsyncCompletionEpRead,
+    PDMR3AsyncCompletionEpWrite,
     pdmR3DrvHlp_NetShaperAttach,
     pdmR3DrvHlp_NetShaperDetach,
-#endif /* VBOX_WITH_NETSHAPER */
+    pdmR3DrvHlp_NetShaperAllocateBandwidth,
     pdmR3DrvHlp_LdrGetRCInterfaceSymbols,
     pdmR3DrvHlp_LdrGetR0InterfaceSymbols,
     pdmR3DrvHlp_CritSectInit,
+    pdmR3DrvHlp_CritSectYield,
+    pdmR3DrvHlp_CritSectEnter,
+    pdmR3DrvHlp_CritSectEnterDebug,
+    pdmR3DrvHlp_CritSectTryEnter,
+    pdmR3DrvHlp_CritSectTryEnterDebug,
+    pdmR3DrvHlp_CritSectLeave,
+    pdmR3DrvHlp_CritSectIsOwner,
+    pdmR3DrvHlp_CritSectIsInitialized,
+    pdmR3DrvHlp_CritSectHasWaiters,
+    pdmR3DrvHlp_CritSectGetRecursion,
+    pdmR3DrvHlp_CritSectScheduleExitEvent,
+    pdmR3DrvHlp_CritSectDelete,
     pdmR3DrvHlp_CallR0,
     pdmR3DrvHlp_BlkCacheRetain,
+    PDMR3BlkCacheRelease,
+    PDMR3BlkCacheClear,
+    PDMR3BlkCacheSuspend,
+    PDMR3BlkCacheResume,
+    PDMR3BlkCacheIoXferComplete,
+    PDMR3BlkCacheRead,
+    PDMR3BlkCacheWrite,
+    PDMR3BlkCacheFlush,
+    PDMR3BlkCacheDiscard,
     pdmR3DrvHlp_VMGetSuspendReason,
     pdmR3DrvHlp_VMGetResumeReason,
     pdmR3DrvHlp_TimerSetMillies,
     pdmR3DrvHlp_STAMDeregisterByPrefix,
-    pdmR3DrvHlp_TimerDestroy,
+    pdmR3DrvHlp_QueryGenericUserObject,
+    NULL,
+    NULL,
     NULL,
     NULL,
     NULL,

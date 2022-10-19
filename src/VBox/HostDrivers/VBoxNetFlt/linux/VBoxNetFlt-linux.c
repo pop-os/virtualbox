@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -402,11 +412,11 @@ static int vboxNetFltLinuxStartXmitFilter(struct sk_buff *pSkb, struct net_devic
      *       to be production quality code, we would have to be much more
      *       careful here and avoid the race.
      */
-    if (   !VALID_PTR(pOverride)
+    if (   !RT_VALID_PTR(pOverride)
         || pOverride->u32Magic != VBOXNETDEVICEOPSOVERRIDE_MAGIC
 # if RTLNX_VER_MIN(2,6,29)
-        || !VALID_PTR(pOverride->pOrgOps)
-# endif /* RTLNX_VER_MIN(2,6,29) */
+        || !RT_VALID_PTR(pOverride->pOrgOps)
+# endif
         )
     {
         printk("vboxNetFltLinuxStartXmitFilter: bad override %p\n", pOverride);
@@ -426,9 +436,9 @@ static int vboxNetFltLinuxStartXmitFilter(struct sk_buff *pSkb, struct net_devic
     cbHdrs = RT_MIN(cbHdrs, sizeof(abHdrBuf));
     pEtherHdr = (PCRTNETETHERHDR)skb_header_pointer(pSkb, 0, cbHdrs, &abHdrBuf[0]);
     if (   pEtherHdr
-        && VALID_PTR(pOverride->pVBoxNetFlt)
+        && RT_VALID_PTR(pOverride->pVBoxNetFlt)
         && (pSwitchPort = pOverride->pVBoxNetFlt->pSwitchPort) != NULL
-        && VALID_PTR(pSwitchPort)
+        && RT_VALID_PTR(pSwitchPort)
         && cbHdrs >= 6)
     {
         INTNETSWDECISION enmDecision;
@@ -457,7 +467,7 @@ static void vboxNetFltLinuxHookDev(PVBOXNETFLTINS pThis, struct net_device *pDev
     PVBOXNETDEVICEOPSOVERRIDE   pOverride;
 
     /* Cancel override if ethtool_ops is missing (host-only case, @bugref{5712}) */
-    if (!VALID_PTR(pDev->OVR_OPS))
+    if (!RT_VALID_PTR(pDev->OVR_OPS))
         return;
     pOverride = RTMemAlloc(sizeof(*pOverride));
     if (!pOverride)
@@ -496,12 +506,12 @@ static void vboxNetFltLinuxUnhookDev(PVBOXNETFLTINS pThis, struct net_device *pD
     RTSpinlockAcquire(pThis->hSpinlock);
     if (!pDev)
         pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
-    if (VALID_PTR(pDev))
+    if (RT_VALID_PTR(pDev))
     {
         pOverride = (PVBOXNETDEVICEOPSOVERRIDE)pDev->OVR_OPS;
-        if (    VALID_PTR(pOverride)
-            &&  pOverride->u32Magic == VBOXNETDEVICEOPSOVERRIDE_MAGIC
-            &&  VALID_PTR(pOverride->pOrgOps)
+        if (   RT_VALID_PTR(pOverride)
+            && pOverride->u32Magic == VBOXNETDEVICEOPSOVERRIDE_MAGIC
+            && RT_VALID_PTR(pOverride->pOrgOps)
            )
         {
 # if RTLNX_VER_MAX(2,6,29)
@@ -1531,7 +1541,7 @@ static void vboxNetFltLinuxForwardToIntNetInner(PVBOXNETFLTINS pThis, struct sk_
               skb_shinfo(pBuf)->nr_frags, skb_shinfo(pBuf)->gso_size,
               skb_shinfo(pBuf)->gso_segs, skb_shinfo(pBuf)->gso_type,
               skb_shinfo(pBuf)->frag_list, pBuf->pkt_type, pBuf->ip_summed));
-#ifndef VBOXNETFLT_SG_SUPPORT
+
         if (RT_LIKELY(fSrc & INTNETTRUNKDIR_HOST))
         {
             /*
@@ -1545,7 +1555,7 @@ static void vboxNetFltLinuxForwardToIntNetInner(PVBOXNETFLTINS pThis, struct sk_
             pBuf->mac_len = pBuf->nh.raw - pBuf->data;
 # endif
         }
-#endif /* !VBOXNETFLT_SG_SUPPORT */
+
 # ifdef VBOXNETFLT_WITH_GSO_RECV
         if (   (skb_shinfo(pBuf)->gso_type & (SKB_GSO_TCPV6 | SKB_GSO_TCPV4))
             && vboxNetFltLinuxCanForwardAsGso(pThis, pBuf, fSrc, &GsoCtx) )
@@ -1698,16 +1708,14 @@ static void vboxNetFltLinuxXmitTask(void *pWork)
  */
 static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
 {
-#ifdef VBOXNETFLT_WITH_GSO_XMIT_WIRE
+#if defined(VBOXNETFLT_WITH_GSO_XMIT_WIRE) || defined(VBOXNETFLT_WITH_GSO_XMIT_HOST)
     if (vboxNetFltTryRetainBusyNotDisconnected(pThis))
     {
         struct net_device  *pDev;
-        PINTNETTRUNKSWPORT  pSwitchPort;
         unsigned int        fFeatures;
 
         RTSpinlockAcquire(pThis->hSpinlock);
 
-        pSwitchPort = pThis->pSwitchPort; /* this doesn't need to be here, but it doesn't harm. */
         pDev = ASMAtomicUoReadPtrT(&pThis->u.s.pDev, struct net_device *);
         if (pDev)
             fFeatures = pDev->features;
@@ -1724,7 +1732,7 @@ static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
                 fGsoCapabilites |= RT_BIT_32(PDMNETWORKGSOTYPE_IPV4_TCP);
             if (fFeatures & NETIF_F_TSO6)
                 fGsoCapabilites |= RT_BIT_32(PDMNETWORKGSOTYPE_IPV6_TCP);
-            Log3(("vboxNetFltLinuxReportNicGsoCapabilities: reporting wire %s%s%s%s\n",
+            Log3(("vboxNetFltLinuxReportNicGsoCapabilities: reporting wire %s%s\n",
                   (fGsoCapabilites & RT_BIT_32(PDMNETWORKGSOTYPE_IPV4_TCP)) ? "tso " : "",
                   (fGsoCapabilites & RT_BIT_32(PDMNETWORKGSOTYPE_IPV6_TCP)) ? "tso6 " : ""));
             pThis->pSwitchPort->pfnReportGsoCapabilities(pThis->pSwitchPort, fGsoCapabilites, INTNETTRUNKDIR_WIRE);
@@ -1732,7 +1740,7 @@ static void vboxNetFltLinuxReportNicGsoCapabilities(PVBOXNETFLTINS pThis)
 
         vboxNetFltRelease(pThis, true /*fBusy*/);
     }
-#endif /* VBOXNETFLT_WITH_GSO_XMIT_WIRE */
+#endif /* VBOXNETFLT_WITH_GSO_XMIT_WIRE || VBOXNETFLT_WITH_GSO_XMIT_HOST */
 }
 
 /**

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_PROGRESS
@@ -166,13 +176,13 @@ HRESULT Progress::init(
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    HRESULT rc = unconst(pEventSource).createObject();
-    if (FAILED(rc))
-        return rc;
+    HRESULT hrc = unconst(pEventSource).createObject();
+    if (FAILED(hrc))
+        return hrc;
 
-    rc = pEventSource->init();
-    if (FAILED(rc))
-        return rc;
+    hrc = pEventSource->init();
+    if (FAILED(hrc))
+        return hrc;
 
 #if !defined(VBOX_COM_INPROC)
     AssertReturn(aParent, E_INVALIDARG);
@@ -340,35 +350,35 @@ void Progress::uninit()
  */
 HRESULT Progress::i_notifyComplete(HRESULT aResultCode)
 {
-    HRESULT rc;
+    HRESULT hrc;
     ComPtr<IVirtualBoxErrorInfo> errorInfo;
     if (FAILED(aResultCode))
     {
         /* try to import error info from the current thread */
 #if !defined(VBOX_WITH_XPCOM)
         ComPtr<IErrorInfo> err;
-        rc = ::GetErrorInfo(0, err.asOutParam());
-        if (rc == S_OK && err)
-            rc = err.queryInterfaceTo(errorInfo.asOutParam());
+        hrc = ::GetErrorInfo(0, err.asOutParam());
+        if (hrc == S_OK && err)
+            hrc = err.queryInterfaceTo(errorInfo.asOutParam());
 #else /* !defined(VBOX_WITH_XPCOM) */
         nsCOMPtr<nsIExceptionService> es;
-        es = do_GetService(NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
-        if (NS_SUCCEEDED(rc))
+        es = do_GetService(NS_EXCEPTIONSERVICE_CONTRACTID, &hrc);
+        if (NS_SUCCEEDED(hrc))
         {
             nsCOMPtr <nsIExceptionManager> em;
-            rc = es->GetCurrentExceptionManager(getter_AddRefs(em));
-            if (NS_SUCCEEDED(rc))
+            hrc = es->GetCurrentExceptionManager(getter_AddRefs(em));
+            if (NS_SUCCEEDED(hrc))
             {
                 ComPtr<nsIException> ex;
-                rc = em->GetCurrentException(ex.asOutParam());
-                if (NS_SUCCEEDED(rc) && ex)
-                    rc = ex.queryInterfaceTo(errorInfo.asOutParam());
+                hrc = em->GetCurrentException(ex.asOutParam());
+                if (NS_SUCCEEDED(hrc) && ex)
+                    hrc = ex.queryInterfaceTo(errorInfo.asOutParam());
             }
         }
 #endif /* !defined(VBOX_WITH_XPCOM) */
     }
 
-    return notifyComplete(aResultCode, errorInfo);
+    return i_notifyCompleteWorker(aResultCode, errorInfo);
 }
 
 /**
@@ -408,11 +418,11 @@ HRESULT Progress::i_notifyCompleteV(HRESULT aResultCode,
 
     Utf8Str text(aText, va);
     ComObjPtr<VirtualBoxErrorInfo> errorInfo;
-    HRESULT rc = errorInfo.createObject();
-    AssertComRCReturnRC(rc);
+    HRESULT hrc = errorInfo.createObject();
+    AssertComRCReturnRC(hrc);
     errorInfo->init(aResultCode, aIID, pcszComponent, text);
 
-    return notifyComplete(aResultCode, errorInfo);
+    return i_notifyCompleteWorker(aResultCode, errorInfo);
 }
 
 /**
@@ -455,11 +465,11 @@ HRESULT Progress::i_notifyCompleteBothV(HRESULT aResultCode,
 
     Utf8Str text(pszFormat, va);
     ComObjPtr<VirtualBoxErrorInfo> errorInfo;
-    HRESULT rc = errorInfo.createObject();
-    AssertComRCReturnRC(rc);
+    HRESULT hrc = errorInfo.createObject();
+    AssertComRCReturnRC(hrc);
     errorInfo->initEx(aResultCode, vrc, aIID, pszComponent, text);
 
-    return notifyComplete(aResultCode, errorInfo);
+    return i_notifyCompleteWorker(aResultCode, errorInfo);
 }
 
 /**
@@ -476,7 +486,7 @@ HRESULT Progress::i_notifyCompleteBothV(HRESULT aResultCode,
 bool Progress::i_setCancelCallback(void (*pfnCallback)(void *), void *pvUser)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), false);
+    AssertReturn(autoCaller.isOk(), false);
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -655,7 +665,7 @@ HRESULT Progress::getResultCode(LONG *aResultCode)
     if (!mCompleted)
         return setError(E_FAIL, tr("Result code is not available, operation is still in progress"));
 
-    *aResultCode = mResultCode;
+    *aResultCode = (LONG)mResultCode;
 
     return S_OK;
 }
@@ -765,19 +775,16 @@ HRESULT Progress::waitForCompletion(LONG aTimeout)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* if we're already completed, take a shortcut */
-    if (!mCompleted)
+    if (!mCompleted && aTimeout != 0)
     {
-        int vrc = VINF_SUCCESS;
-        bool fForever = aTimeout < 0;
-        int64_t timeLeft = aTimeout;
-        int64_t lastTime = RTTimeMilliTS();
+        RTMSINTERVAL cMsWait  = aTimeout < 0 ? RT_INDEFINITE_WAIT : (RTMSINTERVAL)aTimeout;
+        uint64_t     msLast   = aTimeout < 0 ? 0                  : RTTimeMilliTS();
 
-        while (!mCompleted && (fForever || timeLeft > 0))
+        for (;;)
         {
             mWaitersCount++;
             alock.release();
-            vrc = RTSemEventMultiWait(mCompletedSem,
-                                      fForever ? RT_INDEFINITE_WAIT : (RTMSINTERVAL)timeLeft);
+            int vrc = RTSemEventMultiWait(mCompletedSem, cMsWait);
             alock.acquire();
             mWaitersCount--;
 
@@ -786,22 +793,24 @@ HRESULT Progress::waitForCompletion(LONG aTimeout)
                 RTSemEventMultiReset(mCompletedSem);
 
             if (RT_FAILURE(vrc) && vrc != VERR_TIMEOUT)
+                return setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Failed to wait for the task completion (%Rrc)"), vrc);
+
+            if (mCompleted)
                 break;
 
-            if (!fForever)
+            if (aTimeout >= 0)
             {
-                int64_t now = RTTimeMilliTS();
-                timeLeft -= now - lastTime;
-                lastTime = now;
+                uint64_t msNow = RTTimeMilliTS();
+                uint64_t cMsElapsed = msNow - msLast;
+                if (cMsWait <= cMsElapsed)
+                    break;
+                cMsWait -= (RTMSINTERVAL)cMsElapsed;
+                msLast   = msNow;
             }
         }
-
-        if (RT_FAILURE(vrc) && vrc != VERR_TIMEOUT)
-            return setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Failed to wait for the task completion (%Rrc)"), vrc);
     }
 
     LogFlowThisFuncLeave();
-
     return S_OK;
 }
 
@@ -824,20 +833,17 @@ HRESULT Progress::waitForOperationCompletion(ULONG aOperation, LONG aTimeout)
     /* if we're already completed or if the given operation is already done,
      * then take a shortcut */
     if (    !mCompleted
-         && aOperation >= m_ulCurrentOperation)
+         && aOperation >= m_ulCurrentOperation
+         && aTimeout != 0)
     {
-        int vrc = VINF_SUCCESS;
-        bool fForever = aTimeout < 0;
-        int64_t timeLeft = aTimeout;
-        int64_t lastTime = RTTimeMilliTS();
+        RTMSINTERVAL cMsWait  = aTimeout < 0 ? RT_INDEFINITE_WAIT : (RTMSINTERVAL)aTimeout;
+        uint64_t     msLast   = aTimeout < 0 ? 0                  : RTTimeMilliTS();
 
-        while (    !mCompleted && aOperation >= m_ulCurrentOperation
-                && (fForever || timeLeft > 0))
+        for (;;)
         {
             mWaitersCount ++;
             alock.release();
-            vrc = RTSemEventMultiWait(mCompletedSem,
-                                      fForever ? RT_INDEFINITE_WAIT : (unsigned) timeLeft);
+            int vrc = RTSemEventMultiWait(mCompletedSem, cMsWait);
             alock.acquire();
             mWaitersCount--;
 
@@ -846,22 +852,24 @@ HRESULT Progress::waitForOperationCompletion(ULONG aOperation, LONG aTimeout)
                 RTSemEventMultiReset(mCompletedSem);
 
             if (RT_FAILURE(vrc) && vrc != VERR_TIMEOUT)
+                return setErrorBoth(E_FAIL, vrc, tr("Failed to wait for the operation completion (%Rrc)"), vrc);
+
+            if (mCompleted || aOperation >= m_ulCurrentOperation)
                 break;
 
-            if (!fForever)
+            if (aTimeout >= 0)
             {
-                int64_t now = RTTimeMilliTS();
-                timeLeft -= now - lastTime;
-                lastTime = now;
+                uint64_t msNow = RTTimeMilliTS();
+                uint64_t cMsElapsed = msNow - msLast;
+                if (cMsWait <= cMsElapsed)
+                    break;
+                cMsWait -= (RTMSINTERVAL)cMsElapsed;
+                msLast   = msNow;
             }
         }
-
-        if (RT_FAILURE(vrc) && vrc != VERR_TIMEOUT)
-            return setErrorBoth(E_FAIL, vrc, tr("Failed to wait for the operation completion (%Rrc)"), vrc);
     }
 
     LogFlowThisFuncLeave();
-
     return S_OK;
 }
 
@@ -912,7 +920,7 @@ HRESULT Progress::setCurrentOperationProgress(ULONG aPercent)
         m_ulOperationPercent = aPercent;
         ULONG actualPercent = 0;
         getPercent(&actualPercent);
-        fireProgressPercentageChangedEvent(pEventSource, mId.toUtf16().raw(), actualPercent);
+        ::FireProgressPercentageChangedEvent(pEventSource, mId.toString(), (LONG)actualPercent);
     }
 
     return S_OK;
@@ -925,7 +933,6 @@ HRESULT Progress::waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgr
 
     /* Note: no locking needed, because we just use public methods. */
 
-    HRESULT rc           = S_OK;
     BOOL fCancelable     = FALSE;
     BOOL fCompleted      = FALSE;
     BOOL fCanceled       = FALSE;
@@ -933,8 +940,8 @@ HRESULT Progress::waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgr
     ULONG currentPercent = 0;
     ULONG cOp            = 0;
     /* Is the async process cancelable? */
-    rc = aProgressOther->COMGETTER(Cancelable)(&fCancelable);
-    if (FAILED(rc)) return rc;
+    HRESULT hrc = aProgressOther->COMGETTER(Cancelable)(&fCancelable);
+    if (FAILED(hrc)) return hrc;
 
     uint64_t u64StopTime = UINT64_MAX;
     if (aTimeoutMS > 0)
@@ -946,12 +953,12 @@ HRESULT Progress::waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgr
          * it is cancelable. */
         if (fCancelable)
         {
-            rc = COMGETTER(Canceled)(&fCanceled);
-            if (FAILED(rc)) return rc;
+            hrc = COMGETTER(Canceled)(&fCanceled);
+            if (FAILED(hrc)) return hrc;
             if (fCanceled)
             {
-                rc = aProgressOther->Cancel();
-                if (FAILED(rc)) return rc;
+                hrc = aProgressOther->Cancel();
+                if (FAILED(hrc)) return hrc;
             }
         }
         /* Even if the user canceled the process, we have to wait until the
@@ -967,31 +974,31 @@ HRESULT Progress::waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgr
             ULONG curOp;
             for (;;)
             {
-                rc = aProgressOther->COMGETTER(Operation(&curOp));
-                if (FAILED(rc)) return rc;
+                hrc = aProgressOther->COMGETTER(Operation(&curOp));
+                if (FAILED(hrc)) return hrc;
                 if (cOp != curOp)
                 {
                     Bstr bstr;
                     ULONG currentWeight;
-                    rc = aProgressOther->COMGETTER(OperationDescription(bstr.asOutParam()));
-                    if (FAILED(rc)) return rc;
-                    rc = aProgressOther->COMGETTER(OperationWeight(&currentWeight));
-                    if (FAILED(rc)) return rc;
-                    rc = SetNextOperation(bstr.raw(), currentWeight);
-                    if (FAILED(rc)) return rc;
+                    hrc = aProgressOther->COMGETTER(OperationDescription(bstr.asOutParam()));
+                    if (FAILED(hrc)) return hrc;
+                    hrc = aProgressOther->COMGETTER(OperationWeight(&currentWeight));
+                    if (FAILED(hrc)) return hrc;
+                    hrc = SetNextOperation(bstr.raw(), currentWeight);
+                    if (FAILED(hrc)) return hrc;
                     ++cOp;
                 }
                 else
                     break;
             }
 
-            rc = aProgressOther->COMGETTER(OperationPercent(&currentPercent));
-            if (FAILED(rc)) return rc;
+            hrc = aProgressOther->COMGETTER(OperationPercent(&currentPercent));
+            if (FAILED(hrc)) return hrc;
             if (currentPercent != prevPercent)
             {
                 prevPercent = currentPercent;
-                rc = SetCurrentOperationProgress(currentPercent);
-                if (FAILED(rc)) return rc;
+                hrc = SetCurrentOperationProgress(currentPercent);
+                if (FAILED(hrc)) return hrc;
             }
         }
         if (fCompleted)
@@ -1006,8 +1013,8 @@ HRESULT Progress::waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgr
                 u64RemainingMS = 10;
             else if (u64RemainingMS > 200)
                 u64RemainingMS = 200;
-            rc = aProgressOther->WaitForCompletion((LONG)u64RemainingMS);
-            if (FAILED(rc)) return rc;
+            hrc = aProgressOther->WaitForCompletion((LONG)u64RemainingMS);
+            if (FAILED(hrc)) return hrc;
 
             if (RTTimeMilliTS() >= u64StopTime)
                 return VBOX_E_TIMEOUT;
@@ -1015,24 +1022,24 @@ HRESULT Progress::waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgr
         else
         {
             /* Make sure the loop is not too tight */
-            rc = aProgressOther->WaitForCompletion(200);
-            if (FAILED(rc)) return rc;
+            hrc = aProgressOther->WaitForCompletion(200);
+            if (FAILED(hrc)) return hrc;
         }
     }
 
     /* Transfer error information if applicable and report the error status
      * back to the caller to make this as easy as possible. */
     LONG iRc;
-    rc = aProgressOther->COMGETTER(ResultCode)(&iRc);
-    if (FAILED(rc)) return rc;
-    if (FAILED(iRc))
+    hrc = aProgressOther->COMGETTER(ResultCode)(&iRc);
+    if (FAILED(hrc)) return hrc;
+    if (FAILED((HRESULT)iRc))
     {
         setError(ProgressErrorInfo(aProgressOther));
-        rc = iRc;
+        hrc = (HRESULT)iRc;
     }
 
     LogFlowThisFuncLeave();
-    return rc;
+    return hrc;
 }
 
 /**
@@ -1069,7 +1076,7 @@ HRESULT Progress::setNextOperation(const com::Utf8Str &aNextOperationDescription
 
     ULONG actualPercent = 0;
     getPercent(&actualPercent);
-    fireProgressPercentageChangedEvent(pEventSource, mId.toUtf16().raw(), actualPercent);
+    ::FireProgressPercentageChangedEvent(pEventSource, mId.toString(), (LONG)actualPercent);
 
     return S_OK;
 }
@@ -1113,11 +1120,29 @@ HRESULT Progress::notifyPointOfNoReturn(void)
  */
 HRESULT Progress::notifyComplete(LONG aResultCode, const ComPtr<IVirtualBoxErrorInfo> &aErrorInfo)
 {
-    LogThisFunc(("aResultCode=%d\n", aResultCode));
+    return i_notifyCompleteWorker((HRESULT)aResultCode, aErrorInfo);
+}
+
+
+// private internal helpers
+/////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Marks the operation as complete and attaches full error info.
+ *
+ * This is where the actual work is done, the related methods all end up here.
+ *
+ * @param aResultCode       Operation result (error) code, must not be S_OK.
+ * @param aErrorInfo        List of arguments for the format string.
+ *
+ * @note This is just notifyComplete with the correct aResultCode type.
+ */
+HRESULT Progress::i_notifyCompleteWorker(HRESULT aResultCode, const ComPtr<IVirtualBoxErrorInfo> &aErrorInfo)
+{
+    LogThisFunc(("aResultCode=%Rhrc\n", aResultCode));
     /* on failure we expect error info, on success there must be none */
     AssertMsg(FAILED(aResultCode) ^ aErrorInfo.isNull(),
-              ("No error info but trying to set a failed result (%08X)!\n",
-               aResultCode));
+              ("No error info but trying to set a failed result (%08X/%Rhrc)!\n", aResultCode, aResultCode));
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1145,14 +1170,10 @@ HRESULT Progress::notifyComplete(LONG aResultCode, const ComPtr<IVirtualBoxError
     if (mWaitersCount > 0)
         RTSemEventMultiSignal(mCompletedSem);
 
-    fireProgressTaskCompletedEvent(pEventSource, mId.toUtf16().raw());
+    ::FireProgressTaskCompletedEvent(pEventSource, mId.toString());
 
     return S_OK;
 }
-
-
-// private internal helpers
-/////////////////////////////////////////////////////////////////////////////
 
 /**
  * Internal helper to compute the total percent value based on the member values and

@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_RECORDINGSETTINGS
@@ -245,7 +255,7 @@ HRESULT RecordingSettings::setEnabled(BOOL enable)
 
     const bool fEnabled = RT_BOOL(enable);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     if (m->bd->fEnabled != fEnabled)
     {
@@ -254,9 +264,11 @@ HRESULT RecordingSettings::setEnabled(BOOL enable)
 
         alock.release();
 
-        rc = m->pMachine->i_onRecordingChange(enable);
-        if (FAILED(rc))
+        hrc = m->pMachine->i_onRecordingChange(enable);
+        if (FAILED(hrc))
         {
+            com::ErrorInfo errMachine; /* Get error info from machine call above. */
+
             /*
              * Normally we would do the actual change _after_ i_onRecordingChange() succeeded.
              * We cannot do this because that function uses RecordSettings::GetEnabled to
@@ -265,6 +277,9 @@ HRESULT RecordingSettings::setEnabled(BOOL enable)
              */
             alock.acquire();
             m->bd->fEnabled = m->bd.backedUpData()->fEnabled;
+
+            if (errMachine.isBasicAvailable())
+                hrc = setError(errMachine);
         }
         else
         {
@@ -277,11 +292,20 @@ HRESULT RecordingSettings::setEnabled(BOOL enable)
 
             /** Save settings if online - @todo why is this required? -- @bugref{6818} */
             if (Global::IsOnline(m->pMachine->i_getMachineState()))
-                rc = m->pMachine->i_saveSettings(NULL, mlock);
+            {
+                com::ErrorInfo errMachine;
+                hrc = m->pMachine->i_saveSettings(NULL, mlock);
+                if (FAILED(hrc))
+                {
+                    /* Got error info from machine call above. */
+                    if (errMachine.isBasicAvailable())
+                        hrc = setError(errMachine);
+                }
+            }
         }
     }
 
-    return rc;
+    return hrc;
 }
 
 HRESULT RecordingSettings::getScreens(std::vector<ComPtr<IRecordingScreenSettings> > &aRecordScreenSettings)

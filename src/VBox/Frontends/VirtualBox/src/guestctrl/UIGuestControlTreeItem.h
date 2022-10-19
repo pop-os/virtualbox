@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_guestctrl_UIGuestControlTreeItem_h
@@ -90,7 +100,7 @@ public:
     const CGuestSession& guestSession() const;
     void errorString(QString strError);
     KGuestSessionStatus status() const;
-    virtual QString propertyString() const /* override */;
+    virtual QString propertyString() const RT_OVERRIDE;
 
 protected:
 
@@ -106,10 +116,10 @@ private slots:
 
 private:
 
-    virtual void prepareListener() /* override */;
-    virtual void prepareConnections() /* override */;
-    virtual void cleanupListener()  /* override */;
-    virtual void setColumnText()  /* override */;
+    virtual void prepareListener() RT_OVERRIDE;
+    virtual void prepareConnections() RT_OVERRIDE;
+    virtual void cleanupListener()  RT_OVERRIDE;
+    virtual void setColumnText()  RT_OVERRIDE;
     void addGuestProcess(CGuestProcess guestProcess);
     void initProcessSubTree();
     CGuestSession m_comGuestSession;
@@ -132,7 +142,7 @@ public:
     const CGuestProcess& guestProcess() const;
     virtual ~UIGuestProcessTreeItem();
     KProcessStatus status() const;
-    virtual QString propertyString() const /* override */;
+    virtual QString propertyString() const RT_OVERRIDE;
 
 protected:
 
@@ -145,10 +155,10 @@ private slots:
 
 private:
 
-    virtual void prepareListener() /* override */;
-    virtual void prepareConnections() /* override */;
-    virtual void cleanupListener()  /* override */;
-    virtual void setColumnText()  /* override */;
+    virtual void prepareListener() RT_OVERRIDE;
+    virtual void prepareConnections() RT_OVERRIDE;
+    virtual void cleanupListener()  RT_OVERRIDE;
+    virtual void setColumnText()  RT_OVERRIDE;
 
     CGuestProcess m_comGuestProcess;
 };

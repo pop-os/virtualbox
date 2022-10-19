@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <VBox/log.h>
@@ -26,8 +36,8 @@
 
 using namespace HGCM;
 
-Client::Client(uint32_t uClientID)
-    : m_uClientID(uClientID)
+Client::Client(uint32_t idClient)
+    : m_idClient(idClient)
     , m_fDeferred(false)
 {
     RT_ZERO(m_Deferred);
@@ -47,9 +57,9 @@ Client::~Client(void)
  * @param   hHandle             Call handle to complete guest call for.
  * @param   rcOp                Return code to return to the guest side.
  */
-int Client::completeInternal(VBOXHGCMCALLHANDLE hHandle, int rcOp)
+int Client::completeInternal(VBOXHGCMCALLHANDLE hHandle, int rcOp) RT_NOEXCEPT
 {
-    LogFlowThisFunc(("uClientID=%RU32\n", m_uClientID));
+    LogFlowThisFunc(("idClient=%RU32\n", m_idClient));
 
     if (   m_SvcCtx.pHelpers
         && m_SvcCtx.pHelpers->pfnCallComplete)
@@ -66,7 +76,7 @@ int Client::completeInternal(VBOXHGCMCALLHANDLE hHandle, int rcOp)
 /**
  * Resets the client's internal state.
  */
-void Client::reset(void)
+void Client::reset(void) RT_NOEXCEPT
 {
    m_fDeferred = false;
 
@@ -81,7 +91,7 @@ void Client::reset(void)
  * @param   hHandle             Call handle to complete guest call for.
  * @param   rcOp                Return code to return to the guest side.
  */
-int Client::Complete(VBOXHGCMCALLHANDLE hHandle, int rcOp /* = VINF_SUCCESS */)
+int Client::Complete(VBOXHGCMCALLHANDLE hHandle, int rcOp /* = VINF_SUCCESS */) RT_NOEXCEPT
 {
     return completeInternal(hHandle, rcOp);
 }
@@ -93,7 +103,7 @@ int Client::Complete(VBOXHGCMCALLHANDLE hHandle, int rcOp /* = VINF_SUCCESS */)
  * @returns IPRT status code. VERR_INVALID_STATE if the client is not in deferred mode.
  * @param   rcOp                Return code to return to the guest side.
  */
-int Client::CompleteDeferred(int rcOp)
+int Client::CompleteDeferred(int rcOp) RT_NOEXCEPT
 {
     if (m_fDeferred)
     {
@@ -106,7 +116,7 @@ int Client::CompleteDeferred(int rcOp)
         return rc;
     }
 
-    AssertMsg(m_fDeferred, ("Client %RU32 is not in deferred mode\n", m_uClientID));
+    AssertMsg(m_fDeferred, ("Client %RU32 is not in deferred mode\n", m_idClient));
     return VERR_INVALID_STATE;
 }
 
@@ -115,7 +125,7 @@ int Client::CompleteDeferred(int rcOp)
  *
  * @returns HGCM handle.
  */
-VBOXHGCMCALLHANDLE Client::GetHandle(void) const
+VBOXHGCMCALLHANDLE Client::GetHandle(void) const RT_NOEXCEPT
 {
     return m_Deferred.hHandle;
 }
@@ -125,12 +135,12 @@ VBOXHGCMCALLHANDLE Client::GetHandle(void) const
  *
  * @returns HGCM handle.
  */
-uint32_t Client::GetMsgType(void) const
+uint32_t Client::GetMsgType(void) const RT_NOEXCEPT
 {
     return m_Deferred.uType;
 }
 
-uint32_t Client::GetMsgParamCount(void) const
+uint32_t Client::GetMsgParamCount(void) const RT_NOEXCEPT
 {
     return m_Deferred.cParms;
 }
@@ -140,9 +150,9 @@ uint32_t Client::GetMsgParamCount(void) const
  *
  * @returns The client's (HGCM) ID.
  */
-uint32_t Client::GetClientID(void) const
+uint32_t Client::GetClientID(void) const RT_NOEXCEPT
 {
-    return m_uClientID;
+    return m_idClient;
 }
 
 /**
@@ -150,7 +160,7 @@ uint32_t Client::GetClientID(void) const
  *
  * @returns \c True if in deferred mode, \c False if not.
  */
-bool Client::IsDeferred(void) const
+bool Client::IsDeferred(void) const RT_NOEXCEPT
 {
     return m_fDeferred;
 }
@@ -165,9 +175,9 @@ bool Client::IsDeferred(void) const
  * @param   cParms              Number of HGCM parameters to save.
  * @param   paParms             HGCM parameters to save.
  */
-void Client::SetDeferred(VBOXHGCMCALLHANDLE hHandle, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+void Client::SetDeferred(VBOXHGCMCALLHANDLE hHandle, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[]) RT_NOEXCEPT
 {
-    LogFlowThisFunc(("uClient=%RU32\n", m_uClientID));
+    LogFlowThisFunc(("uClient=%RU32\n", m_idClient));
 
     m_fDeferred = true;
 
@@ -182,7 +192,7 @@ void Client::SetDeferred(VBOXHGCMCALLHANDLE hHandle, uint32_t u32Function, uint3
  *
  * @param   SvcCtx              Service context to set.
  */
-void Client::SetSvcContext(const VBOXHGCMSVCTX &SvcCtx)
+void Client::SetSvcContext(const VBOXHGCMSVCTX &SvcCtx) RT_NOEXCEPT
 {
     m_SvcCtx = SvcCtx;
 }
@@ -196,7 +206,7 @@ void Client::SetSvcContext(const VBOXHGCMSVCTX &SvcCtx)
  * @param   uMsg                Message type (number) to set.
  * @param   cParms              Number of parameters the message needs.
  */
-int Client::SetDeferredMsgInfo(uint32_t uMsg, uint32_t cParms)
+int Client::SetDeferredMsgInfo(uint32_t uMsg, uint32_t cParms) RT_NOEXCEPT
 {
     if (m_fDeferred)
     {
@@ -223,7 +233,7 @@ int Client::SetDeferredMsgInfo(uint32_t uMsg, uint32_t cParms)
  * @returns IPRT status code.
  * @param   pMessage            Message to get message type and required parameters from.
  */
-int Client::SetDeferredMsgInfo(const Message *pMessage)
+int Client::SetDeferredMsgInfo(const Message *pMessage) RT_NOEXCEPT
 {
     AssertPtrReturn(pMessage, VERR_INVALID_POINTER);
     return SetDeferredMsgInfo(pMessage->GetType(), pMessage->GetParamCount());

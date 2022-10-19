@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_SRC_common_VBoxService_VBoxServiceInternal_h
@@ -21,10 +31,8 @@
 # pragma once
 #endif
 
-#include <stdio.h>
 #ifdef RT_OS_WINDOWS
 # include <iprt/win/windows.h>
-# include <process.h> /* Needed for file version information. */
 #endif
 
 #include <iprt/list.h>
@@ -75,7 +83,7 @@ typedef struct
      * Called before parsing arguments.
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnPreInit)(void);
+    DECLCALLBACKMEMBER(int, pfnPreInit,(void));
 
     /**
      * Tries to parse the given command line option.
@@ -87,13 +95,13 @@ typedef struct
      * @param   argv        The argument vector.
      * @param   pi          The argument vector index. Update if any value(s) are eaten.
      */
-    DECLCALLBACKMEMBER(int, pfnOption)(const char **ppszShort, int argc, char **argv, int *pi);
+    DECLCALLBACKMEMBER(int, pfnOption,(const char **ppszShort, int argc, char **argv, int *pi));
 
     /**
      * Called before parsing arguments.
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnInit)(void);
+    DECLCALLBACKMEMBER(int, pfnInit,(void));
 
     /** Called from the worker thread.
      *
@@ -102,19 +110,19 @@ typedef struct
      * @param   pfShutdown      Pointer to a per service termination flag to check
      *                          before and after blocking.
      */
-    DECLCALLBACKMEMBER(int, pfnWorker)(bool volatile *pfShutdown);
+    DECLCALLBACKMEMBER(int, pfnWorker,(bool volatile *pfShutdown));
 
     /**
      * Stops a service.
      */
-    DECLCALLBACKMEMBER(void, pfnStop)(void);
+    DECLCALLBACKMEMBER(void, pfnStop,(void));
 
     /**
      * Does termination cleanups.
      *
      * @remarks This may be called even if pfnInit hasn't been called!
      */
-    DECLCALLBACKMEMBER(void, pfnTerm)(void);
+    DECLCALLBACKMEMBER(void, pfnTerm,(void));
 } VBOXSERVICE;
 /** Pointer to a VBOXSERVICE. */
 typedef VBOXSERVICE *PVBOXSERVICE;
@@ -262,7 +270,7 @@ extern int                      VGSvcVMInfoWinGetComponentVersions(uint32_t uCli
 
 #endif /* RT_OS_WINDOWS */
 
-#ifdef VBOX_WITH_VBOXSERVICE_MANAGEMENT
+#ifdef VBOX_WITH_MEMBALLOON
 extern uint32_t                 VGSvcBalloonQueryPages(uint32_t cbPage);
 #endif
 #if defined(VBOX_WITH_VBOXSERVICE_PAGE_SHARING)

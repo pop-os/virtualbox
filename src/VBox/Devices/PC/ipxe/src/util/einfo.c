@@ -13,7 +13,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  */
 
 #include <stddef.h>
@@ -37,10 +38,15 @@ struct options {
 
 /** Error usage information */
 struct einfo {
+	/** Size of error information record */
 	uint32_t size;
+	/** Error number */
 	uint32_t error;
+	/** Offset to error description (NUL-terminated) */
 	uint32_t desc;
+	/** Offset to file name (NUL-terminated) */
 	uint32_t file;
+	/** Line number */
 	uint32_t line;
 } __attribute__ (( packed ));
 
@@ -92,10 +98,11 @@ static void einfo ( const char *infile,
 				 ( ( ( char * ) einfo ) + einfo->desc ) );
 		}
 
+		/* Unmap file */
+		munmap ( start, len );
 	}
 
-	/* Unmap and close file */
-	munmap ( start, len );
+	/* Close file */
 	close ( fd );
 }
 

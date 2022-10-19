@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_hm_vmx_h
@@ -38,54 +48,6 @@
  * @ingroup grp_hm
  * @{
  */
-
-/** @name Host-state restoration flags.
- * @note If you change these values don't forget to update the assembly
- *       defines as well!
- * @{
- */
-#define VMX_RESTORE_HOST_SEL_DS                                 RT_BIT(0)
-#define VMX_RESTORE_HOST_SEL_ES                                 RT_BIT(1)
-#define VMX_RESTORE_HOST_SEL_FS                                 RT_BIT(2)
-#define VMX_RESTORE_HOST_SEL_GS                                 RT_BIT(3)
-#define VMX_RESTORE_HOST_SEL_TR                                 RT_BIT(4)
-#define VMX_RESTORE_HOST_GDTR                                   RT_BIT(5)
-#define VMX_RESTORE_HOST_IDTR                                   RT_BIT(6)
-#define VMX_RESTORE_HOST_GDT_READ_ONLY                          RT_BIT(7)
-#define VMX_RESTORE_HOST_REQUIRED                               RT_BIT(8)
-#define VMX_RESTORE_HOST_GDT_NEED_WRITABLE                      RT_BIT(9)
-/** @} */
-
-/**
- * Host-state restoration structure.
- * This holds host-state fields that require manual restoration.
- * Assembly version found in hm_vmx.mac (should be automatically verified).
- */
-typedef struct VMXRESTOREHOST
-{
-    RTSEL       uHostSelDS;     /* 0x00 */
-    RTSEL       uHostSelES;     /* 0x02 */
-    RTSEL       uHostSelFS;     /* 0x04 */
-    RTSEL       uHostSelGS;     /* 0x06 */
-    RTSEL       uHostSelTR;     /* 0x08 */
-    uint8_t     abPadding0[4];
-    X86XDTR64   HostGdtr;       /**< 0x0e - should be aligned by it's 64-bit member. */
-    uint8_t     abPadding1[6];
-    X86XDTR64   HostGdtrRw;     /**< 0x1e - should be aligned by it's 64-bit member. */
-    uint8_t     abPadding2[6];
-    X86XDTR64   HostIdtr;       /**< 0x2e - should be aligned by it's 64-bit member. */
-    uint64_t    uHostFSBase;    /* 0x38 */
-    uint64_t    uHostGSBase;    /* 0x40 */
-} VMXRESTOREHOST;
-/** Pointer to VMXRESTOREHOST. */
-typedef VMXRESTOREHOST *PVMXRESTOREHOST;
-AssertCompileSize(X86XDTR64, 10);
-AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtr.uAddr,   16);
-AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtrRw.uAddr, 32);
-AssertCompileMemberOffset(VMXRESTOREHOST, HostIdtr.uAddr,   48);
-AssertCompileMemberOffset(VMXRESTOREHOST, uHostFSBase,      56);
-AssertCompileSize(VMXRESTOREHOST, 72);
-AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 
 /** @name Host-state MSR lazy-restoration flags.
  * @{
@@ -156,6 +118,8 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 #define VMX_VCI_CTRL_XCPT_BITMAP                                305
 /** Cache of TSC offset invalid. */
 #define VMX_VCI_CTRL_TSC_OFFSET                                 306
+/** Cache of tertiary processor-based VM-execution controls invalid. */
+#define VMX_VCI_CTRL_PROC_EXEC3                                 307
 /** @} */
 
 /** @name VMX HM-error codes for VERR_VMX_INVALID_GUEST_STATE.
@@ -444,7 +408,134 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
 #define VMX_VMCS_MAX_NESTED_PAGING_CACHE_IDX                    (VMX_VMCS_GUEST_CR3_CACHE_IDX + 1)
 /** @} */
 
-/** @name VMX EPT paging structures
+
+/** @name VMX Extended Page Tables (EPT) Common Bits.
+ * @{ */
+/** Bit 0 - Readable (we often think of it as present). */
+#define EPT_E_BIT_READ                      0
+#define EPT_E_READ                          RT_BIT_64(EPT_E_BIT_READ)               /**< @see EPT_E_BIT_READ */
+/** Bit 1 - Writable. */
+#define EPT_E_BIT_WRITE                     1
+#define EPT_E_WRITE                         RT_BIT_64(EPT_E_BIT_WRITE)              /**< @see EPT_E_BIT_WRITE */
+/** Bit 2 - Executable.
+ * @note This controls supervisor instruction fetching if mode-based
+ *       execution control is enabled. */
+#define EPT_E_BIT_EXECUTE                   2
+#define EPT_E_EXECUTE                       RT_BIT_64(EPT_E_BIT_EXECUTE)            /**< @see EPT_E_BIT_EXECUTE */
+/** Bits 3-5 - Memory type mask (leaf only, MBZ).
+ * The memory type is only applicable for leaf entries and MBZ for
+ * non-leaf (causes miconfiguration exit). */
+#define EPT_E_MEMTYPE_MASK                  UINT64_C(0x0038)
+/** Bits 3-5 - Memory type shifted mask. */
+#define EPT_E_MEMTYPE_SMASK                 UINT64_C(0x0007)
+/** Bits 3-5 - Memory type shift count. */
+#define EPT_E_MEMTYPE_SHIFT                 3
+/** Bits 3-5 - Memory type: UC (Uncacheable). */
+#define EPT_E_MEMTYPE_UC                    (UINT64_C(0) << EPT_E_MEMTYPE_SHIFT)
+/** Bits 3-5 - Memory type: WC (Write Combining). */
+#define EPT_E_MEMTYPE_WC                    (UINT64_C(1) << EPT_E_MEMTYPE_SHIFT)
+/** Bits 3-5 - Memory type: Invalid (2). */
+#define EPT_E_MEMTYPE_INVALID_2             (UINT64_C(2) << EPT_E_MEMTYPE_SHIFT)
+/** Bits 3-5 - Memory type: Invalid (3). */
+#define EPT_E_MEMTYPE_INVALID_3             (UINT64_C(3) << EPT_E_MEMTYPE_SHIFT)
+/** Bits 3-5 - Memory type: WT (Write Through). */
+#define EPT_E_MEMTYPE_WT                    (UINT64_C(4) << EPT_E_MEMTYPE_SHIFT)
+/** Bits 3-5 - Memory type: WP (Write Protected). */
+#define EPT_E_MEMTYPE_WP                    (UINT64_C(5) << EPT_E_MEMTYPE_SHIFT)
+/** Bits 3-5 - Memory type: WB (Write Back). */
+#define EPT_E_MEMTYPE_WB                    (UINT64_C(6) << EPT_E_MEMTYPE_SHIFT)
+/** Bits 3-5 - Memory type: Invalid (7). */
+#define EPT_E_MEMTYPE_INVALID_7             (UINT64_C(7) << EPT_E_MEMTYPE_SHIFT)
+/** Bit 6 - Ignore page attribute table (leaf, MBZ). */
+#define EPT_E_BIT_IGNORE_PAT                6
+#define EPT_E_IGNORE_PAT                    RT_BIT_64(EPT_E_BIT_IGNORE_PAT)         /**< @see EPT_E_BIT_IGNORE_PAT */
+/** Bit 7 - Leaf entry (MBZ in PML4, ignored in PT). */
+#define EPT_E_BIT_LEAF                      7
+#define EPT_E_LEAF                          RT_BIT_64(EPT_E_BIT_LEAF)               /**< @see EPT_E_BIT_LEAF */
+/** Bit 8 - Accessed (all levels).
+ * @note Ignored and not written when EPTP bit 6 is 0. */
+#define EPT_E_BIT_ACCESSED                  8
+#define EPT_E_ACCESSED                      RT_BIT_64(EPT_E_BIT_ACCESSED)           /**< @see EPT_E_BIT_ACCESSED */
+/** Bit 9 - Dirty (leaf only).
+ * @note Ignored and not written when EPTP bit 6 is 0. */
+#define EPT_E_BIT_DIRTY                     9
+#define EPT_E_DIRTY                         RT_BIT_64(EPT_E_BIT_DIRTY)              /**< @see EPT_E_BIT_DIRTY */
+/** Bit 10 - Executable for usermode.
+ * @note This ignored if mode-based execution control is disabled. */
+#define EPT_E_BIT_USER_EXECUTE              10
+#define EPT_E_USER_EXECUTE                  RT_BIT_64(EPT_E_BIT_USER_EXECUTE)       /**< @see EPT_E_BIT_USER_EXECUTE */
+/* Bit 11 is always ignored. */
+/** Bits 12-51 - Physical Page number of the next level. */
+#define EPT_E_PG_MASK                       UINT64_C(0x000ffffffffff000)
+/** Bit 58 - Page-write access (leaf only, ignored).
+ * @note Ignored if EPT page-write control is disabled. */
+#define EPT_E_BIT_PAGING_WRITE              58
+#define EPT_E_PAGING_WRITE                  RT_BIT_64(EPT_E_BIT_PAGING_WRITE)       /**< @see EPT_E_BIT_PAGING_WRITE*/
+/* Bit 59 is always ignored. */
+/** Bit 60 - Supervisor shadow stack (leaf only, ignored).
+ * @note Ignored if EPT bit 7 is 0. */
+#define EPT_E_BIT_SUPER_SHW_STACK           60
+#define EPT_E_SUPER_SHW_STACK               RT_BIT_64(EPT_E_BIT_SUPER_SHW_STACK)    /**< @see EPT_E_BIT_SUPER_SHW_STACK */
+/** Bit 61 - Sub-page write permission (leaf only, ignored).
+ * @note Ignored if sub-page write permission for EPT is disabled. */
+#define EPT_E_BIT_SUBPAGE_WRITE_PERM        61
+#define EPT_E_SUBPAGE_WRITE_PERM            RT_BIT_64(EPT_E_BIT_SUBPAGE_WRITE_PERM) /**< @see EPT_E_BIT_SUBPAGE_WRITE_PERM*/
+/* Bit 62 is always ignored. */
+/** Bit 63 - Suppress \#VE (leaf only, ignored).
+ * @note Ignored if EPT violation to \#VE conversion is disabled. */
+#define EPT_E_BIT_SUPPRESS_VE               63
+#define EPT_E_SUPPRESS_VE                   RT_BIT_64(EPT_E_BIT_SUPPRESS_VE)        /**< @see EPT_E_BIT_SUPPRESS_VE */
+/** @} */
+
+
+/**@name Bit fields for common EPT attributes.
+ @{ */
+/** Read access. */
+#define VMX_BF_EPT_PT_READ_SHIFT                        0
+#define VMX_BF_EPT_PT_READ_MASK                         UINT64_C(0x0000000000000001)
+/** Write access. */
+#define VMX_BF_EPT_PT_WRITE_SHIFT                       1
+#define VMX_BF_EPT_PT_WRITE_MASK                        UINT64_C(0x0000000000000002)
+/** Execute access or execute access for supervisor-mode linear-addresses. */
+#define VMX_BF_EPT_PT_EXECUTE_SHIFT                     2
+#define VMX_BF_EPT_PT_EXECUTE_MASK                      UINT64_C(0x0000000000000004)
+/** EPT memory type. */
+#define VMX_BF_EPT_PT_MEMTYPE_SHIFT                     3
+#define VMX_BF_EPT_PT_MEMTYPE_MASK                      UINT64_C(0x0000000000000038)
+/** Ignore PAT. */
+#define VMX_BF_EPT_PT_IGNORE_PAT_SHIFT                  6
+#define VMX_BF_EPT_PT_IGNORE_PAT_MASK                   UINT64_C(0x0000000000000040)
+/** Ignored (bit 7). */
+#define VMX_BF_EPT_PT_IGN_7_SHIFT                       7
+#define VMX_BF_EPT_PT_IGN_7_MASK                        UINT64_C(0x0000000000000080)
+/** Accessed flag. */
+#define VMX_BF_EPT_PT_ACCESSED_SHIFT                    8
+#define VMX_BF_EPT_PT_ACCESSED_MASK                     UINT64_C(0x0000000000000100)
+/** Dirty flag. */
+#define VMX_BF_EPT_PT_DIRTY_SHIFT                       9
+#define VMX_BF_EPT_PT_DIRTY_MASK                        UINT64_C(0x0000000000000200)
+/** Execute access for user-mode linear addresses. */
+#define VMX_BF_EPT_PT_EXECUTE_USER_SHIFT                10
+#define VMX_BF_EPT_PT_EXECUTE_USER_MASK                 UINT64_C(0x0000000000000400)
+/** Ignored (bit 59:11). */
+#define VMX_BF_EPT_PT_IGN_59_11_SHIFT                   11
+#define VMX_BF_EPT_PT_IGN_59_11_MASK                    UINT64_C(0x0ffffffffffff800)
+/** Supervisor shadow stack. */
+#define VMX_BF_EPT_PT_SUPER_SHW_STACK_SHIFT             60
+#define VMX_BF_EPT_PT_SUPER_SHW_STACK_MASK              UINT64_C(0x1000000000000000)
+/** Ignored (bits 62:61). */
+#define VMX_BF_EPT_PT_IGN_62_61_SHIFT                   61
+#define VMX_BF_EPT_PT_IGN_62_61_MASK                    UINT64_C(0x6000000000000000)
+/** Suppress \#VE. */
+#define VMX_BF_EPT_PT_SUPPRESS_VE_SHIFT                 63
+#define VMX_BF_EPT_PT_SUPPRESS_VE_MASK                  UINT64_C(0x8000000000000000)
+RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_PT_, UINT64_C(0), UINT64_MAX,
+                            (READ, WRITE, EXECUTE, MEMTYPE, IGNORE_PAT, IGN_7, ACCESSED, DIRTY, EXECUTE_USER, IGN_59_11,
+                            SUPER_SHW_STACK, IGN_62_61, SUPPRESS_VE));
+/** @} */
+
+
+/** @name VMX Extended Page Tables (EPT) Structures
  * @{
  */
 
@@ -452,6 +543,14 @@ AssertCompileSizeAlignment(VMXRESTOREHOST, 8);
  * Number of page table entries in the EPT. (PDPTE/PDE/PTE)
  */
 #define EPT_PG_ENTRIES          X86_PG_PAE_ENTRIES
+
+/**
+ * EPT present mask.
+ * These are ONLY the common bits in all EPT page-table entries which does
+ * not rely on any CPU feature. It isn't necessarily the complete mask (e.g. when
+ * mode-based excute control is active).
+ */
+#define EPT_PRESENT_MASK       (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE)
 
 /**
  * EPT Page Directory Pointer Entry. Bit view.
@@ -485,6 +584,10 @@ AssertCompileSize(EPTPML4EBITS, 8);
 #define EPT_PML4_SHIFT          X86_PML4_SHIFT
 /** The PML4 index mask (apply to a shifted page address). */
 #define EPT_PML4_MASK           X86_PML4_MASK
+/** Bits - - EPT - PML4 MBZ mask. */
+#define EPT_PML4E_MBZ_MASK      UINT64_C(0x00000000000000f8)
+/** Mask of all possible EPT PML4E attribute bits. */
+#define EPT_PML4E_ATTR_MASK     (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_ACCESSED | EPT_E_USER_EXECUTE)
 
 /**
  * EPT PML4E.
@@ -492,8 +595,10 @@ AssertCompileSize(EPTPML4EBITS, 8);
  */
 typedef union EPTPML4E
 {
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     EPTPML4EBITS    n;
+#endif
     /** Unsigned integer view. */
     X86PGPAEUINT    u;
     /** 64 bit unsigned integer view. */
@@ -521,6 +626,7 @@ typedef EPTPML4 *PEPTPML4;
 /** Pointer to a const EPT PML4 Table. */
 typedef const EPTPML4 *PCEPTPML4;
 
+
 /**
  * EPT Page Directory Pointer Entry. Bit view.
  * In accordance with the VT-x spec.
@@ -544,12 +650,27 @@ typedef struct EPTPDPTEBITS
 } EPTPDPTEBITS;
 AssertCompileSize(EPTPDPTEBITS, 8);
 
+/** Bit 7 - - EPT - PDPTE maps a 1GB page. */
+#define EPT_PDPTE1G_SIZE_MASK       RT_BIT_64(7)
 /** Bits 12-51 - - EPT - Physical Page number of the next level. */
-#define EPT_PDPTE_PG_MASK       X86_PDPE_PG_MASK
+#define EPT_PDPTE_PG_MASK           X86_PDPE_PG_MASK
+/** Bits 30-51 - - EPT - Physical Page number of the 1G large page. */
+#define EPT_PDPTE1G_PG_MASK         X86_PDPE1G_PG_MASK
+
 /** The page shift to get the PDPT index. */
-#define EPT_PDPT_SHIFT          X86_PDPT_SHIFT
+#define EPT_PDPT_SHIFT              X86_PDPT_SHIFT
 /** The PDPT index mask (apply to a shifted page address). */
-#define EPT_PDPT_MASK           X86_PDPT_MASK_AMD64
+#define EPT_PDPT_MASK               X86_PDPT_MASK_AMD64
+/** Bits 3-7 - - EPT - PDPTE MBZ Mask. */
+#define EPT_PDPTE_MBZ_MASK          UINT64_C(0x00000000000000f8)
+/** Bits 12-29 - - EPT - 1GB PDPTE MBZ Mask. */
+#define EPT_PDPTE1G_MBZ_MASK        UINT64_C(0x000000003ffff000)
+/** Mask of all possible EPT PDPTE (1GB) attribute bits. */
+#define EPT_PDPTE1G_ATTR_MASK       (  EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_MEMTYPE_MASK | EPT_E_IGNORE_PAT \
+                                     | EPT_E_ACCESSED | EPT_E_DIRTY | EPT_E_USER_EXECUTE)
+/** Mask of all possible EPT PDPTE attribute bits. */
+#define EPT_PDPTE_ATTR_MASK         (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_ACCESSED | EPT_E_USER_EXECUTE)
+/** */
 
 /**
  * EPT Page Directory Pointer.
@@ -557,8 +678,10 @@ AssertCompileSize(EPTPDPTEBITS, 8);
  */
 typedef union EPTPDPTE
 {
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     EPTPDPTEBITS    n;
+#endif
     /** Unsigned integer view. */
     X86PGPAEUINT    u;
     /** 64 bit unsigned integer view. */
@@ -585,6 +708,7 @@ AssertCompileSize(EPTPDPT, 0x1000);
 typedef EPTPDPT *PEPTPDPT;
 /** Pointer to a const EPT Page Directory Pointer Table. */
 typedef const EPTPDPT *PCEPTPDPT;
+
 
 /**
  * EPT Page Directory Table Entry. Bit view.
@@ -617,6 +741,14 @@ AssertCompileSize(EPTPDEBITS, 8);
 #define EPT_PD_SHIFT            X86_PD_PAE_SHIFT
 /** The PD index mask (apply to a shifted page address). */
 #define EPT_PD_MASK             X86_PD_PAE_MASK
+/** Bits 3-7 - EPT - PDE MBZ Mask. */
+#define EPT_PDE_MBZ_MASK        UINT64_C(0x00000000000000f8)
+/** Mask of all possible EPT PDE (2M) attribute bits. */
+#define EPT_PDE2M_ATTR_MASK     (  EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_MEMTYPE_MASK | EPT_E_IGNORE_PAT \
+                                 | EPT_E_ACCESSED | EPT_E_DIRTY | EPT_E_USER_EXECUTE)
+/** Mask of all possible EPT PDE attribute bits. */
+#define EPT_PDE_ATTR_MASK       (EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_ACCESSED | EPT_E_USER_EXECUTE)
+
 
 /**
  * EPT 2MB Page Directory Table Entry. Bit view.
@@ -649,6 +781,9 @@ AssertCompileSize(EPTPDE2MBITS, 8);
 
 /** Bits 21-51 - - EPT - Physical Page number of the next level. */
 #define EPT_PDE2M_PG_MASK       X86_PDE2M_PAE_PG_MASK
+/** Bits 20-12 - - EPT - PDE 2M MBZ Mask. */
+#define EPT_PDE2M_MBZ_MASK      UINT64_C(0x00000000001ff000)
+
 
 /**
  * EPT Page Directory Table Entry.
@@ -656,10 +791,12 @@ AssertCompileSize(EPTPDE2MBITS, 8);
  */
 typedef union EPTPDE
 {
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     EPTPDEBITS      n;
     /** 2MB view (big). */
     EPTPDE2MBITS    b;
+#endif
     /** Unsigned integer view. */
     X86PGPAEUINT    u;
     /** 64 bit unsigned integer view. */
@@ -723,6 +860,12 @@ AssertCompileSize(EPTPTEBITS, 8);
 #define EPT_PT_SHIFT            X86_PT_PAE_SHIFT
 /** The EPT PT index mask (apply to a shifted page address). */
 #define EPT_PT_MASK             X86_PT_PAE_MASK
+/** No bits - - EPT - PTE MBZ bits. */
+#define EPT_PTE_MBZ_MASK        UINT64_C(0x0000000000000000)
+/** Mask of all possible EPT PTE attribute bits. */
+#define EPT_PTE_ATTR_MASK       (  EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_MEMTYPE_MASK | EPT_E_IGNORE_PAT \
+                                 | EPT_E_ACCESSED | EPT_E_USER_EXECUTE)
+
 
 /**
  * EPT Page Table Entry.
@@ -730,8 +873,10 @@ AssertCompileSize(EPTPTEBITS, 8);
  */
 typedef union EPTPTE
 {
+#ifndef VBOX_WITHOUT_PAGING_BIT_FIELDS
     /** Normal view. */
     EPTPTEBITS      n;
+#endif
     /** Unsigned integer view. */
     X86PGPAEUINT    u;
     /** 64 bit unsigned integer view. */
@@ -759,6 +904,8 @@ typedef EPTPT *PEPTPT;
 /** Pointer to a const extended table. */
 typedef const EPTPT *PCEPTPT;
 
+/** EPTP page mask for the EPT PML4 table. */
+#define EPT_EPTP_PG_MASK        X86_CR3_AMD64_PAGE_MASK
 /** @} */
 
 /**
@@ -768,19 +915,24 @@ typedef const EPTPT *PCEPTPT;
 typedef enum
 {
     /** Invalidate a specific page. */
-    VMXTLBFLUSHVPID_INDIV_ADDR                 = 0,
+    VMXTLBFLUSHVPID_INDIV_ADDR                    = 0,
     /** Invalidate one context (specific VPID). */
-    VMXTLBFLUSHVPID_SINGLE_CONTEXT             = 1,
+    VMXTLBFLUSHVPID_SINGLE_CONTEXT                = 1,
     /** Invalidate all contexts (all VPIDs). */
-    VMXTLBFLUSHVPID_ALL_CONTEXTS               = 2,
+    VMXTLBFLUSHVPID_ALL_CONTEXTS                  = 2,
     /** Invalidate a single VPID context retaining global mappings. */
     VMXTLBFLUSHVPID_SINGLE_CONTEXT_RETAIN_GLOBALS = 3,
     /** Unsupported by VirtualBox. */
-    VMXTLBFLUSHVPID_NOT_SUPPORTED              = 0xbad0,
+    VMXTLBFLUSHVPID_NOT_SUPPORTED                 = 0xbad0,
     /** Unsupported by CPU. */
-    VMXTLBFLUSHVPID_NONE                       = 0xbad1
+    VMXTLBFLUSHVPID_NONE                          = 0xbad1
 } VMXTLBFLUSHVPID;
 AssertCompileSize(VMXTLBFLUSHVPID, 4);
+/** Mask of all valid INVVPID flush types.  */
+#define VMX_INVVPID_VALID_MASK                    (  VMXTLBFLUSHVPID_INDIV_ADDR \
+                                                   | VMXTLBFLUSHVPID_SINGLE_CONTEXT \
+                                                   | VMXTLBFLUSHVPID_ALL_CONTEXTS \
+                                                   | VMXTLBFLUSHVPID_SINGLE_CONTEXT_RETAIN_GLOBALS)
 
 /**
  * VMX EPT flush types.
@@ -798,6 +950,9 @@ typedef enum
     VMXTLBFLUSHEPT_NONE                        = 0xbad1
 } VMXTLBFLUSHEPT;
 AssertCompileSize(VMXTLBFLUSHEPT, 4);
+/** Mask of all valid INVEPT flush types.  */
+#define VMX_INVEPT_VALID_MASK                     (  VMXTLBFLUSHEPT_SINGLE_CONTEXT \
+                                                   | VMXTLBFLUSHEPT_ALL_CONTEXTS)
 
 /**
  * VMX Posted Interrupt Descriptor.
@@ -1007,6 +1162,16 @@ typedef union
         uint32_t    iReg2           : 4;
     } VmreadVmwrite;
 
+    struct
+    {
+        uint32_t    u2Undef0        : 3;
+        /** First XMM register operand. */
+        uint32_t    u4XmmReg1       : 4;
+        uint32_t    u23Undef1       : 21;
+        /** Second XMM register operand. */
+        uint32_t    u4XmmReg2       : 4;
+    } LoadIwkey;
+
     /** This is a combination field of all instruction information. Note! Not all field
      *  combinations are valid (e.g., iReg1 is undefined for memory operands) and
      *  specialized fields are overwritten by their generic counterparts (e.g. no
@@ -1192,8 +1357,10 @@ typedef struct VMXMSRS
     uint64_t        u64VmFunc;
     /** EPT, VPID capabilities. */
     uint64_t        u64EptVpidCaps;
+    /** Tertiary processor-based VM-execution controls. */
+    uint64_t        u64ProcCtls3;
     /** Reserved for future. */
-    uint64_t        a_u64Reserved[10];
+    uint64_t        a_u64Reserved[9];
 } VMXMSRS;
 AssertCompileSizeAlignment(VMXMSRS, 8);
 AssertCompileSize(VMXMSRS, 224);
@@ -1224,7 +1391,7 @@ typedef const LBRMSRS *PCLBRMSRS;
 
 /** @name VMX Basic Exit Reasons.
  * In accordance with the VT-x spec.
- * Update g_apfnVMExitHandlers if new VM-exit reasons are added.
+ * Update g_aVMExitHandlers if new VM-exit reasons are added.
  * @{
  */
 /** Invalid exit code */
@@ -1359,8 +1526,10 @@ typedef const LBRMSRS *PCLBRMSRS;
 #define VMX_EXIT_UMWAIT                                         67
 /** TPAUSE. */
 #define VMX_EXIT_TPAUSE                                         68
+/** LOADIWKEY. */
+#define VMX_EXIT_LOADIWKEY                                      69
 /** The maximum VM-exit value (inclusive). */
-#define VMX_EXIT_MAX                                            (VMX_EXIT_TPAUSE)
+#define VMX_EXIT_MAX                                            (VMX_EXIT_LOADIWKEY)
 /** @} */
 
 
@@ -1618,9 +1787,9 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 /** Supports page-walk length of 5. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_PAGE_WALK_LENGTH_5            RT_BIT_64(7)
 /** Supports EPT paging-structure memory type to be uncacheable. */
-#define MSR_IA32_VMX_EPT_VPID_CAP_EMT_UC                        RT_BIT_64(8)
+#define MSR_IA32_VMX_EPT_VPID_CAP_MEMTYPE_UC                    RT_BIT_64(8)
 /** Supports EPT paging structure memory type to be write-back. */
-#define MSR_IA32_VMX_EPT_VPID_CAP_EMT_WB                        RT_BIT_64(14)
+#define MSR_IA32_VMX_EPT_VPID_CAP_MEMTYPE_WB                    RT_BIT_64(14)
 /** Supports EPT PDE to map a 2 MB page. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_PDE_2M                        RT_BIT_64(16)
 /** Supports EPT PDPTE to map a 1 GB page. */
@@ -1628,11 +1797,11 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 /** Supports INVEPT instruction. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT                        RT_BIT_64(20)
 /** Supports accessed and dirty flags for EPT. */
-#define MSR_IA32_VMX_EPT_VPID_CAP_EPT_ACCESS_DIRTY              RT_BIT_64(21)
+#define MSR_IA32_VMX_EPT_VPID_CAP_ACCESS_DIRTY                  RT_BIT_64(21)
 /** Supports advanced VM-exit info. for EPT violations. */
-#define MSR_IA32_VMX_EPT_VPID_CAP_ADVEXITINFO_EPT               RT_BIT_64(22)
+#define MSR_IA32_VMX_EPT_VPID_CAP_ADVEXITINFO_EPT_VIOLATION     RT_BIT_64(22)
 /** Supports supervisor shadow-stack control. */
-#define MSR_IA32_VMX_EPT_VPID_CAP_SSS                           RT_BIT_64(23)
+#define MSR_IA32_VMX_EPT_VPID_CAP_SUPER_SHW_STACK               RT_BIT_64(23)
 /** Supports single-context INVEPT type. */
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVEPT_SINGLE_CONTEXT         RT_BIT_64(25)
 /** Supports all-context INVEPT type. */
@@ -1649,20 +1818,20 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define MSR_IA32_VMX_EPT_VPID_CAP_INVVPID_SINGLE_CONTEXT_RETAIN_GLOBALS  RT_BIT_64(43)
 
 /** Bit fields for MSR_IA32_VMX_EPT_VPID_CAP. */
-#define VMX_BF_EPT_VPID_CAP_RWX_X_ONLY_SHIFT                    0
-#define VMX_BF_EPT_VPID_CAP_RWX_X_ONLY_MASK                     UINT64_C(0x0000000000000001)
+#define VMX_BF_EPT_VPID_CAP_EXEC_ONLY_SHIFT                     0
+#define VMX_BF_EPT_VPID_CAP_EXEC_ONLY_MASK                      UINT64_C(0x0000000000000001)
 #define VMX_BF_EPT_VPID_CAP_RSVD_1_5_SHIFT                      1
 #define VMX_BF_EPT_VPID_CAP_RSVD_1_5_MASK                       UINT64_C(0x000000000000003e)
 #define VMX_BF_EPT_VPID_CAP_PAGE_WALK_LENGTH_4_SHIFT            6
 #define VMX_BF_EPT_VPID_CAP_PAGE_WALK_LENGTH_4_MASK             UINT64_C(0x0000000000000040)
 #define VMX_BF_EPT_VPID_CAP_RSVD_7_SHIFT                        7
 #define VMX_BF_EPT_VPID_CAP_RSVD_7_MASK                         UINT64_C(0x0000000000000080)
-#define VMX_BF_EPT_VPID_CAP_EMT_UC_SHIFT                        8
-#define VMX_BF_EPT_VPID_CAP_EMT_UC_MASK                         UINT64_C(0x0000000000000100)
+#define VMX_BF_EPT_VPID_CAP_MEMTYPE_UC_SHIFT                    8
+#define VMX_BF_EPT_VPID_CAP_MEMTYPE_UC_MASK                     UINT64_C(0x0000000000000100)
 #define VMX_BF_EPT_VPID_CAP_RSVD_9_13_SHIFT                     9
 #define VMX_BF_EPT_VPID_CAP_RSVD_9_13_MASK                      UINT64_C(0x0000000000003e00)
-#define VMX_BF_EPT_VPID_CAP_EMT_WB_SHIFT                        14
-#define VMX_BF_EPT_VPID_CAP_EMT_WB_MASK                         UINT64_C(0x0000000000004000)
+#define VMX_BF_EPT_VPID_CAP_MEMTYPE_WB_SHIFT                    14
+#define VMX_BF_EPT_VPID_CAP_MEMTYPE_WB_MASK                     UINT64_C(0x0000000000004000)
 #define VMX_BF_EPT_VPID_CAP_RSVD_15_SHIFT                       15
 #define VMX_BF_EPT_VPID_CAP_RSVD_15_MASK                        UINT64_C(0x0000000000008000)
 #define VMX_BF_EPT_VPID_CAP_PDE_2M_SHIFT                        16
@@ -1673,12 +1842,12 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_BF_EPT_VPID_CAP_RSVD_18_19_MASK                     UINT64_C(0x00000000000c0000)
 #define VMX_BF_EPT_VPID_CAP_INVEPT_SHIFT                        20
 #define VMX_BF_EPT_VPID_CAP_INVEPT_MASK                         UINT64_C(0x0000000000100000)
-#define VMX_BF_EPT_VPID_CAP_EPT_ACCESS_DIRTY_SHIFT              21
-#define VMX_BF_EPT_VPID_CAP_EPT_ACCESS_DIRTY_MASK               UINT64_C(0x0000000000200000)
-#define VMX_BF_EPT_VPID_CAP_ADVEXITINFO_EPT_SHIFT               22
-#define VMX_BF_EPT_VPID_CAP_ADVEXITINFO_EPT_MASK                UINT64_C(0x0000000000400000)
-#define VMX_BF_EPT_VPID_CAP_SSS_SHIFT                           23
-#define VMX_BF_EPT_VPID_CAP_SSS_MASK                            UINT64_C(0x0000000000800000)
+#define VMX_BF_EPT_VPID_CAP_ACCESS_DIRTY_SHIFT                  21
+#define VMX_BF_EPT_VPID_CAP_ACCESS_DIRTY_MASK                   UINT64_C(0x0000000000200000)
+#define VMX_BF_EPT_VPID_CAP_ADVEXITINFO_EPT_VIOLATION_SHIFT     22
+#define VMX_BF_EPT_VPID_CAP_ADVEXITINFO_EPT_VIOLATION_MASK      UINT64_C(0x0000000000400000)
+#define VMX_BF_EPT_VPID_CAP_SUPER_SHW_STACK_SHIFT               23
+#define VMX_BF_EPT_VPID_CAP_SUPER_SHW_STACK_MASK                UINT64_C(0x0000000000800000)
 #define VMX_BF_EPT_VPID_CAP_RSVD_24_SHIFT                       24
 #define VMX_BF_EPT_VPID_CAP_RSVD_24_MASK                        UINT64_C(0x0000000001000000)
 #define VMX_BF_EPT_VPID_CAP_INVEPT_SINGLE_CTX_SHIFT             25
@@ -1702,27 +1871,47 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMFUNC_, UINT64_C(0), UINT64_MAX,
 #define VMX_BF_EPT_VPID_CAP_RSVD_44_63_SHIFT                    44
 #define VMX_BF_EPT_VPID_CAP_RSVD_44_63_MASK                     UINT64_C(0xfffff00000000000)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_VPID_CAP_, UINT64_C(0), UINT64_MAX,
-                            (RWX_X_ONLY, RSVD_1_5, PAGE_WALK_LENGTH_4, RSVD_7, EMT_UC, RSVD_9_13, EMT_WB, RSVD_15, PDE_2M,
-                             PDPTE_1G, RSVD_18_19, INVEPT, EPT_ACCESS_DIRTY, ADVEXITINFO_EPT, SSS, RSVD_24, INVEPT_SINGLE_CTX,
-                             INVEPT_ALL_CTX, RSVD_27_31, INVVPID, RSVD_33_39, INVVPID_INDIV_ADDR, INVVPID_SINGLE_CTX,
-                             INVVPID_ALL_CTX, INVVPID_SINGLE_CTX_RETAIN_GLOBALS, RSVD_44_63));
+                            (EXEC_ONLY, RSVD_1_5, PAGE_WALK_LENGTH_4, RSVD_7, MEMTYPE_UC, RSVD_9_13, MEMTYPE_WB, RSVD_15, PDE_2M,
+                             PDPTE_1G, RSVD_18_19, INVEPT, ACCESS_DIRTY, ADVEXITINFO_EPT_VIOLATION, SUPER_SHW_STACK, RSVD_24,
+                             INVEPT_SINGLE_CTX, INVEPT_ALL_CTX, RSVD_27_31, INVVPID, RSVD_33_39, INVVPID_INDIV_ADDR,
+                             INVVPID_SINGLE_CTX, INVVPID_ALL_CTX, INVVPID_SINGLE_CTX_RETAIN_GLOBALS, RSVD_44_63));
 /** @} */
 
 
 /** @name Extended Page Table Pointer (EPTP)
+ * In accordance with the VT-x spec.
+ * See Intel spec. 23.6.11 "Extended-Page-Table Pointer (EPTP)".
  * @{
  */
-/** Uncachable EPT paging structure memory type. */
-#define VMX_EPT_MEMTYPE_UC                                      0
-/** Write-back EPT paging structure memory type. */
-#define VMX_EPT_MEMTYPE_WB                                      6
-/** Shift value to get the EPT page walk length (bits 5-3) */
-#define VMX_EPT_PAGE_WALK_LENGTH_SHIFT                          3
-/** Mask value to get the EPT page walk length (bits 5-3) */
-#define VMX_EPT_PAGE_WALK_LENGTH_MASK                           7
-/** Default EPT page-walk length (1 less than the actual EPT page-walk
- *  length) */
-#define VMX_EPT_PAGE_WALK_LENGTH_DEFAULT                        3
+/** EPTP memory type: Uncachable. */
+#define VMX_EPTP_MEMTYPE_UC                                     0
+/** EPTP memory type: Write Back. */
+#define VMX_EPTP_MEMTYPE_WB                                     6
+/** Page-walk length for PML4 (4-level paging). */
+#define VMX_EPTP_PAGE_WALK_LENGTH_4                             3
+
+/** Bit fields for EPTP. */
+#define VMX_BF_EPTP_MEMTYPE_SHIFT                               0
+#define VMX_BF_EPTP_MEMTYPE_MASK                                UINT64_C(0x0000000000000007)
+#define VMX_BF_EPTP_PAGE_WALK_LENGTH_SHIFT                      3
+#define VMX_BF_EPTP_PAGE_WALK_LENGTH_MASK                       UINT64_C(0x0000000000000038)
+#define VMX_BF_EPTP_ACCESS_DIRTY_SHIFT                          6
+#define VMX_BF_EPTP_ACCESS_DIRTY_MASK                           UINT64_C(0x0000000000000040)
+#define VMX_BF_EPTP_SUPER_SHW_STACK_SHIFT                       7
+#define VMX_BF_EPTP_SUPER_SHW_STACK_MASK                        UINT64_C(0x0000000000000080)
+#define VMX_BF_EPTP_RSVD_8_11_SHIFT                             8
+#define VMX_BF_EPTP_RSVD_8_11_MASK                              UINT64_C(0x0000000000000f00)
+#define VMX_BF_EPTP_PML4_TABLE_ADDR_SHIFT                       12
+#define VMX_BF_EPTP_PML4_TABLE_ADDR_MASK                        UINT64_C(0xfffffffffffff000)
+RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPTP_, UINT64_C(0), UINT64_MAX,
+                            (MEMTYPE, PAGE_WALK_LENGTH, ACCESS_DIRTY, SUPER_SHW_STACK, RSVD_8_11, PML4_TABLE_ADDR));
+
+/* Mask of valid EPTP bits sans physically non-addressable bits. */
+#define VMX_EPTP_VALID_MASK                                     (  VMX_BF_EPTP_MEMTYPE_MASK          \
+                                                                 | VMX_BF_EPTP_PAGE_WALK_LENGTH_MASK \
+                                                                 | VMX_BF_EPTP_ACCESS_DIRTY_MASK     \
+                                                                 | VMX_BF_EPTP_SUPER_SHW_STACK_MASK  \
+                                                                 | VMX_BF_EPTP_PML4_TABLE_ADDR_MASK)
 /** @} */
 
 
@@ -1808,8 +1997,14 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_VPID_CAP_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS64_CTRL_XSS_EXITING_BITMAP_HIGH                 0x202d
 #define VMX_VMCS64_CTRL_ENCLS_EXITING_BITMAP_FULL               0x202e
 #define VMX_VMCS64_CTRL_ENCLS_EXITING_BITMAP_HIGH               0x202f
+#define VMX_VMCS64_CTRL_SPPTP_FULL                              0x2030
+#define VMX_VMCS64_CTRL_SPPTP_HIGH                              0x2031
 #define VMX_VMCS64_CTRL_TSC_MULTIPLIER_FULL                     0x2032
 #define VMX_VMCS64_CTRL_TSC_MULTIPLIER_HIGH                     0x2033
+#define VMX_VMCS64_CTRL_PROC_EXEC3_FULL                         0x2034
+#define VMX_VMCS64_CTRL_PROC_EXEC3_HIGH                         0x2035
+#define VMX_VMCS64_CTRL_ENCLV_EXITING_BITMAP_FULL               0x2036
+#define VMX_VMCS64_CTRL_ENCLV_EXITING_BITMAP_HIGH               0x2037
 
 /** 64-bit read-only data fields.  */
 #define VMX_VMCS64_RO_GUEST_PHYS_ADDR_FULL                      0x2400
@@ -1836,6 +2031,10 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_VPID_CAP_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS64_GUEST_PDPTE3_HIGH                            0x2811
 #define VMX_VMCS64_GUEST_BNDCFGS_FULL                           0x2812
 #define VMX_VMCS64_GUEST_BNDCFGS_HIGH                           0x2813
+#define VMX_VMCS64_GUEST_RTIT_CTL_FULL                          0x2814
+#define VMX_VMCS64_GUEST_RTIT_CTL_HIGH                          0x2815
+#define VMX_VMCS64_GUEST_PKRS_FULL                              0x2818
+#define VMX_VMCS64_GUEST_PKRS_HIGH                              0x2819
 
 /** 64-bit host-state fields.  */
 #define VMX_VMCS64_HOST_PAT_FULL                                0x2c00
@@ -1844,6 +2043,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_VPID_CAP_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS64_HOST_EFER_HIGH                               0x2c03
 #define VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_FULL                   0x2c04
 #define VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_HIGH                   0x2c05
+#define VMX_VMCS64_HOST_PKRS_FULL                               0x2c06
+#define VMX_VMCS64_HOST_PKRS_HIGH                               0x2c07
 
 /** 32-bit control fields.  */
 #define VMX_VMCS32_CTRL_PIN_EXEC                                0x4000
@@ -1942,6 +2143,9 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_VPID_CAP_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS                      0x6822
 #define VMX_VMCS_GUEST_SYSENTER_ESP                             0x6824
 #define VMX_VMCS_GUEST_SYSENTER_EIP                             0x6826
+#define VMX_VMCS_GUEST_S_CET                                    0x6828
+#define VMX_VMCS_GUEST_SSP                                      0x682a
+#define VMX_VMCS_GUEST_INTR_SSP_TABLE_ADDR                      0x682c
 
 /** Natural-width host-state fields. */
 #define VMX_VMCS_HOST_CR0                                       0x6c00
@@ -1956,6 +2160,14 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EPT_VPID_CAP_, UINT64_C(0), UINT64_MAX,
 #define VMX_VMCS_HOST_SYSENTER_EIP                              0x6c12
 #define VMX_VMCS_HOST_RSP                                       0x6c14
 #define VMX_VMCS_HOST_RIP                                       0x6c16
+#define VMX_VMCS_HOST_S_CET                                     0x6c18
+#define VMX_VMCS_HOST_SSP                                       0x6c1a
+#define VMX_VMCS_HOST_INTR_SSP_TABLE_ADDR                       0x6c1c
+
+#define VMX_VMCS16_GUEST_SEG_SEL(a_iSegReg)                     (VMX_VMCS16_GUEST_ES_SEL           + (a_iSegReg) * 2)
+#define VMX_VMCS_GUEST_SEG_BASE(a_iSegReg)                      (VMX_VMCS_GUEST_ES_BASE            + (a_iSegReg) * 2)
+#define VMX_VMCS32_GUEST_SEG_LIMIT(a_iSegReg)                   (VMX_VMCS32_GUEST_ES_LIMIT         + (a_iSegReg) * 2)
+#define VMX_VMCS32_GUEST_SEG_ACCESS_RIGHTS(a_iSegReg)           (VMX_VMCS32_GUEST_ES_ACCESS_RIGHTS + (a_iSegReg) * 2)
 
 /**
  * VMCS field.
@@ -2158,6 +2370,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PIN_CTLS_, UINT32_C(0), UINT32_MAX,
 /** VM-exit when executing the MOV from CR3 instruction. (forced to 1 on the
  *  'first' VT-x capable CPUs; this actually includes the newest Nehalem CPUs) */
 #define VMX_PROC_CTLS_CR3_STORE_EXIT                            RT_BIT(16)
+/** Whether the secondary processor based VM-execution controls are used. */
+#define VMX_PROC_CTLS_USE_TERTIARY_CTLS                         RT_BIT(17)
 /** VM-exit on CR8 loads. */
 #define VMX_PROC_CTLS_CR8_LOAD_EXIT                             RT_BIT(19)
 /** VM-exit on CR8 stores. */
@@ -2213,8 +2427,10 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PIN_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_PROC_CTLS_CR3_LOAD_EXIT_MASK                     UINT32_C(0x00008000)
 #define VMX_BF_PROC_CTLS_CR3_STORE_EXIT_SHIFT                   16
 #define VMX_BF_PROC_CTLS_CR3_STORE_EXIT_MASK                    UINT32_C(0x00010000)
-#define VMX_BF_PROC_CTLS_RSVD_17_18_SHIFT                       17
-#define VMX_BF_PROC_CTLS_RSVD_17_18_MASK                        UINT32_C(0x00060000)
+#define VMX_BF_PROC_CTLS_USE_TERTIARY_CTLS_SHIFT                17
+#define VMX_BF_PROC_CTLS_USE_TERTIARY_CTLS_MASK                 UINT32_C(0x00020000)
+#define VMX_BF_PROC_CTLS_RSVD_18_SHIFT                          18
+#define VMX_BF_PROC_CTLS_RSVD_18_MASK                           UINT32_C(0x00040000)
 #define VMX_BF_PROC_CTLS_CR8_LOAD_EXIT_SHIFT                    19
 #define VMX_BF_PROC_CTLS_CR8_LOAD_EXIT_MASK                     UINT32_C(0x00080000)
 #define VMX_BF_PROC_CTLS_CR8_STORE_EXIT_SHIFT                   20
@@ -2243,8 +2459,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PIN_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_PROC_CTLS_USE_SECONDARY_CTLS_MASK                UINT32_C(0x80000000)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS_, UINT32_C(0), UINT32_MAX,
                             (RSVD_0_1, INT_WINDOW_EXIT, USE_TSC_OFFSETTING, RSVD_4_6, HLT_EXIT, RSVD_8, INVLPG_EXIT,
-                             MWAIT_EXIT, RDPMC_EXIT, RDTSC_EXIT, RSVD_13_14, CR3_LOAD_EXIT, CR3_STORE_EXIT, RSVD_17_18,
-                             CR8_LOAD_EXIT, CR8_STORE_EXIT, USE_TPR_SHADOW, NMI_WINDOW_EXIT, MOV_DR_EXIT, UNCOND_IO_EXIT,
+                             MWAIT_EXIT, RDPMC_EXIT, RDTSC_EXIT, RSVD_13_14, CR3_LOAD_EXIT, CR3_STORE_EXIT, USE_TERTIARY_CTLS,
+                             RSVD_18, CR8_LOAD_EXIT, CR8_STORE_EXIT, USE_TPR_SHADOW, NMI_WINDOW_EXIT, MOV_DR_EXIT, UNCOND_IO_EXIT,
                              USE_IO_BITMAPS, RSVD_26, MONITOR_TRAP_FLAG, USE_MSR_BITMAPS, MONITOR_EXIT, PAUSE_EXIT,
                              USE_SECONDARY_CTLS));
 /** @} */
@@ -2290,7 +2506,7 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS_, UINT32_C(0), UINT32_MAX,
 /** Enables page-modification logging. */
 #define VMX_PROC_CTLS2_PML                                      RT_BIT(17)
 /** Controls whether EPT-violations may cause \#VE instead of exits. */
-#define VMX_PROC_CTLS2_EPT_VE                                   RT_BIT(18)
+#define VMX_PROC_CTLS2_EPT_XCPT_VE                              RT_BIT(18)
 /** Conceal VMX non-root operation from Intel processor trace (PT). */
 #define VMX_PROC_CTLS2_CONCEAL_VMX_FROM_PT                      RT_BIT(19)
 /** Enables XSAVES/XRSTORS instructions. */
@@ -2298,8 +2514,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS_, UINT32_C(0), UINT32_MAX,
 /** Enables supervisor/user mode based EPT execute permission for linear
  *  addresses. */
 #define VMX_PROC_CTLS2_MODE_BASED_EPT_PERM                      RT_BIT(22)
-/** Enables EPT permissions to be specified at granularity of 128 bytes. */
-#define VMX_PROC_CTLS2_SPPTP_EPT                                RT_BIT(23)
+/** Enables EPT write permissions to be specified at granularity of 128 bytes. */
+#define VMX_PROC_CTLS2_SPP_EPT                                  RT_BIT(23)
 /** Intel PT output addresses are treated as guest-physical addresses and
  *  translated using EPT. */
 #define VMX_PROC_CTLS2_PT_EPT                                   RT_BIT(24)
@@ -2358,8 +2574,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_PROC_CTLS2_RSVD_21_MASK                          UINT32_C(0x00200000)
 #define VMX_BF_PROC_CTLS2_MODE_BASED_EPT_PERM_SHIFT             22
 #define VMX_BF_PROC_CTLS2_MODE_BASED_EPT_PERM_MASK              UINT32_C(0x00400000)
-#define VMX_BF_PROC_CTLS2_SPPTP_EPT_SHIFT                       23
-#define VMX_BF_PROC_CTLS2_SPPTP_EPT_MASK                        UINT32_C(0x00800000)
+#define VMX_BF_PROC_CTLS2_SPP_EPT_SHIFT                         23
+#define VMX_BF_PROC_CTLS2_SPP_EPT_MASK                          UINT32_C(0x00800000)
 #define VMX_BF_PROC_CTLS2_PT_EPT_SHIFT                          24
 #define VMX_BF_PROC_CTLS2_PT_EPT_MASK                           UINT32_C(0x01000000)
 #define VMX_BF_PROC_CTLS2_TSC_SCALING_SHIFT                     25
@@ -2377,7 +2593,7 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS2_, UINT32_C(0), UINT32_MAX,
                             (VIRT_APIC_ACCESS, EPT, DESC_TABLE_EXIT, RDTSCP, VIRT_X2APIC_MODE, VPID, WBINVD_EXIT,
                              UNRESTRICTED_GUEST, APIC_REG_VIRT, VIRT_INT_DELIVERY, PAUSE_LOOP_EXIT, RDRAND_EXIT, INVPCID, VMFUNC,
                              VMCS_SHADOWING, ENCLS_EXIT, RDSEED_EXIT, PML, EPT_VE, CONCEAL_VMX_FROM_PT, XSAVES_XRSTORS, RSVD_21,
-                             MODE_BASED_EPT_PERM, SPPTP_EPT, PT_EPT, TSC_SCALING, USER_WAIT_PAUSE, RSVD_27, ENCLV_EXIT,
+                             MODE_BASED_EPT_PERM, SPP_EPT, PT_EPT, TSC_SCALING, USER_WAIT_PAUSE, RSVD_27, ENCLV_EXIT,
                              RSVD_29_31));
 /** @} */
 
@@ -2425,6 +2641,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS3_, UINT64_C(0), UINT64_MAX,
 #define VMX_ENTRY_CTLS_LOAD_RTIT_CTL_MSR                        RT_BIT(18)
 /** Whether the guest CET-related MSRs and SPP are loaded on VM-entry. */
 #define VMX_ENTRY_CTLS_LOAD_CET_STATE                           RT_BIT(20)
+/** Whether the guest IA32_PKRS MSR is loaded on VM-entry. */
+#define VMX_ENTRY_CTLS_LOAD_PKRS_MSR                            RT_BIT(22)
 /** Default1 class when true-capability MSRs are not supported. */
 #define VMX_ENTRY_CTLS_DEFAULT1                                 UINT32_C(0x000011ff)
 
@@ -2456,12 +2674,21 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_PROC_CTLS3_, UINT64_C(0), UINT64_MAX,
 #define VMX_BF_ENTRY_CTLS_CONCEAL_VMX_FROM_PT_MASK              UINT32_C(0x00020000)
 #define VMX_BF_ENTRY_CTLS_LOAD_RTIT_CTL_MSR_SHIFT               18
 #define VMX_BF_ENTRY_CTLS_LOAD_RTIT_CTL_MSR_MASK                UINT32_C(0x00040000)
-#define VMX_BF_ENTRY_CTLS_RSVD_19_31_SHIFT                      19
-#define VMX_BF_ENTRY_CTLS_RSVD_19_31_MASK                       UINT32_C(0xfff80000)
+#define VMX_BF_ENTRY_CTLS_RSVD_19_SHIFT                         19
+#define VMX_BF_ENTRY_CTLS_RSVD_19_MASK                          UINT32_C(0x00080000)
+#define VMX_BF_ENTRY_CTLS_LOAD_CET_SHIFT                        20
+#define VMX_BF_ENTRY_CTLS_LOAD_CET_MASK                         UINT32_C(0x00100000)
+#define VMX_BF_ENTRY_CTLS_RSVD_21_SHIFT                         21
+#define VMX_BF_ENTRY_CTLS_RSVD_21_MASK                          UINT32_C(0x00200000)
+#define VMX_BF_ENTRY_CTLS_LOAD_PKRS_MSR_SHIFT                   22
+#define VMX_BF_ENTRY_CTLS_LOAD_PKRS_MSR_MASK                    UINT32_C(0x00400000)
+#define VMX_BF_ENTRY_CTLS_RSVD_23_31_SHIFT                      23
+#define VMX_BF_ENTRY_CTLS_RSVD_23_31_MASK                       UINT32_C(0xff800000)
+
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_CTLS_, UINT32_C(0), UINT32_MAX,
                             (RSVD_0_1, LOAD_DEBUG, RSVD_3_8, IA32E_MODE_GUEST, ENTRY_SMM, DEACTIVATE_DUAL_MON, RSVD_12,
                              LOAD_PERF_MSR, LOAD_PAT_MSR, LOAD_EFER_MSR, LOAD_BNDCFGS_MSR, CONCEAL_VMX_FROM_PT,
-                             LOAD_RTIT_CTL_MSR, RSVD_19_31));
+                             LOAD_RTIT_CTL_MSR, RSVD_19, LOAD_CET, RSVD_21, LOAD_PKRS_MSR, RSVD_23_31));
 /** @} */
 
 
@@ -2495,6 +2722,8 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_EXIT_CTLS_CLEAR_RTIT_CTL_MSR                        RT_BIT(25)
 /** Whether CET-related MSRs and SPP are loaded on VM-exit. */
 #define VMX_EXIT_CTLS_LOAD_CET_STATE                            RT_BIT(28)
+/** Whether the host IA32_PKRS MSR is loaded on VM-exit. */
+#define VMX_EXIT_CTLS_LOAD_PKRS_MSR                             RT_BIT(29)
 /** Default1 class when true-capability MSRs are not supported. */
 #define VMX_EXIT_CTLS_DEFAULT1                                  UINT32_C(0x00036dff)
 
@@ -2534,12 +2763,19 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_ENTRY_CTLS_, UINT32_C(0), UINT32_MAX,
 #define VMX_BF_EXIT_CTLS_CONCEAL_VMX_FROM_PT_MASK               UINT32_C(0x01000000)
 #define VMX_BF_EXIT_CTLS_CLEAR_RTIT_CTL_MSR_SHIFT               25
 #define VMX_BF_EXIT_CTLS_CLEAR_RTIT_CTL_MSR_MASK                UINT32_C(0x02000000)
-#define VMX_BF_EXIT_CTLS_RSVD_26_31_SHIFT                       26
-#define VMX_BF_EXIT_CTLS_RSVD_26_31_MASK                        UINT32_C(0xfc000000)
+#define VMX_BF_EXIT_CTLS_RSVD_26_27_SHIFT                       26
+#define VMX_BF_EXIT_CTLS_RSVD_26_27_MASK                        UINT32_C(0x0c000000)
+#define VMX_BF_EXIT_CTLS_LOAD_CET_SHIFT                         28
+#define VMX_BF_EXIT_CTLS_LOAD_CET_MASK                          UINT32_C(0x10000000)
+#define VMX_BF_EXIT_CTLS_LOAD_PKRS_MSR_SHIFT                    29
+#define VMX_BF_EXIT_CTLS_LOAD_PKRS_MSR_MASK                     UINT32_C(0x20000000)
+#define VMX_BF_EXIT_CTLS_RSVD_30_31_SHIFT                       30
+#define VMX_BF_EXIT_CTLS_RSVD_30_31_MASK                        UINT32_C(0xc0000000)
 RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_CTLS_, UINT32_C(0), UINT32_MAX,
                             (RSVD_0_1, SAVE_DEBUG, RSVD_3_8, HOST_ADDR_SPACE_SIZE, RSVD_10_11, LOAD_PERF_MSR, RSVD_13_14,
                              ACK_EXT_INT, RSVD_16_17, SAVE_PAT_MSR, LOAD_PAT_MSR, SAVE_EFER_MSR, LOAD_EFER_MSR,
-                             SAVE_PREEMPT_TIMER, CLEAR_BNDCFGS_MSR, CONCEAL_VMX_FROM_PT, CLEAR_RTIT_CTL_MSR, RSVD_26_31));
+                             SAVE_PREEMPT_TIMER, CLEAR_BNDCFGS_MSR, CONCEAL_VMX_FROM_PT, CLEAR_RTIT_CTL_MSR, RSVD_26_27,
+                             LOAD_CET, LOAD_PKRS_MSR, RSVD_30_31));
 /** @} */
 
 
@@ -3064,27 +3300,100 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_QUAL_TASK_SWITCH_, UINT64_C(0), UINT64_M
 /** @name Exit qualification for EPT violations.
  * @{
  */
-/** Set if the violation was caused by a data read. */
-#define VMX_EXIT_QUAL_EPT_DATA_READ                             RT_BIT(0)
-/** Set if the violation was caused by a data write. */
-#define VMX_EXIT_QUAL_EPT_DATA_WRITE                            RT_BIT(1)
+/** Set if acess causing the violation was a data read. */
+#define VMX_EXIT_QUAL_EPT_ACCESS_READ                           RT_BIT_64(0)
+/** Set if acess causing the violation was a data write. */
+#define VMX_EXIT_QUAL_EPT_ACCESS_WRITE                          RT_BIT_64(1)
 /** Set if the violation was caused by an instruction fetch. */
-#define VMX_EXIT_QUAL_EPT_INSTR_FETCH                           RT_BIT(2)
-/** AND of the present bit of all EPT structures. */
-#define VMX_EXIT_QUAL_EPT_ENTRY_PRESENT                         RT_BIT(3)
+#define VMX_EXIT_QUAL_EPT_ACCESS_INSTR_FETCH                    RT_BIT_64(2)
+/** AND of the read bit of all EPT structures. */
+#define VMX_EXIT_QUAL_EPT_ENTRY_READ                            RT_BIT_64(3)
 /** AND of the write bit of all EPT structures. */
-#define VMX_EXIT_QUAL_EPT_ENTRY_WRITE                           RT_BIT(4)
+#define VMX_EXIT_QUAL_EPT_ENTRY_WRITE                           RT_BIT_64(4)
 /** AND of the execute bit of all EPT structures. */
-#define VMX_EXIT_QUAL_EPT_ENTRY_EXECUTE                         RT_BIT(5)
-/** Set if the guest linear address field contains the faulting address. */
-#define VMX_EXIT_QUAL_EPT_GUEST_ADDR_VALID                      RT_BIT(7)
+#define VMX_EXIT_QUAL_EPT_ENTRY_EXECUTE                         RT_BIT_64(5)
+/** And of the execute bit of all EPT structures for user-mode addresses
+ *  (requires mode-based execute control). */
+#define VMX_EXIT_QUAL_EPT_ENTRY_EXECUTE_USER                    RT_BIT_64(6)
+/** Set if the guest linear address field is valid. */
+#define VMX_EXIT_QUAL_EPT_LINEAR_ADDR_VALID                     RT_BIT_64(7)
 /** If bit 7 is one: (reserved otherwise)
  *  1 - violation due to physical address access.
- *  0 - violation caused by page walk or access/dirty bit updates
+ *  0 - violation caused by page walk or access/dirty bit updates.
  */
-#define VMX_EXIT_QUAL_EPT_TRANSLATED_ACCESS                     RT_BIT(8)
+#define VMX_EXIT_QUAL_EPT_LINEAR_TO_PHYS_ADDR                   RT_BIT_64(8)
+/** If bit 7, 8 and advanced VM-exit info. for EPT is one: (reserved otherwise)
+ *  1 - linear address is user-mode address.
+ *  0 - linear address is supervisor-mode address.
+ */
+#define VMX_EXIT_QUAL_EPT_LINEAR_ADDR_USER                      RT_BIT_64(9)
+/** If bit 7, 8 and advanced VM-exit info. for EPT is one: (reserved otherwise)
+ *  1 - linear address translates to read-only page.
+ *  0 - linear address translates to read-write page.
+ */
+#define VMX_EXIT_QUAL_EPT_LINEAR_ADDR_RO                        RT_BIT_64(10)
+/** If bit 7, 8 and advanced VM-exit info. for EPT is one: (reserved otherwise)
+ *  1 - linear address translates to executable-disabled page.
+ *  0 - linear address translates to executable page.
+ */
+#define VMX_EXIT_QUAL_EPT_LINEAR_ADDR_XD                        RT_BIT_64(11)
 /** NMI unblocking due to IRET. */
+#define VMX_EXIT_QUAL_EPT_NMI_UNBLOCK_IRET                      RT_BIT_64(12)
+/** Set if acess causing the violation was a shadow-stack access. */
+#define VMX_EXIT_QUAL_EPT_ACCESS_SHW_STACK                      RT_BIT_64(13)
+/** If supervisor-shadow stack is enabled: (reserved otherwise)
+ *  1 - supervisor shadow-stack access allowed.
+ *  0 - supervisor shadow-stack access disallowed.
+ */
+#define VMX_EXIT_QUAL_EPT_ENTRY_SHW_STACK_SUPER                 RT_BIT_64(14)
+/** Set if access is related to trace output by Intel PT (reserved otherwise). */
+#define VMX_EXIT_QUAL_EPT_ACCESS_PT_TRACE                       RT_BIT_64(16)
+
+/** Checks whether NMI unblocking due to IRET. */
 #define VMX_EXIT_QUAL_EPT_IS_NMI_UNBLOCK_IRET(a)                (((a) >> 12) & 1)
+
+/** Bit fields for Exit qualification for EPT violations. */
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_READ_SHIFT                  0
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_READ_MASK                   UINT64_C(0x0000000000000001)
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_WRITE_SHIFT                 1
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_WRITE_MASK                  UINT64_C(0x0000000000000002)
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_INSTR_FETCH_SHIFT           2
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_INSTR_FETCH_MASK            UINT64_C(0x0000000000000004)
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_READ_SHIFT                   3
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_READ_MASK                    UINT64_C(0x0000000000000008)
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_WRITE_SHIFT                  4
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_WRITE_MASK                   UINT64_C(0x0000000000000010)
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_EXECUTE_SHIFT                5
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_EXECUTE_MASK                 UINT64_C(0x0000000000000020)
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_EXECUTE_USER_SHIFT           6
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_EXECUTE_USER_MASK            UINT64_C(0x0000000000000040)
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_VALID_SHIFT            7
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_VALID_MASK             UINT64_C(0x0000000000000080)
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_TO_PHYS_ADDR_SHIFT          8
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_TO_PHYS_ADDR_MASK           UINT64_C(0x0000000000000100)
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_USER_SHIFT             9
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_USER_MASK              UINT64_C(0x0000000000000200)
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_RO_SHIFT               10
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_RO_MASK                UINT64_C(0x0000000000000400)
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_XD_SHIFT               11
+#define VMX_BF_EXIT_QUAL_EPT_LINEAR_ADDR_XD_MASK                UINT64_C(0x0000000000000800)
+#define VMX_BF_EXIT_QUAL_EPT_NMI_UNBLOCK_IRET_SHIFT             12
+#define VMX_BF_EXIT_QUAL_EPT_NMI_UNBLOCK_IRET_MASK              UINT64_C(0x0000000000001000)
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_SHW_STACK_SHIFT             13
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_SHW_STACK_MASK              UINT64_C(0x0000000000002000)
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_SHW_STACK_SUPER_SHIFT         14
+#define VMX_BF_EXIT_QUAL_EPT_ENTRY_SHW_STACK_SUPER_MASK          UINT64_C(0x0000000000004000)
+#define VMX_BF_EXIT_QUAL_EPT_RSVD_15_SHIFT                      15
+#define VMX_BF_EXIT_QUAL_EPT_RSVD_15_MASK                       UINT64_C(0x0000000000008000)
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_PT_TRACE_SHIFT              16
+#define VMX_BF_EXIT_QUAL_EPT_ACCESS_PT_TRACE_MASK               UINT64_C(0x0000000000010000)
+#define VMX_BF_EXIT_QUAL_EPT_RSVD_17_63_SHIFT                   17
+#define VMX_BF_EXIT_QUAL_EPT_RSVD_17_63_MASK                    UINT64_C(0xfffffffffffe0000)
+RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_EXIT_QUAL_EPT_, UINT64_C(0), UINT64_MAX,
+                            (ACCESS_READ, ACCESS_WRITE, ACCESS_INSTR_FETCH, ENTRY_READ, ENTRY_WRITE, ENTRY_EXECUTE,
+                             ENTRY_EXECUTE_USER, LINEAR_ADDR_VALID, LINEAR_TO_PHYS_ADDR, LINEAR_ADDR_USER, LINEAR_ADDR_RO,
+                             LINEAR_ADDR_XD, NMI_UNBLOCK_IRET, ACCESS_SHW_STACK, ENTRY_SHW_STACK_SUPER, RSVD_15,
+                             ACCESS_PT_TRACE, RSVD_17_63));
 /** @} */
 
 
@@ -3367,6 +3676,43 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCS_PENDING_DBG_XCPT_, UINT64_C(0), UINT64_M
 /** @} */
 
 
+/**
+ * VM-exit auxiliary information.
+ *
+ * This includes information that isn't necessarily stored in the guest-CPU
+ * context but provided as part of VM-exits.
+ */
+typedef struct
+{
+    /** The VM-exit reason. */
+    uint32_t                uReason;
+    /** The Exit qualification field. */
+    uint64_t                u64Qual;
+    /** The Guest-linear address field. */
+    uint64_t                u64GuestLinearAddr;
+    /** The Guest-physical address field. */
+    uint64_t                u64GuestPhysAddr;
+    /** The guest pending-debug exceptions. */
+    uint64_t                u64GuestPendingDbgXcpts;
+    /** The VM-exit instruction length. */
+    uint32_t                cbInstr;
+    /** The VM-exit instruction information. */
+    VMXEXITINSTRINFO        InstrInfo;
+    /** VM-exit interruption information. */
+    uint32_t                uExitIntInfo;
+    /** VM-exit interruption error code. */
+    uint32_t                uExitIntErrCode;
+    /** IDT-vectoring information. */
+    uint32_t                uIdtVectoringInfo;
+    /** IDT-vectoring error code. */
+    uint32_t                uIdtVectoringErrCode;
+} VMXEXITAUX;
+/** Pointer to a VMXEXITAUX struct. */
+typedef VMXEXITAUX *PVMXEXITAUX;
+/** Pointer to a const VMXEXITAUX struct. */
+typedef const VMXEXITAUX *PCVMXEXITAUX;
+
+
 /** @defgroup grp_hm_vmx_virt    VMX virtualization.
  * @{
  */
@@ -3404,8 +3750,11 @@ RT_BF_ASSERT_COMPILE_CHECKS(VMX_BF_VMCS_PENDING_DBG_XCPT_, UINT64_C(0), UINT64_M
 
 /** CR0 bits set here must always be set when in VMX operation. */
 #define VMX_V_CR0_FIXED0                                        (X86_CR0_PE | X86_CR0_NE | X86_CR0_PG)
-/** VMX_V_CR0_FIXED0 when unrestricted-guest execution is supported for the guest. */
-#define VMX_V_CR0_FIXED0_UX                                     (VMX_V_CR0_FIXED0 & ~(X86_CR0_PE | X86_CR0_PG))
+/** CR0 bits set here must always be set when in VMX non-root operation with
+ *  unrestricted-guest control enabled. */
+#define VMX_V_CR0_FIXED0_UX                                     (X86_CR0_NE)
+/** CR0 bits cleared here must always be cleared when in VMX operation. */
+#define VMX_V_CR0_FIXED1                                        UINT32_C(0xffffffff)
 /** CR4 bits set here must always be set when in VMX operation. */
 #define VMX_V_CR4_FIXED0                                        (X86_CR4_VMXE)
 
@@ -3458,7 +3807,7 @@ AssertCompile(RT_ALIGN_Z(VMX_V_AUTOMSR_AREA_SIZE, X86_PAGE_4K_SIZE) == VMX_V_AUT
 #define VMX_V_AUTOMSR_AREA_PAGES                                ((VMX_V_AUTOMSR_AREA_SIZE) >> X86_PAGE_4K_SHIFT)
 
 /** The highest index value used for supported virtual VMCS field encoding. */
-#define VMX_V_VMCS_MAX_INDEX                                    RT_BF_GET(VMX_VMCS64_CTRL_TSC_MULTIPLIER_HIGH, VMX_BF_VMCSFIELD_INDEX)
+#define VMX_V_VMCS_MAX_INDEX                                    RT_BF_GET(VMX_VMCS64_CTRL_ENCLV_EXITING_BITMAP_HIGH, VMX_BF_VMCSFIELD_INDEX)
 
 /**
  * Virtual VM-exit information.
@@ -3495,6 +3844,77 @@ typedef VMXVEXITINFO *PVMXVEXITINFO;
 typedef const VMXVEXITINFO *PCVMXVEXITINFO;
 AssertCompileMemberAlignment(VMXVEXITINFO, u64Qual, 8);
 
+/** Initialize a VMXVEXITINFO structure from only an exit reason. */
+#define VMXVEXITINFO_INIT_ONLY_REASON(a_uReason) \
+    { (a_uReason), 0, { 0 }, VMXINSTRID_NONE, 0, 0, 0, 0, 0 }
+
+/** Initialize a VMXVEXITINFO structure from exit reason and instruction length (no info). */
+#define VMXVEXITINFO_INIT_WITH_INSTR_LEN(a_uReason, a_cbInstr) \
+    { (a_uReason), (a_cbInstr), { 0 }, VMXINSTRID_NONE, 0, 0, 0, 0, 0 }
+
+/** Initialize a VMXVEXITINFO structure from exit reason and exit qualifier. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER(a_uReason, a_uQualifier) \
+    { (a_uReason), 0, { 0 }, VMXINSTRID_NONE, (a_uQualifier), 0, 0, 0, 0 }
+
+/** Initialize a VMXVEXITINFO structure from exit reason, exit qualifier,
+ *  instruction info and length. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO(a_uReason, a_uQualifier, a_uInstrInfo, a_cbInstr) \
+    { (a_uReason), (a_cbInstr), { a_uInstrInfo }, VMXINSTRID_NONE, (a_uQualifier), 0, 0, 0, 0 }
+
+/** Initialize a VMXVEXITINFO structure from exit reason, exit qualifier,
+ *  instruction info and length all copied from a VMXTRANSIENT structure. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(a_pVmxTransient) \
+    VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO((a_pVmxTransient)->uExitReason, \
+                                                    (a_pVmxTransient)->uExitQual, \
+                                                    (a_pVmxTransient)->ExitInstrInfo.u, \
+                                                    (a_pVmxTransient)->cbExitInstr)
+
+/** Initialize a VMXVEXITINFO structure from exit reason, exit qualifier,
+ *  instruction length (no info). */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(a_uReason, a_uQualifier, a_cbInstr) \
+    { (a_uReason), (a_cbInstr), { 0 }, VMXINSTRID_NONE, (a_uQualifier), 0, 0, 0, 0 }
+
+/** Initialize a VMXVEXITINFO structure from exit reason, exit qualifier and
+ *  instruction length (no info) all copied from a VMXTRANSIENT structure. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(a_pVmxTransient) \
+    VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN((a_pVmxTransient)->uExitReason, \
+                                                   (a_pVmxTransient)->uExitQual, \
+                                                   (a_pVmxTransient)->cbExitInstr)
+
+/** Initialize a VMXVEXITINFO structure from exit reason, exit qualifier,
+ *  instruction info, instruction length and guest linear address. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_AND_LIN_ADDR(a_uReason, a_uQualifier, a_uInstrInfo, \
+                                                                     a_cbInstr, a_uGstLinAddr) \
+    { (a_uReason), (a_cbInstr), { (a_uInstrInfo) }, VMXINSTRID_NONE, (a_uQualifier), (a_uGstLinAddr), 0, 0, 0 }
+
+/** Initialize a VMXVEXITINFO structure from exit reason, exit qualifier,
+ *  instruction info, instruction length and guest linear address all copied
+ *  from a VMXTRANSIENT structure. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_AND_LIN_ADDR_FROM_TRANSIENT(a_pVmxTransient) \
+    VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_AND_LIN_ADDR((a_pVmxTransient)->uExitReason, \
+                                                                (a_pVmxTransient)->uExitQual, \
+                                                                (a_pVmxTransient)->ExitInstrInfo.u, \
+                                                                (a_pVmxTransient)->cbExitInstr, \
+                                                                (a_pVmxTransient)->uGuestLinearAddr)
+
+/** Initialize a VMXVEXITINFO structure from exit reason and pending debug
+ *  exceptions. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_DBG_XCPTS(a_uReason, a_uPendingDbgXcpts) \
+    { (a_uReason), 0, { 0 }, VMXINSTRID_NONE, 0, 0, 0, (a_uPendingDbgXcpts), 0 }
+
+/** Initialize a VMXVEXITINFO structure from exit reason and pending debug
+ *  exceptions both copied from a VMXTRANSIENT structure. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_DBG_XCPTS_FROM_TRANSIENT(a_pVmxTransient) \
+    VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_DBG_XCPTS((a_pVmxTransient)->uExitReason, (a_pVmxTransient)->uGuestPendingDbgXcpts)
+
+
+/** Initialize a VMXVEXITINFO structure from exit reason, exit qualifier,
+ *  instruction length, guest linear address and guest physical address. */
+#define VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_AND_GST_ADDRESSES(a_uReason, a_uQualifier, a_cbInstr, \
+                                                                         a_uGstLinAddr, a_uGstPhysAddr) \
+    { (a_uReason), (a_cbInstr), { 0 }, VMXINSTRID_NONE, (a_uQualifier), (a_uGstLinAddr), (a_uGstPhysAddr), 0, 0 }
+
+
 /**
  * Virtual VM-exit information for events.
  *
@@ -3517,10 +3937,24 @@ typedef struct
     /** IDT-vectoring error code. */
     uint32_t                uIdtVectoringErrCode;
 } VMXVEXITEVENTINFO;
-/** Pointer to the VMXVEXITINFO2 struct. */
+/** Pointer to the VMXVEXITEVENTINFO struct. */
 typedef VMXVEXITEVENTINFO *PVMXVEXITEVENTINFO;
-/** Pointer to a const VMXVEXITINFO2 struct. */
+/** Pointer to a const VMXVEXITEVENTINFO struct. */
 typedef const VMXVEXITEVENTINFO *PCVMXVEXITEVENTINFO;
+
+/** Initialize a VMXVEXITEVENTINFO. */
+#define VMXVEXITEVENTINFO_INIT(a_uExitIntInfo, a_uExitIntErrCode, a_uIdtVectoringInfo, a_uIdtVectoringErrCode) \
+    { (a_uExitIntInfo), (a_uExitIntErrCode), (a_uIdtVectoringInfo), (a_uIdtVectoringErrCode) }
+
+/** Initialize a VMXVEXITEVENTINFO with VM-exit interruption info and VM-exit
+ *  interruption error code. */
+#define VMXVEXITEVENTINFO_INIT_ONLY_INT(a_uExitIntInfo, a_uExitIntErrCode) \
+    VMXVEXITEVENTINFO_INIT(a_uExitIntInfo, a_uExitIntErrCode, 0, 0)
+
+/** Initialize a VMXVEXITEVENTINFO with IDT vectoring info and IDT
+ *  vectoring error code. */
+#define VMXVEXITEVENTINFO_INIT_ONLY_IDT(a_uIdtVectoringInfo, a_uIdtVectoringErrCode) \
+    VMXVEXITEVENTINFO_INIT(0, 0, a_uIdtVectoringInfo, a_uIdtVectoringErrCode)
 
 /**
  * Virtual VMCS.
@@ -3546,10 +3980,10 @@ typedef const VMXVEXITEVENTINFO *PCVMXVEXITEVENTINFO;
  * it's easier, allows for teleporation in the future and does not affect guest
  * software.
  *
- * Note! Any fields that are added or modified here, make sure to update the
+ * @note Any fields that are added or modified here, make sure to update the
  *       corresponding fields in IEM (g_aoffVmcsMap), the corresponding saved
  *       state structure in CPUM (g_aVmxHwvirtVmcs) and bump the SSM version.
- *       Also consider updating CPUMIsGuestVmxVmcsFieldValid.
+ *       Also consider updating CPUMIsGuestVmxVmcsFieldValid and cpumR3InfoVmxVmcs.
  */
 #pragma pack(1)
 typedef struct
@@ -3631,13 +4065,13 @@ typedef struct
     RTUINT64U       u64AddrExitMsrLoad;          /**< 0x278 - VM-exit MSR-load area address. */
     RTUINT64U       u64AddrEntryMsrLoad;         /**< 0x280 - VM-entry MSR-load area address. */
     RTUINT64U       u64ExecVmcsPtr;              /**< 0x288 - Executive-VMCS pointer. */
-    RTUINT64U       u64AddrPml;                  /**< 0x290 - PML address. */
+    RTUINT64U       u64AddrPml;                  /**< 0x290 - Page-modification log address (PML). */
     RTUINT64U       u64TscOffset;                /**< 0x298 - TSC offset. */
     RTUINT64U       u64AddrVirtApic;             /**< 0x2a0 - Virtual-APIC address. */
     RTUINT64U       u64AddrApicAccess;           /**< 0x2a8 - APIC-access address. */
     RTUINT64U       u64AddrPostedIntDesc;        /**< 0x2b0 - Posted-interrupt descriptor address. */
     RTUINT64U       u64VmFuncCtls;               /**< 0x2b8 - VM-functions control. */
-    RTUINT64U       u64EptpPtr;                  /**< 0x2c0 - EPTP pointer. */
+    RTUINT64U       u64EptPtr;                   /**< 0x2c0 - EPT pointer. */
     RTUINT64U       u64EoiExitBitmap0;           /**< 0x2c8 - EOI-exit bitmap 0. */
     RTUINT64U       u64EoiExitBitmap1;           /**< 0x2d0 - EOI-exit bitmap 1. */
     RTUINT64U       u64EoiExitBitmap2;           /**< 0x2d8 - EOI-exit bitmap 2. */
@@ -3646,11 +4080,13 @@ typedef struct
     RTUINT64U       u64AddrVmreadBitmap;         /**< 0x2f0 - VMREAD-bitmap address. */
     RTUINT64U       u64AddrVmwriteBitmap;        /**< 0x2f8 - VMWRITE-bitmap address. */
     RTUINT64U       u64AddrXcptVeInfo;           /**< 0x300 - Virtualization-exception information address. */
-    RTUINT64U       u64XssBitmap;                /**< 0x308 - XSS-exiting bitmap. */
-    RTUINT64U       u64EnclsBitmap;              /**< 0x310 - ENCLS-exiting bitmap address. */
-    RTUINT64U       u64SpptPtr;                  /**< 0x318 - Sub-page-permission-table pointer. */
+    RTUINT64U       u64XssExitBitmap;            /**< 0x308 - XSS-exiting bitmap. */
+    RTUINT64U       u64EnclsExitBitmap;          /**< 0x310 - ENCLS-exiting bitmap address. */
+    RTUINT64U       u64SppTablePtr;              /**< 0x318 - Sub-page-permission-table pointer (SPPTP). */
     RTUINT64U       u64TscMultiplier;            /**< 0x320 - TSC multiplier. */
-    RTUINT64U       au64Reserved0[15];           /**< 0x328 - Reserved for future. */
+    RTUINT64U       u64ProcCtls3;                /**< 0x328 - Tertiary-Processor based VM-execution controls. */
+    RTUINT64U       u64EnclvExitBitmap;          /**< 0x330 - ENCLV-exiting bitmap. */
+    RTUINT64U       au64Reserved0[13];           /**< 0x338 - Reserved for future. */
 
     /** Natural-width fields. */
     RTUINT64U       u64Cr0Mask;                  /**< 0x3a0 - CR0 guest/host Mask. */
@@ -3685,7 +4121,8 @@ typedef struct
     RTUINT64U       u64HostPatMsr;               /**< 0x538 - Host PAT MSR. */
     RTUINT64U       u64HostEferMsr;              /**< 0x540 - Host EFER MSR. */
     RTUINT64U       u64HostPerfGlobalCtlMsr;     /**< 0x548 - Host global performance-control MSR. */
-    RTUINT64U       au64Reserved3[16];           /**< 0x550 - Reserved for future. */
+    RTUINT64U       u64HostPkrsMsr;              /**< 0x550 - Host PKRS MSR. */
+    RTUINT64U       au64Reserved3[15];           /**< 0x558 - Reserved for future. */
 
     /** Natural-width fields. */
     RTUINT64U       u64HostCr0;                  /**< 0x5d0 - Host CR0. */
@@ -3700,7 +4137,10 @@ typedef struct
     RTUINT64U       u64HostSysenterEip;          /**< 0x618 - Host SYSENTER ESP base. */
     RTUINT64U       u64HostRsp;                  /**< 0x620 - Host RSP. */
     RTUINT64U       u64HostRip;                  /**< 0x628 - Host RIP. */
-    RTUINT64U       au64Reserved7[32];           /**< 0x630 - Reserved for future. */
+    RTUINT64U       u64HostSCetMsr;              /**< 0x630 - Host S_CET MSR. */
+    RTUINT64U       u64HostSsp;                  /**< 0x638 - Host SSP. */
+    RTUINT64U       u64HostIntrSspTableAddrMsr;  /**< 0x640 - Host Interrupt SSP table address MSR. */
+    RTUINT64U       au64Reserved7[29];           /**< 0x648 - Reserved for future. */
     /** @} */
 
     /** @name Guest-state fields.
@@ -3758,7 +4198,8 @@ typedef struct
     RTUINT64U       u64GuestPdpte3;              /**< 0x828 - Guest PDPTE 2. */
     RTUINT64U       u64GuestBndcfgsMsr;          /**< 0x830 - Guest Bounds config MPX MSR (Intel Memory Protection Extensions). */
     RTUINT64U       u64GuestRtitCtlMsr;          /**< 0x838 - Guest RTIT control MSR (Intel Real Time Instruction Trace). */
-    RTUINT64U       au64Reserved2[32];           /**< 0x840 - Reserved for future. */
+    RTUINT64U       u64GuestPkrsMsr;             /**< 0x840 - Guest PKRS MSR. */
+    RTUINT64U       au64Reserved2[31];           /**< 0x848 - Reserved for future. */
 
     /** Natural-width fields. */
     RTUINT64U       u64GuestCr0;                 /**< 0x940 - Guest CR0. */
@@ -3781,7 +4222,10 @@ typedef struct
     RTUINT64U       u64GuestPendingDbgXcpts;     /**< 0x9c8 - Guest pending debug exceptions. */
     RTUINT64U       u64GuestSysenterEsp;         /**< 0x9d0 - Guest SYSENTER ESP. */
     RTUINT64U       u64GuestSysenterEip;         /**< 0x9d8 - Guest SYSENTER EIP. */
-    RTUINT64U       au64Reserved6[32];           /**< 0x9e0 - Reserved for future. */
+    RTUINT64U       u64GuestSCetMsr;             /**< 0x9e0 - Guest S_CET MSR. */
+    RTUINT64U       u64GuestSsp;                 /**< 0x9e8 - Guest SSP. */
+    RTUINT64U       u64GuestIntrSspTableAddrMsr; /**< 0x9f0 - Guest Interrupt SSP table address MSR. */
+    RTUINT64U       au64Reserved6[29];           /**< 0x9f8 - Reserved for future. */
     /** @} */
 
     /** 0xae0 - Padding / reserved for future use. */
@@ -3932,6 +4376,14 @@ typedef enum
     kVmxVDiag_Invvpid_Type1InvalidVpid,
     kVmxVDiag_Invvpid_Type3InvalidVpid,
     kVmxVDiag_Invvpid_VmxRoot,
+    /* INVEPT. */
+    kVmxVDiag_Invept_Cpl,
+    kVmxVDiag_Invept_DescRsvd,
+    kVmxVDiag_Invept_EptpInvalid,
+    kVmxVDiag_Invept_LongModeCS,
+    kVmxVDiag_Invept_RealOrV86Mode,
+    kVmxVDiag_Invept_TypeInvalid,
+    kVmxVDiag_Invept_VmxRoot,
     /* VMLAUNCH/VMRESUME. */
     kVmxVDiag_Vmentry_AddrApicAccess,
     kVmxVDiag_Vmentry_AddrApicAccessEqVirtApic,
@@ -3958,6 +4410,10 @@ typedef enum
     kVmxVDiag_Vmentry_EntryIntInfoErrCodeVec,
     kVmxVDiag_Vmentry_EntryIntInfoTypeVecRsvd,
     kVmxVDiag_Vmentry_EntryXcptErrCodeRsvd,
+    kVmxVDiag_Vmentry_EptpAccessDirty,
+    kVmxVDiag_Vmentry_EptpPageWalkLength,
+    kVmxVDiag_Vmentry_EptpMemType,
+    kVmxVDiag_Vmentry_EptpRsvd,
     kVmxVDiag_Vmentry_ExitCtlsAllowed1,
     kVmxVDiag_Vmentry_ExitCtlsDisallowed0,
     kVmxVDiag_Vmentry_GuestActStateHlt,
@@ -3990,11 +4446,7 @@ typedef enum
     kVmxVDiag_Vmentry_GuestPae,
     kVmxVDiag_Vmentry_GuestPatMsr,
     kVmxVDiag_Vmentry_GuestPcide,
-    kVmxVDiag_Vmentry_GuestPdpteCr3ReadPhys,
-    kVmxVDiag_Vmentry_GuestPdpte0Rsvd,
-    kVmxVDiag_Vmentry_GuestPdpte1Rsvd,
-    kVmxVDiag_Vmentry_GuestPdpte2Rsvd,
-    kVmxVDiag_Vmentry_GuestPdpte3Rsvd,
+    kVmxVDiag_Vmentry_GuestPdpte,
     kVmxVDiag_Vmentry_GuestPndDbgXcptBsNoTf,
     kVmxVDiag_Vmentry_GuestPndDbgXcptBsTf,
     kVmxVDiag_Vmentry_GuestPndDbgXcptRsvd,
@@ -4147,11 +4599,7 @@ typedef enum
     kVmxVDiag_Vmentry_VmwriteBitmapPtrReadPhys,
     kVmxVDiag_Vmentry_VmxRoot,
     kVmxVDiag_Vmentry_Vpid,
-    kVmxVDiag_Vmexit_HostPdpteCr3ReadPhys,
-    kVmxVDiag_Vmexit_HostPdpte0Rsvd,
-    kVmxVDiag_Vmexit_HostPdpte1Rsvd,
-    kVmxVDiag_Vmexit_HostPdpte2Rsvd,
-    kVmxVDiag_Vmexit_HostPdpte3Rsvd,
+    kVmxVDiag_Vmexit_HostPdpte,
     kVmxVDiag_Vmexit_MsrLoad,
     kVmxVDiag_Vmexit_MsrLoadCount,
     kVmxVDiag_Vmexit_MsrLoadPtrReadPhys,

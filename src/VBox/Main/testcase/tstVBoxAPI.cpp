@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -56,55 +66,55 @@ static HRESULT tstComExpr(HRESULT hrc, const char *pszOperation, int iLine)
 
 static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
 {
-    HRESULT rc;
+    HRESULT hrc;
     Bstr bstrTmp;
     ULONG ulTmp;
 
     RTTestSub(g_hTest, "IVirtualBox::version");
     CHECK_ERROR(pVBox, COMGETTER(Version)(bstrTmp.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::version");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::version failed", __LINE__);
 
     RTTestSub(g_hTest, "IVirtualBox::versionNormalized");
     CHECK_ERROR(pVBox, COMGETTER(VersionNormalized)(bstrTmp.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::versionNormalized");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::versionNormalized failed", __LINE__);
 
     RTTestSub(g_hTest, "IVirtualBox::revision");
     CHECK_ERROR(pVBox, COMGETTER(Revision)(&ulTmp));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::revision");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::revision failed", __LINE__);
 
     RTTestSub(g_hTest, "IVirtualBox::packageType");
     CHECK_ERROR(pVBox, COMGETTER(PackageType)(bstrTmp.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::packageType");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::packageType failed", __LINE__);
 
     RTTestSub(g_hTest, "IVirtualBox::APIVersion");
     CHECK_ERROR(pVBox, COMGETTER(APIVersion)(bstrTmp.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::APIVersion");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::APIVersion failed", __LINE__);
 
     RTTestSub(g_hTest, "IVirtualBox::homeFolder");
     CHECK_ERROR(pVBox, COMGETTER(HomeFolder)(bstrTmp.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::homeFolder");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::homeFolder failed", __LINE__);
 
     RTTestSub(g_hTest, "IVirtualBox::settingsFilePath");
     CHECK_ERROR(pVBox, COMGETTER(SettingsFilePath)(bstrTmp.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::settingsFilePath");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::settingsFilePath failed", __LINE__);
@@ -112,7 +122,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<IGuestOSType> guestOSTypes;
     RTTestSub(g_hTest, "IVirtualBox::guestOSTypes");
     CHECK_ERROR(pVBox, COMGETTER(GuestOSTypes)(ComSafeArrayAsOutParam(guestOSTypes)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::guestOSTypes");
     else
         RTTestFailed(g_hTest, "%d: IVirtualBox::guestOSTypes failed", __LINE__);
@@ -127,8 +137,11 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
                                      ComSafeArrayAsInParam(groups), /** Groups */
                                      NULL,                          /** OS Type */
                                      NULL,                          /** Create flags */
+                                     NULL,                          /** Cipher */
+                                     NULL,                          /** Password id */
+                                     NULL,                          /** Password */
                                      ptrMachine.asOutParam()));     /** Machine */
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::CreateMachine");
     else
     {
@@ -138,7 +151,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
 
     RTTestSub(g_hTest, "IVirtualBox::RegisterMachine");
     CHECK_ERROR(pVBox, RegisterMachine(ptrMachine));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         RTTestPassed(g_hTest, "IVirtualBox::RegisterMachine");
     else
     {
@@ -149,7 +162,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     ComPtr<IHost> host;
     RTTestSub(g_hTest, "IVirtualBox::host");
     CHECK_ERROR(pVBox, COMGETTER(Host)(host.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add IHost testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::host");
@@ -160,7 +173,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     ComPtr<ISystemProperties> sysprop;
     RTTestSub(g_hTest, "IVirtualBox::systemProperties");
     CHECK_ERROR(pVBox, COMGETTER(SystemProperties)(sysprop.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add ISystemProperties testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::systemProperties");
@@ -171,7 +184,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<IMachine> machines;
     RTTestSub(g_hTest, "IVirtualBox::machines");
     CHECK_ERROR(pVBox, COMGETTER(Machines)(ComSafeArrayAsOutParam(machines)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         bool bFound = FALSE;
         for (size_t i = 0; i < machines.size(); ++i)
@@ -179,8 +192,8 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
             if (machines[i])
             {
                 Bstr tmpName;
-                rc = machines[i]->COMGETTER(Name)(tmpName.asOutParam());
-                if (SUCCEEDED(rc))
+                hrc = machines[i]->COMGETTER(Name)(tmpName.asOutParam());
+                if (SUCCEEDED(hrc))
                 {
                     if (tmpName == tstMachineName)
                     {
@@ -215,7 +228,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<IMedium> hardDisks;
     RTTestSub(g_hTest, "IVirtualBox::hardDisks");
     CHECK_ERROR(pVBox, COMGETTER(HardDisks)(ComSafeArrayAsOutParam(hardDisks)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add hardDisks testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::hardDisks");
@@ -226,7 +239,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<IMedium> DVDImages;
     RTTestSub(g_hTest, "IVirtualBox::DVDImages");
     CHECK_ERROR(pVBox, COMGETTER(DVDImages)(ComSafeArrayAsOutParam(DVDImages)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add DVDImages testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::DVDImages");
@@ -237,7 +250,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<IMedium> floppyImages;
     RTTestSub(g_hTest, "IVirtualBox::floppyImages");
     CHECK_ERROR(pVBox, COMGETTER(FloppyImages)(ComSafeArrayAsOutParam(floppyImages)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add floppyImages testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::floppyImages");
@@ -248,7 +261,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<IProgress> progressOperations;
     RTTestSub(g_hTest, "IVirtualBox::progressOperations");
     CHECK_ERROR(pVBox, COMGETTER(ProgressOperations)(ComSafeArrayAsOutParam(progressOperations)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add IProgress testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::progressOperations");
@@ -259,7 +272,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     ComPtr<IPerformanceCollector> performanceCollector;
     RTTestSub(g_hTest, "IVirtualBox::performanceCollector");
     CHECK_ERROR(pVBox, COMGETTER(PerformanceCollector)(performanceCollector.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add IPerformanceCollector testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::performanceCollector");
@@ -270,7 +283,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<IDHCPServer> DHCPServers;
     RTTestSub(g_hTest, "IVirtualBox::DHCPServers");
     CHECK_ERROR(pVBox, COMGETTER(DHCPServers)(ComSafeArrayAsOutParam(DHCPServers)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add IDHCPServers testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::DHCPServers");
@@ -281,7 +294,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeIfaceArray<INATNetwork> NATNetworks;
     RTTestSub(g_hTest, "IVirtualBox::NATNetworks");
     CHECK_ERROR(pVBox, COMGETTER(NATNetworks)(ComSafeArrayAsOutParam(NATNetworks)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add INATNetworks testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::NATNetworks");
@@ -292,7 +305,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     ComPtr<IEventSource> eventSource;
     RTTestSub(g_hTest, "IVirtualBox::eventSource");
     CHECK_ERROR(pVBox, COMGETTER(EventSource)(eventSource.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add IEventSource testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::eventSource");
@@ -303,7 +316,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     ComPtr<IExtPackManager> extensionPackManager;
     RTTestSub(g_hTest, "IVirtualBox::extensionPackManager");
     CHECK_ERROR(pVBox, COMGETTER(ExtensionPackManager)(extensionPackManager.asOutParam()));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         /** @todo Add IExtPackManager testing here. */
         RTTestPassed(g_hTest, "IVirtualBox::extensionPackManager");
@@ -314,7 +327,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeArray<BSTR> internalNetworks;
     RTTestSub(g_hTest, "IVirtualBox::internalNetworks");
     CHECK_ERROR(pVBox, COMGETTER(InternalNetworks)(ComSafeArrayAsOutParam(internalNetworks)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         RTTestPassed(g_hTest, "IVirtualBox::internalNetworks");
     }
@@ -324,7 +337,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
     com::SafeArray<BSTR> genericNetworkDrivers;
     RTTestSub(g_hTest, "IVirtualBox::genericNetworkDrivers");
     CHECK_ERROR(pVBox, COMGETTER(GenericNetworkDrivers)(ComSafeArrayAsOutParam(genericNetworkDrivers)));
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         RTTestPassed(g_hTest, "IVirtualBox::genericNetworkDrivers");
     }
@@ -337,7 +350,7 @@ static BOOL tstApiIVirtualBox(IVirtualBox *pVBox)
 
 static BOOL tstApiClean(IVirtualBox *pVBox)
 {
-    HRESULT rc;
+    HRESULT hrc;
 
     /** Delete created VM and its files */
     ComPtr<IMachine> machine;

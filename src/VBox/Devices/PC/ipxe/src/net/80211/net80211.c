@@ -15,7 +15,8 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  */
 
 FILE_LICENCE ( GPL2_OR_LATER );
@@ -203,11 +204,11 @@ struct settings_applicator net80211_applicator __settings_applicator = {
  * If this is blank, we scan for all networks and use the one with the
  * greatest signal strength.
  */
-struct setting net80211_ssid_setting __setting ( SETTING_NETDEV_EXTRA ) = {
+const struct setting net80211_ssid_setting __setting ( SETTING_NETDEV_EXTRA,
+						       ssid ) = {
 	.name = "ssid",
 	.description = "Wireless SSID",
 	.type = &setting_type_string,
-	.tag = NET80211_SETTING_TAG_SSID,
 };
 
 /** Whether to use active scanning
@@ -216,11 +217,11 @@ struct setting net80211_ssid_setting __setting ( SETTING_NETDEV_EXTRA ) = {
  * active scan (send probe packets). If this setting is nonzero, an
  * active scan on the 2.4GHz band will be used to associate.
  */
-struct setting net80211_active_setting __setting ( SETTING_NETDEV_EXTRA ) = {
+const struct setting net80211_active_setting __setting ( SETTING_NETDEV_EXTRA,
+							 active-scan ) = {
 	.name = "active-scan",
 	.description = "Actively scan for wireless networks",
 	.type = &setting_type_int8,
-	.tag = NET80211_SETTING_TAG_ACTIVE_SCAN,
 };
 
 /** The cryptographic key to use
@@ -229,11 +230,11 @@ struct setting net80211_active_setting __setting ( SETTING_NETDEV_EXTRA ) = {
  * normal iPXE method for entering hex settings; an ASCII string of
  * hex characters will not behave as expected.
  */
-struct setting net80211_key_setting __setting ( SETTING_NETDEV_EXTRA ) = {
+const struct setting net80211_key_setting __setting ( SETTING_NETDEV_EXTRA,
+						      key ) = {
 	.name = "key",
 	.description = "Wireless encryption key",
 	.type = &setting_type_string,
-	.tag = NET80211_SETTING_TAG_KEY,
 };
 
 /** @} */
@@ -385,9 +386,6 @@ static struct net_device_operations net80211_netdev_ops = {
 
 
 /* ---------- 802.11 link-layer protocol ---------- */
-
-/** 802.11 broadcast MAC address */
-static u8 net80211_ll_broadcast[] = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 /**
  * Determine whether a transmission rate uses ERP/OFDM
@@ -604,6 +602,7 @@ static struct ll_protocol net80211_ll_protocol __ll_protocol = {
 	.ntoa = eth_ntoa,
 	.mc_hash = eth_mc_hash,
 	.eth_addr = eth_eth_addr,
+	.eui64 = eth_eui64,
 	.ll_proto = htons ( ARPHRD_ETHER ),	/* "encapsulated Ethernet" */
 	.hw_addr_len = ETH_ALEN,
 	.ll_addr_len = ETH_ALEN,
@@ -762,7 +761,7 @@ struct net80211_device * net80211_alloc ( size_t priv_size )
 		return NULL;
 
 	netdev->ll_protocol = &net80211_ll_protocol;
-	netdev->ll_broadcast = net80211_ll_broadcast;
+	netdev->ll_broadcast = eth_broadcast;
 	netdev->max_pkt_len = IEEE80211_MAX_DATA_LEN;
 	netdev_init ( netdev, &net80211_netdev_ops );
 
@@ -805,6 +804,10 @@ int net80211_register ( struct net80211_device *dev,
 	memcpy ( dev->channels, dev->hw->channels,
 		 NET80211_MAX_CHANNELS * sizeof ( dev->channels[0] ) );
 	dev->channel = 0;
+
+	/* Mark device as not supporting interrupts, if applicable */
+	if ( ! ops->irq )
+		dev->netdev->state |= NETDEV_IRQ_UNSUPPORTED;
 
 	list_add_tail ( &dev->list, &net80211_devices );
 	return register_netdev ( dev->netdev );
@@ -1318,7 +1321,7 @@ struct net80211_probe_ctx * net80211_probe_start ( struct net80211_device *dev,
 	ctx->ticks_start = currticks();
 	ctx->ticks_beacon = 0;
 	ctx->ticks_channel = currticks();
-	ctx->hop_time = ticks_per_sec() / ( active ? 2 : 6 );
+	ctx->hop_time = TICKS_PER_SEC / ( active ? 2 : 6 );
 
 	/*
 	 * Channels on 2.4GHz overlap, and the most commonly used
@@ -1360,8 +1363,8 @@ struct net80211_probe_ctx * net80211_probe_start ( struct net80211_device *dev,
 int net80211_probe_step ( struct net80211_probe_ctx *ctx )
 {
 	struct net80211_device *dev = ctx->dev;
-	u32 start_timeout = NET80211_PROBE_TIMEOUT * ticks_per_sec();
-	u32 gather_timeout = ticks_per_sec();
+	u32 start_timeout = NET80211_PROBE_TIMEOUT * TICKS_PER_SEC;
+	u32 gather_timeout = TICKS_PER_SEC;
 	u32 now = currticks();
 	struct io_buffer *iob;
 	int signal;
@@ -1398,7 +1401,7 @@ int net80211_probe_step ( struct net80211_probe_ctx *ctx )
 
 			ctx->probe = iob;
 			rc = net80211_tx_mgmt ( dev, IEEE80211_STYPE_PROBE_REQ,
-						net80211_ll_broadcast,
+						eth_broadcast,
 						iob_disown ( siob ) );
 			if ( rc ) {
 				DBGC ( dev, "802.11 %p send probe failed: "
@@ -1582,9 +1585,6 @@ net80211_probe_finish_best ( struct net80211_probe_ctx *ctx )
 struct list_head *net80211_probe_finish_all ( struct net80211_probe_ctx *ctx )
 {
 	struct list_head *beacons = ctx->beacons;
-
-	if ( ! ctx )
-		return NULL;
 
 	net80211_keep_mgmt ( ctx->dev, ctx->old_keep_mgmt );
 
@@ -2603,7 +2603,7 @@ static void net80211_rx_frag ( struct net80211_device *dev,
 		/* start a frag cache entry */
 		int i, newest = -1;
 		u32 curr_ticks = currticks(), newest_ticks = 0;
-		u32 timeout = ticks_per_sec() * NET80211_FRAG_TIMEOUT;
+		u32 timeout = TICKS_PER_SEC * NET80211_FRAG_TIMEOUT;
 
 		for ( i = 0; i < NET80211_NR_CONCURRENT_FRAGS; i++ ) {
 			if ( dev->frags[i].in_use == 0 )
@@ -2827,3 +2827,9 @@ struct errortab common_wireless_errors[] __errortab = {
 	__einfo_errortab ( EINFO_ECONNREFUSED_ASSOC_DENIED ),
 	__einfo_errortab ( EINFO_ECONNREFUSED_AUTH_ALGO_UNSUPP ),
 };
+
+/* Drag in objects via net80211_ll_protocol */
+REQUIRING_SYMBOL ( net80211_ll_protocol );
+
+/* Drag in 802.11 configuration */
+REQUIRE_OBJECT ( config_net80211 );

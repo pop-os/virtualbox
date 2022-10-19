@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -130,14 +140,14 @@ static PDEVINTNETIP g_pDevINIPData = NULL;
  * really ugly hack to avoid linking problems on unix style platforms
  * using .a libraries for now.
  */
-static const PFNRT g_pDevINILinkHack[] =
+static const struct CLANG11WEIRDNESS { PFNRT pfn; } g_pDevINILinkHack[] =
 {
-    (PFNRT)lwip_socket,
-    (PFNRT)lwip_close,
-    (PFNRT)lwip_setsockopt,
-    (PFNRT)lwip_recv,
-    (PFNRT)lwip_send,
-    (PFNRT)lwip_select
+    { (PFNRT)lwip_socket },
+    { (PFNRT)lwip_close },
+    { (PFNRT)lwip_setsockopt },
+    { (PFNRT)lwip_recv },
+    { (PFNRT)lwip_send },
+    { (PFNRT)lwip_select },
 };
 
 
@@ -244,7 +254,7 @@ static err_t devINIPOutputRaw(struct netif *netif, struct pbuf *p)
  * @returns lwIP error code
  * @param   netif   Interface to configure.
  */
-static err_t devINIPInterface(struct netif *netif)
+static err_t devINIPInterface(struct netif *netif) RT_NOTHROW_DEF
 {
     LogFlow(("%s: netif=%p\n", __FUNCTION__, netif));
     Assert(g_pDevINIPData != NULL);
@@ -555,11 +565,11 @@ static DECLCALLBACK(int) devINIPDestruct(PPDMDEVINS pDevIns)
     if (g_pDevINIPData != NULL)
         vboxLwipCoreFinalize(devINIPTcpipFiniDone, pThis);
 
-    MMR3HeapFree(pThis->pszIP);
+    PDMDevHlpMMHeapFree(pDevIns, pThis->pszIP);
     pThis->pszIP = NULL;
-    MMR3HeapFree(pThis->pszNetmask);
+    PDMDevHlpMMHeapFree(pDevIns, pThis->pszNetmask);
     pThis->pszNetmask = NULL;
-    MMR3HeapFree(pThis->pszGateway);
+    PDMDevHlpMMHeapFree(pDevIns, pThis->pszGateway);
     pThis->pszGateway = NULL;
 
     LogFlow(("%s: success\n", __FUNCTION__));

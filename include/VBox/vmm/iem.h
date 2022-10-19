@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_iem_h
@@ -308,9 +318,10 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMInjectTrap(PVMCPUCC pVCpu, uint8_t u8TrapNo, TRPM
 VMM_INT_DECL(int)           IEMBreakpointSet(PVM pVM, RTGCPTR GCPtrBp);
 VMM_INT_DECL(int)           IEMBreakpointClear(PVM pVM, RTGCPTR GCPtrBp);
 
-VMM_INT_DECL(void)          IEMTlbInvalidateAll(PVMCPUCC pVCpu, bool fVmm);
+VMM_INT_DECL(void)          IEMTlbInvalidateAll(PVMCPUCC pVCpu);
 VMM_INT_DECL(void)          IEMTlbInvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCPtr);
 VMM_INT_DECL(void)          IEMTlbInvalidateAllPhysical(PVMCPUCC pVCpu);
+VMM_INT_DECL(void)          IEMTlbInvalidateAllPhysicalAllCpus(PVMCC pVM, VMCPUID idCpuCaller);
 VMM_INT_DECL(bool)          IEMGetCurrentXcpt(PVMCPUCC pVCpu, uint8_t *puVector, uint32_t *pfFlags, uint32_t *puErr,
                                               uint64_t *puCr2);
 VMM_INT_DECL(IEMXCPTRAISE)  IEMEvaluateRecursiveXcpt(PVMCPUCC pVCpu, uint32_t fPrevFlags, uint8_t uPrevVector, uint32_t fCurFlags,
@@ -380,8 +391,19 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmlaunchVmresume(PVMCPUCC pVCpu, uint8
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmxon(PVMCPUCC pVCpu, PCVMXVEXITINFO pExitInfo);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmxoff(PVMCPUCC pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvvpid(PVMCPUCC pVCpu, PCVMXVEXITINFO pExitInfo);
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvept(PVMCPUCC pVCpu, PCVMXVEXITINFO pExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitEptViolation(PVMCPUCC pVCpu, PCVMXVEXITINFO pExitInfo, PCVMXVEXITEVENTINFO pExitEventInfo);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecVmxVmexitEptMisconfig(PVMCPUCC pVCpu, RTGCPHYS GCPhysAddr, PCVMXVEXITEVENTINFO pExitEventInfo);
+# endif
 #endif
 /** @}  */
+
+/** @defgroup grp_iem_r3     The IEM Host Context Ring-3 API.
+ * @{
+ */
+VMMR0_INT_DECL(int) IEMR0InitVM(PGVM pGVM);
+/** @} */
 
 
 /** @defgroup grp_iem_r3     The IEM Host Context Ring-3 API.

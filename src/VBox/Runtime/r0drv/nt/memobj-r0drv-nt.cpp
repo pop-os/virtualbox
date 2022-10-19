@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -245,7 +255,7 @@ DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
     RT_NOREF1(fExecutable);
@@ -279,9 +289,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                             MmProtectMdlSystemAddress(pMdl, PAGE_EXECUTE_READWRITE);
 #endif
 
-                        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PAGE, pv, cb);
+                        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PAGE, pv, cb, pszTag);
                         if (pMemNt)
                         {
+                            pMemNt->Core.fFlags |= RTR0MEMOBJ_FLAGS_ZERO_AT_ALLOC;
                             pMemNt->fAllocatedPagesForMdl = true;
                             pMemNt->cMdls = 1;
                             pMemNt->apMdls[0] = pMdl;
@@ -329,9 +340,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
             /*
              * Create the IPRT memory object.
              */
-            PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PAGE, pv, cb);
+            PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PAGE, pv, cb, pszTag);
             if (pMemNt)
             {
+                pMemNt->Core.fFlags |= RTR0MEMOBJ_FLAGS_UNINITIALIZED_AT_ALLOC;
                 pMemNt->cMdls = 1;
                 pMemNt->apMdls[0] = pMdl;
                 *ppMem = &pMemNt->Core;
@@ -437,9 +449,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLarge(PPRTR0MEMOBJINTERNAL ppMem, size_t cb
                         /*
                          * Create the memory object.
                          */
-                        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PAGE, pv, cb);
+                        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PAGE, pv, cb, pszTag);
                         if (pMemNt)
                         {
+                            pMemNt->Core.fFlags |= RTR0MEMOBJ_FLAGS_ZERO_AT_ALLOC;
                             pMemNt->fAllocatedPagesForMdl = true;
                             pMemNt->cMdls = 1;
                             pMemNt->apMdls[0] = pMdl;
@@ -473,7 +486,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLarge(PPRTR0MEMOBJINTERNAL ppMem, size_t cb
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
 
@@ -481,7 +494,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
      * Try see if we get lucky first...
      * (We could probably just assume we're lucky on NT4.)
      */
-    int rc = rtR0MemObjNativeAllocPage(ppMem, cb, fExecutable);
+    int rc = rtR0MemObjNativeAllocPage(ppMem, cb, fExecutable, pszTag);
     if (RT_SUCCESS(rc))
     {
         size_t iPage = cb >> PAGE_SHIFT;
@@ -521,9 +534,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
                                                                    FALSE /* no bug check on failure */, NormalPagePriority);
                     if (pv)
                     {
-                        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_LOW, pv, cb);
+                        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_LOW, pv, cb, pszTag);
                         if (pMemNt)
                         {
+                            pMemNt->Core.fFlags |= RTR0MEMOBJ_FLAGS_ZERO_AT_ALLOC;
                             pMemNt->fAllocatedPagesForMdl = true;
                             pMemNt->cMdls = 1;
                             pMemNt->apMdls[0] = pMdl;
@@ -550,7 +564,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
     /*
      * Fall back on contiguous memory...
      */
-    return rtR0MemObjNativeAllocCont(ppMem, cb, fExecutable);
+    return rtR0MemObjNativeAllocCont(ppMem, cb, fExecutable, pszTag);
 }
 
 
@@ -566,9 +580,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
  * @param   PhysHighest     The highest physical address for the pages in allocation.
  * @param   uAlignment      The alignment of the physical memory to allocate.
  *                          Supported values are PAGE_SIZE, _2M, _4M and _1G.
+ * @param   pszTag          Allocation tag used for statistics and such.
  */
 static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, RTHCPHYS PhysHighest,
-                                       size_t uAlignment)
+                                       size_t uAlignment, const char *pszTag)
 {
     AssertMsgReturn(cb <= _1G, ("%#x\n", cb), VERR_OUT_OF_RANGE); /* for safe size_t -> ULONG */
     RT_NOREF1(fExecutable);
@@ -602,9 +617,10 @@ static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bo
             MmProtectMdlSystemAddress(pMdl, PAGE_EXECUTE_READWRITE);
 #endif
 
-        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_CONT, pv, cb);
+        PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_CONT, pv, cb, pszTag);
         if (pMemNt)
         {
+            pMemNt->Core.fFlags |= RTR0MEMOBJ_FLAGS_UNINITIALIZED_AT_ALLOC;
             pMemNt->Core.u.Cont.Phys = (RTHCPHYS)*MmGetMdlPfnArray(pMdl) << PAGE_SHIFT;
             pMemNt->cMdls = 1;
             pMemNt->apMdls[0] = pMdl;
@@ -619,13 +635,14 @@ static int rtR0MemObjNativeAllocContEx(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bo
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
-    return rtR0MemObjNativeAllocContEx(ppMem, cb, fExecutable, _4G-1, PAGE_SIZE /* alignment */);
+    return rtR0MemObjNativeAllocContEx(ppMem, cb, fExecutable, _4G-1, PAGE_SIZE /* alignment */, pszTag);
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment,
+                                          const char *pszTag)
 {
     /*
      * Try and see if we're lucky and get a contiguous chunk from MmAllocatePagesForMdl.
@@ -662,9 +679,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                         break;
                 if (iPage >= cPages)
                 {
-                    PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PHYS, NULL, cb);
+                    PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PHYS, NULL, cb, pszTag);
                     if (pMemNt)
                     {
+                        pMemNt->Core.fFlags |= RTR0MEMOBJ_FLAGS_ZERO_AT_ALLOC;
                         pMemNt->Core.u.Phys.fAllocated = true;
                         pMemNt->Core.u.Phys.PhysBase = (RTHCPHYS)paPfns[0] << PAGE_SHIFT;
                         pMemNt->fAllocatedPagesForMdl = true;
@@ -680,14 +698,16 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
         }
     }
 
-    return rtR0MemObjNativeAllocContEx(ppMem, cb, false, PhysHighest, uAlignment);
+    return rtR0MemObjNativeAllocContEx(ppMem, cb, false, PhysHighest, uAlignment, pszTag);
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, const char *pszTag)
 {
     if (g_pfnrtMmAllocatePagesForMdl && g_pfnrtMmFreePagesFromMdl)
     {
+        /** @todo use the Ex version with the fail-if-not-all-requested-pages flag
+         *        when possible. */
         PHYSICAL_ADDRESS Zero;
         Zero.QuadPart = 0;
         PHYSICAL_ADDRESS HighAddr;
@@ -697,9 +717,10 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t c
         {
             if (MmGetMdlByteCount(pMdl) >= cb)
             {
-                PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PHYS_NC, NULL, cb);
+                PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PHYS_NC, NULL, cb, pszTag);
                 if (pMemNt)
                 {
+                    pMemNt->Core.fFlags |= RTR0MEMOBJ_FLAGS_ZERO_AT_ALLOC;
                     pMemNt->fAllocatedPagesForMdl = true;
                     pMemNt->cMdls = 1;
                     pMemNt->apMdls[0] = pMdl;
@@ -716,7 +737,8 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t c
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
+DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy,
+                                          const char *pszTag)
 {
     AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE || uCachePolicy == RTMEM_CACHE_POLICY_MMIO, VERR_NOT_SUPPORTED);
 
@@ -730,7 +752,7 @@ DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS P
     /*
      * Create the IPRT memory object.
      */
-    PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PHYS, NULL, cb);
+    PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_PHYS, NULL, cb, pszTag);
     if (pMemNt)
     {
         pMemNt->Core.u.Phys.PhysBase = Phys;
@@ -754,8 +776,10 @@ DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS P
  * @param   fAccess         The desired access, a combination of RTMEM_PROT_READ
  *                          and RTMEM_PROT_WRITE.
  * @param   R0Process       The process \a pv and \a cb refers to.
+ * @param   pszTag          Allocation tag used for statistics and such.
  */
-static int rtR0MemObjNtLock(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process)
+static int rtR0MemObjNtLock(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess, RTR0PROCESS R0Process,
+                            const char *pszTag)
 {
     /*
      * Calc the number of MDLs we need and allocate the memory object structure.
@@ -766,7 +790,7 @@ static int rtR0MemObjNtLock(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uin
     if (cMdls >= UINT32_MAX)
         return VERR_OUT_OF_RANGE;
     PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(RT_UOFFSETOF_DYN(RTR0MEMOBJNT, apMdls[cMdls]),
-                                                        RTR0MEMOBJTYPE_LOCK, pv, cb);
+                                                        RTR0MEMOBJTYPE_LOCK, pv, cb, pszTag);
     if (!pMemNt)
         return VERR_NO_MEMORY;
 
@@ -866,37 +890,39 @@ static int rtR0MemObjNtLock(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uin
 
 
 DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess,
-                                         RTR0PROCESS R0Process)
+                                         RTR0PROCESS R0Process, const char *pszTag)
 {
     AssertMsgReturn(R0Process == RTR0ProcHandleSelf(), ("%p != %p\n", R0Process, RTR0ProcHandleSelf()), VERR_NOT_SUPPORTED);
     /* (Can use MmProbeAndLockProcessPages if we need to mess with other processes later.) */
-    return rtR0MemObjNtLock(ppMem, (void *)R3Ptr, cb, fAccess, R0Process);
+    return rtR0MemObjNtLock(ppMem, (void *)R3Ptr, cb, fAccess, R0Process, pszTag);
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess)
+DECLHIDDEN(int) rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess, const char *pszTag)
 {
-    return rtR0MemObjNtLock(ppMem, pv, cb, fAccess, NIL_RTR0PROCESS);
+    return rtR0MemObjNtLock(ppMem, pv, cb, fAccess, NIL_RTR0PROCESS, pszTag);
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment)
+DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment,
+                                              const char *pszTag)
 {
     /*
      * MmCreateSection(SEC_RESERVE) + MmMapViewInSystemSpace perhaps?
+     * Or MmAllocateMappingAddress?
      */
-    RT_NOREF4(ppMem, pvFixed, cb, uAlignment);
+    RT_NOREF(ppMem, pvFixed, cb, uAlignment, pszTag);
     return VERR_NOT_SUPPORTED;
 }
 
 
 DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment,
-                                            RTR0PROCESS R0Process)
+                                            RTR0PROCESS R0Process, const char *pszTag)
 {
     /*
      * ZeCreateSection(SEC_RESERVE) + ZwMapViewOfSection perhaps?
      */
-    RT_NOREF5(ppMem, R3PtrFixed, cb, uAlignment, R0Process);
+    RT_NOREF(ppMem, R3PtrFixed, cb, uAlignment, R0Process, pszTag);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -916,9 +942,10 @@ DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR 
  * @param   cbSub       The number of bytes to map from @a pMapToMem.  0 if
  *                      we're to map everything. Non-zero if @a offSub is
  *                      non-zero.
+ * @param   pszTag      Allocation tag used for statistics and such.
  */
 static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
-                           unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub)
+                           unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub, const char *pszTag)
 {
     int rc = VERR_MAP_FAILED;
 
@@ -1001,7 +1028,7 @@ static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, voi
 
                 PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(  !offSub && !cbSub
                                                                     ? sizeof(*pMemNt) : RT_UOFFSETOF_DYN(RTR0MEMOBJNT, apMdls[1]),
-                                                                    RTR0MEMOBJTYPE_MAPPING, pv, pMemNtToMap->Core.cb);
+                                                                    RTR0MEMOBJTYPE_MAPPING, pv, pMemNtToMap->Core.cb, pszTag);
                 if (pMemNt)
                 {
                     pMemNt->Core.u.Mapping.R0Process = R0Process;
@@ -1056,7 +1083,7 @@ static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, voi
         if (pv)
         {
             PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_MAPPING, pv,
-                                                                pMemNtToMap->Core.cb);
+                                                                pMemNtToMap->Core.cb, pszTag);
             if (pMemNt)
             {
                 pMemNt->Core.u.Mapping.R0Process = R0Process;
@@ -1075,17 +1102,17 @@ static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, voi
 
 
 DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
-                                          unsigned fProt, size_t offSub, size_t cbSub)
+                                          unsigned fProt, size_t offSub, size_t cbSub, const char *pszTag)
 {
-    return rtR0MemObjNtMap(ppMem, pMemToMap, pvFixed, uAlignment, fProt, NIL_RTR0PROCESS, offSub, cbSub);
+    return rtR0MemObjNtMap(ppMem, pMemToMap, pvFixed, uAlignment, fProt, NIL_RTR0PROCESS, offSub, cbSub, pszTag);
 }
 
 
 DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment,
-                                        unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub)
+                                        unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub, const char *pszTag)
 {
     AssertReturn(R0Process == RTR0ProcHandleSelf(), VERR_NOT_SUPPORTED);
-    return rtR0MemObjNtMap(ppMem, pMemToMap, (void *)R3PtrFixed, uAlignment, fProt, R0Process, offSub, cbSub);
+    return rtR0MemObjNtMap(ppMem, pMemToMap, (void *)R3PtrFixed, uAlignment, fProt, R0Process, offSub, cbSub, pszTag);
 }
 
 

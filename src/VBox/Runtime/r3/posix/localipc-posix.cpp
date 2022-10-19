@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -43,6 +53,7 @@
 #include <iprt/socket.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
+#include <iprt/path.h>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -54,6 +65,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 #include "internal/magics.h"
 #include "internal/path.h"
@@ -229,10 +241,9 @@ RTDECL(int) RTLocalIpcServerCreate(PRTLOCALIPCSERVER phServer, const char *pszNa
                 /*
                  * Create the local (unix) socket and bind to it.
                  */
-                rc = rtSocketCreate(&pThis->hSocket, AF_LOCAL, SOCK_STREAM, 0 /*iProtocol*/);
+                rc = rtSocketCreate(&pThis->hSocket, AF_LOCAL, SOCK_STREAM, 0 /*iProtocol*/, false /*fInheritable*/);
                 if (RT_SUCCESS(rc))
                 {
-                    RTSocketSetInheritance(pThis->hSocket, false /*fInheritable*/);
                     signal(SIGPIPE, SIG_IGN); /* Required on solaris, at least. */
 
                     uint8_t cbAddr;
@@ -269,6 +280,45 @@ RTDECL(int) RTLocalIpcServerCreate(PRTLOCALIPCSERVER phServer, const char *pszNa
     }
     Log(("RTLocalIpcServerCreate: failed, rc=%Rrc\n", rc));
     return rc;
+}
+
+
+RTDECL(int) RTLocalIpcServerGrantGroupAccess(RTLOCALIPCSERVER hServer, RTGID gid)
+{
+    PRTLOCALIPCSERVERINT pThis = (PRTLOCALIPCSERVERINT)hServer;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTLOCALIPCSERVER_MAGIC, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->Name.sun_path[0] != '\0', VERR_INVALID_STATE);
+
+    if (chown(pThis->Name.sun_path, -1, gid) == 0)
+    {
+        if (chmod(pThis->Name.sun_path, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) == 0)
+        {
+            LogRel2(("RTLocalIpcServerGrantGroupAccess: IPC socket %s access has been granted to group %RTgid\n",
+                     pThis->Name.sun_path, gid));
+            return VINF_SUCCESS;
+        }
+        LogRel(("RTLocalIpcServerGrantGroupAccess: cannot grant IPC socket %s write permission to group %RTgid: errno=%d\n",
+                pThis->Name.sun_path, gid, errno));
+    }
+    else
+        LogRel(("RTLocalIpcServerGrantGroupAccess: cannot change IPC socket %s group ownership to %RTgid: errno=%d\n",
+                pThis->Name.sun_path, gid, errno));
+    return RTErrConvertFromErrno(errno);
+}
+
+
+RTDECL(int) RTLocalIpcServerSetAccessMode(RTLOCALIPCSERVER hServer, RTFMODE fMode)
+{
+    PRTLOCALIPCSERVERINT pThis = (PRTLOCALIPCSERVERINT)hServer;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTLOCALIPCSERVER_MAGIC, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->Name.sun_path[0] != '\0', VERR_INVALID_STATE);
+
+    if (chmod(pThis->Name.sun_path, fMode & RTFS_UNIX_ALL_ACCESS_PERMS) == 0)
+        return VINF_SUCCESS;
+
+    return RTErrConvertFromErrno(errno);
 }
 
 
@@ -509,10 +559,9 @@ RTDECL(int) RTLocalIpcSessionConnect(PRTLOCALIPCSESSION phSession, const char *p
                 /*
                  * Create the local (unix) socket and try connect to the server.
                  */
-                rc = rtSocketCreate(&pThis->hSocket, AF_LOCAL, SOCK_STREAM, 0 /*iProtocol*/);
+                rc = rtSocketCreate(&pThis->hSocket, AF_LOCAL, SOCK_STREAM, 0 /*iProtocol*/, false /*fInheritable*/);
                 if (RT_SUCCESS(rc))
                 {
-                    RTSocketSetInheritance(pThis->hSocket, false /*fInheritable*/);
                     signal(SIGPIPE, SIG_IGN); /* Required on solaris, at least. */
 
                     struct sockaddr_un  Addr;
@@ -1048,23 +1097,75 @@ RTDECL(int) RTLocalIpcSessionWaitForData(RTLOCALIPCSESSION hSession, uint32_t cM
 }
 
 
+/**
+ * Get IPC session socket peer credentials.
+ *
+ * @returns IPRT status code.
+ * @param   hSession    IPC session handle.
+ * @param   pProcess    Where to return the remote peer's PID (can be NULL).
+ * @param   pUid        Where to return the remote peer's UID (can be NULL).
+ * @param   pGid        Where to return the remote peer's GID (can be NULL).
+ */
+static int rtLocalIpcSessionQueryUcred(RTLOCALIPCSESSION hSession, PRTPROCESS pProcess, PRTUID pUid, PRTGID pGid)
+{
+    PRTLOCALIPCSESSIONINT pThis = hSession;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTLOCALIPCSESSION_MAGIC, VERR_INVALID_HANDLE);
+
+#if defined(RT_OS_LINUX)
+    struct ucred PeerCred   = { (pid_t)NIL_RTPROCESS, (uid_t)NIL_RTUID, (gid_t)NIL_RTGID };
+    socklen_t    cbPeerCred = sizeof(PeerCred);
+
+    rtLocalIpcSessionRetain(pThis);
+
+    int rc = RTCritSectEnter(&pThis->CritSect);;
+    if (RT_SUCCESS(rc))
+    {
+        if (getsockopt(RTSocketToNative(pThis->hSocket), SOL_SOCKET, SO_PEERCRED, &PeerCred, &cbPeerCred) >= 0)
+        {
+            if (pProcess)
+                *pProcess = PeerCred.pid;
+            if (pUid)
+                *pUid = PeerCred.uid;
+            if (pGid)
+                *pGid = PeerCred.gid;
+            rc = VINF_SUCCESS;
+        }
+        else
+        {
+            rc = RTErrConvertFromErrno(errno);
+        }
+
+        int rc2 = RTCritSectLeave(&pThis->CritSect);
+        AssertStmt(RT_SUCCESS(rc2), rc = RT_SUCCESS(rc) ? rc2 : rc);
+    }
+
+    rtLocalIpcSessionRelease(pThis);
+
+    return rc;
+
+#else
+    /** @todo Implement on other platforms too (mostly platform specific this).
+     *        Solaris: getpeerucred?  Darwin: LOCALPEERCRED or getpeereid? */
+    RT_NOREF(pProcess, pUid, pGid);
+    return VERR_NOT_SUPPORTED;
+#endif
+}
+
+
 RTDECL(int) RTLocalIpcSessionQueryProcess(RTLOCALIPCSESSION hSession, PRTPROCESS pProcess)
 {
-    RT_NOREF_PV(hSession); RT_NOREF_PV(pProcess);
-    return VERR_NOT_SUPPORTED;
+    return rtLocalIpcSessionQueryUcred(hSession, pProcess, NULL, NULL);
 }
 
 
 RTDECL(int) RTLocalIpcSessionQueryUserId(RTLOCALIPCSESSION hSession, PRTUID pUid)
 {
-    RT_NOREF_PV(hSession); RT_NOREF_PV(pUid);
-    return VERR_NOT_SUPPORTED;
+    return rtLocalIpcSessionQueryUcred(hSession, NULL, pUid, NULL);
 }
-
 
 RTDECL(int) RTLocalIpcSessionQueryGroupId(RTLOCALIPCSESSION hSession, PRTGID pGid)
 {
-    RT_NOREF_PV(hSession); RT_NOREF_PV(pGid);
-    return VERR_NOT_SUPPORTED;
+    return rtLocalIpcSessionQueryUcred(hSession, NULL, NULL, pGid);
 }
 

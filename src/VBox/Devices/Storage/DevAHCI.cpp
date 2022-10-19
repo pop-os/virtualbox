@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_dev_ahci   AHCI - Advanced Host Controller Interface Emulation.
@@ -243,8 +253,6 @@ typedef struct AHCIREQ
     uint8_t                    cmdFis[AHCI_CMDFIS_TYPE_H2D_SIZE];
     /** The ATAPI command data. */
     uint8_t                    aATAPICmd[ATAPI_PACKET_SIZE];
-    /** Size of one sector for the ATAPI transfer. */
-    uint32_t                   cbATAPISector;
     /** Physical address of the command header. - GC */
     RTGCPHYS                   GCPhysCmdHdrAddr;
     /** Physical address of the PRDT */
@@ -639,10 +647,10 @@ AssertCompileSize(SGLEntry, 16);
  *                   On return this contains the remaining amount if
  *                   cbCopy < *pcbSkip or 0 otherwise.
  */
-typedef DECLCALLBACK(void) AHCIR3MEMCOPYCALLBACK(PPDMDEVINS pDevIns, RTGCPHYS GCPhys,
-                                                 PRTSGBUF pSgBuf, size_t cbCopy, size_t *pcbSkip);
+typedef DECLCALLBACKTYPE(void, FNAHCIR3MEMCOPYCALLBACK,(PPDMDEVINS pDevIns, RTGCPHYS GCPhys,
+                                                        PRTSGBUF pSgBuf, size_t cbCopy, size_t *pcbSkip));
 /** Pointer to a memory copy buffer callback. */
-typedef AHCIR3MEMCOPYCALLBACK *PAHCIR3MEMCOPYCALLBACK;
+typedef FNAHCIR3MEMCOPYCALLBACK *PFNAHCIR3MEMCOPYCALLBACK;
 #endif
 
 /** Defines for a scatter gather list entry. */
@@ -964,9 +972,9 @@ static int ahciHbaSetInterrupt(PPDMDEVINS pDevIns, PAHCI pThis, uint8_t iPort, i
 /**
  * @callback_method_impl{FNTMTIMERDEV, Assert irq when an CCC timeout occurs.}
  */
-static DECLCALLBACK(void) ahciCccTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) ahciCccTimer(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
-    RT_NOREF(pDevIns, pTimer);
+    RT_NOREF(pDevIns, hTimer);
     PAHCI pThis = (PAHCI)pvUser;
 
     int rc = ahciHbaSetInterrupt(pDevIns, pThis, pThis->uCccPortNr, VERR_IGNORED);
@@ -2740,7 +2748,7 @@ static int ahciPostFisIntoMemory(PPDMDEVINS pDevIns, PAHCIPORT pAhciPort, unsign
 
         /* Post the FIS into memory. */
         ahciLog(("%s: PDMDevHlpPCIPhysWrite GCPhysAddrRecFis=%RGp cbFis=%u\n", __FUNCTION__, GCPhysAddrRecFis, cbFis));
-        PDMDevHlpPCIPhysWrite(pDevIns, GCPhysAddrRecFis, pCmdFis, cbFis);
+        PDMDevHlpPCIPhysWriteMeta(pDevIns, GCPhysAddrRecFis, pCmdFis, cbFis);
     }
 
     return rc;
@@ -3261,7 +3269,7 @@ DECLINLINE(uint32_t) ahciGetNSectorsQueued(uint8_t *pCmdFis)
 /**
  * Copy from guest to host memory worker.
  *
- * @copydoc AHCIR3MEMCOPYCALLBACK
+ * @copydoc FNAHCIR3MEMCOPYCALLBACK
  */
 static DECLCALLBACK(void) ahciR3CopyBufferFromGuestWorker(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, PRTSGBUF pSgBuf,
                                                           size_t cbCopy, size_t *pcbSkip)
@@ -3277,7 +3285,9 @@ static DECLCALLBACK(void) ahciR3CopyBufferFromGuestWorker(PPDMDEVINS pDevIns, RT
         void *pvSeg = RTSgBufGetNextSegment(pSgBuf, &cbSeg);
 
         AssertPtr(pvSeg);
-        PDMDevHlpPhysRead(pDevIns, GCPhys, pvSeg, cbSeg);
+        Log5Func(("%RGp LB %#zx\n", GCPhys, cbSeg));
+        PDMDevHlpPCIPhysRead(pDevIns, GCPhys, pvSeg, cbSeg);
+        Log7Func(("%.*Rhxd\n", cbSeg, pvSeg));
         GCPhys += cbSeg;
         cbCopy -= cbSeg;
     }
@@ -3286,7 +3296,7 @@ static DECLCALLBACK(void) ahciR3CopyBufferFromGuestWorker(PPDMDEVINS pDevIns, RT
 /**
  * Copy from host to guest memory worker.
  *
- * @copydoc AHCIR3MEMCOPYCALLBACK
+ * @copydoc FNAHCIR3MEMCOPYCALLBACK
  */
 static DECLCALLBACK(void) ahciR3CopyBufferToGuestWorker(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, PRTSGBUF pSgBuf,
                                                         size_t cbCopy, size_t *pcbSkip)
@@ -3302,7 +3312,9 @@ static DECLCALLBACK(void) ahciR3CopyBufferToGuestWorker(PPDMDEVINS pDevIns, RTGC
         void *pvSeg = RTSgBufGetNextSegment(pSgBuf, &cbSeg);
 
         AssertPtr(pvSeg);
-        PDMDevHlpPCIPhysWrite(pDevIns, GCPhys, pvSeg, cbSeg);
+        Log5Func(("%RGp LB %#zx\n", GCPhys, cbSeg));
+        Log6Func(("%.*Rhxd\n", cbSeg, pvSeg));
+        PDMDevHlpPCIPhysWriteUser(pDevIns, GCPhys, pvSeg, cbSeg);
         GCPhys += cbSeg;
         cbCopy -= cbSeg;
     }
@@ -3320,7 +3332,7 @@ static DECLCALLBACK(void) ahciR3CopyBufferToGuestWorker(PPDMDEVINS pDevIns, RTGC
  * @param   cbCopy          How many bytes to copy.
  */
 static size_t ahciR3PrdtlWalk(PPDMDEVINS pDevIns, PAHCIREQ pAhciReq,
-                              PAHCIR3MEMCOPYCALLBACK pfnCopyWorker,
+                              PFNAHCIR3MEMCOPYCALLBACK pfnCopyWorker,
                               PRTSGBUF pSgBuf, size_t cbSkip, size_t cbCopy)
 {
     RTGCPHYS GCPhysPrdtl = pAhciReq->GCPhysPrdtl;
@@ -3342,8 +3354,8 @@ static size_t ahciR3PrdtlWalk(PPDMDEVINS pDevIns, PAHCIREQ pAhciReq,
                                    ? cPrdtlEntries
                                    : RT_ELEMENTS(aPrdtlEntries);
 
-        PDMDevHlpPhysRead(pDevIns, GCPhysPrdtl, &aPrdtlEntries[0],
-                          cPrdtlEntriesRead * sizeof(SGLEntry));
+        PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysPrdtl, &aPrdtlEntries[0],
+                                 cPrdtlEntriesRead * sizeof(SGLEntry));
 
         for (uint32_t i = 0; (i < cPrdtlEntriesRead) && cbCopy; i++)
         {
@@ -3438,7 +3450,7 @@ static int ahciR3PrdtQuerySize(PPDMDEVINS pDevIns, PAHCIREQ pAhciReq, size_t *pc
         SGLEntry aPrdtlEntries[32];
         uint32_t const cPrdtlEntriesRead = RT_MIN(cPrdtlEntries,  RT_ELEMENTS(aPrdtlEntries));
 
-        PDMDevHlpPhysRead(pDevIns, GCPhysPrdtl, &aPrdtlEntries[0], cPrdtlEntriesRead * sizeof(SGLEntry));
+        PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysPrdtl, &aPrdtlEntries[0], cPrdtlEntriesRead * sizeof(SGLEntry));
 
         for (uint32_t i = 0; i < cPrdtlEntriesRead; i++)
             cbPrdt += (aPrdtlEntries[i].u32DescInf & SGLENTRY_DESCINF_DBC) + 1;
@@ -3503,7 +3515,7 @@ static int ahciTrimRangesCreate(PPDMDEVINS pDevIns, PAHCIPORT pAhciPort, PAHCIRE
         uint32_t cPrdtlEntriesRead = RT_MIN(cPrdtlEntries, RT_ELEMENTS(aPrdtlEntries));
 
         rc = VINF_SUCCESS;
-        PDMDevHlpPhysRead(pDevIns, GCPhysPrdtl, &aPrdtlEntries[0], cPrdtlEntriesRead * sizeof(SGLEntry));
+        PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysPrdtl, &aPrdtlEntries[0], cPrdtlEntriesRead * sizeof(SGLEntry));
 
         for (uint32_t i = 0; i < cPrdtlEntriesRead && idxRange < cRanges; i++)
         {
@@ -3513,7 +3525,7 @@ static int ahciTrimRangesCreate(PPDMDEVINS pDevIns, PAHCIPORT pAhciPort, PAHCIRE
             cbThisCopy = RT_MIN(cbThisCopy, sizeof(aRanges));
 
             /* Copy into buffer. */
-            PDMDevHlpPhysRead(pDevIns, GCPhysAddrDataBase, aRanges, cbThisCopy);
+            PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysAddrDataBase, aRanges, cbThisCopy);
 
             for (unsigned idxRangeSrc = 0; idxRangeSrc < RT_ELEMENTS(aRanges) && idxRange < cRanges; idxRangeSrc++)
             {
@@ -3694,8 +3706,8 @@ static bool ahciR3TransferComplete(PPDMDEVINS pDevIns, PAHCI pThis, PAHCICC pThi
             else
                 u32PRDBC = (uint32_t)pAhciReq->cbTransfer;
 
-            PDMDevHlpPCIPhysWrite(pDevIns, pAhciReq->GCPhysCmdHdrAddr + RT_UOFFSETOF(CmdHdr, u32PRDBC),
-                                  &u32PRDBC, sizeof(u32PRDBC));
+            PDMDevHlpPCIPhysWriteMeta(pDevIns, pAhciReq->GCPhysCmdHdrAddr + RT_UOFFSETOF(CmdHdr, u32PRDBC),
+                                      &u32PRDBC, sizeof(u32PRDBC));
 
             if (pAhciReq->fFlags & AHCI_REQ_OVERFLOW)
             {
@@ -3850,7 +3862,7 @@ static DECLCALLBACK(int) ahciR3IoReqQueryBuf(PPDMIMEDIAEXPORT pInterface, PDMMED
         RTGCPHYS GCPhysPrdt = pIoReq->GCPhysPrdtl;
         SGLEntry PrdtEntry;
 
-        PDMDevHlpPhysRead(pDevIns, GCPhysPrdt, &PrdtEntry, sizeof(SGLEntry));
+        PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysPrdt, &PrdtEntry, sizeof(SGLEntry));
 
         RTGCPHYS GCPhysAddrDataBase = AHCI_RTGCPHYS_FROM_U32(PrdtEntry.u32DBAUp, PrdtEntry.u32DBA);
         uint32_t cbData = (PrdtEntry.u32DescInf & SGLENTRY_DESCINF_DBC) + 1;
@@ -3858,7 +3870,7 @@ static DECLCALLBACK(int) ahciR3IoReqQueryBuf(PPDMIMEDIAEXPORT pInterface, PDMMED
         if (   cbData >= _4K
             && !(GCPhysAddrDataBase & (_4K - 1)))
         {
-            rc = PDMDevHlpPhysGCPhys2CCPtr(pDevIns, GCPhysAddrDataBase, 0, ppvBuf, &pIoReq->PgLck);
+            rc = PDMDevHlpPCIPhysGCPhys2CCPtr(pDevIns, NULL /* pPciDev */, GCPhysAddrDataBase, 0, ppvBuf, &pIoReq->PgLck);
             if (RT_SUCCESS(rc))
             {
                 pIoReq->fMapped = true;
@@ -3953,9 +3965,9 @@ static DECLCALLBACK(void) ahciR3MediumEjected(PPDMIMEDIAEXPORT pInterface)
 
     if (pThisCC->pMediaNotify)
     {
-        int rc = VMR3ReqCallNoWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                                   (PFNRT)pThisCC->pMediaNotify->pfnEjected, 2,
-                                   pThisCC->pMediaNotify, pAhciPort->iLUN);
+        int rc = PDMDevHlpVMReqCallNoWait(pDevIns, VMCPUID_ANY,
+                                          (PFNRT)pThisCC->pMediaNotify->pfnEjected, 2,
+                                          pThisCC->pMediaNotify, pAhciPort->iLUN);
         AssertRC(rc);
     }
 }
@@ -4267,9 +4279,9 @@ static bool ahciPortTaskGetCommandFis(PPDMDEVINS pDevIns, PAHCI pThis, PAHCIPORT
      */
     CmdHdr cmdHdr;
     pAhciReq->GCPhysCmdHdrAddr = pAhciPort->GCPhysAddrClb + pAhciReq->uTag * sizeof(CmdHdr);
-    LogFlow(("%s: PDMDevHlpPhysRead GCPhysAddrCmdLst=%RGp cbCmdHdr=%u\n", __FUNCTION__,
+    LogFlow(("%s: PDMDevHlpPCIPhysReadMeta GCPhysAddrCmdLst=%RGp cbCmdHdr=%u\n", __FUNCTION__,
              pAhciReq->GCPhysCmdHdrAddr, sizeof(CmdHdr)));
-    PDMDevHlpPhysRead(pDevIns, pAhciReq->GCPhysCmdHdrAddr, &cmdHdr, sizeof(CmdHdr));
+    PDMDevHlpPCIPhysReadMeta(pDevIns, pAhciReq->GCPhysCmdHdrAddr, &cmdHdr, sizeof(CmdHdr));
 
 #ifdef LOG_ENABLED
     /* Print some infos about the command header. */
@@ -4283,8 +4295,8 @@ static bool ahciPortTaskGetCommandFis(PPDMDEVINS pDevIns, PAHCI pThis, PAHCIPORT
                     false);
 
     /* Read the command Fis. */
-    LogFlow(("%s: PDMDevHlpPhysRead GCPhysAddrCmdTbl=%RGp cbCmdFis=%u\n", __FUNCTION__, GCPhysAddrCmdTbl, AHCI_CMDFIS_TYPE_H2D_SIZE));
-    PDMDevHlpPhysRead(pDevIns, GCPhysAddrCmdTbl, &pAhciReq->cmdFis[0], AHCI_CMDFIS_TYPE_H2D_SIZE);
+    LogFlow(("%s: PDMDevHlpPCIPhysReadMeta GCPhysAddrCmdTbl=%RGp cbCmdFis=%u\n", __FUNCTION__, GCPhysAddrCmdTbl, AHCI_CMDFIS_TYPE_H2D_SIZE));
+    PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysAddrCmdTbl, &pAhciReq->cmdFis[0], AHCI_CMDFIS_TYPE_H2D_SIZE);
 
     AssertMsgReturn(pAhciReq->cmdFis[AHCI_CMDFIS_TYPE] == AHCI_CMDFIS_TYPE_H2D,
                     ("This is not a command FIS\n"),
@@ -4297,7 +4309,7 @@ static bool ahciPortTaskGetCommandFis(PPDMDEVINS pDevIns, PAHCI pThis, PAHCIPORT
     if (cmdHdr.u32DescInf & AHCI_CMDHDR_A)
     {
         GCPhysAddrCmdTbl += AHCI_CMDHDR_ACMD_OFFSET;
-        PDMDevHlpPhysRead(pDevIns, GCPhysAddrCmdTbl, &pAhciReq->aATAPICmd[0], ATAPI_PACKET_SIZE);
+        PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysAddrCmdTbl, &pAhciReq->aATAPICmd[0], ATAPI_PACKET_SIZE);
     }
 
     /* We "received" the FIS. Clear the BSY bit in regTFD. */
@@ -4327,7 +4339,7 @@ static bool ahciPortTaskGetCommandFis(PPDMDEVINS pDevIns, PAHCI pThis, PAHCIPORT
         SGLEntry SGEntry;
 
         ahciLog(("Entry %u at address %RGp\n", i, GCPhysPrdtl));
-        PDMDevHlpPhysRead(pDevIns, GCPhysPrdtl, &SGEntry, sizeof(SGLEntry));
+        PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysPrdtl, &SGEntry, sizeof(SGLEntry));
 
         RTGCPHYS GCPhysDataAddr = AHCI_RTGCPHYS_FROM_U32(SGEntry.u32DBAUp, SGEntry.u32DBA);
         ahciLog(("GCPhysAddr=%RGp Size=%u\n", GCPhysDataAddr, SGEntry.u32DescInf & SGLENTRY_DESCINF_DBC));
@@ -5179,13 +5191,13 @@ static int ahciR3ConfigureLUN(PPDMDEVINS pDevIns, PAHCIPORT pAhciPort, PAHCIPORT
 {
     /* Query the media interface. */
     pAhciPortR3->pDrvMedia = PDMIBASE_QUERY_INTERFACE(pAhciPortR3->pDrvBase, PDMIMEDIA);
-    AssertMsgReturn(VALID_PTR(pAhciPortR3->pDrvMedia),
+    AssertMsgReturn(RT_VALID_PTR(pAhciPortR3->pDrvMedia),
                     ("AHCI configuration error: LUN#%d misses the basic media interface!\n", pAhciPort->iLUN),
                     VERR_PDM_MISSING_INTERFACE);
 
     /* Get the extended media interface. */
     pAhciPortR3->pDrvMediaEx = PDMIBASE_QUERY_INTERFACE(pAhciPortR3->pDrvBase, PDMIMEDIAEX);
-    AssertMsgReturn(VALID_PTR(pAhciPortR3->pDrvMediaEx),
+    AssertMsgReturn(RT_VALID_PTR(pAhciPortR3->pDrvMediaEx),
                     ("AHCI configuration error: LUN#%d misses the extended media interface!\n", pAhciPort->iLUN),
                     VERR_PDM_MISSING_INTERFACE);
 
@@ -5918,7 +5930,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
     /*
      * The non-fake PCI I/O regions:
-     * Note! The 4352 byte MMIO region will be rounded up to PAGE_SIZE.
+     * Note! The 4352 byte MMIO region will be rounded up to GUEST_PAGE_SIZE.
      */
     rc = PDMDevHlpPCIIORegionCreateIo(pDevIns, 4 /*iPciRegion*/, 0x10 /*cPorts*/,
                                       ahciIdxDataWrite, ahciIdxDataRead, NULL /*pvUser*/,
@@ -5938,7 +5950,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
      * Create the timer for command completion coalescing feature.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, ahciCccTimer, pThis,
-                              TMTIMER_FLAGS_NO_CRIT_SECT, "AHCI CCC Timer", &pThis->hHbaCccTimer);
+                              TMTIMER_FLAGS_NO_CRIT_SECT | TMTIMER_FLAGS_RING0, "AHCI CCC", &pThis->hHbaCccTimer);
     AssertRCReturn(rc, rc);
 
     /*

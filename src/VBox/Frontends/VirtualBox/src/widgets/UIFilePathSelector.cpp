@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -26,6 +36,7 @@
 #ifdef VBOX_WS_WIN
 # include <QListView>
 #endif
+#include <QRegExp>
 
 /* GUI includes: */
 #include "QIFileDialog.h"
@@ -33,6 +44,7 @@
 #include "QILineEdit.h"
 #include "QIToolButton.h"
 #include "UICommon.h"
+#include "UIExtraDataManager.h"
 #include "UIIconPool.h"
 #include "UIFilePathSelector.h"
 
@@ -57,13 +69,16 @@ static int differFrom(const QString &str1, const QString &str2)
 UIFilePathSelector::UIFilePathSelector(QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QIComboBox>(pParent)
     , m_enmMode(Mode_Folder)
-    , m_strHomeDir(QDir::current().absolutePath())
+    , m_strInitialPath(QDir::current().absolutePath())
+    , m_fResetEnabled(true)
     , m_fEditable(true)
     , m_fModified(false)
     , m_fEditableMode(false)
     , m_fMouseAwaited(false)
     , m_fToolTipOverriden(false)
     , m_pCopyAction(new QAction(this))
+    , m_iRecentListSeparatorPosition(ResetId + 1)
+    , m_enmRecentMediaListType(UIMediumDeviceType_Invalid)
 {
 #ifdef VBOX_WS_WIN
     // WORKAROUND:
@@ -97,6 +112,7 @@ UIFilePathSelector::UIFilePathSelector(QWidget *pParent /* = 0 */)
     /* Setup connections: */
     connect(this, static_cast<void(UIFilePathSelector::*)(int)>(&UIFilePathSelector::activated), this, &UIFilePathSelector::onActivated);
     connect(m_pCopyAction, &QAction::triggered, this, &UIFilePathSelector::copyToClipboard);
+    connect(&uiCommon(), &UICommon::sigRecentMediaListUpdated, this, &UIFilePathSelector::sltRecentMediaListUpdated);
 
     /* Editable by default: */
     setEditable(true);
@@ -150,6 +166,12 @@ void UIFilePathSelector::setEditable(bool fEditable)
 
 void UIFilePathSelector::setResetEnabled(bool fEnabled)
 {
+    /* Cache requested state: */
+    m_fResetEnabled = fEnabled;
+
+    /* Update recent list separator position: */
+    m_iRecentListSeparatorPosition = fEnabled ? ResetId + 1 : ResetId;
+
     if (!fEnabled && count() - 1 == ResetId)
         removeItem(ResetId);
     else if (fEnabled && count() - 1 == ResetId - 1)
@@ -157,7 +179,19 @@ void UIFilePathSelector::setResetEnabled(bool fEnabled)
         insertItem(ResetId, "");
         setItemIcon(ResetId, UIIconPool::iconSet(":/eraser_16px.png"));
     }
+
+    sltRecentMediaListUpdated(m_enmRecentMediaListType);
     retranslateUi();
+}
+
+bool UIFilePathSelector::isValid() const
+{
+    if (m_strPath.isNull() || m_strPath.isEmpty())
+        return false;
+    QFileInfo fileInfo(m_strPath);
+    if (!fileInfo.exists() || !fileInfo.isReadable())
+        return false;
+    return true;
 }
 
 void UIFilePathSelector::setToolTip(const QString &strToolTip)
@@ -183,9 +217,20 @@ const QString& UIFilePathSelector::defaultPath() const
     return m_strDefaultPath;
 }
 
+void UIFilePathSelector::setRecentMediaListType(UIMediumDeviceType enmMediumType)
+{
+    m_enmRecentMediaListType = enmMediumType;
+    sltRecentMediaListUpdated(enmMediumType);
+}
+
+UIMediumDeviceType UIFilePathSelector::recentMediaListType() const
+{
+    return m_enmRecentMediaListType;
+}
+
 void UIFilePathSelector::setPath(const QString &strPath, bool fRefreshText /* = true */)
 {
-    m_strPath = strPath.isEmpty() ? QString::null :
+    m_strPath = strPath.isEmpty() ? QString() :
             QDir::toNativeSeparators(strPath);
     if (fRefreshText)
         refreshText();
@@ -299,44 +344,31 @@ void UIFilePathSelector::retranslateUi()
                               "list to select a path.");
     }
 
-    /* But if selector is focused => tool-tip depends on the mode only: */
-    switch (m_enmMode)
-    {
-        case Mode_Folder:
-            m_strNoneToolTipFocused = tr("Holds the folder path.");
-            break;
-        case Mode_File_Open:
-        case Mode_File_Save:
-            m_strNoneToolTipFocused = tr("Holds the file path.");
-            break;
-        default:
-            AssertFailedBreak();
-    }
-
     /* Finally, retranslate current item: */
     refreshText();
 }
 
 void UIFilePathSelector::onActivated(int iIndex)
 {
-    switch (iIndex)
+    /* Since the presence of ResetId and position of recent list separator
+     * are dynamical now, we should control condition more carefully: */
+    if (iIndex == SelectId)
+        selectPath();
+    else if (m_fResetEnabled && iIndex == ResetId)
     {
-        case SelectId:
-        {
-            selectPath();
-            break;
-        }
-        case ResetId:
-        {
-            if (m_strDefaultPath.isEmpty())
-                changePath(QString::null);
-            else
-                changePath(m_strDefaultPath);
-            break;
-        }
-        default:
-            break;
+        if (m_strDefaultPath.isEmpty())
+            changePath(QString());
+        else
+            changePath(m_strDefaultPath);
     }
+    else if (iIndex >= m_iRecentListSeparatorPosition)
+    {
+        /* Switch back to Path item early, lineEdit() in refreshText()
+         * should be related to this exactly item: */
+        setCurrentIndex(PathId);
+        changePath(itemText(iIndex));
+    }
+
     setCurrentIndex(PathId);
     setFocus();
 }
@@ -358,7 +390,7 @@ void UIFilePathSelector::copyToClipboard()
 void UIFilePathSelector::changePath(const QString &strPath,
                                     bool fRefreshText /* = true */)
 {
-    const QString strOldPath = m_strPath;
+    const QString strOldPath = QDir::toNativeSeparators(m_strPath);
     setPath(strPath, fRefreshText);
     if (!m_fModified && m_strPath != strOldPath)
         m_fModified = true;
@@ -368,7 +400,7 @@ void UIFilePathSelector::changePath(const QString &strPath,
 void UIFilePathSelector::selectPath()
 {
     /* Prepare initial directory: */
-    QString strInitDir;
+    QString strInitPath;
     /* If something already chosen: */
     if (!m_strPath.isEmpty())
     {
@@ -376,31 +408,31 @@ void UIFilePathSelector::selectPath()
         const QString strObjectName = QFileInfo(m_strPath).fileName();
         if (strObjectName == m_strPath)
         {
-            /* Use the home directory: */
-            strInitDir = m_strHomeDir;
+            /* Use the initial path: */
+            strInitPath = m_strInitialPath;
         }
         /* If that is full file/folder (object) path: */
         else
         {
             /* Use the first existing dir of m_strPath: */
-            strInitDir = QIFileDialog::getFirstExistingDir(m_strPath);
+            strInitPath = QIFileDialog::getFirstExistingDir(m_strPath);
         }
         /* Finally, append object name itself: */
-        strInitDir = QDir(strInitDir).absoluteFilePath(strObjectName);
+        strInitPath = QDir(strInitPath).absoluteFilePath(strObjectName);
     }
-    /* Use the home directory by default: */
-    if (strInitDir.isNull())
-        strInitDir = m_strHomeDir;
+    /* Use the initial path by default: */
+    if (strInitPath.isNull())
+        strInitPath = m_strInitialPath;
 
     /* Open the choose-file/folder dialog: */
     QString strSelPath;
     switch (m_enmMode)
     {
         case Mode_File_Open:
-            strSelPath = QIFileDialog::getOpenFileName(strInitDir, m_strFileDialogFilters, parentWidget(), m_strFileDialogTitle); break;
+            strSelPath = QIFileDialog::getOpenFileName(strInitPath, m_strFileDialogFilters, window(), m_strFileDialogTitle); break;
         case Mode_File_Save:
         {
-            strSelPath = QIFileDialog::getSaveFileName(strInitDir, m_strFileDialogFilters, parentWidget(), m_strFileDialogTitle);
+            strSelPath = QIFileDialog::getSaveFileName(strInitPath, m_strFileDialogFilters, window(), m_strFileDialogTitle);
             if (!strSelPath.isEmpty() && QFileInfo(strSelPath).suffix().isEmpty())
             {
                 if (m_strFileDialogDefaultSaveExtension.isEmpty())
@@ -411,7 +443,7 @@ void UIFilePathSelector::selectPath()
             break;
         }
         case Mode_Folder:
-            strSelPath = QIFileDialog::getExistingDirectory(strInitDir, parentWidget(), m_strFileDialogTitle); break;
+            strSelPath = QIFileDialog::getExistingDirectory(strInitPath, window(), m_strFileDialogTitle); break;
     }
 
     /* Do nothing if nothing chosen: */
@@ -419,7 +451,7 @@ void UIFilePathSelector::selectPath()
         return;
 
     /* Wipe out excessive slashes: */
-    strSelPath.remove(QRegExp("[\\\\/]$"));
+    strSelPath.remove(QRegularExpression("[\\\\/]$"));
 
     /* Apply chosen path: */
     changePath(strSelPath);
@@ -428,9 +460,9 @@ void UIFilePathSelector::selectPath()
 QIcon UIFilePathSelector::defaultIcon() const
 {
     if (m_enmMode == Mode_Folder)
-        return uiCommon().icon(QFileIconProvider::Folder);
+        return generalIconPool().defaultSystemIcon(QFileIconProvider::Folder);
     else
-        return uiCommon().icon(QFileIconProvider::File);
+        return generalIconPool().defaultSystemIcon(QFileIconProvider::File);
 }
 
 QString UIFilePathSelector::fullPath(bool fAbsolute /* = true */) const
@@ -462,8 +494,13 @@ QString UIFilePathSelector::shrinkText(int iWidth) const
     if (strFullText.isEmpty())
         return strFullText;
 
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int iOldSize = fontMetrics().horizontalAdvance(strFullText);
+    int iIndentSize = fontMetrics().horizontalAdvance("x...x");
+#else
     int iOldSize = fontMetrics().width(strFullText);
     int iIndentSize = fontMetrics().width("x...x");
+#endif
 
     /* Compress text: */
     int iStart = 0;
@@ -471,7 +508,11 @@ QString UIFilePathSelector::shrinkText(int iWidth) const
     int iPosition = 0;
     int iTextWidth = 0;
     do {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+        iTextWidth = fontMetrics().horizontalAdvance(strFullText);
+#else
         iTextWidth = fontMetrics().width(strFullText);
+#endif
         if (iTextWidth + iIndentSize > iWidth)
         {
             iStart = 0;
@@ -492,7 +533,11 @@ QString UIFilePathSelector::shrinkText(int iWidth) const
     } while (iTextWidth + iIndentSize > iWidth);
 
     strFullText.insert(iPosition, "...");
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int newSize = fontMetrics().horizontalAdvance(strFullText);
+#else
     int newSize = fontMetrics().width(strFullText);
+#endif
 
     return newSize < iOldSize ? strFullText : fullPath(false);
 }
@@ -523,7 +568,7 @@ void UIFilePathSelector::refreshText()
 
         /* Set the tool-tip: */
         if (!m_fToolTipOverriden)
-            QIComboBox::setToolTip(m_strNoneToolTipFocused);
+            QIComboBox::setToolTip(fullPath());
         setItemData(PathId, toolTip(), Qt::ToolTipRole);
 
         if (m_fMouseAwaited)
@@ -568,7 +613,7 @@ void UIFilePathSelector::refreshText()
 
         /* Attach corresponding icon: */
         setItemIcon(PathId, QFileInfo(m_strPath).exists() ?
-                            uiCommon().icon(QFileInfo(m_strPath)) :
+                            generalIconPool().defaultFileIcon(QFileInfo(m_strPath)) :
                             defaultIcon());
 
         /* Set the tool-tip: */
@@ -576,4 +621,45 @@ void UIFilePathSelector::refreshText()
             QIComboBox::setToolTip(fullPath());
         setItemData(PathId, toolTip(), Qt::ToolTipRole);
     }
+}
+
+void UIFilePathSelector::sltRecentMediaListUpdated(UIMediumDeviceType enmMediumType)
+{
+    /* Remove the recent media list from the end of the combo: */
+    while (count() > m_iRecentListSeparatorPosition)
+        removeItem(count() - 1);
+
+    if (enmMediumType != m_enmRecentMediaListType)
+        return;
+    QStringList recentMedia;
+
+    switch (enmMediumType)
+    {
+        case UIMediumDeviceType_DVD:
+            recentMedia = gEDataManager->recentListOfOpticalDisks();
+            break;
+        case UIMediumDeviceType_Floppy:
+            recentMedia = gEDataManager->recentListOfFloppyDisks();
+            break;
+        case UIMediumDeviceType_HardDisk:
+            recentMedia = gEDataManager->recentListOfHardDrives();
+            break;
+        default:
+            break;
+    }
+
+    /* Remove the media which is not there not not readable: */
+    QStringList existingMedia;
+    foreach (QString strMediaPath, recentMedia)
+    {
+        QFileInfo info(strMediaPath);
+        if (info.exists() && info.isReadable())
+            existingMedia << strMediaPath;
+    }
+    if (existingMedia.isEmpty())
+        return;
+
+    insertSeparator(m_iRecentListSeparatorPosition);
+    foreach (const QString strPath, existingMedia)
+        addItem(strPath);
 }

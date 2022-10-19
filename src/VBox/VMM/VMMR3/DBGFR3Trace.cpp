@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -114,19 +124,20 @@ static int dbgfR3TraceEnable(PVM pVM, uint32_t cbEntry, uint32_t cEntries)
      * Note! We ASSUME that the returned trace buffer handle has the same value
      *       as the heap block.
      */
-    cbBlock = RT_ALIGN_Z(cbBlock, PAGE_SIZE);
-    void *pvBlock;
-    rc = MMR3HyperAllocOnceNoRel(pVM, cbBlock, PAGE_SIZE, MM_TAG_DBGF, &pvBlock);
+    cbBlock = RT_ALIGN_Z(cbBlock, HOST_PAGE_SIZE);
+    RTR0PTR pvBlockR0 = NIL_RTR0PTR;
+    void   *pvBlockR3 = NULL;
+    rc = SUPR3PageAllocEx(cbBlock >> HOST_PAGE_SHIFT, 0, &pvBlockR3, &pvBlockR0, NULL);
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = RTTraceBufCarve(&hTraceBuf, cEntries, cbEntry, 0 /*fFlags*/, pvBlock, &cbBlock);
+    rc = RTTraceBufCarve(&hTraceBuf, cEntries, cbEntry, 0 /*fFlags*/, pvBlockR3, &cbBlock);
     AssertRCReturn(rc, rc);
-    AssertRelease(hTraceBuf == (RTTRACEBUF)pvBlock);
-    AssertRelease((void *)hTraceBuf == pvBlock);
+    AssertReleaseReturn(hTraceBuf == (RTTRACEBUF)pvBlockR3, VERR_INTERNAL_ERROR_3);
+    AssertReleaseReturn((void *)hTraceBuf == pvBlockR3, VERR_INTERNAL_ERROR_3);
 
     pVM->hTraceBufR3 = hTraceBuf;
-    pVM->hTraceBufR0 = MMHyperCCToR0(pVM, hTraceBuf);
+    pVM->hTraceBufR0 = pvBlockR0;
     return VINF_SUCCESS;
 }
 

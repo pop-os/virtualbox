@@ -4,34 +4,46 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <iprt/types.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
+#include <iprt/errcore.h>
+#include <iprt/initterm.h>
+#include <iprt/message.h>
+#include <iprt/stream.h>
+#include <iprt/string.h>
+#include <iprt/time.h>
 
 
 /*********************************************************************************************************************************
@@ -68,6 +80,9 @@ DECLASM(uint32_t) DoTscReads(void);
 
 int main(int argc, char **argv)
 {
+    int rc = RTR3InitExe(argc, &argv, 0);
+    if (RT_FAILURE(rc))
+        return RTMsgInitFailure(rc);
 
     /*
      * Tunables.
@@ -88,7 +103,7 @@ int main(int argc, char **argv)
             {
                 /* Option value. */
                 const char *pszValue = NULL;
-                unsigned long uValue = 0;
+                uint64_t    uValue = 0;
                 switch (chOpt)
                 {
                     case 'l':
@@ -97,10 +112,7 @@ int main(int argc, char **argv)
                         if (*psz == '\0')
                         {
                             if (i + 1 >= argc)
-                            {
-                                printf("syntax error: The %c option requires a value\n", chOpt);
-                                return RTEXITCODE_SYNTAX;
-                            }
+                                return RTMsgSyntax("The %c option requires a value", chOpt);
                             pszValue = argv[++i];
                         }
                         else
@@ -112,7 +124,9 @@ int main(int argc, char **argv)
                             case 'm':
                             {
                                 char *pszNext = NULL;
-                                uValue = strtoul(pszValue, &pszNext, 0);
+                                rc = RTStrToUInt64Ex(pszValue, &pszNext, 0, &uValue);
+                                if (RT_FAILURE(rc))
+                                    return RTMsgSyntax("Bad number: %s (%Rrc)", pszValue, rc);
                                 if (pszNext && *pszNext != '\0')
                                 {
                                     if (*pszNext == 'M'&& pszNext[1] == '\0')
@@ -122,10 +136,7 @@ int main(int argc, char **argv)
                                     else if (*pszNext == 'G' && pszNext[1] == '\0')
                                         uValue *= _1G;
                                     else
-                                    {
-                                        printf("syntax error: Bad value format for option %c: %s\n", chOpt, pszValue);
-                                        return RTEXITCODE_SYNTAX;
-                                    }
+                                        return RTMsgSyntax("Bad value format for option %c: %s", chOpt, pszValue);
                                 }
                                 break;
                             }
@@ -150,28 +161,23 @@ int main(int argc, char **argv)
 
                     case 'h':
                     case '?':
-                        printf("usage: rdtsc [-l <loops>] [-s <loops-between-status>]\n"
-                               "             [-m <minimum-seconds-to-run>]\n");
+                        RTPrintf("usage: rdtsc [-l <loops>] [-s <loops-between-status>]\n"
+                                 "             [-m <minimum-seconds-to-run>]\n");
                         return RTEXITCODE_SUCCESS;
 
                     default:
-                        printf("syntax error: Unknown option %c (argument %d)\n", chOpt, i);
-                        return RTEXITCODE_SYNTAX;
+                        return RTMsgSyntax("Unknown option %c (argument %d)\n", chOpt, i);
                 }
             }
         }
         else
-        {
-            printf("synatx error: argument %d (%s): not an option\n", i, psz);
-            return RTEXITCODE_SYNTAX;
-        }
+            return RTMsgSyntax("argument %d (%s): not an option\n", i, psz);
     }
 
     /*
      * Do the job.
      */
-    time_t          uSecStart;
-    time(&uSecStart);
+    uint64_t const  nsTsStart          = RTTimeNanoTS();
     unsigned        cOuterLoops        = 0;
     unsigned        cLoopsToNextStatus = cStatusEvery;
     unsigned        cRdTscInstructions = 0;
@@ -213,25 +219,25 @@ int main(int argc, char **argv)
                             cJumps++;
                             if ((uint64_t)offDelta > offMaxJump)
                                 offMaxJump = offDelta;
-                            printf("%u/%u: Jump: %#010x`%08x -> %#010x`%08x\n", cOuterLoops, iLoop,
-                                   (unsigned)g_aRdTscResults[i].uHigh, (unsigned)g_aRdTscResults[i].uLow,
-                                   (unsigned)g_aRdTscResults[i + 1].uHigh, (unsigned)g_aRdTscResults[i + 1].uLow);
+                            RTPrintf("%u/%u: Jump: %#010x`%08x -> %#010x`%08x\n", cOuterLoops, iLoop,
+                                     (unsigned)g_aRdTscResults[i].uHigh, (unsigned)g_aRdTscResults[i].uLow,
+                                     (unsigned)g_aRdTscResults[i + 1].uHigh, (unsigned)g_aRdTscResults[i + 1].uLow);
                         }
                     }
                     else
                     {
                         cBackwards++;
-                        printf("%u/%u: Back: %#010x`%08x -> %#010x`%08x\n", cOuterLoops, iLoop,
-                               (unsigned)g_aRdTscResults[i].uHigh, (unsigned)g_aRdTscResults[i].uLow,
-                               (unsigned)g_aRdTscResults[i + 1].uHigh, (unsigned)g_aRdTscResults[i + 1].uLow);
+                        RTPrintf("%u/%u: Back: %#010x`%08x -> %#010x`%08x\n", cOuterLoops, iLoop,
+                                 (unsigned)g_aRdTscResults[i].uHigh, (unsigned)g_aRdTscResults[i].uLow,
+                                 (unsigned)g_aRdTscResults[i + 1].uHigh, (unsigned)g_aRdTscResults[i + 1].uLow);
                     }
                 }
                 else
                 {
                     cSame++;
-                    printf("%u/%u: Same: %#010x`%08x -> %#010x`%08x\n", cOuterLoops, iLoop,
-                           (unsigned)g_aRdTscResults[i].uHigh, (unsigned)g_aRdTscResults[i].uLow,
-                           (unsigned)g_aRdTscResults[i + 1].uHigh, (unsigned)g_aRdTscResults[i + 1].uLow);
+                    RTPrintf("%u/%u: Same: %#010x`%08x -> %#010x`%08x\n", cOuterLoops, iLoop,
+                             (unsigned)g_aRdTscResults[i].uHigh, (unsigned)g_aRdTscResults[i].uLow,
+                             (unsigned)g_aRdTscResults[i + 1].uHigh, (unsigned)g_aRdTscResults[i + 1].uLow);
                 }
 #if ARCH_BITS == 64
                 if ((g_aRdTscResults[i + 1].uLow >> 32) || (g_aRdTscResults[i + 1].uHigh >> 32))
@@ -248,8 +254,8 @@ int main(int argc, char **argv)
             else
             {
                 cLoopsToNextStatus = cStatusEvery;
-                printf("%u/%u: %#010x`%08x\n", cOuterLoops, iLoop,
-                       (unsigned)g_aRdTscResults[cResults].uHigh, (unsigned)g_aRdTscResults[cResults].uLow);
+                RTPrintf("%u/%u: %#010x`%08x\n", cOuterLoops, iLoop,
+                         (unsigned)g_aRdTscResults[cResults].uHigh, (unsigned)g_aRdTscResults[cResults].uLow);
             }
         }
 
@@ -259,11 +265,8 @@ int main(int argc, char **argv)
         cOuterLoops++;
         if (!cMinSeconds)
             break;
-        time_t uSecNow;
-        if (   time(&uSecNow) == (time_t)-1
-            || uSecNow        == (time_t)-1
-            || uSecStart      == (time_t)-1
-            || uSecNow - uSecStart >= (time_t)cMinSeconds)
+        uint64_t nsElapsed = RTTimeNanoTS() - nsTsStart;
+        if (nsElapsed >= cMinSeconds * RT_NS_1SEC_64)
             break;
     }
 
@@ -272,20 +275,20 @@ int main(int argc, char **argv)
      */
     if (cBackwards == 0 && cSame == 0 && cJumps == 0 && cBadValues == 0)
     {
-        printf("rdtsc: Success (%u RDTSC over %u*%u loops, deltas: %#x`%08x..%#x`%08x)\n",
-               cRdTscInstructions, cOuterLoops, cMaxLoops,
-               (unsigned)(offMinIncr >> 32), (unsigned)offMinIncr, (unsigned)(offMaxIncr >> 32), (unsigned)offMaxIncr);
+        RTPrintf("rdtsc: Success (%u RDTSC over %u*%u loops, deltas: %#x`%08x..%#x`%08x)\n",
+                 cRdTscInstructions, cOuterLoops, cMaxLoops,
+                 (unsigned)(offMinIncr >> 32), (unsigned)offMinIncr, (unsigned)(offMaxIncr >> 32), (unsigned)offMaxIncr);
         return RTEXITCODE_SUCCESS;
     }
-    printf("RDTSC instructions: %u\n", cRdTscInstructions);
-    printf("Loops:              %u * %u => %u\n", cMaxLoops, cOuterLoops, cOuterLoops * cMaxLoops);
-    printf("Backwards:          %u\n", cBackwards);
-    printf("Jumps:              %u\n", cJumps);
-    printf("Max jumps:          %#010x`%08x\n", (unsigned)(offMaxJump >> 32), (unsigned)offMaxJump);
-    printf("Same value:         %u\n", cSame);
-    printf("Bad values:         %u\n", cBadValues);
-    printf("Min increment:      %#010x`%08x\n", (unsigned)(offMinIncr >> 32), (unsigned)offMinIncr);
-    printf("Max increment:      %#010x`%08x\n", (unsigned)(offMaxIncr >> 32), (unsigned)offMaxIncr);
+    RTPrintf("RDTSC instructions: %u\n", cRdTscInstructions);
+    RTPrintf("Loops:              %u * %u => %u\n", cMaxLoops, cOuterLoops, cOuterLoops * cMaxLoops);
+    RTPrintf("Backwards:          %u\n", cBackwards);
+    RTPrintf("Jumps:              %u\n", cJumps);
+    RTPrintf("Max jumps:          %#010x`%08x\n", (unsigned)(offMaxJump >> 32), (unsigned)offMaxJump);
+    RTPrintf("Same value:         %u\n", cSame);
+    RTPrintf("Bad values:         %u\n", cBadValues);
+    RTPrintf("Min increment:      %#010x`%08x\n", (unsigned)(offMinIncr >> 32), (unsigned)offMinIncr);
+    RTPrintf("Max increment:      %#010x`%08x\n", (unsigned)(offMaxIncr >> 32), (unsigned)offMaxIncr);
     return RTEXITCODE_FAILURE;
 }
 

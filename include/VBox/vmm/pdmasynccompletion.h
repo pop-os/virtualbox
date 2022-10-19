@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmasynccompletion_h
@@ -63,7 +73,7 @@ typedef PPDMASYNCCOMPLETIONENDPOINT *PPPDMASYNCCOMPLETIONENDPOINT;
  * @param   pvUser      User argument.
  * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEDEV(PPDMDEVINS pDevIns, void *pvUser, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMASYNCCOMPLETEDEV,(PPDMDEVINS pDevIns, void *pvUser, int rc));
 /** Pointer to a FNPDMASYNCCOMPLETEDEV(). */
 typedef FNPDMASYNCCOMPLETEDEV *PFNPDMASYNCCOMPLETEDEV;
 
@@ -76,7 +86,7 @@ typedef FNPDMASYNCCOMPLETEDEV *PFNPDMASYNCCOMPLETEDEV;
  * @param   pvUser         User argument given during request initiation.
  * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEDRV(PPDMDRVINS pDrvIns, void *pvTemplateUser, void *pvUser, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMASYNCCOMPLETEDRV,(PPDMDRVINS pDrvIns, void *pvTemplateUser, void *pvUser, int rc));
 /** Pointer to a FNPDMASYNCCOMPLETEDRV(). */
 typedef FNPDMASYNCCOMPLETEDRV *PFNPDMASYNCCOMPLETEDRV;
 
@@ -88,7 +98,7 @@ typedef FNPDMASYNCCOMPLETEDRV *PFNPDMASYNCCOMPLETEDRV;
  * @param   pvUser      User argument.
  * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEUSB(PPDMUSBINS pUsbIns, void *pvUser, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMASYNCCOMPLETEUSB,(PPDMUSBINS pUsbIns, void *pvUser, int rc));
 /** Pointer to a FNPDMASYNCCOMPLETEUSB(). */
 typedef FNPDMASYNCCOMPLETEUSB *PFNPDMASYNCCOMPLETEUSB;
 
@@ -101,7 +111,7 @@ typedef FNPDMASYNCCOMPLETEUSB *PFNPDMASYNCCOMPLETEUSB;
  * @param   pvUser2     User argument for the template.
  * @param   rc          The status code of the completed request.
  */
-typedef DECLCALLBACK(void) FNPDMASYNCCOMPLETEINT(PVM pVM, void *pvUser, void *pvUser2, int rc);
+typedef DECLCALLBACKTYPE(void, FNPDMASYNCCOMPLETEINT,(PVM pVM, void *pvUser, void *pvUser2, int rc));
 /** Pointer to a FNPDMASYNCCOMPLETEINT(). */
 typedef FNPDMASYNCCOMPLETEINT *PFNPDMASYNCCOMPLETEINT;
 

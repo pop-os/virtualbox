@@ -1,16 +1,27 @@
 <?xml version="1.0"?>
 <!--
     VirtualBox Windows Installation Script (WiX)
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <Include xmlns="http://schemas.microsoft.com/wix/2006/wi"
@@ -44,23 +55,10 @@
                   DiskId="$(var.Property_DiskIdCommon)">
             </File>
             <?include $(env.PATH_TARGET)\VirtualBox_TypeLib_x86.wxi ?>
-    <?if $(env.VBOX_VCC_TOOL_STEM) = "VCC100" ?>
-            <!-- MS C/C++ v10.0 32 bit Runtime DLL files -->
-            <File Id="file_msvcr100_x86" Name="msvcr100.dll"
-                  Source="$(env.PATH_OUT)\bin\x86\msvcr100.dll"
-                  DiskId="$(var.Property_DiskIdCommon)" />
-            <File Id="file_msvcp100_x86" Name="msvcp100.dll"
-                  Source="$(env.PATH_OUT)\bin\x86\msvcp100.dll"
-                  DiskId="$(var.Property_DiskIdCommon)" />
-    <?endif?>
-    <?if $(env.VBOX_VCC_TOOL_STEM) = "VCC110" ?>
-            <!-- MS C/C++ v11.0 Runtime DLL files -->
-            <File Id="file_msvcr110_x86" Name="msvcr110.dll"
-                  Source="$(env.PATH_OUT)\bin\x86\msvcr110.dll"
-                  DiskId="$(var.Property_DiskIdCommon)" />
-            <File Id="file_msvcp110_x86" Name="msvcp110.dll"
-                  Source="$(env.PATH_OUT)\bin\x86\msvcp110.dll"
-                  DiskId="$(var.Property_DiskIdCommon)" />
+
+    <?if $(env.VBOX_WITH_CRT_PACKING) = "yes" ?>
+            <!-- Include CRT Dlls (specific to the compiler). -->
+            <?include $(env.PATH_TARGET)\VBoxCrtDlls32.wxi ?>
     <?endif?>
         </Component>
     </Directory>

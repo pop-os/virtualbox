@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -64,7 +74,7 @@
 int usblibOsCreateService(void);
 
 
-static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char *pszMsg, void *pvContext)
+static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY_T enmSeverity, char *pszMsg, void *pvContext)
 {
     RT_NOREF1(pvContext);
     switch (enmSeverity)
@@ -73,7 +83,7 @@ static DECLCALLBACK(void) vboxUsbLog(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char *
         case VBOXDRVCFG_LOG_SEVERITY_REGULAR:
             break;
         case VBOXDRVCFG_LOG_SEVERITY_REL:
-            RTPrintf("%s", pszMsg);
+            RTMsgInfo("%s", pszMsg);
             break;
         default:
             break;
@@ -95,10 +105,10 @@ int __cdecl main(int argc, char **argv)
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 
+    RTMsgInfo("USB installation");
+
     VBoxDrvCfgLoggerSet(vboxUsbLog, NULL);
     VBoxDrvCfgPanicSet(vboxUsbPanic, NULL);
-
-    RTPrintf("USB installation\n");
 
     rc = usblibOsCreateService();
     if (RT_SUCCESS(rc))
@@ -119,15 +129,20 @@ int __cdecl main(int argc, char **argv)
             /* Install the INF file: */
             HRESULT hr = VBoxDrvCfgInfInstall(pwszInfFile);
             if (hr == S_OK)
-                RTPrintf("Installation successful.\n");
+                RTMsgInfo("Installation successful!");
             else
-                rc = -1;
+            {
+                RTMsgError("Installation failed: %Rhrc", hr);
+                rc = VERR_GENERAL_FAILURE;
+            }
 
             RTUtf16Free(pwszInfFile);
         }
         else
             RTMsgError("Failed to construct INF path: %Rrc", rc);
     }
+    else
+        RTMsgError("Service creation failed: %Rrc", rc);
 
     return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
@@ -151,7 +166,7 @@ int usblibOsChangeService(const char *pszDriverPath)
         SC_HANDLE hService = OpenService(hSMgrCreate,
                                          SERVICE_NAME,
                                          GENERIC_ALL);
-        DWORD dwLastError = GetLastError();
+        dwLastError = GetLastError();
         if (hService == NULL)
         {
             AssertMsg(hService, ("OpenService failed! LastError=%Rwa, pszDriver=%s\n", dwLastError, pszDriverPath));
@@ -207,7 +222,7 @@ int usblibOsCreateService(void)
     if (hSMgrCreate)
     {
         char szDriver[RTPATH_MAX];
-        int rc = RTPathExecDir(szDriver, sizeof(szDriver) - sizeof("\\VBoxUSBMon.sys"));
+        rc = RTPathExecDir(szDriver, sizeof(szDriver) - sizeof("\\VBoxUSBMon.sys"));
         if (RT_SUCCESS(rc))
         {
             strcat(szDriver, "\\VBoxUSBMon.sys");
@@ -221,7 +236,7 @@ int usblibOsCreateService(void)
                                                SERVICE_ERROR_NORMAL,
                                                szDriver,
                                                NULL, NULL, NULL, NULL, NULL);
-            DWORD dwLastError = GetLastError();
+            dwLastError = GetLastError();
             if (dwLastError == ERROR_SERVICE_EXISTS)
             {
                 RTPrintf("USB monitor driver service already exists, skipping creation.\n");

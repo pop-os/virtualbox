@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_fuzz_h
@@ -53,6 +63,14 @@ typedef struct RTFUZZINPUTINT    *RTFUZZINPUT;
 typedef RTFUZZINPUT              *PRTFUZZINPUT;
 /** NIL fuzzer input handle. */
 #define NIL_RTFUZZINPUT          ((RTFUZZINPUT)~(uintptr_t)0)
+
+
+/** A fuzzer config handle. */
+typedef struct RTFUZZCFGINT      *RTFUZZCFG;
+/** Pointer to a fuzzer config handle. */
+typedef RTFUZZCFG                *PRTFUZZCFG;
+/** NIL fuzzer config handle. */
+#define NIL_RTFUZZCFG            ((RTFUZZCFG)~(uintptr_t)0)
 
 
 /** A fuzzer target recorder handler. */
@@ -141,6 +159,17 @@ typedef RTFUZZCTXSTATS *PRTFUZZCTXSTATS;
 /** @} */
 
 
+/** @name RTFUZZCFG_IMPORT_F_XXX - Flags for RTFuzzCfgImport().
+ * @{ */
+/** Default flags. */
+#define RTFUZZCFG_IMPORT_F_DEFAULT                 0
+/** Adds only the inputs and doesn't set any glboal configuration flags of the fuzzing context. */
+#define RTFUZZCFG_IMPORT_F_ONLY_INPUT              RT_BIT_32(0)
+/** Mask of all valid flags. */
+#define RTFUZZCFG_IMPORT_F_VALID                   UINT32_C(0x00000001)
+/** @} */
+
+
 /**
  * Fuzzing context state export callback.
  *
@@ -150,7 +179,7 @@ typedef RTFUZZCTXSTATS *PRTFUZZCTXSTATS;
  * @param   cbWrite             Number of bytes to write.
  * @param   pvUser              Opaque user data passed in RTFuzzCtxStateExport().
  */
-typedef DECLCALLBACK(int) FNRTFUZZCTXEXPORT(RTFUZZCTX hFuzzCtx, const void *pvBuf, size_t cbWrite, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNRTFUZZCTXEXPORT,(RTFUZZCTX hFuzzCtx, const void *pvBuf, size_t cbWrite, void *pvUser));
 /** Pointer to a fuzzing context state export callback. */
 typedef FNRTFUZZCTXEXPORT *PFNRTFUZZCTXEXPORT;
 
@@ -164,7 +193,7 @@ typedef FNRTFUZZCTXEXPORT *PFNRTFUZZCTXEXPORT;
  * @param   pcbRead             Where to store the amount of data written, optional.
  * @param   pvUser              Opaque user data passed in RTFuzzCtxCreateFromState().
  */
-typedef DECLCALLBACK(int) FNRTFUZZCTXIMPORT(RTFUZZCTX hFuzzCtx, void *pvBuf, size_t cbRead, size_t *pcbRead, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNRTFUZZCTXIMPORT,(RTFUZZCTX hFuzzCtx, void *pvBuf, size_t cbRead, size_t *pcbRead, void *pvUser));
 /** Pointer to a fuzzing context state export callback. */
 typedef FNRTFUZZCTXIMPORT *PFNRTFUZZCTXIMPORT;
 
@@ -273,6 +302,20 @@ RTDECL(int) RTFuzzCtxStateExportToFile(RTFUZZCTX hFuzzCtx, const char *pszFilena
 RTDECL(int) RTFuzzCtxCorpusInputAdd(RTFUZZCTX hFuzzCtx, const void *pvInput, size_t cbInput);
 
 /**
+ * Adds a new seed to the input corpus of the given fuzzing context - extended version.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCtx            The fuzzing context handle.
+ * @param   pvInput             The pointer to the input buffer.
+ * @param   cbInput             Size of the input buffer.
+ * @param   offMutStart         Start offset at which a mutation can happen.
+ * @param   cbMutRange          Size of the range in bytes where a mutation can happen,
+ *                              use UINT64_MAX to allow mutations till the end of the input.
+ */
+RTDECL(int) RTFuzzCtxCorpusInputAddEx(RTFUZZCTX hFuzzCtx, const void *pvInput, size_t cbInput,
+                                      uint64_t offMutStart, uint64_t cbMutRange);
+
+/**
  * Adds a new seed to the input corpus of the given fuzzing context from the given file.
  *
  * @returns IPRT status code.
@@ -282,6 +325,19 @@ RTDECL(int) RTFuzzCtxCorpusInputAdd(RTFUZZCTX hFuzzCtx, const void *pvInput, siz
 RTDECL(int) RTFuzzCtxCorpusInputAddFromFile(RTFUZZCTX hFuzzCtx, const char *pszFilename);
 
 /**
+ * Adds a new seed to the input corpus of the given fuzzing context from the given file - extended version.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCtx            The fuzzing context handle.
+ * @param   pszFilename         The filename to load the seed from.
+ * @param   offMutStart         Start offset at which a mutation can happen.
+ * @param   cbMutRange          Size of the range in bytes where a mutation can happen,
+ *                              use UINT64_MAX to allow mutations till the end of the input.
+ */
+RTDECL(int) RTFuzzCtxCorpusInputAddFromFileEx(RTFUZZCTX hFuzzCtx, const char *pszFilename,
+                                              uint64_t offMutStart, uint64_t cbMutRange);
+
+/**
  * Adds a new seed to the input corpus of the given fuzzing context from the given VFS file.
  *
  * @returns IPRT status code.
@@ -289,6 +345,41 @@ RTDECL(int) RTFuzzCtxCorpusInputAddFromFile(RTFUZZCTX hFuzzCtx, const char *pszF
  * @param   hVfsFile            The VFS file handle to load the seed from.
  */
 RTDECL(int) RTFuzzCtxCorpusInputAddFromVfsFile(RTFUZZCTX hFuzzCtx, RTVFSFILE hVfsFile);
+
+/**
+ * Adds a new seed to the input corpus of the given fuzzing context from the given VFS file - extended version.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCtx            The fuzzing context handle.
+ * @param   hVfsFile            The VFS file handle to load the seed from.
+ * @param   offMutStart         Start offset at which a mutation can happen.
+ * @param   cbMutRange          Size of the range in bytes where a mutation can happen,
+ *                              use UINT64_MAX to allow mutations till the end of the input.
+ */
+RTDECL(int) RTFuzzCtxCorpusInputAddFromVfsFileEx(RTFUZZCTX hFuzzCtx, RTVFSFILE hVfsFile,
+                                                 uint64_t offMutStart, uint64_t cbMutRange);
+
+/**
+ * Adds a new seed to the input corpus of the given fuzzing context from the given VFS I/O stream.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCtx            The fuzzing context handle.
+ * @param   hVfsIos             The VFS I/O stream handle to load the seed from.
+ */
+RTDECL(int) RTFuzzCtxCorpusInputAddFromVfsIoStrm(RTFUZZCTX hFuzzCtx, RTVFSIOSTREAM hVfsIos);
+
+/**
+ * Adds a new seed to the input corpus of the given fuzzing context from the given VFS I/O stream - extended version.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCtx            The fuzzing context handle.
+ * @param   hVfsIos             The VFS I/O stream handle to load the seed from.
+ * @param   offMutStart         Start offset at which a mutation can happen.
+ * @param   cbMutRange          Size of the range in bytes where a mutation can happen,
+ *                              use UINT64_MAX to allow mutations till the end of the input.
+ */
+RTDECL(int) RTFuzzCtxCorpusInputAddFromVfsIoStrmEx(RTFUZZCTX hFuzzCtx, RTVFSIOSTREAM hVfsIos,
+                                                   uint64_t offMutStart, uint64_t cbMutRange);
 
 /**
  * Adds new seeds to the input corpus of the given fuzzing context from the given directory.
@@ -352,6 +443,17 @@ RTDECL(int) RTFuzzCtxCfgSetTmpDirectory(RTFUZZCTX hFuzzCtx, const char *pszPathT
  * @param   hFuzzCtx            The fuzzing context handle.
  */
 RTDECL(const char *) RTFuzzCtxCfgGetTmpDirectory(RTFUZZCTX hFuzzCtx);
+
+/**
+ * Sets the range in which a particular input can get mutated.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCtx            The fuzzing context handle.
+ * @param   offStart            Start offset at which a mutation can happen.
+ * @param   cbRange             Size of the range in bytes where a mutation can happen,
+ *                              use UINT64_MAX to allow mutations till the end of the input.
+ */
+RTDECL(int) RTFuzzCtxCfgSetMutationRange(RTFUZZCTX hFuzzCtx, uint64_t offStart, uint64_t cbRange);
 
 /**
  * Reseeds the PRNG of the given fuzzing context.
@@ -445,6 +547,62 @@ RTDECL(int) RTFuzzInputAddToCtxCorpus(RTFUZZINPUT hFuzzInput);
  * @param   hFuzzInput          The fuzzing input handle.
  */
 RTDECL(int) RTFuzzInputRemoveFromCtxCorpus(RTFUZZINPUT hFuzzInput);
+
+
+/**
+ * Creates a fuzzing config from the given VFS file handle.
+ *
+ * @returns IPRT status code.
+ * @param   phFuzzCfg           Where to store the handle to the fuzzing config on success.
+ * @param   hVfsFile            The VFS file to use (retained).
+ * @param   pErrInfo            Where to store extended error info. Optional.
+ */
+RTDECL(int) RTFuzzCfgCreateFromVfsFile(PRTFUZZCFG phFuzzCfg, RTVFSFILE hVfsFile, PRTERRINFO pErrInfo);
+
+/**
+ * Creates a fuzzing config from the given file path.
+ *
+ * @returns IPRT status code.
+ * @param   phFuzzCfg           Where to store the handle to the fuzzing config on success.
+ * @param   pszFilename         Filename to load the config from.
+ * @param   pErrInfo            Where to store extended error info. Optional.
+ */
+RTDECL(int) RTFuzzCfgCreateFromFile(PRTFUZZCFG phFuzzCfg, const char *pszFilename, PRTERRINFO pErrInfo);
+
+/**
+ * Retains a reference to the given fuzzing config.
+ *
+ * @returns New reference count on success.
+ * @param   hFuzzCfg            Handle of the fuzzing config.
+ */
+RTDECL(uint32_t) RTFuzzCfgRetain(RTFUZZCFG hFuzzCfg);
+
+/**
+ * Releases a reference from the given fuzzing config, destroying it when reaching 0.
+ *
+ * @returns New reference count on success, 0 if the fuzzing config got destroyed.
+ * @param   hFuzzCfg            Handle of the fuzzing config.
+ */
+RTDECL(uint32_t) RTFuzzCfgRelease(RTFUZZCFG hFuzzCfg);
+
+/**
+ * Imports the given fuzzing config into a previously created fuzzing context.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCfg            Handle of the fuzzing config.
+ * @param   hFuzzCtx            Handle of the fuzzing context.
+ * @param   fFlags              Flags controlling what to import exactly, combination of RTFUZZCFG_IMPORT_F_XXX.
+ */
+RTDECL(int) RTFuzzCfgImport(RTFUZZCFG hFuzzCfg, RTFUZZCTX hFuzzCtx, uint32_t fFlags);
+
+/**
+ * Queries the custom config for the controller of the fuzzing process.
+ *
+ * @returns IPRT status code.
+ * @param   hFuzzCfg            Handle of the fuzzing config.
+ * @param   phVfsFile           Where to store the handle of the VFS file containing the custom config.
+ */
+RTDECL(int) RTFuzzCfgQueryCustomCfg(RTFUZZCFG hFuzzCfg, PRTVFSFILE phVfsFile);
 
 
 /**
@@ -789,7 +947,7 @@ RTR3DECL(RTEXITCODE) RTFuzzCmdMaster(unsigned cArgs, char **papszArgs);
  * @param   cbBuf               Size of the buffer in bytes.
  * @param   pvUser              Opaque user data.
  */
-typedef DECLCALLBACK(int) FNFUZZCLIENTCONSUME(const void *pvBuf, size_t cbBuf, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNFUZZCLIENTCONSUME,(const void *pvBuf, size_t cbBuf, void *pvUser));
 /** Pointer to a client consumption callback. */
 typedef FNFUZZCLIENTCONSUME *PFNFUZZCLIENTCONSUME;
 

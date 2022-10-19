@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_cpumctx_h
@@ -411,6 +421,7 @@ typedef struct CPUMCTX
     uint64_t            cr0;
     uint64_t            cr2;
     uint64_t            cr3;
+    /** @todo the 4 PAE PDPE registers. See PGMCPU::aGstPaePdpeRegs. */
     uint64_t            cr4;
     /** @} */
 
@@ -420,214 +431,214 @@ typedef struct CPUMCTX
      * @remarks DR8-15 are currently not supported by AMD or Intel, so
      *          neither do we.
      */
-    uint64_t        dr[8];
+    uint64_t            dr[8];
 
     /** Padding before the structure so the 64-bit member is correctly aligned.
      * @todo fix this structure!  */
-    uint16_t        gdtrPadding[3];
+    uint16_t            gdtrPadding[3];
     /** Global Descriptor Table register. */
-    VBOXGDTR        gdtr;
+    VBOXGDTR            gdtr;
 
     /** Padding before the structure so the 64-bit member is correctly aligned.
      * @todo fix this structure!  */
-    uint16_t        idtrPadding[3];
+    uint16_t            idtrPadding[3];
     /** Interrupt Descriptor Table register. */
-    VBOXIDTR        idtr;
+    VBOXIDTR            idtr;
 
     /** The task register.
      * Only the guest context uses all the members. */
-    CPUMSELREG      ldtr;
+    CPUMSELREG          ldtr;
     /** The task register.
      * Only the guest context uses all the members. */
-    CPUMSELREG      tr;
+    CPUMSELREG          tr;
 
     /** The sysenter msr registers.
      * This member is not used by the hypervisor context. */
-    CPUMSYSENTER    SysEnter;
+    CPUMSYSENTER        SysEnter;
 
     /** @name System MSRs.
      * @{ */
-    uint64_t        msrEFER;
-    uint64_t        msrSTAR;            /**< Legacy syscall eip, cs & ss. */
-    uint64_t        msrPAT;             /**< Page attribute table. */
-    uint64_t        msrLSTAR;           /**< 64 bits mode syscall rip. */
-    uint64_t        msrCSTAR;           /**< Compatibility mode syscall rip. */
-    uint64_t        msrSFMASK;          /**< syscall flag mask. */
-    uint64_t        msrKERNELGSBASE;    /**< swapgs exchange value. */
-    uint64_t        uMsrPadding0;       /**< no longer used (used to hold a copy of APIC base MSR). */
+    uint64_t            msrEFER;
+    uint64_t            msrSTAR;            /**< Legacy syscall eip, cs & ss. */
+    uint64_t            msrPAT;             /**< Page attribute table. */
+    uint64_t            msrLSTAR;           /**< 64 bits mode syscall rip. */
+    uint64_t            msrCSTAR;           /**< Compatibility mode syscall rip. */
+    uint64_t            msrSFMASK;          /**< syscall flag mask. */
+    uint64_t            msrKERNELGSBASE;    /**< swapgs exchange value. */
+    uint64_t            uMsrPadding0;       /**< no longer used (used to hold a copy of APIC base MSR). */
     /** @} */
 
-    /** The XCR0..XCR1 registers. */
-    uint64_t                    aXcr[2];
-    /** The mask to pass to XSAVE/XRSTOR in EDX:EAX.  If zero we use
-     *  FXSAVE/FXRSTOR (since bit 0 will always be set, we only need to test it). */
-    uint64_t                    fXStateMask;
-
-    /** Pointer to the FPU/SSE/AVX/XXXX state ring-0 mapping. */
-    R0PTRTYPE(PX86XSAVEAREA)    pXStateR0;
-    /** Pointer to the FPU/SSE/AVX/XXXX state ring-3 mapping. */
-    R3PTRTYPE(PX86XSAVEAREA)    pXStateR3;
-    /** State component offsets into pXState, UINT16_MAX if not present. */
-    uint16_t                    aoffXState[64];
-
-    /** 0x2d4 - World switcher flags, CPUMCTX_WSF_XXX. */
-    uint32_t                    fWorldSwitcher;
-    uint32_t                    fUnused;
-    /** 0x2d8 - Externalized state tracker, CPUMCTX_EXTRN_XXX.
+    /** 0x228 - Externalized state tracker, CPUMCTX_EXTRN_XXX.
      * Currently only used internally in NEM/win.  */
-    uint64_t                    fExtrn;
+    uint64_t            fExtrn;
 
-    /** 0x2e0 - Hardware virtualization state.   */
+    uint64_t            au64Unused[2];
+
+    /** 0x240 - PAE PDPTEs. */
+    X86PDPE             aPaePdpes[4];
+
+    /** 0x260 - The XCR0..XCR1 registers. */
+    uint64_t            aXcr[2];
+    /** 0x270 - The mask to pass to XSAVE/XRSTOR in EDX:EAX.  If zero we use
+     *  FXSAVE/FXRSTOR (since bit 0 will always be set, we only need to test it). */
+    uint64_t            fXStateMask;
+    /** 0x278 - Mirror of CPUMCPU::fUseFlags[CPUM_USED_FPU_GUEST]. */
+    bool                fUsedFpuGuest;
+    uint8_t             afUnused[7];
+
+    /* ---- Start of members not zeroed at reset. ---- */
+
+    /** 0x280 - State component offsets into pXState, UINT16_MAX if not present.
+     * @note Everything before this member will be memset to zero during reset. */
+    uint16_t            aoffXState[64];
+    /** 0x300 - The extended state (FPU/SSE/AVX/AVX-2/XXXX).
+     * Aligned on 256 byte boundrary (min req is currently 64 bytes). */
+    union /* no tag */
+    {
+        X86XSAVEAREA    XState;
+        /** Byte view for simple indexing and space allocation. */
+        uint8_t         abXState[0x4000 - 0x300];
+    } CPUM_UNION_NM(u);
+
+    /** 0x4000 - Hardware virtualization state.
+     * @note This is page aligned, so an full page member comes first in the
+     *       substructures. */
     struct
     {
         union   /* no tag! */
         {
             struct
             {
-                /** 0x2e0 - MSR holding physical address of the Guest's Host-state. */
+                /** 0x4000 - Cache of the nested-guest VMCB. */
+                SVMVMCB                 Vmcb;
+                /** 0x5000 - The MSRPM (MSR Permission bitmap).
+                 *
+                 * This need not be physically contiguous pages because we use the one from
+                 * HMPHYSCPU while executing the nested-guest using hardware-assisted SVM.
+                 * This one is just used for caching the bitmap from guest physical memory.
+                 *
+                 * @todo r=bird: This is not used directly by AMD-V hardware, so it doesn't
+                 *       really need to even be page aligned.
+                 *
+                 *       Also, couldn't we just access the guest page directly when we need to,
+                 *       or do we have to use a cached copy of it? */
+                uint8_t                 abMsrBitmap[SVM_MSRPM_PAGES * X86_PAGE_SIZE];
+                /** 0x7000 - The IOPM (IO Permission bitmap).
+                 *
+                 * This need not be physically contiguous pages because we re-use the ring-0
+                 * allocated IOPM while executing the nested-guest using hardware-assisted SVM
+                 * because it's identical (we trap all IO accesses).
+                 *
+                 * This one is just used for caching the IOPM from guest physical memory in
+                 * case the guest hypervisor allows direct access to some IO ports.
+                 *
+                 * @todo r=bird: This is not used directly by AMD-V hardware, so it doesn't
+                 *       really need to even be page aligned.
+                 *
+                 *       Also, couldn't we just access the guest page directly when we need to,
+                 *       or do we have to use a cached copy of it? */
+                uint8_t                 abIoBitmap[SVM_IOPM_PAGES * X86_PAGE_SIZE];
+
+                /** 0xa000 - MSR holding physical address of the Guest's Host-state. */
                 uint64_t                uMsrHSavePa;
-                /** 0x2e8 - Guest physical address of the nested-guest VMCB. */
+                /** 0xa008 - Guest physical address of the nested-guest VMCB. */
                 RTGCPHYS                GCPhysVmcb;
-                /** 0x2f0 - Cache of the nested-guest VMCB - R0 ptr. */
-                R0PTRTYPE(PSVMVMCB)     pVmcbR0;
-                /** 0x2f8 - Cache of the nested-guest VMCB - R3 ptr. */
-                R3PTRTYPE(PSVMVMCB)     pVmcbR3;
-                /** 0x300 - Guest's host-state save area. */
+                /** 0xa010 - Guest's host-state save area. */
                 SVMHOSTSTATE            HostState;
-                /** 0x3b8 - Guest TSC time-stamp of when the previous PAUSE instr. was executed. */
+                /** 0xa0c8 - Guest TSC time-stamp of when the previous PAUSE instr. was
+                 *  executed. */
                 uint64_t                uPrevPauseTick;
-                /** 0x3c0 - Pause filter count. */
+                /** 0xa0d0 - Pause filter count. */
                 uint16_t                cPauseFilter;
-                /** 0x3c2 - Pause filter threshold. */
+                /** 0xa0d2 - Pause filter threshold. */
                 uint16_t                cPauseFilterThreshold;
-                /** 0x3c4 - Whether the injected event is subject to event intercepts. */
+                /** 0xa0d4 - Whether the injected event is subject to event intercepts. */
                 bool                    fInterceptEvents;
-                /** 0x3c5 - Padding. */
+                /** 0xa0d5 - Padding. */
                 bool                    afPadding[3];
-                /** 0x3c8 - MSR permission bitmap - R0 ptr. */
-                R0PTRTYPE(void *)       pvMsrBitmapR0;
-                /** 0x3d0 - MSR permission bitmap - R3 ptr. */
-                R3PTRTYPE(void *)       pvMsrBitmapR3;
-                /** 0x3d8 - IO permission bitmap - R0 ptr. */
-                R0PTRTYPE(void *)       pvIoBitmapR0;
-                /** 0x3e0 - IO permission bitmap - R3 ptr. */
-                R3PTRTYPE(void *)       pvIoBitmapR3;
-                /** 0x3e8 - Host physical address of the nested-guest VMCB.  */
-                RTHCPHYS                HCPhysVmcb;
-                /** 0x3f0 - Padding. */
-                uint8_t                 abPadding0[272];
             } svm;
 
             struct
             {
-                /** 0x2e4 - Guest physical address of the VMXON region. */
+                /** 0x4000 - The current VMCS. */
+                VMXVVMCS                Vmcs;
+                /** 0X5000 - The shadow VMCS. */
+                VMXVVMCS                ShadowVmcs;
+                /** 0x6000 - The VMREAD bitmap.
+                 * @todo r=bird: Do we really need to keep copies for these?  Couldn't we just
+                 *       access the guest memory directly as needed?   */
+                uint8_t                 abVmreadBitmap[VMX_V_VMREAD_VMWRITE_BITMAP_SIZE];
+                /** 0x7000 - The VMWRITE bitmap.
+                 * @todo r=bird: Do we really need to keep copies for these?  Couldn't we just
+                 *       access the guest memory directly as needed?  */
+                uint8_t                 abVmwriteBitmap[VMX_V_VMREAD_VMWRITE_BITMAP_SIZE];
+                /** 0x8000 - The VM-entry MSR-load area. */
+                VMXAUTOMSR              aEntryMsrLoadArea[VMX_V_AUTOMSR_AREA_SIZE / sizeof(VMXAUTOMSR)];
+                /** 0xa000 - The VM-exit MSR-store area. */
+                VMXAUTOMSR              aExitMsrStoreArea[VMX_V_AUTOMSR_AREA_SIZE / sizeof(VMXAUTOMSR)];
+                /** 0xc000 - The VM-exit MSR-load area. */
+                VMXAUTOMSR              aExitMsrLoadArea[VMX_V_AUTOMSR_AREA_SIZE / sizeof(VMXAUTOMSR)];
+                /** 0xe000 - The MSR permission bitmap.
+                 * @todo r=bird: Do we really need to keep copies for these?  Couldn't we just
+                 *       access the guest memory directly as needed?  */
+                uint8_t                 abMsrBitmap[VMX_V_MSR_BITMAP_SIZE];
+                /** 0xf000 - The I/O permission bitmap.
+                 * @todo r=bird: Do we really need to keep copies for these?  Couldn't we just
+                 *       access the guest memory directly as needed? */
+                uint8_t                 abIoBitmap[VMX_V_IO_BITMAP_A_SIZE + VMX_V_IO_BITMAP_B_SIZE];
+                /** 0x11000 - The virtual-APIC page.
+                 * @note This is used by VT-x hardware... */
+                uint8_t                 abVirtApicPage[VMX_V_VIRT_APIC_SIZE];
+
+                /** 0x12000 - Guest physical address of the VMXON region. */
                 RTGCPHYS                GCPhysVmxon;
-                /** 0x2e8 - Guest physical address of the current VMCS pointer. */
+                /** 0x12008 - Guest physical address of the current VMCS pointer. */
                 RTGCPHYS                GCPhysVmcs;
-                /** 0x2f0 - Guest physical address of the shadow VMCS pointer. */
+                /** 0x12010 - Guest physical address of the shadow VMCS pointer. */
                 RTGCPHYS                GCPhysShadowVmcs;
-                /** 0x2f8 - Last emulated VMX instruction/VM-exit diagnostic. */
+                /** 0x12018 - Last emulated VMX instruction/VM-exit diagnostic. */
                 VMXVDIAG                enmDiag;
-                /** 0x2fc - VMX abort reason. */
+                /** 0x1201c - VMX abort reason. */
                 VMXABORT                enmAbort;
-                /** 0x300 - Last emulated VMX instruction/VM-exit diagnostic auxiliary info. (mainly
-                 *  used for info. that's not part of the VMCS). */
+                /** 0x12020 - Last emulated VMX instruction/VM-exit diagnostic auxiliary info.
+                 *  (mainly used for info. that's not part of the VMCS). */
                 uint64_t                uDiagAux;
-                /** 0x308 - VMX abort auxiliary info. */
+                /** 0x12028 - VMX abort auxiliary info. */
                 uint32_t                uAbortAux;
-                /** 0x30c - Whether the guest is in VMX root mode. */
+                /** 0x1202c - Whether the guest is in VMX root mode. */
                 bool                    fInVmxRootMode;
-                /** 0x30d - Whether the guest is in VMX non-root mode. */
+                /** 0x1202d - Whether the guest is in VMX non-root mode. */
                 bool                    fInVmxNonRootMode;
-                /** 0x30e - Whether the injected events are subjected to event intercepts.  */
+                /** 0x1202e - Whether the injected events are subjected to event intercepts.  */
                 bool                    fInterceptEvents;
-                /** 0x30f - Whether blocking of NMI (or virtual-NMIs) was in effect in VMX non-root
-                 *  mode before execution of IRET. */
+                /** 0x1202f - Whether blocking of NMI (or virtual-NMIs) was in effect in VMX
+                 *  non-root mode before execution of IRET. */
                 bool                    fNmiUnblockingIret;
-                /** 0x310 - The current VMCS - R0 ptr. */
-                R0PTRTYPE(PVMXVVMCS)    pVmcsR0;
-                /** 0x318 - The curent VMCS - R3 ptr. */
-                R3PTRTYPE(PVMXVVMCS)    pVmcsR3;
-                /** 0X320 - The shadow VMCS - R0 ptr. */
-                R0PTRTYPE(PVMXVVMCS)    pShadowVmcsR0;
-                /** 0x328 - The shadow VMCS - R3 ptr. */
-                R3PTRTYPE(PVMXVVMCS)    pShadowVmcsR3;
-                /** 0x330 - The virtual-APIC page - R0 ptr. */
-                R0PTRTYPE(void *)       pvVirtApicPageR0;
-                /** 0x338 - The virtual-APIC page - R3 ptr. */
-                R3PTRTYPE(void *)       pvVirtApicPageR3;
-                /** 0x340 - The VMREAD bitmap - R0 ptr. */
-                R0PTRTYPE(void *)       pvVmreadBitmapR0;
-                /** 0x348 - The VMREAD bitmap - R3 ptr. */
-                R3PTRTYPE(void *)       pvVmreadBitmapR3;
-                /** 0x350 - The VMWRITE bitmap - R0 ptr. */
-                R0PTRTYPE(void *)       pvVmwriteBitmapR0;
-                /** 0x358 - The VMWRITE bitmap - R3 ptr. */
-                R3PTRTYPE(void *)       pvVmwriteBitmapR3;
-                /** 0x360 - The VM-entry MSR-load area - R0 ptr. */
-                R0PTRTYPE(PVMXAUTOMSR)  pEntryMsrLoadAreaR0;
-                /** 0x368 - The VM-entry MSR-load area - R3 ptr. */
-                R3PTRTYPE(PVMXAUTOMSR)  pEntryMsrLoadAreaR3;
-                /** 0x370 - The VM-exit MSR-store area - R0 ptr. */
-                R0PTRTYPE(PVMXAUTOMSR)  pExitMsrStoreAreaR0;
-                /** 0x378 - The VM-exit MSR-store area - R3 ptr. */
-                R3PTRTYPE(PVMXAUTOMSR)  pExitMsrStoreAreaR3;
-                /** 0x380 - The VM-exit MSR-load area - R0 ptr. */
-                R0PTRTYPE(PVMXAUTOMSR)  pExitMsrLoadAreaR0;
-                /** 0x388 - The VM-exit MSR-load area - R3 ptr. */
-                R3PTRTYPE(PVMXAUTOMSR)  pExitMsrLoadAreaR3;
-                /** 0x390 - MSR bitmap - R0 ptr. */
-                R0PTRTYPE(void *)       pvMsrBitmapR0;
-                /** 0x398 - The MSR bitmap - R3 ptr. */
-                R3PTRTYPE(void *)       pvMsrBitmapR3;
-                /** 0x3a0 - The I/O bitmap - R0 ptr. */
-                R0PTRTYPE(void *)       pvIoBitmapR0;
-                /** 0x3a8 - The I/O bitmap - R3 ptr. */
-                R3PTRTYPE(void *)       pvIoBitmapR3;
-                /** 0x3b0 - Guest TSC timestamp of the first PAUSE instruction that is considered to
-                 *  be the first in a loop. */
+                /** 0x12030 - Guest TSC timestamp of the first PAUSE instruction that is
+                 *  considered to be the first in a loop. */
                 uint64_t                uFirstPauseLoopTick;
-                /** 0x3b8 - Guest TSC timestamp of the previous PAUSE instruction. */
+                /** 0x12038 - Guest TSC timestamp of the previous PAUSE instruction. */
                 uint64_t                uPrevPauseTick;
-                /** 0x3c0 - Guest TSC timestamp of VM-entry (used for VMX-preemption timer). */
+                /** 0x12040 - Guest TSC timestamp of VM-entry (used for VMX-preemption
+                 *  timer). */
                 uint64_t                uEntryTick;
-                /** 0x3c8 - Virtual-APIC write offset (until trap-like VM-exit). */
+                /** 0x12048 - Virtual-APIC write offset (until trap-like VM-exit). */
                 uint16_t                offVirtApicWrite;
-                /** 0x3ca - Whether virtual-NMI blocking is in effect. */
+                /** 0x1204a - Whether virtual-NMI blocking is in effect. */
                 bool                    fVirtNmiBlocking;
-                /** 0x3cc - Padding. */
+                /** 0x1204b - Padding. */
                 uint8_t                 abPadding0[5];
-                /** 0x3d0 - Guest VMX MSRs. */
+                /** 0x12050 - Guest VMX MSRs. */
                 VMXMSRS                 Msrs;
-                /** 0x4b0 - Host physical address of the VMCS. */
-                RTHCPHYS                HCPhysVmcs;
-                /** 0x4b8 - Host physical address of the shadow VMCS. */
-                RTHCPHYS                HCPhysShadowVmcs;
-                /** 0x4c0 - Host physical address of the virtual-APIC page. */
-                RTHCPHYS                HCPhysVirtApicPage;
-                /** 0x4c8 - Host physical address of the VMREAD bitmap. */
-                RTHCPHYS                HCPhysVmreadBitmap;
-                /** 0x4d0 - Host physical address of the VMWRITE bitmap. */
-                RTHCPHYS                HCPhysVmwriteBitmap;
-                /** 0x4d8 - Host physical address of the VM-entry MSR-load area. */
-                RTHCPHYS                HCPhysEntryMsrLoadArea;
-                /** 0x4e0 - Host physical address of the VM-exit MSR-store area. */
-                RTHCPHYS                HCPhysExitMsrStoreArea;
-                /** 0x4e8 - Host physical address of the VM-exit MSR-load area. */
-                RTHCPHYS                HCPhysExitMsrLoadArea;
-                /** 0x4f0 - Host physical address of the MSR bitmap. */
-                RTHCPHYS                HCPhysMsrBitmap;
-                /** 0x4f8 - Host physical address of the I/O bitmap. */
-                RTHCPHYS                HCPhysIoBitmap;
             } vmx;
         } CPUM_UNION_NM(s);
 
-        /** 0x500 - Hardware virtualization type currently in use. */
+        /** 0x12130 - Hardware virtualization type currently in use. */
         CPUMHWVIRT              enmHwvirt;
-        /** 0x504 - Global interrupt flag - AMD only (always true on Intel). */
+        /** 0x12134 - Global interrupt flag - AMD only (always true on Intel). */
         bool                    fGif;
         bool                    afPadding1[3];
-        /** 0x508 - A subset of guest force flags that are saved while running the
+        /** 0x12138 - A subset of guest force flags that are saved while running the
          *  nested-guest. */
 #ifdef VMCPU_WITH_64_BIT_FFS
         uint64_t                fLocalForcedActions;
@@ -635,14 +646,19 @@ typedef struct CPUMCTX
         uint32_t                fLocalForcedActions;
         uint32_t                fPadding;
 #endif
-        /** 0x510 - Pad to 64 byte boundary. */
-        uint8_t                 abPadding0[48];
+#if 0
+        /** 0x12140 - Pad to 64 byte boundary. */
+        uint8_t                 abPadding0[8+16+32];
+#endif
     } hwvirt;
 } CPUMCTX;
 #pragma pack()
 
 #ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSizeAlignment(CPUMCTX, 64);
+AssertCompileSizeAlignment(CPUMCTX, 32);
+AssertCompileSizeAlignment(CPUMCTX, 16);
+AssertCompileSizeAlignment(CPUMCTX, 8);
 AssertCompileMemberOffset(CPUMCTX, CPUM_UNION_NM(g.) CPUM_STRUCT_NM(qw.) rax,   0);
 AssertCompileMemberOffset(CPUMCTX, CPUM_UNION_NM(g.) CPUM_STRUCT_NM(qw.) rcx,   8);
 AssertCompileMemberOffset(CPUMCTX, CPUM_UNION_NM(g.) CPUM_STRUCT_NM(qw.) rdx,  16);
@@ -684,83 +700,36 @@ AssertCompileMemberOffset(CPUMCTX,                   msrLSTAR, 512);
 AssertCompileMemberOffset(CPUMCTX,                   msrCSTAR, 520);
 AssertCompileMemberOffset(CPUMCTX,                  msrSFMASK, 528);
 AssertCompileMemberOffset(CPUMCTX,            msrKERNELGSBASE, 536);
-AssertCompileMemberOffset(CPUMCTX,                       aXcr, 552);
-AssertCompileMemberOffset(CPUMCTX,                fXStateMask, 568);
-AssertCompileMemberOffset(CPUMCTX,                  pXStateR0, 576);
-AssertCompileMemberOffset(CPUMCTX,                  pXStateR3, 584);
-AssertCompileMemberOffset(CPUMCTX,                 aoffXState, 592);
-AssertCompileMemberOffset(CPUMCTX, hwvirt, 0x2e0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.uMsrHSavePa,                 0x2e0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.pVmcbR0,                     0x2f0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.pVmcbR3,                     0x2f8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.HostState,                   0x300);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.cPauseFilter,                0x3c0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.pvMsrBitmapR0,               0x3c8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.pvIoBitmapR3,                0x3e0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.HCPhysVmcb,                  0x3e8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.pVmcbR0,       8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.pvMsrBitmapR0, 8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.pvIoBitmapR0,  8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.GCPhysVmxon,                 0x2e0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.GCPhysVmcs,                  0x2e8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.GCPhysShadowVmcs,            0x2f0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.enmDiag,                     0x2f8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.enmAbort,                    0x2fc);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.uDiagAux,                    0x300);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.uAbortAux,                   0x308);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.fInVmxRootMode,              0x30c);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.fInVmxNonRootMode,           0x30d);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.fInterceptEvents,            0x30e);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.fNmiUnblockingIret,          0x30f);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pVmcsR0,                     0x310);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pVmcsR3,                     0x318);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pShadowVmcsR0,               0x320);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pShadowVmcsR3,               0x328);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVirtApicPageR0,            0x330);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVirtApicPageR3,            0x338);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVmreadBitmapR0,            0x340);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVmreadBitmapR3,            0x348);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVmwriteBitmapR0,           0x350);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVmwriteBitmapR3,           0x358);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pEntryMsrLoadAreaR0,         0x360);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pEntryMsrLoadAreaR3,         0x368);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pExitMsrStoreAreaR0,         0x370);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pExitMsrStoreAreaR3,         0x378);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pExitMsrLoadAreaR0,          0x380);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pExitMsrLoadAreaR3,          0x388);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvMsrBitmapR0,               0x390);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvMsrBitmapR3,               0x398);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvIoBitmapR0,                0x3a0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvIoBitmapR3,                0x3a8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.uFirstPauseLoopTick,         0x3b0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.uPrevPauseTick,              0x3b8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.uEntryTick,                  0x3c0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.offVirtApicWrite,            0x3c8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.fVirtNmiBlocking,            0x3ca);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.Msrs,                        0x3d0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysVmcs,                  0x4b0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysShadowVmcs,            0x4b8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysVirtApicPage,          0x4c0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysVmreadBitmap,          0x4c8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysVmwriteBitmap,         0x4d0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysEntryMsrLoadArea,      0x4d8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysExitMsrStoreArea,      0x4e0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysExitMsrLoadArea,       0x4e8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysMsrBitmap,             0x4f0);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.HCPhysIoBitmap,              0x4f8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pVmcsR0,               8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pShadowVmcsR0,         8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVmreadBitmapR0,      8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvVmwriteBitmapR0,     8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pEntryMsrLoadAreaR0,   8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pExitMsrStoreAreaR0,   8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pExitMsrLoadAreaR0,    8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvMsrBitmapR0,         8);
-AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.pvIoBitmapR0,          8);
+AssertCompileMemberOffset(CPUMCTX,                  aPaePdpes, 0x240);
+AssertCompileMemberOffset(CPUMCTX,                       aXcr, 0x260);
+AssertCompileMemberOffset(CPUMCTX,                fXStateMask, 0x270);
+AssertCompileMemberOffset(CPUMCTX,                fUsedFpuGuest, 0x278);
+AssertCompileMemberOffset(CPUMCTX,   CPUM_UNION_NM(u.) XState, 0x300);
+AssertCompileMemberOffset(CPUMCTX,   CPUM_UNION_NM(u.) abXState, 0x300);
+AssertCompileMemberAlignment(CPUMCTX, CPUM_UNION_NM(u.) XState, 0x100);
+/* Only do spot checks for hwvirt */
+AssertCompileMemberAlignment(CPUMCTX,                   hwvirt, 0x1000);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.Vmcb,                  X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.abMsrBitmap,           X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) svm.abIoBitmap,            X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.Vmcs,                  X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.ShadowVmcs,            X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.abVmreadBitmap,        X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.abVmwriteBitmap,       X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.aEntryMsrLoadArea,     X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.aExitMsrStoreArea,     X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.aExitMsrLoadArea,      X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.abMsrBitmap,           X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.abIoBitmap,            X86_PAGE_SIZE);
+AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.abVirtApicPage,        X86_PAGE_SIZE);
 AssertCompileMemberAlignment(CPUMCTX, hwvirt.CPUM_UNION_NM(s.) vmx.Msrs,                  8);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.enmHwvirt,           0x500);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.fGif,                0x504);
-AssertCompileMemberOffset(CPUMCTX, hwvirt.fLocalForcedActions, 0x508);
+AssertCompileMemberOffset(CPUMCTX,    hwvirt.CPUM_UNION_NM(s.) svm.abIoBitmap,            0x7000);
+AssertCompileMemberOffset(CPUMCTX,    hwvirt.CPUM_UNION_NM(s.) svm.fInterceptEvents,      0xa0d4);
+AssertCompileMemberOffset(CPUMCTX,    hwvirt.CPUM_UNION_NM(s.) vmx.abIoBitmap,            0xf000);
+AssertCompileMemberOffset(CPUMCTX,    hwvirt.CPUM_UNION_NM(s.) vmx.fVirtNmiBlocking,      0x1204a);
+AssertCompileMemberOffset(CPUMCTX,    hwvirt.enmHwvirt,                                   0x12130);
+AssertCompileMemberOffset(CPUMCTX,    hwvirt.fGif,                                        0x12134);
+AssertCompileMemberOffset(CPUMCTX,    hwvirt.fLocalForcedActions,                         0x12138);
 AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(g,qw.) rax, CPUMCTX, CPUM_UNION_NM(g.) aGRegs);
 AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(g,qw.) rax, CPUMCTX, CPUM_UNION_STRUCT_NM(g,qw2.)  r0);
 AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(g,qw.) rcx, CPUMCTX, CPUM_UNION_STRUCT_NM(g,qw2.)  r1);
@@ -844,6 +813,7 @@ AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(s,n.) fs,   CPUMC
 AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(s,n.) gs,   CPUMCTX, CPUM_UNION_NM(s.) aSRegs[X86_SREG_GS]);
 # endif
 
+
 /**
  * Calculates the pointer to the given extended state component.
  *
@@ -861,7 +831,7 @@ AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(s,n.) gs,   CPUMC
         AssertCompile((a_iCompBit) < 64U); \
         AssertMsg(a_pLambdaCtx->fXStateMask & RT_BIT_64(a_iCompBit), (#a_iCompBit "\n")); \
         AssertMsg(a_pLambdaCtx->aoffXState[(a_iCompBit)] != UINT16_MAX, (#a_iCompBit "\n")); \
-        return (a_PtrType)((uint8_t *)a_pLambdaCtx->CTX_SUFF(pXState) + a_pLambdaCtx->aoffXState[(a_iCompBit)]); \
+        return (a_PtrType)(&a_pLambdaCtx->abXState[a_pLambdaCtx->aoffXState[(a_iCompBit)]]); \
     }(a_pCtx))
 #elif defined(VBOX_STRICT) && defined(__GNUC__)
 # define CPUMCTX_XSAVE_C_PTR(a_pCtx, a_iCompBit, a_PtrType) \
@@ -870,11 +840,11 @@ AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(s,n.) gs,   CPUMC
         AssertCompile((a_iCompBit) < 64U); \
         AssertMsg((a_pCtx)->fXStateMask & RT_BIT_64(a_iCompBit), (#a_iCompBit "\n")); \
         AssertMsg((a_pCtx)->aoffXState[(a_iCompBit)] != UINT16_MAX, (#a_iCompBit "\n")); \
-        (a_PtrType)((uint8_t *)(a_pCtx)->CTX_SUFF(pXState) + (a_pCtx)->aoffXState[(a_iCompBit)]); \
+        (a_PtrType)(&(a_pCtx)->abXState[(a_pCtx)->aoffXState[(a_iCompBit)]]); \
     })
 #else
 # define CPUMCTX_XSAVE_C_PTR(a_pCtx, a_iCompBit, a_PtrType) \
-    ((a_PtrType)((uint8_t *)(a_pCtx)->CTX_SUFF(pXState) + (a_pCtx)->aoffXState[(a_iCompBit)]))
+    ((a_PtrType)(&(a_pCtx)->abXState[(a_pCtx)->aoffXState[(a_iCompBit)]]))
 #endif
 
 /**
@@ -896,18 +866,6 @@ AssertCompileMembersAtSameOffset(CPUMCTX, CPUM_UNION_STRUCT_NM(s,n.) gs,   CPUMC
 
 #endif /* !VBOX_FOR_DTRACE_LIB */
 
-
-/** @name CPUMCTX_WSF_XXX
- * @{ */
-/** Touch IA32_PRED_CMD.IBPB on VM exit. */
-#define CPUMCTX_WSF_IBPB_EXIT           RT_BIT_32(0)
-/** Touch IA32_PRED_CMD.IBPB on VM entry. */
-#define CPUMCTX_WSF_IBPB_ENTRY          RT_BIT_32(1)
-/** Touch IA32_FLUSH_CMD.L1D on VM entry. */
-#define CPUMCTX_WSF_L1D_ENTRY           RT_BIT_32(2)
-/** Flush MDS buffers on VM entry. */
-#define CPUMCTX_WSF_MDS_ENTRY           RT_BIT_32(3)
-/** @} */
 
 /** @name CPUMCTX_EXTRN_XXX
  * Used for parts of the CPUM state that is externalized and needs fetching
@@ -1042,33 +1000,26 @@ AssertCompile(CPUMCTX_EXTRN_SREG_FROM_IDX(X86_SREG_GS) == CPUMCTX_EXTRN_GS);
 /** Hardware-virtualization (SVM or VMX) state is kept externally. */
 #define CPUMCTX_EXTRN_HWVIRT                    UINT64_C(0x0000020000000000)
 
+/** Inhibit maskable interrupts (VMCPU_FF_INHIBIT_INTERRUPTS) */
+#define CPUMCTX_EXTRN_INHIBIT_INT               UINT64_C(0x0000040000000000)
+/** Inhibit non-maskable interrupts (VMCPU_FF_BLOCK_NMIS). */
+#define CPUMCTX_EXTRN_INHIBIT_NMI               UINT64_C(0x0000080000000000)
+
 /** Mask of bits the keepers can use for state tracking. */
 #define CPUMCTX_EXTRN_KEEPER_STATE_MASK         UINT64_C(0xffff000000000000)
 
 /** NEM/Win: Event injection (known was interruption) pending state. */
 #define CPUMCTX_EXTRN_NEM_WIN_EVENT_INJECT      UINT64_C(0x0001000000000000)
-/** NEM/Win: Inhibit maskable interrupts (VMCPU_FF_INHIBIT_INTERRUPTS). */
-#define CPUMCTX_EXTRN_NEM_WIN_INHIBIT_INT       UINT64_C(0x0002000000000000)
-/** NEM/Win: Inhibit non-maskable interrupts (VMCPU_FF_BLOCK_NMIS). */
-#define CPUMCTX_EXTRN_NEM_WIN_INHIBIT_NMI       UINT64_C(0x0004000000000000)
 /** NEM/Win: Mask. */
-#define CPUMCTX_EXTRN_NEM_WIN_MASK              UINT64_C(0x0007000000000000)
+#define CPUMCTX_EXTRN_NEM_WIN_MASK              UINT64_C(0x0001000000000000)
 
-/** HM/SVM: Inhibit maskable interrupts (VMCPU_FF_INHIBIT_INTERRUPTS). */
-#define CPUMCTX_EXTRN_HM_SVM_INT_SHADOW         UINT64_C(0x0001000000000000)
 /** HM/SVM: Nested-guest interrupt pending (VMCPU_FF_INTERRUPT_NESTED_GUEST). */
-#define CPUMCTX_EXTRN_HM_SVM_HWVIRT_VIRQ        UINT64_C(0x0002000000000000)
+#define CPUMCTX_EXTRN_HM_SVM_HWVIRT_VIRQ        UINT64_C(0x0001000000000000)
 /** HM/SVM: Mask. */
-#define CPUMCTX_EXTRN_HM_SVM_MASK               UINT64_C(0x0003000000000000)
-
-/** HM/VMX: Guest-interruptibility state (VMCPU_FF_INHIBIT_INTERRUPTS,
- *  VMCPU_FF_BLOCK_NMIS). */
-#define CPUMCTX_EXTRN_HM_VMX_INT_STATE          UINT64_C(0x0001000000000000)
-/** HM/VMX: Mask. */
-#define CPUMCTX_EXTRN_HM_VMX_MASK               UINT64_C(0x0001000000000000)
+#define CPUMCTX_EXTRN_HM_SVM_MASK               UINT64_C(0x0001000000000000)
 
 /** All CPUM state bits, not including keeper specific ones. */
-#define CPUMCTX_EXTRN_ALL                       UINT64_C(0x000003fffffffffc)
+#define CPUMCTX_EXTRN_ALL                       UINT64_C(0x00000ffffffffffc)
 /** All CPUM state bits, including keeper specific ones. */
 #define CPUMCTX_EXTRN_ABSOLUTELY_ALL            UINT64_C(0xfffffffffffffffc)
 /** @} */

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -33,6 +43,7 @@
 #include <iprt/poll.h>
 #include <iprt/process.h>
 #include <iprt/rand.h>
+#include <iprt/system.h> /* For RTShutdown. */
 
 #include "VBoxServiceInternal.h"
 #include "VBoxServiceUtils.h"
@@ -989,6 +1000,62 @@ static int vgsvcGstCtrlSessionHandlePathUserDocuments(PVBOXSERVICECTRLSESSION pS
 
 
 /**
+ * Handles shutting down / rebooting the guest OS.
+ *
+ * @returns VBox status code.
+ * @param   pSession        Guest session.
+ * @param   pHostCtx        Host context.
+ */
+static int vgsvcGstCtrlSessionHandleShutdown(PVBOXSERVICECTRLSESSION pSession, PVBGLR3GUESTCTRLCMDCTX pHostCtx)
+{
+    AssertPtrReturn(pSession, VERR_INVALID_POINTER);
+    AssertPtrReturn(pHostCtx, VERR_INVALID_POINTER);
+
+    /*
+     * Retrieve the request.
+     */
+    uint32_t fAction;
+    int rc = VbglR3GuestCtrlGetShutdown(pHostCtx, &fAction);
+    if (RT_SUCCESS(rc))
+    {
+        VGSvcVerbose(1, "Host requested to %s system ...\n", (fAction & RTSYSTEM_SHUTDOWN_REBOOT) ? "reboot" : "shutdown");
+
+        /* Reply first to the host, in order to avoid host hangs when issuing the guest shutdown. */
+        rc = VbglR3GuestCtrlMsgReply(pHostCtx, VINF_SUCCESS);
+        if (RT_FAILURE(rc))
+        {
+            VGSvcError("Failed to reply to shutdown / reboot request, rc=%Rrc\n", rc);
+        }
+        else
+        {
+            int fSystemShutdown = RTSYSTEM_SHUTDOWN_PLANNED;
+
+            /* Translate SHUTDOWN_FLAG_ into RTSYSTEM_SHUTDOWN_ flags. */
+            if (fAction & GUEST_SHUTDOWN_FLAG_REBOOT)
+                fSystemShutdown |= RTSYSTEM_SHUTDOWN_REBOOT;
+            else /* SHUTDOWN_FLAG_POWER_OFF */
+                fSystemShutdown |= RTSYSTEM_SHUTDOWN_POWER_OFF;
+
+            if (fAction & GUEST_SHUTDOWN_FLAG_FORCE)
+                fSystemShutdown |= RTSYSTEM_SHUTDOWN_FORCE;
+
+            rc = RTSystemShutdown(0 /*cMsDelay*/, fSystemShutdown, "VBoxService");
+            if (RT_FAILURE(rc))
+                VGSvcError("%s system failed with %Rrc\n",
+                           (fAction & RTSYSTEM_SHUTDOWN_REBOOT) ? "Rebooting" : "Shutting down", rc);
+        }
+    }
+    else
+    {
+        VGSvcError("Error fetching parameters for shutdown / reboot request: %Rrc\n", rc);
+        VbglR3GuestCtrlMsgSkip(pHostCtx->uClientID, rc, UINT32_MAX);
+    }
+
+    return rc;
+}
+
+
+/**
  * Handles getting the user's home directory.
  *
  * @returns VBox status code.
@@ -1121,7 +1188,7 @@ static int vgsvcGstCtrlSessionHandleProcInput(PVBOXSERVICECTRLSESSION pSession, 
         rc = VbglR3GuestCtrlProcGetInput(pHostCtx, &uPID, &fFlags, *ppvScratchBuf, *pcbScratchBuf, &cbInput);
     if (RT_SUCCESS(rc))
     {
-        if (fFlags & INPUT_FLAG_EOF)
+        if (fFlags & GUEST_PROC_IN_FLAG_EOF)
             VGSvcVerbose(4, "Got last process input block for PID=%RU32 (%RU32 bytes) ...\n", uPID, cbInput);
 
         /*
@@ -1130,7 +1197,7 @@ static int vgsvcGstCtrlSessionHandleProcInput(PVBOXSERVICECTRLSESSION pSession, 
         PVBOXSERVICECTRLPROCESS pProcess = VGSvcGstCtrlSessionRetainProcess(pSession, uPID);
         if (pProcess)
         {
-            rc = VGSvcGstCtrlProcessHandleInput(pProcess, pHostCtx, RT_BOOL(fFlags & INPUT_FLAG_EOF),
+            rc = VGSvcGstCtrlProcessHandleInput(pProcess, pHostCtx, RT_BOOL(fFlags & GUEST_PROC_IN_FLAG_EOF),
                                                 *ppvScratchBuf, RT_MIN(cbInput, *pcbScratchBuf));
             if (RT_FAILURE(rc))
                 VGSvcError("Error handling input message for PID=%RU32, rc=%Rrc\n", uPID, rc);
@@ -1411,6 +1478,10 @@ int VGSvcGstCtrlSessionHandler(PVBOXSERVICECTRLSESSION pSession, uint32_t uMsg, 
                 rc = vgsvcGstCtrlSessionHandlePathUserHome(pSession, pHostCtx);
             break;
 
+        case HOST_MSG_SHUTDOWN:
+            rc = vgsvcGstCtrlSessionHandleShutdown(pSession, pHostCtx);
+            break;
+
         default: /* Not supported, see next code block. */
             break;
     }
@@ -1563,7 +1634,7 @@ static DECLCALLBACK(int) vgsvcGstCtrlSessionThread(RTTHREAD hThreadSelf, void *p
     }
 
     uint32_t uSessionStatus = GUEST_SESSION_NOTIFYTYPE_UNDEFINED;
-    uint32_t uSessionRc = VINF_SUCCESS; /** uint32_t vs. int. */
+    int32_t  iSessionResult = VINF_SUCCESS;
 
     if (fProcessAlive)
     {
@@ -1588,14 +1659,17 @@ static DECLCALLBACK(int) vgsvcGstCtrlSessionThread(RTTHREAD hThreadSelf, void *p
         {
             case RTPROCEXITREASON_NORMAL:
                 uSessionStatus = GUEST_SESSION_NOTIFYTYPE_TEN;
+                iSessionResult = ProcessStatus.iStatus; /* Report back the session's exit code. */
                 break;
 
             case RTPROCEXITREASON_ABEND:
                 uSessionStatus = GUEST_SESSION_NOTIFYTYPE_TEA;
+                /* iSessionResult is undefined (0). */
                 break;
 
             case RTPROCEXITREASON_SIGNAL:
                 uSessionStatus = GUEST_SESSION_NOTIFYTYPE_TES;
+                iSessionResult = ProcessStatus.iStatus; /* Report back the signal number. */
                 break;
 
             default:
@@ -1619,12 +1693,12 @@ static DECLCALLBACK(int) vgsvcGstCtrlSessionThread(RTTHREAD hThreadSelf, void *p
 
     VBGLR3GUESTCTRLCMDCTX ctx = { idClient, VBOX_GUESTCTRL_CONTEXTID_MAKE_SESSION(idSession),
                                   0 /* uProtocol, unused */, 0 /* uNumParms, unused */ };
-    rc2 = VbglR3GuestCtrlSessionNotify(&ctx, uSessionStatus, uSessionRc);
+    rc2 = VbglR3GuestCtrlSessionNotify(&ctx, uSessionStatus, iSessionResult);
     if (RT_FAILURE(rc2))
         VGSvcError("Reporting final status of session ID=%RU32 failed with rc=%Rrc\n", idSession, rc2);
 
-    VGSvcVerbose(3, "Thread for session ID=%RU32 ended with sessionStatus=%RU32, sessionRc=%Rrc\n",
-                 idSession, uSessionStatus, uSessionRc);
+    VGSvcVerbose(3, "Thread for session ID=%RU32 ended with sessionStatus=%#x (%RU32), sessionRc=%#x (%Rrc)\n",
+                 idSession, uSessionStatus, uSessionStatus, iSessionResult, iSessionResult);
 
     return VINF_SUCCESS;
 }
@@ -1645,7 +1719,7 @@ static int vgsvcGstCtrlSessionReadKeyAndAccept(uint32_t idClient, uint32_t idSes
      * Read it.
      */
     RTHANDLE Handle;
-    int rc = RTHandleGetStandard(RTHANDLESTD_INPUT, &Handle);
+    int rc = RTHandleGetStandard(RTHANDLESTD_INPUT, true /*fLeaveOpen*/, &Handle);
     if (RT_SUCCESS(rc))
     {
         if (Handle.enmType == RTHANDLETYPE_PIPE)
@@ -1795,15 +1869,17 @@ static RTEXITCODE vgsvcGstCtrlSessionSpawnWorker(PVBOXSERVICECTRLSESSION pSessio
                      */
                     else if (rc == VERR_VM_RESTORED)
                     {
-                        VGSvcVerbose(1, "The VM session ID changed (i.e. restored)\n");
-                        int rc2 = VGSvcGstCtrlSessionClose(&g_Session);
-                        AssertRC(rc2);
+                        VGSvcVerbose(1, "The VM session ID changed (i.e. restored), closing stale session %RU32\n",
+                                     pSession->StartupInfo.uSessionID);
 
-                        rc2 = VbglR3GuestCtrlSessionHasChanged(g_idControlSvcClient, g_idControlSvcClient);
-                        AssertRC(rc2);
-
-                        /* Invalidate the internal state to match the current host we got restored from. */
-                        vgsvcGstCtrlSessionInvalidate(pSession, g_idControlSvcClient);
+                        /* We currently don't serialize guest sessions, guest processes and other guest control objects
+                         * within saved states. So just close this session and report success to the parent process.
+                         *
+                         * Note: Not notifying the host here is intentional, as it wouldn't have any information
+                         *       about what to do with it.
+                         */
+                        rc = VINF_SUCCESS; /* Report success as exit code. */
+                        break;
                     }
                     else
                     {

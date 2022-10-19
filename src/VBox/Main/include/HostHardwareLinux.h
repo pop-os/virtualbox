@@ -7,15 +7,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_HostHardwareLinux_h
@@ -68,14 +78,21 @@ public:
      * until the first time this method is called.
      * @returns iprt status code
      */
-    int updateFloppies();
+    int updateFloppies() RT_NOEXCEPT;
 
     /**
      * Search for host DVD drives and rebuild the list, which remains empty
      * until the first time this method is called.
      * @returns iprt status code
      */
-    int updateDVDs();
+    int updateDVDs() RT_NOEXCEPT;
+
+    /**
+     * Search for fixed disks (HDDs) and rebuild the list, which remains empty until
+     * the first time this method is called.
+     * @returns iprt status code
+     */
+    int updateFixedDrives() RT_NOEXCEPT;
 
     /** Get the first element in the list of floppy drives. */
     DriveInfoList::const_iterator FloppyBegin()
@@ -100,11 +117,25 @@ public:
     {
         return mDVDList.end();
     }
+
+    /** Get the first element in the list of fixed drives. */
+    DriveInfoList::const_iterator FixedDriveBegin()
+    {
+        return mFixedDriveList.begin();
+    }
+
+    /** Get the last element in the list of fixed drives. */
+    DriveInfoList::const_iterator FixedDriveEnd()
+    {
+        return mFixedDriveList.end();
+    }
 private:
     /** The list of currently available floppy drives */
     DriveInfoList mFloppyList;
     /** The list of currently available DVD drives */
     DriveInfoList mDVDList;
+    /** The list of currently available fixed drives */
+    DriveInfoList mFixedDriveList;
 };
 
 /** Convenience typedef. */

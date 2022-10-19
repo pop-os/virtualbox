@@ -14,7 +14,8 @@
  *
  *    You should have received a copy of the GNU General Public License
  *    along with this program; if not, write to the Free Software
- *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ *    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ *    02110-1301, USA.
  *
  * Portions of this code are taken from the Linux forcedeth driver that was
  * based on a cleanroom reimplementation which was based on reverse engineered
@@ -266,7 +267,7 @@ nv_init_rings ( struct forcedeth_private *priv )
 
 	/* Allocate ring for both TX and RX */
 	priv->rx_ring =
-		malloc_dma ( sizeof(struct ring_desc) * RXTX_RING_SIZE, 32 );
+		malloc_phys ( sizeof(struct ring_desc) * RXTX_RING_SIZE, 32 );
 	if ( ! priv->rx_ring )
 		goto err_malloc;
 	priv->tx_ring = &priv->rx_ring[RX_RING_SIZE];
@@ -307,7 +308,7 @@ nv_free_rxtx_resources ( struct forcedeth_private *priv )
 
 	DBGP ( "nv_free_rxtx_resources\n" );
 
-	free_dma ( priv->rx_ring, sizeof(struct ring_desc) * RXTX_RING_SIZE );
+	free_phys ( priv->rx_ring, sizeof(struct ring_desc) * RXTX_RING_SIZE );
 
 	for ( i = 0; i < RX_RING_SIZE; i++ ) {
 		free_iob ( priv->rx_iobuf[i] );
@@ -997,7 +998,7 @@ forcedeth_poll ( struct net_device *netdev )
 
 	DBG ( "forcedeth_poll: status = %#04x\n", status );
 
-	/* Link change interrupt occured. Call always if link is down,
+	/* Link change interrupt occurred. Call always if link is down,
 	 * to give auto-neg a chance to finish */
 	if ( ( status & NVREG_IRQ_LINK ) || ! ( netdev_link_ok ( netdev ) ) )
 		forcedeth_link_status ( netdev );
@@ -1175,7 +1176,7 @@ nv_mgmt_get_version ( struct forcedeth_private *priv )
 		ioaddr + NvRegTransmitterControl );
 	start = currticks();
 
-	while ( currticks() > start + 5 * ticks_per_sec() ) {
+	while ( currticks() > start + 5 * TICKS_PER_SEC ) {
 		data_ready2 = readl ( ioaddr + NvRegTransmitterControl );
 		if ( ( data_ready & NVREG_XMITCTL_DATA_READY ) !=
 		     ( data_ready2 & NVREG_XMITCTL_DATA_READY ) ) {
@@ -1748,10 +1749,8 @@ forcedeth_map_regs ( struct forcedeth_private *priv )
 	for ( reg = PCI_BASE_ADDRESS_0; reg <= PCI_BASE_ADDRESS_5; reg += 4 ) {
 		pci_read_config_dword ( priv->pci_dev, reg, &bar );
 
-		if ( ( ( bar & PCI_BASE_ADDRESS_SPACE ) ==
-			 PCI_BASE_ADDRESS_SPACE_MEMORY ) &&
-		       ( pci_bar_size ( priv->pci_dev, reg ) >=
-			 register_size ) ) {
+		if ( ( ! ( bar & PCI_BASE_ADDRESS_SPACE_IO ) ) &&
+		     ( pci_bar_size ( priv->pci_dev, reg ) >= register_size ) ){
 			addr = pci_bar_start ( priv->pci_dev, reg );
 			break;
 		}
@@ -1763,7 +1762,7 @@ forcedeth_map_regs ( struct forcedeth_private *priv )
 	}
 
 	rc = -ENOMEM;
-	ioaddr = ioremap ( addr, register_size );
+	ioaddr = pci_ioremap ( priv->pci_dev, addr, register_size );
 	if ( ! ioaddr ) {
 		DBG ( "Cannot remap MMIO\n" );
 		goto err_ioremap;

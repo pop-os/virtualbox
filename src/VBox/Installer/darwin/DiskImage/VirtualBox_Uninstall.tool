@@ -5,15 +5,25 @@
 #
 
 #
-# Copyright (C) 2007-2020 Oracle Corporation
+# Copyright (C) 2007-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 # Override any funny stuff from the user.
@@ -83,6 +93,7 @@ test -f /usr/bin/VBoxBugReport                     && my_files+=("/usr/bin/VBoxB
 test -f /usr/bin/VBoxBalloonCtrl                   && my_files+=("/usr/bin/VBoxBalloonCtrl")
 test -f /usr/bin/VBoxAutostart                     && my_files+=("/usr/bin/VBoxAutostart")
 test -f /usr/bin/VBoxDTrace                        && my_files+=("/usr/bin/VBoxDTrace")
+test -f /usr/bin/VBoxAudioTest                     && my_files+=("/usr/bin/VBoxAudioTest")
 test -f /usr/bin/vbox-img                          && my_files+=("/usr/bin/vbox-img")
 test -f /usr/local/bin/VirtualBox                  && my_files+=("/usr/local/bin/VirtualBox")
 test -f /usr/local/bin/VirtualBoxVM                && my_files+=("/usr/local/bin/VirtualBoxVM")
@@ -94,6 +105,7 @@ test -f /usr/local/bin/VBoxBugReport               && my_files+=("/usr/local/bin
 test -f /usr/local/bin/VBoxBalloonCtrl             && my_files+=("/usr/local/bin/VBoxBalloonCtrl")
 test -f /usr/local/bin/VBoxAutostart               && my_files+=("/usr/local/bin/VBoxAutostart")
 test -f /usr/local/bin/VBoxDTrace                  && my_files+=("/usr/local/bin/VBoxDTrace")
+test -f /usr/local/bin/VBoxAudioTest               && my_files+=("/usr/local/bin/VBoxAudioTest")
 test -f /usr/local/bin/vbox-img                    && my_files+=("/usr/local/bin/vbox-img")
 test -d /Library/Receipts/VirtualBoxCLI.pkg/       && my_directories+=("/Library/Receipts/VirtualBoxCLI.pkg/")
 test -f /Library/LaunchDaemons/org.virtualbox.startup.plist && my_files+=("/Library/LaunchDaemons/org.virtualbox.startup.plist")

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -47,13 +57,13 @@ public:
 protected:
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
 
     /** Returns minimum size-hint. */
-    virtual QSize minimumSizeHint() const /* override */;
+    virtual QSize minimumSizeHint() const RT_OVERRIDE;
 
 private:
 
@@ -240,9 +250,9 @@ void UIFilmContainer::setValue(const QVector<BOOL> &value)
         if (pWidgetLayout)
         {
             /* Configure widget-layout: */
-            pWidgetLayout->setMargin(0);
+            pWidgetLayout->setContentsMargins(0, 0, 0, 0);
 #ifdef VBOX_WS_MAC
-            pWidgetLayout->setSpacing(5);
+            pWidgetLayout->setContentsMargins(5, 5, 5, 5);
 #else
             pWidgetLayout->setSpacing(qApp->style()->pixelMetric(QStyle::PM_LayoutHorizontalSpacing) / 2);
 #endif
@@ -292,7 +302,7 @@ void UIFilmContainer::prepareLayout()
     if (m_pMainLayout)
     {
         /* Configure layout: */
-        m_pMainLayout->setMargin(0);
+        m_pMainLayout->setContentsMargins(0, 0, 0, 0);
         m_pMainLayout->setSpacing(0);
     }
 }

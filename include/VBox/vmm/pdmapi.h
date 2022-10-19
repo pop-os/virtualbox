@@ -7,24 +7,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmapi_h
@@ -52,9 +62,10 @@ VMMDECL(int)            PDMGetInterrupt(PVMCPUCC pVCpu, uint8_t *pu8Interrupt);
 VMMDECL(int)            PDMIsaSetIrq(PVMCC pVM, uint8_t u8Irq, uint8_t u8Level, uint32_t uTagSrc);
 VMM_INT_DECL(bool)      PDMHasIoApic(PVM pVM);
 VMM_INT_DECL(bool)      PDMHasApic(PVM pVM);
-VMM_INT_DECL(int)       PDMIoApicSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level, uint32_t uTagSrc);
-VMM_INT_DECL(VBOXSTRICTRC) PDMIoApicBroadcastEoi(PVM pVM, uint8_t uVector);
-VMM_INT_DECL(int)       PDMIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue, uint32_t uTagSrc);
+VMM_INT_DECL(PPDMDEVINS) PDMDeviceRing0IdxToInstance(PVMCC pVM, uint64_t idxR0Device);
+VMM_INT_DECL(int)       PDMIoApicSetIrq(PVM pVM, PCIBDF uBusDevFn, uint8_t u8Irq, uint8_t u8Level, uint32_t uTagSrc);
+VMM_INT_DECL(void)      PDMIoApicBroadcastEoi(PVMCC pVM, uint8_t uVector);
+VMM_INT_DECL(void)      PDMIoApicSendMsi(PVMCC pVM, PCIBDF uBusDevFn, PCMSIMSG pMsi, uint32_t uTagSrc);
 VMM_INT_DECL(int)       PDMVmmDevHeapR3ToGCPhys(PVM pVM, RTR3PTR pv, RTGCPHYS *pGCPhys);
 VMM_INT_DECL(bool)      PDMVmmDevHeapIsEnabled(PVM pVM);
 
@@ -67,7 +78,7 @@ VMM_INT_DECL(bool)      PDMVmmDevHeapIsEnabled(PVM pVM);
  *                              it's being mapped, NIL_RTGCPHYS if it's being
  *                              unmapped.
  */
-typedef DECLCALLBACK(void) FNPDMVMMDEVHEAPNOTIFY(PVM pVM, void *pvAllocation, RTGCPHYS GCPhysAllocation);
+typedef DECLCALLBACKTYPE(void, FNPDMVMMDEVHEAPNOTIFY,(PVM pVM, void *pvAllocation, RTGCPHYS GCPhysAllocation));
 /** Pointer (ring-3) to a FNPDMVMMDEVHEAPNOTIFY function. */
 typedef R3PTRTYPE(FNPDMVMMDEVHEAPNOTIFY *) PFNPDMVMMDEVHEAPNOTIFY;
 
@@ -125,8 +136,8 @@ typedef enum  PDMLDRCTX
  * @param   enmCtx          The context the module is loaded into.
  * @param   pvArg           User argument.
  */
-typedef DECLCALLBACK(int) FNPDMR3ENUM(PVM pVM, const char *pszFilename, const char *pszName,
-                                      RTUINTPTR ImageBase, size_t cbImage, PDMLDRCTX enmCtx, void *pvArg);
+typedef DECLCALLBACKTYPE(int, FNPDMR3ENUM,(PVM pVM, const char *pszFilename, const char *pszName,
+                                           RTUINTPTR ImageBase, size_t cbImage, PDMLDRCTX enmCtx, void *pvArg));
 /** Pointer to a FNPDMR3ENUM() function. */
 typedef FNPDMR3ENUM *PFNPDMR3ENUM;
 VMMR3DECL(int)          PDMR3LdrEnumModules(PVM pVM, PFNPDMR3ENUM pfnCallback, void *pvArg);
@@ -169,7 +180,6 @@ VMMR3DECL(int)          PDMR3DriverReattach(PUVM pVM, const char *pszDevice, uns
                                             const char *pszDriver, unsigned iOccurrence, uint32_t fFlags, PCFGMNODE pCfg,
                                             PPPDMIBASE ppBase);
 VMMR3DECL(void)         PDMR3DmaRun(PVM pVM);
-VMMR3_INT_DECL(int)     PDMR3LockCall(PVM pVM);
 
 VMMR3_INT_DECL(int)     PDMR3VmmDevHeapAlloc(PVM pVM, size_t cbSize, PFNPDMVMMDEVHEAPNOTIFY pfnNotify, RTR3PTR *ppv);
 VMMR3_INT_DECL(int)     PDMR3VmmDevHeapFree(PVM pVM, RTR3PTR pv);
@@ -264,6 +274,8 @@ typedef struct PDMDEVICECREATEREQ
     bool                    fRCEnabled;
     /** Explicit padding. */
     bool                    afReserved[3];
+    /** DBGF tracer event source handle if configured. */
+    DBGFTRACEREVTSRC        hDbgfTracerEvtSrc;
 
     /** In: Device name. */
     char                    szDevName[32];
@@ -340,6 +352,37 @@ typedef struct PDMDEVICECOMPATSETCRITSECTREQ
 typedef PDMDEVICECOMPATSETCRITSECTREQ *PPDMDEVICECOMPATSETCRITSECTREQ;
 
 VMMR0_INT_DECL(int) PDMR0DeviceCompatSetCritSectReqHandler(PGVM pGVM, PPDMDEVICECOMPATSETCRITSECTREQ pReq);
+
+
+/**
+ * Request buffer for PDMR0QueueCreateReqHandler / VMMR0_DO_PDM_QUEUE_CREATE.
+ * @see PDMR0QueueCreateReqHandler.
+ */
+typedef struct PDMQUEUECREATEREQ
+{
+    /** The header. */
+    SUPVMMR0REQHDR          Hdr;
+
+    /** Number of queue items. */
+    uint32_t                cItems;
+    /** Queue item size.   */
+    uint32_t                cbItem;
+    /** Owner type (PDMQUEUETYPE). */
+    uint32_t                enmType;
+    /** The ring-3 owner pointer. */
+    RTR3PTR                 pvOwner;
+    /** The ring-3 callback function address. */
+    RTR3PTR                 pfnCallback;
+    /** The queue name. */
+    char                    szName[40];
+
+    /** Output: The queue handle. */
+    PDMQUEUEHANDLE          hQueue;
+} PDMQUEUECREATEREQ;
+/** Pointer to a PDMR0QueueCreateReqHandler / VMMR0_DO_PDM_QUEUE_CREATE request buffer. */
+typedef PDMQUEUECREATEREQ *PPDMQUEUECREATEREQ;
+
+VMMR0_INT_DECL(int) PDMR0QueueCreateReqHandler(PGVM pGVM, PPDMQUEUECREATEREQ pReq);
 
 /** @} */
 

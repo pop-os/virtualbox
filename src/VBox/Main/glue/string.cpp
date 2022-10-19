@@ -4,22 +4,32 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "VBox/com/string.h"
 
 #include <iprt/err.h>
-#include <iprt/path.h>
 #include <iprt/log.h>
+#include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/uni.h>
 
@@ -42,10 +52,14 @@ Bstr &Bstr::printf(const char *pszFormat, ...)
     va_start(va, pszFormat);
     HRESULT hrc = printfVNoThrow(pszFormat, va);
     va_end(va);
+#ifdef RT_EXCEPTIONS_ENABLED
     if (hrc == S_OK)
     { /* likely */ }
     else
         throw std::bad_alloc();
+#else
+    Assert(hrc == S_OK); RT_NOREF(hrc);
+#endif
     return *this;
 }
 
@@ -62,10 +76,14 @@ HRESULT Bstr::printfNoThrow(const char *pszFormat, ...) RT_NOEXCEPT
 Bstr &Bstr::printfV(const char *pszFormat, va_list va)
 {
     HRESULT hrc = printfVNoThrow(pszFormat, va);
+#ifdef RT_EXCEPTIONS_ENABLED
     if (hrc == S_OK)
     { /* likely */ }
     else
         throw std::bad_alloc();
+#else
+    Assert(hrc == S_OK); RT_NOREF(hrc);
+#endif
     return *this;
 }
 
@@ -182,8 +200,54 @@ void Bstr::copyFromN(const char *a_pszSrc, size_t a_cchMax)
     }
     else /* ASSUME: input is valid Utf-8. Fake out of memory error. */
         AssertLogRelMsgFailed(("%Rrc %.*Rhxs\n", vrc, RTStrNLen(a_pszSrc, a_cchMax), a_pszSrc));
+#ifdef RT_EXCEPTIONS_ENABLED
     throw std::bad_alloc();
+#endif
 }
+
+HRESULT Bstr::cleanupAndCopyFromNoThrow(const char *a_pszSrc, size_t a_cchMax) RT_NOEXCEPT
+{
+    /*
+     * Check for empty input (m_bstr == NULL means empty, there are no NULL strings).
+     */
+    cleanup();
+    if (!a_cchMax || !a_pszSrc || !*a_pszSrc)
+        return S_OK;
+
+    /*
+     * Calculate the length and allocate a BSTR string buffer of the right
+     * size, i.e. optimize heap usage.
+     */
+    HRESULT hrc;
+    size_t cwc;
+    int vrc = ::RTStrCalcUtf16LenEx(a_pszSrc, a_cchMax, &cwc);
+    if (RT_SUCCESS(vrc))
+    {
+        m_bstr = ::SysAllocStringByteLen(NULL, (unsigned)(cwc * sizeof(OLECHAR)));
+        if (RT_LIKELY(m_bstr))
+        {
+            PRTUTF16 pwsz = (PRTUTF16)m_bstr;
+            vrc = ::RTStrToUtf16Ex(a_pszSrc, a_cchMax, &pwsz, cwc + 1, NULL);
+            if (RT_SUCCESS(vrc))
+                return S_OK;
+
+            /* This should not happen! */
+            AssertRC(vrc);
+            cleanup();
+            hrc = E_UNEXPECTED;
+        }
+        else
+            hrc = E_OUTOFMEMORY;
+    }
+    else
+    {
+        /* Unexpected: Invalid UTF-8 input. */
+        AssertLogRelMsgFailed(("%Rrc %.*Rhxs\n", vrc, RTStrNLen(a_pszSrc, a_cchMax), a_pszSrc));
+        hrc = E_UNEXPECTED;
+    }
+    return hrc;
+}
+
 
 int Bstr::compareUtf8(const char *a_pszRight, CaseSensitivity a_enmCase /*= CaseSensitive*/) const
 {
@@ -230,9 +294,27 @@ int Bstr::compareUtf8(const char *a_pszRight, CaseSensitivity a_enmCase /*= Case
 }
 
 
+bool Bstr::startsWith(Bstr const &a_rStart) const
+{
+    return RTUtf16NCmp(m_bstr, a_rStart.m_bstr, a_rStart.length()) == 0;
+}
+
+
+bool Bstr::startsWith(RTCString const &a_rStart) const
+{
+    return RTUtf16NCmpUtf8(m_bstr, a_rStart.c_str(), RTSTR_MAX, a_rStart.length()) == 0;
+}
+
+
+bool Bstr::startsWith(const char *a_pszStart) const
+{
+    return RTUtf16NCmpUtf8(m_bstr, a_pszStart, RTSTR_MAX, strlen(a_pszStart)) == 0;
+}
+
+
 #ifndef VBOX_WITH_XPCOM
 
-HRESULT Bstr::joltNoThrow(ssize_t cwcNew /* = -1*/)
+HRESULT Bstr::joltNoThrow(ssize_t cwcNew /* = -1*/) RT_NOEXCEPT
 {
     if (m_bstr)
     {
@@ -261,8 +343,12 @@ HRESULT Bstr::joltNoThrow(ssize_t cwcNew /* = -1*/)
 void Bstr::jolt(ssize_t cwcNew /* = -1*/)
 {
     HRESULT hrc = joltNoThrow(cwcNew);
+# ifdef RT_EXCEPTIONS_ENABLED
     if (hrc != S_OK)
         throw std::bad_alloc();
+# else
+    Assert(hrc == S_OK); RT_NOREF(hrc);
+# endif
 }
 
 #endif /* !VBOX_WITH_XPCOM */
@@ -297,8 +383,12 @@ HRESULT Bstr::reserveNoThrow(size_t cwcMin, bool fForce /*= false*/) RT_NOEXCEPT
 void Bstr::reserve(size_t cwcMin, bool fForce /*= false*/)
 {
     HRESULT hrc = reserveNoThrow(cwcMin, fForce);
+#ifdef RT_EXCEPTIONS_ENABLED
     if (hrc != S_OK)
         throw std::bad_alloc();
+#else
+    Assert(hrc == S_OK); RT_NOREF(hrc);
+#endif
 }
 
 
@@ -487,7 +577,11 @@ Bstr &Bstr::appendWorkerUtf8(const char *pszSrc, size_t cchSrc)
 {
     size_t cwcSrc;
     int rc = RTStrCalcUtf16LenEx(pszSrc, cchSrc, &cwcSrc);
+#ifdef RT_EXCEPTIONS_ENABLED
     AssertRCStmt(rc, throw std::bad_alloc());
+#else
+    AssertRCReturn(rc, *this);
+#endif
 
     size_t cwcOld = length();
     size_t cwcTotal = cwcOld + cwcSrc;
@@ -496,7 +590,11 @@ Bstr &Bstr::appendWorkerUtf8(const char *pszSrc, size_t cchSrc)
     {
         PRTUTF16 pwszDst = &m_bstr[cwcOld];
         rc = RTStrToUtf16Ex(pszSrc, cchSrc, &pwszDst, cwcSrc + 1, NULL);
+#ifdef RT_EXCEPTIONS_ENABLED
         AssertRCStmt(rc, throw std::bad_alloc());
+#else
+        AssertRC(rc);
+#endif
     }
     m_bstr[cwcTotal] = '\0';
     return *this;
@@ -530,8 +628,12 @@ Bstr &Bstr::appendPrintf(const char *pszFormat, ...)
     va_start(va, pszFormat);
     HRESULT hrc = appendPrintfVNoThrow(pszFormat, va);
     va_end(va);
+#ifdef RT_EXCEPTIONS_ENABLED
     if (hrc != S_OK)
         throw std::bad_alloc();
+#else
+    Assert(hrc == S_OK); RT_NOREF(hrc);
+#endif
     return *this;
 }
 
@@ -549,8 +651,12 @@ HRESULT Bstr::appendPrintfNoThrow(const char *pszFormat, ...) RT_NOEXCEPT
 Bstr &Bstr::appendPrintfV(const char *pszFormat, va_list va)
 {
     HRESULT hrc = appendPrintfVNoThrow(pszFormat, va);
+#ifdef RT_EXCEPTIONS_ENABLED
     if (hrc != S_OK)
         throw std::bad_alloc();
+#else
+    Assert(hrc == S_OK); RT_NOREF(hrc);
+#endif
     return *this;
 }
 
@@ -619,8 +725,14 @@ void Bstr::copyFrom(const OLECHAR *a_bstrSrc)
     if (a_bstrSrc && *a_bstrSrc)
     {
         m_bstr = ::SysAllocString(a_bstrSrc);
-        if (!m_bstr)
+#ifdef RT_EXCEPTIONS_ENABLED
+        if (RT_LIKELY(m_bstr))
+        { /* likely */ }
+        else
             throw std::bad_alloc();
+#else
+        Assert(m_bstr);
+#endif
     }
     else
         m_bstr = NULL;
@@ -631,6 +743,24 @@ void Bstr::cleanupAndCopyFrom(const OLECHAR *a_bstrSrc)
 {
     cleanup();
     copyFrom(a_bstrSrc);
+}
+
+
+HRESULT Bstr::cleanupAndCopyFromEx(const OLECHAR *a_bstrSrc) RT_NOEXCEPT
+{
+    cleanup();
+
+    if (a_bstrSrc && *a_bstrSrc)
+    {
+        m_bstr = ::SysAllocString(a_bstrSrc);
+        if (RT_LIKELY(m_bstr))
+        { /* likely */ }
+        else
+            return E_OUTOFMEMORY;
+    }
+    else
+        m_bstr = NULL;
+    return S_OK;
 }
 
 
@@ -650,7 +780,11 @@ void Utf8Str::cloneTo(char **pstr) const
     if (RT_LIKELY(*pstr))
         memcpy(*pstr, c_str(), cb);
     else
+#ifdef RT_EXCEPTIONS_ENABLED
         throw std::bad_alloc();
+#else
+        AssertFailed();
+#endif
 }
 
 HRESULT Utf8Str::cloneToEx(char **pstr) const
@@ -665,6 +799,17 @@ HRESULT Utf8Str::cloneToEx(char **pstr) const
     return E_OUTOFMEMORY;
 }
 #endif
+
+HRESULT Utf8Str::cloneToEx(BSTR *pbstr) const RT_NOEXCEPT
+{
+    if (!pbstr)
+        return S_OK;
+    Bstr bstr;
+    HRESULT hrc = bstr.assignEx(*this);
+    if (SUCCEEDED(hrc))
+        hrc = bstr.detachToEx(pbstr);
+    return hrc;
+}
 
 Utf8Str& Utf8Str::stripTrailingSlash()
 {
@@ -788,7 +933,11 @@ void Utf8Str::copyFrom(CBSTR a_pbstr, size_t a_cwcMax)
             m_cbAllocated = 0;
             m_psz = NULL;
 
+#ifdef RT_EXCEPTIONS_ENABLED
             throw std::bad_alloc();
+#else
+            AssertFailed();
+#endif
         }
     }
     else

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -30,16 +40,18 @@
 #include "QILabel.h"
 #include "QIMessageBox.h"
 #include "QITabWidget.h"
-#include "UICommon.h"
 #include "UIActionPoolManager.h"
+#include "UICommon.h"
 #include "UIExtraDataManager.h"
+#include "UIIconPool.h"
 #include "UIMediumDetailsWidget.h"
 #include "UIMediumItem.h"
 #include "UIMediumManager.h"
 #include "UIMediumSearchWidget.h"
+#include "UINotificationCenter.h"
 #include "UIWizardCloneVD.h"
 #include "UIMessageCenter.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
 #include "UIIconPool.h"
 #include "UIMedium.h"
 #include "UIVirtualBoxEventHandler.h"
@@ -170,7 +182,7 @@ UIMediumManagerWidget::UIMediumManagerWidget(EmbedTo enmEmbedding, UIActionPool 
 
 QMenu *UIMediumManagerWidget::menu() const
 {
-    return m_pActionPool->action(UIActionIndexST_M_MediumWindow)->menu();
+    return m_pActionPool->action(UIActionIndexMN_M_MediumWindow)->menu();
 }
 
 void UIMediumManagerWidget::setProgressBar(UIEnumerationProgressBar *pProgressBar)
@@ -207,6 +219,7 @@ void UIMediumManagerWidget::retranslateUi()
     QITreeWidget *pTreeWidgetHD = treeWidget(UIMediumDeviceType_HardDisk);
     if (pTreeWidgetHD)
     {
+        pTreeWidgetHD->setWhatsThis(UIMediumManager::tr("Registered hard drives"));
         pTreeWidgetHD->headerItem()->setText(0, UIMediumManager::tr("Name"));
         pTreeWidgetHD->headerItem()->setText(1, UIMediumManager::tr("Virtual Size"));
         pTreeWidgetHD->headerItem()->setText(2, UIMediumManager::tr("Actual Size"));
@@ -216,6 +229,7 @@ void UIMediumManagerWidget::retranslateUi()
     QITreeWidget *pTreeWidgetCD = treeWidget(UIMediumDeviceType_DVD);
     if (pTreeWidgetCD)
     {
+        pTreeWidgetCD->setWhatsThis(UIMediumManager::tr("Registered optical disks"));
         pTreeWidgetCD->headerItem()->setText(0, UIMediumManager::tr("Name"));
         pTreeWidgetCD->headerItem()->setText(1, UIMediumManager::tr("Size"));
     }
@@ -224,6 +238,7 @@ void UIMediumManagerWidget::retranslateUi()
     QITreeWidget *pTreeWidgetFD = treeWidget(UIMediumDeviceType_Floppy);
     if (pTreeWidgetFD)
     {
+        pTreeWidgetFD->setWhatsThis(UIMediumManager::tr("Registered floppy disks"));
         pTreeWidgetFD->headerItem()->setText(0, UIMediumManager::tr("Name"));
         pTreeWidgetFD->headerItem()->setText(1, UIMediumManager::tr("Size"));
     }
@@ -272,65 +287,7 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
     /* Try to assign new medium type: */
     if (   comMedium.isOk()
         && newData.m_options.m_enmMediumType != oldData.m_options.m_enmMediumType)
-        pMediumItem->changeMediumType(oldData.m_options.m_enmMediumType, newData.m_options.m_enmMediumType);
-
-    /* Try to assign new medium location: */
-    if (   comMedium.isOk()
-        && newData.m_options.m_strLocation != oldData.m_options.m_strLocation)
-    {
-        /* Prepare move storage progress: */
-        CProgress comProgress = comMedium.MoveTo(newData.m_options.m_strLocation);
-
-        /* Show error message if necessary: */
-        if (!comMedium.isOk())
-            msgCenter().cannotMoveMediumStorage(comMedium,
-                                                oldData.m_options.m_strLocation,
-                                                newData.m_options.m_strLocation,
-                                                this);
-        else
-        {
-            /* Show move storage progress: */
-            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Moving medium ..."),
-                                                ":/progress_media_move_90px.png", this);
-
-            /* Show error message if necessary: */
-            if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
-                msgCenter().cannotMoveMediumStorage(comProgress,
-                                                    oldData.m_options.m_strLocation,
-                                                    newData.m_options.m_strLocation,
-                                                    this);
-        }
-    }
-
-    /* Try to assign new medium size: */
-    if (   comMedium.isOk()
-        && newData.m_options.m_uLogicalSize != oldData.m_options.m_uLogicalSize)
-    {
-        /* Prepare resize storage progress: */
-        CProgress comProgress = comMedium.Resize(newData.m_options.m_uLogicalSize);
-
-        /* Show error message if necessary: */
-        if (!comMedium.isOk())
-            msgCenter().cannotResizeHardDiskStorage(comMedium,
-                                                    oldData.m_options.m_strLocation,
-                                                    uiCommon().formatSize(oldData.m_options.m_uLogicalSize),
-                                                    uiCommon().formatSize(newData.m_options.m_uLogicalSize),
-                                                    this);
-        else
-        {
-            /* Show resize storage progress: */
-            msgCenter().showModalProgressDialog(comProgress, UIMediumManager::tr("Resizing medium ..."),
-                                                ":/progress_media_resize_90px.png", this);
-
-            /* Show error message if necessary: */
-            if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
-                msgCenter().cannotResizeHardDiskStorage(comProgress,
-                                                        oldData.m_options.m_strLocation,
-                                                        uiCommon().formatSize(oldData.m_options.m_uLogicalSize),
-                                                        uiCommon().formatSize(newData.m_options.m_uLogicalSize),
-                                                        this);
-        }
-    }
+        pMediumItem->changeMediumType(newData.m_options.m_enmMediumType);
 
     /* Try to assign new medium description: */
     if (   comMedium.isOk()
@@ -340,9 +297,31 @@ void UIMediumManagerWidget::sltApplyMediumDetailsChanges()
 
         /* Show error message if necessary: */
         if (!comMedium.isOk())
-            msgCenter().cannotChangeMediumDescription(comMedium,
-                                                      oldData.m_options.m_strLocation,
-                                                      this);
+            UINotificationMessage::cannotChangeMediumParameter(comMedium);
+    }
+
+    /* Try to assign new medium location: */
+    if (   comMedium.isOk()
+        && newData.m_options.m_strLocation != oldData.m_options.m_strLocation)
+    {
+        /* Assign new medium location: */
+        UINotificationProgressMediumMove *pNotification = new UINotificationProgressMediumMove(comMedium,
+                                                                                               newData.m_options.m_strLocation);
+        connect(pNotification, &UINotificationProgressMediumMove::sigProgressFinished,
+                this, &UIMediumManagerWidget::sltHandleMoveProgressFinished);
+        gpNotificationCenter->append(pNotification);
+    }
+
+    /* Try to assign new medium size: */
+    if (   comMedium.isOk()
+        && newData.m_options.m_uLogicalSize != oldData.m_options.m_uLogicalSize)
+    {
+        /* Assign new medium size: */
+        UINotificationProgressMediumResize *pNotification = new UINotificationProgressMediumResize(comMedium,
+                                                                                                   newData.m_options.m_uLogicalSize);
+        connect(pNotification, &UINotificationProgressMediumResize::sigProgressFinished,
+                this, &UIMediumManagerWidget::sltHandleResizeProgressFinished);
+        gpNotificationCenter->append(pNotification);
     }
 
     /* Recache current item: */
@@ -392,8 +371,8 @@ void UIMediumManagerWidget::sltHandleMediumDeleted(const QUuid &uMediumID)
 void UIMediumManagerWidget::sltHandleMediumEnumerationStart()
 {
     /* Disable 'refresh' action: */
-    if (m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh))
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh)->setEnabled(false);
+    if (m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh))
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh)->setEnabled(false);
 
     /* Disable details-widget: */
     if (m_pDetailsWidget)
@@ -461,8 +440,8 @@ void UIMediumManagerWidget::sltHandleMediumEnumerationFinish()
         m_pDetailsWidget->setOptionsEnabled(true);
 
     /* Enable 'refresh' action: */
-    if (m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh))
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh)->setEnabled(true);
+    if (m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh))
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh)->setEnabled(true);
 
     /* Re-fetch all current medium-items: */
     refetchCurrentMediumItems();
@@ -478,7 +457,7 @@ void UIMediumManagerWidget::sltHandleMachineStateChange(const QUuid &uId, const 
     if (!pCurrentItem->isMediumAttachedTo(uId))
         return;
     bool fMediumIsModifiable = true;
-    if (state != KMachineState_Aborted && state != KMachineState_PoweredOff)
+    if (state != KMachineState_Aborted && state != KMachineState_PoweredOff && state != KMachineState_AbortedSaved)
         fMediumIsModifiable = false;
     m_pDetailsWidget->enableDisableMediumModificationWidgets(fMediumIsModifiable);
 }
@@ -492,7 +471,7 @@ void UIMediumManagerWidget::sltAddMedium()
 
 void UIMediumManagerWidget::sltCreateMedium()
 {
-    uiCommon().openMediumCreatorDialog(this, currentMediumType());
+    uiCommon().openMediumCreatorDialog(m_pActionPool, this, currentMediumType());
 }
 
 void UIMediumManagerWidget::sltCopyMedium()
@@ -507,8 +486,7 @@ void UIMediumManagerWidget::sltCopyMedium()
 
     /* Show Clone VD wizard: */
     UIMedium medium = pMediumItem->medium();
-    UISafePointerWizard pWizard = new UIWizardCloneVD(currentTreeWidget(), medium.medium());
-    pWizard->prepare();
+    QPointer<UINativeWizard> pWizard = new UIWizardCloneVD(currentTreeWidget(), medium.medium());
     pWizard->exec();
 
     /* Delete if still exists: */
@@ -538,7 +516,7 @@ void UIMediumManagerWidget::sltRemoveMedium()
     AssertReturnVoid(!pMediumItem->id().isNull());
 
     /* Remove current medium-item: */
-    pMediumItem->remove();
+    pMediumItem->remove(true /* show message box */);
 }
 
 void UIMediumManagerWidget::sltReleaseMedium()
@@ -549,11 +527,43 @@ void UIMediumManagerWidget::sltReleaseMedium()
     AssertReturnVoid(!pMediumItem->id().isNull());
 
     /* Remove current medium-item: */
-    bool fResult = pMediumItem->release();
+    bool fResult = pMediumItem->release(true /* show message box */, false /* induced */);
 
     /* Refetch currently chosen medium-item: */
     if (fResult)
         refetchCurrentChosenMediumItem();
+}
+
+void UIMediumManagerWidget::sltClear()
+{
+    /* Currently we clear only DVD medium type items: */
+    if (currentMediumType() != UIMediumDeviceType_DVD && currentMediumType() != UIMediumDeviceType_Floppy)
+        return;
+    QITreeWidget* pTreeWidget = currentTreeWidget();
+    AssertReturnVoid(pTreeWidget);
+    /* Iterate over the tree items assuming medium items are immediate children of the root and they dont have children
+    *  themselves which currently holds for DVD and floppy  medium types: */
+    QList<UIMediumItem*> mediumsToRemove;
+    QStringList nameList;
+    for (int i = 0; i < pTreeWidget->childCount(); ++i)
+    {
+        UIMediumItem *pMediumItem = qobject_cast<UIMediumItem*>(pTreeWidget->childItem(i));
+        if (!pMediumItem)
+            continue;
+        if (pMediumItem->state() == KMediumState_Inaccessible)
+        {
+            mediumsToRemove << pMediumItem;
+            nameList << pMediumItem->name();
+        }
+    }
+    if (!msgCenter().confirmInaccesibleMediaClear(nameList, currentMediumType(), this))
+        return;
+
+    foreach (UIMediumItem *pMediumItem, mediumsToRemove)
+    {
+        pMediumItem->release(false /* no messag box */, false /* induced */);
+        pMediumItem->remove(false /* show no message box */);
+    }
 }
 
 void UIMediumManagerWidget::sltToggleMediumDetailsVisibility(bool fVisible)
@@ -582,6 +592,34 @@ void UIMediumManagerWidget::sltRefreshAll()
     uiCommon().enumerateMedia();
 }
 
+void UIMediumManagerWidget::sltHandleMoveProgressFinished()
+{
+    /* Get current medium-item: */
+    UIMediumItem *pMediumItem = currentMediumItem();
+    AssertMsgReturnVoid(pMediumItem, ("Current item must not be null"));
+    AssertReturnVoid(!pMediumItem->id().isNull());
+
+    /* Recache current item: */
+    pMediumItem->refreshAll();
+
+    /* Push the current item data into details-widget: */
+    sltHandleCurrentTabChanged();
+}
+
+void UIMediumManagerWidget::sltHandleResizeProgressFinished()
+{
+    /* Get current medium-item: */
+    UIMediumItem *pMediumItem = currentMediumItem();
+    AssertMsgReturnVoid(pMediumItem, ("Current item must not be null"));
+    AssertReturnVoid(!pMediumItem->id().isNull());
+
+    /* Recache current item: */
+    pMediumItem->refreshAll();
+
+    /* Push the current item data into details-widget: */
+    sltHandleCurrentTabChanged();
+}
+
 void UIMediumManagerWidget::sltHandleCurrentTabChanged()
 {
     /* Get current tree-widget: */
@@ -600,6 +638,9 @@ void UIMediumManagerWidget::sltHandleCurrentTabChanged()
     /* Raise the required information-container: */
     if (m_pDetailsWidget)
         m_pDetailsWidget->setCurrentType(currentMediumType());
+
+    enableClearAction();
+
     /* Re-fetch currently chosen medium-item: */
     refetchCurrentChosenMediumItem();
     sltHandlePerformSearch();
@@ -630,19 +671,19 @@ void UIMediumManagerWidget::sltHandleContextMenuRequest(const QPoint &position)
     QMenu menu;
     if (pTreeWidget->itemAt(position))
     {
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Copy));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Move));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Remove));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Release));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details));
     }
     else
     {
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
-        menu.addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Add));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Create));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search));
+        menu.addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh));
     }
     /* And show it: */
     menu.exec(pTreeWidget->viewport()->mapToGlobal(position));
@@ -678,6 +719,20 @@ void UIMediumManagerWidget::sltHandlePerformSearch()
     performSearch(true);
 }
 
+void UIMediumManagerWidget::sltDetachCOM()
+{
+    /* Clear tree-widgets: */
+    QITreeWidget *pTreeWidgetHD = treeWidget(UIMediumDeviceType_HardDisk);
+    if (pTreeWidgetHD)
+        pTreeWidgetHD->clear();
+    QITreeWidget *pTreeWidgetCD = treeWidget(UIMediumDeviceType_DVD);
+    if (pTreeWidgetCD)
+        pTreeWidgetCD->clear();
+    QITreeWidget *pTreeWidgetFD = treeWidget(UIMediumDeviceType_Floppy);
+    if (pTreeWidgetFD)
+        pTreeWidgetFD->clear();
+}
+
 void UIMediumManagerWidget::prepare()
 {
     /* Prepare connections: */
@@ -706,6 +761,7 @@ void UIMediumManagerWidget::prepare()
         if (!uiCommon().isMediumEnumerationInProgress())
             sltHandleMediumEnumerationFinish();
     }
+    uiCommon().setHelpKeyword(this,"virtual-media-manager");
 }
 
 void UIMediumManagerWidget::prepareConnections()
@@ -727,39 +783,46 @@ void UIMediumManagerWidget::prepareConnections()
             this, &UIMediumManagerWidget::sltHandleMediumEnumerated);
     connect(&uiCommon(), &UICommon::sigMediumEnumerationFinished,
             this, &UIMediumManagerWidget::sltHandleMediumEnumerationFinish);
+
+    /* Configure COM related connections: */
+    connect(&uiCommon(), &UICommon::sigAskToDetachCOM,
+            this, &UIMediumManagerWidget::sltDetachCOM);
 }
 
 void UIMediumManagerWidget::prepareActions()
 {
     /* First of all, add actions which has smaller shortcut scope: */
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
-    addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Add));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Create));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Copy));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Move));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Remove));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Release));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details));
+    addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh));
 
     /* Connect actions: */
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add), &QAction::triggered,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Add), &QAction::triggered,
             this, &UIMediumManagerWidget::sltAddMedium);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create), &QAction::triggered,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Create), &QAction::triggered,
             this, &UIMediumManagerWidget::sltCreateMedium);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy), &QAction::triggered,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Copy), &QAction::triggered,
             this, &UIMediumManagerWidget::sltCopyMedium);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move), &QAction::triggered,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Move), &QAction::triggered,
             this, &UIMediumManagerWidget::sltMoveMedium);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove), &QAction::triggered,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Remove), &QAction::triggered,
             this, &UIMediumManagerWidget::sltRemoveMedium);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release), &QAction::triggered,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Release), &QAction::triggered,
             this, &UIMediumManagerWidget::sltReleaseMedium);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details), &QAction::toggled,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear), &QAction::triggered,
+            this, &UIMediumManagerWidget::sltClear);
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details), &QAction::toggled,
             this, &UIMediumManagerWidget::sltToggleMediumDetailsVisibility);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search), &QAction::toggled,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search), &QAction::toggled,
             this, &UIMediumManagerWidget::sltToggleMediumSearchVisibility);
-    connect(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh), &QAction::triggered,
+    connect(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh), &QAction::triggered,
             this, &UIMediumManagerWidget::sltRefreshAll);
 
     /* Update action icons: */
@@ -795,7 +858,7 @@ void UIMediumManagerWidget::prepareWidgets()
 void UIMediumManagerWidget::prepareToolBar()
 {
     /* Create toolbar: */
-    m_pToolBar = new UIToolBar(parentWidget());
+    m_pToolBar = new QIToolBar(parentWidget());
     AssertPtrReturnVoid(m_pToolBar);
     {
         /* Configure toolbar: */
@@ -804,17 +867,18 @@ void UIMediumManagerWidget::prepareToolBar()
         m_pToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 
         /* Add toolbar actions: */
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Add));
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Create));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Add));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Create));
         m_pToolBar->addSeparator();
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy));
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Move));
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove));
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Release));
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search));
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Copy));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Move));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Remove));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Release));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details));
         m_pToolBar->addSeparator();
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexST_M_Medium_S_Refresh));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndexMN_M_Medium_S_Refresh));
 
 #ifdef VBOX_WS_MAC
         /* Check whether we are embedded into a stack: */
@@ -903,7 +967,7 @@ void UIMediumManagerWidget::prepareTreeWidget(UIMediumDeviceType type, int iColu
         connect(pTreeWidget, &QITreeWidget::currentItemChanged,
                 this, &UIMediumManagerWidget::sltHandleCurrentItemChanged);
         connect(pTreeWidget, &QITreeWidget::itemDoubleClicked,
-                m_pActionPool->action(UIActionIndexST_M_Medium_T_Details), &QAction::setChecked);
+                m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details), &QAction::setChecked);
         connect(pTreeWidget, &QITreeWidget::customContextMenuRequested,
                 this, &UIMediumManagerWidget::sltHandleContextMenuRequest);
         connect(pTreeWidget, &QITreeWidget::resized,
@@ -957,12 +1021,12 @@ void UIMediumManagerWidget::prepareSearchWidget()
 void UIMediumManagerWidget::loadSettings()
 {
     /* Details action/widget: */
-    m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->setChecked(gEDataManager->virtualMediaManagerDetailsExpanded());
-    sltToggleMediumDetailsVisibility(m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->isChecked());
+    m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details)->setChecked(gEDataManager->virtualMediaManagerDetailsExpanded());
+    sltToggleMediumDetailsVisibility(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details)->isChecked());
 
     /* Search action/widget: */
-    m_pActionPool->action(UIActionIndexST_M_Medium_T_Search)->setChecked(gEDataManager->virtualMediaManagerSearchWidgetExpanded());
-    sltToggleMediumSearchVisibility(m_pActionPool->action(UIActionIndexST_M_Medium_T_Search)->isChecked());
+    m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search)->setChecked(gEDataManager->virtualMediaManagerSearchWidgetExpanded());
+    sltToggleMediumSearchVisibility(m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search)->isChecked());
 }
 
 void UIMediumManagerWidget::repopulateTreeWidgets()
@@ -1064,15 +1128,15 @@ void UIMediumManagerWidget::updateActions()
 
     /* Apply actions accessibility: */
     bool fActionEnabledCopy = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Copy);
-    m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy)->setEnabled(fActionEnabledCopy);
+    m_pActionPool->action(UIActionIndexMN_M_Medium_S_Copy)->setEnabled(fActionEnabledCopy);
     bool fActionEnabledMove = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Edit);
-    m_pActionPool->action(UIActionIndexST_M_Medium_S_Move)->setEnabled(fActionEnabledMove);
+    m_pActionPool->action(UIActionIndexMN_M_Medium_S_Move)->setEnabled(fActionEnabledMove);
     bool fActionEnabledRemove = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Remove);
-    m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove)->setEnabled(fActionEnabledRemove);
+    m_pActionPool->action(UIActionIndexMN_M_Medium_S_Remove)->setEnabled(fActionEnabledRemove);
     bool fActionEnabledRelease = fNotInEnumeration && pMediumItem && checkMediumFor(pMediumItem, Action_Release);
-    m_pActionPool->action(UIActionIndexST_M_Medium_S_Release)->setEnabled(fActionEnabledRelease);
+    m_pActionPool->action(UIActionIndexMN_M_Medium_S_Release)->setEnabled(fActionEnabledRelease);
     bool fActionEnabledDetails = true;
-    m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->setEnabled(fActionEnabledDetails);
+    m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details)->setEnabled(fActionEnabledDetails);
 }
 
 void UIMediumManagerWidget::updateActionIcons()
@@ -1080,13 +1144,15 @@ void UIMediumManagerWidget::updateActionIcons()
     const UIMediumDeviceType enmCurrentMediumType = currentMediumType();
     if (enmCurrentMediumType != UIMediumDeviceType_Invalid)
     {
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Add)->setState((int)enmCurrentMediumType);
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Create)->setState((int)enmCurrentMediumType);
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Copy)->setState((int)enmCurrentMediumType);
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Move)->setState((int)enmCurrentMediumType);
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Remove)->setState((int)enmCurrentMediumType);
-        m_pActionPool->action(UIActionIndexST_M_Medium_S_Release)->setState((int)enmCurrentMediumType);
-        m_pActionPool->action(UIActionIndexST_M_Medium_T_Details)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Add)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Create)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Copy)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Move)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Remove)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Release)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_T_Search)->setState((int)enmCurrentMediumType);
+        m_pActionPool->action(UIActionIndexMN_M_Medium_T_Details)->setState((int)enmCurrentMediumType);
     }
 }
 
@@ -1129,7 +1195,7 @@ void UIMediumManagerWidget::updateTabIcons(UIMediumItem *pMediumItem, Action act
             *pfInaccessible = true;
 
             if (m_pTabWidget)
-                m_pTabWidget->setTabIcon(tabIndex(mediumType), uiCommon().warningIcon());
+                m_pTabWidget->setTabIcon(tabIndex(mediumType), generalIconPool().warningIcon());
 
             break;
         }
@@ -1166,7 +1232,7 @@ void UIMediumManagerWidget::updateTabIcons(UIMediumItem *pMediumItem, Action act
             if (m_pTabWidget)
             {
                 if (*pfInaccessible)
-                    m_pTabWidget->setTabIcon(tabIndex(mediumType), uiCommon().warningIcon());
+                    m_pTabWidget->setTabIcon(tabIndex(mediumType), generalIconPool().warningIcon());
                 else
                     m_pTabWidget->setTabIcon(tabIndex(mediumType), *pIcon);
             }
@@ -1260,6 +1326,9 @@ UIMediumItem* UIMediumManagerWidget::createMediumItem(const UIMedium &medium)
     /* Update tab-icons: */
     updateTabIcons(pMediumItem, Action_Add);
 
+    /* Toogle enable/disable of clear action: */
+    enableClearAction();
+
     /* Reperform the medium search (don't jump to the found element): */
     performSearch(false);
 
@@ -1348,6 +1417,9 @@ void UIMediumManagerWidget::updateMediumItem(const UIMedium &medium)
     /* Update tab-icons: */
     updateTabIcons(pMediumItem, Action_Edit);
 
+    /* Toogle enable/disable of clear action: */
+    enableClearAction();
+
     /* Re-fetch medium-item if it is current one updated: */
     if (pMediumItem == mediumItem(type))
         refetchCurrentMediumItem(type);
@@ -1385,6 +1457,9 @@ void UIMediumManagerWidget::deleteMediumItem(const QUuid &uMediumID)
 
     /* Update tab-icons: */
     updateTabIcons(pMediumItem, Action_Remove);
+
+    /* Toogle enable/disable of clear action: */
+    enableClearAction();
 
     /* Delete medium-item: */
     delete pMediumItem;
@@ -1486,6 +1561,22 @@ void UIMediumManagerWidget::setCurrentItem(QITreeWidget *pTreeWidget, QTreeWidge
 
     /* Re-fetch currently chosen medium-item: */
     refetchCurrentChosenMediumItem();
+}
+
+void UIMediumManagerWidget::enableClearAction()
+{
+    if (!m_pActionPool || !m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear))
+        return;
+
+    if (currentMediumType() == UIMediumDeviceType_HardDisk)
+    {
+        m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear)->setVisible(false);
+        return;
+    }
+    m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear)->setVisible(true);
+    bool fEnable = ((currentMediumType() == UIMediumDeviceType_DVD) && m_fInaccessibleCD) ||
+        ((currentMediumType() == UIMediumDeviceType_Floppy) && m_fInaccessibleFD);
+    m_pActionPool->action(UIActionIndexMN_M_Medium_S_Clear)->setEnabled(fEnable);
 }
 
 void UIMediumManagerWidget::performSearch(bool fSelectNext)
@@ -1652,15 +1743,19 @@ void UIMediumManager::retranslateUi()
     button(ButtonType_Reset)->setText(tr("Reset"));
     button(ButtonType_Apply)->setText(tr("Apply"));
     button(ButtonType_Close)->setText(tr("Close"));
+    button(ButtonType_Help)->setText(tr("Help"));
     button(ButtonType_Reset)->setStatusTip(tr("Reset changes in current medium details"));
     button(ButtonType_Apply)->setStatusTip(tr("Apply changes in current medium details"));
     button(ButtonType_Close)->setStatusTip(tr("Close dialog without saving"));
+    button(ButtonType_Help)->setStatusTip(tr("Show dialog help"));
     button(ButtonType_Reset)->setShortcut(QString("Ctrl+Backspace"));
     button(ButtonType_Apply)->setShortcut(QString("Ctrl+Return"));
     button(ButtonType_Close)->setShortcut(Qt::Key_Escape);
+    button(ButtonType_Help)->setShortcut(QKeySequence::HelpContents);
     button(ButtonType_Reset)->setToolTip(tr("Reset Changes (%1)").arg(button(ButtonType_Reset)->shortcut().toString()));
     button(ButtonType_Apply)->setToolTip(tr("Apply Changes (%1)").arg(button(ButtonType_Apply)->shortcut().toString()));
     button(ButtonType_Close)->setToolTip(tr("Close Window (%1)").arg(button(ButtonType_Close)->shortcut().toString()));
+    button(ButtonType_Help)->setToolTip(tr("Show Help (%1)").arg(button(ButtonType_Help)->shortcut().toString()));
 }
 
 void UIMediumManager::configure()

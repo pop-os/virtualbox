@@ -3,24 +3,34 @@
 ; VirtualBox Runtime DLL - Stable C++ Interface Definition file, 32-bit Visual C++.
 
 ;
-; Copyright (C) 2018-2020 Oracle Corporation
+; Copyright (C) 2018-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 EXPORTS
@@ -538,7 +548,10 @@ EXPORTS
     ?setAttributePath@ElementNode@xml@@QAEPAVAttributeNode@2@PBDABVRTCString@@@Z  ; (public: class xml::AttributeNode * __thiscall xml::ElementNode::setAttributePath(char const *,class RTCString const &))
     ?setByString@RTCRestStringEnumBase@@QAEHABVRTCString@@@Z                    ; (public: int __thiscall RTCRestStringEnumBase::setByString(class RTCString const &))
     ?setByString@RTCRestStringEnumBase@@QAEHPBDI@Z                              ; (public: int __thiscall RTCRestStringEnumBase::setByString(char const *,unsigned int))
-    ?setConsumerCallback@RTCRestBinaryResponse@@QAEXP6AHPAV1@PBXII_K2@ZPAX@Z    ; (public: void __thiscall RTCRestBinaryResponse::setConsumerCallback(int (__cdecl*)(class RTCRestBinaryResponse *,void const *,unsigned int,unsigned int,unsigned __int64,unsigned __int64),void *))
+    ?setConsumerCallback@RTCRestBinaryResponse@@QAEXP6AHPAV1@PBXII_K2@ZPAX@Z      ; before-noexcept ; (public: void __thiscall RTCRestBinaryResponse::setConsumerCallback(int (__cdecl*)(class RTCRestBinaryResponse *,void const *,unsigned int,unsigned int,unsigned __int64,unsigned __int64),void *))
+    ?setConsumerCallback@RTCRestBinaryResponse@@QAEXP6AHPAV1@PBXII_K2@_EPAX@Z=?setConsumerCallback@RTCRestBinaryResponse@@QAEXP6AHPAV1@PBXII_K2@ZPAX@Z      ; before-noexcept ; (public: void __thiscall RTCRestBinaryResponse::setConsumerCallback(int (__cdecl*)(class RTCRestBinaryResponse *,void const *,unsigned int,unsigned int,unsigned __int64,unsigned __int64),void *))
+    ?setConsumerCallback@RTCRestBinaryResponse@@QAEXP6AHPAV1@PBXII_K2@_EPAX@Z ; after-noexcept  ; (public: void __thiscall RTCRestBinaryResponse::setConsumerCallback(int (__cdecl*)(class RTCRestBinaryResponse *,void const *,unsigned int,unsigned int,unsigned __int64,unsigned __int64),void *))
+    ?setConsumerCallback@RTCRestBinaryResponse@@QAEXP6AHPAV1@PBXII_K2@ZPAX@Z=?setConsumerCallback@RTCRestBinaryResponse@@QAEXP6AHPAV1@PBXII_K2@_EPAX@Z ; after-noexcept  ; (public: void __thiscall RTCRestBinaryResponse::setConsumerCallback(int (__cdecl*)(class RTCRestBinaryResponse *,void const *,unsigned int,unsigned int,unsigned __int64,unsigned __int64),void *))
     ?setContent@ElementNode@xml@@QAEPAVContentNode@2@ABVRTCString@@@Z           ; (public: class xml::ContentNode * __thiscall xml::ElementNode::setContent(class RTCString const &))
     ?setContentType@RTCRestBinaryParameter@@QAEHPBD@Z                           ; (public: int __thiscall RTCRestBinaryParameter::setContentType(char const *))
     ?setFormat@RTCRestDate@@QAEHW4kFormat@1@@Z                                  ; (public: int __thiscall RTCRestDate::setFormat(enum RTCRestDate::kFormat))
@@ -549,7 +562,10 @@ EXPORTS
     ?setNull@RTCRestObjectBase@@UAEHXZ                                          ; (public: virtual int __thiscall RTCRestObjectBase::setNull(void))
     ?setNull@RTCRestString@@UAEHXZ                                              ; (public: virtual int __thiscall RTCRestString::setNull(void))
     ?setNull@RTCString@@QAEXXZ                                                  ; (public: void __thiscall RTCString::setNull(void))
-    ?setProducerCallback@RTCRestBinaryParameter@@QAEXP6AHPAV1@PAXI_KPAI@Z12@Z   ; (public: void __thiscall RTCRestBinaryParameter::setProducerCallback(int (__cdecl*)(class RTCRestBinaryParameter *,void *,unsigned int,unsigned __int64,unsigned int *),void *,unsigned __int64))
+    ?setProducerCallback@RTCRestBinaryParameter@@QAEXP6AHPAV1@PAXI_KPAI@Z12@Z   ; before-noexcept; (public: void __thiscall RTCRestBinaryParameter::setProducerCallback(int (__cdecl*)(class RTCRestBinaryParameter *,void *,unsigned int,unsigned __int64,unsigned int *),void *,unsigned __int64))
+    ?setProducerCallback@RTCRestBinaryParameter@@QAEXP6AHPAV1@PAXI_KPAI@_E12@Z=?setProducerCallback@RTCRestBinaryParameter@@QAEXP6AHPAV1@PAXI_KPAI@Z12@Z   ; before-noexcept; (public: void __thiscall RTCRestBinaryParameter::setProducerCallback(int (__cdecl*)(class RTCRestBinaryParameter *,void *,unsigned int,unsigned __int64,unsigned int *),void *,unsigned __int64))
+    ?setProducerCallback@RTCRestBinaryParameter@@QAEXP6AHPAV1@PAXI_KPAI@_E12@Z   ; after-noexcept; (public: void __thiscall RTCRestBinaryParameter::setProducerCallback(int (__cdecl*)(class RTCRestBinaryParameter *,void *,unsigned int,unsigned __int64,unsigned int *),void *,unsigned __int64))
+    ?setProducerCallback@RTCRestBinaryParameter@@QAEXP6AHPAV1@PAXI_KPAI@Z12@Z=?setProducerCallback@RTCRestBinaryParameter@@QAEXP6AHPAV1@PAXI_KPAI@_E12@Z   ; after-noexcept; (public: void __thiscall RTCRestBinaryParameter::setProducerCallback(int (__cdecl*)(class RTCRestBinaryParameter *,void *,unsigned int,unsigned __int64,unsigned int *),void *,unsigned __int64))
     ?setServerAuthority@RTCRestClientApiBase@@QAEHPBD@Z                         ; (public: int __thiscall RTCRestClientApiBase::setServerAuthority(char const *))
     ?setServerBasePath@RTCRestClientApiBase@@QAEHPBD@Z                          ; (public: int __thiscall RTCRestClientApiBase::setServerBasePath(char const *))
     ?setServerScheme@RTCRestClientApiBase@@QAEHPBD@Z                            ; (public: int __thiscall RTCRestClientApiBase::setServerScheme(char const *))

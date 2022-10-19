@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_path_h
@@ -1080,6 +1090,8 @@ RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend)
  *                          NULL, in which case nothing is done.
  * @param   cchAppendMax    The maximum number or characters to take from @a
  *                          pszAppend.  RTSTR_MAX is fine.
+ * @param   fFlags          Combination of RTPATH_STR_F_STYLE_XXX.
+ *                          Most users will pass 0 / RTPATH_STR_F_STYLE_HOST.
  *
  * @remarks On OS/2, Window and similar systems, concatenating a drive letter
  *          specifier with a slash prefixed path will result in an absolute
@@ -1092,7 +1104,7 @@ RTDECL(int) RTPathAppend(char *pszPath, size_t cbPathDst, const char *pszAppend)
  *          absolute path. Meaning, RTPathAppend(strcpy(szBuf, "C:"),
  *          sizeof(szBuf), "bar") will result in "C:bar".
  */
-RTDECL(int) RTPathAppendEx(char *pszPath, size_t cbPathDst, const char *pszAppend, size_t cchAppendMax);
+RTDECL(int) RTPathAppendEx(char *pszPath, size_t cbPathDst, const char *pszAppend, size_t cchAppendMax, uint32_t fFlags);
 
 /**
  * Like RTPathAppend, but with the base path as a separate argument instead of
@@ -1149,11 +1161,13 @@ RTDECL(char *) RTPathJoinA(const char *pszPathSrc, const char *pszAppend);
  *                          be NULL, in which case nothing is done.
  * @param   cchAppendMax    The maximum number of bytes to copy from @a
  *                          pszAppend.  RTSTR_MAX is find.
+ * @param   fFlags          Combination of RTPATH_STR_F_STYLE_XXX.
+ *                          Most users will pass 0 / RTPATH_STR_F_STYLE_HOST.
  *
  */
 RTDECL(int) RTPathJoinEx(char *pszPathDst, size_t cbPathDst,
                          const char *pszPathSrc, size_t cchPathSrcMax,
-                         const char *pszAppend, size_t cchAppendMax);
+                         const char *pszAppend, size_t cchAppendMax, uint32_t fFlags);
 
 /**
  * Callback for RTPathTraverseList that's called for each element.
@@ -1167,7 +1181,7 @@ RTDECL(int) RTPathJoinEx(char *pszPathDst, size_t cbPathDst,
  * @param   pvUser1         The first user parameter.
  * @param   pvUser2         The second user parameter.
  */
-typedef DECLCALLBACK(int) FNRTPATHTRAVERSER(char const *pchPath, size_t cchPath, void *pvUser1, void *pvUser2);
+typedef DECLCALLBACKTYPE(int, FNRTPATHTRAVERSER,(char const *pchPath, size_t cchPath, void *pvUser1, void *pvUser2));
 /** Pointer to a FNRTPATHTRAVERSER. */
 typedef FNRTPATHTRAVERSER *PFNRTPATHTRAVERSER;
 

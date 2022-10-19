@@ -10,15 +10,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -469,6 +479,32 @@ DECLHIDDEN(int) flashR3LoadFromBuf(PFLASHCORE pThis, void const *pvBuf, size_t c
 }
 
 /**
+ * Loads the flash content using the PDM VFS interface.
+ *
+ * @returns VBox status code.
+ * @param   pThis               The flash device core instance.
+ * @param   pDevIns             The owning device instance.
+ * @param   pDrvVfs             Pointer to the VFS interface.
+ * @param   pszNamespace        The namespace to load from.
+ * @param   pszPath             The path to the flash content to load.
+ */
+DECLHIDDEN(int) flashR3LoadFromVfs(PFLASHCORE pThis, PPDMDEVINS pDevIns, PPDMIVFSCONNECTOR pDrvVfs,
+                                   const char *pszNamespace, const char *pszPath)
+{
+    uint64_t cbFlash = 0;
+    int rc = pDrvVfs->pfnQuerySize(pDrvVfs, pszNamespace, pszPath, &cbFlash);
+    if (RT_SUCCESS(rc))
+    {
+        if (cbFlash <= pThis->cbFlashSize)
+            rc = pDrvVfs->pfnReadAll(pDrvVfs, pszNamespace, pszPath, pThis->pbFlash, pThis->cbFlashSize);
+        else
+            return PDMDEV_SET_ERROR(pDevIns, VERR_BUFFER_OVERFLOW, N_("Configured flash size is too small to fit the saved NVRAM content"));
+    }
+
+    return rc;
+}
+
+/**
  * Saves the flash content to the given file.
  *
  * @returns VBox status code.
@@ -506,6 +542,23 @@ DECLHIDDEN(int) flashR3SaveToBuf(PFLASHCORE pThis, void *pvBuf, size_t cbBuf)
 
     memcpy(pvBuf, pThis->pbFlash, RT_MIN(cbBuf, pThis->cbFlashSize));
     return VINF_SUCCESS;
+}
+
+/**
+ * Saves the flash content using the given PDM VFS interface.
+ *
+ * @returns VBox status code.
+ * @param   pThis               The flash device core instance.
+ * @param   pDevIns             The owning device instance.
+ * @param   pDrvVfs             Pointer to the VFS interface.
+ * @param   pszNamespace        The namespace to store to.
+ * @param   pszPath             The path to store the flash content under.
+ */
+DECLHIDDEN(int) flashR3SaveToVfs(PFLASHCORE pThis, PPDMDEVINS pDevIns, PPDMIVFSCONNECTOR pDrvVfs,
+                                 const char *pszNamespace, const char *pszPath)
+{
+    RT_NOREF(pDevIns);
+    return pDrvVfs->pfnWriteAll(pDrvVfs, pszNamespace, pszPath, pThis->pbFlash, pThis->cbFlashSize);
 }
 
 /**

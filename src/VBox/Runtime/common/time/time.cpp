@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -294,8 +304,8 @@ RTDECL(PRTTIME) RTTimeExplode(PRTTIME pTime, PCRTTIMESPEC pTimeSpec)
     const uint16_t *paiDayOfYear;
     int             iMonth;
 
-    AssertMsg(VALID_PTR(pTime), ("%p\n", pTime));
-    AssertMsg(VALID_PTR(pTimeSpec), ("%p\n", pTime));
+    AssertPtr(pTime);
+    AssertPtr(pTimeSpec);
 
     /*
      * The simple stuff first.
@@ -413,8 +423,8 @@ RTDECL(PRTTIMESPEC) RTTimeImplode(PRTTIMESPEC pTimeSpec, PCRTTIME pTime)
     /*
      * Validate input.
      */
-    AssertReturn(VALID_PTR(pTimeSpec), NULL);
-    AssertReturn(VALID_PTR(pTime), NULL);
+    AssertPtrReturn(pTimeSpec, NULL);
+    AssertPtrReturn(pTime, NULL);
     AssertReturn(pTime->u32Nanosecond < 1000000000, NULL);
     AssertReturn(pTime->u8Second < 60, NULL);
     AssertReturn(pTime->u8Minute < 60, NULL);
@@ -695,7 +705,7 @@ RTDECL(PRTTIME) RTTimeNormalize(PRTTIME pTime)
     /*
      * Validate that we've got the minimum of stuff handy.
      */
-    AssertReturn(VALID_PTR(pTime), NULL);
+    AssertPtrReturn(pTime, NULL);
     AssertMsgReturn(!(pTime->fFlags & ~RTTIME_FLAGS_MASK), ("%#x\n", pTime->fFlags), NULL);
     AssertMsgReturn((pTime->fFlags & RTTIME_FLAGS_TYPE_MASK) != RTTIME_FLAGS_TYPE_LOCAL, ("Use RTTimeLocalNormalize!\n"), NULL);
     AssertMsgReturn(pTime->offUTC == 0, ("%d; Use RTTimeLocalNormalize!\n", pTime->offUTC), NULL);
@@ -735,7 +745,7 @@ RTDECL(PRTTIME) RTTimeLocalNormalize(PRTTIME pTime)
     /*
      * Validate that we've got the minimum of stuff handy.
      */
-    AssertReturn(VALID_PTR(pTime), NULL);
+    AssertPtrReturn(pTime, NULL);
     AssertMsgReturn(!(pTime->fFlags & ~RTTIME_FLAGS_MASK), ("%#x\n", pTime->fFlags), NULL);
     AssertMsgReturn((pTime->fFlags & RTTIME_FLAGS_TYPE_MASK) != RTTIME_FLAGS_TYPE_UTC, ("Use RTTimeNormalize!\n"), NULL);
 
@@ -1553,7 +1563,7 @@ RTDECL(PRTTIME) RTTimeConvertToZulu(PRTTIME pTime)
     /*
      * Validate that we've got the minimum of stuff handy.
      */
-    AssertReturn(VALID_PTR(pTime), NULL);
+    AssertPtrReturn(pTime, NULL);
     AssertMsgReturn(!(pTime->fFlags & ~RTTIME_FLAGS_MASK), ("%#x\n", pTime->fFlags), NULL);
 
     return rtTimeConvertToZulu(rtTimeNormalizeInternal(pTime));

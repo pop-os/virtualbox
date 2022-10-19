@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -29,6 +39,7 @@
 /* GUI includes: */
 #include "QIMainDialog.h"
 #include "UICommon.h"
+#include "UIDesktopWidgetWatchdog.h"
 #include "VBoxUtils.h"
 
 /* Other VBox includes: */
@@ -36,12 +47,13 @@
 
 
 QIMainDialog::QIMainDialog(QWidget *pParent /* = 0 */,
-                           Qt::WindowFlags fFlags /* = Qt::Dialog */,
+                           Qt::WindowFlags enmFlags /* = Qt::Dialog */,
                            bool fIsAutoCentering /* = true */)
-    : QMainWindow(pParent, fFlags)
+    : QMainWindow(pParent, enmFlags)
     , m_fIsAutoCentering(fIsAutoCentering)
     , m_fPolished(false)
     , m_iResult(QDialog::Rejected)
+    , m_fRejectByEscape(true)
 {
     /* Install event-filter: */
     qApp->installEventFilter(this);
@@ -217,8 +229,12 @@ bool QIMainDialog::event(QEvent *pEvent)
 
 void QIMainDialog::showEvent(QShowEvent *pEvent)
 {
-    /* Call to polish-event: */
-    polishEvent(pEvent);
+    /* Polish dialog if necessary: */
+    if (!m_fPolished)
+    {
+        polishEvent(pEvent);
+        m_fPolished = true;
+    }
 
     /* Call to base-class: */
     QMainWindow::showEvent(pEvent);
@@ -226,16 +242,9 @@ void QIMainDialog::showEvent(QShowEvent *pEvent)
 
 void QIMainDialog::polishEvent(QShowEvent *)
 {
-    /* Make sure we should polish dialog: */
-    if (m_fPolished)
-        return;
-
     /* Explicit centering according to our parent: */
     if (m_fIsAutoCentering)
-        UICommon::centerWidget(this, parentWidget(), false);
-
-    /* Mark dialog as polished: */
-    m_fPolished = true;
+        UIDesktopWidgetWatchdog::centerWidget(this, parentWidget(), false);
 }
 
 void QIMainDialog::resizeEvent(QResizeEvent *pEvent)
@@ -270,7 +279,7 @@ void QIMainDialog::keyPressEvent(QKeyEvent *pEvent)
         /* Special handling for Escape key: */
         case Qt::Key_Escape:
         {
-            if (pEvent->modifiers() == Qt::NoModifier)
+            if (pEvent->modifiers() == Qt::NoModifier && m_fRejectByEscape)
             {
                 reject();
                 return;
@@ -330,4 +339,9 @@ void QIMainDialog::done(int iResult)
     setResult(iResult);
     /* Hide: */
     hide();
+}
+
+void QIMainDialog::setRejectByEscape(bool fRejectByEscape)
+{
+    m_fRejectByEscape = fRejectByEscape;
 }

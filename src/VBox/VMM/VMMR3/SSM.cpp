@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -149,6 +159,7 @@
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/vmm/mm.h>
+#include <VBox/vmm/vmm.h>
 #include "SSMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/uvm.h>
@@ -903,8 +914,9 @@ static int                  ssmR3DataReadRecHdrV2(PSSMHANDLE pSSM);
  * Cleans up resources allocated by SSM on VM termination.
  *
  * @param   pVM                 The cross context VM structure.
+ * @note    Not using VMMR3_INT_DECL because of testcases.
  */
-VMMR3_INT_DECL(void) SSMR3Term(PVM pVM)
+VMMR3DECL(void) SSMR3Term(PVM pVM)
 {
     if (pVM->ssm.s.fInitialized)
     {
@@ -1671,7 +1683,7 @@ VMMR3_INT_DECL(int) SSMR3DeregisterUsb(PVM pVM, PPDMUSBINS pUsbIns, const char *
     /*
      * Validate input.
      */
-    AssertMsgReturn(VALID_PTR(pUsbIns), ("pUsbIns is NULL!\n"), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pUsbIns, VERR_INVALID_POINTER);
 
     /*
      * Search the list.
@@ -3465,10 +3477,9 @@ static int ssmR3DataWriteBig(PSSMHANDLE pSSM, const void *pvBuf, size_t cbBuf)
          */
         for (;;)
         {
-            AssertCompile(SSM_ZIP_BLOCK_SIZE == PAGE_SIZE);
             if (    cbBuf >= SSM_ZIP_BLOCK_SIZE
                 && (    ((uintptr_t)pvBuf & 0xf)
-                    ||  !ASMMemIsZeroPage(pvBuf))
+                    ||  !ASMMemIsZero(pvBuf, SSM_ZIP_BLOCK_SIZE))
                )
             {
                 /*
@@ -4477,14 +4488,15 @@ static int ssmR3LiveControlEmit(PSSMHANDLE pSSM, long double lrdPct, uint32_t uP
 /**
  * Enters the critical session (optionally) associated with the unit.
  *
+ * @param   pVM                 The cross context VM structure.
  * @param   pUnit               The unit.
  */
-DECLINLINE(void) ssmR3UnitCritSectEnter(PSSMUNIT pUnit)
+DECLINLINE(void) ssmR3UnitCritSectEnter(PVM pVM, PSSMUNIT pUnit)
 {
     PPDMCRITSECT pCritSect = pUnit->pCritSect;
     if (pCritSect)
     {
-        int rc = PDMCritSectEnter(pCritSect, VERR_IGNORED);
+        int rc = PDMCritSectEnter(pVM, pCritSect, VERR_IGNORED);
         AssertRC(rc);
     }
 }
@@ -4493,14 +4505,15 @@ DECLINLINE(void) ssmR3UnitCritSectEnter(PSSMUNIT pUnit)
 /**
  * Leaves the critical session (optionally) associated with the unit.
  *
+ * @param   pVM                 The cross context VM structure.
  * @param   pUnit               The unit.
  */
-DECLINLINE(void) ssmR3UnitCritSectLeave(PSSMUNIT pUnit)
+DECLINLINE(void) ssmR3UnitCritSectLeave(PVM pVM, PSSMUNIT pUnit)
 {
     PPDMCRITSECT pCritSect = pUnit->pCritSect;
     if (pCritSect)
     {
-        int rc = PDMCritSectLeave(pCritSect);
+        int rc = PDMCritSectLeave(pVM, pCritSect);
         AssertRC(rc);
     }
 }
@@ -4529,7 +4542,7 @@ static int ssmR3SaveDoDoneRun(PVM pVM, PSSMHANDLE pSSM)
         {
             int rcOld = pSSM->rc;
             int rc;
-            ssmR3UnitCritSectEnter(pUnit);
+            ssmR3UnitCritSectEnter(pVM, pUnit);
             switch (pUnit->enmType)
             {
                 case SSMUNITTYPE_DEV:
@@ -4545,13 +4558,13 @@ static int ssmR3SaveDoDoneRun(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.Internal.pfnSaveDone(pVM, pSSM);
                     break;
                 case SSMUNITTYPE_EXTERNAL:
-                    rc = pUnit->u.External.pfnSaveDone(pSSM, pUnit->u.External.pvUser);
+                    rc = pUnit->u.External.pfnSaveDone(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser);
                     break;
                 default:
                     rc = VERR_SSM_IPE_1;
                     break;
             }
-            ssmR3UnitCritSectLeave(pUnit);
+            ssmR3UnitCritSectLeave(pVM, pUnit);
             if (RT_SUCCESS(rc) && pSSM->rc != rcOld)
                 rc = pSSM->rc;
             if (RT_FAILURE(rc))
@@ -4881,7 +4894,7 @@ static int ssmR3SaveDoExecRun(PVM pVM, PSSMHANDLE pSSM)
          * Call the execute handler.
          */
         ssmR3DataWriteBegin(pSSM);
-        ssmR3UnitCritSectEnter(pUnit);
+        ssmR3UnitCritSectEnter(pVM, pUnit);
         switch (pUnit->enmType)
         {
             case SSMUNITTYPE_DEV:
@@ -4897,14 +4910,13 @@ static int ssmR3SaveDoExecRun(PVM pVM, PSSMHANDLE pSSM)
                 rc = pUnit->u.Internal.pfnSaveExec(pVM, pSSM);
                 break;
             case SSMUNITTYPE_EXTERNAL:
-                pUnit->u.External.pfnSaveExec(pSSM, pUnit->u.External.pvUser);
-                rc = pSSM->rc;
+                rc = pUnit->u.External.pfnSaveExec(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser);
                 break;
             default:
                 rc = VERR_SSM_IPE_1;
                 break;
         }
-        ssmR3UnitCritSectLeave(pUnit);
+        ssmR3UnitCritSectLeave(pVM, pUnit);
         pUnit->fCalled = true;
         if (RT_FAILURE(rc) && RT_SUCCESS_NP(pSSM->rc))
             pSSM->rc = rc;
@@ -4974,7 +4986,7 @@ static int ssmR3SaveDoPrepRun(PVM pVM, PSSMHANDLE pSSM)
         if (pUnit->u.Common.pfnSavePrep)
         {
             int rc;
-            ssmR3UnitCritSectEnter(pUnit);
+            ssmR3UnitCritSectEnter(pVM, pUnit);
             switch (pUnit->enmType)
             {
                 case SSMUNITTYPE_DEV:
@@ -4990,13 +5002,13 @@ static int ssmR3SaveDoPrepRun(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.Internal.pfnSavePrep(pVM, pSSM);
                     break;
                 case SSMUNITTYPE_EXTERNAL:
-                    rc = pUnit->u.External.pfnSavePrep(pSSM, pUnit->u.External.pvUser);
+                    rc = pUnit->u.External.pfnSavePrep(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser);
                     break;
                 default:
                     rc = VERR_SSM_IPE_1;
                     break;
             }
-            ssmR3UnitCritSectLeave(pUnit);
+            ssmR3UnitCritSectLeave(pVM, pUnit);
             pUnit->fCalled = true;
             if (RT_FAILURE(rc) && RT_SUCCESS_NP(pSSM->rc))
                 pSSM->rc = rc;
@@ -5320,7 +5332,7 @@ static int ssmR3LiveDoVoteRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
             &&  !pUnit->fDoneLive)
         {
             int rc;
-            ssmR3UnitCritSectEnter(pUnit);
+            ssmR3UnitCritSectEnter(pVM, pUnit);
             switch (pUnit->enmType)
             {
                 case SSMUNITTYPE_DEV:
@@ -5336,13 +5348,13 @@ static int ssmR3LiveDoVoteRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
                     rc = pUnit->u.Internal.pfnLiveVote(pVM, pSSM, uPass);
                     break;
                 case SSMUNITTYPE_EXTERNAL:
-                    rc = pUnit->u.External.pfnLiveVote(pSSM, pUnit->u.External.pvUser, uPass);
+                    rc = pUnit->u.External.pfnLiveVote(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser, uPass);
                     break;
                 default:
                     rc = VERR_SSM_IPE_1;
                     break;
             }
-            ssmR3UnitCritSectLeave(pUnit);
+            ssmR3UnitCritSectLeave(pVM, pUnit);
             pUnit->fCalled = true;
             Assert(pSSM->rc == VINF_SUCCESS);
             if (rc != VINF_SUCCESS)
@@ -5463,7 +5475,7 @@ static int ssmR3LiveDoExecRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
          * Call the execute handler.
          */
         ssmR3DataWriteBegin(pSSM);
-        ssmR3UnitCritSectEnter(pUnit);
+        ssmR3UnitCritSectEnter(pVM, pUnit);
         switch (pUnit->enmType)
         {
             case SSMUNITTYPE_DEV:
@@ -5479,13 +5491,13 @@ static int ssmR3LiveDoExecRun(PVM pVM, PSSMHANDLE pSSM, uint32_t uPass)
                 rc = pUnit->u.Internal.pfnLiveExec(pVM, pSSM, uPass);
                 break;
             case SSMUNITTYPE_EXTERNAL:
-                rc = pUnit->u.External.pfnLiveExec(pSSM, pUnit->u.External.pvUser, uPass);
+                rc = pUnit->u.External.pfnLiveExec(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser, uPass);
                 break;
             default:
                 rc = VERR_SSM_IPE_1;
                 break;
         }
-        ssmR3UnitCritSectLeave(pUnit);
+        ssmR3UnitCritSectLeave(pVM, pUnit);
         pUnit->fCalled = true;
         if (RT_FAILURE(rc) && RT_SUCCESS_NP(pSSM->rc))
             pSSM->rc = rc;
@@ -5625,7 +5637,7 @@ static int ssmR3DoLivePrepRun(PVM pVM, PSSMHANDLE pSSM)
         if (pUnit->u.Common.pfnLivePrep)
         {
             int rc;
-            ssmR3UnitCritSectEnter(pUnit);
+            ssmR3UnitCritSectEnter(pVM, pUnit);
             switch (pUnit->enmType)
             {
                 case SSMUNITTYPE_DEV:
@@ -5641,13 +5653,13 @@ static int ssmR3DoLivePrepRun(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.Internal.pfnLivePrep(pVM, pSSM);
                     break;
                 case SSMUNITTYPE_EXTERNAL:
-                    rc = pUnit->u.External.pfnLivePrep(pSSM, pUnit->u.External.pvUser);
+                    rc = pUnit->u.External.pfnLivePrep(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser);
                     break;
                 default:
                     rc = VERR_SSM_IPE_1;
                     break;
             }
-            ssmR3UnitCritSectLeave(pUnit);
+            ssmR3UnitCritSectLeave(pVM, pUnit);
             pUnit->fCalled = true;
             if (RT_FAILURE(rc) && RT_SUCCESS_NP(pSSM->rc))
                 pSSM->rc = rc;
@@ -8605,7 +8617,7 @@ static int ssmR3LoadExecV1(PVM pVM, PSSMHANDLE pSSM)
                             pSSM->rc = rc = VERR_SSM_NO_LOAD_EXEC;
                             break;
                         }
-                        ssmR3UnitCritSectEnter(pUnit);
+                        ssmR3UnitCritSectEnter(pVM, pUnit);
                         switch (pUnit->enmType)
                         {
                             case SSMUNITTYPE_DEV:
@@ -8621,13 +8633,14 @@ static int ssmR3LoadExecV1(PVM pVM, PSSMHANDLE pSSM)
                                 rc = pUnit->u.Internal.pfnLoadExec(pVM, pSSM, UnitHdr.u32Version, SSM_PASS_FINAL);
                                 break;
                             case SSMUNITTYPE_EXTERNAL:
-                                rc = pUnit->u.External.pfnLoadExec(pSSM, pUnit->u.External.pvUser, UnitHdr.u32Version, SSM_PASS_FINAL);
+                                rc = pUnit->u.External.pfnLoadExec(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser,
+                                                                   UnitHdr.u32Version, SSM_PASS_FINAL);
                                 break;
                             default:
                                 rc = VERR_SSM_IPE_1;
                                 break;
                         }
-                        ssmR3UnitCritSectLeave(pUnit);
+                        ssmR3UnitCritSectLeave(pVM, pUnit);
                         pUnit->fCalled = true;
                         if (RT_FAILURE(rc) && RT_SUCCESS_NP(pSSM->rc))
                             pSSM->rc = rc;
@@ -8873,7 +8886,7 @@ static int ssmR3LoadExecV2(PVM pVM, PSSMHANDLE pSSM)
             pSSM->u.Read.uCurUnitPass = UnitHdr.u32Pass;
             pSSM->u.Read.pCurUnit     = pUnit;
             ssmR3DataReadBeginV2(pSSM);
-            ssmR3UnitCritSectEnter(pUnit);
+            ssmR3UnitCritSectEnter(pVM, pUnit);
             switch (pUnit->enmType)
             {
                 case SSMUNITTYPE_DEV:
@@ -8889,13 +8902,14 @@ static int ssmR3LoadExecV2(PVM pVM, PSSMHANDLE pSSM)
                     rc = pUnit->u.Internal.pfnLoadExec(pVM, pSSM, UnitHdr.u32Version, UnitHdr.u32Pass);
                     break;
                 case SSMUNITTYPE_EXTERNAL:
-                    rc = pUnit->u.External.pfnLoadExec(pSSM, pUnit->u.External.pvUser, UnitHdr.u32Version, UnitHdr.u32Pass);
+                    rc = pUnit->u.External.pfnLoadExec(pSSM, VMMR3GetVTable(), pUnit->u.External.pvUser,
+                                                       UnitHdr.u32Version, UnitHdr.u32Pass);
                     break;
                 default:
                     rc = VERR_SSM_IPE_1;
                     break;
             }
-            ssmR3UnitCritSectLeave(pUnit);
+            ssmR3UnitCritSectLeave(pVM, pUnit);
             pUnit->fCalled = true;
             if (RT_FAILURE(rc) && RT_SUCCESS_NP(pSSM->rc))
                 pSSM->rc = rc;
@@ -9057,7 +9071,7 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
             {
                 Handle.u.Read.pCurUnit = pUnit;
                 pUnit->fCalled = true;
-                ssmR3UnitCritSectEnter(pUnit);
+                ssmR3UnitCritSectEnter(pVM, pUnit);
                 switch (pUnit->enmType)
                 {
                     case SSMUNITTYPE_DEV:
@@ -9073,13 +9087,13 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
                         rc = pUnit->u.Internal.pfnLoadPrep(pVM, &Handle);
                         break;
                     case SSMUNITTYPE_EXTERNAL:
-                        rc = pUnit->u.External.pfnLoadPrep(&Handle, pUnit->u.External.pvUser);
+                        rc = pUnit->u.External.pfnLoadPrep(&Handle, VMMR3GetVTable(), pUnit->u.External.pvUser);
                         break;
                     default:
                         rc = VERR_SSM_IPE_1;
                         break;
                 }
-                ssmR3UnitCritSectLeave(pUnit);
+                ssmR3UnitCritSectLeave(pVM, pUnit);
                 Handle.u.Read.pCurUnit = NULL;
                 if (RT_FAILURE(rc) && RT_SUCCESS_NP(Handle.rc))
                     Handle.rc = rc;
@@ -9133,7 +9147,7 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
                 Handle.u.Read.pCurUnit = pUnit;
                 int const rcOld = Handle.rc;
                 rc = VINF_SUCCESS;
-                ssmR3UnitCritSectEnter(pUnit);
+                ssmR3UnitCritSectEnter(pVM, pUnit);
                 switch (pUnit->enmType)
                 {
                     case SSMUNITTYPE_DEV:
@@ -9149,13 +9163,13 @@ VMMR3DECL(int) SSMR3Load(PVM pVM, const char *pszFilename, PCSSMSTRMOPS pStreamO
                         rc = pUnit->u.Internal.pfnLoadDone(pVM, &Handle);
                         break;
                     case SSMUNITTYPE_EXTERNAL:
-                        rc = pUnit->u.External.pfnLoadDone(&Handle, pUnit->u.External.pvUser);
+                        rc = pUnit->u.External.pfnLoadDone(&Handle, VMMR3GetVTable(), pUnit->u.External.pvUser);
                         break;
                     default:
                         rc = VERR_SSM_IPE_1;
                         break;
                 }
-                ssmR3UnitCritSectLeave(pUnit);
+                ssmR3UnitCritSectLeave(pVM, pUnit);
                 Handle.u.Read.pCurUnit = NULL;
                 if (RT_SUCCESS(rc) && Handle.rc != rcOld)
                     rc = Handle.rc;
@@ -9321,11 +9335,14 @@ VMMR3DECL(int) SSMR3SetCfgErrorV(PSSMHANDLE pSSM, RT_SRC_POS_DECL, const char *p
  * @returns VBox status code on other failures.
  *
  * @param   pszFilename     The path to the file to validate.
+ * @param   pStreamOps      The stream method table. NULL if pszFilename is
+ *                          used.
+ * @param   pvStreamOps     The user argument to the stream methods.
  * @param   fChecksumIt     Whether to checksum the file or not.
  *
  * @thread  Any.
  */
-VMMR3DECL(int) SSMR3ValidateFile(const char *pszFilename, bool fChecksumIt)
+VMMR3DECL(int) SSMR3ValidateFile(const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOps, bool fChecksumIt)
 {
     LogFlow(("SSMR3ValidateFile: pszFilename=%p:{%s} fChecksumIt=%RTbool\n", pszFilename, pszFilename, fChecksumIt));
 
@@ -9333,7 +9350,7 @@ VMMR3DECL(int) SSMR3ValidateFile(const char *pszFilename, bool fChecksumIt)
      * Try open the file and validate it.
      */
     SSMHANDLE Handle;
-    int rc = ssmR3OpenFile(NULL, pszFilename, NULL /*pStreamOps*/, NULL /*pvUser*/, fChecksumIt,
+    int rc = ssmR3OpenFile(NULL, pszFilename, pStreamOps, pvStreamOps, fChecksumIt,
                            false /*fChecksumOnRead*/, 1 /*cBuffers*/, &Handle);
     if (RT_SUCCESS(rc))
         ssmR3StrmClose(&Handle.Strm, false /*fCancelled*/);
@@ -9349,21 +9366,25 @@ VMMR3DECL(int) SSMR3ValidateFile(const char *pszFilename, bool fChecksumIt)
  * @returns VBox status code.
  *
  * @param   pszFilename     The path to the saved state file.
+ * @param   pStreamOps      The stream method table. NULL if pszFilename is
+ *                          used.
+ * @param   pvStreamOps     The user argument to the stream methods.
  * @param   fFlags          Open flags. Reserved, must be 0.
  * @param   ppSSM           Where to store the SSM handle.
  *
  * @thread  Any.
  */
-VMMR3DECL(int) SSMR3Open(const char *pszFilename, unsigned fFlags, PSSMHANDLE *ppSSM)
+VMMR3DECL(int) SSMR3Open(const char *pszFilename, PCSSMSTRMOPS pStreamOps, void *pvStreamOps,
+                         unsigned fFlags, PSSMHANDLE *ppSSM)
 {
     LogFlow(("SSMR3Open: pszFilename=%p:{%s} fFlags=%#x ppSSM=%p\n", pszFilename, pszFilename, fFlags, ppSSM));
 
     /*
      * Validate input.
      */
-    AssertMsgReturn(VALID_PTR(pszFilename), ("%p\n", pszFilename), VERR_INVALID_PARAMETER);
+    AssertReturn(!pszFilename != !pStreamOps, VERR_INVALID_POINTER);
     AssertMsgReturn(!fFlags, ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
-    AssertMsgReturn(VALID_PTR(ppSSM), ("%p\n", ppSSM), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(ppSSM, VERR_INVALID_POINTER);
 
     /*
      * Allocate a handle.
@@ -9374,7 +9395,7 @@ VMMR3DECL(int) SSMR3Open(const char *pszFilename, unsigned fFlags, PSSMHANDLE *p
     /*
      * Try open the file and validate it.
      */
-    int rc = ssmR3OpenFile(NULL, pszFilename, NULL /*pStreamOps*/, NULL /*pvUser*/, false /*fChecksumIt*/,
+    int rc = ssmR3OpenFile(NULL, pszFilename, pStreamOps, pvStreamOps, false /*fChecksumIt*/,
                            true /*fChecksumOnRead*/, 1 /*cBuffers*/, pSSM);
     if (RT_SUCCESS(rc))
     {
@@ -9408,7 +9429,7 @@ VMMR3DECL(int) SSMR3Close(PSSMHANDLE pSSM)
     /*
      * Validate input.
      */
-    AssertMsgReturn(VALID_PTR(pSSM), ("%p\n", pSSM), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pSSM, VERR_INVALID_POINTER);
     AssertMsgReturn(pSSM->enmAfter == SSMAFTER_OPENED, ("%d\n", pSSM->enmAfter),VERR_INVALID_PARAMETER);
     AssertMsgReturn(pSSM->enmOp == SSMSTATE_OPEN_READ, ("%d\n", pSSM->enmOp), VERR_INVALID_PARAMETER);
     Assert(pSSM->fCancelled == SSMHANDLE_OK);
@@ -9645,7 +9666,7 @@ VMMR3DECL(int) SSMR3Seek(PSSMHANDLE pSSM, const char *pszUnit, uint32_t iInstanc
     AssertMsgReturn(pSSM->enmAfter == SSMAFTER_OPENED, ("%d\n", pSSM->enmAfter),VERR_INVALID_PARAMETER);
     AssertMsgReturn(pSSM->enmOp == SSMSTATE_OPEN_READ, ("%d\n", pSSM->enmOp), VERR_INVALID_PARAMETER);
     AssertPtrReturn(pszUnit, VERR_INVALID_POINTER);
-    AssertMsgReturn(!piVersion || VALID_PTR(piVersion), ("%p\n", piVersion), VERR_INVALID_POINTER);
+    AssertPtrNullReturn(piVersion, VERR_INVALID_POINTER);
 
     /*
      * Reset the state.

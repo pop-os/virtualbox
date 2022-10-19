@@ -13,14 +13,20 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdio.h>
 #include <stdint.h>
 #include <stdarg.h>
+#include <ctype.h>
 #include <ipxe/console.h>
 
 /**
@@ -95,9 +101,7 @@ static void dbg_hex_dump_da_row ( unsigned long dispaddr, const void *data,
 			continue;
 		}
 		byte = bytes[i];
-		if ( ( byte < 0x20 ) || ( byte >= 0x7f ) )
-			byte = '.';
-		dbg_printf ( "%c", byte );
+		dbg_printf ( "%c", ( isprint ( byte ) ? byte : '.' ) );
 	}
 	dbg_printf ( "\n" );
 }
@@ -119,13 +123,24 @@ void dbg_hex_dump_da ( unsigned long dispaddr, const void *data,
 }
 
 /**
+ * Base message stream colour
+ *
+ * We default to using 31 (red foreground) as the base colour.
+ */
+#ifndef DBGCOL_MIN
+#define DBGCOL_MIN 31
+#endif
+
+/**
  * Maximum number of separately coloured message streams
  *
  * Six is the realistic maximum; there are 8 basic ANSI colours, one
  * of which will be the terminal default and one of which will be
  * invisible on the terminal because it matches the background colour.
  */
-#define NUM_AUTO_COLOURS 6
+#ifndef DBGCOL_MAX
+#define DBGCOL_MAX ( DBGCOL_MIN + 6 - 1 )
+#endif
 
 /** A colour assigned to an autocolourised debug message stream */
 struct autocolour {
@@ -142,7 +157,7 @@ struct autocolour {
  * @ret colour		Colour ID
  */
 static int dbg_autocolour ( unsigned long stream ) {
-	static struct autocolour acs[NUM_AUTO_COLOURS];
+	static struct autocolour acs[ DBGCOL_MAX - DBGCOL_MIN + 1 ];
 	static unsigned long use;
 	unsigned int i;
 	unsigned int oldest;
@@ -179,8 +194,12 @@ static int dbg_autocolour ( unsigned long stream ) {
  * @v stream		Message stream ID
  */
 void dbg_autocolourise ( unsigned long stream ) {
-	dbg_printf ( "\033[%dm",
-		     ( stream ? ( 31 + dbg_autocolour ( stream ) ) : 0 ) );
+
+	if ( DBGCOL_MIN ) {
+		dbg_printf ( "\033[%dm",
+			     ( stream ?
+			       ( DBGCOL_MIN + dbg_autocolour ( stream ) ) : 0));
+	}
 }
 
 /**
@@ -188,5 +207,7 @@ void dbg_autocolourise ( unsigned long stream ) {
  *
  */
 void dbg_decolourise ( void ) {
-	dbg_printf ( "\033[0m" );
+
+	if ( DBGCOL_MIN )
+		dbg_printf ( "\033[0m" );
 }

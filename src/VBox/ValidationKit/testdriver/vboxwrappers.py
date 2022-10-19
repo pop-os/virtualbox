@@ -8,26 +8,36 @@ VirtualBox Wrapper Classes
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard Python imports.
@@ -102,6 +112,8 @@ def _nameMachineState(eState):
     if eState == vboxcon.MachineState_SettingUp: return 'SettingUp';
     if hasattr(vboxcon, 'MachineState_FaultTolerantSyncing'):
         if eState == vboxcon.MachineState_FaultTolerantSyncing: return 'FaultTolerantSyncing';
+    if hasattr(vboxcon, 'MachineState_AbortedSaved'): # since r147033 / 7.0
+        if eState == vboxcon.MachineState_AbortedSaved: return 'Aborted-Saved';
     return 'Unknown-%s' % (eState,);
 
 
@@ -234,8 +246,7 @@ class ProgressWrapper(TdTaskBase):
             if cMsElapsed > cMsTimeout:
                 break;
             cMsToWait = cMsTimeout - cMsElapsed;
-            if cMsToWait > 500:
-                cMsToWait = 500;
+            cMsToWait = min(cMsToWait, 500);
             try:
                 self.o.waitForCompletion(cMsToWait);
             except KeyboardInterrupt: raise;
@@ -696,8 +707,7 @@ class SessionWrapper(TdTaskBase):
             if cMsElapsed > cMsTimeout:
                 break;
             cMsSleep = cMsTimeout - cMsElapsed;
-            if cMsSleep > 10000:
-                cMsSleep = 10000;
+            cMsSleep = min(cMsSleep, 10000);
             try:    self.oVBoxMgr.waitForEvents(cMsSleep);
             except KeyboardInterrupt: raise;
             except: pass;
@@ -879,7 +889,9 @@ class SessionWrapper(TdTaskBase):
                 # direct session closes / VM process terminates.  Fun!
                 try:    fIgnore = self.o.state == vboxcon.SessionState_Unlocked;
                 except: fIgnore = False;
-                if not fIgnore:
+                if fIgnore:
+                    self.o  = None; # Must prevent a retry during GC.
+                else:
                     reporter.errorXcpt('ISession::unlockMachine failed on %s' % (self.o));
                     fRc = False;
 
@@ -1234,6 +1246,25 @@ class SessionWrapper(TdTaskBase):
         self.oTstDrv.processPendingEvents();
         return fRc;
 
+    def setIommuType(self, eType):
+        """
+        Sets the IOMMU type.
+        Returns True on success and False on failure.  Error information is logged.
+        """
+        # Supported.
+        if self.fpApiVer < 6.2 or not hasattr(vboxcon, 'IommuType_Intel') or not hasattr(vboxcon, 'IommuType_AMD'):
+            return True;
+        fRc = True;
+        try:
+            self.o.machine.iommuType = eType;
+        except:
+            reporter.errorXcpt('failed to set iommuType=%s for "%s"' % (eType, self.sName));
+            fRc = False;
+        else:
+            reporter.log('set iommuType=%s for "%s"' % (eType, self.sName));
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
     def setupBootLogo(self, fEnable, cMsLogoDisplay = 0):
         """
         Sets up the boot logo.  fEnable toggles the fade and boot menu
@@ -1470,6 +1501,21 @@ class SessionWrapper(TdTaskBase):
                     return '';
                 reporter.log("Created host only NIC: '%s'" % (sRetName,));
 
+        elif self.fpApiVer >= 7.0 and eAttachmentType == vboxcon.NetworkAttachmentType_HostOnlyNetwork:
+            aoHostNetworks = self.oVBoxMgr.getArray(self.oVBox, 'hostOnlyNetworks');
+            if aoHostNetworks:
+                sRetName = aoHostNetworks[0].networkName;
+            else:
+                try:
+                    oHostOnlyNet = self.oVBox.createHostOnlyNetwork('Host-only Test Network');
+                    oHostOnlyNet.lowerIP = '192.168.56.1';
+                    oHostOnlyNet.upperIP = '192.168.56.199';
+                    oHostOnlyNet.networkMask = '255.255.255.0';
+                    sRetName = oHostOnlyNet.networkName;
+                except:
+                    reporter.errorXcpt();
+                    return '';
+
         elif eAttachmentType == vboxcon.NetworkAttachmentType_Internal:
             sRetName = 'VBoxTest';
 
@@ -1550,6 +1596,13 @@ class SessionWrapper(TdTaskBase):
                         reporter.errorXcpt('failed to set the internalNetwork property on slot %s to "%s" for VM "%s"'
                                            % (iNic, sName, self.sName,));
                         return False;
+                elif self.fpApiVer >= 7.0 and eAttachmentType == vboxcon.NetworkAttachmentType_HostOnlyNetwork:
+                    try:
+                        oNic.hostOnlyNetwork = sName;
+                    except:
+                        reporter.errorXcpt('failed to set the hostOnlyNetwork property on slot %s to "%s" for VM "%s"'
+                                           % (iNic, sName, self.sName,));
+                        return False;
                 elif eAttachmentType == vboxcon.NetworkAttachmentType_Internal:
                     try:
                         oNic.internalNetwork = sName;
@@ -1569,7 +1622,42 @@ class SessionWrapper(TdTaskBase):
 
         if not self.setupNatForwardingForTxs(iNic):
             return False;
-        reporter.log('set NIC type on slot %s to %s for VM "%s"' % (iNic, eAttachmentType, self.sName));
+        reporter.log('set NIC attachment type on slot %s to %s for VM "%s"' % (iNic, eAttachmentType, self.sName));
+        return True;
+
+    def setNicLocalhostReachable(self, fReachable, iNic = 0):
+        """
+        Sets whether the specified NIC can reach the host or not.
+        Only affects (enabled) NICs configured to NAT at the moment.
+
+        Returns True on success and False on failure.  Error information is logged.
+        """
+        try:
+            oNic = self.o.machine.getNetworkAdapter(iNic);
+        except:
+            return reporter.errorXcpt('getNetworkAdapter(%s) failed for "%s"' % (iNic, self.sName,));
+
+        try:
+            if not oNic.enabled: # NIC not enabled? Nothing to do here.
+                return True;
+        except:
+            return reporter.errorXcpt('NIC enabled status (%s) failed for "%s"' % (iNic, self.sName,));
+
+        reporter.log('Setting "LocalhostReachable" for network adapter in slot %d to %s' % (iNic, fReachable));
+
+        try:
+            oNatEngine = oNic.NATEngine;
+        except:
+            return reporter.errorXcpt('Getting NIC NAT engine (%s) failed for "%s"' % (iNic, self.sName,));
+
+        try:
+            if hasattr(oNatEngine, "localhostReachable"):
+                oNatEngine.localhostReachable = fReachable;
+            else:
+                oNatEngine.LocalhostReachable = fReachable;
+        except:
+            return reporter.errorXcpt('LocalhostReachable (%s) failed for "%s"' % (iNic, self.sName,));
+
         return True;
 
     def setNicMacAddress(self, sMacAddr, iNic = 0):
@@ -1630,6 +1718,22 @@ class SessionWrapper(TdTaskBase):
         self.oTstDrv.processPendingEvents();
         return fRc;
 
+    def setLargePages(self, fUseLargePages):
+        """
+        Configures whether the VM should use large pages or not.
+        Returns True on success and False on failure.  Error information is logged.
+        """
+        fRc = True;
+        try:
+            self.o.machine.setHWVirtExProperty(vboxcon.HWVirtExPropertyType_LargePages, fUseLargePages);
+        except:
+            reporter.errorXcpt('failed to set large pages of "%s" to %s' % (self.sName, fUseLargePages));
+            fRc = False;
+        else:
+            reporter.log('set the large pages of "%s" to %s' % (self.sName, fUseLargePages));
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
     def setVRamSize(self, cMB):
         """
         Set the RAM size of the VM.
@@ -1646,6 +1750,44 @@ class SessionWrapper(TdTaskBase):
             fRc = False;
         else:
             reporter.log('set the VRAM size of "%s" to %s' % (self.sName, cMB));
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
+    def setVideoControllerType(self, eControllerType):
+        """
+        Set the video controller type of the VM.
+        Returns True on success and False on failure.  Error information is logged.
+        """
+        fRc = True;
+        try:
+            if self.fpApiVer >= 6.1 and hasattr(self.o.machine, 'graphicsAdapter'):
+                self.o.machine.graphicsAdapter.graphicsControllerType = eControllerType;
+            else:
+                self.o.machine.graphicsControllerType = eControllerType;
+        except:
+            reporter.errorXcpt('failed to set the video controller type of "%s" to %s' % (self.sName, eControllerType));
+            fRc = False;
+        else:
+            reporter.log('set the video controller type of "%s" to %s' % (self.sName, eControllerType));
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
+    def setAccelerate3DEnabled(self, fEnabled):
+        """
+        Set the video controller type of the VM.
+        Returns True on success and False on failure.  Error information is logged.
+        """
+        fRc = True;
+        try:
+            if self.fpApiVer >= 6.1 and hasattr(self.o.machine, 'graphicsAdapter'):
+                self.o.machine.graphicsAdapter.accelerate3DEnabled = fEnabled;
+            else:
+                self.o.machine.accelerate3DEnabled = fEnabled;
+        except:
+            reporter.errorXcpt('failed to set the accelerate3DEnabled of "%s" to %s' % (self.sName, fEnabled));
+            fRc = False;
+        else:
+            reporter.log('set the accelerate3DEnabled of "%s" to %s' % (self.sName, fEnabled));
         self.oTstDrv.processPendingEvents();
         return fRc;
 
@@ -2105,19 +2247,25 @@ class SessionWrapper(TdTaskBase):
         if enmType is not None: pass
         return True;
 
-    def setupAudio(self, eAudioControllerType, fEnable = True, eAudioDriverType = None):
+    def setupAudio(self, eAudioControllerType, fEnable = True, fEnableIn = False, fEnableOut = True, eAudioDriverType = None):
         """
         Sets up audio.
 
         :param eAudioControllerType:    The audio controller type (vboxcon.AudioControllerType_XXX).
         :param fEnable:                 Whether to enable or disable the audio controller (default enable).
+        :param fEnableIn:               Whether to enable or disable audio input (default disable).
+        :param fEnableOut:              Whether to enable or disable audio output (default enable).
         :param eAudioDriverType:        The audio driver type (vboxcon.AudioDriverType_XXX), picks something suitable
                                         if None is passed (default).
         """
-        try:    oAudioAdapter = self.o.machine.audioAdapter;
+        try:
+            if self.fpApiVer >= 7.0:
+                oAdapter = self.o.machine.audioSettings.adapter;
+            else:
+                oAdapter = self.o.machine.audioAdapter;
         except: return reporter.errorXcpt('Failed to get the audio adapter.');
 
-        try:    oAudioAdapter.audioController = eAudioControllerType;
+        try:    oAdapter.audioController = eAudioControllerType;
         except: return reporter.errorXcpt('Failed to set the audio controller to %s.' % (eAudioControllerType,));
 
         if eAudioDriverType is None:
@@ -2130,14 +2278,20 @@ class SessionWrapper(TdTaskBase):
                 reporter.error('PORTME: Do not know which audio driver to pick for: %s!' % (sHost,));
                 eAudioDriverType = vboxcon.AudioDriverType_Null;
 
-        try:    oAudioAdapter.audioDriver = eAudioDriverType;
+        try:    oAdapter.audioDriver = eAudioDriverType;
         except: return reporter.errorXcpt('Failed to set the audio driver to %s.' % (eAudioDriverType,))
 
-        try:    oAudioAdapter.enabled = fEnable;
+        try:    oAdapter.enabled = fEnable;
         except: return reporter.errorXcpt('Failed to set the "enabled" property to %s.' % (fEnable,));
 
-        reporter.log('set audio adapter type to %d, driver to %d, and enabled to %s'
-                     % (eAudioControllerType, eAudioDriverType, fEnable,));
+        try:    oAdapter.enabledIn = fEnableIn;
+        except: return reporter.errorXcpt('Failed to set the "enabledIn" property to %s.' % (fEnable,));
+
+        try:    oAdapter.enabledOut = fEnableOut;
+        except: return reporter.errorXcpt('Failed to set the "enabledOut" property to %s.' % (fEnable,));
+
+        reporter.log('set audio adapter type to %d, driver to %d, and enabled to %s (input is %s, output is %s)'
+                     % (eAudioControllerType, eAudioDriverType, fEnable, fEnableIn, fEnableOut,));
         self.oTstDrv.processPendingEvents();
         return True;
 
@@ -2713,9 +2867,8 @@ class SessionWrapper(TdTaskBase):
             reporter.logXcpt("Unable to take screenshot")
             return False
 
-        oFile = open(sFilename, 'wb')
-        oFile.write(aPngData)
-        oFile.close()
+        with open(sFilename, 'wb') as oFile:
+            oFile.write(aPngData)
 
         return True
 
@@ -3076,9 +3229,9 @@ class TxsConnectTask(TdTaskBase):
             self.oParentTask = dArgs['oParentTask'];
             self.sMachineId  = dArgs['sMachineId'];
 
-        def onGuestPropertyChange(self, sMachineId, sName, sValue, sFlags):
+        def onGuestPropertyChange(self, sMachineId, sName, sValue, sFlags, fWasDeleted):
             """Look for IP address."""
-            reporter.log2('onGuestPropertyChange(,%s,%s,%s,%s)' % (sMachineId, sName, sValue, sFlags));
+            reporter.log2('onGuestPropertyChange(,%s,%s,%s,%s,%s)' % (sMachineId, sName, sValue, sFlags, fWasDeleted));
             if    sMachineId == self.sMachineId \
               and sName  == '/VirtualBox/GuestInfo/Net/0/V4/IP':
                 oParentTask = self.oParentTask;
@@ -3430,7 +3583,7 @@ class AdditionsStatusTask(TdTaskBase):
                 reporter.errorXcpt();
                 return True;
             if enmRunLevel not in self.aenmWaitForRunLevels:
-                reporter.log2('AdditionsStatusTask/poll: enmRunLevel=%s not in %s' % (enmRunLevel, self.aenmWaitForRunLevels,));
+                reporter.log6('AdditionsStatusTask/poll: enmRunLevel=%s not in %s' % (enmRunLevel, self.aenmWaitForRunLevels,));
                 return False;
             reporter.log2('AdditionsStatusTask/poll: enmRunLevel=%s matched %s!' % (enmRunLevel, self.aenmWaitForRunLevels,));
 

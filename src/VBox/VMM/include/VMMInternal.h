@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VMM_INCLUDED_SRC_include_VMMInternal_h
@@ -25,6 +35,7 @@
 #include <VBox/sup.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/vmm.h>
+#include <VBox/param.h>
 #include <VBox/log.h>
 #include <iprt/critsect.h>
 
@@ -65,37 +76,82 @@
 #endif
 
 
+/** Number of buffers per logger. */
+#define VMMLOGGER_BUFFER_COUNT  4
+
 /**
- * The ring-0 logger instance wrapper.
- *
- * We need to be able to find the VM handle from the logger instance, so we wrap
- * it in this structure.
+ * R0 logger data (ring-0 only data).
  */
-typedef struct VMMR0LOGGER
+typedef struct VMMR0PERVCPULOGGER
 {
-    /** Pointer to Pointer to the VM. */
-    R0PTRTYPE(PVMCC)            pVM;
-    /** Size of the allocated logger instance (Logger). */
-    uint32_t                    cbLogger;
-    /** Flag indicating whether we've create the logger Ring-0 instance yet. */
-    bool                        fCreated;
-    /** Flag indicating whether we've disabled flushing (world switch) or not. */
-    bool                        fFlushingDisabled;
+    /** Pointer to the logger instance.
+     * The RTLOGGER::u32UserValue1 member is used for flags and magic, while the
+     * RTLOGGER::u64UserValue2 member is the corresponding PGVMCPU value.
+     * RTLOGGER::u64UserValue3 is currently and set to the PGVMCPU value too. */
+    R0PTRTYPE(PRTLOGGER)    pLogger;
+    /** Log buffer descriptor.
+     * The buffer is allocated in a common block for all VCpus, see VMMR0PERVM.  */
+    RTLOGBUFFERDESC         aBufDescs[VMMLOGGER_BUFFER_COUNT];
     /** Flag indicating whether we've registered the instance already. */
-    bool                        fRegistered;
-    bool                        a8Alignment;
-    /** The CPU ID. */
-    VMCPUID                     idCpu;
-#if HC_ARCH_BITS == 64
-    uint32_t                    u32Alignment;
-#endif
-    /** The ring-0 logger instance. This extends beyond the size.  */
-    RTLOGGER                    Logger;
-} VMMR0LOGGER;
-/** Pointer to a ring-0 logger instance wrapper. */
-typedef VMMR0LOGGER *PVMMR0LOGGER;
+    bool                    fRegistered;
+    /** Set if the EMT is waiting on hEventFlushWait. */
+    bool                    fEmtWaiting;
+    /** Set while we're inside vmmR0LoggerFlushCommon to prevent recursion. */
+    bool                    fFlushing;
+    /** Flush to parent VMM's debug log instead of ring-3. */
+    bool                    fFlushToParentVmmDbg : 1;
+    /** Flush to parent VMM's debug log instead of ring-3. */
+    bool                    fFlushToParentVmmRel : 1;
+    /** Number of buffers currently queued for flushing. */
+    uint32_t volatile       cFlushing;
+    /** The event semaphore the EMT waits on while the buffer is being flushed. */
+    RTSEMEVENT              hEventFlushWait;
+} VMMR0PERVCPULOGGER;
+/** Pointer to the R0 logger data (ring-0 only). */
+typedef VMMR0PERVCPULOGGER *PVMMR0PERVCPULOGGER;
 
 
+/**
+ * R0 logger data shared with ring-3 (per CPU).
+ */
+typedef struct VMMR3CPULOGGER
+{
+    /** Buffer info. */
+    struct
+    {
+        /** Auxiliary buffer descriptor. */
+        RTLOGBUFFERAUXDESC      AuxDesc;
+        /** Ring-3 mapping of the logging buffer. */
+        R3PTRTYPE(char *)       pchBufR3;
+    } aBufs[VMMLOGGER_BUFFER_COUNT];
+    /** The current buffer. */
+    uint32_t                idxBuf;
+    /** Number of buffers currently queued for flushing (copy of
+     *  VMMR0PERVCPULOGGER::cFlushing). */
+    uint32_t volatile       cFlushing;
+    /** The buffer size. */
+    uint32_t                cbBuf;
+    /** Number of bytes dropped because the flush context didn't allow waiting.  */
+    uint32_t                cbDropped;
+    STAMCOUNTER             StatFlushes;
+    STAMCOUNTER             StatCannotBlock;
+    STAMPROFILE             StatWait;
+    STAMPROFILE             StatRaces;
+    STAMCOUNTER             StatRacesToR0;
+} VMMR3CPULOGGER;
+/** Pointer to r0 logger data shared with ring-3. */
+typedef VMMR3CPULOGGER *PVMMR3CPULOGGER;
+
+/** @name Logger indexes for VMMR0PERVCPU::u.aLoggers and VMMCPU::u.aLoggers.
+ * @{ */
+#define VMMLOGGER_IDX_REGULAR   0
+#define VMMLOGGER_IDX_RELEASE   1
+#define VMMLOGGER_IDX_MAX       2
+/** @} */
+
+
+/** Pointer to a ring-0 jump buffer. */
+typedef struct VMMR0JMPBUF *PVMMR0JMPBUF;
 /**
  * Jump buffer for the setjmp/longjmp like constructs used to
  * quickly 'call' back into Ring-3.
@@ -142,23 +198,14 @@ typedef struct VMMR0JMPBUF
 #endif
     /** @} */
 
-    /** Flag that indicates that we've done a ring-3 call. */
-    bool                        fInRing3Call;
-    /** The number of bytes we've saved. */
-    uint32_t                    cbSavedStack;
-    /** Pointer to the buffer used to save the stack.
-     * This is assumed to be 8KB. */
-    RTR0PTR                     pvSavedStack;
-    /** Esp we we match against esp on resume to make sure the stack wasn't relocated. */
-    RTHCUINTREG                 SpCheck;
-    /** The esp we should resume execution with after the restore. */
-    RTHCUINTREG                 SpResume;
-    /** ESP/RSP at the time of the jump to ring 3. */
-    RTHCUINTREG                 SavedEsp;
-    /** EBP/RBP at the time of the jump to ring 3. */
-    RTHCUINTREG                 SavedEbp;
-    /** EIP/RIP within vmmR0CallRing3LongJmp for assisting unwinding. */
-    RTHCUINTREG                 SavedEipForUnwind;
+    /** RSP/ESP at the time of the stack mirroring (what pvStackBuf starts with). */
+    RTHCUINTREG                 UnwindSp;
+    /** RSP/ESP at the time of the long jump call. */
+    RTHCUINTREG                 UnwindRetSp;
+    /** RBP/EBP inside the vmmR0CallRing3LongJmp frame. */
+    RTHCUINTREG                 UnwindBp;
+    /** RIP/EIP within vmmR0CallRing3LongJmp for assisting unwinding. */
+    RTHCUINTREG                 UnwindPc;
     /** Unwind: The vmmR0CallRing3SetJmp return address value. */
     RTHCUINTREG                 UnwindRetPcValue;
     /** Unwind: The vmmR0CallRing3SetJmp return address stack location. */
@@ -171,22 +218,40 @@ typedef struct VMMR0JMPBUF
     /** The second argument to the function. */
     RTHCUINTREG                 pvUser2;
 
-#if HC_ARCH_BITS == 32
-    /** Alignment padding. */
-    uint32_t                    uPadding;
-#endif
-
-    /** Stats: Max amount of stack used. */
-    uint32_t                    cbUsedMax;
-    /** Stats: Average stack usage. (Avg = cbUsedTotal / cUsedTotal) */
-    uint32_t                    cbUsedAvg;
-    /** Stats: Total amount of stack used. */
-    uint64_t                    cbUsedTotal;
-    /** Stats: Number of stack usages. */
-    uint64_t                    cUsedTotal;
+    /** Number of valid bytes in pvStackBuf.  */
+    uint32_t                    cbStackValid;
+    /** Size of buffer pvStackBuf points to. */
+    uint32_t                    cbStackBuf;
+    /** Pointer to buffer for mirroring the stack. Optional. */
+    RTR0PTR                     pvStackBuf;
+    /** Pointer to a ring-3 accessible jump buffer structure for automatic
+     *  mirroring on longjmp. Optional. */
+    R0PTRTYPE(PVMMR0JMPBUF)     pMirrorBuf;
 } VMMR0JMPBUF;
-/** Pointer to a ring-0 jump buffer. */
-typedef VMMR0JMPBUF *PVMMR0JMPBUF;
+
+
+/**
+ * Log flusher job.
+ *
+ * There is a ring buffer of these in ring-0 (VMMR0PERVM::aLogFlushRing) and a
+ * copy of the current one in the shared VM structure (VMM::LogFlusherItem).
+ */
+typedef union VMMLOGFLUSHERENTRY
+{
+    struct
+    {
+        /** The virtual CPU ID. */
+        uint32_t            idCpu : 16;
+        /** The logger: 0 for release, 1 for debug. */
+        uint32_t            idxLogger : 8;
+        /** The buffer to be flushed. */
+        uint32_t            idxBuffer : 7;
+        /** Set by the flusher thread once it fetched the entry and started
+         *  processing it. */
+        uint32_t            fProcessing : 1;
+    } s;
+    uint32_t                u32;
+} VMMLOGFLUSHERENTRY;
 
 
 /**
@@ -199,8 +264,9 @@ typedef struct VMM
     /** Alignment padding. */
     bool                        afPadding0[7];
 
+#if 0 /* pointless when timers doesn't run on EMT */
     /** The EMT yield timer. */
-    PTMTIMERR3                  pYieldTimer;
+    TMTIMERHANDLE               hYieldTimer;
     /** The period to the next timeout when suspended or stopped.
      * This is 0 when running. */
     uint32_t                    cYieldResumeMillies;
@@ -208,6 +274,7 @@ typedef struct VMM
     uint32_t                    cYieldEveryMillies;
     /** The timestamp of the previous yield. (nano) */
     uint64_t                    u64LastYield;
+#endif
 
     /** @name EMT Rendezvous
      * @{ */
@@ -264,6 +331,8 @@ typedef struct VMM
     /** The RTThreadPreemptIsPossible() result,  set by vmmR0InitVM() for
      * release logging purposes.  */
     bool                        fIsPreemptPossible : 1;
+    /** Set if ring-0 uses context hooks.  */
+    bool                        fIsUsingContextHooks : 1;
 
     bool                        afAlignment2[2]; /**< Alignment padding. */
 
@@ -273,6 +342,18 @@ typedef struct VMM
     char                        szRing0AssertMsg1[512];
     /** Buffer for storing the custom message for a ring-0 assertion. */
     char                        szRing0AssertMsg2[256];
+
+    /** @name Logging
+     * @{ */
+    /** Used when setting up ring-0 logger. */
+    uint64_t                    nsProgramStart;
+    /** Log flusher thread. */
+    RTTHREAD                    hLogFlusherThread;
+    /** Copy of the current work log flusher work item. */
+    VMMLOGFLUSHERENTRY volatile LogFlusherItem;
+    STAMCOUNTER                 StatLogFlusherFlushes;
+    STAMCOUNTER                 StatLogFlusherNoWakeUp;
+    /** @} */
 
     /** Number of VMMR0_DO_HM_RUN or VMMR0_DO_NEM_RUN calls. */
     STAMCOUNTER                 StatRunGC;
@@ -326,21 +407,10 @@ typedef struct VMM
     STAMCOUNTER                 StatRZRetToR3Iom;
     STAMCOUNTER                 StatRZRetTimerPending;
     STAMCOUNTER                 StatRZRetInterruptPending;
-    STAMCOUNTER                 StatRZRetCallRing3;
     STAMCOUNTER                 StatRZRetPATMDuplicateFn;
-    STAMCOUNTER                 StatRZRetPGMChangeMode;
     STAMCOUNTER                 StatRZRetPendingRequest;
     STAMCOUNTER                 StatRZRetPGMFlushPending;
     STAMCOUNTER                 StatRZRetPatchTPR;
-    STAMCOUNTER                 StatRZCallPDMCritSectEnter;
-    STAMCOUNTER                 StatRZCallPDMLock;
-    STAMCOUNTER                 StatRZCallLogFlush;
-    STAMCOUNTER                 StatRZCallPGMPoolGrow;
-    STAMCOUNTER                 StatRZCallPGMMapChunk;
-    STAMCOUNTER                 StatRZCallPGMAllocHandy;
-    STAMCOUNTER                 StatRZCallVMSetError;
-    STAMCOUNTER                 StatRZCallVMSetRuntimeError;
-    STAMCOUNTER                 StatRZCallPGMLock;
     /** @} */
 } VMM;
 /** Pointer to VMM. */
@@ -357,34 +427,12 @@ typedef struct VMMCPU
     /** Alignment padding. */
     uint32_t                    u32Padding0;
 
-    /** VMM stack, pointer to the top of the stack in R3.
-     * Stack is allocated from the hypervisor heap and is page aligned
-     * and always writable in RC. */
-    R3PTRTYPE(uint8_t *)        pbEMTStackR3;
-
-    /** Pointer to the R0 logger instance - R3 Ptr.
-     * This is NULL if logging is disabled. */
-    R3PTRTYPE(PVMMR0LOGGER)     pR0LoggerR3;
-    /** Pointer to the R0 logger instance - R0 Ptr.
-     * This is NULL if logging is disabled. */
-    R0PTRTYPE(PVMMR0LOGGER)     pR0LoggerR0;
-
-    /** Pointer to the R0 release logger instance - R3 Ptr.
-     * This is NULL if logging is disabled. */
-    R3PTRTYPE(PVMMR0LOGGER)     pR0RelLoggerR3;
-    /** Pointer to the R0 release instance - R0 Ptr.
-     * This is NULL if logging is disabled. */
-    R0PTRTYPE(PVMMR0LOGGER)     pR0RelLoggerR0;
-
-    /** Thread context switching hook (ring-0). */
-    RTTHREADCTXHOOK             hCtxHook;
-
     /** @name Rendezvous
      * @{ */
     /** Whether the EMT is executing a rendezvous right now. For detecting
      *  attempts at recursive rendezvous. */
     bool volatile               fInRendezvous;
-    bool                        afPadding1[10];
+    bool                        afPadding1[2];
     /** @} */
 
     /** Whether we can HLT in VMMR0 rather than having to return to EM.
@@ -410,29 +458,29 @@ typedef struct VMMCPU
     SUPDRVTRACERUSRCTX          TracerCtx;
     /** @} */
 
-    /** Alignment padding, making sure u64CallRing3Arg and CallRing3JmpBufR0 are nicely aligned. */
-    uint32_t                    au32Padding3[1];
-
-    /** @name Call Ring-3
-     * Formerly known as host calls.
+    /** @name Ring-0 assertion info for this EMT.
      * @{ */
-    /** The disable counter. */
-    uint32_t                    cCallRing3Disabled;
-    /** The pending operation. */
-    VMMCALLRING3                enmCallRing3Operation;
-    /** The result of the last operation. */
-    int32_t                     rcCallRing3;
-    /** The argument to the operation. */
-    uint64_t                    u64CallRing3Arg;
-    /** The Ring-0 notification callback. */
-    R0PTRTYPE(PFNVMMR0CALLRING3NOTIFICATION)   pfnCallRing3CallbackR0;
-    /** The Ring-0 notification callback user argument. */
-    R0PTRTYPE(void *)           pvCallRing3CallbackUserR0;
-    /** The Ring-0 jmp buffer.
-     * @remarks The size of this type isn't stable in assembly, so don't put
-     *          anything that needs to be accessed from assembly after it. */
-    VMMR0JMPBUF                 CallRing3JmpBufR0;
+    /** Copy of the ring-0 jmp buffer after an assertion. */
+    VMMR0JMPBUF                 AssertJmpBuf;
+    /** Copy of the assertion stack. */
+    uint8_t                     abAssertStack[8192];
     /** @} */
+
+    /**
+     * Loggers.
+     */
+    union
+    {
+        struct
+        {
+            /** The R0 logger data shared with ring-3. */
+            VMMR3CPULOGGER      Logger;
+            /** The R0 release logger data shared with ring-3. */
+            VMMR3CPULOGGER      RelLogger;
+        } s;
+        /** Array view. */
+        VMMR3CPULOGGER          aLoggers[VMMLOGGER_IDX_MAX];
+    } u;
 
     STAMPROFILE                 StatR0HaltBlock;
     STAMPROFILE                 StatR0HaltBlockOnTime;
@@ -450,6 +498,11 @@ typedef struct VMMCPU
     STAMCOUNTER                 StatR0HaltToR3PostPendingFF;
 } VMMCPU;
 AssertCompileMemberAlignment(VMMCPU, TracerCtx, 8);
+AssertCompile(   RTASSERT_OFFSET_OF(VMMCPU, u.s.Logger)
+              == RTASSERT_OFFSET_OF(VMMCPU, u.aLoggers) + sizeof(VMMR3CPULOGGER) * VMMLOGGER_IDX_REGULAR);
+AssertCompile(RTASSERT_OFFSET_OF(VMMCPU, u.s.RelLogger)
+              == RTASSERT_OFFSET_OF(VMMCPU, u.aLoggers) + sizeof(VMMR3CPULOGGER) * VMMLOGGER_IDX_RELEASE);
+
 /** Pointer to VMMCPU. */
 typedef VMMCPU *PVMMCPU;
 
@@ -458,21 +511,127 @@ typedef VMMCPU *PVMMCPU;
  */
 typedef struct VMMR0PERVCPU
 {
+    /** The EMT hash table index. */
+    uint16_t                            idxEmtHash;
+    /** Flag indicating whether we've disabled flushing (world switch) or not. */
+    bool                                fLogFlushingDisabled;
+    bool                                afPadding1[5];
+    /** Pointer to the VMMR0EntryFast preemption state structure.
+     * This is used to temporarily restore preemption before blocking.  */
+    R0PTRTYPE(PRTTHREADPREEMPTSTATE)    pPreemptState;
+    /** Thread context switching hook (ring-0). */
+    RTTHREADCTXHOOK                     hCtxHook;
+
     /** @name Arguments passed by VMMR0EntryEx via vmmR0CallRing3SetJmpEx.
      * @note Cannot be put on the stack as the location may change and upset the
      *       validation of resume-after-ring-3-call logic.
+     * @todo This no longer needs to be here now that we don't call ring-3 and mess
+     *       around with stack restoring/switching.
      * @{ */
-    PGVM                pGVM;
-    VMCPUID             idCpu;
-    VMMR0OPERATION      enmOperation;
-    PSUPVMMR0REQHDR     pReq;
-    uint64_t            u64Arg;
-    PSUPDRVSESSION      pSession;
+    PGVM                                pGVM;
+    VMCPUID                             idCpu;
+    VMMR0OPERATION                      enmOperation;
+    PSUPVMMR0REQHDR                     pReq;
+    uint64_t                            u64Arg;
+    PSUPDRVSESSION                      pSession;
     /** @} */
+
+    /** @name Ring-0 setjmp / assertion handling.
+     * @{ */
+    /** The ring-0 setjmp buffer. */
+    VMMR0JMPBUF                         AssertJmpBuf;
+    /** The disable counter. */
+    uint32_t                            cCallRing3Disabled;
+    uint32_t                            u32Padding3;
+    /** Ring-0 assertion notification callback. */
+    R0PTRTYPE(PFNVMMR0ASSERTIONNOTIFICATION) pfnAssertCallback;
+    /** Argument for pfnRing0AssertionNotificationCallback. */
+    R0PTRTYPE(void *)                   pvAssertCallbackUser;
+    /** @} */
+
+    /**
+     * Loggers
+     */
+    union
+    {
+        struct
+        {
+            /** The R0 logger data. */
+            VMMR0PERVCPULOGGER          Logger;
+            /** The R0 release logger data. */
+            VMMR0PERVCPULOGGER          RelLogger;
+        } s;
+        /** Array view. */
+        VMMR0PERVCPULOGGER              aLoggers[VMMLOGGER_IDX_MAX];
+    } u;
 } VMMR0PERVCPU;
+AssertCompile(   RTASSERT_OFFSET_OF(VMMR0PERVCPU, u.s.Logger)
+              == RTASSERT_OFFSET_OF(VMMR0PERVCPU, u.aLoggers) + sizeof(VMMR0PERVCPULOGGER) * VMMLOGGER_IDX_REGULAR);
+AssertCompile(RTASSERT_OFFSET_OF(VMMR0PERVCPU, u.s.RelLogger)
+              == RTASSERT_OFFSET_OF(VMMR0PERVCPU, u.aLoggers) + sizeof(VMMR0PERVCPULOGGER) * VMMLOGGER_IDX_RELEASE);
+AssertCompileMemberAlignment(VMMR0PERVCPU, AssertJmpBuf, 64);
 /** Pointer to VMM ring-0 VMCPU instance data. */
 typedef VMMR0PERVCPU *PVMMR0PERVCPU;
 
+/** @name RTLOGGER::u32UserValue1 Flags
+ * @{ */
+/** The magic value. */
+#define VMMR0_LOGGER_FLAGS_MAGIC_VALUE          UINT32_C(0x7d297f05)
+/** Part of the flags value used for the magic. */
+#define VMMR0_LOGGER_FLAGS_MAGIC_MASK           UINT32_C(0xffffff0f)
+/** @} */
+
+
+/**
+ * VMM data kept in the ring-0 GVM.
+ */
+typedef struct VMMR0PERVM
+{
+    /** Set if vmmR0InitVM has been called. */
+    bool                    fCalledInitVm;
+    bool                    afPadding1[7];
+
+    /** @name Logging
+     *  @{ */
+    /** Logger (debug) buffer allocation.
+     * This covers all CPUs.  */
+    RTR0MEMOBJ              hMemObjLogger;
+    /** The ring-3 mapping object for hMemObjLogger. */
+    RTR0MEMOBJ              hMapObjLogger;
+
+    /** Release logger buffer allocation.
+     * This covers all CPUs.  */
+    RTR0MEMOBJ              hMemObjReleaseLogger;
+    /** The ring-3 mapping object for hMemObjReleaseLogger. */
+    RTR0MEMOBJ              hMapObjReleaseLogger;
+
+    struct
+    {
+        /** Spinlock protecting the logger ring buffer and associated variables. */
+        R0PTRTYPE(RTSPINLOCK)   hSpinlock;
+        /** The log flusher thread handle to make sure there is only one. */
+        RTNATIVETHREAD          hThread;
+        /** The handle to the event semaphore the log flusher waits on. */
+        RTSEMEVENT              hEvent;
+        /** The index of the log flusher queue head (flusher thread side). */
+        uint32_t volatile       idxRingHead;
+        /** The index of the log flusher queue tail (EMT side). */
+        uint32_t volatile       idxRingTail;
+        /** Set if the log flusher thread is waiting for work and needs poking. */
+        bool volatile           fThreadWaiting;
+        /** Set when the log flusher thread should shut down. */
+        bool volatile           fThreadShutdown;
+        /** Indicates that the log flusher thread is running. */
+        bool volatile           fThreadRunning;
+        bool                    afPadding2[5];
+        STAMCOUNTER             StatFlushes;
+        STAMCOUNTER             StatNoWakeUp;
+        /** Logger ring buffer.
+         * This is for communicating with the log flusher thread.  */
+        VMMLOGFLUSHERENTRY      aRing[VMM_MAX_CPU_COUNT * 2 /*loggers*/ * 1 /*buffer*/ + 16 /*fudge*/];
+    } LogFlusher;
+    /** @} */
+} VMMR0PERVM;
 
 RT_C_DECLS_BEGIN
 
@@ -503,8 +662,9 @@ DECLASM(int)    vmmR0WorldSwitch(PVM pVM, unsigned uArg);
  *
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  */
-typedef DECLCALLBACK(int) FNVMMR0SETJMP(PVMCC pVM, PVMCPUCC pVCpu);
+typedef DECLCALLBACKTYPE(int, FNVMMR0SETJMP,(PVMCC pVM, PVMCPUCC pVCpu));
 /** Pointer to FNVMMR0SETJMP(). */
 typedef FNVMMR0SETJMP *PFNVMMR0SETJMP;
 
@@ -528,9 +688,10 @@ DECLASM(int)    vmmR0CallRing3SetJmp(PVMMR0JMPBUF pJmpBuf, PFNVMMR0SETJMP pfn, P
  * Callback function for vmmR0CallRing3SetJmp2.
  *
  * @returns VBox status code.
- * @param   pvUser      The user argument.
+ * @param   pGVM        The ring-0 VM structure.
+ * @param   idCpu       The ID of the calling EMT.
  */
-typedef DECLCALLBACK(int) FNVMMR0SETJMP2(PGVM pGVM, VMCPUID idCpu);
+typedef DECLCALLBACKTYPE(int, FNVMMR0SETJMP2,(PGVM pGVM, VMCPUID idCpu));
 /** Pointer to FNVMMR0SETJMP2(). */
 typedef FNVMMR0SETJMP2 *PFNVMMR0SETJMP2;
 
@@ -552,7 +713,7 @@ DECLASM(int)    vmmR0CallRing3SetJmp2(PVMMR0JMPBUF pJmpBuf, PFNVMMR0SETJMP2 pfn,
  * @returns VBox status code.
  * @param   pvUser      The user argument.
  */
-typedef DECLCALLBACK(int) FNVMMR0SETJMPEX(void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNVMMR0SETJMPEX,(void *pvUser));
 /** Pointer to FNVMMR0SETJMPEX(). */
 typedef FNVMMR0SETJMPEX *PFNVMMR0SETJMPEX;
 
@@ -578,31 +739,6 @@ DECLASM(int)    vmmR0CallRing3SetJmpEx(PVMMR0JMPBUF pJmpBuf, PFNVMMR0SETJMPEX pf
  * @param   rc          The return code.
  */
 DECLASM(int)    vmmR0CallRing3LongJmp(PVMMR0JMPBUF pJmpBuf, int rc);
-
-/**
- * Internal R0 logger worker: Logger wrapper.
- */
-VMMR0DECL(void) vmmR0LoggerWrapper(const char *pszFormat, ...);
-
-/**
- * Internal R0 logger worker: Flush logger.
- *
- * @param   pLogger     The logger instance to flush.
- * @remark  This function must be exported!
- */
-VMMR0DECL(void) vmmR0LoggerFlush(PRTLOGGER pLogger);
-
-/**
- * Internal R0 logger worker: Custom prefix.
- *
- * @returns Number of chars written.
- *
- * @param   pLogger     The logger instance.
- * @param   pchBuf      The output buffer.
- * @param   cchBuf      The size of the buffer.
- * @param   pvUser      User argument (ignored).
- */
-VMMR0DECL(size_t) vmmR0LoggerPrefix(PRTLOGGER pLogger, char *pchBuf, size_t cchBuf, void *pvUser);
 
 # ifdef VBOX_WITH_TRIPLE_FAULT_HACK
 int  vmmR0TripleFaultHackInit(void);

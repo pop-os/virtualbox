@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -44,6 +54,9 @@
 # include <vboxaml.hex>
 # include <vboxssdt_standard.hex>
 # include <vboxssdt_cpuhotplug.hex>
+# ifdef VBOX_WITH_TPM
+#  include <vboxssdt_tpm.hex>
+# endif
 #endif
 
 #include "VBoxDD.h"
@@ -67,24 +80,23 @@ static int cleanupDynamicDsdt(PPDMDEVINS pDevIns, void *pvPtr)
 
 static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
 {
-    uint16_t cNumCpus;
-    int rc;
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
 
-    rc = CFGMR3QueryU16Def(pDevIns->pCfg, "NumCPUs", &cNumCpus, 1);
-
+    uint16_t cCpus;
+    int rc = pHlp->pfnCFGMQueryU16Def(pDevIns->pCfg, "NumCPUs", &cCpus, 1);
     if (RT_FAILURE(rc))
         return rc;
 
     /* Clear CPU objects at all, if needed */
     bool fShowCpu;
-    rc = CFGMR3QueryBoolDef(pDevIns->pCfg, "ShowCpu", &fShowCpu, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pDevIns->pCfg, "ShowCpu", &fShowCpu, false);
     if (RT_FAILURE(rc))
         return rc;
 
     if (!fShowCpu)
-        cNumCpus = 0;
+        cCpus = 0;
 
-    /**
+    /*
      * Now search AML for:
      *  AML_PROCESSOR_OP            (UINT16) 0x5b83
      * and replace whole block with
@@ -96,8 +108,7 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
         /*
          * AML_PROCESSOR_OP
          *
-         * DefProcessor := ProcessorOp PkgLength NameString ProcID
-                             PblkAddr PblkLen ObjectList
+         * DefProcessor := ProcessorOp PkgLength NameString ProcID PblkAddr PblkLen ObjectList
          * ProcessorOp  := ExtOpPrefix 0x83
          * ProcID       := ByteData
          * PblkAddr     := DwordData
@@ -110,7 +121,7 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
                 continue;
 
             /* Processor ID */
-            if (pabAml[i+7] < cNumCpus)
+            if (pabAml[i+7] < cCpus)
               continue;
 
             /* Will fill unwanted CPU block with NOOPs */
@@ -137,7 +148,7 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
       bSum = bSum + pabAml[i];
     pabAml[9] = (uint8_t)(0 - bSum);
 
-    return 0;
+    return VINF_SUCCESS;
 }
 
 /**
@@ -146,22 +157,21 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
  */
 static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
 {
-    uint16_t cNumCpus;
-    int rc;
-    uint32_t idxAml = 0;
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
 
-    rc = CFGMR3QueryU16Def(pDevIns->pCfg, "NumCPUs", &cNumCpus, 1);
-
+    uint16_t cCpus;
+    int rc = pHlp->pfnCFGMQueryU16Def(pDevIns->pCfg, "NumCPUs", &cCpus, 1);
     if (RT_FAILURE(rc))
         return rc;
 
-    /**
+    /*
      * Now search AML for:
      *  AML_DEVICE_OP               (UINT16) 0x5b82
      * and replace whole block with
      *  AML_NOOP_OP                 (UINT16) 0xa3
      * for VCPU not configured
      */
+    uint32_t idxAml = 0;
     while (idxAml < cbAml - 7)
     {
         /*
@@ -229,7 +239,7 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
 
                     /* Processor ID */
                     uint8_t const idAmlCpu = pabAmlCpu[idxAmlCpu + 8];
-                    if (idAmlCpu < cNumCpus)
+                    if (idAmlCpu < cCpus)
                     {
                         LogFlow(("CPU %u is configured\n", idAmlCpu));
                         fCpuConfigured = true;
@@ -271,7 +281,7 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
       bSum = bSum + pabAml[i];
     pabAml[9] = (uint8_t)(0 - bSum);
 
-    return 0;
+    return VINF_SUCCESS;
 }
 
 #endif /* VBOX_WITH_DYNAMIC_DSDT */
@@ -286,38 +296,36 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
  * @param   ppabAmlCode     Where to store the pointer to the AML code on success.
  * @param   pcbAmlCode     Where to store the number of bytes of the AML code on success.
  */
-static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, const char *pcszSignature, uint8_t **ppabAmlCode, size_t *pcbAmlCode)
+static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, const char *pcszSignature,
+                               uint8_t **ppabAmlCode, size_t *pcbAmlCode)
 {
-    uint8_t *pabAmlCode = NULL;
-    size_t cbAmlCode = 0;
-    char *pszAmlFilePath = NULL;
-    int rc = CFGMR3QueryStringAlloc(pDevIns->pCfg, pcszCfgName, &pszAmlFilePath);
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
 
+    char *pszAmlFilePath = NULL;
+    int rc = pHlp->pfnCFGMQueryStringAlloc(pDevIns->pCfg, pcszCfgName, &pszAmlFilePath);
     if (RT_SUCCESS(rc))
     {
         /* Load from file. */
-        RTFILE FileAml = NIL_RTFILE;
-
-        rc = RTFileOpen(&FileAml, pszAmlFilePath, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
+        RTFILE hFileAml = NIL_RTFILE;
+        rc = RTFileOpen(&hFileAml, pszAmlFilePath, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
         if (RT_SUCCESS(rc))
         {
             /*
-             * An AML file contains the raw DSDT thus the size of the file
-             * is equal to the size of the DSDT.
+             * An AML file contains the raw DSDT or SSDT thus the size of the file
+             * is equal to the size of the DSDT or SSDT.
              */
             uint64_t cbAmlFile = 0;
-            rc = RTFileQuerySize(FileAml, &cbAmlFile);
+            rc = RTFileQuerySize(hFileAml, &cbAmlFile);
 
-            cbAmlCode = (size_t)cbAmlFile;
-
-            /* Don't use AML files over 4GB ;) */
+            /* Don't use AML files over 32MiB. */
             if (   RT_SUCCESS(rc)
-                && ((uint64_t)cbAmlCode == cbAmlFile))
+                && cbAmlFile <= _32M)
             {
-                pabAmlCode = (uint8_t *)RTMemAllocZ(cbAmlCode);
+                size_t const cbAmlCode = (size_t)cbAmlFile;
+                uint8_t *pabAmlCode = (uint8_t *)RTMemAllocZ(cbAmlCode);
                 if (pabAmlCode)
                 {
-                    rc = RTFileReadAt(FileAml, 0, pabAmlCode, cbAmlCode, NULL);
+                    rc = RTFileReadAt(hFileAml, 0, pabAmlCode, cbAmlCode, NULL);
 
                     /*
                      * We fail if reading failed or the identifier at the
@@ -343,10 +351,12 @@ static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, cons
                 else
                     rc = VERR_NO_MEMORY;
             }
+            else if (RT_SUCCESS(rc))
+                rc = VERR_OUT_OF_RANGE;
 
-            RTFileClose(FileAml);
+            RTFileClose(hFileAml);
         }
-        MMR3HeapFree(pszAmlFilePath);
+        PDMDevHlpMMHeapFree(pDevIns, pszAmlFilePath);
     }
 
     return rc;
@@ -362,22 +372,18 @@ int acpiPrepareDsdt(PPDMDEVINS pDevIns,  void **ppvPtr, size_t *pcbDsdt)
     uint8_t *pabAmlCodeDsdt = NULL;
     size_t cbAmlCodeDsdt = 0;
     int rc = acpiAmlLoadExternal(pDevIns, "DsdtFilePath", "DSDT", &pabAmlCodeDsdt, &cbAmlCodeDsdt);
-
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
-        rc = VINF_SUCCESS;
-
         /* Use the compiled in AML code */
         cbAmlCodeDsdt = sizeof(AmlCode);
-        pabAmlCodeDsdt = (uint8_t *)RTMemAllocZ(cbAmlCodeDsdt);
+        pabAmlCodeDsdt = (uint8_t *)RTMemDup(AmlCode, cbAmlCodeDsdt);
         if (pabAmlCodeDsdt)
-            memcpy(pabAmlCodeDsdt, AmlCode, cbAmlCodeDsdt);
+            rc = VINF_SUCCESS;
         else
             rc = VERR_NO_MEMORY;
     }
     else if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"DsdtFilePath\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"DsdtFilePath\""));
 
     if (RT_SUCCESS(rc))
     {
@@ -405,54 +411,47 @@ int acpiCleanupDsdt(PPDMDEVINS pDevIns, void *pvPtr)
 /** No docs, lazy coder. */
 int acpiPrepareSsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbSsdt)
 {
+    PCPDMDEVHLPR3 pHlp = pDevIns->pHlpR3;
+
     uint8_t *pabAmlCodeSsdt = NULL;
     size_t   cbAmlCodeSsdt = 0;
     int rc = acpiAmlLoadExternal(pDevIns, "SsdtFilePath", "SSDT", &pabAmlCodeSsdt, &cbAmlCodeSsdt);
-
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
         bool fCpuHotPlug = false;
-        uint8_t *pabAmlCode = NULL;
-        rc = CFGMR3QueryBoolDef(pDevIns->pCfg, "CpuHotPlug", &fCpuHotPlug, false);
-
-        if (RT_FAILURE(rc))
-            return rc;
-
-        if (fCpuHotPlug)
+        rc = pHlp->pfnCFGMQueryBoolDef(pDevIns->pCfg, "CpuHotPlug", &fCpuHotPlug, false);
+        if (RT_SUCCESS(rc))
         {
-            pabAmlCode     = AmlCodeSsdtCpuHotPlug;
-            cbAmlCodeSsdt = sizeof(AmlCodeSsdtCpuHotPlug);
-        }
-        else
-        {
-            pabAmlCode     = AmlCodeSsdtStandard;
-            cbAmlCodeSsdt = sizeof(AmlCodeSsdtStandard);
-        }
-
-        pabAmlCodeSsdt = (uint8_t *)RTMemAllocZ(cbAmlCodeSsdt);
-        if (pabAmlCodeSsdt)
-        {
-            memcpy(pabAmlCodeSsdt, pabAmlCode, cbAmlCodeSsdt);
-
             if (fCpuHotPlug)
-                patchAmlCpuHotPlug(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
+            {
+                cbAmlCodeSsdt  = sizeof(AmlCodeSsdtCpuHotPlug);
+                pabAmlCodeSsdt = (uint8_t *)RTMemDup(AmlCodeSsdtCpuHotPlug, sizeof(AmlCodeSsdtCpuHotPlug));
+            }
             else
-                patchAml(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
+            {
+                cbAmlCodeSsdt  = sizeof(AmlCodeSsdtStandard);
+                pabAmlCodeSsdt = (uint8_t *)RTMemDup(AmlCodeSsdtStandard, sizeof(AmlCodeSsdtStandard));
+            }
+            if (pabAmlCodeSsdt)
+            {
+                if (fCpuHotPlug)
+                    patchAmlCpuHotPlug(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
+                else
+                    patchAml(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
+            }
+            else
+                rc = VERR_NO_MEMORY;
         }
-        else
-            rc = VERR_NO_MEMORY;
     }
     else if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("Configuration error: Failed to read \"SsdtFilePath\""));
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"SsdtFilePath\""));
 
     if (RT_SUCCESS(rc))
     {
         *ppvPtr = pabAmlCodeSsdt;
         *pcbSsdt = cbAmlCodeSsdt;
     }
-
-    return VINF_SUCCESS;
+    return rc;
 }
 
 /** No docs, lazy coder. */
@@ -463,4 +462,40 @@ int acpiCleanupSsdt(PPDMDEVINS pDevIns, void *pvPtr)
         RTMemFree(pvPtr);
     return VINF_SUCCESS;
 }
+
+#ifdef VBOX_WITH_TPM
+/** No docs, lazy coder. */
+int acpiPrepareTpmSsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbSsdt)
+{
+    uint8_t *pabAmlCodeSsdt = NULL;
+    size_t   cbAmlCodeSsdt = 0;
+    int rc = acpiAmlLoadExternal(pDevIns, "SsdtTpmFilePath", "SSDT", &pabAmlCodeSsdt, &cbAmlCodeSsdt);
+    if (rc == VERR_CFGM_VALUE_NOT_FOUND)
+    {
+        rc = VINF_SUCCESS;
+        cbAmlCodeSsdt  = sizeof(AmlCodeSsdtTpm);
+        pabAmlCodeSsdt = (uint8_t *)RTMemDup(AmlCodeSsdtTpm, sizeof(AmlCodeSsdtTpm));
+        if (!pabAmlCodeSsdt)
+            rc = VERR_NO_MEMORY;
+    }
+    else if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"SsdtFilePath\""));
+
+    if (RT_SUCCESS(rc))
+    {
+        *ppvPtr = pabAmlCodeSsdt;
+        *pcbSsdt = cbAmlCodeSsdt;
+    }
+    return rc;
+}
+
+/** No docs, lazy coder. */
+int acpiCleanupTpmSsdt(PPDMDEVINS pDevIns, void *pvPtr)
+{
+    RT_NOREF1(pDevIns);
+    if (pvPtr)
+        RTMemFree(pvPtr);
+    return VINF_SUCCESS;
+}
+#endif
 

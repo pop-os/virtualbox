@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdio.h>
 #include <stdint.h>
@@ -39,44 +44,6 @@ FILE_LICENCE ( GPL2_OR_LATER );
  * DHCP management commands
  *
  */
-
-/** "dhcp" command descriptor */
-static struct command_descriptor dhcp_cmd =
-	COMMAND_DESC ( struct ifcommon_options, ifcommon_opts, 0, MAX_ARGUMENTS,
-		       "[<interface>...]" );
-
-/**
- * Execute "dhcp" command for a network device
- *
- * @v netdev		Network device
- * @ret rc		Return status code
- */
-static int dhcp_payload ( struct net_device *netdev ) {
-	int rc;
-
-	if ( ( rc = dhcp ( netdev ) ) != 0 ) {
-		printf ( "Could not configure %s: %s\n",
-			 netdev->name, strerror ( rc ) );
-
-		/* Close device on failure, to avoid memory exhaustion */
-		netdev_close ( netdev );
-
-		return rc;
-	}
-
-	return 0;
-}
-
-/**
- * The "dhcp" command
- *
- * @v argc		Argument count
- * @v argv		Argument list
- * @ret rc		Return status code
- */
-static int dhcp_exec ( int argc, char **argv ) {
-	return ifcommon_exec ( argc, argv, &dhcp_cmd, dhcp_payload, 1 );
-}
 
 /** "pxebs" options */
 struct pxebs_options {};
@@ -128,7 +95,7 @@ static int pxebs_exec ( int argc, char **argv ) {
 struct command dhcp_commands[] __command = {
 	{
 		.name = "dhcp",
-		.exec = dhcp_exec,
+		.exec = ifconf_exec, /* synonym for "ifconf" */
 	},
 	{
 		.name = "pxebs",

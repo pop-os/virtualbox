@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 /** @page   pg_sup          SUP - The Support Library
@@ -82,7 +92,7 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
-typedef DECLCALLBACK(int) FNCALLVMMR0(PVMR0 pVMR0, unsigned uOperation, void *pvArg);
+typedef DECLCALLBACKTYPE(int, FNCALLVMMR0,(PVMR0 pVMR0, unsigned uOperation, void *pvArg));
 typedef FNCALLVMMR0 *PFNCALLVMMR0;
 
 
@@ -96,10 +106,11 @@ static bool                     g_fPreInited = false;
 /** The SUPLib instance data.
  * Well, at least parts of it, specifically the parts that are being handed over
  * via the pre-init mechanism from the hardened executable stub.  */
-SUPLIBDATA                      g_supLibData =
+DECL_HIDDEN_DATA(SUPLIBDATA)    g_supLibData =
 {
     /*.hDevice              = */    SUP_HDEVICE_NIL,
-    /*.fUnrestricted        = */    true
+    /*.fUnrestricted        = */    true,
+    /*.fDriverless          = */    false
 #if   defined(RT_OS_DARWIN)
     ,/* .uConnection        = */    0
 #elif defined(RT_OS_LINUX)
@@ -115,25 +126,27 @@ SUPLIBDATA                      g_supLibData =
  *
  * @todo This will probably deserve it's own session or some other good solution...
  */
-DECLEXPORT(PSUPGLOBALINFOPAGE)  g_pSUPGlobalInfoPage;
+DECLEXPORT(PSUPGLOBALINFOPAGE)      g_pSUPGlobalInfoPage;
 /** Address of the ring-0 mapping of the GIP. */
-PSUPGLOBALINFOPAGE              g_pSUPGlobalInfoPageR0;
+PSUPGLOBALINFOPAGE                  g_pSUPGlobalInfoPageR0;
 /** The physical address of the GIP. */
-static RTHCPHYS                 g_HCPhysSUPGlobalInfoPage = NIL_RTHCPHYS;
+static RTHCPHYS                     g_HCPhysSUPGlobalInfoPage = NIL_RTHCPHYS;
 
 /** The negotiated cookie. */
-uint32_t                        g_u32Cookie = 0;
+DECL_HIDDEN_DATA(uint32_t)          g_u32Cookie = 0;
 /** The negotiated session cookie. */
-uint32_t                        g_u32SessionCookie;
+DECL_HIDDEN_DATA(uint32_t)          g_u32SessionCookie;
+/** The session version. */
+DECL_HIDDEN_DATA(uint32_t)          g_uSupSessionVersion = 0;
 /** Session handle. */
-PSUPDRVSESSION                  g_pSession;
+DECL_HIDDEN_DATA(PSUPDRVSESSION)    g_pSession;
 /** R0 SUP Functions used for resolving referenced to the SUPR0 module. */
-PSUPQUERYFUNCS                  g_pSupFunctions;
+DECL_HIDDEN_DATA(PSUPQUERYFUNCS)    g_pSupFunctions;
 
 /** PAGE_ALLOC_EX sans kernel mapping support indicator. */
-static bool                     g_fSupportsPageAllocNoKernel = true;
+static bool                         g_fSupportsPageAllocNoKernel = true;
 /** Fake mode indicator. (~0 at first, 0 or 1 after first test) */
-uint32_t                        g_uSupFakeMode = UINT32_MAX;
+DECL_HIDDEN_DATA(uint32_t)          g_uSupFakeMode = UINT32_MAX;
 
 
 /*********************************************************************************************************************************
@@ -166,7 +179,7 @@ SUPR3DECL(int) SUPR3Uninstall(void)
 }
 
 
-DECLEXPORT(int) supR3PreInit(PSUPPREINITDATA pPreInitData, uint32_t fFlags)
+DECL_NOTHROW(DECLEXPORT(int)) supR3PreInit(PSUPPREINITDATA pPreInitData, uint32_t fFlags)
 {
     /*
      * The caller is kind of trustworthy, just perform some basic checks.
@@ -174,7 +187,7 @@ DECLEXPORT(int) supR3PreInit(PSUPPREINITDATA pPreInitData, uint32_t fFlags)
      * Note! Do not do any fancy stuff here because IPRT has NOT been
      *       initialized at this point.
      */
-    if (!VALID_PTR(pPreInitData))
+    if (!RT_VALID_PTR(pPreInitData))
         return VERR_INVALID_POINTER;
     if (g_fPreInited || g_cInits > 0)
         return VERR_WRONG_ORDER;
@@ -183,9 +196,11 @@ DECLEXPORT(int) supR3PreInit(PSUPPREINITDATA pPreInitData, uint32_t fFlags)
         ||  pPreInitData->u32EndMagic != SUPPREINITDATA_MAGIC)
         return VERR_INVALID_MAGIC;
     if (    !(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV)
-        &&  pPreInitData->Data.hDevice == SUP_HDEVICE_NIL)
+        &&  pPreInitData->Data.hDevice == SUP_HDEVICE_NIL
+        &&  !pPreInitData->Data.fDriverless)
         return VERR_INVALID_HANDLE;
-    if (    (fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV)
+    if (    (   (fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV)
+             || pPreInitData->Data.fDriverless)
         &&  pPreInitData->Data.hDevice != SUP_HDEVICE_NIL)
         return VERR_INVALID_PARAMETER;
 
@@ -207,7 +222,7 @@ DECLEXPORT(int) supR3PreInit(PSUPPREINITDATA pPreInitData, uint32_t fFlags)
 }
 
 
-SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
+SUPR3DECL(int) SUPR3InitEx(uint32_t fFlags, PSUPDRVSESSION *ppSession)
 {
     /*
      * Perform some sanity checks.
@@ -220,6 +235,11 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
     Assert(!(RT_UOFFSETOF(SUPGLOBALINFOPAGE, aCPUs[0].u64TSC) & 0x7));
     Assert(!(RT_UOFFSETOF(SUPGLOBALINFOPAGE, aCPUs[0].u64CpuHz) & 0x7));
 
+#ifdef VBOX_WITH_DRIVERLESS_FORCED
+    fFlags |= SUPR3INIT_F_DRIVERLESS;
+    fFlags &= ~SUPR3INIT_F_UNRESTRICTED;
+#endif
+
     /*
      * Check if already initialized.
      */
@@ -227,7 +247,9 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
         *ppSession = g_pSession;
     if (g_cInits++ > 0)
     {
-        if (fUnrestricted && !g_supLibData.fUnrestricted)
+        if (   (fFlags & SUPR3INIT_F_UNRESTRICTED)
+            && !g_supLibData.fUnrestricted
+            && !g_supLibData.fDriverless)
         {
             g_cInits--;
             if (ppSession)
@@ -259,8 +281,8 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
      * Open the support driver.
      */
     SUPINITOP enmWhat = kSupInitOp_Driver;
-    int rc = suplibOsInit(&g_supLibData, g_fPreInited, fUnrestricted, &enmWhat, NULL);
-    if (RT_SUCCESS(rc))
+    int rc = suplibOsInit(&g_supLibData, g_fPreInited, fFlags, &enmWhat, NULL);
+    if (RT_SUCCESS(rc) && !g_supLibData.fDriverless)
     {
         /*
          * Negotiate the cookie.
@@ -275,14 +297,15 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
         CookieReq.Hdr.rc = VERR_INTERNAL_ERROR;
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
-        const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00300000
-                                   ? 0x00300002
+        const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x00330000
+                                   ? 0x00330003
                                    : SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
         if (    RT_SUCCESS(rc)
             &&  RT_SUCCESS(CookieReq.Hdr.rc))
         {
+            g_uSupSessionVersion = CookieReq.u.Out.u32SessionVersion;
             if (    (CookieReq.u.Out.u32SessionVersion & 0xffff0000) == (SUPDRV_IOC_VERSION & 0xffff0000)
                 &&  CookieReq.u.Out.u32SessionVersion >= uMinVersion)
             {
@@ -386,6 +409,16 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
 
         suplibOsTerm(&g_supLibData);
     }
+    else if (RT_SUCCESS(rc))
+    {
+        /*
+         * Driverless initialization.
+         */
+        Assert(fFlags & SUPR3INIT_F_DRIVERLESS_MASK);
+        LogRel(("SUP: In driverless mode.\n"));
+        return VINF_SUCCESS;
+    }
+
     g_cInits--;
 
     return rc;
@@ -394,7 +427,11 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
 
 SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession)
 {
-    return SUPR3InitEx(true, ppSession);
+#ifndef VBOX_WITH_DRIVERLESS_FORCED
+    return SUPR3InitEx(SUPR3INIT_F_UNRESTRICTED, ppSession);
+#else
+    return SUPR3InitEx(SUPR3INIT_F_DRIVERLESS, ppSession);
+#endif
 }
 
 /**
@@ -556,9 +593,12 @@ SUPR3DECL(int) SUPR3Term(bool fForced)
         if (rc)
             return rc;
 
-        g_u32Cookie         = 0;
-        g_u32SessionCookie  = 0;
-        g_cInits            = 0;
+        g_supLibData.hDevice       = SUP_HDEVICE_NIL;
+        g_supLibData.fUnrestricted = true;
+        g_supLibData.fDriverless   = false;
+        g_u32Cookie                = 0;
+        g_u32SessionCookie         = 0;
+        g_cInits                   = 0;
     }
     else
         g_cInits--;
@@ -567,14 +607,26 @@ SUPR3DECL(int) SUPR3Term(bool fForced)
 }
 
 
+SUPR3DECL(bool) SUPR3IsDriverless(void)
+{
+    /* Assert(g_cInits > 0); - tstSSM does not initialize SUP, but SSM calls to
+       check status, so return driverless if not initialized. */
+    return g_supLibData.fDriverless || g_cInits == 0;
+}
+
+
 SUPR3DECL(SUPPAGINGMODE) SUPR3GetPagingMode(void)
 {
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
-#ifdef RT_ARCH_AMD64
+    /*
+     * Deal with driverless first.
+     */
+    if (g_supLibData.fDriverless)
+#if defined(RT_ARCH_AMD64)
         return SUPPAGINGMODE_AMD64_GLOBAL_NX;
-#else
+#elif defined(RT_ARCH_X86)
         return SUPPAGINGMODE_32_BIT_GLOBAL;
+#else
+        return SUPPAGINGMODE_INVALID;
 #endif
 
     /*
@@ -902,7 +954,7 @@ SUPR3DECL(int) SUPR3LoggerDestroy(SUPLOGGER enmWhich)
 }
 
 
-SUPR3DECL(int) SUPR3PageAlloc(size_t cPages, void **ppvPages)
+SUPR3DECL(int) SUPR3PageAlloc(size_t cPages, uint32_t fFlags, void **ppvPages)
 {
     /*
      * Validate.
@@ -910,11 +962,12 @@ SUPR3DECL(int) SUPR3PageAlloc(size_t cPages, void **ppvPages)
     AssertPtrReturn(ppvPages, VERR_INVALID_POINTER);
     *ppvPages = NULL;
     AssertReturn(cPages > 0, VERR_PAGE_COUNT_OUT_OF_RANGE);
+    AssertReturn(!(fFlags & ~SUP_PAGE_ALLOC_F_VALID_MASK), VERR_INVALID_FLAGS);
 
     /*
      * Call OS specific worker.
      */
-    return suplibOsPageAlloc(&g_supLibData, cPages, ppvPages);
+    return suplibOsPageAlloc(&g_supLibData, cPages, fFlags, ppvPages);
 }
 
 
@@ -1067,9 +1120,10 @@ SUPR3DECL(int) SUPR3LockDownLoader(PRTERRINFO pErrInfo)
  */
 static int supPagePageAllocNoKernelFallback(size_t cPages, void **ppvPages, PSUPPAGE paPages)
 {
-    int rc = suplibOsPageAlloc(&g_supLibData, cPages, ppvPages);
+    int rc = suplibOsPageAlloc(&g_supLibData, cPages, 0, ppvPages);
     if (RT_SUCCESS(rc))
     {
+        Assert(ASMMemIsZero(*ppvPages, cPages << PAGE_SHIFT));
         if (!paPages)
             paPages = (PSUPPAGE)alloca(sizeof(paPages[0]) * cPages);
         rc = supR3PageLock(*ppvPages, cPages, paPages);
@@ -1092,25 +1146,24 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
         *pR0Ptr = NIL_RTR0PTR;
     AssertPtrNullReturn(paPages, VERR_INVALID_POINTER);
     AssertMsgReturn(cPages > 0 && cPages <= VBOX_MAX_ALLOC_PAGE_COUNT, ("cPages=%zu\n", cPages), VERR_PAGE_COUNT_OUT_OF_RANGE);
-    AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
+    AssertReturn(!fFlags, VERR_INVALID_FLAGS);
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
+    /*
+     * Deal with driverless mode first.
+     */
+    if (g_supLibData.fDriverless)
     {
-        void *pv = RTMemPageAllocZ(cPages * PAGE_SIZE);
-        if (!pv)
-            return VERR_NO_MEMORY;
-        *ppvPages = pv;
+        int rc = SUPR3PageAlloc(cPages, 0 /*fFlags*/, ppvPages);
+        Assert(RT_FAILURE(rc) || ASMMemIsZero(*ppvPages, cPages << PAGE_SHIFT));
         if (pR0Ptr)
-            *pR0Ptr = (RTR0PTR)pv;
+            *pR0Ptr = NIL_RTR0PTR;
         if (paPages)
             for (size_t iPage = 0; iPage < cPages; iPage++)
             {
                 paPages[iPage].uReserved = 0;
-                paPages[iPage].Phys = (iPage + 4321) << PAGE_SHIFT;
-                Assert(!(paPages[iPage].Phys & ~X86_PTE_PAE_PG_MASK));
+                paPages[iPage].Phys      = NIL_RTHCPHYS;
             }
-        return VINF_SUCCESS;
+        return rc;
     }
 
     /* Check that we've got a kernel connection so rtMemSaferSupR3AllocPages
@@ -1153,7 +1206,16 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
             {
                 *ppvPages = pReq->u.Out.pvR3;
                 if (pR0Ptr)
-                    *pR0Ptr   = pReq->u.Out.pvR0;
+                {
+                    *pR0Ptr = pReq->u.Out.pvR0;
+                    Assert(ASMMemIsZero(pReq->u.Out.pvR3, cPages << PAGE_SHIFT));
+#ifdef RT_OS_DARWIN /* HACK ALERT! */
+                    supR3TouchPages(pReq->u.Out.pvR3, cPages);
+#endif
+                }
+                else
+                    RT_BZERO(pReq->u.Out.pvR3, cPages << PAGE_SHIFT);
+
                 if (paPages)
                     for (size_t iPage = 0; iPage < cPages; iPage++)
                     {
@@ -1161,9 +1223,6 @@ SUPR3DECL(int) SUPR3PageAllocEx(size_t cPages, uint32_t fFlags, void **ppvPages,
                         paPages[iPage].Phys = pReq->u.Out.aPages[iPage];
                         Assert(!(paPages[iPage].Phys & ~X86_PTE_PAE_PG_MASK));
                     }
-#ifdef RT_OS_DARWIN /* HACK ALERT! */
-                supR3TouchPages(pReq->u.Out.pvR3, cPages);
-#endif
             }
             else if (   rc == VERR_NOT_SUPPORTED
                      && !pR0Ptr)
@@ -1194,9 +1253,10 @@ SUPR3DECL(int) SUPR3PageMapKernel(void *pvR3, uint32_t off, uint32_t cb, uint32_
     Assert(!fFlags);
     *pR0Ptr = NIL_RTR0PTR;
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
-        return VERR_NOT_SUPPORTED;
+    /*
+     * Not a valid operation in driverless mode.
+     */
+    AssertReturn(g_supLibData.fDriverless, VERR_SUP_DRIVERLESS);
 
     /*
      * Issue IOCtl to the SUPDRV kernel module.
@@ -1231,8 +1291,10 @@ SUPR3DECL(int) SUPR3PageProtect(void *pvR3, RTR0PTR R0Ptr, uint32_t off, uint32_
     Assert(!(cb & PAGE_OFFSET_MASK) && cb);
     AssertReturn(!(fProt & ~(RTMEM_PROT_NONE | RTMEM_PROT_READ | RTMEM_PROT_WRITE | RTMEM_PROT_EXEC)), VERR_INVALID_PARAMETER);
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
+    /*
+     * Deal with driverless mode first.
+     */
+    if (g_supLibData.fDriverless)
         return RTMemProtect((uint8_t *)pvR3 + off, cb, fProt);
 
     /*
@@ -1271,10 +1333,12 @@ SUPR3DECL(int) SUPR3PageFreeEx(void *pvPages, size_t cPages)
     AssertPtrReturn(pvPages, VERR_INVALID_POINTER);
     AssertReturn(cPages > 0, VERR_PAGE_COUNT_OUT_OF_RANGE);
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
+    /*
+     * Deal with driverless mode first.
+     */
+    if (g_supLibData.fDriverless)
     {
-        RTMemPageFree(pvPages, cPages * PAGE_SIZE);
+        SUPR3PageFree(pvPages, cPages);
         return VINF_SUCCESS;
     }
 
@@ -1320,15 +1384,18 @@ SUPR3DECL(void *) SUPR3ContAlloc(size_t cPages, PRTR0PTR pR0Ptr, PRTHCPHYS pHCPh
     AssertPtrNullReturn(pHCPhys, NULL);
     AssertMsgReturn(cPages > 0 && cPages < 256, ("cPages=%d must be > 0 and < 256\n", cPages), NULL);
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
+    /*
+     * Deal with driverless mode first.
+     */
+    if (g_supLibData.fDriverless)
     {
-        void *pv = RTMemPageAllocZ(cPages * PAGE_SIZE);
+        void *pvPages = NULL;
+        int rc = SUPR3PageAlloc(cPages, 0 /*fFlags*/, &pvPages);
         if (pR0Ptr)
-            *pR0Ptr = (RTR0PTR)pv;
+            *pR0Ptr = NIL_RTR0PTR;
         if (pHCPhys)
-            *pHCPhys = (uintptr_t)pv + (PAGE_SHIFT * 1024);
-        return pv;
+            *pHCPhys = NIL_RTHCPHYS;
+        return RT_SUCCESS(rc) ? pvPages : NULL;
     }
 
     /*
@@ -1369,12 +1436,11 @@ SUPR3DECL(int) SUPR3ContFree(void *pv, size_t cPages)
     AssertPtrReturn(pv, VERR_INVALID_POINTER);
     AssertReturn(cPages > 0, VERR_PAGE_COUNT_OUT_OF_RANGE);
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
-    {
-        RTMemPageFree(pv, cPages * PAGE_SIZE);
-        return VINF_SUCCESS;
-    }
+    /*
+     * Deal with driverless mode first.
+     */
+    if (g_supLibData.fDriverless)
+        return SUPR3PageFree(pv, cPages);
 
     /*
      * Issue IOCtl to the SUPDRV kernel module.
@@ -1677,28 +1743,33 @@ SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps)
 
     *pfCaps = 0;
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
-        return VINF_SUCCESS;
-
-    /*
-     * Issue IOCtl to the SUPDRV kernel module.
-     */
-    SUPVTCAPS Req;
-    Req.Hdr.u32Cookie = g_u32Cookie;
-    Req.Hdr.u32SessionCookie = g_u32SessionCookie;
-    Req.Hdr.cbIn = SUP_IOCTL_VT_CAPS_SIZE_IN;
-    Req.Hdr.cbOut = SUP_IOCTL_VT_CAPS_SIZE_OUT;
-    Req.Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
-    Req.Hdr.rc = VERR_INTERNAL_ERROR;
-    Req.u.Out.fCaps = 0;
-    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_VT_CAPS, &Req, SUP_IOCTL_VT_CAPS_SIZE);
-    if (RT_SUCCESS(rc))
+    int rc;
+    if (!g_supLibData.fDriverless)
     {
-        rc = Req.Hdr.rc;
+        /*
+         * Issue IOCtl to the SUPDRV kernel module.
+         */
+        SUPVTCAPS Req;
+        Req.Hdr.u32Cookie = g_u32Cookie;
+        Req.Hdr.u32SessionCookie = g_u32SessionCookie;
+        Req.Hdr.cbIn = SUP_IOCTL_VT_CAPS_SIZE_IN;
+        Req.Hdr.cbOut = SUP_IOCTL_VT_CAPS_SIZE_OUT;
+        Req.Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
+        Req.Hdr.rc = VERR_INTERNAL_ERROR;
+        Req.u.Out.fCaps = 0;
+        rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_VT_CAPS, &Req, SUP_IOCTL_VT_CAPS_SIZE);
         if (RT_SUCCESS(rc))
-            *pfCaps = Req.u.Out.fCaps;
+        {
+            rc = Req.Hdr.rc;
+            if (RT_SUCCESS(rc))
+                *pfCaps = Req.u.Out.fCaps;
+        }
     }
+    /*
+     * Fail this call in driverless mode.
+     */
+    else
+        rc = VERR_SUP_DRIVERLESS;
     return rc;
 }
 
@@ -1719,28 +1790,33 @@ SUPR3DECL(int) SUPR3QueryMicrocodeRev(uint32_t *uMicrocodeRev)
 
     *uMicrocodeRev = 0;
 
-    /* fake */
-    if (RT_UNLIKELY(g_uSupFakeMode))
-        return VINF_SUCCESS;
-
-    /*
-     * Issue IOCtl to the SUPDRV kernel module.
-     */
-    SUPUCODEREV Req;
-    Req.Hdr.u32Cookie = g_u32Cookie;
-    Req.Hdr.u32SessionCookie = g_u32SessionCookie;
-    Req.Hdr.cbIn = SUP_IOCTL_UCODE_REV_SIZE_IN;
-    Req.Hdr.cbOut = SUP_IOCTL_UCODE_REV_SIZE_OUT;
-    Req.Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
-    Req.Hdr.rc = VERR_INTERNAL_ERROR;
-    Req.u.Out.MicrocodeRev = 0;
-    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_UCODE_REV, &Req, SUP_IOCTL_UCODE_REV_SIZE);
-    if (RT_SUCCESS(rc))
+    int rc;
+    if (!g_supLibData.fDriverless)
     {
-        rc = Req.Hdr.rc;
+        /*
+         * Issue IOCtl to the SUPDRV kernel module.
+         */
+        SUPUCODEREV Req;
+        Req.Hdr.u32Cookie = g_u32Cookie;
+        Req.Hdr.u32SessionCookie = g_u32SessionCookie;
+        Req.Hdr.cbIn = SUP_IOCTL_UCODE_REV_SIZE_IN;
+        Req.Hdr.cbOut = SUP_IOCTL_UCODE_REV_SIZE_OUT;
+        Req.Hdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
+        Req.Hdr.rc = VERR_INTERNAL_ERROR;
+        Req.u.Out.MicrocodeRev = 0;
+        rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_UCODE_REV, &Req, SUP_IOCTL_UCODE_REV_SIZE);
         if (RT_SUCCESS(rc))
-            *uMicrocodeRev = Req.u.Out.MicrocodeRev;
+        {
+            rc = Req.Hdr.rc;
+            if (RT_SUCCESS(rc))
+                *uMicrocodeRev = Req.u.Out.MicrocodeRev;
+        }
     }
+    /*
+     * Just fail the call in driverless mode.
+     */
+    else
+        rc = VERR_SUP_DRIVERLESS;
     return rc;
 }
 

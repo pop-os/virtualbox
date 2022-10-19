@@ -4,23 +4,31 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <stdio.h>
-
 #include <iprt/assert.h>
 #include <iprt/buildconfig.h>
 #include <iprt/dir.h>
@@ -185,9 +193,7 @@ static void vgsvcToolboxShowUsageHeader(void)
 {
     RTPrintf(VBOX_PRODUCT " Guest Toolbox Version "
              VBOX_VERSION_STRING "\n"
-             "(C) " VBOX_C_YEAR " " VBOX_VENDOR "\n"
-             "All rights reserved.\n"
-             "\n");
+             "Copyright (C) " VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
     RTPrintf("Usage:\n\n");
 }
 
@@ -236,7 +242,7 @@ static int vgsvcToolboxStrmInit(void)
 {
     /* Set stdout's mode to binary. This is required for outputting all the machine-readable
      * data correctly. */
-    int rc = RTStrmSetMode(g_pStdOut, 1 /* Binary mode */, -1 /* Current code set, not changed */);
+    int rc = RTStrmSetMode(g_pStdOut, true /* Binary mode */, -1 /* Current code set, not changed */);
     if (RT_FAILURE(rc))
         RTMsgError("Unable to set stdout to binary mode, rc=%Rrc\n", rc);
 
@@ -1600,7 +1606,7 @@ static RTEXITCODE vgsvcToolboxStat(int argc, char **argv)
             }
             else
                 rc2 = vgsvcToolboxPrintFsInfo(ValueUnion.psz, strlen(ValueUnion.psz), fOutputFlags, NULL, &IdCache, &objInfo);
-            /** @todo r=bird: You're checking rc not rc2 here...   */
+
             if (RT_SUCCESS(rc))
                 rc = rc2;
             /* Do not break here -- process every element in the list
@@ -1713,18 +1719,19 @@ bool VGSvcToolboxMain(int argc, char **argv, RTEXITCODE *prcExit)
          */
         if (argc < 2 || strcmp(argv[1], "--use-toolbox"))
         {
-            /** @todo must check for 'vbox_' and fail with a complaint that the tool does
-             *        not exist, because vgsvcGstCtrlProcessResolveExecutable will send
-             *        us anything with 'vbox_' as a prefix and no absolute path.  So,
-             *        handing non-existing vbox_xxx tools to the regular VBoxService main
-             *        routine is inconsistent and bound to cause trouble. */
-            return false;
+            /* We must match vgsvcGstCtrlProcessCreateProcess here and claim
+               everything starting with "vbox_". */
+            if (!RTStrStartsWith(pszTool, "vbox_"))
+                return false;
+            RTMsgError("Unknown tool: %s\n", pszTool);
+            *prcExit = RTEXITCODE_SYNTAX;
+            return true;
         }
 
         /* No tool specified? Show toolbox help. */
         if (argc < 3)
         {
-            vgsvcToolboxShowUsage();
+            RTMsgError("No tool following --use-toolbox\n");
             *prcExit = RTEXITCODE_SYNTAX;
             return true;
         }
@@ -1735,18 +1742,20 @@ bool VGSvcToolboxMain(int argc, char **argv, RTEXITCODE *prcExit)
         pTool = vgsvcToolboxLookUp(pszTool);
         if (!pTool)
         {
-           *prcExit = RTEXITCODE_SUCCESS;
-           if (!strcmp(pszTool, "-V"))
-           {
-               vgsvcToolboxShowVersion();
-               return true;
-           }
-           if (   strcmp(pszTool, "help")
-               && strcmp(pszTool, "--help")
-               && strcmp(pszTool, "-h"))
-               *prcExit = RTEXITCODE_SYNTAX;
-           vgsvcToolboxShowUsage();
-           return true;
+            *prcExit = RTEXITCODE_SUCCESS;
+            if (   !strcmp(pszTool, "-V")
+                || !strcmp(pszTool, "version"))
+                vgsvcToolboxShowVersion();
+            else if (   !strcmp(pszTool, "help")
+                     || !strcmp(pszTool, "--help")
+                     || !strcmp(pszTool, "-h"))
+                vgsvcToolboxShowUsage();
+            else
+            {
+                RTMsgError("Unknown tool: %s\n", pszTool);
+                *prcExit = RTEXITCODE_SYNTAX;
+            }
+            return true;
         }
     }
 

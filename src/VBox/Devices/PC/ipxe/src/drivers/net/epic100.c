@@ -250,7 +250,7 @@ epic100_open(void)
 
     outl(tmp, txcon);
 
-    /* Give adress of RX and TX ring to the chip */
+    /* Give address of RX and TX ring to the chip */
     outl(virt_to_le32desc(&rx_ring), prcdar);
     outl(virt_to_le32desc(&tx_ring), ptcdar);
 
@@ -365,7 +365,7 @@ epic100_transmit(struct nic *nic, const char *destaddr, unsigned int type,
  * Arguments: none
  *
  * returns:   1 if a packet was received.
- *            0 if no pacet was received.
+ *            0 if no packet was received.
  * side effects:
  *            returns the packet in the array nic->packet.
  *            returns the length of the packet in nic->packetlen.
@@ -376,7 +376,7 @@ epic100_poll(struct nic *nic, int retrieve)
 {
     int entry;
     int retcode;
-    int status;
+    unsigned long status;
     entry = cur_rx % RX_RING_SIZE;
 
     if ((rx_ring[entry].status & cpu_to_le32(RRING_OWN)) == RRING_OWN)
@@ -401,7 +401,7 @@ epic100_poll(struct nic *nic, int retrieve)
 	retcode = 0;
     } else {
 	/* Omit the four octet CRC from the length. */
-	nic->packetlen = le32_to_cpu((rx_ring[entry].buflength))- 4;
+	nic->packetlen = (status >> 16) - 4;
 	memcpy(nic->packet, &rx_packet[entry * PKT_BUF_SZ], nic->packetlen);
 	retcode = 1;
     }

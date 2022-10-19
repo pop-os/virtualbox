@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_UIVirtualBoxManagerWidget_h
@@ -32,11 +42,12 @@
 
 /* Forward declarations: */
 class QStackedWidget;
+class QTimer;
 class QISplitter;
+class QIToolBar;
 class UIActionPool;
 class UIChooser;
 class UITabBar;
-class UIToolBar;
 class UITools;
 class UIVirtualBoxManager;
 class UIVirtualMachineItem;
@@ -50,63 +61,131 @@ class UIVirtualBoxManagerWidget : public QIWithRetranslateUI<QWidget>
     enum SelectionType
     {
         SelectionType_Invalid,
-        SelectionType_SingleGroupItem,
+        SelectionType_SingleLocalGroupItem,
+        SelectionType_SingleCloudGroupItem,
         SelectionType_FirstIsGlobalItem,
-        SelectionType_FirstIsMachineItem
+        SelectionType_FirstIsLocalMachineItem,
+        SelectionType_FirstIsCloudMachineItem
     };
 
 signals:
 
-    /** Notifies about Chooser-pane index change. */
-    void sigChooserPaneIndexChange();
-    /** Notifies about Chooser-pane group saving change. */
-    void sigGroupSavingStateChanged();
+    /** @name Tool-bar stuff.
+      * @{ */
+        /* Notifies listeners about tool-bar height change. */
+        void sigToolBarHeightChange(int iHeight);
+    /** @} */
 
-    /** Notifies aboud Details-pane link clicked. */
-    void sigMachineSettingsLinkClicked(const QString &strCategory, const QString &strControl, const QUuid &uId);
+    /** @name Chooser pane stuff.
+      * @{ */
+        /** Notifies about Chooser-pane index change. */
+        void sigChooserPaneIndexChange();
+        /** Notifies about Chooser-pane group saving change. */
+        void sigGroupSavingStateChanged();
+        /** Notifies about Chooser-pane cloud update change. */
+        void sigCloudUpdateStateChanged();
 
-    /** Notifies about Tool type change. */
-    void sigToolTypeChange();
+        /** Notifies about state change for cloud machine with certain @a uId. */
+        void sigCloudMachineStateChange(const QUuid &uId);
 
-    /** Notifies listeners about Cloud Profile Manager change. */
-    void sigCloudProfileManagerChange();
+        /** Notify listeners about start or show request. */
+        void sigStartOrShowRequest();
+        /** Notifies listeners about machine search widget visibility changed to @a fVisible. */
+        void sigMachineSearchWidgetVisibilityChanged(bool fVisible);
+    /** @} */
 
-    /** Notifies listeners about current Snapshots pane item change. */
-    void sigCurrentSnapshotItemChange();
+    /** @name Tools pane stuff.
+      * @{ */
+        /** Notifies about Tool type change. */
+        void sigToolTypeChange();
+    /** @} */
 
-    /** Notifies about state change for cloud machine with certain @a strMachineId. */
-    void sigCloudMachineStateChange(const QString &strMachineId);
+    /** @name Tools / Details pane stuff.
+      * @{ */
+        /** Notifies aboud Details-pane link clicked. */
+        void sigMachineSettingsLinkClicked(const QString &strCategory, const QString &strControl, const QUuid &uId);
+    /** @} */
+
+    /** @name Tools / Snapshots pane stuff.
+      * @{ */
+        /** Notifies listeners about current Snapshots pane item change. */
+        void sigCurrentSnapshotItemChange();
+    /** @} */
 
 public:
 
     /** Constructs VirtualBox Manager widget. */
     UIVirtualBoxManagerWidget(UIVirtualBoxManager *pParent);
     /** Destructs VirtualBox Manager widget. */
-    virtual ~UIVirtualBoxManagerWidget() /* override */;
+    virtual ~UIVirtualBoxManagerWidget() RT_OVERRIDE;
 
     /** @name Common stuff.
       * @{ */
         /** Returns the action-pool instance. */
         UIActionPool *actionPool() const { return m_pActionPool; }
+    /** @} */
 
-        /** Returns whether group current-item is selected. */
-        bool isGroupItemSelected() const;
-        /** Returns whether global current-item is selected. */
-        bool isGlobalItemSelected() const;
-        /** Returns whether machine current-item is selected. */
-        bool isMachineItemSelected() const;
+    /** @name Chooser pane stuff.
+      * @{ */
         /** Returns current-item. */
         UIVirtualMachineItem *currentItem() const;
         /** Returns a list of current-items. */
         QList<UIVirtualMachineItem*> currentItems() const;
 
-        /** Returns whether group saving is in progress. */
-        bool isGroupSavingInProgress() const;
-        /** Returns whether all items of one group is selected. */
-        bool isAllItemsOfOneGroupSelected() const;
+        /** Returns whether group item is selected. */
+        bool isGroupItemSelected() const;
+        /** Returns whether global item is selected. */
+        bool isGlobalItemSelected() const;
+        /** Returns whether machine item is selected. */
+        bool isMachineItemSelected() const;
+        /** Returns whether local machine item is selected. */
+        bool isLocalMachineItemSelected() const;
+        /** Returns whether cloud machine item is selected. */
+        bool isCloudMachineItemSelected() const;
+
         /** Returns whether single group is selected. */
         bool isSingleGroupSelected() const;
+        /** Returns whether single local group is selected. */
+        bool isSingleLocalGroupSelected() const;
+        /** Returns whether single cloud provider group is selected. */
+        bool isSingleCloudProviderGroupSelected() const;
+        /** Returns whether single cloud profile group is selected. */
+        bool isSingleCloudProfileGroupSelected() const;
+        /** Returns whether all items of one group are selected. */
+        bool isAllItemsOfOneGroupSelected() const;
 
+        /** Returns full name of currently selected group. */
+        QString fullGroupName() const;
+
+        /** Returns whether group saving is in progress. */
+        bool isGroupSavingInProgress() const;
+        /** Returns whether at least one cloud profile currently being updated. */
+        bool isCloudProfileUpdateInProgress() const;
+
+        /** Switches to global item. */
+        void switchToGlobalItem();
+        /** Opens group name editor. */
+        void openGroupNameEditor();
+        /** Disbands group. */
+        void disbandGroup();
+        /** Removes machine. */
+        void removeMachine();
+        /** Moves machine to a group with certain @a strName. */
+        void moveMachineToGroup(const QString &strName = QString());
+        /** Returns possible groups for machine with passed @a uId to move to. */
+        QStringList possibleGroupsForMachineToMove(const QUuid &uId);
+        /** Returns possible groups for group with passed @a strFullName to move to. */
+        QStringList possibleGroupsForGroupToMove(const QString &strFullName);
+        /** Refreshes machine. */
+        void refreshMachine();
+        /** Sorts group. */
+        void sortGroup();
+        /** Toggle machine search widget to be @a fVisible. */
+        void setMachineSearchWidgetVisibility(bool fVisible);
+    /** @} */
+
+    /** @name Tools pane stuff.
+      * @{ */
         /** Defines tools @a enmType. */
         void setToolsType(UIToolType enmType);
         /** Returns tools type. */
@@ -130,18 +209,30 @@ public:
         void closeMachineTool(UIToolType enmType);
     /** @} */
 
-    /** @name Snapshot pane stuff.
+    /** @name Tools / Snapshot pane stuff.
       * @{ */
         /** Returns whether current-state item of Snapshot pane is selected. */
         bool isCurrentStateItemSelected() const;
     /** @} */
 
+    /** @name Tool-bar stuff.
+      * @{ */
+        /** Updates tool-bar menu buttons. */
+        void updateToolBarMenuButtons(bool fSeparateMenuSection);
+    /** @} */
+
+    /** @name Help browser stuff.
+      * @{ */
+        /** Shpws the help browser. */
+        void showHelpBrowser();
+    /** @} */
+
 public slots:
 
-    /** @name Common stuff.
+    /** @name Tool-bar stuff.
       * @{ */
-        /** Handles context-menu request for passed @a position. */
-        void sltHandleContextMenuRequest(const QPoint &position);
+        /** Handles tool-bar context-menu request for passed @a position. */
+        void sltHandleToolBarContextMenuRequest(const QPoint &position);
     /** @} */
 
 protected:
@@ -149,12 +240,32 @@ protected:
     /** @name Event handling stuff.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
     /** @} */
 
 private slots:
 
-    /** @name Common stuff.
+    /** @name CVirtualBox event handling stuff.
+      * @{ */
+        /** Handles CVirtualBox event about state change for machine with @a uId. */
+        void sltHandleStateChange(const QUuid &uId);
+    /** @} */
+
+    /** @name Splitter stuff.
+      * @{ */
+        /** Handles signal about splitter move. */
+        void sltHandleSplitterMove();
+        /** Handles request to save splitter settings. */
+        void sltSaveSplitterSettings();
+    /** @} */
+
+    /** @name Tool-bar stuff.
+      * @{ */
+        /** Handles signal about tool-bar resize to @a newSize. */
+        void sltHandleToolBarResize(const QSize &newSize);
+    /** @} */
+
+    /** @name Chooser pane stuff.
       * @{ */
         /** Handles signal about Chooser-pane index change. */
         void sltHandleChooserPaneIndexChange();
@@ -166,24 +277,29 @@ private slots:
           * @param  enmDirection  Brings which direction was animation finished for. */
         void sltHandleSlidingAnimationComplete(SlidingDirection enmDirection);
 
-        /** Handles state change for cloud machine with specified @a strMachineId. */
-        void sltHandleCloudMachineStateChange(const QString &strId);
+        /** Handles state change for cloud machine with certain @a uId. */
+        void sltHandleCloudMachineStateChange(const QUuid &uId);
     /** @} */
 
-    /** @name Tools stuff.
+    /** @name Tools pane stuff.
       * @{ */
         /** Handles tool menu request. */
         void sltHandleToolMenuRequested(UIToolClass enmClass, const QPoint &position);
 
-        /** Handles signal abour Tools-pane index change. */
+        /** Handles signal about Tools-pane index change. */
         void sltHandleToolsPaneIndexChange();
+
+        /** Handles signal requesting switch to Activity pane of machine with @a uMachineId. */
+        void sltSwitchToMachineActivityPane(const QUuid &uMachineId);
+        /** Handles signal requesting switch to Resources pane. */
+        void sltSwitchToActivityOverviewPane();
     /** @} */
 
 private:
 
     /** @name Prepare/Cleanup cascade.
       * @{ */
-        /** Prepares window. */
+        /** Prepares all. */
         void prepare();
         /** Prepares widgets. */
         void prepareWidgets();
@@ -192,16 +308,18 @@ private:
         /** Loads settings. */
         void loadSettings();
 
-        /** Update toolbar. */
+        /** Updates toolbar. */
         void updateToolbar();
 
-        /** Saves settings. */
-        void saveSettings();
-        /** Cleanups window. */
+        /** Cleanups connections. */
+        void cleanupConnections();
+        /** Cleanups widgets. */
+        void cleanupWidgets();
+        /** Cleanups all. */
         void cleanup();
     /** @} */
 
-    /** @name Common stuff.
+    /** @name Tools / Common stuff.
       * @{ */
         /** Recaches current item information.
           * @param  fDontRaiseErrorPane  Brings whether we should not raise error-pane. */
@@ -215,7 +333,7 @@ private:
     QISplitter *m_pSplitter;
 
     /** Holds the main toolbar instance. */
-    UIToolBar *m_pToolBar;
+    QIToolBar *m_pToolBar;
 
     /** Holds the Chooser-pane instance. */
     UIChooser          *m_pPaneChooser;
@@ -234,6 +352,9 @@ private:
     SelectionType  m_enmSelectionType;
     /** Holds whether the last selected item was accessible. */
     bool           m_fSelectedMachineItemAccessible;
+
+    /** Holds the splitter settings save timer. */
+    QTimer *m_pSplitterSettingsSaveTimer;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_manager_UIVirtualBoxManagerWidget_h */

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -192,7 +202,6 @@ typedef struct vga_retrace_s {
 
 #ifndef VBOX
 #define VGA_STATE_COMMON                                                \
-    uint8_t *vram_ptr;                                                  \
     unsigned long vram_offset;                                          \
     unsigned int vram_size;                                             \
     uint32_t latch;                                                     \
@@ -321,7 +330,9 @@ typedef struct VGAState
     uint32_t line_compare;
     uint32_t start_addr;
     uint32_t plane_updated;
-    uint8_t last_cw, last_ch, padding2[2];
+    uint8_t last_cw, last_ch;
+    uint8_t last_uline;                                                 \
+    bool last_blink;                                                    \
     uint32_t last_width, last_height; /* in chars or pixels */
     uint32_t last_scr_width, last_scr_height; /* in pixels */
     uint32_t last_bpp;
@@ -349,7 +360,7 @@ typedef struct VGAState
     /** Current refresh timer interval. */
     uint32_t                    cMilliesRefreshInterval;
     /** Bitmap tracking dirty pages. */
-    uint64_t                    bmDirtyBitmap[VGA_VRAM_MAX / PAGE_SIZE / 64];
+    uint64_t                    bmDirtyBitmap[VGA_VRAM_MAX / GUEST_PAGE_SIZE / 64];
     /** Bitmap tracking remapped pages (only needs 16 bits). */
     uint64_t                    bmPageMapBitmap;
 
@@ -366,10 +377,12 @@ typedef struct VGAState
 #ifdef VBOX_WITH_VMSVGA
     /* Whether the SVGA emulation is enabled or not. */
     bool                        fVMSVGAEnabled;
+    bool                        fVMSVGA10;
     bool                        fVMSVGAPciId;
     bool                        fVMSVGAPciBarLayout;
+    bool                        Padding4[3];
 #else
-    bool                        afPadding4[3];
+    bool                        Padding4[4+3];
 #endif
 
     struct {
@@ -525,7 +538,7 @@ AssertCompileMemberAlignment(VGASTATE, bank_offset, 8);
 AssertCompileMemberAlignment(VGASTATE, font_offsets, 8);
 AssertCompileMemberAlignment(VGASTATE, last_ch_attr, 8);
 AssertCompileMemberAlignment(VGASTATE, u32Marker, 8);
-AssertCompile(sizeof(uint64_t)/*bmPageMapBitmap*/ >= (_64K / PAGE_SIZE / 8));
+AssertCompile(sizeof(uint64_t)/*bmPageMapBitmap*/ >= (_64K / GUEST_PAGE_SIZE / 8));
 #endif
 
 

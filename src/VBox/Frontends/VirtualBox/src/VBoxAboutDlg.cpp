@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -55,6 +65,7 @@ VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
     , m_strVersion(strVersion)
     , m_pMainLayout(0)
     , m_pLabel(0)
+    , m_fFixedSizeSet(false)
 {
     /* Prepare: */
     prepare();
@@ -63,8 +74,11 @@ VBoxAboutDlg::VBoxAboutDlg(QWidget *pParent, const QString &strVersion)
 bool VBoxAboutDlg::event(QEvent *pEvent)
 {
     /* Set fixed-size for dialog: */
-    if (pEvent->type() == QEvent::Polish)
+    if (!m_fFixedSizeSet && pEvent->type() == QEvent::Show)
+    {
+        m_fFixedSizeSet = true;
         setFixedSize(m_size);
+    }
 
     /* Call to base-class: */
     return QIDialog::event(pEvent);
@@ -93,7 +107,7 @@ void VBoxAboutDlg::retranslateUi()
     m_strAboutText = strAboutText + "\n" + strVersionText.arg(m_strVersion);
 #endif
     m_strAboutText = m_strAboutText + QString(" (Qt%1)").arg(qVersion());
-    m_strAboutText = m_strAboutText + "\n" + QString("Copyright %1 %2 %3 and/or its affiliates. All rights reserved.")
+    m_strAboutText = m_strAboutText + "\n" + QString("Copyright %1 %2 %3.")
                                                      .arg(QChar(0xa9)).arg(VBOX_C_YEAR).arg(VBOX_VENDOR);
     AssertPtrReturnVoid(m_pLabel);
     m_pLabel->setText(m_strAboutText);

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -72,26 +82,6 @@
 // ---------------------------------------------------------------------------
 // Start of ATA/ATAPI Driver
 // ---------------------------------------------------------------------------
-
-void insw_discard(unsigned nwords, unsigned port);
-#pragma aux insw_discard =  \
-    ".286"                  \
-    "again:"                \
-    "in ax,dx"              \
-    "loop again"            \
-    parm [cx] [dx] modify exact [cx ax] nomemory;
-
-void insd_discard(unsigned ndwords, unsigned port);
-#if VBOX_BIOS_CPU >= 80386
-# pragma aux insd_discard =  \
-    ".386"                  \
-    "push eax"              \
-    "again:"                \
-    "in eax,dx"             \
-    "loop again"            \
-    "pop eax"               \
-    parm [cx] [dx] modify exact [cx] nomemory;
-#endif
 
 // ---------------------------------------------------------------------------
 // ATA/ATAPI driver : initialization
@@ -607,7 +597,7 @@ void BIOSCALL ata_detect(void)
             }
             if (chsgeo_base)
             {
-                lgeo.cylinders = inb_cmos(chsgeo_base) + (inb_cmos(chsgeo_base + 1) << 8);
+                lgeo.cylinders = get_cmos_word(chsgeo_base /*, chsgeo_base + 1*/);
                 lgeo.heads     = inb_cmos(chsgeo_base + 2);
                 lgeo.spt       = inb_cmos(chsgeo_base + 7);
             }
@@ -1014,10 +1004,10 @@ int ata_write_sectors(bio_dsk_t __far *bios_dsk)
       // 3 : error
       // 4 : not ready
 uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
-                        uint16_t header, uint32_t length, uint8_t inout, char __far *buffer)
+                        uint32_t length, uint8_t inout, char __far *buffer)
 {
     uint16_t        iobase1, iobase2;
-    uint16_t        lcount, lbefore, lafter, count;
+    uint16_t        lcount, count;
     uint8_t         channel, slave;
     uint8_t         status, mode, lmode;
     uint32_t        transfer;
@@ -1031,12 +1021,6 @@ uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
     // Data out is not supported yet
     if (inout == ATA_DATA_OUT) {
         BX_INFO("%s: DATA_OUT not supported yet\n", __func__);
-        return 1;
-    }
-
-    // The header length must be even
-    if (header & 1) {
-        BX_DEBUG_ATA("%s: header must be even (%04x)\n", __func__, header);
         return 1;
     }
 
@@ -1139,79 +1123,38 @@ uint16_t ata_cmd_packet(uint16_t device, uint8_t cmdlen, char __far *cmdbuf,
             // Get the byte count
             lcount =  ((uint16_t)(inb(iobase1 + ATA_CB_CH))<<8)+inb(iobase1 + ATA_CB_CL);
 
-            // adjust to read what we want
-            if (header>lcount) {
-                lbefore = lcount;
-                header -= lcount;
-                lcount  = 0;
-            }
-            else {
-                lbefore = header;
-                header  = 0;
-                lcount -= lbefore;
-            }
-
-            if (lcount>length) {
-                lafter = lcount - length;
-                lcount = length;
-                length = 0;
-            }
-            else {
-                lafter  = 0;
-                length -= lcount;
-            }
-
             // Save byte count
             count = lcount;
 
-            BX_DEBUG_ATA("Trying to read %04x bytes (%04x %04x %04x) ",lbefore+lcount+lafter,lbefore,lcount,lafter);
+            BX_DEBUG_ATA("Trying to read %04x bytes ",lcount);
             BX_DEBUG_ATA("to 0x%04x:0x%04x\n",FP_SEG(buffer),FP_OFF(buffer));
 
             // If counts not dividable by 4, use 16bits mode
             lmode = mode;
-            if (lbefore & 0x03)
-                lmode = ATA_MODE_PIO16;
             if (lcount  & 0x03)
-                lmode = ATA_MODE_PIO16;
-            if (lafter  & 0x03)
                 lmode = ATA_MODE_PIO16;
 
             // adds an extra byte if count are odd. before is always even
             if (lcount & 0x01) {
                 lcount += 1;
-                if ((lafter > 0) && (lafter & 0x01)) {
-                    lafter -= 1;
-                }
             }
 
 #if VBOX_BIOS_CPU >= 80386
             if (lmode == ATA_MODE_PIO32) {
                 lcount  >>= 2;
-                lbefore >>= 2;
-                lafter  >>= 2;
             } else
 #endif
             {
                 lcount  >>= 1;
-                lbefore >>= 1;
-                lafter  >>= 1;
             }
 
 #if VBOX_BIOS_CPU >= 80386
             if (lmode == ATA_MODE_PIO32) {
-                if (lbefore)
-                    insd_discard(lbefore, iobase1);
                 rep_insd(buffer, lcount, iobase1);
-                if (lafter)
-                    insd_discard(lafter, iobase1);
             } else
 #endif
             {
-                if (lbefore)
-                    insw_discard(lbefore, iobase1);
                 rep_insw(buffer, lcount, iobase1);
-                if (lafter)
-                    insw_discard(lafter, iobase1);
             }
 
 

@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_env_h
@@ -141,6 +151,10 @@ RTDECL(int) RTEnvReset(RTENV hEnv);
  * @returns NULL if Env is NULL or invalid.
  *
  * @param   Env     Environment block handle.
+ *
+ * @note    This is NOT available on Windows.  It is also not a stable export
+ *          and will hopefully be replaced before long (see todo).
+ *
  * @todo    This needs to change to return a copy of the env vars like
  *          RTEnvQueryUtf16Block does!
  */
@@ -322,6 +336,18 @@ RTDECL(int) RTEnvUnsetUtf8(const char *pszVar);
  * @param   pszVar      The environment variable name.
  */
 RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar);
+
+
+/**
+ * Returns the value of a environment variable from the default
+ * environment block in a heap buffer.
+ *
+ * @returns Pointer to a string containing the value, free it using RTStrFree.
+ *          NULL if the variable was not found or we're out of memory.
+ *
+ * @param   pszVar      The environment variable name (UTF-8).
+ */
+RTDECL(char *) RTEnvDup(const char *pszVar);
 
 /**
  * Duplicates the value of a environment variable if it exists.

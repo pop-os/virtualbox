@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -82,13 +92,13 @@ public:
 protected:
 
     /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    virtual bool event(QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
 
     /** Handles mouse-press @a pEvent. */
     virtual void mousePressEvent(QMouseEvent *pEvent);
@@ -138,10 +148,10 @@ public:
     UIAccessibilityInterfaceForUIStatusBarEditorButton(QWidget *pWidget);
 
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */;
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
 
     /** Returns the state. */
-    virtual QAccessible::State state() const /* override */;
+    virtual QAccessible::State state() const RT_OVERRIDE;
 
 private:
 
@@ -484,6 +494,9 @@ void UIStatusBarEditorWidget::setStatusBarConfiguration(const QList<IndicatorTyp
 
 void UIStatusBarEditorWidget::retranslateUi()
 {
+    /* Translate widget itself: */
+    setToolTip(tr("Allows to modify VM status-bar contents."));
+
     /* Translate close-button if necessary: */
     if (!m_fStartedFromVMSettings && m_pButtonClose)
         m_pButtonClose->setToolTip(tr("Close"));
@@ -498,7 +511,7 @@ void UIStatusBarEditorWidget::paintEvent(QPaintEvent *)
     QPainter painter(this);
 
     /* Prepare palette colors: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
     QColor color0 = pal.color(QPalette::Window);
     QColor color1 = pal.color(QPalette::Window).lighter(110);
     color1.setAlpha(0);

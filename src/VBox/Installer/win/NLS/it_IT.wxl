@@ -1,20 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    Language Definition Include for VirtualBox WiX script.
+-->
+<!--
+    Copyright (C) 2011-2022 Oracle and/or its affiliates.
+
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
+
 <WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="1252" Culture="en_US">
-
-    <!--
-            Language Definition Include for VirtualBox WiX script.
-
-            Copyright (C) 2011-2020 Oracle Corporation
-
-            This file is part of VirtualBox Open Source Edition (OSE), as
-            available from http://www.virtualbox.org. This file is free software;
-            you can redistribute it and/or modify it under the terms of the GNU
-            General Public License (GPL) as published by the Free Software
-            Foundation, in version 2 as it comes in the "COPYING" file of the
-            VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-            hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-    -->
-
     <String Id="LANG">1040</String>
     <String Id="LangName">Italiano</String>
 
@@ -51,6 +62,7 @@
   <String Id="VB_Python">Supporto Python per VirtualBox.</String>
     <!---->
     <String Id="NeedAdmin">Devi avere diritti di amministrazione per (dis)installare [ProductName]! L'installazione sarà interrotta immediatamente.</String>
+    <String Id="NeedMSCRT">[ProductName] needs the Microsoft Visual C++ 2019 Redistributable Package being installed first. Please install and restart the installation of [ProductName].</String>
     <String Id="WrongOS">Questa applicazione può essere eseguita solo su Windows XP o superiori.</String>
     <String Id="Only32Bit">Questa applicazione può essere eseguita solo su sistemi Windows a 32 bit. Installa la versione a 64 bit di [ProductName]!</String>
     <String Id="Only64Bit">Questa applicazione può essere eseguita solo su sistemi Windows a 64 bit. Installa la versione a 32 bit di [ProductName]!</String>
@@ -114,6 +126,12 @@ Questo è il tipo predefinito per le nuove versioni di Windows (Vista e successi
     <String Id="WarnDisconNetIfacesDlg_Desc">L'installazione delle funzionalità di rete di [ProductName] ripristinerà la connessione di rete causando una disconnessione temporanea dalla rete.</String>
     <String Id="WarnDisconNetIfacesDlg_Question">Vuoi procedere subito con l'installazione?</String>
     <!---->
+    <String Id="WarnPythonDlg_Title">Missing Dependencies</String>
+    <String Id="WarnPythonDlg_Title2">Python Core / win32api</String>
+    <String Id="WarnPythonDlg_Desc">Installing the [ProductName] Python bindings requires the Python Core package and the win32api bindings to be installed first.</String>
+    <String Id="WarnPythonDlg_Desc2">When continuing the installation of the [ProductName] Python bindings now, those need to be set up manually later. Refer to the [ProductName] SDK manual for more information.</String>
+    <String Id="WarnPythonDlg_Question">Proceed with installation now?</String>
+    <!---->
     <String Id="DiskCostDlg_SpaceRequired">Lo spazio su disco richiesto per l'installazione delle funzionalità selezionate.</String>
     <String Id="DiskCostDlg_NotEnoughSpace">I volumi evidenziati non hanno spazio disponibile sufficiente per le funzionalità attualmente selezionate. Puoi rimuovere alcuni file dai volumi evidenziati, scegliere di installare meno funzionalità sul disco locale o selezionare un disco di destinazione diverso.</String>
     <String Id="DiskCostDlg_SpaceRequirements">Requisiti di spazio disco</String>
@@ -174,7 +192,7 @@ Questo è il tipo predefinito per le nuove versioni di Windows (Vista e successi
     <String Id="OutOfRbDiskDlg_InstallationExceeds">Lo spazio su disco richiesto per l'installazione supera lo spazio disponibile.</String>
     <String Id="OutOfRbDiskDlg_NotEnoughDiskSpace">I volumi evidenziati non hanno spazio disco sufficiente per le funzionalità attualmente selezionate. Puoi rimuovere alcuni file dai volumi evidenziati, scegliere di installare meno funzionalità sul disco locale o seleziona un disco di destinazione diverso.</String>
     <String Id="OutOfRbDiskDlg_OutOfDiskSpace">Spazio su disco insufficiente</String>
-    <String Id="OutOfRbDiskDlg_Desc">In alternativa, puoi scegliere di disabilitare la funzionalità di rollback dell'installatore. Questo consente all'installatore di ripristinare lo stato originale del tuo computer qualora l'installazione venisse interrotta in qualsiasi modo. Fai clic su Sì se desideri rischiare di disabilitare il rollback.</String>
+    <String Id="OutOfRbDiskDlg_Desc">In alternativa, puoi scegliere di disabilitare la funzionalità di rollback dell'installatore. Questo consente all'installatore di ripristinare lo stato originale del tuo computer qualore l'installazione venisse interrotta in qualsiasi modo. Fai clic su Sì se desideri rischiare di disabilitare il rollback.</String>
     <!---->
     <String Id="VerifyRemoveDlg_Header">Rimuovi [ProductName]</String>
     <String Id="VerifyRemoveDlg_Desc">Hai scelto di rimuovere il programma dal tuo computer.</String>

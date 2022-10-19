@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_cfgm_h
@@ -47,7 +57,9 @@ typedef enum CFGMVALUETYPE
     /** String value. */
     CFGMVALUETYPE_STRING,
     /** Bytestring value. */
-    CFGMVALUETYPE_BYTES
+    CFGMVALUETYPE_BYTES,
+    /** Password value, same as String but hides the content in dump. */
+    CFGMVALUETYPE_PASSWORD
 } CFGMVALUETYPE;
 /** Pointer to configuration manager property type. */
 typedef CFGMVALUETYPE *PCFGMVALUETYPE;
@@ -79,9 +91,10 @@ typedef enum CFGMCONFIGTYPE
  * @returns VBox status code.
  * @param   pUVM        The user mode VM handle.
  * @param   pVM         The cross context VM structure.
+ * @param   pVMM        The VMM R3 vtable.
  * @param   pvUser      The argument supplied to VMR3Create().
  */
-typedef DECLCALLBACK(int) FNCFGMCONSTRUCTOR(PUVM pUVM, PVM pVM, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNCFGMCONSTRUCTOR,(PUVM pUVM, PVM pVM, PCVMMR3VTABLE pVMM, void *pvUser));
 /** Pointer to a FNCFGMCONSTRUCTOR(). */
 typedef FNCFGMCONSTRUCTOR *PFNCFGMCONSTRUCTOR;
 
@@ -111,6 +124,8 @@ VMMR3DECL(int)          CFGMR3InsertStringFV(PCFGMNODE pNode, const char *pszNam
                                              const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
 VMMR3DECL(int)          CFGMR3InsertStringW(PCFGMNODE pNode, const char *pszName, PCRTUTF16 pwszValue);
 VMMR3DECL(int)          CFGMR3InsertBytes(PCFGMNODE pNode, const char *pszName, const void *pvBytes, size_t cbBytes);
+VMMR3DECL(int)          CFGMR3InsertPassword(PCFGMNODE pNode, const char *pszName, const char *pszString);
+VMMR3DECL(int)          CFGMR3InsertPasswordN(PCFGMNODE pNode, const char *pszName, const char *pszString, size_t cchString);
 VMMR3DECL(int)          CFGMR3InsertValue(PCFGMNODE pNode, PCFGMLEAF pValue);
 VMMR3DECL(int)          CFGMR3RemoveValue(PCFGMNODE pNode, const char *pszName);
 
@@ -147,6 +162,8 @@ VMMR3DECL(int)          CFGMR3QueryInteger(     PCFGMNODE pNode, const char *psz
 VMMR3DECL(int)          CFGMR3QueryIntegerDef(  PCFGMNODE pNode, const char *pszName, uint64_t *pu64, uint64_t u64Def);
 VMMR3DECL(int)          CFGMR3QueryString(      PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString);
 VMMR3DECL(int)          CFGMR3QueryStringDef(   PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString, const char *pszDef);
+VMMR3DECL(int)          CFGMR3QueryPassword(    PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString);
+VMMR3DECL(int)          CFGMR3QueryPasswordDef( PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString, const char *pszDef);
 VMMR3DECL(int)          CFGMR3QueryBytes(       PCFGMNODE pNode, const char *pszName, void *pvData, size_t cbData);
 
 
@@ -177,8 +194,6 @@ VMMR3DECL(int)          CFGMR3QueryUInt(        PCFGMNODE pNode, const char *psz
 VMMR3DECL(int)          CFGMR3QueryUIntDef(     PCFGMNODE pNode, const char *pszName, unsigned int *pu, unsigned int uDef);
 VMMR3DECL(int)          CFGMR3QuerySInt(        PCFGMNODE pNode, const char *pszName, signed int *pi);
 VMMR3DECL(int)          CFGMR3QuerySIntDef(     PCFGMNODE pNode, const char *pszName, signed int *pi, signed int iDef);
-VMMR3DECL(int)          CFGMR3QueryPtr(         PCFGMNODE pNode, const char *pszName, void **ppv);
-VMMR3DECL(int)          CFGMR3QueryPtrDef(      PCFGMNODE pNode, const char *pszName, void **ppv, void *pvDef);
 VMMR3DECL(int)          CFGMR3QueryGCPtr(       PCFGMNODE pNode, const char *pszName, PRTGCPTR pGCPtr);
 VMMR3DECL(int)          CFGMR3QueryGCPtrDef(    PCFGMNODE pNode, const char *pszName, PRTGCPTR pGCPtr, RTGCPTR GCPtrDef);
 VMMR3DECL(int)          CFGMR3QueryGCPtrU(      PCFGMNODE pNode, const char *pszName, PRTGCUINTPTR pGCPtr);

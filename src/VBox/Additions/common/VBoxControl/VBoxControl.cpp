@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -577,7 +587,7 @@ static BOOL ResizeDisplayDevice(ULONG Id, DWORD Width, DWORD Height, DWORD BitsP
             paDeviceModes[i].dmFields |= DM_BITSPERPEL;
             paDeviceModes[i].dmBitsPerPel = BitsPerPixel;
         }
-        Log(("calling pfnChangeDisplaySettingsEx %p\n", g_pfnChangeDisplaySettingsExA));
+        Log(("calling pfnChangeDisplaySettingsEx %p\n", RT_CB_LOG_CAST(g_pfnChangeDisplaySettingsExA)));
         g_pfnChangeDisplaySettingsExA((LPSTR)paDisplayDevices[i].DeviceName,
                                       &paDeviceModes[i], NULL, CDS_NORESET | CDS_UPDATEREGISTRY, NULL);
         Log(("ChangeDisplaySettingsEx position err %d\n", GetLastError()));
@@ -604,12 +614,12 @@ static DECLCALLBACK(RTEXITCODE) handleSetVideoMode(int argc, char *argv[])
         return RTEXITCODE_FAILURE;
     }
 
-    DWORD xres = atoi(argv[0]);
-    DWORD yres = atoi(argv[1]);
-    DWORD bpp  = atoi(argv[2]);
+    DWORD xres = RTStrToUInt32(argv[0]);
+    DWORD yres = RTStrToUInt32(argv[1]);
+    DWORD bpp  = RTStrToUInt32(argv[2]);
     DWORD scr  = 0;
     if (argc == 4)
-        scr = atoi(argv[3]);
+        scr = RTStrToUInt32(argv[3]);
 
     HMODULE hmodUser = GetModuleHandle("user32.dll");
     if (hmodUser)
@@ -621,7 +631,8 @@ static DECLCALLBACK(RTEXITCODE) handleSetVideoMode(int argc, char *argv[])
         g_pfnEnumDisplaySettingsA     = (decltype(g_pfnEnumDisplaySettingsA))    GetProcAddress(hmodUser, "EnumDisplaySettingsA");
 
         Log(("VBoxService: g_pfnChangeDisplaySettingsExA=%p g_pfnChangeDisplaySettingsA=%p g_pfnEnumDisplaySettingsA=%p\n",
-             g_pfnChangeDisplaySettingsExA, g_pfnChangeDisplaySettingsA, g_pfnEnumDisplaySettingsA));
+             RT_CB_LOG_CAST(g_pfnChangeDisplaySettingsExA), RT_CB_LOG_CAST(g_pfnChangeDisplaySettingsA),
+             RT_CB_LOG_CAST(g_pfnEnumDisplaySettingsA)));
 
         if (   g_pfnChangeDisplaySettingsExA
             && g_pfnChangeDisplaySettingsA
@@ -718,19 +729,19 @@ static HKEY getVideoKey(bool writable)
     /* Scan device entries */
     for (iDevice = 0; iDevice < cDevices; iDevice++)
     {
-        char szValueName[64];
-        RTStrPrintf(szValueName, sizeof(szValueName), "\\Device\\Video%u", adwObjectNumberList[iDevice]);
+        RTUTF16 wszValueName[64];
+        RTUtf16Printf(wszValueName, RT_ELEMENTS(wszValueName), "\\Device\\Video%u", adwObjectNumberList[iDevice]);
 
-        char szVideoLocation[256];
-        cbValue = sizeof(szVideoLocation);
-        status = RegQueryValueExA(hkeyDeviceMap, szValueName, NULL, &dwKeyType, (LPBYTE)&szVideoLocation[0], &cbValue);
+        RTUTF16 wszVideoLocation[256];
+        cbValue = sizeof(wszVideoLocation);
+        status = RegQueryValueExW(hkeyDeviceMap, wszValueName, NULL, &dwKeyType, (LPBYTE)&wszVideoLocation[0], &cbValue);
 
         /* This value starts with '\REGISTRY\Machine' */
         if (   status == ERROR_SUCCESS
             && dwKeyType == REG_SZ
-            && _strnicmp(szVideoLocation, "\\REGISTRY\\Machine", 17) == 0)
+            && RTUtf16NICmpAscii(wszVideoLocation, RT_STR_TUPLE("\\REGISTRY\\Machine")) == 0)
         {
-            status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, &szVideoLocation[18], 0,
+            status = RegOpenKeyExW(HKEY_LOCAL_MACHINE, &wszVideoLocation[18], 0,
                                    KEY_READ | (writable ? KEY_WRITE : 0), &hkeyVideo);
             if (status == ERROR_SUCCESS)
             {
@@ -944,7 +955,7 @@ struct
     DWORD xres;
     DWORD yres;
     DWORD bpp;
-} customModes[MAX_CUSTOM_MODES] = {0};
+} customModes[MAX_CUSTOM_MODES] = {{0}};
 
 void getCustomModes(HKEY hkeyVideo)
 {
@@ -1082,9 +1093,9 @@ static DECLCALLBACK(RTEXITCODE) handleAddCustomMode(int argc, char *argv[])
         return RTEXITCODE_FAILURE;
     }
 
-    DWORD xres = atoi(argv[0]);
-    DWORD yres = atoi(argv[1]);
-    DWORD bpp  = atoi(argv[2]);
+    DWORD xres = RTStrToUInt32(argv[0]);
+    DWORD yres = RTStrToUInt32(argv[1]);
+    DWORD bpp  = RTStrToUInt32(argv[2]);
 
     /** @todo better check including xres mod 8 = 0! */
     if (   (xres > (1 << 16))
@@ -1143,9 +1154,9 @@ static DECLCALLBACK(RTEXITCODE) handleRemoveCustomMode(int argc, char *argv[])
         return RTEXITCODE_FAILURE;
     }
 
-    DWORD xres = atoi(argv[0]);
-    DWORD yres = atoi(argv[1]);
-    DWORD bpp  = atoi(argv[2]);
+    DWORD xres = RTStrToUInt32(argv[0]);
+    DWORD yres = RTStrToUInt32(argv[1]);
+    DWORD bpp  = RTStrToUInt32(argv[2]);
 
     HKEY hkeyVideo = getVideoKey(true);
 
@@ -1513,42 +1524,42 @@ static RTEXITCODE waitGuestProperty(int argc, char **argv)
     char *pszValue = NULL;
     uint64_t u64TimestampOut = 0;
     char *pszFlags = NULL;
+    bool fWasDeleted = false;
     /* The buffer for storing the data and its initial size.  We leave a bit
      * of space here in case the maximum values are raised. */
     void *pvBuf = NULL;
-    uint32_t cbBuf = GUEST_PROP_MAX_NAME_LEN + GUEST_PROP_MAX_VALUE_LEN + GUEST_PROP_MAX_FLAGS_LEN + 1024;
+    uint32_t cbBuf = GUEST_PROP_MAX_NAME_LEN + GUEST_PROP_MAX_VALUE_LEN + GUEST_PROP_MAX_FLAGS_LEN + _1K;
     /* Because there is a race condition between our reading the size of a
      * property and the guest updating it, we loop a few times here and
      * hope.  Actually this should never go wrong, as we are generous
      * enough with buffer space. */
-    bool fFinished = false;
-    for (unsigned i = 0; (RT_SUCCESS(rc) || rc == VERR_BUFFER_OVERFLOW) && !fFinished && i < 10; i++)
+    for (unsigned iTry = 0; ; iTry++)
     {
-        void *pvTmpBuf = RTMemRealloc(pvBuf, cbBuf);
-        if (NULL == pvTmpBuf)
+        pvBuf = RTMemRealloc(pvBuf, cbBuf);
+        if (pvBuf != NULL)
         {
-            rc = VERR_NO_MEMORY;
-            VBoxControlError("Out of memory\n");
-        }
-        else
-        {
-            pvBuf = pvTmpBuf;
             rc = VbglR3GuestPropWait(u32ClientId, pszPatterns, pvBuf, cbBuf,
                                      u64TimestampIn, u32Timeout,
                                      &pszName, &pszValue, &u64TimestampOut,
-                                     &pszFlags, &cbBuf);
+                                     &pszFlags, &cbBuf, &fWasDeleted);
+            if (rc == VERR_BUFFER_OVERFLOW && iTry < 10)
+            {
+                cbBuf += _1K; /* Add a bit of extra space to be on the safe side. */
+                continue;
+            }
+            if (rc == VERR_TOO_MUCH_DATA)
+                VBoxControlError("Temporarily unable to get a notification\n");
+            else if (rc == VERR_INTERRUPTED)
+                VBoxControlError("The request timed out or was interrupted\n");
+            else if (RT_FAILURE(rc) && rc != VERR_NOT_FOUND)
+                VBoxControlError("Failed to get a notification, error %Rrc\n", rc);
         }
-        if (VERR_BUFFER_OVERFLOW == rc)
-            /* Leave a bit of extra space to be safe */
-            cbBuf += 1024;
         else
-            fFinished = true;
-        if (rc == VERR_TOO_MUCH_DATA)
-            VBoxControlError("Temporarily unable to get a notification\n");
-        else if (rc == VERR_INTERRUPTED)
-            VBoxControlError("The request timed out or was interrupted\n");
-        else if (RT_FAILURE(rc) && rc != VERR_NOT_FOUND)
-            VBoxControlError("Failed to get a notification, error %Rrc\n", rc);
+        {
+            VBoxControlError("Out of memory\n");
+            rc = VERR_NO_MEMORY;
+        }
+        break;
     }
 
     /*
@@ -1560,10 +1571,17 @@ static RTEXITCODE waitGuestProperty(int argc, char **argv)
         RTPrintf("Internal error: unable to determine the size of the data!\n");
     else if (RT_SUCCESS(rc))
     {
-        RTPrintf("Name: %s\n", pszName);
-        RTPrintf("Value: %s\n", pszValue);
-        RTPrintf("Timestamp: %lld ns\n", u64TimestampOut);
-        RTPrintf("Flags: %s\n", pszFlags);
+        if (fWasDeleted)
+        {
+            RTPrintf("Property %s was deleted\n", pszName);
+        }
+        else
+        {
+            RTPrintf("Name: %s\n", pszName);
+            RTPrintf("Value: %s\n", pszValue);
+            RTPrintf("Timestamp: %lld ns\n", u64TimestampOut);
+            RTPrintf("Flags: %s\n", pszFlags);
+        }
     }
 
     if (u32ClientId != 0)
@@ -2022,7 +2040,7 @@ static DECLCALLBACK(RTEXITCODE) handleUnzip(int argc, char *argv[])
 
 
 /** command handler type */
-typedef DECLCALLBACK(RTEXITCODE) FNVBOXCTRLCMDHANDLER(int argc, char *argv[]);
+typedef DECLCALLBACKTYPE(RTEXITCODE, FNVBOXCTRLCMDHANDLER,(int argc, char *argv[]));
 typedef FNVBOXCTRLCMDHANDLER *PFNVBOXCTRLCMDHANDLER;
 
 /** The table of all registered command handlers. */
@@ -2136,8 +2154,7 @@ int main(int argc, char **argv)
     if (fShowLogo)
         RTPrintf(VBOX_PRODUCT " Guest Additions Command Line Management Interface Version "
                  VBOX_VERSION_STRING "\n"
-                 "(C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                 "All rights reserved.\n\n");
+                 "Copyright (C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
     if (fDoHelp)
         usage();
 

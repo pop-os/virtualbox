@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_krnlmod_h
@@ -150,6 +160,39 @@ RTDECL(RTR0UINTPTR) RTKrnlModInfoGetLoadAddr(RTKRNLMODINFO hKrnlModInfo);
  */
 RTDECL(int) RTKrnlModInfoQueryRefModInfo(RTKRNLMODINFO hKrnlModInfo, uint32_t idx,
                                          PRTKRNLMODINFO phKrnlModInfoRef);
+
+/**
+ * Tries to load a kernel module by the given name.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if not supported by or implemented for the platform.
+ * @param   pszName         The name of the kernel module. This is highly platform
+ *                          dependent.
+ *
+ * @note On macOS for example the name is the bundle ID.
+ */
+RTDECL(int) RTKrnlModLoadByName(const char *pszName);
+
+/**
+ * Tries to load a kernel module by the given file path.
+ *
+ * @returns IPRT status code.
+ * @retval  VERR_NOT_SUPPORTED if not supported by or implemented for the platform.
+ * @param   pszPath         The path of the kernel module.
+ */
+RTDECL(int) RTKrnlModLoadByPath(const char *pszPath);
+
+/**
+ * Tries to unload a kernel module by the given name.
+ *
+ * @returns IPRT status code.
+ * @param   pszName         The name of the kernel module. This is highly platform
+ *                          dependent and should be queried with RTKrnlModInfoGetName()
+ *                          when checking whether the module was actually loaded.
+ *
+ * @note On macOS for example the name is the bundle ID.
+ */
+RTDECL(int) RTKrnlModUnloadByName(const char *pszName);
 
 /** @} */
 

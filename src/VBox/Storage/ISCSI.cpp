@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -392,12 +402,12 @@ typedef enum ISCSICMDTYPE
 
 
 /** The command completion function. */
-typedef DECLCALLBACK(void) FNISCSICMDCOMPLETED(PISCSIIMAGE pImage, int rcReq, void *pvUser);
+typedef DECLCALLBACKTYPE(void, FNISCSICMDCOMPLETED,(PISCSIIMAGE pImage, int rcReq, void *pvUser));
 /** Pointer to a command completion function. */
 typedef FNISCSICMDCOMPLETED *PFNISCSICMDCOMPLETED;
 
 /** The command execution function. */
-typedef DECLCALLBACK(int) FNISCSIEXEC(void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNISCSIEXEC,(void *pvUser));
 /** Pointer to a command execution function. */
 typedef FNISCSIEXEC *PFNISCSIEXEC;
 
@@ -775,13 +785,13 @@ static PISCSICMD iscsiCmdRemove(PISCSIIMAGE pImage, uint32_t Itt)
     {
         if (pIScsiCmdPrev)
         {
-            Assert(!pIScsiCmd->pNext || VALID_PTR(pIScsiCmd->pNext));
+            AssertPtrNull(pIScsiCmd->pNext);
             pIScsiCmdPrev->pNext = pIScsiCmd->pNext;
         }
         else
         {
             pImage->aCmdsWaiting[idx] = pIScsiCmd->pNext;
-            Assert(!pImage->aCmdsWaiting[idx] || VALID_PTR(pImage->aCmdsWaiting[idx]));
+            AssertPtrNull(pImage->aCmdsWaiting[idx]);
         }
         pImage->cCmdsWaiting--;
     }
@@ -4792,7 +4802,8 @@ static DECLCALLBACK(int) iscsiOpen(const char *pszFilename, unsigned uOpenFlags,
 
     /* Check open flags. All valid flags are supported. */
     AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename != '\0', VERR_INVALID_PARAMETER);
 
     PISCSIIMAGE pImage = (PISCSIIMAGE)RTMemAllocZ(RT_UOFFSETOF(ISCSIIMAGE, RegionList.aRegions[1]));
     if (RT_LIKELY(pImage))

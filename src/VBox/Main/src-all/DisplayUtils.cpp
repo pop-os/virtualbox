@@ -1,18 +1,28 @@
 /* $Id: DisplayUtils.cpp $ */
 /** @file
- * Implementation of IDisplay helpers.
+ * Implementation of IDisplay helpers, currently only used in VBoxSVC.
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <DisplayUtils.h>
@@ -22,7 +32,8 @@
 #include <VBox/vmm/ssm.h>
 #include <VBoxVideo.h>
 
-int readSavedDisplayScreenshot(const Utf8Str &strStateFilePath, uint32_t u32Type, uint8_t **ppu8Data, uint32_t *pcbData,
+int readSavedDisplayScreenshot(SsmStream &ssmStream, const Utf8Str &strStateFilePath,
+                               uint32_t u32Type, uint8_t **ppu8Data, uint32_t *pcbData,
                                uint32_t *pu32Width, uint32_t *pu32Height)
 {
     LogFlowFunc(("u32Type = %d [%s]\n", u32Type, strStateFilePath.c_str()));
@@ -40,7 +51,7 @@ int readSavedDisplayScreenshot(const Utf8Str &strStateFilePath, uint32_t u32Type
     uint32_t u32Height = 0;
 
     PSSMHANDLE pSSM;
-    int vrc = SSMR3Open(strStateFilePath.c_str(), 0 /*fFlags*/, &pSSM);
+    int vrc = ssmStream.open(strStateFilePath.c_str(), false /*fWrite*/, &pSSM);
     if (RT_SUCCESS(vrc))
     {
         uint32_t uVersion;
@@ -111,7 +122,7 @@ int readSavedDisplayScreenshot(const Utf8Str &strStateFilePath, uint32_t u32Type
             }
         }
 
-        SSMR3Close(pSSM);
+        ssmStream.close();
     }
 
     if (RT_SUCCESS(vrc))
@@ -142,8 +153,8 @@ void freeSavedDisplayScreenshot(uint8_t *pu8Data)
     RTMemFree(pu8Data);
 }
 
-int readSavedGuestScreenInfo(const Utf8Str &strStateFilePath, uint32_t u32ScreenId,
-                             uint32_t *pu32OriginX, uint32_t *pu32OriginY,
+int readSavedGuestScreenInfo(SsmStream &ssmStream, const Utf8Str &strStateFilePath,
+                             uint32_t u32ScreenId, uint32_t *pu32OriginX, uint32_t *pu32OriginY,
                              uint32_t *pu32Width, uint32_t *pu32Height, uint16_t *pu16Flags)
 {
     LogFlowFunc(("u32ScreenId = %d [%s]\n", u32ScreenId, strStateFilePath.c_str()));
@@ -156,7 +167,7 @@ int readSavedGuestScreenInfo(const Utf8Str &strStateFilePath, uint32_t u32Screen
     }
 
     PSSMHANDLE pSSM;
-    int vrc = SSMR3Open(strStateFilePath.c_str(), 0 /*fFlags*/, &pSSM);
+    int vrc = ssmStream.open(strStateFilePath.c_str(), false /*fWrite*/, &pSSM);
     if (RT_SUCCESS(vrc))
     {
         uint32_t uVersion;
@@ -205,7 +216,7 @@ int readSavedGuestScreenInfo(const Utf8Str &strStateFilePath, uint32_t u32Screen
             }
         }
 
-        SSMR3Close(pSSM);
+        ssmStream.close();
     }
 
     LogFlowFunc(("vrc %Rrc\n", vrc));

@@ -1,23 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage cloud image
+-->
+<!--
+    Copyright (C) 2018-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2018-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
-<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
 
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+  "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
+<!ENTITY % all.entities SYSTEM "all-entities.ent">
+%all.entities;
+]>
 <refentry id="vboxmanage-cloudimage" lang="en">
-
   <refentryinfo>
-    <pubdate>$Date: 2020-02-04 11:54:12 +0100 (Tue, 04 Feb 2020) $</pubdate>
+    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
     <title>VBoxManage cloud image</title>
   </refentryinfo>
 
@@ -35,51 +48,51 @@
   <refsynopsisdiv>
     <cmdsynopsis id="synopsis-vboxmanage-cloudimage-create" sepchar=" "> <!-- The 'id' is mandatory and must start with 'synopsis-'. -->
       <command>VBoxManage cloud</command>
-        <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-        <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-        <arg choice="plain" rep="norepeat">image</arg>
-        <arg choice="plain" rep="norepeat">create</arg>
-        <arg choice="req" rep="norepeat">--display-name=<replaceable>name</replaceable></arg>
-        <arg rep="norepeat">--bucket-name=<replaceable>name</replaceable></arg>
-        <arg rep="norepeat">--object-name=<replaceable>name</replaceable></arg>
-        <arg rep="norepeat">--instance-id=<replaceable>unique id</replaceable></arg>
+        <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+        <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+        <arg choice="plain">image</arg>
+        <arg choice="plain">create</arg>
+        <arg choice="req">--display-name=<replaceable>name</replaceable></arg>
+        <arg>--bucket-name=<replaceable>name</replaceable></arg>
+        <arg>--object-name=<replaceable>name</replaceable></arg>
+        <arg>--instance-id=<replaceable>unique id</replaceable></arg>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-cloudimage-info" sepchar=" ">
       <command>VBoxManage cloud</command>
-      <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-      <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-      <arg choice="plain" rep="norepeat">image</arg>
-      <arg choice="plain" rep="norepeat">info</arg>
-      <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+      <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+      <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+      <arg choice="plain">image</arg>
+      <arg choice="plain">info</arg>
+      <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-cloudimage-delete" sepchar=" ">
       <command>VBoxManage cloud</command>
-      <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-      <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-      <arg choice="plain" rep="norepeat">image</arg>
-      <arg choice="plain" rep="norepeat">delete</arg>
-      <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
+      <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+      <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+      <arg choice="plain">image</arg>
+      <arg choice="plain">delete</arg>
+      <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-cloudimage-import" sepchar=" ">
       <command>VBoxManage cloud</command>
-      <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-      <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-      <arg choice="plain" rep="norepeat">image</arg>
-      <arg choice="plain" rep="norepeat">import</arg>
-      <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
-      <arg rep="norepeat">--bucket-name=<replaceable>name</replaceable></arg>
-      <arg rep="norepeat">--object-name=<replaceable>name</replaceable></arg>
+      <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+      <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+      <arg choice="plain">image</arg>
+      <arg choice="plain">import</arg>
+      <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
+      <arg>--bucket-name=<replaceable>name</replaceable></arg>
+      <arg>--object-name=<replaceable>name</replaceable></arg>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-cloudimage-export" sepchar=" ">
       <command>VBoxManage cloud</command>
-      <arg choice="req" rep="norepeat">--provider=<replaceable>name</replaceable></arg>
-      <arg choice="req" rep="norepeat">--profile=<replaceable>name</replaceable></arg>
-      <arg choice="plain" rep="norepeat">image</arg>
-      <arg choice="plain" rep="norepeat">export</arg>
-      <arg choice="req" rep="norepeat">--id=<replaceable>unique id</replaceable></arg>
-      <arg choice="req" rep="norepeat">--display-name=<replaceable>name</replaceable></arg>
-      <arg rep="norepeat">--bucket-name=<replaceable>name</replaceable></arg>
-      <arg rep="norepeat">--object-name=<replaceable>name</replaceable></arg>
+      <arg choice="req">--provider=<replaceable>name</replaceable></arg>
+      <arg choice="req">--profile=<replaceable>name</replaceable></arg>
+      <arg choice="plain">image</arg>
+      <arg choice="plain">export</arg>
+      <arg choice="req">--id=<replaceable>unique id</replaceable></arg>
+      <arg choice="req">--display-name=<replaceable>name</replaceable></arg>
+      <arg>--bucket-name=<replaceable>name</replaceable></arg>
+      <arg>--object-name=<replaceable>name</replaceable></arg>
     </cmdsynopsis>
   </refsynopsisdiv>
 

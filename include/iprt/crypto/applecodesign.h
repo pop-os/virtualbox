@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_crypto_applecodesign_h
@@ -38,6 +48,10 @@
  * @{
  */
 
+/** Apple developer ID for iPhone application software development signing. */
+#define RTCR_APPLE_CS_DEVID_IPHONE_SW_DEV_OID           "1.2.840.113635.100.6.1.2"
+/** Apple developer ID for Mac application software development signing. */
+#define RTCR_APPLE_CS_DEVID_MAC_SW_DEV_OID              "1.2.840.113635.100.6.1.12"
 /** Apple developer ID for application signing. */
 #define RTCR_APPLE_CS_DEVID_APPLICATION_OID             "1.2.840.113635.100.6.1.13"
 /** Apple developer ID for installer signing. */
@@ -251,7 +265,7 @@ RTDECL(int) RTCrAppleCsInit(PRTCRAPLCS pDesc, void const *pvBlob, size_t cbBlob,
  * @param   cb          Number of bytes to digest.
  * @param   pvUser      User argument.
  */
-typedef DECLCALLBACK(int) FNRTCRAPPLECSDIGESTAREA(RTCRDIGEST hDigest, size_t off, size_t cb, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNRTCRAPPLECSDIGESTAREA,(RTCRDIGEST hDigest, size_t off, size_t cb, void *pvUser));
 /** Pointer to a image digest callback. */
 typedef FNRTCRAPPLECSDIGESTAREA *PFNRTCRAPPLECSDIGESTAREA;
 

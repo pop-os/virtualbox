@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -478,7 +478,7 @@ DECLINLINE(size_t) vmmdevGetMousePointerReqSize(uint32_t width, uint32_t height)
     size_t cbBase = RT_UOFFSETOF(VMMDevReqMousePointer, pointerData[0]);
     size_t cbMask = (width + 7) / 8 * height;
     size_t cbArgb = width * height * 4;
-    return RT_MAX(cbBase + ((cbMask + 3) & ~3) + cbArgb,
+    return RT_MAX(cbBase + ((cbMask + 3) & ~(size_t)3) + cbArgb,
                   sizeof(VMMDevReqMousePointer));
 }
 

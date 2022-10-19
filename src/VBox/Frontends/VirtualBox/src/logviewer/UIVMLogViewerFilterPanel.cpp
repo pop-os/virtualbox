@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -26,6 +36,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPlainTextEdit>
+#include <QRegularExpression>
 #include <QTextCursor>
 #include <QRadioButton>
 #include <QScrollArea>
@@ -67,12 +78,12 @@ public:
 protected:
 
     /* Delete mouseDoubleClick and mouseMoveEvent implementations of the base class */
-    virtual void        mouseDoubleClickEvent(QMouseEvent *) /* override */{}
-    virtual void        mouseMoveEvent(QMouseEvent *) /* override */{}
+    virtual void        mouseDoubleClickEvent(QMouseEvent *) RT_OVERRIDE {}
+    virtual void        mouseMoveEvent(QMouseEvent *) RT_OVERRIDE {}
     /* Override the mousePressEvent to control how selection is done: */
-    virtual void        mousePressEvent(QMouseEvent * event) /* override */;
+    virtual void        mousePressEvent(QMouseEvent * event) RT_OVERRIDE;
     virtual void        mouseReleaseEvent(QMouseEvent *){}
-    virtual void        paintEvent(QPaintEvent *event) /* override */;
+    virtual void        paintEvent(QPaintEvent *event) RT_OVERRIDE;
 
 private slots:
 
@@ -108,7 +119,11 @@ UIVMFilterLineEdit::UIVMFilterLineEdit(QWidget *parent /*= 0*/)
     createButtons();
     /** Try to guess the width of the space between filter terms so that remove button
         we display when a term is selected does not hide the next/previous word: */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int spaceWidth = fontMetrics().horizontalAdvance(' ');
+#else
     int spaceWidth = fontMetrics().width(' ');
+#endif
     if (spaceWidth != 0)
         m_iTrailingSpaceCount = (m_iRemoveTermButtonSize / spaceWidth) + 1;
 }
@@ -161,7 +176,11 @@ void UIVMFilterLineEdit::paintEvent(QPaintEvent *event)
         //int deltaHeight = 0.5 * (height() - m_pClearAllButton->height());
         m_pRemoveTermButton->show();
         int buttonSize = m_iRemoveTermButtonSize;
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+        int charWidth = fontMetrics().horizontalAdvance('x');
+#else
         int charWidth = fontMetrics().width('x');
+#endif
 #ifdef VBOX_WS_MAC
         int buttonLeft = cursorRect().left() + 1;
 #else
@@ -227,11 +246,11 @@ void UIVMFilterLineEdit::createButtons()
             m_pClearAllButton->setFixedSize(sh);
         }
     }
-    if (!m_pRemoveTermButton && !m_pClearAllButton)
+    if (m_pRemoveTermButton && m_pClearAllButton)
         setMinimumHeight(qMax(m_pRemoveTermButton->minimumHeight(), m_pClearAllButton->minimumHeight()));
-    else if (!m_pRemoveTermButton)
+    else if (m_pRemoveTermButton)
         setMinimumHeight(m_pRemoveTermButton->minimumHeight());
-    else if (!m_pClearAllButton)
+    else if (m_pClearAllButton)
         setMinimumHeight(m_pClearAllButton->minimumHeight());
 }
 
@@ -263,11 +282,14 @@ QString UIVMLogViewerFilterPanel::panelName() const
     return "FilterPanel";
 }
 
-void UIVMLogViewerFilterPanel::applyFilter(const int iCurrentIndex /* = 0 */)
+void UIVMLogViewerFilterPanel::applyFilter()
 {
-    Q_UNUSED(iCurrentIndex);
-    filter();
+    if (isVisible())
+        filter();
+    else
+        resetFiltering();
     retranslateUi();
+    emit sigFilterApplied();
 }
 
 void UIVMLogViewerFilterPanel::filter()
@@ -281,16 +303,6 @@ void UIVMLogViewerFilterPanel::filter()
     UIVMLogPage *logPage = viewer()->currentLogPage();
     if (!logPage)
         return;
-    /* Check if we have to reapply the filter. If not
-       restore line counts etc. and return */
-    if (!logPage->shouldFilterBeApplied(m_filterTermSet, (int)m_eFilterOperatorButton))
-    {
-        m_iFilteredLineCount = logPage->filteredLineCount();
-        m_iUnfilteredLineCount = logPage->unfilteredLineCount();
-        emit sigFilterApplied(!logPage->isFiltered() /* isOriginalLog */);
-        return;
-    }
-
 
     const QString* originalLogString = logString();
     m_iUnfilteredLineCount = 0;
@@ -304,14 +316,7 @@ void UIVMLogViewerFilterPanel::filter()
     m_iUnfilteredLineCount = stringLines.size();
 
     if (m_filterTermSet.empty())
-    {
-        document->setPlainText(*originalLogString);
-        emit sigFilterApplied(true /* isOriginalLog */);
-        m_iFilteredLineCount = document->lineCount();
-        logPage->setFilterParameters(m_filterTermSet, (int)m_eFilterOperatorButton,
-                                     m_iFilteredLineCount, m_iUnfilteredLineCount);
-        return;
-    }
+        resetFiltering();
 
     /* Prepare filter-data: */
     QString strFilteredText;
@@ -335,12 +340,21 @@ void UIVMLogViewerFilterPanel::filter()
     QTextCursor cursor = pCurrentTextEdit->textCursor();
     cursor.movePosition(QTextCursor::End, QTextCursor::MoveAnchor);
     pCurrentTextEdit->setTextCursor(cursor);
-
-    emit sigFilterApplied(false /* isOriginalLog */);
-    logPage->setFilterParameters(m_filterTermSet, (int)m_eFilterOperatorButton,
-                                 m_iFilteredLineCount, m_iUnfilteredLineCount);
+    logPage->scrollToEnd();
 }
 
+void UIVMLogViewerFilterPanel::resetFiltering()
+{
+    UIVMLogPage *logPage = viewer()->currentLogPage();
+    QTextDocument *document = textDocument();
+    if (!logPage || !document)
+        return;
+
+    document->setPlainText(logPage->logString());
+    m_iFilteredLineCount = document->lineCount();
+    m_iUnfilteredLineCount = document->lineCount();
+    logPage->scrollToEnd();
+}
 
 bool UIVMLogViewerFilterPanel::applyFilterTermsToString(const QString& string)
 {
@@ -350,10 +364,12 @@ bool UIVMLogViewerFilterPanel::applyFilterTermsToString(const QString& string)
     for (QSet<QString>::const_iterator iterator = m_filterTermSet.begin();
         iterator != m_filterTermSet.end(); ++iterator)
     {
-        const QString& filterTerm = *iterator;
-        const QRegExp rxFilterExp(filterTerm, Qt::CaseInsensitive);
         /* Disregard empty and invalid filter terms: */
-        if (rxFilterExp.isEmpty() || !rxFilterExp.isValid())
+        const QString& filterTerm = *iterator;
+        if (filterTerm.isEmpty())
+            continue;
+        const QRegularExpression rxFilterExp(filterTerm, QRegularExpression::CaseInsensitiveOption);
+        if (!rxFilterExp.isValid())
             continue;
 
         if (string.contains(rxFilterExp))
@@ -406,8 +422,9 @@ void UIVMLogViewerFilterPanel::sltClearFilterTerms()
         m_pFilterTermsLineEdit->clearAll();
 }
 
-void UIVMLogViewerFilterPanel::sltOperatorButtonChanged(int buttonId)
+void UIVMLogViewerFilterPanel::sltOperatorButtonChanged(QAbstractButton *pButton)
 {
+    int buttonId = m_pButtonGroup->id(pButton);
     if (buttonId < 0 || buttonId >= ButtonEnd)
         return;
     m_eFilterOperatorButton = static_cast<FilterOperatorButton>(buttonId);
@@ -546,7 +563,7 @@ void UIVMLogViewerFilterPanel::prepareRadioButtonGroup()
 void UIVMLogViewerFilterPanel::prepareConnections()
 {
     connect(m_pAddFilterTermButton, &QIToolButton::clicked, this,  &UIVMLogViewerFilterPanel::sltAddFilterTerm);
-    connect(m_pButtonGroup, static_cast<void (QButtonGroup::*)(int)>(&QButtonGroup::buttonClicked),
+    connect(m_pButtonGroup, static_cast<void (QButtonGroup::*)(QAbstractButton *)>(&QButtonGroup::buttonClicked),
             this, &UIVMLogViewerFilterPanel::sltOperatorButtonChanged);
     connect(m_pFilterComboBox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
             this, &UIVMLogViewerFilterPanel::sltAddFilterTerm);
@@ -612,6 +629,13 @@ void UIVMLogViewerFilterPanel::showEvent(QShowEvent *pEvent)
     UIVMLogViewerPanel::showEvent(pEvent);
     /* Set focus to combo-box: */
     m_pFilterComboBox->setFocus();
+    applyFilter();
+}
+
+void UIVMLogViewerFilterPanel::hideEvent(QHideEvent *pEvent)
+{
+    UIVMLogViewerPanel::hideEvent(pEvent);
+    applyFilter();
 }
 
 #include "UIVMLogViewerFilterPanel.moc"

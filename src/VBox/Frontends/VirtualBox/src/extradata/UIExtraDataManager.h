@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extradata_UIExtraDataManager_h
@@ -65,6 +75,11 @@ signals:
     /** Notifies about extra-data change. */
     void sigExtraDataChange(const QUuid &uID, const QString &strKey, const QString &strValue);
 
+    /** Notifies about notification-center alignment change. */
+    void sigNotificationCenterAlignmentChange();
+    /** Notifies about notification-center order change. */
+    void sigNotificationCenterOrderChange();
+
     /** Notifies about GUI language change. */
     void sigLanguageChange(QString strLanguage);
 
@@ -75,10 +90,21 @@ signals:
     /** Notifies about Runtime UI host-key combination change. */
     void sigRuntimeUIHostKeyCombinationChange();
 
+    /** Notifies about Cloud Profile Manager restriction change. */
+    void sigCloudProfileManagerRestrictionChange();
+
+    /** Notifies about Cloud Console Manager data change. */
+    void sigCloudConsoleManagerDataChange();
+    /** Notifies about Cloud Console Manager restriction change. */
+    void sigCloudConsoleManagerRestrictionChange();
+
     /** Notifies about VirtualBox Manager / Details pane categories change. */
     void sigDetailsCategoriesChange();
     /** Notifies about VirtualBox Manager / Details pane options change. */
     void sigDetailsOptionsChange(DetailsElementType enmType);
+
+    /** Notifies about visual state change. */
+    void sigVisualStateChange(const QUuid &uMachineID);
 
     /** Notifies about menu-bar configuration change. */
     void sigMenuBarConfigurationChange(const QUuid &uMachineID);
@@ -103,6 +129,11 @@ signals:
     /** Mac OS X: Notifies about 'dock icon overlay' appearance change. */
     void sigDockIconOverlayAppearanceChange(bool fEnabled);
 #endif /* VBOX_WS_MAC */
+
+#if defined (VBOX_WS_X11) || defined (VBOX_WS_WIN)
+    /* Is emitted when host screen saver inhibition state changes. */
+    void sigDisableHostScreenSaverStateChange(bool fDisable);
+#endif
 
 public:
 
@@ -146,13 +177,15 @@ public:
 
     /** @name General
       * @{ */
-        /** Returns event handling type. */
-        EventHandlingType eventHandlingType();
-
         /** Returns a list of restricted dialogs. */
         UIExtraDataMetaDefs::DialogType restrictedDialogTypes(const QUuid &uID);
         /** Defines a list of restricted dialogs. */
         void setRestrictedDialogTypes(UIExtraDataMetaDefs::DialogType enmTypes, const QUuid &uID);
+
+        /** Returns color theme type. */
+        UIColorThemeType colorTheme();
+        /** Defines color theme @a enmType. */
+        void setColorTheme(const UIColorThemeType &enmType);
     /** @} */
 
     /** @name Messaging
@@ -165,6 +198,23 @@ public:
         /** Returns the list of messages for the Message/Popup center frameworks with inverted check-box state. */
         QStringList messagesWithInvertedOption();
 
+        /** Returns whether successfull notification-progresses should NOT close automatically. */
+        bool keepSuccessfullNotificationProgresses();
+        /** Defines whether successfull notification-progresses should NOT close (@a fKeep) automatically. */
+        void setKeepSuccessfullNotificationProgresses(bool fKeep);
+
+        /** Returns notification-center alignment. */
+        Qt::Alignment notificationCenterAlignment();
+        /** Defines notification-progresses @a enmOrder. */
+        void setNotificationCenterAlignment(Qt::Alignment enmOrder);
+
+        /** Returns notification-center order. */
+        Qt::SortOrder notificationCenterOrder();
+        /** Defines notification-progresses @a enmOrder. */
+        void setNotificationCenterOrder(Qt::SortOrder enmOrder);
+
+        /** Returns whether BETA build label should be hidden. */
+        bool preventBetaBuildLavel();
 #if !defined(VBOX_BLEEDING_EDGE) && !defined(DEBUG)
         /** Returns version for which user wants to prevent BETA build warning. */
         QString preventBetaBuildWarningForVersion();
@@ -206,14 +256,6 @@ public:
         QList<MachineSettingsPageType> restrictedMachineSettingsPages(const QUuid &uID);
     /** @} */
 
-    /** @name Settings: General
-      * @{ */
-        /** Returns whether the host screen-saver should be disabled. */
-        bool hostScreenSaverDisabled();
-        /** Defines whether the host screen-saver should be @a fDisabled. */
-        void setHostScreenSaverDisabled(bool fDisabled);
-    /** @} */
-
     /** @name Settings: Language
       * @{ */
         /** Returns the GUI language ID. */
@@ -225,9 +267,9 @@ public:
     /** @name Settings: Display
       * @{ */
         /** Returns maximum guest-screen resolution policy. */
-        MaxGuestResolutionPolicy maxGuestResolutionPolicy();
+        MaximumGuestScreenSizePolicy maxGuestResolutionPolicy();
         /** Defines maximum guest-screen resolution @a enmPolicy or @a resolution itself for Fixed policy. */
-        void setMaxGuestScreenResolution(MaxGuestResolutionPolicy enmPolicy, const QSize resolution = QSize());
+        void setMaxGuestScreenResolution(MaximumGuestScreenSizePolicy enmPolicy, const QSize resolution = QSize());
         /** Returns maximum guest-screen resolution for fixed policy. */
         QSize maxGuestResolutionForPolicyFixed();
         /** Defines maximum guest-screen @a resolution for fixed policy. */
@@ -237,6 +279,10 @@ public:
         bool activateHoveredMachineWindow();
         /** Defines whether hovered machine-window should be @a fActivated. */
         void setActivateHoveredMachineWindow(bool fActivate);
+        /* Return whether host screen saver is disabled when a vm is running. */
+        bool disableHostScreenSaver();
+        /* Sets whether host screen saver is disabled when a vm is running. */
+        void setDisableHostScreenSaver(bool fActivate);
     /** @} */
 
     /** @name Settings: Keyboard
@@ -307,6 +353,12 @@ public:
         QString visoCreatorRecentFolder();
         /** Defines recent folder for VISO creation content as @a strValue. */
         void setVISOCreatorRecentFolder(const QString &strValue);
+        /** Returns viso creator geometry using @a pWidget as the hint. */
+        QRect visoCreatorDialogGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry);
+        /** Set viso creator geometry. */
+        void setVisoCreatorDialogGeometry(const QRect &geometry, bool fMaximized);
+        /** Returns whether viso creator dialog should be maximized. */
+        bool visoCreatorDialogShouldBeMaximized();
     /** @} */
 
     /** @name VirtualBox Manager
@@ -343,12 +395,12 @@ public:
         /** Defines whether selector-window status-bar @a fVisible. */
         void setSelectorWindowStatusBarVisible(bool fVisible);
 
-        /** Clears all the existing selector-window chooser-pane' group definitions. */
-        void clearSelectorWindowGroupsDefinitions();
-        /** Returns selector-window chooser-pane' groups definitions for passed @a strGroupID. */
-        QStringList selectorWindowGroupsDefinitions(const QString &strGroupID);
-        /** Defines selector-window chooser-pane' groups @a definitions for passed @a strGroupID. */
-        void setSelectorWindowGroupsDefinitions(const QString &strGroupID, const QStringList &definitions);
+        /** Returns all the existing selector-window chooser-pane' group definition keys. */
+        QStringList knownMachineGroupDefinitionKeys();
+        /** Returns selector-window chooser-pane' group definitions for passed @a strGroupID. */
+        QStringList machineGroupDefinitions(const QString &strGroupID);
+        /** Defines selector-window chooser-pane' group @a definitions for passed @a strGroupID. */
+        void setMachineGroupDefinitions(const QString &strGroupID, const QStringList &definitions);
 
         /** Returns last-item ID of the item chosen in selector-window chooser-pane. */
         QString selectorWindowLastItemChosen();
@@ -401,10 +453,51 @@ public:
 
     /** @name Cloud Profile Manager
       * @{ */
+        /** Returns Cloud Profile Manager restrictions. */
+        QStringList cloudProfileManagerRestrictions();
+        /** Defines Cloud Profile Manager @a restrictions. */
+        void setCloudProfileManagerRestrictions(const QStringList &restrictions);
+
         /** Returns whether Cloud Profile Manager details expanded. */
         bool cloudProfileManagerDetailsExpanded();
         /** Defines whether Cloud Profile Manager details @a fExpanded. */
         void setCloudProfileManagerDetailsExpanded(bool fExpanded);
+    /** @} */
+
+    /** @name Cloud Console Manager
+      * @{ */
+        /** Returns registered Cloud Console Manager applications. */
+        QStringList cloudConsoleManagerApplications();
+        /** Returns registered Cloud Console Manager profiles for application with @a strId. */
+        QStringList cloudConsoleManagerProfiles(const QString &strId);
+
+        /** Returns definition for Cloud Console Manager application with @a strId. */
+        QString cloudConsoleManagerApplication(const QString &strId);
+        /** Defines @a strDefinition for Cloud Console Manager application with @a strId. */
+        void setCloudConsoleManagerApplication(const QString &strId, const QString &strDefinition);
+
+        /** Returns definition for Cloud Console Manager profile with @a strProfileId for application with @a strApplicationId. */
+        QString cloudConsoleManagerProfile(const QString &strApplicationId, const QString &strProfileId);
+        /** Returns @a strDefinition for Cloud Console Manager profile with @a strProfileId for application with @a strApplicationId. */
+        void setCloudConsoleManagerProfile(const QString &strApplicationId, const QString &strProfileId, const QString &strDefinition);
+
+        /** Returns Cloud Console Manager restrictions. */
+        QStringList cloudConsoleManagerRestrictions();
+        /** Defines Cloud Console Manager @a restrictions. */
+        void setCloudConsoleManagerRestrictions(const QStringList &restrictions);
+
+        /** Returns whether Cloud Console Manager details expanded. */
+        bool cloudConsoleManagerDetailsExpanded();
+        /** Defines whether Cloud Console Manager details @a fExpanded. */
+        void setCloudConsoleManagerDetailsExpanded(bool fExpanded);
+    /** @} */
+
+    /** @name Cloud Console
+      * @{ */
+        /** Returns Cloud Console public key path. */
+        QString cloudConsolePublicKeyPath();
+        /** Defines Cloud Console public key @a strPath. */
+        void setCloudConsolePublicKeyPath(const QString &strPath);
     /** @} */
 
     /** @name Wizards
@@ -426,11 +519,6 @@ public:
         bool machineReconfigurationEnabled(const QUuid &uID);
         /** Returns whether machine snapshot operations enabled. */
         bool machineSnapshotOperationsEnabled(const QUuid &uID);
-
-        /** Returns whether this machine is first time started. */
-        bool machineFirstTimeStarted(const QUuid &uID);
-        /** Returns whether this machine is fFirstTimeStarted. */
-        void setMachineFirstTimeStarted(bool fFirstTimeStarted, const QUuid &uID);
 
         /** Except Mac OS X: Returns redefined machine-window icon names. */
         QStringList machineWindowIconNames(const QUuid &uID);
@@ -547,19 +635,6 @@ public:
 
         /** Returns whether automatic mounting/unmounting of guest-screens enabled. */
         bool autoMountGuestScreensEnabled(const QUuid &uID);
-
-#ifdef VBOX_WITH_VIDEOHWACCEL
-        /** Returns whether 2D acceleration should use linear sretch. */
-        bool useLinearStretch(const QUuid &uID);
-        /** Returns whether 2D acceleration should use YV12 pixel format. */
-        bool usePixelFormatYV12(const QUuid &uID);
-        /** Returns whether 2D acceleration should use UYVY pixel format. */
-        bool usePixelFormatUYVY(const QUuid &uID);
-        /** Returns whether 2D acceleration should use YUY2 pixel format. */
-        bool usePixelFormatYUY2(const QUuid &uID);
-        /** Returns whether 2D acceleration should use AYUV pixel format. */
-        bool usePixelFormatAYUV(const QUuid &uID);
-#endif /* VBOX_WITH_VIDEOHWACCEL */
 
 #ifndef VBOX_WS_MAC
         /** Returns whether mini-toolbar is enabled for full and seamless screens. */
@@ -706,6 +781,9 @@ public:
 
         /** Returns machine close hook script name as simple string. */
         QString machineCloseHookScript(const QUuid &uID);
+
+        /** Returns whether machine should discard state on power off. */
+        bool discardStateOnPowerOff(const QUuid &uID);
     /** @} */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -754,6 +832,34 @@ public:
         QFont logViewerFont();
         void setLogViewerVisiblePanels(const QStringList &panelNameList);
         QStringList logViewerVisiblePanels();
+    /** @} */
+
+    /** @name Help Browser
+      * @{ */
+        void setHelpBrowserLastUrlList(const QStringList &urlList);
+        QStringList helpBrowserLastUrlList();
+        void setHelpBrowserZoomPercentage(int iZoomPercentage);
+        int helpBrowserZoomPercentage();
+        QRect helpBrowserDialogGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry);
+        void setHelpBrowserDialogGeometry(const QRect &geometry, bool fMaximized);
+        bool helpBrowserDialogShouldBeMaximized();
+        void setHelpBrowserBookmarks(const QStringList &bookmarks);
+        QStringList helpBrowserBookmarks();
+    /** @} */
+
+    /** @name Manager UI: VM Activity Overview
+      * @{ */
+        void setVMActivityOverviewHiddenColumnList(const QStringList &hiddenColumnList);
+        QStringList VMActivityOverviewHiddenColumnList();
+        bool VMActivityOverviewShowAllMachines();
+        void setVMActivityOverviewShowAllMachines(bool fShow);
+    /** @} */
+
+    /** @name Medium Selector
+      * @{ */
+        QRect mediumSelectorDialogGeometry(QWidget *pWidget, QWidget *pParentWidget, const QRect &defaultGeometry);
+        void setMediumSelectorDialogGeometry(const QRect &geometry, bool fMaximized);
+        bool mediumSelectorDialogShouldBeMaximized();
     /** @} */
 
 private slots:
@@ -826,6 +932,9 @@ private:
       * @param  defaultGeometry  Brings the default geometry which should be used to
       *                          calculate resulting geometry if saved was not found. */
     QRect dialogGeometry(const QString &strKey, QWidget *pWidget, QWidget *pParentWidget = 0, const QRect &defaultGeometry = QRect());
+    /** Returns true if the dialog should be maximized.
+      * @param  strKey           Brings geometry extra-data key of particular dialog. */
+    bool dialogShouldBeMaximized(const QString &strKey);
 
     /** Returns string consisting of @a strBase appended with @a uScreenIndex for the *non-primary* screen-index.
       * If @a fSameRuleForPrimary is 'true' same rule will be used for *primary* screen-index. Used for storing per-screen extra-data. */

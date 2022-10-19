@@ -5,7 +5,7 @@
             is added to the mDiscoveredList. The Before, and After Depex are
             pre-processed as drivers are added to the mDiscoveredList. If an Apriori
             file exists in the FV those drivers are addeded to the
-            mScheduledQueue. The mFvHandleList is used to make sure a
+            mScheduledQueue. The mFwVolList is used to make sure a
             FV is only processed once.
 
   Step #2 - Dispatch. Remove driver from the mScheduledQueue and load and
@@ -15,9 +15,10 @@
 
   Step #3 - Adding to the mScheduledQueue requires that you process Before
             and After dependencies. This is done recursively as the call to add
-            to the mScheduledQueue checks for Before and recursively adds
-            all Befores. It then addes the item that was passed in and then
-            processess the After dependecies by recursively calling the routine.
+            to the mScheduledQueue checks for Before Depexes and recursively
+            adds all Before Depexes. It then adds the item that was passed in
+            and then processess the After dependencies by recursively calling
+            the routine.
 
   Dispatcher Rules:
   The rules for the dispatcher are similar to the DXE dispatcher.
@@ -29,7 +30,7 @@
 
   Copyright (c) 2014, Hewlett-Packard Development Company, L.P.
   Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
-  Copyright (c) 2016 - 2018, ARM Limited. All rights reserved.<BR>
+  Copyright (c) 2016 - 2021, Arm Limited. All rights reserved.<BR>
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -40,13 +41,13 @@
 //
 // MM Dispatcher Data structures
 //
-#define KNOWN_HANDLE_SIGNATURE  SIGNATURE_32('k','n','o','w')
+#define KNOWN_FWVOL_SIGNATURE  SIGNATURE_32('k','n','o','w')
 
 typedef struct {
-  UINTN           Signature;
-  LIST_ENTRY      Link;         // mFvHandleList
-  EFI_HANDLE      Handle;
-} KNOWN_HANDLE;
+  UINTN                      Signature;
+  LIST_ENTRY                 Link;         // mFwVolList
+  EFI_FIRMWARE_VOLUME_HEADER *FwVolHeader;
+} KNOWN_FWVOL;
 
 //
 // Function Prototypes
@@ -60,8 +61,8 @@ MmCoreFfsFindMmDriver (
 /**
   Insert InsertedDriverEntry onto the mScheduledQueue. To do this you
   must add any driver with a before dependency on InsertedDriverEntry first.
-  You do this by recursively calling this routine. After all the Befores are
-  processed you can add InsertedDriverEntry to the mScheduledQueue.
+  You do this by recursively calling this routine. After all the Before Depexes
+  are processed you can add InsertedDriverEntry to the mScheduledQueue.
   Then you can add any driver with an After dependency on InsertedDriverEntry
   by recursively calling this routine.
 
@@ -86,12 +87,13 @@ LIST_ENTRY  mDiscoveredList = INITIALIZE_LIST_HEAD_VARIABLE (mDiscoveredList);
 LIST_ENTRY  mScheduledQueue = INITIALIZE_LIST_HEAD_VARIABLE (mScheduledQueue);
 
 //
-// List of handles who's Fv's have been parsed and added to the mFwDriverList.
+// List of firmware volume headers whose containing firmware volumes have been
+// parsed and added to the mFwDriverList.
 //
-LIST_ENTRY  mFvHandleList = INITIALIZE_LIST_HEAD_VARIABLE (mFvHandleList);
+LIST_ENTRY  mFwVolList = INITIALIZE_LIST_HEAD_VARIABLE (mFwVolList);
 
 //
-// Flag for the MM Dispacher.  TRUE if dispatcher is execuing.
+// Flag for the MM Dispacher.  TRUE if dispatcher is executing.
 //
 BOOLEAN  gDispatcherRunning = FALSE;
 
@@ -109,7 +111,7 @@ GLOBAL_REMOVE_IF_UNREFERENCED    UINT64                *mMmCodeMemoryRangeUsageB
 
 /**
   To check memory usage bit map array to figure out if the memory range in which the image will be loaded
-  is available or not. If memory range is avaliable, the function will mark the correponding bits to 1
+  is available or not. If memory range is avaliable, the function will mark the corresponding bits to 1
   which indicates the memory range is used. The function is only invoked when load modules at fixed address
   feature is enabled.
 
@@ -162,7 +164,7 @@ CheckAndMarkFixLoadingMemoryUsageBitMap (
   }
 
   //
-  // Test if the memory is avalaible or not.
+  // Test if the memory is available or not.
   //
   BaseOffsetPageNumber = (UINTN)EFI_SIZE_TO_PAGES ((UINT32)(ImageBase - MmCodeBase));
   TopOffsetPageNumber  = (UINTN)EFI_SIZE_TO_PAGES ((UINT32)(ImageBase + ImageSize - MmCodeBase));
@@ -327,7 +329,7 @@ MmLoadImage (
   ImageContext.ImageAddress = (EFI_PHYSICAL_ADDRESS)DstBuffer;
 
   //
-  // Align buffer on section boundry
+  // Align buffer on section boundary
   //
   ImageContext.ImageAddress += ImageContext.SectionAlignment - 1;
   ImageContext.ImageAddress &= ~((EFI_PHYSICAL_ADDRESS)(ImageContext.SectionAlignment - 1));
@@ -430,7 +432,7 @@ MmLoadImage (
     //
     // Copy the PDB file name to our temporary string, and replace .pdb with .efi
     // The PDB file name is limited in the range of 0~255.
-    // If the length is bigger than 255, trim the redudant characters to avoid overflow in array boundary.
+    // If the length is bigger than 255, trim the redundant characters to avoid overflow in array boundary.
     //
     for (Index = 0; Index < sizeof (EfiFileName) - 4; Index++) {
       EfiFileName[Index] = ImageContext.PdbPointer[Index + StartIndex];
@@ -603,7 +605,7 @@ MmDispatcher (
 
       //
       // Load the MM Driver image into memory. If the Driver was transitioned from
-      // Untrused to Scheduled it would have already been loaded so we may need to
+      // Untrusted to Scheduled it would have already been loaded so we may need to
       // skip the LoadImage
       //
       if (DriverEntry->ImageHandle == NULL) {
@@ -702,8 +704,8 @@ MmDispatcher (
 /**
   Insert InsertedDriverEntry onto the mScheduledQueue. To do this you
   must add any driver with a before dependency on InsertedDriverEntry first.
-  You do this by recursively calling this routine. After all the Befores are
-  processed you can add InsertedDriverEntry to the mScheduledQueue.
+  You do this by recursively calling this routine. After all the Before Depexes
+  are processed you can add InsertedDriverEntry to the mScheduledQueue.
   Then you can add any driver with an After dependency on InsertedDriverEntry
   by recursively calling this routine.
 
@@ -769,26 +771,30 @@ MmInsertOnScheduledQueueWhileProcessingBeforeAndAfter (
 }
 
 /**
-  Return TRUE if the Fv has been processed, FALSE if not.
+  Return TRUE if the firmware volume has been processed, FALSE if not.
 
-  @param  FvHandle              The handle of a FV that's being tested
+  @param  FwVolHeader           The header of the firmware volume that's being
+                                tested.
 
-  @retval TRUE                  Fv protocol on FvHandle has been processed
-  @retval FALSE                 Fv protocol on FvHandle has not yet been
-                                processed
+  @retval TRUE                  The firmware volume denoted by FwVolHeader has
+                                been processed
+  @retval FALSE                 The firmware volume denoted by FwVolHeader has
+                                not yet been processed
 
 **/
 BOOLEAN
 FvHasBeenProcessed (
-  IN EFI_HANDLE  FvHandle
+  IN EFI_FIRMWARE_VOLUME_HEADER *FwVolHeader
   )
 {
   LIST_ENTRY    *Link;
-  KNOWN_HANDLE  *KnownHandle;
+  KNOWN_FWVOL   *KnownFwVol;
 
-  for (Link = mFvHandleList.ForwardLink; Link != &mFvHandleList; Link = Link->ForwardLink) {
-    KnownHandle = CR (Link, KNOWN_HANDLE, Link, KNOWN_HANDLE_SIGNATURE);
-    if (KnownHandle->Handle == FvHandle) {
+  for (Link = mFwVolList.ForwardLink;
+       Link != &mFwVolList;
+       Link = Link->ForwardLink) {
+    KnownFwVol = CR (Link, KNOWN_FWVOL, Link, KNOWN_FWVOL_SIGNATURE);
+    if (KnownFwVol->FwVolHeader == FwVolHeader) {
       return TRUE;
     }
   }
@@ -796,58 +802,55 @@ FvHasBeenProcessed (
 }
 
 /**
-  Remember that Fv protocol on FvHandle has had it's drivers placed on the
-  mDiscoveredList. This fucntion adds entries on the mFvHandleList. Items are
-  never removed/freed from the mFvHandleList.
+  Remember that the firmware volume denoted by FwVolHeader has had its drivers
+  placed on mDiscoveredList. This function adds entries to mFwVolList. Items
+  are never removed/freed from mFwVolList.
 
-  @param  FvHandle              The handle of a FV that has been processed
+  @param  FwVolHeader           The header of the firmware volume that's being
+                                processed.
 
 **/
 VOID
-FvIsBeingProcesssed (
-  IN EFI_HANDLE  FvHandle
+FvIsBeingProcessed (
+  IN EFI_FIRMWARE_VOLUME_HEADER *FwVolHeader
   )
 {
-  KNOWN_HANDLE  *KnownHandle;
+  KNOWN_FWVOL   *KnownFwVol;
 
-  DEBUG ((DEBUG_INFO, "FvIsBeingProcesssed - 0x%08x\n", FvHandle));
+  DEBUG ((DEBUG_INFO, "FvIsBeingProcessed - 0x%08x\n", FwVolHeader));
 
-  KnownHandle = AllocatePool (sizeof (KNOWN_HANDLE));
-  ASSERT (KnownHandle != NULL);
+  KnownFwVol = AllocatePool (sizeof (KNOWN_FWVOL));
+  ASSERT (KnownFwVol != NULL);
 
-  KnownHandle->Signature = KNOWN_HANDLE_SIGNATURE;
-  KnownHandle->Handle = FvHandle;
-  InsertTailList (&mFvHandleList, &KnownHandle->Link);
+  KnownFwVol->Signature = KNOWN_FWVOL_SIGNATURE;
+  KnownFwVol->FwVolHeader = FwVolHeader;
+  InsertTailList (&mFwVolList, &KnownFwVol->Link);
 }
 
 /**
   Add an entry to the mDiscoveredList. Allocate memory to store the DriverEntry,
-  and initilize any state variables. Read the Depex from the FV and store it
+  and initialise any state variables. Read the Depex from the FV and store it
   in DriverEntry. Pre-process the Depex to set the Before and After state.
-  The Discovered list is never free'ed and contains booleans that represent the
+  The Discovered list is never freed and contains booleans that represent the
   other possible MM driver states.
 
-  @param  Fv                    Fv protocol, needed to read Depex info out of
-                                FLASH.
-  @param  FvHandle              Handle for Fv, needed in the
-                                EFI_MM_DRIVER_ENTRY so that the PE image can be
-                                read out of the FV at a later time.
-  @param  DriverName            Name of driver to add to mDiscoveredList.
+  @param [in]   FwVolHeader     Pointer to the formware volume header.
+  @param [in]   Pe32Data        Pointer to the PE data.
+  @param [in]   Pe32DataSize    Size of the PE data.
+  @param [in]   Depex           Pointer to the Depex info.
+  @param [in]   DepexSize       Size of the Depex info.
+  @param [in]   DriverName      Name of driver to add to mDiscoveredList.
 
   @retval EFI_SUCCESS           If driver was added to the mDiscoveredList.
-  @retval EFI_ALREADY_STARTED   The driver has already been started. Only one
-                                DriverName may be active in the system at any one
-                                time.
-
 **/
 EFI_STATUS
 MmAddToDriverList (
-  IN EFI_HANDLE   FvHandle,
-  IN VOID         *Pe32Data,
-  IN UINTN        Pe32DataSize,
-  IN VOID         *Depex,
-  IN UINTN        DepexSize,
-  IN EFI_GUID     *DriverName
+  IN EFI_FIRMWARE_VOLUME_HEADER *FwVolHeader,
+  IN VOID                       *Pe32Data,
+  IN UINTN                      Pe32DataSize,
+  IN VOID                       *Depex,
+  IN UINTN                      DepexSize,
+  IN EFI_GUID                   *DriverName
   )
 {
   EFI_MM_DRIVER_ENTRY  *DriverEntry;
@@ -863,7 +866,7 @@ MmAddToDriverList (
 
   DriverEntry->Signature        = EFI_MM_DRIVER_ENTRY_SIGNATURE;
   CopyGuid (&DriverEntry->FileName, DriverName);
-  DriverEntry->FvHandle         = FvHandle;
+  DriverEntry->FwVolHeader      = FwVolHeader;
   DriverEntry->Pe32Data         = Pe32Data;
   DriverEntry->Pe32DataSize     = Pe32DataSize;
   DriverEntry->Depex            = Depex;
@@ -879,7 +882,7 @@ MmAddToDriverList (
 
 /**
   Traverse the discovered list for any drivers that were discovered but not loaded
-  because the dependency experessions evaluated to false.
+  because the dependency expressions evaluated to false.
 
 **/
 VOID

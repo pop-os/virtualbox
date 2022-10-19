@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_logviewer_UIVMLogViewerSearchPanel_h
@@ -34,7 +44,6 @@ class QLabel;
 class QWidget;
 class QIToolButton;
 class UISearchLineEdit;
-class UIVMLogViewerSearchField;
 class UIVMLogViewerWidget;
 
 /** UIVMLogViewerPanel extension
@@ -55,23 +64,22 @@ public:
     UIVMLogViewerSearchPanel(QWidget *pParent, UIVMLogViewerWidget *pViewer);
     /** Resets the search position and starts a new search. */
     void refresh();
-    void reset();
     const QVector<float> &matchLocationVector() const;
-    virtual QString panelName() const /* override */;
+    virtual QString panelName() const RT_OVERRIDE;
     /** Returns the number of the matches to the current search. */
     int matchCount() const;
 
 protected:
 
-    virtual void prepareWidgets() /* override */;
-    virtual void prepareConnections() /* override */;
-    virtual void retranslateUi() /* override */;
+    virtual void prepareWidgets() RT_OVERRIDE;
+    virtual void prepareConnections() RT_OVERRIDE;
+    virtual void retranslateUi() RT_OVERRIDE;
     /** Handles Qt key-press @a pEevent. */
-    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
+    virtual void keyPressEvent(QKeyEvent *pEvent) RT_OVERRIDE;
     /** Handles Qt @a pEvent, used for keyboard processing. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
-    virtual void hideEvent(QHideEvent* pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
+    virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
+    virtual void hideEvent(QHideEvent* pEvent) RT_OVERRIDE;
 
 private slots:
 
@@ -95,7 +103,7 @@ private:
       * @param  highlight      if false highlight function is not called
                                thus we avoid calling highlighting for the same string repeatedly. */
     void performSearch(SearchDirection eDirection, bool highlight);
-    void highlightAll(QTextDocument *pDocument, const QString &searchString);
+    void highlightAll(const QString &searchString);
     void findAll(QTextDocument *pDocument, const QString &searchString);
     void selectMatch(int iMatchIndex, const QString &searchString);
     void moveSelection(bool fForward);
@@ -104,6 +112,8 @@ private:
     QTextDocument::FindFlags constructFindFlags(SearchDirection eDirection) const;
     /** Searches the whole document and return the number of matches to the current search term. */
     int countMatches(QTextDocument *pDocument, const QString &searchString) const;
+    void reset();
+
     /** Holds the instance of search-editor we create. */
     UISearchLineEdit *m_pSearchEditor;
 

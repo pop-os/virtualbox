@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2015-2020 Oracle Corporation
+ * Copyright (C) 2015-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_globals_UIDesktopWidgetWatchdog_h
@@ -23,9 +33,10 @@
 
 /* Qt includes: */
 #include <QObject>
+#include <QWindow>
 #ifdef VBOX_WS_X11
-# include <QVector>
 # include <QRect>
+# include <QVector>
 #endif
 
 /* GUI includes: */
@@ -43,7 +54,7 @@ class SHARED_LIBRARY_STUFF UIDesktopWidgetWatchdog : public QObject
     /** Constructs desktop-widget watchdog. */
     UIDesktopWidgetWatchdog();
     /** Destructs desktop-widget watchdog. */
-    ~UIDesktopWidgetWatchdog();
+    virtual ~UIDesktopWidgetWatchdog() /* override final */;
 
 signals:
 
@@ -123,12 +134,34 @@ public:
     /** Returns actual device-pixel-ratio of the host-screen which contains @a pWidget. */
     double devicePixelRatioActual(QWidget *pWidget);
 
+    /** Search position for @a rectangle to make sure it is fully
+      * contained within @a boundRegion, performing resize if allowed. */
+    static QRect normalizeGeometry(const QRect &rectangle,
+                                   const QRegion &boundRegion,
+                                   bool fCanResize = true);
+    /** Ensures that the given rectangle @a rectangle is fully
+      * contained within the region @a boundRegion, performing resize if allowed. */
+    static QRect getNormalized(const QRect &rectangle,
+                               const QRegion &boundRegion,
+                               bool fCanResize = true);
+    /** Aligns the center of @a pWidget with the center
+      * of @a pRelative, performing resize if allowed. */
+    static void centerWidget(QWidget *pWidget,
+                             QWidget *pRelative,
+                             bool fCanResize = true);
+
+    /** Assigns top-level @a pWidget geometry passed as QRect coordinates.
+      * @note  Take into account that this request may fail on X11. */
+    static void setTopLevelGeometry(QWidget *pWidget, int x, int y, int w, int h);
+    /** Assigns top-level @a pWidget geometry passed as @a rect.
+      * @note  Take into account that this request may fail on X11. */
+    static void setTopLevelGeometry(QWidget *pWidget, const QRect &rect);
+
+    /** Activates the specified window with given @a wId. Can @a fSwitchDesktop if requested. */
+    static bool activateWindow(WId wId, bool fSwitchDesktop = true);
+
 private slots:
 
-#if QT_VERSION == 0
-    /** Stupid moc does not warn if it cannot find headers! */
-    void QT_VERSION_NOT_DEFINED
-#else /* QT_VERSION != 0 */
     /** Handles @a pHostScreen adding. */
     void sltHostScreenAdded(QScreen *pHostScreen);
     /** Handles @a pHostScreen removing. */
@@ -137,7 +170,6 @@ private slots:
     void sltHandleHostScreenResized(const QRect &geometry);
     /** Handles host-screen work-area resize to passed @a availableGeometry. */
     void sltHandleHostScreenWorkAreaResized(const QRect &availableGeometry);
-#endif /* QT_VERSION != 0 */
 
 #if defined(VBOX_WS_X11) && !defined(VBOX_GUI_WITH_CUSTOMIZATIONS1)
     /** Handles @a availableGeometry calculation result for the host-screen with @a iHostScreenIndex. */
@@ -150,6 +182,9 @@ private:
     void prepare();
     /** Cleanup routine. */
     void cleanup();
+
+    /** Returns the flipped (transposed) @a region. */
+    static QRegion flip(const QRegion &region);
 
     /** Holds the static instance of the desktop-widget watchdog. */
     static UIDesktopWidgetWatchdog *s_pInstance;
@@ -176,4 +211,3 @@ private:
 #define gpDesktop UIDesktopWidgetWatchdog::instance()
 
 #endif /* !FEQT_INCLUDED_SRC_globals_UIDesktopWidgetWatchdog_h */
-

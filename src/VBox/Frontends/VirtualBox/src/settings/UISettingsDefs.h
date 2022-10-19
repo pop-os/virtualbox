@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_UISettingsDefs_h
@@ -54,15 +64,19 @@ namespace UISettingsDefs
     /** Recording mode enum is used in Display setting page to determine the recording mode. */
     enum RecordingMode
     {
-        RecordingMode_VideoAudio = 0,
-        RecordingMode_VideoOnly  = 1,
-        RecordingMode_AudioOnly  = 2
+        RecordingMode_None       = 0,
+        RecordingMode_VideoAudio = 1,
+        RecordingMode_VideoOnly  = 2,
+        RecordingMode_AudioOnly  = 3,
+        RecordingMode_Max        = 4
     };
 
     /** Determines configuration access level for passed @a enmSessionState and @a enmMachineState. */
     SHARED_LIBRARY_STUFF ConfigurationAccessLevel configurationAccessLevel(KSessionState enmSessionState,
                                                                            KMachineState enmMachineState);
 }
+
+Q_DECLARE_METATYPE(UISettingsDefs::RecordingMode);
 
 
 /** Template organizing settings object cache: */

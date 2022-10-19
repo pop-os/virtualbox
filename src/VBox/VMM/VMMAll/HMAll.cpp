@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -35,7 +45,6 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include <iprt/x86.h>
-#include <iprt/asm-amd64-x86.h>
 
 
 /*********************************************************************************************************************************
@@ -428,9 +437,9 @@ static DECLCALLBACK(void) hmFlushHandler(RTCPUID idCpu, void *pvUser1, void *pvU
 /**
  * Wrapper for RTMpPokeCpu to deal with VERR_NOT_SUPPORTED.
  */
-static void hmR0PokeCpu(PVMCPU pVCpu, RTCPUID idHostCpu)
+static void hmR0PokeCpu(PVMCPUCC pVCpu, RTCPUID idHostCpu)
 {
-    uint32_t cWorldSwitchExits = ASMAtomicUoReadU32(&pVCpu->hm.s.cWorldSwitchExits);
+    uint32_t cWorldSwitchExits = ASMAtomicUoReadU32(&pVCpu->hmr0.s.cWorldSwitchExits);
 
     STAM_PROFILE_ADV_START(&pVCpu->hm.s.StatPoke, x);
     int rc = RTMpPokeCpu(idHostCpu);
@@ -459,7 +468,7 @@ static void hmR0PokeCpu(PVMCPU pVCpu, RTCPUID idHostCpu)
  *        then. */
         /* Spin until the VCPU has switched back (poking is async). */
         while (   ASMAtomicUoReadBool(&pVCpu->hm.s.fCheckedTLBFlush)
-               && cWorldSwitchExits == ASMAtomicUoReadU32(&pVCpu->hm.s.cWorldSwitchExits))
+               && cWorldSwitchExits == ASMAtomicUoReadU32(&pVCpu->hmr0.s.cWorldSwitchExits))
             ASMNopPause();
 
         if (rc == VINF_SUCCESS)
@@ -484,6 +493,7 @@ VMM_INT_DECL(int) HMFlushTlb(PVMCPU pVCpu)
     return VINF_SUCCESS;
 }
 
+
 /**
  * Poke an EMT so it can perform the appropriate TLB shootdowns.
  *
@@ -492,7 +502,7 @@ VMM_INT_DECL(int) HMFlushTlb(PVMCPU pVCpu)
  * @param   fAccountFlushStat   Whether to account the call to
  *                              StatTlbShootdownFlush or StatTlbShootdown.
  */
-static void hmPokeCpuForTlbFlush(PVMCPU pVCpu, bool fAccountFlushStat)
+static void hmPokeCpuForTlbFlush(PVMCPUCC pVCpu, bool fAccountFlushStat)
 {
     if (ASMAtomicUoReadBool(&pVCpu->hm.s.fCheckedTLBFlush))
     {
@@ -501,7 +511,7 @@ static void hmPokeCpuForTlbFlush(PVMCPU pVCpu, bool fAccountFlushStat)
         else
             STAM_COUNTER_INC(&pVCpu->hm.s.StatTlbShootdown);
 #ifdef IN_RING0
-        RTCPUID idHostCpu = pVCpu->hm.s.idEnteredCpu;
+        RTCPUID idHostCpu = pVCpu->hmr0.s.idEnteredCpu;
         if (idHostCpu != NIL_RTCPUID)
             hmR0PokeCpu(pVCpu, idHostCpu);
 #else
@@ -626,9 +636,9 @@ VMM_INT_DECL(int) HMInvalidatePhysPage(PVMCC pVM, RTGCPHYS GCPhys)
  *
  * @remarks Works before hmR3InitFinalizeR0.
  */
-VMM_INT_DECL(bool) HMIsNestedPagingActive(PVM pVM)
+VMM_INT_DECL(bool) HMIsNestedPagingActive(PVMCC pVM)
 {
-    return HMIsEnabled(pVM) && pVM->hm.s.fNestedPaging;
+    return HMIsEnabled(pVM) && CTX_EXPR(pVM->hm.s.fNestedPagingCfg, pVM->hmr0.s.fNestedPaging, RT_NOTHING);
 }
 
 
@@ -642,11 +652,11 @@ VMM_INT_DECL(bool) HMIsNestedPagingActive(PVM pVM)
  *
  * @remarks Works before hmR3InitFinalizeR0.
  */
-VMM_INT_DECL(bool) HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM)
+VMM_INT_DECL(bool) HMAreNestedPagingAndFullGuestExecEnabled(PVMCC pVM)
 {
     return HMIsEnabled(pVM)
-        && pVM->hm.s.fNestedPaging
-        && (   pVM->hm.s.vmx.fUnrestrictedGuest
+        && CTX_EXPR(pVM->hm.s.fNestedPagingCfg, pVM->hmr0.s.fNestedPaging, RT_NOTHING)
+        && (   CTX_EXPR(pVM->hm.s.vmx.fUnrestrictedGuestCfg, pVM->hmr0.s.vmx.fUnrestrictedGuest, RT_NOTHING)
             || pVM->hm.s.svm.fSupported);
 }
 
@@ -660,9 +670,9 @@ VMM_INT_DECL(bool) HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM)
  * @param   pVM         The cross context VM structure.
  * @sa      VMR3IsLongModeAllowed, NEMHCIsLongModeAllowed
  */
-VMM_INT_DECL(bool) HMIsLongModeAllowed(PVM pVM)
+VMM_INT_DECL(bool) HMIsLongModeAllowed(PVMCC pVM)
 {
-    return HMIsEnabled(pVM) && pVM->hm.s.fAllow64BitGuests;
+    return HMIsEnabled(pVM) && CTX_EXPR(pVM->hm.s.fAllow64BitGuestsCfg, pVM->hmr0.s.fAllow64BitGuests, RT_NOTHING);
 }
 
 
@@ -681,7 +691,8 @@ VMM_INT_DECL(bool) HMIsMsrBitmapActive(PVM pVM)
             return true;
 
         if (   pVM->hm.s.vmx.fSupported
-            && (pVM->hm.s.vmx.Msrs.ProcCtls.n.allowed1 & VMX_PROC_CTLS_USE_MSR_BITMAPS))
+            && (  CTX_EXPR(pVM->hm.s.ForR3.vmx.Msrs.ProcCtls.n.allowed1, g_HmMsrs.u.vmx.ProcCtls.n.allowed1, RT_NOTHING)
+                & VMX_PROC_CTLS_USE_MSR_BITMAPS))
             return true;
     }
     return false;
@@ -730,18 +741,6 @@ VMM_INT_DECL(bool) HMHasPendingIrq(PVMCC pVM)
 
 
 /**
- * Return the PAE PDPE entries.
- *
- * @returns Pointer to the PAE PDPE array.
- * @param   pVCpu       The cross context virtual CPU structure.
- */
-VMM_INT_DECL(PX86PDPE) HMGetPaePdpes(PVMCPU pVCpu)
-{
-    return &pVCpu->hm.s.aPdpes[0];
-}
-
-
-/**
  * Sets or clears the single instruction flag.
  *
  * When set, HM will try its best to return to ring-3 after executing a single
@@ -774,7 +773,7 @@ VMM_INT_DECL(bool) HMSetSingleInstruction(PVMCC pVM, PVMCPUCC pVCpu, bool fEnabl
  * @param   enmShadowMode   New shadow paging mode.
  * @param   enmGuestMode    New guest paging mode.
  */
-VMM_INT_DECL(void) HMHCChangedPagingMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode)
+VMM_INT_DECL(void) HMHCChangedPagingMode(PVM pVM, PVMCPUCC pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode)
 {
 #ifdef IN_RING3
     /* Ignore page mode changes during state loading. */
@@ -790,8 +789,8 @@ VMM_INT_DECL(void) HMHCChangedPagingMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmShado
      */
     if (enmGuestMode == PGMMODE_REAL)
     {
-        PVMXVMCSINFO pVmcsInfo = hmGetVmxActiveVmcsInfo(pVCpu);
-        pVmcsInfo->fWasInRealMode = true;
+        PVMXVMCSINFOSHARED pVmcsInfoShared = hmGetVmxActiveVmcsInfoShared(pVCpu);
+        pVmcsInfoShared->fWasInRealMode = true;
     }
 
 #ifdef IN_RING0
@@ -831,15 +830,15 @@ VMM_INT_DECL(void) HMGetVmxMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pHwvirtMsrs, PVMXM
     AssertReturnVoid(pHwvirtMsrs);
     AssertReturnVoid(pVmxMsrs);
     pVmxMsrs->u64Basic         = pHwvirtMsrs->u.vmx.u64Basic;
-    pVmxMsrs->PinCtls.u        = pHwvirtMsrs->u.vmx.u64PinCtls;
-    pVmxMsrs->ProcCtls.u       = pHwvirtMsrs->u.vmx.u64ProcCtls;
-    pVmxMsrs->ProcCtls2.u      = pHwvirtMsrs->u.vmx.u64ProcCtls2;
-    pVmxMsrs->ExitCtls.u       = pHwvirtMsrs->u.vmx.u64ExitCtls;
-    pVmxMsrs->EntryCtls.u      = pHwvirtMsrs->u.vmx.u64EntryCtls;
-    pVmxMsrs->TruePinCtls.u    = pHwvirtMsrs->u.vmx.u64TruePinCtls;
-    pVmxMsrs->TrueProcCtls.u   = pHwvirtMsrs->u.vmx.u64TrueProcCtls;
-    pVmxMsrs->TrueEntryCtls.u  = pHwvirtMsrs->u.vmx.u64TrueEntryCtls;
-    pVmxMsrs->TrueExitCtls.u   = pHwvirtMsrs->u.vmx.u64TrueExitCtls;
+    pVmxMsrs->PinCtls.u        = pHwvirtMsrs->u.vmx.PinCtls.u;
+    pVmxMsrs->ProcCtls.u       = pHwvirtMsrs->u.vmx.ProcCtls.u;
+    pVmxMsrs->ProcCtls2.u      = pHwvirtMsrs->u.vmx.ProcCtls2.u;
+    pVmxMsrs->ExitCtls.u       = pHwvirtMsrs->u.vmx.ExitCtls.u;
+    pVmxMsrs->EntryCtls.u      = pHwvirtMsrs->u.vmx.EntryCtls.u;
+    pVmxMsrs->TruePinCtls.u    = pHwvirtMsrs->u.vmx.TruePinCtls.u;
+    pVmxMsrs->TrueProcCtls.u   = pHwvirtMsrs->u.vmx.TrueProcCtls.u;
+    pVmxMsrs->TrueEntryCtls.u  = pHwvirtMsrs->u.vmx.TrueEntryCtls.u;
+    pVmxMsrs->TrueExitCtls.u   = pHwvirtMsrs->u.vmx.TrueExitCtls.u;
     pVmxMsrs->u64Misc          = pHwvirtMsrs->u.vmx.u64Misc;
     pVmxMsrs->u64Cr0Fixed0     = pHwvirtMsrs->u.vmx.u64Cr0Fixed0;
     pVmxMsrs->u64Cr0Fixed1     = pHwvirtMsrs->u.vmx.u64Cr0Fixed1;
@@ -848,6 +847,7 @@ VMM_INT_DECL(void) HMGetVmxMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pHwvirtMsrs, PVMXM
     pVmxMsrs->u64VmcsEnum      = pHwvirtMsrs->u.vmx.u64VmcsEnum;
     pVmxMsrs->u64VmFunc        = pHwvirtMsrs->u.vmx.u64VmFunc;
     pVmxMsrs->u64EptVpidCaps   = pHwvirtMsrs->u.vmx.u64EptVpidCaps;
+    pVmxMsrs->u64ProcCtls3     = pHwvirtMsrs->u.vmx.u64ProcCtls3;
 }
 
 

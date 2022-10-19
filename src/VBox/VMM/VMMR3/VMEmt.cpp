@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -23,6 +33,7 @@
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/em.h>
+#include <VBox/vmm/gvmm.h>
 #include <VBox/vmm/nem.h>
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/tm.h>
@@ -74,7 +85,7 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
     int     rc;
     RT_NOREF_PV(hThreadSelf);
 
-    AssertReleaseMsg(VALID_PTR(pUVM) && pUVM->u32Magic == UVM_MAGIC,
+    AssertReleaseMsg(RT_VALID_PTR(pUVM) && pUVM->u32Magic == UVM_MAGIC,
                      ("Invalid arguments to the emulation thread!\n"));
 
     rc = RTTlsSet(pUVM->vm.s.idxTLS, pUVCpu);
@@ -284,14 +295,14 @@ int vmR3EmulationThreadWithId(RTTHREAD hThreadSelf, PUVMCPU pUVCpu, VMCPUID idCp
             pUVM->aCpus[iCpu].pVCpu = NULL;
         }
 
-        int rc2 = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), 0 /*idCpu*/, VMMR0_DO_GVMM_DESTROY_VM, 0, NULL);
+        int rc2 = GVMMR3DestroyVM(pUVM, pVM);
         AssertLogRelRC(rc2);
     }
     /* Deregister the EMT with VMMR0. */
     else if (   idCpu != 0
              && (pVM = pUVM->pVM) != NULL)
     {
-        int rc2 = SUPR3CallVMMR0Ex(VMCC_GET_VMR0_FOR_CALL(pVM), idCpu, VMMR0_DO_GVMM_DEREGISTER_VMCPU, 0, NULL);
+        int rc2 = GVMMR3DeregisterVCpu(pVM, idCpu);
         AssertLogRelRC(rc2);
     }
 
@@ -1151,11 +1162,12 @@ VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts
     /*
      * Do the halt.
      */
-    VMCPU_ASSERT_STATE(pVCpu, VMCPUSTATE_STARTED);
+    VMCPU_ASSERT_STATE_2(pVCpu, VMCPUSTATE_STARTED, VMCPUSTATE_STARTED_EXEC_NEM);
+    VMCPUSTATE enmStateOld = VMCPU_GET_STATE(pVCpu);
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_HALTED);
     PUVM pUVM = pUVCpu->pUVM;
     int rc = g_aHaltMethods[pUVM->vm.s.iHaltMethod].pfnHalt(pUVCpu, fMask, u64Now);
-    VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED);
+    VMCPU_SET_STATE(pVCpu, enmStateOld);
 
     /*
      * Notify TM and resume the yielder
@@ -1345,7 +1357,20 @@ int vmR3SetHaltMethodU(PUVM pUVM, VMHALTMETHOD enmHaltMethod)
             //enmHaltMethod = VMHALTMETHOD_1;
             //enmHaltMethod = VMHALTMETHOD_OLD;
     }
-    LogRel(("VMEmt: Halt method %s (%d)\n", vmR3GetHaltMethodName(enmHaltMethod), enmHaltMethod));
+
+    /*
+     * The global halt method doesn't work in driverless mode, so fall back on
+     * method #1 instead.
+     */
+    if (!SUPR3IsDriverless() || enmHaltMethod != VMHALTMETHOD_GLOBAL_1)
+        LogRel(("VMEmt: Halt method %s (%d)\n", vmR3GetHaltMethodName(enmHaltMethod), enmHaltMethod));
+    else
+    {
+        LogRel(("VMEmt: Halt method %s (%d) not available in driverless mode, using %s (%d) instead\n",
+                vmR3GetHaltMethodName(enmHaltMethod), enmHaltMethod, vmR3GetHaltMethodName(VMHALTMETHOD_1), VMHALTMETHOD_1));
+        enmHaltMethod = VMHALTMETHOD_1;
+    }
+
 
     /*
      * Find the descriptor.

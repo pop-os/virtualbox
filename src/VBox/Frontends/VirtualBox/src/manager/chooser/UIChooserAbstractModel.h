@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_chooser_UIChooserAbstractModel_h
@@ -22,23 +32,22 @@
 #endif
 
 /* Qt includes: */
-#include <QThread>
+#include <QSet>
+#include <QUuid>
 
 /* GUI includes: */
 #include "UIChooserDefs.h"
+#include "UICloudEntityKey.h"
+#include "UIManagerDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
+#include "CCloudMachine.h" /* required for Qt6 / c++17 */
 
 /* Forward declaration: */
-class QUuid;
 class UIChooser;
 class UIChooserNode;
 class CMachine;
-#ifdef VBOX_GUI_WITH_CLOUD_VMS
-class UITask;
-#endif
-
 
 /** QObject extension used as VM Chooser-pane abstract model.
   * This class is used to load/save a tree of abstract invisible
@@ -51,22 +60,30 @@ signals:
 
     /** @name Cloud machine stuff.
       * @{ */
-        /** Notifies about state change for cloud machine with certain @a strId. */
-        void sigCloudMachineStateChange(const QString &strId);
+        /** Notifies listeners about state change for cloud machine with certain @a uId. */
+        void sigCloudMachineStateChange(const QUuid &uId);
     /** @} */
 
     /** @name Group saving stuff.
       * @{ */
-        /** Commands to start group saving. */
-        void sigStartGroupSaving();
-        /** Notifies about group saving state changed. */
+        /** Issues request to save settings. */
+        void sigSaveSettings();
+        /** Notifies listeners about group saving state changed. */
         void sigGroupSavingStateChanged();
+    /** @} */
+
+    /** @name Cloud update stuff.
+      * @{ */
+        /** Notifies listeners about cloud update state changed. */
+        void sigCloudUpdateStateChanged();
     /** @} */
 
 public:
 
     /** Constructs abstract Chooser-model passing @a pParent to the base-class. */
     UIChooserAbstractModel(UIChooser *pParent);
+    /** Destructs abstract Chooser-model. */
+    virtual ~UIChooserAbstractModel() RT_OVERRIDE;
 
     /** @name General stuff.
       * @{ */
@@ -79,10 +96,15 @@ public:
     /** @name Children stuff.
       * @{ */
         /** Returns invisible root node instance. */
-        UIChooserNode *invisibleRoot() const;
+        UIChooserNode *invisibleRoot() const { return m_pInvisibleRootNode; }
 
         /** Wipes out empty groups. */
         void wipeOutEmptyGroups();
+
+        /** Returns possible group node names for machine node with passed @a uId to move to. */
+        QStringList possibleGroupNodeNamesForMachineNodeToMove(const QUuid &uId);
+        /** Returns possible group node names for group node with passed @a strFullName to move to. */
+        QStringList possibleGroupNodeNamesForGroupNodeToMove(const QString &strFullName);
 
         /** Generates unique group name traversing recursively starting from @a pRoot. */
         static QString uniqueGroupName(UIChooserNode *pRoot);
@@ -90,9 +112,9 @@ public:
 
     /** @name Search stuff.
       * @{ */
-        /** Performs a search starting from the m_pInvisibleRootNode. */
-        virtual void performSearch(const QString &strSearchTerm, int iItemSearchFlags);
-        /** Cleans the search result data members and disables item's visual effects.
+        /** Performs a search using @a strSearchTerm and @a iSearchFlags specified. */
+        virtual void performSearch(const QString &strSearchTerm, int iSearchFlags);
+        /** Resets the search result data members and disables item's visual effects.
           * Also returns a list of all nodes which may be utilized by the calling code. */
         virtual QList<UIChooserNode*> resetSearch();
         /** Returns search result. */
@@ -101,64 +123,135 @@ public:
 
     /** @name Group saving stuff.
       * @{ */
-        /** Commands to save group settings. */
-        void saveGroupSettings();
+        /** Commands to save groups. */
+        void saveGroups();
         /** Returns whether group saving is in progress. */
         bool isGroupSavingInProgress() const;
+
+        /** Returns QString representation for passed @a uId, wiping out {} symbols.
+          * @note  Required for backward compatibility after QString=>QUuid change. */
+        static QString toOldStyleUuid(const QUuid &uId);
+
+        /** Returns node extra-data prefix of certain @a enmType. */
+        static QString prefixToString(UIChooserNodeDataPrefixType enmType);
+        /** Returns node extra-data option of certain @a enmType. */
+        static QString optionToString(UIChooserNodeDataOptionType enmType);
+        /** Returns node extra-data value of certain @a enmType. */
+        static QString valueToString(UIChooserNodeDataValueType enmType);
+    /** @} */
+
+    /** @name Cloud update stuff.
+      * @{ */
+        /** Inserts cloud entity @a key into a set of keys currently being updated. */
+        void insertCloudEntityKey(const UICloudEntityKey &key);
+        /** Removes cloud entity @a key from a set of keys currently being updated. */
+        void removeCloudEntityKey(const UICloudEntityKey &key);
+        /** Returns whether cloud entity @a key is a part of key set currently being updated. */
+        bool containsCloudEntityKey(const UICloudEntityKey &key) const;
+
+        /** Returns whether at least one cloud profile currently being updated. */
+        bool isCloudProfileUpdateInProgress() const;
     /** @} */
 
 public slots:
 
     /** @name Cloud machine stuff.
       * @{ */
-        /** Handles cloud machine state change. */
-        void sltHandleCloudMachineStateChange();
+        /** Handles cloud machine refresh started. */
+        void sltHandleCloudMachineRefreshStarted();
+        /** Handles cloud machine refresh finished. */
+        void sltHandleCloudMachineRefreshFinished();
     /** @} */
 
     /** @name Group saving stuff.
       * @{ */
-        /** Handles group definition saving complete. */
+        /** Handles group settings saving complete. */
+        void sltGroupSettingsSaveComplete();
+        /** Handles group definitions saving complete. */
         void sltGroupDefinitionsSaveComplete();
-        /** Handles group order saving complete. */
-        void sltGroupOrdersSaveComplete();
     /** @} */
 
 protected slots:
 
     /** @name Main event handling stuff.
       * @{ */
-        /** Handles machine @a enmState change for machine with certain @a uMachineId. */
-        virtual void sltMachineStateChanged(const QUuid &uMachineId, const KMachineState enmState);
-        /** Handles machine data change for machine with certain @a uMachineId. */
-        virtual void sltMachineDataChanged(const QUuid &uMachineId);
-        /** Handles machine registering/unregistering for machine with certain @a uMachineId. */
-        virtual void sltMachineRegistered(const QUuid &uMachineId, const bool fRegistered);
+        /** Handles local machine @a enmState change for machine with certain @a uMachineId. */
+        virtual void sltLocalMachineStateChanged(const QUuid &uMachineId, const KMachineState enmState);
+        /** Handles local machine data change for machine with certain @a uMachineId. */
+        virtual void sltLocalMachineDataChanged(const QUuid &uMachineId);
+        /** Handles local machine registering/unregistering for machine with certain @a uMachineId. */
+        virtual void sltLocalMachineRegistrationChanged(const QUuid &uMachineId, const bool fRegistered);
+
         /** Handles session @a enmState change for machine with certain @a uMachineId. */
         virtual void sltSessionStateChanged(const QUuid &uMachineId, const KSessionState enmState);
+
         /** Handles snapshot change for machine/snapshot with certain @a uMachineId / @a uSnapshotId. */
         virtual void sltSnapshotChanged(const QUuid &uMachineId, const QUuid &uSnapshotId);
+
+        /** Handles event about cloud provider with @a uProviderId being uninstalled. */
+        virtual void sltHandleCloudProviderUninstall(const QUuid &uProviderId);
     /** @} */
 
     /** @name Children stuff.
       * @{ */
         /** Handles reload machine with certain @a uMachineId request. */
         virtual void sltReloadMachine(const QUuid &uMachineId);
+
+        /** Handles command to commit data. */
+        virtual void sltCommitData();
+        /** Handles command to detach COM. */
+        virtual void sltDetachCOM();
     /** @} */
 
-#ifdef VBOX_GUI_WITH_CLOUD_VMS
     /** @name Cloud stuff.
       * @{ */
-        /** Handles acquire cloud instances task complete signal. */
-        virtual void sltHandleCloudAcquireInstancesTaskComplete(UITask *pTask);
+        /** Handles cloud machine unregistering for @a uId.
+          * @param  strProviderShortName  Brings provider short name.
+          * @param  strProfileName        Brings profile name. */
+        virtual void sltCloudMachineUnregistered(const QString &strProviderShortName,
+                                                 const QString &strProfileName,
+                                                 const QUuid &uId);
+        /** Handles cloud machine unregistering for a list of @a ids.
+          * @param  strProviderShortName  Brings provider short name.
+          * @param  strProfileName        Brings profile name. */
+        virtual void sltCloudMachinesUnregistered(const QString &strProviderShortName,
+                                                  const QString &strProfileName,
+                                                  const QList<QUuid> &ids);
+        /** Handles cloud machine registering for @a comMachine.
+          * @param  strProviderShortName  Brings provider short name.
+          * @param  strProfileName        Brings profile name. */
+        virtual void sltCloudMachineRegistered(const QString &strProviderShortName,
+                                               const QString &strProfileName,
+                                               const CCloudMachine &comMachine);
+        /** Handles cloud machine registering for a list of @a machines.
+          * @param  strProviderShortName  Brings provider short name.
+          * @param  strProfileName        Brings profile name. */
+        virtual void sltCloudMachinesRegistered(const QString &strProviderShortName,
+                                                const QString &strProfileName,
+                                                const QVector<CCloudMachine> &machines);
+
+        /** Handles read cloud machine list task complete signal. */
+        virtual void sltHandleReadCloudMachineListTaskComplete();
+
+        /** Handles Cloud Profile Manager cumulative change. */
+        virtual void sltHandleCloudProfileManagerCumulativeChange();
     /** @} */
-#endif /* VBOX_GUI_WITH_CLOUD_VMS */
+
+protected:
+
+    /** @name Children stuff.
+      * @{ */
+        /** Creates and registers read cloud machine list task with @a guiCloudProfileKey.
+          * @param  fWithRefresh  Brings whether machines should be refreshed as well. */
+        void createReadCloudMachineListTask(const UICloudEntityKey &guiCloudProfileKey, bool fWithRefresh);
+    /** @} */
 
 private slots:
 
     /** @name Group saving stuff.
       * @{ */
-        /** Handles request to start group saving. */
-        void sltStartGroupSaving();
+        /** Handles request to save settings. */
+        void sltSaveSettings();
     /** @} */
 
 private:
@@ -169,57 +262,113 @@ private:
         void prepare();
         /** Prepares connections. */
         void prepareConnections();
+
+        /** Cleanups connections. */
+        void cleanupConnections();
+        /** Cleanups all. */
+        void cleanup();
     /** @} */
 
     /** @name Children stuff.
       * @{ */
-        /** Loads tree. */
-        void loadTree();
-        /** Adds machine item based on certain @a comMachine and optionally @a fMakeItVisible. */
-        void addMachineIntoTheTree(const CMachine &comMachine, bool fMakeItVisible = false);
-        /** Acquires group node, creates one if necessary.
+        /** Reloads local tree. */
+        void reloadLocalTree();
+        /** Reloads cloud tree. */
+        void reloadCloudTree();
+
+        /** Adds local machine item based on certain @a comMachine and optionally @a fMakeItVisible. */
+        void addLocalMachineIntoTheTree(const CMachine &comMachine, bool fMakeItVisible = false);
+        /** Adds cloud machine item based on certain @a comMachine and optionally @a fMakeItVisible, into @a strGroup. */
+        void addCloudMachineIntoTheTree(const QString &strGroup, const CCloudMachine &comMachine, bool fMakeItVisible = false);
+
+        /** Acquires local group node, creates one if necessary.
           * @param  strName           Brings the name of group we looking for.
           * @param  pParentNode       Brings the parent we starting to look for a group from.
           * @param  fAllGroupsOpened  Brings whether we should open all the groups till the required one. */
-        UIChooserNode *getGroupNode(const QString &strName, UIChooserNode *pParentNode, bool fAllGroupsOpened);
-        /** Returns whether group node with certain @a strName should be opened, searching starting from the passed @a pParentItem. */
-        bool shouldGroupNodeBeOpened(UIChooserNode *pParentNode, const QString &strName);
+        UIChooserNode *getLocalGroupNode(const QString &strName, UIChooserNode *pParentNode, bool fAllGroupsOpened);
+        /** Acquires cloud group node, never create new, returns root if nothing found.
+          * @param  strName           Brings the name of group we looking for.
+          * @param  pParentNode       Brings the parent we starting to look for a group from.
+          * @param  fAllGroupsOpened  Brings whether we should open all the groups till the required one. */
+        UIChooserNode *getCloudGroupNode(const QString &strName, UIChooserNode *pParentNode, bool fAllGroupsOpened);
+
+        /** Returns whether group node * with specified @a enmDataType and @a strName should be opened,
+          * searching starting from the passed @a pParentNode. */
+        bool shouldGroupNodeBeOpened(UIChooserNode *pParentNode,
+                                     UIChooserNodeDataPrefixType enmDataType,
+                                     const QString &strName) const;
+        /** Returns whether global node should be favorite,
+          * searching starting from the passed @a pParentNode. */
+        bool shouldGlobalNodeBeFavorite(UIChooserNode *pParentNode) const;
 
         /** Wipes out empty groups starting from @a pParentItem. */
         void wipeOutEmptyGroupsStartingFrom(UIChooserNode *pParentNode);
 
-        /** Returns whether global node within the @a pParentNode is favorite. */
-        bool isGlobalNodeFavorite(UIChooserNode *pParentNode) const;
+        /** Acquires desired position for a child of @a pParentNode with specified @a enmDataType and @a strName. */
+        int getDesiredNodePosition(UIChooserNode *pParentNode, UIChooserNodeDataPrefixType enmDataType, const QString &strName);
+        /** Acquires defined position for a child of @a pParentNode with specified @a enmDataType and @a strName. */
+        int getDefinedNodePosition(UIChooserNode *pParentNode, UIChooserNodeDataPrefixType enmDataType, const QString &strName);
 
-        /** Acquires desired position for a child of @a pParentNode with specified @a enmType and @a strName. */
-        int getDesiredNodePosition(UIChooserNode *pParentNode, UIChooserItemType enmType, const QString &strName);
-        /** Acquires defined position for a child of @a pParentNode with specified @a enmType and @a strName. */
-        int getDefinedNodePosition(UIChooserNode *pParentNode, UIChooserItemType enmType, const QString &strName);
+        /** Creates local machine node based on certain @a comMachine as a child of specified @a pParentNode. */
+        void createLocalMachineNode(UIChooserNode *pParentNode, const CMachine &comMachine);
+        /** Creates fake cloud machine node in passed @a enmState as a child of specified @a pParentNode. */
+        void createCloudMachineNode(UIChooserNode *pParentNode, UIFakeCloudVirtualMachineItemState enmState);
+        /** Creates real cloud machine node based on certain @a comMachine as a child of specified @a pParentNode. */
+        void createCloudMachineNode(UIChooserNode *pParentNode, const CCloudMachine &comMachine);
 
-        /** Creates machine node based on certain @a comMachine as a child of specified @a pParentNode. */
-        void createMachineNode(UIChooserNode *pParentNode, const CMachine &comMachine);
+        /** Gathers a list of possible group node names for machine nodes listed in @a exceptions, starting from @a pCurrentNode. */
+        QStringList gatherPossibleGroupNodeNames(UIChooserNode *pCurrentNode, QList<UIChooserNode*> exceptions) const;
+
+        /** Returns whether passed @a pParentNode contains child node with passed @a uId. */
+        bool checkIfNodeContainChildWithId(UIChooserNode *pParentNode, const QUuid &uId) const;
     /** @} */
 
     /** @name Group saving stuff.
       * @{ */
+        /** Saves group settings. */
+        void saveGroupSettings();
         /** Saves group definitions. */
         void saveGroupDefinitions();
-        /** Saves group orders. */
-        void saveGroupOrders();
 
+        /** Gathers group @a settings of @a pParentGroup. */
+        void gatherGroupSettings(QMap<QString, QStringList> &settings, UIChooserNode *pParentGroup);
         /** Gathers group @a definitions of @a pParentGroup. */
         void gatherGroupDefinitions(QMap<QString, QStringList> &definitions, UIChooserNode *pParentGroup);
-        /** Gathers group @a orders of @a pParentGroup. */
-        void gatherGroupOrders(QMap<QString, QStringList> &orders, UIChooserNode *pParentGroup);
 
+        /** Makes sure group settings saving is finished. */
+        void makeSureGroupSettingsSaveIsFinished();
         /** Makes sure group definitions saving is finished. */
         void makeSureGroupDefinitionsSaveIsFinished();
-        /** Makes sure group orders saving is finished. */
-        void makeSureGroupOrdersSaveIsFinished();
+    /** @} */
 
-        /** Returns QString representation for passed @a uId, wiping out {} symbols.
-          * @note  Required for backward compatibility after QString=>QUuid change. */
-        static QString toOldStyleUuid(const QUuid &uId);
+    /** @name Cloud stuff.
+      * @{ */
+        /** Searches for provider node with passed @a uProviderId. */
+        UIChooserNode *searchProviderNode(const QUuid &uProviderId);
+        /** Searches for provider node with passed @a strProviderShortName. */
+        UIChooserNode *searchProviderNode(const QString &strProviderShortName);
+
+        /** Searches for profile node with passed @a strProfileName under passed @a pProviderNode. */
+        UIChooserNode *searchProfileNode(UIChooserNode *pProviderNode, const QString &strProfileName);
+        /** Searches for profile node with passed @a strProviderShortName and @a strProfileName. */
+        UIChooserNode *searchProfileNode(const QString &strProviderShortName, const QString &strProfileName);
+
+        /** Searches for machine node with passed @a uMachineId under passed @a pProfileNode. */
+        UIChooserNode *searchMachineNode(UIChooserNode *pProfileNode, const QUuid &uMachineId);
+        /** Searches for machine with passed @a strProviderShortName, @a strProfileName and @a uMachineId. */
+        UIChooserNode *searchMachineNode(const QString &strProviderShortName, const QString &strProfileName, const QUuid &uMachineId);
+
+        /** Searches for fake node under passed @a pProfileNode. */
+        UIChooserNode *searchFakeNode(UIChooserNode *pProfileNode);
+        /** Searches for fake with passed @a strProviderShortName and @a strProfileName. */
+        UIChooserNode *searchFakeNode(const QString &strProviderShortName, const QString &strProfileName);
+    /** @} */
+
+    /** @name Cloud update stuff.
+      * @{ */
+        /** Stops all cloud updates.
+          * @param  fForced  Brings whether cloud updates should be killed. */
+        void stopCloudUpdates(bool fForced = false);
     /** @} */
 
     /** @name General stuff.
@@ -242,101 +391,15 @@ private:
 
     /** @name Group saving stuff.
       * @{ */
-        /** Holds the consolidated map of group definitions/orders. */
+        /** Holds the consolidated map of group settings/definitions. */
         QMap<QString, QStringList>  m_groups;
     /** @} */
+
+    /** @name Cloud update stuff.
+      * @{ */
+        /** Holds the set of cloud entity keys currently being updated. */
+        QSet<UICloudEntityKey>  m_cloudEntityKeysBeingUpdated;
+    /** @} */
 };
-
-
-/** QThread subclass allowing to save group definitions asynchronously. */
-class UIThreadGroupDefinitionSave : public QThread
-{
-    Q_OBJECT;
-
-signals:
-
-    /** Notifies about machine with certain @a uMachineId to be reloaded. */
-    void sigReload(const QUuid &uMachineId);
-
-    /** Notifies about task is complete. */
-    void sigComplete();
-
-public:
-
-    /** Returns group saving thread instance. */
-    static UIThreadGroupDefinitionSave* instance();
-    /** Prepares group saving thread instance. */
-    static void prepare();
-    /** Cleanups group saving thread instance. */
-    static void cleanup();
-
-    /** Configures @a groups saving thread with corresponding @a pListener.
-      * @param  oldLists  Brings the old definition list to be compared.
-      * @param  newLists  Brings the new definition list to be saved. */
-    void configure(QObject *pParent,
-                   const QMap<QString, QStringList> &oldLists,
-                   const QMap<QString, QStringList> &newLists);
-
-protected:
-
-    /** Constructs group saving thread. */
-    UIThreadGroupDefinitionSave();
-    /** Destructs group saving thread. */
-    virtual ~UIThreadGroupDefinitionSave() /* override */;
-
-    /** Contains a thread task to be executed. */
-    void run();
-
-    /** Holds the singleton instance. */
-    static UIThreadGroupDefinitionSave *s_pInstance;
-
-    /** Holds the map of group definitions to be compared. */
-    QMap<QString, QStringList> m_oldLists;
-    /** Holds the map of group definitions to be saved. */
-    QMap<QString, QStringList> m_newLists;
-};
-
-
-/** QThread subclass allowing to save group order asynchronously. */
-class UIThreadGroupOrderSave : public QThread
-{
-    Q_OBJECT;
-
-signals:
-
-    /** Notifies about task is complete. */
-    void sigComplete();
-
-public:
-
-    /** Returns group saving thread instance. */
-    static UIThreadGroupOrderSave *instance();
-    /** Prepares group saving thread instance. */
-    static void prepare();
-    /** Cleanups group saving thread instance. */
-    static void cleanup();
-
-    /** Configures group saving thread with corresponding @a pListener.
-      * @param  groups  Brings the groups to be saved. */
-    void configure(QObject *pListener,
-                   const QMap<QString, QStringList> &groups);
-
-protected:
-
-    /** Constructs group saving thread. */
-    UIThreadGroupOrderSave();
-    /** Destructs group saving thread. */
-    virtual ~UIThreadGroupOrderSave() /* override */;
-
-    /** Contains a thread task to be executed. */
-    virtual void run() /* override */;
-
-    /** Holds the singleton instance. */
-    static UIThreadGroupOrderSave *s_pInstance;
-
-    /** Holds the map of groups to be saved. */
-    QMap<QString, QStringList>  m_groups;
-};
-
 
 #endif /* !FEQT_INCLUDED_SRC_manager_chooser_UIChooserAbstractModel_h */

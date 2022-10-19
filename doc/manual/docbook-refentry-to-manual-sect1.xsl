@@ -3,16 +3,27 @@
     docbook-refentry-to-manual-sect1.xsl:
         XSLT stylesheet for transforming a refentry (manpage)
         to a sect1 for the user manual.
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <xsl:stylesheet
@@ -95,6 +106,9 @@
   <xsl:element name="sect2">
     <xsl:attribute name="role">not-in-toc</xsl:attribute>
     <xsl:attribute name="condition">refsect1</xsl:attribute>
+    <xsl:if test="@id">
+      <xsl:attribute name="id"><xsl:value-of select="@id"/></xsl:attribute>
+    </xsl:if>
     <xsl:apply-templates />
   </xsl:element>
 </xsl:template>
@@ -105,6 +119,9 @@
   <xsl:element name="sect3">
     <xsl:attribute name="role">not-in-toc</xsl:attribute>
     <xsl:attribute name="condition">refsect2</xsl:attribute>
+    <xsl:if test="@id">
+      <xsl:attribute name="id"><xsl:value-of select="@id"/></xsl:attribute>
+    </xsl:if>
     <xsl:apply-templates />
   </xsl:element>
 </xsl:template>
@@ -115,6 +132,9 @@
   <xsl:element name="sect4">
     <xsl:attribute name="role">not-in-toc</xsl:attribute>
     <xsl:attribute name="condition">refsect3</xsl:attribute>
+    <xsl:if test="@id">
+      <xsl:attribute name="id"><xsl:value-of select="@id"/></xsl:attribute>
+    </xsl:if>
     <xsl:apply-templates />
   </xsl:element>
 </xsl:template>

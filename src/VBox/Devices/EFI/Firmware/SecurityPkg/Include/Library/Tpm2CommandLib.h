@@ -585,7 +585,7 @@ Tpm2PcrAllocateBanks (
   NOTE:
   To simplify this function, leave returned CapabilityData for caller to unpack since there are
   many capability categories and only few categories will be used in firmware. It means the caller
-  need swap the byte order for the feilds in CapabilityData.
+  need swap the byte order for the fields in CapabilityData.
 
   @param[in]  Capability         Group selection; determines the format of the response.
   @param[in]  Property           Further definition of information.
@@ -788,6 +788,22 @@ EFI_STATUS
 EFIAPI
 Tpm2GetCapabilityAlgorithmSet (
   OUT     UINT32      *AlgorithmSet
+  );
+
+/**
+  This function will query if the command is supported.
+
+  @param[In]  Command         TPM_CC command starts from TPM_CC_FIRST.
+  @param[out] IsCmdImpl       The command is supported or not.
+
+  @retval EFI_SUCCESS            Operation completed successfully.
+  @retval EFI_DEVICE_ERROR       The command was unsuccessful.
+**/
+EFI_STATUS
+EFIAPI
+Tpm2GetCapabilityIsCommandImplemented (
+  IN      TPM_CC      Command,
+  OUT     BOOLEAN     *IsCmdImpl
   );
 
 /**

@@ -77,7 +77,7 @@ FILE_LICENCE ( BSD3 );
 /**************************************************************************
  *
  * These define the EEPROM data structure.  They are used in the probe
- * function to verify the existance of the adapter after having sent
+ * function to verify the existence of the adapter after having sent
  * the ID_Sequence.
  *
  * There are others but only the ones we use are defined here.
@@ -95,7 +95,7 @@ FILE_LICENCE ( BSD3 );
 /**************************************************************************
  *
  * These are the registers for the 3Com 3c509 and their bit patterns when
- * applicable.  They have been taken out the "EtherLink III Parallel
+ * applicable.  They have been taken out the the "EtherLink III Parallel
  * Tasking EISA and ISA Technical Reference" "Beta Draft 10/30/92" manual
  * from 3com.
  *

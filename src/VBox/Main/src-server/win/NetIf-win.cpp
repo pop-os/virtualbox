@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -45,25 +55,28 @@
 #include "HostNetworkInterfaceImpl.h"
 #include "ProgressImpl.h"
 #include "VirtualBoxImpl.h"
+#include "VBoxNls.h"
+#include "Global.h"
 #include "netif.h"
 #include "ThreadTask.h"
 
+DECLARE_TRANSLATION_CONTEXT(NetIfWin);
+
 #ifdef VBOX_WITH_NETFLT
-#include <Wbemidl.h>
-#include <comdef.h>
+# include <Wbemidl.h>
 
-#include "svchlp.h"
+# include "svchlp.h"
 
-#include <shellapi.h>
-#define INITGUID
-#include <guiddef.h>
-#include <devguid.h>
-#include <iprt/win/objbase.h>
-#include <iprt/win/setupapi.h>
-#include <iprt/win/shlobj.h>
-#include <cfgmgr32.h>
+# include <shellapi.h>
+# define INITGUID
+# include <guiddef.h>
+# include <devguid.h>
+# include <iprt/win/objbase.h>
+# include <iprt/win/setupapi.h>
+# include <iprt/win/shlobj.h>
+# include <cfgmgr32.h>
 
-#define VBOX_APP_NAME L"VirtualBox"
+# define VBOX_APP_NAME L"VirtualBox"
 
 static int getDefaultInterfaceIndex()
 {
@@ -1154,18 +1167,18 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVirtualBox,
 #else
     /* create a progress object */
     ComObjPtr<Progress> progress;
-    progress.createObject();
+    HRESULT hrc = progress.createObject();
+    AssertComRCReturn(hrc, Global::vboxStatusCodeFromCOM(hrc));
 
     ComPtr<IHost> host;
-    HRESULT rc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
-    if (SUCCEEDED(rc))
+    hrc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
+    if (SUCCEEDED(hrc))
     {
-        rc = progress->init(pVirtualBox, host,
-                            Bstr(_T("Creating host only network interface")).raw(),
-                            FALSE /* aCancelable */);
-        if (SUCCEEDED(rc))
+        hrc = progress->init(pVirtualBox, host,
+                             Bstr(NetIfWin::tr("Creating host only network interface")).raw(),
+                             FALSE /* aCancelable */);
+        if (SUCCEEDED(hrc))
         {
-            if (FAILED(rc)) return rc;
             progress.queryInterfaceTo(aProgress);
 
             /* create a new uninitialized host interface object */
@@ -1181,16 +1194,16 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVirtualBox,
             d->iface = iface;
             d->ptrVBox = pVirtualBox;
 
-            rc = pVirtualBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                     netIfNetworkInterfaceHelperClient,
-                                                     static_cast<void *>(d),
-                                                     progress);
+            hrc = pVirtualBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                      netIfNetworkInterfaceHelperClient,
+                                                      static_cast<void *>(d),
+                                                      progress);
             /* d is now owned by netIfNetworkInterfaceHelperClient(), no need to delete one here */
 
         }
     }
 
-    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_GENERAL_FAILURE;
+    return Global::vboxStatusCodeFromCOM(hrc);
 #endif
 }
 
@@ -1202,17 +1215,18 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVirtualBox, const Guid &aId
 #else
     /* create a progress object */
     ComObjPtr<Progress> progress;
-    progress.createObject();
+    HRESULT hrc = progress.createObject();
+    AssertComRCReturn(hrc, Global::vboxStatusCodeFromCOM(hrc));
+
     ComPtr<IHost> host;
-    HRESULT rc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
-    if (SUCCEEDED(rc))
+    hrc = pVirtualBox->COMGETTER(Host)(host.asOutParam());
+    if (SUCCEEDED(hrc))
     {
-        rc = progress->init(pVirtualBox, host,
-                           Bstr(_T("Removing host network interface")).raw(),
-                           FALSE /* aCancelable */);
-        if (SUCCEEDED(rc))
+        hrc = progress->init(pVirtualBox, host,
+                             Bstr(NetIfWin::tr("Removing host network interface")).raw(),
+                             FALSE /* aCancelable */);
+        if (SUCCEEDED(hrc))
         {
-            if (FAILED(rc)) return rc;
             progress.queryInterfaceTo(aProgress);
 
             /* create the networkInterfaceHelperClient() argument */
@@ -1221,16 +1235,16 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVirtualBox, const Guid &aId
             d->msgCode = SVCHlpMsg::RemoveHostOnlyNetworkInterface;
             d->guid = aId;
 
-            rc = pVirtualBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
-                                                     netIfNetworkInterfaceHelperClient,
-                                                     static_cast<void *>(d),
-                                                     progress);
+            hrc = pVirtualBox->i_startSVCHelperClient(IsUACEnabled() == TRUE /* aPrivileged */,
+                                                      netIfNetworkInterfaceHelperClient,
+                                                      static_cast<void *>(d),
+                                                      progress);
             /* d is now owned by netIfNetworkInterfaceHelperClient(), no need to delete one here */
 
         }
     }
 
-    return SUCCEEDED(rc) ? VINF_SUCCESS : VERR_GENERAL_FAILURE;
+    return Global::vboxStatusCodeFromCOM(hrc);
 #endif
 }
 
@@ -1256,7 +1270,7 @@ int NetIfEnableStaticIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf, ULO
 //            if (SUCCEEDED(rc))
             {
                 rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
-                                    Bstr("Enabling Dynamic Ip Configuration").raw(),
+                                    Bstr(NetIfWin::tr("Enabling Dynamic Ip Configuration")).raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
                 {
@@ -1314,7 +1328,7 @@ int NetIfEnableStaticIpConfigV6(VirtualBox *pVBox, HostNetworkInterface * pIf, c
 //            if (SUCCEEDED(rc))
             {
                 rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
-                                    Bstr("Enabling Dynamic Ip Configuration").raw(),
+                                    Bstr(NetIfWin::tr("Enabling Dynamic Ip Configuration")).raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
                 {
@@ -1371,7 +1385,7 @@ int NetIfEnableDynamicIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf)
 //            if (SUCCEEDED(rc))
             {
                 rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
-                                    Bstr("Enabling Dynamic Ip Configuration").raw(),
+                                    Bstr(NetIfWin::tr("Enabling Dynamic Ip Configuration")).raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
                 {
@@ -1426,7 +1440,7 @@ int NetIfDhcpRediscover(VirtualBox *pVBox, HostNetworkInterface * pIf)
 //            if (SUCCEEDED(rc))
             {
                 rc = progress->init(pVBox, (IHostNetworkInterface*)pIf,
-                                    Bstr("Enabling Dynamic Ip Configuration").raw(),
+                                    Bstr(NetIfWin::tr("Enabling Dynamic Ip Configuration")).raw(),
                                     FALSE /* aCancelable */);
                 if (SUCCEEDED(rc))
                 {
@@ -1909,7 +1923,7 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
     else
     {
         std::list<BoundAdapter> boundAdapters;
-        HRESULT hr = netIfGetBoundAdapters(boundAdapters);
+        hr = netIfGetBoundAdapters(boundAdapters);
 #if 0
         if (hr != S_OK)
             hr = netIfGetBoundAdaptersFallback(boundAdapters);

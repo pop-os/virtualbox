@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -413,7 +423,7 @@ static DECLCALLBACK(void) drvUDPTunnelDestruct(PPDMDRVINS pDrvIns)
 
     if (pThis->pszDestIP)
     {
-        MMR3HeapFree(pThis->pszDestIP);
+        PDMDrvHlpMMHeapFree(pDrvIns, pThis->pszDestIP);
         pThis->pszDestIP = NULL;
     }
 
@@ -453,6 +463,7 @@ static DECLCALLBACK(int) drvUDPTunnelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
     RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVUDPTUNNEL pThis = PDMINS_2_DATA(pDrvIns, PDRVUDPTUNNEL);
+    PCPDMDRVHLPR3 pHlp  = pDrvIns->pHlpR3;
 
     /*
      * Init the static parts.
@@ -487,8 +498,10 @@ static DECLCALLBACK(int) drvUDPTunnelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "sport\0dest\0dport"))
-        return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES, "");
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns,  "sport"
+                                            "|dest"
+                                            "|dport",
+                                            "");
 
     /*
      * Check that no-one is attached to us.
@@ -510,7 +523,7 @@ static DECLCALLBACK(int) drvUDPTunnelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
      */
     int rc;
     char szVal[16];
-    rc = CFGMR3QueryStringDef(pCfg, "sport", szVal, sizeof(szVal), "4444");
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "sport", szVal, sizeof(szVal), "4444");
     if (RT_FAILURE(rc))
         rc = PDMDRV_SET_ERROR(pDrvIns, rc,
                               N_("DrvUDPTunnel: Configuration error: Querying \"sport\" as string failed"));
@@ -521,7 +534,7 @@ static DECLCALLBACK(int) drvUDPTunnelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
     if (!pThis->uSrcPort)
         pThis->uSrcPort = 4444;
 
-    rc = CFGMR3QueryStringDef(pCfg, "dport", szVal, sizeof(szVal), "4445");
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "dport", szVal, sizeof(szVal), "4445");
     if (RT_FAILURE(rc))
         rc = PDMDRV_SET_ERROR(pDrvIns, rc,
                               N_("DrvUDPTunnel: Configuration error: Querying \"dport\" as string failed"));
@@ -532,7 +545,7 @@ static DECLCALLBACK(int) drvUDPTunnelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
     if (!pThis->uDestPort)
         pThis->uDestPort = 4445;
 
-    rc = CFGMR3QueryStringAllocDef(pCfg, "dest", &pThis->pszDestIP, "127.0.0.1");
+    rc = pHlp->pfnCFGMQueryStringAllocDef(pCfg, "dest", &pThis->pszDestIP, "127.0.0.1");
     if (RT_FAILURE(rc))
         rc = PDMDRV_SET_ERROR(pDrvIns, rc,
                               N_("DrvUDPTunnel: Configuration error: Querying \"dest\" as string failed"));

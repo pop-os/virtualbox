@@ -4,15 +4,25 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
+;
+; SPDX-License-Identifier: GPL-3.0-only
 ;
 
 
@@ -158,7 +168,7 @@ SEH64_END_PROLOGUE
         ;
 
         ; Save caller's XMM registers.
-        mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateR0]
+        lea     pXState, [pCpumCpu + CPUMCPU.Host.XState]
         movdqa  [pXState + X86FXSTATE.xmm6 ], xmm6
         movdqa  [pXState + X86FXSTATE.xmm7 ], xmm7
         movdqa  [pXState + X86FXSTATE.xmm8 ], xmm8
@@ -172,7 +182,7 @@ SEH64_END_PROLOGUE
         stmxcsr [pXState + X86FXSTATE.MXCSR]
 
         ; Load the guest XMM register values we already saved in HMR0VMXStartVMWrapXMM.
-        mov     pXState, [pCpumCpu + CPUMCPU.Guest.pXStateR0]
+        lea     pXState, [pCpumCpu + CPUMCPU.Guest.XState]
         movdqa  xmm0,  [pXState + X86FXSTATE.xmm0]
         movdqa  xmm1,  [pXState + X86FXSTATE.xmm1]
         movdqa  xmm2,  [pXState + X86FXSTATE.xmm2]
@@ -194,7 +204,7 @@ SEH64_END_PROLOGUE
         CPUMR0_SAVE_GUEST
 
         ; Restore caller's XMM registers.
-        mov     pXState, [pCpumCpu + CPUMCPU.Host.pXStateR0]
+        lea     pXState, [pCpumCpu + CPUMCPU.Host.XState]
         movdqa  xmm6,  [pXState + X86FXSTATE.xmm6 ]
         movdqa  xmm7,  [pXState + X86FXSTATE.xmm7 ]
         movdqa  xmm8,  [pXState + X86FXSTATE.xmm8 ]
@@ -210,6 +220,7 @@ SEH64_END_PROLOGUE
  %endif
 
         and     dword [pCpumCpu + CPUMCPU.fUseFlags], ~CPUM_USED_FPU_GUEST
+        mov     byte [pCpumCpu + CPUMCPU.Guest.fUsedFpuGuest], 0
  %ifdef IN_RC
         test    byte [ebp + 0ch], 1     ; fLeaveFpuAccessible
         jz      .no_cr0_restore
@@ -247,20 +258,14 @@ SEH64_END_PROLOGUE
 
 %ifndef VBOX_WITH_KERNEL_USING_XMM
         ;
-        ; Load xCX with the guest pXStateR0.
+        ; Load xCX with the guest pXState.
         ;
  %ifdef ASM_CALL64_GCC
         mov     xCX, rdi
  %elifdef RT_ARCH_X86
         mov     xCX, dword [ebp + 8]
  %endif
- %ifdef IN_RING0
-        mov     xCX, [xCX + CPUMCPU.Guest.pXStateR0]
- %elifdef IN_RC
-        mov     xCX, [xCX + CPUMCPU.Guest.pXStateRC]
- %else
-  %error "Invalid context!"
- %endif
+        lea     xCX, [xCX + CPUMCPU.Guest.XState]
 
  %ifdef IN_RC
         ; Temporarily grant access to the SSE state. xDX must be preserved until CR0 is restored!
@@ -327,20 +332,14 @@ BEGINPROC cpumRZSaveGuestAvxRegisters
 SEH64_END_PROLOGUE
 
         ;
-        ; Load xCX with the guest pXStateR0.
+        ; Load xCX with the guest pXState.
         ;
 %ifdef ASM_CALL64_GCC
         mov     xCX, rdi
 %elifdef RT_ARCH_X86
         mov     xCX, dword [ebp + 8]
 %endif
-%ifdef IN_RING0
-        mov     xCX, [xCX + CPUMCPU.Guest.pXStateR0]
-%elifdef IN_RC
-        mov     xCX, [xCX + CPUMCPU.Guest.pXStateRC]
-%else
- %error "Invalid context!"
-%endif
+        lea     xCX, [xCX + CPUMCPU.Guest.XState]
 
 %ifdef IN_RC
         ; Temporarily grant access to the SSE state. xBX must be preserved until CR0 is restored!

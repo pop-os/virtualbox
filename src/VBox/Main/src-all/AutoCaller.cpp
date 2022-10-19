@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN
@@ -22,6 +32,10 @@
 #include "AutoCaller.h"
 #include "LoggingNew.h"
 
+#include "VBoxNls.h"
+
+
+DECLARE_TRANSLATION_CONTEXT(AutoCallerCtx);
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -129,13 +143,13 @@ HRESULT ObjectState::addCaller(bool aLimited /* = false */)
 {
     AutoWriteLock stateLock(mStateLock COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = E_ACCESSDENIED;
+    HRESULT hrc = E_ACCESSDENIED;
 
     if (mState == Ready || (aLimited && mState == Limited))
     {
         /* if Ready or allows Limited, increase the number of callers */
         ++mCallers;
-        rc = S_OK;
+        hrc = S_OK;
     }
     else
     if (mState == InInit || mState == InUninit)
@@ -144,7 +158,7 @@ HRESULT ObjectState::addCaller(bool aLimited /* = false */)
         {
             /* Called from the same thread that is doing AutoInitSpan or
              * AutoUninitSpan, just succeed */
-            rc = S_OK;
+            hrc = S_OK;
         }
         else if (mState == InInit)
         {
@@ -183,7 +197,7 @@ HRESULT ObjectState::addCaller(bool aLimited /* = false */)
             }
 
             if (mState == Ready || (aLimited && mState == Limited))
-                rc = S_OK;
+                hrc = S_OK;
             else
             {
                 Assert(mCallers != 0);
@@ -197,22 +211,22 @@ HRESULT ObjectState::addCaller(bool aLimited /* = false */)
         }
     }
 
-    if (FAILED(rc))
+    if (FAILED(hrc))
     {
         if (mState == Limited)
-            rc = mObj->setError(rc, "The object functionality is limited");
+            hrc = mObj->setError(hrc, AutoCallerCtx::tr("The object functionality is limited"));
         else if (FAILED(mFailedRC) && mFailedRC != E_ACCESSDENIED)
         {
             /* replay recorded error information */
             if (mpFailedEI)
                 ErrorInfoKeeper eik(*mpFailedEI);
-            rc = mFailedRC;
+            hrc = mFailedRC;
         }
         else
-            rc = mObj->setError(rc, "The object is not ready");
+            hrc = mObj->setError(hrc, AutoCallerCtx::tr("The object is not ready"));
     }
 
-    return rc;
+    return hrc;
 }
 
 /**
@@ -293,12 +307,13 @@ void ObjectState::autoInitSpanDestructor(State aNewState, HRESULT aFailedRC, com
         RTSemEventMultiSignal(mInitUninitSem);
     }
 
-    if (aNewState == InitFailed)
+    if (aNewState == InitFailed || aNewState == Limited)
     {
         mFailedRC = aFailedRC;
-        /* apFailedEI may be NULL, when there is no explicit setFailed() call,
-         * which also implies that aFailedRC is S_OK. This case is used by
-         * objects (the majority) which don't want delayed error signalling. */
+        /* apFailedEI may be NULL, when there is no explicit setFailed() or
+         * setLimited() call, which also implies that aFailedRC is S_OK.
+         * This case is used by objects (the majority) which don't want
+         * delayed error signalling. */
         mpFailedEI = apFailedEI;
     }
     else

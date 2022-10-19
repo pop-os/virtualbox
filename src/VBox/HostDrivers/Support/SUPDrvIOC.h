@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_SRC_Support_SUPDrvIOC_h
@@ -39,9 +49,9 @@
  * The SUP_IOCTL_FLAG macro is used to separate requests from 32-bit
  * and 64-bit processes.
  */
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC64)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC64) || defined(RT_ARCH_ARM64)
 # define SUP_IOCTL_FLAG     128
-#elif defined(RT_ARCH_X86) || defined(RT_ARCH_SPARC)
+#elif defined(RT_ARCH_X86) || defined(RT_ARCH_SPARC)   || defined(RT_ARCH_ARM32)
 # define SUP_IOCTL_FLAG     0
 #else
 # error "dunno which arch this is!"
@@ -141,7 +151,7 @@
 *******************************************************************************/
 #ifdef RT_ARCH_AMD64
 # pragma pack(8)                        /* paranoia. */
-#else
+#elif defined(RT_ARCH_X86)
 # pragma pack(4)                        /* paranoia. */
 #endif
 
@@ -220,9 +230,9 @@ typedef SUPREQHDR *PSUPREQHDR;
  *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
- *          - Nothing.
+ *          - nothing
  */
-#define SUPDRV_IOC_VERSION                              0x00320000
+#define SUPDRV_IOC_VERSION                              0x00330003
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -316,9 +326,12 @@ typedef struct SUPLDROPEN
     {
         struct
         {
-            /** Size of the image we'll be loading (including all tables). */
+            /** Size of the image we'll be loading (including all tables).
+             * Zero if the caller does not wish to prepare loading anything, then
+             * cbImageBits must be zero too ofc. */
             uint32_t        cbImageWithEverything;
-            /** The size of the image bits. (Less or equal to cbImageWithTabs.) */
+            /** The size of the image bits. (Less or equal to cbImageWithTabs.)
+             * Zero if the caller does not wish to prepare loading anything. */
             uint32_t        cbImageBits;
             /** Image name.
              * This is the NAME of the image, not the file name. It is used
@@ -359,7 +372,7 @@ typedef struct SUPLDROPEN
  * @returns Appropriate error code on failure.
  * @param   hMod        Image handle for use in APIs.
  */
-typedef DECLCALLBACK(int) FNR0MODULEINIT(void *hMod);
+typedef DECLCALLBACKTYPE(int, FNR0MODULEINIT,(void *hMod));
 /** Pointer to a FNR0MODULEINIT(). */
 typedef R0PTRTYPE(FNR0MODULEINIT *) PFNR0MODULEINIT;
 
@@ -369,7 +382,7 @@ typedef R0PTRTYPE(FNR0MODULEINIT *) PFNR0MODULEINIT;
  *
  * @param   hMod        Image handle for use in APIs.
  */
-typedef DECLCALLBACK(void) FNR0MODULETERM(void *hMod);
+typedef DECLCALLBACKTYPE(void, FNR0MODULETERM,(void *hMod));
 /** Pointer to a FNR0MODULETERM(). */
 typedef R0PTRTYPE(FNR0MODULETERM *) PFNR0MODULETERM;
 
@@ -444,8 +457,6 @@ typedef struct SUPLDRLOAD
                 /** SUPLDRLOADEP_VMMR0. */
                 struct
                 {
-                    /** The module handle (i.e. address). */
-                    RTR0PTR                 pvVMMR0;
                     /** Address of VMMR0EntryFast function. */
                     RTR0PTR                 pvVMMR0EntryFast;
                     /** Address of VMMR0EntryEx function. */
@@ -1706,7 +1717,9 @@ typedef struct SUPGETHWVIRTMSRS
 /** @} */
 
 
-#pragma pack()                          /* paranoia */
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# pragma pack()                         /* paranoia */
+#endif
 
 #endif /* !VBOX_INCLUDED_SRC_Support_SUPDrvIOC_h */
 

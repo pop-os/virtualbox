@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_Graphics_shaderlib_vboxext_h
@@ -58,15 +68,15 @@ HRESULT VBoxExtWndCreate(DWORD width, DWORD height, HWND *phWnd, HDC *phDC);
 
 
 /* hashmap */
-typedef DECLCALLBACK(uint32_t) FNVBOXEXT_HASHMAP_HASH(void *pvKey);
+typedef DECLCALLBACKTYPE(uint32_t, FNVBOXEXT_HASHMAP_HASH,(void *pvKey));
 typedef FNVBOXEXT_HASHMAP_HASH *PFNVBOXEXT_HASHMAP_HASH;
 
-typedef DECLCALLBACK(bool) FNVBOXEXT_HASHMAP_EQUAL(void *pvKey1, void *pvKey2);
+typedef DECLCALLBACKTYPE(bool, FNVBOXEXT_HASHMAP_EQUAL,(void *pvKey1, void *pvKey2));
 typedef FNVBOXEXT_HASHMAP_EQUAL *PFNVBOXEXT_HASHMAP_EQUAL;
 
 struct VBOXEXT_HASHMAP;
 struct VBOXEXT_HASHMAP_ENTRY;
-typedef DECLCALLBACK(bool) FNVBOXEXT_HASHMAP_VISITOR(struct VBOXEXT_HASHMAP *pMap, void *pvKey, struct VBOXEXT_HASHMAP_ENTRY *pValue, void *pvVisitor);
+typedef DECLCALLBACKTYPE(bool, FNVBOXEXT_HASHMAP_VISITOR,(struct VBOXEXT_HASHMAP *pMap, void *pvKey, struct VBOXEXT_HASHMAP_ENTRY *pValue, void *pvVisitor));
 typedef FNVBOXEXT_HASHMAP_VISITOR *PFNVBOXEXT_HASHMAP_VISITOR;
 
 typedef struct VBOXEXT_HASHMAP_ENTRY
@@ -110,7 +120,7 @@ DECLINLINE(void*) VBoxExtHashEntryKey(PVBOXEXT_HASHMAP_ENTRY pEntry)
 }
 
 struct VBOXEXT_HASHCACHE_ENTRY;
-typedef DECLCALLBACK(void) FNVBOXEXT_HASHCACHE_CLEANUP_ENTRY(void *pvKey, struct VBOXEXT_HASHCACHE_ENTRY *pEntry);
+typedef DECLCALLBACKTYPE(void, FNVBOXEXT_HASHCACHE_CLEANUP_ENTRY,(void *pvKey, struct VBOXEXT_HASHCACHE_ENTRY *pEntry));
 typedef FNVBOXEXT_HASHCACHE_CLEANUP_ENTRY *PFNVBOXEXT_HASHCACHE_CLEANUP_ENTRY;
 
 typedef struct VBOXEXT_HASHCACHE_ENTRY

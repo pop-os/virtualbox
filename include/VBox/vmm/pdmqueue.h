@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmqueue_h
@@ -38,31 +48,23 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
-/** PDM queue handle. */
-typedef uint64_t PDMQUEUEHANDLE;
-/** NIL PDM queue handle. */
-#define NIL_PDMQUEUEHANDLE      UINT64_MAX
-
 /** Pointer to a PDM queue. */
 typedef struct PDMQUEUE *PPDMQUEUE;
 
 /** Pointer to a PDM queue item core. */
-typedef struct PDMQUEUEITEMCORE *PPDMQUEUEITEMCORE;
+typedef union PDMQUEUEITEMCORE *PPDMQUEUEITEMCORE;
 
 /**
  * PDM queue item core.
  */
-typedef struct PDMQUEUEITEMCORE
+typedef union PDMQUEUEITEMCORE
 {
-    /** Pointer to the next item in the pending list - R3 Pointer. */
-    R3PTRTYPE(PPDMQUEUEITEMCORE)    pNextR3;
-    /** Pointer to the next item in the pending list - R0 Pointer. */
-    R0PTRTYPE(PPDMQUEUEITEMCORE)    pNextR0;
-    /** Pointer to the next item in the pending list - RC Pointer. */
-    RCPTRTYPE(PPDMQUEUEITEMCORE)    pNextRC;
-#if HC_ARCH_BITS == 64
-    RTRCPTR                         Alignment0;
-#endif
+    /** The next queue item on the pending list (UINT32_MAX for NIL). */
+    uint32_t volatile               iNext;
+    /** The next item about to be flushed. */
+    R3PTRTYPE(PPDMQUEUEITEMCORE)    pNext;
+    /** Make sure the core is 64-bit wide. */
+    uint64_t                        u64View;
 } PDMQUEUEITEMCORE;
 
 
@@ -77,7 +79,7 @@ typedef struct PDMQUEUEITEMCORE
  *          callback.  No locks will be held, but for now it's safe to assume
  *          that only one EMT will do queue callbacks at any one time.
  */
-typedef DECLCALLBACK(bool) FNPDMQUEUEDEV(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem);
+typedef DECLCALLBACKTYPE(bool, FNPDMQUEUEDEV,(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem));
 /** Pointer to a FNPDMQUEUEDEV(). */
 typedef FNPDMQUEUEDEV *PFNPDMQUEUEDEV;
 
@@ -86,12 +88,12 @@ typedef FNPDMQUEUEDEV *PFNPDMQUEUEDEV;
  *
  * @returns Success indicator.
  *          If false the item will not be removed and the flushing will stop.
- * @param   pDevIns     The USB device instance.
+ * @param   pUsbIns     The USB device instance.
  * @param   pItem       The item to consume. Upon return this item will be freed.
  * @remarks No locks will be held, but for now it's safe to assume that only one
  *          EMT will do queue callbacks at any one time.
  */
-typedef DECLCALLBACK(bool) FNPDMQUEUEUSB(PPDMUSBINS pUsbIns, PPDMQUEUEITEMCORE pItem);
+typedef DECLCALLBACKTYPE(bool, FNPDMQUEUEUSB,(PPDMUSBINS pUsbIns, PPDMQUEUEITEMCORE pItem));
 /** Pointer to a FNPDMQUEUEUSB(). */
 typedef FNPDMQUEUEUSB *PFNPDMQUEUEUSB;
 
@@ -105,7 +107,7 @@ typedef FNPDMQUEUEUSB *PFNPDMQUEUEUSB;
  * @remarks No locks will be held, but for now it's safe to assume that only one
  *          EMT will do queue callbacks at any one time.
  */
-typedef DECLCALLBACK(bool) FNPDMQUEUEDRV(PPDMDRVINS pDrvIns, PPDMQUEUEITEMCORE pItem);
+typedef DECLCALLBACKTYPE(bool, FNPDMQUEUEDRV,(PPDMDRVINS pDrvIns, PPDMQUEUEITEMCORE pItem));
 /** Pointer to a FNPDMQUEUEDRV(). */
 typedef FNPDMQUEUEDRV *PFNPDMQUEUEDRV;
 
@@ -119,7 +121,7 @@ typedef FNPDMQUEUEDRV *PFNPDMQUEUEDRV;
  * @remarks No locks will be held, but for now it's safe to assume that only one
  *          EMT will do queue callbacks at any one time.
  */
-typedef DECLCALLBACK(bool) FNPDMQUEUEINT(PVM pVM, PPDMQUEUEITEMCORE pItem);
+typedef DECLCALLBACKTYPE(bool, FNPDMQUEUEINT,(PVM pVM, PPDMQUEUEITEMCORE pItem));
 /** Pointer to a FNPDMQUEUEINT(). */
 typedef FNPDMQUEUEINT *PFNPDMQUEUEINT;
 
@@ -133,31 +135,31 @@ typedef FNPDMQUEUEINT *PFNPDMQUEUEINT;
  * @remarks No locks will be held, but for now it's safe to assume that only one
  *          EMT will do queue callbacks at any one time.
  */
-typedef DECLCALLBACK(bool) FNPDMQUEUEEXT(void *pvUser, PPDMQUEUEITEMCORE pItem);
+typedef DECLCALLBACKTYPE(bool, FNPDMQUEUEEXT,(void *pvUser, PPDMQUEUEITEMCORE pItem));
 /** Pointer to a FNPDMQUEUEEXT(). */
 typedef FNPDMQUEUEEXT *PFNPDMQUEUEEXT;
 
 #ifdef VBOX_IN_VMM
-VMMR3_INT_DECL(int)  PDMR3QueueCreateDevice(PVM pVM, PPDMDEVINS pDevIns, size_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
-                                            PFNPDMQUEUEDEV pfnCallback, bool fRZEnabled, const char *pszName, PPDMQUEUE *ppQueue);
-VMMR3_INT_DECL(int)  PDMR3QueueCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, size_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
-                                            PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue);
-VMMR3_INT_DECL(int)  PDMR3QueueCreateInternal(PVM pVM, size_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
-                                              PFNPDMQUEUEINT pfnCallback, bool fGCEnabled, const char *pszName, PPDMQUEUE *ppQueue);
-VMMR3_INT_DECL(int)  PDMR3QueueCreateExternal(PVM pVM, size_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
-                                              PFNPDMQUEUEEXT pfnCallback, void *pvUser, const char *pszName, PPDMQUEUE *ppQueue);
-VMMR3_INT_DECL(int)  PDMR3QueueDestroy(PPDMQUEUE pQueue);
+VMMR3_INT_DECL(int)  PDMR3QueueCreateDevice(PVM pVM, PPDMDEVINS pDevIns, size_t cbItem, uint32_t cItems,
+                                            uint32_t cMilliesInterval, PFNPDMQUEUEDEV pfnCallback,
+                                            bool fRZEnabled, const char *pszName, PDMQUEUEHANDLE *phQueue);
+VMMR3_INT_DECL(int)  PDMR3QueueCreateDriver(PVM pVM, PPDMDRVINS pDrvIns, size_t cbItem, uint32_t cItems,
+                                            uint32_t cMilliesInterval, PFNPDMQUEUEDRV pfnCallback,
+                                            const char *pszName, PDMQUEUEHANDLE *phQueue);
+VMMR3_INT_DECL(int)  PDMR3QueueCreateInternal(PVM pVM, size_t cbItem, uint32_t cItems,
+                                              uint32_t cMilliesInterval, PFNPDMQUEUEINT pfnCallback,
+                                              bool fRZEnabled, const char *pszName, PDMQUEUEHANDLE *phQueue);
+VMMR3DECL(int)       PDMR3QueueCreateExternal(PVM pVM, size_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
+                                              PFNPDMQUEUEEXT pfnCallback, void *pvUser, const char *pszName, PDMQUEUEHANDLE *phQueue);
+VMMR3DECL(int)       PDMR3QueueDestroy(PVM pVM, PDMQUEUEHANDLE hQueue, void *pvOwner);
 VMMR3_INT_DECL(int)  PDMR3QueueDestroyDevice(PVM pVM, PPDMDEVINS pDevIns);
 VMMR3_INT_DECL(int)  PDMR3QueueDestroyDriver(PVM pVM, PPDMDRVINS pDrvIns);
-VMMR3_INT_DECL(void) PDMR3QueueFlushAll(PVM pVM);
+VMMR3DECL(void)      PDMR3QueueFlushAll(PVM pVM);
 #endif /* VBOX_IN_VMM */
 
-VMMDECL(PPDMQUEUEITEMCORE)    PDMQueueAlloc(PPDMQUEUE pQueue);
-VMMDECL(void)                 PDMQueueInsert(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem);
-VMMDECL(void)                 PDMQueueInsertEx(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem, uint64_t NanoMaxDelay);
-VMMDECL(RCPTRTYPE(PPDMQUEUE)) PDMQueueRCPtr(PPDMQUEUE pQueue);
-VMMDECL(R0PTRTYPE(PPDMQUEUE)) PDMQueueR0Ptr(PPDMQUEUE pQueue);
-VMMDECL(bool)                 PDMQueueFlushIfNecessary(PPDMQUEUE pQueue);
+VMMDECL(PPDMQUEUEITEMCORE)  PDMQueueAlloc(PVMCC pVM, PDMQUEUEHANDLE hQueue, void *pvOwner);
+VMMDECL(int)                PDMQueueInsert(PVMCC pVM, PDMQUEUEHANDLE hQueue, void *pvOwner, PPDMQUEUEITEMCORE pInsert);
+VMMDECL(int)                PDMQueueFlushIfNecessary(PVMCC pVM, PDMQUEUEHANDLE hQueue, void *pvOwner);
 
 /** @} */
 

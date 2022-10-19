@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -37,7 +47,7 @@
 #include "UIIconPool.h"
 #include "UIMachineWindow.h"
 #include "UIMenuBarEditorWindow.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
 
 /* Forward declarations: */
 class QAccessibleInterface;
@@ -66,34 +76,34 @@ public:
                                                             UIMenuBarEditorSegment enmIndex);
 
     /** Returns whether the interface is valid. */
-    virtual bool isValid() const /* override */ { return true; }
+    virtual bool isValid() const RT_OVERRIDE { return true; }
 
     /** Returns the wrapped object. */
-    virtual QObject *object() const /* override */ { return 0; }
+    virtual QObject *object() const RT_OVERRIDE { return 0; }
     /** Returns the parent. */
-    virtual QAccessibleInterface *parent() const /* override */;
+    virtual QAccessibleInterface *parent() const RT_OVERRIDE;
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */ { return 0; }
+    virtual int childCount() const RT_OVERRIDE { return 0; }
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int /* iIndex */) const /* override */ { return 0; }
+    virtual QAccessibleInterface *child(int /* iIndex */) const RT_OVERRIDE { return 0; }
     /** Returns the child at position QPoint(@a x, @a y). */
-    virtual QAccessibleInterface *childAt(int /* x */, int /* y */) const /* override */ { return 0; }
+    virtual QAccessibleInterface *childAt(int /* x */, int /* y */) const RT_OVERRIDE { return 0; }
     /** Returns the index of the passed @a pChild. */
-    virtual int indexOfChild(const QAccessibleInterface * /* pChild */) const /* override */ { return -1; }
+    virtual int indexOfChild(const QAccessibleInterface * /* pChild */) const RT_OVERRIDE { return -1; }
 
     /** Returns the rect. */
-    virtual QRect rect() const /* override */;
+    virtual QRect rect() const RT_OVERRIDE;
 
     /** Defines a @a strText for the passed @a enmTextRole. */
-    virtual void setText(QAccessible::Text /* enmTextRole */, const QString & /* strText */) /* override */ {}
+    virtual void setText(QAccessible::Text /* enmTextRole */, const QString & /* strText */) RT_OVERRIDE {}
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text /* enmTextRole */) const /* override */;
+    virtual QString text(QAccessible::Text /* enmTextRole */) const RT_OVERRIDE;
 
     /** Returns the role. */
-    virtual QAccessible::Role role() const /* override */ { return QAccessible::Button; }
+    virtual QAccessible::Role role() const RT_OVERRIDE { return QAccessible::Button; }
     /** Returns the state. */
-    virtual QAccessible::State state() const /* override */ { return QAccessible::State(); }
+    virtual QAccessible::State state() const RT_OVERRIDE { return QAccessible::State(); }
 
 private:
 
@@ -119,12 +129,12 @@ public:
     ~UIAccessibilityInterfaceForUIMenuBarEditorButton();
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */;
+    virtual int childCount() const RT_OVERRIDE;
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int iIndex) const /* override */;
+    virtual QAccessibleInterface *child(int iIndex) const RT_OVERRIDE;
 
     /** Returns the role. */
-    virtual QAccessible::Role role() const /* override */;
+    virtual QAccessible::Role role() const RT_OVERRIDE;
 
     /** Returns the rect of sub-element @a enmSegment. */
     QRect subRect(UIMenuBarEditorSegment enmSegment) const;
@@ -657,6 +667,9 @@ void UIMenuBarEditorWidget::setRestrictionsOfMenuHelp(UIExtraDataMetaDefs::MenuH
 
 void UIMenuBarEditorWidget::retranslateUi()
 {
+    /* Translate widget itself: */
+    setToolTip(tr("Allows to modify VM menu-bar contents."));
+
     /* Translate close-button if necessary: */
     if (!m_fStartedFromVMSettings && m_pButtonClose)
         m_pButtonClose->setToolTip(tr("Close"));
@@ -673,7 +686,7 @@ void UIMenuBarEditorWidget::paintEvent(QPaintEvent *)
     QPainter painter(this);
 
     /* Prepare palette colors: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
     QColor color0 = pal.color(QPalette::Window);
     QColor color1 = pal.color(QPalette::Window).lighter(110);
     color1.setAlpha(0);
@@ -989,7 +1002,7 @@ void UIMenuBarEditorWidget::prepare()
         m_pMainLayout->setContentsMargins(iLeft, iTop, iRight, iBottom);
         m_pMainLayout->setSpacing(0);
         /* Create tool-bar: */
-        m_pToolBar = new UIToolBar;
+        m_pToolBar = new QIToolBar;
         AssertPtrReturnVoid(m_pToolBar);
         {
             /* Prepare menus: */
@@ -1246,18 +1259,12 @@ void UIMenuBarEditorWidget::prepareMenuApplication()
     {
 #ifdef VBOX_WS_MAC
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndex_M_Application_S_About));
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-        prepareCopiedAction(pMenu, actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
-# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
         pMenu->addSeparator();
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndex_M_Application_S_Preferences));
 #else /* !VBOX_WS_MAC */
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndex_M_Application_S_Preferences));
         pMenu->addSeparator();
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-        prepareCopiedAction(pMenu, actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
-# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
 #endif /* !VBOX_WS_MAC */
     }
@@ -1281,6 +1288,7 @@ void UIMenuBarEditorWidget::prepareMenuMachine()
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_SaveState));
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_Shutdown));
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_PowerOff));
+        prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Machine_S_ShowLogDialog));
     }
 }
 
@@ -1360,7 +1368,6 @@ void UIMenuBarEditorWidget::prepareMenuDebug()
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Debug_S_ShowStatistics));
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Debug_S_ShowCommandLine));
         prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Debug_T_Logging));
-        prepareCopiedAction(pMenu, actionPool()->action(UIActionIndexRT_M_Debug_S_ShowLogDialog));
     }
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */

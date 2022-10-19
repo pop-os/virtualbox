@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef GA_INCLUDED_SRC_3D_win_VBoxWddmUmHlp_VBoxWddmUmHlp_h
@@ -23,19 +33,25 @@
 
 #include <iprt/win/d3d9.h>
 #include <d3dumddi.h>
-#include <d3dkmthk.h>
+#include <iprt/win/d3dkmthk.h>
 
 #include <iprt/asm.h>
 #include <iprt/cdefs.h>
 
 /* Do not require IPRT library. */
-#if defined(Assert)
-#undef Assert
-#endif
-#ifdef RT_STRICT
-#define Assert(_e) (void)( (!!(_e)) || (ASMBreakpoint(), 0) )
-#else
-#define Assert(_e) (void)( 0 )
+/** @todo r=bird: It is *NOT* okay to redefine Assert* (or Log*) macros!  It
+ * causes confusing as the code no longer behaves in the way one expect.  Thus,
+ * it is strictly forbidden. */
+#ifndef IPRT_NO_CRT
+# undef Assert
+# undef AssertReturnVoid
+# ifdef RT_STRICT
+#  define Assert(_e) (void)( (!!(_e)) || (ASMBreakpoint(), 0) )
+#  define AssertReturnVoid(a_Expr) do { if (RT_LIKELY(a_Expr)) {} else { ASMBreakpoint(); return; } } while (0)
+# else
+#  define Assert(_e) (void)( 0 )
+#  define AssertReturnVoid(a_Expr) do { if (RT_LIKELY(a_Expr)) {} else return; } while (0)
+# endif
 #endif
 
 /* Do not require ntstatus.h.
@@ -87,7 +103,7 @@ DECLCALLBACK(void) VBoxWddmLoadAdresses(HMODULE hmod, VBOXWDDMDLLPROC *paProcs);
 DECLCALLBACK(int) D3DKMTLoad(void);
 DECLCALLBACK(D3DKMTFUNCTIONS const *) D3DKMTFunctions(void);
 
-DECLCALLBACK(void) VBoxDispMpLoggerLogF(const char *pszString, ...);
+DECLCALLBACK(void) VBoxDispMpLoggerLogF(const char *pszFormat, ...);
 DECLCALLBACK(void) VBoxWddmUmLog(const char *pszString);
 
 /** @todo Rename to VBoxWddm* */

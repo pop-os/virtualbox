@@ -17,9 +17,12 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+FILE_LICENCE ( BSD2 );
+
 #include <ipxe/malloc.h>
 #include <ipxe/pci_io.h>
 #include <ipxe/pci.h>
+#include <ipxe/ethernet.h>
 
 #include "ath9k.h"
 
@@ -220,7 +223,7 @@ int ath_descdma_setup(struct ath_softc *sc, struct ath_descdma *dd,
 	}
 
 	/* allocate descriptors */
-	dd->dd_desc = malloc_dma(dd->dd_desc_len, 16);
+	dd->dd_desc = malloc_phys(dd->dd_desc_len, 16);
 	if (dd->dd_desc == NULL) {
 		error = -ENOMEM;
 		goto fail;
@@ -261,7 +264,7 @@ int ath_descdma_setup(struct ath_softc *sc, struct ath_descdma *dd,
 	}
 	return 0;
 fail2:
-	free_dma(dd->dd_desc, dd->dd_desc_len);
+	free_phys(dd->dd_desc, dd->dd_desc_len);
 fail:
 	memset(dd, 0, sizeof(*dd));
 	return error;
@@ -347,7 +350,7 @@ static void ath9k_init_misc(struct ath_softc *sc)
 	ath9k_hw_set_diversity(sc->sc_ah, 1);
 	sc->rx.defant = ath9k_hw_getdefantenna(sc->sc_ah);
 
-	memcpy(common->bssidmask, ath_bcast_mac, ETH_ALEN);
+	memcpy(common->bssidmask, eth_broadcast, ETH_ALEN);
 }
 
 static int ath9k_init_softc(u16 devid, struct ath_softc *sc, u16 subsysid,
@@ -585,7 +588,7 @@ void ath_descdma_cleanup(struct ath_softc *sc __unused,
 			 struct ath_descdma *dd,
 			 struct list_head *head)
 {
-	free_dma(dd->dd_desc, dd->dd_desc_len);
+	free_phys(dd->dd_desc, dd->dd_desc_len);
 
 	INIT_LIST_HEAD(head);
 	free(dd->dd_bufptr);

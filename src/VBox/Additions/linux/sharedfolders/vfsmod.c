@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -1139,7 +1139,7 @@ static int vbsf_show_options(struct seq_file *m, struct dentry *root)
         if (pSuperInfo->cbDirBuf != VBSF_DEFAULT_DIR_BUF_SIZE)
             seq_printf(m, ",dirbuf=%u", pSuperInfo->cbDirBuf);
         switch (pSuperInfo->enmCacheMode) {
-            default: AssertFailed();
+            default: AssertFailed(); RT_FALL_THRU();
             case kVbsfCacheMode_Strict:
                 break;
             case kVbsfCacheMode_None:       seq_puts(m, ",cache=none"); break;

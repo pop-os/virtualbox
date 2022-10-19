@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -130,12 +140,9 @@ int pdmR3DevInit(PVM pVM)
     /*
      * Get the RC & R0 devhlps and create the devhlp R3 task queue.
      */
-    rc = PDMR3QueueCreateInternal(pVM, sizeof(PDMDEVHLPTASK), 8, 0, pdmR3DevHlpQueueConsumer, true, "DevHlp",
-                                  &pVM->pdm.s.pDevHlpQueueR3);
+    rc = PDMR3QueueCreateInternal(pVM, sizeof(PDMDEVHLPTASK), pVM->cCpus * 8, 0, pdmR3DevHlpQueueConsumer, true, "DevHlp",
+                                  &pVM->pdm.s.hDevHlpQueue);
     AssertRCReturn(rc, rc);
-    pVM->pdm.s.pDevHlpQueueR0 = PDMQueueR0Ptr(pVM->pdm.s.pDevHlpQueueR3);
-    pVM->pdm.s.pDevHlpQueueRC = PDMQueueRCPtr(pVM->pdm.s.pDevHlpQueueR3);
-
 
     /*
      *
@@ -283,7 +290,7 @@ int pdmR3DevInit(PVM pVM)
 #ifdef VBOX_WITH_PGM_NEM_MODE
             && !PGMR3IsNemModeEnabled(pVM) /* No ring-0 in simplified memory mode. */
 #endif
-           )
+            && !SUPR3IsDriverless())
         {
             if (pReg->fFlags & PDM_DEVREG_FLAGS_R0)
             {
@@ -310,6 +317,30 @@ int pdmR3DevInit(PVM pVM)
                 fRCEnabled = false;
             }
         }
+
+#ifdef VBOX_WITH_DBGF_TRACING
+        DBGFTRACEREVTSRC hDbgfTraceEvtSrc = NIL_DBGFTRACEREVTSRC;
+        bool fTracingEnabled = false;
+        bool fGCPhysRwAll = false;
+        rc = CFGMR3QueryBoolDef(paDevs[i].pNode, "TracingEnabled", &fTracingEnabled,
+                                false);
+        AssertLogRelRCReturn(rc, rc);
+        if (fTracingEnabled)
+        {
+            rc = CFGMR3QueryBoolDef(paDevs[i].pNode, "TraceAllGstMemRw", &fGCPhysRwAll,
+                                    false);
+            AssertLogRelRCReturn(rc, rc);
+
+            /* Traced devices need to be trusted for now. */
+            if (fTrusted)
+            {
+                rc = DBGFR3TracerRegisterEvtSrc(pVM, pReg->szName, &hDbgfTraceEvtSrc);
+                AssertLogRelRCReturn(rc, rc);
+            }
+            else
+                AssertMsgFailedReturn(("configuration error: Device tracing needs a trusted device\n"), VERR_INCOMPATIBLE_CONFIG);
+        }
+#endif
 
         /* config node */
         PCFGMNODE pConfigNode = CFGMR3GetChild(paDevs[i].pNode, "Config");
@@ -341,32 +372,43 @@ int pdmR3DevInit(PVM pVM)
                                     pReg->pszR0Mod, pReg->szName);
 
             PDMDEVICECREATEREQ Req;
-            Req.Hdr.u32Magic     = SUPVMMR0REQHDR_MAGIC;
-            Req.Hdr.cbReq        = sizeof(Req);
-            Req.pDevInsR3        = NULL;
-            Req.fFlags           = pReg->fFlags;
-            Req.fClass           = pReg->fClass;
-            Req.cMaxInstances    = pReg->cMaxInstances;
-            Req.uSharedVersion   = pReg->uSharedVersion;
-            Req.cbInstanceShared = pReg->cbInstanceShared;
-            Req.cbInstanceR3     = pReg->cbInstanceCC;
-            Req.cbInstanceRC     = pReg->cbInstanceRC;
-            Req.cMaxPciDevices   = pReg->cMaxPciDevices;
-            Req.cMaxMsixVectors  = pReg->cMaxMsixVectors;
-            Req.iInstance        = paDevs[i].iInstance;
-            Req.fRCEnabled       = fRCEnabled;
-            Req.afReserved[0]    = false;
-            Req.afReserved[1]    = false;
-            Req.afReserved[2]    = false;
+            Req.Hdr.u32Magic      = SUPVMMR0REQHDR_MAGIC;
+            Req.Hdr.cbReq         = sizeof(Req);
+            Req.pDevInsR3         = NULL;
+            /** @todo Add tracer id in request so R0 can set up DEVINSR0 properly. */
+            Req.fFlags            = pReg->fFlags;
+            Req.fClass            = pReg->fClass;
+            Req.cMaxInstances     = pReg->cMaxInstances;
+            Req.uSharedVersion    = pReg->uSharedVersion;
+            Req.cbInstanceShared  = pReg->cbInstanceShared;
+            Req.cbInstanceR3      = pReg->cbInstanceCC;
+            Req.cbInstanceRC      = pReg->cbInstanceRC;
+            Req.cMaxPciDevices    = pReg->cMaxPciDevices;
+            Req.cMaxMsixVectors   = pReg->cMaxMsixVectors;
+            Req.iInstance         = paDevs[i].iInstance;
+            Req.fRCEnabled        = fRCEnabled;
+            Req.afReserved[0]     = false;
+            Req.afReserved[1]     = false;
+            Req.afReserved[2]     = false;
+#ifdef VBOX_WITH_DBGF_TRACING
+            Req.hDbgfTracerEvtSrc = hDbgfTraceEvtSrc;
+#else
+            Req.hDbgfTracerEvtSrc = NIL_DBGFTRACEREVTSRC;
+#endif
             rc = RTStrCopy(Req.szDevName, sizeof(Req.szDevName), pReg->szName);
             AssertLogRelRCReturn(rc, rc);
             rc = RTStrCopy(Req.szModName, sizeof(Req.szModName), pReg->pszR0Mod);
             AssertLogRelRCReturn(rc, rc);
+
             rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_PDM_DEVICE_CREATE, 0, &Req.Hdr);
             AssertLogRelMsgRCReturn(rc, ("VMMR0_DO_PDM_DEVICE_CREATE for %s failed: %Rrc\n", pReg->szName, rc), rc);
+
             pDevIns = Req.pDevInsR3;
             pCritSect = pDevIns->pCritSectRoR3;
+
             Assert(pDevIns->Internal.s.fIntFlags & PDMDEVINSINT_FLAGS_R0_ENABLED);
+            AssertLogRelReturn(pDevIns->Internal.s.idxR0Device < PDM_MAX_RING0_DEVICE_INSTANCES, VERR_PDM_DEV_IPE_1);
+            AssertLogRelReturn(pVM->pdm.s.apDevRing0Instances[pDevIns->Internal.s.idxR0Device] == pDevIns, VERR_PDM_DEV_IPE_1);
         }
         else
         {
@@ -438,6 +480,11 @@ int pdmR3DevInit(PVM pVM)
         //pDevIns->Internal.s.pfnAsyncNotify      = NULL;
         pDevIns->Internal.s.pCfgHandle          = paDevs[i].pNode;
         pDevIns->Internal.s.pVMR3               = pVM;
+#ifdef VBOX_WITH_DBGF_TRACING
+        pDevIns->Internal.s.hDbgfTraceEvtSrc    = hDbgfTraceEvtSrc;
+#else
+        pDevIns->Internal.s.hDbgfTraceEvtSrc    = NIL_DBGFTRACEREVTSRC;
+#endif
         //pDevIns->Internal.s.pHeadPciDevR3       = NULL;
         pDevIns->Internal.s.fIntFlags          |= PDMDEVINSINT_FLAGS_SUSPENDED;
         //pDevIns->Internal.s.uLastIrqTag         = 0;
@@ -470,6 +517,29 @@ int pdmR3DevInit(PVM pVM)
                 pPrev2 = pPrev2->Internal.s.pPerDeviceNextR3;
             pPrev2->Internal.s.pPerDeviceNextR3 = pDevIns;
         }
+
+#ifdef VBOX_WITH_DBGF_TRACING
+        /*
+         * Allocate memory for the MMIO/IO port registration tracking if DBGF tracing is enabled.
+         */
+        if (hDbgfTraceEvtSrc != NIL_DBGFTRACEREVTSRC)
+        {
+            pDevIns->Internal.s.paDbgfTraceTrack = (PPDMDEVINSDBGFTRACK)RTMemAllocZ(PDM_MAX_DEVICE_DBGF_TRACING_TRACK);
+            if (!pDevIns->Internal.s.paDbgfTraceTrack)
+            {
+                LogRel(("PDM: Failed to construct '%s'/%d! %Rra\n", pDevIns->pReg->szName, pDevIns->iInstance, VERR_NO_MEMORY));
+                if (VMR3GetErrorCount(pVM->pUVM) == 0)
+                    VMSetError(pVM, rc, RT_SRC_POS, "Failed to construct device '%s' instance #%u",
+                               pDevIns->pReg->szName, pDevIns->iInstance);
+                paDevs[i].pDev->cInstances--;
+                return VERR_NO_MEMORY;
+            }
+
+            pDevIns->Internal.s.idxDbgfTraceTrackNext = 0;
+            pDevIns->Internal.s.cDbgfTraceTrackMax = PDM_MAX_DEVICE_DBGF_TRACING_TRACK / sizeof(PDMDEVINSDBGFTRACK);
+            pDevIns->pHlpR3 = &g_pdmR3DevHlpTracing;
+        }
+#endif
 
         /*
          * Call the constructor.
@@ -546,9 +616,9 @@ int pdmR3DevInitComplete(PVM pVM)
     {
         if (pDevIns->pReg->pfnInitComplete)
         {
-            PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
+            PDMCritSectEnter(pVM, pDevIns->pCritSectRoR3, VERR_IGNORED);
             rc = pDevIns->pReg->pfnInitComplete(pDevIns);
-            PDMCritSectLeave(pDevIns->pCritSectRoR3);
+            PDMCritSectLeave(pVM, pDevIns->pCritSectRoR3);
             if (RT_FAILURE(rc))
             {
                 AssertMsgFailed(("InitComplete on device '%s'/%d failed with rc=%Rrc\n",
@@ -955,9 +1025,9 @@ VMMR3DECL(int) PDMR3DeviceAttach(PUVM pUVM, const char *pszDevice, unsigned iIns
         {
             if (!pLun->pTop)
             {
-                PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
+                PDMCritSectEnter(pVM, pDevIns->pCritSectRoR3, VERR_IGNORED);
                 rc = pDevIns->pReg->pfnAttach(pDevIns, iLun, fFlags);
-                PDMCritSectLeave(pDevIns->pCritSectRoR3);
+                PDMCritSectLeave(pVM, pDevIns->pCritSectRoR3);
             }
             else
                 rc = VERR_PDM_DRIVER_ALREADY_ATTACHED;
@@ -1068,11 +1138,11 @@ VMMR3DECL(int) PDMR3DriverAttach(PUVM pUVM, const char *pszDevice, unsigned iIns
             PPDMDEVINS pDevIns = pLun->pDevIns;
             if (pDevIns->pReg->pfnAttach)
             {
-                PDMCritSectEnter(pDevIns->pCritSectRoR3, VERR_IGNORED);
+                PDMCritSectEnter(pVM, pDevIns->pCritSectRoR3, VERR_IGNORED);
                 rc = pDevIns->pReg->pfnAttach(pDevIns, iLun, fFlags);
                 if (RT_SUCCESS(rc) && ppBase)
                     *ppBase = pLun->pTop ? &pLun->pTop->IBase : NULL;
-                PDMCritSectLeave(pDevIns->pCritSectRoR3);
+                PDMCritSectLeave(pVM, pDevIns->pCritSectRoR3);
             }
             else
                 rc = VERR_PDM_DEVICE_NO_RT_ATTACH;

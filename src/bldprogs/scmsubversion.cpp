@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define SCM_WITH_DYNAMIC_LIB_SVN
@@ -722,11 +732,17 @@ static void scmSvnTryResolveFunctions(void)
 #  else
             { "../lib64/lib", ".so" },
             { "../lib64/lib", "-1.so" },
+#   ifdef RT_OS_SOLARIS
+            { "../lib/svn/amd64/lib", ".so" },
+            { "../lib/svn/amd64/lib", "-1.so" },
+            { "../apr/1.6/lib/amd64/lib", ".so" },
+            { "../apr/1.6/lib/amd64/lib", "-1.so" },
+#   endif
 #  endif
 #  ifdef RT_ARCH_X86
             { "../lib/i386-linux-gnu/lib", ".so" },
             { "../lib/i386-linux-gnu/lib", "-1.so" },
-#  else
+#  elif defined(RT_ARCH_AMD64)
             { "../lib/x86_64-linux-gnu/lib", ".so" },
             { "../lib/x86_64-linux-gnu/lib", "-1.so" },
 #  endif
@@ -768,6 +784,37 @@ static void scmSvnTryResolveFunctions(void)
                         }
                     }
                 }
+# ifdef RT_OS_SOLARIS
+                /*
+                 * HACK: Solaris may keep libapr.so separately from svn, so do a separate search for it.
+                 */
+                /** @todo It would make a lot more sense to use the dlfcn.h machinery to figure
+                 *        out which libapr*.so* file was loaded into the process together with
+                 *        the two svn libraries and get a dlopen handle for it.  We risk ending
+                 *        up with the completely wrong libapr here! */
+                if (iLib == RT_ELEMENTS(s_apszLibraries) - 1 && RT_FAILURE(rc))
+                {
+                    ahMods[iLib] = NIL_RTLDRMOD;
+                    for (unsigned iVar2 = 0; iVar2 < RT_ELEMENTS(s_aVariations) && ahMods[iLib] == NIL_RTLDRMOD; iVar2++)
+                        for (unsigned iSuff2 = 0; iSuff2 < RT_ELEMENTS(s_apszSuffixes) && ahMods[iLib] == NIL_RTLDRMOD; iSuff2++)
+                        {
+                            *pszEndPath = '\0';
+                            rc = RTPathAppend(szPath, sizeof(szPath), s_aVariations[iVar2].pszPrefix);
+                            if (RT_SUCCESS(rc))
+                                rc = RTStrCat(szPath, sizeof(szPath), s_apszLibraries[iLib]);
+                            if (RT_SUCCESS(rc))
+                                rc = RTStrCat(szPath, sizeof(szPath), s_aVariations[iVar2].pszSuffix);
+                            if (RT_SUCCESS(rc))
+                                rc = RTStrCat(szPath, sizeof(szPath), s_apszSuffixes[iSuff2]);
+                            if (RT_SUCCESS(rc))
+                                rc = RTLdrLoadEx(szPath, &ahMods[iLib], RTLDRLOAD_FLAGS_NT_SEARCH_DLL_LOAD_DIR, NULL);
+                            if (RT_SUCCESS(rc))
+                                RTMEM_WILL_LEAK(ahMods[iLib]);
+                            else
+                                ahMods[iLib] = NIL_RTLDRMOD;
+                        }
+                }
+# endif /* RT_OS_SOLARIS */
             }
             if (iLib == RT_ELEMENTS(s_apszLibraries) && RT_SUCCESS(rc))
             {
@@ -775,18 +822,18 @@ static void scmSvnTryResolveFunctions(void)
                 {
                     unsigned    iLib;
                     const char *pszSymbol;
-                    PFNRT      *ppfn;
+                    uintptr_t  *ppfn;   /**< The nothrow attrib of PFNRT goes down the wrong way with Clang 11, thus uintptr_t. */
                 } s_aSymbols[] =
                 {
-                    { 2, "apr_initialize",              (PFNRT *)&g_pfnAprInitialize },
-                    { 2, "apr_hash_first",              (PFNRT *)&g_pfnAprHashFirst },
-                    { 2, "apr_hash_next",               (PFNRT *)&g_pfnAprHashNext },
-                    { 2, "apr_hash_this_val",           (PFNRT *)&g_pfnAprHashThisVal },
-                    { 1, "svn_pool_create_ex",          (PFNRT *)&g_pfnSvnPoolCreateEx },
-                    { 2, "apr_pool_clear",              (PFNRT *)&g_pfnAprPoolClear },
-                    { 2, "apr_pool_destroy",            (PFNRT *)&g_pfnAprPoolDestroy },
-                    { 0, "svn_client_create_context",   (PFNRT *)&g_pfnSvnClientCreateContext },
-                    { 0, "svn_client_propget4",         (PFNRT *)&g_pfnSvnClientPropGet4 },
+                    { 2, "apr_initialize",              (uintptr_t *)&g_pfnAprInitialize },
+                    { 2, "apr_hash_first",              (uintptr_t *)&g_pfnAprHashFirst },
+                    { 2, "apr_hash_next",               (uintptr_t *)&g_pfnAprHashNext },
+                    { 2, "apr_hash_this_val",           (uintptr_t *)&g_pfnAprHashThisVal },
+                    { 1, "svn_pool_create_ex",          (uintptr_t *)&g_pfnSvnPoolCreateEx },
+                    { 2, "apr_pool_clear",              (uintptr_t *)&g_pfnAprPoolClear },
+                    { 2, "apr_pool_destroy",            (uintptr_t *)&g_pfnAprPoolDestroy },
+                    { 0, "svn_client_create_context",   (uintptr_t *)&g_pfnSvnClientCreateContext },
+                    { 0, "svn_client_propget4",         (uintptr_t *)&g_pfnSvnClientPropGet4 },
                 };
                 for (unsigned i = 0; i < RT_ELEMENTS(s_aSymbols); i++)
                 {
@@ -1472,6 +1519,7 @@ int ScmSvnQueryParentProperty(PSCMRWSTATE pState, const char *pszName, char **pp
         SCMRWSTATE ParentState;
         ParentState.pszFilename         = szPath;
         ParentState.fFirst              = false;
+        ParentState.fNeedsManualRepair  = false;
         ParentState.fIsInSvnWorkingCopy = true;
         ParentState.cSvnPropChanges     = 0;
         ParentState.paSvnPropChanges    = NULL;

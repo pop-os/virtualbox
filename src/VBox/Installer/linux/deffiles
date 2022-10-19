@@ -5,15 +5,25 @@
 #
 
 #
-# Copyright (C) 2007-2020 Oracle Corporation
+# Copyright (C) 2007-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 # No entries should ever be removed from this file, as it is used
@@ -45,7 +55,6 @@ DEFAULT_FILE_NAMES=" \
     VirtualBox \
     VirtualBoxVM \
     VirtualBox.so \
-    VBoxTunctl \
     VBoxSettings.so \
     VBoxSharedFolders.so \
     VBoxSharedClipboard.so \
@@ -102,6 +111,7 @@ DEFAULT_FILE_NAMES=" \
     VBox.sh \
     VBox.png \
     virtualbox.desktop \
+    virtualboxvm.desktop \
     src/ \
     src/include/ \
     src/include/iprt/ \
@@ -602,45 +612,4 @@ DEFAULT_FILE_NAMES=" \
     sdk/samples/API/makefile.tstVBoxAPILinux \
     sdk/samples/API/tstVBoxAPILinux \
     additions/VBoxGuestAdditions.iso \
-    UserManual.pdf \
-    rdesktop-vrdp.tar.gz \
-    rdesktop-vrdp-keymaps/ar \
-    rdesktop-vrdp-keymaps/common \
-    rdesktop-vrdp-keymaps/convert-map \
-    rdesktop-vrdp-keymaps/cs \
-    rdesktop-vrdp-keymaps/da \
-    rdesktop-vrdp-keymaps/de \
-    rdesktop-vrdp-keymaps/de-ch \
-    rdesktop-vrdp-keymaps/en-dv \
-    rdesktop-vrdp-keymaps/en-gb \
-    rdesktop-vrdp-keymaps/en-us \
-    rdesktop-vrdp-keymaps/es \
-    rdesktop-vrdp-keymaps/et \
-    rdesktop-vrdp-keymaps/fi \
-    rdesktop-vrdp-keymaps/fo \
-    rdesktop-vrdp-keymaps/fr \
-    rdesktop-vrdp-keymaps/fr-be \
-    rdesktop-vrdp-keymaps/fr-ca \
-    rdesktop-vrdp-keymaps/fr-ch \
-    rdesktop-vrdp-keymaps/he \
-    rdesktop-vrdp-keymaps/hr \
-    rdesktop-vrdp-keymaps/hu \
-    rdesktop-vrdp-keymaps/is \
-    rdesktop-vrdp-keymaps/it \
-    rdesktop-vrdp-keymaps/ja \
-    rdesktop-vrdp-keymaps/ko \
-    rdesktop-vrdp-keymaps/lt \
-    rdesktop-vrdp-keymaps/lv \
-    rdesktop-vrdp-keymaps/mk \
-    rdesktop-vrdp-keymaps/modifiers \
-    rdesktop-vrdp-keymaps/nl \
-    rdesktop-vrdp-keymaps/nl-be \
-    rdesktop-vrdp-keymaps/no \
-    rdesktop-vrdp-keymaps/pl \
-    rdesktop-vrdp-keymaps/pt \
-    rdesktop-vrdp-keymaps/pt-br \
-    rdesktop-vrdp-keymaps/ru \
-    rdesktop-vrdp-keymaps/sl \
-    rdesktop-vrdp-keymaps/sv \
-    rdesktop-vrdp-keymaps/th \
-    rdesktop-vrdp-keymaps/tr "
+    UserManual.pdf "

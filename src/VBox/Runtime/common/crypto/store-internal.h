@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_SRC_common_crypto_store_internal_h
@@ -48,7 +58,7 @@ typedef struct RTCRCERTCTXINT
      * Destructor that gets called with cRefs reaches zero.
      * @param   pCertCtx        The internal certificate context.
      */
-    DECLCALLBACKMEMBER(void, pfnDtor)(struct RTCRCERTCTXINT *pCertCtx);
+    DECLCALLBACKMEMBER(void, pfnDtor,(struct RTCRCERTCTXINT *pCertCtx));
     /** The public store context. */
     RTCRCERTCTX             Public;
 } RTCRCERTCTXINT;
@@ -76,7 +86,7 @@ typedef struct RTCRSTOREPROVIDER
      *
      * @param   pvProvider      The provider specific data.
      */
-    DECLCALLBACKMEMBER(void, pfnDestroyStore)(void *pvProvider);
+    DECLCALLBACKMEMBER(void, pfnDestroyStore,(void *pvProvider));
 
     /**
      * Queries the private key.
@@ -92,8 +102,8 @@ typedef struct RTCRSTOREPROVIDER
      * @param   cbKey           The size of the buffer @a pbKey points to.
      * @param   pcbKeyRet       Where to return the size of the returned key.
      */
-    DECLCALLBACKMEMBER(int, pfnCertCtxQueryPrivateKey)(void *pvProvider, PRTCRCERTCTXINT pCertCtx,
-                                                       uint8_t *pbKey, size_t cbKey, size_t *pcbKeyRet);
+    DECLCALLBACKMEMBER(int, pfnCertCtxQueryPrivateKey,(void *pvProvider, PRTCRCERTCTXINT pCertCtx,
+                                                       uint8_t *pbKey, size_t cbKey, size_t *pcbKeyRet));
 
     /**
      * Open an enumeration of all certificates.
@@ -103,7 +113,7 @@ typedef struct RTCRSTOREPROVIDER
      * @param   pSearch         Pointer to opaque search state structure.  The
      *                          provider should initalize this on success.
      */
-    DECLCALLBACKMEMBER(int, pfnCertFindAll)(void *pvProvider, PRTCRSTORECERTSEARCH pSearch);
+    DECLCALLBACKMEMBER(int, pfnCertFindAll,(void *pvProvider, PRTCRSTORECERTSEARCH pSearch));
 
     /**
      * Get the next certificate.
@@ -113,7 +123,7 @@ typedef struct RTCRSTOREPROVIDER
      * @param   pvProvider      The provider specific data.
      * @param   pSearch         Pointer to opaque search state structure.
      */
-    DECLCALLBACKMEMBER(PCRTCRCERTCTX, pfnCertSearchNext)(void *pvProvider, PRTCRSTORECERTSEARCH pSearch);
+    DECLCALLBACKMEMBER(PCRTCRCERTCTX, pfnCertSearchNext,(void *pvProvider, PRTCRSTORECERTSEARCH pSearch));
 
     /**
      * Closes a certficate search state.
@@ -121,7 +131,7 @@ typedef struct RTCRSTOREPROVIDER
      * @param   pvProvider      The provider specific data.
      * @param   pSearch         Pointer to opaque search state structure to destroy.
      */
-    DECLCALLBACKMEMBER(void, pfnCertSearchDestroy)(void *pvProvider, PRTCRSTORECERTSEARCH pSearch);
+    DECLCALLBACKMEMBER(void, pfnCertSearchDestroy,(void *pvProvider, PRTCRSTORECERTSEARCH pSearch));
 
     /**
      * Adds a certificate to the store.
@@ -135,8 +145,8 @@ typedef struct RTCRSTOREPROVIDER
      * @param   cbEncoded       The size of the encoded certificate.
      * @param   pErrInfo        Where to store extended error info. Optional.
      */
-    DECLCALLBACKMEMBER(int, pfnCertAddEncoded)(void *pvProvider, uint32_t fFlags, uint8_t const *pbEncoded, uint32_t cbEncoded,
-                                               PRTERRINFO pErrInfo);
+    DECLCALLBACKMEMBER(int, pfnCertAddEncoded,(void *pvProvider, uint32_t fFlags, uint8_t const *pbEncoded, uint32_t cbEncoded,
+                                               PRTERRINFO pErrInfo));
 
 
     /* Optional: */
@@ -150,8 +160,8 @@ typedef struct RTCRSTOREPROVIDER
      * @param   pvProvider      The provider specific data.
      * @param   phSearch        Pointer to a provider specific search handle.
      */
-    DECLCALLBACKMEMBER(int, pfnCertFindByIssuerAndSerialNo)(void *pvProvider, PCRTCRX509NAME pIssuer, PCRTASN1INTEGER pSerialNo,
-                                                            PRTCRSTORECERTSEARCH phSearch);
+    DECLCALLBACKMEMBER(int, pfnCertFindByIssuerAndSerialNo,(void *pvProvider, PCRTCRX509NAME pIssuer, PCRTASN1INTEGER pSerialNo,
+                                                            PRTCRSTORECERTSEARCH phSearch));
     /** Non-zero end marker. */
     uintptr_t               uEndMarker;
 } RTCRSTOREPROVIDER;

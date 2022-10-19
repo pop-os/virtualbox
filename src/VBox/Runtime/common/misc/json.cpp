@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -39,6 +49,7 @@
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/utf16.h>
+#include <iprt/vfs.h>
 
 #include <stdlib.h> /* strtod() */
 #include <errno.h>  /* errno */
@@ -144,8 +155,8 @@ typedef const RTJSONTOKEN *PCRTJSONTOKEN;
  * @param   cbBuf           How much to read.
  * @param   pcbRead         Where to store the amount of data read on success.
  */
-typedef DECLCALLBACK(int) FNRTJSONTOKENIZERREAD(void *pvUser, size_t offInput, void *pvBuf, size_t cbBuf,
-                                                size_t *pcbRead);
+typedef DECLCALLBACKTYPE(int, FNRTJSONTOKENIZERREAD,(void *pvUser, size_t offInput, void *pvBuf, size_t cbBuf,
+                                                     size_t *pcbRead));
 /** Pointer to a tokenizer read buffer callback. */
 typedef FNRTJSONTOKENIZERREAD *PFNRTJSONTOKENIZERREAD;
 
@@ -259,6 +270,7 @@ typedef struct RTJSONREADERARGS
     {
         PRTSTREAM           hStream;
         const uint8_t       *pbBuf;
+        RTVFSFILE           hVfsFile;
     } u;
 } RTJSONREADERARGS;
 /** Pointer to a readers argument. */
@@ -1428,6 +1440,25 @@ static DECLCALLBACK(int) rtJsonTokenizerParseFromFile(void *pvUser, size_t offIn
     return rc;
 }
 
+/**
+ * Read callback for RTJsonParseFromVfsFile().
+ */
+static DECLCALLBACK(int) rtJsonTokenizerParseFromVfsFile(void *pvUser, size_t offInput,
+                                                         void *pvBuf, size_t cbBuf,
+                                                         size_t *pcbRead)
+{
+    PRTJSONREADERARGS pArgs = (PRTJSONREADERARGS)pvUser;
+
+    RT_NOREF_PV(offInput);
+
+    size_t cbRead = 0;
+    int rc = RTVfsFileRead(pArgs->u.hVfsFile, pvBuf, cbBuf, &cbRead);
+    if (RT_SUCCESS(rc))
+        *pcbRead = cbRead;
+
+    return rc;
+}
+
 RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_t cbBuf, PRTERRINFO pErrInfo)
 {
     AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
@@ -1490,6 +1521,27 @@ RTDECL(int) RTJsonParseFromFile(PRTJSONVAL phJsonVal, const char *pszFilename, P
             rtJsonTokenizerDestroy(&Tokenizer);
         }
         RTStrmClose(Args.u.hStream);
+    }
+
+    return rc;
+}
+
+RTDECL(int) RTJsonParseFromVfsFile(PRTJSONVAL phJsonVal, RTVFSFILE hVfsFile, PRTERRINFO pErrInfo)
+{
+    AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
+    AssertReturn(hVfsFile != NIL_RTVFSFILE, VERR_INVALID_POINTER);
+
+    int rc = VINF_SUCCESS;
+    RTJSONREADERARGS Args;
+    RTJSONTOKENIZER Tokenizer;
+
+    Args.cbData   = 0;
+    Args.u.hVfsFile = hVfsFile;
+    rc = rtJsonTokenizerInit(&Tokenizer, rtJsonTokenizerParseFromVfsFile, &Args, pErrInfo);
+    if (RT_SUCCESS(rc))
+    {
+        rc = rtJsonParse(&Tokenizer, phJsonVal);
+        rtJsonTokenizerDestroy(&Tokenizer);
     }
 
     return rc;

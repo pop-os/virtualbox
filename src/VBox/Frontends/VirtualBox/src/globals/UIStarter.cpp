@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -22,6 +32,7 @@
 #include "UICommon.h"
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
+#include "UINotificationCenter.h"
 #include "UIStarter.h"
 #ifndef VBOX_RUNTIME_UI
 # include "UIVirtualBoxManager.h"
@@ -60,16 +71,10 @@ UIStarter::UIStarter()
 {
     /* Assign instance: */
     s_pInstance = this;
-
-    /* Prepare: */
-    prepare();
 }
 
 UIStarter::~UIStarter()
 {
-    /* Cleanup: */
-    cleanup();
-
     /* Unassign instance: */
     s_pInstance = 0;
 }
@@ -79,8 +84,8 @@ void UIStarter::init()
     /* Listen for UICommon signals: */
     connect(&uiCommon(), &UICommon::sigAskToRestartUI,
             this, &UIStarter::sltRestartUI);
-    connect(&uiCommon(), &UICommon::sigAskToCommitData,
-            this, &UIStarter::sltHandleCommitDataRequest);
+    connect(&uiCommon(), &UICommon::sigAskToCloseUI,
+            this, &UIStarter::sltCloseUI);
 }
 
 void UIStarter::deinit()
@@ -88,15 +93,8 @@ void UIStarter::deinit()
     /* Listen for UICommon signals no more: */
     disconnect(&uiCommon(), &UICommon::sigAskToRestartUI,
                this, &UIStarter::sltRestartUI);
-    disconnect(&uiCommon(), &UICommon::sigAskToCommitData,
-               this, &UIStarter::sltHandleCommitDataRequest);
-}
-
-void UIStarter::prepare()
-{
-    /* Listen for QApplication signals: */
-    connect(qApp, &QGuiApplication::aboutToQuit,
-            this, &UIStarter::cleanup);
+    disconnect(&uiCommon(), &UICommon::sigAskToCloseUI,
+               this, &UIStarter::sltCloseUI);
 }
 
 void UIStarter::sltStartUI()
@@ -119,14 +117,14 @@ void UIStarter::sltStartUI()
 
 # ifdef VBOX_BLEEDING_EDGE
     /* Show EXPERIMENTAL BUILD warning: */
-    msgCenter().showExperimentalBuildWarning();
+    UINotificationMessage::remindAboutExperimentalBuild();
 # else /* !VBOX_BLEEDING_EDGE */
 #  ifndef DEBUG
     /* Show BETA warning if necessary: */
     const QString vboxVersion(uiCommon().virtualBox().GetVersion());
     if (   vboxVersion.contains("BETA")
         && gEDataManager->preventBetaBuildWarningForVersion() != vboxVersion)
-        msgCenter().showBetaBuildWarning();
+        UINotificationMessage::remindAboutBetaBuild();
 #  endif /* !DEBUG */
 # endif /* !VBOX_BLEEDING_EDGE */
 
@@ -155,7 +153,7 @@ void UIStarter::sltRestartUI()
 #endif
 }
 
-void UIStarter::cleanup()
+void UIStarter::sltCloseUI()
 {
 #ifndef VBOX_RUNTIME_UI
     /* Destroy Manager UI: */
@@ -165,18 +163,5 @@ void UIStarter::cleanup()
     /* Destroy Runtime UI: */
     if (gpMachine)
         UIMachine::destroy();
-#endif
-}
-
-void UIStarter::sltHandleCommitDataRequest()
-{
-    /* Exit if UICommon is not valid: */
-    if (!uiCommon().isValid())
-        return;
-
-#ifdef VBOX_RUNTIME_UI
-    /* Temporary override the default close action to 'SaveState' if necessary: */
-    if (gpMachine->uisession()->defaultCloseAction() == MachineCloseAction_Invalid)
-        gpMachine->uisession()->setDefaultCloseAction(MachineCloseAction_SaveState);
 #endif
 }

@@ -4,16 +4,27 @@
         XSLT stylesheet for nicking the refsynopsisdiv bit of a
         refentry (manpage) for use in the command overview section
         in the user manual.
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <xsl:stylesheet
@@ -39,6 +50,11 @@
 
   <!-- Sub-command style command (true) or single command (false). -->
   <xsl:variable name="g_fSubCommands" select="not(not(//refsect2[@id]))" />
+
+  <!-- Translatable strings -->
+  <xsl:variable name="sUsage"           select="'Usage'"/>
+  <xsl:variable name="sUsageUnderscore" select="'====='"/>
+
 
   <!-- Default action, do nothing. -->
   <xsl:template match="node()|@*"/>
@@ -124,9 +140,9 @@ static const RTMSGREFENTRYSTR </xsl:text><xsl:value-of select="$sDataBaseSym"/><
     <!-- The follows the usage (synopsis) section. -->
     <xsl:text>
     {   RTMSGREFENTRYSTR_SCOPE_GLOBAL,
-        "Usage" },
+        "</xsl:text><xsl:value-of select="$sUsage"/><xsl:text>" },
     {   RTMSGREFENTRYSTR_SCOPE_SAME,
-        "=====" },</xsl:text>
+        "</xsl:text><xsl:value-of select="$sUsageUnderscore"/><xsl:text>" },</xsl:text>
         <xsl:apply-templates select="./refsynopsisdiv/node()"/>
 
     <!-- Then comes the description and other refsect1 -->
@@ -198,7 +214,7 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
     <xsl:if test="text()"><xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>cmdsynopsis with text is not supported.</xsl:message></xsl:if>
     <xsl:if test="position() = 1">
       <xsl:text>
-    {   </xsl:text><xsl:call-template name="calc-scope-cmdsynopsis"/><xsl:text> | RTMSGREFENTRYSTR_FLAGS_SYNOPSIS, "" }, </xsl:text>
+    {   </xsl:text><xsl:call-template name="calc-scope-cmdsynopsis"/><xsl:text> | RTMSGREFENTRYSTR_FLAGS_SYNOPSIS, "" },</xsl:text>
     </xsl:if>
     <xsl:text>
     {   </xsl:text><xsl:call-template name="calc-scope-cmdsynopsis"/><xsl:text> | RTMSGREFENTRYSTR_FLAGS_SYNOPSIS,
@@ -222,8 +238,12 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
     <xsl:apply-templates select="node()|@*"/>
   </xsl:template>
 
-  <xsl:template match="command|option|computeroutput|literal|emphasis|filename">
+  <xsl:template match="command|option|computeroutput|literal|emphasis|filename|citetitle|note">
     <xsl:apply-templates select="node()|@*"/>
+  </xsl:template>
+
+  <xsl:template match="ulink">
+    <xsl:value-of select="@url"/>
   </xsl:template>
 
   <xsl:template match="replaceable">
@@ -363,8 +383,8 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
 
   <xsl:template match="varlistentry/listitem">
     <xsl:call-template name="check-children">
-      <xsl:with-param name="UnsupportedNodes" select="*[not(self::para or self::itemizedlist or self::orderedlist or self::variablelist)]|text()"/>
-      <xsl:with-param name="SupportedNames">para, itemizedlist and orderedlist</xsl:with-param>
+      <xsl:with-param name="UnsupportedNodes" select="*[not(self::para or self::itemizedlist or self::orderedlist or self::variablelist or self::note)]|text()"/>
+      <xsl:with-param name="SupportedNames">para, itemizedlist, orderedlist and note</xsl:with-param>
     </xsl:call-template>
 
     <xsl:apply-templates select="*"/>
@@ -596,6 +616,10 @@ static const RTMSGREFENTRY </xsl:text><xsl:value-of select="$sDataBaseSym"/><xsl
     -->
   <xsl:template match="synopfragment|synopfragmentref|title|refsect1">
     <xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>The <xsl:value-of select="name()"/> element is not supported</xsl:message>
+  </xsl:template>
+
+  <xsl:template match="xref">
+    <xsl:message terminate="yes"><xsl:call-template name="error-prefix"/>The <xsl:value-of select="name()"/> element is not supported, most likely the linkend is not defined or incorrectly processed by docbook-refentry-link-replacement-xsl-gen.xsl</xsl:message>
   </xsl:template>
 
   <!--

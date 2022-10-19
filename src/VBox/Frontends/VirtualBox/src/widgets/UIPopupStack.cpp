@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -25,6 +35,8 @@
 
 /* GUI includes: */
 #include "UICommon.h"
+#include "UICursor.h"
+#include "UIDesktopWidgetWatchdog.h"
 #include "UIPopupStack.h"
 #include "UIPopupStackViewport.h"
 
@@ -95,10 +107,10 @@ void UIPopupStack::setParent(QWidget *pParent)
     m_iParentStatusBarHeight = parentStatusBarHeight(pParent);
 }
 
-void UIPopupStack::setParent(QWidget *pParent, Qt::WindowFlags flags)
+void UIPopupStack::setParent(QWidget *pParent, Qt::WindowFlags enmFlags)
 {
     /* Call to base-class: */
-    QWidget::setParent(pParent, flags);
+    QWidget::setParent(pParent, enmFlags);
     /* Recalculate parent menu-bar height: */
     m_iParentMenuBarHeight = parentMenuBarHeight(pParent);
     /* Recalculate parent status-bar height: */
@@ -201,7 +213,7 @@ void UIPopupStack::sltAdjustGeometry()
     }
 
     /* Adjust geometry: */
-    UICommon::setTopLevelGeometry(this, iX, iY, iWidth, iHeight);
+    UIDesktopWidgetWatchdog::setTopLevelGeometry(this, iX, iY, iWidth, iHeight);
 }
 
 void UIPopupStack::sltPopupPaneRemoved(QString)
@@ -246,7 +258,7 @@ void UIPopupStack::prepareContent()
         m_pScrollArea = new QScrollArea;
         {
             /* Configure scroll-area: */
-            UICommon::setCursor(m_pScrollArea, Qt::ArrowCursor);
+            UICursor::setCursor(m_pScrollArea, Qt::ArrowCursor);
             m_pScrollArea->setWidgetResizable(true);
             m_pScrollArea->setFrameStyle(QFrame::NoFrame | QFrame::Plain);
             m_pScrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -258,7 +270,7 @@ void UIPopupStack::prepareContent()
             m_pScrollViewport = new UIPopupStackViewport;
             {
                 /* Configure scroll-viewport: */
-                UICommon::setCursor(m_pScrollViewport, Qt::ArrowCursor);
+                UICursor::setCursor(m_pScrollViewport, Qt::ArrowCursor);
                 /* Connect scroll-viewport: */
                 connect(this, &UIPopupStack::sigProposeStackViewportSize,
                         m_pScrollViewport, &UIPopupStackViewport::sltHandleProposalForSize);

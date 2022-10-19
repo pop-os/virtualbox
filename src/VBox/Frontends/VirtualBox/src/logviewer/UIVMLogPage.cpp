@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -31,15 +41,38 @@
 #include "UIVMLogViewerTextEdit.h"
 
 
-UIVMLogPage::UIVMLogPage(QWidget *pParent /* = 0 */, int tabIndex /*= -1 */)
+/*********************************************************************************************************************************
+*   UIVMLogTab implementation.                                                                                                   *
+*********************************************************************************************************************************/
+
+UIVMLogTab::UIVMLogTab(QWidget *pParent, const QUuid &uMachineId, const QString &strMachineName)
     : QIWithRetranslateUI<QWidget>(pParent)
+    , m_uMachineId(uMachineId)
+    , m_strMachineName(strMachineName)
+{
+}
+const QUuid &UIVMLogTab::machineId() const
+{
+    return m_uMachineId;
+}
+
+const QString UIVMLogTab::machineName() const
+{
+    return m_strMachineName;
+}
+
+
+/*********************************************************************************************************************************
+*   UIVMLogPage implementation.                                                                                                  *
+*********************************************************************************************************************************/
+
+UIVMLogPage::UIVMLogPage(QWidget *pParent, const QUuid &uMachineId, const QString &strMachineName)
+    : UIVMLogTab(pParent, uMachineId, strMachineName)
     , m_pMainLayout(0)
     , m_pTextEdit(0)
-    , m_tabIndex(tabIndex)
     , m_iSelectedBookmarkIndex(-1)
     , m_bFiltered(false)
-    , m_iFilteredLineCount(-1)
-    , m_iUnfilteredLineCount(-1)
+    , m_iLogFileId(-1)
 {
     prepare();
 }
@@ -55,7 +88,11 @@ int UIVMLogPage::defaultLogPageWidth() const
         return 0;
 
     /* Compute a width for 132 characters plus scrollbar and frame width: */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int iDefaultWidth = m_pTextEdit->fontMetrics().horizontalAdvance(QChar('x')) * 132 +
+#else
     int iDefaultWidth = m_pTextEdit->fontMetrics().width(QChar('x')) * 132 +
+#endif
                         m_pTextEdit->verticalScrollBar()->width() +
                         m_pTextEdit->frameWidth() * 2;
 
@@ -97,16 +134,6 @@ QTextDocument* UIVMLogPage::document()
     return m_pTextEdit->document();
 }
 
-void UIVMLogPage::setTabIndex(int index)
-{
-    m_tabIndex = index;
-}
-
-int UIVMLogPage::tabIndex()  const
-{
-    return m_tabIndex;
-}
-
 void UIVMLogPage::retranslateUi()
 {
 }
@@ -115,9 +142,18 @@ void UIVMLogPage::cleanup()
 {
 }
 
-void UIVMLogPage::setLogString(const QString &strLog)
+void UIVMLogPage::setLogContent(const QString &strLogContent, bool fError)
 {
-    m_strLog = strLog;
+    if (!fError)
+    {
+        m_strLog = strLogContent;
+        setTextEditText(strLogContent);
+    }
+    else
+    {
+        markForError();
+        setTextEditTextAsHtml(strLogContent);
+    }
 }
 
 const QString& UIVMLogPage::logString() const
@@ -152,7 +188,8 @@ void UIVMLogPage::setTextEditTextAsHtml(const QString &strText)
 {
     if (!m_pTextEdit)
         return;
-    m_pTextEdit->appendHtml(strText);
+    if (document())
+        document()->setHtml(strText);
     update();
 }
 
@@ -298,37 +335,6 @@ void UIVMLogPage::setWrapLines(bool bWrapLines)
     m_pTextEdit->setWrapLines(bWrapLines);
 }
 
-void UIVMLogPage::setFilterParameters(const QSet<QString> &filterTermSet, int filterOperationType,
-                                      int iFilteredLineCount, int iUnfilteredLineCount)
-{
-    m_filterTermSet = filterTermSet;
-    m_filterOperationType = filterOperationType;
-    m_iFilteredLineCount = iFilteredLineCount;
-    m_iUnfilteredLineCount = iUnfilteredLineCount;
-}
-
-int  UIVMLogPage::filteredLineCount() const
-{
-    return m_iFilteredLineCount;
-}
-
-int  UIVMLogPage::unfilteredLineCount() const
-{
-    return m_iUnfilteredLineCount;
-}
-
-bool UIVMLogPage::shouldFilterBeApplied(const QSet<QString> &filterTermSet, int filterOperationType) const
-{
-    /* If filter terms set is different reapply the filter. */
-    if (filterTermSet != m_filterTermSet)
-        return true;
-
-    /* If filter operation type set is different reapply the filter. */
-    if (filterOperationType != m_filterOperationType)
-        return true;
-    return false;
-}
-
 QFont UIVMLogPage::currentFont() const
 {
     if (!m_pTextEdit)
@@ -340,4 +346,20 @@ void UIVMLogPage::setCurrentFont(QFont font)
 {
     if (m_pTextEdit)
         m_pTextEdit->setCurrentFont(font);
+}
+
+void UIVMLogPage::setLogFileId(int iLogFileId)
+{
+    m_iLogFileId = iLogFileId;
+}
+
+int UIVMLogPage::logFileId() const
+{
+    return m_iLogFileId;
+}
+
+void UIVMLogPage::scrollToEnd()
+{
+    if (m_pTextEdit)
+        m_pTextEdit->scrollToEnd();
 }
