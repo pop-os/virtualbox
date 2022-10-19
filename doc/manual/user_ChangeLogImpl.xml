@@ -46,6 +46,58 @@ Rules for adding a changelog entry to make them look more uniform:
 <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
+  <sect1>
+    <title>Version 6.1.40 (2022-10-11)</title>
+
+    <para>This is a maintenance release. The following items were fixed
+      and/or added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: Fixed missed machine-items state translation on
+          language change</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: Fixed possible crash when the device got detached
+          while the controller is resetting the port</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: Provide guest's absolute pointing mouse device with
+          buttons state when mouse integration is ON</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host and Guest Additions: Prevented build failure
+          on 5.8+ 32-bit kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host and Guest Additions: Introduced additional
+          fixes for kernel 6.0</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host and Guest Additions: Introduced additional
+          fixes for Debian specific kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris and Linux Guest Additions: Added better handling
+          of negative screen sizes which some X11 desktop environments
+          are reporting</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Guest Additions: Added fixes related to
+          VBoxTray IPC</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
    <sect1>
      <title>Version 6.1.38 (2022-09-02)</title>
 

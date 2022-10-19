@@ -114,7 +114,7 @@ static int rtCrPkcs7VerifySignedDataUsingOpenSsl(PCRTCRPKCS7CONTENTINFO pContent
                     X509_STORE_free(pTrustedCerts);
             }
             else
-                rcOssl = RTErrInfoSet(pErrInfo, rcOssl, "RTCrStoreConvertToOpenSslCertStack failed");
+                rcOssl = RTErrInfoSet(pErrInfo, rcOssl, "RTCrStoreConvertToOpenSslCertStore failed");
             if (pAddCerts)
                 sk_X509_pop_free(pAddCerts, X509_free);
         }

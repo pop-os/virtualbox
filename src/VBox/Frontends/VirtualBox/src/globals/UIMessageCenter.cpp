@@ -47,8 +47,10 @@
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif
+#if 0  /* Not used any more - see @bugref{10241}. */
 #ifdef VBOX_WS_WIN
 # include <Htmlhelp.h>
+#endif
 #endif
 
 /* COM includes: */
@@ -2922,8 +2924,15 @@ void UIMessageCenter::sltResetSuppressedMessages()
 
 void UIMessageCenter::sltShowUserManual(const QString &strLocation)
 {
-#if defined (VBOX_WS_WIN)
+#if defined(VBOX_WS_WIN)
+# if 0  /* Use external viewer, see @bugref{10241}. */
     HtmlHelp(GetDesktopWindow(), strLocation.utf16(), HH_DISPLAY_TOPIC, NULL);
+# else
+    QString strUrl(strLocation);
+    strUrl.replace('\\', '/');
+    strUrl.prepend("file:///");
+    uiCommon().openURL(strUrl);
+# endif
 #elif defined (VBOX_WS_X11)
 # ifndef VBOX_OSE
     char szViewerPath[RTPATH_MAX];

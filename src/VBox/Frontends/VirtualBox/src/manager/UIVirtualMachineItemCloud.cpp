@@ -141,7 +141,6 @@ void UIVirtualMachineItemCloud::recache()
         if (   itemType() == ItemType_CloudFake
             || m_enmMachineState == KMachineState_Null)
             m_enmMachineState = KMachineState_PoweredOff;
-        m_strMachineStateName = gpConverter->toString(m_enmMachineState);
         if (itemType() == ItemType_CloudFake)
         {
             switch (m_enmFakeCloudItemState)
@@ -255,7 +254,7 @@ void UIVirtualMachineItemCloud::retranslateUi()
     {
         if (itemType() == ItemType_CloudFake)
         {
-            /* Update machine/state name: */
+            /* Update fake machine state name: */
             switch (m_enmFakeCloudItemState)
             {
                 case UIVirtualMachineItemCloud::FakeCloudItemState_Loading:
@@ -273,6 +272,9 @@ void UIVirtualMachineItemCloud::retranslateUi()
         }
         else
         {
+            /* Update real machine state name: */
+            m_strMachineStateName = gpConverter->toString(m_enmMachineState);
+
             /* Update tool-tip: */
             m_strToolTipText = QString("<nobr><b>%1</b></nobr><br>"
                                        "<nobr>%2</nobr>")
@@ -284,14 +286,14 @@ void UIVirtualMachineItemCloud::retranslateUi()
     /* Otherwise: */
     else
     {
+        /* We have our own translation for Null states: */
+        m_strMachineStateName = tr("Inaccessible");
+
         /* Update tool-tip: */
         m_strToolTipText = tr("<nobr><b>%1</b></nobr><br>"
                               "<nobr>Inaccessible</nobr>",
                               "Inaccessible VM tooltip (name)")
                               .arg(m_strName);
-
-        /* We have our own translation for Null states: */
-        m_strMachineStateName = tr("Inaccessible");
     }
 }
 

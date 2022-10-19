@@ -88,22 +88,25 @@
 /**
  * Femtosecods in a nanosecond
  */
-#define FS_PER_NS                   1000000
+#define FS_PER_NS                   UINT32_C(1000000)
 
-/**
- * Femtoseconds in a day. Still fits within int64_t.
- */
-#define FS_PER_DAY                  (1000000LL * 60 * 60 * 24 * FS_PER_NS)
+/** Number of HPET ticks per second (Hz), ICH9 frequency.  */
+#define HPET_TICKS_PER_SEC_ICH9     UINT32_C(14318180)
+AssertCompile(HPET_TICKS_PER_SEC_ICH9 == (RT_NS_1SEC_64 * FS_PER_NS + HPET_CLK_PERIOD_ICH9 / 2) / HPET_CLK_PERIOD_ICH9);
 
-/**
- * Number of HPET ticks in 100 years, ICH9 frequency.
- */
-#define HPET_TICKS_IN_100YR_ICH9    (FS_PER_DAY / HPET_CLK_PERIOD_ICH9 * 365 * 100)
+/** Number of HPET ticks per second (Hz), made-up PIIX frequency.  */
+#define HPET_TICKS_PER_SEC_PIIX     UINT32_C(100000000)
+AssertCompile(HPET_TICKS_PER_SEC_PIIX == (RT_NS_1SEC_64 * FS_PER_NS + HPET_CLK_PERIOD_PIIX / 2) / HPET_CLK_PERIOD_PIIX);
 
-/**
- * Number of HPET ticks in 100 years, made-up PIIX frequency.
- */
-#define HPET_TICKS_IN_100YR_PIIX    (FS_PER_DAY / HPET_CLK_PERIOD_PIIX * 365 * 100)
+/** Number of HPET ticks in 100 years (approximate), ICH9 frequency.
+ * Value: 45153812448000000 (0x00A06B27'3737B800) */
+#define HPET_TICKS_IN_100YR_ICH9    (HPET_TICKS_PER_SEC_ICH9 * RT_SEC_1DAY_64 * 365 * 100)
+AssertCompile(HPET_TICKS_IN_100YR_ICH9 >= UINT64_C(45153812448000000));
+
+/**  Number of HPET ticks in 100 years, made-up PIIX frequency.
+ * Value: 315360000000000000 (0x0460623F'C85E0000) */
+#define HPET_TICKS_IN_100YR_PIIX    (HPET_TICKS_PER_SEC_PIIX * RT_SEC_1DAY_64 * 365 * 100)
+AssertCompile(HPET_TICKS_IN_100YR_PIIX >= UINT64_C(315360000000000000));
 
 /** @name Interrupt type
  * @{ */
@@ -374,6 +377,10 @@ DECLINLINE(uint64_t) hpetInvalidValue(PHPETTIMER pHpetTimer)
     return hpet32bitTimer(pHpetTimer) ? UINT32_MAX : UINT64_MAX;
 }
 
+
+/**
+ * @note The caller shall do overflow checks! See @bugref{10301}.
+ */
 DECLINLINE(uint64_t) hpetTicksToNs(PHPET pThis, uint64_t value)
 {
     return ASMMultU64ByU32DivByU32(value, pThis->fIch9 ? HPET_CLK_PERIOD_ICH9 : HPET_CLK_PERIOD_PIIX, FS_PER_NS);
@@ -454,11 +461,12 @@ DECLINLINE(uint64_t) hpetAdjustComparator(PHPETTIMER pHpetTimer, uint64_t fConfi
 DECLINLINE(void) hpetTimerSetFrequencyHint(PPDMDEVINS pDevIns, PHPET pThis, PHPETTIMER pHpetTimer,
                                            uint64_t fConfig, uint64_t uPeriod)
 {
-    if (fConfig & HPET_TN_PERIODIC)
+    if (   (fConfig & HPET_TN_PERIODIC)
+        && uPeriod > 0
+        && uPeriod < (pThis->fIch9 ? HPET_TICKS_PER_SEC_ICH9 : HPET_TICKS_PER_SEC_PIIX) / 10 /* 100 ns */)
     {
         uint64_t const nsPeriod = hpetTicksToNs(pThis, uPeriod);
-        if (nsPeriod < RT_NS_100MS)
-            PDMDevHlpTimerSetFrequencyHint(pDevIns, pHpetTimer->hTimer, RT_NS_1SEC / (uint32_t)nsPeriod);
+        PDMDevHlpTimerSetFrequencyHint(pDevIns, pHpetTimer->hTimer, RT_NS_1SEC / (uint32_t)nsPeriod);
     }
 }
 
@@ -630,7 +638,7 @@ static uint64_t hpetTimerRegRead64(PHPET pThis, uint32_t iTimerNo, uint32_t iTim
                 break;
 
             case HPET_TN_CMP:
-                u64Value = ASMAtomicReadU64(&pHpetTimer->u64Config);
+                u64Value = ASMAtomicReadU64(&pHpetTimer->u64Cmp);
                 Log(("HPET[%u]: read64 HPET_TN_CMP: %#RX64\n", iTimerNo, u64Value));
                 break;
 
@@ -804,7 +812,7 @@ static VBOXSTRICTRC hpetTimerRegWrite32(PPDMDEVINS pDevIns, PHPET pThis, uint32_
 
 
 /**
- * 32-bit write to a HPET timer register.
+ * 64-bit write to a HPET timer register.
  *
  * @returns Strict VBox status code.
  *
@@ -1444,7 +1452,8 @@ static DECLCALLBACK(void) hpetR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, con
                         pThis->aTimers[i].idxTimer,
                         pThis->aTimers[i].u64Cmp,
                         pThis->aTimers[i].u64Period,
-                        hpetTicksToNs(pThis, pThis->aTimers[i].u64Period),
+                        pThis->aTimers[i].u64Period < (pThis->fIch9 ? HPET_TICKS_IN_100YR_ICH9 : HPET_TICKS_IN_100YR_PIIX)
+                        ? hpetTicksToNs(pThis, pThis->aTimers[i].u64Period) : UINT64_MAX,
                         pThis->aTimers[i].u64Config,
                         hpetR3TimerGetIrq(pThis, &pThis->aTimers[i], pThis->aTimers[i].u64Config),
                         szTmp);
