@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -23,6 +33,7 @@
 #include <QHBoxLayout>
 #include <QLineEdit>
 #include <QPainter>
+#include <QRegularExpression>
 #include <QStyleOptionGraphicsItem>
 #include <QWindow>
 
@@ -47,8 +58,12 @@
 UIChooserItemGroup::UIChooserItemGroup(QGraphicsScene *pScene, UIChooserNodeGroup *pNode)
     : UIChooserItem(0, pNode)
     , m_pScene(pScene)
+    , m_iRootBackgroundDarknessStart(0)
+    , m_iRootBackgroundDarknessFinal(0)
+    , m_iItemBackgroundDarknessStart(0)
+    , m_iItemBackgroundDarknessFinal(0)
+    , m_iHighlightLightness(0)
     , m_iAdditionalHeight(0)
-    , m_iHeaderDarkness(110)
     , m_pToggleButton(0)
     , m_pNameEditorWidget(0)
     , m_pContainerFavorite(0)
@@ -67,8 +82,12 @@ UIChooserItemGroup::UIChooserItemGroup(QGraphicsScene *pScene, UIChooserNodeGrou
 UIChooserItemGroup::UIChooserItemGroup(UIChooserItem *pParent, UIChooserNodeGroup *pNode)
     : UIChooserItem(pParent, pNode)
     , m_pScene(0)
+    , m_iRootBackgroundDarknessStart(0)
+    , m_iRootBackgroundDarknessFinal(0)
+    , m_iItemBackgroundDarknessStart(0)
+    , m_iItemBackgroundDarknessFinal(0)
+    , m_iHighlightLightness(0)
     , m_iAdditionalHeight(0)
-    , m_iHeaderDarkness(110)
     , m_pToggleButton(0)
     , m_pNameEditorWidget(0)
     , m_pContainerFavorite(0)
@@ -89,9 +108,24 @@ UIChooserItemGroup::~UIChooserItemGroup()
     cleanup();
 }
 
+UIChooserNodeGroup *UIChooserItemGroup::nodeToGroupType() const
+{
+    return node() ? node()->toGroupNode() : 0;
+}
+
+QUuid UIChooserItemGroup::id() const
+{
+    return nodeToGroupType() ? nodeToGroupType()->id() : QUuid();
+}
+
+UIChooserNodeGroupType UIChooserItemGroup::groupType() const
+{
+    return nodeToGroupType() ? nodeToGroupType()->groupType() : UIChooserNodeGroupType_Invalid;
+}
+
 bool UIChooserItemGroup::isClosed() const
 {
-    return node()->toGroupNode()->isClosed() && !isRoot();
+    return nodeToGroupType()->isClosed() && !isRoot();
 }
 
 void UIChooserItemGroup::close(bool fAnimated /* = true */)
@@ -102,7 +136,7 @@ void UIChooserItemGroup::close(bool fAnimated /* = true */)
 
 bool UIChooserItemGroup::isOpened() const
 {
-    return node()->toGroupNode()->isOpened() || isRoot();
+    return nodeToGroupType()->isOpened() || isRoot();
 }
 
 void UIChooserItemGroup::open(bool fAnimated /* = true */)
@@ -114,7 +148,7 @@ void UIChooserItemGroup::open(bool fAnimated /* = true */)
 void UIChooserItemGroup::updateFavorites()
 {
     /* Global items only for now, move items to corresponding layout: */
-    foreach (UIChooserItem *pItem, items(UIChooserItemType_Global))
+    foreach (UIChooserItem *pItem, items(UIChooserNodeType_Global))
         if (pItem->isFavorite())
         {
             for (int iIndex = 0; iIndex < m_pLayoutGlobal->count(); ++iIndex)
@@ -134,6 +168,16 @@ void UIChooserItemGroup::updateFavorites()
 
     /* Relayout model: */
     model()->updateLayout();
+}
+
+int UIChooserItemGroup::scrollingValue() const
+{
+    return m_pScrollArea->scrollingValue();
+}
+
+void UIChooserItemGroup::setScrollingValue(int iValue)
+{
+    m_pScrollArea->setScrollingValue(iValue);
 }
 
 void UIChooserItemGroup::scrollBy(int iDelta)
@@ -306,10 +350,10 @@ void UIChooserItemGroup::updateToolTip()
     }
 
     /* Should we add group info? */
-    if (!items(UIChooserItemType_Group).isEmpty())
+    if (!items(UIChooserNodeType_Group).isEmpty())
     {
         /* Template: */
-        QString strGroupCount = tr("%n group(s)", "Group item tool-tip / Group info", items(UIChooserItemType_Group).size());
+        QString strGroupCount = tr("%n group(s)", "Group item tool-tip / Group info", items(UIChooserNodeType_Group).size());
 
         /* Append value: */
         QString strValue = tr("<nobr>%1</nobr>", "Group item tool-tip / Group info wrapper").arg(strGroupCount);
@@ -317,15 +361,21 @@ void UIChooserItemGroup::updateToolTip()
     }
 
     /* Should we add machine info? */
-    if (!items(UIChooserItemType_Machine).isEmpty())
+    if (!items(UIChooserNodeType_Machine).isEmpty())
     {
         /* Check if 'this' group contains started VMs: */
         int iCountOfStartedMachineItems = 0;
-        foreach (UIChooserItem *pItem, items(UIChooserItemType_Machine))
-            if (pItem->node()->toMachineNode()->cache()->isItemStarted())
+        foreach (UIChooserItem *pItem, items(UIChooserNodeType_Machine))
+        {
+            AssertPtrReturnVoid(pItem);
+            UIChooserItemMachine *pMachineItem = pItem->toMachineItem();
+            AssertPtrReturnVoid(pMachineItem);
+            AssertPtrReturnVoid(pMachineItem->cache());
+            if (pMachineItem->cache()->isItemStarted())
                 ++iCountOfStartedMachineItems;
+        }
         /* Template: */
-        QString strMachineCount = tr("%n machine(s)", "Group item tool-tip / Machine info", items(UIChooserItemType_Machine).size());
+        QString strMachineCount = tr("%n machine(s)", "Group item tool-tip / Machine info", items(UIChooserNodeType_Machine).size());
         QString strStartedMachineCount = tr("(%n running)", "Group item tool-tip / Running machine info", iCountOfStartedMachineItems);
 
         /* Append value: */
@@ -345,14 +395,14 @@ void UIChooserItemGroup::installEventFilterHelper(QObject *pSource)
     pSource->installEventFilter(m_pScrollArea);
 }
 
-QList<UIChooserItem*> UIChooserItemGroup::items(UIChooserItemType type /* = UIChooserItemType_Any */) const
+QList<UIChooserItem*> UIChooserItemGroup::items(UIChooserNodeType type /* = UIChooserNodeType_Any */) const
 {
     switch (type)
     {
-        case UIChooserItemType_Any: return items(UIChooserItemType_Global) + items(UIChooserItemType_Group) + items(UIChooserItemType_Machine);
-        case UIChooserItemType_Global: return m_globalItems;
-        case UIChooserItemType_Group: return m_groupItems;
-        case UIChooserItemType_Machine: return m_machineItems;
+        case UIChooserNodeType_Any: return items(UIChooserNodeType_Global) + items(UIChooserNodeType_Group) + items(UIChooserNodeType_Machine);
+        case UIChooserNodeType_Global: return m_globalItems;
+        case UIChooserNodeType_Group: return m_groupItems;
+        case UIChooserNodeType_Machine: return m_machineItems;
         default: break;
     }
     return QList<UIChooserItem*>();
@@ -363,7 +413,7 @@ void UIChooserItemGroup::addItem(UIChooserItem *pItem, bool fFavorite, int iPosi
     /* Check item type: */
     switch (pItem->type())
     {
-        case UIChooserItemType_Global:
+        case UIChooserNodeType_Global:
         {
             AssertMsg(!m_globalItems.contains(pItem), ("Global-item already added!"));
             if (iPosition < 0 || iPosition >= m_globalItems.size())
@@ -384,7 +434,7 @@ void UIChooserItemGroup::addItem(UIChooserItem *pItem, bool fFavorite, int iPosi
             }
             break;
         }
-        case UIChooserItemType_Group:
+        case UIChooserNodeType_Group:
         {
             AssertMsg(!m_groupItems.contains(pItem), ("Group-item already added!"));
             if (iPosition < 0 || iPosition >= m_groupItems.size())
@@ -399,7 +449,7 @@ void UIChooserItemGroup::addItem(UIChooserItem *pItem, bool fFavorite, int iPosi
             }
             break;
         }
-        case UIChooserItemType_Machine:
+        case UIChooserNodeType_Machine:
         {
             AssertMsg(!m_machineItems.contains(pItem), ("Machine-item already added!"));
             if (iPosition < 0 || iPosition >= m_machineItems.size())
@@ -433,7 +483,7 @@ void UIChooserItemGroup::removeItem(UIChooserItem *pItem)
     /* Check item type: */
     switch (pItem->type())
     {
-        case UIChooserItemType_Global:
+        case UIChooserNodeType_Global:
         {
             AssertMsg(m_globalItems.contains(pItem), ("Global-item was not found!"));
             m_globalItems.removeAt(m_globalItems.indexOf(pItem));
@@ -443,7 +493,7 @@ void UIChooserItemGroup::removeItem(UIChooserItem *pItem)
                 m_pLayoutGlobal->removeItem(pItem);
             break;
         }
-        case UIChooserItemType_Group:
+        case UIChooserNodeType_Group:
         {
             AssertMsg(m_groupItems.contains(pItem), ("Group-item was not found!"));
             m_groupItems.removeAt(m_groupItems.indexOf(pItem));
@@ -453,7 +503,7 @@ void UIChooserItemGroup::removeItem(UIChooserItem *pItem)
                 m_pLayoutGroup->removeItem(pItem);
             break;
         }
-        case UIChooserItemType_Machine:
+        case UIChooserNodeType_Machine:
         {
             AssertMsg(m_machineItems.contains(pItem), ("Machine-item was not found!"));
             m_machineItems.removeAt(m_machineItems.indexOf(pItem));
@@ -477,16 +527,35 @@ void UIChooserItemGroup::removeItem(UIChooserItem *pItem)
     updateGeometry();
 }
 
-UIChooserItem* UIChooserItemGroup::searchForItem(const QString &strSearchTag, int iItemSearchFlags)
+UIChooserItem* UIChooserItemGroup::searchForItem(const QString &strSearchTag, int iSearchFlags)
 {
     /* Are we searching among group-items? */
-    if (iItemSearchFlags & UIChooserItemSearchFlag_Group)
+    if (   (   iSearchFlags & UIChooserItemSearchFlag_LocalGroup
+            && groupType() == UIChooserNodeGroupType_Local)
+        || (   iSearchFlags & UIChooserItemSearchFlag_CloudProvider
+            && groupType() == UIChooserNodeGroupType_Provider)
+        || (   iSearchFlags & UIChooserItemSearchFlag_CloudProfile
+            && groupType() == UIChooserNodeGroupType_Profile))
     {
+        /* Are we searching by the exact ID? */
+        if (iSearchFlags & UIChooserItemSearchFlag_ExactId)
+        {
+            /* Exact ID matches? */
+            if (id().toString() == strSearchTag)
+                return this;
+        }
         /* Are we searching by the exact name? */
-        if (iItemSearchFlags & UIChooserItemSearchFlag_ExactName)
+        else if (iSearchFlags & UIChooserItemSearchFlag_ExactName)
         {
             /* Exact name matches? */
             if (name() == strSearchTag)
+                return this;
+        }
+        /* Are we searching by the full name? */
+        else if (iSearchFlags & UIChooserItemSearchFlag_FullName)
+        {
+            /* Full name matches? */
+            if (fullName() == strSearchTag)
                 return this;
         }
         /* Are we searching by the few first symbols? */
@@ -499,14 +568,14 @@ UIChooserItem* UIChooserItemGroup::searchForItem(const QString &strSearchTag, in
     }
 
     /* Search among all the children, but machines first: */
-    foreach (UIChooserItem *pItem, items(UIChooserItemType_Machine))
-        if (UIChooserItem *pFoundItem = pItem->searchForItem(strSearchTag, iItemSearchFlags))
+    foreach (UIChooserItem *pItem, items(UIChooserNodeType_Machine))
+        if (UIChooserItem *pFoundItem = pItem->searchForItem(strSearchTag, iSearchFlags))
             return pFoundItem;
-    foreach (UIChooserItem *pItem, items(UIChooserItemType_Global))
-        if (UIChooserItem *pFoundItem = pItem->searchForItem(strSearchTag, iItemSearchFlags))
+    foreach (UIChooserItem *pItem, items(UIChooserNodeType_Global))
+        if (UIChooserItem *pFoundItem = pItem->searchForItem(strSearchTag, iSearchFlags))
             return pFoundItem;
-    foreach (UIChooserItem *pItem, items(UIChooserItemType_Group))
-        if (UIChooserItem *pFoundItem = pItem->searchForItem(strSearchTag, iItemSearchFlags))
+    foreach (UIChooserItem *pItem, items(UIChooserNodeType_Group))
+        if (UIChooserItem *pFoundItem = pItem->searchForItem(strSearchTag, iSearchFlags))
             return pFoundItem;
 
     /* Found nothing? */
@@ -516,13 +585,13 @@ UIChooserItem* UIChooserItemGroup::searchForItem(const QString &strSearchTag, in
 UIChooserItem *UIChooserItemGroup::firstMachineItem()
 {
     /* If this group-item have at least one machine-item: */
-    if (node()->hasNodes(UIChooserItemType_Machine))
+    if (node()->hasNodes(UIChooserNodeType_Machine))
         /* Return the first machine-item: */
-        return items(UIChooserItemType_Machine).first()->firstMachineItem();
+        return items(UIChooserNodeType_Machine).first()->firstMachineItem();
     /* If this group-item have at least one group-item: */
-    else if (node()->hasNodes(UIChooserItemType_Group))
+    else if (node()->hasNodes(UIChooserNodeType_Group))
         /* Return the first machine-item of the first group-item: */
-        return items(UIChooserItemType_Group).first()->firstMachineItem();
+        return items(UIChooserNodeType_Group).first()->firstMachineItem();
     /* Found nothing? */
     return 0;
 }
@@ -539,7 +608,7 @@ void UIChooserItemGroup::updateGeometry()
     /* Special handling for root-groups: */
     if (isRoot())
     {
-        /* Root-group should notify chooser-view if minimum-width-hint was changed: */
+        /* Root-group should notify Chooser-view if minimum-width-hint was changed: */
         const int iMinimumWidthHint = minimumWidthHint();
         if (m_iPreviousMinimumWidthHint != iMinimumWidthHint)
         {
@@ -662,58 +731,97 @@ bool UIChooserItemGroup::isDropAllowed(QGraphicsSceneDragDropEvent *pEvent, UICh
     /* No drops while saving groups: */
     if (model()->isGroupSavingInProgress())
         return false;
-    /* Get mime: */
-    const QMimeData *pMimeData = pEvent->mimeData();
     /* If drag token is shown, its up to parent to decide: */
     if (where != UIChooserItemDragToken_Off)
         return parentItem()->isDropAllowed(pEvent);
+
     /* Else we should check mime format: */
+    const QMimeData *pMimeData = pEvent->mimeData();
     if (pMimeData->hasFormat(UIChooserItemGroup::className()))
     {
         /* Get passed group-item: */
         const UIChooserItemMimeData *pCastedMimeData = qobject_cast<const UIChooserItemMimeData*>(pMimeData);
-        AssertMsg(pCastedMimeData, ("Can't cast passed mime-data to UIChooserItemMimeData!"));
+        AssertPtrReturn(pCastedMimeData, false);
         UIChooserItem *pItem = pCastedMimeData->item();
-        /* Make sure passed group is mutable within this group: */
-        if (pItem->toGroupItem()->isContainsLockedMachine() &&
-            !items(UIChooserItemType_Group).contains(pItem))
-            return false;
-        /* Make sure passed group is not 'this': */
-        if (pItem == this)
-            return false;
-        /* Make sure passed group is not among our parents: */
-        const UIChooserItem *pTestedWidget = this;
-        while (UIChooserItem *pParentOfTestedWidget = pTestedWidget->parentItem())
+        AssertPtrReturn(pItem, false);
+        UIChooserItemGroup *pGroupItem = pItem->toGroupItem();
+        AssertPtrReturn(pGroupItem, false);
+
+        /* For local items: */
+        if (   groupType() == UIChooserNodeGroupType_Local
+            && pGroupItem->groupType() == UIChooserNodeGroupType_Local)
         {
-            if (pItem == pParentOfTestedWidget)
+            /* Make sure passed machine isn't immutable within own group: */
+            if (   pGroupItem->isContainsLockedMachine()
+                && !m_groupItems.contains(pItem))
                 return false;
-            pTestedWidget = pParentOfTestedWidget;
+            /* Make sure passed group is not 'this': */
+            if (pItem == this)
+                return false;
+            /* Make sure passed group is not among our parents: */
+            const UIChooserItem *pTestedItem = this;
+            while (UIChooserItem *pParentOfTestedWidget = pTestedItem->parentItem())
+            {
+                if (pItem == pParentOfTestedWidget)
+                    return false;
+                pTestedItem = pParentOfTestedWidget;
+            }
+
+            /* Allow finally: */
+            return true;
         }
-        return true;
+        /* For profiles inside provider and providers inside root group: */
+        else
+        if (   (   groupType() == UIChooserNodeGroupType_Provider
+                && pGroupItem->groupType() == UIChooserNodeGroupType_Profile)
+            || (   groupType() == UIChooserNodeGroupType_Local
+                   && pGroupItem->groupType() == UIChooserNodeGroupType_Provider))
+        {
+            /* Make sure passed item is ours: */
+            return m_groupItems.contains(pItem);
+        }
     }
     else if (pMimeData->hasFormat(UIChooserItemMachine::className()))
     {
         /* Get passed machine-item: */
         const UIChooserItemMimeData *pCastedMimeData = qobject_cast<const UIChooserItemMimeData*>(pMimeData);
-        AssertMsg(pCastedMimeData, ("Can't cast passed mime-data to UIChooserItemMimeData!"));
+        AssertPtrReturn(pCastedMimeData, false);
         UIChooserItem *pItem = pCastedMimeData->item();
-        /* Make sure passed machine is mutable within this group: */
-        if (pItem->toMachineItem()->isLockedMachine() &&
-            !items(UIChooserItemType_Machine).contains(pItem))
-            return false;
-        switch (pEvent->proposedAction())
+        AssertPtrReturn(pItem, false);
+        UIChooserItemMachine *pMachineItem = pItem->toMachineItem();
+        AssertPtrReturn(pMachineItem, false);
+
+        /* For local items: */
+        if (   groupType() == UIChooserNodeGroupType_Local
+            && pMachineItem->cacheType() == UIVirtualMachineItemType_Local)
         {
-            case Qt::MoveAction:
+            /* Make sure passed machine isn't immutable within own group: */
+            if (   pMachineItem->isLockedMachine()
+                && !m_machineItems.contains(pItem))
+                return false;
+            switch (pEvent->proposedAction())
             {
-                /* Make sure passed item is ours or there is no other item with such id: */
-                return m_machineItems.contains(pItem) || !isContainsMachine(pItem->toMachineItem()->id());
+                case Qt::MoveAction:
+                {
+                    /* Make sure passed item is ours or there is no other item with such id: */
+                    return m_machineItems.contains(pItem) || !isContainsMachine(pMachineItem->id());
+                }
+                case Qt::CopyAction:
+                {
+                    /* Make sure there is no other item with such id: */
+                    return !isContainsMachine(pMachineItem->id());
+                }
+                default:
+                    break;
             }
-            case Qt::CopyAction:
-            {
-                /* Make sure there is no other item with such id: */
-                return !isContainsMachine(pItem->toMachineItem()->id());
-            }
-            default: break; /* Shut up, MSC! */
+        }
+        /* For cloud items: */
+        else
+        if (   groupType() == UIChooserNodeGroupType_Profile
+            && pMachineItem->cacheType() == UIVirtualMachineItemType_CloudReal)
+        {
+            /* Make sure passed item is ours: */
+            return m_machineItems.contains(pItem);
         }
     }
     /* That was invalid mime: */
@@ -755,7 +863,7 @@ void UIChooserItemGroup::processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChoo
                 }
 
                 /* Copy passed group-item into this group: */
-                UIChooserNodeGroup *pNewGroupNode = new UIChooserNodeGroup(node(), pNode->toGroupNode(), iPosition);
+                UIChooserNodeGroup *pNewGroupNode = new UIChooserNodeGroup(node(), iPosition, pNode->toGroupNode());
                 UIChooserItemGroup *pNewGroupItem = new UIChooserItemGroup(this, pNewGroupNode);
                 if (isClosed())
                     open(false);
@@ -772,7 +880,7 @@ void UIChooserItemGroup::processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChoo
                 pModel->updateNavigationItemList();
                 pModel->updateLayout();
                 pModel->setSelectedItem(pNewGroupItem);
-                pModel->saveGroupSettings();
+                pModel->saveGroups();
                 break;
             }
             default:
@@ -809,7 +917,7 @@ void UIChooserItemGroup::processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChoo
                 }
 
                 /* Copy passed machine-item into this group: */
-                UIChooserNodeMachine *pNewMachineNode = new UIChooserNodeMachine(node(), pNode->toMachineNode(), iPosition);
+                UIChooserNodeMachine *pNewMachineNode = new UIChooserNodeMachine(node(), iPosition, pNode->toMachineNode());
                 UIChooserItemMachine *pNewMachineItem = new UIChooserItemMachine(this, pNewMachineNode);
                 if (isClosed())
                     open(false);
@@ -826,7 +934,7 @@ void UIChooserItemGroup::processDrop(QGraphicsSceneDragDropEvent *pEvent, UIChoo
                 pModel->updateNavigationItemList();
                 pModel->updateLayout();
                 pModel->setSelectedItem(pNewMachineItem);
-                pModel->saveGroupSettings();
+                pModel->saveGroups();
                 break;
             }
             default:
@@ -868,22 +976,28 @@ void UIChooserItemGroup::sltNameEditingFinished()
     /* Close name-editor: */
     m_pNameEditorWidget->close();
 
-    /* Enumerate all the group names: */
-    QStringList groupNames;
-    foreach (UIChooserItem *pItem, parentItem()->items(UIChooserItemType_Group))
-        groupNames << pItem->name();
+    /* Enumerate all the used machine and group names: */
+    QStringList usedNames;
+    foreach (UIChooserItem *pItem, parentItem()->items())
+    {
+        AssertPtrReturnVoid(pItem);
+        if (   pItem->type() == UIChooserNodeType_Machine
+            || (   pItem->type() == UIChooserNodeType_Group
+                && pItem->toGroupItem()->groupType() == UIChooserNodeGroupType_Local))
+            usedNames << pItem->name();
+    }
     /* If proposed name is empty or not unique, reject it: */
     QString strNewName = m_pNameEditorWidget->text().trimmed();
-    if (strNewName.isEmpty() || groupNames.contains(strNewName))
+    if (strNewName.isEmpty() || usedNames.contains(strNewName))
         return;
 
     /* We should replace forbidden symbols
      * with ... well, probably underscores: */
-    strNewName.replace(QRegExp("[\\\\/:*?\"<>]"), "_");
+    strNewName.replace(QRegularExpression("[\\\\/:*?\"<>]"), "_");
 
     /* Set new name, save settings: */
-    node()->toGroupNode()->setName(strNewName);
-    model()->saveGroupSettings();
+    nodeToGroupType()->setName(strNewName);
+    model()->saveGroups();
 }
 
 void UIChooserItemGroup::sltGroupToggleStart()
@@ -899,7 +1013,7 @@ void UIChooserItemGroup::sltGroupToggleStart()
     updateAnimationParameters();
 
     /* Group closed, we are opening it: */
-    if (node()->toGroupNode()->isClosed())
+    if (nodeToGroupType()->isClosed())
     {
         /* Toggle-state and navigation will be
          * updated on toggle-finish signal! */
@@ -908,7 +1022,7 @@ void UIChooserItemGroup::sltGroupToggleStart()
     else
     {
         /* Update toggle-state: */
-        node()->toGroupNode()->close();
+        nodeToGroupType()->close();
         /* Update geometry: */
         updateGeometry();
         /* Update navigation: */
@@ -925,7 +1039,7 @@ void UIChooserItemGroup::sltGroupToggleFinish(bool fToggled)
         return;
 
     /* Update toggle-state: */
-    fToggled ? node()->toGroupNode()->open() : node()->toGroupNode()->close();
+    fToggled ? nodeToGroupType()->open() : nodeToGroupType()->close();
     /* Update geometry: */
     updateGeometry();
     /* Update navigation: */
@@ -936,25 +1050,28 @@ void UIChooserItemGroup::sltGroupToggleFinish(bool fToggled)
     updateToggleButtonToolTip();
     /* Repaint finally: */
     update();
+    /* Save changes: */
+    model()->saveGroups();
 
     /* Toggle finished: */
     emit sigToggleFinished();
 }
 
-void UIChooserItemGroup::sltIndentRoot()
-{
-    /* Unhover before indenting: */
-    setHovered(false);
-}
-
-void UIChooserItemGroup::sltUnindentRoot()
-{
-    /* Unhover before unindenting: */
-    setHovered(false);
-}
-
 void UIChooserItemGroup::prepare()
 {
+    /* Color tones: */
+    m_iRootBackgroundDarknessStart = 115;
+    m_iRootBackgroundDarknessFinal = 150;
+    m_iItemBackgroundDarknessStart = 100;
+    m_iItemBackgroundDarknessFinal = 105;
+#if defined(VBOX_WS_MAC)
+    m_iHighlightLightness = 105;
+#elif defined(VBOX_WS_WIN)
+    m_iHighlightLightness = 190;
+#else /* !VBOX_WS_MAC && !VBOX_WS_WIN */
+    m_iHighlightLightness = 105;
+#endif /* !VBOX_WS_MAC && !VBOX_WS_WIN */
+
     /* Prepare self: */
     m_nameFont = font();
     m_nameFont.setWeight(QFont::Bold);
@@ -1062,7 +1179,7 @@ void UIChooserItemGroup::prepare()
         AssertFailedReturnVoid();
 
     /* Copy contents: */
-    copyContents(node()->toGroupNode());
+    copyContents(nodeToGroupType());
 
     /* Apply language settings: */
     retranslateUi();
@@ -1190,11 +1307,11 @@ void UIChooserItemGroup::updateToggleButtonToolTip()
 
 void UIChooserItemGroup::copyContents(UIChooserNodeGroup *pCopyFrom)
 {
-    foreach (UIChooserNode *pNode, pCopyFrom->nodes(UIChooserItemType_Group))
+    foreach (UIChooserNode *pNode, pCopyFrom->nodes(UIChooserNodeType_Group))
         new UIChooserItemGroup(this, pNode->toGroupNode());
-    foreach (UIChooserNode *pNode, pCopyFrom->nodes(UIChooserItemType_Global))
+    foreach (UIChooserNode *pNode, pCopyFrom->nodes(UIChooserNodeType_Global))
         new UIChooserItemGlobal(this, pNode->toGlobalNode());
-    foreach (UIChooserNode *pNode, pCopyFrom->nodes(UIChooserItemType_Machine))
+    foreach (UIChooserNode *pNode, pCopyFrom->nodes(UIChooserNodeType_Machine))
         new UIChooserItemMachine(this, pNode->toMachineNode());
 }
 
@@ -1202,8 +1319,14 @@ bool UIChooserItemGroup::isContainsMachine(const QUuid &uId) const
 {
     /* Check each machine-item: */
     foreach (UIChooserItem *pItem, m_machineItems)
-        if (pItem->toMachineItem()->id() == uId)
+    {
+        /* Make sure it's really machine node: */
+        AssertPtrReturn(pItem, false);
+        UIChooserItemMachine *pMachineItem = pItem->toMachineItem();
+        AssertPtrReturn(pMachineItem, false);
+        if (pMachineItem->id() == uId)
             return true;
+    }
     /* Found nothing? */
     return false;
 }
@@ -1211,11 +1334,11 @@ bool UIChooserItemGroup::isContainsMachine(const QUuid &uId) const
 bool UIChooserItemGroup::isContainsLockedMachine()
 {
     /* Check each machine-item: */
-    foreach (UIChooserItem *pItem, items(UIChooserItemType_Machine))
+    foreach (UIChooserItem *pItem, items(UIChooserNodeType_Machine))
         if (pItem->toMachineItem()->isLockedMachine())
             return true;
     /* Check each group-item: */
-    foreach (UIChooserItem *pItem, items(UIChooserItemType_Group))
+    foreach (UIChooserItem *pItem, items(UIChooserNodeType_Group))
         if (pItem->toGroupItem()->isContainsLockedMachine())
             return true;
     /* Found nothing? */
@@ -1317,9 +1440,13 @@ int UIChooserItemGroup::minimumHeightHintForGroup(bool fGroupOpened) const
         /* Main root-item always takes body into account: */
         if (node()->hasNodes())
         {
+            /* Prepare variables: */
+            const int iSpacingV = data(GroupItemData_ChildrenSpacing).toInt();
+
             /* We have to take maximum children height into account: */
             iProposedHeight += m_pContainerFavorite->minimumSizeHint().height();
             iProposedHeight += m_pContainer->minimumSizeHint().height();
+            iProposedHeight += iSpacingV;
         }
     }
     /* For other items: */
@@ -1435,7 +1562,11 @@ void UIChooserItemGroup::updateMinimumHeaderSize()
     QFontMetrics fm(m_nameFont, pPaintDevice);
     int iMaximumNameWidth = textWidth(m_nameFont, pPaintDevice, 20);
     QString strCompressedName = compressText(m_nameFont, pPaintDevice, name(), iMaximumNameWidth);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int iMinimumNameWidth = fm.horizontalAdvance(strCompressedName);
+#else
     int iMinimumNameWidth = fm.width(strCompressedName);
+#endif
     int iMinimumNameHeight = fm.height();
 
     /* Calculate minimum width: */
@@ -1496,60 +1627,52 @@ void UIChooserItemGroup::paintBackground(QPainter *pPainter, const QRect &rect)
     /* Save painter: */
     pPainter->save();
 
-    /* Prepare color: */
-    const QPalette pal = palette();
-    const QColor headerColor = pal.color(QPalette::Active,
-                                         model()->selectedItems().contains(this) ?
-                                         QPalette::Highlight : QPalette::Midlight);
-
     /* Root-item: */
     if (isRoot())
     {
-#if 0
-        /* Non-main root-item: */
-        if (!isMainRoot())
-        {
-            /* Prepare variables: */
-            const int iMarginV = data(GroupItemData_MarginV).toInt();
-            const int iFullHeaderHeight = 2 * iMarginV + m_minimumHeaderSize.height();
-            QRect headerRect = QRect(0, 0, rect.width(), iFullHeaderHeight);
+        /* Acquire background color: */
+        const QColor backgroundColor = QApplication::palette().color(QPalette::Active, QPalette::Window);
 
-            /* Fill background: */
-            QLinearGradient headerGradient(headerRect.bottomLeft(), headerRect.topLeft());
-            headerGradient.setColorAt(1, headerColor.darker(headerDarkness()));
-            headerGradient.setColorAt(0, headerColor.darker(animatedValue()));
-            pPainter->fillRect(headerRect, headerGradient);
-        }
-#endif
+        /* Paint default background: */
+        QLinearGradient gradientDefault(rect.topRight(), rect.bottomLeft());
+        gradientDefault.setColorAt(0, backgroundColor.darker(m_iRootBackgroundDarknessStart));
+        gradientDefault.setColorAt(1, backgroundColor.darker(m_iRootBackgroundDarknessFinal));
+        pPainter->fillRect(rect, gradientDefault);
     }
-    /* Non-root-item: */
     else
     {
-        /* Prepare variables: */
-        const int iMarginV = data(GroupItemData_MarginV).toInt();
-        const int iFullHeaderHeight = 2 * iMarginV + m_minimumHeaderSize.height();
+        /* Acquire background color: */
+        const QColor backgroundColor = model()->selectedItems().contains(this)
+                                     ? QApplication::palette().color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightness)
+                                     : QApplication::palette().color(QPalette::Active, QPalette::Window);
 
-        /* Calculate top rectangle: */
-        QRect tRect = rect;
-        if (node()->toGroupNode()->isOpened())
-            tRect.setBottom(tRect.top() + iFullHeaderHeight - 1);
+        /* Paint default background: */
+        QLinearGradient gradientDefault(rect.topRight(), rect.bottomLeft());
+        gradientDefault.setColorAt(0, backgroundColor.darker(m_iItemBackgroundDarknessStart));
+        gradientDefault.setColorAt(1, backgroundColor.darker(m_iItemBackgroundDarknessFinal));
+        pPainter->fillRect(rect, gradientDefault);
 
-        /* Prepare top gradient: */
-        QLinearGradient tGradient(tRect.bottomLeft(), tRect.topLeft());
-        tGradient.setColorAt(1, headerColor.darker(animatedValue()));
-        tGradient.setColorAt(0, headerColor.darker(headerDarkness()));
-
-        /* Fill top rectangle: */
-        pPainter->fillRect(tRect, tGradient);
-
-        /* Calculate bottom rectangle: */
-        if (node()->toGroupNode()->isOpened())
+        /* If element is hovered: */
+        if (animatedValue())
         {
-            QRect bRect = rect;
-            bRect.setTop(bRect.top() + iFullHeaderHeight);
+            /* Calculate header rectangle: */
+            const int iMarginV = data(GroupItemData_MarginV).toInt();
+            const int iFullHeaderHeight = 2 * iMarginV + m_minimumHeaderSize.height();
+            QRect headRect = rect;
+            headRect.setHeight(iFullHeaderHeight);
 
-            /* Fill top rectangle: */
-            pPainter->fillRect(bRect, headerColor.darker(headerDarkness()));
+            /* Acquire header color: */
+            QColor headColor = backgroundColor.lighter(130);
+
+            /* Paint hovered background: */
+            QColor hcTone1 = headColor;
+            QColor hcTone2 = headColor;
+            hcTone1.setAlpha(255 * animatedValue() / 100);
+            hcTone2.setAlpha(0);
+            QLinearGradient gradientHovered(headRect.topLeft(), headRect.bottomLeft());
+            gradientHovered.setColorAt(0, hcTone1);
+            gradientHovered.setColorAt(1, hcTone2);
+            pPainter->fillRect(headRect, gradientHovered);
         }
 
         /* Paint drag token UP? */
@@ -1569,8 +1692,8 @@ void UIChooserItemGroup::paintBackground(QPainter *pPainter, const QRect &rect)
                 dragTokenGradient.setStart(dragTokenRect.topLeft());
                 dragTokenGradient.setFinalStop(dragTokenRect.bottomLeft());
             }
-            dragTokenGradient.setColorAt(0, headerColor.darker(dragTokenDarkness()));
-            dragTokenGradient.setColorAt(1, headerColor.darker(dragTokenDarkness() + 40));
+            dragTokenGradient.setColorAt(0, backgroundColor.darker(dragTokenDarkness()));
+            dragTokenGradient.setColorAt(1, backgroundColor.darker(dragTokenDarkness() + 40));
             pPainter->fillRect(dragTokenRect, dragTokenGradient);
         }
     }
@@ -1585,6 +1708,10 @@ void UIChooserItemGroup::paintFrame(QPainter *pPainter, const QRect &rectangle)
     if (isRoot())
         return;
 
+    /* Only selected item should have a frame: */
+    if (!model()->selectedItems().contains(this))
+        return;
+
     /* Save painter: */
     pPainter->save();
 
@@ -1594,23 +1721,21 @@ void UIChooserItemGroup::paintFrame(QPainter *pPainter, const QRect &rectangle)
     const int iFullHeaderHeight = 2 * iMarginV + m_minimumHeaderSize.height();
 
     /* Prepare color: */
-    const QPalette pal = palette();
-    const QColor strokeColor = pal.color(QPalette::Active,
-                                         model()->selectedItems().contains(this) ?
-                                         QPalette::Highlight : QPalette::Midlight).darker(headerDarkness() + 10);
+    const QColor frameColor = QApplication::palette().color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightness - 40);
 
     /* Create/assign pen: */
-    QPen pen(strokeColor);
+    QPen pen(frameColor);
     pen.setWidth(0);
     pPainter->setPen(pen);
 
     /* Calculate top rectangle: */
     QRect topRect = rectangle;
-    if (node()->toGroupNode()->isOpened())
+    if (nodeToGroupType()->isOpened())
         topRect.setBottom(topRect.top() + iFullHeaderHeight - 1);
 
     /* Draw borders: */
-    if (node()->hasNodes() && node()->toGroupNode()->isOpened())
+    pPainter->drawLine(rectangle.topLeft(), rectangle.topRight());
+    if (node()->hasNodes() && nodeToGroupType()->isOpened())
         pPainter->drawLine(topRect.bottomLeft() + QPoint(iParentIndent, 0), topRect.bottomRight() + QPoint(1, 0));
     else
         pPainter->drawLine(topRect.bottomLeft(), topRect.bottomRight() + QPoint(1, 0));
@@ -1633,10 +1758,33 @@ void UIChooserItemGroup::paintHeader(QPainter *pPainter, const QRect &rect)
     const int iHeaderSpacing = data(GroupItemData_HeaderSpacing).toInt();
     const int iFullHeaderHeight = m_minimumHeaderSize.height();
 
-    /* Configure painter color: */
-    pPainter->setPen(palette().color(QPalette::Active,
-                                     model()->selectedItems().contains(this) ?
-                                     QPalette::HighlightedText : QPalette::ButtonText));
+    /* Selected item foreground: */
+    if (model()->selectedItems().contains(this))
+    {
+        /* Prepare palette: */
+        const QPalette pal = QApplication::palette();
+
+        /* Get background color: */
+        const QColor background = pal.color(QPalette::Active, QPalette::Highlight).lighter(m_iHighlightLightness);
+
+        /* Get foreground color: */
+        const QColor simpleText = pal.color(QPalette::Active, QPalette::Text);
+        const QColor highlightText = pal.color(QPalette::Active, QPalette::HighlightedText);
+        QColor lightText = simpleText.black() < highlightText.black() ? simpleText : highlightText;
+        QColor darkText = simpleText.black() > highlightText.black() ? simpleText : highlightText;
+        if (lightText.black() > 128)
+            lightText = QColor(Qt::white);
+        if (darkText.black() < 128)
+            darkText = QColor(Qt::black);
+
+        /* Gather foreground color for background one: */
+        double dLuminance = (0.299 * background.red() + 0.587 * background.green() + 0.114 * background.blue()) / 255;
+        //printf("luminance = %f\n", dLuminance);
+        if (dLuminance > 0.5)
+            pPainter->setPen(darkText);
+        else
+            pPainter->setPen(lightText);
+    }
 
     /* Paint name: */
     int iNameX = iMarginHL;

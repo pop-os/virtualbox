@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_GuestProcessImpl_h
@@ -40,7 +50,7 @@ class ATL_NO_VTABLE GuestProcess :
 public:
     /** @name COM and internal init/term/mapping cruft.
      * @{ */
-    DECLARE_EMPTY_CTOR_DTOR(GuestProcess)
+    DECLARE_COMMON_CLASS_METHODS(GuestProcess)
 
     int     init(Console *aConsole, GuestSession *aSession, ULONG aObjectID,
                  const GuestProcessStartupInfo &aProcInfo, const GuestEnvironment *pBaseEnv);
@@ -61,6 +71,7 @@ public:
     /** @name Public internal methods.
      * @{ */
     inline int i_checkPID(uint32_t uPID);
+    ProcessStatus_T i_getStatus(void);
     int i_readData(uint32_t uHandle, uint32_t uSize, uint32_t uTimeoutMS, void *pvData, size_t cbData, uint32_t *pcbRead, int *pGuestRc);
     int i_startProcess(uint32_t cMsTimeout, int *pGuestRc);
     int i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock, GuestWaitEvent *pEvent, int *pGuestRc);
@@ -77,6 +88,7 @@ public:
     /** @name Static internal methods.
      * @{ */
     static Utf8Str i_guestErrorToString(int rcGuest, const char *pcszWhat);
+    static Utf8Str i_statusToString(ProcessStatus_T enmStatus);
     static bool i_isGuestError(int guestRc);
     static ProcessWaitResult_T i_waitFlagsToResultEx(uint32_t fWaitFlags, ProcessStatus_T oldStatus, ProcessStatus_T newStatus, uint32_t uProcFlags, uint32_t uProtocol);
 #if 0 /* unused */
@@ -212,10 +224,14 @@ struct GuestProcessToolErrorInfo
  *
  * This class essentially helps to wrap all the gory details like process creation,
  * information extraction and maintaining the overall status.
+ *
+ * Note! When implementing new functionality / commands, do *not* use this approach anymore!
+ *       This class has to be kept to guarantee backwards-compatibility.
  */
 class GuestProcessTool
 {
 public:
+    DECLARE_TRANSLATE_METHODS(GuestProcessTool)
 
     GuestProcessTool(void);
 
@@ -231,8 +247,10 @@ public:
 
     int getRc(void) const;
 
+    /** Returns the stdout output from the guest process tool. */
     GuestProcessStream &getStdOut(void) { return mStdOut; }
 
+    /** Returns the stderr output from the guest process tool. */
     GuestProcessStream &getStdErr(void) { return mStdErr; }
 
     int wait(uint32_t fToolWaitFlags, int *pGuestRc);

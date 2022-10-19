@@ -10,26 +10,36 @@ Test Manager - Fetch test results.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135993 $"
+__version__ = "$Revision: 153425 $"
 
 
 # Standard python imports.
@@ -417,28 +427,29 @@ class TestResultFileData(ModelDataBase):
 
     ## @name Kind of files.
     ## @{
-    ksKind_LogReleaseVm         = 'log/release/vm';
-    ksKind_LogDebugVm           = 'log/debug/vm';
-    ksKind_LogReleaseSvc        = 'log/release/svc';
-    ksKind_LogDebugSvc          = 'log/debug/svc';
-    ksKind_LogReleaseClient     = 'log/release/client';
-    ksKind_LogDebugClient       = 'log/debug/client';
-    ksKind_LogInstaller         = 'log/installer';
-    ksKind_LogUninstaller       = 'log/uninstaller';
-    ksKind_LogGuestKernel       = 'log/guest/kernel';
-    ksKind_ProcessReportVm      = 'process/report/vm';
-    ksKind_CrashReportVm        = 'crash/report/vm';
-    ksKind_CrashDumpVm          = 'crash/dump/vm';
-    ksKind_CrashReportSvc       = 'crash/report/svc';
-    ksKind_CrashDumpSvc         = 'crash/dump/svc';
-    ksKind_CrashReportClient    = 'crash/report/client';
-    ksKind_CrashDumpClient      = 'crash/dump/client';
-    ksKind_InfoCollection       = 'info/collection';
-    ksKind_InfoVgaText          = 'info/vgatext';
-    ksKind_MiscOther            = 'misc/other';
-    ksKind_ScreenshotFailure    = 'screenshot/failure';
-    ksKind_ScreenshotSuccesss   = 'screenshot/success';
-    #kskind_ScreenCaptureFailure = 'screencapture/failure';
+    ksKind_LogReleaseVm             = 'log/release/vm';
+    ksKind_LogDebugVm               = 'log/debug/vm';
+    ksKind_LogReleaseSvc            = 'log/release/svc';
+    ksKind_LogDebugSvc              = 'log/debug/svc';
+    ksKind_LogReleaseClient         = 'log/release/client';
+    ksKind_LogDebugClient           = 'log/debug/client';
+    ksKind_LogInstaller             = 'log/installer';
+    ksKind_LogUninstaller           = 'log/uninstaller';
+    ksKind_LogGuestKernel           = 'log/guest/kernel';
+    ksKind_ProcessReportVm          = 'process/report/vm';
+    ksKind_CrashReportVm            = 'crash/report/vm';
+    ksKind_CrashDumpVm              = 'crash/dump/vm';
+    ksKind_CrashReportSvc           = 'crash/report/svc';
+    ksKind_CrashDumpSvc             = 'crash/dump/svc';
+    ksKind_CrashReportClient        = 'crash/report/client';
+    ksKind_CrashDumpClient          = 'crash/dump/client';
+    ksKind_InfoCollection           = 'info/collection';
+    ksKind_InfoVgaText              = 'info/vgatext';
+    ksKind_MiscOther                = 'misc/other';
+    ksKind_ScreenshotFailure        = 'screenshot/failure';
+    ksKind_ScreenshotSuccesss       = 'screenshot/success';
+    ksKind_ScreenRecordingFailure   = 'screenrecording/failure';
+    ksKind_ScreenRecordingSuccess   = 'screenrecording/success';
     ## @}
 
     kasKinds = [
@@ -463,7 +474,8 @@ class TestResultFileData(ModelDataBase):
         ksKind_MiscOther,
         ksKind_ScreenshotFailure,
         ksKind_ScreenshotSuccesss,
-        #kskind_ScreenCaptureFailure,
+        ksKind_ScreenRecordingFailure,
+        ksKind_ScreenRecordingSuccess,
     ];
 
     kasAllowNullAttributes      = [ 'idTestSet', ];
@@ -1359,7 +1371,9 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
                   '       LEFT OUTER JOIN TestBoxesWithStrings\n' \
                   '                    ON TestSets.idGenTestBox     = TestBoxesWithStrings.idGenTestBox' \
                   '       LEFT OUTER JOIN Builds AS TestSuiteBits\n' \
-                  '                    ON TestSets.idBuildTestSuite = TestSuiteBits.idBuild\n' \
+                  '                    ON TestSuiteBits.idBuild     =  TestSets.idBuildTestSuite\n' \
+                  '                   AND TestSuiteBits.tsExpire    >  TestSets.tsCreated\n' \
+                  '                   AND TestSuiteBits.tsEffective <= TestSets.tsCreated\n' \
                   '       LEFT OUTER JOIN TestResultFailures\n' \
                   '                    ON     TestSets.idTestSet          = TestResultFailures.idTestSet\n' \
                   '                       AND TestResultFailures.tsExpire = \'infinity\'::TIMESTAMP';
@@ -2152,7 +2166,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
                                                % (oRoot.idTestResult, oRoot.idTestResultParent));
         self._fetchResultTreeNodeExtras(oRoot, aoRow[-4], aoRow[-3], aoRow[-2], aoRow[-1]);
 
-        # The chilren (if any).
+        # The children (if any).
         dLookup = { oRoot.idTestResult: oRoot };
         oParent = oRoot;
         for iRow in range(1, len(aaoRows)):
@@ -2230,7 +2244,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
             for aoRow in self._oDb.fetchAll():
                 oCurNode.aoFiles.append(TestResultFileDataEx().initFromDbRow(aoRow));
 
-        if fHasReasons or True:
+        if fHasReasons:
             if self.oFailureReasonLogic is None:
                 self.oFailureReasonLogic = FailureReasonLogic(self._oDb);
             if self.oUserAccountLogic is None:
@@ -2536,8 +2550,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=too-few-public-methods
                           'WHERE    idTestResultParent = %s\n'
                           , ( oTestResult.idTestResult, ));
         cMinErrors = self._oDb.fetchOne()[0] + oTestResult.cErrors;
-        if cErrors < cMinErrors:
-            cErrors = cMinErrors;
+        cErrors    = max(cErrors, cMinErrors);
         if cErrors > 0 and enmStatus == TestResultData.ksTestStatus_Success:
             enmStatus = TestResultData.ksTestStatus_Failure
 

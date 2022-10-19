@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_widgets_UIApplianceImportEditorWidget_h
@@ -24,59 +34,24 @@
 /* GUI includes: */
 #include "UIApplianceEditorWidget.h"
 
-/* Forward declarations: */
-class UIFilePathSelector;
-class QComboBox;
-class QGridLayout;
+/* COM includes: */
+#include "CAppliance.h"
 
-/** MAC address policies. */
-enum MACAddressImportPolicy
-{
-    MACAddressImportPolicy_KeepAllMACs,
-    MACAddressImportPolicy_KeepNATMACs,
-    MACAddressImportPolicy_StripAllMACs,
-    MACAddressImportPolicy_MAX
-};
-Q_DECLARE_METATYPE(MACAddressImportPolicy);
-
+/** UIApplianceEditorWidget subclass for Import Appliance wizard. */
 class UIApplianceImportEditorWidget: public UIApplianceEditorWidget
 {
     Q_OBJECT;
 
 public:
-    UIApplianceImportEditorWidget(QWidget *pParent);
 
-    bool setFile(const QString &strFile);
+    /** Constructs widget passing @a pParent to the base-class. */
+    UIApplianceImportEditorWidget(QWidget *pParent = 0);
+
+    /** Assigns @a comAppliance and populates widget contents. */
+    virtual void setAppliance(const CAppliance &comAppliance) /* override final */;
+
+    /** Prepares import by pushing edited data back to appliance. */
     void prepareImport();
-    bool import();
-
-    QList<QPair<QString, QString> > licenseAgreements() const;
-
-protected:
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
-
-private slots:
-
-    void    sltHandlePathChanged(const QString &newPath);
-
-private:
-
-    void    prepareWidgets();
-    /** Populates MAC address policies. */
-    void    populateMACAddressImportPolicies();
-    void    setMACAddressImportPolicy(MACAddressImportPolicy enmMACAddressImportPolicy);
-    void    sltHandleMACAddressImportPolicyComboChange();
-    void    updateMACAddressImportPolicyComboToolTip();
-
-    QLabel             *m_pPathSelectorLabel;
-    UIFilePathSelector *m_pPathSelector;
-    /** Holds the checkbox that controls 'import HDs as VDI' behaviour. */
-    QCheckBox          *m_pImportHDsAsVDI;
-    QLabel             *m_pMACComboBoxLabel;
-    QComboBox          *m_pMACComboBox;
-    QGridLayout        *m_pOptionsLayout;
-    QLabel             *m_pAdditionalOptionsLabel;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_widgets_UIApplianceImportEditorWidget_h */

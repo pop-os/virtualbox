@@ -1269,14 +1269,14 @@ DOCSET_PUBLISHER_NAME  = Publisher
 # The default value is: NO.
 # This tag requires that the tag GENERATE_HTML is set to YES.
 
-GENERATE_HTMLHELP      = YES
+GENERATE_HTMLHELP      = NO
 
 # The CHM_FILE tag can be used to specify the file name of the resulting .chm
 # file. You can add a path in front of the file if the result should not be
 # written to the html output directory.
 # This tag requires that the tag GENERATE_HTMLHELP is set to YES.
 
-CHM_FILE               = $(PATH_CHM)
+CHM_FILE               =
 
 # The HHC_LOCATION tag can be used to specify the location (absolute path
 # including file name) of the HTML help compiler (hhc.exe). If non-empty,
@@ -2047,6 +2047,22 @@ INCLUDE_FILE_PATTERNS  =
 PREDEFINED             = DOXYGEN_RUNNING \
                          RT_C_DECLS_END \
                          RT_C_DECLS_BEGIN
+
+# Compile assertion hacks.
+PREDEFINED            += \
+    "AssertCompileNS(expr)=static_assert(expr)" \
+    "AssertCompile(expr)=static_assert(expr)" \
+    "AssertCompileSize(type, size)=static_assert(true)" \
+    "AssertCompileSizeAlignment(type, align)=static_assert(true)" \
+    "AssertCompileMemberAlignment(type, member, align)=static_assert(true)" \
+    "AssertCompileMemberOffset(type, member, off)=static_assert(true)" \
+    "AssertCompile2MemberOffsets(type, member1, member2)=static_assert(true)" \
+    "AssertCompileAdjacentMembers(type, member1, member2)=static_assert(true)" \
+    "AssertCompileMembersAtSameOffset(type1, member1, type2, member2)=static_assert(true)" \
+    "AssertCompileMemberSize(type, member, size)=static_assert(true)" \
+    "AssertCompileMemberSizeAlignment(type, member, align)=static_assert(true)" \
+    "AssertCompileMembersSameSize(type1, member1, type2, member2)=static_assert(true)" \
+    "AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2)=static_assert(true)"
 
 # If the MACRO_EXPANSION and EXPAND_ONLY_PREDEF tags are set to YES then this
 # tag can be used to specify a list of macro names that should be expanded. The

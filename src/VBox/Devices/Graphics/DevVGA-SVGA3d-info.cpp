@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -28,6 +38,8 @@
 #include <iprt/assert.h>
 #include <iprt/mem.h>
 #include <iprt/path.h>
+
+#include <iprt/formats/bmp.h>
 
 #include <VBox/vmm/pgm.h> /* required by DevVGA.h */
 #include <VBoxVideo.h> /* required by DevVGA.h */
@@ -47,59 +59,159 @@
 /** Enum value to string mappings for SVGA3dSurfaceFormat, prefix "SVGA3D_". */
 static const VMSVGAINFOENUM g_aSVGA3dSurfaceFormats[] =
 {
-    { SVGA3D_FORMAT_INVALID     , "FORMAT_INVALID" },
-    { SVGA3D_X8R8G8B8           , "X8R8G8B8" },
-    { SVGA3D_A8R8G8B8           , "A8R8G8B8" },
-    { SVGA3D_R5G6B5             , "R5G6B5" },
-    { SVGA3D_X1R5G5B5           , "X1R5G5B5" },
-    { SVGA3D_A1R5G5B5           , "A1R5G5B5" },
-    { SVGA3D_A4R4G4B4           , "A4R4G4B4" },
-    { SVGA3D_Z_D32              , "Z_D32" },
-    { SVGA3D_Z_D16              , "Z_D16" },
-    { SVGA3D_Z_D24S8            , "Z_D24S8" },
-    { SVGA3D_Z_D15S1            , "Z_D15S1" },
-    { SVGA3D_LUMINANCE8         , "LUMINANCE8" },
-    { SVGA3D_LUMINANCE4_ALPHA4  , "LUMINANCE4_ALPHA4" },
-    { SVGA3D_LUMINANCE16        , "LUMINANCE16" },
-    { SVGA3D_LUMINANCE8_ALPHA8  , "LUMINANCE8_ALPHA8" },
-    { SVGA3D_DXT1               , "DXT1" },
-    { SVGA3D_DXT2               , "DXT2" },
-    { SVGA3D_DXT3               , "DXT3" },
-    { SVGA3D_DXT4               , "DXT4" },
-    { SVGA3D_DXT5               , "DXT5" },
-    { SVGA3D_BUMPU8V8           , "BUMPU8V8" },
-    { SVGA3D_BUMPL6V5U5         , "BUMPL6V5U5" },
-    { SVGA3D_BUMPX8L8V8U8       , "BUMPX8L8V8U8" },
-    { SVGA3D_BUMPL8V8U8         , "BUMPL8V8U8" },
-    { SVGA3D_ARGB_S10E5         , "ARGB_S10E5" },
-    { SVGA3D_ARGB_S23E8         , "ARGB_S23E8" },
-    { SVGA3D_A2R10G10B10        , "A2R10G10B10" },
-    { SVGA3D_V8U8               , "V8U8" },
-    { SVGA3D_Q8W8V8U8           , "Q8W8V8U8" },
-    { SVGA3D_CxV8U8             , "CxV8U8" },
-    { SVGA3D_X8L8V8U8           , "X8L8V8U8" },
-    { SVGA3D_A2W10V10U10        , "A2W10V10U10" },
-    { SVGA3D_ALPHA8             , "ALPHA8" },
-    { SVGA3D_R_S10E5            , "R_S10E5" },
-    { SVGA3D_R_S23E8            , "R_S23E8" },
-    { SVGA3D_RG_S10E5           , "RG_S10E5" },
-    { SVGA3D_RG_S23E8           , "RG_S23E8" },
-    { SVGA3D_BUFFER             , "BUFFER" },
-    { SVGA3D_Z_D24X8            , "Z_D24X8" },
-    { SVGA3D_V16U16             , "V16U16" },
-    { SVGA3D_G16R16             , "G16R16" },
-    { SVGA3D_A16B16G16R16       , "A16B16G16R16" },
-    { SVGA3D_UYVY               , "UYVY" },
-    { SVGA3D_YUY2               , "YUY2" },
-    { SVGA3D_NV12               , "NV12" },
-    { SVGA3D_AYUV               , "AYUV" },
-    { SVGA3D_BC4_UNORM          , "BC4_UNORM" },
-    { SVGA3D_BC5_UNORM          , "BC5_UNORM" },
-    { SVGA3D_Z_DF16             , "Z_DF16" },
-    { SVGA3D_Z_DF24             , "Z_DF24" },
-    { SVGA3D_Z_D24S8_INT        , "Z_D24S8_INT" },
-    { SVGA3D_R8G8B8A8_SNORM     , "R8G8B8A8_SNORM" },
-    { SVGA3D_R16G16_UNORM       , "R16G16_UNORM" },
+    { SVGA3D_FORMAT_INVALID                , "FORMAT_INVALID" },
+    { SVGA3D_X8R8G8B8                      , "X8R8G8B8" },
+    { SVGA3D_A8R8G8B8                      , "A8R8G8B8" },
+    { SVGA3D_R5G6B5                        , "R5G6B5" },
+    { SVGA3D_X1R5G5B5                      , "X1R5G5B5" },
+    { SVGA3D_A1R5G5B5                      , "A1R5G5B5" },
+    { SVGA3D_A4R4G4B4                      , "A4R4G4B4" },
+    { SVGA3D_Z_D32                         , "Z_D32" },
+    { SVGA3D_Z_D16                         , "Z_D16" },
+    { SVGA3D_Z_D24S8                       , "Z_D24S8" },
+    { SVGA3D_Z_D15S1                       , "Z_D15S1" },
+    { SVGA3D_LUMINANCE8                    , "LUMINANCE8" },
+    { SVGA3D_LUMINANCE4_ALPHA4             , "LUMINANCE4_ALPHA4" },
+    { SVGA3D_LUMINANCE16                   , "LUMINANCE16" },
+    { SVGA3D_LUMINANCE8_ALPHA8             , "LUMINANCE8_ALPHA8" },
+    { SVGA3D_DXT1                          , "DXT1" },
+    { SVGA3D_DXT2                          , "DXT2" },
+    { SVGA3D_DXT3                          , "DXT3" },
+    { SVGA3D_DXT4                          , "DXT4" },
+    { SVGA3D_DXT5                          , "DXT5" },
+    { SVGA3D_BUMPU8V8                      , "BUMPU8V8" },
+    { SVGA3D_BUMPL6V5U5                    , "BUMPL6V5U5" },
+    { SVGA3D_BUMPX8L8V8U8                  , "BUMPX8L8V8U8" },
+    { SVGA3D_FORMAT_DEAD1                  , "FORMAT_DEAD1" },
+    { SVGA3D_ARGB_S10E5                    , "ARGB_S10E5" },
+    { SVGA3D_ARGB_S23E8                    , "ARGB_S23E8" },
+    { SVGA3D_A2R10G10B10                   , "A2R10G10B10" },
+    { SVGA3D_V8U8                          , "V8U8" },
+    { SVGA3D_Q8W8V8U8                      , "Q8W8V8U8" },
+    { SVGA3D_CxV8U8                        , "CxV8U8" },
+    { SVGA3D_X8L8V8U8                      , "X8L8V8U8" },
+    { SVGA3D_A2W10V10U10                   , "A2W10V10U10" },
+    { SVGA3D_ALPHA8                        , "ALPHA8" },
+    { SVGA3D_R_S10E5                       , "R_S10E5" },
+    { SVGA3D_R_S23E8                       , "R_S23E8" },
+    { SVGA3D_RG_S10E5                      , "RG_S10E5" },
+    { SVGA3D_RG_S23E8                      , "RG_S23E8" },
+    { SVGA3D_BUFFER                        , "BUFFER" },
+    { SVGA3D_Z_D24X8                       , "Z_D24X8" },
+    { SVGA3D_V16U16                        , "V16U16" },
+    { SVGA3D_G16R16                        , "G16R16" },
+    { SVGA3D_A16B16G16R16                  , "A16B16G16R16" },
+    { SVGA3D_UYVY                          , "UYVY" },
+    { SVGA3D_YUY2                          , "YUY2" },
+    { SVGA3D_NV12                          , "NV12" },
+    { SVGA3D_FORMAT_DEAD2                  , "FORMAT_DEAD2" },
+    { SVGA3D_R32G32B32A32_TYPELESS         , "R32G32B32A32_TYPELESS" },
+    { SVGA3D_R32G32B32A32_UINT             , "R32G32B32A32_UINT" },
+    { SVGA3D_R32G32B32A32_SINT             , "R32G32B32A32_SINT" },
+    { SVGA3D_R32G32B32_TYPELESS            , "R32G32B32_TYPELESS" },
+    { SVGA3D_R32G32B32_FLOAT               , "R32G32B32_FLOAT" },
+    { SVGA3D_R32G32B32_UINT                , "R32G32B32_UINT" },
+    { SVGA3D_R32G32B32_SINT                , "R32G32B32_SINT" },
+    { SVGA3D_R16G16B16A16_TYPELESS         , "R16G16B16A16_TYPELESS" },
+    { SVGA3D_R16G16B16A16_UINT             , "R16G16B16A16_UINT" },
+    { SVGA3D_R16G16B16A16_SNORM            , "R16G16B16A16_SNORM" },
+    { SVGA3D_R16G16B16A16_SINT             , "R16G16B16A16_SINT" },
+    { SVGA3D_R32G32_TYPELESS               , "R32G32_TYPELESS" },
+    { SVGA3D_R32G32_UINT                   , "R32G32_UINT" },
+    { SVGA3D_R32G32_SINT                   , "R32G32_SINT" },
+    { SVGA3D_R32G8X24_TYPELESS             , "R32G8X24_TYPELESS" },
+    { SVGA3D_D32_FLOAT_S8X24_UINT          , "D32_FLOAT_S8X24_UINT" },
+    { SVGA3D_R32_FLOAT_X8X24               , "R32_FLOAT_X8X24" },
+    { SVGA3D_X32_G8X24_UINT                , "X32_G8X24_UINT" },
+    { SVGA3D_R10G10B10A2_TYPELESS          , "R10G10B10A2_TYPELESS" },
+    { SVGA3D_R10G10B10A2_UINT              , "R10G10B10A2_UINT" },
+    { SVGA3D_R11G11B10_FLOAT               , "R11G11B10_FLOAT" },
+    { SVGA3D_R8G8B8A8_TYPELESS             , "R8G8B8A8_TYPELESS" },
+    { SVGA3D_R8G8B8A8_UNORM                , "R8G8B8A8_UNORM" },
+    { SVGA3D_R8G8B8A8_UNORM_SRGB           , "R8G8B8A8_UNORM_SRGB" },
+    { SVGA3D_R8G8B8A8_UINT                 , "R8G8B8A8_UINT" },
+    { SVGA3D_R8G8B8A8_SINT                 , "R8G8B8A8_SINT" },
+    { SVGA3D_R16G16_TYPELESS               , "R16G16_TYPELESS" },
+    { SVGA3D_R16G16_UINT                   , "R16G16_UINT" },
+    { SVGA3D_R16G16_SINT                   , "R16G16_SINT" },
+    { SVGA3D_R32_TYPELESS                  , "R32_TYPELESS" },
+    { SVGA3D_D32_FLOAT                     , "D32_FLOAT" },
+    { SVGA3D_R32_UINT                      , "R32_UINT" },
+    { SVGA3D_R32_SINT                      , "R32_SINT" },
+    { SVGA3D_R24G8_TYPELESS                , "R24G8_TYPELESS" },
+    { SVGA3D_D24_UNORM_S8_UINT             , "D24_UNORM_S8_UINT" },
+    { SVGA3D_R24_UNORM_X8                  , "R24_UNORM_X8" },
+    { SVGA3D_X24_G8_UINT                   , "X24_G8_UINT" },
+    { SVGA3D_R8G8_TYPELESS                 , "R8G8_TYPELESS" },
+    { SVGA3D_R8G8_UNORM                    , "R8G8_UNORM" },
+    { SVGA3D_R8G8_UINT                     , "R8G8_UINT" },
+    { SVGA3D_R8G8_SINT                     , "R8G8_SINT" },
+    { SVGA3D_R16_TYPELESS                  , "R16_TYPELESS" },
+    { SVGA3D_R16_UNORM                     , "R16_UNORM" },
+    { SVGA3D_R16_UINT                      , "R16_UINT" },
+    { SVGA3D_R16_SNORM                     , "R16_SNORM" },
+    { SVGA3D_R16_SINT                      , "R16_SINT" },
+    { SVGA3D_R8_TYPELESS                   , "R8_TYPELESS" },
+    { SVGA3D_R8_UNORM                      , "R8_UNORM" },
+    { SVGA3D_R8_UINT                       , "R8_UINT" },
+    { SVGA3D_R8_SNORM                      , "R8_SNORM" },
+    { SVGA3D_R8_SINT                       , "R8_SINT" },
+    { SVGA3D_P8                            , "P8" },
+    { SVGA3D_R9G9B9E5_SHAREDEXP            , "R9G9B9E5_SHAREDEXP" },
+    { SVGA3D_R8G8_B8G8_UNORM               , "R8G8_B8G8_UNORM" },
+    { SVGA3D_G8R8_G8B8_UNORM               , "G8R8_G8B8_UNORM" },
+    { SVGA3D_BC1_TYPELESS                  , "BC1_TYPELESS" },
+    { SVGA3D_BC1_UNORM_SRGB                , "BC1_UNORM_SRGB" },
+    { SVGA3D_BC2_TYPELESS                  , "BC2_TYPELESS" },
+    { SVGA3D_BC2_UNORM_SRGB                , "BC2_UNORM_SRGB" },
+    { SVGA3D_BC3_TYPELESS                  , "BC3_TYPELESS" },
+    { SVGA3D_BC3_UNORM_SRGB                , "BC3_UNORM_SRGB" },
+    { SVGA3D_BC4_TYPELESS                  , "BC4_TYPELESS" },
+    { SVGA3D_ATI1                          , "ATI1" },
+    { SVGA3D_BC4_SNORM                     , "BC4_SNORM" },
+    { SVGA3D_BC5_TYPELESS                  , "BC5_TYPELESS" },
+    { SVGA3D_ATI2                          , "ATI2" },
+    { SVGA3D_BC5_SNORM                     , "BC5_SNORM" },
+    { SVGA3D_R10G10B10_XR_BIAS_A2_UNORM    , "R10G10B10_XR_BIAS_A2_UNORM" },
+    { SVGA3D_B8G8R8A8_TYPELESS             , "B8G8R8A8_TYPELESS" },
+    { SVGA3D_B8G8R8A8_UNORM_SRGB           , "B8G8R8A8_UNORM_SRGB" },
+    { SVGA3D_B8G8R8X8_TYPELESS             , "B8G8R8X8_TYPELESS" },
+    { SVGA3D_B8G8R8X8_UNORM_SRGB           , "B8G8R8X8_UNORM_SRGB" },
+    { SVGA3D_Z_DF16                        , "Z_DF16" },
+    { SVGA3D_Z_DF24                        , "Z_DF24" },
+    { SVGA3D_Z_D24S8_INT                   , "Z_D24S8_INT" },
+    { SVGA3D_YV12                          , "YV12" },
+    { SVGA3D_R32G32B32A32_FLOAT            , "R32G32B32A32_FLOAT" },
+    { SVGA3D_R16G16B16A16_FLOAT            , "R16G16B16A16_FLOAT" },
+    { SVGA3D_R16G16B16A16_UNORM            , "R16G16B16A16_UNORM" },
+    { SVGA3D_R32G32_FLOAT                  , "R32G32_FLOAT" },
+    { SVGA3D_R10G10B10A2_UNORM             , "R10G10B10A2_UNORM" },
+    { SVGA3D_R8G8B8A8_SNORM                , "R8G8B8A8_SNORM" },
+    { SVGA3D_R16G16_FLOAT                  , "R16G16_FLOAT" },
+    { SVGA3D_R16G16_UNORM                  , "R16G16_UNORM" },
+    { SVGA3D_R16G16_SNORM                  , "R16G16_SNORM" },
+    { SVGA3D_R32_FLOAT                     , "R32_FLOAT" },
+    { SVGA3D_R8G8_SNORM                    , "R8G8_SNORM" },
+    { SVGA3D_R16_FLOAT                     , "R16_FLOAT" },
+    { SVGA3D_D16_UNORM                     , "D16_UNORM" },
+    { SVGA3D_A8_UNORM                      , "A8_UNORM" },
+    { SVGA3D_BC1_UNORM                     , "BC1_UNORM" },
+    { SVGA3D_BC2_UNORM                     , "BC2_UNORM" },
+    { SVGA3D_BC3_UNORM                     , "BC3_UNORM" },
+    { SVGA3D_B5G6R5_UNORM                  , "B5G6R5_UNORM" },
+    { SVGA3D_B5G5R5A1_UNORM                , "B5G5R5A1_UNORM" },
+    { SVGA3D_B8G8R8A8_UNORM                , "B8G8R8A8_UNORM" },
+    { SVGA3D_B8G8R8X8_UNORM                , "B8G8R8X8_UNORM" },
+    { SVGA3D_BC4_UNORM                     , "BC4_UNORM" },
+    { SVGA3D_BC5_UNORM                     , "BC5_UNORM" },
+    { SVGA3D_B4G4R4A4_UNORM                , "B4G4R4A4_UNORM" },
+    { SVGA3D_BC6H_TYPELESS                 , "BC6H_TYPELESS" },
+    { SVGA3D_BC6H_UF16                     , "BC6H_UF16" },
+    { SVGA3D_BC6H_SF16                     , "BC6H_SF16" },
+    { SVGA3D_BC7_TYPELESS                  , "BC7_TYPELESS" },
+    { SVGA3D_BC7_UNORM                     , "BC7_UNORM" },
+    { SVGA3D_BC7_UNORM_SRGB                , "BC7_UNORM_SRGB" },
+    { SVGA3D_AYUV                          , "AYUV" },
 };
 VMSVGAINFOENUMMAP_MAKE(RT_NOTHING, g_SVGA3dSurfaceFormat2String, g_aSVGA3dSurfaceFormats, "SVGA3D_");
 
@@ -116,7 +228,7 @@ static const char * const g_apszTexureFilters[] =
     "GAUSSIANQUAD",
 };
 
-/** SVGA3dSurfaceFlags values, prefix SVGA3D_SURFACE_. */
+/** SVGA3dSurface1Flags values, prefix SVGA3D_SURFACE_. */
 static VMSVGAINFOFLAGS32 const g_aSvga3DSurfaceFlags[] =
 {
     { SVGA3D_SURFACE_CUBEMAP            , "CUBEMAP" },
@@ -128,7 +240,7 @@ static VMSVGAINFOFLAGS32 const g_aSvga3DSurfaceFlags[] =
     { SVGA3D_SURFACE_HINT_RENDERTARGET  , "HINT_RENDERTARGET" },
     { SVGA3D_SURFACE_HINT_DEPTHSTENCIL  , "HINT_DEPTHSTENCIL" },
     { SVGA3D_SURFACE_HINT_WRITEONLY     , "HINT_WRITEONLY" },
-    { SVGA3D_SURFACE_MASKABLE_ANTIALIAS , "MASKABLE_ANTIALIAS" },
+    { SVGA3D_SURFACE_DEAD2              , "MASKABLE_ANTIALIAS" }, /* SVGA3D_SURFACE_MASKABLE_ANTIALIAS */
     { SVGA3D_SURFACE_AUTOGENMIPMAPS     , "AUTOGENMIPMAPS" },
 };
 
@@ -249,296 +361,6 @@ static VMSVGAINFOFLAGS32 const g_aD3DUsageFlags[] =
 };
 
 #endif /* VMSVGA3D_DIRECT3D */
-
-
-/**
- * Worker for vmsvga3dUpdateHeapBuffersForSurfaces.
- *
- * This will allocate heap buffers if necessary, thus increasing the memory
- * usage of the process.
- *
- * @todo Would be interesting to share this code with the saved state code.
- *
- * @returns VBox status code.
- * @param   pState              The 3D state structure.
- * @param   pSurface            The surface to refresh the heap buffers for.
- */
-static int vmsvga3dSurfaceUpdateHeapBuffers(PVMSVGA3DSTATE pState, PVMSVGA3DSURFACE pSurface)
-{
-    /*
-     * Currently we've got trouble retreving bit for DEPTHSTENCIL
-     * surfaces both for OpenGL and D3D, so skip these here (don't
-     * wast memory on them).
-     */
-    uint32_t const fSwitchFlags = pSurface->surfaceFlags & VMSVGA3D_SURFACE_HINT_SWITCH_MASK;
-    if (   fSwitchFlags != SVGA3D_SURFACE_HINT_DEPTHSTENCIL
-        && fSwitchFlags != (SVGA3D_SURFACE_HINT_DEPTHSTENCIL | SVGA3D_SURFACE_HINT_TEXTURE))
-    {
-
-#ifdef VMSVGA3D_OPENGL
-        /*
-         * Change OpenGL context to the one the surface is associated with.
-         */
-        PVMSVGA3DCONTEXT pContext = &pState->SharedCtx;
-        VMSVGA3D_SET_CURRENT_CONTEXT(pState, pContext);
-#endif
-
-        /*
-         * Work thru each mipmap level for each face.
-         */
-        for (uint32_t iFace = 0; iFace < pSurface->cFaces; iFace++)
-        {
-            Assert(pSurface->faces[iFace].numMipLevels <= pSurface->faces[0].numMipLevels);
-            PVMSVGA3DMIPMAPLEVEL pMipmapLevel = &pSurface->paMipmapLevels[iFace * pSurface->faces[0].numMipLevels];
-            for (uint32_t i = 0; i < pSurface->faces[iFace].numMipLevels; i++, pMipmapLevel++)
-            {
-                if (VMSVGA3DSURFACE_HAS_HW_SURFACE(pSurface))
-                {
-                    Assert(pMipmapLevel->cbSurface);
-                    Assert(pMipmapLevel->cbSurface == pMipmapLevel->cbSurfacePlane * pMipmapLevel->mipmapSize.depth);
-
-                    /*
-                     * Make sure we've got surface memory buffer.
-                     */
-                    uint8_t *pbDst = (uint8_t *)pMipmapLevel->pSurfaceData;
-                    if (!pbDst)
-                    {
-                        pMipmapLevel->pSurfaceData = pbDst = (uint8_t *)RTMemAllocZ(pMipmapLevel->cbSurface);
-                        AssertReturn(pbDst, VERR_NO_MEMORY);
-                    }
-
-#ifdef VMSVGA3D_DIRECT3D
-                    /*
-                     * D3D specifics.
-                     */
-                    Assert(pSurface->enmD3DResType != VMSVGA3D_D3DRESTYPE_NONE);
-
-                    HRESULT hr;
-                    switch (pSurface->enmD3DResType)
-                    {
-                        case VMSVGA3D_D3DRESTYPE_VOLUME_TEXTURE:
-                            AssertFailed(); /// @todo
-                            break;
-
-                        case VMSVGA3D_D3DRESTYPE_SURFACE:
-                        case VMSVGA3D_D3DRESTYPE_TEXTURE:
-                        case VMSVGA3D_D3DRESTYPE_CUBE_TEXTURE:
-                        {
-                            /*
-                             * Lock the buffer and make it accessible to memcpy.
-                             */
-                            D3DLOCKED_RECT LockedRect;
-                            if (pSurface->enmD3DResType == VMSVGA3D_D3DRESTYPE_CUBE_TEXTURE)
-                            {
-                                hr = pSurface->u.pCubeTexture->LockRect(vmsvga3dCubemapFaceFromIndex(iFace),
-                                                                        i, /* texture level */
-                                                                        &LockedRect,
-                                                                        NULL,
-                                                                        D3DLOCK_READONLY);
-                            }
-                            else if (pSurface->enmD3DResType == VMSVGA3D_D3DRESTYPE_TEXTURE)
-                            {
-                                if (pSurface->bounce.pTexture)
-                                {
-                                    if (   !pSurface->fDirty
-                                        && RT_BOOL(fSwitchFlags & SVGA3D_SURFACE_HINT_RENDERTARGET))
-                                    {
-                                        /** @todo stricter checks for associated context */
-                                        uint32_t cid = pSurface->idAssociatedContext;
-                                        PVMSVGA3DCONTEXT pContext;
-                                        int rc = vmsvga3dContextFromCid(pState, cid, &pContext);
-                                        AssertRCReturn(rc, rc);
-
-                                        IDirect3DSurface9 *pDst = NULL;
-                                        hr = pSurface->bounce.pTexture->GetSurfaceLevel(i, &pDst);
-                                        AssertMsgReturn(hr == D3D_OK, ("GetSurfaceLevel failed with %#x\n", hr), VERR_INTERNAL_ERROR);
-
-                                        IDirect3DSurface9 *pSrc = NULL;
-                                        hr = pSurface->u.pTexture->GetSurfaceLevel(i, &pSrc);
-                                        AssertMsgReturn(hr == D3D_OK, ("GetSurfaceLevel failed with %#x\n", hr), VERR_INTERNAL_ERROR);
-
-                                        hr = pContext->pDevice->GetRenderTargetData(pSrc, pDst);
-                                        AssertMsgReturn(hr == D3D_OK, ("GetRenderTargetData failed with %#x\n", hr), VERR_INTERNAL_ERROR);
-
-                                        pSrc->Release();
-                                        pDst->Release();
-                                    }
-
-                                    hr = pSurface->bounce.pTexture->LockRect(i, /* texture level */
-                                                                             &LockedRect,
-                                                                             NULL,
-                                                                             D3DLOCK_READONLY);
-                                }
-                                else
-                                    hr = pSurface->u.pTexture->LockRect(i, /* texture level */
-                                                                        &LockedRect,
-                                                                        NULL,
-                                                                        D3DLOCK_READONLY);
-                            }
-                            else
-                                hr = pSurface->u.pSurface->LockRect(&LockedRect,
-                                                                    NULL,
-                                                                    D3DLOCK_READONLY);
-                            AssertMsgReturn(hr == D3D_OK, ("LockRect failed with %x\n", hr), VERR_INTERNAL_ERROR);
-
-                            /*
-                             * Copy the data.  Take care in case the pitch differs.
-                             */
-                            if (pMipmapLevel->cbSurfacePitch == (uint32_t)LockedRect.Pitch)
-                                memcpy(pbDst, LockedRect.pBits, pMipmapLevel->cbSurface);
-                            else
-                                for (uint32_t j = 0; j < pMipmapLevel->cBlocksY; j++)
-                                    memcpy(pbDst + j * pMipmapLevel->cbSurfacePitch,
-                                           (uint8_t *)LockedRect.pBits + j * LockedRect.Pitch,
-                                           pMipmapLevel->cbSurfacePitch);
-
-                            /*
-                             * Release the buffer.
-                             */
-                            if (fSwitchFlags & SVGA3D_SURFACE_HINT_TEXTURE)
-                            {
-                                if (pSurface->bounce.pTexture)
-                                {
-                                    hr = pSurface->bounce.pTexture->UnlockRect(i);
-                                    AssertMsgReturn(hr == D3D_OK, ("UnlockRect failed with %#x\n", hr), VERR_INTERNAL_ERROR);
-                                }
-                                else
-                                    hr = pSurface->u.pTexture->UnlockRect(i);
-                            }
-                            else
-                                hr = pSurface->u.pSurface->UnlockRect();
-                            AssertMsgReturn(hr == D3D_OK, ("UnlockRect failed with %#x\n", hr), VERR_INTERNAL_ERROR);
-                            break;
-                        }
-
-                        case VMSVGA3D_D3DRESTYPE_VERTEX_BUFFER:
-                        case VMSVGA3D_D3DRESTYPE_INDEX_BUFFER:
-                        {
-                            /* Current type of the buffer. */
-                            const bool fVertex = (pSurface->enmD3DResType == VMSVGA3D_D3DRESTYPE_VERTEX_BUFFER);
-
-                            void *pvD3DData = NULL;
-                            if (fVertex)
-                                hr = pSurface->u.pVertexBuffer->Lock(0, 0, &pvD3DData, D3DLOCK_READONLY);
-                            else
-                                hr = pSurface->u.pIndexBuffer->Lock(0, 0, &pvD3DData, D3DLOCK_READONLY);
-                            AssertMsgReturn(hr == D3D_OK, ("Lock %s failed with %x\n", fVertex ? "vertex" : "index", hr), VERR_INTERNAL_ERROR);
-
-                            memcpy(pbDst, pvD3DData, pMipmapLevel->cbSurface);
-
-                            if (fVertex)
-                                hr = pSurface->u.pVertexBuffer->Unlock();
-                            else
-                                hr = pSurface->u.pIndexBuffer->Unlock();
-                            AssertMsg(hr == D3D_OK, ("Unlock %s failed with %x\n", fVertex ? "vertex" : "index", hr));
-                            break;
-                        }
-
-                        default:
-                            AssertMsgFailed(("flags %#x, type %d\n", fSwitchFlags, pSurface->enmD3DResType));
-                    }
-
-#elif defined(VMSVGA3D_OPENGL)
-                    /*
-                     * OpenGL specifics.
-                     */
-                    switch (pSurface->enmOGLResType)
-                    {
-                        case VMSVGA3D_OGLRESTYPE_TEXTURE:
-                        {
-                            GLint activeTexture;
-                            glGetIntegerv(GL_TEXTURE_BINDING_2D, &activeTexture);
-                            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
-
-                            glBindTexture(GL_TEXTURE_2D, pSurface->oglId.texture);
-                            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
-
-                            /* Set row length and alignment of the output data. */
-                            VMSVGAPACKPARAMS SavedParams;
-                            vmsvga3dOglSetPackParams(pState, pContext, pSurface, &SavedParams);
-
-                            glGetTexImage(GL_TEXTURE_2D,
-                                          i,
-                                          pSurface->formatGL,
-                                          pSurface->typeGL,
-                                          pbDst);
-                            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
-
-                            vmsvga3dOglRestorePackParams(pState, pContext, pSurface, &SavedParams);
-
-                            /* Restore the old active texture. */
-                            glBindTexture(GL_TEXTURE_2D, activeTexture);
-                            VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
-                            break;
-                        }
-
-                        case VMSVGA3D_OGLRESTYPE_BUFFER:
-                        {
-                            pState->ext.glBindBuffer(GL_ARRAY_BUFFER, pSurface->oglId.buffer);
-                            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-
-                            void *pvSrc = pState->ext.glMapBuffer(GL_ARRAY_BUFFER, GL_READ_ONLY);
-                            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-                            if (RT_VALID_PTR(pvSrc))
-                                memcpy(pbDst, pvSrc, pMipmapLevel->cbSurface);
-                            else
-                                AssertPtr(pvSrc);
-
-                            pState->ext.glUnmapBuffer(GL_ARRAY_BUFFER);
-                            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-
-                            pState->ext.glBindBuffer(GL_ARRAY_BUFFER, 0);
-                            VMSVGA3D_CHECK_LAST_ERROR(pState, pContext);
-                            break;
-                        }
-
-                        default:
-                            AssertMsgFailed(("%#x\n", fSwitchFlags));
-                    }
-#else
-# error "misconfigured"
-#endif
-                }
-                /* else: There is no data in hardware yet, so whatever we got is already current. */
-            }
-        }
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Updates the heap buffers for all surfaces or one specific one.
- *
- * @param   pThisCC     The VGA/VMSVGA state for ring-3.
- * @param   sid         The surface ID, UINT32_MAX if all.
- * @thread  VMSVGAFIFO
- */
-void vmsvga3dUpdateHeapBuffersForSurfaces(PVGASTATECC pThisCC, uint32_t sid)
-{
-    PVMSVGA3DSTATE pState = pThisCC->svga.p3dState;
-    AssertReturnVoid(pState);
-
-    if (sid == UINT32_MAX)
-    {
-        uint32_t cSurfaces = pState->cSurfaces;
-        for (sid = 0; sid < cSurfaces; sid++)
-        {
-            PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
-            if (pSurface && pSurface->id == sid)
-                vmsvga3dSurfaceUpdateHeapBuffers(pState, pSurface);
-        }
-    }
-    else if (sid < pState->cSurfaces)
-    {
-        PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
-        if (pSurface && pSurface->id == sid)
-            vmsvga3dSurfaceUpdateHeapBuffers(pState, pSurface);
-    }
-}
-
-
 
 
 void vmsvga3dInfoU32Flags(PCDBGFINFOHLP pHlp, uint32_t fFlags, const char *pszPrefix, PCVMSVGAINFOFLAGS32 paFlags, uint32_t cFlags)
@@ -679,7 +501,8 @@ const char *vmsvgaLookupEnum(int32_t iValue, PCVMSVGAINFOENUMMAP pEnumMap)
     {
         *pEnumMap->pfAsserted = true;
         for (uint32_t i = 1; i < pEnumMap->cValues; i++)
-            Assert(paValues[i - 1].iValue <= paValues[i].iValue);
+            AssertMsg(paValues[i - 1].iValue <= paValues[i].iValue,
+                      ("i = %d: %d followed by %d", i, paValues[i - 1].iValue, paValues[i].iValue));
     }
 #endif
 
@@ -810,7 +633,7 @@ DECLCALLBACK(void) vmsvga3dAsciiPrintlnLog(const char *pszLine, void *pvUser)
 }
 
 
-void vmsvga3dAsciiPrint(PFMVMSVGAASCIIPRINTLN pfnPrintLine, void *pvUser, void const *pvImage, size_t cbImage,
+void vmsvga3dAsciiPrint(PFNVMSVGAASCIIPRINTLN pfnPrintLine, void *pvUser, void const *pvImage, size_t cbImage,
                         uint32_t cx, uint32_t cy, uint32_t cbScanline, SVGA3dSurfaceFormat enmFormat, bool fInvY,
                         uint32_t cchMaxX, uint32_t cchMaxY)
 {
@@ -1007,7 +830,7 @@ void vmsvga3dAsciiPrint(PFMVMSVGAASCIIPRINTLN pfnPrintLine, void *pvUser, void c
             case SVGA3D_BUMPU8V8:
             case SVGA3D_BUMPL6V5U5:
             case SVGA3D_BUMPX8L8V8U8:
-            case SVGA3D_BUMPL8V8U8:
+            case SVGA3D_FORMAT_DEAD1:
             case SVGA3D_ARGB_S10E5:
             case SVGA3D_ARGB_S23E8:
             case SVGA3D_V8U8:
@@ -1024,9 +847,9 @@ void vmsvga3dAsciiPrint(PFMVMSVGAASCIIPRINTLN pfnPrintLine, void *pvUser, void c
             case SVGA3D_UYVY:
             case SVGA3D_YUY2:
             case SVGA3D_NV12:
-            case SVGA3D_AYUV:
-            case SVGA3D_BC4_UNORM:
-            case SVGA3D_BC5_UNORM:
+            case SVGA3D_FORMAT_DEAD2: /* Old SVGA3D_AYUV */
+            case SVGA3D_ATI1:
+            case SVGA3D_ATI2:
             case SVGA3D_Z_DF16:
             case SVGA3D_Z_DF24:
             case SVGA3D_Z_D24S8_INT:
@@ -1223,7 +1046,6 @@ char *vmsvga3dFormatRenderState(char *pszBuffer, size_t cbBuffer, SVGA3dRenderSt
        "b" "DSTBLENDALPHA",                 /*  SVGA3dBlendOp  */
        "e" "BLENDEQUATIONALPHA",            /*  SVGA3dBlendEquation  */
        "*" "TRANSPARENCYANTIALIAS",         /*  SVGA3dTransparencyAntialiasType  */
-       "f" "LINEAA",                        /*  SVGA3dBool  */
        "r" "LINEWIDTH",                     /*  float  */
     };
 
@@ -1262,7 +1084,7 @@ char *vmsvga3dFormatRenderState(char *pszBuffer, size_t cbBuffer, SVGA3dRenderSt
                     break;
                 case 'c': //SVGA3dColor, SVGA3dColorMask
                     RTStrPrintf(pszBuffer, cbBuffer, "%s = RGBA(%d,%d,%d,%d) (%#x)", pszName,
-                                uValue.Color.s.red, uValue.Color.s.green, uValue.Color.s.blue, uValue.Color.s.alpha, uValue.u);
+                                uValue.Color.red, uValue.Color.green, uValue.Color.blue, uValue.Color.alpha, uValue.u);
                     break;
                 case 'w': //SVGA3dWrapFlags
                     RTStrPrintf(pszBuffer, cbBuffer, "%s = %#x%s", pszName, uValue.u,
@@ -1389,7 +1211,7 @@ char *vmsvga3dFormatTextureState(char *pszBuffer, size_t cbBuffer, SVGA3dTexture
 
                 case 'c': //SVGA3dColor, SVGA3dColorMask
                     RTStrPrintf(pszBuffer, cbBuffer, "%s = RGBA(%d,%d,%d,%d) (%#x)", pszName,
-                                uValue.Color.s.red, uValue.Color.s.green, uValue.Color.s.blue, uValue.Color.s.alpha, uValue.u);
+                                uValue.Color.red, uValue.Color.green, uValue.Color.blue, uValue.Color.alpha, uValue.u);
                     break;
 
                 case 'e': //SVGA3dTextureAddress
@@ -1798,38 +1620,6 @@ static DECLCALLBACK(int) vmsvga3dInfoSharedObjectCallback(PAVLU32NODECORE pNode,
 }
 #endif /* VMSVGA3D_DIRECT3D */
 
-#ifndef RT_OS_WINDOWS
-typedef uint16_t WORD;
-typedef uint32_t DWORD;
-typedef int32_t LONG;
-
-#pragma pack(2)
-typedef struct
-{
-    WORD    bfType;
-    DWORD   bfSize;
-    WORD    bfReserved1;
-    WORD    bfReserved2;
-    DWORD   bfOffBits;
-} BITMAPFILEHEADER, *PBITMAPFILEHEADER, *LPBITMAPFILEHEADER;
-
-typedef struct
-{
-    DWORD biSize;
-    LONG  biWidth;
-    LONG  biHeight;
-    WORD  biPlanes;
-    WORD  biBitCount;
-    DWORD biCompression;
-    DWORD biSizeImage;
-    LONG  biXPelsPerMeter;
-    LONG  biYPelsPerMeter;
-    DWORD biClrUsed;
-    DWORD biClrImportant;
-} BITMAPINFOHEADER, *PBITMAPINFOHEADER, *LPBITMAPINFOHEADER;
-#pragma pack()
-#endif
-
 static int vmsvga3dInfoBmpWrite(const char *pszFilename, const void *pvBits, int w, int h, uint32_t cbPixel, uint32_t u32Mask)
 {
     if (   cbPixel != 4
@@ -1847,64 +1637,58 @@ static int vmsvga3dInfoBmpWrite(const char *pszFilename, const void *pvBits, int
 #ifdef RT_OS_WINDOWS
     if (cbPixel == 4)
     {
-        BITMAPV4HEADER bh;
-        RT_ZERO(bh);
-        bh.bV4Size          = sizeof(bh);
-        bh.bV4Width         = w;
-        bh.bV4Height        = -h;
-        bh.bV4Planes        = 1;
-        bh.bV4BitCount      = 32;
-        bh.bV4V4Compression = BI_BITFIELDS;
-        bh.bV4SizeImage     = cbBitmap;
-        bh.bV4XPelsPerMeter = 2835;
-        bh.bV4YPelsPerMeter = 2835;
-        // bh.bV4ClrUsed       = 0;
-        // bh.bV4ClrImportant  = 0;
-        bh.bV4RedMask       = 0x00ff0000;
-        bh.bV4GreenMask     = 0x0000ff00;
-        bh.bV4BlueMask      = 0x000000ff;
-        bh.bV4AlphaMask     = 0xff000000;
-        bh.bV4CSType        = LCS_WINDOWS_COLOR_SPACE;
-        // bh.bV4Endpoints     = {0};
-        // bh.bV4GammaRed      = 0;
-        // bh.bV4GammaGreen    = 0;
-        // bh.bV4GammaBlue     = 0;
+        BMPFILEHDR fileHdr;
+        RT_ZERO(fileHdr);
+        fileHdr.uType       = BMP_HDR_MAGIC;
+        fileHdr.cbFileSize = sizeof(fileHdr) + sizeof(BITMAPV4HEADER) + cbBitmap;
+        fileHdr.offBits    = sizeof(fileHdr) + sizeof(BITMAPV4HEADER);
 
-        BITMAPFILEHEADER bf;
-        bf.bfType = 'MB';
-        bf.bfSize = sizeof(bf) + sizeof(bh) + cbBitmap;
-        bf.bfReserved1 = 0;
-        bf.bfReserved2 = 0;
-        bf.bfOffBits = sizeof(bf) + sizeof(bh);
+        BITMAPV4HEADER hdrV4;
+        RT_ZERO(hdrV4);
+        hdrV4.bV4Size          = sizeof(hdrV4);
+        hdrV4.bV4Width         = w;
+        hdrV4.bV4Height        = -h;
+        hdrV4.bV4Planes        = 1;
+        hdrV4.bV4BitCount      = 32;
+        hdrV4.bV4V4Compression = BI_BITFIELDS;
+        hdrV4.bV4SizeImage     = cbBitmap;
+        hdrV4.bV4XPelsPerMeter = 2835;
+        hdrV4.bV4YPelsPerMeter = 2835;
+        // hdrV4.bV4ClrUsed       = 0;
+        // hdrV4.bV4ClrImportant  = 0;
+        hdrV4.bV4RedMask       = 0x00ff0000;
+        hdrV4.bV4GreenMask     = 0x0000ff00;
+        hdrV4.bV4BlueMask      = 0x000000ff;
+        hdrV4.bV4AlphaMask     = 0xff000000;
+        hdrV4.bV4CSType        = LCS_WINDOWS_COLOR_SPACE;
+        // hdrV4.bV4Endpoints     = {0};
+        // hdrV4.bV4GammaRed      = 0;
+        // hdrV4.bV4GammaGreen    = 0;
+        // hdrV4.bV4GammaBlue     = 0;
 
-        fwrite(&bf, 1, sizeof(bf), f);
-        fwrite(&bh, 1, sizeof(bh), f);
+        fwrite(&fileHdr, 1, sizeof(fileHdr), f);
+        fwrite(&hdrV4, 1, sizeof(hdrV4), f);
     }
     else
 #endif
     {
-        BITMAPFILEHEADER bf;
-        bf.bfType = 0x4D42; //'MB'
-        bf.bfSize = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + cbBitmap;
-        bf.bfReserved1 = 0;
-        bf.bfReserved2 = 0;
-        bf.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER);
+        BMPFILEHDR fileHdr;
+        RT_ZERO(fileHdr);
+        fileHdr.uType      = BMP_HDR_MAGIC;
+        fileHdr.cbFileSize = sizeof(BMPFILEHDR) + sizeof(BMPWIN3XINFOHDR) + cbBitmap;
+        fileHdr.offBits    = sizeof(BMPFILEHDR) + sizeof(BMPWIN3XINFOHDR);
 
-        BITMAPINFOHEADER bi;
-        bi.biSize = sizeof(bi);
-        bi.biWidth = w;
-        bi.biHeight = -h;
-        bi.biPlanes = 1;
-        bi.biBitCount = 32;
-        bi.biCompression = 0;
-        bi.biSizeImage = cbBitmap;
-        bi.biXPelsPerMeter = 0;
-        bi.biYPelsPerMeter = 0;
-        bi.biClrUsed = 0;
-        bi.biClrImportant = 0;
+        BMPWIN3XINFOHDR coreHdr;
+        RT_ZERO(coreHdr);
+        coreHdr.cbSize      = sizeof(coreHdr);
+        coreHdr.uWidth      = w;
+        coreHdr.uHeight     = -h;
+        coreHdr.cPlanes     = 1;
+        coreHdr.cBits       = 32;
+        coreHdr.cbSizeImage = cbBitmap;
 
-        fwrite(&bf, 1, sizeof(bf), f);
-        fwrite(&bi, 1, sizeof(bi), f);
+        fwrite(&fileHdr, 1, sizeof(fileHdr), f);
+        fwrite(&coreHdr, 1, sizeof(coreHdr), f);
     }
 
     if (cbPixel == 4)
@@ -1954,7 +1738,7 @@ void vmsvga3dInfoSurfaceToBitmap(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pSurface,
     static volatile uint32_t sSeq = 0;
     const uint32_t u32Seq = ASMAtomicIncU32(&sSeq);
 
-    for (uint32_t i = 0; i < pSurface->faces[0].numMipLevels; ++i)
+    for (uint32_t i = 0; i < pSurface->cLevels; ++i)
     {
         if (!pSurface->paMipmapLevels[i].pSurfaceData)
             continue;
@@ -2003,26 +1787,20 @@ static void vmsvga3dInfoSurfaceWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pS
     char szTmp[128];
 
     pHlp->pfnPrintf(pHlp, "*** VMSVGA 3d surface %#x (%d)%s ***\n", pSurface->id, pSurface->id, pSurface->fDirty ? " - dirty" : "");
-#ifdef VMSVGA3D_OPENGL
-    pHlp->pfnPrintf(pHlp, "idWeakContextAssociation: %#x\n", pSurface->idWeakContextAssociation);
-#else
     pHlp->pfnPrintf(pHlp, "idAssociatedContext:     %#x\n", pSurface->idAssociatedContext);
-#endif
     pHlp->pfnPrintf(pHlp, "Format:                  %s\n",
                     vmsvgaFormatEnumValueEx(szTmp, sizeof(szTmp), NULL, (int)pSurface->format, false, &g_SVGA3dSurfaceFormat2String));
-    pHlp->pfnPrintf(pHlp, "Flags:                   %#x", pSurface->surfaceFlags);
-    vmsvga3dInfoU32Flags(pHlp, pSurface->surfaceFlags, "SVGA3D_SURFACE_", g_aSvga3DSurfaceFlags, RT_ELEMENTS(g_aSvga3DSurfaceFlags));
+    pHlp->pfnPrintf(pHlp, "Flags:                   0x%RX64", pSurface->f.surfaceFlags);
+    vmsvga3dInfoU32Flags(pHlp, pSurface->f.s.surface1Flags, "SVGA3D_SURFACE_", g_aSvga3DSurfaceFlags, RT_ELEMENTS(g_aSvga3DSurfaceFlags));
     pHlp->pfnPrintf(pHlp, "\n");
-    if (pSurface->cFaces == 0)
+    if (pSurface->cFaces != 0)
         pHlp->pfnPrintf(pHlp, "Faces:                   %u\n", pSurface->cFaces);
+    if (pSurface->cLevels != 0)
+        pHlp->pfnPrintf(pHlp, "Mipmap levels:  %u\n", pSurface->cLevels);
     for (uint32_t iFace = 0; iFace < pSurface->cFaces; iFace++)
     {
-        Assert(pSurface->faces[iFace].numMipLevels <= pSurface->faces[0].numMipLevels);
-        if (pSurface->faces[iFace].numMipLevels == 0)
-            pHlp->pfnPrintf(pHlp, "Faces[%u] Mipmap levels:  %u\n", iFace, pSurface->faces[iFace].numMipLevels);
-
-        uint32_t iMipmap = iFace * pSurface->faces[0].numMipLevels;
-        for (uint32_t iLevel = 0; iLevel < pSurface->faces[iFace].numMipLevels; iLevel++, iMipmap++)
+        uint32_t iMipmap = iFace * pSurface->cLevels;
+        for (uint32_t iLevel = 0; iLevel < pSurface->cLevels; iLevel++, iMipmap++)
         {
             pHlp->pfnPrintf(pHlp, "Face #%u, mipmap #%u[%u]:%s  cx=%u, cy=%u, cz=%u, cbSurface=%#x, cbPitch=%#x",
                             iFace, iLevel, iMipmap, iMipmap < 10 ? " " : "",
@@ -2074,8 +1852,8 @@ static void vmsvga3dInfoSurfaceWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DSURFACE pS
     if (fVerbose)
         for (uint32_t iFace = 0; iFace < pSurface->cFaces; iFace++)
         {
-            uint32_t iMipmap = iFace * pSurface->faces[0].numMipLevels;
-            for (uint32_t iLevel = 0; iLevel < pSurface->faces[iFace].numMipLevels; iLevel++, iMipmap++)
+            uint32_t iMipmap = iFace * pSurface->cLevels;
+            for (uint32_t iLevel = 0; iLevel < pSurface->cLevels; iLevel++, iMipmap++)
                 if (pSurface->paMipmapLevels[iMipmap].pSurfaceData)
                 {
                     if (ASMMemIsZero(pSurface->paMipmapLevels[iMipmap].pSurfaceData,

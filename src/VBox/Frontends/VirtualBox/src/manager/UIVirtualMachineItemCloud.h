@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_UIVirtualMachineItemCloud_h
@@ -24,9 +34,12 @@
 /* GUI includes: */
 #include "UIVirtualMachineItem.h"
 
+/* COM includes: */
+#include "COMEnums.h"
+#include "CCloudMachine.h"
+
 /* Forward declarations: */
-class UICloudMachine;
-class UITask;
+class UIProgressTask;
 
 /** UIVirtualMachineItem sub-class used as cloud Virtual Machine item interface. */
 class UIVirtualMachineItemCloud : public UIVirtualMachineItem
@@ -35,78 +48,82 @@ class UIVirtualMachineItemCloud : public UIVirtualMachineItem
 
 signals:
 
-    /** Notifies listeners about state change. */
-    void sigStateChange();
+    /** Notifies listeners about refresh started. */
+    void sigRefreshStarted();
+    /** Notifies listeners about refresh finished. */
+    void sigRefreshFinished();
 
 public:
 
-    /** Fake cloud item states. */
-    enum FakeCloudItemState
-    {
-        FakeCloudItemState_NotApplicable,
-        FakeCloudItemState_Loading,
-        FakeCloudItemState_Done
-    };
-
-    /** Constructs fake cloud VM item. */
-    UIVirtualMachineItemCloud();
-    /** Constructs real cloud VM item on the basis of taken @a guiCloudMachine. */
-    UIVirtualMachineItemCloud(const UICloudMachine &guiCloudMachine);
+    /** Constructs fake cloud VM item of certain @a enmState. */
+    UIVirtualMachineItemCloud(UIFakeCloudVirtualMachineItemState enmState);
+    /** Constructs real cloud VM item on the basis of taken @a comCloudMachine. */
+    UIVirtualMachineItemCloud(const CCloudMachine &comCloudMachine);
     /** Destructs cloud VM item. */
-    virtual ~UIVirtualMachineItemCloud();
+    virtual ~UIVirtualMachineItemCloud() RT_OVERRIDE;
 
-    /** @name State attributes.
+    /** @name Arguments.
       * @{ */
+        /** Returns cached cloud machine object. */
+        CCloudMachine machine() const { return m_comCloudMachine; }
+    /** @} */
+
+    /** @name Data attributes.
+      * @{ */
+        /** Returns cached machine state. */
+        KCloudMachineState machineState() const { return m_enmMachineState; }
+
         /** Defines fake cloud item @a enmState. */
-        void setFakeCloudItemState(FakeCloudItemState enmState) { m_enmFakeCloudItemState = enmState; }
+        void setFakeCloudItemState(UIFakeCloudVirtualMachineItemState enmState);
         /** Returns fake cloud item state. */
-        FakeCloudItemState fakeCloudItemState() const { return m_enmFakeCloudItemState; }
+        UIFakeCloudVirtualMachineItemState fakeCloudItemState() const { return m_enmFakeCloudItemState; }
 
-        /** Updates cloud VM state.
-          * @param  pWidget  Brings parent widget to show messages according to. */
-        void updateState(QWidget *pParent);
+        /** Defines fake cloud item @a strErrorMessage. */
+        void setFakeCloudItemErrorMessage(const QString &strErrorMessage);
+        /** Returns fake cloud item error message. */
+        QString fakeCloudItemErrorMessage() const { return m_strFakeCloudItemErrorMessage; }
 
-        /** Updates cloud VM state async way, @a fDelayed if requested or instant otherwise. */
-        void updateStateAsync(bool fDelayed);
-
-        /** Puts cloud VM on pause.
-          * @param  pWidget  Brings parent widget to show messages according to. */
-        void pause(QWidget *pParent);
-        /** Resumes cloud VM execution.
-          * @param  pWidget  Brings parent widget to show messages according to. */
-        void resume(QWidget *pParent);
-        /** Wrapper to handle two tasks above.
-          * @param  fPause   Brings whether cloud VM should be paused or resumed otherwise.
-          * @param  pWidget  Brings parent widget to show messages according to. */
-        void pauseOrResume(bool fPause, QWidget *pParent);
+        /** Updates cloud VM info async way, @a fDelayed if requested or instant otherwise.
+          * @param  fSubscribe  Brings whether this update should be performed periodically. */
+        void updateInfoAsync(bool fDelayed, bool fSubscribe = false);
+        /** Stop periodical updates previously requested. */
+        void stopAsyncUpdates();
+        /** Makes sure async info update is finished.
+          * @note  This method creates own event-loop to avoid blocking calling thread event processing,
+          *        so it's safe to call it from the GUI thread, ofc the method itself will be blocked. */
+        void waitForAsyncInfoUpdateFinished();
     /** @} */
 
     /** @name Update stuff.
       * @{ */
         /** Recaches machine data. */
-        virtual void recache() /* override */;
+        virtual void recache() RT_OVERRIDE;
         /** Recaches machine item pixmap. */
-        virtual void recachePixmap() /* override */;
+        virtual void recachePixmap() RT_OVERRIDE;
     /** @} */
 
     /** @name Validation stuff.
       * @{ */
-        /** Returns whether passed machine @a pItem is editable. */
-        virtual bool isItemEditable() const /* override */;
-        /** Returns whether passed machine @a pItem is saved. */
-        virtual bool isItemSaved() const /* override */;
-        /** Returns whether passed machine @a pItem is powered off. */
-        virtual bool isItemPoweredOff() const /* override */;
-        /** Returns whether passed machine @a pItem is started. */
-        virtual bool isItemStarted() const /* override */;
-        /** Returns whether passed machine @a pItem is running. */
-        virtual bool isItemRunning() const /* override */;
-        /** Returns whether passed machine @a pItem is running headless. */
-        virtual bool isItemRunningHeadless() const /* override */;
-        /** Returns whether passed machine @a pItem is paused. */
-        virtual bool isItemPaused() const /* override */;
-        /** Returns whether passed machine @a pItem is stuck. */
-        virtual bool isItemStuck() const /* override */;
+        /** Returns whether this item is editable. */
+        virtual bool isItemEditable() const RT_OVERRIDE;
+        /** Returns whether this item is removable. */
+        virtual bool isItemRemovable() const RT_OVERRIDE;
+        /** Returns whether this item is saved. */
+        virtual bool isItemSaved() const RT_OVERRIDE;
+        /** Returns whether this item is powered off. */
+        virtual bool isItemPoweredOff() const RT_OVERRIDE;
+        /** Returns whether this item is started. */
+        virtual bool isItemStarted() const RT_OVERRIDE;
+        /** Returns whether this item is running. */
+        virtual bool isItemRunning() const RT_OVERRIDE;
+        /** Returns whether this item is running headless. */
+        virtual bool isItemRunningHeadless() const RT_OVERRIDE;
+        /** Returns whether this item is paused. */
+        virtual bool isItemPaused() const RT_OVERRIDE;
+        /** Returns whether this item is stuck. */
+        virtual bool isItemStuck() const RT_OVERRIDE;
+        /** Returns whether this item can be switched to. */
+        virtual bool isItemCanBeSwitchedTo() const RT_OVERRIDE;
     /** @} */
 
 protected:
@@ -114,37 +131,44 @@ protected:
     /** @name Event handling.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
     /** @} */
 
 private slots:
 
-        /** Create cloud VM state acquire task. */
-        void sltCreateGetCloudInstanceStateTask();
-        /** Handles signal about cloud VM state acquire task is done. */
-        void sltHandleGetCloudInstanceStateDone(UITask *pTask);
+        /** Handles signal about cloud VM info refresh progress is done. */
+        void sltHandleRefreshCloudMachineInfoDone();
 
 private:
 
-    /** @name State attributes.
+    /** @name Prepare/Cleanup cascade.
       * @{ */
-        /** Updates cloud VM state on the basis of string @a strState value. */
-        void updateState(const QString &strState);
+        /** Prepares all. */
+        void prepare();
+        /** Cleanups all. */
+        void cleanup();
     /** @} */
 
     /** @name Arguments.
       * @{ */
-        /** Holds cached cloud machine object reference. */
-        UICloudMachine *m_pCloudMachine;
+        /** Holds cached cloud machine object. */
+        CCloudMachine  m_comCloudMachine;
     /** @} */
 
-    /** @name State attributes.
+    /** @name Data attributes.
       * @{ */
-        /** Holds fake cloud item state. */
-        FakeCloudItemState  m_enmFakeCloudItemState;
+        /** Holds cached machine state. */
+        KCloudMachineState  m_enmMachineState;
 
-        /** Holds the state acquire task instance. */
-        UITask *m_pTask;
+        /** Holds fake cloud item state. */
+        UIFakeCloudVirtualMachineItemState  m_enmFakeCloudItemState;
+        /** Holds fake cloud item error message. */
+        QString                             m_strFakeCloudItemErrorMessage;
+
+        /** Holds whether we plan to refresh info. */
+        bool            m_fRefreshScheduled;
+        /** Holds the refresh progress-task instance. */
+        UIProgressTask *m_pProgressTaskRefresh;
     /** @} */
 };
 

@@ -14,10 +14,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -635,7 +640,7 @@ static int phantom_create_rx_ctx ( struct phantom_nic *phantom ) {
 	int rc;
 
 	/* Allocate context creation buffer */
-	buf = malloc_dma ( sizeof ( *buf ), UNM_DMA_BUFFER_ALIGN );
+	buf = malloc_phys ( sizeof ( *buf ), UNM_DMA_BUFFER_ALIGN );
 	if ( ! buf ) {
 		rc = -ENOMEM;
 		goto out;
@@ -711,7 +716,7 @@ static int phantom_create_rx_ctx ( struct phantom_nic *phantom ) {
 	       phantom, phantom->sds_irq_mask_crb );
 
  out:
-	free_dma ( buf, sizeof ( *buf ) );
+	free_phys ( buf, sizeof ( *buf ) );
 	return rc;
 }
 
@@ -760,7 +765,7 @@ static int phantom_create_tx_ctx ( struct phantom_nic *phantom ) {
 	int rc;
 
 	/* Allocate context creation buffer */
-	buf = malloc_dma ( sizeof ( *buf ), UNM_DMA_BUFFER_ALIGN );
+	buf = malloc_phys ( sizeof ( *buf ), UNM_DMA_BUFFER_ALIGN );
 	if ( ! buf ) {
 		rc = -ENOMEM;
 		goto out;
@@ -816,7 +821,7 @@ static int phantom_create_tx_ctx ( struct phantom_nic *phantom ) {
 	       phantom, phantom->cds_producer_crb );
 
  out:
-	free_dma ( buf, sizeof ( *buf ) );
+	free_phys ( buf, sizeof ( *buf ) );
 	return rc;
 }
 
@@ -1159,8 +1164,8 @@ static int phantom_open ( struct net_device *netdev ) {
 	int rc;
 
 	/* Allocate and zero descriptor rings */
-	phantom->desc = malloc_dma ( sizeof ( *(phantom->desc) ),
-					  UNM_DMA_BUFFER_ALIGN );
+	phantom->desc = malloc_phys ( sizeof ( *(phantom->desc) ),
+				      UNM_DMA_BUFFER_ALIGN );
 	if ( ! phantom->desc ) {
 		rc = -ENOMEM;
 		goto err_alloc_desc;
@@ -1203,7 +1208,7 @@ static int phantom_open ( struct net_device *netdev ) {
  err_create_tx_ctx:
 	phantom_destroy_rx_ctx ( phantom );
  err_create_rx_ctx:
-	free_dma ( phantom->desc, sizeof ( *(phantom->desc) ) );
+	free_phys ( phantom->desc, sizeof ( *(phantom->desc) ) );
 	phantom->desc = NULL;
  err_alloc_desc:
 	return rc;
@@ -1224,7 +1229,7 @@ static void phantom_close ( struct net_device *netdev ) {
 	phantom_del_macaddr ( phantom, netdev->ll_broadcast );
 	phantom_destroy_tx_ctx ( phantom );
 	phantom_destroy_rx_ctx ( phantom );
-	free_dma ( phantom->desc, sizeof ( *(phantom->desc) ) );
+	free_phys ( phantom->desc, sizeof ( *(phantom->desc) ) );
 	phantom->desc = NULL;
 
 	/* Flush any uncompleted descriptors */
@@ -1453,11 +1458,8 @@ static struct net_device_operations phantom_operations = {
  *
  */
 
-/** Phantom CLP settings tag magic */
-#define PHN_CLP_TAG_MAGIC 0xc19c1900UL
-
-/** Phantom CLP settings tag magic mask */
-#define PHN_CLP_TAG_MAGIC_MASK 0xffffff00UL
+/** Phantom CLP settings scope */
+static const struct settings_scope phantom_settings_scope;
 
 /** Phantom CLP data
  *
@@ -1658,7 +1660,7 @@ static int phantom_clp_fetch ( struct phantom_nic *phantom, unsigned int port,
 /** A Phantom CLP setting */
 struct phantom_clp_setting {
 	/** iPXE setting */
-	struct setting *setting;
+	const struct setting *setting;
 	/** Setting number */
 	unsigned int clp_setting;
 };
@@ -1675,7 +1677,8 @@ static struct phantom_clp_setting clp_settings[] = {
  * @v clp_setting	Setting number, or 0 if not found
  */
 static unsigned int
-phantom_clp_setting ( struct phantom_nic *phantom, struct setting *setting ) {
+phantom_clp_setting ( struct phantom_nic *phantom,
+		      const struct setting *setting ) {
 	struct phantom_clp_setting *clp_setting;
 	unsigned int i;
 
@@ -1688,8 +1691,8 @@ phantom_clp_setting ( struct phantom_nic *phantom, struct setting *setting ) {
 	}
 
 	/* Allow for use of numbered settings */
-	if ( ( setting->tag & PHN_CLP_TAG_MAGIC_MASK ) == PHN_CLP_TAG_MAGIC )
-		return ( setting->tag & ~PHN_CLP_TAG_MAGIC_MASK );
+	if ( setting->scope == &phantom_settings_scope )
+		return setting->tag;
 
 	DBGC2 ( phantom, "Phantom %p has no \"%s\" setting\n",
 		phantom, setting->name );
@@ -1705,7 +1708,7 @@ phantom_clp_setting ( struct phantom_nic *phantom, struct setting *setting ) {
  * @ret applies		Setting applies within this settings block
  */
 static int phantom_setting_applies ( struct settings *settings,
-				     struct setting *setting ) {
+				     const struct setting *setting ) {
 	struct phantom_nic *phantom =
 		container_of ( settings, struct phantom_nic, settings );
 	unsigned int clp_setting;
@@ -1725,7 +1728,7 @@ static int phantom_setting_applies ( struct settings *settings,
  * @ret rc		Return status code
  */
 static int phantom_store_setting ( struct settings *settings,
-				   struct setting *setting,
+				   const struct setting *setting,
 				   const void *data, size_t len ) {
 	struct phantom_nic *phantom =
 		container_of ( settings, struct phantom_nic, settings );
@@ -1834,7 +1837,7 @@ static int phantom_map_crb ( struct phantom_nic *phantom,
 		return -EINVAL;
 	}
 
-	phantom->bar0 = ioremap ( bar0_start, bar0_size );
+	phantom->bar0 = pci_ioremap ( pci, bar0_start, bar0_size );
 	if ( ! phantom->bar0 ) {
 		DBGC ( phantom, "Phantom %p could not map BAR0\n", phantom );
 		return -EIO;
@@ -2057,6 +2060,7 @@ static int phantom_probe ( struct pci_device *pci ) {
 	struct net_device *netdev;
 	struct phantom_nic *phantom;
 	struct settings *parent_settings;
+	unsigned int busdevfn;
 	int rc;
 
 	/* Allocate Phantom device */
@@ -2074,7 +2078,7 @@ static int phantom_probe ( struct pci_device *pci ) {
 	assert ( phantom->port < PHN_MAX_NUM_PORTS );
 	settings_init ( &phantom->settings,
 			&phantom_settings_operations,
-			&netdev->refcnt, PHN_CLP_TAG_MAGIC );
+			&netdev->refcnt, &phantom_settings_scope );
 
 	/* Fix up PCI device */
 	adjust_pci_device ( pci );
@@ -2087,19 +2091,20 @@ static int phantom_probe ( struct pci_device *pci ) {
 	 * B2 will have this fixed; remove this hack when B1 is no
 	 * longer in use.
 	 */
-	if ( PCI_FUNC ( pci->busdevfn ) == 0 ) {
+	busdevfn = pci->busdevfn;
+	if ( PCI_FUNC ( busdevfn ) == 0 ) {
 		unsigned int i;
 		for ( i = 0 ; i < 8 ; i++ ) {
 			uint32_t temp;
 			pci->busdevfn =
-				PCI_BUSDEVFN ( PCI_BUS ( pci->busdevfn ),
-					       PCI_SLOT ( pci->busdevfn ), i );
+				PCI_BUSDEVFN ( PCI_SEG ( busdevfn ),
+					       PCI_BUS ( busdevfn ),
+					       PCI_SLOT ( busdevfn ), i );
 			pci_read_config_dword ( pci, 0xc8, &temp );
 			pci_read_config_dword ( pci, 0xc8, &temp );
 			pci_write_config_dword ( pci, 0xc8, 0xf1000 );
 		}
-		pci->busdevfn = PCI_BUSDEVFN ( PCI_BUS ( pci->busdevfn ),
-					       PCI_SLOT ( pci->busdevfn ), 0 );
+		pci->busdevfn = busdevfn;
 	}
 
 	/* Initialise the command PEG */

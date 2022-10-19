@@ -3,24 +3,34 @@
 ; VirtualBox Runtime DLL - Stable C++ Interface Definition file, 64-bit Visual C++.
 
 ;
-; Copyright (C) 2018-2020 Oracle Corporation
+; Copyright (C) 2018-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 EXPORTS
@@ -169,7 +179,8 @@ EXPORTS
     _ZN13RTCRestString13assignNoThrowEmc
     _ZN13RTCRestString13printfNoThrowEPKcz
     _ZN13RTCRestString14createInstanceEv
-    _ZN13RTCRestString14printfVNoThrowEPKcP13__va_list_tag
+    _ZN13RTCRestString14printfVNoThrowEPKcP13__va_list_tag ; not-arm64
+    _ZN13RTCRestString14printfVNoThrowEPKcPc               ; only-arm64
     _ZN13RTCRestString14resetToDefaultEv
     _ZN13RTCRestString19deserializeFromJsonERK17RTCRestJsonCursor
     _ZN13RTCRestString27deserializeInstanceFromJsonERK17RTCRestJsonCursorPP17RTCRestObjectBase
@@ -179,7 +190,8 @@ EXPORTS
     _ZN13RTCRestString6assignERK9RTCStringmm
     _ZN13RTCRestString6assignEmc
     _ZN13RTCRestString6printfEPKcz
-    _ZN13RTCRestString7printfVEPKcP13__va_list_tag
+    _ZN13RTCRestString7printfVEPKcP13__va_list_tag ; not-arm64
+    _ZN13RTCRestString7printfVEPKcPc               ; only-arm64
     _ZN13RTCRestString7setNullEv
     _ZN13RTCRestStringC1EPKc
     _ZN13RTCRestStringC1ERK9RTCString
@@ -262,7 +274,8 @@ EXPORTS
     _ZN17RTCRestOutputBase14valueSeparatorEv
     _ZN17RTCRestOutputBase20printfOutputCallbackEPvPKcm
     _ZN17RTCRestOutputBase21valueSeparatorAndNameEPKcm
-    _ZN17RTCRestOutputBase7vprintfEPKcP13__va_list_tag
+    _ZN17RTCRestOutputBase7vprintfEPKcP13__va_list_tag ; not-arm64
+    _ZN17RTCRestOutputBase7vprintfEPKcPc               ; only-arm64
     _ZN17RTCRestOutputBase8endArrayEj
     _ZN17RTCRestOutputBase9endObjectEj
     _ZN17RTCRestOutputBase9nullValueEv
@@ -278,6 +291,8 @@ EXPORTS
     _ZN20RTCRestClientApiBase18reinitHttpInstanceEv
     _ZN20RTCRestClientApiBase18setServerAuthorityEPKc
     _ZN20RTCRestClientApiBase6doCallERK24RTCRestClientRequestBase12RTHTTPMETHODP25RTCRestClientResponseBasePKcj
+    _ZN20RTCRestClientApiBase9setCAFileEPKc
+    _ZN20RTCRestClientApiBase9setCAFileERK9RTCString
     _ZN20RTCRestClientApiBase9xmitReadyEP14RTHTTPINTERNALRK9RTCString12RTHTTPMETHODS4_j
     _ZN20RTCRestClientApiBaseC2Ev
     _ZN20RTCRestClientApiBaseD0Ev
@@ -311,7 +326,8 @@ EXPORTS
     _ZN21RTCRestBinaryResponse15receiveCompleteEP14RTHTTPINTERNAL
     _ZN21RTCRestBinaryResponse18setMaxDownloadSizeEm
     _ZN21RTCRestBinaryResponse19receiveHttpCallbackEP14RTHTTPINTERNALPKvmjyyPv
-    _ZN21RTCRestBinaryResponse19setConsumerCallbackEPFiPS_PKvmjyyEPv
+    _ZN21RTCRestBinaryResponse19setConsumerCallbackEPFiPS_PKvmjyyEPv   ; before-noexcept
+    _ZN21RTCRestBinaryResponse19setConsumerCallbackEPDoFiPS_PKvmjyyEPv ; after-noexcept
     _ZN21RTCRestBinaryResponseC1Ev
     _ZN21RTCRestBinaryResponseC2Ev
     _ZN21RTCRestOutputToString6outputEPKcm
@@ -353,7 +369,8 @@ EXPORTS
     _ZN22RTCRestBinaryParameter14setContentTypeEPKc
     _ZN22RTCRestBinaryParameter15assignWriteableEPvm
     _ZN22RTCRestBinaryParameter16xmitHttpCallbackEP14RTHTTPINTERNALPvmyPmS2_
-    _ZN22RTCRestBinaryParameter19setProducerCallbackEPFiPS_PvmyPmES1_y
+    _ZN22RTCRestBinaryParameter19setProducerCallbackEPFiPS_PvmyPmES1_y   ; before-noexcept
+    _ZN22RTCRestBinaryParameter19setProducerCallbackEPDoFiPS_PvmyPmES1_y ; after-noexcept
     _ZN22RTCRestBinaryParameterC1Ev
     _ZN22RTCRestBinaryParameterC2Ev
     _ZN23RTCRestOutputPrettyBase10beginArrayEv
@@ -394,8 +411,6 @@ EXPORTS
     _ZN25RTCRestClientResponseBase29deserializeBodyFromJsonCursorERK17RTCRestJsonCursor
     _ZN25RTCRestClientResponseBase5resetEv
     _ZN25RTCRestClientResponseBase8addErrorEiPKcz
-    _ZN25RTCRestClientResponseBaseC1ERKS_
-    _ZN25RTCRestClientResponseBaseC1Ev
     _ZN25RTCRestClientResponseBaseC2ERKS_
     _ZN25RTCRestClientResponseBaseC2Ev
     _ZN25RTCRestClientResponseBaseD0Ev
@@ -422,7 +437,8 @@ EXPORTS
     _ZN9RTCString13appendNoThrowERKS_
     _ZN9RTCString13appendNoThrowERKS_mm
     _ZN9RTCString13appendNoThrowEc
-    _ZN9RTCString13appendPrintfVEPKcP13__va_list_tag
+    _ZN9RTCString13appendPrintfVEPKcP13__va_list_tag ; not-arm64
+    _ZN9RTCString13appendPrintfVEPKcPc               ; only-arm64
     _ZN9RTCString13assignNoThrowEPKc
     _ZN9RTCString13assignNoThrowEPKcm
     _ZN9RTCString13assignNoThrowERKS_
@@ -430,7 +446,8 @@ EXPORTS
     _ZN9RTCString13assignNoThrowEmc
     _ZN9RTCString13printfNoThrowEPKcz
     _ZN9RTCString13replaceWorkerEmmPKcm
-    _ZN9RTCString14printfVNoThrowEPKcP13__va_list_tag
+    _ZN9RTCString14printfVNoThrowEPKcP13__va_list_tag ; not-arm64
+    _ZN9RTCString14printfVNoThrowEPKcPc               ; only-arm64
     _ZN9RTCString14replaceNoThrowEmmPKc
     _ZN9RTCString14replaceNoThrowEmmPKcm
     _ZN9RTCString14replaceNoThrowEmmRKS_
@@ -438,7 +455,8 @@ EXPORTS
     _ZN9RTCString15appendCodePointEj
     _ZN9RTCString19appendPrintfNoThrowEPKcz
     _ZN9RTCString19appendWorkerNoThrowEPKcm
-    _ZN9RTCString20appendPrintfVNoThrowEPKcP13__va_list_tag
+    _ZN9RTCString20appendPrintfVNoThrowEPKcP13__va_list_tag ; not-arm64
+    _ZN9RTCString20appendPrintfVNoThrowEPKcPc               ; only-arm64
     _ZN9RTCString20printfOutputCallbackEPvPKcm
     _ZN9RTCString20replaceWorkerNoThrowEmmPKcm
     _ZN9RTCString22appendCodePointNoThrowEj
@@ -459,7 +477,8 @@ EXPORTS
     _ZN9RTCString6assignEmc
     _ZN9RTCString6joinExERK7RTCListIS_PS_ERKS_S6_
     _ZN9RTCString6printfEPKcz
-    _ZN9RTCString7printfVEPKcP13__va_list_tag
+    _ZN9RTCString7printfVEPKcP13__va_list_tag ; not-arm64
+    _ZN9RTCString7printfVEPKcPc               ; only-arm64
     _ZN9RTCString7replaceEmmPKc
     _ZN9RTCString7replaceEmmPKcm
     _ZN9RTCString7replaceEmmRKS_

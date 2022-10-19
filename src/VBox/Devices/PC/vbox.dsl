@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 DefinitionBlock ("DSDT.aml", "DSDT", 2, "VBOX  ", "VBOXBIOS", 2)
@@ -371,8 +381,8 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "VBOX  ", "VBOXBIOS", 2)
         PP1I,  32, // Parallel1 IRQ
         PMNX,  32, // limit of 64-bit prefetch window (64KB units)
         NVMA,  32, // Primary NVMe controller PCI address
-        Offset (0x80),
-        ININ, 32,
+        IOMA,  32, // AMD IOMMU
+        SIOA,  32, // Southbridge IO APIC (when AMD IOMMU is present)
         Offset (0x200),
         VAIN, 32,
     }
@@ -1191,6 +1201,24 @@ DefinitionBlock ("DSDT.aml", "DSDT", 2, "VBOX  ", "VBOXBIOS", 2)
                   {
                      Return (CRS)
                   }
+                }
+
+                // AMD IOMMU (AMD-Vi), I/O Virtualization Reporting Structure
+                Device (IVRS)
+                {
+                    Method(_ADR, 0, NotSerialized)
+                    {
+                        Return (IOMA)
+                    }
+                    Method (_STA, 0, NotSerialized)
+                    {
+                        if (LEqual (IOMA, Zero)) {
+                            Return (0x00)
+                        }
+                        else {
+                            Return (0x0F)
+                        }
+                    }
                 }
 
                 // System Management Controller

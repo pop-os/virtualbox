@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -209,7 +219,7 @@ VMMR3_INT_DECL(PDBGFADDRESS) DBGFR3AddrFromHostR0(PDBGFADDRESS pAddress, RTR0UIN
 VMMR3DECL(bool) DBGFR3AddrIsValid(PUVM pUVM, PCDBGFADDRESS pAddress)
 {
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
-    if (!VALID_PTR(pAddress))
+    if (!RT_VALID_PTR(pAddress))
         return false;
     if (!DBGFADDRESS_IS_VALID(pAddress))
         return false;
@@ -230,7 +240,10 @@ static DECLCALLBACK(int) dbgfR3AddrToPhysOnVCpu(PVMCPU pVCpu, PCDBGFADDRESS pAdd
 {
     VMCPU_ASSERT_EMT(pVCpu);
     /* This is just a wrapper because we cannot pass FlatPtr thru VMR3ReqCall directly. */
-    return PGMGstGetPage(pVCpu, pAddress->FlatPtr, NULL, pGCPhys);
+    PGMPTWALK Walk;
+    int const rc = PGMGstGetPage(pVCpu, pAddress->FlatPtr, &Walk);
+    *pGCPhys = Walk.GCPhys;
+    return rc;
 }
 
 

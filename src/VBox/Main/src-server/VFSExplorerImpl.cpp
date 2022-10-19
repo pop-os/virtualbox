@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_VFSEXPLORER
@@ -41,7 +51,7 @@ struct VFSExplorer::Data
 {
     struct DirEntry
     {
-        DirEntry(Utf8Str strName, FsObjType_T fileType, uint64_t cbSize, uint32_t fMode)
+        DirEntry(Utf8Str strName, FsObjType_T fileType, RTFOFF cbSize, uint32_t fMode)
            : name(strName)
            , type(fileType)
            , size(cbSize)
@@ -49,7 +59,7 @@ struct VFSExplorer::Data
 
         Utf8Str name;
         FsObjType_T type;
-        uint64_t size;
+        RTFOFF size;
         uint32_t mode;
     };
 
@@ -251,26 +261,18 @@ DECLCALLBACK(int) VFSExplorer::TaskVFSExplorer::uploadProgress(unsigned uPercent
 
 FsObjType_T VFSExplorer::i_iprtToVfsObjType(RTFMODE aType) const
 {
-    int a = aType & RTFS_TYPE_MASK;
-    FsObjType_T t = FsObjType_Unknown;
-    if ((a & RTFS_TYPE_DIRECTORY) == RTFS_TYPE_DIRECTORY)
-        t = FsObjType_Directory;
-    else if ((a & RTFS_TYPE_FILE) == RTFS_TYPE_FILE)
-        t = FsObjType_File;
-    else if ((a & RTFS_TYPE_SYMLINK) == RTFS_TYPE_SYMLINK)
-        t = FsObjType_Symlink;
-    else if ((a & RTFS_TYPE_FIFO) == RTFS_TYPE_FIFO)
-        t = FsObjType_Fifo;
-    else if ((a & RTFS_TYPE_DEV_CHAR) == RTFS_TYPE_DEV_CHAR)
-        t = FsObjType_DevChar;
-    else if ((a & RTFS_TYPE_DEV_BLOCK) == RTFS_TYPE_DEV_BLOCK)
-        t = FsObjType_DevBlock;
-    else if ((a & RTFS_TYPE_SOCKET) == RTFS_TYPE_SOCKET)
-        t = FsObjType_Socket;
-    else if ((a & RTFS_TYPE_WHITEOUT) == RTFS_TYPE_WHITEOUT)
-        t = FsObjType_WhiteOut;
-
-    return t;
+    switch (aType & RTFS_TYPE_MASK)
+    {
+        case RTFS_TYPE_DIRECTORY:   return FsObjType_Directory;
+        case RTFS_TYPE_FILE:        return FsObjType_File;
+        case RTFS_TYPE_SYMLINK:     return FsObjType_Symlink;
+        case RTFS_TYPE_FIFO:        return FsObjType_Fifo;
+        case RTFS_TYPE_DEV_CHAR:    return FsObjType_DevChar;
+        case RTFS_TYPE_DEV_BLOCK:   return FsObjType_DevBlock;
+        case RTFS_TYPE_SOCKET:      return FsObjType_Socket;
+        case RTFS_TYPE_WHITEOUT:    return FsObjType_WhiteOut;
+        default:                    return FsObjType_Unknown;
+    }
 }
 
 HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
@@ -303,8 +305,9 @@ HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
                     if (   name != "."
                         && name != "..")
                         fileList.push_back(VFSExplorer::Data::DirEntry(name, i_iprtToVfsObjType(entry.Info.Attr.fMode),
-                                           entry.Info.cbObject,
-                                           entry.Info.Attr.fMode & (RTFS_UNIX_IRWXU | RTFS_UNIX_IRWXG | RTFS_UNIX_IRWXO)));
+                                                                       entry.Info.cbObject,
+                                                                         entry.Info.Attr.fMode
+                                                                       & (RTFS_UNIX_IRWXU | RTFS_UNIX_IRWXG | RTFS_UNIX_IRWXO)));
                 }
             }
             if (aTask->m_ptrProgress)

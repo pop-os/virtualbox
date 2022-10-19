@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2004-2020 Oracle Corporation
+ * Copyright (C) 2004-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_MACHINE
@@ -28,6 +38,7 @@
 #include "LoggingNew.h"
 #include "VirtualBoxImpl.h"
 #include "MachineImpl.h"
+#include "SnapshotImpl.h"
 #include "ClientToken.h"
 #include "ProgressImpl.h"
 #include "ProgressProxyImpl.h"
@@ -49,6 +60,7 @@
 #include "MachineImplMoveVM.h"
 #include "ExtPackManagerImpl.h"
 #include "MachineLaunchVMCommonWorker.h"
+#include "CryptoUtils.h"
 
 // generated header
 #include "VBoxEvents.h"
@@ -60,12 +72,14 @@
 #include "AutoCaller.h"
 #include "HashedPw.h"
 #include "Performance.h"
+#include "StringifyEnums.h"
 
 #include <iprt/asm.h>
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/env.h>
 #include <iprt/lockvalidator.h>
+#include <iprt/memsafer.h>
 #include <iprt/process.h>
 #include <iprt/cpp/utils.h>
 #include <iprt/cpp/xml.h>               /* xml::XmlFileWriter::s_psz*Suff. */
@@ -75,6 +89,7 @@
 
 #include <VBox/com/array.h>
 #include <VBox/com/list.h>
+#include <VBox/VBoxCryptoIf.h>
 
 #include <VBox/err.h>
 #include <VBox/param.h>
@@ -107,6 +122,58 @@
 
 // defines / prototypes
 /////////////////////////////////////////////////////////////////////////////
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+# define BUF_DATA_SIZE     _64K
+
+enum CipherMode
+{
+    CipherModeGcm = 0,
+    CipherModeCtr,
+    CipherModeXts,
+    CipherModeMax
+};
+
+enum AesSize
+{
+    Aes128 = 0,
+    Aes256,
+    AesMax
+};
+
+const char *g_apszCipher[AesMax][CipherModeMax] =
+{
+    {"AES-GCM128", "AES-CTR128", "AES-XTS128-PLAIN64"},
+    {"AES-GCM256", "AES-CTR256", "AES-XTS256-PLAIN64"}
+};
+const char *g_apszCipherAlgo[AesMax] = {"AES-128", "AES-256"};
+
+static const char *getCipherString(const char *pszAlgo, const int iMode)
+{
+    if (iMode >= CipherModeMax)
+        return pszAlgo;
+
+    for (int i = 0; i < AesMax; i++)
+    {
+        if (strcmp(pszAlgo, g_apszCipherAlgo[i]) == 0)
+            return g_apszCipher[i][iMode];
+    }
+    return pszAlgo;
+}
+
+static const char *getCipherStringWithoutMode(const char *pszAlgo)
+{
+    for (int i = 0; i < AesMax; i++)
+    {
+        for (int j = 0; j < CipherModeMax; j++)
+        {
+            if (strcmp(pszAlgo, g_apszCipher[i][j]) == 0)
+                return g_apszCipherAlgo[i];
+        }
+    }
+    return pszAlgo;
+}
+#endif
 
 /////////////////////////////////////////////////////////////////////////////
 // Machine::Data structure
@@ -141,6 +208,10 @@ Machine::Data::Data()
     mSession.mPID              = NIL_RTPROCESS;
     mSession.mLockType         = LockType_Null;
     mSession.mState            = SessionState_Unlocked;
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    mpKeyStore                 = NULL;
+#endif
 }
 
 Machine::Data::~Data()
@@ -164,7 +235,7 @@ Machine::Data::~Data()
 Machine::HWData::HWData()
 {
     /* default values for a newly created machine */
-    mHWVersion = Utf8StrFmt("%d", SchemaDefs::DefaultHardwareVersion);
+    mHWVersion.printf("%d", SchemaDefs::DefaultHardwareVersion);
     mMemorySize = 128;
     mCPUCount = 1;
     mCPUHotPlugEnabled = false;
@@ -172,16 +243,12 @@ Machine::HWData::HWData()
     mPageFusionEnabled = false;
     mHWVirtExEnabled = true;
     mHWVirtExNestedPagingEnabled = true;
-#if HC_ARCH_BITS == 64 && !defined(RT_OS_LINUX)
-    mHWVirtExLargePagesEnabled = true;
-#else
-    /* Not supported on 32 bits hosts. */
-    mHWVirtExLargePagesEnabled = false;
-#endif
+    mHWVirtExLargePagesEnabled = HC_ARCH_BITS == 64;  /* Not supported on 32 bits hosts. */
     mHWVirtExVPIDEnabled = true;
     mHWVirtExUXEnabled = true;
     mHWVirtExForceEnabled = false;
     mHWVirtExUseNativeApi = false;
+    mHWVirtExVirtVmsaveVmload = true;
 #if HC_ARCH_BITS == 64 || defined(RT_OS_WINDOWS) || defined(RT_OS_DARWIN)
     mPAEEnabled = true;
 #else
@@ -221,6 +288,7 @@ Machine::HWData::HWData()
     mKeyboardHIDType = KeyboardHIDType_PS2Keyboard;
     mPointingHIDType = PointingHIDType_PS2Mouse;
     mChipsetType = ChipsetType_PIIX3;
+    mIommuType = IommuType_None;
     mParavirtProvider = ParavirtProvider_Default;
     mEmulatedUSBCardReaderEnabled = FALSE;
 
@@ -284,6 +352,9 @@ void Machine::FinalRelease()
  *  @param fForceOverwrite Whether to overwrite an existing machine settings file.
  *  @param fDirectoryIncludesUUID Whether the use a special VM directory naming
  *                      scheme (includes the UUID).
+ *  @param aCipher      The cipher to encrypt the VM with.
+ *  @param aPasswordId  The password ID, empty if the VM should not be encrypted.
+ *  @param aPassword    The password to encrypt the VM with.
  *
  *  @return  Success indicator. if not S_OK, the machine object is invalid
  */
@@ -295,10 +366,19 @@ HRESULT Machine::init(VirtualBox *aParent,
                       GuestOSType *aOsType,
                       const Guid &aId,
                       bool fForceOverwrite,
-                      bool fDirectoryIncludesUUID)
+                      bool fDirectoryIncludesUUID,
+                      const com::Utf8Str &aCipher,
+                      const com::Utf8Str &aPasswordId,
+                      const com::Utf8Str &aPassword)
 {
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("(Init_New) aConfigFile='%s'\n", strConfigFile.c_str()));
+
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(aCipher);
+    if (aPassword.isNotEmpty() || aPasswordId.isNotEmpty())
+        return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#endif
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -306,6 +386,68 @@ HRESULT Machine::init(VirtualBox *aParent,
 
     HRESULT rc = initImpl(aParent, strConfigFile);
     if (FAILED(rc)) return rc;
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    com::Utf8Str strSsmKeyId;
+    com::Utf8Str strSsmKeyStore;
+    com::Utf8Str strNVRAMKeyId;
+    com::Utf8Str strNVRAMKeyStore;
+
+    if (aPassword.isNotEmpty() && aPasswordId.isNotEmpty())
+    {
+        /* Resolve the cryptographic interface. */
+        PCVBOXCRYPTOIF pCryptoIf = NULL;
+        HRESULT hrc = aParent->i_retainCryptoIf(&pCryptoIf);
+        if (SUCCEEDED(hrc))
+        {
+            CipherMode aenmMode[]        = {CipherModeGcm, CipherModeGcm, CipherModeGcm, CipherModeCtr};
+            com::Utf8Str *astrKeyId[]    = {&mData->mstrKeyId, &strSsmKeyId, &strNVRAMKeyId, &mData->mstrLogKeyId};
+            com::Utf8Str *astrKeyStore[] = {&mData->mstrKeyStore, &strSsmKeyStore, &strNVRAMKeyStore, &mData->mstrLogKeyStore};
+
+            for (uint32_t i = 0; i < RT_ELEMENTS(astrKeyId); i++)
+            {
+                const char *pszCipher = getCipherString(aCipher.c_str(), aenmMode[i]);
+                if (!pszCipher)
+                {
+                    hrc = setError(VBOX_E_NOT_SUPPORTED,
+                                   tr("The cipher '%s' is not supported"), aCipher.c_str());
+                    break;
+                }
+
+                VBOXCRYPTOCTX hCryptoCtx;
+                int vrc = pCryptoIf->pfnCryptoCtxCreate(pszCipher, aPassword.c_str(), &hCryptoCtx);
+                if (RT_FAILURE(vrc))
+                {
+                    hrc = setErrorBoth(E_FAIL, vrc, tr("New key store creation failed, (%Rrc)"), vrc);
+                    break;
+                }
+
+                char *pszKeyStore;
+                vrc = pCryptoIf->pfnCryptoCtxSave(hCryptoCtx, &pszKeyStore);
+                int vrc2 = pCryptoIf->pfnCryptoCtxDestroy(hCryptoCtx);
+                AssertRC(vrc2);
+
+                if (RT_FAILURE(vrc))
+                {
+                    hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Saving the key store failed, (%Rrc)"), vrc);
+                    break;
+                }
+
+                *(astrKeyStore[i]) = pszKeyStore;
+                RTMemFree(pszKeyStore);
+                *(astrKeyId[i]) = aPasswordId;
+            }
+
+            HRESULT hrc2 = aParent->i_releaseCryptoIf(pCryptoIf);
+            Assert(hrc2 == S_OK); RT_NOREF(hrc2);
+
+            if (FAILED(hrc))
+                return hrc; /* Error is set. */
+        }
+        else
+            return hrc; /* Error is set. */
+    }
+#endif
 
     rc = i_tryCreateMachineConfigFile(fForceOverwrite);
     if (FAILED(rc)) return rc;
@@ -320,6 +462,11 @@ HRESULT Machine::init(VirtualBox *aParent,
 
     if (SUCCEEDED(rc))
     {
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        mSSData->strStateKeyId = strSsmKeyId;
+        mSSData->strStateKeyStore = strSsmKeyStore;
+#endif
+
         // set to true now to cause uninit() to call uninitDataAndChildObjects() on failure
         mData->mAccessible = TRUE;
 
@@ -351,6 +498,9 @@ HRESULT Machine::init(VirtualBox *aParent,
 
             /* Let the OS type enable the X2APIC */
             mHWData->mX2APIC = aOsType->i_recommendedX2APIC();
+
+            rc = aOsType->COMGETTER(RecommendedFirmware)(&mHWData->mFirmwareType);
+            AssertComRC(rc);
         }
         else if (!strOsType.isEmpty())
         {
@@ -365,6 +515,9 @@ HRESULT Machine::init(VirtualBox *aParent,
 
         /* Apply BIOS defaults. */
         mBIOSSettings->i_applyDefaults(aOsType);
+
+        /* Apply TPM defaults. */
+        mTrustedPlatformModule->i_applyDefaults(aOsType);
 
         /* Apply recording defaults. */
         mRecordingSettings->i_applyDefaults();
@@ -381,17 +534,36 @@ HRESULT Machine::init(VirtualBox *aParent,
         for (ULONG slot = 0; slot < RT_ELEMENTS(mParallelPorts); ++slot)
             mParallelPorts[slot]->i_applyDefaults();
 
-        /* At this point the changing of the current state modification
-         * flag is allowed. */
-        i_allowStateModification();
+        /* Enable the VMMDev testing feature for bootsector VMs: */
+        if (aOsType && aOsType->i_id() == "VBoxBS_64")
+            mData->pMachineConfigFile->mapExtraDataItems["VBoxInternal/Devices/VMMDev/0/Config/TestingEnabled"] = "1";
 
-        /* commit all changes made during the initialization */
-        i_commit();
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        rc = mNvramStore->i_updateEncryptionSettings(strNVRAMKeyId, strNVRAMKeyStore);
+#endif
+        if (SUCCEEDED(rc))
+        {
+            /* At this point the changing of the current state modification
+             * flag is allowed. */
+            i_allowStateModification();
+
+            /* commit all changes made during the initialization */
+            i_commit();
+        }
     }
 
     /* Confirm a successful initialization when it's the case */
     if (SUCCEEDED(rc))
     {
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        if (aPassword.isNotEmpty() && aPasswordId.isNotEmpty())
+        {
+            size_t   cbPassword = aPassword.length() + 1;
+            uint8_t *pbPassword = (uint8_t *)aPassword.c_str();
+            mData->mpKeyStore->addSecretKey(aPasswordId, pbPassword, cbPassword);
+        }
+#endif
+
         if (mData->mAccessible)
             autoInitSpan.setSucceeded();
         else
@@ -423,15 +595,31 @@ HRESULT Machine::init(VirtualBox *aParent,
  *  @param strConfigFile Local file system path to the VM settings file (can
  *                      be relative to the VirtualBox config directory).
  *  @param aId          UUID of the machine or NULL (see above).
+ *  @param strPassword  Password for decrypting the config
  *
  *  @return  Success indicator. if not S_OK, the machine object is invalid
  */
 HRESULT Machine::initFromSettings(VirtualBox *aParent,
                                   const Utf8Str &strConfigFile,
-                                  const Guid *aId)
+                                  const Guid *aId,
+                                  const com::Utf8Str &strPassword)
 {
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("(Init_Registered) aConfigFile='%s\n", strConfigFile.c_str()));
+
+    PCVBOXCRYPTOIF pCryptoIf = NULL;
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    if (strPassword.isNotEmpty())
+        return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    if (strPassword.isNotEmpty())
+    {
+        /* Get at the crpytographic interface. */
+        HRESULT hrc = aParent->i_retainCryptoIf(&pCryptoIf);
+        if (FAILED(hrc))
+            return hrc; /* Error is set. */
+    }
+#endif
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -462,7 +650,9 @@ HRESULT Machine::initFromSettings(VirtualBox *aParent,
             try
             {
                 // load and parse machine XML; this will throw on XML or logic errors
-                mData->pMachineConfigFile = new settings::MachineConfigFile(&mData->m_strConfigFileFull);
+                mData->pMachineConfigFile = new settings::MachineConfigFile(&mData->m_strConfigFileFull,
+                                                                            pCryptoIf,
+                                                                            strPassword.c_str());
 
                 // reject VM UUID duplicates, they can happen if someone
                 // tries to register an already known VM config again
@@ -479,15 +669,47 @@ HRESULT Machine::initFromSettings(VirtualBox *aParent,
                 // use UUID from machine config
                 unconst(mData->mUuid) = mData->pMachineConfigFile->uuid;
 
-                rc = i_loadMachineDataFromSettings(*mData->pMachineConfigFile,
-                                                 NULL /* puuidRegistry */);
-                if (FAILED(rc)) throw rc;
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+                // No exception is thrown if config is encrypted, allowing us to get the uuid and the encryption fields.
+                // We fill in the encryptions fields, and the rest will be filled in if all data parsed.
+                mData->mstrKeyId    = mData->pMachineConfigFile->strKeyId;
+                mData->mstrKeyStore = mData->pMachineConfigFile->strKeyStore;
+#endif
 
-                /* At this point the changing of the current state modification
-                 * flag is allowed. */
-                i_allowStateModification();
+                if (mData->pMachineConfigFile->enmParseState == settings::MachineConfigFile::ParseState_PasswordError)
+                {
+                    // We just set the inaccessible state and fill the error info allowing the caller
+                    // to register the machine with encrypted config even if the password is incorrect
+                    mData->mAccessible = FALSE;
 
-                i_commit();
+                    /* fetch the current error info */
+                    mData->mAccessError = com::ErrorInfo();
+
+                    setError(VBOX_E_PASSWORD_INCORRECT,
+                             tr("Decryption of the machine {%RTuuid} failed. Incorrect or unknown password"),
+                             mData->pMachineConfigFile->uuid.raw());
+                }
+                else
+                {
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+                    if (strPassword.isNotEmpty())
+                    {
+                        size_t cbKey = strPassword.length() + 1; /* Include terminator */
+                        const uint8_t *pbKey = (const uint8_t *)strPassword.c_str();
+                        mData->mpKeyStore->addSecretKey(mData->mstrKeyId, pbKey, cbKey);
+                    }
+#endif
+
+                    rc = i_loadMachineDataFromSettings(*mData->pMachineConfigFile,
+                                                       NULL /* puuidRegistry */);
+                    if (FAILED(rc)) throw rc;
+
+                    /* At this point the changing of the current state modification
+                     * flag is allowed. */
+                    i_allowStateModification();
+
+                    i_commit();
+                }
             }
             catch (HRESULT err)
             {
@@ -515,6 +737,14 @@ HRESULT Machine::initFromSettings(VirtualBox *aParent,
             mParent->i_unregisterMachineMedia(i_getId());
         }
     }
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    if (pCryptoIf)
+    {
+        HRESULT hrc2 = aParent->i_releaseCryptoIf(pCryptoIf);
+        Assert(hrc2 == S_OK); RT_NOREF(hrc2);
+    }
+#endif
 
     LogFlowThisFunc(("mName='%s', mRegistered=%RTbool, mAccessible=%RTbool "
                       "rc=%08X\n",
@@ -649,6 +879,13 @@ HRESULT Machine::initImpl(VirtualBox *aParent,
                             strConfigFile.c_str(),
                             vrc1);
 
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    /** @todo Only create when the machine is going to be encrypted. */
+    /* Non-pageable memory is not accessible for non-VM process */
+    mData->mpKeyStore = new SecretKeyStore(false /* fKeyBufNonPageable */);
+    AssertReturn(mData->mpKeyStore, E_OUTOFMEMORY);
+#endif
+
     LogFlowThisFuncLeave();
 
     return rc;
@@ -681,11 +918,7 @@ HRESULT Machine::i_tryCreateMachineConfigFile(bool fForceOverwrite)
         {
             /* try to delete the config file, as otherwise the creation
              * of a new settings file will fail. */
-            int vrc2 = RTFileDelete(mData->m_strConfigFileFull.c_str());
-            if (RT_FAILURE(vrc2))
-                rc = setErrorBoth(VBOX_E_FILE_ERROR, vrc2,
-                                  tr("Could not delete the existing settings file '%s' (%Rrc)"),
-                                  mData->m_strConfigFileFull.c_str(), vrc2);
+            i_deleteFile(mData->m_strConfigFileFull.c_str(), false /* fIgnoreFailures */, tr("existing settings file"));
         }
     }
     else if (    vrc != VERR_FILE_NOT_FOUND
@@ -727,35 +960,81 @@ HRESULT Machine::i_registeredInit()
          * is TRUE). */
         mData->mRegistered = FALSE;
 
-        try
+        PCVBOXCRYPTOIF pCryptoIf = NULL;
+        SecretKey *pKey = NULL;
+        const char *pszPassword = NULL;
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        /* Resolve password and cryptographic support interface if machine is encrypted. */
+        if (mData->mstrKeyId.isNotEmpty())
         {
-            // load and parse machine XML; this will throw on XML or logic errors
-            mData->pMachineConfigFile = new settings::MachineConfigFile(&mData->m_strConfigFileFull);
-
-            if (mData->mUuid != mData->pMachineConfigFile->uuid)
-                throw setError(E_FAIL,
-                               tr("Machine UUID {%RTuuid} in '%s' doesn't match its UUID {%s} in the registry file '%s'"),
-                               mData->pMachineConfigFile->uuid.raw(),
-                               mData->m_strConfigFileFull.c_str(),
-                               mData->mUuid.toString().c_str(),
-                               mParent->i_settingsFilePath().c_str());
-
-            rc = i_loadMachineDataFromSettings(*mData->pMachineConfigFile,
-                                               NULL /* const Guid *puuidRegistry */);
-            if (FAILED(rc)) throw rc;
+            /* Get at the crpytographic interface. */
+            rc = mParent->i_retainCryptoIf(&pCryptoIf);
+            if (SUCCEEDED(rc))
+            {
+                int vrc = mData->mpKeyStore->retainSecretKey(mData->mstrKeyId, &pKey);
+                if (RT_SUCCESS(vrc))
+                    pszPassword = (const char *)pKey->getKeyBuffer();
+                else
+                    rc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Failed to retain key for key ID '%s' with %Rrc"),
+                                      mData->mstrKeyId.c_str(), vrc);
+            }
         }
-        catch (HRESULT err)
+#else
+        RT_NOREF(pKey);
+#endif
+
+        if (SUCCEEDED(rc))
         {
-            /* we assume that error info is set by the thrower */
-            rc = err;
-        }
-        catch (...)
-        {
-            rc = VirtualBoxBase::handleUnexpectedExceptions(this, RT_SRC_POS);
+            try
+            {
+                // load and parse machine XML; this will throw on XML or logic errors
+                mData->pMachineConfigFile = new settings::MachineConfigFile(&mData->m_strConfigFileFull,
+                                                                            pCryptoIf, pszPassword);
+
+                if (mData->mUuid != mData->pMachineConfigFile->uuid)
+                    throw setError(E_FAIL,
+                                   tr("Machine UUID {%RTuuid} in '%s' doesn't match its UUID {%s} in the registry file '%s'"),
+                                   mData->pMachineConfigFile->uuid.raw(),
+                                   mData->m_strConfigFileFull.c_str(),
+                                   mData->mUuid.toString().c_str(),
+                                   mParent->i_settingsFilePath().c_str());
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+                // If config is encrypted, no exception is thrown allowing us to get the uuid and the encryption fields.
+                // We fill in the encryptions fields, and the rest will be filled in if all data parsed
+                mData->mstrKeyId    = mData->pMachineConfigFile->strKeyId;
+                mData->mstrKeyStore = mData->pMachineConfigFile->strKeyStore;
+
+                if (mData->pMachineConfigFile->enmParseState == settings::MachineConfigFile::ParseState_PasswordError)
+                    rc = setError(VBOX_E_PASSWORD_INCORRECT,
+                                  tr("Config decryption of the machine {%RTuuid} failed. Incorrect or unknown password"),
+                                  mData->pMachineConfigFile->uuid.raw());
+                else
+#endif
+                    rc = i_loadMachineDataFromSettings(*mData->pMachineConfigFile,
+                                                       NULL /* const Guid *puuidRegistry */);
+                if (FAILED(rc)) throw rc;
+            }
+            catch (HRESULT err)
+            {
+                /* we assume that error info is set by the thrower */
+                rc = err;
+            }
+            catch (...)
+            {
+                rc = VirtualBoxBase::handleUnexpectedExceptions(this, RT_SRC_POS);
+            }
+
+            /* Restore the registered flag (even on failure) */
+            mData->mRegistered = TRUE;
         }
 
-        /* Restore the registered flag (even on failure) */
-        mData->mRegistered = TRUE;
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        if (pCryptoIf)
+            mParent->i_releaseCryptoIf(pCryptoIf);
+        if (pKey)
+            mData->mpKeyStore->releaseSecretKey(mData->mstrKeyId);
+#endif
     }
 
     if (SUCCEEDED(rc))
@@ -895,6 +1174,11 @@ void Machine::uninit()
     if (mData->mAccessible)
         uninitDataAndChildObjects();
 
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    if (mData->mpKeyStore != NULL)
+        delete mData->mpKeyStore;
+#endif
+
     /* free the essential data structure last */
     mData.free();
 
@@ -951,8 +1235,8 @@ HRESULT Machine::getAccessible(BOOL *aAccessible)
 
             /* make sure interesting parties will notice the accessibility
              * state change */
-            mParent->i_onMachineStateChange(mData->mUuid, mData->mMachineState);
-            mParent->i_onMachineDataChange(mData->mUuid);
+            mParent->i_onMachineStateChanged(mData->mUuid, mData->mMachineState);
+            mParent->i_onMachineDataChanged(mData->mUuid);
         }
     }
 
@@ -1142,7 +1426,7 @@ HRESULT Machine::setFirmwareType(FirmwareType_T aFirmwareType)
     Utf8Str strNVRAM = i_getDefaultNVRAMFilename();
     alock.release();
 
-    mBIOSSettings->i_updateNonVolatileStorageFile(strNVRAM);
+    mNvramStore->i_updateNonVolatileStorageFile(strNVRAM);
 
     return S_OK;
 }
@@ -1229,6 +1513,40 @@ HRESULT Machine::setChipsetType(ChipsetType_T aChipsetType)
                 mNetworkAdapters[slot]->init(this, (ULONG)slot);
             }
         }
+    }
+
+    return S_OK;
+}
+
+HRESULT Machine::getIommuType(IommuType_T *aIommuType)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aIommuType = mHWData->mIommuType;
+
+    return S_OK;
+}
+
+HRESULT Machine::setIommuType(IommuType_T aIommuType)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = i_checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    if (aIommuType != mHWData->mIommuType)
+    {
+        if (aIommuType == IommuType_Intel)
+        {
+#ifndef VBOX_WITH_IOMMU_INTEL
+            LogRelFunc(("Setting Intel IOMMU when Intel IOMMU support not available!\n"));
+            return E_UNEXPECTED;
+#endif
+        }
+
+        i_setModified(IsModified_MachineData);
+        mHWData.backup();
+        mHWData->mIommuType = aIommuType;
     }
 
     return S_OK;
@@ -1350,32 +1668,10 @@ HRESULT Machine::getEffectiveParavirtProvider(ParavirtProvider_T *aParavirtProvi
                     {
                         *aParavirtProvider = ParavirtProvider_HyperV;
                     }
-                    else if (   mUserData->s.strOsType == "Linux26"      // Linux22 and Linux24 omitted as they're too old
-                             || mUserData->s.strOsType == "Linux26_64"   // for having any KVM paravirtualization support.
-                             || mUserData->s.strOsType == "Linux"
-                             || mUserData->s.strOsType == "Linux_64"
-                             || mUserData->s.strOsType == "ArchLinux"
-                             || mUserData->s.strOsType == "ArchLinux_64"
-                             || mUserData->s.strOsType == "Debian"
-                             || mUserData->s.strOsType == "Debian_64"
-                             || mUserData->s.strOsType == "Fedora"
-                             || mUserData->s.strOsType == "Fedora_64"
-                             || mUserData->s.strOsType == "Gentoo"
-                             || mUserData->s.strOsType == "Gentoo_64"
-                             || mUserData->s.strOsType == "Mandriva"
-                             || mUserData->s.strOsType == "Mandriva_64"
-                             || mUserData->s.strOsType == "OpenSUSE"
-                             || mUserData->s.strOsType == "OpenSUSE_64"
-                             || mUserData->s.strOsType == "Oracle"
-                             || mUserData->s.strOsType == "Oracle_64"
-                             || mUserData->s.strOsType == "RedHat"
-                             || mUserData->s.strOsType == "RedHat_64"
-                             || mUserData->s.strOsType == "Turbolinux"
-                             || mUserData->s.strOsType == "Turbolinux_64"
-                             || mUserData->s.strOsType == "Ubuntu"
-                             || mUserData->s.strOsType == "Ubuntu_64"
-                             || mUserData->s.strOsType == "Xandros"
-                             || mUserData->s.strOsType == "Xandros_64")
+                    else if (guestTypeFamilyId == "Linux" &&
+                             mUserData->s.strOsType != "Linux22" &&      // Linux22 and Linux24{_64} excluded as they're too old
+                             mUserData->s.strOsType != "Linux24" &&      // to have any KVM paravirtualization support.
+                             mUserData->s.strOsType != "Linux24_64")
                     {
                         *aParavirtProvider = ParavirtProvider_KVM;
                     }
@@ -1821,6 +2117,22 @@ HRESULT Machine::getBIOSSettings(ComPtr<IBIOSSettings> &aBIOSSettings)
     return S_OK;
 }
 
+HRESULT Machine::getTrustedPlatformModule(ComPtr<ITrustedPlatformModule> &aTrustedPlatformModule)
+{
+    /* mTrustedPlatformModule is constant during life time, no need to lock */
+    aTrustedPlatformModule = mTrustedPlatformModule;
+
+    return S_OK;
+}
+
+HRESULT Machine::getNonVolatileStore(ComPtr<INvramStore> &aNvramStore)
+{
+    /* mNvramStore is constant during life time, no need to lock */
+    aNvramStore = mNvramStore;
+
+    return S_OK;
+}
+
 HRESULT Machine::getRecordingSettings(ComPtr<IRecordingSettings> &aRecordingSettings)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -2221,9 +2533,6 @@ HRESULT Machine::getHWVirtExProperty(HWVirtExPropertyType_T aProperty, BOOL *aVa
 
         case HWVirtExPropertyType_LargePages:
             *aValue = mHWData->mHWVirtExLargePagesEnabled;
-#if defined(DEBUG_bird) && defined(RT_OS_LINUX) /* This feature is deadly here */
-            *aValue = FALSE;
-#endif
             break;
 
         case HWVirtExPropertyType_Force:
@@ -2232,6 +2541,10 @@ HRESULT Machine::getHWVirtExProperty(HWVirtExPropertyType_T aProperty, BOOL *aVa
 
         case HWVirtExPropertyType_UseNativeApi:
             *aValue = mHWData->mHWVirtExUseNativeApi;
+            break;
+
+        case HWVirtExPropertyType_VirtVmsaveVmload:
+            *aValue = mHWData->mHWVirtExVirtVmsaveVmload;
             break;
 
         default:
@@ -2291,6 +2604,12 @@ HRESULT Machine::setHWVirtExProperty(HWVirtExPropertyType_T aProperty, BOOL aVal
             mHWData->mHWVirtExUseNativeApi = !!aValue;
             break;
 
+        case HWVirtExPropertyType_VirtVmsaveVmload:
+            i_setModified(IsModified_MachineData);
+            mHWData.backup();
+            mHWData->mHWVirtExVirtVmsaveVmload = !!aValue;
+            break;
+
         default:
             return E_INVALIDARG;
     }
@@ -2330,8 +2649,7 @@ HRESULT Machine::setSnapshotFolder(const com::Utf8Str &aSnapshotFolder)
 
     if (strSnapshotFolder.isEmpty())
         strSnapshotFolder = "Snapshots";
-    int vrc = i_calculateFullPath(strSnapshotFolder,
-                                strSnapshotFolder);
+    int vrc = i_calculateFullPath(strSnapshotFolder, strSnapshotFolder);
     if (RT_FAILURE(vrc))
         return setErrorBoth(E_FAIL, vrc,
                             tr("Invalid snapshot folder '%s' (%Rrc)"),
@@ -2371,11 +2689,11 @@ HRESULT Machine::getVRDEServer(ComPtr<IVRDEServer> &aVRDEServer)
     return S_OK;
 }
 
-HRESULT Machine::getAudioAdapter(ComPtr<IAudioAdapter> &aAudioAdapter)
+HRESULT Machine::getAudioSettings(ComPtr<IAudioSettings> &aAudioSettings)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aAudioAdapter = mAudioAdapter;
+    aAudioSettings = mAudioSettings;
 
     return S_OK;
 }
@@ -2900,6 +3218,65 @@ HRESULT Machine::setIOCacheSize(ULONG aIOCacheSize)
     return S_OK;
 }
 
+HRESULT Machine::getStateKeyId(com::Utf8Str &aKeyId)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    aKeyId = mSSData->strStateKeyId;
+#else
+    aKeyId = com::Utf8Str::Empty;
+#endif
+
+    return S_OK;
+}
+
+HRESULT Machine::getStateKeyStore(com::Utf8Str &aKeyStore)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    aKeyStore = mSSData->strStateKeyStore;
+#else
+    aKeyStore = com::Utf8Str::Empty;
+#endif
+
+    return S_OK;
+}
+
+HRESULT Machine::getLogKeyId(com::Utf8Str &aKeyId)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    aKeyId = mData->mstrLogKeyId;
+#else
+    aKeyId = com::Utf8Str::Empty;
+#endif
+
+    return S_OK;
+}
+
+HRESULT Machine::getLogKeyStore(com::Utf8Str &aKeyStore)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    aKeyStore = mData->mstrLogKeyStore;
+#else
+    aKeyStore = com::Utf8Str::Empty;
+#endif
+
+    return S_OK;
+}
+
+HRESULT Machine::getGuestDebugControl(ComPtr<IGuestDebugControl> &aGuestDebugControl)
+{
+    mGuestDebugControl.queryInterfaceTo(aGuestDebugControl.asOutParam());
+
+    return S_OK;
+}
+
 
 /**
  *  @note Locks objects!
@@ -2918,7 +3295,7 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
 
     // get the client's IInternalSessionControl interface
     ComPtr<IInternalSessionControl> pSessionControl = aSession;
-    ComAssertMsgRet(!!pSessionControl, ("No IInternalSessionControl interface"),
+    ComAssertMsgRet(!!pSessionControl, (tr("No IInternalSessionControl interface")),
                     E_INVALIDARG);
 
     // session name (only used in some code paths)
@@ -2931,7 +3308,7 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
                         tr("The machine '%s' is not registered"),
                         mUserData->s.strName.c_str());
 
-    LogFlowThisFunc(("mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
+    LogFlowThisFunc(("mSession.mState=%s\n", ::stringifySessionState(mData->mSession.mState)));
 
     SessionState_T oldState = mData->mSession.mState;
     /* Hack: in case the session is closing and there is a progress object
@@ -2944,7 +3321,7 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
         alock.release();
         mData->mSession.mProgress->WaitForCompletion(1000);
         alock.acquire();
-        LogFlowThisFunc(("after waiting: mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
+        LogFlowThisFunc(("after waiting: mSession.mState=%s\n", ::stringifySessionState(mData->mSession.mState)));
     }
 
     // try again now
@@ -3057,12 +3434,12 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
 #if defined(VBOX_WITH_HARDENING) && defined(RT_OS_WINDOWS)
             /* Hardened windows builds spawns three processes when a VM is
                launched, the 3rd one is the one that will end up here.  */
-            RTPROCESS ppid;
-            int rc = RTProcQueryParent(pid, &ppid);
-            if (RT_SUCCESS(rc))
-                rc = RTProcQueryParent(ppid, &ppid);
-            if (   (RT_SUCCESS(rc) && mData->mSession.mPID == ppid)
-                || rc == VERR_ACCESS_DENIED)
+            RTPROCESS pidParent;
+            int vrc = RTProcQueryParent(pid, &pidParent);
+            if (RT_SUCCESS(vrc))
+                vrc = RTProcQueryParent(pidParent, &pidParent);
+            if (   (RT_SUCCESS(vrc) && mData->mSession.mPID == pidParent)
+                || vrc == VERR_ACCESS_DENIED)
             {
                 LogFlowThisFunc(("mSession.mPID => %d(%#x) - windows hardening stub\n", mData->mSession.mPID, pid));
                 mData->mSession.mPID = pid;
@@ -3243,6 +3620,29 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
              * at least on XPCOM) */
             ComPtr<IUnknown> unk = mData->mSession.mDirectControl;
             NOREF(unk);
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+            if (aLockType == LockType_VM)
+            {
+                /* get the console from the direct session */
+                ComPtr<IConsole> console;
+                rc = pSessionControl->COMGETTER(RemoteConsole)(console.asOutParam());
+                ComAssertComRC(rc);
+                /* send passswords to console */
+                for (SecretKeyStore::SecretKeyMap::iterator it = mData->mpKeyStore->begin();
+                     it != mData->mpKeyStore->end();
+                     ++it)
+                {
+                    SecretKey *pKey = it->second;
+                    pKey->retain();
+                    console->AddEncryptionPassword(Bstr(it->first).raw(),
+                                                   Bstr((const char*)pKey->getKeyBuffer()).raw(),
+                                                   TRUE);
+                    pKey->release();
+                }
+
+            }
+#endif
         }
 
         /* Release the lock since SessionMachine::uninit() locks VirtualBox which
@@ -3264,7 +3664,7 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
 
         if (oldState != SessionState_Locked)
             /* fire an event */
-            mParent->i_onSessionStateChange(i_getId(), SessionState_Locked);
+            mParent->i_onSessionStateChanged(i_getId(), SessionState_Locked);
     }
 
     return rc;
@@ -3361,7 +3761,7 @@ HRESULT Machine::launchVMProcess(const ComPtr<ISession> &aSession,
                 mParent->i_updateClientWatcher();
 
                 /* fire an event */
-                mParent->i_onSessionStateChange(i_getId(), SessionState_Spawning);
+                mParent->i_onSessionStateChanged(i_getId(), SessionState_Spawning);
             }
         }
     }
@@ -3523,7 +3923,7 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
 
     ComObjPtr<Medium> medium = static_cast<Medium*>(aM);
     if (aMedium && medium.isNull())
-        return setError(E_INVALIDARG, "The given medium pointer is invalid");
+        return setError(E_INVALIDARG, tr("The given medium pointer is invalid"));
 
     AutoCaller mediumCaller(medium);
     if (FAILED(mediumCaller.rc())) return mediumCaller.rc();
@@ -4377,13 +4777,10 @@ HRESULT Machine::setHotPluggableForDevice(const com::Utf8Str &aName, LONG aContr
 HRESULT Machine::setNoBandwidthGroupForDevice(const com::Utf8Str &aName, LONG aControllerPort,
                                               LONG aDevice)
 {
-    int rc = S_OK;
     LogFlowThisFunc(("aName=\"%s\" aControllerPort=%d aDevice=%d\n",
                      aName.c_str(), aControllerPort, aDevice));
 
-    rc = setBandwidthGroupForDevice(aName, aControllerPort, aDevice, NULL);
-
-    return rc;
+    return setBandwidthGroupForDevice(aName, aControllerPort, aDevice, NULL);
 }
 
 HRESULT Machine::setBandwidthGroupForDevice(const com::Utf8Str &aName, LONG aControllerPort,
@@ -4418,7 +4815,7 @@ HRESULT Machine::setBandwidthGroupForDevice(const com::Utf8Str &aName, LONG aCon
     IBandwidthGroup *iB = aBandwidthGroup;
     ComObjPtr<BandwidthGroup> group = static_cast<BandwidthGroup*>(iB);
     if (aBandwidthGroup && group.isNull())
-        return setError(E_INVALIDARG, "The given bandwidth group pointer is invalid");
+        return setError(E_INVALIDARG, tr("The given bandwidth group pointer is invalid"));
 
     AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
 
@@ -4448,14 +4845,10 @@ HRESULT Machine::attachDeviceWithoutMedium(const com::Utf8Str &aName,
                                            LONG aDevice,
                                            DeviceType_T aType)
 {
-     HRESULT rc = S_OK;
-
      LogFlowThisFunc(("aName=\"%s\" aControllerPort=%d aDevice=%d aType=%d\n",
                       aName.c_str(), aControllerPort, aDevice, aType));
 
-     rc = attachDevice(aName, aControllerPort, aDevice, aType, NULL);
-
-     return rc;
+     return attachDevice(aName, aControllerPort, aDevice, aType, NULL);
 }
 
 
@@ -4464,13 +4857,10 @@ HRESULT Machine::unmountMedium(const com::Utf8Str &aName,
                                LONG aDevice,
                                BOOL aForce)
 {
-     int rc = S_OK;
      LogFlowThisFunc(("aName=\"%s\" aControllerPort=%d aDevice=%d",
                       aName.c_str(), aControllerPort, aForce));
 
-     rc = mountMedium(aName, aControllerPort, aDevice, NULL, aForce);
-
-     return rc;
+     return mountMedium(aName, aControllerPort, aDevice, NULL, aForce);
 }
 
 HRESULT Machine::mountMedium(const com::Utf8Str &aName,
@@ -4479,7 +4869,6 @@ HRESULT Machine::mountMedium(const com::Utf8Str &aName,
                              const ComPtr<IMedium> &aMedium,
                              BOOL aForce)
 {
-    int rc = S_OK;
     LogFlowThisFunc(("aName=\"%s\" aControllerPort=%d aDevice=%d aForce=%d\n",
                      aName.c_str(), aControllerPort, aDevice, aForce));
 
@@ -4509,7 +4898,11 @@ HRESULT Machine::mountMedium(const com::Utf8Str &aName,
     IMedium *iM = aMedium;
     ComObjPtr<Medium> pMedium = static_cast<Medium*>(iM);
     if (aMedium && pMedium.isNull())
-        return setError(E_INVALIDARG, "The given medium pointer is invalid");
+        return setError(E_INVALIDARG, tr("The given medium pointer is invalid"));
+
+    /* Check if potential medium is already mounted */
+    if (pMedium == oldmedium)
+        return S_OK;
 
     AutoCaller mediumCaller(pMedium);
     if (FAILED(mediumCaller.rc())) return mediumCaller.rc();
@@ -4564,7 +4957,7 @@ HRESULT Machine::mountMedium(const com::Utf8Str &aName,
 
     mediumLock.release();
     multiLock.release();
-    rc = i_onMediumChange(pAttach, aForce);
+    HRESULT rc = i_onMediumChange(pAttach, aForce);
     multiLock.acquire();
     mediumLock.acquire();
 
@@ -4624,22 +5017,26 @@ HRESULT Machine::getMedium(const com::Utf8Str &aName,
 
 HRESULT Machine::getSerialPort(ULONG aSlot, ComPtr<ISerialPort> &aPort)
 {
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    mSerialPorts[aSlot].queryInterfaceTo(aPort.asOutParam());
-
-    return S_OK;
+    if (aSlot < RT_ELEMENTS(mSerialPorts))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        mSerialPorts[aSlot].queryInterfaceTo(aPort.asOutParam());
+        return S_OK;
+    }
+    return setError(E_INVALIDARG, tr("Serial port slot %RU32 is out of bounds (max %zu)"), aSlot, RT_ELEMENTS(mSerialPorts));
 }
 
 HRESULT Machine::getParallelPort(ULONG aSlot, ComPtr<IParallelPort> &aPort)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    mParallelPorts[aSlot].queryInterfaceTo(aPort.asOutParam());
-
-    return S_OK;
+    if (aSlot < RT_ELEMENTS(mParallelPorts))
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        mParallelPorts[aSlot].queryInterfaceTo(aPort.asOutParam());
+        return S_OK;
+    }
+    return setError(E_INVALIDARG, tr("Parallel port slot %RU32 is out of bounds (max %zu)"), aSlot, RT_ELEMENTS(mParallelPorts));
 }
+
 
 HRESULT Machine::getNetworkAdapter(ULONG aSlot, ComPtr<INetworkAdapter> &aAdapter)
 {
@@ -4647,7 +5044,7 @@ HRESULT Machine::getNetworkAdapter(ULONG aSlot, ComPtr<INetworkAdapter> &aAdapte
        status.  testdriver/vbox.py triggers this in logVmInfo. */
     if (aSlot >= mNetworkAdapters.size())
         return setError(E_INVALIDARG,
-                        tr("No network adapter in slot %RU32 (total %RU32 adapters)"),
+                        tr("No network adapter in slot %RU32 (total %RU32 adapters)", "", mNetworkAdapters.size()),
                         aSlot, mNetworkAdapters.size());
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -4744,19 +5141,17 @@ HRESULT Machine::setExtraData(const com::Utf8Str &aKey, const com::Utf8Str &aVal
         // ask for permission from all listeners outside the locks;
         // i_onExtraDataCanChange() only briefly requests the VirtualBox
         // lock to copy the list of callbacks to invoke
-        Bstr error;
-        Bstr bstrValue(aValue);
-
-        if (!mParent->i_onExtraDataCanChange(mData->mUuid, Bstr(aKey).raw(), bstrValue.raw(), error))
+        Bstr bstrError;
+        if (!mParent->i_onExtraDataCanChange(mData->mUuid, aKey, aValue, bstrError))
         {
-            const char *sep = error.isEmpty() ? "" : ": ";
-            Log1WarningFunc(("Someone vetoed! Change refused%s%ls\n", sep, error.raw()));
+            const char *sep = bstrError.isEmpty() ? "" : ": ";
+            Log1WarningFunc(("Someone vetoed! Change refused%s%ls\n", sep, bstrError.raw()));
             return setError(E_ACCESSDENIED,
                             tr("Could not set extra data because someone refused the requested change of '%s' to '%s'%s%ls"),
                             aKey.c_str(),
                             aValue.c_str(),
                             sep,
-                            error.raw());
+                            bstrError.raw());
         }
 
         // data is changing and change not vetoed: then write it out under the lock
@@ -4785,7 +5180,7 @@ HRESULT Machine::setExtraData(const com::Utf8Str &aKey, const com::Utf8Str &aVal
 
     // fire notification outside the lock
     if (fChanged)
-        mParent->i_onExtraDataChange(mData->mUuid, Bstr(aKey).raw(), Bstr(aValue).raw());
+        mParent->i_onExtraDataChanged(mData->mUuid, aKey, aValue);
 
     return S_OK;
 }
@@ -4915,7 +5310,7 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
 
         uninit();
 
-        mParent->i_unregisterMachine(this, id);
+        mParent->i_unregisterMachine(this, CleanupMode_UnregisterOnly, id);
             // calls VirtualBox::i_saveSettings()
 
         return S_OK;
@@ -4927,7 +5322,7 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
     if (!mSSData->strStateFilePath.isEmpty())
         mData->llFilesToDelete.push_back(mSSData->strStateFilePath);
 
-    Utf8Str strNVRAMFile = mBIOSSettings->i_getNonVolatileStorageFile();
+    Utf8Str strNVRAMFile = mNvramStore->i_getNonVolatileStorageFile();
     if (!strNVRAMFile.isEmpty() && RTFileExists(strNVRAMFile.c_str()))
         mData->llFilesToDelete.push_back(strNVRAMFile);
 
@@ -4952,10 +5347,10 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
 
     if (mData->mFirstSnapshot)
     {
-        // add the media from the medium attachments of the snapshots to llMedia
-        // as well, after the "main" machine media; Snapshot::uninitRecursively()
-        // calls Machine::detachAllMedia() for the snapshot machine, recursing
-        // into the children first
+        // add the media from the medium attachments of the snapshots to
+        // llMedia as well, after the "main" machine media;
+        // Snapshot::uninitAll() calls Machine::detachAllMedia() for each
+        // snapshot machine, depth first.
 
         // Snapshot::beginDeletingSnapshot() asserts if the machine state is not this
         MachineState_T oldState = mData->mMachineState;
@@ -4967,7 +5362,7 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
         ComObjPtr<Snapshot> pFirstSnapshot = mData->mFirstSnapshot;
 
         // GO!
-        pFirstSnapshot->i_uninitRecursively(alock, aCleanupMode, llMedia, mData->llFilesToDelete);
+        pFirstSnapshot->i_uninitAll(alock, aCleanupMode, llMedia, mData->llFilesToDelete);
 
         mData->mMachineState = oldState;
     }
@@ -5000,7 +5395,7 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
          ++it, ++i)
         (*it).queryInterfaceTo(aMedia[i].asOutParam());
 
-    mParent->i_unregisterMachine(this, id);
+    mParent->i_unregisterMachine(this, aCleanupMode, id);
             // calls VirtualBox::i_saveSettings() and VirtualBox::saveModifiedRegistries()
 
     return S_OK;
@@ -5133,11 +5528,7 @@ void Machine::i_deleteConfigHandler(DeleteConfigTask &task)
             LogFunc(("Deleting file %s\n", strFile.c_str()));
             rc = task.m_pProgress->SetNextOperation(BstrFmt(tr("Deleting '%s'"), it->c_str()).raw(), 1);
             if (FAILED(rc)) throw rc;
-
-            int vrc = RTFileDelete(strFile.c_str());
-            if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                   tr("Could not delete file '%s' (%Rrc)"), strFile.c_str(), vrc);
+            i_deleteFile(strFile);
         }
 
         rc = task.m_pProgress->SetNextOperation(Bstr(tr("Cleaning up machine directory")).raw(), 1);
@@ -5149,10 +5540,10 @@ void Machine::i_deleteConfigHandler(DeleteConfigTask &task)
             /* Delete any backup or uncommitted XML files. Ignore failures.
                See the fSafe parameter of xml::XmlFileWriter::write for details. */
             /** @todo Find a way to avoid referring directly to iprt/xml.h here. */
-            Utf8Str otherXml = Utf8StrFmt("%s%s", mData->m_strConfigFileFull.c_str(), xml::XmlFileWriter::s_pszTmpSuff);
-            RTFileDelete(otherXml.c_str());
-            otherXml = Utf8StrFmt("%s%s", mData->m_strConfigFileFull.c_str(), xml::XmlFileWriter::s_pszPrevSuff);
-            RTFileDelete(otherXml.c_str());
+            Utf8StrFmt otherXml("%s%s", mData->m_strConfigFileFull.c_str(), xml::XmlFileWriter::s_pszTmpSuff);
+            i_deleteFile(otherXml, true /* fIgnoreFailures */);
+            otherXml.printf("%s%s", mData->m_strConfigFileFull.c_str(), xml::XmlFileWriter::s_pszPrevSuff);
+            i_deleteFile(otherXml, true /* fIgnoreFailures */);
 
             /* delete the Logs folder, nothing important should be left
              * there (we don't check for errors because the user might have
@@ -5166,28 +5557,24 @@ void Machine::i_deleteConfigHandler(DeleteConfigTask &task)
                  * (this must be in sync with the rotation logic in
                  * Console::powerUpThread()). Also, delete the VBox.png[.N]
                  * files that may have been created by the GUI. */
-                Utf8Str log = Utf8StrFmt("%s%cVBox.log",
-                                         logFolder.c_str(), RTPATH_DELIMITER);
-                RTFileDelete(log.c_str());
-                log = Utf8StrFmt("%s%cVBox.png",
-                                 logFolder.c_str(), RTPATH_DELIMITER);
-                RTFileDelete(log.c_str());
-                for (int i = uLogHistoryCount; i > 0; i--)
+                Utf8StrFmt log("%s%cVBox.log", logFolder.c_str(), RTPATH_DELIMITER);
+                i_deleteFile(log, true /* fIgnoreFailures */);
+                log.printf("%s%cVBox.png", logFolder.c_str(), RTPATH_DELIMITER);
+                i_deleteFile(log, true /* fIgnoreFailures */);
+                for (ULONG i = uLogHistoryCount; i > 0; i--)
                 {
-                    log = Utf8StrFmt("%s%cVBox.log.%d",
-                                     logFolder.c_str(), RTPATH_DELIMITER, i);
-                    RTFileDelete(log.c_str());
-                    log = Utf8StrFmt("%s%cVBox.png.%d",
-                                     logFolder.c_str(), RTPATH_DELIMITER, i);
-                    RTFileDelete(log.c_str());
+                    log.printf("%s%cVBox.log.%u", logFolder.c_str(), RTPATH_DELIMITER, i);
+                    i_deleteFile(log, true /* fIgnoreFailures */);
+                    log.printf("%s%cVBox.png.%u", logFolder.c_str(), RTPATH_DELIMITER, i);
+                    i_deleteFile(log, true /* fIgnoreFailures */);
                 }
                 log.printf("%s%cVBoxUI.log", logFolder.c_str(), RTPATH_DELIMITER);
-                RTFileDelete(log.c_str());
+                i_deleteFile(log, true /* fIgnoreFailures */);
 #if defined(RT_OS_WINDOWS)
-                log = Utf8StrFmt("%s%cVBoxStartup.log", logFolder.c_str(), RTPATH_DELIMITER);
-                RTFileDelete(log.c_str());
-                log = Utf8StrFmt("%s%cVBoxHardening.log", logFolder.c_str(), RTPATH_DELIMITER);
-                RTFileDelete(log.c_str());
+                log.printf("%s%cVBoxStartup.log", logFolder.c_str(), RTPATH_DELIMITER);
+                i_deleteFile(log, true /* fIgnoreFailures */);
+                log.printf("%s%cVBoxHardening.log", logFolder.c_str(), RTPATH_DELIMITER);
+                i_deleteFile(log, true /* fIgnoreFailures */);
 #endif
 
                 RTDirRemove(logFolder.c_str());
@@ -5248,7 +5635,7 @@ HRESULT Machine::deleteConfig(const std::vector<ComPtr<IMedium> > &aMedia, ComPt
         IMedium *pIMedium(aMedia[i]);
         ComObjPtr<Medium> pMedium = static_cast<Medium*>(pIMedium);
         if (pMedium.isNull())
-            return setError(E_INVALIDARG, "The given medium pointer with index %d is invalid", i);
+            return setError(E_INVALIDARG, tr("The given medium pointer with index %d is invalid"), i);
         SafeArray<BSTR> ids;
         rc = pMedium->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(ids));
         if (FAILED(rc)) return rc;
@@ -5527,6 +5914,9 @@ HRESULT Machine::i_setGuestPropertyToService(const com::Utf8Str &aName, const co
         if (aFlags.length() && RT_FAILURE(GuestPropValidateFlags(aFlags.c_str(), &fFlags)))
             return setError(E_INVALIDARG, tr("Invalid guest property flag values: '%s'"), aFlags.c_str());
 
+        if (fFlags & (GUEST_PROP_F_TRANSIENT | GUEST_PROP_F_TRANSRESET))
+            return setError(E_INVALIDARG, tr("Properties with TRANSIENT or TRANSRESET flag cannot be set or modified if VM is not running"));
+
         HWData::GuestPropertyMap::iterator it = mHWData->mGuestProperties.find(aName);
         if (it == mHWData->mGuestProperties.end())
         {
@@ -5537,7 +5927,7 @@ HRESULT Machine::i_setGuestPropertyToService(const com::Utf8Str &aName, const co
 
                 RTTIMESPEC time;
                 HWData::GuestProperty prop;
-                prop.strValue   = Bstr(aValue).raw();
+                prop.strValue   = aValue;
                 prop.mTimestamp = RTTimeSpecGetNano(RTTimeNow(&time));
                 prop.mFlags     = fFlags;
                 mHWData->mGuestProperties[aName] = prop;
@@ -5575,10 +5965,7 @@ HRESULT Machine::i_setGuestPropertyToService(const com::Utf8Str &aName, const co
         {
             alock.release();
 
-            mParent->i_onGuestPropertyChange(mData->mUuid,
-                                             Bstr(aName).raw(),
-                                             Bstr(aValue).raw(),
-                                             Bstr(aFlags).raw());
+            mParent->i_onGuestPropertyChanged(mData->mUuid, aName, aValue, aFlags, fDelete);
         }
     }
     catch (std::bad_alloc &)
@@ -5635,6 +6022,13 @@ HRESULT Machine::setGuestProperty(const com::Utf8Str &aProperty, const com::Utf8
 #ifndef VBOX_WITH_GUEST_PROPS
     ReturnComNotImplemented();
 #else // VBOX_WITH_GUEST_PROPS
+
+    int vrc = GuestPropValidateName(aProperty.c_str(), aProperty.length() + 1 /* '\0' */);
+    AssertRCReturn(vrc, setErrorBoth(E_INVALIDARG, vrc));
+
+    vrc = GuestPropValidateValue(aValue.c_str(), aValue.length() + 1  /* '\0' */);
+    AssertRCReturn(vrc, setErrorBoth(E_INVALIDARG, vrc));
+
     HRESULT rc = i_setGuestPropertyToVM(aProperty, aValue, aFlags, /* fDelete = */ false);
     if (rc == E_ACCESSDENIED)
         /* The VM is not running or the service is not (yet) accessible */
@@ -5705,7 +6099,6 @@ HRESULT Machine::i_enumerateGuestPropertiesInService(const com::Utf8Str &aPatter
     aTimestamps.resize(cEntries);
     aFlags.resize(cEntries);
 
-    char szFlags[GUEST_PROP_MAX_FLAGS_LEN + 1];
     size_t i = 0;
     for (HWData::GuestPropertyMap::const_iterator
          it = propMap.begin();
@@ -5713,10 +6106,18 @@ HRESULT Machine::i_enumerateGuestPropertiesInService(const com::Utf8Str &aPatter
          ++it, ++i)
     {
         aNames[i] = it->first;
+        int vrc = GuestPropValidateName(aNames[i].c_str(), aNames[i].length() + 1 /* '\0' */);
+        AssertRCReturn(vrc, setErrorBoth(E_INVALIDARG /*bad choice for internal error*/, vrc));
+
         aValues[i] = it->second.strValue;
+        vrc = GuestPropValidateValue(aValues[i].c_str(), aValues[i].length() + 1 /* '\0' */);
+        AssertRCReturn(vrc, setErrorBoth(E_INVALIDARG /*bad choice for internal error*/, vrc));
+
         aTimestamps[i] = it->second.mTimestamp;
+
+        char szFlags[GUEST_PROP_MAX_FLAGS_LEN + 1];
         GuestPropWriteFlags(it->second.mFlags, szFlags);
-        aFlags[i] = Utf8Str(szFlags);
+        aFlags[i] = szFlags;
     }
 
     return S_OK;
@@ -6173,7 +6574,12 @@ HRESULT Machine::querySavedGuestScreenInfo(ULONG aScreenId,
     uint32_t u32Height = 0;
     uint16_t u16Flags = 0;
 
-    int vrc = readSavedGuestScreenInfo(mSSData->strStateFilePath, aScreenId,
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    SsmStream SavedStateStream(mParent, mData->mpKeyStore, mSSData->strStateKeyId, mSSData->strStateKeyStore);
+#else
+    SsmStream SavedStateStream(mParent, NULL /*pKeyStore*/, Utf8Str::Empty, Utf8Str::Empty);
+#endif
+    int vrc = readSavedGuestScreenInfo(SavedStateStream, mSSData->strStateFilePath, aScreenId,
                                        &u32OriginX, &u32OriginY, &u32Width, &u32Height, &u16Flags);
     if (RT_FAILURE(vrc))
     {
@@ -6220,8 +6626,13 @@ HRESULT Machine::readSavedThumbnailToArray(ULONG aScreenId, BitmapFormat_T aBitm
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    int vrc = readSavedDisplayScreenshot(mSSData->strStateFilePath, 0 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
-
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    SsmStream SavedStateStream(mParent, mData->mpKeyStore, mSSData->strStateKeyId, mSSData->strStateKeyStore);
+#else
+    SsmStream SavedStateStream(mParent, NULL /*pKeyStore*/, Utf8Str::Empty, Utf8Str::Empty);
+#endif
+    int vrc = readSavedDisplayScreenshot(SavedStateStream, mSSData->strStateFilePath, 0 /* u32Type */,
+                                         &pu8Data, &cbData, &u32Width, &u32Height);
     if (RT_FAILURE(vrc))
         return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
                             tr("Saved thumbnail data is not available (%Rrc)"),
@@ -6309,7 +6720,13 @@ HRESULT Machine::querySavedScreenshotInfo(ULONG aScreenId,
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    int vrc = readSavedDisplayScreenshot(mSSData->strStateFilePath, 1 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    SsmStream SavedStateStream(mParent, mData->mpKeyStore, mSSData->strStateKeyId, mSSData->strStateKeyStore);
+#else
+    SsmStream SavedStateStream(mParent, NULL /*pKeyStore*/, Utf8Str::Empty, Utf8Str::Empty);
+#endif
+    int vrc = readSavedDisplayScreenshot(SavedStateStream, mSSData->strStateFilePath, 1 /* u32Type */,
+                                         &pu8Data, &cbData, &u32Width, &u32Height);
 
     if (RT_FAILURE(vrc))
         return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
@@ -6345,7 +6762,13 @@ HRESULT Machine::readSavedScreenshotToArray(ULONG aScreenId,
     uint32_t u32Width = 0;
     uint32_t u32Height = 0;
 
-    int vrc = readSavedDisplayScreenshot(mSSData->strStateFilePath, 1 /* u32Type */, &pu8Data, &cbData, &u32Width, &u32Height);
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    SsmStream SavedStateStream(mParent, mData->mpKeyStore, mSSData->strStateKeyId, mSSData->strStateKeyStore);
+#else
+    SsmStream SavedStateStream(mParent, NULL /*pKeyStore*/, Utf8Str::Empty, Utf8Str::Empty);
+#endif
+    int vrc = readSavedDisplayScreenshot(SavedStateStream, mSSData->strStateFilePath, 1 /* u32Type */,
+                                         &pu8Data, &cbData, &u32Width, &u32Height);
 
     if (RT_FAILURE(vrc))
         return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
@@ -6491,19 +6914,61 @@ HRESULT Machine::readLog(ULONG aIdx, LONG64 aOffset, LONG64 aSize, std::vector<B
     size_t cbData = (size_t)RT_MIN(aSize, _512K);
     aData.resize(cbData);
 
-    RTFILE LogFile;
-    int vrc = RTFileOpen(&LogFile, log.c_str(),
-                         RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE);
+    int vrc = VINF_SUCCESS;
+    RTVFSIOSTREAM hVfsIosLog = NIL_RTVFSIOSTREAM;
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    if (mData->mstrLogKeyId.isNotEmpty() && mData->mstrLogKeyStore.isNotEmpty())
+    {
+        PCVBOXCRYPTOIF pCryptoIf = NULL;
+        rc = i_getVirtualBox()->i_retainCryptoIf(&pCryptoIf);
+        if (SUCCEEDED(rc))
+        {
+            alock.acquire();
+
+            SecretKey *pKey = NULL;
+            vrc = mData->mpKeyStore->retainSecretKey(mData->mstrLogKeyId, &pKey);
+            alock.release();
+
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = RTVfsIoStrmOpenNormal(log.c_str(), RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE, &hVfsIosLog);
+                if (RT_SUCCESS(vrc))
+                {
+                    RTVFSIOSTREAM hVfsIosLogDec = NIL_RTVFSIOSTREAM;
+                    vrc = pCryptoIf->pfnCryptoIoStrmFromVfsIoStrmDecrypt(hVfsIosLog, mData->mstrLogKeyStore.c_str(),
+                                                                         (const char *)pKey->getKeyBuffer(), &hVfsIosLogDec);
+                    if (RT_SUCCESS(vrc))
+                    {
+                        RTVfsIoStrmRelease(hVfsIosLog);
+                        hVfsIosLog = hVfsIosLogDec;
+                    }
+                }
+
+                pKey->release();
+            }
+
+            i_getVirtualBox()->i_releaseCryptoIf(pCryptoIf);
+        }
+    }
+    else
+        vrc = RTVfsIoStrmOpenNormal(log.c_str(), RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE, &hVfsIosLog);
+#else
+    vrc = RTVfsIoStrmOpenNormal(log.c_str(), RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_NONE, &hVfsIosLog);
+#endif
     if (RT_SUCCESS(vrc))
     {
-        vrc = RTFileReadAt(LogFile, aOffset, cbData ? &aData.front() : NULL, cbData, &cbData);
+        vrc = RTVfsIoStrmReadAt(hVfsIosLog, aOffset,
+                                cbData ? &aData.front() : NULL, cbData,
+                                true /*fBlocking*/, &cbData);
         if (RT_SUCCESS(vrc))
             aData.resize(cbData);
         else
             rc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
                               tr("Could not read log file '%s' (%Rrc)"),
                               log.c_str(), vrc);
-        RTFileClose(LogFile);
+
+        RTVfsIoStrmRelease(hVfsIosLog);
     }
     else
         rc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
@@ -6616,7 +7081,7 @@ HRESULT Machine::detachHostPCIDevice(LONG aHostAddress)
         Bstr mid;
         rc = this->COMGETTER(Id)(mid.asOutParam());
         Assert(SUCCEEDED(rc));
-        fireHostPCIDevicePlugEvent(es, mid.raw(), false /* unplugged */, true /* success */, pAttach, NULL);
+        ::FireHostPCIDevicePlugEvent(es, mid.raw(), false /* unplugged */, true /* success */, pAttach, NULL);
     }
 
     return fRemoved ? S_OK : setError(VBOX_E_OBJECT_NOT_FOUND,
@@ -6763,8 +7228,9 @@ HRESULT Machine::setAutostartEnabled(BOOL aAutostartEnabled)
                            tr("The path to the autostart database is not set"));
         else
             hrc = setError(E_UNEXPECTED,
-                           tr("%s machine '%s' to the autostart database failed with %Rrc"),
-                           aAutostartEnabled ? "Adding" : "Removing",
+                           aAutostartEnabled ?
+                               tr("Adding machine '%s' to the autostart database failed with %Rrc") :
+                               tr("Removing machine '%s' from the autostart database failed with %Rrc"),
                            mUserData->s.strName.c_str(), vrc);
     }
     return hrc;
@@ -6836,8 +7302,9 @@ HRESULT Machine::setAutostopType(AutostopType_T aAutostopType)
                           tr("The path to the autostart database is not set"));
        else
            hrc = setError(E_UNEXPECTED,
-                          tr("%s machine '%s' to the autostop database failed with %Rrc"),
-                          aAutostopType != AutostopType_Disabled ? "Adding" : "Removing",
+                          aAutostopType != AutostopType_Disabled ?
+                            tr("Adding machine '%s' to the autostop database failed with %Rrc") :
+                            tr("Removing machine '%s' from the autostop database failed with %Rrc"),
                           mUserData->s.strName.c_str(), vrc);
     }
     return hrc;
@@ -6981,11 +7448,15 @@ HRESULT Machine::moveTo(const com::Utf8Str &aTargetPath,
     HRESULT hrc = ptrProgress.createObject();
     if (SUCCEEDED(hrc))
     {
+        com::Utf8Str strDefaultPath;
+        if (aTargetPath.isEmpty())
+            i_calculateFullPath(".", strDefaultPath);
+
         /* Initialize our worker task */
         MachineMoveVM *pTask = NULL;
         try
         {
-            pTask = new MachineMoveVM(this, aTargetPath, aType, ptrProgress);
+            pTask = new MachineMoveVM(this, aTargetPath.isEmpty() ? strDefaultPath : aTargetPath, aType, ptrProgress);
         }
         catch (std::bad_alloc &)
         {
@@ -7111,7 +7582,7 @@ HRESULT Machine::i_saveRegistryEntry(settings::MachineRegistryEntry &data)
 int Machine::i_calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+    AssertComRCReturn(autoCaller.rc(), Global::vboxStatusCodeFromCOM(autoCaller.rc()));
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -7184,10 +7655,10 @@ void Machine::i_getLogFolder(Utf8Str &aLogFolder)
             char szTmp2[RTPATH_MAX];
             vrc = RTPathAbs(szTmp, szTmp2, sizeof(szTmp2));
             if (RT_SUCCESS(vrc))
-                aLogFolder = Utf8StrFmt("%s%c%s",
-                                        szTmp2,
-                                        RTPATH_DELIMITER,
-                                        mUserData->s.strName.c_str()); // path/to/logfolder/vmname
+                aLogFolder.printf("%s%c%s",
+                                  szTmp2,
+                                  RTPATH_DELIMITER,
+                                  mUserData->s.strName.c_str()); // path/to/logfolder/vmname
         }
         else
             vrc = VERR_PATH_IS_RELATIVE;
@@ -7214,15 +7685,15 @@ Utf8Str Machine::i_getLogFilename(ULONG idx)
 
     Utf8Str log;
     if (idx == 0)
-        log = Utf8StrFmt("%s%cVBox.log", logFolder.c_str(), RTPATH_DELIMITER);
+        log.printf("%s%cVBox.log", logFolder.c_str(), RTPATH_DELIMITER);
 #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_HARDENING)
     else if (idx == 1)
-        log = Utf8StrFmt("%s%cVBoxHardening.log", logFolder.c_str(), RTPATH_DELIMITER);
+        log.printf("%s%cVBoxHardening.log", logFolder.c_str(), RTPATH_DELIMITER);
     else
-        log = Utf8StrFmt("%s%cVBox.log.%u", logFolder.c_str(), RTPATH_DELIMITER, idx - 1);
+        log.printf("%s%cVBox.log.%u", logFolder.c_str(), RTPATH_DELIMITER, idx - 1);
 #else
     else
-        log = Utf8StrFmt("%s%cVBox.log.%u", logFolder.c_str(), RTPATH_DELIMITER, idx);
+        log.printf("%s%cVBox.log.%u", logFolder.c_str(), RTPATH_DELIMITER, idx);
 #endif
     return log;
 }
@@ -7250,8 +7721,7 @@ Utf8Str Machine::i_getDefaultNVRAMFilename()
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (   mHWData->mFirmwareType == FirmwareType_BIOS
-        || i_isSnapshotMachine())
+    if (i_isSnapshotMachine())
         return Utf8Str::Empty;
 
     Utf8Str strNVRAMFilePath = mData->m_strConfigFileFull;
@@ -7274,9 +7744,6 @@ Utf8Str Machine::i_getSnapshotNVRAMFilename()
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mHWData->mFirmwareType == FirmwareType_BIOS)
-        return Utf8Str::Empty;
-
     RTTIMESPEC ts;
     RTTimeNow(&ts);
     RTTIME time;
@@ -7284,11 +7751,24 @@ Utf8Str Machine::i_getSnapshotNVRAMFilename()
 
     Utf8Str strNVRAMFilePath = mUserData->s.strSnapshotFolder;
     strNVRAMFilePath += RTPATH_DELIMITER;
-    strNVRAMFilePath += Utf8StrFmt("%04d-%02u-%02uT%02u-%02u-%02u-%09uZ.nvram",
-                                   time.i32Year, time.u8Month, time.u8MonthDay,
-                                   time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond);
+    strNVRAMFilePath.appendPrintf("%04d-%02u-%02uT%02u-%02u-%02u-%09uZ.nvram",
+                                  time.i32Year, time.u8Month, time.u8MonthDay,
+                                  time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond);
 
     return strNVRAMFilePath;
+}
+
+/**
+ * Returns the version of the settings file.
+ */
+SettingsVersion_T Machine::i_getSettingsVersion(void)
+{
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), SettingsVersion_Null);
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    return mData->pMachineConfigFile->getSettingsVersion();
 }
 
 /**
@@ -7325,9 +7805,9 @@ void Machine::i_composeSavedStateFilename(Utf8Str &strStateFilePath)
     RTTimeExplode(&time, &ts);
 
     strStateFilePath += RTPATH_DELIMITER;
-    strStateFilePath += Utf8StrFmt("%04d-%02u-%02uT%02u-%02u-%02u-%09uZ.sav",
-                                   time.i32Year, time.u8Month, time.u8MonthDay,
-                                   time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond);
+    strStateFilePath.appendPrintf("%04d-%02u-%02uT%02u-%02u-%02u-%09uZ.sav",
+                                  time.i32Year, time.u8Month, time.u8MonthDay,
+                                  time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond);
 }
 
 /**
@@ -7369,7 +7849,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
                         tr("The machine '%s' is not registered"),
                         mUserData->s.strName.c_str());
 
-    LogFlowThisFunc(("mSession.mState=%s\n", Global::stringifySessionState(mData->mSession.mState)));
+    LogFlowThisFunc(("mSession.mState=%s\n", ::stringifySessionState(mData->mSession.mState)));
 
     /* The process started when launching a VM with separate UI/VM processes is always
      * the UI process, i.e. needs special handling as it won't claim the session. */
@@ -7400,7 +7880,8 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
     Utf8Str strSupHardeningLogArg("--sup-hardening-log=");
     {
         Utf8Str strHardeningLogFile = i_getHardeningLogFilename();
-        int vrc2 = RTFileDelete(strHardeningLogFile.c_str());
+        int vrc2;
+        /* ignore rc */ i_deleteFile(strHardeningLogFile, false /* fIgnoreFailures */, tr("hardening log file"), &vrc2);
         if (vrc2 == VERR_PATH_NOT_FOUND || vrc2 == VERR_FILE_NOT_FOUND)
         {
             Utf8Str strStartupLogDir = strHardeningLogFile;
@@ -7414,7 +7895,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
         Utf8Str strOldStartupLogFile;
         getLogFolder(strOldStartupLogFile);
         strOldStartupLogFile.append(RTPATH_SLASH_STR "VBoxStartup.log");
-        RTFileDelete(strOldStartupLogFile.c_str());
+        i_deleteFile(strOldStartupLogFile, true /* fIgnoreFailures */);
     }
 #else
     Utf8Str strSupHardeningLogArg;
@@ -7601,7 +8082,7 @@ HRESULT Machine::i_launchVMProcess(IInternalSessionControl *aControl,
         pid = (RTPROCESS)uPid;
     }
     else
-#endif /* VBOX_WITH_VBOXSDS && RT_OS_WINDOWS */
+#endif /* VBOX_WITH_SDS && RT_OS_WINDOWS */
     {
         int vrc = MachineLaunchVMCommonWorker(idStr, strMachineName, strFrontend, aEnvironmentChanges, strSupHardeningLogArg,
                                               strAppOverride, 0 /*fFlags*/, NULL /*pvExtraData*/, pid);
@@ -7791,7 +8272,7 @@ bool Machine::i_checkForSpawnFailure()
         uint64_t cbStartupLogFile = 0;
         int vrc2 = RTFileQuerySizeByPath(strHardeningLogFile.c_str(), &cbStartupLogFile);
         if (RT_SUCCESS(vrc2) && cbStartupLogFile > 0)
-            strExtraInfo.append(Utf8StrFmt(tr(".  More details may be available in '%s'"), strHardeningLogFile.c_str()));
+            strExtraInfo.appendPrintf(tr(".  More details may be available in '%s'"), strHardeningLogFile.c_str());
 #endif
 
         if (RT_SUCCESS(vrc) && status.enmReason == RTPROCEXITREASON_NORMAL)
@@ -7837,7 +8318,7 @@ bool Machine::i_checkForSpawnFailure()
 
         mData->mSession.mPID = NIL_RTPROCESS;
 
-        mParent->i_onSessionStateChange(mData->mUuid, SessionState_Unlocked);
+        mParent->i_onSessionStateChanged(mData->mUuid, SessionState_Unlocked);
         return true;
     }
 
@@ -8082,6 +8563,7 @@ HRESULT Machine::i_checkStateDependency(StateDependency aDepType)
                     || (   mData->mMachineState != MachineState_Aborted
                         && mData->mMachineState != MachineState_Teleported
                         && mData->mMachineState != MachineState_Saved
+                        && mData->mMachineState != MachineState_AbortedSaved
                         && mData->mMachineState != MachineState_PoweredOff
                        )
                    )
@@ -8114,6 +8596,7 @@ HRESULT Machine::i_checkStateDependency(StateDependency aDepType)
                     || (   mData->mMachineState != MachineState_Aborted
                         && mData->mMachineState != MachineState_Teleported
                         && mData->mMachineState != MachineState_Saved
+                        && mData->mMachineState != MachineState_AbortedSaved
                         && mData->mMachineState != MachineState_PoweredOff
                         && !Global::IsOnline(mData->mMachineState)
                        )
@@ -8169,6 +8652,14 @@ HRESULT Machine::initDataAndChildObjects()
     unconst(mRecordingSettings).createObject();
     mRecordingSettings->init(this);
 
+    /* create associated trusted platform module object */
+    unconst(mTrustedPlatformModule).createObject();
+    mTrustedPlatformModule->init(this);
+
+    /* create associated NVRAM store object */
+    unconst(mNvramStore).createObject();
+    mNvramStore->init(this);
+
     /* create the graphics adapter object (always present) */
     unconst(mGraphicsAdapter).createObject();
     mGraphicsAdapter->init(this);
@@ -8191,9 +8682,9 @@ HRESULT Machine::initDataAndChildObjects()
         mParallelPorts[slot]->init(this, slot);
     }
 
-    /* create the audio adapter object (always present, default is disabled) */
-    unconst(mAudioAdapter).createObject();
-    mAudioAdapter->init(this);
+    /* create the audio settings object */
+    unconst(mAudioSettings).createObject();
+    mAudioSettings->init(this);
 
     /* create the USB device filters object (always present) */
     unconst(mUSBDeviceFilters).createObject();
@@ -8210,6 +8701,10 @@ HRESULT Machine::initDataAndChildObjects()
     /* create the bandwidth control */
     unconst(mBandwidthControl).createObject();
     mBandwidthControl->init(this);
+
+    /* create the guest debug control object */
+    unconst(mGuestDebugControl).createObject();
+    mGuestDebugControl->init(this);
 
     return S_OK;
 }
@@ -8233,6 +8728,12 @@ void Machine::uninitDataAndChildObjects()
                      || getObjectState().getState() == ObjectState::Limited);
 
     /* tell all our other child objects we've been uninitialized */
+    if (mGuestDebugControl)
+    {
+        mGuestDebugControl->uninit();
+        unconst(mGuestDebugControl).setNull();
+    }
+
     if (mBandwidthControl)
     {
         mBandwidthControl->uninit();
@@ -8254,10 +8755,10 @@ void Machine::uninitDataAndChildObjects()
         unconst(mUSBDeviceFilters).setNull();
     }
 
-    if (mAudioAdapter)
+    if (mAudioSettings)
     {
-        mAudioAdapter->uninit();
-        unconst(mAudioAdapter).setNull();
+        mAudioSettings->uninit();
+        unconst(mAudioSettings).setNull();
     }
 
     for (ULONG slot = 0; slot < RT_ELEMENTS(mParallelPorts); ++slot)
@@ -8302,6 +8803,18 @@ void Machine::uninitDataAndChildObjects()
         unconst(mRecordingSettings).setNull();
     }
 
+    if (mTrustedPlatformModule)
+    {
+        mTrustedPlatformModule->uninit();
+        unconst(mTrustedPlatformModule).setNull();
+    }
+
+    if (mNvramStore)
+    {
+        mNvramStore->uninit();
+        unconst(mNvramStore).setNull();
+    }
+
     /* Deassociate media (only when a real Machine or a SnapshotMachine
      * instance is uninitialized; SessionMachine instances refer to real
      * Machine media). This is necessary for a clean re-initialization of
@@ -8329,12 +8842,11 @@ void Machine::uninitDataAndChildObjects()
 
     if (!i_isSessionMachine() && !i_isSnapshotMachine())
     {
-        // clean up the snapshots list (Snapshot::uninit() will handle the snapshot's children recursively)
+        // clean up the snapshots list (Snapshot::uninit() will handle the snapshot's children)
         if (mData->mFirstSnapshot)
         {
-            // snapshots tree is protected by machine write lock; strictly
-            // this isn't necessary here since we're deleting the entire
-            // machine, but otherwise we assert in Snapshot::uninit()
+            // Snapshots tree is protected by machine write lock.
+            // Otherwise we assert in Snapshot::uninit()
             AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
             mData->mFirstSnapshot->uninit();
             mData->mFirstSnapshot.setNull();
@@ -8422,7 +8934,7 @@ void Machine::i_ensureNoStateDependencies(AutoWriteLock &alock)
 HRESULT Machine::i_setMachineState(MachineState_T aMachineState)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("aMachineState=%s\n", Global::stringifyMachineState(aMachineState) ));
+    LogFlowThisFunc(("aMachineState=%s\n", ::stringifyMachineState(aMachineState) ));
     Assert(aMachineState != MachineState_Null);
 
     AutoCaller autoCaller(this);
@@ -8442,7 +8954,7 @@ HRESULT Machine::i_setMachineState(MachineState_T aMachineState)
 #ifdef VBOX_WITH_DTRACE_R3_MAIN
         VBOXAPI_MACHINE_STATE_CHANGED(this, aMachineState, enmOldState, mData->mUuid.toStringCurly().c_str());
 #endif
-        mParent->i_onMachineStateChange(mData->mUuid, aMachineState);
+        mParent->i_onMachineStateChanged(mData->mUuid, aMachineState);
     }
 
     LogFlowThisFuncLeave();
@@ -8525,6 +9037,14 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
     if (!pGuestOSType.isNull())
         mUserData->s.strOsType = pGuestOSType->i_id();
 
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    // stateFile encryption (optional)
+    mSSData->strStateKeyId = config.strStateKeyId;
+    mSSData->strStateKeyStore = config.strStateKeyStore;
+    mData->mstrLogKeyId = config.strLogKeyId;
+    mData->mstrLogKeyStore = config.strLogKeyStore;
+#endif
+
     // stateFile (optional)
     if (config.strStateFile.isEmpty())
         mSSData->strStateFilePath.setNull();
@@ -8580,12 +9100,10 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
     {
         // there must be only one root snapshot
         Assert(cRootSnapshots == 1);
-
         const settings::Snapshot &snap = config.llFirstSnapshot.front();
 
         rc = i_loadSnapshot(snap,
-                            config.uuidCurrentSnapshot,
-                            NULL);        // no parent == first snapshot
+                            config.uuidCurrentSnapshot);
         if (FAILED(rc)) return rc;
     }
 
@@ -8601,8 +9119,13 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
      *  blocked by i_checkStateDependency(MutableStateDep).
      */
 
-    /* set the machine state to Aborted or Saved when appropriate */
-    if (config.fAborted)
+    /* set the machine state to either Aborted-Saved, Aborted, or Saved if appropriate */
+    if (config.fAborted && !mSSData->strStateFilePath.isEmpty())
+    {
+        /* no need to use i_setMachineState() during init() */
+        mData->mMachineState = MachineState_AbortedSaved;
+    }
+    else if (config.fAborted)
     {
         mSSData->strStateFilePath.setNull();
 
@@ -8622,81 +9145,91 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
 }
 
 /**
- *  Recursively loads all snapshots starting from the given.
+ *  Loads all snapshots starting from the given settings.
  *
  *  @param data             snapshot settings.
  *  @param aCurSnapshotId   Current snapshot ID from the settings file.
- *  @param aParentSnapshot  Parent snapshot.
  */
 HRESULT Machine::i_loadSnapshot(const settings::Snapshot &data,
-                                const Guid &aCurSnapshotId,
-                                Snapshot *aParentSnapshot)
+                                const Guid &aCurSnapshotId)
 {
     AssertReturn(!i_isSnapshotMachine(), E_FAIL);
     AssertReturn(!i_isSessionMachine(), E_FAIL);
 
     HRESULT rc = S_OK;
 
-    Utf8Str strStateFile;
-    if (!data.strStateFile.isEmpty())
+    std::list<const settings::Snapshot *> llSettingsTodo;
+    llSettingsTodo.push_back(&data);
+    std::list<Snapshot *> llParentsTodo;
+    llParentsTodo.push_back(NULL);
+
+    while (llSettingsTodo.size() > 0)
     {
-        /* optional */
-        strStateFile = data.strStateFile;
-        int vrc = i_calculateFullPath(strStateFile, strStateFile);
-        if (RT_FAILURE(vrc))
-            return setErrorBoth(E_FAIL, vrc,
-                                tr("Invalid saved state file path '%s' (%Rrc)"),
-                                strStateFile.c_str(),
-                                vrc);
-    }
+        const settings::Snapshot *current = llSettingsTodo.front();
+        llSettingsTodo.pop_front();
+        Snapshot *pParent = llParentsTodo.front();
+        llParentsTodo.pop_front();
 
-    /* create a snapshot machine object */
-    ComObjPtr<SnapshotMachine> pSnapshotMachine;
-    pSnapshotMachine.createObject();
-    rc = pSnapshotMachine->initFromSettings(this,
-                                            data.hardware,
-                                            &data.debugging,
-                                            &data.autostart,
-                                            data.recordingSettings,
-                                            data.uuid.ref(),
-                                            strStateFile);
-    if (FAILED(rc)) return rc;
+        Utf8Str strStateFile;
+        if (!current->strStateFile.isEmpty())
+        {
+            /* optional */
+            strStateFile = current->strStateFile;
+            int vrc = i_calculateFullPath(strStateFile, strStateFile);
+            if (RT_FAILURE(vrc))
+            {
+                setErrorBoth(E_FAIL, vrc,
+                             tr("Invalid saved state file path '%s' (%Rrc)"),
+                             strStateFile.c_str(), vrc);
+            }
+        }
 
-    /* create a snapshot object */
-    ComObjPtr<Snapshot> pSnapshot;
-    pSnapshot.createObject();
-    /* initialize the snapshot */
-    rc = pSnapshot->init(mParent, // VirtualBox object
-                         data.uuid,
-                         data.strName,
-                         data.strDescription,
-                         data.timestamp,
-                         pSnapshotMachine,
-                         aParentSnapshot);
-    if (FAILED(rc)) return rc;
+        /* create a snapshot machine object */
+        ComObjPtr<SnapshotMachine> pSnapshotMachine;
+        pSnapshotMachine.createObject();
+        rc = pSnapshotMachine->initFromSettings(this,
+                                                current->hardware,
+                                                &current->debugging,
+                                                &current->autostart,
+                                                current->recordingSettings,
+                                                current->uuid.ref(),
+                                                strStateFile);
+        if (FAILED(rc)) break;
 
-    /* memorize the first snapshot if necessary */
-    if (!mData->mFirstSnapshot)
-        mData->mFirstSnapshot = pSnapshot;
+        /* create a snapshot object */
+        ComObjPtr<Snapshot> pSnapshot;
+        pSnapshot.createObject();
+        /* initialize the snapshot */
+        rc = pSnapshot->init(mParent, // VirtualBox object
+                             current->uuid,
+                             current->strName,
+                             current->strDescription,
+                             current->timestamp,
+                             pSnapshotMachine,
+                             pParent);
+        if (FAILED(rc)) break;
 
-    /* memorize the current snapshot when appropriate */
-    if (    !mData->mCurrentSnapshot
-         && pSnapshot->i_getId() == aCurSnapshotId
-       )
-        mData->mCurrentSnapshot = pSnapshot;
+        /* memorize the first snapshot if necessary */
+        if (!mData->mFirstSnapshot)
+        {
+            Assert(pParent == NULL);
+            mData->mFirstSnapshot = pSnapshot;
+        }
 
-    // now create the children
-    for (settings::SnapshotsList::const_iterator
-         it = data.llChildSnapshots.begin();
-         it != data.llChildSnapshots.end();
-         ++it)
-    {
-        const settings::Snapshot &childData = *it;
-        // recurse
-        rc = i_loadSnapshot(childData,
-                            aCurSnapshotId,
-                            pSnapshot);       // parent = the one we created above
-        if (FAILED(rc)) return rc;
+        /* memorize the current snapshot when appropriate */
+        if (    !mData->mCurrentSnapshot
+             && pSnapshot->i_getId() == aCurSnapshotId
+           )
+            mData->mCurrentSnapshot = pSnapshot;
+
+        /* create all children */
+        std::list<settings::Snapshot>::const_iterator itBegin = current->llChildSnapshots.begin();
+        std::list<settings::Snapshot>::const_iterator itEnd = current->llChildSnapshots.end();
+        for (std::list<settings::Snapshot>::const_iterator it = itBegin; it != itEnd; ++it)
+        {
+            llSettingsTodo.push_back(&*it);
+            llParentsTodo.push_back(pSnapshot);
+        }
     }
 
     return rc;
@@ -8739,6 +9272,7 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         mHWData->mHWVirtExUXEnabled           = data.fUnrestrictedExecution;
         mHWData->mHWVirtExForceEnabled        = data.fHardwareVirtForce;
         mHWData->mHWVirtExUseNativeApi        = data.fUseNativeApi;
+        mHWData->mHWVirtExVirtVmsaveVmload    = data.fVirtVmsaveVmload;
         mHWData->mPAEEnabled                  = data.fPAE;
         mHWData->mLongMode                    = data.enmLongMode;
         mHWData->mTripleFaultReset            = data.fTripleFaultReset;
@@ -8804,6 +9338,7 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         mHWData->mPointingHIDType = data.pointingHIDType;
         mHWData->mKeyboardHIDType = data.keyboardHIDType;
         mHWData->mChipsetType = data.chipsetType;
+        mHWData->mIommuType = data.iommuType;
         mHWData->mParavirtProvider = data.paravirtProvider;
         mHWData->mParavirtDebug = data.strParavirtDebug;
         mHWData->mEmulatedUSBCardReaderEnabled = data.fEmulatedUSBCardReader;
@@ -8823,6 +9358,13 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
 
         /* Recording */
         rc = mRecordingSettings->i_loadSettings(recording);
+        if (FAILED(rc)) return rc;
+
+        /* Trusted Platform Module */
+        rc = mTrustedPlatformModule->i_loadSettings(data.tpmSettings);
+        if (FAILED(rc)) return rc;
+
+        rc = mNvramStore->i_loadSettings(data.nvramSettings);
         if (FAILED(rc)) return rc;
 
         // Bandwidth control (must come before network adapters)
@@ -8910,8 +9452,8 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
             if (FAILED(rc)) return rc;
         }
 
-        /* AudioAdapter */
-        rc = mAudioAdapter->i_loadSettings(data.audioAdapter);
+        /* Audio settings */
+        rc = mAudioSettings->i_loadSettings(data.audioAdapter);
         if (FAILED(rc)) return rc;
 
         /* storage controllers */
@@ -9047,6 +9589,10 @@ HRESULT Machine::i_loadDebugging(const settings::Debugging *pDbg)
 {
     mHWData->mDebugging = *pDbg;
     /* no more processing currently required, this will probably change. */
+
+    HRESULT rc = mGuestDebugControl->i_loadSettings(*pDbg);
+    if (FAILED(rc)) return rc;
+
     return S_OK;
 }
 
@@ -9274,10 +9820,9 @@ HRESULT Machine::i_loadStorageDevices(StorageController *aStorageController,
 
             default:
                 return setError(E_FAIL,
-                                tr("Device '%s' with unknown type is attached to the virtual machine '%s' ('%s')"),
-                                medium->i_getLocationFull().c_str(),
-                                mUserData->s.strName.c_str(),
-                                mData->m_strConfigFileFull.c_str());
+                                tr("Controller '%s' port %u unit %u has device with unknown type (%d) - virtual machine '%s' ('%s')"),
+                                data.strName.c_str(), dev.lPort, dev.lDevice, dev.deviceType,
+                                mUserData->s.strName.c_str(), mData->m_strConfigFileFull.c_str());
         }
 
         if (FAILED(rc))
@@ -9548,14 +10093,14 @@ HRESULT Machine::i_getMediumAttachmentsOfController(const Utf8Str &aName,
  *
  *  @note Must be never called directly but only from #saveSettings().
  */
-HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
+HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings,
+                                       bool *pfSettingsFileIsNew)
 {
     AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
 
     HRESULT rc = S_OK;
 
     bool fSettingsFileIsNew = !mData->pMachineConfigFile->fileExists();
-
     /// @todo need to handle primary group change, too
 
     /* attempt to rename the settings file if machine name is changed */
@@ -9589,16 +10134,14 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
             configFile = mData->m_strConfigFileFull;
 
             /* first, rename the directory if it matches the group and machine name */
-            Utf8Str groupPlusName = Utf8StrFmt("%s%c%s",
-                group.c_str(), RTPATH_DELIMITER, name.c_str());
+            Utf8StrFmt groupPlusName("%s%c%s", group.c_str(), RTPATH_DELIMITER, name.c_str());
             /** @todo hack, make somehow use of ComposeMachineFilename */
             if (mUserData->s.fDirectoryIncludesUUID)
-                groupPlusName += Utf8StrFmt(" (%RTuuid)", mData->mUuid.raw());
-            Utf8Str newGroupPlusName = Utf8StrFmt("%s%c%s",
-                newGroup.c_str(), RTPATH_DELIMITER, newName.c_str());
+                groupPlusName.appendPrintf(" (%RTuuid)", mData->mUuid.raw());
+            Utf8StrFmt newGroupPlusName("%s%c%s", newGroup.c_str(), RTPATH_DELIMITER, newName.c_str());
             /** @todo hack, make somehow use of ComposeMachineFilename */
             if (mUserData->s.fDirectoryIncludesUUID)
-                newGroupPlusName += Utf8StrFmt(" (%RTuuid)", mData->mUuid.raw());
+                newGroupPlusName.appendPrintf(" (%RTuuid)", mData->mUuid.raw());
             configDir = configFile;
             configDir.stripFilename();
             newConfigDir = configDir;
@@ -9650,17 +10193,17 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                 }
             }
 
-            newConfigFile = Utf8StrFmt("%s%c%s.vbox",
-                newConfigDir.c_str(), RTPATH_DELIMITER, newName.c_str());
+            newConfigFile.printf("%s%c%s.vbox", newConfigDir.c_str(), RTPATH_DELIMITER, newName.c_str());
 
             /* then try to rename the settings file itself */
             if (newConfigFile != configFile)
             {
                 /* get the path to old settings file in renamed directory */
-                configFile = Utf8StrFmt("%s%c%s",
-                                        newConfigDir.c_str(),
-                                        RTPATH_DELIMITER,
-                                        RTPathFilename(configFile.c_str()));
+                Assert(mData->m_strConfigFileFull == configFile);
+                configFile.printf("%s%c%s",
+                                  newConfigDir.c_str(),
+                                  RTPATH_DELIMITER,
+                                  RTPathFilename(mData->m_strConfigFileFull.c_str()));
                 if (!fSettingsFileIsNew)
                 {
                     /* perform real rename only if the machine is not new */
@@ -9680,7 +10223,7 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                     newConfigFilePrev = newConfigFile;
                     newConfigFilePrev += "-prev";
                     RTFileRename(configFilePrev.c_str(), newConfigFilePrev.c_str(), 0);
-                    NVRAMFile = mBIOSSettings->i_getNonVolatileStorageFile();
+                    NVRAMFile = mNvramStore->i_getNonVolatileStorageFile();
                     if (NVRAMFile.isNotEmpty())
                     {
                         // in the NVRAM file path, replace the old directory with the new directory
@@ -9720,7 +10263,7 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                 mSSData->strStateFilePath = newConfigDir + strStateFileName;
             }
             if (newNVRAMFile.isNotEmpty())
-                mBIOSSettings->i_updateNonVolatileStorageFile(newNVRAMFile);
+                mNvramStore->i_updateNonVolatileStorageFile(newNVRAMFile);
 
             // and do the same thing for the saved state file paths of all the online snapshots and NVRAM files of all snapshots
             if (mData->mFirstSnapshot)
@@ -9771,7 +10314,7 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
         }
 
         /* Note: open flags must correlate with RTFileOpen() in lockConfig() */
-        path = Utf8Str(mData->m_strConfigFileFull);
+        path = mData->m_strConfigFileFull;
         RTFILE f = NIL_RTFILE;
         vrc = RTFileOpen(&f, path.c_str(),
                          RTFILE_O_READWRITE | RTFILE_O_CREATE | RTFILE_O_DENY_WRITE);
@@ -9782,6 +10325,8 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
                                 vrc);
         RTFileClose(f);
     }
+    if (pfSettingsFileIsNew)
+        *pfSettingsFileIsNew = fSettingsFileIsNew;
 
     return rc;
 }
@@ -9814,7 +10359,7 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
  */
 HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
                                 AutoWriteLock &alock,
-                                int  aFlags /*= 0*/)
+                                int aFlags /*= 0*/)
 {
     LogFlowThisFuncEnter();
 
@@ -9832,13 +10377,56 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
                         tr("The machine is not accessible, so cannot save settings"));
 
     HRESULT rc = S_OK;
+    PCVBOXCRYPTOIF pCryptoIf = NULL;
+    const char  *pszPassword = NULL;
+    SecretKey   *pKey        = NULL;
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    if (mData->mstrKeyId.isNotEmpty())
+    {
+        /* VM is going to be encrypted. */
+        alock.release(); /** @todo Revise the locking. */
+        rc = mParent->i_retainCryptoIf(&pCryptoIf);
+        alock.acquire();
+        if (FAILED(rc)) return rc; /* Error is set. */
+
+        int vrc = mData->mpKeyStore->retainSecretKey(mData->mstrKeyId, &pKey);
+        if (RT_SUCCESS(vrc))
+            pszPassword = (const char *)pKey->getKeyBuffer();
+        else
+        {
+            mParent->i_releaseCryptoIf(pCryptoIf);
+            return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                                tr("Failed to retain VM encryption password using ID '%s' with %Rrc"),
+                                mData->mstrKeyId.c_str(), vrc);
+        }
+    }
+#else
+    RT_NOREF(pKey);
+#endif
+
     bool fNeedsWrite = false;
+    bool fSettingsFileIsNew = false;
 
     /* First, prepare to save settings. It will care about renaming the
      * settings directory and file if the machine name was changed and about
      * creating a new settings file if this is a new machine. */
-    rc = i_prepareSaveSettings(pfNeedsGlobalSaveSettings);
-    if (FAILED(rc)) return rc;
+    rc = i_prepareSaveSettings(pfNeedsGlobalSaveSettings,
+                               &fSettingsFileIsNew);
+    if (FAILED(rc))
+    {
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        if (pCryptoIf)
+        {
+            alock.release(); /** @todo Revise the locking. */
+            mParent->i_releaseCryptoIf(pCryptoIf);
+            alock.acquire();
+        }
+        if (pKey)
+            mData->mpKeyStore->releaseSecretKey(mData->mstrKeyId);
+#endif
+        return rc;
+    }
 
     // keep a pointer to the current settings structures
     settings::MachineConfigFile *pOldConfig = mData->pMachineConfigFile;
@@ -9849,6 +10437,10 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
         // make a fresh one to have everyone write stuff into
         pNewConfig = new settings::MachineConfigFile(NULL);
         pNewConfig->copyBaseFrom(*mData->pMachineConfigFile);
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        pNewConfig->strKeyId    = mData->mstrKeyId;
+        pNewConfig->strKeyStore = mData->mstrKeyStore;
+#endif
 
         // now go and copy all the settings data from COM to the settings structures
         // (this calls i_saveSettings() on all the COM objects in the machine)
@@ -9886,8 +10478,12 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
         pNewConfig->fCurrentStateModified = !!mData->mCurrentStateModified;
 
         if (fNeedsWrite)
+        {
             // now spit it all out!
-            pNewConfig->write(mData->m_strConfigFileFull);
+            pNewConfig->write(mData->m_strConfigFileFull, pCryptoIf, pszPassword);
+            if (aFlags & SaveS_RemoveBackup)
+                i_deleteFile(mData->m_strConfigFileFull + "-prev", true /* fIgnoreFailures */);
+        }
 
         mData->pMachineConfigFile = pNewConfig;
         delete pOldConfig;
@@ -9901,6 +10497,10 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
         // we assume that error info is set by the thrower
         rc = err;
 
+        // delete any newly created settings file
+        if (fSettingsFileIsNew)
+            i_deleteFile(mData->m_strConfigFileFull, true /* fIgnoreFailures */);
+
         // restore old config
         delete pNewConfig;
         mData->pMachineConfigFile = pOldConfig;
@@ -9910,6 +10510,17 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
         rc = VirtualBoxBase::handleUnexpectedExceptions(this, RT_SRC_POS);
     }
 
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    if (pCryptoIf)
+    {
+        alock.release(); /** @todo Revise the locking. */
+        mParent->i_releaseCryptoIf(pCryptoIf);
+        alock.acquire();
+    }
+    if (pKey)
+        mData->mpKeyStore->releaseSecretKey(mData->mstrKeyId);
+#endif
+
     if (fNeedsWrite)
     {
         /* Fire the data change event, even on failure (since we've already
@@ -9918,7 +10529,7 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
          * to the client process that creates them) and thus don't need to
          * inform callbacks. */
         if (i_isSessionMachine())
-            mParent->i_onMachineDataChange(mData->mUuid);
+            mParent->i_onMachineDataChanged(mData->mUuid);
     }
 
     LogFlowThisFunc(("rc=%08X\n", rc));
@@ -9963,7 +10574,15 @@ void Machine::i_copyMachineDataToSettings(settings::MachineConfigFile &config)
     // copy name, description, OS type, teleport, UTC etc.
     config.machineUserData = mUserData->s;
 
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    config.strStateKeyId    = mSSData->strStateKeyId;
+    config.strStateKeyStore = mSSData->strStateKeyStore;
+    config.strLogKeyId      = mData->mstrLogKeyId;
+    config.strLogKeyStore   = mData->mstrLogKeyStore;
+#endif
+
     if (    mData->mMachineState == MachineState_Saved
+         || mData->mMachineState == MachineState_AbortedSaved
          || mData->mMachineState == MachineState_Restoring
             // when doing certain snapshot operations we may or may not have
             // a saved state in the current state, so keep everything as is
@@ -9990,7 +10609,7 @@ void Machine::i_copyMachineDataToSettings(settings::MachineConfigFile &config)
         config.uuidCurrentSnapshot.clear();
 
     config.timeLastStateChange = mData->mLastStateChange;
-    config.fAborted = (mData->mMachineState == MachineState_Aborted);
+    config.fAborted = (mData->mMachineState == MachineState_Aborted || mData->mMachineState == MachineState_AbortedSaved);
     /// @todo Live Migration:        config.fTeleported = (mData->mMachineState == MachineState_Teleported);
 
     HRESULT hrc = i_saveHardware(config.hardwareMachine, &config.debugging, &config.autostart, config.recordingSettings);
@@ -10081,7 +10700,7 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         if (    mHWData->mHWVersion == "1"
              && mSSData->strStateFilePath.isEmpty()
            )
-            mHWData->mHWVersion = Utf8StrFmt("%d", SchemaDefs::DefaultHardwareVersion);
+            mHWData->mHWVersion.printf("%d", SchemaDefs::DefaultHardwareVersion);
 
         data.strVersion = mHWData->mHWVersion;
         data.uuid = mHWData->mHardwareUUID;
@@ -10094,6 +10713,7 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         data.fUnrestrictedExecution = !!mHWData->mHWVirtExUXEnabled;
         data.fHardwareVirtForce     = !!mHWData->mHWVirtExForceEnabled;
         data.fUseNativeApi          = !!mHWData->mHWVirtExUseNativeApi;
+        data.fVirtVmsaveVmload      = !!mHWData->mHWVirtExVirtVmsaveVmload;
         data.fPAE                   = !!mHWData->mPAEEnabled;
         data.enmLongMode            = mHWData->mLongMode;
         data.fTripleFaultReset      = !!mHWData->mTripleFaultReset;
@@ -10146,6 +10766,9 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         // chipset
         data.chipsetType = mHWData->mChipsetType;
 
+        // iommu
+        data.iommuType = mHWData->mIommuType;
+
         // paravirt
         data.paravirtProvider = mHWData->mParavirtProvider;
         data.strParavirtDebug = mHWData->mParavirtDebug;
@@ -10171,6 +10794,14 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
 
         /* Recording settings. */
         rc = mRecordingSettings->i_saveSettings(recording);
+        if (FAILED(rc)) throw rc;
+
+        /* Trusted Platform Module settings (required) */
+        rc = mTrustedPlatformModule->i_saveSettings(data.tpmSettings);
+        if (FAILED(rc)) throw rc;
+
+        /* NVRAM settings (required) */
+        rc = mNvramStore->i_saveSettings(data.nvramSettings);
         if (FAILED(rc)) throw rc;
 
         /* GraphicsAdapter settings (required) */
@@ -10250,8 +10881,8 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
             data.llParallelPorts.push_back(p);
         }
 
-        /* Audio adapter */
-        rc = mAudioAdapter->i_saveSettings(data.audioAdapter);
+        /* Audio settings */
+        rc = mAudioSettings->i_saveSettings(data.audioAdapter);
         if (FAILED(rc)) return rc;
 
         rc = i_saveStorageControllers(data.storage);
@@ -10333,7 +10964,7 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
             settings::GuestProperty prop; /// @todo r=bird: some excellent variable name choices here: 'prop' and 'property'; No 'const' clue either.
             prop.strName = it->first;
             prop.strValue = property.strValue;
-            prop.timestamp = property.mTimestamp;
+            prop.timestamp = (uint64_t)property.mTimestamp;
             char szFlags[GUEST_PROP_MAX_FLAGS_LEN + 1];
             GuestPropWriteFlags(property.mFlags, szFlags);
             prop.strFlags = szFlags;
@@ -10345,7 +10976,10 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         mData->mGuestPropertiesModified = FALSE;
 #endif /* VBOX_WITH_GUEST_PROPS defined */
 
-        *pDbg = mHWData->mDebugging;
+        rc = mGuestDebugControl->i_saveSettings(mHWData->mDebugging);
+        if (FAILED(rc)) throw rc;
+
+        *pDbg = mHWData->mDebugging; /// @todo r=aeichner: Move this to guest debug control. */
         *pAutostart = mHWData->mAutostart;
 
         data.strDefaultFrontend = mHWData->mDefaultFrontend;
@@ -10496,7 +11130,8 @@ HRESULT Machine::i_saveStateSettings(int aFlags)
 
             mData->pMachineConfigFile->timeLastStateChange = mData->mLastStateChange;
 
-            mData->pMachineConfigFile->fAborted = (mData->mMachineState == MachineState_Aborted);
+            mData->pMachineConfigFile->fAborted = (mData->mMachineState == MachineState_Aborted
+                                                || mData->mMachineState == MachineState_AbortedSaved);
 /// @todo live migration             mData->pMachineConfigFile->fTeleported = (mData->mMachineState == MachineState_Teleported);
         }
 
@@ -10553,20 +11188,65 @@ void Machine::i_addMediumToRegistry(ComObjPtr<Medium> &pMedium)
      * medium isn't yet associated with any medium registry. Do that now. */
     if (pMedium != pBase)
     {
-        /* Tree lock needed by Medium::addRegistry when recursing. */
+        /* Tree lock needed by Medium::addRegistryAll. */
         AutoReadLock treeLock(&mParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-        if (fCanHaveOwnMediaRegistry && pMedium->i_removeRegistryRecursive(mParent->i_getGlobalRegistryId()))
+        if (fCanHaveOwnMediaRegistry && pBase->i_removeRegistryAll(mParent->i_getGlobalRegistryId()))
         {
             treeLock.release();
             mParent->i_markRegistryModified(mParent->i_getGlobalRegistryId());
             treeLock.acquire();
         }
-        if (pBase->i_addRegistryRecursive(uuid))
+        if (pBase->i_addRegistryAll(uuid))
         {
             treeLock.release();
             mParent->i_markRegistryModified(uuid);
         }
     }
+}
+
+/**
+ * Physically deletes a file belonging to a machine.
+ *
+ * @returns HRESULT
+ * @retval  VBOX_E_FILE_ERROR on failure.
+ * @param   strFile             File to delete.
+ * @param   fIgnoreFailures     Whether to ignore deletion failures. Defaults to \c false.
+ *                              VERR_FILE_NOT_FOUND and VERR_PATH_NOT_FOUND always will be ignored.
+ * @param   strWhat             File hint which will be used when setting an error. Optional.
+ * @param   prc                 Where to return IPRT's error code on failure. Optional and can be NULL.
+ */
+HRESULT Machine::i_deleteFile(const Utf8Str &strFile, bool fIgnoreFailures /* = false */,
+                              const Utf8Str &strWhat /* = "" */, int *prc /* = NULL */)
+{
+    AssertReturn(strFile.isNotEmpty(), E_INVALIDARG);
+
+    HRESULT hrc = S_OK;
+
+    LogFunc(("Deleting file '%s'\n", strFile.c_str()));
+
+    int vrc = RTFileDelete(strFile.c_str());
+    if (RT_FAILURE(vrc))
+    {
+        if (   !fIgnoreFailures
+            /* Don't (externally) bitch about stuff which doesn't exist. */
+            && (   vrc != VERR_FILE_NOT_FOUND
+                && vrc != VERR_PATH_NOT_FOUND
+               )
+           )
+        {
+            LogRel(("Deleting file '%s' failed: %Rrc\n", strFile.c_str(), vrc));
+
+            Utf8StrFmt strError("Error deleting %s '%s' (%Rrc)",
+                                strWhat.isEmpty() ? tr("file") : strWhat.c_str(), strFile.c_str(), vrc);
+            hrc = setErrorBoth(VBOX_E_FILE_ERROR, vrc, strError.c_str(),
+                               strFile.c_str(), vrc);
+        }
+
+        if (prc)
+            *prc = vrc;
+    }
+
+    return hrc;
 }
 
 /**
@@ -11579,7 +12259,7 @@ bool Machine::i_isInOwnDir(Utf8Str *aSettingsDir /* = NULL */) const
                      .stripSuffix();                        // vmname
     /** @todo hack, make somehow use of ComposeMachineFilename */
     if (mUserData->s.fDirectoryIncludesUUID)
-        strConfigFileOnly += Utf8StrFmt(" (%RTuuid)", mData->mUuid.raw());
+        strConfigFileOnly.appendPrintf(" (%RTuuid)", mData->mUuid.raw());
 
     AssertReturn(!strMachineDirName.isEmpty(), false);
     AssertReturn(!strConfigFileOnly.isEmpty(), false);
@@ -11686,20 +12366,29 @@ void Machine::i_rollback(bool aNotify)
     if (mRecordingSettings && (mData->flModifications & IsModified_Recording))
         mRecordingSettings->i_rollback();
 
+    if (mTrustedPlatformModule)
+        mTrustedPlatformModule->i_rollback();
+
+    if (mNvramStore)
+        mNvramStore->i_rollback();
+
     if (mGraphicsAdapter && (mData->flModifications & IsModified_GraphicsAdapter))
         mGraphicsAdapter->i_rollback();
 
     if (mVRDEServer && (mData->flModifications & IsModified_VRDEServer))
         mVRDEServer->i_rollback();
 
-    if (mAudioAdapter && (mData->flModifications & IsModified_AudioAdapter))
-        mAudioAdapter->i_rollback();
+    if (mAudioSettings && (mData->flModifications & IsModified_AudioSettings))
+        mAudioSettings->i_rollback();
 
     if (mUSBDeviceFilters && (mData->flModifications & IsModified_USB))
         mUSBDeviceFilters->i_rollback();
 
     if (mBandwidthControl && (mData->flModifications & IsModified_BandwidthControl))
         mBandwidthControl->i_rollback();
+
+    if (mGuestDebugControl && (mData->flModifications & IsModified_GuestDebugControl))
+        mGuestDebugControl->i_rollback();
 
     if (!mHWData.isNull())
         mNetworkAdapters.resize(Global::getMaxNetworkAdapters(mHWData->mChipsetType));
@@ -11771,6 +12460,8 @@ void Machine::i_rollback(bool aNotify)
             }
         }
 
+        if (flModifications & IsModified_GuestDebugControl)
+            that->i_onGuestDebugControlChange(mGuestDebugControl);
 
 #if 0
         if (flModifications & IsModified_BandwidthControl)
@@ -11809,11 +12500,14 @@ void Machine::i_commit()
 
     mBIOSSettings->i_commit();
     mRecordingSettings->i_commit();
+    mTrustedPlatformModule->i_commit();
+    mNvramStore->i_commit();
     mGraphicsAdapter->i_commit();
     mVRDEServer->i_commit();
-    mAudioAdapter->i_commit();
+    mAudioSettings->i_commit();
     mUSBDeviceFilters->i_commit();
     mBandwidthControl->i_commit();
+    mGuestDebugControl->i_commit();
 
     /* Since mNetworkAdapters is a list which might have been changed (resized)
      * without using the Backupable<> template we need to handle the copying
@@ -12063,11 +12757,14 @@ void Machine::i_copyFrom(Machine *aThat)
 
     mBIOSSettings->i_copyFrom(aThat->mBIOSSettings);
     mRecordingSettings->i_copyFrom(aThat->mRecordingSettings);
+    mTrustedPlatformModule->i_copyFrom(aThat->mTrustedPlatformModule);
+    mNvramStore->i_copyFrom(aThat->mNvramStore);
     mGraphicsAdapter->i_copyFrom(aThat->mGraphicsAdapter);
     mVRDEServer->i_copyFrom(aThat->mVRDEServer);
-    mAudioAdapter->i_copyFrom(aThat->mAudioAdapter);
+    mAudioSettings->i_copyFrom(aThat->mAudioSettings);
     mUSBDeviceFilters->i_copyFrom(aThat->mUSBDeviceFilters);
     mBandwidthControl->i_copyFrom(aThat->mBandwidthControl);
+    mGuestDebugControl->i_copyFrom(aThat->mGuestDebugControl);
 
     /* create private copies of all controllers */
     mStorageControllers.backup();
@@ -12437,17 +13134,25 @@ HRESULT SessionMachine::init(Machine *aMachine)
 
     unconst(mBIOSSettings).createObject();
     mBIOSSettings->init(this, aMachine->mBIOSSettings);
+
     unconst(mRecordingSettings).createObject();
     mRecordingSettings->init(this, aMachine->mRecordingSettings);
+
+    unconst(mTrustedPlatformModule).createObject();
+    mTrustedPlatformModule->init(this, aMachine->mTrustedPlatformModule);
+
+    unconst(mNvramStore).createObject();
+    mNvramStore->init(this, aMachine->mNvramStore);
+
     /* create another GraphicsAdapter object that will be mutable */
     unconst(mGraphicsAdapter).createObject();
     mGraphicsAdapter->init(this, aMachine->mGraphicsAdapter);
     /* create another VRDEServer object that will be mutable */
     unconst(mVRDEServer).createObject();
     mVRDEServer->init(this, aMachine->mVRDEServer);
-    /* create another audio adapter object that will be mutable */
-    unconst(mAudioAdapter).createObject();
-    mAudioAdapter->init(this, aMachine->mAudioAdapter);
+    /* create another audio settings object that will be mutable */
+    unconst(mAudioSettings).createObject();
+    mAudioSettings->init(this, aMachine->mAudioSettings);
     /* create a list of serial ports that will be mutable */
     for (ULONG slot = 0; slot < RT_ELEMENTS(mSerialPorts); ++slot)
     {
@@ -12476,6 +13181,9 @@ HRESULT SessionMachine::init(Machine *aMachine)
     /* create another bandwidth control object that will be mutable */
     unconst(mBandwidthControl).createObject();
     mBandwidthControl->init(this, aMachine->mBandwidthControl);
+
+    unconst(mGuestDebugControl).createObject();
+    mGuestDebugControl->init(this, aMachine->mGuestDebugControl);
 
     /* default is to delete saved state on Saved -> PoweredOff transition */
     mRemoveSavedState = true;
@@ -12600,13 +13308,16 @@ void SessionMachine::uninit(Uninit::Reason aReason)
         Log1WarningThisFunc(("ABNORMAL client termination! (wasBusy=%d)\n", Global::IsOnlineOrTransient(lastState)));
 
         /*
-         * Reset the machine state to Aborted unless we crashed when restoring
-         * a VM in the Saved state before it reached the Restoring state. In that
-         * case we maintain the Saved state so that the saved state file remains
-         * intact and the VM can be restored in the future.
+         * Move the VM to the 'Aborted' machine state unless we are restoring a
+         * VM that was in the 'Saved' machine state.  In that case, if the VM
+         * fails before reaching either the 'Restoring' machine state or the
+         * 'Running' machine state then we set the machine state to
+         * 'AbortedSaved' in order to preserve the saved state file so that the
+         * VM can be restored in the future.
          */
-        if (   mData->mMachineState != MachineState_Aborted
-            && mData->mMachineState != MachineState_Saved)
+        if (mData->mMachineState == MachineState_Saved || mData->mMachineState == MachineState_Restoring)
+            i_setMachineState(MachineState_AbortedSaved);
+        else if (mData->mMachineState != MachineState_Aborted && mData->mMachineState != MachineState_AbortedSaved)
             i_setMachineState(MachineState_Aborted);
     }
 
@@ -12751,7 +13462,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
     }
 
     /* fire an event */
-    mParent->i_onSessionStateChange(mData->mUuid, SessionState_Unlocked);
+    mParent->i_onSessionStateChanged(mData->mUuid, SessionState_Unlocked);
 
     uninitDataAndChildObjects();
 
@@ -12927,7 +13638,7 @@ void SessionMachine::i_saveStateHandler(SaveStateTask &task)
             // Delete the saved state file (might have been already created).
             // No need to check whether this is shared with a snapshot here
             // because we certainly created a fresh saved state file here.
-            RTFileDelete(task.m_strStateFilePath.c_str());
+            i_deleteFile(task.m_strStateFilePath, true /* fIgnoreFailures */);
         }
     }
     catch (HRESULT aRC) { rc = aRC; }
@@ -13031,9 +13742,10 @@ HRESULT SessionMachine::discardSavedState(BOOL aFRemoveFile)
     HRESULT rc = i_checkStateDependency(MutableOrSavedStateDep);
     if (FAILED(rc)) return rc;
 
-    if (mData->mMachineState != MachineState_Saved)
+    if (   mData->mMachineState != MachineState_Saved
+        && mData->mMachineState != MachineState_AbortedSaved)
         return setError(VBOX_E_INVALID_VM_STATE,
-            tr("Cannot delete the machine state as the machine is not in the saved state (machine state: %s)"),
+            tr("Cannot discard the saved state as the machine is not in the Saved or Aborted-Saved state (machine state: %s)"),
             Global::stringifyMachineState(mData->mMachineState));
 
     mRemoveSavedState = RT_BOOL(aFRemoveFile);
@@ -13182,12 +13894,13 @@ HRESULT SessionMachine::beginPoweringDown(ComPtr<IProgress> &aProgress)
 HRESULT SessionMachine::endPoweringDown(LONG aResult,
                                         const com::Utf8Str &aErrMsg)
 {
+    HRESULT const hrcResult = (HRESULT)aResult;
     LogFlowThisFuncEnter();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    AssertReturn(    (   (SUCCEEDED(aResult) && mData->mMachineState == MachineState_PoweredOff)
-                      || (FAILED(aResult) && mData->mMachineState == MachineState_Stopping))
+    AssertReturn(    (   (SUCCEEDED(hrcResult) && mData->mMachineState == MachineState_PoweredOff)
+                      || (FAILED(hrcResult) && mData->mMachineState == MachineState_Stopping))
                   && mConsoleTaskData.mLastState != MachineState_Null,
                  E_FAIL);
 
@@ -13197,22 +13910,22 @@ HRESULT SessionMachine::endPoweringDown(LONG aResult,
      * task). On success the VM process already changed the state to
      * MachineState_PoweredOff, so no need to do anything.
      */
-    if (FAILED(aResult))
+    if (FAILED(hrcResult))
         i_setMachineState(mConsoleTaskData.mLastState);
 
     /* notify the progress object about operation completion */
     Assert(mConsoleTaskData.mProgress);
-    if (SUCCEEDED(aResult))
+    if (SUCCEEDED(hrcResult))
         mConsoleTaskData.mProgress->i_notifyComplete(S_OK);
     else
     {
         if (aErrMsg.length())
-            mConsoleTaskData.mProgress->i_notifyComplete(aResult,
+            mConsoleTaskData.mProgress->i_notifyComplete(hrcResult,
                                                          COM_IIDOF(ISession),
                                                          getComponentName(),
                                                          aErrMsg.c_str());
         else
-            mConsoleTaskData.mProgress->i_notifyComplete(aResult);
+            mConsoleTaskData.mProgress->i_notifyComplete(hrcResult);
     }
 
     /* clear out the temporary saved state data */
@@ -13258,7 +13971,8 @@ HRESULT SessionMachine::captureUSBDevice(const com::Guid &aId, const com::Utf8St
     /* if captureDeviceForVM() fails, it must have set extended error info */
     clearError();
     MultiResult rc = mParent->i_host()->i_checkUSBProxyService();
-    if (FAILED(rc)) return rc;
+    if (FAILED(rc) || SUCCEEDED_WARNING(rc))
+        return rc;
 
     USBProxyService *service = mParent->i_host()->i_usbProxyService();
     AssertReturn(service, E_FAIL);
@@ -13423,7 +14137,7 @@ HRESULT SessionMachine::onSessionEnd(const ComPtr<ISession> &aSession,
                 break;
             }
         }
-        ComAssertMsgRet(found, ("The session is not found in the session list!"),
+        ComAssertMsgRet(found, (tr("The session is not found in the session list!")),
                          E_INVALIDARG);
     }
 
@@ -13432,79 +14146,6 @@ HRESULT SessionMachine::onSessionEnd(const ComPtr<ISession> &aSession,
 
     LogFlowThisFuncLeave();
     return S_OK;
-}
-
-HRESULT SessionMachine::clipboardAreaRegister(const std::vector<com::Utf8Str> &aParms, ULONG *aID)
-{
-#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    ULONG uID;
-    int rc = mParent->i_onClipboardAreaRegister(aParms, &uID);
-    if (RT_SUCCESS(rc))
-    {
-        if (aID)
-            *aID = uID;
-        return S_OK;
-    }
-    return E_FAIL;
-#else
-    RT_NOREF(aParms, aID);
-    ReturnComNotImplemented();
-#endif
-}
-
-HRESULT SessionMachine::clipboardAreaUnregister(ULONG aID)
-{
-#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    return mParent->i_onClipboardAreaUnregister(aID);
-#else
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-#endif
-}
-
-HRESULT SessionMachine::clipboardAreaAttach(ULONG aID)
-{
-#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    return mParent->i_onClipboardAreaAttach(aID);
-#else
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-#endif
-}
-HRESULT SessionMachine::clipboardAreaDetach(ULONG aID)
-{
-#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    return mParent->i_onClipboardAreaDetach(aID);
-#else
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-#endif
-}
-
-HRESULT SessionMachine::clipboardAreaGetMostRecent(ULONG *aID)
-{
-#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    ULONG uID = mParent->i_onClipboardAreaGetMostRecent();
-    if (aID)
-        *aID = uID;
-    return S_OK;
-#else
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-#endif
-}
-
-HRESULT SessionMachine::clipboardAreaGetRefCount(ULONG aID, ULONG *aRefCount)
-{
-#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    ULONG uRefCount = mParent->i_onClipboardAreaGetRefCount(aID);
-    if (aRefCount)
-        *aRefCount = uRefCount;
-    return S_OK;
-#else
-    RT_NOREF(aID, aRefCount);
-    ReturnComNotImplemented();
-#endif
 }
 
 HRESULT SessionMachine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
@@ -13529,14 +14170,20 @@ HRESULT SessionMachine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
          it != mHWData->mGuestProperties.end();
          ++it, ++i)
     {
-        char szFlags[GUEST_PROP_MAX_FLAGS_LEN + 1];
         aNames[i] = it->first;
+        int vrc = GuestPropValidateName(aNames[i].c_str(), aNames[i].length() + 1 /* '\0' */);
+        AssertRCReturn(vrc, setErrorBoth(E_INVALIDARG /* bad choice */, vrc));
+
         aValues[i] = it->second.strValue;
+        vrc = GuestPropValidateValue(aValues[i].c_str(), aValues[i].length() + 1 /* '\0' */);
+        AssertRCReturn(vrc, setErrorBoth(E_INVALIDARG /* bad choice */, vrc));
+
         aTimestamps[i] = it->second.mTimestamp;
 
         /* If it is NULL, keep it NULL. */
         if (it->second.mFlags)
         {
+            char szFlags[GUEST_PROP_MAX_FLAGS_LEN + 1];
             GuestPropWriteFlags(it->second.mFlags, szFlags);
             aFlags[i] = szFlags;
         }
@@ -13552,7 +14199,8 @@ HRESULT SessionMachine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
 HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
                                           const com::Utf8Str &aValue,
                                           LONG64 aTimestamp,
-                                          const com::Utf8Str &aFlags)
+                                          const com::Utf8Str &aFlags,
+                                          BOOL fWasDeleted)
 {
     LogFlowThisFunc(("\n"));
 
@@ -13576,19 +14224,15 @@ HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
         if (!Global::IsOnline(mData->mMachineState))
-        {
-            AssertMsgFailedReturn(("%s\n", Global::stringifyMachineState(mData->mMachineState)),
-                                  VBOX_E_INVALID_VM_STATE);
-        }
+            AssertMsgFailedReturn(("%s\n", ::stringifyMachineState(mData->mMachineState)), VBOX_E_INVALID_VM_STATE);
 
         i_setModified(IsModified_MachineData);
         mHWData.backup();
 
-        bool fDelete = !aValue.length();
         HWData::GuestPropertyMap::iterator it = mHWData->mGuestProperties.find(aName);
         if (it != mHWData->mGuestProperties.end())
         {
-            if (!fDelete)
+            if (!fWasDeleted)
             {
                 it->second.strValue   = aValue;
                 it->second.mTimestamp = aTimestamp;
@@ -13599,7 +14243,7 @@ HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
 
             mData->mGuestPropertiesModified = TRUE;
         }
-        else if (!fDelete)
+        else if (!fWasDeleted)
         {
             HWData::GuestProperty prop;
             prop.strValue   = aValue;
@@ -13612,10 +14256,7 @@ HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
 
         alock.release();
 
-        mParent->i_onGuestPropertyChange(mData->mUuid,
-                                         Bstr(aName).raw(),
-                                         Bstr(aValue).raw(),
-                                         Bstr(aFlags).raw());
+        mParent->i_onGuestPropertyChanged(mData->mUuid, aName, aValue, aFlags, fWasDeleted);
     }
     catch (...)
     {
@@ -13934,9 +14575,9 @@ HRESULT SessionMachine::i_onNetworkAdapterChange(INetworkAdapter *networkAdapter
 /**
  *  @note Locks this object for reading.
  */
-HRESULT SessionMachine::i_onNATRedirectRuleChange(ULONG ulSlot, BOOL aNatRuleRemove, IN_BSTR aRuleName,
-                                                  NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort,
-                                                  IN_BSTR aGuestIp, LONG aGuestPort)
+HRESULT SessionMachine::i_onNATRedirectRuleChanged(ULONG ulSlot, BOOL aNatRuleRemove, const Utf8Str &aRuleName,
+                                                   NATProtocol_T aProto, const Utf8Str &aHostIp, LONG aHostPort,
+                                                   const Utf8Str &aGuestIp, LONG aGuestPort)
 {
     LogFlowThisFunc(("\n"));
 
@@ -13957,8 +14598,8 @@ HRESULT SessionMachine::i_onNATRedirectRuleChange(ULONG ulSlot, BOOL aNatRuleRem
      * instead acting like callback we ask IVirtualBox deliver corresponding event
      */
 
-    mParent->i_onNatRedirectChange(i_getId(), ulSlot, RT_BOOL(aNatRuleRemove), aRuleName, aProto, aHostIp,
-                                   (uint16_t)aHostPort, aGuestIp, (uint16_t)aGuestPort);
+    mParent->i_onNatRedirectChanged(i_getId(), ulSlot, RT_BOOL(aNatRuleRemove), aRuleName, aProto, aHostIp,
+                                    (uint16_t)aHostPort, aGuestIp, (uint16_t)aGuestPort);
     return S_OK;
 }
 
@@ -13984,6 +14625,30 @@ HRESULT SessionMachine::i_onAudioAdapterChange(IAudioAdapter *audioAdapter)
         return S_OK;
 
     return directControl->OnAudioAdapterChange(audioAdapter);
+}
+
+/**
+ *  @note Locks this object for reading.
+ */
+HRESULT SessionMachine::i_onHostAudioDeviceChange(IHostAudioDevice *aDevice, BOOL aNew, AudioDeviceState_T aState, IVirtualBoxErrorInfo *aErrInfo)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    ComPtr<IInternalSessionControl> directControl;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (mData->mSession.mLockType == LockType_VM)
+            directControl = mData->mSession.mDirectControl;
+    }
+
+    /* ignore notifications sent after #OnSessionEnd() is called */
+    if (!directControl)
+        return S_OK;
+
+    return directControl->OnHostAudioDeviceChange(aDevice, aNew, aState, aErrInfo);
 }
 
 /**
@@ -14369,6 +15034,30 @@ HRESULT SessionMachine::i_onStorageDeviceChange(IMediumAttachment *aAttachment, 
 }
 
 /**
+ *  @note Locks this object for reading.
+ */
+HRESULT SessionMachine::i_onGuestDebugControlChange(IGuestDebugControl *guestDebugControl)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    ComPtr<IInternalSessionControl> directControl;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (mData->mSession.mLockType == LockType_VM)
+            directControl = mData->mSession.mDirectControl;
+    }
+
+    /* ignore notifications sent after #OnSessionEnd() is called */
+    if (!directControl)
+        return S_OK;
+
+    return directControl->OnGuestDebugControlChange(guestDebugControl);
+}
+
+/**
  *  Returns @c true if this machine's USB controller reports it has a matching
  *  filter for the given USB device and @c false otherwise.
  *
@@ -14501,7 +15190,7 @@ void SessionMachine::i_releaseSavedStateFile(const Utf8Str &strStateFile,
              || !mData->mFirstSnapshot->i_sharesSavedStateFile(strStateFile, pSnapshotToIgnore)
                                 // this checks the SnapshotMachine's state file paths
            )
-            RTFileDelete(strStateFile.c_str());
+            i_deleteFile(strStateFile, true /* fIgnoreFailures */);
 }
 
 /**
@@ -14630,7 +15319,6 @@ HRESULT SessionMachine::i_unlockMedia()
 HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
 {
     LogFlowThisFuncEnter();
-    LogFlowThisFunc(("aMachineState=%s\n", Global::stringifyMachineState(aMachineState) ));
 
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
@@ -14641,7 +15329,7 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
 
     AssertMsgReturn(oldMachineState != aMachineState,
                     ("oldMachineState=%s, aMachineState=%s\n",
-                     Global::stringifyMachineState(oldMachineState), Global::stringifyMachineState(aMachineState)),
+                     ::stringifyMachineState(oldMachineState), ::stringifyMachineState(aMachineState)),
                     E_FAIL);
 
     HRESULT rc = S_OK;
@@ -14651,8 +15339,11 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
 
     /* detect some state transitions */
 
-    if (   (   oldMachineState == MachineState_Saved
-            && aMachineState   == MachineState_Restoring)
+    if (   (   (   oldMachineState == MachineState_Saved
+                || oldMachineState == MachineState_AbortedSaved
+               )
+                && aMachineState   == MachineState_Restoring
+            )
         || (   (   oldMachineState == MachineState_PoweredOff
                 || oldMachineState == MachineState_Teleported
                 || oldMachineState == MachineState_Aborted
@@ -14687,6 +15378,7 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
                  || aMachineState == MachineState_Saved
                  || aMachineState == MachineState_Teleported
                  || aMachineState == MachineState_Aborted
+                 || aMachineState == MachineState_AbortedSaved
                 )
             )
     {
@@ -14700,12 +15392,12 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
 
     if (oldMachineState == MachineState_Restoring)
     {
-        if (aMachineState != MachineState_Saved)
+        if (aMachineState != MachineState_Saved && aMachineState != MachineState_AbortedSaved)
         {
             /*
              *  delete the saved state file once the machine has finished
              *  restoring from it (note that Console sets the state from
-             *  Restoring to Saved if the VM couldn't restore successfully,
+             *  Restoring to AbortedSaved if the VM couldn't restore successfully,
              *  to give the user an ability to fix an error and retry --
              *  we keep the saved state file in this case)
              */
@@ -14718,11 +15410,13 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
                 )
             )
     {
-        /* delete the saved state after SessionMachine::discardSavedState() is called */
+        /* delete the saved state after SessionMachine::ForgetSavedState() is called */
         deleteSavedState = true;
         mData->mCurrentStateModified = TRUE;
         stsFlags |= SaveSTS_CurStateModified;
     }
+    /* failure to reach the restoring state should always go to MachineState_AbortedSaved */
+    Assert(!(oldMachineState == MachineState_Saved && aMachineState == MachineState_Aborted));
 
     if (   aMachineState == MachineState_Starting
         || aMachineState == MachineState_Restoring
@@ -14750,7 +15444,7 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
                  || !mData->mFirstSnapshot->i_sharesSavedStateFile(mSSData->strStateFilePath, NULL /* pSnapshotToIgnore */)
                                                 // ... none of the snapshots share the saved state file
                )
-                RTFileDelete(mSSData->strStateFilePath.c_str());
+                i_deleteFile(mSSData->strStateFilePath, true /* fIgnoreFailures */);
         }
 
         mSSData->strStateFilePath.setNull();
@@ -14764,6 +15458,7 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
         && (   aMachineState == MachineState_PoweredOff
             || aMachineState == MachineState_Teleported
             || aMachineState == MachineState_Aborted
+            || aMachineState == MachineState_AbortedSaved
             || aMachineState == MachineState_Saved))
     {
         /* the machine has stopped execution
@@ -14861,7 +15556,7 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
         /* no special action so far */
     }
 
-    LogFlowThisFunc(("rc=%Rhrc [%s]\n", rc, Global::stringifyMachineState(mData->mMachineState) ));
+    LogFlowThisFunc(("rc=%Rhrc [%s]\n", rc, ::stringifyMachineState(mData->mMachineState) ));
     LogFlowThisFuncLeave();
     return rc;
 }
@@ -14909,12 +15604,12 @@ HRESULT Machine::i_setErrorStatic(HRESULT aResultCode, const char *pcszMsg, ...)
 {
     va_list args;
     va_start(args, pcszMsg);
-    HRESULT rc = setErrorInternal(aResultCode,
-                                  getStaticClassIID(),
-                                  getStaticComponentName(),
-                                  Utf8Str(pcszMsg, args),
-                                  false /* aWarning */,
-                                  true /* aLogIt */);
+    HRESULT rc = setErrorInternalV(aResultCode,
+                                   getStaticClassIID(),
+                                   getStaticComponentName(),
+                                   pcszMsg, args,
+                                   false /* aWarning */,
+                                   true /* aLogIt */);
     va_end(args);
     return rc;
 }
@@ -15001,41 +15696,6 @@ HRESULT Machine::finishOnlineMergeMedium()
     ReturnComNotImplemented();
 }
 
-HRESULT Machine::clipboardAreaRegister(const std::vector<com::Utf8Str> &aParms, ULONG *aID)
-{
-    RT_NOREF(aParms, aID);
-    ReturnComNotImplemented();
-}
-
-HRESULT Machine::clipboardAreaUnregister(ULONG aID)
-{
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-}
-
-HRESULT Machine::clipboardAreaAttach(ULONG aID)
-{
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-}
-HRESULT Machine::clipboardAreaDetach(ULONG aID)
-{
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-}
-
-HRESULT Machine::clipboardAreaGetMostRecent(ULONG *aID)
-{
-    RT_NOREF(aID);
-    ReturnComNotImplemented();
-}
-
-HRESULT Machine::clipboardAreaGetRefCount(ULONG aID, ULONG *aRefCount)
-{
-    RT_NOREF(aID, aRefCount);
-    ReturnComNotImplemented();
-}
-
 HRESULT Machine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
                                      std::vector<com::Utf8Str> &aValues,
                                      std::vector<LONG64> &aTimestamps,
@@ -15051,12 +15711,14 @@ HRESULT Machine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
 HRESULT Machine::pushGuestProperty(const com::Utf8Str &aName,
                                    const com::Utf8Str &aValue,
                                    LONG64 aTimestamp,
-                                   const com::Utf8Str &aFlags)
+                                   const com::Utf8Str &aFlags,
+                                   BOOL fWasDeleted)
 {
     NOREF(aName);
     NOREF(aValue);
     NOREF(aTimestamp);
     NOREF(aFlags);
+    NOREF(fWasDeleted);
     ReturnComNotImplemented();
 }
 
@@ -15272,6 +15934,14 @@ HRESULT Machine::applyDefaults(const com::Utf8Str &aFlags)
     rc = osType->COMGETTER(RecommendedTFReset)(&mHWData->mTripleFaultReset);
     if (FAILED(rc)) return rc;
 
+    /* Apply IOMMU defaults. */
+    IommuType_T enmIommuType;
+    rc = osType->COMGETTER(RecommendedIommuType)(&enmIommuType);
+    if (FAILED(rc)) return rc;
+
+    rc = COMSETTER(IommuType)(enmIommuType);
+    if (FAILED(rc)) return rc;
+
     /* Apply network adapters defaults */
     for (ULONG slot = 0; slot < mNetworkAdapters.size(); ++slot)
         mNetworkAdapters[slot]->i_applyDefaults(osType);
@@ -15284,25 +15954,15 @@ HRESULT Machine::applyDefaults(const com::Utf8Str &aFlags)
     for (ULONG slot = 0; slot < RT_ELEMENTS(mParallelPorts); ++slot)
         mParallelPorts[slot]->i_applyDefaults();
 
+    /* This one covers the TPM type. */
+    mTrustedPlatformModule->i_applyDefaults(osType);
+
+    /* This one covers secure boot. */
+    rc = mNvramStore->i_applyDefaults(osType);
+    if (FAILED(rc)) return rc;
+
     /* Audio stuff. */
-    AudioControllerType_T audioController;
-    rc = osType->COMGETTER(RecommendedAudioController)(&audioController);
-    if (FAILED(rc)) return rc;
-
-    rc = mAudioAdapter->COMSETTER(AudioController)(audioController);
-    if (FAILED(rc)) return rc;
-
-    AudioCodecType_T audioCodec;
-    rc = osType->COMGETTER(RecommendedAudioCodec)(&audioCodec);
-    if (FAILED(rc)) return rc;
-
-    rc = mAudioAdapter->COMSETTER(AudioCodec)(audioCodec);
-    if (FAILED(rc)) return rc;
-
-    rc = mAudioAdapter->COMSETTER(Enabled)(true);
-    if (FAILED(rc)) return rc;
-
-    rc = mAudioAdapter->COMSETTER(EnabledOut)(true);
+    rc = mAudioSettings->i_applyDefaults(osType);
     if (FAILED(rc)) return rc;
 
     /* Storage Controllers */
@@ -15406,18 +16066,11 @@ HRESULT Machine::applyDefaults(const com::Utf8Str &aFlags)
 
     if (!usbDeviceFilters.isNull() && recommendedUSB3 && usbProxyAvailable)
     {
-#ifdef VBOX_WITH_EXTPACK
-        /* USB 3.0 is only available if the proper ExtPack is installed. */
-        ExtPackManager *aManager = mParent->i_getExtPackManager();
-        if (aManager->i_isExtPackUsable(ORACLE_PUEL_EXTPACK_NAME))
-        {
-            rc = addUSBController("XHCI", USBControllerType_XHCI, usbController);
-            if (FAILED(rc)) return rc;
+        rc = addUSBController("XHCI", USBControllerType_XHCI, usbController);
+        if (FAILED(rc)) return rc;
 
-            /* xHci includes OHCI */
-            ohciEnabled = true;
-        }
-#endif
+        /* xHci includes OHCI */
+        ohciEnabled = true;
     }
     if (   !ohciEnabled
         && !usbDeviceFilters.isNull() && recommendedUSB && usbProxyAvailable)
@@ -15426,19 +16079,8 @@ HRESULT Machine::applyDefaults(const com::Utf8Str &aFlags)
         if (FAILED(rc)) return rc;
         ohciEnabled = true;
 
-#ifdef VBOX_WITH_EXTPACK
-        /* USB 2.0 is only available if the proper ExtPack is installed.
-         * Note. Configuring EHCI here and providing messages about
-         * the missing extpack isn't exactly clean, but it is a
-         * necessary evil to patch over legacy compatability issues
-          * introduced by the new distribution model. */
-        ExtPackManager *manager = mParent->i_getExtPackManager();
-        if (manager->i_isExtPackUsable(ORACLE_PUEL_EXTPACK_NAME))
-        {
-            rc = addUSBController("EHCI", USBControllerType_EHCI, usbController);
-            if (FAILED(rc)) return rc;
-        }
-#endif
+        rc = addUSBController("EHCI", USBControllerType_EHCI, usbController);
+        if (FAILED(rc)) return rc;
     }
 
     /* Set recommended human interface device types: */
@@ -15470,8 +16112,999 @@ HRESULT Machine::applyDefaults(const com::Utf8Str &aFlags)
             if (FAILED(rc)) return rc;
         }
     }
+
+    /* Enable the VMMDev testing feature for bootsector VMs: */
+    if (osTypeId == "VBoxBS_64")
+    {
+        rc = setExtraData("VBoxInternal/Devices/VMMDev/0/Config/TestingEnabled", "1");
+        if (FAILED(rc))
+            return rc;
+    }
+
     return S_OK;
 }
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+/**
+ * Task record for change encryption settins.
+ */
+class Machine::ChangeEncryptionTask
+    : public Machine::Task
+{
+public:
+    ChangeEncryptionTask(Machine *m,
+                         Progress *p,
+                         const Utf8Str &t,
+                         const com::Utf8Str &aCurrentPassword,
+                         const com::Utf8Str &aCipher,
+                         const com::Utf8Str &aNewPassword,
+                         const com::Utf8Str &aNewPasswordId,
+                         const BOOL         aForce,
+                         const MediaList    &llMedia)
+        : Task(m, p, t),
+          mstrNewPassword(aNewPassword),
+          mstrCurrentPassword(aCurrentPassword),
+          mstrCipher(aCipher),
+          mstrNewPasswordId(aNewPasswordId),
+          mForce(aForce),
+          mllMedia(llMedia)
+    {}
+
+    ~ChangeEncryptionTask()
+    {
+        if (mstrNewPassword.length())
+            RTMemWipeThoroughly(mstrNewPassword.mutableRaw(), mstrNewPassword.length(), 10 /* cPasses */);
+        if (mstrCurrentPassword.length())
+            RTMemWipeThoroughly(mstrCurrentPassword.mutableRaw(), mstrCurrentPassword.length(), 10 /* cPasses */);
+        if (m_pCryptoIf)
+        {
+            m_pMachine->i_getVirtualBox()->i_releaseCryptoIf(m_pCryptoIf);
+            m_pCryptoIf = NULL;
+        }
+    }
+
+    Utf8Str   mstrNewPassword;
+    Utf8Str   mstrCurrentPassword;
+    Utf8Str   mstrCipher;
+    Utf8Str   mstrNewPasswordId;
+    BOOL      mForce;
+    MediaList mllMedia;
+    PCVBOXCRYPTOIF m_pCryptoIf;
+private:
+    void handler()
+    {
+        try
+        {
+            m_pMachine->i_changeEncryptionHandler(*this);
+        }
+        catch (...)
+        {
+            LogRel(("Some exception in the function Machine::i_changeEncryptionHandler()\n"));
+        }
+    }
+
+    friend void Machine::i_changeEncryptionHandler(ChangeEncryptionTask &task);
+};
+
+/**
+ * Scans specified directory and fills list by files found
+ *
+ * @returns VBox status code.
+ * @param   lstFiles
+ * @param   strDir
+ * @param   filePattern
+ */
+int Machine::i_findFiles(std::list<com::Utf8Str> &lstFiles, const com::Utf8Str &strDir,
+                         const com::Utf8Str &strPattern)
+{
+    /* To get all entries including subdirectories. */
+    char *pszFilePattern = RTPathJoinA(strDir.c_str(), "*");
+    if (!pszFilePattern)
+        return VERR_NO_STR_MEMORY;
+
+    PRTDIRENTRYEX pDirEntry = NULL;
+    RTDIR hDir;
+    size_t cbDirEntry = sizeof(RTDIRENTRYEX);
+    int rc = RTDirOpenFiltered(&hDir, pszFilePattern, RTDIRFILTER_WINNT, 0 /*fFlags*/);
+    if (RT_SUCCESS(rc))
+    {
+        pDirEntry = (PRTDIRENTRYEX)RTMemAllocZ(sizeof(RTDIRENTRYEX));
+        if (pDirEntry)
+        {
+            while (   (rc = RTDirReadEx(hDir, pDirEntry, &cbDirEntry, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK))
+                   != VERR_NO_MORE_FILES)
+            {
+                char *pszFilePath = NULL;
+
+                if (rc == VERR_BUFFER_OVERFLOW)
+                {
+                    /* allocate new buffer. */
+                    RTMemFree(pDirEntry);
+                    pDirEntry = (PRTDIRENTRYEX)RTMemAllocZ(cbDirEntry);
+                    if (!pDirEntry)
+                    {
+                        rc = VERR_NO_MEMORY;
+                        break;
+                    }
+                    /* Retry. */
+                    rc = RTDirReadEx(hDir, pDirEntry, &cbDirEntry, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
+                    if (RT_FAILURE(rc))
+                        break;
+                }
+                else if (RT_FAILURE(rc))
+                    break;
+
+                /* Exclude . and .. */
+                if (   (pDirEntry->szName[0] == '.' && pDirEntry->szName[1] == '\0')
+                    || (pDirEntry->szName[0] == '.' && pDirEntry->szName[1] == '.' && pDirEntry->szName[2] == '\0'))
+                    continue;
+                if (RTFS_IS_DIRECTORY(pDirEntry->Info.Attr.fMode))
+                {
+                    char *pszSubDirPath = RTPathJoinA(strDir.c_str(), pDirEntry->szName);
+                    if (!pszSubDirPath)
+                    {
+                        rc = VERR_NO_STR_MEMORY;
+                        break;
+                    }
+                    rc = i_findFiles(lstFiles, pszSubDirPath, strPattern);
+                    RTMemFree(pszSubDirPath);
+                    if (RT_FAILURE(rc))
+                        break;
+                    continue;
+                }
+
+                /* We got the new entry. */
+                if (!RTFS_IS_FILE(pDirEntry->Info.Attr.fMode))
+                    continue;
+
+                if (!RTStrSimplePatternMatch(strPattern.c_str(), pDirEntry->szName))
+                    continue;
+
+                /* Prepend the path to the libraries. */
+                pszFilePath = RTPathJoinA(strDir.c_str(), pDirEntry->szName);
+                if (!pszFilePath)
+                {
+                    rc = VERR_NO_STR_MEMORY;
+                    break;
+                }
+
+                lstFiles.push_back(pszFilePath);
+                RTStrFree(pszFilePath);
+            }
+
+            RTMemFree(pDirEntry);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+
+        RTDirClose(hDir);
+    }
+    else
+    {
+        /* On Windows the above immediately signals that there are no
+         * files matching, while on other platforms enumerating the
+         * files below fails. Either way: stop searching. */
+    }
+
+    if (   rc == VERR_NO_MORE_FILES
+        || rc == VERR_FILE_NOT_FOUND
+        || rc == VERR_PATH_NOT_FOUND)
+        rc = VINF_SUCCESS;
+    RTStrFree(pszFilePattern);
+    return rc;
+}
+
+/**
+ * Helper to set up an I/O stream to read or write a possibly encrypted file.
+ *
+ * @returns VBox status code.
+ * @param   pszFilename         The file to open.
+ * @param   pCryptoIf           Pointer to the cryptographic interface if the file should be encrypted or contains encrypted data.
+ * @param   pszKeyStore         The keystore if the file should be encrypted or contains encrypted data.
+ * @param   pszPassword         The password if the file should be encrypted or contains encrypted data.
+ * @param   fOpen               The open flags for the file.
+ * @param   phVfsIos            Where to store the handle to the I/O stream on success.
+ */
+int Machine::i_createIoStreamForFile(const char *pszFilename, PCVBOXCRYPTOIF pCryptoIf,
+                                     const char *pszKeyStore, const char *pszPassword,
+                                     uint64_t fOpen, PRTVFSIOSTREAM phVfsIos)
+{
+    RTVFSFILE hVfsFile = NIL_RTVFSFILE;
+    int vrc = RTVfsFileOpenNormal(pszFilename, fOpen, &hVfsFile);
+    if (RT_SUCCESS(vrc))
+    {
+        if (pCryptoIf)
+        {
+            RTVFSFILE hVfsFileCrypto = NIL_RTVFSFILE;
+            vrc = pCryptoIf->pfnCryptoFileFromVfsFile(hVfsFile, pszKeyStore, pszPassword, &hVfsFileCrypto);
+            if (RT_SUCCESS(vrc))
+            {
+                RTVfsFileRelease(hVfsFile);
+                hVfsFile = hVfsFileCrypto;
+            }
+        }
+
+        *phVfsIos = RTVfsFileToIoStream(hVfsFile);
+        RTVfsFileRelease(hVfsFile);
+    }
+
+    return vrc;
+}
+
+/**
+ * Helper function processing all actions for one component (saved state files,
+ * NVRAM files, etc). Used by Machine::i_changeEncryptionHandler only.
+ *
+ * @param task
+ * @param strDirectory
+ * @param strFilePattern
+ * @param strMagic
+ * @param strKeyStore
+ * @param strKeyId
+ * @return
+ */
+HRESULT Machine::i_changeEncryptionForComponent(ChangeEncryptionTask &task, const com::Utf8Str strDirectory,
+                                                const com::Utf8Str strFilePattern, com::Utf8Str &strKeyStore,
+                                                com::Utf8Str &strKeyId, int iCipherMode)
+{
+    bool fDecrypt =    task.mstrCurrentPassword.isNotEmpty()
+                    && task.mstrCipher.isEmpty()
+                    && task.mstrNewPassword.isEmpty()
+                    && task.mstrNewPasswordId.isEmpty();
+    bool fEncrypt =    task.mstrCurrentPassword.isEmpty()
+                    && task.mstrCipher.isNotEmpty()
+                    && task.mstrNewPassword.isNotEmpty()
+                    && task.mstrNewPasswordId.isNotEmpty();
+
+    /* check if the cipher is changed which causes the reencryption*/
+
+    const char *pszTaskCipher = NULL;
+    if (task.mstrCipher.isNotEmpty())
+        pszTaskCipher = getCipherString(task.mstrCipher.c_str(), iCipherMode);
+
+    if (!task.mForce && !fDecrypt && !fEncrypt)
+    {
+        char *pszCipher = NULL;
+        int vrc = task.m_pCryptoIf->pfnCryptoKeyStoreGetDekFromEncoded(strKeyStore.c_str(),
+                                                                       NULL /*pszPassword*/,
+                                                                       NULL /*ppbKey*/,
+                                                                       NULL /*pcbKey*/,
+                                                                       &pszCipher);
+        if (RT_SUCCESS(vrc))
+        {
+            task.mForce = strcmp(pszTaskCipher, pszCipher) != 0;
+            RTMemFree(pszCipher);
+        }
+        else
+            return setErrorBoth(E_FAIL, vrc, tr("Obtain cipher for '%s' files failed (%Rrc)"),
+                              strFilePattern.c_str(), vrc);
+    }
+
+    /* Only the password needs to be changed */
+    if (!task.mForce && !fDecrypt && !fEncrypt)
+    {
+        Assert(task.m_pCryptoIf);
+
+        VBOXCRYPTOCTX hCryptoCtx;
+        int vrc = task.m_pCryptoIf->pfnCryptoCtxLoad(strKeyStore.c_str(), task.mstrCurrentPassword.c_str(), &hCryptoCtx);
+        if (RT_FAILURE(vrc))
+            return setErrorBoth(E_FAIL, vrc, tr("Loading old key store for '%s' files failed, (%Rrc)"),
+                                strFilePattern.c_str(), vrc);
+        vrc = task.m_pCryptoIf->pfnCryptoCtxPasswordChange(hCryptoCtx, task.mstrNewPassword.c_str());
+        if (RT_FAILURE(vrc))
+            return setErrorBoth(E_FAIL, vrc, tr("Changing the password for '%s' files failed, (%Rrc)"),
+                                strFilePattern.c_str(), vrc);
+
+        char *pszKeyStore = NULL;
+        vrc = task.m_pCryptoIf->pfnCryptoCtxSave(hCryptoCtx, &pszKeyStore);
+        task.m_pCryptoIf->pfnCryptoCtxDestroy(hCryptoCtx);
+        if (RT_FAILURE(vrc))
+            return setErrorBoth(E_FAIL, vrc, tr("Saving the key store for '%s' files failed, (%Rrc)"),
+                                strFilePattern.c_str(), vrc);
+        strKeyStore = pszKeyStore;
+        RTMemFree(pszKeyStore);
+        strKeyId = task.mstrNewPasswordId;
+        return S_OK;
+    }
+
+    /* Reencryption required */
+    HRESULT rc = S_OK;
+    int vrc = VINF_SUCCESS;
+
+    std::list<com::Utf8Str> lstFiles;
+    if (SUCCEEDED(rc))
+    {
+        vrc = i_findFiles(lstFiles, strDirectory, strFilePattern);
+        if (RT_FAILURE(vrc))
+            rc = setErrorBoth(E_FAIL, vrc, tr("Getting file list for '%s' files failed, (%Rrc)"),
+                              strFilePattern.c_str(), vrc);
+    }
+    com::Utf8Str strNewKeyStore;
+    if (SUCCEEDED(rc))
+    {
+        if (!fDecrypt)
+        {
+            VBOXCRYPTOCTX hCryptoCtx;
+            vrc = task.m_pCryptoIf->pfnCryptoCtxCreate(pszTaskCipher, task.mstrNewPassword.c_str(), &hCryptoCtx);
+            if (RT_FAILURE(vrc))
+                return setErrorBoth(E_FAIL, vrc, tr("Create new key store for '%s' files failed, (%Rrc)"),
+                                    strFilePattern.c_str(), vrc);
+
+            char *pszKeyStore = NULL;
+            vrc = task.m_pCryptoIf->pfnCryptoCtxSave(hCryptoCtx, &pszKeyStore);
+            task.m_pCryptoIf->pfnCryptoCtxDestroy(hCryptoCtx);
+            if (RT_FAILURE(vrc))
+                return setErrorBoth(E_FAIL, vrc, tr("Saving the new key store for '%s' files failed, (%Rrc)"),
+                                    strFilePattern.c_str(), vrc);
+            strNewKeyStore = pszKeyStore;
+            RTMemFree(pszKeyStore);
+        }
+
+        for (std::list<com::Utf8Str>::iterator it = lstFiles.begin();
+             it != lstFiles.end();
+             ++it)
+        {
+            RTVFSIOSTREAM hVfsIosOld = NIL_RTVFSIOSTREAM;
+            RTVFSIOSTREAM hVfsIosNew = NIL_RTVFSIOSTREAM;
+
+            uint64_t fOpenForRead = RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE;
+            uint64_t fOpenForWrite = RTFILE_O_READWRITE | RTFILE_O_OPEN_CREATE | RTFILE_O_DENY_WRITE;
+
+            vrc = i_createIoStreamForFile((*it).c_str(),
+                                          fEncrypt ? NULL : task.m_pCryptoIf,
+                                          fEncrypt ? NULL : strKeyStore.c_str(),
+                                          fEncrypt ? NULL : task.mstrCurrentPassword.c_str(),
+                                          fOpenForRead, &hVfsIosOld);
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = i_createIoStreamForFile((*it + ".tmp").c_str(),
+                                              fDecrypt ? NULL : task.m_pCryptoIf,
+                                              fDecrypt ? NULL : strNewKeyStore.c_str(),
+                                              fDecrypt ? NULL : task.mstrNewPassword.c_str(),
+                                              fOpenForWrite, &hVfsIosNew);
+                if (RT_FAILURE(vrc))
+                    rc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Opening file '%s' failed, (%Rrc)"),
+                                      (*it + ".tmp").c_str(), vrc);
+            }
+            else
+                rc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Opening file '%s' failed, (%Rrc)"),
+                                  (*it).c_str(), vrc);
+
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = RTVfsUtilPumpIoStreams(hVfsIosOld, hVfsIosNew, BUF_DATA_SIZE);
+                if (RT_FAILURE(vrc))
+                    rc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Changing encryption of the file '%s' failed with %Rrc"),
+                                      (*it).c_str(), vrc);
+            }
+
+            if (hVfsIosOld != NIL_RTVFSIOSTREAM)
+                RTVfsIoStrmRelease(hVfsIosOld);
+            if (hVfsIosNew != NIL_RTVFSIOSTREAM)
+                RTVfsIoStrmRelease(hVfsIosNew);
+        }
+    }
+
+    if (SUCCEEDED(rc))
+    {
+        for (std::list<com::Utf8Str>::iterator it = lstFiles.begin();
+             it != lstFiles.end();
+             ++it)
+        {
+            vrc = RTFileRename((*it + ".tmp").c_str(), (*it).c_str(), RTPATHRENAME_FLAGS_REPLACE);
+            if (RT_FAILURE(vrc))
+            {
+                rc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Renaming the file '%s' failed, (%Rrc)"),
+                                  (*it + ".tmp").c_str(), vrc);
+                break;
+            }
+        }
+    }
+
+    if (SUCCEEDED(rc))
+    {
+        strKeyStore = strNewKeyStore;
+        strKeyId    = task.mstrNewPasswordId;
+    }
+
+    return rc;
+}
+
+/**
+ * Task thread implementation for Machine::changeEncryption(), called from
+ * Machine::taskHandler().
+ *
+ * @note Locks this object for writing.
+ *
+ * @param task
+ * @return
+ */
+void Machine::i_changeEncryptionHandler(ChangeEncryptionTask &task)
+{
+    LogFlowThisFuncEnter();
+
+    AutoCaller autoCaller(this);
+    LogFlowThisFunc(("state=%d\n", getObjectState().getState()));
+    if (FAILED(autoCaller.rc()))
+    {
+        /* we might have been uninitialized because the session was accidentally
+         * closed by the client, so don't assert */
+        HRESULT rc = setError(E_FAIL,
+                              tr("The session has been accidentally closed"));
+        task.m_pProgress->i_notifyComplete(rc);
+        LogFlowThisFuncLeave();
+        return;
+    }
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = S_OK;
+    com::Utf8Str strOldKeyId = mData->mstrKeyId;
+    com::Utf8Str strOldKeyStore = mData->mstrKeyStore;
+    try
+    {
+        rc = this->i_getVirtualBox()->i_retainCryptoIf(&task.m_pCryptoIf);
+        if (FAILED(rc))
+            throw rc;
+
+        if (task.mstrCurrentPassword.isEmpty())
+        {
+            if (mData->mstrKeyStore.isNotEmpty())
+                throw setError(VBOX_E_PASSWORD_INCORRECT,
+                               tr("The password given for the encrypted VM is incorrect"));
+        }
+        else
+        {
+            if (mData->mstrKeyStore.isEmpty())
+                throw setError(VBOX_E_INVALID_OBJECT_STATE,
+                               tr("The VM is not configured for encryption"));
+            rc = checkEncryptionPassword(task.mstrCurrentPassword);
+            if (rc == VBOX_E_PASSWORD_INCORRECT)
+                throw setError(VBOX_E_PASSWORD_INCORRECT,
+                               tr("The password to decrypt the VM is incorrect"));
+        }
+
+        if (task.mstrCipher.isNotEmpty())
+        {
+            if (   task.mstrNewPassword.isEmpty()
+                && task.mstrNewPasswordId.isEmpty()
+                && task.mstrCurrentPassword.isNotEmpty())
+            {
+                /* An empty password and password ID will default to the current password. */
+                task.mstrNewPassword = task.mstrCurrentPassword;
+            }
+            else if (task.mstrNewPassword.isEmpty())
+                throw setError(VBOX_E_OBJECT_NOT_FOUND,
+                               tr("A password must be given for the VM encryption"));
+            else if (task.mstrNewPasswordId.isEmpty())
+                throw setError(VBOX_E_INVALID_OBJECT_STATE,
+                               tr("A valid identifier for the password must be given"));
+        }
+        else if (task.mstrNewPasswordId.isNotEmpty() || task.mstrNewPassword.isNotEmpty())
+            throw setError(VBOX_E_INVALID_OBJECT_STATE,
+                           tr("The password and password identifier must be empty if the output should be unencrypted"));
+
+        /*
+         * Save config.
+         * Must be first operation to prevent making encrypted copies
+         * for old version of the config file.
+         */
+        int fSave = Machine::SaveS_Force;
+        if (task.mstrNewPassword.isNotEmpty())
+        {
+            VBOXCRYPTOCTX hCryptoCtx;
+
+            int vrc = VINF_SUCCESS;
+            if (task.mForce || task.mstrCurrentPassword.isEmpty() || task.mstrCipher.isNotEmpty())
+            {
+                vrc = task.m_pCryptoIf->pfnCryptoCtxCreate(getCipherString(task.mstrCipher.c_str(), CipherModeGcm),
+                                                           task.mstrNewPassword.c_str(), &hCryptoCtx);
+                if (RT_FAILURE(vrc))
+                    throw setErrorBoth(E_FAIL, vrc, tr("New key store creation failed, (%Rrc)"), vrc);
+            }
+            else
+            {
+                vrc = task.m_pCryptoIf->pfnCryptoCtxLoad(mData->mstrKeyStore.c_str(),
+                                                         task.mstrCurrentPassword.c_str(),
+                                                         &hCryptoCtx);
+                if (RT_FAILURE(vrc))
+                    throw setErrorBoth(E_FAIL, vrc, tr("Loading old key store failed, (%Rrc)"), vrc);
+                vrc = task.m_pCryptoIf->pfnCryptoCtxPasswordChange(hCryptoCtx, task.mstrNewPassword.c_str());
+                if (RT_FAILURE(vrc))
+                    throw setErrorBoth(E_FAIL, vrc, tr("Changing the password failed, (%Rrc)"), vrc);
+            }
+
+            char *pszKeyStore;
+            vrc = task.m_pCryptoIf->pfnCryptoCtxSave(hCryptoCtx, &pszKeyStore);
+            task.m_pCryptoIf->pfnCryptoCtxDestroy(hCryptoCtx);
+            if (RT_FAILURE(vrc))
+                throw setErrorBoth(E_FAIL, vrc, tr("Saving the key store failed, (%Rrc)"), vrc);
+            mData->mstrKeyStore = pszKeyStore;
+            RTStrFree(pszKeyStore);
+            mData->mstrKeyId = task.mstrNewPasswordId;
+            size_t   cbPassword = task.mstrNewPassword.length() + 1;
+            uint8_t *pbPassword = (uint8_t *)task.mstrNewPassword.c_str();
+            mData->mpKeyStore->deleteSecretKey(task.mstrNewPasswordId);
+            mData->mpKeyStore->addSecretKey(task.mstrNewPasswordId, pbPassword, cbPassword);
+            mNvramStore->i_addPassword(task.mstrNewPasswordId, task.mstrNewPassword);
+
+            /*
+             * Remove backuped config after saving because it can contain
+             * unencrypted version of the config
+             */
+            fSave |= Machine::SaveS_RemoveBackup;
+        }
+        else
+        {
+            mData->mstrKeyId.setNull();
+            mData->mstrKeyStore.setNull();
+        }
+
+        Bstr bstrCurrentPassword(task.mstrCurrentPassword);
+        Bstr bstrCipher(getCipherString(task.mstrCipher.c_str(), CipherModeXts));
+        Bstr bstrNewPassword(task.mstrNewPassword);
+        Bstr bstrNewPasswordId(task.mstrNewPasswordId);
+        /* encrypt mediums */
+        alock.release();
+        for (MediaList::iterator it = task.mllMedia.begin();
+             it != task.mllMedia.end();
+             ++it)
+        {
+            ComPtr<IProgress> pProgress1;
+            HRESULT hrc = (*it)->ChangeEncryption(bstrCurrentPassword.raw(), bstrCipher.raw(),
+                                                  bstrNewPassword.raw(), bstrNewPasswordId.raw(),
+                                                  pProgress1.asOutParam());
+            if (FAILED(hrc)) throw hrc;
+            hrc = task.m_pProgress->WaitForOtherProgressCompletion(pProgress1, 0 /* indefinite wait */);
+            if (FAILED(hrc)) throw hrc;
+        }
+        alock.acquire();
+
+        task.m_pProgress->SetNextOperation(Bstr(tr("Change encryption of the SAV files")).raw(), 1);
+
+        Utf8Str strFullSnapshotFolder;
+        i_calculateFullPath(mUserData->s.strSnapshotFolder, strFullSnapshotFolder);
+
+        /* .sav files (main and snapshots) */
+        rc = i_changeEncryptionForComponent(task, strFullSnapshotFolder, "*.sav",
+                                            mSSData->strStateKeyStore, mSSData->strStateKeyId, CipherModeGcm);
+        if (FAILED(rc))
+            /* the helper function already sets error object */
+            throw rc;
+
+        task.m_pProgress->SetNextOperation(Bstr(tr("Change encryption of the NVRAM files")).raw(), 1);
+
+        /* .nvram files */
+        com::Utf8Str strNVRAMKeyId;
+        com::Utf8Str strNVRAMKeyStore;
+        rc = mNvramStore->i_getEncryptionSettings(strNVRAMKeyId, strNVRAMKeyStore);
+        if (FAILED(rc))
+            throw setError(rc, tr("Getting NVRAM encryption settings failed (%Rhrc)"), rc);
+
+        Utf8Str strMachineFolder;
+        i_calculateFullPath(".", strMachineFolder);
+
+        rc = i_changeEncryptionForComponent(task, strMachineFolder, "*.nvram",
+                                            strNVRAMKeyStore, strNVRAMKeyId, CipherModeGcm);
+        if (FAILED(rc))
+            /* the helper function already sets error object */
+            throw rc;
+
+        rc = mNvramStore->i_updateEncryptionSettings(strNVRAMKeyId, strNVRAMKeyStore);
+        if (FAILED(rc))
+            throw setError(rc, tr("Setting NVRAM encryption settings failed (%Rhrc)"), rc);
+
+        task.m_pProgress->SetNextOperation(Bstr(tr("Change encryption of log files")).raw(), 1);
+
+        /* .log files */
+        com::Utf8Str strLogFolder;
+        i_getLogFolder(strLogFolder);
+        rc = i_changeEncryptionForComponent(task, strLogFolder, "VBox.log*",
+                                            mData->mstrLogKeyStore, mData->mstrLogKeyId, CipherModeCtr);
+        if (FAILED(rc))
+            /* the helper function already sets error object */
+            throw rc;
+
+        task.m_pProgress->SetNextOperation(Bstr(tr("Change encryption of the config file")).raw(), 1);
+
+        i_saveSettings(NULL, alock, fSave);
+    }
+    catch (HRESULT aRC)
+    {
+        rc = aRC;
+        mData->mstrKeyId = strOldKeyId;
+        mData->mstrKeyStore = strOldKeyStore;
+    }
+
+    task.m_pProgress->i_notifyComplete(rc);
+
+    LogFlowThisFuncLeave();
+}
+#endif /*!VBOX_WITH_FULL_VM_ENCRYPTION*/
+
+HRESULT Machine::changeEncryption(const com::Utf8Str &aCurrentPassword,
+                                  const com::Utf8Str &aCipher,
+                                  const com::Utf8Str &aNewPassword,
+                                  const com::Utf8Str &aNewPasswordId,
+                                  BOOL aForce,
+                                  ComPtr<IProgress> &aProgress)
+{
+    LogFlowFuncEnter();
+
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(aCurrentPassword, aCipher, aNewPassword, aNewPasswordId, aForce, aProgress);
+    return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    /* make the VM accessible */
+    if (!mData->mAccessible)
+    {
+        if (   aCurrentPassword.isEmpty()
+            || mData->mstrKeyId.isEmpty())
+            return setError(E_ACCESSDENIED, tr("Machine is inaccessible"));
+
+        HRESULT rc = addEncryptionPassword(mData->mstrKeyId, aCurrentPassword);
+        if (FAILED(rc))
+            return rc;
+    }
+
+    AutoLimitedCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* define mediums to be change encryption */
+
+    MediaList llMedia;
+    for (MediumAttachmentList::iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
+         ++it)
+    {
+        ComObjPtr<MediumAttachment> &pAttach = *it;
+        ComObjPtr<Medium> pMedium = pAttach->i_getMedium();
+
+        if (!pMedium.isNull())
+        {
+            AutoCaller mac(pMedium);
+            if (FAILED(mac.rc())) return mac.rc();
+            AutoReadLock lock(pMedium COMMA_LOCKVAL_SRC_POS);
+            DeviceType_T devType = pMedium->i_getDeviceType();
+            if (devType == DeviceType_HardDisk)
+            {
+                /*
+                 * We need to move to last child because the Medium::changeEncryption
+                 * encrypts all chain of specified medium with its parents.
+                 * Also we perform cheking of back reference and children for
+                 * all media in the chain to raise error before we start any action.
+                 * So, we first move into root parent and then we will move to last child
+                 * keeping latter in the list for encryption.
+                 */
+
+                /* move to root parent */
+                ComObjPtr<Medium> pTmpMedium = pMedium;
+                while (pTmpMedium.isNotNull())
+                {
+                    AutoCaller mediumAC(pTmpMedium);
+                    if (FAILED(mediumAC.rc())) return mac.rc();
+                    AutoReadLock mlock(pTmpMedium COMMA_LOCKVAL_SRC_POS);
+
+                    /* Cannot encrypt media which are attached to more than one virtual machine. */
+                    size_t cBackRefs = pTmpMedium->i_getMachineBackRefCount();
+                    if (cBackRefs > 1)
+                        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                                        tr("Cannot encrypt medium '%s' because it is attached to %d virtual machines", "", cBackRefs),
+                                        pTmpMedium->i_getName().c_str(), cBackRefs);
+
+                    size_t cChildren = pTmpMedium->i_getChildren().size();
+                    if (cChildren  > 1)
+                        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                                        tr("Cannot encrypt medium '%s' because it has %d children", "", cChildren),
+                                        pTmpMedium->i_getName().c_str(), cChildren);
+
+                    pTmpMedium = pTmpMedium->i_getParent();
+                }
+                /* move to last child */
+                pTmpMedium = pMedium;
+                while (pTmpMedium.isNotNull() && pTmpMedium->i_getChildren().size() != 0)
+                {
+                    AutoCaller mediumAC(pTmpMedium);
+                    if (FAILED(mediumAC.rc())) return mac.rc();
+                    AutoReadLock mlock(pTmpMedium COMMA_LOCKVAL_SRC_POS);
+
+                    /* Cannot encrypt media which are attached to more than one virtual machine. */
+                    size_t cBackRefs = pTmpMedium->i_getMachineBackRefCount();
+                    if (cBackRefs > 1)
+                        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                                        tr("Cannot encrypt medium '%s' because it is attached to %d virtual machines", "", cBackRefs),
+                                        pTmpMedium->i_getName().c_str(), cBackRefs);
+
+                    size_t cChildren = pTmpMedium->i_getChildren().size();
+                    if (cChildren  > 1)
+                        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                                        tr("Cannot encrypt medium '%s' because it has %d children", "", cChildren),
+                                        pTmpMedium->i_getName().c_str(), cChildren);
+
+                    pTmpMedium = pTmpMedium->i_getChildren().front();
+                }
+                llMedia.push_back(pTmpMedium);
+            }
+        }
+    }
+
+    ComObjPtr<Progress> pProgress;
+    pProgress.createObject();
+    HRESULT rc = pProgress->init(i_getVirtualBox(),
+                                 static_cast<IMachine*>(this) /* aInitiator */,
+                                 tr("Change encryption"),
+                                 TRUE /* fCancellable */,
+                                 (ULONG)(4 + + llMedia.size()), // cOperations
+                                 tr("Change encryption of the mediuma"));
+    if (FAILED(rc))
+        return rc;
+
+    /* create and start the task on a separate thread (note that it will not
+     * start working until we release alock) */
+    ChangeEncryptionTask *pTask = new ChangeEncryptionTask(this, pProgress, "VM encryption",
+                                                           aCurrentPassword, aCipher, aNewPassword,
+                                                           aNewPasswordId, aForce, llMedia);
+    rc = pTask->createThread();
+    pTask = NULL;
+    if (FAILED(rc))
+        return rc;
+
+    pProgress.queryInterfaceTo(aProgress.asOutParam());
+
+    LogFlowFuncLeave();
+
+    return S_OK;
+#endif
+}
+
+HRESULT Machine::getEncryptionSettings(com::Utf8Str &aCipher,
+                                       com::Utf8Str &aPasswordId)
+{
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(aCipher, aPasswordId);
+    return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    AutoLimitedCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    PCVBOXCRYPTOIF pCryptoIf = NULL;
+    HRESULT hrc = mParent->i_retainCryptoIf(&pCryptoIf);
+    if (FAILED(hrc)) return hrc; /* Error is set */
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->mstrKeyStore.isNotEmpty())
+    {
+        char *pszCipher = NULL;
+        int vrc = pCryptoIf->pfnCryptoKeyStoreGetDekFromEncoded(mData->mstrKeyStore.c_str(), NULL /*pszPassword*/,
+                                                                NULL /*ppbKey*/, NULL /*pcbKey*/, &pszCipher);
+        if (RT_SUCCESS(vrc))
+        {
+            aCipher = getCipherStringWithoutMode(pszCipher);
+            RTStrFree(pszCipher);
+            aPasswordId = mData->mstrKeyId;
+        }
+        else
+            hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                               tr("Failed to query the encryption settings with %Rrc"),
+                               vrc);
+    }
+    else
+        hrc = setError(VBOX_E_NOT_SUPPORTED, tr("This VM is not encrypted"));
+
+    mParent->i_releaseCryptoIf(pCryptoIf);
+
+    return hrc;
+#endif
+}
+
+HRESULT Machine::checkEncryptionPassword(const com::Utf8Str &aPassword)
+{
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(aPassword);
+    return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    AutoLimitedCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    PCVBOXCRYPTOIF pCryptoIf = NULL;
+    HRESULT hrc = mParent->i_retainCryptoIf(&pCryptoIf);
+    if (FAILED(hrc)) return hrc; /* Error is set */
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->mstrKeyStore.isNotEmpty())
+    {
+        char *pszCipher = NULL;
+        uint8_t *pbDek  = NULL;
+        size_t   cbDek  = 0;
+        int vrc = pCryptoIf->pfnCryptoKeyStoreGetDekFromEncoded(mData->mstrKeyStore.c_str(), aPassword.c_str(),
+                                                                &pbDek, &cbDek, &pszCipher);
+        if (RT_SUCCESS(vrc))
+        {
+            RTStrFree(pszCipher);
+            RTMemSaferFree(pbDek, cbDek);
+        }
+        else
+            hrc = setErrorBoth(VBOX_E_PASSWORD_INCORRECT, vrc,
+                               tr("The password supplied for the encrypted machine is incorrect"));
+    }
+    else
+        hrc = setError(VBOX_E_NOT_SUPPORTED, tr("This VM is not encrypted"));
+
+    mParent->i_releaseCryptoIf(pCryptoIf);
+
+    return hrc;
+#endif
+}
+
+HRESULT Machine::addEncryptionPassword(const com::Utf8Str &aId,
+                                       const com::Utf8Str &aPassword)
+{
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(aId, aPassword);
+    return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    AutoLimitedCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    size_t   cbPassword = aPassword.length() + 1;
+    uint8_t *pbPassword = (uint8_t *)aPassword.c_str();
+
+    mData->mpKeyStore->addSecretKey(aId, pbPassword, cbPassword);
+
+    if (   mData->mAccessible
+        && mData->mSession.mState == SessionState_Locked
+        && mData->mSession.mLockType == LockType_VM
+        && mData->mSession.mDirectControl != NULL)
+    {
+        /* get the console from the direct session */
+        ComPtr<IConsole> console;
+        HRESULT rc = mData->mSession.mDirectControl->COMGETTER(RemoteConsole)(console.asOutParam());
+        ComAssertComRC(rc);
+        /* send passsword to console */
+        console->AddEncryptionPassword(Bstr(aId).raw(),
+                                       Bstr(aPassword).raw(),
+                                       TRUE);
+    }
+
+    if (mData->mstrKeyId == aId)
+    {
+        HRESULT hrc = checkEncryptionPassword(aPassword);
+        if (FAILED(hrc))
+            return hrc;
+
+        if (SUCCEEDED(hrc))
+        {
+            /*
+             * Encryption is used and password is correct,
+             * Reinit the machine if required.
+             */
+            BOOL fAccessible;
+            alock.release();
+            getAccessible(&fAccessible);
+            alock.acquire();
+        }
+    }
+
+    /*
+     * Add the password into the NvramStore only after
+     * the machine becomes accessible and the NvramStore
+     * contains key id and key store.
+     */
+    if (mNvramStore.isNotNull())
+        mNvramStore->i_addPassword(aId, aPassword);
+
+    return S_OK;
+#endif
+}
+
+HRESULT Machine::addEncryptionPasswords(const std::vector<com::Utf8Str> &aIds,
+                                        const std::vector<com::Utf8Str> &aPasswords)
+{
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(aIds, aPasswords);
+    return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    if (aIds.size() != aPasswords.size())
+        return setError(E_INVALIDARG, tr("Id and passwords arrays must have the same size"));
+
+    HRESULT hrc = S_OK;
+    for (size_t i = 0; i < aIds.size() && SUCCEEDED(hrc); ++i)
+        hrc = addEncryptionPassword(aIds[i], aPasswords[i]);
+
+    return hrc;
+#endif
+}
+
+HRESULT Machine::removeEncryptionPassword(AutoCaller &autoCaller, const com::Utf8Str &aId)
+{
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(autoCaller, aId);
+    return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (   mData->mAccessible
+        && mData->mSession.mState == SessionState_Locked
+        && mData->mSession.mLockType == LockType_VM
+        && mData->mSession.mDirectControl != NULL)
+    {
+        /* get the console from the direct session */
+        ComPtr<IConsole> console;
+        HRESULT rc = mData->mSession.mDirectControl->COMGETTER(RemoteConsole)(console.asOutParam());
+        ComAssertComRC(rc);
+        /* send passsword to console */
+        console->RemoveEncryptionPassword(Bstr(aId).raw());
+    }
+
+    if (mData->mAccessible && mData->mstrKeyStore.isNotEmpty() && mData->mstrKeyId == aId)
+    {
+        if (Global::IsOnlineOrTransient(mData->mMachineState))
+            return setError(VBOX_E_INVALID_VM_STATE, tr("The machine is in online or transient state"));
+        alock.release();
+        autoCaller.release();
+        /* return because all passwords are purged when machine becomes inaccessible; */
+        return i_setInaccessible();
+    }
+
+    if (mNvramStore.isNotNull())
+        mNvramStore->i_removePassword(aId);
+    mData->mpKeyStore->deleteSecretKey(aId);
+    return S_OK;
+#endif
+}
+
+HRESULT Machine::clearAllEncryptionPasswords(AutoCaller &autoCaller)
+{
+#ifndef VBOX_WITH_FULL_VM_ENCRYPTION
+    RT_NOREF(autoCaller);
+    return setError(VBOX_E_NOT_SUPPORTED, tr("Full VM encryption is not available with this build"));
+#else
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mData->mAccessible && mData->mstrKeyStore.isNotEmpty())
+    {
+        if (Global::IsOnlineOrTransient(mData->mMachineState))
+            return setError(VBOX_E_INVALID_VM_STATE, tr("The machine is in online or transient state"));
+        alock.release();
+        autoCaller.release();
+        /* return because all passwords are purged when machine becomes inaccessible; */
+        return i_setInaccessible();
+    }
+
+    mNvramStore->i_removeAllPasswords();
+    mData->mpKeyStore->deleteAllSecretKeys(false, true);
+    return S_OK;
+#endif
+}
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+HRESULT Machine::i_setInaccessible()
+{
+    if (!mData->mAccessible)
+        return S_OK;
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    VirtualBox   *pParent = mParent;
+    com::Utf8Str strConfigFile = mData->m_strConfigFile;
+    Guid         id(i_getId());
+
+    alock.release();
+
+    uninit();
+    HRESULT rc = initFromSettings(pParent, strConfigFile, &id, com::Utf8Str());
+
+    alock.acquire();
+    mParent->i_onMachineStateChanged(mData->mUuid, mData->mMachineState);
+    return rc;
+}
+#endif
 
 /* This isn't handled entirely by the wrapper generator yet. */
 #ifdef VBOX_WITH_XPCOM

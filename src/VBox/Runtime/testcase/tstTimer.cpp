@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -55,6 +65,9 @@ static DECLCALLBACK(void) TimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t 
     RT_NOREF_PV(pTimer); RT_NOREF_PV(pvUser); RT_NOREF_PV(iTick);
 
     gcTicks++;
+
+    if (iTick != gcTicks)
+        RTPrintf("tstTimer: FAILURE - iTick=%llu expected %u\n", iTick, gcTicks);
 
     const uint64_t u64Now = RTTimeNanoTS();
     if (gu64Prev)
@@ -161,13 +174,7 @@ int main()
         gu64Min = UINT64_MAX;
         gu64Prev = 0;
         RT_ZERO(cFrequency);
-#ifdef RT_OS_WINDOWS
-        if (aTests[i].uMicroInterval < 1000)
-            continue;
-        rc = RTTimerCreate(&pTimer, aTests[i].uMicroInterval / 1000, TimerCallback, NULL);
-#else
         rc = RTTimerCreateEx(&pTimer, aTests[i].uMicroInterval * (uint64_t)1000, 0, TimerCallback, NULL);
-#endif
         if (RT_FAILURE(rc))
         {
             RTPrintf("tstTimer: FAILURE - RTTimerCreateEx(,%u*1M,,,) -> %Rrc\n", aTests[i].uMicroInterval, rc);
@@ -179,14 +186,12 @@ int main()
          * Start the timer and active waiting for the requested test period.
          */
         uTSBegin = RTTimeNanoTS();
-#ifndef RT_OS_WINDOWS
         rc = RTTimerStart(pTimer, 0);
         if (RT_FAILURE(rc))
         {
             RTPrintf("tstTimer: FAILURE - RTTimerStart(,0) -> %Rrc\n", rc);
             cErrors++;
         }
-#endif
 
         while (RTTimeNanoTS() - uTSBegin < (uint64_t)aTests[i].uMilliesWait * 1000000)
             /* nothing */;

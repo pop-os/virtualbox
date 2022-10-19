@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -50,7 +60,7 @@ typedef struct DRVMOUSEQUEUE
     /** Our mouse port interface. */
     PDMIMOUSEPORT               IPort;
     /** The queue handle. */
-    PPDMQUEUE                   pQueue;
+    PDMQUEUEHANDLE              hQueue;
     /** Discard input when this flag is set.
      * We only accept input when the VM is running. */
     bool                        fInactive;
@@ -128,7 +138,7 @@ static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface,
     if (pDrv->fInactive)
         return VINF_SUCCESS;
 
-    PDRVMOUSEQUEUEITEM pItem = (PDRVMOUSEQUEUEITEM)PDMQueueAlloc(pDrv->pQueue);
+    PDRVMOUSEQUEUEITEM pItem = (PDRVMOUSEQUEUEITEM)PDMDrvHlpQueueAlloc(pDrv->pDrvIns, pDrv->hQueue);
     if (pItem)
     {
         RT_ZERO(pItem->u.padding);
@@ -138,7 +148,7 @@ static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface,
         pItem->u.Relative.dz       = dz;
         pItem->u.Relative.dw       = dw;
         pItem->u.Relative.fButtons = fButtons;
-        PDMQueueInsert(pDrv->pQueue, &pItem->Core);
+        PDMDrvHlpQueueInsert(pDrv->pDrvIns, pDrv->hQueue, &pItem->Core);
         return VINF_SUCCESS;
     }
     return VERR_PDM_NO_QUEUE_ITEMS;
@@ -156,7 +166,7 @@ static DECLCALLBACK(int) drvMouseQueuePutEventAbs(PPDMIMOUSEPORT pInterface,
     if (pDrv->fInactive)
         return VINF_SUCCESS;
 
-    PDRVMOUSEQUEUEITEM pItem = (PDRVMOUSEQUEUEITEM)PDMQueueAlloc(pDrv->pQueue);
+    PDRVMOUSEQUEUEITEM pItem = (PDRVMOUSEQUEUEITEM)PDMDrvHlpQueueAlloc(pDrv->pDrvIns, pDrv->hQueue);
     if (pItem)
     {
         RT_ZERO(pItem->u.padding);
@@ -166,20 +176,29 @@ static DECLCALLBACK(int) drvMouseQueuePutEventAbs(PPDMIMOUSEPORT pInterface,
         pItem->u.Absolute.dz       = dz;
         pItem->u.Absolute.dw       = dw;
         pItem->u.Absolute.fButtons = fButtons;
-        PDMQueueInsert(pDrv->pQueue, &pItem->Core);
+        PDMDrvHlpQueueInsert(pDrv->pDrvIns, pDrv->hQueue, &pItem->Core);
         return VINF_SUCCESS;
     }
     return VERR_PDM_NO_QUEUE_ITEMS;
 }
 
 
-static DECLCALLBACK(int) drvMouseQueuePutEventMultiTouch(PPDMIMOUSEPORT pInterface,
+static DECLCALLBACK(int) drvMouseQueuePutEventMTAbs(PPDMIMOUSEPORT pInterface,
                                                          uint8_t cContacts,
                                                          const uint64_t *pau64Contacts,
                                                          uint32_t u32ScanTime)
 {
     PDRVMOUSEQUEUE pThis = IMOUSEPORT_2_DRVMOUSEQUEUE(pInterface);
-    return pThis->pUpPort->pfnPutEventMultiTouch(pThis->pUpPort, cContacts, pau64Contacts, u32ScanTime);
+    return pThis->pUpPort->pfnPutEventTouchScreen(pThis->pUpPort, cContacts, pau64Contacts, u32ScanTime);
+}
+
+static DECLCALLBACK(int) drvMouseQueuePutEventMTRel(PPDMIMOUSEPORT pInterface,
+                                                         uint8_t cContacts,
+                                                         const uint64_t *pau64Contacts,
+                                                         uint32_t u32ScanTime)
+{
+    PDRVMOUSEQUEUE pThis = IMOUSEPORT_2_DRVMOUSEQUEUE(pInterface);
+    return pThis->pUpPort->pfnPutEventTouchPad(pThis->pUpPort, cContacts, pau64Contacts, u32ScanTime);
 }
 
 /* -=-=-=-=- IConnector -=-=-=-=- */
@@ -194,12 +213,13 @@ static DECLCALLBACK(int) drvMouseQueuePutEventMultiTouch(PPDMIMOUSEPORT pInterfa
  * @param   pInterface  Pointer to the mouse connector interface structure.
  * @param   fRel        Is relative reporting supported?
  * @param   fAbs        Is absolute reporting supported?
- * @param   fMT         Is multi-touch reporting supported?
+ * @param   fMTAbs      Is absolute multi-touch reporting supported?
+ * @param   fMTRel         Is relative multi-touch reporting supported?
  */
-static DECLCALLBACK(void) drvMousePassThruReportModes(PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs, bool fMT)
+static DECLCALLBACK(void) drvMousePassThruReportModes(PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs, bool fMTAbs, bool fMTRel)
 {
     PDRVMOUSEQUEUE pDrv = PPDMIMOUSECONNECTOR_2_DRVMOUSEQUEUE(pInterface);
-    pDrv->pDownConnector->pfnReportModes(pDrv->pDownConnector, fRel, fAbs, fMT);
+    pDrv->pDownConnector->pfnReportModes(pDrv->pDownConnector, fRel, fAbs, fMTAbs, fMTRel);
 }
 
 
@@ -212,8 +232,7 @@ static DECLCALLBACK(void) drvMouseFlushQueue(PPDMIMOUSECONNECTOR pInterface)
 {
     PDRVMOUSEQUEUE pDrv = PPDMIMOUSECONNECTOR_2_DRVMOUSEQUEUE(pInterface);
 
-    AssertPtr(pDrv->pQueue);
-    PDMQueueFlushIfNecessary(pDrv->pQueue);
+    PDMDrvHlpQueueFlushIfNecessary(pDrv->pDrvIns, pDrv->hQueue);
 }
 
 
@@ -248,8 +267,8 @@ static DECLCALLBACK(bool) drvMouseQueueConsumer(PPDMDRVINS pDrvIns, PPDMQUEUEITE
                                             pItem->u.Absolute.dw,
                                             pItem->u.Absolute.fButtons);
     else
-        return false;
-    return RT_SUCCESS(rc);
+        AssertMsgFailedReturn(("enmType=%d\n", pItem->enmType), true /* remove buggy data */);
+    return rc != VERR_TRY_AGAIN;
 }
 
 
@@ -327,19 +346,21 @@ static DECLCALLBACK(void) drvMouseQueuePowerOff(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVMOUSEQUEUE pDrv = PDMINS_2_DATA(pDrvIns, PDRVMOUSEQUEUE);
-    LogFlow(("drvMouseQueueConstruct: iInstance=%d\n", pDrvIns->iInstance));
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVMOUSEQUEUE  pDrv = PDMINS_2_DATA(pDrvIns, PDRVMOUSEQUEUE);
+    PCPDMDRVHLPR3   pHlp = pDrvIns->pHlpR3;
+
+    LogFlow(("drvMouseQueueConstruct: iInstance=%d\n", pDrvIns->iInstance));
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "QueueSize\0Interval\0"))
-        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "QueueSize|Interval", "");
 
     /*
      * Init basic data members and interfaces.
      */
+    pDrv->pDrvIns                           = pDrvIns;
     pDrv->fInactive                         = true;
     /* IBase. */
     pDrvIns->IBase.pfnQueryInterface        = drvMouseQueueQueryInterface;
@@ -349,64 +370,46 @@ static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     /* IMousePort. */
     pDrv->IPort.pfnPutEvent                 = drvMouseQueuePutEvent;
     pDrv->IPort.pfnPutEventAbs              = drvMouseQueuePutEventAbs;
-    pDrv->IPort.pfnPutEventMultiTouch       = drvMouseQueuePutEventMultiTouch;
+    pDrv->IPort.pfnPutEventTouchScreen      = drvMouseQueuePutEventMTAbs;
+    pDrv->IPort.pfnPutEventTouchPad         = drvMouseQueuePutEventMTRel;
 
     /*
      * Get the IMousePort interface of the above driver/device.
      */
     pDrv->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMOUSEPORT);
-    if (!pDrv->pUpPort)
-    {
-        AssertMsgFailed(("Configuration error: No mouse port interface above!\n"));
-        return VERR_PDM_MISSING_INTERFACE_ABOVE;
-    }
+    AssertMsgReturn(pDrv->pUpPort, ("Configuration error: No mouse port interface above!\n"), VERR_PDM_MISSING_INTERFACE_ABOVE);
 
     /*
      * Attach driver below and query it's connector interface.
      */
     PPDMIBASE pDownBase;
     int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pDownBase);
-    if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Failed to attach driver below us! rc=%Rra\n", rc));
-        return rc;
-    }
+    AssertMsgRCReturn(rc, ("Failed to attach driver below us! rc=%Rra\n", rc), rc);
+
     pDrv->pDownConnector = PDMIBASE_QUERY_INTERFACE(pDownBase, PDMIMOUSECONNECTOR);
-    if (!pDrv->pDownConnector)
-    {
-        AssertMsgFailed(("Configuration error: No mouse connector interface below!\n"));
-        return VERR_PDM_MISSING_INTERFACE_BELOW;
-    }
+    AssertMsgReturn(pDrv->pDownConnector, ("Configuration error: No mouse connector interface below!\n"),
+                    VERR_PDM_MISSING_INTERFACE_BELOW);
 
     /*
      * Create the queue.
      */
     uint32_t cMilliesInterval = 0;
-    rc = CFGMR3QueryU32(pCfg, "Interval", &cMilliesInterval);
+    rc = pHlp->pfnCFGMQueryU32(pCfg, "Interval", &cMilliesInterval);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         cMilliesInterval = 0;
-    else if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Configuration error: 32-bit \"Interval\" -> rc=%Rrc\n", rc));
-        return rc;
-    }
+    else
+        AssertMsgRCReturn(rc, ("Configuration error: 32-bit \"Interval\" -> rc=%Rrc\n", rc), rc);
 
     uint32_t cItems = 0;
-    rc = CFGMR3QueryU32(pCfg, "QueueSize", &cItems);
+    rc = pHlp->pfnCFGMQueryU32(pCfg, "QueueSize", &cItems);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         cItems = 128;
-    else if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Configuration error: 32-bit \"QueueSize\" -> rc=%Rrc\n", rc));
-        return rc;
-    }
+    else
+        AssertMsgRCReturn(rc, ("Configuration error: 32-bit \"QueueSize\" -> rc=%Rrc\n", rc), rc);
 
-    rc = PDMDrvHlpQueueCreate(pDrvIns, sizeof(DRVMOUSEQUEUEITEM), cItems, cMilliesInterval, drvMouseQueueConsumer, "Mouse", &pDrv->pQueue);
-    if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Failed to create driver: cItems=%d cMilliesInterval=%d rc=%Rrc\n", cItems, cMilliesInterval, rc));
-        return rc;
-    }
+    rc = PDMDrvHlpQueueCreate(pDrvIns, sizeof(DRVMOUSEQUEUEITEM), cItems, cMilliesInterval,
+                              drvMouseQueueConsumer, "Mouse", &pDrv->hQueue);
+    AssertMsgRCReturn(rc, ("Failed to create driver: cItems=%d cMilliesInterval=%d rc=%Rrc\n", cItems, cMilliesInterval, rc), rc);
 
     return VINF_SUCCESS;
 }

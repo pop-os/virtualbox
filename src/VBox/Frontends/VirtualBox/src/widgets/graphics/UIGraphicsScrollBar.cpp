@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -77,7 +87,7 @@ public:
     UIGraphicsScrollBarToken(Qt::Orientation enmOrientation, QIGraphicsWidget *pParent = 0);
 
     /** Returns minimum size-hint. */
-    virtual QSizeF minimumSizeHint() const /* override */;
+    virtual QSizeF minimumSizeHint() const RT_OVERRIDE;
 
     /** Returns whether token is hovered. */
     bool isHovered() const { return m_fHovered; }
@@ -85,17 +95,17 @@ public:
 protected:
 
     /** Performs painting using passed @a pPainter, @a pOptions and optionally specified @a pWidget. */
-    virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) /* override */;
+    virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) RT_OVERRIDE;
 
     /** Handles mouse-press @a pEvent. */
-    virtual void mousePressEvent(QGraphicsSceneMouseEvent *pEvent) /* override */;
+    virtual void mousePressEvent(QGraphicsSceneMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-release @a pEvent. */
-    virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *pEvent) /* override */;
+    virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *pEvent) RT_OVERRIDE;
 
     /** Handles hover enter @a pEvent. */
-    virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+    virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
     /** Handles hover leave @a pEvent. */
-    virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+    virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
 
 private:
 
@@ -152,13 +162,12 @@ void UIGraphicsScrollBarToken::paint(QPainter *pPainter, const QStyleOptionGraph
     pPainter->save();
 
     /* Prepare color: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
 
 #ifdef VBOX_WS_MAC
 
     /* Draw background: */
-    QColor backgroundColor = pal.color(QPalette::Active, QPalette::Mid);
-    backgroundColor = backgroundColor.darker(140);
+    QColor backgroundColor = pal.color(QPalette::Active, QPalette::Window).darker(190);
     QRectF actualRectangle = pOptions->rect;
     actualRectangle.setLeft(pOptions->rect.left() + .22 * pOptions->rect.width());
     actualRectangle.setRight(pOptions->rect.right() - .22 * pOptions->rect.width());
@@ -174,7 +183,7 @@ void UIGraphicsScrollBarToken::paint(QPainter *pPainter, const QStyleOptionGraph
 #else
 
     /* Draw background: */
-    QColor backgroundColor = pal.color(QPalette::Active, QPalette::Mid);
+    QColor backgroundColor = pal.color(QPalette::Active, QPalette::Window).darker(140);
     pPainter->fillRect(pOptions->rect, backgroundColor);
 
 #endif
@@ -990,7 +999,7 @@ void UIGraphicsScrollBar::paintBackground(QPainter *pPainter, const QRect &recta
     pPainter->save();
 
     /* Prepare color: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
 
 #ifdef VBOX_WS_MAC
 
@@ -1015,9 +1024,9 @@ void UIGraphicsScrollBar::paintBackground(QPainter *pPainter, const QRect &recta
     /* Emulate token when necessary: */
     if (m_iHoveringValue < 100)
     {
-        QColor tokenColor = pal.color(QPalette::Active, QPalette::Mid);
+        QColor tokenColor = pal.color(QPalette::Active, QPalette::Window);
         tokenColor.setAlpha(255 * ((double)m_iRevealingValue / 100));
-        tokenColor = tokenColor.darker(140);
+        tokenColor = tokenColor.darker(190);
         QRectF tokenRectangle = QRect(actualTokenPosition(), QSize(m_iExtent, 2 * m_iExtent));
         QRectF actualRectangle = tokenRectangle;
         if (m_fAutoHideMode)
@@ -1043,7 +1052,7 @@ void UIGraphicsScrollBar::paintBackground(QPainter *pPainter, const QRect &recta
 #else
 
     /* Draw background: */
-    QColor backgroundColor = pal.color(QPalette::Active, QPalette::Midlight);
+    QColor backgroundColor = pal.color(QPalette::Active, QPalette::Window);
     backgroundColor.setAlpha(50 + (double)m_iHoveringValue / 100 * 150);
     QRect actualRectangle = rectangle;
     actualRectangle.setLeft(actualRectangle.left() + .85 * actualRectangle.width() * ((double)100 - m_iHoveringValue) / 100);
@@ -1052,7 +1061,7 @@ void UIGraphicsScrollBar::paintBackground(QPainter *pPainter, const QRect &recta
     /* Emulate token when necessary: */
     if (m_iHoveringValue < 100)
     {
-        QColor tokenColor = pal.color(QPalette::Active, QPalette::Dark);
+        QColor tokenColor = pal.color(QPalette::Active, QPalette::Window).darker(140);
         QRect tokenRectangle = QRect(actualTokenPosition(), QSize(m_iExtent, m_iExtent));
         tokenRectangle.setLeft(tokenRectangle.left() + .85 * tokenRectangle.width() * ((double)100 - m_iHoveringValue) / 100);
         pPainter->fillRect(tokenRectangle, tokenColor);

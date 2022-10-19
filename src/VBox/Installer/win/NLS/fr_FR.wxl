@@ -1,20 +1,31 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+    Language Definition Include for VirtualBox WiX script.
+-->
+<!--
+    Copyright (C) 2011-2022 Oracle and/or its affiliates.
+
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
+
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
+
 <WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="1252" Culture="fr_FR">
-
-    <!--
-            Language Definition Include for VirtualBox WiX script.
-
-            Copyright (C) 2011-2020 Oracle Corporation
-
-            This file is part of VirtualBox Open Source Edition (OSE), as
-            available from http://www.virtualbox.org. This file is free software;
-            you can redistribute it and/or modify it under the terms of the GNU
-            General Public License (GPL) as published by the Free Software
-            Foundation, in version 2 as it comes in the "COPYING" file of the
-            VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-            hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-    -->
-
     <String Id="LANG">1036</String>
     <String Id="LangName">Francais</String>
 
@@ -58,6 +69,7 @@
     <!---->
 
     <String Id="NeedAdmin">Vous ne pouvez pas (dés)installer [ProductName] sans droits d'administrateur! Ce programme d'installation terminera maintenant.</String>
+    <String Id="NeedMSCRT">[ProductName] needs the Microsoft Visual C++ 2019 Redistributable Package being installed first. Please install and restart the installation of [ProductName].</String>
     <String Id="WrongOS">Cette application nécéssite Windows XP ou plus récent.</String>
     <String Id="Only32Bit">Cette application ne marche que sur des systèmes Windows 32-bit. Veuillez installer la version 64-bit de [ProductName]!</String>
     <String Id="Only64Bit">Cette application ne marche que sur des systèmes Windows 64-bit. Veuillez installer la version 32-bit de [ProductName]!</String>
@@ -139,6 +151,14 @@ This is default for newer versions of Windows (Vista and newer).</String>
     <String Id="WarnDisconNetIfacesDlg_Title2">Interfaces réseau</String>
     <String Id="WarnDisconNetIfacesDlg_Desc">L'installation de la fonctionnalité réseau de [ProductName] réinitialisera votre connection réseau et vous déconnectera temporairement du réseau.</String>
     <String Id="WarnDisconNetIfacesDlg_Question">Désirez-vous poursuivre l'installation maintenant?</String>
+
+    <!---->
+
+    <String Id="WarnPythonDlg_Title">Missing Dependencies</String>
+    <String Id="WarnPythonDlg_Title2">Python Core / win32api</String>
+    <String Id="WarnPythonDlg_Desc">Installing the [ProductName] Python bindings requires the Python Core package and the win32api bindings to be installed first.</String>
+    <String Id="WarnPythonDlg_Desc2">When continuing the installation of the [ProductName] Python bindings now, those need to be set up manually later. Refer to the [ProductName] SDK manual for more information.</String>
+    <String Id="WarnPythonDlg_Question">Proceed with installation now?</String>
 
     <!---->
 

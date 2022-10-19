@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_GuestHost_clipboard_helper_h
@@ -164,49 +174,6 @@ int ShClConvUtf8LFToUtf16CRLF(const char *pcszSrc, size_t cbSrc, PRTUTF16 *ppwsz
  */
 int ShClConvLatin1LFToUtf16CRLF(const char *pcszSrc, size_t cbSrc, PRTUTF16 *ppwszDst, size_t *pcwDst);
 
-#pragma pack(1)
-/** @todo r=bird: Why duplicate these structures here, we've got them in
- *        DevVGA.cpp already! */
-/**
- * Bitmap File Header. Official win32 name is BITMAPFILEHEADER
- * Always Little Endian.
- */
-typedef struct BMFILEHEADER
-{
-    uint16_t uType;
-    uint32_t uSize;
-    uint16_t uReserved1;
-    uint16_t uReserved2;
-    uint32_t uOffBits;
-} BMFILEHEADER;
-#pragma pack()
-
-/** Pointer to a BMFILEHEADER structure. */
-typedef BMFILEHEADER *PBMFILEHEADER;
-/** BMP file magic number */
-#define BITMAPHEADERMAGIC (RT_H2LE_U16_C(0x4d42))
-
-/**
- * Bitmap Info Header. Official win32 name is BITMAPINFOHEADER
- * Always Little Endian.
- */
-typedef struct BMINFOHEADER
-{
-    uint32_t uSize;
-    uint32_t uWidth;
-    uint32_t uHeight;
-    uint16_t uPlanes;
-    uint16_t uBitCount;
-    uint32_t uCompression;
-    uint32_t uSizeImage;
-    uint32_t uXBitsPerMeter;
-    uint32_t uYBitsPerMeter;
-    uint32_t uClrUsed;
-    uint32_t uClrImportant;
-} BMINFOHEADER;
-/** Pointer to a BMINFOHEADER structure. */
-typedef BMINFOHEADER *PBMINFOHEADER;
-
 /**
  * Convert CF_DIB data to full BMP data by prepending the BM header.
  * Allocates with RTMemAlloc.
@@ -276,6 +243,8 @@ const char *ShClHostMsgToStr(uint32_t uMsg);
  * @param   uMsg                The message to translate.
  */
 const char *ShClGuestMsgToStr(uint32_t uMsg);
+
+char *ShClFormatsToStrA(SHCLFORMATS fFormats);
 
 #endif /* !VBOX_INCLUDED_GuestHost_clipboard_helper_h */
 

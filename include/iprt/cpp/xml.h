@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_cpp_xml_h
@@ -31,6 +41,9 @@
 
 #ifndef IN_RING3
 # error "There are no XML APIs available in Ring-0 Context!"
+#endif
+#ifdef IPRT_NO_CRT
+# error "Not available in no-CRT mode because it depends on exceptions, std::list, std::map and stdio.h."
 #endif
 
 #include <iprt/list.h>
@@ -143,7 +156,7 @@ class RT_DECL_CLASS EIPRTFailure : public RuntimeError
 {
 public:
 
-    EIPRTFailure(int aRC, const char *pcszContext, ...);
+    EIPRTFailure(int aRC, const char *pszContextFmt, ...);
 
     int rc() const
     {
@@ -362,10 +375,10 @@ private:
  *
  */
 
-typedef xmlParserInput* FNEXTERNALENTITYLOADER(const char *aURI,
-                                               const char *aID,
-                                               xmlParserCtxt *aCtxt);
-typedef FNEXTERNALENTITYLOADER *PFNEXTERNALENTITYLOADER;
+
+typedef DECLCALLBACKTYPE_EX(xmlParserInput *, RT_NOTHING, FNEXTERNALENTITYLOADER,(const char *aURI, const char *aID,
+                                                                                  xmlParserCtxt *aCtxt));
+typedef FNEXTERNALENTITYLOADER *PFNEXTERNALENTITYLOADER; /**< xmlExternalEntityLoader w/ noexcept. */
 
 class RT_DECL_CLASS GlobalLock
 {
@@ -1138,8 +1151,8 @@ private:
     struct Data;
     struct Data *m;
 
-    static int ReadCallback(void *aCtxt, char *aBuf, int aLen);
-    static int CloseCallback (void *aCtxt);
+    static int ReadCallback(void *aCtxt, char *aBuf, int aLen) RT_NOTHROW_PROTO;
+    static int CloseCallback(void *aCtxt) RT_NOTHROW_PROTO;
 };
 
 /**
@@ -1169,9 +1182,9 @@ public:
     int write(const Document &rDoc, RTCString *pStrDst);
 
 private:
-    static int WriteCallbackForSize(void *pvUser, const char *pachBuf, int cbToWrite);
-    static int WriteCallbackForReal(void *pvUser, const char *pachBuf, int cbToWrite);
-    static int CloseCallback(void *pvUser);
+    static int WriteCallbackForSize(void *pvUser, const char *pachBuf, int cbToWrite) RT_NOTHROW_PROTO;
+    static int WriteCallbackForReal(void *pvUser, const char *pachBuf, int cbToWrite) RT_NOTHROW_PROTO;
+    static int CloseCallback(void *pvUser) RT_NOTHROW_PROTO;
 
     /** Pointer to the destination string while we're in the write() call.   */
     RTCString  *m_pStrDst;
@@ -1206,8 +1219,8 @@ public:
      */
     void write(const char *pcszFilename, bool fSafe);
 
-    static int WriteCallback(void *aCtxt, const char *aBuf, int aLen);
-    static int CloseCallback(void *aCtxt);
+    static int WriteCallback(void *aCtxt, const char *aBuf, int aLen) RT_NOTHROW_PROTO;
+    static int CloseCallback(void *aCtxt) RT_NOTHROW_PROTO;
 
     /** The suffix used by XmlFileWriter::write() for the temporary file. */
     static const char * const s_pszTmpSuff;

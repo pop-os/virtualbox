@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -56,8 +66,8 @@
 #ifndef _MSC_VER
 # include <unistd.h>
 #endif
-#include <errno.h>
 #ifndef RT_OS_WINDOWS
+# include <errno.h>
 # include <signal.h>
 # ifdef RT_OS_OS2
 #  define pthread_sigmask sigprocmask
@@ -313,15 +323,11 @@ int VGSvcLogCreate(const char *pszLogFile)
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     fFlags |= RTLOGFLAGS_USECRLF;
 #endif
-    int rc = RTLogCreateEx(&g_pLoggerRelease, fFlags, "all",
-#ifdef DEBUG
-                           "VBOXSERVICE_LOG",
-#else
-                           "VBOXSERVICE_RELEASE_LOG",
-#endif
+    int rc = RTLogCreateEx(&g_pLoggerRelease, "VBOXSERVICE_RELEASE_LOG", fFlags, "all",
                            RT_ELEMENTS(s_apszGroups), s_apszGroups, UINT32_MAX /*cMaxEntriesPerGroup*/,
-                           RTLOGDEST_STDOUT | RTLOGDEST_USER,
+                           0 /*cBufDescs*/, NULL /*paBufDescs*/, RTLOGDEST_STDOUT | RTLOGDEST_USER,
                            vgsvcLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
+                           NULL /*pOutputIf*/, NULL /*pvOutputIfUser*/,
                            NULL /*pErrInfo*/, "%s", pszLogFile ? pszLogFile : "");
     if (RT_SUCCESS(rc))
     {
@@ -618,7 +624,7 @@ static unsigned vgsvcCountEnabledServices(void)
  * @remarks This is generally called on a new thread, so we're racing every
  *          other thread in the process.
  */
-static BOOL WINAPI vgsvcWinConsoleControlHandler(DWORD dwCtrlType)
+static BOOL WINAPI vgsvcWinConsoleControlHandler(DWORD dwCtrlType) RT_NOTHROW_DEF
 {
     int rc = VINF_SUCCESS;
     bool fEventHandled = FALSE;
@@ -893,34 +899,6 @@ static RTEXITCODE vbglInitFailure(int rcVbgl)
     return RTMsgErrorExit(RTEXITCODE_FAILURE, "VbglR3Init failed with rc=%Rrc\n", rcVbgl);
 }
 
-#ifdef RT_OS_LINUX
-/**
- * Check for a guest property and start VBoxDRMClient if it exists.
- *
- */
-static void startDRMResize(void)
-{
-    uint32_t uGuestPropSvcClientID;
-    int rc = VbglR3GuestPropConnect(&uGuestPropSvcClientID);
-    if (RT_SUCCESS(rc))
-    {
-        rc = VGSvcCheckPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/DRMResize");
-        if (RT_SUCCESS(rc))
-        {
-            RTMsgInfo("Starting DRM resize service");
-            char szDRMClientPath[RTPATH_MAX];
-            RTPathExecDir(szDRMClientPath, RTPATH_MAX);
-            RTPathStripSuffix(szDRMClientPath);
-            RTPathAppend(szDRMClientPath, RTPATH_MAX, "VBoxDRMClient");
-            const char *apszArgs[1] = { NULL };
-            rc = RTProcCreate("VBoxDRMClient", apszArgs, RTENV_DEFAULT,
-                              RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_SEARCH_PATH, NULL);
-            if (rc == -1)
-                RTMsgError("Could not start DRM resize service");
-        }
-    }
-}
-#endif
 
 int main(int argc, char **argv)
 {
@@ -1200,9 +1178,13 @@ int main(int argc, char **argv)
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;
 
-#ifdef RT_OS_LINUX
-    startDRMResize();
-#endif
+#ifdef VBOX_WITH_VBOXSERVICE_DRMRESIZE
+# ifdef RT_OS_LINUX
+    rc = VbglR3DrmClientStart();
+    if (RT_FAILURE(rc))
+        VGSvcVerbose(0, "VMSVGA DRM resizing client not started, rc=%Rrc\n", rc);
+# endif /* RT_OS_LINUX */
+#endif /* VBOX_WITH_VBOXSERVICE_DRMRESIZE */
 
 #ifdef RT_OS_WINDOWS
     /*
@@ -1240,7 +1222,8 @@ int main(int argc, char **argv)
     }
 
 #else  /* !RT_OS_WINDOWS */
-    /** @todo Add PID file creation here? */
+    /* On other OSes we have PID file support provided by the actual service definitions / service wrapper scripts,
+     * like vboxadd-service.sh on Linux or vboxservice.xml on Solaris. */
 #endif /* !RT_OS_WINDOWS */
 
     VGSvcVerbose(0, "%s r%s started. Verbose level = %d\n", RTBldCfgVersion(), RTBldCfgRevisionStr(), g_cVerbosity);
@@ -1275,14 +1258,12 @@ int main(int argc, char **argv)
          *          and return immediately.
          */
 #ifdef RT_OS_WINDOWS
-# ifndef RT_OS_NT4 /** @todo r=bird: What's RT_OS_NT4??? */
         /* Install console control handler. */
-        if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)vgsvcWinConsoleControlHandler, TRUE /* Add handler */))
+        if (!SetConsoleCtrlHandler(vgsvcWinConsoleControlHandler, TRUE /* Add handler */))
         {
             VGSvcError("Unable to add console control handler, error=%ld\n", GetLastError());
             /* Just skip this error, not critical. */
         }
-# endif /* !RT_OS_NT4 */
 #endif /* RT_OS_WINDOWS */
         rc = VGSvcStartServices();
         RTFILE hPidFile = NIL_RTFILE;
@@ -1295,14 +1276,12 @@ int main(int argc, char **argv)
         if (g_szPidFile[0] && hPidFile != NIL_RTFILE)
             VbglR3ClosePidFile(g_szPidFile, hPidFile);
 #ifdef RT_OS_WINDOWS
-# ifndef RT_OS_NT4
         /* Uninstall console control handler. */
         if (!SetConsoleCtrlHandler((PHANDLER_ROUTINE)NULL, FALSE /* Remove handler */))
         {
             VGSvcError("Unable to remove console control handler, error=%ld\n", GetLastError());
             /* Just skip this error, not critical. */
         }
-# endif /* !RT_OS_NT4 */
 #else /* !RT_OS_WINDOWS */
         /* On Windows - since we're running as a console application - we already stopped all services
          * through the console control handler. So only do the stopping of services here on other platforms

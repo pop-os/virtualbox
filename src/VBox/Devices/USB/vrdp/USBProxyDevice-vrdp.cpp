@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_DRV_USBPROXY
@@ -25,6 +35,7 @@
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 #include <iprt/string.h>
+#include <iprt/uuid.h>
 
 #include "../USBProxyDevice.h"
 
@@ -42,21 +53,45 @@ typedef struct USBPROXYDEVVRDP
  * The USB proxy device functions.
  */
 
-static DECLCALLBACK(int) usbProxyVrdpOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
+static DECLCALLBACK(int) usbProxyVrdpOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress)
 {
-    LogFlow(("usbProxyVrdpOpen: pProxyDev=%p pszAddress=%s, pvBackend=%p\n", pProxyDev, pszAddress, pvBackend));
+    LogFlow(("usbProxyVrdpOpen: pProxyDev=%p pszAddress=%s\n", pProxyDev, pszAddress));
 
     PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
-    int rc = VINF_SUCCESS;
+    PPDMUSBINS       pUsbIns  = pProxyDev->pUsbIns;
+    PCPDMUSBHLP      pHlp     = pUsbIns->pHlpR3;
+
+    PCFGMNODE pCfgBackend = pHlp->pfnCFGMGetChild(pUsbIns->pCfg, "BackendCfg");
+    AssertPtrReturn(pCfgBackend, VERR_NOT_FOUND);
+
+    uint32_t idClient = 0;
+    int rc = pHlp->pfnCFGMQueryU32(pCfgBackend, "ClientId", &idClient);
+    AssertRCReturn(rc, rc);
+
+    RTUUID UuidDev;
+    char *pszUuid = NULL;
+
+    rc = pHlp->pfnCFGMQueryStringAlloc(pUsbIns->pCfg, "UUID", &pszUuid);
+    AssertRCReturn(rc, rc);
+
+    rc = RTUuidFromStr(&UuidDev, pszUuid);
+    pHlp->pfnMMHeapFree(pUsbIns, pszUuid);
+    AssertMsgRCReturn(rc, ("Failed to convert UUID from string! rc=%Rrc\n", rc), rc);
 
     if (strncmp (pszAddress, REMOTE_USB_BACKEND_PREFIX_S, REMOTE_USB_BACKEND_PREFIX_LEN) == 0)
     {
-        REMOTEUSBCALLBACK *pCallback = (REMOTEUSBCALLBACK *)pvBackend;
+        RTUUID UuidRemoteUsbIf;
+        rc = RTUuidFromStr(&UuidRemoteUsbIf, REMOTEUSBIF_OID); AssertRC(rc);
+
+        PREMOTEUSBIF pRemoteUsbIf = (PREMOTEUSBIF)PDMUsbHlpQueryGenericUserObject(pUsbIns, &UuidRemoteUsbIf);
+        AssertPtrReturn(pRemoteUsbIf, VERR_INVALID_PARAMETER);
+
+        REMOTEUSBCALLBACK *pCallback = pRemoteUsbIf->pfnQueryRemoteUsbBackend(pRemoteUsbIf->pvUser, &UuidDev, idClient);
+        AssertPtrReturn(pCallback, VERR_INVALID_PARAMETER);
+
         PREMOTEUSBDEVICE pDevice = NULL;
-
-        rc = pCallback->pfnOpen (pCallback->pInstance, pszAddress, strlen (pszAddress) + 1, &pDevice);
-
-        if (RT_SUCCESS (rc))
+        rc = pCallback->pfnOpen(pCallback->pInstance, pszAddress, strlen (pszAddress) + 1, &pDevice);
+        if (RT_SUCCESS(rc))
         {
             pDevVrdp->pCallback = pCallback;
             pDevVrdp->pDevice = pDevice;

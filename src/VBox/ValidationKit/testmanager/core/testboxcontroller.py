@@ -7,26 +7,36 @@ Test Manager Core - Web Server Abstraction Base Class.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153423 $"
 
 
 # Standard python imports.
@@ -326,23 +336,21 @@ class TestBoxController(object): # pylint: disable=too-few-public-methods
         sFile = os.path.join(config.g_ksFileAreaRootDir, oTestSet.sBaseFilename + '-main.log');
         if not os.path.exists(os.path.dirname(sFile)):
             os.makedirs(os.path.dirname(sFile), 0o755);
-        oFile = open(sFile, 'ab');
 
-        # Check the size.
-        fSizeOk = True;
-        if not fIgnoreSizeCheck:
-            oStat = os.fstat(oFile.fileno());
-            fSizeOk = oStat.st_size / (1024 * 1024) < config.g_kcMbMaxMainLog;
+        with open(sFile, 'ab') as oFile:
+            # Check the size.
+            fSizeOk = True;
+            if not fIgnoreSizeCheck:
+                oStat = os.fstat(oFile.fileno());
+                fSizeOk = oStat.st_size / (1024 * 1024) < config.g_kcMbMaxMainLog;
 
-        # Write the text.
-        if fSizeOk:
-            if sys.version_info[0] >= 3:
-                oFile.write(bytes(sText, 'utf-8'));
-            else:
-                oFile.write(sText);
+            # Write the text.
+            if fSizeOk:
+                if sys.version_info[0] >= 3:
+                    oFile.write(bytes(sText, 'utf-8'));
+                else:
+                    oFile.write(sText);
 
-        # Done
-        oFile.close();
         return fSizeOk;
 
     def _actionSignOn(self):        # pylint: disable=too-many-locals
@@ -699,7 +707,7 @@ class TestBoxController(object): # pylint: disable=too-few-public-methods
         if sMime not in [ 'text/plain', #'text/html', 'text/xml',
                           'application/octet-stream',
                           'image/png', #'image/gif', 'image/jpeg',
-                          #'video/webm', 'video/mpeg', 'video/mpeg4-generic',
+                          'video/webm', #'video/mpeg', 'video/mpeg4-generic',
                           ]:
             raise TestBoxControllerException('Invalid MIME type "%s"' % (sMime,));
 
@@ -729,7 +737,7 @@ class TestBoxController(object): # pylint: disable=too-few-public-methods
                                                 cbFile = cbFile, fCommit = True);
 
         offFile  = 0;
-        oSrcFile = self._oSrvGlue.getBodyIoStream();
+        oSrcFile = self._oSrvGlue.getBodyIoStreamBinary();
         while offFile < cbFile:
             cbToRead = cbFile - offFile;
             if cbToRead > 256*1024:
@@ -944,4 +952,3 @@ class TestBoxController(object): # pylint: disable=too-few-public-methods
         (self._sAction, self._idTestBox, self._sTestBoxUuid, self._sTestBoxAddr, self._idTestSet) = \
             self._getStandardParams(dParams);
         return self._dActions[self._sAction]();
-

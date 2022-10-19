@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <VBox/com/com.h>
@@ -42,13 +52,17 @@ using namespace com;
 #include <iprt/ldr.h>
 #include <iprt/getopt.h>
 #include <iprt/env.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
+#include <iprt/thread.h>
 #include <VBoxVideo.h>
 
 #ifdef VBOX_WITH_RECORDING
 # include <cstdlib>
-# include <cerrno>
 # include <iprt/process.h>
+#endif
+
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+# include <cerrno>
 #endif
 
 #ifdef RT_OS_DARWIN
@@ -58,8 +72,9 @@ using namespace com;
 #endif
 
 #if !defined(RT_OS_WINDOWS)
-#include <signal.h>
-static void HandleSignal(int sig);
+# include <signal.h>
+# include <unistd.h>
+# include <sys/uio.h>
 #endif
 
 #include "PasswordInput.h"
@@ -77,12 +92,14 @@ static void HandleSignal(int sig);
 /* global weak references (for event handlers) */
 static IConsole *gConsole = NULL;
 static NativeEventQueue *gEventQ = NULL;
+/** Inidcates whether gEventQ can safely be used or not. */
+static volatile bool g_fEventQueueSafe = false;
 
 /* keep this handy for messages */
 static com::Utf8Str g_strVMName;
 static com::Utf8Str g_strVMUUID;
 
-/* flag whether frontend should terminate */
+/** flag whether frontend should terminate */
 static volatile bool g_fTerminateFE = false;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -395,13 +412,154 @@ VBOX_LISTENER_DECLARE(VirtualBoxClientEventListenerImpl)
 VBOX_LISTENER_DECLARE(ConsoleEventListenerImpl)
 
 #if !defined(RT_OS_WINDOWS)
-static void
-HandleSignal(int sig)
+
+/** Signals we handle. */
+static int const g_aiSigs[] = { SIGHUP, SIGINT, SIGTERM, SIGUSR1 };
+
+/** The signal handler. */
+static void HandleSignal(int sig)
 {
-    RT_NOREF(sig);
-    LogRel(("VBoxHeadless: received singal %d\n", sig));
+# if 1
+    struct iovec aSegs[8];
+    int          cSegs = 0;
+    aSegs[cSegs++].iov_base = (char *)"VBoxHeadless: signal ";
+    aSegs[cSegs++].iov_base = (char *)strsignal(sig);
+    const char *pszThread = RTThreadSelfName();
+    if (pszThread)
+    {
+        aSegs[cSegs++].iov_base = (char *)"(on thread ";
+        aSegs[cSegs++].iov_base = (char *)pszThread;
+        aSegs[cSegs++].iov_base = (char *)")\n";
+    }
+    else
+        aSegs[cSegs++].iov_base = (char *)"\n";
+    for (int i = 0; i < cSegs; i++)
+        aSegs[i].iov_len = strlen((const char *)aSegs[i].iov_base);
+    ssize_t ignored = writev(2, aSegs, cSegs); RT_NOREF_PV(ignored);
+# else
+    LogRel(("VBoxHeadless: received signal %d\n", sig)); /** @todo r=bird: This is not at all safe. */
+# endif
     g_fTerminateFE = true;
 }
+
+# ifdef RT_OS_DARWIN
+
+/* For debugging. */
+uint32_t GetSignalMask(void)
+{
+    /* For some totally messed up reason, the xnu sigprocmask actually returns
+       the signal mask of the calling thread rather than the process one
+       (p_sigmask), so can call sigprocmask just as well as pthread_sigmask here. */
+    sigset_t Sigs;
+    RT_ZERO(Sigs);
+    sigprocmask(SIG_UNBLOCK, NULL, &Sigs);
+    RTMsgInfo("debug: thread %s mask: %.*Rhxs\n", RTThreadSelfName(), sizeof(Sigs), &Sigs);
+    for (int i = 0; i < 32; i++)
+        if (sigismember(&Sigs, i)) RTMsgInfo("debug: sig %2d blocked: %s\n", i, strsignal(i));
+    return *(uint32_t const *)&Sigs;
+}
+
+/**
+ * Blocks or unblocks the signals we handle.
+ *
+ * @note Only for darwin does fProcess make a difference, all others always
+ *       work on the calling thread regardless of the flag value.
+ */
+static void SetSignalMask(bool fBlock, bool fProcess)
+{
+    sigset_t Sigs;
+    sigemptyset(&Sigs);
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aiSigs); i++)
+        sigaddset(&Sigs, g_aiSigs[i]);
+    if (fProcess)
+    {
+        if (sigprocmask(fBlock ? SIG_BLOCK : SIG_UNBLOCK, &Sigs, NULL) != 0)
+            RTMsgError("sigprocmask failed: %d", errno);
+    }
+    else
+    {
+        if (pthread_sigmask(fBlock ? SIG_BLOCK : SIG_UNBLOCK, &Sigs, NULL) != 0)
+            RTMsgError("pthread_sigmask failed: %d", errno);
+    }
+}
+
+/**
+ * @callback_method_impl{FNRTTHREAD, Signal wait thread}
+ */
+static DECLCALLBACK(int) SigThreadProc(RTTHREAD hThreadSelf, void *pvUser)
+{
+    RT_NOREF(hThreadSelf, pvUser);
+
+    /* The signals to wait for: */
+    sigset_t SigSetWait;
+    sigemptyset(&SigSetWait);
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aiSigs); i++)
+        sigaddset(&SigSetWait, g_aiSigs[i]);
+
+    /* The wait + processing loop: */
+    for (;;)
+    {
+        int iSignal = -1;
+        if (sigwait(&SigSetWait, &iSignal) == 0)
+        {
+            LogRel(("VBoxHeadless: Caught signal: %s\n", strsignal(iSignal)));
+            RTMsgInfo("");
+            RTMsgInfo("Caught signal: %s", strsignal(iSignal));
+            g_fTerminateFE = true;
+        }
+
+        if (g_fTerminateFE && g_fEventQueueSafe && gEventQ != NULL)
+            gEventQ->interruptEventQueueProcessing();
+    }
+}
+
+/** The handle to the signal wait thread. */
+static RTTHREAD g_hSigThread = NIL_RTTHREAD;
+
+# endif /* RT_OS_DARWIN */
+
+static void SetUpSignalHandlers(void)
+{
+    signal(SIGPIPE, SIG_IGN);
+    signal(SIGTTOU, SIG_IGN);
+
+    /* Don't touch SIGUSR2 as IPRT could be using it for RTThreadPoke(). */
+    for (unsigned i = 0; i < RT_ELEMENTS(g_aiSigs); i++)
+    {
+        struct sigaction sa;
+        RT_ZERO(sa);
+        sa.sa_handler = HandleSignal;
+        if (sigaction(g_aiSigs[i], &sa, NULL) != 0)
+            RTMsgError("sigaction failed for signal #%u: %d", g_aiSigs[i], errno);
+    }
+
+# if defined(RT_OS_DARWIN)
+    /*
+     * On darwin processEventQueue() does not return with VERR_INTERRUPTED or
+     * similar if a signal arrives while we're waiting for events.  So, in
+     * order to respond promptly to signals after they arrives, we use a
+     * dedicated thread for fielding the signals and poking the event queue
+     * after each signal.
+     *
+     * We block the signals for all threads (this is fine as the p_sigmask
+     * isn't actually used for anything at all and wont prevent signal
+     * delivery).  The signal thread should have them blocked as well, as it
+     * uses sigwait to do the waiting (better than sigsuspend, as we can safely
+     * LogRel the signal this way).
+     */
+    if (g_hSigThread == NIL_RTTHREAD)
+    {
+        SetSignalMask(true /*fBlock */, true /*fProcess*/);
+        int vrc = RTThreadCreate(&g_hSigThread, SigThreadProc, NULL, 0, RTTHREADTYPE_DEFAULT, 0, "SigWait");
+        if (RT_FAILURE(vrc))
+        {
+            RTMsgError("Failed to create signal waiter thread: %Rrc", vrc);
+            SetSignalMask(false /*fBlock */, false /*fProcess*/);
+        }
+    }
+# endif
+}
+
 #endif /* !RT_OS_WINDOWS */
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -418,9 +576,12 @@ static void show_usage()
              "                                       between two port numbers specifies range\n"
              "                                     \"TCP/Address\" - interface IP the VRDE\n"
              "                                       server will bind to\n"
-             "   --settingspw <pw>                 Specify the settings password\n"
+             "   --settingspw <pw>                 Specify the VirtualBox settings password\n"
              "   --settingspwfile <file>           Specify a file containing the\n"
-             "                                       settings password\n"
+             "                                       VirtualBox settings password\n"
+             "   --password <file>|-               Specify the VM password. Either file containing\n"
+             "                                     the VM password or \"-\" to read it from console\n"
+             "   --password-id <id>                Specify the password id for the VM password\n"
              "   -start-paused, --start-paused     Start the VM in paused state\n"
 #ifdef VBOX_WITH_RECORDING
              "   -c, -record, --record             Record the VM screen output to a file\n"
@@ -625,7 +786,8 @@ WinMainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
             /* tell the VM to save state/power off */
             g_fTerminateFE = true;
-            gEventQ->interruptEventQueueProcessing();
+            if (g_fEventQueueSafe && gEventQ != NULL)
+                gEventQ->interruptEventQueueProcessing();
 
             if (g_hCanQuit != NIL_RTSEMEVENT)
             {
@@ -651,7 +813,8 @@ WinMainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 }
 
 
-static const char * const ctrl_event_names[] = {
+static const char * const g_apszCtrlEventNames[] =
+{
     "CTRL_C_EVENT",
     "CTRL_BREAK_EVENT",
     "CTRL_CLOSE_EVENT",
@@ -665,28 +828,27 @@ static const char * const ctrl_event_names[] = {
 
 
 BOOL WINAPI
-ConsoleCtrlHandler(DWORD dwCtrlType) /* RT_NOTHROW_DEF */
+ConsoleCtrlHandler(DWORD dwCtrlType) RT_NOTHROW_DEF
 {
-    const char *signame;
-    char namebuf[48];
-    int rc;
-
-    if (dwCtrlType < RT_ELEMENTS(ctrl_event_names))
-        signame = ctrl_event_names[dwCtrlType];
+    const char *pszSigName;
+    char szNameBuf[48];
+    if (dwCtrlType < RT_ELEMENTS(g_apszCtrlEventNames))
+        pszSigName = g_apszCtrlEventNames[dwCtrlType];
     else
     {
         /* should not happen, but be prepared */
-        RTStrPrintf(namebuf, sizeof(namebuf),
-                    "<console control event %lu>", (unsigned long)dwCtrlType);
-        signame = namebuf;
+        RTStrPrintf(szNameBuf, sizeof(szNameBuf), "<console control event %u>", dwCtrlType);
+        pszSigName = szNameBuf;
     }
-    LogRel(("VBoxHeadless: got %s\n", signame));
-    RTMsgInfo("Got %s\n", signame);
+
+    LogRel(("VBoxHeadless: got %s\n", pszSigName));
+    RTMsgInfo("Got %s", pszSigName);
     RTMsgInfo("");
 
     /* tell the VM to save state/power off */
     g_fTerminateFE = true;
-    gEventQ->interruptEventQueueProcessing();
+    if (g_fEventQueueSafe && gEventQ != NULL)
+        gEventQ->interruptEventQueueProcessing();
 
     /*
      * We don't need to wait for Ctrl-C / Ctrl-Break, but we must wait
@@ -696,7 +858,7 @@ ConsoleCtrlHandler(DWORD dwCtrlType) /* RT_NOTHROW_DEF */
     {
         LogRel(("VBoxHeadless: waiting for VM termination...\n"));
 
-        rc = RTSemEventWait(g_hCanQuit, RT_INDEFINITE_WAIT);
+        int rc = RTSemEventWait(g_hCanQuit, RT_INDEFINITE_WAIT);
         if (RT_FAILURE(rc))
             LogRel(("VBoxHeadless: Failed to wait for VM termination: %Rrc\n", rc));
     }
@@ -798,10 +960,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     const char *vrdeEnabled = NULL;
     unsigned cVRDEProperties = 0;
     const char *aVRDEProperties[16];
-    unsigned fRawR0 = ~0U;
-    unsigned fRawR3 = ~0U;
-    unsigned fPATM  = ~0U;
-    unsigned fCSAM  = ~0U;
     unsigned fPaused = 0;
 #ifdef VBOX_WITH_RECORDING
     bool fRecordEnabled = false;
@@ -817,8 +975,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     LogFlow(("VBoxHeadless STARTED.\n"));
     RTPrintf(VBOX_PRODUCT " Headless Interface " VBOX_VERSION_STRING "\n"
-             "(C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-             "All rights reserved.\n\n");
+             "Copyright (C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
 
 #ifdef VBOX_WITH_RECORDING
     /* Parse the environment */
@@ -827,18 +984,12 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     enum eHeadlessOptions
     {
-        OPT_RAW_R0 = 0x100,
-        OPT_NO_RAW_R0,
-        OPT_RAW_R3,
-        OPT_NO_RAW_R3,
-        OPT_PATM,
-        OPT_NO_PATM,
-        OPT_CSAM,
-        OPT_NO_CSAM,
-        OPT_SETTINGSPW,
+        OPT_SETTINGSPW = 0x100,
         OPT_SETTINGSPW_FILE,
         OPT_COMMENT,
-        OPT_PAUSED
+        OPT_PAUSED,
+        OPT_VMPW,
+        OPT_VMPWID
     };
 
     static const RTGETOPTDEF s_aOptions[] =
@@ -855,24 +1006,10 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         { "--vrde", 'v', RTGETOPT_REQ_STRING },
         { "-vrdeproperty", 'e', RTGETOPT_REQ_STRING },
         { "--vrdeproperty", 'e', RTGETOPT_REQ_STRING },
-        { "-rawr0", OPT_RAW_R0, 0 },
-        { "--rawr0", OPT_RAW_R0, 0 },
-        { "-norawr0", OPT_NO_RAW_R0, 0 },
-        { "--norawr0", OPT_NO_RAW_R0, 0 },
-        { "-rawr3", OPT_RAW_R3, 0 },
-        { "--rawr3", OPT_RAW_R3, 0 },
-        { "-norawr3", OPT_NO_RAW_R3, 0 },
-        { "--norawr3", OPT_NO_RAW_R3, 0 },
-        { "-patm", OPT_PATM, 0 },
-        { "--patm", OPT_PATM, 0 },
-        { "-nopatm", OPT_NO_PATM, 0 },
-        { "--nopatm", OPT_NO_PATM, 0 },
-        { "-csam", OPT_CSAM, 0 },
-        { "--csam", OPT_CSAM, 0 },
-        { "-nocsam", OPT_NO_CSAM, 0 },
-        { "--nocsam", OPT_NO_CSAM, 0 },
         { "--settingspw", OPT_SETTINGSPW, RTGETOPT_REQ_STRING },
         { "--settingspwfile", OPT_SETTINGSPW_FILE, RTGETOPT_REQ_STRING },
+        { "--password", OPT_VMPW, RTGETOPT_REQ_STRING },
+        { "--password-id", OPT_VMPWID, RTGETOPT_REQ_STRING },
 #ifdef VBOX_WITH_RECORDING
         { "-record", 'c', 0 },
         { "--record", 'c', 0 },
@@ -893,6 +1030,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     int ch;
     const char *pcszSettingsPw = NULL;
     const char *pcszSettingsPwFile = NULL;
+    const char *pcszVmPassword = NULL;
+    const char *pcszVmPasswordId = NULL;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0 /* fFlags */);
@@ -920,35 +1059,17 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 else
                      RTPrintf("Warning: too many VRDE properties. Ignored: '%s'\n", ValueUnion.psz);
                 break;
-            case OPT_RAW_R0:
-                fRawR0 = true;
-                break;
-            case OPT_NO_RAW_R0:
-                fRawR0 = false;
-                break;
-            case OPT_RAW_R3:
-                fRawR3 = true;
-                break;
-            case OPT_NO_RAW_R3:
-                fRawR3 = false;
-                break;
-            case OPT_PATM:
-                fPATM = true;
-                break;
-            case OPT_NO_PATM:
-                fPATM = false;
-                break;
-            case OPT_CSAM:
-                fCSAM = true;
-                break;
-            case OPT_NO_CSAM:
-                fCSAM = false;
-                break;
             case OPT_SETTINGSPW:
                 pcszSettingsPw = ValueUnion.psz;
                 break;
             case OPT_SETTINGSPW_FILE:
                 pcszSettingsPwFile = ValueUnion.psz;
+                break;
+            case OPT_VMPW:
+                pcszVmPassword = ValueUnion.psz;
+                break;
+            case OPT_VMPWID:
+                pcszVmPasswordId = ValueUnion.psz;
                 break;
             case OPT_PAUSED:
                 fPaused = true;
@@ -1028,12 +1149,12 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         return 1;
     }
 
-    HRESULT rc;
-    int irc;
+    HRESULT hrc;
+    int vrc;
 
-    rc = com::Initialize();
+    hrc = com::Initialize();
 #ifdef VBOX_WITH_XPCOM
-    if (rc == NS_ERROR_FILE_ACCESS_DENIED)
+    if (hrc == NS_ERROR_FILE_ACCESS_DENIED)
     {
         char szHome[RTPATH_MAX] = "";
         com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome));
@@ -1041,7 +1162,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         return 1;
     }
 #endif
-    if (FAILED(rc))
+    if (FAILED(hrc))
     {
         RTPrintf("VBoxHeadless: ERROR: failed to initialize COM!\n");
         return 1;
@@ -1058,14 +1179,14 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     do
     {
-        rc = pVirtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
-        if (FAILED(rc))
+        hrc = pVirtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
+        if (FAILED(hrc))
         {
             RTPrintf("VBoxHeadless: ERROR: failed to create the VirtualBoxClient object!\n");
             com::ErrorInfo info;
             if (!info.isFullAvailable() && !info.isBasicAvailable())
             {
-                com::GluePrintRCMessage(rc);
+                com::GluePrintRCMessage(hrc);
                 RTPrintf("Most likely, the VirtualBox COM server is not running or failed to start.\n");
             }
             else
@@ -1073,23 +1194,23 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             break;
         }
 
-        rc = pVirtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
-        if (FAILED(rc))
+        hrc = pVirtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
+        if (FAILED(hrc))
         {
-            RTPrintf("Failed to get VirtualBox object (rc=%Rhrc)!\n", rc);
+            RTPrintf("Failed to get VirtualBox object (rc=%Rhrc)!\n", hrc);
             break;
         }
-        rc = pVirtualBoxClient->COMGETTER(Session)(session.asOutParam());
-        if (FAILED(rc))
+        hrc = pVirtualBoxClient->COMGETTER(Session)(session.asOutParam());
+        if (FAILED(hrc))
         {
-            RTPrintf("Failed to get session object (rc=%Rhrc)!\n", rc);
+            RTPrintf("Failed to get session object (rc=%Rhrc)!\n", hrc);
             break;
         }
 
         if (pcszSettingsPw)
         {
             CHECK_ERROR(virtualBox, SetSettingsSecret(Bstr(pcszSettingsPw).raw()));
-            if (FAILED(rc))
+            if (FAILED(hrc))
                 break;
         }
         else if (pcszSettingsPwFile)
@@ -1101,24 +1222,44 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
         ComPtr<IMachine> m;
 
-        rc = virtualBox->FindMachine(Bstr(pcszNameOrUUID).raw(), m.asOutParam());
-        if (FAILED(rc))
+        hrc = virtualBox->FindMachine(Bstr(pcszNameOrUUID).raw(), m.asOutParam());
+        if (FAILED(hrc))
         {
-            LogError("Invalid machine name or UUID!\n", rc);
+            LogError("Invalid machine name or UUID!\n", hrc);
             break;
         }
 
+        /* add VM password if required */
+        if (pcszVmPassword && pcszVmPasswordId)
+        {
+            com::Utf8Str strPassword;
+            if (!RTStrCmp(pcszVmPassword, "-"))
+            {
+                /* Get password from console. */
+                RTEXITCODE rcExit = readPasswordFromConsole(&strPassword, "Enter the password:");
+                if (rcExit == RTEXITCODE_FAILURE)
+                    break;
+            }
+            else
+            {
+                RTEXITCODE rcExit = readPasswordFile(pcszVmPassword, &strPassword);
+                if (rcExit != RTEXITCODE_SUCCESS)
+                    break;
+            }
+            CHECK_ERROR_BREAK(m, AddEncryptionPassword(Bstr(pcszVmPasswordId).raw(),
+                                                       Bstr(strPassword).raw()));
+        }
         Bstr bstrVMId;
-        rc = m->COMGETTER(Id)(bstrVMId.asOutParam());
-        AssertComRC(rc);
-        if (FAILED(rc))
+        hrc = m->COMGETTER(Id)(bstrVMId.asOutParam());
+        AssertComRC(hrc);
+        if (FAILED(hrc))
             break;
         g_strVMUUID = bstrVMId;
 
         Bstr bstrVMName;
-        rc = m->COMGETTER(Name)(bstrVMName.asOutParam());
-        AssertComRC(rc);
-        if (FAILED(rc))
+        hrc = m->COMGETTER(Name)(bstrVMName.asOutParam());
+        AssertComRC(hrc);
+        if (FAILED(hrc))
             break;
         g_strVMName = bstrVMName;
 
@@ -1163,54 +1304,18 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
 #endif /* defined(VBOX_WITH_RECORDING) */
 
+#if 0
         /* get the machine debugger (isn't necessarily available) */
         ComPtr <IMachineDebugger> machineDebugger;
         console->COMGETTER(Debugger)(machineDebugger.asOutParam());
         if (machineDebugger)
-        {
             Log(("Machine debugger available!\n"));
-        }
-
-        if (fRawR0 != ~0U)
-        {
-            if (!machineDebugger)
-            {
-                RTPrintf("Error: No debugger object; -%srawr0 cannot be executed!\n", fRawR0 ? "" : "no");
-                break;
-            }
-            machineDebugger->COMSETTER(RecompileSupervisor)(!fRawR0);
-        }
-        if (fRawR3 != ~0U)
-        {
-            if (!machineDebugger)
-            {
-                RTPrintf("Error: No debugger object; -%srawr3 cannot be executed!\n", fRawR3 ? "" : "no");
-                break;
-            }
-            machineDebugger->COMSETTER(RecompileUser)(!fRawR3);
-        }
-        if (fPATM != ~0U)
-        {
-            if (!machineDebugger)
-            {
-                RTPrintf("Error: No debugger object; -%spatm cannot be executed!\n", fPATM ? "" : "no");
-                break;
-            }
-            machineDebugger->COMSETTER(PATMEnabled)(fPATM);
-        }
-        if (fCSAM != ~0U)
-        {
-            if (!machineDebugger)
-            {
-                RTPrintf("Error: No debugger object; -%scsam cannot be executed!\n", fCSAM ? "" : "no");
-                break;
-            }
-            machineDebugger->COMSETTER(CSAMEnabled)(fCSAM);
-        }
+#endif
 
         /* initialize global references */
         gConsole = console;
         gEventQ = com::NativeEventQueue::getMainEventQueue();
+        g_fEventQueueSafe = true;
 
         /* VirtualBoxClient events registration. */
         {
@@ -1308,7 +1413,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                         {
                             RTPrintf("Error: Invalid VRDE property '%s'\n", aVRDEProperties[i]);
                             RTStrFree(pszProperty);
-                            rc = E_INVALIDARG;
+                            hrc = E_INVALIDARG;
                             break;
                         }
                         RTStrFree(pszProperty);
@@ -1316,11 +1421,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     else
                     {
                         RTPrintf("Error: Failed to allocate memory for VRDE property '%s'\n", aVRDEProperties[i]);
-                        rc = E_OUTOFMEMORY;
+                        hrc = E_OUTOFMEMORY;
                         break;
                     }
                 }
-                if (FAILED(rc))
+                if (FAILED(hrc))
                     break;
             }
 
@@ -1355,19 +1460,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
          * an early signal and use RAII to ensure proper cleanup.
          */
 #if !defined(RT_OS_WINDOWS)
-        signal(SIGPIPE, SIG_IGN);
-        signal(SIGTTOU, SIG_IGN);
-
-        struct sigaction sa;
-        RT_ZERO(sa);
-        sa.sa_handler = HandleSignal;
-        sigaction(SIGHUP,  &sa, NULL);
-        sigaction(SIGINT,  &sa, NULL);
-        sigaction(SIGTERM, &sa, NULL);
-        sigaction(SIGUSR1, &sa, NULL);
-        /* Don't touch SIGUSR2 as IPRT could be using it for RTThreadPoke(). */
-
-#else /* RT_OS_WINDOWS */
+        ::SetUpSignalHandlers();
+#else
         /*
          * Register windows console signal handler to react to Ctrl-C,
          * Ctrl-Break, Close, non-interactive session termination.
@@ -1382,8 +1476,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         else
             CHECK_ERROR_BREAK(console, PowerUpPaused(progress.asOutParam()));
 
-        rc = showProgress(progress);
-        if (FAILED(rc))
+        hrc = showProgress(progress);
+        if (FAILED(hrc))
         {
             com::ProgressErrorInfo info(progress);
             if (info.isBasicAvailable())
@@ -1402,13 +1496,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
          * Spawn windows message pump to monitor session events.
          */
         RTTHREAD hThrMsg;
-        irc = RTThreadCreate(&hThrMsg,
-                            windowsMessageMonitor, NULL,
-                            0, /* :cbStack */
-                            RTTHREADTYPE_MSG_PUMP, 0,
-                            "MSG");
-        if (RT_FAILURE(irc))    /* not fatal */
-            LogRel(("VBoxHeadless: failed to start windows message monitor: %Rrc\n", irc));
+        vrc = RTThreadCreate(&hThrMsg,
+                             windowsMessageMonitor, NULL,
+                             0, /* :cbStack */
+                             RTTHREADTYPE_MSG_PUMP, 0,
+                             "MSG");
+        if (RT_FAILURE(vrc))    /* not fatal */
+            LogRel(("VBoxHeadless: failed to start windows message monitor: %Rrc\n", vrc));
 #endif /* RT_OS_WINDOWS */
 
 
@@ -1418,7 +1512,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         LogRel(("VBoxHeadless: starting event loop\n"));
         for (;;)
         {
-            irc = gEventQ->processEventQueue(RT_INDEFINITE_WAIT);
+            if (g_fTerminateFE)
+            {
+                LogRel(("VBoxHeadless: processEventQueue: termination requested\n"));
+                break;
+            }
+
+            vrc = gEventQ->processEventQueue(RT_INDEFINITE_WAIT);
 
             /*
              * interruptEventQueueProcessing from another thread is
@@ -1426,14 +1526,14 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
              */
             if (g_fTerminateFE)
             {
-                LogRel(("VBoxHeadless: processEventQueue: %Rrc, termination requested\n", irc));
+                LogRel(("VBoxHeadless: processEventQueue: %Rrc, termination requested\n", vrc));
                 break;
             }
 
-            if (RT_FAILURE(irc))
+            if (RT_FAILURE(vrc))
             {
-                LogRel(("VBoxHeadless: processEventQueue: %Rrc\n", irc));
-                RTMsgError("event loop: %Rrc", irc);
+                LogRel(("VBoxHeadless: processEventQueue: %Rrc\n", vrc));
+                RTMsgError("event loop: %Rrc", vrc);
                 break;
             }
         }
@@ -1462,11 +1562,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     MachineState_T machineState = MachineState_Aborted;
     if (!machine.isNull())
     {
-        rc = machine->COMGETTER(State)(&machineState);
-        if (SUCCEEDED(rc))
+        hrc = machine->COMGETTER(State)(&machineState);
+        if (SUCCEEDED(hrc))
             Log(("machine state = %RU32\n", machineState));
         else
-            Log(("IMachine::getState: %Rhrc\n", rc));
+            Log(("IMachine::getState: %Rhrc\n", hrc));
     }
     else
     {
@@ -1493,17 +1593,20 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         else
             CHECK_ERROR_BREAK(gConsole, PowerDown(pProgress.asOutParam()));
 
-        rc = showProgress(pProgress);
-        if (FAILED(rc))
+        hrc = showProgress(pProgress);
+        if (FAILED(hrc))
         {
             com::ErrorInfo info;
             if (!info.isFullAvailable() && !info.isBasicAvailable())
-                com::GluePrintRCMessage(rc);
+                com::GluePrintRCMessage(hrc);
             else
                 com::GluePrintErrorInfo(info);
             break;
         }
     } while (0);
+
+    /* No point in trying to post dummy messages to the event queue now. */
+    g_fEventQueueSafe = false;
 
     /* VirtualBox callback unregistration. */
     if (vboxListener)
@@ -1571,7 +1674,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 #endif
 
     LogRel(("VBoxHeadless: exiting\n"));
-    return FAILED(rc) ? 1 : 0;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 
@@ -1581,24 +1684,10 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
  */
 int main(int argc, char **argv, char **envp)
 {
-    // initialize VBox Runtime
-    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
-    if (RT_FAILURE(rc))
-    {
-        RTPrintf("VBoxHeadless: Runtime Error:\n"
-                 " %Rrc -- %Rrf\n", rc, rc);
-        switch (rc)
-        {
-            case VERR_VM_DRIVER_NOT_INSTALLED:
-                RTPrintf("Cannot access the kernel driver. Make sure the kernel module has been \n"
-                        "loaded successfully. Aborting ...\n");
-                break;
-            default:
-                break;
-        }
-        return 1;
-    }
-
-    return TrustedMain(argc, argv, envp);
+    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_TRY_SUPLIB);
+    if (RT_SUCCESS(rc))
+        return TrustedMain(argc, argv, envp);
+    RTPrintf("VBoxHeadless: Runtime initialization failed: %Rrc - %Rrf\n", rc, rc);
+    return RTEXITCODE_FAILURE;
 }
 #endif /* !VBOX_WITH_HARDENING */

@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../../..
@@ -36,7 +46,11 @@ VBOX_PATH_NAT_SRC := $(PATH_SUB_CURRENT)
 PROGRAMS += VBoxNetNATHardened
 VBoxNetNATHardened_TEMPLATE = VBOXR3HARDENEDEXE
 VBoxNetNATHardened_NAME     = VBoxNetNAT
+  ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+VBoxNetNATHardened_DEFS     = SERVICE_NAME="VBoxNetNAT"
+  else
 VBoxNetNATHardened_DEFS     = SERVICE_NAME=\"VBoxNetNAT\"
+  endif
 VBoxNetNATHardened_SOURCES  = VBoxNetNATHardened.cpp
 VBoxNetNATHardened_LDFLAGS.win = /SUBSYSTEM:windows
 $(call VBOX_SET_VER_INFO_EXE,VBoxNetNATHardened,VirtualBox NAT Engine,$(VBOX_WINDOWS_ICON_FILE)) # Version info / description.
@@ -72,7 +86,7 @@ VBoxNetNAT_DEFS.win  = VBOX_COM_OUTOFPROC_MODULE _WIN32_WINNT=0x501 # Windows XP
 # settings.
  ifeq ($(KBUILD_TARGET),solaris)
   ifneq ($(VBOX_GCC_VERSION_CXX),)
-   ifneq ($(int-ge $(VBOX_GCC_VERSION_CXX),40600),)
+   if $(VBOX_GCC_VERSION_CXX) >= 40600
 # we compile C++ code with -std=c++0x / -std=c++11
 VBoxNetNAT_CFLAGS.solaris += -std=c99
 VBoxNetNAT_DEFS.solaris += _XOPEN_SOURCE=600
@@ -88,12 +102,8 @@ VBoxNetNAT_INCS += . $(addprefix ../../Devices/Network/lwip-new/,$(LWIP_INCS))
 
 VBoxNetNAT_SOURCES = \
 	VBoxNetLwipNAT.cpp \
-	../NetLib/VBoxNetBaseService.cpp \
+	../NetLib/IntNetIf.cpp \
 	../NetLib/VBoxNetPortForwardString.cpp \
-	../NetLib/VBoxNetIntIf.cpp \
-	../NetLib/VBoxNetUDP.cpp \
-	../NetLib/VBoxNetARP.cpp \
-	../NetLib/ComHostUtils.cpp \
 	$(addprefix ../../Devices/Network/lwip-new/,$(LWIP_SOURCES)) \
 	proxy_pollmgr.c \
 	proxy_rtadvd.c \

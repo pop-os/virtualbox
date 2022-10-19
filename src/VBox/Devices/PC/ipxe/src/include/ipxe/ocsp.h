@@ -7,13 +7,21 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdarg.h>
 #include <time.h>
 #include <ipxe/asn1.h>
 #include <ipxe/x509.h>
 #include <ipxe/refcnt.h>
+#include <config/crypto.h>
+
+/* Allow OCSP to be disabled completely */
+#ifdef OCSP_CHECK
+#define OCSP_ENABLED 1
+#else
+#define OCSP_ENABLED 0
+#endif
 
 /** OCSP algorithm identifier */
 #define OCSP_ALGORITHM_IDENTIFIER( ... )				\
@@ -28,20 +36,29 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #define OCSP_STATUS_SIG_REQUIRED	0x05
 #define OCSP_STATUS_UNAUTHORIZED	0x06
 
-/** Margin of error allowed in OCSP response times
- *
- * We allow a generous margin of error: 12 hours to allow for the
- * local time zone being non-GMT, plus 30 minutes to allow for general
- * clock drift.
- */
-#define OCSP_ERROR_MARGIN_TIME ( ( 12 * 60 + 30 ) * 60 )
+struct ocsp_check;
 
 /** An OCSP request */
 struct ocsp_request {
 	/** Request builder */
 	struct asn1_builder builder;
-	/** Certificate ID */
-	struct asn1_cursor cert_id;
+	/** Certificate ID (excluding hashAlgorithm) */
+	struct asn1_cursor cert_id_tail;
+};
+
+/** An OCSP responder */
+struct ocsp_responder {
+	/**
+	 * Check if certificate is the responder's certificate
+	 *
+	 * @v ocsp		OCSP check
+	 * @v cert		Certificate
+	 * @ret difference	Difference as returned by memcmp()
+	 */
+	int ( * compare ) ( struct ocsp_check *ocsp,
+			    struct x509_certificate *cert );
+	/** Responder ID */
+	struct asn1_cursor id;
 };
 
 /** An OCSP response */
@@ -50,6 +67,8 @@ struct ocsp_response {
 	void *data;
 	/** Raw tbsResponseData */
 	struct asn1_cursor tbs;
+	/** Responder */
+	struct ocsp_responder responder;
 	/** Time at which status is known to be correct */
 	time_t this_update;
 	/** Time at which newer status information will be available */
@@ -70,6 +89,8 @@ struct ocsp_check {
 	struct x509_certificate *cert;
 	/** Issuing certificate */
 	struct x509_certificate *issuer;
+	/** URI string */
+	char *uri_string;
 	/** Request */
 	struct ocsp_request request;
 	/** Response */
@@ -96,6 +117,25 @@ ocsp_get ( struct ocsp_check *ocsp ) {
 static inline __attribute__ (( always_inline )) void
 ocsp_put ( struct ocsp_check *ocsp ) {
 	ref_put ( &ocsp->refcnt );
+}
+
+/**
+ * Check if X.509 certificate requires an OCSP check
+ *
+ * @v cert		X.509 certificate
+ * @ret ocsp_required	An OCSP check is required
+ */
+static inline int ocsp_required ( struct x509_certificate *cert ) {
+
+	/* An OCSP check is never required if OCSP checks are disabled */
+	if ( ! OCSP_ENABLED )
+		return 0;
+
+	/* An OCSP check is required if an OCSP URI exists but the
+	 * OCSP status is not (yet) good.
+	 */
+	return ( cert->extensions.auth_info.ocsp.uri.len &&
+		 ( ! cert->extensions.auth_info.ocsp.good ) );
 }
 
 extern int ocsp_check ( struct x509_certificate *cert,

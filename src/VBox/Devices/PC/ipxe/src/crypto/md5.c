@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 /** @file
  *
@@ -30,7 +35,6 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <assert.h>
 #include <ipxe/rotate.h>
 #include <ipxe/crypto.h>
-#include <ipxe/asn1.h>
 #include <ipxe/md5.h>
 
 /** MD5 variables */
@@ -61,11 +65,11 @@ static const uint32_t k[64] = {
 };
 
 /** MD5 shift amounts */
-static const uint8_t r[64] = {
-	7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
-	5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20, 5,  9, 14, 20,
-	4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
-	6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21
+static const uint8_t r[4][4] = {
+	{  7, 12, 17, 22 },
+	{  5,  9, 14, 20 },
+	{  4, 11, 16, 23 },
+	{  6, 10, 15, 21 },
 };
 
 /**
@@ -169,6 +173,7 @@ static void md5_digest ( struct md5_context *context ) {
 	uint32_t g;
 	uint32_t temp;
 	struct md5_step *step;
+	unsigned int round;
 	unsigned int i;
 
 	/* Sanity checks */
@@ -196,19 +201,21 @@ static void md5_digest ( struct md5_context *context ) {
 
 	/* Main loop */
 	for ( i = 0 ; i < 64 ; i++ ) {
-		step = &md5_steps[ i / 16 ];
+		round = ( i / 16 );
+		step = &md5_steps[round];
 		f = step->f ( &u.v );
 		g = ( ( ( step->coefficient * i ) + step->constant ) % 16 );
 		temp = *d;
 		*d = *c;
 		*c = *b;
-		*b = ( *b + rol32 ( ( *a + f + k[i] + w[g] ), r[i] ) );
+		*b = ( *b + rol32 ( ( *a + f + k[i] + w[g] ),
+				    r[round][ i % 4 ] ) );
 		*a = temp;
 		DBGC2 ( context, "%2d : %08x %08x %08x %08x\n",
 			i, *a, *b, *c, *d );
 	}
 
-	/* Add chunk to hash and convert back to big-endian */
+	/* Add chunk to hash and convert back to little-endian */
 	for ( i = 0 ; i < 4 ; i++ ) {
 		context->ddd.dd.digest.h[i] =
 			cpu_to_le32 ( context->ddd.dd.digest.h[i] +
@@ -284,14 +291,4 @@ struct digest_algorithm md5_algorithm = {
 	.init		= md5_init,
 	.update		= md5_update,
 	.final		= md5_final,
-};
-
-/** "md5" object identifier */
-static uint8_t oid_md5[] = { ASN1_OID_MD5 };
-
-/** "md5" OID-identified algorithm */
-struct asn1_algorithm oid_md5_algorithm __asn1_algorithm = {
-	.name = "md5",
-	.digest = &md5_algorithm,
-	.oid = ASN1_OID_CURSOR ( oid_md5 ),
 };

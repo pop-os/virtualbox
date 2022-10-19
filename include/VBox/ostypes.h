@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_ostypes_h
@@ -40,13 +50,12 @@ RT_C_DECLS_BEGIN
  * mod 0x10000 == 0. New entries can be added, however other components
  * depend on the values (e.g. the Qt GUI and guest additions) so the
  * existing values MUST stay the same.
- *
- * Note: distinguish between 32 & 64 bits guest OSes by checking bit 8 (mod 0x100)
  */
 typedef enum VBOXOSTYPE
 {
     VBOXOSTYPE_Unknown          = 0,
     VBOXOSTYPE_Unknown_x64      = 0x00100,
+
     /** @name DOS and it's descendants
      * @{ */
     VBOXOSTYPE_DOS              = 0x10000,
@@ -80,6 +89,7 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_Win2k16_x64      = 0x3C100,
     VBOXOSTYPE_Win2k19_x64      = 0x3D100,
     VBOXOSTYPE_Win11_x64        = 0x3E100,
+    VBOXOSTYPE_Win2k22_x64      = 0x3F100,
     VBOXOSTYPE_OS2              = 0x40000,
     VBOXOSTYPE_OS2Warp3         = 0x41000,
     VBOXOSTYPE_OS2Warp4         = 0x42000,
@@ -101,24 +111,115 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_ArchLinux_x64    = 0x54100,
     VBOXOSTYPE_Debian           = 0x55000,
     VBOXOSTYPE_Debian_x64       = 0x55100,
+    VBOXOSTYPE_Debian31         = 0x55001,  // 32-bit only
+    VBOXOSTYPE_Debian4          = 0x55002,
+    VBOXOSTYPE_Debian4_x64      = 0x55102,
+    VBOXOSTYPE_Debian5          = 0x55003,
+    VBOXOSTYPE_Debian5_x64      = 0x55103,
+    VBOXOSTYPE_Debian6          = 0x55004,
+    VBOXOSTYPE_Debian6_x64      = 0x55104,
+    VBOXOSTYPE_Debian7          = 0x55005,
+    VBOXOSTYPE_Debian7_x64      = 0x55105,
+    VBOXOSTYPE_Debian8          = 0x55006,
+    VBOXOSTYPE_Debian8_x64      = 0x55106,
+    VBOXOSTYPE_Debian9          = 0x55007,
+    VBOXOSTYPE_Debian9_x64      = 0x55107,
+    VBOXOSTYPE_Debian10         = 0x55008,
+    VBOXOSTYPE_Debian10_x64     = 0x55108,
+    VBOXOSTYPE_Debian11         = 0x55009,
+    VBOXOSTYPE_Debian11_x64     = 0x55109,
+    VBOXOSTYPE_Debian_latest_x64 = VBOXOSTYPE_Debian11_x64,
     VBOXOSTYPE_OpenSUSE         = 0x56000,
     VBOXOSTYPE_OpenSUSE_x64     = 0x56100,
+    VBOXOSTYPE_OpenSUSE_Leap_x64       = 0x56101,  // 64-bit only
+    VBOXOSTYPE_OpenSUSE_Tumbleweed     = 0x56002,
+    VBOXOSTYPE_OpenSUSE_Tumbleweed_x64 = 0x56102,
+    VBOXOSTYPE_SUSE_LE          = 0x56003,
+    VBOXOSTYPE_SUSE_LE_x64      = 0x56103,
     VBOXOSTYPE_FedoraCore       = 0x57000,
     VBOXOSTYPE_FedoraCore_x64   = 0x57100,
     VBOXOSTYPE_Gentoo           = 0x58000,
     VBOXOSTYPE_Gentoo_x64       = 0x58100,
     VBOXOSTYPE_Mandriva         = 0x59000,
     VBOXOSTYPE_Mandriva_x64     = 0x59100,
+    VBOXOSTYPE_OpenMandriva_Lx  = 0x59001,
+    VBOXOSTYPE_OpenMandriva_Lx_x64 = 0x59101,
+    VBOXOSTYPE_PCLinuxOS        = 0x59002,
+    VBOXOSTYPE_PCLinuxOS_x64    = 0x59102,
+    VBOXOSTYPE_Mageia           = 0x59003,
+    VBOXOSTYPE_Mageia_x64       = 0x59103,
     VBOXOSTYPE_RedHat           = 0x5A000,
     VBOXOSTYPE_RedHat_x64       = 0x5A100,
+    VBOXOSTYPE_RedHat3          = 0x5A001,
+    VBOXOSTYPE_RedHat3_x64      = 0x5A101,
+    VBOXOSTYPE_RedHat4          = 0x5A002,
+    VBOXOSTYPE_RedHat4_x64      = 0x5A102,
+    VBOXOSTYPE_RedHat5          = 0x5A003,
+    VBOXOSTYPE_RedHat5_x64      = 0x5A103,
+    VBOXOSTYPE_RedHat6          = 0x5A004,
+    VBOXOSTYPE_RedHat6_x64      = 0x5A104,
+    VBOXOSTYPE_RedHat7_x64      = 0x5A105,  // 64-bit only
+    VBOXOSTYPE_RedHat8_x64      = 0x5A106,  // 64-bit only
+    VBOXOSTYPE_RedHat9_x64      = 0x5A107,  // 64-bit only
+    VBOXOSTYPE_RedHat_latest_x64 = VBOXOSTYPE_RedHat9_x64,
     VBOXOSTYPE_Turbolinux       = 0x5B000,
     VBOXOSTYPE_Turbolinux_x64   = 0x5B100,
     VBOXOSTYPE_Ubuntu           = 0x5C000,
     VBOXOSTYPE_Ubuntu_x64       = 0x5C100,
+    VBOXOSTYPE_Xubuntu          = 0x5C001,
+    VBOXOSTYPE_Xubuntu_x64      = 0x5C101,
+    VBOXOSTYPE_Lubuntu          = 0x5C002,
+    VBOXOSTYPE_Lubuntu_x64      = 0x5C102,
+    VBOXOSTYPE_Ubuntu10_LTS     = 0x5C003,
+    VBOXOSTYPE_Ubuntu10_LTS_x64 = 0x5C103,
+    VBOXOSTYPE_Ubuntu10         = 0x5C004,
+    VBOXOSTYPE_Ubuntu10_x64     = 0x5C104,
+    VBOXOSTYPE_Ubuntu11         = 0x5C005,
+    VBOXOSTYPE_Ubuntu11_x64     = 0x5C105,
+    VBOXOSTYPE_Ubuntu12_LTS     = 0x5C006,
+    VBOXOSTYPE_Ubuntu12_LTS_x64 = 0x5C106,
+    VBOXOSTYPE_Ubuntu12         = 0x5C007,
+    VBOXOSTYPE_Ubuntu12_x64     = 0x5C107,
+    VBOXOSTYPE_Ubuntu13         = 0x5C008,
+    VBOXOSTYPE_Ubuntu13_x64     = 0x5C108,
+    VBOXOSTYPE_Ubuntu14_LTS     = 0x5C009,
+    VBOXOSTYPE_Ubuntu14_LTS_x64 = 0x5C109,
+    VBOXOSTYPE_Ubuntu14         = 0x5C00a,
+    VBOXOSTYPE_Ubuntu14_x64     = 0x5C10a,
+    VBOXOSTYPE_Ubuntu15         = 0x5C00b,
+    VBOXOSTYPE_Ubuntu15_x64     = 0x5C10b,
+    VBOXOSTYPE_Ubuntu16_LTS     = 0x5C00c,
+    VBOXOSTYPE_Ubuntu16_LTS_x64 = 0x5C10c,
+    VBOXOSTYPE_Ubuntu16         = 0x5C00d,
+    VBOXOSTYPE_Ubuntu16_x64     = 0x5C10d,
+    VBOXOSTYPE_Ubuntu17         = 0x5C00e,
+    VBOXOSTYPE_Ubuntu17_x64     = 0x5C10e,
+    VBOXOSTYPE_Ubuntu18_LTS     = 0x5C00f,
+    VBOXOSTYPE_Ubuntu18_LTS_x64 = 0x5C10f,
+    VBOXOSTYPE_Ubuntu18         = 0x5C010,
+    VBOXOSTYPE_Ubuntu18_x64     = 0x5C110,
+    VBOXOSTYPE_Ubuntu19         = 0x5C011,
+    VBOXOSTYPE_Ubuntu19_x64     = 0x5C111,
+    VBOXOSTYPE_Ubuntu20_LTS_x64 = 0x5C112,  // 64-bit only
+    VBOXOSTYPE_Ubuntu20_x64     = 0x5C113,  // 64-bit only
+    VBOXOSTYPE_Ubuntu21_x64     = 0x5C114,  // 64-bit only
+    VBOXOSTYPE_Ubuntu22_LTS_x64 = 0x5C115,  // 64-bit only
+    VBOXOSTYPE_Ubuntu22_x64     = 0x5C116,  // 64-bit only
+    VBOXOSTYPE_Ubuntu_latest_x64 = VBOXOSTYPE_Ubuntu22_x64,
     VBOXOSTYPE_Xandros          = 0x5D000,
     VBOXOSTYPE_Xandros_x64      = 0x5D100,
     VBOXOSTYPE_Oracle           = 0x5E000,
     VBOXOSTYPE_Oracle_x64       = 0x5E100,
+    VBOXOSTYPE_Oracle4          = 0x5E001,
+    VBOXOSTYPE_Oracle4_x64      = 0x5E101,
+    VBOXOSTYPE_Oracle5          = 0x5E002,
+    VBOXOSTYPE_Oracle5_x64      = 0x5E102,
+    VBOXOSTYPE_Oracle6          = 0x5E003,
+    VBOXOSTYPE_Oracle6_x64      = 0x5E103,
+    VBOXOSTYPE_Oracle7_x64      = 0x5E104,  // 64-bit only
+    VBOXOSTYPE_Oracle8_x64      = 0x5E105,  // 64-bit only
+    VBOXOSTYPE_Oracle9_x64      = 0x5E106,  // 64-bit only
+    VBOXOSTYPE_Oracle_latest_x64 = VBOXOSTYPE_Oracle9_x64,
     VBOXOSTYPE_FreeBSD          = 0x60000,
     VBOXOSTYPE_FreeBSD_x64      = 0x60100,
     VBOXOSTYPE_OpenBSD          = 0x61000,
@@ -155,13 +256,27 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_VBoxBS_x64       = 0xE0100,
     /** @} */
 
-/** The bit number which indicates 64-bit or 32-bit. */
-#define VBOXOSTYPE_x64_BIT       8
-    /** The mask which indicates 64-bit. */
-    VBOXOSTYPE_x64              = 1 << VBOXOSTYPE_x64_BIT,
+    /** OS type mask.   */
+    VBOXOSTYPE_OsTypeMask    = 0x00fff000,
+
+    /** @name Architecture Type
+     * @{ */
+    /** Mask containing the architecture value. */
+    VBOXOSTYPE_ArchitectureMask = 0x00f00,
+    /** Architecture value for 16-bit and 32-bit x86. */
+    VBOXOSTYPE_x86              = 0x00000,
+    /** Architecture value for 64-bit x86 (AMD64). */
+    VBOXOSTYPE_x64              = 0x00100,
+    /** Architecture value for 32-bit ARM. */
+    VBOXOSTYPE_arm32            = 0x00200,
+    /** Architecture value for 64-bit ARM. */
+    VBOXOSTYPE_arm64            = 0x00300,
+    /** Architecture value for unknown or unsupported architectures. */
+    VBOXOSTYPE_UnknownArch      = 0x00f00,
+    /** @} */
 
     /** The usual 32-bit hack. */
-    VBOXOSTYPE_32BIT_HACK = 0x7fffffff
+    VBOXOSTYPE_32BIT_HACK    = 0x7fffffff
 } VBOXOSTYPE;
 
 

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -92,7 +102,7 @@ static int suplibConvertWin32Err(int);
 static bool g_fHardenedVerifyInited = false;
 
 
-int suplibOsHardenedVerifyInit(void)
+DECLHIDDEN(int) suplibOsHardenedVerifyInit(void)
 {
     if (!g_fHardenedVerifyInited)
     {
@@ -109,14 +119,14 @@ int suplibOsHardenedVerifyInit(void)
 }
 
 
-int suplibOsHardenedVerifyTerm(void)
+DECLHIDDEN(int) suplibOsHardenedVerifyTerm(void)
 {
     /** @todo free resources...  */
     return VINF_SUCCESS;
 }
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+DECLHIDDEN(int) suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, uint32_t fFlags, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
 {
     /*
      * Make sure the image verifier is fully initialized.
@@ -155,7 +165,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
         static const WCHAR  s_wszName[] = L"\\Device\\VBoxDrvU";
         UNICODE_STRING      NtName;
         NtName.Buffer        = (PWSTR)s_wszName;
-        NtName.Length        = sizeof(s_wszName) - sizeof(WCHAR) * (fUnrestricted ? 2 : 1);
+        NtName.Length        = sizeof(s_wszName) - sizeof(WCHAR) * (fFlags & SUPR3INIT_F_UNRESTRICTED ? 2 : 1);
         NtName.MaximumLength = NtName.Length;
 
         OBJECT_ATTRIBUTES   ObjAttr;
@@ -182,7 +192,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
              * We're good.
              */
             pThis->hDevice       = hDevice;
-            pThis->fUnrestricted = fUnrestricted;
+            pThis->fUnrestricted = RT_BOOL(fFlags & SUPR3INIT_F_UNRESTRICTED);
             return VINF_SUCCESS;
         }
 
@@ -246,10 +256,9 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
         if (pErrInfo && pErrInfo->cbMsg > 32)
         {
             /* Prefix. */
-            size_t      cchPrefix;
-            const char *pszDefine = RTErrGetDefine(rc);
-            if (strncmp(pszDefine, RT_STR_TUPLE("Unknown")))
-                cchPrefix = RTStrPrintf(pErrInfo->pszMsg, pErrInfo->cbMsg / 2, "Integrity error (%#x/%s): ", rcNt, pszDefine);
+            size_t cchPrefix;
+            if (RTErrIsKnown(rc))
+                cchPrefix = RTStrPrintf(pErrInfo->pszMsg, pErrInfo->cbMsg / 2, "Integrity error (%#x/%Rrc): ", rcNt, rc);
             else
                 cchPrefix = RTStrPrintf(pErrInfo->pszMsg, pErrInfo->cbMsg / 2, "Integrity error (%#x/%d): ", rcNt, rc);
 
@@ -274,7 +283,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
 
 #ifndef IN_SUP_HARDENED_R3
 
-int suplibOsInstall(void)
+DECLHIDDEN(int) suplibOsInstall(void)
 {
     int rc = suplibOsCreateService();
     if (RT_SUCCESS(rc))
@@ -287,7 +296,7 @@ int suplibOsInstall(void)
 }
 
 
-int suplibOsUninstall(void)
+DECLHIDDEN(int) suplibOsUninstall(void)
 {
     int rc = suplibOsStopService();
     if (RT_SUCCESS(rc))
@@ -666,7 +675,7 @@ static int suplibOsStartService(void)
 
 #endif /* !IN_SUP_HARDENED_R3 */
 
-int suplibOsTerm(PSUPLIBDATA pThis)
+DECLHIDDEN(int) suplibOsTerm(PSUPLIBDATA pThis)
 {
     /*
      * Check if we're inited at all.
@@ -683,7 +692,7 @@ int suplibOsTerm(PSUPLIBDATA pThis)
 
 #ifndef IN_SUP_HARDENED_R3
 
-int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
+DECLHIDDEN(int) suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {
     RT_NOREF1(cbReq);
 
@@ -715,7 +724,7 @@ int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cb
 }
 
 
-int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
+DECLHIDDEN(int) suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 {
     /*
      * Issue device I/O control.
@@ -742,9 +751,9 @@ int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 }
 
 
-int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
+DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFlags, void **ppvPages)
 {
-    NOREF(pThis);
+    RT_NOREF(pThis, fFlags);
 
     /*
      * Do some one-time init here wrt large pages.
@@ -752,7 +761,7 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
      * Large pages requires the SeLockMemoryPrivilege, which by default (Win10,
      * Win11) isn't even enabled and must be gpedit'ed to be adjustable here.
      */
-    if (!(cPages & 511))
+    if (!(cPages & 511) && (fFlags & SUP_PAGE_ALLOC_F_LARGE_PAGES))
     {
         static int volatile s_fCanDoLargePages = -1;
         int fCanDoLargePages = s_fCanDoLargePages;
@@ -823,7 +832,7 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 }
 
 
-int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
+DECLHIDDEN(int) suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
 {
     NOREF(pThis);
     if (VirtualFree(pvPages, 0, MEM_RELEASE))
@@ -832,7 +841,7 @@ int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
 }
 
 
-bool suplibOsIsNemSupportedWhenNoVtxOrAmdV(void)
+DECLHIDDEN(bool) suplibOsIsNemSupportedWhenNoVtxOrAmdV(void)
 {
 # if ARCH_BITS == 64
     /*
@@ -840,7 +849,7 @@ bool suplibOsIsNemSupportedWhenNoVtxOrAmdV(void)
      */
     if (!ASMHasCpuId())
         return false;
-    if (!ASMIsValidStdRange(ASMCpuId_EAX(0)))
+    if (!RTX86IsValidStdRange(ASMCpuId_EAX(0)))
         return false;
     if (!(ASMCpuId_ECX(1) & X86_CPUID_FEATURE_ECX_HVP))
         return false;

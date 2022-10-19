@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_MachineImpl_h
@@ -23,14 +33,13 @@
 
 #include "AuthLibrary.h"
 #include "VirtualBoxBase.h"
-#include "SnapshotImpl.h"
 #include "ProgressImpl.h"
 #include "VRDEServerImpl.h"
 #include "MediumAttachmentImpl.h"
 #include "PCIDeviceAttachmentImpl.h"
 #include "MediumLock.h"
 #include "NetworkAdapterImpl.h"
-#include "AudioAdapterImpl.h"
+#include "AudioSettingsImpl.h"
 #include "SerialPortImpl.h"
 #include "ParallelPortImpl.h"
 #include "BIOSSettingsImpl.h"
@@ -40,11 +49,14 @@
 #include "USBControllerImpl.h"              // required for MachineImpl.h to compile on Windows
 #include "BandwidthControlImpl.h"
 #include "BandwidthGroupImpl.h"
+#include "TrustedPlatformModuleImpl.h"
+#include "NvramStoreImpl.h"
+#include "GuestDebugControlImpl.h"
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 # include "Performance.h"
 # include "PerformanceImpl.h"
-# include "ThreadTask.h"
 #endif
+#include "ThreadTask.h"
 
 // generated header
 #include "SchemaDefs.h"
@@ -52,6 +64,10 @@
 #include "VBox/com/ErrorInfo.h"
 
 #include <iprt/time.h>
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+# include <VBox/VBoxCryptoIf.h>
+# include <iprt/vfs.h>
+#endif
 
 #include <list>
 #include <vector>
@@ -197,20 +213,41 @@ public:
 
         // list of files to delete in Delete(); this list is filled by Unregister()
         std::list<Utf8Str>  llFilesToDelete;
-};
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        /* Store for secret keys. */
+        SecretKeyStore      *mpKeyStore;
+        BOOL                fEncrypted;
+        /* KeyId of the password encrypting the DEK */
+        com::Utf8Str        mstrKeyId;
+        /* Store containing the DEK used for encrypting the VM */
+        com::Utf8Str        mstrKeyStore;
+        /* KeyId of the password encrypting the DEK for log files */
+        com::Utf8Str        mstrLogKeyId;
+        /* Store containing the DEK used for encrypting the VM's log files */
+        com::Utf8Str        mstrLogKeyStore;
+#endif
+    };
 
     /**
      *  Saved state data.
      *
-     *  It's actually only the state file path string, but it needs to be
-     *  separate from Data, because Machine and SessionMachine instances
-     *  share it, while SnapshotMachine does not.
+     *  It's actually only the state file path string and its encryption
+     *  settings, but it needs to be separate from Data, because Machine
+     *  and SessionMachine instances share it, while SnapshotMachine does
+     *  not.
      *
      *  The data variable is |mSSData|.
      */
     struct SSData
     {
         Utf8Str strStateFilePath;
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+        /* KeyId of the password encrypting the DEK for saved state */
+        com::Utf8Str        strStateKeyId;
+        /* Store containing the DEK used for encrypting saved state */
+        com::Utf8Str        strStateKeyStore;
+#endif
     };
 
     /**
@@ -273,6 +310,7 @@ public:
         BOOL                mHWVirtExUXEnabled;
         BOOL                mHWVirtExForceEnabled;
         BOOL                mHWVirtExUseNativeApi;
+        BOOL                mHWVirtExVirtVmsaveVmload;
         BOOL                mPAEEnabled;
         settings::Hardware::LongModeType mLongMode;
         BOOL                mTripleFaultReset;
@@ -315,6 +353,7 @@ public:
         KeyboardHIDType_T   mKeyboardHIDType;
         PointingHIDType_T   mPointingHIDType;
         ChipsetType_T       mChipsetType;
+        IommuType_T         mIommuType;
         ParavirtProvider_T  mParavirtProvider;
         Utf8Str             mParavirtDebug;
         BOOL                mEmulatedUSBCardReaderEnabled;
@@ -333,7 +372,7 @@ public:
 
     typedef std::list<ComObjPtr<MediumAttachment> > MediumAttachmentList;
 
-    DECLARE_EMPTY_CTOR_DTOR(Machine)
+    DECLARE_COMMON_CLASS_METHODS(Machine)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -349,12 +388,16 @@ public:
                  GuestOSType *aOsType,
                  const Guid &aId,
                  bool fForceOverwrite,
-                 bool fDirectoryIncludesUUID);
+                 bool fDirectoryIncludesUUID,
+                 const com::Utf8Str &aCipher,
+                 const com::Utf8Str &aPasswordId,
+                 const com::Utf8Str &aPassword);
 
     // initializer for loading existing machine XML (either registered or not)
     HRESULT initFromSettings(VirtualBox *aParent,
                              const Utf8Str &strConfigFile,
-                             const Guid *aId);
+                             const Guid *aId,
+                             const com::Utf8Str &strPassword);
 
     // initializer for machine config in memory (OVF import)
     HRESULT init(VirtualBox *aParent,
@@ -467,20 +510,23 @@ public:
 
     enum
     {
-        IsModified_MachineData          = 0x0001,
-        IsModified_Storage              = 0x0002,
-        IsModified_NetworkAdapters      = 0x0008,
-        IsModified_SerialPorts          = 0x0010,
-        IsModified_ParallelPorts        = 0x0020,
-        IsModified_VRDEServer           = 0x0040,
-        IsModified_AudioAdapter         = 0x0080,
-        IsModified_USB                  = 0x0100,
-        IsModified_BIOS                 = 0x0200,
-        IsModified_SharedFolders        = 0x0400,
-        IsModified_Snapshots            = 0x0800,
-        IsModified_BandwidthControl     = 0x1000,
-        IsModified_Recording            = 0x2000,
-        IsModified_GraphicsAdapter      = 0x4000,
+        IsModified_MachineData           = 0x000001,
+        IsModified_Storage               = 0x000002,
+        IsModified_NetworkAdapters       = 0x000008,
+        IsModified_SerialPorts           = 0x000010,
+        IsModified_ParallelPorts         = 0x000020,
+        IsModified_VRDEServer            = 0x000040,
+        IsModified_AudioSettings         = 0x000080,
+        IsModified_USB                   = 0x000100,
+        IsModified_BIOS                  = 0x000200,
+        IsModified_SharedFolders         = 0x000400,
+        IsModified_Snapshots             = 0x000800,
+        IsModified_BandwidthControl      = 0x001000,
+        IsModified_Recording             = 0x002000,
+        IsModified_GraphicsAdapter       = 0x004000,
+        IsModified_TrustedPlatformModule = 0x008000,
+        IsModified_NvramStore            = 0x010000,
+        IsModified_GuestDebugControl     = 0x020000,
     };
 
     /**
@@ -509,10 +555,11 @@ public:
 
     // callback handlers
     virtual HRESULT i_onNetworkAdapterChange(INetworkAdapter * /* networkAdapter */, BOOL /* changeAdapter */) { return S_OK; }
-    virtual HRESULT i_onNATRedirectRuleChange(ULONG /* slot */, BOOL /* fRemove */ , IN_BSTR /* name */,
-                                              NATProtocol_T /* protocol */, IN_BSTR /* host ip */, LONG /* host port */,
-                                              IN_BSTR /* guest port */, LONG /* guest port */ ) { return S_OK; }
+    virtual HRESULT i_onNATRedirectRuleChanged(ULONG /* slot */, BOOL /* fRemove */ , const Utf8Str & /* name */,
+                                               NATProtocol_T /* protocol */, const Utf8Str & /* host ip */, LONG /* host port */,
+                                               const Utf8Str & /* guest port */, LONG /* guest port */ ) { return S_OK; }
     virtual HRESULT i_onAudioAdapterChange(IAudioAdapter * /* audioAdapter */) { return S_OK; }
+    virtual HRESULT i_onHostAudioDeviceChange(IHostAudioDevice *, BOOL /* new */, AudioDeviceState_T, IVirtualBoxErrorInfo *) { return S_OK; }
     virtual HRESULT i_onSerialPortChange(ISerialPort * /* serialPort */) { return S_OK; }
     virtual HRESULT i_onParallelPortChange(IParallelPort * /* parallelPort */) { return S_OK; }
     virtual HRESULT i_onVRDEServerChange(BOOL /* aRestart */) { return S_OK; }
@@ -530,6 +577,8 @@ public:
     virtual HRESULT i_onStorageDeviceChange(IMediumAttachment * /* mediumAttachment */, BOOL /* remove */,
                                             BOOL /* silent */) { return S_OK; }
     virtual HRESULT i_onRecordingChange(BOOL /* aEnable */) { return S_OK; }
+    virtual HRESULT i_onGuestDebugControlChange(IGuestDebugControl * /* guestDebugControl */) { return S_OK; }
+
 
     HRESULT i_saveRegistryEntry(settings::MachineRegistryEntry &data);
 
@@ -541,6 +590,7 @@ public:
     Utf8Str i_getHardeningLogFilename(void);
     Utf8Str i_getDefaultNVRAMFilename();
     Utf8Str i_getSnapshotNVRAMFilename();
+    SettingsVersion_T i_getSettingsVersion(void);
 
     void i_composeSavedStateFilename(Utf8Str &strStateFilePath);
 
@@ -637,8 +687,7 @@ protected:
     HRESULT i_loadMachineDataFromSettings(const settings::MachineConfigFile &config,
                                           const Guid *puuidRegistry);
     HRESULT i_loadSnapshot(const settings::Snapshot &data,
-                           const Guid &aCurSnapshotId,
-                           Snapshot *aParentSnapshot);
+                           const Guid &aCurSnapshotId);
     HRESULT i_loadHardware(const Guid *puuidRegistry,
                            const Guid *puuidSnapshot,
                            const settings::Hardware &data,
@@ -669,13 +718,15 @@ protected:
         /* flags for #saveSettings() */
         SaveS_ResetCurStateModified = 0x01,
         SaveS_Force = 0x04,
+        SaveS_RemoveBackup = 0x08,
         /* flags for #saveStateSettings() */
         SaveSTS_CurStateModified = 0x20,
         SaveSTS_StateFilePath = 0x40,
         SaveSTS_StateTimeStamp = 0x80
     };
 
-    HRESULT i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings);
+    HRESULT i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings,
+                                  bool *pfSettingsFileIsNew);
     HRESULT i_saveSettings(bool *pfNeedsGlobalSaveSettings, AutoWriteLock &alock, int aFlags = 0);
 
     void i_copyMachineDataToSettings(settings::MachineConfigFile &config);
@@ -688,6 +739,8 @@ protected:
     HRESULT i_saveStateSettings(int aFlags);
 
     void i_addMediumToRegistry(ComObjPtr<Medium> &pMedium);
+
+    HRESULT i_deleteFile(const Utf8Str &strFile, bool fIgnoreFailures = false, const Utf8Str &strWhat = "", int *prc = NULL);
 
     HRESULT i_createImplicitDiffs(IProgress *aProgress,
                                   ULONG aWeight,
@@ -784,12 +837,16 @@ protected:
     const ComObjPtr<VRDEServer>        mVRDEServer;
     const ComObjPtr<SerialPort>        mSerialPorts[SchemaDefs::SerialPortCount];
     const ComObjPtr<ParallelPort>      mParallelPorts[SchemaDefs::ParallelPortCount];
-    const ComObjPtr<AudioAdapter>      mAudioAdapter;
+    const ComObjPtr<AudioSettings>     mAudioSettings;
     const ComObjPtr<USBDeviceFilters>  mUSBDeviceFilters;
     const ComObjPtr<BIOSSettings>      mBIOSSettings;
     const ComObjPtr<RecordingSettings> mRecordingSettings;
     const ComObjPtr<GraphicsAdapter>   mGraphicsAdapter;
     const ComObjPtr<BandwidthControl>  mBandwidthControl;
+    const ComObjPtr<GuestDebugControl> mGuestDebugControl;
+
+    const ComObjPtr<TrustedPlatformModule> mTrustedPlatformModule;
+    const ComObjPtr<NvramStore>            mNvramStore;
 
     typedef std::vector<ComObjPtr<NetworkAdapter> > NetworkAdapterVector;
     NetworkAdapterVector               mNetworkAdapters;
@@ -834,6 +891,19 @@ protected:
 
     class DeleteConfigTask;
     void i_deleteConfigHandler(DeleteConfigTask &task);
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    class ChangeEncryptionTask;
+    void i_changeEncryptionHandler(ChangeEncryptionTask &task);
+    HRESULT i_changeEncryptionForComponent(ChangeEncryptionTask &task, const com::Utf8Str strDirectory,
+                                           const com::Utf8Str strFilePattern, com::Utf8Str &strKeyStore,
+                                           com::Utf8Str &strKeyId, int iCipherMode);
+    int i_findFiles(std::list<com::Utf8Str> &lstFiles, const com::Utf8Str &strDir,
+                    const com::Utf8Str &strPattern);
+    int i_createIoStreamForFile(const char *pszFilename, PCVBOXCRYPTOIF pCryptoIf,
+                                const char *pszKeyStore, const char *pszPassword,
+                                uint64_t fOpen, PRTVFSIOSTREAM phVfsIos);
+#endif
 
     friend class Appliance;
     friend class RecordingSettings;
@@ -882,6 +952,8 @@ private:
     HRESULT setPageFusionEnabled(BOOL aPageFusionEnabled);
     HRESULT getGraphicsAdapter(ComPtr<IGraphicsAdapter> &aGraphicsAdapter);
     HRESULT getBIOSSettings(ComPtr<IBIOSSettings> &aBIOSSettings);
+    HRESULT getTrustedPlatformModule(ComPtr<ITrustedPlatformModule> &aTrustedPlatformModule);
+    HRESULT getNonVolatileStore(ComPtr<INvramStore> &aNvramStore);
     HRESULT getRecordingSettings(ComPtr<IRecordingSettings> &aRecordingSettings);
     HRESULT getFirmwareType(FirmwareType_T *aFirmwareType);
     HRESULT setFirmwareType(FirmwareType_T aFirmwareType);
@@ -893,6 +965,8 @@ private:
     HRESULT setHPETEnabled(BOOL aHPETEnabled);
     HRESULT getChipsetType(ChipsetType_T *aChipsetType);
     HRESULT setChipsetType(ChipsetType_T aChipsetType);
+    HRESULT getIommuType(IommuType_T *aIommuType);
+    HRESULT setIommuType(IommuType_T aIommuType);
     HRESULT getSnapshotFolder(com::Utf8Str &aSnapshotFolder);
     HRESULT setSnapshotFolder(const com::Utf8Str &aSnapshotFolder);
     HRESULT getVRDEServer(ComPtr<IVRDEServer> &aVRDEServer);
@@ -901,7 +975,7 @@ private:
     HRESULT getMediumAttachments(std::vector<ComPtr<IMediumAttachment> > &aMediumAttachments);
     HRESULT getUSBControllers(std::vector<ComPtr<IUSBController> > &aUSBControllers);
     HRESULT getUSBDeviceFilters(ComPtr<IUSBDeviceFilters> &aUSBDeviceFilters);
-    HRESULT getAudioAdapter(ComPtr<IAudioAdapter> &aAudioAdapter);
+    HRESULT getAudioSettings(ComPtr<IAudioSettings> &aAudioSettings);
     HRESULT getStorageControllers(std::vector<ComPtr<IStorageController> > &aStorageControllers);
     HRESULT getSettingsFilePath(com::Utf8Str &aSettingsFilePath);
     HRESULT getSettingsAuxFilePath(com::Utf8Str &aSettingsAuxFilePath);
@@ -961,6 +1035,11 @@ private:
     HRESULT getUSBProxyAvailable(BOOL *aUSBProxyAvailable);
     HRESULT getVMProcessPriority(VMProcPriority_T *aVMProcessPriority);
     HRESULT setVMProcessPriority(VMProcPriority_T aVMProcessPriority);
+    HRESULT getStateKeyId(com::Utf8Str &aKeyId);
+    HRESULT getStateKeyStore(com::Utf8Str &aKeyStore);
+    HRESULT getLogKeyId(com::Utf8Str &aKeyId);
+    HRESULT getLogKeyStore(com::Utf8Str &aKeyStore);
+    HRESULT getGuestDebugControl(ComPtr<IGuestDebugControl> &aGuestDebugControl);
 
     // wrapped IMachine methods
     HRESULT lockMachine(const ComPtr<ISession> &aSession,
@@ -1190,6 +1269,22 @@ private:
     HRESULT restoreSnapshot(const ComPtr<ISnapshot> &aSnapshot,
                             ComPtr<IProgress> &aProgress);
     HRESULT applyDefaults(const com::Utf8Str &aFlags);
+    HRESULT changeEncryption(const com::Utf8Str &aCurrentPassword,
+                             const com::Utf8Str &aCipher,
+                             const com::Utf8Str &aNewPassword,
+                             const com::Utf8Str &aNewPasswordId,
+                             BOOL aForce,
+                             ComPtr<IProgress> &aProgress);
+    HRESULT getEncryptionSettings(com::Utf8Str &aCipher,
+                                  com::Utf8Str &aPasswordId);
+    HRESULT checkEncryptionPassword(const com::Utf8Str &aPassword);
+    HRESULT addEncryptionPassword(const com::Utf8Str &aId,
+                                  const com::Utf8Str &aPassword);
+    HRESULT addEncryptionPasswords(const std::vector<com::Utf8Str> &aIds,
+                                   const std::vector<com::Utf8Str> &aPasswords);
+    HRESULT removeEncryptionPassword(AutoCaller &autoCaller,
+                                     const com::Utf8Str &aId);
+    HRESULT clearAllEncryptionPasswords(AutoCaller &autoCaller);
 
     // wrapped IInternalMachineControl properties
 
@@ -1212,12 +1307,6 @@ private:
     HRESULT onSessionEnd(const ComPtr<ISession> &aSession,
                          ComPtr<IProgress> &aProgress);
     HRESULT finishOnlineMergeMedium();
-    HRESULT clipboardAreaRegister(const std::vector<com::Utf8Str> &aParms, ULONG *aID);
-    HRESULT clipboardAreaUnregister(ULONG aID);
-    HRESULT clipboardAreaAttach(ULONG aID);
-    HRESULT clipboardAreaDetach(ULONG aID);
-    HRESULT clipboardAreaGetMostRecent(ULONG *aID);
-    HRESULT clipboardAreaGetRefCount(ULONG aID, ULONG *aRefCount);
     HRESULT pullGuestProperties(std::vector<com::Utf8Str> &aNames,
                                 std::vector<com::Utf8Str> &aValues,
                                 std::vector<LONG64> &aTimestamps,
@@ -1225,7 +1314,8 @@ private:
     HRESULT pushGuestProperty(const com::Utf8Str &aName,
                               const com::Utf8Str &aValue,
                               LONG64 aTimestamp,
-                              const com::Utf8Str &aFlags);
+                              const com::Utf8Str &aFlags,
+                              BOOL fWasDeleted);
     HRESULT lockMedia();
     HRESULT unlockMedia();
     HRESULT ejectMedium(const ComPtr<IMediumAttachment> &aAttachment,
@@ -1248,6 +1338,10 @@ private:
                                ULONG aVmNetTx);
     HRESULT authenticateExternal(const std::vector<com::Utf8Str> &aAuthParams,
                                  com::Utf8Str &aResult);
+
+#ifdef VBOX_WITH_FULL_VM_ENCRYPTION
+    HRESULT i_setInaccessible(void);
+#endif
 };
 
 // SessionMachine class
@@ -1279,7 +1373,7 @@ public:
         VBOX_TWEAK_INTERFACE_ENTRY(IMachine)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR(SessionMachine)
+    DECLARE_COMMON_CLASS_METHODS(SessionMachine)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -1317,13 +1411,14 @@ public:
     ClientToken *i_getClientToken();
 
     HRESULT i_onNetworkAdapterChange(INetworkAdapter *networkAdapter, BOOL changeAdapter);
-    HRESULT i_onNATRedirectRuleChange(ULONG ulSlot, BOOL aNatRuleRemove, IN_BSTR aRuleName,
-                                      NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort,
-                                      IN_BSTR aGuestIp, LONG aGuestPort);
+    HRESULT i_onNATRedirectRuleChanged(ULONG ulSlot, BOOL aNatRuleRemove, const Utf8Str &aRuleName,
+                                       NATProtocol_T aProto, const Utf8Str &aHostIp, LONG aHostPort,
+                                       const Utf8Str &aGuestIp, LONG aGuestPort) RT_OVERRIDE;
     HRESULT i_onStorageControllerChange(const com::Guid &aMachineId, const com::Utf8Str &aControllerName);
     HRESULT i_onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT i_onVMProcessPriorityChange(VMProcPriority_T aPriority);
     HRESULT i_onAudioAdapterChange(IAudioAdapter *audioAdapter);
+    HRESULT i_onHostAudioDeviceChange(IHostAudioDevice *aDevice, BOOL aNew, AudioDeviceState_T aState, IVirtualBoxErrorInfo *aErrInfo);
     HRESULT i_onSerialPortChange(ISerialPort *serialPort);
     HRESULT i_onParallelPortChange(IParallelPort *parallelPort);
     HRESULT i_onCPUChange(ULONG aCPU, BOOL aRemove);
@@ -1343,6 +1438,7 @@ public:
     HRESULT i_onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup);
     HRESULT i_onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove, BOOL aSilent);
     HRESULT i_onCPUExecutionCapChange(ULONG aCpuExecutionCap);
+    HRESULT i_onGuestDebugControlChange(IGuestDebugControl *guestDebugControl);
 
     bool i_hasMatchingUSBFilter(const ComObjPtr<HostUSBDevice> &aDevice, ULONG *aMaskedIfs);
 
@@ -1374,12 +1470,6 @@ private:
     HRESULT onSessionEnd(const ComPtr<ISession> &aSession,
                          ComPtr<IProgress> &aProgress);
     HRESULT finishOnlineMergeMedium();
-    HRESULT clipboardAreaRegister(const std::vector<com::Utf8Str> &aParms, ULONG *aID);
-    HRESULT clipboardAreaUnregister(ULONG aID);
-    HRESULT clipboardAreaAttach(ULONG aID);
-    HRESULT clipboardAreaDetach(ULONG aID);
-    HRESULT clipboardAreaGetMostRecent(ULONG *aID);
-    HRESULT clipboardAreaGetRefCount(ULONG aID, ULONG *aRefCount);
     HRESULT pullGuestProperties(std::vector<com::Utf8Str> &aNames,
                                 std::vector<com::Utf8Str> &aValues,
                                 std::vector<LONG64> &aTimestamps,
@@ -1387,7 +1477,8 @@ private:
     HRESULT pushGuestProperty(const com::Utf8Str &aName,
                               const com::Utf8Str &aValue,
                               LONG64 aTimestamp,
-                              const com::Utf8Str &aFlags);
+                              const com::Utf8Str &aFlags,
+                              BOOL fWasDeleted);
     HRESULT lockMedia();
     HRESULT unlockMedia();
     HRESULT ejectMedium(const ComPtr<IMediumAttachment> &aAttachment,
@@ -1540,7 +1631,7 @@ public:
         VBOX_TWEAK_INTERFACE_ENTRY(IMachine)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR(SnapshotMachine)
+    DECLARE_COMMON_CLASS_METHODS(SnapshotMachine)
 
     HRESULT FinalConstruct();
     void FinalRelease();

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -24,8 +34,10 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/dbgftrace.h>
 #include <VBox/vmm/vmcpuset.h>
+#include <VBox/AssertGuest.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
+#include <VBox/pci.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/asm-math.h>
@@ -35,8 +47,20 @@
 # include <iprt/string.h>
 # include <iprt/uuid.h>
 #endif /* IN_RING3 */
+#ifdef VBOX_WITH_IOMMU_AMD
+# include <VBox/iommu-amd.h>
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+# include <VBox/iommu-intel.h>
+#endif
 
 #include "VBoxDD.h"
+#ifdef VBOX_WITH_IOMMU_AMD
+# include "../Bus/DevIommuAmd.h"
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+# include "../Bus/DevIommuIntel.h"
+#endif
 
 #ifdef LOG_ENABLED
 # define DEBUG_ACPI
@@ -51,7 +75,7 @@
 # define DEVACPI_LOCK_R3(a_pDevIns, a_pThis) \
     do { \
         int rcLock = PDMDevHlpCritSectEnter((a_pDevIns), &(a_pThis)->CritSect, VERR_IGNORED); \
-        AssertRC(rcLock); \
+        PDM_CRITSECT_RELEASE_ASSERT_RC_DEV((a_pDevIns), &(a_pThis)->CritSect, rcLock); \
     } while (0)
 #endif
 /** Unlocks the device state (all contexts). */
@@ -195,7 +219,9 @@ enum
     SYSTEM_INFO_INDEX_PARALLEL1_IRQ     = 29,
     SYSTEM_INFO_INDEX_PREF64_MEMORY_MAX = 30,
     SYSTEM_INFO_INDEX_NVME_ADDRESS      = 31, /**< First NVMe controller PCI address, or 0 */
-    SYSTEM_INFO_INDEX_END               = 32,
+    SYSTEM_INFO_INDEX_IOMMU_ADDRESS     = 32, /**< IOMMU PCI address, or 0 */
+    SYSTEM_INFO_INDEX_SB_IOAPIC_ADDRESS = 33, /**< Southbridge I/O APIC (needed by AMD IOMMU) PCI address, or 0 */
+    SYSTEM_INFO_INDEX_END               = 34,
     SYSTEM_INFO_INDEX_INVALID           = 0x80,
     SYSTEM_INFO_INDEX_VALID             = 0x200
 };
@@ -281,6 +307,20 @@ enum
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
 /**
+ * The TPM mode configured.
+ */
+typedef enum ACPITPMMODE
+{
+    ACPITPMMODE_INVALID = 0,
+    ACPITPMMODE_DISABLED,
+    ACPITPMMODE_TIS_1_2,
+    ACPITPMMODE_CRB_2_0,
+    ACPITPMMODE_FIFO_2_0,
+    ACPITPMMODE_32BIT_HACK = 0x7fffffff
+} ACPITPMMODE;
+
+
+/**
  * The shared ACPI device state.
  */
 typedef struct ACPISTATE
@@ -362,7 +402,12 @@ typedef struct ACPISTATE
     bool                fUseMcfg;
     /** if the 64-bit prefetchable memory window is shown to the guest */
     bool                fPciPref64Enabled;
-    bool                afAlignment1;
+    /** If the IOMMU (AMD) device should be enabled */
+    bool                fUseIommuAmd;
+    /** If the IOMMU (Intel) device should be enabled */
+    bool                fUseIommuIntel;
+    /** Padding. */
+    bool                afPadding0[3];
     /** Primary NIC PCI address. */
     uint32_t            u32NicPciAddress;
     /** HD Audio PCI address. */
@@ -381,6 +426,10 @@ typedef struct ACPISTATE
     uint32_t            u32IocPciAddress;
     /** PCI address of the host bus controller device. */
     uint32_t            u32HbcPciAddress;
+    /** PCI address of the IOMMU device. */
+    uint32_t            u32IommuPciAddress;
+    /** PCI address of the southbridge I/O APIC device. */
+    uint32_t            u32SbIoApicPciAddress;
 
     /** Physical address of PCI config space MMIO region */
     uint64_t            u64PciConfigMMioAddress;
@@ -414,6 +463,16 @@ typedef struct ACPISTATE
     /** Parallel 1 IRQ number */
     uint8_t             uParallel1Irq;
     /** @} */
+
+#ifdef VBOX_WITH_TPM
+    /** @name TPM config bits
+     * @{ */
+    /** The ACPI TPM mode configured. */
+    ACPITPMMODE         enmTpmMode;
+    /** The MMIO register area base address. */
+    RTGCPHYS            GCPhysTpmMmio;
+    /** @} */
+#endif
 
     /** Number of custom ACPI tables */
     uint8_t             cCustTbls;
@@ -499,6 +558,7 @@ typedef struct ACPISTATE
 } ACPISTATE;
 /** Pointer to the shared ACPI device state. */
 typedef ACPISTATE *PACPISTATE;
+
 
 
 /**
@@ -774,6 +834,76 @@ struct ACPITBLHPET
 };
 AssertCompileSize(ACPITBLHPET, 56);
 
+#ifdef VBOX_WITH_IOMMU_AMD
+/** AMD IOMMU: IVRS (I/O Virtualization Reporting Structure).
+ *  In accordance with the AMD spec. */
+typedef struct ACPIIVRS
+{
+    ACPITBLHEADER       header;
+    uint32_t            u32IvInfo;  /**< IVInfo: I/O virtualization info. common to all IOMMUs in the system. */
+    uint64_t            u64Rsvd;    /**< Reserved (MBZ). */
+    /* IVHD type block follows. */
+} ACPIIVRS;
+AssertCompileSize(ACPIIVRS, 48);
+AssertCompileMemberOffset(ACPIIVRS, u32IvInfo, 36);
+
+/**
+ * AMD IOMMU: The ACPI table.
+ */
+typedef struct ACPITBLIOMMU
+{
+    ACPIIVRS            Hdr;
+    ACPIIVHDTYPE10      IvhdType10;
+    ACPIIVHDDEVENTRY4   IvhdType10Start;
+    ACPIIVHDDEVENTRY4   IvhdType10End;
+    ACPIIVHDDEVENTRY4   IvhdType10Rsvd0;
+    ACPIIVHDDEVENTRY4   IvhdType10Rsvd1;
+    ACPIIVHDDEVENTRY8   IvhdType10IoApic;
+    ACPIIVHDDEVENTRY8   IvhdType10Hpet;
+
+    ACPIIVHDTYPE11      IvhdType11;
+    ACPIIVHDDEVENTRY4   IvhdType11Start;
+    ACPIIVHDDEVENTRY4   IvhdType11End;
+    ACPIIVHDDEVENTRY4   IvhdType11Rsvd0;
+    ACPIIVHDDEVENTRY4   IvhdType11Rsvd1;
+    ACPIIVHDDEVENTRY8   IvhdType11IoApic;
+    ACPIIVHDDEVENTRY8   IvhdType11Hpet;
+} ACPITBLIOMMU;
+AssertCompileMemberAlignment(ACPITBLIOMMU, IvhdType10Start, 4);
+AssertCompileMemberAlignment(ACPITBLIOMMU, IvhdType10End, 4);
+AssertCompileMemberAlignment(ACPITBLIOMMU, IvhdType11Start, 4);
+AssertCompileMemberAlignment(ACPITBLIOMMU, IvhdType11End, 4);
+#endif  /* VBOX_WITH_IOMMU_AMD */
+
+#ifdef VBOX_WITH_IOMMU_INTEL
+/** Intel IOMMU: DMAR (DMA Remapping) Reporting Structure.
+ *  In accordance with the AMD spec. */
+typedef struct ACPIDMAR
+{
+    ACPITBLHEADER       Hdr;
+    /** Host-address Width (N+1 physical bits addressable). */
+    uint8_t             uHostAddrWidth;
+    /** Flags, see ACPI_DMAR_F_XXX. */
+    uint8_t             fFlags;
+    /** Reserved. */
+    uint8_t             abRsvd[10];
+    /* Remapping Structures[] follows. */
+} ACPIDMAR;
+AssertCompileSize(ACPIDMAR, 48);
+AssertCompileMemberOffset(ACPIDMAR, uHostAddrWidth, 36);
+AssertCompileMemberOffset(ACPIDMAR, fFlags, 37);
+
+/**
+ * Intel VT-d: The ACPI table.
+ */
+typedef struct ACPITBLVTD
+{
+    ACPIDMAR            Dmar;
+    ACPIDRHD            Drhd;
+    ACPIDMARDEVSCOPE    DevScopeIoApic;
+} ACPITBLVTD;
+#endif  /* VBOX_WITH_IOMMU_INTEL */
+
 /** MCFG Descriptor Structure */
 typedef struct ACPITBLMCFG
 {
@@ -802,6 +932,83 @@ struct ACPITBLCUST
     uint8_t             au8Data[476];
 };
 AssertCompileSize(ACPITBLCUST, 512);
+
+
+#ifdef VBOX_WITH_TPM
+/**
+ * TPM: The ACPI table for a TPM 2.0 device
+  * (from: https://trustedcomputinggroup.org/wp-content/uploads/TCG_ACPIGeneralSpec_v1p3_r8_pub.pdf).
+ */
+typedef struct ACPITBLTPM20
+{
+    /** The common ACPI table header. */
+    ACPITBLHEADER       Hdr;
+    /** The platform class. */
+    uint16_t            u16PlatCls;
+    /** Reserved. */
+    uint16_t            u16Rsvd0;
+    /** Address of the CRB control area or FIFO base address. */
+    uint64_t            u64BaseAddrCrbOrFifo;
+    /** The start method selector. */
+    uint32_t            u32StartMethod;
+    /** Following are start method specific parameters and optional LAML and LASA fields we don't implement right now. */
+    /** @todo */
+} ACPITBLTPM20;
+AssertCompileSize(ACPITBLTPM20, 52);
+
+/** Revision of the TPM2.0 ACPI table. */
+#define ACPI_TPM20_REVISION                 4
+/** The default MMIO base address of the TPM. */
+#define ACPI_TPM_MMIO_BASE_DEFAULT          0xfed40000
+
+
+/** @name Possible values for the ACPITBLTPM20::u16PlatCls member.
+ * @{ */
+/** Client platform. */
+#define ACPITBL_TPM20_PLAT_CLS_CLIENT       UINT16_C(0)
+/** Server platform. */
+#define ACPITBL_TPM20_PLAT_CLS_SERVER       UINT16_C(1)
+/** @} */
+
+
+/** @name Possible values for the ACPITBLTPM20::u32StartMethod member.
+ * @{ */
+/** MMIO interface (TIS1.2+Cancel). */
+#define ACPITBL_TPM20_START_METHOD_TIS12    UINT16_C(6)
+/** CRB interface. */
+#define ACPITBL_TPM20_START_METHOD_CRB      UINT16_C(7)
+/** @} */
+
+
+/**
+ * TPM: The ACPI table for a TPM 1.2 device
+  * (from: https://trustedcomputinggroup.org/wp-content/uploads/TCG_ACPIGeneralSpecification_v1.20_r8.pdf).
+ */
+typedef struct ACPITBLTCPA
+{
+    /** The common ACPI table header. */
+    ACPITBLHEADER       Hdr;
+    /** The platform class. */
+    uint16_t            u16PlatCls;
+    /** Log Area Minimum Length. */
+    uint32_t            u32Laml;
+    /** Log Area Start Address. */
+    uint64_t            u64Lasa;
+} ACPITBLTCPA;
+AssertCompileSize(ACPITBLTCPA, 50);
+
+/** Revision of the TPM1.2 ACPI table. */
+#define ACPI_TCPA_REVISION                  2
+/** LAML region size. */
+#define ACPI_TCPA_LAML_SZ                   _16K
+
+
+/** @name Possible values for the ACPITBLTCPA::u16PlatCls member.
+ * @{ */
+/** Client platform. */
+#define ACPI_TCPA_PLAT_CLS_CLIENT           UINT16_C(0)
+/** @} */
+#endif
 
 
 #pragma pack()
@@ -1115,11 +1322,10 @@ static void acpiPmTimerUpdate(PPDMDEVINS pDevIns, PACPISTATE pThis, uint64_t u64
     uint64_t u64Elapsed = u64Now - pThis->u64PmTimerInitial;
     Assert(PDMDevHlpTimerIsLockOwner(pDevIns, pThis->hPmTimer));
 
-    pThis->uPmTimerVal = ASMMultU64ByU32DivByU32(u64Elapsed, PM_TMR_FREQ,
-                                                 PDMDevHlpTimerGetFreq(pDevIns, pThis->hPmTimer))
+    pThis->uPmTimerVal = ASMMultU64ByU32DivByU32(u64Elapsed, PM_TMR_FREQ, PDMDevHlpTimerGetFreq(pDevIns, pThis->hPmTimer))
                        & TMR_VAL_MASK;
 
-    if ( (pThis->uPmTimerVal & TMR_VAL_MSB) != msb)
+    if ((pThis->uPmTimerVal & TMR_VAL_MSB) != msb)
         acpiUpdatePm1a(pDevIns, pThis, pThis->pm1a_sts | TMR_STS, pThis->pm1a_en);
 }
 
@@ -1128,21 +1334,22 @@ static void acpiPmTimerUpdate(PPDMDEVINS pDevIns, PACPISTATE pThis, uint64_t u64
 /**
  * @callback_method_impl{FNTMTIMERDEV, PM Timer callback}
  */
-static DECLCALLBACK(void) acpiR3PmTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) acpiR3PmTimer(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     PACPISTATE pThis = PDMDEVINS_2_DATA(pDevIns, PACPISTATE);
-    Assert(PDMDevHlpTimerIsLockOwner(pDevIns, pThis->hPmTimer));
-    RT_NOREF(pTimer, pvUser);
+    Assert(pThis->hPmTimer == hTimer);
+    Assert(PDMDevHlpTimerIsLockOwner(pDevIns, hTimer));
+    RT_NOREF(pvUser);
 
     DEVACPI_LOCK_R3(pDevIns, pThis);
     Log(("acpi: pm timer sts %#x (%d), en %#x (%d)\n",
          pThis->pm1a_sts, (pThis->pm1a_sts & TMR_STS) != 0,
          pThis->pm1a_en, (pThis->pm1a_en & TMR_EN) != 0));
-    uint64_t u64Now = PDMDevHlpTimerGet(pDevIns, pThis->hPmTimer);
-    acpiPmTimerUpdate(pDevIns, pThis, u64Now);
+    uint64_t tsNow = PDMDevHlpTimerGet(pDevIns, hTimer);
+    acpiPmTimerUpdate(pDevIns, pThis, tsNow);
     DEVACPI_UNLOCK(pDevIns, pThis);
 
-    acpiR3PmTimerReset(pDevIns, pThis, u64Now);
+    acpiR3PmTimerReset(pDevIns, pThis, tsNow);
 }
 
 /**
@@ -1275,7 +1482,7 @@ static DECLCALLBACK(VBOXSTRICTRC) acpiR3BatIndexWrite(PPDMDEVINS pDevIns, void *
         pThis->u8IndexShift = 2;
         u32 >>= 2;
     }
-    Assert(u32 < BAT_INDEX_LAST);
+    ASSERT_GUEST_MSG(u32 < BAT_INDEX_LAST, ("%#x\n", u32));
     pThis->uBatteryIndex = u32;
 
     DEVACPI_UNLOCK(pDevIns, pThis);
@@ -1364,7 +1571,13 @@ static DECLCALLBACK(VBOXSTRICTRC)  acpiR3SysInfoIndexWrite(PPDMDEVINS pDevIns, v
         }
 
         u32 >>= pThis->u8IndexShift;
-        Assert(u32 < SYSTEM_INFO_INDEX_END);
+
+        /* If the index exceeds 31 (which is all we can fit within offset 0x80), we need to divide the index again
+           for indices > 31 and < SYSTEM_INFO_INDEX_END. */
+        if (u32 > SYSTEM_INFO_INDEX_END && pThis->u8IndexShift == 2 && (u32 >> 2) < SYSTEM_INFO_INDEX_END)
+            u32 >>= 2;
+
+        ASSERT_GUEST_MSG(u32 < SYSTEM_INFO_INDEX_END, ("%u - Max=%u. IndexShift=%u\n", u32, SYSTEM_INFO_INDEX_END, pThis->u8IndexShift));
         pThis->uSystemInfoIndex = u32;
     }
 
@@ -1553,6 +1766,14 @@ static DECLCALLBACK(VBOXSTRICTRC) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void
             *pu32 = pThis->uParallel1Irq;
             break;
 
+        case SYSTEM_INFO_INDEX_IOMMU_ADDRESS:
+            *pu32 = pThis->u32IommuPciAddress;
+            break;
+
+        case SYSTEM_INFO_INDEX_SB_IOAPIC_ADDRESS:
+            *pu32 = pThis->u32SbIoApicPciAddress;
+            break;
+
         case SYSTEM_INFO_INDEX_END:
             /** @todo why isn't this setting any output value?  */
             break;
@@ -1564,7 +1785,7 @@ static DECLCALLBACK(VBOXSTRICTRC) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void
 
         default:
             *pu32 = UINT32_MAX;
-            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u idx=%u\n", cb, offPort, pThis->uBatteryIndex);
+            rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "cb=%d offPort=%u idx=%u\n", cb, offPort, uSystemInfoIndex);
             break;
     }
 
@@ -2703,6 +2924,16 @@ static void acpiR3SetupSsdt(PPDMDEVINS pDevIns, RTGCPHYS32 addr, void const *pvS
     acpiR3PhysCopy(pDevIns, addr, pvSrc, uSsdtLen);
 }
 
+#ifdef VBOX_WITH_TPM
+/**
+ * Plant the Secondary System Description Table (SSDT).
+ */
+static void acpiR3SetupTpmSsdt(PPDMDEVINS pDevIns, RTGCPHYS32 addr, void const *pvSrc, size_t uSsdtLen)
+{
+    acpiR3PhysCopy(pDevIns, addr, pvSrc, uSsdtLen);
+}
+#endif
+
 /**
  * Plant the Firmware ACPI Control Structure (FACS).
  */
@@ -3100,6 +3331,268 @@ static void acpiR3SetupHpet(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 add
 }
 
 
+#ifdef VBOX_WITH_IOMMU_AMD
+/**
+ * Plant the AMD IOMMU descriptor.
+ */
+static void acpiR3SetupIommuAmd(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 addr)
+{
+    ACPITBLIOMMU Ivrs;
+    RT_ZERO(Ivrs);
+
+    uint16_t const uIommuBus = 0;
+    uint16_t const uIommuDev = RT_HI_U16(pThis->u32IommuPciAddress);
+    uint16_t const uIommuFn  = RT_LO_U16(pThis->u32IommuPciAddress);
+
+    /* IVRS header. */
+    acpiR3PrepareHeader(pThis, &Ivrs.Hdr.header, "IVRS", sizeof(Ivrs), ACPI_IVRS_FMT_REV_FIXED);
+    /* NOTE! The values here must match what we expose via MMIO/PCI config. space in the IOMMU device code. */
+    Ivrs.Hdr.u32IvInfo = RT_BF_MAKE(ACPI_IVINFO_BF_EFR_SUP,       1)
+                       | RT_BF_MAKE(ACPI_IVINFO_BF_DMA_REMAP_SUP, 0)   /* Pre-boot DMA remap support not supported. */
+                       | RT_BF_MAKE(ACPI_IVINFO_BF_GVA_SIZE,      2)   /* Guest Virt. Addr size (2=48 bits) */
+                       | RT_BF_MAKE(ACPI_IVINFO_BF_PA_SIZE,      48)   /* Physical Addr size (48 bits) */
+                       | RT_BF_MAKE(ACPI_IVINFO_BF_VA_SIZE,      64)   /* Virt. Addr size (64 bits) */
+                       | RT_BF_MAKE(ACPI_IVINFO_BF_HT_ATS_RESV,   0);  /* ATS response range reserved (only applicable for HT) */
+
+    /* IVHD type 10 definition block. */
+    Ivrs.IvhdType10.u8Type             = 0x10;
+    Ivrs.IvhdType10.u16Length          = sizeof(Ivrs.IvhdType10)
+                                       + sizeof(Ivrs.IvhdType10Start)
+                                       + sizeof(Ivrs.IvhdType10End)
+                                       + sizeof(Ivrs.IvhdType10Rsvd0)
+                                       + sizeof(Ivrs.IvhdType10Rsvd1)
+                                       + sizeof(Ivrs.IvhdType10IoApic)
+                                       + sizeof(Ivrs.IvhdType10Hpet);
+    Ivrs.IvhdType10.u16DeviceId        = PCIBDF_MAKE(uIommuBus, VBOX_PCI_DEVFN_MAKE(uIommuDev, uIommuFn));
+    Ivrs.IvhdType10.u16CapOffset       = IOMMU_PCI_OFF_CAP_HDR;
+    Ivrs.IvhdType10.u64BaseAddress     = IOMMU_MMIO_BASE_ADDR;
+    Ivrs.IvhdType10.u16PciSegmentGroup = 0;
+    /* NOTE! Subfields in the following fields must match any corresponding field in PCI/MMIO registers of the IOMMU device. */
+    Ivrs.IvhdType10.u8Flags            = ACPI_IVHD_10H_F_COHERENT; /* Remote IOTLB etc. not supported. */
+    Ivrs.IvhdType10.u16IommuInfo       = RT_BF_MAKE(ACPI_IOMMU_INFO_BF_MSI_NUM, 0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_INFO_BF_UNIT_ID, 0);
+    Ivrs.IvhdType10.u32Features        = RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_XT_SUP,      0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_NX_SUP,      0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_GT_SUP,      0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_GLX_SUP,     0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_IA_SUP,      1)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_GA_SUP,      0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_HE_SUP,      1)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_PAS_MAX,     0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_PN_COUNTERS, 0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_PN_BANKS,    0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_PN_COUNTERS, 0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_MSI_NUM_PPR, 0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_GATS,        0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_FEAT_BF_HATS,        IOMMU_MAX_HOST_PT_LEVEL & 3);
+    /* Start range from BDF (00:01:00). */
+    Ivrs.IvhdType10Start.u8DevEntryType = ACPI_IVHD_DEVENTRY_TYPE_START_RANGE;
+    Ivrs.IvhdType10Start.u16DevId       = PCIBDF_MAKE(0, VBOX_PCI_DEVFN_MAKE(1, 0));
+    Ivrs.IvhdType10Start.u8DteSetting   = 0;
+    /* End range at BDF (ff:1f:7). */
+    Ivrs.IvhdType10End.u8DevEntryType   = ACPI_IVHD_DEVENTRY_TYPE_END_RANGE;
+    Ivrs.IvhdType10End.u16DevId         = PCIBDF_MAKE(0xff, VBOX_PCI_DEVFN_MAKE(0x1f, 7U));
+    Ivrs.IvhdType10End.u8DteSetting     = 0;
+
+    /* Southbridge I/O APIC special device entry. */
+    Ivrs.IvhdType10IoApic.u8DevEntryType          = 0x48;
+    Ivrs.IvhdType10IoApic.u.special.u16Rsvd0      = 0;
+    Ivrs.IvhdType10IoApic.u.special.u8DteSetting  = RT_BF_MAKE(ACPI_IVHD_DTE_INIT_PASS,   1)
+                                                  | RT_BF_MAKE(ACPI_IVHD_DTE_EXTINT_PASS, 1)
+                                                  | RT_BF_MAKE(ACPI_IVHD_DTE_NMI_PASS,    1)
+                                                  | RT_BF_MAKE(ACPI_IVHD_DTE_LINT0_PASS,  1)
+                                                  | RT_BF_MAKE(ACPI_IVHD_DTE_LINT1_PASS,  1);
+    Ivrs.IvhdType10IoApic.u.special.u8Handle      = pThis->cCpus;   /* The I/O APIC ID, see u8IOApicId in acpiR3SetupMadt(). */
+    Ivrs.IvhdType10IoApic.u.special.u16DevIdB     = VBOX_PCI_BDF_SB_IOAPIC;
+    Ivrs.IvhdType10IoApic.u.special.u8Variety     = ACPI_IVHD_VARIETY_IOAPIC;
+
+    /* HPET special device entry. */
+    Ivrs.IvhdType10Hpet.u8DevEntryType          = 0x48;
+    Ivrs.IvhdType10Hpet.u.special.u16Rsvd0      = 0;
+    Ivrs.IvhdType10Hpet.u.special.u8DteSetting  = 0;
+    Ivrs.IvhdType10Hpet.u.special.u8Handle      = 0; /* HPET number. ASSUMING it's identical to u32Number in acpiR3SetupHpet(). */
+    Ivrs.IvhdType10Hpet.u.special.u16DevIdB     = VBOX_PCI_BDF_SB_IOAPIC;   /* HPET goes through the I/O APIC. */
+    Ivrs.IvhdType10Hpet.u.special.u8Variety     = ACPI_IVHD_VARIETY_HPET;
+
+    /* IVHD type 11 definition block. */
+    Ivrs.IvhdType11.u8Type             = 0x11;
+    Ivrs.IvhdType11.u16Length          = sizeof(Ivrs.IvhdType11)
+                                       + sizeof(Ivrs.IvhdType11Start)
+                                       + sizeof(Ivrs.IvhdType11End)
+                                       + sizeof(Ivrs.IvhdType11Rsvd0)
+                                       + sizeof(Ivrs.IvhdType11Rsvd1)
+                                       + sizeof(Ivrs.IvhdType11IoApic)
+                                       + sizeof(Ivrs.IvhdType11Hpet);
+    Ivrs.IvhdType11.u16DeviceId        = Ivrs.IvhdType10.u16DeviceId;
+    Ivrs.IvhdType11.u16CapOffset       = Ivrs.IvhdType10.u16CapOffset;
+    Ivrs.IvhdType11.u64BaseAddress     = Ivrs.IvhdType10.u64BaseAddress;
+    Ivrs.IvhdType11.u16PciSegmentGroup = Ivrs.IvhdType10.u16PciSegmentGroup;
+    Ivrs.IvhdType11.u8Flags            = ACPI_IVHD_11H_F_COHERENT;
+    Ivrs.IvhdType11.u16IommuInfo       = Ivrs.IvhdType10.u16IommuInfo;
+    Ivrs.IvhdType11.u32IommuAttr       = RT_BF_MAKE(ACPI_IOMMU_ATTR_BF_PN_COUNTERS, 0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_ATTR_BF_PN_BANKS,    0)
+                                       | RT_BF_MAKE(ACPI_IOMMU_ATTR_BF_MSI_NUM_PPR, 0);
+    /* NOTE! The feature bits below must match the IOMMU device code (MMIO/PCI access of the EFR register). */
+    Ivrs.IvhdType11.u64EfrRegister     = RT_BF_MAKE(IOMMU_EXT_FEAT_BF_PREF_SUP,           0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_PPR_SUP,            0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_X2APIC_SUP,         0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_NO_EXEC_SUP,        0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_GT_SUP,             0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_IA_SUP,             1)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_GA_SUP,             0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_HE_SUP,             1)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_PC_SUP,             0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_HATS,               IOMMU_MAX_HOST_PT_LEVEL & 3)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_GATS,               0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_GLX_SUP,            0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_SMI_FLT_SUP,        0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_SMI_FLT_REG_CNT,    0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_GAM_SUP,            0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_DUAL_PPR_LOG_SUP,   0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_DUAL_EVT_LOG_SUP,   0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_PASID_MAX,          0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_US_SUP,             0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_DEV_TBL_SEG_SUP,    IOMMU_MAX_DEV_TAB_SEGMENTS)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_PPR_OVERFLOW_EARLY, 0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_PPR_AUTO_RES_SUP,   0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_MARC_SUP,           0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_BLKSTOP_MARK_SUP,   0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_PERF_OPT_SUP,       0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_MSI_CAP_MMIO_SUP,   1)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_GST_IO_PROT_SUP,    0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_HST_ACCESS_SUP,     0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_ENHANCED_PPR_SUP,   0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_ATTR_FW_SUP,        0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_HST_DIRTY_SUP,      0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_INV_IOTLB_TYPE_SUP, 0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_GA_UPDATE_DIS_SUP,  0)
+                                       | RT_BF_MAKE(IOMMU_EXT_FEAT_BF_FORCE_PHYS_DST_SUP, 0);
+
+    /* The IVHD type 11 entries can be copied from their type 10 counterparts. */
+    Ivrs.IvhdType11Start  = Ivrs.IvhdType10Start;
+    Ivrs.IvhdType11End    = Ivrs.IvhdType10End;
+    Ivrs.IvhdType11Rsvd0  = Ivrs.IvhdType10Rsvd0;
+    Ivrs.IvhdType11Rsvd1  = Ivrs.IvhdType10Rsvd1;
+    Ivrs.IvhdType11IoApic = Ivrs.IvhdType10IoApic;
+    Ivrs.IvhdType11Hpet   = Ivrs.IvhdType10Hpet;
+
+    /* Finally, compute checksum. */
+    Ivrs.Hdr.header.u8Checksum = acpiR3Checksum(&Ivrs, sizeof(Ivrs));
+
+    /* Plant the ACPI table. */
+    acpiR3PhysCopy(pDevIns, addr, (const uint8_t *)&Ivrs, sizeof(Ivrs));
+}
+#endif  /* VBOX_WITH_IOMMU_AMD */
+
+
+#ifdef VBOX_WITH_IOMMU_INTEL
+/**
+ * Plant the Intel IOMMU (VT-d) descriptor.
+ */
+static void acpiR3SetupIommuIntel(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 addr)
+{
+    ACPITBLVTD VtdTable;
+    RT_ZERO(VtdTable);
+
+    /* VT-d Table. */
+    acpiR3PrepareHeader(pThis, &VtdTable.Dmar.Hdr, "DMAR", sizeof(ACPITBLVTD), ACPI_DMAR_REVISION);
+
+    /* DMAR. */
+    uint8_t cPhysAddrBits;
+    uint8_t cLinearAddrBits;
+    PDMDevHlpCpuGetGuestAddrWidths(pDevIns, &cPhysAddrBits, &cLinearAddrBits);
+    Assert(cPhysAddrBits > 0); NOREF(cLinearAddrBits);
+    VtdTable.Dmar.uHostAddrWidth = cPhysAddrBits - 1;
+    VtdTable.Dmar.fFlags         = DMAR_ACPI_DMAR_FLAGS;
+
+    /* DRHD. */
+    VtdTable.Drhd.cbLength     = sizeof(ACPIDRHD);
+    VtdTable.Drhd.fFlags       = ACPI_DRHD_F_INCLUDE_PCI_ALL;
+    VtdTable.Drhd.uRegBaseAddr = DMAR_MMIO_BASE_PHYSADDR;
+
+    /* Device Scopes: I/O APIC. */
+    if (pThis->u8UseIOApic)
+    {
+        uint8_t const uIoApicBus = 0;
+        uint8_t const uIoApicDev = RT_HI_U16(pThis->u32SbIoApicPciAddress);
+        uint8_t const uIoApicFn  = RT_LO_U16(pThis->u32SbIoApicPciAddress);
+
+        VtdTable.DevScopeIoApic.uType          = ACPIDMARDEVSCOPE_TYPE_IOAPIC;
+        VtdTable.DevScopeIoApic.cbLength       = sizeof(ACPIDMARDEVSCOPE);
+        VtdTable.DevScopeIoApic.idEnum         = pThis->cCpus;   /* The I/O APIC ID, see u8IOApicId in acpiR3SetupMadt(). */
+        VtdTable.DevScopeIoApic.uStartBusNum   = uIoApicBus;
+        VtdTable.DevScopeIoApic.Path.uDevice   = uIoApicDev;
+        VtdTable.DevScopeIoApic.Path.uFunction = uIoApicFn;
+
+        VtdTable.Drhd.cbLength += sizeof(VtdTable.DevScopeIoApic);
+    }
+
+    /* Finally, compute checksum. */
+    VtdTable.Dmar.Hdr.u8Checksum = acpiR3Checksum(&VtdTable, sizeof(VtdTable));
+
+    /* Plant the ACPI table. */
+    acpiR3PhysCopy(pDevIns, addr, (const uint8_t *)&VtdTable, sizeof(VtdTable));
+}
+#endif  /* VBOX_WITH_IOMMU_INTEL */
+
+
+#ifdef VBOX_WITH_TPM
+/**
+ * Plant the TPM 2.0 ACPI descriptor.
+ */
+static void acpiR3SetupTpm(PPDMDEVINS pDevIns, PACPISTATE pThis, RTGCPHYS32 addr)
+{
+    if (pThis->enmTpmMode == ACPITPMMODE_TIS_1_2)
+    {
+        ACPITBLTCPA TcpaTbl;
+        RT_ZERO(TcpaTbl);
+
+        acpiR3PrepareHeader(pThis, &TcpaTbl.Hdr, "TCPA", sizeof(TcpaTbl), ACPI_TCPA_REVISION);
+
+        TcpaTbl.u16PlatCls = ACPI_TCPA_PLAT_CLS_CLIENT;
+        TcpaTbl.u32Laml    = ACPI_TCPA_LAML_SZ;
+        TcpaTbl.u64Lasa    = addr + sizeof(TcpaTbl);
+
+        /* Finally, compute checksum. */
+        TcpaTbl.Hdr.u8Checksum = acpiR3Checksum(&TcpaTbl, sizeof(TcpaTbl));
+
+        /* Plant the ACPI table. */
+        acpiR3PhysCopy(pDevIns, addr, (const uint8_t *)&TcpaTbl, sizeof(TcpaTbl));
+    }
+    else
+    {
+        ACPITBLTPM20 Tpm2Tbl;
+        RT_ZERO(Tpm2Tbl);
+
+        acpiR3PrepareHeader(pThis, &Tpm2Tbl.Hdr, "TPM2", sizeof(ACPITBLTPM20), ACPI_TPM20_REVISION);
+
+        switch (pThis->enmTpmMode)
+        {
+            case ACPITPMMODE_CRB_2_0:
+                Tpm2Tbl.u32StartMethod       = ACPITBL_TPM20_START_METHOD_CRB;
+                Tpm2Tbl.u64BaseAddrCrbOrFifo = pThis->GCPhysTpmMmio;
+                break;
+            case ACPITPMMODE_FIFO_2_0:
+                Tpm2Tbl.u32StartMethod = ACPITBL_TPM20_START_METHOD_TIS12;
+                break;
+            case ACPITPMMODE_TIS_1_2: /* Handled above. */
+            case ACPITPMMODE_DISABLED: /* Should never be called with the TPM disabled. */
+            default:
+                AssertFailed();
+        }
+
+        Tpm2Tbl.u16PlatCls = ACPITBL_TPM20_PLAT_CLS_CLIENT;
+
+        /* Finally, compute checksum. */
+        Tpm2Tbl.Hdr.u8Checksum = acpiR3Checksum(&Tpm2Tbl, sizeof(Tpm2Tbl));
+
+        /* Plant the ACPI table. */
+        acpiR3PhysCopy(pDevIns, addr, (const uint8_t *)&Tpm2Tbl, sizeof(Tpm2Tbl));
+    }
+}
+#endif
+
+
 /**
  * Used by acpiR3PlantTables to plant a MMCONFIG PCI config space access (MCFG)
  * descriptor.
@@ -3199,16 +3692,45 @@ static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 
     int        rc;
     RTGCPHYS32 GCPhysCur, GCPhysRsdt, GCPhysXsdt, GCPhysFadtAcpi1, GCPhysFadtAcpi2, GCPhysFacs, GCPhysDsdt;
     RTGCPHYS32 GCPhysHpet = 0;
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    RTGCPHYS32 GCPhysIommu = 0;
+#endif
+#ifdef VBOX_WITH_TPM
+    RTGCPHYS32 GCPhysTpm  = 0;
+    RTGCPHYS32 GCPhysSsdtTpm  = 0;
+#endif
     RTGCPHYS32 GCPhysApic = 0;
     RTGCPHYS32 GCPhysSsdt = 0;
     RTGCPHYS32 GCPhysMcfg = 0;
     RTGCPHYS32 aGCPhysCust[MAX_CUST_TABLES] = {0};
     uint32_t   addend = 0;
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+# ifdef VBOX_WITH_TPM
+    RTGCPHYS32 aGCPhysRsdt[10 + MAX_CUST_TABLES];
+    RTGCPHYS32 aGCPhysXsdt[10 + MAX_CUST_TABLES];
+# else
+    RTGCPHYS32 aGCPhysRsdt[8 + MAX_CUST_TABLES];
+    RTGCPHYS32 aGCPhysXsdt[8 + MAX_CUST_TABLES];
+# endif
+#else
+# ifdef VBOX_WITH_TPM
+    RTGCPHYS32 aGCPhysRsdt[9 + MAX_CUST_TABLES];
+    RTGCPHYS32 aGCPhysXsdt[9 + MAX_CUST_TABLES];
+# else
     RTGCPHYS32 aGCPhysRsdt[7 + MAX_CUST_TABLES];
     RTGCPHYS32 aGCPhysXsdt[7 + MAX_CUST_TABLES];
+# endif
+#endif
     uint32_t   cAddr;
     uint32_t   iMadt  = 0;
     uint32_t   iHpet  = 0;
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    uint32_t   iIommu = 0;
+#endif
+#ifdef VBOX_WITH_TPM
+    uint32_t   iTpm   = 0;
+    uint32_t   iSsdtTpm   = 0;
+#endif
     uint32_t   iSsdt  = 0;
     uint32_t   iMcfg  = 0;
     uint32_t   iCust  = 0;
@@ -3221,6 +3743,24 @@ static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 
 
     if (pThis->fUseHpet)
         iHpet = cAddr++;        /* HPET */
+
+#ifdef VBOX_WITH_IOMMU_AMD
+    if (pThis->fUseIommuAmd)
+        iIommu = cAddr++;      /* IOMMU (AMD) */
+#endif
+
+#ifdef VBOX_WITH_IOMMU_INTEL
+    if (pThis->fUseIommuIntel)
+        iIommu = cAddr++;      /* IOMMU (Intel) */
+#endif
+
+#ifdef VBOX_WITH_TPM
+    if (pThis->enmTpmMode != ACPITPMMODE_DISABLED)
+    {
+        iTpm     = cAddr++;   /* TPM device */
+        iSsdtTpm = cAddr++;
+    }
+#endif
 
     if (pThis->fUseMcfg)
         iMcfg = cAddr++;        /* MCFG */
@@ -3236,18 +3776,17 @@ static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 
     Assert(cAddr < RT_ELEMENTS(aGCPhysRsdt));
     Assert(cAddr < RT_ELEMENTS(aGCPhysXsdt));
 
-    cbRsdt += cAddr*sizeof(uint32_t);  /* each entry: 32 bits phys. address. */
-    cbXsdt += cAddr*sizeof(uint64_t);  /* each entry: 64 bits phys. address. */
+    cbRsdt += cAddr * sizeof(uint32_t);  /* each entry: 32 bits phys. address. */
+    cbXsdt += cAddr * sizeof(uint64_t);  /* each entry: 64 bits phys. address. */
 
     /*
      * Calculate the sizes for the low region and for the 64-bit prefetchable memory.
      * The latter starts never below 4G.
      */
-    PVM pVM                    = PDMDevHlpGetVM(pDevIns);
-    uint32_t        cbBelow4GB = MMR3PhysGetRamSizeBelow4GB(pVM);
-    uint64_t const  cbAbove4GB = MMR3PhysGetRamSizeAbove4GB(pVM);
+    uint32_t        cbBelow4GB = PDMDevHlpMMPhysGetRamSizeBelow4GB(pDevIns);
+    uint64_t const  cbAbove4GB = PDMDevHlpMMPhysGetRamSizeAbove4GB(pDevIns);
 
-    pThis->u64RamSize = MMR3PhysGetRamSize(pVM);
+    pThis->u64RamSize = PDMDevHlpMMPhysGetRamSize(pDevIns);
     if (pThis->fPciPref64Enabled)
     {
         uint64_t const u64PciPref64Min = _4G + cbAbove4GB;
@@ -3296,6 +3835,42 @@ static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 
         GCPhysHpet = GCPhysCur;
         GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLHPET), 16);
     }
+#ifdef VBOX_WITH_IOMMU_AMD
+    if (pThis->fUseIommuAmd)
+    {
+        GCPhysIommu = GCPhysCur;
+        GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLIOMMU), 16);
+    }
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+    if (pThis->fUseIommuIntel)
+    {
+        GCPhysIommu = GCPhysCur;
+        GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLVTD), 16);
+    }
+#endif
+#ifdef VBOX_WITH_TPM
+    void  *pvSsdtTpmCode = NULL;
+    size_t cbSsdtTpm = 0;
+
+    if (pThis->enmTpmMode != ACPITPMMODE_DISABLED)
+    {
+        GCPhysTpm = GCPhysCur;
+
+        if (pThis->enmTpmMode == ACPITPMMODE_TIS_1_2)
+            GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLTCPA) + ACPI_TCPA_LAML_SZ, 16);
+        else
+            GCPhysCur = RT_ALIGN_32(GCPhysCur + sizeof(ACPITBLTPM20), 16);
+
+        rc = acpiPrepareTpmSsdt(pDevIns, &pvSsdtTpmCode, &cbSsdtTpm);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        GCPhysSsdtTpm = GCPhysCur;
+        GCPhysCur = RT_ALIGN_32(GCPhysCur + cbSsdtTpm, 16);
+    }
+#endif
+
     if (pThis->fUseMcfg)
     {
         GCPhysMcfg = GCPhysCur;
@@ -3368,6 +3943,36 @@ static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 
         aGCPhysRsdt[iHpet] = GCPhysHpet + addend;
         aGCPhysXsdt[iHpet] = GCPhysHpet + addend;
     }
+#ifdef VBOX_WITH_IOMMU_AMD
+    if (pThis->fUseIommuAmd)
+    {
+        acpiR3SetupIommuAmd(pDevIns, pThis, GCPhysIommu + addend);
+        aGCPhysRsdt[iIommu] = GCPhysIommu + addend;
+        aGCPhysXsdt[iIommu] = GCPhysIommu + addend;
+    }
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+    if (pThis->fUseIommuIntel)
+    {
+        acpiR3SetupIommuIntel(pDevIns, pThis, GCPhysIommu + addend);
+        aGCPhysRsdt[iIommu] = GCPhysIommu + addend;
+        aGCPhysXsdt[iIommu] = GCPhysIommu + addend;
+    }
+#endif
+#ifdef VBOX_WITH_TPM
+    if (pThis->enmTpmMode != ACPITPMMODE_DISABLED)
+    {
+        acpiR3SetupTpm(pDevIns, pThis, GCPhysTpm + addend);
+        aGCPhysRsdt[iTpm] = GCPhysTpm + addend;
+        aGCPhysXsdt[iTpm] = GCPhysTpm + addend;
+
+        acpiR3SetupTpmSsdt(pDevIns, GCPhysSsdtTpm + addend, pvSsdtTpmCode, cbSsdtTpm);
+        acpiCleanupTpmSsdt(pDevIns, pvSsdtTpmCode);
+        aGCPhysRsdt[iSsdtTpm] = GCPhysSsdtTpm + addend;
+        aGCPhysXsdt[iSsdtTpm] = GCPhysSsdtTpm + addend;
+    }
+#endif
+
     if (pThis->fUseMcfg)
     {
         acpiR3SetupMcfg(pDevIns, pThis, GCPhysMcfg + addend);
@@ -3376,7 +3981,7 @@ static int acpiR3PlantTables(PPDMDEVINS pDevIns, PACPISTATE pThis, PACPISTATER3 
     }
     for (uint8_t i = 0; i < pThis->cCustTbls; i++)
     {
-        Assert(i < MAX_CUST_TABLES);
+        AssertBreak(i < MAX_CUST_TABLES);
         acpiR3PhysCopy(pDevIns, aGCPhysCust[i] + addend, pThisCC->apu8CustBin[i], pThisCC->acbCustBin[i]);
         aGCPhysRsdt[iCust + i] = aGCPhysCust[i] + addend;
         aGCPhysXsdt[iCust + i] = aGCPhysCust[i] + addend;
@@ -3724,6 +4329,13 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                   "|Parallel1IoPortBase"
                                   "|Parallel0Irq"
                                   "|Parallel1Irq"
+                                  "|IommuIntelEnabled"
+                                  "|IommuAmdEnabled"
+                                  "|IommuPciAddress"
+                                  "|SbIoApicPciAddress"
+                                  "|TpmMode"
+                                  "|TpmMmioAddress"
+                                  "|SsdtTpmFilePath"
                                   , "");
 
     /* query whether we are supposed to present an IOAPIC */
@@ -3880,6 +4492,96 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"Parallel1IoPortBase\""));
 
+#ifdef VBOX_WITH_IOMMU_AMD
+    /* Query whether an IOMMU (AMD) is enabled. */
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "IommuAmdEnabled", &pThis->fUseIommuAmd, false);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"IommuAmdEnabled\""));
+
+    if (pThis->fUseIommuAmd)
+    {
+        /* Query IOMMU AMD address (IOMA). */
+        rc = pHlp->pfnCFGMQueryU32(pCfg, "IommuPciAddress", &pThis->u32IommuPciAddress);
+        if (RT_FAILURE(rc))
+            return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"IommuPciAddress\""));
+
+        /* Query southbridge I/O APIC address (required when an AMD IOMMU is configured). */
+        rc = pHlp->pfnCFGMQueryU32(pCfg, "SbIoApicPciAddress", &pThis->u32SbIoApicPciAddress);
+        if (RT_FAILURE(rc))
+            return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"SbIoApicAddress\""));
+
+        /* Warn if the IOMMU Address is at the PCI host-bridge address. */
+        /** @todo We should eventually not assign the IOMMU at this address, see
+         *        @bugref{9654#c53}. */
+        if (!pThis->u32IommuPciAddress)
+            LogRel(("ACPI: Warning! AMD IOMMU assigned the PCI host bridge address.\n"));
+
+        /* Warn if the IOAPIC is not at the expected address. */
+        if (pThis->u32SbIoApicPciAddress != RT_MAKE_U32(VBOX_PCI_FN_SB_IOAPIC, VBOX_PCI_DEV_SB_IOAPIC))
+        {
+            LogRel(("ACPI: Southbridge I/O APIC not at %#x:%#x:%#x when an AMD IOMMU is present.\n",
+                    VBOX_PCI_BUS_SB_IOAPIC, VBOX_PCI_DEV_SB_IOAPIC, VBOX_PCI_FN_SB_IOAPIC));
+            return PDMDEV_SET_ERROR(pDevIns, VERR_MISMATCH, N_("Configuration error: \"SbIoApicAddress\" mismatch"));
+        }
+    }
+#endif
+
+#ifdef VBOX_WITH_IOMMU_INTEL
+    /* Query whether an IOMMU (Intel) is enabled. */
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "IommuIntelEnabled", &pThis->fUseIommuIntel, false);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"IommuIntelEnabled\""));
+
+    if (pThis->fUseIommuIntel)
+    {
+        /* Query IOMMU Intel address. */
+        rc = pHlp->pfnCFGMQueryU32(pCfg, "IommuPciAddress", &pThis->u32IommuPciAddress);
+        if (RT_FAILURE(rc))
+            return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"IommuPciAddress\""));
+
+        /* Get the reserved I/O APIC PCI address (required when an Intel IOMMU is configured). */
+        rc = pHlp->pfnCFGMQueryU32(pCfg, "SbIoApicPciAddress", &pThis->u32SbIoApicPciAddress);
+        if (RT_FAILURE(rc))
+            return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"SbIoApicAddress\""));
+
+        /* Warn if the IOAPIC is not at the expected address. */
+        if (pThis->u32SbIoApicPciAddress != RT_MAKE_U32(VBOX_PCI_FN_SB_IOAPIC, VBOX_PCI_DEV_SB_IOAPIC))
+        {
+            LogRel(("ACPI: Southbridge I/O APIC not at %#x:%#x:%#x when an Intel IOMMU is present.\n",
+                    VBOX_PCI_BUS_SB_IOAPIC, VBOX_PCI_DEV_SB_IOAPIC, VBOX_PCI_FN_SB_IOAPIC));
+            return PDMDEV_SET_ERROR(pDevIns, VERR_MISMATCH, N_("Configuration error: \"SbIoApicAddress\" mismatch"));
+        }
+    }
+#endif
+
+    /* Don't even think about enabling an Intel and an AMD IOMMU at the same time! */
+    if (   pThis->fUseIommuAmd
+        && pThis->fUseIommuIntel)
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Cannot enable Intel and AMD IOMMU simultaneously!"));
+
+#ifdef VBOX_WITH_TPM
+    char szTpmMode[64]; RT_ZERO(szTpmMode);
+
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "TpmMode", &szTpmMode[0], RT_ELEMENTS(szTpmMode) - 1, "disabled");
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"TpmMode\""));
+
+    if (!RTStrICmp(szTpmMode, "disabled"))
+        pThis->enmTpmMode = ACPITPMMODE_DISABLED;
+    else if (!RTStrICmp(szTpmMode, "tis1.2"))
+        pThis->enmTpmMode = ACPITPMMODE_TIS_1_2;
+    else if (!RTStrICmp(szTpmMode, "crb2.0"))
+        pThis->enmTpmMode = ACPITPMMODE_CRB_2_0;
+    else if (!RTStrICmp(szTpmMode, "fifo2.0"))
+        pThis->enmTpmMode = ACPITPMMODE_FIFO_2_0;
+    else
+        return PDMDEV_SET_ERROR(pDevIns, VERR_INVALID_PARAMETER, N_("Configuration error: Value of \"TpmMode\" is not known"));
+
+    rc = pHlp->pfnCFGMQueryU64Def(pCfg, "TpmMmioAddress", (uint64_t *)&pThis->GCPhysTpmMmio, ACPI_TPM_MMIO_BASE_DEFAULT);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Configuration error: Failed to read \"TpmMmioAddress\""));
+#endif
+
     /* Try to attach the other CPUs */
     for (unsigned i = 1; i < pThis->cCpus; i++)
     {
@@ -3994,7 +4696,7 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
             pThis->u32CreatorRev = pTblHdr->u32CreatorRev;
 
             pThis->cCustTbls++;
-            Assert(pThis->cCustTbls <= MAX_CUST_TABLES);
+            AssertBreak(pThis->cCustTbls <= MAX_CUST_TABLES);
         }
     }
 
@@ -4095,7 +4797,7 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
      * Create the PM timer.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, acpiR3PmTimer, NULL /*pvUser*/,
-                              TMTIMER_FLAGS_NO_CRIT_SECT, "ACPI PM Timer", &pThis->hPmTimer);
+                              TMTIMER_FLAGS_NO_CRIT_SECT | TMTIMER_FLAGS_RING0, "ACPI PM", &pThis->hPmTimer);
     AssertRCReturn(rc, rc);
 
     PDMDevHlpTimerLockClock(pDevIns, pThis->hPmTimer, VERR_IGNORED);

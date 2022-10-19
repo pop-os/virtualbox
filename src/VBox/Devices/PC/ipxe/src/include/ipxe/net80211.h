@@ -1093,7 +1093,8 @@ struct net80211_wlan
 
 
 /** 802.11 encryption key setting */
-extern struct setting net80211_key_setting __setting ( SETTING_NETDEV_EXTRA );
+extern const struct setting
+net80211_key_setting __setting ( SETTING_NETDEV_EXTRA, key );
 
 
 /**
@@ -1182,26 +1183,5 @@ static inline u16 net80211_cts_duration ( struct net80211_device *dev,
 				     dev->rates[dev->rtscts_rate] ) +
 		 net80211_duration ( dev, size, dev->rates[dev->rate] ) );
 }
-
-/** 802.11 device setting tag magic */
-#define NET80211_SETTING_TAG_MAGIC 0x8211
-
-/**
- * Construct 802.11 setting tag
- *
- * @v id		Unique identifier
- * @ret tag		Setting tag
- */
-#define NET80211_SETTING_TAG( id ) \
-	NETDEV_SETTING_TAG ( ( NET80211_SETTING_TAG_MAGIC << 8 ) | (id) )
-
-/** SSID setting tag */
-#define NET80211_SETTING_TAG_SSID NET80211_SETTING_TAG ( 0x01 )
-
-/** Active scanning setting tag */
-#define NET80211_SETTING_TAG_ACTIVE_SCAN NET80211_SETTING_TAG ( 0x02 )
-
-/** Wireless key setting tag */
-#define NET80211_SETTING_TAG_KEY NET80211_SETTING_TAG ( 0x03 )
 
 #endif

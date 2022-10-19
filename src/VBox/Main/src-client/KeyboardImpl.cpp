@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_KEYBOARD
@@ -22,6 +32,7 @@
 #include "ConsoleImpl.h"
 
 #include "AutoCaller.h"
+#include "VBoxEvents.h"
 
 #include <VBox/com/array.h>
 #include <VBox/vmm/pdmdrv.h>
@@ -112,8 +123,8 @@ HRESULT Keyboard::init(Console *aParent)
     unconst(mParent) = aParent;
 
     unconst(mEventSource).createObject();
-    HRESULT rc = mEventSource->init();
-    AssertComRCReturnRC(rc);
+    HRESULT hrc = mEventSource->init();
+    AssertComRCReturnRC(hrc);
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -211,9 +222,7 @@ HRESULT Keyboard::putScancodes(const std::vector<LONG> &aScancodes,
     for (size_t i = 0; i < aScancodes.size(); ++i)
         keys[i] = aScancodes[i];
 
-    VBoxEventDesc evDesc;
-    evDesc.init(mEventSource, VBoxEventType_OnGuestKeyboard, ComSafeArrayAsInParam(keys));
-    evDesc.fire(0);
+    ::FireGuestKeyboardEvent(mEventSource, ComSafeArrayAsInParam(keys));
 
     if (RT_FAILURE(vrc))
         return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
@@ -296,10 +305,30 @@ HRESULT Keyboard::putCAD()
  */
 HRESULT Keyboard::releaseKeys()
 {
-    std::vector<LONG> scancodes;
-    scancodes.resize(1);
-    scancodes[0] = 0xFC;    /* Magic scancode, see PS/2 and USB keyboard devices. */
-    return putScancodes(scancodes, NULL);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* Release all keys on the active keyboard in order to start with a clean slate.
+     * Note that this should mirror the logic in Keyboard::putScancodes() when choosing
+     * which keyboard to send the release event to.
+     */
+    PPDMIKEYBOARDPORT pUpPort = NULL;
+    for (int i = KEYBOARD_MAX_DEVICES - 1; i >= 0 ; --i)
+    {
+        if (mpDrv[i] && (mpDrv[i]->u32DevCaps & KEYBOARD_DEVCAP_ENABLED))
+        {
+            pUpPort = mpDrv[i]->pUpPort;
+            break;
+        }
+    }
+
+    if (pUpPort)
+    {
+        int vrc = pUpPort->pfnReleaseKeys(pUpPort);
+        if (RT_FAILURE(vrc))
+            AssertMsgFailed(("Failed to release keys on all keyboards! vrc=%Rrc\n", vrc));
+    }
+
+    return S_OK;
 }
 
 HRESULT Keyboard::getKeyboardLEDs(std::vector<KeyboardLED_T> &aKeyboardLEDs)
@@ -352,6 +381,11 @@ DECLCALLBACK(void) Keyboard::i_keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pI
 DECLCALLBACK(void) Keyboard::i_keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive)
 {
     PDRVMAINKEYBOARD pDrv = RT_FROM_MEMBER(pInterface, DRVMAINKEYBOARD, IConnector);
+
+    // Before activating a different keyboard, release all keys on the currently active one.
+    if (fActive)
+        pDrv->pKeyboard->releaseKeys();
+
     if (fActive)
         pDrv->u32DevCaps |= KEYBOARD_DEVCAP_ENABLED;
     else
@@ -404,16 +438,15 @@ DECLCALLBACK(void) Keyboard::i_drvDestruct(PPDMDRVINS pDrvIns)
  */
 DECLCALLBACK(int) Keyboard::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    RT_NOREF(fFlags, pCfg);
     PDRVMAINKEYBOARD pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINKEYBOARD);
     LogFlow(("Keyboard::drvConstruct: iInstance=%d\n", pDrvIns->iInstance));
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "Object\0"))
-        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "", "");
     AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
                     VERR_PDM_DRVINS_NO_ATTACH);
@@ -439,14 +472,15 @@ DECLCALLBACK(int) Keyboard::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
     /*
      * Get the Keyboard object pointer and update the mpDrv member.
      */
-    void *pv;
-    int rc = CFGMR3QueryPtr(pCfg, "Object", &pv);
-    if (RT_FAILURE(rc))
+    com::Guid uuid(COM_IIDOF(IKeyboard));
+    IKeyboard *pIKeyboard = (IKeyboard *)PDMDrvHlpQueryGenericUserObject(pDrvIns, uuid.raw());
+    if (!pIKeyboard)
     {
-        AssertMsgFailed(("Configuration error: No/bad \"Object\" value! rc=%Rrc\n", rc));
-        return rc;
+        AssertMsgFailed(("Configuration error: No/bad Keyboard object!\n"));
+        return VERR_NOT_FOUND;
     }
-    pThis->pKeyboard = (Keyboard *)pv;        /** @todo Check this cast! */
+    pThis->pKeyboard = static_cast<Keyboard *>(pIKeyboard);
+
     unsigned cDev;
     for (cDev = 0; cDev < KEYBOARD_MAX_DEVICES; ++cDev)
         if (!pThis->pKeyboard->mpDrv[cDev])

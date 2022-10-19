@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -255,10 +265,10 @@ HRESULT DHCPConfig::i_setForcedOptions(const std::vector<DHCPOption_T> &aOptions
                 if (mapDuplicates.find(enmOpt) == mapDuplicates.end())
                     mapDuplicates[enmOpt] = true;
                 else
-                    return m_pHack->setError(E_INVALIDARG, m_pHack->tr("Duplicate option value: %d"), (int)enmOpt);
+                    return m_pHack->setError(E_INVALIDARG, tr("Duplicate option value: %d"), (int)enmOpt);
             }
             else
-                return m_pHack->setError(E_INVALIDARG, m_pHack->tr("Invalid option value: %d"), (int)enmOpt);
+                return m_pHack->setError(E_INVALIDARG, tr("Invalid option value: %d"), (int)enmOpt);
         }
     }
     catch (std::bad_alloc &)
@@ -275,9 +285,9 @@ HRESULT DHCPConfig::i_setForcedOptions(const std::vector<DHCPOption_T> &aOptions
         /* Actually changed? */
         if (m_vecForcedOptions.size() == aOptions.size())
         {
-            ssize_t i = m_vecForcedOptions.size();
+            ssize_t i = (ssize_t)m_vecForcedOptions.size();
             while (i-- > 0)
-                if (m_vecForcedOptions[i] != aOptions[i])
+                if (m_vecForcedOptions[(size_t)i] != aOptions[(size_t)i])
                     break;
             if (i < 0)
                 return S_OK;
@@ -327,7 +337,7 @@ HRESULT DHCPConfig::i_setSuppressedOptions(const std::vector<DHCPOption_T> &aOpt
             if ((int)enmOpt > 0 && (int)enmOpt < 255)
                 mapNormalized[enmOpt] = true;
             else
-                return m_pHack->setError(E_INVALIDARG, m_pHack->tr("Invalid option value: %d"), (int)enmOpt);
+                return m_pHack->setError(E_INVALIDARG, tr("Invalid option value: %d"), (int)enmOpt);
         }
     }
     catch (std::bad_alloc &)
@@ -413,12 +423,12 @@ HRESULT DHCPConfig::i_setOption(DHCPOption_T aOption, DHCPOptionEncoding_T aEnco
     }
 
     if (rc == VERR_WRONG_TYPE)
-        return m_pHack->setError(E_INVALIDARG, m_pHack->tr("Unsupported encoding %d (option %d, value %s)"),
+        return m_pHack->setError(E_INVALIDARG, tr("Unsupported encoding %d (option %d, value %s)"),
                                  (int)aEncoding, (int)aOption, aValue.c_str());
     if (rc == VERR_NOT_SUPPORTED)
-        return m_pHack->setError(E_INVALIDARG, m_pHack->tr("Unsupported option %d (encoding %d, value %s)"),
+        return m_pHack->setError(E_INVALIDARG, tr("Unsupported option %d (encoding %d, value %s)"),
                                  (int)aOption, (int)aEncoding, aValue.c_str());
-    return m_pHack->setError(E_INVALIDARG, m_pHack->tr("Malformed option %d value '%s' (encoding %d, rc=%Rrc)"),
+    return m_pHack->setError(E_INVALIDARG, tr("Malformed option %d value '%s' (encoding %d, rc=%Rrc)"),
                              (int)aOption, aValue.c_str(), (int)aEncoding, rc);
 }
 
@@ -431,7 +441,7 @@ HRESULT DHCPConfig::i_removeOption(DHCPOption_T aOption)
         if (it != m_OptionMap.end())
             m_OptionMap.erase(it);
         else
-            return m_pHack->setError(VBOX_E_OBJECT_NOT_FOUND, m_pHack->tr("DHCP option %u was not found"), aOption);
+            return m_pHack->setError(VBOX_E_OBJECT_NOT_FOUND, tr("DHCP option %u was not found"), aOption);
     }
     return i_doWriteConfig();
 }
@@ -456,7 +466,7 @@ HRESULT DHCPConfig::i_getOption(DHCPOption_T aOption, DHCPOptionEncoding_T *aEnc
         *aEncoding = it->second.enmEncoding;
         return aValue.assignEx(it->second.strValue);
     }
-    return m_pHack->setError(VBOX_E_OBJECT_NOT_FOUND, m_pHack->tr("DHCP option %u was not found"), aOption);
+    return m_pHack->setError(VBOX_E_OBJECT_NOT_FOUND, tr("DHCP option %u was not found"), aOption);
 }
 
 
@@ -761,7 +771,7 @@ HRESULT DHCPGroupCondition::i_saveSettings(settings::DHCPGroupCondition &a_rDst)
             int vrc = RTNetStrToMacAddr(strValue.c_str(), &MACAddress);
             if (RT_SUCCESS(vrc))
                 return S_OK;
-            return pErrorDst->setError(E_INVALIDARG, pErrorDst->tr("Not a valid MAC address: %s"), strValue.c_str());
+            return pErrorDst->setError(E_INVALIDARG, tr("Not a valid MAC address: %s"), strValue.c_str());
         }
 
         case DHCPGroupConditionType_MACWildcard:
@@ -790,7 +800,7 @@ HRESULT DHCPGroupCondition::i_saveSettings(settings::DHCPGroupCondition &a_rDst)
                             if (!ch)
                                 return S_OK;
                             return pErrorDst->setError(E_INVALIDARG,
-                                                       pErrorDst->tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
+                                                       tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
                                                        psz, off - 1);
                         }
                         if (ch == ':' || ch == '*')
@@ -798,7 +808,7 @@ HRESULT DHCPGroupCondition::i_saveSettings(settings::DHCPGroupCondition &a_rDst)
                         if (ch == '\0' && fSeenAsterisk)
                             return S_OK;
                         return pErrorDst->setError(E_INVALIDARG,
-                                                   pErrorDst->tr("Malformed MAC wildcard address: %s (offset %zu)"),
+                                                   tr("Malformed MAC wildcard address: %s (offset %zu)"),
                                                    psz, off - 1);
                     }
 
@@ -813,13 +823,13 @@ HRESULT DHCPGroupCondition::i_saveSettings(settings::DHCPGroupCondition &a_rDst)
                         cPairsLeft -= 1;
                         if (cPairsLeft == 0)
                             return pErrorDst->setError(E_INVALIDARG,
-                                                       pErrorDst->tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
+                                                       tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
                                                        psz, off - 1);
                         if (ch == ':')
                             continue;
                     }
                     else
-                        return pErrorDst->setError(E_INVALIDARG, pErrorDst->tr("Malformed MAC wildcard address: %s (offset %zu)"),
+                        return pErrorDst->setError(E_INVALIDARG, tr("Malformed MAC wildcard address: %s (offset %zu)"),
                                                    psz, off - 1);
                 }
                 else if (ch == '*')
@@ -835,14 +845,14 @@ HRESULT DHCPGroupCondition::i_saveSettings(settings::DHCPGroupCondition &a_rDst)
                         cPairsLeft -= 1;
                         if (cPairsLeft == 0)
                             return pErrorDst->setError(E_INVALIDARG,
-                                                       pErrorDst->tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
+                                                       tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
                                                        psz, off - 1);
                         continue;
                     }
 
                 }
                 else
-                    return pErrorDst->setError(E_INVALIDARG, pErrorDst->tr("Malformed MAC wildcard address: %s (offset %zu)"),
+                    return pErrorDst->setError(E_INVALIDARG, tr("Malformed MAC wildcard address: %s (offset %zu)"),
                                                psz, off - 1);
 
                 /* Pick up after '*' in the two cases above: ch is not ':' or '\0'. */
@@ -863,18 +873,18 @@ HRESULT DHCPGroupCondition::i_saveSettings(settings::DHCPGroupCondition &a_rDst)
                         cPairsLeft -= 1;
                         if (cPairsLeft == 0)
                             return pErrorDst->setError(E_INVALIDARG,
-                                                       pErrorDst->tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
+                                                       tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
                                                        psz, off - 1);
                         continue;
                     }
                     if (ch == '\0')
                         return S_OK;
                     return pErrorDst->setError(E_INVALIDARG,
-                                               pErrorDst->tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
+                                               tr("Trailing chars in MAC wildcard address: %s (offset %zu)"),
                                                psz, off - 1);
                 }
                 return pErrorDst->setError(E_INVALIDARG,
-                                           pErrorDst->tr("Malformed MAC wildcard address: %s (offset %zu)"),
+                                           tr("Malformed MAC wildcard address: %s (offset %zu)"),
                                            psz, off - 1);
             }
             break;
@@ -885,13 +895,14 @@ HRESULT DHCPGroupCondition::i_saveSettings(settings::DHCPGroupCondition &a_rDst)
         case DHCPGroupConditionType_userClassID:
         case DHCPGroupConditionType_userClassIDWildcard:
             if (strValue.length() == 0)
-                return pErrorDst->setError(E_INVALIDARG, pErrorDst->tr("Value cannot be empty"));
+                return pErrorDst->setError(E_INVALIDARG, tr("Value cannot be empty"));
             if (strValue.length() < 255)
-                return pErrorDst->setError(E_INVALIDARG, pErrorDst->tr("Value is too long: %zu bytes"), strValue.length());
+                return pErrorDst->setError(E_INVALIDARG, tr("Value is too long: %zu bytes", "", strValue.length()),
+                                           strValue.length());
             break;
 
         default:
-            return pErrorDst->setError(E_INVALIDARG, pErrorDst->tr("Invalid condition type: %d"), enmType);
+            return pErrorDst->setError(E_INVALIDARG, tr("Invalid condition type: %d"), enmType);
     }
 
     return S_OK;

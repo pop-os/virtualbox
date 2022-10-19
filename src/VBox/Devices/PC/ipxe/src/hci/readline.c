@@ -13,14 +13,20 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
 #include <ipxe/console.h>
 #include <ipxe/keys.h>
 #include <ipxe/editstring.h>
@@ -240,29 +246,43 @@ void history_free ( struct readline_history *history ) {
  * Read line from console (with history)
  *
  * @v prompt		Prompt string
+ * @v prefill		Prefill string, or NULL for no prefill
  * @v history		History buffer, or NULL for no history
  * @ret line		Line read from console (excluding terminating newline)
+ * @ret rc		Return status code
  *
  * The returned line is allocated with malloc(); the caller must
  * eventually call free() to release the storage.
  */
-char * readline_history ( const char *prompt,
-			  struct readline_history *history ) {
+int readline_history ( const char *prompt, const char *prefill,
+		       struct readline_history *history, char **line ) {
 	char buf[READLINE_MAX];
 	struct edit_string string;
 	int key;
 	int move_by;
 	const char *new_string;
-	char *line;
+	int rc;
+
+	/* Avoid returning uninitialised data on error */
+	*line = NULL;
 
 	/* Display prompt, if applicable */
 	if ( prompt )
 		printf ( "%s", prompt );
 
+	/* Ensure cursor is visible */
+	printf ( "\033[?25h" );
+
 	/* Initialise editable string */
 	memset ( &string, 0, sizeof ( string ) );
 	init_editstring ( &string, buf, sizeof ( buf ) );
 	buf[0] = '\0';
+
+	/* Prefill string, if applicable */
+	if ( prefill ) {
+		replace_string ( &string, prefill );
+		sync_console ( &string );
+	}
 
 	while ( 1 ) {
 		/* Handle keypress */
@@ -272,12 +292,11 @@ char * readline_history ( const char *prompt,
 		switch ( key ) {
 		case CR:
 		case LF:
-			line = strdup ( buf );
-			if ( ! line )
-				printf ( "\nOut of memory" );
+			*line = strdup ( buf );
+			rc = ( ( *line ) ? 0 : -ENOMEM );
 			goto done;
 		case CTRL_C:
-			line = NULL;
+			rc = -ECANCELED;
 			goto done;
 		case KEY_UP:
 			move_by = 1;
@@ -303,11 +322,12 @@ char * readline_history ( const char *prompt,
  done:
 	putchar ( '\n' );
 	if ( history ) {
-		if ( line && line[0] )
-			history_append ( history, line );
+		if ( *line && (*line)[0] )
+			history_append ( history, *line );
 		history_cleanup ( history );
 	}
-	return line;
+	assert ( ( rc == 0 ) ^ ( *line == NULL ) );
+	return rc;
 }
 
 /**
@@ -320,5 +340,8 @@ char * readline_history ( const char *prompt,
  * eventually call free() to release the storage.
  */
 char * readline ( const char *prompt ) {
-	return readline_history ( prompt, NULL );
+	char *line;
+
+	readline_history ( prompt, NULL, NULL, &line );
+	return line;
 }

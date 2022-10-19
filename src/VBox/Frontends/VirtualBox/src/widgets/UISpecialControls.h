@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_widgets_UISpecialControls_h
@@ -64,9 +74,9 @@ public:
 protected:
 
     /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */ { Q_UNUSED(pEvent); }
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE { Q_UNUSED(pEvent); }
     /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+    virtual void resizeEvent(QResizeEvent *pEvent) RT_OVERRIDE;
 
 private:
 
@@ -94,7 +104,7 @@ public:
 protected:
 
     /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */ { Q_UNUSED(pEvent); }
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE { Q_UNUSED(pEvent); }
 
 private:
 
@@ -117,7 +127,7 @@ public:
 protected:
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */ {};
+    virtual void retranslateUi() RT_OVERRIDE {};
 };
 
 
@@ -152,14 +162,14 @@ protected:
     bool hitButton(const QPoint &position) const;
 
     /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
 
     /** Handles mouse-press @a pEvent. */
-    virtual void mousePressEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mousePressEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-release @a pEvent. */
-    virtual void mouseReleaseEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mouseReleaseEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-leave @a pEvent. */
-    virtual void leaveEvent(QEvent *pEvent) /* override */;
+    virtual void leaveEvent(QEvent *pEvent) RT_OVERRIDE;
 
 private:
 

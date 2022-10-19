@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_MouseImpl_h
@@ -27,7 +37,7 @@
 #include <VBox/vmm/pdmdrv.h>
 
 /** Maximum number of devices supported */
-enum { MOUSE_MAX_DEVICES = 3 };
+enum { MOUSE_MAX_DEVICES = 4 };
 /** Mouse driver instance data. */
 typedef struct DRVMAINMOUSE DRVMAINMOUSE, *PDRVMAINMOUSE;
 
@@ -36,7 +46,7 @@ class ATL_NO_VTABLE Mouse :
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR (Mouse)
+    DECLARE_COMMON_CLASS_METHODS (Mouse)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -68,7 +78,8 @@ private:
     // Wrapped IMouse properties
     HRESULT getAbsoluteSupported(BOOL *aAbsoluteSupported);
     HRESULT getRelativeSupported(BOOL *aRelativeSupported);
-    HRESULT getMultiTouchSupported(BOOL *aMultiTouchSupported);
+    HRESULT getTouchScreenSupported(BOOL *aTouchScreenSupported);
+    HRESULT getTouchPadSupported(BOOL *aTouchPadSupported);
     HRESULT getNeedsHostCursor(BOOL *aNeedsHostCursor);
     HRESULT getPointerShape(ComPtr<IMousePointerShape> &aPointerShape);
     HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
@@ -86,14 +97,16 @@ private:
                                   LONG aButtonState);
     HRESULT putEventMultiTouch(LONG aCount,
                                const std::vector<LONG64> &aContacts,
+                               BOOL isTouchScreen,
                                ULONG aScanTime);
     HRESULT putEventMultiTouchString(LONG aCount,
                                      const com::Utf8Str &aContacts,
+                                     BOOL isTouchScreen,
                                      ULONG aScanTime);
 
 
     static DECLCALLBACK(void *) i_drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
-    static DECLCALLBACK(void)   i_mouseReportModes(PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs, bool fMT);
+    static DECLCALLBACK(void)   i_mouseReportModes(PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs, bool fMTAbs, bool fMTRel);
     static DECLCALLBACK(int)    i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void)   i_drvDestruct(PPDMDRVINS pDrvIns);
 
@@ -104,23 +117,25 @@ private:
                                      int32_t dw, uint32_t fButtons);
     HRESULT i_reportMTEventToMouseDev(int32_t x, int32_t z, uint32_t cContact,
                                     uint32_t fContact);
-    HRESULT i_reportMultiTouchEventToDevice(uint8_t cContacts, const uint64_t *pau64Contacts, uint32_t u32ScanTime);
+    HRESULT i_reportMultiTouchEventToDevice(uint8_t cContacts, const uint64_t *pau64Contacts, bool fTouchScreen, uint32_t u32ScanTime);
     HRESULT i_reportAbsEventToVMMDev(int32_t x, int32_t y);
     HRESULT i_reportAbsEventToInputDevices(int32_t x, int32_t y, int32_t dz, int32_t dw, uint32_t fButtons,
                                            bool fUsesVMMDevEvent);
     HRESULT i_reportAbsEventToDisplayDevice(int32_t x, int32_t y);
     HRESULT i_convertDisplayRes(LONG x, LONG y, int32_t *pxAdj, int32_t *pyAdj,
                                  bool *pfValid);
-    HRESULT i_putEventMultiTouch(LONG aCount, const LONG64 *paContacts, ULONG aScanTime);
+    HRESULT i_putEventMultiTouch(LONG aCount, const LONG64 *paContacts, BOOL isTouchScreen, ULONG aScanTime);
 
-    void i_getDeviceCaps(bool *pfAbs, bool *pfRel, bool *fMT);
+    uint32_t i_getDeviceCaps(void);
     void i_sendMouseCapsNotifications(void);
     bool i_guestNeedsHostCursor(void);
     bool i_vmmdevCanAbs(void);
     bool i_deviceCanAbs(void);
+    bool i_supportsAbs(uint32_t fCaps) const;
     bool i_supportsAbs(void);
     bool i_supportsRel(void);
-    bool i_supportsMT(void);
+    bool i_supportsTS(void);
+    bool i_supportsTP(void);
 
     ConsoleMouseInterface * const         mParent;
     /** Pointer to the associated mouse driver. */
@@ -152,6 +167,7 @@ private:
 
     void i_fireMultiTouchEvent(uint8_t cContacts,
                                const LONG64 *paContacts,
+                               bool fTouchScreen,
                                uint32_t u32ScanTime);
 };
 

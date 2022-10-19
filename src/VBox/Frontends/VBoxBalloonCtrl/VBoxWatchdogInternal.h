@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_VBoxBalloonCtrl_VBoxWatchdogInternal_h
@@ -34,10 +44,7 @@
 # include <VBox/com/VirtualBox.h>
 #endif /* !VBOX_ONLY_DOCS */
 
-#include <algorithm>
 #include <map>
-#include <sstream>
-#include <string>
 #include <vector>
 
 using namespace com;
@@ -140,7 +147,7 @@ typedef struct
      * Called before parsing arguments.
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnPreInit)(void);
+    DECLCALLBACKMEMBER(int, pfnPreInit,(void));
 
     /**
      * Tries to parse the given command line options.
@@ -151,31 +158,31 @@ typedef struct
      * @param   piConsumed  How many parameters this callback consumed from the
      *                      remaining arguments passed in.
      */
-    DECLCALLBACKMEMBER(int, pfnOption)(int argc, char *argv[], int *piConsumed);
+    DECLCALLBACKMEMBER(int, pfnOption,(int argc, char *argv[], int *piConsumed));
 
     /**
      * Called before parsing arguments.
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnInit)(void);
+    DECLCALLBACKMEMBER(int, pfnInit,(void));
 
     /** Called from the watchdog's main function. Non-blocking.
      *
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnMain)(void);
+    DECLCALLBACKMEMBER(int, pfnMain,(void));
 
     /**
      * Stop the module.
      */
-    DECLCALLBACKMEMBER(int, pfnStop)(void);
+    DECLCALLBACKMEMBER(int, pfnStop,(void));
 
     /**
      * Does termination cleanups.
      *
      * @remarks This may be called even if pfnInit hasn't been called!
      */
-    DECLCALLBACKMEMBER(void, pfnTerm)(void);
+    DECLCALLBACKMEMBER(void, pfnTerm,(void));
 
     /** @name  Callbacks.
      * @{
@@ -185,25 +192,25 @@ typedef struct
      *
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnOnMachineRegistered)(const Bstr &strUuid);
+    DECLCALLBACKMEMBER(int, pfnOnMachineRegistered,(const Bstr &strUuid));
 
     /**
      *
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnOnMachineUnregistered)(const Bstr &strUuid);
+    DECLCALLBACKMEMBER(int, pfnOnMachineUnregistered,(const Bstr &strUuid));
 
     /**
      *
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnOnMachineStateChanged)(const Bstr &strUuid, MachineState_T enmState);
+    DECLCALLBACKMEMBER(int, pfnOnMachineStateChanged,(const Bstr &strUuid, MachineState_T enmState));
 
     /**
      *
      * @returns VBox status code.
      */
-    DECLCALLBACKMEMBER(int, pfnOnServiceStateChanged)(bool fAvailable);
+    DECLCALLBACKMEMBER(int, pfnOnServiceStateChanged,(bool fAvailable));
 
     /** @} */
 } VBOXMODULE;

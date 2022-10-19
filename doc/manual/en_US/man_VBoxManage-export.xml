@@ -1,17 +1,28 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage export
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
   "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
 <!ENTITY % all.entities SYSTEM "all-entities.ent">
@@ -19,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-export" lang="en">
   <refentryinfo>
-    <pubdate>November 2019</pubdate>
+    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
     <title>VBoxManage export</title>
   </refentryinfo>
 
@@ -30,8 +41,8 @@
 
   <refnamediv>
     <refname>VBoxManage-export</refname>
-    <refpurpose>export a virtual machine to a virtual appliance or to a cloud service</refpurpose>
-    <refclass>Oracle VM VirtualBox</refclass>
+    <refpurpose>export one or more virtual machines to a virtual appliance or to a cloud service</refpurpose>
+    <refclass>&product-name;</refclass>
   </refnamediv>
 
   <refsynopsisdiv>
@@ -45,11 +56,9 @@
         <arg choice="plain">--ovf09</arg>
         <arg choice="plain">--ovf10</arg>
         <arg choice="plain">--ovf20</arg>
-        <arg choice="plain">--opc10</arg>
       </group>
       <arg>--manifest</arg>
-      <arg>--iso</arg>
-      <arg>--options=<group choice="plain">
+      <arg>--options=<group choice="plain" rep="repeat">
           <arg choice="plain">manifest</arg>
           <arg choice="plain">iso</arg>
           <arg choice="plain">nomacs</arg>
@@ -71,6 +80,7 @@
       <command>VBoxManage export</command>
       <arg choice="req"><replaceable>machine</replaceable></arg>
       <arg choice="req">--output=<replaceable>cloud-service-provider</replaceable></arg>
+      <arg>--opc10</arg>
       <arg>--vmname=<replaceable>vmname</replaceable></arg>
       <arg>--cloud=<replaceable>virtual-system-number</replaceable></arg>
       <arg>--cloudprofile=<replaceable>cloud-profile-name</replaceable></arg>
@@ -114,7 +124,7 @@
         </para></listitem>
       <listitem><para>
           <emphasis role="bold">Cloud service such as &oci;.</emphasis>
-          Exports a single VM in VMDK format.
+          Exports a single VM.
         </para></listitem>
     </itemizedlist>
     <para>
@@ -175,25 +185,13 @@
             </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><option>--opc10</option></term>
-          <listitem><para>
-              Exports in &oci; format.
-            </para></listitem>
-        </varlistentry>
-        <varlistentry>
           <term><option>--manifest</option></term>
           <listitem><para>
               Creates a manifest of the exported files.
             </para></listitem>
         </varlistentry>
         <varlistentry>
-          <term><option>--iso</option></term>
-          <listitem><para>
-              Creates an ISO file.
-            </para></listitem>
-        </varlistentry>
-        <varlistentry>
-          <term><option>--options=<replaceable>argument</replaceable></option></term>
+          <term><option>--options=<replaceable>argument</replaceable>,...</option></term>
           <listitem><para>
               Specifies information to control the exact content of the
               appliance file. Specify one or more comma-separated
@@ -295,8 +293,9 @@
       <para>
         The <command>VBoxManage export</command> command enables you to
         export a VM to a cloud service provider such as &oci;. By
-        default, the exported disk image is converted into stream VMDK
-        format. This ensures compatibility with &oci;.
+        default, the exported disk image is converted into compressed VMDK
+        format. This minimizes the amount of data to transfer to the cloud
+        service.
       </para>
       <para>
         Some of the following options are configuration settings for the
@@ -312,6 +311,12 @@
               <literal>OCI://</literal>.
             </para><para>
               The short form of this option is <option>-o</option>.
+            </para></listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option>--opc10</option></term>
+          <listitem><para>
+              Exports in &oci; format.
             </para></listitem>
         </varlistentry>
         <varlistentry>

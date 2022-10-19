@@ -5,15 +5,25 @@ rem Windows NT batch script for repacking signed amd64 and x86 drivers.
 rem
 
 rem
-rem Copyright (C) 2018-2020 Oracle Corporation
+rem Copyright (C) 2018-2022 Oracle and/or its affiliates.
 rem
-rem This file is part of VirtualBox Open Source Edition (OSE), as
-rem available from http://www.virtualbox.org. This file is free software;
-rem you can redistribute it and/or modify it under the terms of the GNU
-rem General Public License (GPL) as published by the Free Software
-rem Foundation, in version 2 as it comes in the "COPYING" file of the
-rem VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-rem hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+rem This file is part of VirtualBox base platform packages, as
+rem available from https://www.virtualbox.org.
+rem
+rem This program is free software; you can redistribute it and/or
+rem modify it under the terms of the GNU General Public License
+rem as published by the Free Software Foundation, in version 3 of the
+rem License.
+rem
+rem This program is distributed in the hope that it will be useful, but
+rem WITHOUT ANY WARRANTY; without even the implied warranty of
+rem MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+rem General Public License for more details.
+rem
+rem You should have received a copy of the GNU General Public License
+rem along with this program; if not, see <https://www.gnu.org/licenses>.
+rem
+rem SPDX-License-Identifier: GPL-3.0-only
 rem
 
 
@@ -234,7 +244,7 @@ rem TBD: that has to be converted to invoke auto-generated .cmd
         -E "VBOX_NSIS_ICON_FILE=%_MY_OPT_SRC_DIR%\VirtualBoxGA-nsis.ico" ^
         -E "VBOX_WITH_GUEST_INSTALL_HELPER=1" -E "VBOX_WITH_GUEST_INSTALLER_UNICODE=1" -E "VBOX_WITH_LICENSE_INSTALL_RTF=1" ^
         -E "VBOX_WITH_WDDM=1" -E "VBOX_WITH_MESA3D=1" -E "VBOX_BRAND_WIN_ADD_INST_DLGBMP=%_MY_OPT_SRC_DIR%\welcome.bmp" ^
-        -E "VBOX_BRAND_LICENSE_RTF=%_MY_OPT_SRC_DIR%\License-gpl-2.0.rtf"  -E "KBUILD_TYPE=%_MY_OPT_BUILD_TYPE%" -E "BUILD_TARGET_ARCH=amd64" ^
+        -E "VBOX_BRAND_LICENSE_RTF=%_MY_OPT_SRC_DIR%\License-gpl-3.0.rtf"  -E "KBUILD_TYPE=%_MY_OPT_BUILD_TYPE%" -E "KBUILD_TARGET_ARCH=amd64" ^
         --  %KBUILD_DEVTOOLS%/win.x86/nsis/v3.04-log/makensis.exe /NOCD /V2 ^
                 "/DVBOX_SIGN_ADDITIONS=1" ^
                 "/DEXTERNAL_UNINSTALLER=1" ^
@@ -265,7 +275,7 @@ rem TBD: that has to be converted to invoke auto-generated .cmd
         -E "VBOX_NSIS_ICON_FILE=%_MY_OPT_SRC_DIR%\VirtualBoxGA-nsis.ico" ^
         -E "VBOX_WITH_GUEST_INSTALL_HELPER=1" -E "VBOX_WITH_GUEST_INSTALLER_UNICODE=1" -E "VBOX_WITH_LICENSE_INSTALL_RTF=1" ^
         -E "VBOX_WITH_WDDM=1" -E "VBOX_WITH_MESA3D=1" -E "VBOX_BRAND_WIN_ADD_INST_DLGBMP=%_MY_OPT_SRC_DIR%\welcome.bmp" ^
-        -E "VBOX_BRAND_LICENSE_RTF=%_MY_OPT_SRC_DIR%\License-gpl-2.0.rtf"  -E "KBUILD_TYPE=%_MY_OPT_BUILD_TYPE%" -E "BUILD_TARGET_ARCH=x86" ^
+        -E "VBOX_BRAND_LICENSE_RTF=%_MY_OPT_SRC_DIR%\License-gpl-3.0.rtf"  -E "KBUILD_TYPE=%_MY_OPT_BUILD_TYPE%" -E "KBUILD_TARGET_ARCH=x86" ^
         --  %KBUILD_DEVTOOLS%/win.x86/nsis/v3.04-log/makensis.exe /NOCD /V2 ^
                 "/DVBOX_SIGN_ADDITIONS=1" ^
                 "/DEXTERNAL_UNINSTALLER=1" ^

@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_memobj_h
@@ -108,6 +118,23 @@ RTR0DECL(size_t) RTR0MemObjSize(RTR0MEMOBJ MemObj);
  * @param   iPage   The page number within the object.
  */
 RTR0DECL(RTHCPHYS) RTR0MemObjGetPagePhysAddr(RTR0MEMOBJ MemObj, size_t iPage);
+
+/**
+ * Checks whether the allocation was zero initialized or not.
+ *
+ * This only works on allocations.  It is not meaningful for mappings, reserved
+ * memory and entered physical address, and will return false for these.
+ *
+ * @returns true if the allocation was initialized to zero at allocation time,
+ *          false if not or query not meaningful to the object type.
+ * @param   hMemObj             The ring-0 memory object to be freed.
+ *
+ * @remarks It can be expected that memory allocated in the same fashion will
+ *          have the same initialization state.  So, if this returns true for
+ *          one allocation it will return true for all other similarly made
+ *          allocations.
+ */
+RTR0DECL(bool) RTR0MemObjWasZeroInitialized(RTR0MEMOBJ hMemObj);
 
 /**
  * Frees a ring-0 memory object.
@@ -296,7 +323,7 @@ RTR0DECL(int) RTR0MemObjAllocContTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecu
  *                          nearest page boundary.
  * @param   fAccess         The desired access, a combination of RTMEM_PROT_READ
  *                          and RTMEM_PROT_WRITE.
- * @param   R0Process       The process to lock pages in. NIL_R0PROCESS is an
+ * @param   R0Process       The process to lock pages in. NIL_RTR0PROCESS is an
  *                          alias for the current one.
  *
  * @remarks RTR0MemGetAddressR3() and RTR0MemGetAddress() will return therounded
@@ -321,7 +348,7 @@ RTR0DECL(int) RTR0MemObjAllocContTag(PRTR0MEMOBJ pMemObj, size_t cb, bool fExecu
  *                          nearest page boundary.
  * @param   fAccess         The desired access, a combination of RTMEM_PROT_READ
  *                          and RTMEM_PROT_WRITE.
- * @param   R0Process       The process to lock pages in. NIL_R0PROCESS is an
+ * @param   R0Process       The process to lock pages in. NIL_RTR0PROCESS is an
  *                          alias for the current one.
  * @param   pszTag          Allocation tag used for statistics and such.
  *
@@ -546,7 +573,8 @@ RTR0DECL(int) RTR0MemObjReserveKernelTag(PRTR0MEMOBJ pMemObj, void *pvFixed, siz
  * @param   cb              The number of bytes to reserve. This is rounded up to nearest PAGE_SIZE.
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
- * @param   R0Process       The process to reserve the memory in. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to reserve the memory in.
+ *                          NIL_RTR0PROCESS is an alias for the current one.
  */
 #define RTR0MemObjReserveUser(pMemObj, R3PtrFixed, cb, uAlignment, R0Process) \
     RTR0MemObjReserveUserTag((pMemObj), (R3PtrFixed), (cb), (uAlignment), (R0Process), RTMEM_TAG)
@@ -560,7 +588,8 @@ RTR0DECL(int) RTR0MemObjReserveKernelTag(PRTR0MEMOBJ pMemObj, void *pvFixed, siz
  * @param   cb              The number of bytes to reserve. This is rounded up to nearest PAGE_SIZE.
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
- * @param   R0Process       The process to reserve the memory in. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to reserve the memory in.
+ *                          NIL_RTR0PROCESS is an alias for the current one.
  * @param   pszTag          Allocation tag used for statistics and such.
  */
 RTR0DECL(int) RTR0MemObjReserveUserTag(PRTR0MEMOBJ pMemObj, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment,
@@ -667,7 +696,8 @@ RTR0DECL(int) RTR0MemObjMapKernelExTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToM
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
  * @param   fProt           Combination of RTMEM_PROT_* flags (except RTMEM_PROT_NONE).
- * @param   R0Process       The process to map the memory into. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to map the memory into. NIL_RTR0PROCESS
+ *                          is an alias for the current one.
  */
 #define RTR0MemObjMapUser(pMemObj, MemObjToMap, R3PtrFixed, uAlignment, fProt, R0Process) \
     RTR0MemObjMapUserTag((pMemObj), (MemObjToMap), (R3PtrFixed), (uAlignment), (fProt), (R0Process), RTMEM_TAG)
@@ -683,7 +713,8 @@ RTR0DECL(int) RTR0MemObjMapKernelExTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToM
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
  * @param   fProt           Combination of RTMEM_PROT_* flags (except RTMEM_PROT_NONE).
- * @param   R0Process       The process to map the memory into. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to map the memory into. NIL_RTR0PROCESS
+ *                          is an alias for the current one.
  * @param   pszTag          Allocation tag used for statistics and such.
  */
 RTR0DECL(int) RTR0MemObjMapUserTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, RTR3PTR R3PtrFixed,
@@ -700,7 +731,8 @@ RTR0DECL(int) RTR0MemObjMapUserTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, 
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
  * @param   fProt           Combination of RTMEM_PROT_* flags (except RTMEM_PROT_NONE).
- * @param   R0Process       The process to map the memory into. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to map the memory into. NIL_RTR0PROCESS
+ *                          is an alias for the current one.
  * @param   offSub          Where in the object to start mapping. If non-zero
  *                          the value must be page aligned and cbSub must be
  *                          non-zero as well.
@@ -723,7 +755,8 @@ RTR0DECL(int) RTR0MemObjMapUserTag(PRTR0MEMOBJ pMemObj, RTR0MEMOBJ MemObjToMap, 
  * @param   uAlignment      The alignment of the reserved memory.
  *                          Supported values are 0 (alias for PAGE_SIZE), PAGE_SIZE, _2M and _4M.
  * @param   fProt           Combination of RTMEM_PROT_* flags (except RTMEM_PROT_NONE).
- * @param   R0Process       The process to map the memory into. NIL_R0PROCESS is an alias for the current one.
+ * @param   R0Process       The process to map the memory into. NIL_RTR0PROCESS
+ *                          is an alias for the current one.
  * @param   offSub          Where in the object to start mapping. If non-zero
  *                          the value must be page aligned and cbSub must be
  *                          non-zero as well.

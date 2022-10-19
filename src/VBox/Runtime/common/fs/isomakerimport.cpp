@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -178,7 +188,7 @@ typedef struct RTFSISOMKIMPORTER
     char                szRockNameBuf[_2K];
     /** Symlink target name buffer for rock ridge.  */
     char                szRockSymlinkTargetBuf[_2K];
-    /** A buffer for reading rock ridge continuation blocks into   */
+    /** A buffer for reading rock ridge continuation blocks into. */
     uint8_t             abRockBuf[ISO9660_SECTOR_SIZE];
     /** @} */
 } RTFSISOMKIMPORTER;
@@ -640,24 +650,14 @@ static void rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(PRTFSISOMKIMPORT
 {
     RT_NOREF(pObjInfo);
 
-    /*
-     * Do skipping if specified.
-     */
-    if (pThis->offSuspSkip)
-    {
-        if (cbSys <= pThis->offSuspSkip)
-            return;
-        pbSys += pThis->offSuspSkip;
-        cbSys -= pThis->offSuspSkip;
-    }
-
     while (cbSys >= 4)
     {
         /*
          * Check header length and advance the sys variables.
          */
         PCISO9660SUSPUNION pUnion = (PCISO9660SUSPUNION)pbSys;
-        if (pUnion->Hdr.cbEntry > cbSys)
+        if (   pUnion->Hdr.cbEntry > cbSys
+            && pUnion->Hdr.cbEntry < sizeof(pUnion->Hdr))
         {
             LogRel(("rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge: cbEntry=%#x cbSys=%#x (%#x %#x)\n",
                     pUnion->Hdr.cbEntry, cbSys, pUnion->Hdr.bSig1, pUnion->Hdr.bSig2));
@@ -845,7 +845,7 @@ static void rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(PRTFSISOMKIMPORT
                             RT_BE2H_U32(pUnion->PN.Major.be),      RT_LE2H_U32(pUnion->PN.Major.le),
                             RT_BE2H_U32(pUnion->PN.Minor.be),      RT_LE2H_U32(pUnion->PN.Minor.le) ));
                 else if (RTFS_IS_DIRECTORY(pObjInfo->Attr.fMode))
-                    LogRel(("rtFsIsoImport/Rock: Ignorning 'PN' entry for directory (%#x/%#x)\n",
+                    LogRel(("rtFsIsoImport/Rock: Ignoring 'PN' entry for directory (%#x/%#x)\n",
                             ISO9660_GET_ENDIAN(&pUnion->PN.Major), ISO9660_GET_ENDIAN(&pUnion->PN.Minor) ));
                 else
                     pObjInfo->Attr.u.Unix.Device = RTDEV_MAKE(ISO9660_GET_ENDIAN(&pUnion->PN.Major),
@@ -1013,6 +1013,7 @@ static void rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(PRTFSISOMKIMPORT
                     pThis->szRockSymlinkTargetBuf[offDst] = '\0';
 
                     /* Purge the encoding as we don't want invalid UTF-8 floating around. */
+                    /** @todo do this afterwards as needed. */
                     RTStrPurgeEncoding(pThis->szRockSymlinkTargetBuf);
                 }
                 break;
@@ -1035,7 +1036,7 @@ static void rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(PRTFSISOMKIMPORT
                     uint8_t const cchName = pUnion->NM.Hdr.cbEntry - (uint8_t)RT_UOFFSETOF(ISO9660RRIPNM, achName);
                     if (pUnion->NM.fFlags & (ISO9660RRIP_NM_F_CURRENT | ISO9660RRIP_NM_F_PARENT))
                     {
-                        if (cchName == 0 && pThis->szRockNameBuf[0] == '\0')
+                        if (cchName == 0)
                             Log(("rtFsIsoImport/Rock: Ignoring 'NM' entry for '.' and '..'\n"));
                         else
                             LogRel(("rtFsIsoImport/Rock: Ignoring malformed 'NM' using '.' or '..': fFlags=%#x cchName=%#x %.*Rhxs; szRockNameBuf='%s'\n",
@@ -1052,7 +1053,8 @@ static void rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(PRTFSISOMKIMPORT
                             pThis->szRockNameBuf[offDst + cchName] = '\0';
 
                             /* Purge the encoding as we don't want invalid UTF-8 floating around. */
-                            RTStrPurgeEncoding(pThis->szRockSymlinkTargetBuf);
+                            /** @todo do this afterwards as needed. */
+                            RTStrPurgeEncoding(pThis->szRockNameBuf);
                         }
                         else
                         {
@@ -1068,7 +1070,7 @@ static void rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(PRTFSISOMKIMPORT
             case MAKE_SIG(ISO9660RRIPCL_SIG1, ISO9660RRIPCL_SIG2): /* CL - just warn for now. */
             case MAKE_SIG(ISO9660RRIPPL_SIG1, ISO9660RRIPPL_SIG2): /* PL - just warn for now. */
             case MAKE_SIG(ISO9660RRIPRE_SIG1, ISO9660RRIPRE_SIG2): /* RE - just warn for now. */
-                LogRel(("rtFsIsoImport/Rock: Ignorning directory relocation entry '%c%c'!\n", pUnion->Hdr.bSig1, pUnion->Hdr.bSig2));
+                LogRel(("rtFsIsoImport/Rock: Ignoring directory relocation entry '%c%c'!\n", pUnion->Hdr.bSig1, pUnion->Hdr.bSig2));
                 break;
 
             default:
@@ -1482,13 +1484,15 @@ static int rtFsIsoImportProcessIso9660TreeWorker(PRTFSISOMKIMPORTER pThis, uint3
 
             pThis->szRockNameBuf[0] = '\0';
             pThis->szRockSymlinkTargetBuf[0] = '\0';
-            if (cbSys > 0 && !(pThis->fFlags & RTFSISOMK_IMPORT_F_NO_ROCK_RIDGE))
+            if (   cbSys > pThis->offSuspSkip
+                && !(pThis->fFlags & RTFSISOMK_IMPORT_F_NO_ROCK_RIDGE))
             {
                 pThis->fSeenLastNM               = false;
                 pThis->fSeenLastSL               = false;
                 pThis->szRockNameBuf[0]          = '\0';
                 pThis->szRockSymlinkTargetBuf[0] = '\0';
-                rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(pThis, &ObjInfo, pbSys, cbSys, fUnicode,
+                rtFsIsoImportProcessIso9660TreeWorkerParseRockRidge(pThis, &ObjInfo, &pbSys[pThis->offSuspSkip],
+                                                                    cbSys - pThis->offSuspSkip, fUnicode,
                                                                     false /*fContinuationRecord*/, false /*fIsFirstDirRec*/);
             }
 
@@ -2017,9 +2021,23 @@ static int rtFsIsoImportProcessSupplementaryDesc(PRTFSISOMKIMPORTER pThis, PISO9
                                ISO9660_GET_ENDIAN(&pVolDesc->VolumeSeqNo), pThis->idPrimaryVol);
 
     if (ISO9660_GET_ENDIAN(&pVolDesc->VolumeSpaceSize) != pThis->cBlocksInPrimaryVolumeSpace)
-        return rtFsIsoImpError(pThis, VERR_ISOMK_IMPORT_INVALID_VOLUMNE_SEQ_NO,
-                               "Volume space size differs between primary and supplementary descriptors: %#x, primary %#x",
-                               ISO9660_GET_ENDIAN(&pVolDesc->VolumeSpaceSize), pThis->cBlocksInPrimaryVolumeSpace);
+    {
+        /* ubuntu-21.10-desktop-amd64.iso has 0x172f4e blocks (3 111 809 024 bytes) here
+           and 0x173838 blocks (3 116 482 560 bytes) in the primary, a difference of
+           -2282 blocks (-4 673 536 bytes).  Guess something was omitted from the joliet
+           edition, not immediately obvious what though.
+
+           For now we'll just let it pass as long as the primary size is the larger.
+           (Not quite sure how the code will handle a supplementary volume spanning
+           more space, as I suspect it only uses the primary volume size for
+           validating block addresses and such.) */
+        LogRel(("rtFsIsoImportProcessSupplementaryDesc: Volume space size differs between primary and supplementary descriptors: %#x, primary %#x",
+                ISO9660_GET_ENDIAN(&pVolDesc->VolumeSpaceSize), pThis->cBlocksInPrimaryVolumeSpace));
+        if (ISO9660_GET_ENDIAN(&pVolDesc->VolumeSpaceSize) > pThis->cBlocksInPrimaryVolumeSpace)
+            return rtFsIsoImpError(pThis, VERR_ISOMK_IMPORT_VOLUME_SPACE_SIZE_MISMATCH,
+                                   "Volume space given in the supplementary descriptor is larger than in the primary: %#x, primary %#x",
+                                   ISO9660_GET_ENDIAN(&pVolDesc->VolumeSpaceSize), pThis->cBlocksInPrimaryVolumeSpace);
+    }
 
     /*
      * Validate the root directory record.

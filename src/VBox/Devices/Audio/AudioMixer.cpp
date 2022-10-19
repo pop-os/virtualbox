@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_audio_mixer    Audio Mixer
@@ -671,6 +681,9 @@ static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink, PPDMDEVINS pDevIns)
     Assert(pSink->uMagic == AUDMIXSINK_MAGIC);
     pSink->uMagic = AUDMIXSINK_MAGIC_DEAD;
 
+    int rc = RTCritSectEnter(&pSink->CritSect);
+    AssertRCReturnVoid(rc);
+
     /*
      * Destroy all streams.
      */
@@ -680,6 +693,9 @@ static void audioMixerSinkDestroyInternal(PAUDMIXSINK pSink, PPDMDEVINS pDevIns)
         audioMixerSinkRemoveStreamInternal(pSink, pStream);
         audioMixerStreamDestroyInternal(pStream, pDevIns, true /*fImmediate*/);
     }
+
+    rc = RTCritSectLeave(&pSink->CritSect);
+    AssertRCReturnVoid(rc);
 
     /*
      * Destroy debug file and statistics.
@@ -957,7 +973,7 @@ int AudioMixerSinkSetFormat(PAUDMIXSINK pSink, PCPDMAUDIOPCMPROPS pProps, uint32
     AssertPtrReturn(pSink, VERR_INVALID_POINTER);
     AssertReturn(pSink->uMagic == AUDMIXSINK_MAGIC, VERR_INVALID_MAGIC);
     AssertPtrReturn(pProps, VERR_INVALID_POINTER);
-    AssertReturn(AudioHlpPcmPropsAreValid(pProps), VERR_INVALID_PARAMETER);
+    AssertReturn(AudioHlpPcmPropsAreValidAndSupported(pProps), VERR_INVALID_PARAMETER);
 
     /*
      * Calculate the mixer buffer size so we can force a recreation if it changes.
@@ -2286,8 +2302,8 @@ int AudioMixerSinkCreateStream(PAUDMIXSINK pSink, PPDMIAUDIOCONNECTOR pConn, PCP
                  *        passed in, but that became unnecessary with DrvAudio stoppping
                  *        mixing.  The mixing is done here and we bridge guest & host configs.)
                  */
-                AssertMsg(AudioHlpPcmPropsAreValid(&pSink->PCMProps),
-                          ("%s: Does not (yet) have a format set when it must\n", pSink->pszName));
+                AssertMsg(AudioHlpPcmPropsAreValidAndSupported(&pSink->PCMProps),
+                          ("%s: Does not (yet) have a (valid and supported) format set when it must\n", pSink->pszName));
 
                 PDMAUDIOSTREAMCFG CfgHost;
                 rc = PDMAudioStrmCfgInitWithProps(&CfgHost, &pSink->PCMProps);

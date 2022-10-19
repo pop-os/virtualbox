@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "VBox/com/NativeEventQueue.h"
@@ -497,6 +507,9 @@ static int processPendingEvents(nsIEventQueue *pQueue)
  *          an asynchronous event delivery (signal) or just felt like returning
  *          out of bounds.  On darwin it will also be returned if the queue is
  *          stopped.
+ *
+ * @note    On darwin this function will not return when the thread receives a
+ *          signal, it will just resume the wait.
  */
 int NativeEventQueue::processEventQueue(RTMSINTERVAL cMsTimeout)
 {
@@ -518,7 +531,12 @@ int NativeEventQueue::processEventQueue(RTMSINTERVAL cMsTimeout)
         &&  cMsTimeout > 0)
     {
 # ifdef RT_OS_DARWIN
-        /** @todo check how Ctrl-C works on Darwin. */
+        /** @todo check how Ctrl-C works on Darwin.
+         * Update: It doesn't work. MACH_RCV_INTERRUPT could perhaps be returned
+         *         to __CFRunLoopServiceMachPort, but neither it nor __CFRunLoopRun
+         *         has any way of expressing it via their return values.  So, if
+         *         Ctrl-C handling is important, signal needs to be handled on
+         *         a different thread or something. */
         rc = waitForEventsOnDarwin(cMsTimeout);
 # else // !RT_OS_DARWIN
         rc = waitForEventsOnXPCOM(mEventQ, cMsTimeout);

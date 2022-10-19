@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -77,40 +87,40 @@ extern "C" {
  */
 #define VBOX_NAT_DELAY_HACK
 
-#define GET_EXTRADATA(pthis, node, name, rc, type, type_name, var)                                  \
+#define GET_EXTRADATA(pdrvins, node, name, rc, type, type_name, var)                                  \
 do {                                                                                                \
-    (rc) = CFGMR3Query ## type((node), name, &(var));                                               \
+    (rc) = (pdrvins)->pHlpR3->pfnCFGMQuery ## type((node), name, &(var));                                               \
     if (RT_FAILURE((rc)) && (rc) != VERR_CFGM_VALUE_NOT_FOUND)                                      \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
-                                   (pthis)->pDrvIns->iInstance);                                    \
+        return PDMDrvHlpVMSetError((pdrvins), (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
+                                   (pdrvins)->iInstance);                                    \
 } while (0)
 
-#define GET_ED_STRICT(pthis, node, name, rc, type, type_name, var)                                  \
+#define GET_ED_STRICT(pdrvins, node, name, rc, type, type_name, var)                                  \
 do {                                                                                                \
-    (rc) = CFGMR3Query ## type((node), name, &(var));                                               \
+    (rc) = (pdrvins)->pHlpR3->pfnCFGMQuery ## type((node), name, &(var));                                               \
     if (RT_FAILURE((rc)))                                                                           \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
-                                  (pthis)->pDrvIns->iInstance);                                     \
+        return PDMDrvHlpVMSetError((pdrvins), (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
+                                  (pdrvins)->iInstance);                                     \
 } while (0)
 
-#define GET_EXTRADATA_N(pthis, node, name, rc, type, type_name, var, var_size)                      \
+#define GET_EXTRADATA_N(pdrvins, node, name, rc, type, type_name, var, var_size)                      \
 do {                                                                                                \
-    (rc) = CFGMR3Query ## type((node), name, &(var), var_size);                                     \
+    (rc) = (pdrvins)->pHlpR3->pfnCFGMQuery ## type((node), name, &(var), var_size);                                     \
     if (RT_FAILURE((rc)) && (rc) != VERR_CFGM_VALUE_NOT_FOUND)                                      \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
-                                  (pthis)->pDrvIns->iInstance);                                     \
+        return PDMDrvHlpVMSetError((pdrvins), (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
+                                  (pdrvins)->iInstance);                                     \
 } while (0)
 
-#define GET_BOOL(rc, pthis, node, name, var) \
-    GET_EXTRADATA(pthis, node, name, (rc), Bool, bolean, (var))
-#define GET_STRING(rc, pthis, node, name, var, var_size) \
-    GET_EXTRADATA_N(pthis, node, name, (rc), String, string, (var), (var_size))
-#define GET_STRING_ALLOC(rc, pthis, node, name, var) \
-    GET_EXTRADATA(pthis, node, name, (rc), StringAlloc, string, (var))
-#define GET_S32(rc, pthis, node, name, var) \
-    GET_EXTRADATA(pthis, node, name, (rc), S32, int, (var))
-#define GET_S32_STRICT(rc, pthis, node, name, var) \
-    GET_ED_STRICT(pthis, node, name, (rc), S32, int, (var))
+#define GET_BOOL(rc, pdrvins, node, name, var) \
+    GET_EXTRADATA(pdrvins, node, name, (rc), Bool, bolean, (var))
+#define GET_STRING(rc, pdrvins, node, name, var, var_size) \
+    GET_EXTRADATA_N(pdrvins, node, name, (rc), String, string, (var), (var_size))
+#define GET_STRING_ALLOC(rc, pdrvins, node, name, var) \
+    GET_EXTRADATA(pdrvins, node, name, (rc), StringAlloc, string, (var))
+#define GET_S32(rc, pdrvins, node, name, var) \
+    GET_EXTRADATA(pdrvins, node, name, (rc), S32, int, (var))
+#define GET_S32_STRICT(rc, pdrvins, node, name, var) \
+    GET_ED_STRICT(pdrvins, node, name, (rc), S32, int, (var))
 
 
 
@@ -411,7 +421,7 @@ static void drvNATFreeSgBuf(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
  * @param   pSgBuf              The scatter/gather buffer.
  * @thread  NAT
  */
-static void drvNATSendWorker(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
+static DECLCALLBACK(void) drvNATSendWorker(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
 {
 #if 0 /* Assertion happens often to me after resuming a VM -- no time to investigate this now. */
     Assert(pThis->enmLinkState == PDMNETWORKLINKSTATE_UP);
@@ -659,7 +669,7 @@ static DECLCALLBACK(void) drvNATNetworkUp_SetPromiscuousMode(PPDMINETWORKUP pInt
  * Worker function for drvNATNetworkUp_NotifyLinkChanged().
  * @thread "NAT" thread.
  */
-static void drvNATNotifyLinkChangedWorker(PDRVNAT pThis, PDMNETWORKLINKSTATE enmLinkState)
+static DECLCALLBACK(void) drvNATNotifyLinkChangedWorker(PDRVNAT pThis, PDMNETWORKLINKSTATE enmLinkState)
 {
     pThis->enmLinkState = pThis->enmLinkStateWant = enmLinkState;
     switch (enmLinkState)
@@ -715,9 +725,9 @@ static DECLCALLBACK(void) drvNATNetworkUp_NotifyLinkChanged(PPDMINETWORKUP pInte
     RTReqRelease(pReq);
 }
 
-static void drvNATNotifyApplyPortForwardCommand(PDRVNAT pThis, bool fRemove,
-                                                bool fUdp, const char *pHostIp,
-                                                uint16_t u16HostPort, const char *pGuestIp, uint16_t u16GuestPort)
+static DECLCALLBACK(void) drvNATNotifyApplyPortForwardCommand(PDRVNAT pThis, bool fRemove,
+                                                              bool fUdp, const char *pHostIp,
+                                                              uint16_t u16HostPort, const char *pGuestIp, uint16_t u16GuestPort)
 {
     struct in_addr guestIp, hostIp;
 
@@ -1319,26 +1329,29 @@ static DECLCALLBACK(void) drvNATInfo(PPDMDRVINS pDrvIns, PCDBGFINFOHLP pHlp, con
 #ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
 static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pMappingsCfg)
 {
+    PPDMDRVINS pDrvIns = pThis->pDrvIns;
+    PCPDMDRVHLPR3 pHlp = pDrvIns->pHlpR3;
+
     RT_NOREF(iInstance);
     int rc = VINF_SUCCESS;
     LogFlowFunc(("ENTER: iInstance:%d\n", iInstance));
-    for (PCFGMNODE pNode = CFGMR3GetFirstChild(pMappingsCfg); pNode; pNode = CFGMR3GetNextChild(pNode))
+    for (PCFGMNODE pNode = pHlp->pfnCFGMGetFirstChild(pMappingsCfg); pNode; pNode = pHlp->pfnCFGMGetNextChild(pNode))
     {
-        if (!CFGMR3AreValuesValid(pNode, "HostName\0HostNamePattern\0HostIP\0"))
+        if (!pHlp->pfnCFGMAreValuesValid(pNode, "HostName\0HostNamePattern\0HostIP\0"))
             return PDMDRV_SET_ERROR(pThis->pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
                                     N_("Unknown configuration in dns mapping"));
         char szHostNameOrPattern[255];
         bool fPattern = false;
         RT_ZERO(szHostNameOrPattern);
-        GET_STRING(rc, pThis, pNode, "HostName", szHostNameOrPattern[0], sizeof(szHostNameOrPattern));
+        GET_STRING(rc, pDrvIns, pNode, "HostName", szHostNameOrPattern[0], sizeof(szHostNameOrPattern));
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         {
-            GET_STRING(rc, pThis, pNode, "HostNamePattern", szHostNameOrPattern[0], sizeof(szHostNameOrPattern));
+            GET_STRING(rc, pDrvIns, pNode, "HostNamePattern", szHostNameOrPattern[0], sizeof(szHostNameOrPattern));
             if (rc == VERR_CFGM_VALUE_NOT_FOUND)
             {
                 char szNodeName[225];
                 RT_ZERO(szNodeName);
-                CFGMR3GetName(pNode, szNodeName, sizeof(szNodeName));
+                pHlp->pfnCFGMGetName(pNode, szNodeName, sizeof(szNodeName));
                 LogRel(("NAT: Neither 'HostName' nor 'HostNamePattern' is specified for mapping %s\n", szNodeName));
                 continue;
             }
@@ -1346,7 +1359,7 @@ static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNO
         }
         struct in_addr HostIP;
         RT_ZERO(HostIP);
-        GETIP_DEF(rc, pThis, pNode, HostIP, INADDR_ANY);
+        GETIP_DEF(rc, pDrvIns, pNode, HostIP, INADDR_ANY);
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         {
             LogRel(("NAT: DNS mapping %s is ignored (address not pointed)\n", szHostNameOrPattern));
@@ -1368,33 +1381,36 @@ static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNO
  */
 static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCfg, PRTNETADDRIPV4 pNetwork)
 {
+    PPDMDRVINS pDrvIns = pThis->pDrvIns;
+    PCPDMDRVHLPR3 pHlp = pDrvIns->pHlpR3;
+
     RT_NOREF(pNetwork); /** @todo figure why pNetwork isn't used */
 
-    PCFGMNODE pPFTree = CFGMR3GetChild(pCfg, "PortForwarding");
+    PCFGMNODE pPFTree = pHlp->pfnCFGMGetChild(pCfg, "PortForwarding");
     if (pPFTree == NULL)
         return VINF_SUCCESS;
 
     /*
      * Enumerate redirections.
      */
-    for (PCFGMNODE pNode = CFGMR3GetFirstChild(pPFTree); pNode; pNode = CFGMR3GetNextChild(pNode))
+    for (PCFGMNODE pNode = pHlp->pfnCFGMGetFirstChild(pPFTree); pNode; pNode = pHlp->pfnCFGMGetNextChild(pNode))
     {
         /*
          * Validate the port forwarding config.
          */
-        if (!CFGMR3AreValuesValid(pNode, "Name\0Protocol\0UDP\0HostPort\0GuestPort\0GuestIP\0BindIP\0"))
-            return PDMDRV_SET_ERROR(pThis->pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
+        if (!pHlp->pfnCFGMAreValuesValid(pNode, "Name\0Protocol\0UDP\0HostPort\0GuestPort\0GuestIP\0BindIP\0"))
+            return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
                                     N_("Unknown configuration in port forwarding"));
 
         /* protocol type */
         bool fUDP;
         char szProtocol[32];
         int rc;
-        GET_STRING(rc, pThis, pNode, "Protocol", szProtocol[0], sizeof(szProtocol));
+        GET_STRING(rc, pDrvIns, pNode, "Protocol", szProtocol[0], sizeof(szProtocol));
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         {
             fUDP = false;
-            GET_BOOL(rc, pThis, pNode, "UDP", fUDP);
+            GET_BOOL(rc, pDrvIns, pNode, "UDP", fUDP);
         }
         else if (RT_SUCCESS(rc))
         {
@@ -1403,31 +1419,31 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
             else if (!RTStrICmp(szProtocol, "UDP"))
                 fUDP = true;
             else
-                return PDMDrvHlpVMSetError(pThis->pDrvIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
+                return PDMDrvHlpVMSetError(pDrvIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
                     N_("NAT#%d: Invalid configuration value for \"Protocol\": \"%s\""),
                     iInstance, szProtocol);
         }
         else
-            return PDMDrvHlpVMSetError(pThis->pDrvIns, rc, RT_SRC_POS,
+            return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
                                        N_("NAT#%d: configuration query for \"Protocol\" failed"),
                                        iInstance);
         /* host port */
         int32_t iHostPort;
-        GET_S32_STRICT(rc, pThis, pNode, "HostPort", iHostPort);
+        GET_S32_STRICT(rc, pDrvIns, pNode, "HostPort", iHostPort);
 
         /* guest port */
         int32_t iGuestPort;
-        GET_S32_STRICT(rc, pThis, pNode, "GuestPort", iGuestPort);
+        GET_S32_STRICT(rc, pDrvIns, pNode, "GuestPort", iGuestPort);
 
         /* host address ("BindIP" name is rather unfortunate given "HostPort" to go with it) */
         struct in_addr BindIP;
         RT_ZERO(BindIP);
-        GETIP_DEF(rc, pThis, pNode, BindIP, INADDR_ANY);
+        GETIP_DEF(rc, pDrvIns, pNode, BindIP, INADDR_ANY);
 
         /* guest address */
         struct in_addr GuestIP;
         RT_ZERO(GuestIP);
-        GETIP_DEF(rc, pThis, pNode, GuestIP, INADDR_ANY);
+        GETIP_DEF(rc, pDrvIns, pNode, GuestIP, INADDR_ANY);
 
         /*
          * Call slirp about it.
@@ -1523,7 +1539,9 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
 {
     RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
-    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+    PDRVNAT         pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
+
     LogFlow(("drvNATConstruct:\n"));
 
     /*
@@ -1573,49 +1591,59 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfg,
-                              "PassDomain\0TFTPPrefix\0BootFile\0Network"
-                              "\0NextServer\0DNSProxy\0BindIP\0UseHostResolver\0"
-                              "SlirpMTU\0AliasMode\0"
-                              "SockRcv\0SockSnd\0TcpRcv\0TcpSnd\0"
-                              "ICMPCacheLimit\0"
-                              "SoMaxConnection\0"
-#ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
-                              "HostResolverMappings\0"
-#endif
-                            ))
-        return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
-                                N_("Unknown NAT configuration option, only supports PassDomain,"
-                                " TFTPPrefix, BootFile and Network"));
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns,
+                                  "PassDomain"
+                                  "|TFTPPrefix"
+                                  "|BootFile"
+                                  "|Network"
+                                  "|NextServer"
+                                  "|DNSProxy"
+                                  "|BindIP"
+                                  "|UseHostResolver"
+                                  "|SlirpMTU"
+                                  "|AliasMode"
+                                  "|SockRcv"
+                                  "|SockSnd"
+                                  "|TcpRcv"
+                                  "|TcpSnd"
+                                  "|ICMPCacheLimit"
+                                  "|SoMaxConnection"
+                                  "|LocalhostReachable"
+//#ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
+                                  "|HostResolverMappings"
+//#endif
+                                  , "PortForwarding");
 
     /*
      * Get the configuration settings.
      */
     int rc;
     bool fPassDomain = true;
-    GET_BOOL(rc, pThis, pCfg, "PassDomain", fPassDomain);
+    GET_BOOL(rc, pDrvIns, pCfg, "PassDomain", fPassDomain);
 
-    GET_STRING_ALLOC(rc, pThis, pCfg, "TFTPPrefix", pThis->pszTFTPPrefix);
-    GET_STRING_ALLOC(rc, pThis, pCfg, "BootFile", pThis->pszBootFile);
-    GET_STRING_ALLOC(rc, pThis, pCfg, "NextServer", pThis->pszNextServer);
+    GET_STRING_ALLOC(rc, pDrvIns, pCfg, "TFTPPrefix", pThis->pszTFTPPrefix);
+    GET_STRING_ALLOC(rc, pDrvIns, pCfg, "BootFile", pThis->pszBootFile);
+    GET_STRING_ALLOC(rc, pDrvIns, pCfg, "NextServer", pThis->pszNextServer);
 
     int fDNSProxy = 0;
-    GET_S32(rc, pThis, pCfg, "DNSProxy", fDNSProxy);
+    GET_S32(rc, pDrvIns, pCfg, "DNSProxy", fDNSProxy);
     int fUseHostResolver = 0;
-    GET_S32(rc, pThis, pCfg, "UseHostResolver", fUseHostResolver);
+    GET_S32(rc, pDrvIns, pCfg, "UseHostResolver", fUseHostResolver);
     int MTU = 1500;
-    GET_S32(rc, pThis, pCfg, "SlirpMTU", MTU);
+    GET_S32(rc, pDrvIns, pCfg, "SlirpMTU", MTU);
     int i32AliasMode = 0;
     int i32MainAliasMode = 0;
-    GET_S32(rc, pThis, pCfg, "AliasMode", i32MainAliasMode);
+    GET_S32(rc, pDrvIns, pCfg, "AliasMode", i32MainAliasMode);
     int iIcmpCacheLimit = 100;
-    GET_S32(rc, pThis, pCfg, "ICMPCacheLimit", iIcmpCacheLimit);
+    GET_S32(rc, pDrvIns, pCfg, "ICMPCacheLimit", iIcmpCacheLimit);
+    bool fLocalhostReachable = false;
+    GET_BOOL(rc, pDrvIns, pCfg, "LocalhostReachable", fLocalhostReachable);
 
     i32AliasMode |= (i32MainAliasMode & 0x1 ? 0x1 : 0);
     i32AliasMode |= (i32MainAliasMode & 0x2 ? 0x40 : 0);
     i32AliasMode |= (i32MainAliasMode & 0x4 ? 0x4 : 0);
     int i32SoMaxConn = 10;
-    GET_S32(rc, pThis, pCfg, "SoMaxConnection", i32SoMaxConn);
+    GET_S32(rc, pDrvIns, pCfg, "SoMaxConnection", i32SoMaxConn);
     /*
      * Query the network port interface.
      */
@@ -1632,7 +1660,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
 
     /* Generate a network address for this network card. */
     char szNetwork[32]; /* xxx.xxx.xxx.xxx/yy */
-    GET_STRING(rc, pThis, pCfg, "Network", szNetwork[0], sizeof(szNetwork));
+    GET_STRING(rc, pDrvIns, pCfg, "Network", szNetwork[0], sizeof(szNetwork));
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("NAT%d: Configuration error: missing network"),
                                    pDrvIns->iInstance);
@@ -1650,7 +1678,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
      */
     rc = slirp_init(&pThis->pNATState, RT_H2N_U32(Network.u), Netmask.u,
                     fPassDomain, !!fUseHostResolver, i32AliasMode,
-                    iIcmpCacheLimit, pThis);
+                    iIcmpCacheLimit, fLocalhostReachable, pThis);
     if (RT_SUCCESS(rc))
     {
         slirp_set_dhcp_TFTP_prefix(pThis->pNATState, pThis->pszTFTPPrefix);
@@ -1661,16 +1689,16 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
         slirp_set_somaxconn(pThis->pNATState, i32SoMaxConn);
 
         char *pszBindIP = NULL;
-        GET_STRING_ALLOC(rc, pThis, pCfg, "BindIP", pszBindIP);
+        GET_STRING_ALLOC(rc, pDrvIns, pCfg, "BindIP", pszBindIP);
         slirp_set_binding_address(pThis->pNATState, pszBindIP);
         if (pszBindIP != NULL)
-            MMR3HeapFree(pszBindIP);
+            PDMDrvHlpMMHeapFree(pDrvIns, pszBindIP);
 
 #define SLIRP_SET_TUNING_VALUE(name, setter)                    \
             do                                                  \
             {                                                   \
                 int len = 0;                                    \
-                rc = CFGMR3QueryS32(pCfg, name, &len);    \
+                rc = pHlp->pfnCFGMQueryS32(pCfg, name, &len);    \
                 if (RT_SUCCESS(rc))                             \
                     setter(pThis->pNATState, len);              \
             } while(0)
@@ -1688,7 +1716,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
 #endif
 
 #ifdef VBOX_WITH_DNSMAPPING_IN_HOSTRESOLVER
-        PCFGMNODE pMappingsCfg = CFGMR3GetChild(pCfg, "HostResolverMappings");
+        PCFGMNODE pMappingsCfg = pHlp->pfnCFGMGetChild(pCfg, "HostResolverMappings");
 
         if (pMappingsCfg)
         {

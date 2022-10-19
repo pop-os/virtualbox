@@ -1,18 +1,28 @@
 /* $Id: hostversion.cpp $ */
 /** @file
- * X11 guest client - host version check.
+ * X11 guest client - Host version check.
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 #include <stdio.h>
 #include <iprt/assert.h>
@@ -33,26 +43,16 @@
 
 #include "VBoxClient.h"
 
-static const char *getName()
-{
-    return "Host Version Check";
-}
-
-static const char *getPidFilePath()
-{
-    return ".vboxclient-hostversion.pid";
-}
-
 static int showNotify(const char *pszHeader, const char *pszBody)
 {
     int rc;
 # ifdef VBOX_WITH_DBUS
     DBusConnection *conn;
     DBusMessage* msg = NULL;
-    conn = dbus_bus_get (DBUS_BUS_SESSION, NULL);
+    conn = dbus_bus_get(DBUS_BUS_SESSION, NULL);
     if (conn == NULL)
     {
-        LogRelFlowFunc(("Could not retrieve D-BUS session bus!\n"));
+        VBClLogError("Could not retrieve D-BUS session bus\n");
         rc = VERR_INVALID_HANDLE;
     }
     else
@@ -126,20 +126,19 @@ static int showNotify(const char *pszHeader, const char *pszBody)
     return rc;
 }
 
-/** @todo Move this part in VbglR3 and just provide a callback for the platform-specific
-          notification stuff, since this is very similar to the VBoxTray code. */
-static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
+/**
+ * @interface_method_impl{VBCLSERVICE,pfnWorker}
+ */
+static DECLCALLBACK(int) vbclHostVerWorker(bool volatile *pfShutdown)
 {
+    /** @todo Move this part in VbglR3 and just provide a callback for the platform-specific
+              notification stuff, since this is very similar to the VBoxTray code. */
+
+    RT_NOREF(pfShutdown);
+
+    LogFlowFuncEnter();
+
     int rc;
-    LogFlowFunc(("\n"));
-
-    RT_NOREF(ppInterface);
-
-    /* Because we need desktop notifications to be displayed, wait
-     * some time to make the desktop environment load (as a work around). */
-    if (fDaemonised)
-        RTThreadSleep(30 * 1000 /* Wait 30 seconds */);
-
 # ifdef VBOX_WITH_DBUS
     rc = RTDBusLoadLib();
     if (RT_FAILURE(rc))
@@ -154,19 +153,27 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
     {
         rc = VbglR3GuestPropConnect(&uGuestPropSvcClientID);
         if (RT_FAILURE(rc))
-            VBClLogError("Cannot connect to guest property service while chcking for host version! rc = %Rrc\n", rc);
+            VBClLogError("Cannot connect to guest property service while chcking for host version, rc = %Rrc\n", rc);
     }
 
     if (RT_SUCCESS(rc))
     {
+        /* Let the main thread know that it can continue spawning services. */
+        RTThreadUserSignal(RTThreadSelf());
+
+        /* Because we need desktop notifications to be displayed, wait
+         * some time to make the desktop environment load (as a work around). */
+        if (g_fDaemonized)
+            RTThreadSleep(RT_MS_30SEC);
+
         char *pszHostVersion;
         char *pszGuestVersion;
-        bool bUpdate;
+        bool  fUpdate;
 
-        rc = VbglR3HostVersionCheckForUpdate(uGuestPropSvcClientID, &bUpdate, &pszHostVersion, &pszGuestVersion);
+        rc = VbglR3HostVersionCheckForUpdate(uGuestPropSvcClientID, &fUpdate, &pszHostVersion, &pszGuestVersion);
         if (RT_SUCCESS(rc))
         {
-            if (bUpdate)
+            if (fUpdate)
             {
                 char szMsg[1024];
                 char szTitle[64];
@@ -197,33 +204,21 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
         VbglR3GuestPropDisconnect(uGuestPropSvcClientID);
     }
 # endif /* VBOX_WITH_GUEST_PROPS */
-    VbglR3Term();
-    LogFlowFunc(("returning %Rrc\n", rc));
+
     return rc;
 }
 
-struct VBCLSERVICE vbclHostVersionInterface =
+VBCLSERVICE g_SvcHostVersion =
 {
-    getName,
-    getPidFilePath,
-    VBClServiceDefaultHandler, /* init */
-    run,
-    VBClServiceDefaultCleanup
+    "hostversion",                   /* szName */
+    "VirtualBox host version check", /* pszDescription */
+    ".vboxclient-hostversion.pid",   /* pszPidFilePath */
+    NULL,                            /* pszUsage */
+    NULL,                            /* pszOptions */
+    NULL,                            /* pfnOption */
+    NULL,                            /* pfnInit */
+    vbclHostVerWorker,               /* pfnWorker */
+    NULL,                            /* pfnStop*/
+    NULL                             /* pfnTerm */
 };
 
-struct HOSTVERSIONSERVICE
-{
-    struct VBCLSERVICE *pInterface;
-};
-
-/* Static factory */
-struct VBCLSERVICE **VBClGetHostVersionService()
-{
-    struct HOSTVERSIONSERVICE *pService =
-        (struct HOSTVERSIONSERVICE *)RTMemAlloc(sizeof(*pService));
-
-    if (!pService)
-        VBClLogFatalError("Out of memory\n");
-    pService->pInterface = &vbclHostVersionInterface;
-    return &pService->pInterface;
-}

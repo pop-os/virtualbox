@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -48,24 +58,24 @@ public:
     {}
 
     /** Returns the parent. */
-    virtual QAccessibleInterface *parent() const /* override */;
+    virtual QAccessibleInterface *parent() const RT_OVERRIDE;
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */ { return 0; }
+    virtual int childCount() const RT_OVERRIDE { return 0; }
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int /* iIndex */) const /* override */ { return 0; }
+    virtual QAccessibleInterface *child(int /* iIndex */) const RT_OVERRIDE { return 0; }
     /** Returns the index of the passed @a pChild. */
-    virtual int indexOfChild(const QAccessibleInterface * /* pChild */) const /* override */ { return -1; }
+    virtual int indexOfChild(const QAccessibleInterface * /* pChild */) const RT_OVERRIDE { return -1; }
 
     /** Returns the rect. */
-    virtual QRect rect() const /* override */;
+    virtual QRect rect() const RT_OVERRIDE;
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */;
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
 
     /** Returns the role. */
-    virtual QAccessible::Role role() const /* override */;
+    virtual QAccessible::Role role() const RT_OVERRIDE;
     /** Returns the state. */
-    virtual QAccessible::State state() const /* override */;
+    virtual QAccessible::State state() const RT_OVERRIDE;
 
 private:
 
@@ -96,24 +106,24 @@ public:
     {}
 
     /** Returns the parent. */
-    virtual QAccessibleInterface *parent() const /* override */;
+    virtual QAccessibleInterface *parent() const RT_OVERRIDE;
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */;
+    virtual int childCount() const RT_OVERRIDE;
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int iIndex) const /* override */;
+    virtual QAccessibleInterface *child(int iIndex) const RT_OVERRIDE;
     /** Returns the index of the passed @a pChild. */
-    virtual int indexOfChild(const QAccessibleInterface *pChild) const /* override */;
+    virtual int indexOfChild(const QAccessibleInterface *pChild) const RT_OVERRIDE;
 
     /** Returns the rect. */
-    virtual QRect rect() const /* override */;
+    virtual QRect rect() const RT_OVERRIDE;
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */;
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
 
     /** Returns the role. */
-    virtual QAccessible::Role role() const /* override */;
+    virtual QAccessible::Role role() const RT_OVERRIDE;
     /** Returns the state. */
-    virtual QAccessible::State state() const /* override */;
+    virtual QAccessible::State state() const RT_OVERRIDE;
 
 private:
 
@@ -144,14 +154,14 @@ public:
     {}
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */;
+    virtual int childCount() const RT_OVERRIDE;
     /** Returns the child with the passed @a iIndex. */
-    virtual QAccessibleInterface *child(int iIndex) const /* override */;
+    virtual QAccessibleInterface *child(int iIndex) const RT_OVERRIDE;
     /** Returns the index of the passed @a pChild. */
-    virtual int indexOfChild(const QAccessibleInterface *pChild) const /* override */;
+    virtual int indexOfChild(const QAccessibleInterface *pChild) const RT_OVERRIDE;
 
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text enmTextRole) const /* override */;
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
 
 private:
 

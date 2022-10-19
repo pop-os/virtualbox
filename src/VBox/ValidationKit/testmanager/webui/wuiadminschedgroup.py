@@ -7,26 +7,36 @@ Test Manager WUI - Scheduling groups.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Validation Kit imports.
@@ -34,8 +44,9 @@ from testmanager.core.buildsource       import BuildSourceData, BuildSourceLogic
 from testmanager.core.db                import isDbTimestampInfinity;
 from testmanager.core.schedgroup        import SchedGroupData, SchedGroupDataEx;
 from testmanager.core.testgroup         import TestGroupData, TestGroupLogic;
-from testmanager.core.testbox           import TestBoxData;
-from testmanager.webui.wuicontentbase   import WuiFormContentBase, WuiListContentBase, WuiTmLink
+from testmanager.core.testbox           import TestBoxLogic;
+from testmanager.webui.wuicontentbase   import WuiFormContentBase, WuiListContentBase, WuiTmLink, WuiRawHtml;
+from testmanager.webui.wuiadmintestbox  import WuiTestBoxDetailsLink;
 
 
 class WuiSchedGroup(WuiFormContentBase):
@@ -54,36 +65,44 @@ class WuiSchedGroup(WuiFormContentBase):
             sTitle = 'Scheduling Group';
         WuiFormContentBase.__init__(self, oData, sMode, 'SchedGroup', oDisp, sTitle);
 
-        # Read additional bits form the DB.
-        self._aoAllTestGroups = TestGroupLogic(oDisp.getDb()).getAll();
+        # Read additional bits form the DB, unless we're in
+        if sMode != WuiFormContentBase.ksMode_Show:
+            self._aoAllRelevantTestGroups = TestGroupLogic(oDisp.getDb()).getAll();
+            self._aoAllRelevantTestBoxes  = TestBoxLogic(oDisp.getDb()).getAll();
+        else:
+            self._aoAllRelevantTestGroups = [oMember.oTestGroup for oMember in oData.aoMembers];
+            self._aoAllRelevantTestBoxes  = [oMember.oTestBox   for oMember in oData.aoTestBoxes];
 
-
-    def _populateForm(self, oForm, oData):
+    def _populateForm(self, oForm, oData): # type: (WuiHlpForm, SchedGroupDataEx) -> bool
         """
         Construct an HTML form
         """
 
-        oForm.addIntRO      (SchedGroupData.ksParam_idSchedGroup,     oData.idSchedGroup,     'ID')
-        oForm.addTimestampRO(SchedGroupData.ksParam_tsEffective,      oData.tsEffective,      'Last changed')
-        oForm.addTimestampRO(SchedGroupData.ksParam_tsExpire,         oData.tsExpire,         'Expires (excl)')
-        oForm.addIntRO      (SchedGroupData.ksParam_uidAuthor,        oData.uidAuthor,        'Changed by UID')
-        oForm.addText       (SchedGroupData.ksParam_sName,            oData.sName,            'Name')
-        oForm.addText       (SchedGroupData.ksParam_sDescription,     oData.sDescription,     'Description')
-        oForm.addCheckBox   (SchedGroupData.ksParam_fEnabled,         oData.fEnabled,         'Enabled')
+        oForm.addIntRO(     SchedGroupData.ksParam_idSchedGroup,    oData.idSchedGroup,     'ID')
+        oForm.addTimestampRO(SchedGroupData.ksParam_tsEffective,    oData.tsEffective,      'Last changed')
+        oForm.addTimestampRO(SchedGroupData.ksParam_tsExpire,       oData.tsExpire,         'Expires (excl)')
+        oForm.addIntRO(     SchedGroupData.ksParam_uidAuthor,       oData.uidAuthor,        'Changed by UID')
+        oForm.addText(      SchedGroupData.ksParam_sName,           oData.sName,            'Name')
+        oForm.addText(      SchedGroupData.ksParam_sDescription,    oData.sDescription,     'Description')
+        oForm.addCheckBox(  SchedGroupData.ksParam_fEnabled,        oData.fEnabled,         'Enabled')
 
-        oForm.addComboBox   (SchedGroupData.ksParam_enmScheduler,     oData.enmScheduler,     'Scheduler type',
-                             SchedGroupData.kasSchedulerDesc)
+        oForm.addComboBox(  SchedGroupData.ksParam_enmScheduler,    oData.enmScheduler,     'Scheduler type',
+                            SchedGroupData.kasSchedulerDesc)
 
         aoBuildSrcIds = BuildSourceLogic(self._oDisp.getDb()).fetchForCombo();
-        oForm.addComboBox   (SchedGroupData.ksParam_idBuildSrc,       oData.idBuildSrc,       'Build source',  aoBuildSrcIds);
-        oForm.addComboBox   (SchedGroupData.ksParam_idBuildSrcTestSuite,
-                             oData.idBuildSrcTestSuite, 'Test suite', aoBuildSrcIds);
+        oForm.addComboBox(  SchedGroupData.ksParam_idBuildSrc,      oData.idBuildSrc,       'Build source',  aoBuildSrcIds);
+        oForm.addComboBox(  SchedGroupData.ksParam_idBuildSrcTestSuite,
+                            oData.idBuildSrcTestSuite, 'Test suite', aoBuildSrcIds);
 
         oForm.addListOfSchedGroupMembers(SchedGroupDataEx.ksParam_aoMembers,
-                                         oData.aoMembers, self._aoAllTestGroups, 'Test groups',
-                                         fReadOnly = self._sMode == WuiFormContentBase.ksMode_Show);
+                                         oData.aoMembers, self._aoAllRelevantTestGroups,    'Test groups',
+                                         oData.idSchedGroup, fReadOnly = self._sMode == WuiFormContentBase.ksMode_Show);
 
-        oForm.addMultilineText  (SchedGroupData.ksParam_sComment,     oData.sComment,         'Comment');
+        oForm.addListOfSchedGroupBoxes(SchedGroupDataEx.ksParam_aoTestBoxes,
+                                       oData.aoTestBoxes, self._aoAllRelevantTestBoxes,     'Test boxes',
+                                       oData.idSchedGroup, fReadOnly = self._sMode == WuiFormContentBase.ksMode_Show);
+
+        oForm.addMultilineText(SchedGroupData.ksParam_sComment,     oData.sComment,         'Comment');
         oForm.addSubmit()
 
         return True;
@@ -113,7 +132,7 @@ class WuiAdminSchedGroupList(WuiListContentBase):
         Format *show all* table entry
         """
         from testmanager.webui.wuiadmin import WuiAdmin
-        oEntry  = self._aoEntries[iEntry]
+        oEntry  = self._aoEntries[iEntry]   # type: SchedGroupDataEx
 
         oBuildSrc = None;
         if oEntry.idBuildSrc is not None:
@@ -142,15 +161,12 @@ class WuiAdminSchedGroupList(WuiListContentBase):
 
         # Test boxes.
         aoTestBoxes = [];
-        for oTestBox in oEntry.aoTestBoxes:
-            aoTestBoxes.append(WuiTmLink(oTestBox.sName, WuiAdmin.ksScriptName,
-                                         { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestBoxDetails,
-                                           TestBoxData.ksParam_idTestBox: oTestBox.idTestBox,
-                                           WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, },
-                                         sTitle = '#%s - %s / %s - %s.%s (%s)'
-                                                % (oTestBox.idTestBox, oTestBox.ip, oTestBox.uuidSystem, oTestBox.sOs,
-                                                   oTestBox.sCpuArch, oTestBox.sOsVersion,)));
-
+        for oRelation in oEntry.aoTestBoxes:
+            oTestBox = oRelation.oTestBox;
+            if oTestBox:
+                aoTestBoxes.append(WuiTestBoxDetailsLink(oTestBox, fBracketed = True, tsNow = self._tsEffectiveDate));
+            else:
+                aoTestBoxes.append(WuiRawHtml('#%s' % (oRelation.idTestBox,)));
 
         # Actions
         aoActions = [ WuiTmLink('Details', WuiAdmin.ksScriptName,

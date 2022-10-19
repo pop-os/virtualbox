@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -23,11 +33,11 @@
 #include <iprt/initterm.h>
 #include <iprt/mem.h>
 #include <iprt/rand.h>
-#include <iprt/param.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
 
+#include <VBox/vmm/pdm.h>
 #include <VBox/vmm/pdmaudioinline.h>
 
 #include "../AudioMixBuffer.h"
@@ -77,9 +87,9 @@ static void tstBasics(RTTEST hTest)
     RTTESTI_CHECK(PDMAudioPropsGetBitrate(&Cfg441StereoU16) == 44100*4*8);
     RTTESTI_CHECK(PDMAudioPropsGetBitrate(&Cfg441StereoU32) == 44100*8*8);
 
-    RTTESTI_CHECK(AudioHlpPcmPropsAreValid(&Cfg441StereoS16));
-    RTTESTI_CHECK(AudioHlpPcmPropsAreValid(&Cfg441StereoU16) == false); /* go figure */
-    RTTESTI_CHECK(AudioHlpPcmPropsAreValid(&Cfg441StereoU32) == false); /* go figure */
+    RTTESTI_CHECK(AudioHlpPcmPropsAreValidAndSupported(&Cfg441StereoS16));
+    RTTESTI_CHECK(AudioHlpPcmPropsAreValidAndSupported(&Cfg441StereoU16));
+    RTTESTI_CHECK(AudioHlpPcmPropsAreValidAndSupported(&Cfg441StereoU32));
 
 
     RTTESTI_CHECK_MSG(PDMAUDIOPCMPROPS_F2B(&Cfg441StereoS16, 1) == 4,
@@ -158,37 +168,37 @@ static void tstBasics(RTTEST hTest)
 
     /* DrvAudioHlpClearBuf: */
     uint8_t *pbPage;
-    int rc = RTTestGuardedAlloc(hTest, PAGE_SIZE, 0, false /*fHead*/, (void **)&pbPage);
+    int rc = RTTestGuardedAlloc(hTest, HOST_PAGE_SIZE, 0, false /*fHead*/, (void **)&pbPage);
     RTTESTI_CHECK_RC_OK_RETV(rc);
 
-    memset(pbPage, 0x42, PAGE_SIZE);
-    PDMAudioPropsClearBuffer(&Cfg441StereoS16, pbPage, PAGE_SIZE, PAGE_SIZE / 4);
-    RTTESTI_CHECK(ASMMemIsZero(pbPage, PAGE_SIZE));
+    memset(pbPage, 0x42, HOST_PAGE_SIZE);
+    PDMAudioPropsClearBuffer(&Cfg441StereoS16, pbPage, HOST_PAGE_SIZE, HOST_PAGE_SIZE / 4);
+    RTTESTI_CHECK(ASMMemIsZero(pbPage, HOST_PAGE_SIZE));
 
-    memset(pbPage, 0x42, PAGE_SIZE);
-    PDMAudioPropsClearBuffer(&Cfg441StereoU16, pbPage, PAGE_SIZE, PAGE_SIZE / 4);
-    for (uint32_t off = 0; off < PAGE_SIZE; off += 2)
+    memset(pbPage, 0x42, HOST_PAGE_SIZE);
+    PDMAudioPropsClearBuffer(&Cfg441StereoU16, pbPage, HOST_PAGE_SIZE, HOST_PAGE_SIZE / 4);
+    for (uint32_t off = 0; off < HOST_PAGE_SIZE; off += 2)
         RTTESTI_CHECK_MSG(pbPage[off] == 0 && pbPage[off + 1] == 0x80, ("off=%#x: %#x %x\n", off, pbPage[off], pbPage[off + 1]));
 
-    memset(pbPage, 0x42, PAGE_SIZE);
-    PDMAudioPropsClearBuffer(&Cfg441StereoU32, pbPage, PAGE_SIZE, PAGE_SIZE / 8);
-    for (uint32_t off = 0; off < PAGE_SIZE; off += 4)
+    memset(pbPage, 0x42, HOST_PAGE_SIZE);
+    PDMAudioPropsClearBuffer(&Cfg441StereoU32, pbPage, HOST_PAGE_SIZE, HOST_PAGE_SIZE / 8);
+    for (uint32_t off = 0; off < HOST_PAGE_SIZE; off += 4)
         RTTESTI_CHECK(pbPage[off] == 0 && pbPage[off + 1] == 0 && pbPage[off + 2] == 0 && pbPage[off + 3] == 0x80);
 
 
     RTTestDisableAssertions(hTest);
-    memset(pbPage, 0x42, PAGE_SIZE);
-    PDMAudioPropsClearBuffer(&Cfg441StereoS16, pbPage, PAGE_SIZE, PAGE_SIZE); /* should adjust down the frame count. */
-    RTTESTI_CHECK(ASMMemIsZero(pbPage, PAGE_SIZE));
+    memset(pbPage, 0x42, HOST_PAGE_SIZE);
+    PDMAudioPropsClearBuffer(&Cfg441StereoS16, pbPage, HOST_PAGE_SIZE, HOST_PAGE_SIZE); /* should adjust down the frame count. */
+    RTTESTI_CHECK(ASMMemIsZero(pbPage, HOST_PAGE_SIZE));
 
-    memset(pbPage, 0x42, PAGE_SIZE);
-    PDMAudioPropsClearBuffer(&Cfg441StereoU16, pbPage, PAGE_SIZE, PAGE_SIZE); /* should adjust down the frame count. */
-    for (uint32_t off = 0; off < PAGE_SIZE; off += 2)
+    memset(pbPage, 0x42, HOST_PAGE_SIZE);
+    PDMAudioPropsClearBuffer(&Cfg441StereoU16, pbPage, HOST_PAGE_SIZE, HOST_PAGE_SIZE); /* should adjust down the frame count. */
+    for (uint32_t off = 0; off < HOST_PAGE_SIZE; off += 2)
         RTTESTI_CHECK_MSG(pbPage[off] == 0 && pbPage[off + 1] == 0x80, ("off=%#x: %#x %x\n", off, pbPage[off], pbPage[off + 1]));
 
-    memset(pbPage, 0x42, PAGE_SIZE);
-    PDMAudioPropsClearBuffer(&Cfg441StereoU32, pbPage, PAGE_SIZE, PAGE_SIZE); /* should adjust down the frame count. */
-    for (uint32_t off = 0; off < PAGE_SIZE; off += 4)
+    memset(pbPage, 0x42, HOST_PAGE_SIZE);
+    PDMAudioPropsClearBuffer(&Cfg441StereoU32, pbPage, HOST_PAGE_SIZE, HOST_PAGE_SIZE); /* should adjust down the frame count. */
+    for (uint32_t off = 0; off < HOST_PAGE_SIZE; off += 4)
         RTTESTI_CHECK(pbPage[off] == 0 && pbPage[off + 1] == 0 && pbPage[off + 2] == 0 && pbPage[off + 3] == 0x80);
     RTTestRestoreAssertions(hTest);
 
@@ -209,7 +219,7 @@ static void tstSimple(RTTEST hTest)
         false                                                               /* Swap Endian */
     );
 
-    RTTESTI_CHECK(AudioHlpPcmPropsAreValid(&config));
+    RTTESTI_CHECK(AudioHlpPcmPropsAreValidAndSupported(&config));
 
     uint32_t cBufSize = _1K;
 
@@ -657,7 +667,7 @@ static void tstNewPeek(RTTEST hTest, uint32_t uFromHz, uint32_t uToHz)
     /* Mix buffer is uFromHz 2ch S16 */
     uint32_t const         cFrames = RTRandU32Ex(16, RT_ELEMENTS(aSrcFrames));
     PDMAUDIOPCMPROPS const CfgSrc  = PDMAUDIOPCMPROPS_INITIALIZER(2 /*cbSample*/, true /*fSigned*/, 2 /*ch*/, uFromHz, false /*fSwap*/);
-    RTTESTI_CHECK(AudioHlpPcmPropsAreValid(&CfgSrc));
+    RTTESTI_CHECK(AudioHlpPcmPropsAreValidAndSupported(&CfgSrc));
     AUDIOMIXBUF MixBuf;
     RTTESTI_CHECK_RC_OK_RETV(AudioMixBufInit(&MixBuf, "NewPeekMixBuf", &CfgSrc, cFrames));
 
@@ -667,7 +677,7 @@ static void tstNewPeek(RTTEST hTest, uint32_t uFromHz, uint32_t uToHz)
 
     /* Peek state (destination) is uToHz 2ch S16 */
     PDMAUDIOPCMPROPS const CfgDst = PDMAUDIOPCMPROPS_INITIALIZER(2 /*cbSample*/, true /*fSigned*/, 2 /*ch*/, uToHz, false /*fSwap*/);
-    RTTESTI_CHECK(AudioHlpPcmPropsAreValid(&CfgDst));
+    RTTESTI_CHECK(AudioHlpPcmPropsAreValidAndSupported(&CfgDst));
     AUDIOMIXBUFPEEKSTATE PeekState;
     RTTESTI_CHECK_RC_OK_RETV(AudioMixBufInitPeekState(&MixBuf, &PeekState, &CfgDst));
 

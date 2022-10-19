@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -28,6 +38,9 @@
 #include <VBox/vmm/vmcc.h>
 
 #include <VBox/err.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h> /* ASMCpuId */
+#endif
 
 
 
@@ -138,7 +151,7 @@ VMM_INT_DECL(void) HMNotifySvmNstGstVmexit(PVMCPUCC pVCpu, PCPUMCTX pCtx)
          * restore these fields because currently none of them are written back to memory
          * by a physical CPU on #VMEXIT.
          */
-        PSVMVMCBCTRL pVmcbNstGstCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
+        PSVMVMCBCTRL pVmcbNstGstCtrl = &pCtx->hwvirt.svm.Vmcb.ctrl;
         pVmcbNstGstCtrl->u16InterceptRdCRx                 = pVmcbNstGstCache->u16InterceptRdCRx;
         pVmcbNstGstCtrl->u16InterceptWrCRx                 = pVmcbNstGstCache->u16InterceptWrCRx;
         pVmcbNstGstCtrl->u16InterceptRdDRx                 = pVmcbNstGstCache->u16InterceptRdDRx;
@@ -180,11 +193,14 @@ VMM_INT_DECL(void) HMNotifySvmNstGstVmexit(PVMCPUCC pVCpu, PCPUMCTX pCtx)
  * @remarks This value returned by this functions is expected by the callers not
  *          to change throughout the lifetime of the VM.
  */
-VMM_INT_DECL(bool) HMIsSvmVGifActive(PCVM pVM)
+VMM_INT_DECL(bool) HMIsSvmVGifActive(PCVMCC pVM)
 {
-    bool const fVGif    = RT_BOOL(pVM->hm.s.svm.u32Features & X86_CPUID_SVM_FEATURE_EDX_VGIF);
-    bool const fUseVGif = fVGif && pVM->hm.s.svm.fVGif;
-    return fVGif && fUseVGif;
+#ifdef IN_RING0
+    bool const fVGif    = RT_BOOL(g_fHmSvmFeatures & X86_CPUID_SVM_FEATURE_EDX_VGIF);
+#else
+    bool const fVGif    = RT_BOOL(pVM->hm.s.ForR3.svm.fFeatures & X86_CPUID_SVM_FEATURE_EDX_VGIF);
+#endif
+    return fVGif && pVM->hm.s.svm.fVGif;
 }
 
 
@@ -212,6 +228,7 @@ VMM_INT_DECL(int) HMHCMaybeMovTprSvmHypercall(PVMCC pVM, PVMCPUCC pVCpu)
 }
 
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 /**
  * Checks if the current AMD CPU is subject to erratum 170 "In SVM mode,
  * incorrect code bytes may be fetched after a world-switch".
@@ -251,9 +268,7 @@ VMM_INT_DECL(int) HMIsSubjectToSvmErratum170(uint32_t *pu32Family, uint32_t *pu3
     if (   u32Family == 0xf
         && !((u32Model == 0x68 || u32Model == 0x6b || u32Model == 0x7f) && u32Stepping >= 1)
         && !((u32Model == 0x6f || u32Model == 0x6c || u32Model == 0x7c) && u32Stepping >= 2))
-    {
         fErratumApplies = true;
-    }
 
     if (pu32Family)
         *pu32Family   = u32Family;
@@ -264,7 +279,7 @@ VMM_INT_DECL(int) HMIsSubjectToSvmErratum170(uint32_t *pu32Family, uint32_t *pu3
 
     return fErratumApplies;
 }
-
+#endif
 
 
 /**

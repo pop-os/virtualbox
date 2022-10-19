@@ -6,43 +6,29 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 TEMPLATE	= app
 LANGUAGE	= C++
-
-FORMS = \
-    src/settings/UISettingsDialog.ui \
-    src/settings/global/UIGlobalSettingsGeneral.ui \
-    src/settings/global/UIGlobalSettingsInput.ui \
-    src/settings/global/UIGlobalSettingsUpdate.ui \
-    src/settings/global/UIGlobalSettingsLanguage.ui \
-    src/settings/global/UIGlobalSettingsDisplay.ui \
-    src/settings/global/UIGlobalSettingsNetwork.ui \
-    src/settings/global/UIGlobalSettingsNetworkDetailsNAT.ui \
-    src/settings/global/UIGlobalSettingsExtension.ui \
-    src/settings/global/UIGlobalSettingsProxy.ui \
-    src/settings/machine/UIMachineSettingsGeneral.ui \
-    src/settings/machine/UIMachineSettingsSystem.ui \
-    src/settings/machine/UIMachineSettingsDisplay.ui \
-    src/settings/machine/UIMachineSettingsStorage.ui \
-    src/settings/machine/UIMachineSettingsAudio.ui \
-    src/settings/machine/UIMachineSettingsNetwork.ui \
-    src/settings/machine/UIMachineSettingsSerial.ui \
-    src/settings/machine/UIMachineSettingsUSB.ui \
-    src/settings/machine/UIMachineSettingsUSBFilterDetails.ui \
-    src/settings/machine/UIMachineSettingsSF.ui \
-    src/settings/machine/UIMachineSettingsSFDetails.ui \
-    src/settings/machine/UIMachineSettingsInterface.ui
 
 TRANSLATIONS = \
 	nls/VirtualBox_bg.ts \

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -31,6 +41,8 @@
 #include <iprt/test.h>
 #include <iprt/file.h>
 #include <iprt/errcore.h>
+#include <iprt/path.h>
+#include <iprt/rand.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
 
@@ -53,6 +65,19 @@ static char       g_szTestStr2[] =
 "adipiscing sapien, sed malesuada diam lacus eget erat. Cras mollis scelerisque nunc. Nullam arcu. Aliquam consequat. Curabitur "
 "augue lorem, dapibus quis, laoreet et, pretium ac, nisi. Aenean magna nisl, mollis quis, molestie eu, feugiat in, orci. In hac "
 "habitasse platea dictumst.\n";
+
+/**
+ * Structure holding queried file system properties we're performing our tests on.
+ */
+typedef struct FsProps
+{
+    RTFOFF   cbTotal;
+    RTFOFF   cbFree;
+    uint32_t cbBlock;
+    uint32_t cbSector;
+} FsProps;
+/** Queried file system properties we're performing our tests on. */
+static FsProps s_FsProps;
 
 
 static void tstAppend(RTFILE hFile)
@@ -111,15 +136,24 @@ static void tstBasics(RTFILE hFile)
         }
     }
 
-    /* grow file beyond 2G */
-    rc = RTFileSetSize(hFile, _2G + _1M);
+    uint64_t cbFileSize = _2G + RTRandU32Ex(_1K, _1M); /* Try growing file beyond 2G by default. */
+    if ((uint64_t)s_FsProps.cbFree <= cbFileSize)
+    {
+        RTTestIPrintf(RTTESTLVL_ALWAYS, "Warning: Free disk space less than testcase file size (%RTfoff vs. %RU64), limiting\n",
+                      s_FsProps.cbFree, cbFileSize);
+        cbFileSize = s_FsProps.cbFree -  _1M; /* Leave a bit of space on the fs. */
+    }
+    /** @todo Also check and clamp for fs max file size limits? */
+    RTTESTI_CHECK_MSG_RETV(cbFileSize, ("No space left on file system (disk full)"));
+
+    rc = RTFileSetSize(hFile, cbFileSize);
     if (RT_FAILURE(rc))
-        RTTestIFailed("Failed to grow file #1 to 2.001GB. rc=%Rrc", rc);
+        RTTestIFailed("Failed to grow file #1 to %RU64. rc=%Rrc", cbFileSize, rc);
     else
     {
         uint64_t cb;
         RTTESTI_CHECK_RC(RTFileQuerySize(hFile, &cb), VINF_SUCCESS);
-        RTTESTI_CHECK_MSG(cb == _2G + _1M, ("RTFileQuerySize return %RX64 bytes, expected %RX64.", cb, _2G + _1M));
+        RTTESTI_CHECK_MSG(cb == cbFileSize, ("RTFileQuerySize return %RX64 bytes, expected %RX64.", cb, cbFileSize));
 
         /*
          * Try some writes at the beginning of the file.
@@ -171,14 +205,14 @@ static void tstBasics(RTFILE hFile)
         /*
          * Try some writes at the end of the file.
          */
-        rc = RTFileSeek(hFile, _2G + _1M, RTFILE_SEEK_BEGIN, NULL);
+        rc = RTFileSeek(hFile, cbFileSize, RTFILE_SEEK_BEGIN, NULL);
         if (RT_FAILURE(rc))
-            RTTestIFailed("Failed to seek to _2G + _1M in file #1. rc=%Rrc\n", rc);
+            RTTestIFailed("Failed to seek to %RU64 in file #1. rc=%Rrc\n", cbFileSize, rc);
         else
         {
             offFile = RTFileTell(hFile);
-            if (offFile != _2G + _1M)
-                RTTestIFailed("RTFileTell -> %#llx, expected %#llx (#2)\n", offFile, _2G + _1M);
+            if (offFile != cbFileSize)
+                RTTestIFailed("RTFileTell -> %#llx, expected %#llx (#2)\n", offFile, cbFileSize);
             else
             {
                 cbWritten = 0;
@@ -191,7 +225,7 @@ static void tstBasics(RTFILE hFile)
                     cbWritten += cbWrittenPart;
                 }
                 if (RT_FAILURE(rc))
-                    RTTestIFailed("Failed to write to file #1 at offset 2G + 1M.  rc=%Rrc\n", rc);
+                    RTTestIFailed("Failed to write to file #1 at offset %RU64.  rc=%Rrc\n", cbFileSize, rc);
                 else
                 {
                     rc = RTFileSeek(hFile, offFile, RTFILE_SEEK_BEGIN, NULL);
@@ -210,13 +244,14 @@ static void tstBasics(RTFILE hFile)
                             cbRead += cbReadPart;
                         }
                         if (RT_FAILURE(rc))
-                            RTTestIFailed("Failed to read from file #1 at offset 2G + 1M.  rc=%Rrc\n", rc);
+                            RTTestIFailed("Failed to read from file #1 at offset %RU64. rc=%Rrc\n", cbFileSize, rc);
                         else
                         {
                             if (!memcmp(szReadBuf, g_szTestStr, sizeof(g_szTestStr)))
                                 RTPrintf("tstFile: tail write ok\n");
                             else
-                                RTTestIFailed("Data read from file #1 at offset 2G + 1M differs from what we wrote there.\n");
+                                RTTestIFailed("Data read from file #1 at offset %RU64 differs from what we wrote there.\n",
+                                              cbFileSize);
                         }
                     }
                 }
@@ -226,14 +261,15 @@ static void tstBasics(RTFILE hFile)
         /*
          * Some general seeking around.
          */
-        rc = RTFileSeek(hFile, _2G + 1, RTFILE_SEEK_BEGIN, NULL);
+        RTFOFF offSeek = RTRandS64Ex(0, cbFileSize);
+        rc = RTFileSeek(hFile, offSeek, RTFILE_SEEK_BEGIN, NULL);
         if (RT_FAILURE(rc))
-            RTTestIFailed("Failed to seek to _2G + 1 in file #1. rc=%Rrc\n", rc);
+            RTTestIFailed("Failed to seek to %RTfoff in file #1. rc=%Rrc\n", offSeek, rc);
         else
         {
             offFile = RTFileTell(hFile);
-            if (offFile != _2G + 1)
-                RTTestIFailed("RTFileTell -> %#llx, expected %#llx (#3)\n", offFile, _2G + 1);
+            if (offFile != (uint64_t)offSeek)
+                RTTestIFailed("RTFileTell -> %#RTfoff, expected %RTfoff (#3)\n", offFile, offSeek);
         }
 
         /* seek end */
@@ -243,8 +279,8 @@ static void tstBasics(RTFILE hFile)
         else
         {
             offFile = RTFileTell(hFile);
-            if (offFile != _2G + _1M + sizeof(g_szTestStr)) /* assuming tail write was ok. */
-                RTTestIFailed("RTFileTell -> %#RX64, expected %#RX64 (#4)\n", offFile, _2G + _1M + sizeof(g_szTestStr));
+            if (offFile != cbFileSize + sizeof(g_szTestStr)) /* assuming tail write was ok. */
+                RTTestIFailed("RTFileTell -> %RTfoff, expected %#RX64 (#4)\n", offFile, cbFileSize + sizeof(g_szTestStr));
         }
 
         /* seek start */
@@ -255,7 +291,7 @@ static void tstBasics(RTFILE hFile)
         {
             offFile = RTFileTell(hFile);
             if (offFile != 0)
-                RTTestIFailed("RTFileTell -> %#llx, expected 0 (#5)\n", offFile);
+                RTTestIFailed("RTFileTell -> %RTfoff, expected 0 (#5)\n", offFile);
         }
     }
 }
@@ -269,10 +305,20 @@ int main()
     RTTestBanner(hTest);
 
     /*
+     * Query file system sizes first.
+     * This is needed beforehand, so that we don't perform tests which cannot succeed because of known limitations
+     * (too little space, file system maximum file size restrictions, ++).
+     */
+    char szCWD[RTPATH_MAX];
+    int rc = RTPathGetCurrent(szCWD, sizeof(szCWD));
+    RTTESTI_CHECK_MSG(RT_SUCCESS(rc), ("Unable to query current directory, rc=%Rrc", rc));
+    rc = RTFsQuerySizes(szCWD, &s_FsProps.cbTotal, &s_FsProps.cbFree, &s_FsProps.cbBlock, &s_FsProps.cbSector);
+    RTTESTI_CHECK_MSG(RT_SUCCESS(rc), ("Unable to query file system sizes of '%s', rc=%Rrc", szCWD, rc));
+
+    /*
      * Some basic tests.
      */
     RTTestSub(hTest, "Basics");
-    int rc = -1;
     RTFILE hFile = NIL_RTFILE;
     RTTESTI_CHECK_RC(rc = RTFileOpen(&hFile, "tstFile#1.tst", RTFILE_O_READWRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE),
                      VINF_SUCCESS);

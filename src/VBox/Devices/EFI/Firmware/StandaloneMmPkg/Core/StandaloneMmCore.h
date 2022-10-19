@@ -3,7 +3,7 @@
   internal structure and functions used by MmCore module.
 
   Copyright (c) 2009 - 2014, Intel Corporation. All rights reserved.<BR>
-  Copyright (c) 2016 - 2018, ARM Limited. All rights reserved.<BR>
+  Copyright (c) 2016 - 2021, Arm Limited. All rights reserved.<BR>
 
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
@@ -18,7 +18,7 @@
 #include <Protocol/DxeMmReadyToLock.h>
 #include <Protocol/MmReadyToLock.h>
 #include <Protocol/MmEndOfDxe.h>
-#include <Protocol/MmCommunication.h>
+#include <Protocol/MmCommunication2.h>
 #include <Protocol/LoadedImage.h>
 #include <Protocol/MmConfiguration.h>
 
@@ -67,7 +67,7 @@ typedef struct {
 
   LIST_ENTRY                      ScheduledLink;    // mScheduledQueue
 
-  EFI_HANDLE                      FvHandle;
+  EFI_FIRMWARE_VOLUME_HEADER      *FwVolHeader;
   EFI_GUID                        FileName;
   VOID                            *Pe32Data;
   UINTN                           Pe32DataSize;
@@ -131,7 +131,7 @@ typedef struct {
   EFI_GUID            ProtocolID;
   /// All protocol interfaces
   LIST_ENTRY          Protocols;
-  /// Registerd notification handlers
+  /// Registered notification handlers
   LIST_ENTRY          Notify;
 } PROTOCOL_ENTRY;
 
@@ -516,8 +516,8 @@ MmLocateHandle (
 
 /**
   Return the first Protocol Interface that matches the Protocol GUID. If
-  Registration is pasased in return a Protocol Instance that was just add
-  to the system. If Retistration is NULL return the first Protocol Interface
+  Registration is passed in return a Protocol Instance that was just add
+  to the system. If Registration is NULL return the first Protocol Interface
   you find.
 
   @param  Protocol               The protocol to search for
@@ -564,7 +564,7 @@ MmiManage (
 /**
   Registers a handler to execute within MM.
 
-  @param  Handler        Handler service funtion pointer.
+  @param  Handler        Handler service function pointer.
   @param  HandlerType    Points to the handler type or NULL for root MMI handlers.
   @param  DispatchHandle On return, contains a unique handle which can be used to later unregister the handler function.
 
@@ -728,7 +728,7 @@ MmEfiNotAvailableYetArg5 (
   );
 
 //
-//Functions used during debug buils
+//Functions used during debug builds
 //
 
 /**

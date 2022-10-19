@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QIFlowLayout_h
@@ -81,34 +91,34 @@ public:
     QIFlowLayout(int iMargin = -1, int iSpacingH = -1, int iSpacingV = -1);
 
     /** Destructs flow-layout. */
-    virtual ~QIFlowLayout() /* override */;
+    virtual ~QIFlowLayout() RT_OVERRIDE;
 
     /** Returns the number of layout items. */
-    virtual int count() const /* override */;
+    virtual int count() const RT_OVERRIDE;
     /** Adds @a pItem into layout. */
-    virtual void addItem(QLayoutItem *pItem) /* override */;
+    virtual void addItem(QLayoutItem *pItem) RT_OVERRIDE;
     /** Returns the layout item at passed @a iIndex. */
-    virtual QLayoutItem *itemAt(int iIndex) const /* override */;
+    virtual QLayoutItem *itemAt(int iIndex) const RT_OVERRIDE;
     /** Removes the layout item at passed @a iIndex and returns it. */
-    virtual QLayoutItem *takeAt(int index) /* override */;
+    virtual QLayoutItem *takeAt(int index) RT_OVERRIDE;
 
     /** Returns whether this layout can make use of more space than sizeHint().
       * A value of Qt::Vertical or Qt::Horizontal means that it wants to grow in only one dimension,
       * whereas Qt::Vertical | Qt::Horizontal means that it wants to grow in both dimensions. */
-    virtual Qt::Orientations expandingDirections() const /* override */;
+    virtual Qt::Orientations expandingDirections() const RT_OVERRIDE;
 
     /** Returns whether this layout's preferred height depends on its width. */
-    virtual bool hasHeightForWidth() const /* override */;
+    virtual bool hasHeightForWidth() const RT_OVERRIDE;
     /** Returns the preferred height for this layout item, given the width. */
-    virtual int heightForWidth(int) const /* override */;
+    virtual int heightForWidth(int) const RT_OVERRIDE;
 
     /** Returns the minimum layout size. */
-    virtual QSize minimumSize() const /* override */;
+    virtual QSize minimumSize() const RT_OVERRIDE;
     /** Returns this item's preferred size. */
-    virtual QSize sizeHint() const /* override */;
+    virtual QSize sizeHint() const RT_OVERRIDE;
 
     /** Defines this item's geometry to @a rect. */
-    virtual void setGeometry(const QRect &rect) /* override */;
+    virtual void setGeometry(const QRect &rect) RT_OVERRIDE;
 
 private:
 

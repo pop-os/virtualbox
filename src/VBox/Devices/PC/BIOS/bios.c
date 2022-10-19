@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -56,6 +66,7 @@
 #include <stdint.h>
 #include "inlines.h"
 #include "biosint.h"
+#include "VBox/bios.h"
 #ifndef VBOX_VERSION_STRING
 #include <VBox/version.h>
 #endif
@@ -80,6 +91,15 @@ void outb_cmos(uint8_t cmos_reg, uint8_t val)
         cmos_port += 2;
     outb(cmos_port, cmos_reg);
     outb(cmos_port + 1, val);
+}
+
+/**
+ * Reads two adjacent cmos bytes and return their values as a 16-bit word.
+ */
+uint16_t get_cmos_word(uint8_t idxFirst)
+{
+    return ((uint16_t)inb_cmos(idxFirst + 1) << 8)
+         |            inb_cmos(idxFirst);
 }
 
 void BIOSCALL dummy_isr_function(pusha_regs_t regs, uint16_t es,
@@ -120,7 +140,8 @@ void BIOSCALL nmi_handler_msg(void)
 
 void BIOSCALL int18_panic_msg(void)
 {
-    BX_PANIC("INT18: BOOT FAILURE\n");
+    BX_INFO("INT18: BOOT FAILURE\n");
+    out_ctrl_str_asm(VBOX_BIOS_SHUTDOWN_PORT, "Bootfail");
 }
 
 void BIOSCALL log_bios_start(void)

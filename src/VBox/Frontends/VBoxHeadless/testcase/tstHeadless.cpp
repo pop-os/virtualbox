@@ -5,15 +5,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <VBox/com/array.h>
@@ -68,13 +78,13 @@ int main(int argc, char **argv)
              "Operation : %s\n\n",
              name, operation);
 
-    HRESULT rc;
+    HRESULT hrc;
 
-    rc = com::Initialize();
-    if (FAILED(rc))
+    hrc = com::Initialize();
+    if (FAILED(hrc))
     {
         RTPrintf("ERROR: failed to initialize COM!\n");
-        return rc;
+        return hrc;
     }
 
     do
@@ -84,24 +94,24 @@ int main(int argc, char **argv)
         ComPtr <ISession> session;
 
         RTPrintf("Creating VirtualBox object...\n");
-        rc = virtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
-        if (SUCCEEDED(rc))
-            rc = virtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
-        if (FAILED(rc))
+        hrc = virtualBoxClient.createInprocObject(CLSID_VirtualBoxClient);
+        if (SUCCEEDED(hrc))
+            hrc = virtualBoxClient->COMGETTER(VirtualBox)(virtualBox.asOutParam());
+        if (FAILED(hrc))
             RTPrintf("ERROR: failed to create the VirtualBox object!\n");
         else
         {
-            rc = session.createInprocObject(CLSID_Session);
-            if (FAILED(rc))
+            hrc = session.createInprocObject(CLSID_Session);
+            if (FAILED(hrc))
                 RTPrintf("ERROR: failed to create a session object!\n");
         }
 
-        if (FAILED(rc))
+        if (FAILED(hrc))
         {
             com::ErrorInfo info;
             if (!info.isFullAvailable() && !info.isBasicAvailable())
             {
-                com::GluePrintRCMessage(rc);
+                com::GluePrintRCMessage(hrc);
                 RTPrintf("Most likely, the VirtualBox COM server is not running or failed to start.\n");
             }
             else
@@ -203,6 +213,6 @@ int main(int argc, char **argv)
 
     RTPrintf("tstHeadless FINISHED.\n");
 
-    return rc;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 

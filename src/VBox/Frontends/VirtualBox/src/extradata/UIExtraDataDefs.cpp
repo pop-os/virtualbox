@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
@@ -20,13 +30,17 @@
 
 
 /* General: */
-const char *UIExtraDataDefs::GUI_EventHandlingType = "GUI/EventHandlingType";
 const char *UIExtraDataDefs::GUI_RestrictedDialogs = "GUI/RestrictedDialogs";
+const char *UIExtraDataDefs::GUI_ColorTheme = "GUI/ColorTheme";
 
 
 /* Messaging: */
 const char *UIExtraDataDefs::GUI_SuppressMessages = "GUI/SuppressMessages";
 const char *UIExtraDataDefs::GUI_InvertMessageOption = "GUI/InvertMessageOption";
+const char *UIExtraDataDefs::GUI_NotificationCenter_KeepSuccessfullProgresses = "GUI/NotificationCenter/KeepSuccessfullProgresses";
+const char *UIExtraDataDefs::GUI_NotificationCenter_Alignment = "GUI/NotificationCenter/Alignment";
+const char *UIExtraDataDefs::GUI_NotificationCenter_Order = "GUI/NotificationCenter/Order";
+const char *UIExtraDataDefs::GUI_PreventBetaLabel = "GUI/PreventBetaLabel";
 #if !defined(VBOX_BLEEDING_EDGE) && !defined(DEBUG)
 const char *UIExtraDataDefs::GUI_PreventBetaWarning = "GUI/PreventBetaWarning";
 #endif
@@ -49,15 +63,13 @@ const char *UIExtraDataDefs::GUI_Customizations = "GUI/Customizations";
 const char *UIExtraDataDefs::GUI_RestrictedGlobalSettingsPages = "GUI/RestrictedGlobalSettingsPages";
 const char *UIExtraDataDefs::GUI_RestrictedMachineSettingsPages = "GUI/RestrictedMachineSettingsPages";
 
-/* Settings: General: */
-const char *UIExtraDataDefs::GUI_HostScreenSaverDisabled = "GUI/HostScreenSaverDisabled";
-
 /* Settings: Language: */
 const char *UIExtraDataDefs::GUI_LanguageID = "GUI/LanguageID";
 
 /* Settings: Display: */
 const char *UIExtraDataDefs::GUI_MaxGuestResolution = "GUI/MaxGuestResolution";
 const char *UIExtraDataDefs::GUI_ActivateHoveredMachineWindow = "GUI/ActivateHoveredMachineWindow";
+const char *UIExtraDataDefs::GUI_DisableHostScreenSaver = "GUI/DisableHostScreenSaver";
 
 /* Settings: Keyboard: */
 const char *UIExtraDataDefs::GUI_Input_SelectorShortcuts = "GUI/Input/SelectorShortcuts";
@@ -82,6 +94,7 @@ const char *UIExtraDataDefs::GUI_RestrictedNetworkAttachmentTypes = "GUI/Restric
 
 /* VISO Creator: */
 const char *UIExtraDataDefs::GUI_VISOCreator_RecentFolder   = "GUI/VISOCreator/RecentFolder";
+const char *UIExtraDataDefs::GUI_VISOCreator_DialogGeometry   = "GUI/VISOCreator/DialogGeometry";
 
 /* VirtualBox Manager: */
 const char *UIExtraDataDefs::GUI_LastSelectorWindowPosition = "GUI/LastWindowPosition";
@@ -110,7 +123,16 @@ const char *UIExtraDataDefs::GUI_VirtualMediaManager_Search_Widget_Expanded = "G
 const char *UIExtraDataDefs::GUI_HostNetworkManager_Details_Expanded = "GUI/HostNetworkManager/Details/Expanded";
 
 /* Cloud Profile Manager: */
+const char *UIExtraDataDefs::GUI_CloudProfileManager_Restrictions = "GUI/CloudProfileManager/Restrictions";
 const char *UIExtraDataDefs::GUI_CloudProfileManager_Details_Expanded = "GUI/CloudProfileManager/Details/Expanded";
+
+/* Cloud Console Manager: */
+const char *UIExtraDataDefs::GUI_CloudConsoleManager_Application = "GUI/CloudConsoleManager/Application";
+const char *UIExtraDataDefs::GUI_CloudConsoleManager_Restrictions = "GUI/CloudConsoleManager/Restrictions";
+const char *UIExtraDataDefs::GUI_CloudConsoleManager_Details_Expanded = "GUI/CloudConsoleManager/Details/Expanded";
+
+/* Cloud Console: */
+const char *UIExtraDataDefs::GUI_CloudConsole_PublicKey_Path = "GUI/CloudConsole/PublicKey/Path";
 
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
 /* Extra-data Manager: */
@@ -127,7 +149,6 @@ const char *UIExtraDataDefs::GUI_HideFromManager = "GUI/HideFromManager";
 const char *UIExtraDataDefs::GUI_HideDetails = "GUI/HideDetails";
 const char *UIExtraDataDefs::GUI_PreventReconfiguration = "GUI/PreventReconfiguration";
 const char *UIExtraDataDefs::GUI_PreventSnapshotOperations = "GUI/PreventSnapshotOperations";
-const char *UIExtraDataDefs::GUI_FirstRun = "GUI/FirstRun";
 const char *UIExtraDataDefs::GUI_MachineWindowIcons = "GUI/MachineWindowIcons";
 #ifndef VBOX_WS_MAC
 const char *UIExtraDataDefs::GUI_MachineWindowNamePostfix = "GUI/MachineWindowNamePostfix";
@@ -165,13 +186,6 @@ const char *UIExtraDataDefs::GUI_LastVisibilityStatusForGuestScreen = "GUI/LastV
 const char *UIExtraDataDefs::GUI_LastGuestSizeHint = "GUI/LastGuestSizeHint";
 const char *UIExtraDataDefs::GUI_VirtualScreenToHostScreen = "GUI/VirtualScreenToHostScreen";
 const char *UIExtraDataDefs::GUI_AutomountGuestScreens = "GUI/AutomountGuestScreens";
-#ifdef VBOX_WITH_VIDEOHWACCEL
-const char *UIExtraDataDefs::GUI_Accelerate2D_StretchLinear = "GUI/Accelerate2D/StretchLinear";
-const char *UIExtraDataDefs::GUI_Accelerate2D_PixformatYV12 = "GUI/Accelerate2D/PixformatYV12";
-const char *UIExtraDataDefs::GUI_Accelerate2D_PixformatUYVY = "GUI/Accelerate2D/PixformatUYVY";
-const char *UIExtraDataDefs::GUI_Accelerate2D_PixformatYUY2 = "GUI/Accelerate2D/PixformatYUY2";
-const char *UIExtraDataDefs::GUI_Accelerate2D_PixformatAYUV = "GUI/Accelerate2D/PixformatAYUV";
-#endif /* VBOX_WITH_VIDEOHWACCEL */
 #ifndef VBOX_WS_MAC
 const char *UIExtraDataDefs::GUI_ShowMiniToolBar = "GUI/ShowMiniToolBar";
 const char *UIExtraDataDefs::GUI_MiniToolBarAutoHide = "GUI/MiniToolBarAutoHide";
@@ -224,6 +238,7 @@ const char *UIExtraDataDefs::GUI_DefaultCloseAction = "GUI/DefaultCloseAction";
 const char *UIExtraDataDefs::GUI_RestrictedCloseActions = "GUI/RestrictedCloseActions";
 const char *UIExtraDataDefs::GUI_LastCloseAction = "GUI/LastCloseAction";
 const char *UIExtraDataDefs::GUI_CloseActionHook = "GUI/CloseActionHook";
+const char *UIExtraDataDefs::GUI_DiscardStateOnPowerOff = "GUI/DiscardStateOnPowerOff";
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
 /* Virtual Machine: Debug UI: */
@@ -239,15 +254,27 @@ const char *UIExtraDataDefs::GUI_LogViewerShowLineNumbersDisabled = "showLineNum
 const char *UIExtraDataDefs::GUI_LogViewerNoFontStyleName = "noFontStyleName";
 const char *UIExtraDataDefs::GUI_GuestControl_LogViewerVisiblePanels = "GUI/LogViewerVisiblePanels";
 
+/* Help Browser */
+const char *UIExtraDataDefs::GUI_HelpBrowser_LastURLList = "GUI/HelpBrowserLastURLList";
+const char *UIExtraDataDefs::GUI_HelpBrowser_DialogGeometry = "GUI/HelpBrowserDialogGeomety";
+const char *UIExtraDataDefs::GUI_HelpBrowser_Bookmarks = "GUI/HelpBrowserBookmarks";
+const char *UIExtraDataDefs::GUI_HelpBrowser_ZoomPercentage = "GUI/HelpBrowserZoomPercentage";
+
+/* VM Activity Overview: */
+const char *UIExtraDataDefs::GUI_VMActivityOverview_HiddenColumns = "GUI/VMActivityOverviewHiddenColumns";
+const char *UIExtraDataDefs::GUI_VMActivityOverview_ShowAllMachines = "GUI/VMActivityOverviewShowAllMachines";
+
+const char *UIExtraDataDefs::GUI_MediumSelector_DialogGeometry = "GUI/MediumSelector/DialogGeometry";
+
 /* Obsolete keys: */
-QMap<QString, QString> UIExtraDataDefs::prepareObsoleteKeysMap()
+QMultiMap<QString, QString> UIExtraDataDefs::prepareObsoleteKeysMap()
 {
-    QMap<QString, QString> map;
-    map.insertMulti(GUI_Details_Elements, GUI_DetailsPageBoxes);
-    map.insertMulti(GUI_Details_Elements_Preview_UpdateInterval, GUI_PreviewUpdate);
+    QMultiMap<QString, QString> map;
+    map.insert(GUI_Details_Elements, GUI_DetailsPageBoxes);
+    map.insert(GUI_Details_Elements_Preview_UpdateInterval, GUI_PreviewUpdate);
     return map;
 }
-QMap<QString, QString> UIExtraDataDefs::g_mapOfObsoleteKeys = UIExtraDataDefs::prepareObsoleteKeysMap();
+QMultiMap<QString, QString> UIExtraDataDefs::g_mapOfObsoleteKeys = UIExtraDataDefs::prepareObsoleteKeysMap();
 
 
 bool UIToolStuff::isTypeOfClass(UIToolType enmType, UIToolClass enmClass)
@@ -259,9 +286,12 @@ bool UIToolStuff::isTypeOfClass(UIToolType enmType, UIToolClass enmClass)
             switch (enmType)
             {
                 case UIToolType_Welcome:
+                case UIToolType_Extensions:
                 case UIToolType_Media:
                 case UIToolType_Network:
                 case UIToolType_Cloud:
+                case UIToolType_CloudConsole:
+                case UIToolType_VMActivityOverview:
                     return true;
                 default:
                     break;
@@ -275,6 +305,8 @@ bool UIToolStuff::isTypeOfClass(UIToolType enmType, UIToolClass enmClass)
                 case UIToolType_Details:
                 case UIToolType_Snapshots:
                 case UIToolType_Logs:
+                case UIToolType_VMActivity:
+                case UIToolType_FileManager:
                     return true;
                 default:
                     break;

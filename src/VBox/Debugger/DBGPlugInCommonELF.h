@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef DEBUGGER_INCLUDED_SRC_DBGPlugInCommonELF_h
@@ -37,13 +47,13 @@
 #define DBG_DIGGER_ELF_MASK                 UINT32_C(0x00000003)
 /** @} */
 
-int DBGDiggerCommonParseElf32Mod(PUVM pUVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
+int DBGDiggerCommonParseElf32Mod(PUVM pUVM, PCVMMR3VTABLE pVMM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
                                  Elf32_Ehdr const *pEhdr, Elf32_Shdr const *paShdrs,
                                  Elf32_Sym const *paSyms, size_t cMaxSyms,
                                  char const *pbStrings, size_t cbMaxStrings,
                                  RTGCPTR MinAddr, RTGCPTR MaxAddr, uint64_t uModTag);
 
-int DBGDiggerCommonParseElf64Mod(PUVM pUVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
+int DBGDiggerCommonParseElf64Mod(PUVM pUVM, PCVMMR3VTABLE pVMM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
                                  Elf64_Ehdr const *pEhdr, Elf64_Shdr const *paShdrs,
                                  Elf64_Sym const *paSyms, size_t cMaxSyms,
                                  char const *pbStrings, size_t cbMaxStrings,

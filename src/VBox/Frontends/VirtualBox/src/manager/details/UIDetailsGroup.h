@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_details_UIDetailsGroup_h
@@ -51,7 +61,7 @@ public:
     /** Constructs group item, passing pScene to the base-class. */
     UIDetailsGroup(QGraphicsScene *pScene);
     /** Destructs group item. */
-    virtual ~UIDetailsGroup() /* override */;
+    virtual ~UIDetailsGroup() RT_OVERRIDE;
 
     /** @name Item stuff.
       * @{ */
@@ -63,24 +73,24 @@ public:
         void stopBuildingGroup();
 
         /** Installs event-filter for @a pSource object. */
-        virtual void installEventFilterHelper(QObject *pSource) /* override */;
+        virtual void installEventFilterHelper(QObject *pSource) RT_OVERRIDE;
     /** @} */
 
     /** @name Children stuff.
       * @{ */
         /** Returns children items of certain @a enmType. */
-        virtual QList<UIDetailsItem*> items(UIDetailsItemType enmType = UIDetailsItemType_Set) const /* override */;
+        virtual QList<UIDetailsItem*> items(UIDetailsItemType enmType = UIDetailsItemType_Set) const RT_OVERRIDE;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
         /** Updates layout. */
-        virtual void updateLayout() /* override */;
+        virtual void updateLayout() RT_OVERRIDE;
 
         /** Returns minimum width-hint. */
-        virtual int minimumWidthHint() const /* override */;
+        virtual int minimumWidthHint() const RT_OVERRIDE;
         /** Returns minimum height-hint. */
-        virtual int minimumHeightHint() const /* override */;
+        virtual int minimumHeightHint() const RT_OVERRIDE;
     /** @} */
 
 protected slots:
@@ -91,42 +101,36 @@ protected slots:
           * @param  uStepId    Brings the step ID.
           * @param  iStepNumber  Brings the step number. */
     /** @} */
-    virtual void sltBuildStep(const QUuid &uStepId, int iStepNumber) /* override */;
+    virtual void sltBuildStep(const QUuid &uStepId, int iStepNumber) RT_OVERRIDE;
 
 protected:
-
-    /** @name Event-handling stuff.
-      * @{ */
-        /** Performs painting using passed @a pPainter, @a pOptions and optionally specified @a pWidget. */
-        virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) /* override */;
-    /** @} */
 
     /** @name Item stuff.
       * @{ */
         /** Returns RTTI item type. */
-        virtual int type() const /* override */ { return Type; }
+        virtual int type() const RT_OVERRIDE { return Type; }
 
         /** Returns the description of the item. */
-        virtual QString description() const /* override */ { return QString(); }
+        virtual QString description() const RT_OVERRIDE { return QString(); }
     /** @} */
 
     /** @name Children stuff.
       * @{ */
         /** Adds child @a pItem. */
-        virtual void addItem(UIDetailsItem *pItem) /* override */;
+        virtual void addItem(UIDetailsItem *pItem) RT_OVERRIDE;
         /** Removes child @a pItem. */
-        virtual void removeItem(UIDetailsItem *pItem) /* override */;
+        virtual void removeItem(UIDetailsItem *pItem) RT_OVERRIDE;
 
         /** Returns whether there are children items of certain @a enmType. */
-        virtual bool hasItems(UIDetailsItemType enmType = UIDetailsItemType_Set) const /* override */;
+        virtual bool hasItems(UIDetailsItemType enmType = UIDetailsItemType_Set) const RT_OVERRIDE;
         /** Clears children items of certain @a enmType. */
-        virtual void clearItems(UIDetailsItemType enmType = UIDetailsItemType_Set) /* override */;
+        virtual void clearItems(UIDetailsItemType enmType = UIDetailsItemType_Set) RT_OVERRIDE;
     /** @} */
 
     /** @name Layout stuff.
       * @{ */
         /** Updates geometry. */
-        virtual void updateGeometry() /* override */;
+        virtual void updateGeometry() RT_OVERRIDE;
     /** @} */
 
 private:
@@ -135,12 +139,6 @@ private:
       * @{ */
         /** Prepares connections. */
         void prepareConnections();
-    /** @} */
-
-    /** @name Painting stuff.
-      * @{ */
-        /** Paints background using specified @a pPainter and certain @a pOptions. */
-        void paintBackground(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions) const;
     /** @} */
 
     /** @name Item stuff.

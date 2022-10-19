@@ -4,8 +4,9 @@
 # This driver provides GetTime, SetTime, GetWakeupTime, SetWakeupTime services to Runtime Service Table.
 # It will install a tagging protocol with gEfiRealTimeClockArchProtocolGuid.
 #
-# Copyright (c) 2006 - 2018, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
 # Copyright (c) 2017, AMD Inc. All rights reserved.<BR>
+# Copyright (c) 2018 - 2020, ARM Limited. All rights reserved.<BR>
 #
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 #
@@ -33,7 +34,6 @@
 
 [Packages]
   MdePkg/MdePkg.dec
-  MdeModulePkg/MdeModulePkg.dec
   PcAtChipsetPkg/PcAtChipsetPkg.dec
 
 [LibraryClasses]
@@ -62,17 +62,24 @@
   ## SOMETIMES_CONSUMES ## SystemTable
   gEfiAcpiTableGuid
 
+  gEfiEventVirtualAddressChangeGuid
+
+[FeaturePcd]
+  gPcAtChipsetPkgTokenSpaceGuid.PcdRtcUseMmio                   ## CONSUMES
+
 [FixedPcd]
   gPcAtChipsetPkgTokenSpaceGuid.PcdInitialValueRtcRegisterA     ## CONSUMES
   gPcAtChipsetPkgTokenSpaceGuid.PcdInitialValueRtcRegisterB     ## CONSUMES
   gPcAtChipsetPkgTokenSpaceGuid.PcdInitialValueRtcRegisterD     ## CONSUMES
 
 [Pcd]
-  gEfiMdeModulePkgTokenSpaceGuid.PcdRealTimeClockUpdateTimeout  ## CONSUMES
+  gPcAtChipsetPkgTokenSpaceGuid.PcdRealTimeClockUpdateTimeout   ## CONSUMES
   gPcAtChipsetPkgTokenSpaceGuid.PcdMinimalValidYear             ## CONSUMES
   gPcAtChipsetPkgTokenSpaceGuid.PcdMaximalValidYear             ## CONSUMES
   gPcAtChipsetPkgTokenSpaceGuid.PcdRtcIndexRegister             ## CONSUMES
   gPcAtChipsetPkgTokenSpaceGuid.PcdRtcTargetRegister            ## CONSUMES
+  gPcAtChipsetPkgTokenSpaceGuid.PcdRtcIndexRegister64           ## CONSUMES
+  gPcAtChipsetPkgTokenSpaceGuid.PcdRtcTargetRegister64          ## CONSUMES
 
 [Depex]
   gEfiVariableArchProtocolGuid AND gEfiVariableWriteArchProtocolGuid

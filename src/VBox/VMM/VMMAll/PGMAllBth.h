@@ -11,15 +11,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifdef _MSC_VER
@@ -36,6 +46,15 @@ RT_C_DECLS_BEGIN
 PGM_BTH_DECL(int, Enter)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3);
 #ifndef IN_RING3
 PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, bool *pfLockTaken);
+PGM_BTH_DECL(int, NestedTrap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysNestedFault,
+                                       bool fIsLinearAddrValid, RTGCPTR GCPtrNestedFault, PPGMPTWALK pWalk, bool *pfLockTaken);
+# if defined(VBOX_WITH_NESTED_HWVIRT_VMX_EPT) && PGM_SHW_TYPE == PGM_TYPE_EPT
+static void PGM_BTH_NAME(NestedSyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPte, RTGCPHYS GCPhysPage, PPGMPOOLPAGE pShwPage,
+                                               unsigned iPte, PPGMPTWALKGST pGstWalkAll);
+static int  PGM_BTH_NAME(NestedSyncPage)(PVMCPUCC pVCpu, RTGCPHYS GCPhysNestedPage, RTGCPHYS GCPhysPage, unsigned cPages,
+                                         uint32_t uErr, PPGMPTWALKGST pGstWalkAll);
+static int  PGM_BTH_NAME(NestedSyncPT)(PVMCPUCC pVCpu, RTGCPHYS GCPhysNestedPage, RTGCPHYS GCPhysPage, PPGMPTWALKGST pGstWalkAll);
+# endif /* VBOX_WITH_NESTED_HWVIRT_VMX_EPT */
 #endif
 PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage);
 static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPage, unsigned cPages, unsigned uErr);
@@ -110,10 +129,9 @@ PGM_BTH_DECL(int, Enter)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
 
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
 
-    Assert((HMIsNestedPagingActive(pVM) || VM_IS_NEM_ENABLED(pVM)) == pVM->pgm.s.fNestedPaging);
     Assert(!pVM->pgm.s.fNestedPaging);
 
-    pgmLock(pVM);
+    PGM_LOCK_VOID(pVM);
     /* Note: we only really need shadow paging in real and protected mode for VT-x and AMD-V (excluding nested paging/EPT modes),
      *       but any calls to GC need a proper shadow page setup as well.
      */
@@ -126,11 +144,6 @@ PGM_BTH_DECL(int, Enter)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
 
         /* Mark the page as unlocked; allow flushing again. */
         pgmPoolUnlockPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
-
-# ifndef PGM_WITHOUT_MAPPINGS
-        /* Remove the hypervisor mappings from the shadow page table. */
-        pgmMapDeactivateCR3(pVM, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
-# endif
 
         pgmPoolFreeByPage(pPool, pOldShwPageCR3, NIL_PGMPOOL_IDX, UINT32_MAX);
         pVCpu->pgm.s.pShwPageCR3R3 = NIL_RTR3PTR;
@@ -145,8 +158,8 @@ PGM_BTH_DECL(int, Enter)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
                           &pNewShwPageCR3);
     AssertRCReturn(rc, rc);
 
-    pVCpu->pgm.s.pShwPageCR3R3 = (R3PTRTYPE(PPGMPOOLPAGE))MMHyperCCToR3(pVM, pNewShwPageCR3);
-    pVCpu->pgm.s.pShwPageCR3R0 = (R0PTRTYPE(PPGMPOOLPAGE))MMHyperCCToR0(pVM, pNewShwPageCR3);
+    pVCpu->pgm.s.pShwPageCR3R3 = pgmPoolConvertPageToR3(pPool, pNewShwPageCR3);
+    pVCpu->pgm.s.pShwPageCR3R0 = pgmPoolConvertPageToR0(pPool, pNewShwPageCR3);
 
     /* Mark the page as locked; disallow flushing. */
     pgmPoolLockPage(pPool, pNewShwPageCR3);
@@ -154,12 +167,7 @@ PGM_BTH_DECL(int, Enter)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
     /* Set the current hypervisor CR3. */
     CPUMSetHyperCR3(pVCpu, PGMGetHyperCR3(pVCpu));
 
-# ifndef PGM_WITHOUT_MAPPINGS
-    /* Apply all hypervisor mappings to the new CR3. */
-    rc = pgmMapActivateCR3(pVM, pNewShwPageCR3);
-# endif
-
-    pgmUnlock(pVM);
+    PGM_UNLOCK(pVM);
     return rc;
 #else
     NOREF(pVCpu); NOREF(GCPhysCR3);
@@ -179,47 +187,29 @@ PGM_BTH_DECL(int, Enter)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
  * @retval  VINF_EM_RAW_EMULATE_INSTR
  *
  * @param   pVCpu           The cross context virtual CPU structure of the calling EMT.
- * @param   pGstWalk        The guest page table walk result.
+ * @param   pWalk           The guest page table walk result.
  * @param   uErr            The error code.
  */
-PGM_BTH_DECL(VBOXSTRICTRC, Trap0eHandlerGuestFault)(PVMCPUCC pVCpu, PGSTPTWALK pGstWalk, RTGCUINT uErr)
+PGM_BTH_DECL(VBOXSTRICTRC, Trap0eHandlerGuestFault)(PVMCPUCC pVCpu, PPGMPTWALK pWalk, RTGCUINT uErr)
 {
-#  if !defined(PGM_WITHOUT_MAPPINGS) && (PGM_GST_TYPE == PGM_TYPE_32BIT || PGM_GST_TYPE == PGM_TYPE_PAE)
-    /*
-     * Check for write conflicts with our hypervisor mapping.
-     *
-     * If the  guest happens to access a non-present page, where our hypervisor
-     * is currently mapped, then we'll create a #PF storm in the guest.
-     */
-    if (   (uErr & (X86_TRAP_PF_P | X86_TRAP_PF_RW)) == (X86_TRAP_PF_P | X86_TRAP_PF_RW)
-        && pgmMapAreMappingsEnabled(pVCpu->CTX_SUFF(pVM))
-        && MMHyperIsInsideArea(pVCpu->CTX_SUFF(pVM), pGstWalk->Core.GCPtr))
-    {
-        /* Force a CR3 sync to check for conflicts and emulate the instruction. */
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3);
-        STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2GuestTrap; });
-        return VINF_EM_RAW_EMULATE_INSTR;
-    }
-#  endif
-
     /*
      * Calc the error code for the guest trap.
      */
     uint32_t uNewErr = GST_IS_NX_ACTIVE(pVCpu)
                      ? uErr & (X86_TRAP_PF_RW | X86_TRAP_PF_US | X86_TRAP_PF_ID)
                      : uErr & (X86_TRAP_PF_RW | X86_TRAP_PF_US);
-    if (   pGstWalk->Core.fRsvdError
-        || pGstWalk->Core.fBadPhysAddr)
+    if (   pWalk->fRsvdError
+        || pWalk->fBadPhysAddr)
     {
         uNewErr |= X86_TRAP_PF_RSVD | X86_TRAP_PF_P;
-        Assert(!pGstWalk->Core.fNotPresent);
+        Assert(!pWalk->fNotPresent);
     }
-    else if (!pGstWalk->Core.fNotPresent)
+    else if (!pWalk->fNotPresent)
         uNewErr |= X86_TRAP_PF_P;
     TRPMSetErrorCode(pVCpu, uNewErr);
 
-    LogFlow(("Guest trap; cr2=%RGv uErr=%RGv lvl=%d\n", pGstWalk->Core.GCPtr, uErr, pGstWalk->Core.uLevel));
-    STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2GuestTrap; });
+    LogFlow(("Guest trap; cr2=%RGv uErr=%RGv lvl=%d\n", pWalk->GCPtr, uErr, pWalk->uLevel));
+    STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2GuestTrap; });
     return VINF_EM_RAW_GUEST_TRAP;
 }
 # endif /* PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) */
@@ -238,13 +228,15 @@ PGM_BTH_DECL(VBOXSTRICTRC, Trap0eHandlerGuestFault)(PVMCPUCC pVCpu, PGSTPTWALK p
  * @param   pRegFrame       The register frame.
  * @param   pvFault         The fault address.
  * @param   pPage           The guest page at @a pvFault.
- * @param   pGstWalk        The guest page table walk result.
+ * @param   pWalk           The guest page table walk result.
+ * @param   pGstWalk        The guest paging-mode specific walk information.
  * @param   pfLockTaken     PGM lock taken here or not (out).  This is true
  *                          when we're called.
  */
 static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame,
                                                                 RTGCPTR pvFault, PPGMPAGE pPage, bool *pfLockTaken
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) || defined(DOXYGEN_RUNNING)
+                                                                , PPGMPTWALK pWalk
                                                                 , PGSTPTWALK pGstWalk
 # endif
                                                                 )
@@ -261,14 +253,15 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
          * Physical page access handler.
          */
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-        const RTGCPHYS  GCPhysFault = pGstWalk->Core.GCPhys;
+        const RTGCPHYS  GCPhysFault = pWalk->GCPhys;
 # else
         const RTGCPHYS  GCPhysFault = PGM_A20_APPLY(pVCpu, (RTGCPHYS)pvFault);
 # endif
-        PPGMPHYSHANDLER pCur = pgmHandlerPhysicalLookup(pVM, GCPhysFault);
-        if (pCur)
+        PPGMPHYSHANDLER pCur;
+        rcStrict = pgmHandlerPhysicalLookup(pVM, GCPhysFault, &pCur);
+        if (RT_SUCCESS(rcStrict))
         {
-            PPGMPHYSHANDLERTYPEINT pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
+            PCPGMPHYSHANDLERTYPEINT const pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
 
 #  ifdef PGM_SYNC_N_PAGES
             /*
@@ -291,8 +284,8 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
                     || rcStrict == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
                 {
                     AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersOutOfSync);
-                    STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndPhys; });
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersOutOfSync);
+                    STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSyncHndPhys; });
                     return rcStrict;
                 }
             }
@@ -304,8 +297,8 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
             if (   !(uErr & X86_TRAP_PF_RSVD)
                 && pCurType->enmKind != PGMPHYSHANDLERKIND_WRITE
 #   if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-                && pGstWalk->Core.fEffectiveRW
-                && !pGstWalk->Core.fEffectiveUS /** @todo Remove pGstWalk->Core.fEffectiveUS and X86_PTE_US further down in the sync code. */
+                && (pWalk->fEffective & (PGM_PTATTRS_W_MASK | PGM_PTATTRS_US_MASK))
+                                      == PGM_PTATTRS_W_MASK  /** @todo Remove pGstWalk->Core.fEffectiveUS and X86_PTE_US further down in the sync code. */
 #   endif
                )
             {
@@ -318,8 +311,8 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
                     || rcStrict == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
                 {
                     AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersOutOfSync);
-                    STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndPhys; });
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersOutOfSync);
+                    STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSyncHndPhys; });
                     return rcStrict;
                 }
             }
@@ -330,51 +323,44 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
                       ("Unexpected trap for physical handler: %08X (phys=%08x) pPage=%R[pgmpage] uErr=%X, enmKind=%d\n",
                        pvFault, GCPhysFault, pPage, uErr, pCurType->enmKind));
             if (pCurType->enmKind == PGMPHYSHANDLERKIND_WRITE)
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersPhysWrite);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersPhysWrite);
             else
             {
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersPhysAll);
-                if (uErr & X86_TRAP_PF_RSVD) STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersPhysAllOpt);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersPhysAll);
+                if (uErr & X86_TRAP_PF_RSVD) STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersPhysAllOpt);
             }
 
-            if (pCurType->CTX_SUFF(pfnPfHandler))
+            if (pCurType->pfnPfHandler)
             {
                 STAM_PROFILE_START(&pCur->Stat, h);
 
                 if (pCurType->fKeepPgmLock)
                 {
-                    rcStrict = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPhysFault,
-                                                                pCur->CTX_SUFF(pvUser));
+                    rcStrict = pCurType->pfnPfHandler(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPhysFault,
+                                                      !pCurType->fRing0DevInsIdx ? pCur->uUser
+                                                      : (uintptr_t)PDMDeviceRing0IdxToInstance(pVM, pCur->uUser));
 
-#  ifdef VBOX_WITH_STATISTICS
-                    pCur = pgmHandlerPhysicalLookup(pVM, GCPhysFault); /* paranoia in case the handler deregistered itself */
-                    if (pCur)
-                        STAM_PROFILE_STOP(&pCur->Stat, h);
-#  endif
+                    STAM_PROFILE_STOP(&pCur->Stat, h); /* no locking needed, entry is unlikely reused before we get here. */
                 }
                 else
                 {
-                    void * const pvUser = pCur->CTX_SUFF(pvUser);
+                    uint64_t const uUser = !pCurType->fRing0DevInsIdx ? pCur->uUser
+                                         : (uintptr_t)PDMDeviceRing0IdxToInstance(pVM, pCur->uUser);
                     PGM_UNLOCK(pVM);
                     *pfLockTaken = false;
 
-                    rcStrict = pCurType->CTX_SUFF(pfnPfHandler)(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPhysFault, pvUser);
+                    rcStrict = pCurType->pfnPfHandler(pVM, pVCpu, uErr, pRegFrame, pvFault, GCPhysFault, uUser);
 
-#  ifdef VBOX_WITH_STATISTICS
-                    PGM_LOCK_VOID(pVM);
-                    pCur = pgmHandlerPhysicalLookup(pVM, GCPhysFault);
-                    if (pCur)
-                        STAM_PROFILE_STOP(&pCur->Stat, h);
-                    PGM_UNLOCK(pVM);
-#  endif
+                    STAM_PROFILE_STOP(&pCur->Stat, h); /* no locking needed, entry is unlikely reused before we get here. */
                 }
             }
             else
                 rcStrict = VINF_EM_RAW_EMULATE_INSTR;
 
-            STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndPhys; });
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2HndPhys; });
             return rcStrict;
         }
+        AssertMsgReturn(rcStrict == VERR_NOT_FOUND, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)), rcStrict);
     }
 
     /*
@@ -385,7 +371,7 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
      * we first check if this was a page-not-present fault for a page with only
      * write access handlers. Restart the instruction if it wasn't a write access.
      */
-    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersUnhandled);
+    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersUnhandled);
 
     if (    !PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage)
         &&  !(uErr & X86_TRAP_PF_P))
@@ -400,8 +386,8 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
             ||  !(uErr & X86_TRAP_PF_RW))
         {
             AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersOutOfSync);
-            STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndPhys; });
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersOutOfSync);
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSyncHndPhys; });
             return rcStrict;
         }
     }
@@ -411,7 +397,7 @@ static VBOXSTRICTRC PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, 
      */
     rcStrict = PGMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault);
     LogFlow(("PGM: PGMInterpretInstruction -> rcStrict=%d pPage=%R[pgmpage]\n", VBOXSTRICTRC_VAL(rcStrict), pPage));
-    STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2HndUnhandled; });
+    STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2HndUnhandled; });
     return rcStrict;
 } /* if any kind of handler */
 # endif /* !PGM_TYPE_IS_NESTED(PGM_SHW_TYPE) && PGM_SHW_TYPE != PGM_TYPE_NONE*/
@@ -445,10 +431,11 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
     /*
      * Walk the guest page translation tables and check if it's a guest fault.
      */
+    PGMPTWALK Walk;
     GSTPTWALK GstWalk;
-    rc = PGM_GST_NAME(Walk)(pVCpu, pvFault, &GstWalk);
+    rc = PGM_GST_NAME(Walk)(pVCpu, pvFault, &Walk, &GstWalk);
     if (RT_FAILURE_NP(rc))
-        return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerGuestFault)(pVCpu, &GstWalk, uErr));
+        return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerGuestFault)(pVCpu, &Walk, uErr));
 
     /* assert some GstWalk sanity. */
 #   if PGM_GST_TYPE == PGM_TYPE_AMD64
@@ -459,75 +446,109 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
 #   endif
     /*AssertMsg(GstWalk.Pde.u == GstWalk.pPde->u, ("%RX64 %RX64\n", (uint64_t)GstWalk.Pde.u, (uint64_t)GstWalk.pPde->u)); - ditto */
     /*AssertMsg(GstWalk.Core.fBigPage || GstWalk.Pte.u == GstWalk.pPte->u, ("%RX64 %RX64\n", (uint64_t)GstWalk.Pte.u, (uint64_t)GstWalk.pPte->u)); - ditto */
-    Assert(GstWalk.Core.fSucceeded);
+    Assert(Walk.fSucceeded);
+    Assert(Walk.fEffective & PGM_PTATTRS_R_MASK);
 
     if (uErr & (X86_TRAP_PF_RW | X86_TRAP_PF_US | X86_TRAP_PF_ID))
     {
         if (    (   (uErr & X86_TRAP_PF_RW)
-                 && !GstWalk.Core.fEffectiveRW
+                 && !(Walk.fEffective & PGM_PTATTRS_W_MASK)
                  && (   (uErr & X86_TRAP_PF_US)
                      || CPUMIsGuestR0WriteProtEnabled(pVCpu)) )
-            ||  ((uErr & X86_TRAP_PF_US) && !GstWalk.Core.fEffectiveUS)
-            ||  ((uErr & X86_TRAP_PF_ID) && GstWalk.Core.fEffectiveNX)
+            ||  ((uErr & X86_TRAP_PF_US) && !(Walk.fEffective & PGM_PTATTRS_US_MASK))
+            ||  ((uErr & X86_TRAP_PF_ID) &&  (Walk.fEffective & PGM_PTATTRS_NX_MASK))
            )
-            return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerGuestFault)(pVCpu, &GstWalk, uErr));
+            return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerGuestFault)(pVCpu, &Walk, uErr));
     }
+
+    /* Take the big lock now before we update flags. */
+    *pfLockTaken = true;
+    PGM_LOCK_VOID(pVM);
 
     /*
      * Set the accessed and dirty flags.
      */
+    /** @todo Should probably use cmpxchg logic here as we're potentially racing
+     *        other CPUs in SMP configs. (the lock isn't enough, since we take it
+     *        after walking and the page tables could be stale already) */
 #   if PGM_GST_TYPE == PGM_TYPE_AMD64
-    GstWalk.Pml4e.u     |= X86_PML4E_A;
-    GstWalk.pPml4e->u   |= X86_PML4E_A;
-    GstWalk.Pdpe.u      |= X86_PDPE_A;
-    GstWalk.pPdpe->u    |= X86_PDPE_A;
-#   endif
-    if (GstWalk.Core.fBigPage)
+    if (!(GstWalk.Pml4e.u & X86_PML4E_A))
     {
-        Assert(GstWalk.Pde.b.u1Size);
+        GstWalk.Pml4e.u |= X86_PML4E_A;
+        GST_ATOMIC_OR(&GstWalk.pPml4e->u, X86_PML4E_A);
+    }
+    if (!(GstWalk.Pdpe.u & X86_PDPE_A))
+    {
+        GstWalk.Pdpe.u |= X86_PDPE_A;
+        GST_ATOMIC_OR(&GstWalk.pPdpe->u, X86_PDPE_A);
+    }
+#   endif
+    if (Walk.fBigPage)
+    {
+        Assert(GstWalk.Pde.u & X86_PDE_PS);
         if (uErr & X86_TRAP_PF_RW)
         {
-            GstWalk.Pde.u   |= X86_PDE4M_A | X86_PDE4M_D;
-            GstWalk.pPde->u |= X86_PDE4M_A | X86_PDE4M_D;
+            if ((GstWalk.Pde.u & (X86_PDE4M_A | X86_PDE4M_D)) != (X86_PDE4M_A | X86_PDE4M_D))
+            {
+                GstWalk.Pde.u |= X86_PDE4M_A | X86_PDE4M_D;
+                GST_ATOMIC_OR(&GstWalk.pPde->u, X86_PDE4M_A | X86_PDE4M_D);
+            }
         }
         else
         {
-            GstWalk.Pde.u   |= X86_PDE4M_A;
-            GstWalk.pPde->u |= X86_PDE4M_A;
+            if (!(GstWalk.Pde.u & X86_PDE4M_A))
+            {
+                GstWalk.Pde.u |= X86_PDE4M_A;
+                GST_ATOMIC_OR(&GstWalk.pPde->u, X86_PDE4M_A);
+            }
         }
     }
     else
     {
-        Assert(!GstWalk.Pde.b.u1Size);
-        GstWalk.Pde.u   |= X86_PDE_A;
-        GstWalk.pPde->u |= X86_PDE_A;
+        Assert(!(GstWalk.Pde.u & X86_PDE_PS));
+        if (!(GstWalk.Pde.u & X86_PDE_A))
+        {
+            GstWalk.Pde.u |= X86_PDE_A;
+            GST_ATOMIC_OR(&GstWalk.pPde->u, X86_PDE_A);
+        }
+
         if (uErr & X86_TRAP_PF_RW)
         {
 #   ifdef VBOX_WITH_STATISTICS
-            if (!GstWalk.Pte.n.u1Dirty)
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtiedPage));
+            if (GstWalk.Pte.u & X86_PTE_D)
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageAlreadyDirty));
             else
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageAlreadyDirty));
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtiedPage));
 #   endif
-            GstWalk.Pte.u   |= X86_PTE_A | X86_PTE_D;
-            GstWalk.pPte->u |= X86_PTE_A | X86_PTE_D;
+            if ((GstWalk.Pte.u & (X86_PTE_A | X86_PTE_D)) != (X86_PTE_A | X86_PTE_D))
+            {
+                GstWalk.Pte.u |= X86_PTE_A | X86_PTE_D;
+                GST_ATOMIC_OR(&GstWalk.pPte->u, X86_PTE_A | X86_PTE_D);
+            }
         }
         else
         {
-            GstWalk.Pte.u   |= X86_PTE_A;
-            GstWalk.pPte->u |= X86_PTE_A;
+            if (!(GstWalk.Pte.u & X86_PTE_A))
+            {
+                GstWalk.Pte.u |= X86_PTE_A;
+                GST_ATOMIC_OR(&GstWalk.pPte->u, X86_PTE_A);
+            }
         }
         Assert(GstWalk.Pte.u == GstWalk.pPte->u);
     }
+#if 0
+    /* Disabling this since it's not reliable for SMP, see @bugref{10092#c22}. */
     AssertMsg(GstWalk.Pde.u == GstWalk.pPde->u || GstWalk.pPte->u == GstWalk.pPde->u,
               ("%RX64 %RX64 pPte=%p pPde=%p Pte=%RX64\n", (uint64_t)GstWalk.Pde.u, (uint64_t)GstWalk.pPde->u, GstWalk.pPte, GstWalk.pPde, (uint64_t)GstWalk.pPte->u));
+#endif
+
 #  else  /* !PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) */
     GSTPDE const PdeSrcDummy = { X86_PDE_P | X86_PDE_US | X86_PDE_RW | X86_PDE_A}; /** @todo eliminate this */
-#  endif /* !PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) */
 
     /* Take the big lock now. */
     *pfLockTaken = true;
-    pgmLock(pVM);
+    PGM_LOCK_VOID(pVM);
+#  endif /* !PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) */
 
 #  ifdef PGM_WITH_MMIO_OPTIMIZATIONS
     /*
@@ -539,10 +560,10 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
         Assert(uErr & X86_TRAP_PF_P);
         PPGMPAGE pPage;
 #   if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-        rc = pgmPhysGetPageEx(pVM, GstWalk.Core.GCPhys, &pPage);
+        rc = pgmPhysGetPageEx(pVM, Walk.GCPhys, &pPage);
         if (RT_SUCCESS(rc) && PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
             return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(pVCpu, uErr, pRegFrame, pvFault, pPage,
-                                                                                 pfLockTaken, &GstWalk));
+                                                                                 pfLockTaken, &Walk, &GstWalk));
         rc = PGM_BTH_NAME(SyncPage)(pVCpu, GstWalk.Pde, pvFault, 1, uErr);
 #   else
         rc = pgmPhysGetPageEx(pVM, PGM_A20_APPLY(pVCpu, (RTGCPHYS)pvFault), &pPage);
@@ -602,21 +623,21 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
      */
     if (uErr & X86_TRAP_PF_RW)  /* write fault? */
     {
-        STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyBitTracking), a);
+        STAM_PROFILE_START(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyBitTracking), a);
         rc = PGM_BTH_NAME(CheckDirtyPageFault)(pVCpu, uErr, &pPDDst->a[iPDDst], GstWalk.pPde, pvFault);
-        STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyBitTracking), a);
+        STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyBitTracking), a);
         if (rc == VINF_PGM_HANDLED_DIRTY_BIT_FAULT)
         {
-            STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution)
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0
                         = rc == VINF_PGM_HANDLED_DIRTY_BIT_FAULT
-                          ? &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2DirtyAndAccessed
-                          : &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2GuestTrap; });
+                          ? &pVCpu->pgm.s.Stats.StatRZTrap0eTime2DirtyAndAccessed
+                          : &pVCpu->pgm.s.Stats.StatRZTrap0eTime2GuestTrap; });
             Log8(("Trap0eHandler: returns VINF_SUCCESS\n"));
             return VINF_SUCCESS;
         }
 #ifdef DEBUG_bird
         AssertMsg(GstWalk.Pde.u == GstWalk.pPde->u || GstWalk.pPte->u == GstWalk.pPde->u || pVM->cCpus > 1, ("%RX64 %RX64\n", (uint64_t)GstWalk.Pde.u, (uint64_t)GstWalk.pPde->u)); // - triggers with smp w7 guests.
-        AssertMsg(GstWalk.Core.fBigPage || GstWalk.Pte.u == GstWalk.pPte->u || pVM->cCpus > 1, ("%RX64 %RX64\n", (uint64_t)GstWalk.Pte.u, (uint64_t)GstWalk.pPte->u)); // - ditto.
+        AssertMsg(Walk.fBigPage || GstWalk.Pte.u == GstWalk.pPte->u || pVM->cCpus > 1, ("%RX64 %RX64\n", (uint64_t)GstWalk.Pte.u, (uint64_t)GstWalk.pPte->u)); // - ditto.
 #endif
     }
 
@@ -638,12 +659,12 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
      *
      */
 #  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-    Assert(GstWalk.Pde.n.u1Present);
+    Assert(GstWalk.Pde.u & X86_PDE_P);
 #  endif
     if (    !(uErr & X86_TRAP_PF_P) /* not set means page not present instead of page protection violation */
-        &&  !pPDDst->a[iPDDst].n.u1Present)
+        &&  !SHW_PDE_IS_P(pPDDst->a[iPDDst]))
     {
-        STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2SyncPT; });
+        STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2SyncPT; });
 #  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
         LogFlow(("=>SyncPT %04x = %08RX64\n", (pvFault >> GST_PD_SHIFT) & GST_PD_MASK, (uint64_t)GstWalk.Pde.u));
         rc = PGM_BTH_NAME(SyncPT)(pVCpu, (pvFault >> GST_PD_SHIFT) & GST_PD_MASK, GstWalk.pPd, pvFault);
@@ -658,53 +679,6 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
         return VINF_PGM_SYNC_CR3;
     }
 
-#  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) && !defined(PGM_WITHOUT_MAPPINGS)
-    /*
-     * Check if this address is within any of our mappings.
-     *
-     * This is *very* fast and it's gonna save us a bit of effort below and prevent
-     * us from screwing ourself with MMIO2 pages which have a GC Mapping (VRam).
-     * (BTW, it's impossible to have physical access handlers in a mapping.)
-     */
-    if (pgmMapAreMappingsEnabled(pVM))
-    {
-        PPGMMAPPING pMapping = pVM->pgm.s.CTX_SUFF(pMappings);
-        for ( ; pMapping; pMapping = pMapping->CTX_SUFF(pNext))
-        {
-            if (pvFault < pMapping->GCPtr)
-                break;
-            if (pvFault - pMapping->GCPtr < pMapping->cb)
-            {
-                /*
-                 * The first thing we check is if we've got an undetected conflict.
-                 */
-                if (pgmMapAreMappingsFloating(pVM))
-                {
-                    unsigned iPT = pMapping->cb >> GST_PD_SHIFT;
-                    while (iPT-- > 0)
-                        if (GstWalk.pPde[iPT].n.u1Present)
-                        {
-                            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eConflicts);
-                            Log(("Trap0e: Detected Conflict %RGv-%RGv\n", pMapping->GCPtr, pMapping->GCPtrLast));
-                            VMCPU_FF_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3); /** @todo no need to do global sync,right? */
-                            STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2Mapping; });
-                            return VINF_PGM_SYNC_CR3;
-                        }
-                }
-
-                /*
-                 * Pretend we're not here and let the guest handle the trap.
-                 */
-                TRPMSetErrorCode(pVCpu, uErr & ~X86_TRAP_PF_P);
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eGuestPFMapping);
-                LogFlow(("PGM: Mapping access -> route trap to recompiler!\n"));
-                STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2Mapping; });
-                return VINF_EM_RAW_GUEST_TRAP;
-            }
-        }
-    } /* pgmAreMappingsEnabled(&pVM->pgm.s) */
-#  endif /* PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) */
-
     /*
      * Check if this fault address is flagged for special treatment,
      * which means we'll have to figure out the physical address and
@@ -714,9 +688,9 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
      * in page tables which the guest believes to be present.
      */
 #  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-    RTGCPHYS GCPhys = GstWalk.Core.GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK;
+    RTGCPHYS GCPhys = Walk.GCPhys & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
 #  else
-    RTGCPHYS GCPhys = PGM_A20_APPLY(pVCpu, (RTGCPHYS)pvFault & ~(RTGCPHYS)PAGE_OFFSET_MASK);
+    RTGCPHYS GCPhys = PGM_A20_APPLY(pVCpu, (RTGCPHYS)pvFault & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK);
 #  endif /* PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) */
     PPGMPAGE pPage;
     rc = pgmPhysGetPageEx(pVM, GCPhys, &pPage);
@@ -728,18 +702,18 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
          * back to the recompiler to emulate the instruction.
          */
         LogFlow(("PGM #PF: pgmPhysGetPageEx(%RGp) failed with %Rrc\n", GCPhys, rc));
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eHandlersInvalid);
-        STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2InvalidPhys; });
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersInvalid);
+        STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2InvalidPhys; });
         return VINF_EM_RAW_EMULATE_INSTR;
     }
 
     /*
      * Any handlers for this page?
      */
-    if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
+    if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) && !PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPage))
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
         return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(pVCpu, uErr, pRegFrame, pvFault, pPage, pfLockTaken,
-                                                                             &GstWalk));
+                                                                             &Walk, &GstWalk));
 # else
         return VBOXSTRICTRC_TODO(PGM_BTH_NAME(Trap0eHandlerDoAccessHandlers)(pVCpu, uErr, pRegFrame, pvFault, pPage, pfLockTaken));
 # endif
@@ -756,9 +730,9 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
          * Page is not present in our page tables. Try to sync it!
          */
         if (uErr & X86_TRAP_PF_US)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageOutOfSyncUser));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncUser));
         else /* supervisor */
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageOutOfSyncSupervisor));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncSupervisor));
 
         if (PGM_PAGE_IS_BALLOONED(pPage))
         {
@@ -767,8 +741,8 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
                ecc, random nr generator.) */
             rc = VBOXSTRICTRC_TODO(PGMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault));
             LogFlow(("PGM: PGMInterpretInstruction balloon -> rc=%d pPage=%R[pgmpage]\n", rc, pPage));
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageOutOfSyncBallloon));
-            STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2Ballooned; });
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncBallloon));
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2Ballooned; });
             return rc;
         }
 
@@ -780,7 +754,7 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
         if (RT_SUCCESS(rc))
         {
             /* The page was successfully synced, return to the guest. */
-            STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSync; });
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSync; });
             return VINF_SUCCESS;
         }
     }
@@ -807,7 +781,7 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
                 Log(("PGM #PF: Make writable: %RGp %R[pgmpage] pvFault=%RGp uErr=%#x\n", GCPhys, pPage, pvFault, uErr));
                 Assert(!PGM_PAGE_IS_ZERO(pPage));
                 AssertFatalMsg(!PGM_PAGE_IS_BALLOONED(pPage), ("Unexpected ballooned page at %RGp\n", GCPhys));
-                STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2MakeWritable; });
+                STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2MakeWritable; });
 
                 rc = pgmPhysPageMakeWritable(pVM, pPage, GCPhys);
                 if (rc != VINF_SUCCESS)
@@ -823,7 +797,7 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
             /*
              * Check to see if we need to emulate the instruction if CR0.WP=0.
              */
-            if (    !GstWalk.Core.fEffectiveRW
+            if (    !(Walk.fEffective & PGM_PTATTRS_W_MASK)
                 &&  (CPUMGetGuestCR0(pVCpu) & (X86_CR0_WP | X86_CR0_PG)) == X86_CR0_PG
                 &&  CPUMGetGuestCPL(pVCpu) < 3)
             {
@@ -842,18 +816,17 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
                  * bit changes to 1 (see PGMCr0WpEnabled()).
                  */
 #    if (PGM_GST_TYPE == PGM_TYPE_32BIT || PGM_GST_TYPE == PGM_TYPE_PAE) && 1
-                if (   GstWalk.Core.fEffectiveUS
-                    && !GstWalk.Core.fEffectiveRW
-                    && (GstWalk.Core.fBigPage || GstWalk.Pde.n.u1Write)
+                if (   (Walk.fEffective & (PGM_PTATTRS_W_MASK | PGM_PTATTRS_US_MASK)) == PGM_PTATTRS_US_MASK
+                    && (Walk.fBigPage || (GstWalk.Pde.u & X86_PDE_RW))
                     && pVM->cCpus == 1 /* Sorry, no go on SMP. Add CFGM option? */)
                 {
-                    Log(("PGM #PF: Netware WP0+RO+US hack: pvFault=%RGp uErr=%#x (big=%d)\n", pvFault, uErr, GstWalk.Core.fBigPage));
-                    rc = pgmShwMakePageSupervisorAndWritable(pVCpu, pvFault, GstWalk.Core.fBigPage, PGM_MK_PG_IS_WRITE_FAULT);
+                    Log(("PGM #PF: Netware WP0+RO+US hack: pvFault=%RGp uErr=%#x (big=%d)\n", pvFault, uErr, Walk.fBigPage));
+                    rc = pgmShwMakePageSupervisorAndWritable(pVCpu, pvFault, Walk.fBigPage, PGM_MK_PG_IS_WRITE_FAULT);
                     if (rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3)
                     {
                         PGM_INVL_PG(pVCpu, pvFault);
                         pVCpu->pgm.s.cNetwareWp0Hacks++;
-                        STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2Wp0RoUsHack; });
+                        STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2Wp0RoUsHack; });
                         return rc;
                     }
                     AssertMsg(RT_FAILURE_NP(rc), ("%Rrc\n", rc));
@@ -863,20 +836,20 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
 
                 /* Interpret the access. */
                 rc = VBOXSTRICTRC_TODO(PGMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault));
-                Log(("PGM #PF: WP0 emulation (pvFault=%RGp uErr=%#x cpl=%d fBig=%d fEffUs=%d)\n", pvFault, uErr, CPUMGetGuestCPL(pVCpu), GstWalk.Core.fBigPage, GstWalk.Core.fEffectiveUS));
+                Log(("PGM #PF: WP0 emulation (pvFault=%RGp uErr=%#x cpl=%d fBig=%d fEffUs=%d)\n", pvFault, uErr, CPUMGetGuestCPL(pVCpu), Walk.fBigPage, !!(Walk.fEffective & PGM_PTATTRS_US_MASK)));
                 if (RT_SUCCESS(rc))
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eWPEmulInRZ);
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eWPEmulInRZ);
                 else
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eWPEmulToR3);
-                STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2WPEmulation; });
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eWPEmulToR3);
+                STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2WPEmulation; });
                 return rc;
             }
 #   endif
             /// @todo count the above case; else
             if (uErr & X86_TRAP_PF_US)
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageOutOfSyncUserWrite));
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncUserWrite));
             else /* supervisor */
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageOutOfSyncSupervisorWrite));
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncSupervisorWrite));
 
             /*
              * Sync the page.
@@ -901,22 +874,22 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
                 PGM_INVL_PG(pVCpu, pvFault);
 #   endif
 #   ifdef VBOX_STRICT
-                RTGCPHYS GCPhys2 = RTGCPHYS_MAX;
-                uint64_t fPageGst = UINT64_MAX;
+                PGMPTWALK GstPageWalk;
+                GstPageWalk.GCPhys = RTGCPHYS_MAX;
                 if (!pVM->pgm.s.fNestedPaging)
                 {
-                    rc = PGMGstGetPage(pVCpu, pvFault, &fPageGst, &GCPhys2);
-                    AssertMsg(RT_SUCCESS(rc) && ((fPageGst & X86_PTE_RW) || ((CPUMGetGuestCR0(pVCpu) & (X86_CR0_WP | X86_CR0_PG)) == X86_CR0_PG && CPUMGetGuestCPL(pVCpu) < 3)), ("rc=%Rrc fPageGst=%RX64\n", rc, fPageGst));
-                    LogFlow(("Obsolete physical monitor page out of sync %RGv - phys %RGp flags=%08llx\n", pvFault, GCPhys2, (uint64_t)fPageGst));
+                    rc = PGMGstGetPage(pVCpu, pvFault, &GstPageWalk);
+                    AssertMsg(RT_SUCCESS(rc) && ((GstPageWalk.fEffective & X86_PTE_RW) || ((CPUMGetGuestCR0(pVCpu) & (X86_CR0_WP | X86_CR0_PG)) == X86_CR0_PG && CPUMGetGuestCPL(pVCpu) < 3)), ("rc=%Rrc fPageGst=%RX64\n", rc, GstPageWalk.fEffective));
+                    LogFlow(("Obsolete physical monitor page out of sync %RGv - phys %RGp flags=%08llx\n", pvFault, GstPageWalk.GCPhys, GstPageWalk.fEffective));
                 }
 #    if 0 /* Bogus! Triggers incorrectly with w7-64 and later for the SyncPage case: "Pde at %RGv changed behind our back?" */
                 uint64_t fPageShw = 0;
                 rc = PGMShwGetPage(pVCpu, pvFault, &fPageShw, NULL);
                 AssertMsg((RT_SUCCESS(rc) && (fPageShw & X86_PTE_RW)) || pVM->cCpus > 1 /* new monitor can be installed/page table flushed between the trap exit and PGMTrap0eHandler */,
-                          ("rc=%Rrc fPageShw=%RX64 GCPhys2=%RGp fPageGst=%RX64 pvFault=%RGv\n", rc, fPageShw, GCPhys2, fPageGst, pvFault));
+                          ("rc=%Rrc fPageShw=%RX64 GCPhys2=%RGp fPageGst=%RX64 pvFault=%RGv\n", rc, fPageShw, GstPageWalk.GCPhys, fPageGst, pvFault));
 #    endif
 #   endif /* VBOX_STRICT */
-                STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2OutOfSyncHndObs; });
+                STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSyncHndObs; });
                 return VINF_SUCCESS;
             }
         }
@@ -925,9 +898,8 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
          * Check for Netware WP0+RO+US hack from above and undo it when user
          * mode accesses the page again.
          */
-        else if (    GstWalk.Core.fEffectiveUS
-                 && !GstWalk.Core.fEffectiveRW
-                 && (GstWalk.Core.fBigPage || GstWalk.Pde.n.u1Write)
+        else if (   (Walk.fEffective & (PGM_PTATTRS_W_MASK | PGM_PTATTRS_US_MASK)) == PGM_PTATTRS_US_MASK
+                 && (Walk.fBigPage || (GstWalk.Pde.u & X86_PDE_RW))
                  &&  pVCpu->pgm.s.cNetwareWp0Hacks > 0
                  &&  (CPUMGetGuestCR0(pVCpu) & (X86_CR0_WP | X86_CR0_PG)) == X86_CR0_PG
                  &&  CPUMGetGuestCPL(pVCpu) == 3
@@ -940,7 +912,7 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
             {
                 PGM_INVL_PG(pVCpu, pvFault);
                 pVCpu->pgm.s.cNetwareWp0Hacks--;
-                STAM_STATS({ pVCpu->pgm.s.CTX_SUFF(pStatTrap0eAttribution) = &pVCpu->pgm.s.CTX_SUFF(pStats)->StatRZTrap0eTime2Wp0RoUsUnhack; });
+                STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2Wp0RoUsUnhack; });
                 return VINF_SUCCESS;
             }
         }
@@ -956,8 +928,8 @@ PGM_BTH_DECL(int, Trap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRe
         if (RT_SUCCESS(rc))
         {
             /* Get guest page flags. */
-            uint64_t fPageGst;
-            int rc2 = PGMGstGetPage(pVCpu, pvFault, &fPageGst, NULL);
+            PGMPTWALK GstPageWalk;
+            int rc2 = PGMGstGetPage(pVCpu, pvFault, &GstPageWalk);
             if (RT_SUCCESS(rc2))
             {
                 uint64_t fPageShw = 0;
@@ -1016,6 +988,362 @@ rc=0
 # endif
 }
 
+
+# if defined(VBOX_WITH_NESTED_HWVIRT_VMX_EPT)
+/**
+ * Deals with a nested-guest \#PF fault for a guest-physical page with a handler.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu               The cross context virtual CPU structure.
+ * @param   uErr                The error code.
+ * @param   pRegFrame           The register frame.
+ * @param   GCPhysNestedFault   The nested-guest physical address of the fault.
+ * @param   pPage               The guest page at @a GCPhysNestedFault.
+ * @param   GCPhysFault         The guest-physical address of the fault.
+ * @param   pGstWalkAll         The guest page walk result.
+ * @param   pfLockTaken         Where to store whether the PGM is still held when
+ *                              this function completes.
+ *
+ * @note    The caller has taken the PGM lock.
+ */
+static VBOXSTRICTRC PGM_BTH_NAME(NestedTrap0eHandlerDoAccessHandlers)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame,
+                                                                      RTGCPHYS GCPhysNestedFault, PPGMPAGE pPage,
+                                                                      RTGCPHYS GCPhysFault, PPGMPTWALKGST pGstWalkAll,
+                                                                      bool *pfLockTaken)
+{
+#  if PGM_GST_TYPE == PGM_TYPE_PROT \
+   && PGM_SHW_TYPE == PGM_TYPE_EPT
+
+    /** @todo Assert uErr isn't X86_TRAP_PF_RSVD and remove release checks. */
+    PGM_A20_ASSERT_MASKED(pVCpu, GCPhysFault);
+    AssertMsgReturn(PGM_PAGE_HAS_ANY_PHYSICAL_HANDLERS(pPage), ("%RGp %RGp uErr=%u\n", GCPhysNestedFault, GCPhysFault, uErr),
+                    VERR_PGM_HANDLER_IPE_1);
+
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+    RTGCPHYS const GCPhysNestedPage = GCPhysNestedFault & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
+    RTGCPHYS const GCPhysPage       = GCPhysFault & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
+
+    /*
+     * Physical page access handler.
+     */
+    PPGMPHYSHANDLER pCur;
+    VBOXSTRICTRC rcStrict = pgmHandlerPhysicalLookup(pVM, GCPhysPage, &pCur);
+    AssertRCReturn(VBOXSTRICTRC_VAL(rcStrict), rcStrict);
+
+    PCPGMPHYSHANDLERTYPEINT const pCurType = PGMPHYSHANDLER_GET_TYPE(pVM, pCur);
+    Assert(pCurType);
+
+    /*
+     * If the region is write protected and we got a page not present fault, then sync
+     * the pages. If the fault was caused by a read, then restart the instruction.
+     * In case of write access continue to the GC write handler.
+     */
+    if (   !(uErr & X86_TRAP_PF_P)
+        &&  pCurType->enmKind == PGMPHYSHANDLERKIND_WRITE)
+    {
+        Log7Func(("Syncing Monitored: GCPhysNestedPage=%RGp GCPhysPage=%RGp uErr=%#x\n", GCPhysNestedPage, GCPhysPage, uErr));
+        rcStrict = PGM_BTH_NAME(NestedSyncPage)(pVCpu, GCPhysNestedPage, GCPhysPage, 1 /*cPages*/, uErr, pGstWalkAll);
+        Assert(rcStrict != VINF_PGM_SYNCPAGE_MODIFIED_PDE);
+        if (    RT_FAILURE(rcStrict)
+            || !(uErr & X86_TRAP_PF_RW))
+        {
+            AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersOutOfSync);
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSyncHndPhys; });
+            return rcStrict;
+        }
+    }
+    else if (   !(uErr & X86_TRAP_PF_RSVD)
+             && pCurType->enmKind != PGMPHYSHANDLERKIND_WRITE)
+    {
+        /*
+         * If the access was NOT through an EPT misconfig (i.e. RSVD), sync the page.
+         * This can happen for the VMX APIC-access page.
+         */
+        Log7Func(("Syncing MMIO: GCPhysNestedPage=%RGp GCPhysPage=%RGp\n", GCPhysNestedPage, GCPhysPage));
+        rcStrict = PGM_BTH_NAME(NestedSyncPage)(pVCpu, GCPhysNestedPage, GCPhysPage, 1 /*cPages*/, uErr, pGstWalkAll);
+        Assert(rcStrict != VINF_PGM_SYNCPAGE_MODIFIED_PDE);
+        if (RT_FAILURE(rcStrict))
+        {
+            AssertMsgRC(rcStrict, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersOutOfSync);
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSyncHndPhys; });
+            return rcStrict;
+        }
+    }
+
+    AssertMsg(   pCurType->enmKind != PGMPHYSHANDLERKIND_WRITE
+              || (pCurType->enmKind == PGMPHYSHANDLERKIND_WRITE && (uErr & X86_TRAP_PF_RW)),
+              ("Unexpected trap for physical handler: %08X (phys=%08x) pPage=%R[pgmpage] uErr=%X, enmKind=%d\n",
+               GCPhysNestedFault, GCPhysFault, pPage, uErr, pCurType->enmKind));
+    if (pCurType->enmKind == PGMPHYSHANDLERKIND_WRITE)
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersPhysWrite);
+    else
+    {
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersPhysAll);
+        if (uErr & X86_TRAP_PF_RSVD)
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.StatRZTrap0eHandlersPhysAllOpt);
+    }
+
+    if (pCurType->pfnPfHandler)
+    {
+        STAM_PROFILE_START(&pCur->Stat, h);
+        uint64_t const uUser = !pCurType->fRing0DevInsIdx ? pCur->uUser
+                             : (uintptr_t)PDMDeviceRing0IdxToInstance(pVM, pCur->uUser);
+
+        if (pCurType->fKeepPgmLock)
+        {
+            rcStrict = pCurType->pfnPfHandler(pVM, pVCpu, uErr, pRegFrame, GCPhysNestedFault, GCPhysFault, uUser);
+            STAM_PROFILE_STOP(&pCur->Stat, h);
+        }
+        else
+        {
+            PGM_UNLOCK(pVM);
+            *pfLockTaken = false;
+            rcStrict = pCurType->pfnPfHandler(pVM, pVCpu, uErr, pRegFrame, GCPhysNestedFault, GCPhysFault, uUser);
+            STAM_PROFILE_STOP(&pCur->Stat, h); /* no locking needed, entry is unlikely reused before we get here. */
+        }
+    }
+    else
+    {
+        AssertMsgFailed(("What's going on here!? Fault falls outside handler range!?\n"));
+        rcStrict = VINF_EM_RAW_EMULATE_INSTR;
+    }
+
+    STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2HndPhys; });
+    return rcStrict;
+
+#  else
+    RT_NOREF8(pVCpu, uErr, pRegFrame, GCPhysNestedFault, pPage, GCPhysFault, pGstWalkAll, pfLockTaken);
+    AssertReleaseMsgFailed(("Shw=%d Gst=%d is not implemented!\n", PGM_SHW_TYPE, PGM_GST_TYPE));
+    return VERR_PGM_NOT_USED_IN_MODE;
+#  endif
+}
+# endif /* VBOX_WITH_NESTED_HWVIRT_VMX_EPT */
+
+
+/**
+ * Nested \#PF handler for nested-guest hardware-assisted execution using nested
+ * paging.
+ *
+ * @returns VBox status code (appropriate for trap handling and GC return).
+ * @param   pVCpu               The cross context virtual CPU structure.
+ * @param   uErr                The fault error (X86_TRAP_PF_*).
+ * @param   pRegFrame           The register frame.
+ * @param   GCPhysNestedFault   The nested-guest physical address of the fault.
+ * @param   fIsLinearAddrValid  Whether translation of a nested-guest linear address
+ *                              caused this fault. If @c false, GCPtrNestedFault
+ *                              must be 0.
+ * @param   GCPtrNestedFault    The nested-guest linear address of this fault.
+ * @param   pWalk               The guest page table walk result.
+ * @param   pfLockTaken         Where to store whether the PGM lock is still held
+ *                              when this function completes.
+ */
+PGM_BTH_DECL(int, NestedTrap0eHandler)(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysNestedFault,
+                                       bool fIsLinearAddrValid, RTGCPTR GCPtrNestedFault, PPGMPTWALK pWalk, bool *pfLockTaken)
+{
+    *pfLockTaken = false;
+# if defined(VBOX_WITH_NESTED_HWVIRT_VMX_EPT) \
+    && PGM_GST_TYPE == PGM_TYPE_PROT \
+    && PGM_SHW_TYPE == PGM_TYPE_EPT
+
+    Assert(CPUMIsGuestVmxEptPagingEnabled(pVCpu));
+    Assert(PGM_A20_IS_ENABLED(pVCpu));
+
+    /* We don't support mode-based execute control for EPT yet. */
+    Assert(!pVCpu->CTX_SUFF(pVM)->cpum.ro.GuestFeatures.fVmxModeBasedExecuteEpt);
+    Assert(!(uErr & X86_TRAP_PF_US));
+
+    /* Take the big lock now. */
+    *pfLockTaken = true;
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+    PGM_LOCK_VOID(pVM);
+
+    /*
+     * Walk the guest EPT tables and check if it's an EPT violation or misconfiguration.
+     */
+    if (fIsLinearAddrValid)
+        Log7Func(("cs:rip=%04x:%#08RX64 GCPhysNestedFault=%RGp uErr=%#x GCPtrNestedFault=%RGv\n",
+                  pRegFrame->cs.Sel, pRegFrame->rip, GCPhysNestedFault, uErr, GCPtrNestedFault));
+    else
+        Log7Func(("cs:rip=%04x:%#08RX64 GCPhysNestedFault=%RGp uErr=%#x\n",
+                  pRegFrame->cs.Sel, pRegFrame->rip, GCPhysNestedFault, uErr));
+    PGMPTWALKGST GstWalkAll;
+    int rc = pgmGstSlatWalk(pVCpu, GCPhysNestedFault, fIsLinearAddrValid, GCPtrNestedFault, pWalk, &GstWalkAll);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    Assert(GstWalkAll.enmType == PGMPTWALKGSTTYPE_EPT);
+    Assert(pWalk->fSucceeded);
+    Assert(pWalk->fEffective & (PGM_PTATTRS_EPT_R_MASK | PGM_PTATTRS_EPT_W_MASK | PGM_PTATTRS_EPT_X_SUPER_MASK));
+    Assert(pWalk->fIsSlat);
+
+    /* Paranoia: Remove later. */
+    Assert(RT_BOOL(pWalk->fEffective & PGM_PTATTRS_R_MASK)  ==  RT_BOOL(pWalk->fEffective & PGM_PTATTRS_EPT_R_MASK));
+    Assert(RT_BOOL(pWalk->fEffective & PGM_PTATTRS_W_MASK)  ==  RT_BOOL(pWalk->fEffective & PGM_PTATTRS_EPT_W_MASK));
+    Assert(RT_BOOL(pWalk->fEffective & PGM_PTATTRS_NX_MASK) == !RT_BOOL(pWalk->fEffective & PGM_PTATTRS_EPT_X_SUPER_MASK));
+
+    /*
+     * Check page-access permissions.
+     */
+    if (   ((uErr & X86_TRAP_PF_RW) && !(pWalk->fEffective & PGM_PTATTRS_W_MASK))
+        || ((uErr & X86_TRAP_PF_ID) &&  (pWalk->fEffective & PGM_PTATTRS_NX_MASK)))
+    {
+        Log7Func(("Permission failed! GCPtrNested=%RGv GCPhysNested=%RGp uErr=%#x fEffective=%#RX64\n", GCPtrNestedFault,
+                  GCPhysNestedFault, uErr, pWalk->fEffective));
+        pWalk->fFailed = PGM_WALKFAIL_EPT_VIOLATION;
+        return VERR_ACCESS_DENIED;
+    }
+
+    PGM_A20_ASSERT_MASKED(pVCpu, pWalk->GCPhys);
+    RTGCPHYS const GCPhysPage       = pWalk->GCPhys & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
+    RTGCPHYS const GCPhysNestedPage = GCPhysNestedFault & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
+
+    /*
+     * If we were called via an EPT misconfig, it should've already resulted in a nested-guest VM-exit.
+     */
+    AssertMsgReturn(!(uErr & X86_TRAP_PF_RSVD),
+                    ("Unexpected EPT misconfig VM-exit. GCPhysPage=%RGp GCPhysNestedPage=%RGp\n", GCPhysPage, GCPhysNestedPage),
+                    VERR_PGM_MAPPING_IPE);
+
+    /*
+     * Fetch and sync the nested-guest EPT page directory pointer.
+     */
+    PEPTPD pEptPd;
+    rc = pgmShwGetNestedEPTPDPtr(pVCpu, GCPhysNestedPage, NULL /*ppPdpt*/, &pEptPd, &GstWalkAll);
+    AssertRCReturn(rc, rc);
+    Assert(pEptPd);
+
+    /*
+     * A common case is the not-present error caused by lazy page table syncing.
+     *
+     * It is IMPORTANT that we weed out any access to non-present shadow PDEs
+     * here so we can safely assume that the shadow PT is present when calling
+     * NestedSyncPage later.
+     *
+     * NOTE: It's possible we will be syncing the VMX APIC-access page here.
+     * In that case, we would sync the page but will NOT go ahead with emulating
+     * the APIC-access VM-exit through IEM. However, once the page is mapped in
+     * the shadow tables, subsequent APIC-access VM-exits for the nested-guest
+     * will be triggered by hardware. Maybe calling the IEM #PF handler can be
+     * considered as an optimization later.
+     */
+    unsigned const iPde = (GCPhysNestedPage >> SHW_PD_SHIFT) & SHW_PD_MASK;
+    if (   !(uErr & X86_TRAP_PF_P)
+        && !(pEptPd->a[iPde].u & EPT_PRESENT_MASK))
+    {
+        STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2SyncPT; });
+        Log7Func(("NestedSyncPT: Lazy. GCPhysNestedPage=%RGp GCPhysPage=%RGp\n", GCPhysNestedPage, GCPhysPage));
+        rc = PGM_BTH_NAME(NestedSyncPT)(pVCpu, GCPhysNestedPage, GCPhysPage, &GstWalkAll);
+        if (RT_SUCCESS(rc))
+            return rc;
+        AssertMsgFailedReturn(("NestedSyncPT: %RGv failed! rc=%Rrc\n", GCPhysNestedPage, rc), VERR_PGM_MAPPING_IPE);
+    }
+
+    /*
+     * Check if this fault address is flagged for special treatment.
+     * This handles faults on an MMIO or write-monitored page.
+     *
+     * If this happens to be the VMX APIC-access page, we sync it in the shadow tables
+     * and emulate the APIC-access VM-exit by calling IEM's VMX APIC-access #PF handler
+     * registered for the page. Once the page is mapped in the shadow tables, subsequent
+     * APIC-access VM-exits for the nested-guest will be triggered by hardware.
+     */
+    PPGMPAGE pPage;
+    rc = pgmPhysGetPageEx(pVM, GCPhysPage, &pPage);
+    AssertRCReturn(rc, rc);
+    if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) && !PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPage))
+    {
+        Log7Func(("MMIO: Calling NestedTrap0eHandlerDoAccessHandlers for GCPhys %RGp\n", GCPhysPage));
+        return VBOXSTRICTRC_TODO(PGM_BTH_NAME(NestedTrap0eHandlerDoAccessHandlers)(pVCpu, uErr, pRegFrame, GCPhysNestedFault,
+                                                                                   pPage, pWalk->GCPhys, &GstWalkAll,
+                                                                                   pfLockTaken));
+    }
+
+    /*
+     * We are here only if page is present in nested-guest page tables but the
+     * trap is not handled by our handlers. Check for page out-of-sync situation.
+     */
+    if (!(uErr & X86_TRAP_PF_P))
+    {
+        Assert(!PGM_PAGE_IS_BALLOONED(pPage));
+        Assert(!(uErr & X86_TRAP_PF_US));   /* Mode-based execute not supported yet. */
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncSupervisor));
+
+        Log7Func(("SyncPage: Not-Present: GCPhysNestedPage=%RGp GCPhysPage=%RGp\n", GCPhysNestedFault, GCPhysPage));
+        rc = PGM_BTH_NAME(NestedSyncPage)(pVCpu, GCPhysNestedPage, GCPhysPage, PGM_SYNC_NR_PAGES, uErr, &GstWalkAll);
+        if (RT_SUCCESS(rc))
+        {
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSync; });
+            return VINF_SUCCESS;
+        }
+    }
+    else if (uErr & X86_TRAP_PF_RW)
+    {
+        /*
+         * Write protected pages are made writable when the guest makes the
+         * first write to it. This happens for pages that are shared, write
+         * monitored or not yet allocated.
+         *
+         * We may also end up here when CR0.WP=0 in the guest.
+         *
+         * Also, a side effect of not flushing global PDEs are out of sync
+         * pages due to physical monitored regions, that are no longer valid.
+         * Assume for now it only applies to the read/write flag.
+         */
+        if (PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED)
+        {
+            /* This is a read-only page. */
+            AssertMsgFailed(("Failed\n"));
+
+            Assert(!PGM_PAGE_IS_ZERO(pPage));
+            AssertFatalMsg(!PGM_PAGE_IS_BALLOONED(pPage), ("Unexpected ballooned page at %RGp\n", GCPhysPage));
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2MakeWritable; });
+
+            Log7Func(("Calling pgmPhysPageMakeWritable for GCPhysPage=%RGp\n", GCPhysPage));
+            rc = pgmPhysPageMakeWritable(pVM, pPage, GCPhysPage);
+            if (rc != VINF_SUCCESS)
+            {
+                AssertMsg(rc == VINF_PGM_SYNC_CR3 || RT_FAILURE(rc), ("%Rrc\n", rc));
+                return rc;
+            }
+            if (RT_UNLIKELY(VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY)))
+                return VINF_EM_NO_MEMORY;
+        }
+
+        Assert(!(uErr & X86_TRAP_PF_US));   /* Mode-based execute not supported yet. */
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncSupervisorWrite));
+
+        /*
+         * Sync the write-protected page.
+         * Note: Do NOT use PGM_SYNC_NR_PAGES here. That only works if the
+         *       page is not present, which is not true in this case.
+         */
+        Log7Func(("SyncPage: RW: cs:rip=%04x:%#RX64 GCPhysNestedPage=%RGp uErr=%#RX32 GCPhysPage=%RGp WalkGCPhys=%RGp\n",
+                  pRegFrame->cs.Sel, pRegFrame->rip, GCPhysNestedPage, (uint32_t)uErr, GCPhysPage, pWalk->GCPhys));
+        rc = PGM_BTH_NAME(NestedSyncPage)(pVCpu, GCPhysNestedPage, GCPhysPage, 1 /* cPages */, uErr, &GstWalkAll);
+        if (RT_SUCCESS(rc))
+        {
+            HMInvalidatePhysPage(pVM, GCPhysPage);
+            STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = &pVCpu->pgm.s.Stats.StatRZTrap0eTime2OutOfSyncHndObs; });
+            return VINF_SUCCESS;
+        }
+    }
+
+    /*
+     * If we get here it is because something failed above => guru meditation time.
+     */
+    LogRelFunc(("GCPhysNestedFault=%#RGp (%#RGp) uErr=%#RX32 cs:rip=%04x:%08RX64\n", rc, GCPhysNestedFault, GCPhysPage,
+                (uint32_t)uErr, pRegFrame->cs.Sel, pRegFrame->rip));
+    return VERR_PGM_MAPPING_IPE;
+
+# else
+    RT_NOREF7(pVCpu, uErr, pRegFrame, GCPhysNestedFault, fIsLinearAddrValid, GCPtrNestedFault, pWalk);
+    AssertReleaseMsgFailed(("Shw=%d Gst=%d is not implemented!\n", PGM_SHW_TYPE, PGM_GST_TYPE));
+    return VERR_PGM_NOT_USED_IN_MODE;
+# endif
+}
+
 #endif /* !IN_RING3 */
 
 
@@ -1065,7 +1393,7 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
 #  ifdef IN_RING3 /* Possible we didn't resync yet when called from REM. */
     if (!pShwPde)
     {
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePageSkipped));
         return VINF_SUCCESS;
     }
 #  else
@@ -1078,28 +1406,23 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
 
     /* If the shadow PDPE isn't present, then skip the invalidate. */
 #  ifdef IN_RING3 /* Possible we didn't resync yet when called from REM. */
-    if (!pPdptDst || !pPdptDst->a[iPdpt].n.u1Present)
+    if (!pPdptDst || !(pPdptDst->a[iPdpt].u & X86_PDPE_P))
 #  else
-    if (!pPdptDst->a[iPdpt].n.u1Present)
+    if (!(pPdptDst->a[iPdpt].u & X86_PDPE_P))
 #  endif
     {
-        Assert(!pPdptDst || !(pPdptDst->a[iPdpt].u & PGM_PLXFLAGS_MAPPING));
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePageSkipped));
         PGM_INVL_PG(pVCpu, GCPtrPage);
         return VINF_SUCCESS;
     }
 
-    const unsigned  iPDDst  = (GCPtrPage >> SHW_PD_SHIFT) & SHW_PD_MASK;
-    PPGMPOOLPAGE    pShwPde = NULL;
-    PX86PDPAE       pPDDst;
-
     /* Fetch the pgm pool shadow descriptor. */
-    rc = pgmShwGetPaePoolPagePD(pVCpu, GCPtrPage, &pShwPde);
-    AssertRCSuccessReturn(rc, rc);
-    Assert(pShwPde);
+    PPGMPOOLPAGE pShwPde = pgmPoolGetPage(pPool, pPdptDst->a[iPdpt].u & X86_PDPE_PG_MASK);
+    AssertReturn(pShwPde, VERR_PGM_POOL_GET_PAGE_FAILED);
 
-    pPDDst             = (PX86PDPAE)PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pShwPde);
-    PX86PDEPAE pPdeDst = &pPDDst->a[iPDDst];
+    PX86PDPAE       pPDDst  = (PX86PDPAE)PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pShwPde);
+    const unsigned  iPDDst  = (GCPtrPage >> SHW_PD_SHIFT) & SHW_PD_MASK;
+    PX86PDEPAE      pPdeDst = &pPDDst->a[iPDDst];
 
 # else /* PGM_SHW_TYPE == PGM_TYPE_AMD64 */
     /* PML4 */
@@ -1113,21 +1436,13 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
     if (rc != VINF_SUCCESS)
     {
         AssertMsg(rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT || rc == VERR_PAGE_MAP_LEVEL4_NOT_PRESENT, ("Unexpected rc=%Rrc\n", rc));
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePageSkipped));
         PGM_INVL_PG(pVCpu, GCPtrPage);
         return VINF_SUCCESS;
     }
-    Assert(pPDDst);
-
     PX86PDEPAE  pPdeDst  = &pPDDst->a[iPDDst];
-    PX86PDPE    pPdpeDst = &pPdptDst->a[iPdpt];
-
-    if (!pPdpeDst->n.u1Present)
-    {
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
-        PGM_INVL_PG(pVCpu, GCPtrPage);
-        return VINF_SUCCESS;
-    }
+    Assert(pPDDst);
+    Assert(pPdptDst->a[iPdpt].u & X86_PDPE_P);
 
     /* Fetch the pgm pool shadow descriptor. */
     PPGMPOOLPAGE pShwPde = pgmPoolGetPage(pPool, pPdptDst->a[iPdpt].u & SHW_PDPE_PG_MASK);
@@ -1136,9 +1451,9 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
 # endif /* PGM_SHW_TYPE == PGM_TYPE_AMD64 */
 
     const SHWPDE PdeDst = *pPdeDst;
-    if (!PdeDst.n.u1Present)
+    if (!(PdeDst.u & X86_PDE_P))
     {
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePageSkipped));
         PGM_INVL_PG(pVCpu, GCPtrPage);
         return VINF_SUCCESS;
     }
@@ -1168,9 +1483,9 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
         PdeSrc.u = 0;
 # endif /* PGM_GST_TYPE != PGM_TYPE_32BIT */
     const bool      fWasBigPage = RT_BOOL(PdeDst.u & PGM_PDFLAGS_BIG_PAGE);
-    const bool      fIsBigPage  = PdeSrc.b.u1Size && GST_IS_PSE_ACTIVE(pVCpu);
+    const bool      fIsBigPage  = (PdeSrc.u & X86_PDE_PS) && GST_IS_PSE_ACTIVE(pVCpu);
     if (fWasBigPage != fIsBigPage)
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePageSkipped));
 
 # ifdef IN_RING3
     /*
@@ -1182,14 +1497,14 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
     if (    VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3)
         || (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)
             && fIsBigPage
-            && PdeSrc.b.u1Global
+            && (PdeSrc.u & X86_PDE4M_G)
            )
        )
 #  else
     if (VM_FF_IS_ANY_SET(pVM, VM_FF_PGM_SYNC_CR3 | VM_FF_PGM_SYNC_CR3_NON_GLOBAL) )
 #  endif
     {
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePageSkipped));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePageSkipped));
         return VINF_SUCCESS;
     }
 # endif /* IN_RING3 */
@@ -1198,22 +1513,10 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
      * Deal with the Guest PDE.
      */
     rc = VINF_SUCCESS;
-    if (PdeSrc.n.u1Present)
+    if (PdeSrc.u & X86_PDE_P)
     {
-        Assert(     PdeSrc.n.u1User == PdeDst.n.u1User
-               &&   (PdeSrc.n.u1Write || !PdeDst.n.u1Write || pVCpu->pgm.s.cNetwareWp0Hacks > 0));
-# ifndef PGM_WITHOUT_MAPPING
-        if (PdeDst.u & PGM_PDFLAGS_MAPPING)
-        {
-            /*
-             * Conflict - Let SyncPT deal with it to avoid duplicate code.
-             */
-            Assert(pgmMapAreMappingsEnabled(pVM));
-            Assert(PGMGetGuestMode(pVCpu) <= PGMMODE_PAE);
-            rc = PGM_BTH_NAME(SyncPT)(pVCpu, iPDSrc, pPDSrc, GCPtrPage);
-        }
-        else
-# endif /* !PGM_WITHOUT_MAPPING */
+        Assert(    (PdeSrc.u & X86_PDE_US) == (PdeDst.u & X86_PDE_US)
+               &&  ((PdeSrc.u & X86_PDE_RW) || !(PdeDst.u & X86_PDE_RW) || pVCpu->pgm.s.cNetwareWp0Hacks > 0));
         if (!fIsBigPage)
         {
             /*
@@ -1224,7 +1527,7 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
 
 # if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
             /* Select the right PDE as we're emulating a 4kb page table with 2 shadow page tables. */
-            GCPhys = PGM_A20_APPLY(pVCpu, GCPhys | ((iPDDst & 1) * (PAGE_SIZE / 2)));
+            GCPhys = PGM_A20_APPLY(pVCpu, GCPhys | ((iPDDst & 1) * (GUEST_PAGE_SIZE / 2)));
 # endif
             if (pShwPage->GCPhys == GCPhys)
             {
@@ -1240,14 +1543,14 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
                     const unsigned iPTDst = (GCPtrPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
                     PGM_BTH_NAME(SyncPageWorker)(pVCpu, &pPTDst->a[iPTDst], PdeSrc, PteSrc, pShwPage, iPTDst);
                     Log2(("SyncPage: 4K  %RGv PteSrc:{P=%d RW=%d U=%d raw=%08llx} PteDst=%08llx %s\n",
-                            GCPtrPage, PteSrc.n.u1Present,
-                            PteSrc.n.u1Write & PdeSrc.n.u1Write,
-                            PteSrc.n.u1User  & PdeSrc.n.u1User,
+                            GCPtrPage, PteSrc.u & X86_PTE_P,
+                            (PteSrc.u & PdeSrc.u & X86_PTE_RW),
+                            (PteSrc.u & PdeSrc.u & X86_PTE_US),
                             (uint64_t)PteSrc.u,
                             SHW_PTE_LOG64(pPTDst->a[iPTDst]),
                             SHW_PTE_IS_TRACK_DIRTY(pPTDst->a[iPTDst]) ? " Track-Dirty" : ""));
                 }
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePage4KBPages));
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePage4KBPages));
                 PGM_INVL_PG(pVCpu, GCPtrPage);
             }
             else
@@ -1258,8 +1561,8 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
                 LogFlow(("InvalidatePage: Out-of-sync at %RGp PdeSrc=%RX64 PdeDst=%RX64 ShwGCPhys=%RGp iPDDst=%#x\n",
                          GCPtrPage, (uint64_t)PdeSrc.u, (uint64_t)PdeDst.u, pShwPage->GCPhys, iPDDst));
                 pgmPoolFree(pVM, PdeDst.u & SHW_PDE_PG_MASK, pShwPde->idx, iPDDst);
-                ASMAtomicWriteSize(pPdeDst, 0);
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePagePDOutOfSync));
+                SHW_PDE_ATOMIC_SET(*pPdeDst, 0);
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePagePDOutOfSync));
                 PGM_INVL_VCPU_TLBS(pVCpu);
             }
         }
@@ -1283,11 +1586,11 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
                  *        FIXME */
                 if (        (PdeSrc.u & (X86_PDE_P | X86_PDE_RW | X86_PDE_US))
                         ==  (PdeDst.u & (X86_PDE_P | X86_PDE_RW | X86_PDE_US))
-                    &&  (   PdeSrc.b.u1Dirty /** @todo rainy day: What about read-only 4M pages? not very common, but still... */
+                    &&  (   (PdeSrc.u & X86_PDE4M_D) /** @todo rainy day: What about read-only 4M pages? not very common, but still... */
                          || (PdeDst.u & PGM_PDFLAGS_TRACK_DIRTY)))
                 {
                     LogFlow(("Skipping flush for big page containing %RGv (PD=%X .u=%RX64)-> nothing has changed!\n", GCPtrPage, iPDSrc, PdeSrc.u));
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePage4MBPagesSkip));
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePage4MBPagesSkip));
                     return VINF_SUCCESS;
                 }
             }
@@ -1301,8 +1604,8 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
             LogFlow(("InvalidatePage: Out-of-sync PD at %RGp PdeSrc=%RX64 PdeDst=%RX64\n",
                      GCPtrPage, (uint64_t)PdeSrc.u, (uint64_t)PdeDst.u));
             pgmPoolFree(pVM, PdeDst.u & SHW_PDE_PG_MASK, pShwPde->idx, iPDDst);
-            ASMAtomicWriteSize(pPdeDst, 0);
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePage4MBPages));
+            SHW_PDE_ATOMIC_SET(*pPdeDst, 0);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePage4MBPages));
             PGM_INVL_BIG_PG(pVCpu, GCPtrPage);
         }
     }
@@ -1311,18 +1614,10 @@ PGM_BTH_DECL(int, InvalidatePage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
         /*
          * Page directory is not present, mark shadow PDE not present.
          */
-        if (!(PdeDst.u & PGM_PDFLAGS_MAPPING))
-        {
-            pgmPoolFree(pVM, PdeDst.u & SHW_PDE_PG_MASK, pShwPde->idx, iPDDst);
-            ASMAtomicWriteSize(pPdeDst, 0);
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePagePDNPs));
-            PGM_INVL_PG(pVCpu, GCPtrPage);
-        }
-        else
-        {
-            Assert(pgmMapAreMappingsEnabled(pVM));
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,InvalidatePagePDMappings));
-        }
+        pgmPoolFree(pVM, PdeDst.u & SHW_PDE_PG_MASK, pShwPde->idx, iPDDst);
+        SHW_PDE_ATOMIC_SET(*pPdeDst, 0);
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,InvalidatePagePDNPs));
+        PGM_INVL_PG(pVCpu, GCPtrPage);
     }
     return rc;
 
@@ -1372,7 +1667,7 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackDeref)(PVMCPUCC pVCpu, PPGMPOOL
   NOREF(GCPhysPage);
 # endif
 
-    STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackDeref, a);
+    STAM_PROFILE_START(&pVM->pgm.s.Stats.StatTrackDeref, a);
     LogFlow(("SyncPageWorkerTrackDeref: Damn HCPhys=%RHp pShwPage->idx=%#x!!!\n", HCPhys, pShwPage->idx));
 
     /** @todo If this turns out to be a bottle neck (*very* likely) two things can be done:
@@ -1388,7 +1683,7 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackDeref)(PVMCPUCC pVCpu, PPGMPOOL
          pRam;
          pRam = pRam->CTX_SUFF(pNext))
     {
-        unsigned iPage = pRam->cb >> PAGE_SHIFT;
+        unsigned iPage = pRam->cb >> GUEST_PAGE_SHIFT;
         while (iPage-- > 0)
         {
             if (PGM_PAGE_GET_HCPHYS(&pRam->aPages[iPage]) == HCPhys)
@@ -1401,7 +1696,7 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackDeref)(PVMCPUCC pVCpu, PPGMPOOL
                 pPool->cPresent--;
 
                 pgmTrackDerefGCPhys(pPool, pShwPage, &pRam->aPages[iPage], iPte);
-                STAM_PROFILE_STOP(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackDeref, a);
+                STAM_PROFILE_STOP(&pVM->pgm.s.Stats.StatTrackDeref, a);
                 return;
             }
         }
@@ -1421,7 +1716,8 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackDeref)(PVMCPUCC pVCpu, PPGMPOOL
  * @param   pPage       Pointer to the guest page. this will be modified.
  * @param   iPTDst      The index into the shadow table.
  */
-DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackAddref)(PVMCPUCC pVCpu, PPGMPOOLPAGE pShwPage, uint16_t u16, PPGMPAGE pPage, const unsigned iPTDst)
+DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackAddref)(PVMCPUCC pVCpu, PPGMPOOLPAGE pShwPage, uint16_t u16,
+                                                         PPGMPAGE pPage, const unsigned iPTDst)
 {
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
 
@@ -1430,7 +1726,7 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackAddref)(PVMCPUCC pVCpu, PPGMPOO
      */
     if (!u16)
     {
-        STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatTrackVirgin);
+        STAM_COUNTER_INC(&pVM->pgm.s.Stats.StatTrackVirgin);
         u16 = PGMPOOL_TD_MAKE(1, pShwPage->idx);
         /* Save the page table index. */
         PGM_PAGE_SET_PTE_INDEX(pVM, pPage, iPTDst);
@@ -1454,15 +1750,18 @@ DECLINLINE(void) PGM_BTH_NAME(SyncPageWorkerTrackAddref)(PVMCPUCC pVCpu, PPGMPOO
  * Modifies a shadow PTE to account for access handlers.
  *
  * @param   pVM         The cross context VM structure.
+ * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pPage       The page in question.
+ * @param   GCPhysPage  The guest-physical address of the page.
  * @param   fPteSrc     The shadowed flags of the source PTE.  Must include the
  *                      A (accessed) bit so it can be emulated correctly.
  * @param   pPteDst     The shadow PTE (output).  This is temporary storage and
  *                      does not need to be set atomically.
  */
-DECLINLINE(void) PGM_BTH_NAME(SyncHandlerPte)(PVMCC pVM, PCPGMPAGE pPage, uint64_t fPteSrc, PSHWPTE pPteDst)
+DECLINLINE(void) PGM_BTH_NAME(SyncHandlerPte)(PVMCC pVM, PVMCPUCC pVCpu, PCPGMPAGE pPage, RTGCPHYS GCPhysPage, uint64_t fPteSrc,
+                                              PSHWPTE pPteDst)
 {
-    NOREF(pVM); RT_NOREF_PV(fPteSrc);
+    RT_NOREF_PV(pVM); RT_NOREF_PV(fPteSrc); RT_NOREF_PV(pVCpu); RT_NOREF_PV(GCPhysPage);
 
     /** @todo r=bird: Are we actually handling dirty and access bits for pages with access handlers correctly? No.
      *  Update: \#PF should deal with this before or after calling the handlers. It has all the info to do the job efficiently. */
@@ -1470,12 +1769,7 @@ DECLINLINE(void) PGM_BTH_NAME(SyncHandlerPte)(PVMCC pVM, PCPGMPAGE pPage, uint64
     {
         LogFlow(("SyncHandlerPte: monitored page (%R[pgmpage]) -> mark read-only\n", pPage));
 # if PGM_SHW_TYPE == PGM_TYPE_EPT
-        pPteDst->u             = PGM_PAGE_GET_HCPHYS(pPage);
-        pPteDst->n.u1Present   = 1;
-        pPteDst->n.u1Execute   = 1;
-        pPteDst->n.u1IgnorePAT = 1;
-        pPteDst->n.u3EMT       = VMX_EPT_MEMTYPE_WB;
-        /* PteDst.n.u1Write = 0 && PteDst.n.u1Size = 0 */
+        pPteDst->u = PGM_PAGE_GET_HCPHYS(pPage) | EPT_E_READ | EPT_E_EXECUTE | EPT_E_MEMTYPE_WB | EPT_E_IGNORE_PAT;
 # else
         if (fPteSrc & X86_PTE_A)
         {
@@ -1499,13 +1793,11 @@ DECLINLINE(void) PGM_BTH_NAME(SyncHandlerPte)(PVMCC pVM, PCPGMPAGE pPage, uint64
         LogFlow(("SyncHandlerPte: MMIO page -> invalid \n"));
 #   if PGM_SHW_TYPE == PGM_TYPE_EPT
         /* 25.2.3.1: Reserved physical address bit -> EPT Misconfiguration (exit 49) */
-        pPteDst->u = pVM->pgm.s.HCPhysInvMmioPg;
+        pPteDst->u = pVM->pgm.s.HCPhysInvMmioPg
         /* 25.2.3.1: bits 2:0 = 010b -> EPT Misconfiguration (exit 49) */
-        pPteDst->n.u1Present = 0;
-        pPteDst->n.u1Write   = 1;
-        pPteDst->n.u1Execute = 0;
+                   | EPT_E_WRITE
         /* 25.2.3.1: leaf && 2:0 != 0 && u3Emt in {2, 3, 7} -> EPT Misconfiguration */
-        pPteDst->n.u3EMT     = 7;
+                   | EPT_E_MEMTYPE_INVALID_3;
 #   else
         /* Set high page frame bits that MBZ (bankers on PAE, CPU dependent on AMD64).  */
         SHW_PTE_SET(*pPteDst, pVM->pgm.s.HCPhysInvMmioPg | X86_PTE_PAE_MBZ_MASK_NO_NX | X86_PTE_P);
@@ -1569,7 +1861,7 @@ static void PGM_BTH_NAME(SyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPteDst, RTGCPH
 # endif
 
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-    if (   PteSrc.n.u1Present
+    if (   (PteSrc.u & X86_PTE_P)
         && GST_IS_PTE_VALID(pVCpu, PteSrc))
 # endif
     {
@@ -1599,7 +1891,7 @@ static void PGM_BTH_NAME(SyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPteDst, RTGCPH
             if (    PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM
                 &&  (   PGM_PAGE_IS_ZERO(pPage)
 #  if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-                     || (   PteSrc.n.u1Write
+                     || (   (PteSrc.u & X86_PTE_RW)
 #  else
                      || (   1
 #  endif
@@ -1628,28 +1920,27 @@ static void PGM_BTH_NAME(SyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPteDst, RTGCPH
 # else
             uint64_t fGstShwPteFlags = X86_PTE_P | X86_PTE_RW | X86_PTE_US | X86_PTE_A | X86_PTE_D;
 # endif
-            if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
-                PGM_BTH_NAME(SyncHandlerPte)(pVM, pPage, fGstShwPteFlags, &PteDst);
-            else
+            if (!PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) || PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPage))
             {
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
                 /*
                  * If the page or page directory entry is not marked accessed,
                  * we mark the page not present.
                  */
-                if (!PteSrc.n.u1Accessed || !PdeSrc.n.u1Accessed)
+                if (!(PteSrc.u & X86_PTE_A) || !(PdeSrc.u & X86_PDE_A))
                 {
                     LogFlow(("SyncPageWorker: page and or page directory not accessed -> mark not present\n"));
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,AccessedPage));
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,AccessedPage));
                     SHW_PTE_SET(PteDst, 0);
                 }
                 /*
                  * If the page is not flagged as dirty and is writable, then make it read-only, so we can set the dirty bit
                  * when the page is modified.
                  */
-                else if (!PteSrc.n.u1Dirty && (PdeSrc.n.u1Write & PteSrc.n.u1Write))
+                else if (!(PteSrc.u & X86_PTE_D) && (PdeSrc.u & PteSrc.u & X86_PTE_RW))
                 {
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPage));
+                    AssertCompile(X86_PTE_RW == X86_PDE_RW);
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPage));
                     SHW_PTE_SET(PteDst,
                                   fGstShwPteFlags
                                 | PGM_PAGE_GET_HCPHYS(pPage)
@@ -1659,15 +1950,10 @@ static void PGM_BTH_NAME(SyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPteDst, RTGCPH
                 else
 # endif
                 {
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageSkipped));
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageSkipped));
 # if PGM_SHW_TYPE == PGM_TYPE_EPT
-                    PteDst.u             = PGM_PAGE_GET_HCPHYS(pPage);
-                    PteDst.n.u1Present   = 1;
-                    PteDst.n.u1Write     = 1;
-                    PteDst.n.u1Execute   = 1;
-                    PteDst.n.u1IgnorePAT = 1;
-                    PteDst.n.u3EMT       = VMX_EPT_MEMTYPE_WB;
-                    /* PteDst.n.u1Size = 0 */
+                    PteDst.u = PGM_PAGE_GET_HCPHYS(pPage)
+                             | EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_MEMTYPE_WB | EPT_E_IGNORE_PAT;
 # else
                     SHW_PTE_SET(PteDst, fGstShwPteFlags | PGM_PAGE_GET_HCPHYS(pPage));
 # endif
@@ -1685,6 +1971,8 @@ static void PGM_BTH_NAME(SyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPteDst, RTGCPH
                     Log3(("SyncPageWorker: write-protecting %RGp pPage=%R[pgmpage]at iPTDst=%d\n", GCPhysPage, pPage, iPTDst));
                 }
             }
+            else
+                PGM_BTH_NAME(SyncHandlerPte)(pVM, pVCpu, pPage, GCPhysPage, fGstShwPteFlags, &PteDst);
 
             /*
              * Keep user track up to date.
@@ -1710,7 +1998,7 @@ static void PGM_BTH_NAME(SyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPteDst, RTGCPH
              * Update statistics and commit the entry.
              */
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-            if (!PteSrc.n.u1Global)
+            if (!(PteSrc.u & X86_PTE_G))
                 pShwPage->fSeenNonGlobal = true;
 # endif
             SHW_PTE_ATOMIC_SET2(*pPteDst, PteDst);
@@ -1721,7 +2009,7 @@ static void PGM_BTH_NAME(SyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPteDst, RTGCPH
         Log2(("SyncPageWorker: invalid address in Pte\n"));
     }
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-    else if (!PteSrc.n.u1Present)
+    else if (!(PteSrc.u & X86_PTE_P))
         Log2(("SyncPageWorker: page not present in Pte\n"));
     else
         Log2(("SyncPageWorker: invalid Pte\n"));
@@ -1774,7 +2062,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
     /*
      * Assert preconditions.
      */
-    Assert(PdeSrc.n.u1Present);
+    Assert(PdeSrc.u & X86_PDE_P);
     Assert(cPages);
 #  if 0 /* rarely useful; leave for debugging. */
     STAM_COUNTER_INC(&pVCpu->pgm.s.StatSyncPagePD[(GCPtrPage >> GST_PD_SHIFT) & GST_PD_MASK]);
@@ -1825,7 +2113,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
      *   relevant TLB entries.  If we're write monitoring any page mapped by
      *   the modified entry, we may end up here with a "stale" TLB entry.
      */
-    if (!PdeDst.n.u1Present)
+    if (!(PdeDst.u & X86_PDE_P))
     {
         Log(("CPU%u: SyncPage: Pde at %RGv changed behind our back? (pPdeDst=%p/%RX64) uErr=%#x\n", pVCpu->idCpu, GCPtrPage, pPdeDst, (uint64_t)PdeDst.u, (uint32_t)uErr));
         AssertMsg(pVM->cCpus > 1 || (uErr & (X86_TRAP_PF_P | X86_TRAP_PF_RW)) == (X86_TRAP_PF_P | X86_TRAP_PF_RW),
@@ -1847,7 +2135,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
     /*
      * Check that the page is present and that the shadow PDE isn't out of sync.
      */
-    const bool      fBigPage  = PdeSrc.b.u1Size && GST_IS_PSE_ACTIVE(pVCpu);
+    const bool      fBigPage  = (PdeSrc.u & X86_PDE_PS) && GST_IS_PSE_ACTIVE(pVCpu);
     const bool      fPdeValid = !fBigPage ? GST_IS_PDE_VALID(pVCpu, PdeSrc) : GST_IS_BIG_PDE_VALID(pVCpu, PdeSrc);
     RTGCPHYS        GCPhys;
     if (!fBigPage)
@@ -1855,7 +2143,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
         GCPhys = GST_GET_PDE_GCPHYS(PdeSrc);
 #  if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
         /* Select the right PDE as we're emulating a 4kb page table with 2 shadow page tables. */
-        GCPhys = PGM_A20_APPLY(pVCpu, GCPhys | ((iPDDst & 1) * (PAGE_SIZE / 2)));
+        GCPhys = PGM_A20_APPLY(pVCpu, GCPhys | ((iPDDst & 1) * (GUEST_PAGE_SIZE / 2)));
 #  endif
     }
     else
@@ -1867,13 +2155,13 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
 #  endif
     }
     /** @todo This doesn't check the G bit of 2/4MB pages. FIXME */
-    if (    fPdeValid
-        &&  pShwPage->GCPhys == GCPhys
-        &&  PdeSrc.n.u1Present
-        &&  PdeSrc.n.u1User == PdeDst.n.u1User
-        &&  (PdeSrc.n.u1Write == PdeDst.n.u1Write || !PdeDst.n.u1Write)
+    if (   fPdeValid
+        && pShwPage->GCPhys == GCPhys
+        && (PdeSrc.u & X86_PDE_P)
+        && (PdeSrc.u & X86_PDE_US) == (PdeDst.u & X86_PDE_US)
+        && ((PdeSrc.u & X86_PDE_RW) == (PdeDst.u & X86_PDE_RW) || !(PdeDst.u & X86_PDE_RW))
 #  if PGM_WITH_NX(PGM_GST_TYPE, PGM_SHW_TYPE)
-        &&  (PdeSrc.n.u1NoExecute == PdeDst.n.u1NoExecute || !GST_IS_NX_ACTIVE(pVCpu))
+        && ((PdeSrc.u & X86_PDE_PAE_NX) == (PdeDst.u & X86_PDE_PAE_NX) || !GST_IS_NX_ACTIVE(pVCpu))
 #  endif
        )
     {
@@ -1882,7 +2170,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
          * Since we set the accessed bit *before* getting here on a #PF, this
          * check is only meant for dealing with non-#PF'ing paths.
          */
-        if (PdeSrc.n.u1Accessed)
+        if (PdeSrc.u & X86_PDE_A)
         {
             PSHWPT pPTDst = (PSHWPT)PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pShwPage);
             if (!fBigPage)
@@ -1924,16 +2212,17 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
                         {
                             const PGSTPTE pPteSrc = &pPTSrc->a[offPTSrc + iPTDst];
 
-                            if (   pPteSrc->n.u1Present
+                            if (   (pPteSrc->u & X86_PTE_P)
                                 && !SHW_PTE_IS_P(pPTDst->a[iPTDst]))
                             {
-                                RTGCPTR GCPtrCurPage = (GCPtrPage & ~(RTGCPTR)(GST_PT_MASK << GST_PT_SHIFT)) | ((offPTSrc + iPTDst) << PAGE_SHIFT);
+                                RTGCPTR GCPtrCurPage = (GCPtrPage & ~(RTGCPTR)(GST_PT_MASK << GST_PT_SHIFT))
+                                                     | ((offPTSrc + iPTDst) << GUEST_PAGE_SHIFT);
                                 NOREF(GCPtrCurPage);
                                 PGM_BTH_NAME(SyncPageWorker)(pVCpu, &pPTDst->a[iPTDst], PdeSrc, *pPteSrc, pShwPage, iPTDst);
                                 Log2(("SyncPage: 4K+ %RGv PteSrc:{P=%d RW=%d U=%d raw=%08llx} PteDst=%08llx%s\n",
-                                      GCPtrCurPage, pPteSrc->n.u1Present,
-                                      pPteSrc->n.u1Write & PdeSrc.n.u1Write,
-                                      pPteSrc->n.u1User  & PdeSrc.n.u1User,
+                                      GCPtrCurPage, pPteSrc->u & X86_PTE_P,
+                                      !!(pPteSrc->u & PdeSrc.u & X86_PTE_RW),
+                                      !!(pPteSrc->u & PdeSrc.u & X86_PTE_US),
                                       (uint64_t)pPteSrc->u,
                                       SHW_PTE_LOG64(pPTDst->a[iPTDst]),
                                       SHW_PTE_IS_TRACK_DIRTY(pPTDst->a[iPTDst]) ? " Track-Dirty" : ""));
@@ -1948,9 +2237,9 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
                         const unsigned iPTDst = (GCPtrPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
                         PGM_BTH_NAME(SyncPageWorker)(pVCpu, &pPTDst->a[iPTDst], PdeSrc, PteSrc, pShwPage, iPTDst);
                         Log2(("SyncPage: 4K  %RGv PteSrc:{P=%d RW=%d U=%d raw=%08llx} PteDst=%08llx %s\n",
-                              GCPtrPage, PteSrc.n.u1Present,
-                              PteSrc.n.u1Write & PdeSrc.n.u1Write,
-                              PteSrc.n.u1User  & PdeSrc.n.u1User,
+                              GCPtrPage, PteSrc.u & X86_PTE_P,
+                              !!(PteSrc.u & PdeSrc.u & X86_PTE_RW),
+                              !!(PteSrc.u & PdeSrc.u & X86_PTE_US),
                               (uint64_t)PteSrc.u,
                               SHW_PTE_LOG64(pPTDst->a[iPTDst]),
                               SHW_PTE_IS_TRACK_DIRTY(pPTDst->a[iPTDst]) ? " Track-Dirty" : ""));
@@ -1981,7 +2270,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
                     /* Try to make the page writable if necessary. */
                     if (    PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM
                         &&  (   PGM_PAGE_IS_ZERO(pPage)
-                             || (   PdeSrc.n.u1Write
+                             || (   (PdeSrc.u & X86_PDE_RW)
                                  && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
 #   ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
                                  && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
@@ -2002,10 +2291,10 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
                      * Make shadow PTE entry.
                      */
                     SHWPTE PteDst;
-                    if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
-                        PGM_BTH_NAME(SyncHandlerPte)(pVM, pPage, GST_GET_BIG_PDE_SHW_FLAGS_4_PTE(pVCpu, PdeSrc), &PteDst);
-                    else
+                    if (!PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) || PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPage))
                         SHW_PTE_SET(PteDst, GST_GET_BIG_PDE_SHW_FLAGS_4_PTE(pVCpu, PdeSrc) | PGM_PAGE_GET_HCPHYS(pPage));
+                    else
+                        PGM_BTH_NAME(SyncHandlerPte)(pVM, pVCpu, pPage, GCPhys, GST_GET_BIG_PDE_SHW_FLAGS_4_PTE(pVCpu, PdeSrc), &PteDst);
 
                     const unsigned iPTDst = (GCPtrPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
                     if (    SHW_PTE_IS_P(PteDst)
@@ -2035,22 +2324,21 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
                     /** @todo r=bird: figure out why we need this here, SyncPT should've taken care of this already.
                      * As for invlpg, it simply frees the whole shadow PT.
                      * ...It's possibly because the guest clears it and the guest doesn't really tell us... */
-                    if (    !PdeSrc.b.u1Dirty
-                        &&  PdeSrc.b.u1Write)
+                    if ((PdeSrc.u & (X86_PDE4M_D | X86_PDE_RW)) == X86_PDE_RW)
                     {
-                        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageBig));
+                        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageBig));
                         PdeDst.u |= PGM_PDFLAGS_TRACK_DIRTY;
-                        PdeDst.n.u1Write = 0;
+                        PdeDst.u &= ~(SHWUINT)X86_PDE_RW;
                     }
                     else
                     {
-                        PdeDst.au32[0] &= ~PGM_PDFLAGS_TRACK_DIRTY;
-                        PdeDst.n.u1Write = PdeSrc.n.u1Write;
+                        PdeDst.u &= ~(SHWUINT)(PGM_PDFLAGS_TRACK_DIRTY | X86_PDE_RW);
+                        PdeDst.u |= PdeSrc.u & X86_PDE_RW;
                     }
-                    ASMAtomicWriteSize(pPdeDst, PdeDst.u);
+                    SHW_PDE_ATOMIC_SET2(*pPdeDst, PdeDst);
                     Log2(("SyncPage: BIG %RGv PdeSrc:{P=%d RW=%d U=%d raw=%08llx} GCPhys=%RGp%s\n",
-                          GCPtrPage, PdeSrc.n.u1Present, PdeSrc.n.u1Write, PdeSrc.n.u1User, (uint64_t)PdeSrc.u, GCPhys,
-                          PdeDst.u & PGM_PDFLAGS_TRACK_DIRTY ? " Track-Dirty" : ""));
+                          GCPtrPage, PdeSrc.u & X86_PDE_P, !!(PdeSrc.u & X86_PDE_RW), !!(PdeSrc.u & X86_PDE_US),
+                          (uint64_t)PdeSrc.u, GCPhys, PdeDst.u & PGM_PDFLAGS_TRACK_DIRTY ? " Track-Dirty" : ""));
                 }
                 else
                 {
@@ -2063,11 +2351,11 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
             return VINF_SUCCESS;
         }
 
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPagePDNAs));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPagePDNAs));
     }
     else if (fPdeValid)
     {
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPagePDOutOfSync));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPagePDOutOfSync));
         Log2(("SyncPage: Out-Of-Sync PDE at %RGp PdeSrc=%RX64 PdeDst=%RX64 (GCPhys %RGp vs %RGp)\n",
               GCPtrPage, (uint64_t)PdeSrc.u, (uint64_t)PdeDst.u, pShwPage->GCPhys, GCPhys));
     }
@@ -2083,7 +2371,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
      * Yea, I'm lazy.
      */
     pgmPoolFreeByPage(pPool, pShwPage, pShwPde->idx, iPDDst);
-    ASMAtomicWriteSize(pPdeDst, 0);
+    SHW_PDE_ATOMIC_SET(*pPdeDst, 0);
 
     PGM_DYNMAP_UNUSED_HINT(pVCpu, pPdeDst);
     PGM_INVL_VCPU_TLBS(pVCpu);
@@ -2116,6 +2404,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
     AssertRCSuccessReturn(rc, rc);
     Assert(pPDDst && pPdptDst);
     PdeDst = pPDDst->a[iPDDst];
+
 #   elif PGM_SHW_TYPE == PGM_TYPE_EPT
     const unsigned  iPDDst = ((GCPtrPage >> SHW_PD_SHIFT) & SHW_PD_MASK);
     PEPTPD          pPDDst;
@@ -2131,7 +2420,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
     PdeDst = pPDDst->a[iPDDst];
 #   endif
     /* In the guest SMP case we could have blocked while another VCPU reused this page table. */
-    if (!PdeDst.n.u1Present)
+    if (!SHW_PDE_IS_P(PdeDst))
     {
         AssertMsg(pVM->cCpus > 1, ("Unexpected missing PDE %RX64\n", (uint64_t)PdeDst.u));
         Log(("CPU%d: SyncPage: Pde at %RGv changed behind our back!\n", pVCpu->idCpu, GCPtrPage));
@@ -2139,7 +2428,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
     }
 
     /* Can happen in the guest SMP case; other VCPU activated this PDE while we were blocking to handle the page fault. */
-    if (PdeDst.n.u1Size)
+    if (SHW_PDE_IS_BIG(PdeDst))
     {
         Assert(pVM->pgm.s.fNestedPaging);
         Log(("CPU%d: SyncPage: Pde (big:%RX64) at %RGv changed behind our back!\n", pVCpu->idCpu, PdeDst.u, GCPtrPage));
@@ -2175,7 +2464,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
             if (!SHW_PTE_IS_P(pPTDst->a[iPTDst]))
             {
                 RTGCPTR GCPtrCurPage = PGM_A20_APPLY(pVCpu, (GCPtrPage & ~(RTGCPTR)(SHW_PT_MASK << SHW_PT_SHIFT))
-                                                          | (iPTDst << PAGE_SHIFT));
+                                                          | (iPTDst << GUEST_PAGE_SHIFT));
 
                 PGM_BTH_NAME(SyncPageWorker)(pVCpu, &pPTDst->a[iPTDst], GCPtrCurPage, pShwPage, iPTDst);
                 Log2(("SyncPage: 4K+ %RGv PteSrc:{P=1 RW=1 U=1} PteDst=%08llx%s\n",
@@ -2187,7 +2476,8 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
                     break;
             }
             else
-                Log4(("%RGv iPTDst=%x pPTDst->a[iPTDst] %RX64\n", (GCPtrPage & ~(RTGCPTR)(SHW_PT_MASK << SHW_PT_SHIFT)) | (iPTDst << PAGE_SHIFT), iPTDst, SHW_PTE_LOG64(pPTDst->a[iPTDst]) ));
+                Log4(("%RGv iPTDst=%x pPTDst->a[iPTDst] %RX64\n",
+                      (GCPtrPage & ~(RTGCPTR)(SHW_PT_MASK << SHW_PT_SHIFT)) | (iPTDst << GUEST_PAGE_SHIFT), iPTDst, SHW_PTE_LOG64(pPTDst->a[iPTDst]) ));
         }
     }
     else
@@ -2195,7 +2485,7 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
     {
         const unsigned  iPTDst       = (GCPtrPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
         RTGCPTR         GCPtrCurPage = PGM_A20_APPLY(pVCpu, (GCPtrPage & ~(RTGCPTR)(SHW_PT_MASK << SHW_PT_SHIFT))
-                                                          | (iPTDst << PAGE_SHIFT));
+                                                          | (iPTDst << GUEST_PAGE_SHIFT));
 
         PGM_BTH_NAME(SyncPageWorker)(pVCpu, &pPTDst->a[iPTDst], GCPtrCurPage, pShwPage, iPTDst);
 
@@ -2214,78 +2504,427 @@ static int PGM_BTH_NAME(SyncPage)(PVMCPUCC pVCpu, GSTPDE PdeSrc, RTGCPTR GCPtrPa
 }
 
 #endif /* PGM_SHW_TYPE != PGM_TYPE_NONE */
+
+#if !defined(IN_RING3) && defined(VBOX_WITH_NESTED_HWVIRT_VMX_EPT) && PGM_SHW_TYPE == PGM_TYPE_EPT
+
+/**
+ * Sync a shadow page for a nested-guest page.
+ *
+ * @param   pVCpu           The cross context virtual CPU structure.
+ * @param   pPte            The shadow page table entry.
+ * @param   GCPhysPage      The guest-physical address of the page.
+ * @param   pShwPage        The shadow page of the page table.
+ * @param   iPte            The index of the page table entry.
+ * @param   pGstWalkAll     The guest page table walk result.
+ *
+ * @note    Not to be used for 2/4MB pages!
+ */
+static void PGM_BTH_NAME(NestedSyncPageWorker)(PVMCPUCC pVCpu, PSHWPTE pPte, RTGCPHYS GCPhysPage, PPGMPOOLPAGE pShwPage,
+                                               unsigned iPte, PPGMPTWALKGST pGstWalkAll)
+{
+    PGM_A20_ASSERT_MASKED(pVCpu, GCPhysPage);
+    Assert(PGMPOOL_PAGE_IS_NESTED(pShwPage));
+    Assert(!pShwPage->fDirty);
+    Assert(pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_EPT);
+
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+    AssertMsg(GCPhysPage == (pGstWalkAll->u.Ept.Pte.u & EPT_PTE_PG_MASK),
+              ("GCPhys=%RGp Ept=%RX64\n", GCPhysPage, pGstWalkAll->u.Ept.Pte.u & EPT_PTE_PG_MASK));
+
+    /*
+     * Find the ram range.
+     */
+    PPGMPAGE pPage;
+    int rc = pgmPhysGetPageEx(pVM, GCPhysPage, &pPage);
+    AssertRCReturnVoid(rc);
+
+    Assert(!PGM_PAGE_IS_BALLOONED(pPage));
+
+# ifndef VBOX_WITH_NEW_LAZY_PAGE_ALLOC
+    /* Make the page writable if necessary. */
+    /** @todo This needs to be applied to the regular case below, not here. And,
+     *        no we should *NOT* make the page writble, instead we need to write
+     *        protect them if necessary. */
+    if (   PGM_PAGE_GET_TYPE(pPage)  == PGMPAGETYPE_RAM
+        && PGM_PAGE_IS_ZERO(pPage)
+        && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_ALLOCATED
+#  ifdef VBOX_WITH_REAL_WRITE_MONITORED_PAGES
+        && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED
+#  endif
+#  ifdef VBOX_WITH_PAGE_SHARING
+        && PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_SHARED
+#  endif
+       )
+    {
+        AssertMsgFailed(("GCPhysPage=%RGp\n", GCPhysPage)); /** @todo Shouldn't happen but if it does deal with it later. */
+    }
+# endif
+
+    /*
+     * Make page table entry.
+     */
+    SHWPTE Pte;
+    uint64_t const fGstShwPteFlags = pGstWalkAll->u.Ept.Pte.u & pVCpu->pgm.s.fGstEptShadowedPteMask;
+    if (!PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) || PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPage))
+    {
+        /** @todo access bit. */
+        Pte.u = PGM_PAGE_GET_HCPHYS(pPage) | fGstShwPteFlags;
+        Log7Func(("regular page (%R[pgmpage]) at %RGp -> %RX64\n", pPage, GCPhysPage, Pte.u));
+    }
+    else if (!PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
+    {
+        /** @todo access bit. */
+        Pte.u = PGM_PAGE_GET_HCPHYS(pPage) | (fGstShwPteFlags & ~EPT_E_WRITE);
+        Log7Func(("monitored page (%R[pgmpage]) at %RGp -> %RX64\n", pPage, GCPhysPage, Pte.u));
+    }
+    else
+    {
+        /** @todo Do MMIO optimizations here too? */
+        Log7Func(("mmio/all page (%R[pgmpage]) at %RGp -> 0\n", pPage, GCPhysPage));
+        Pte.u = 0;
+    }
+
+    /* Make sure only allocated pages are mapped writable. */
+    Assert(!SHW_PTE_IS_P_RW(Pte) || PGM_PAGE_IS_ALLOCATED(pPage));
+
+    /*
+     * Keep user track up to date.
+     */
+    if (SHW_PTE_IS_P(Pte))
+    {
+        if (!SHW_PTE_IS_P(*pPte))
+            PGM_BTH_NAME(SyncPageWorkerTrackAddref)(pVCpu, pShwPage, PGM_PAGE_GET_TRACKING(pPage), pPage, iPte);
+        else if (SHW_PTE_GET_HCPHYS(*pPte) != SHW_PTE_GET_HCPHYS(Pte))
+        {
+            Log2(("SyncPageWorker: deref! *pPte=%RX64 Pte=%RX64\n", SHW_PTE_LOG64(*pPte), SHW_PTE_LOG64(Pte)));
+            PGM_BTH_NAME(SyncPageWorkerTrackDeref)(pVCpu, pShwPage, SHW_PTE_GET_HCPHYS(*pPte), iPte, NIL_RTGCPHYS);
+            PGM_BTH_NAME(SyncPageWorkerTrackAddref)(pVCpu, pShwPage, PGM_PAGE_GET_TRACKING(pPage), pPage, iPte);
+        }
+    }
+    else if (SHW_PTE_IS_P(*pPte))
+    {
+        Log2(("SyncPageWorker: deref! *pPte=%RX64\n", SHW_PTE_LOG64(*pPte)));
+        PGM_BTH_NAME(SyncPageWorkerTrackDeref)(pVCpu, pShwPage, SHW_PTE_GET_HCPHYS(*pPte), iPte, NIL_RTGCPHYS);
+    }
+
+    /*
+     * Commit the entry.
+     */
+    SHW_PTE_ATOMIC_SET2(*pPte, Pte);
+    return;
+}
+
+
+/**
+ * Syncs a nested-guest page.
+ *
+ * There are no conflicts at this point, neither is there any need for
+ * page table allocations.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu               The cross context virtual CPU structure.
+ * @param   GCPhysNestedPage    The nested-guest physical address of the page being
+ *                              synced.
+ * @param   GCPhysPage          The guest-physical address of the page being synced.
+ * @param   cPages              Number of pages to sync (PGM_SYNC_N_PAGES) (default=1).
+ * @param   uErr                The page fault error (X86_TRAP_PF_XXX).
+ * @param   pGstWalkAll         The guest page table walk result.
+ */
+static int PGM_BTH_NAME(NestedSyncPage)(PVMCPUCC pVCpu, RTGCPHYS GCPhysNestedPage, RTGCPHYS GCPhysPage, unsigned cPages,
+                                        uint32_t uErr, PPGMPTWALKGST pGstWalkAll)
+{
+    PGM_A20_ASSERT_MASKED(pVCpu, GCPhysPage);
+    Assert(!(GCPhysNestedPage & GUEST_PAGE_OFFSET_MASK));
+    Assert(!(GCPhysPage & GUEST_PAGE_OFFSET_MASK));
+
+    PVMCC    pVM   = pVCpu->CTX_SUFF(pVM);
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool); NOREF(pPool);
+    Log7Func(("GCPhysNestedPage=%RGv GCPhysPage=%RGp cPages=%u uErr=%#x\n", GCPhysNestedPage, GCPhysPage, cPages, uErr));
+    RT_NOREF_PV(uErr); RT_NOREF_PV(cPages);
+
+    PGM_LOCK_ASSERT_OWNER(pVM);
+
+    /*
+     * Get the shadow PDE, find the shadow page table in the pool.
+     */
+    unsigned const iPde = ((GCPhysNestedPage >> EPT_PD_SHIFT) & EPT_PD_MASK);
+    PEPTPD pPd;
+    int rc = pgmShwGetNestedEPTPDPtr(pVCpu, GCPhysNestedPage, NULL, &pPd, pGstWalkAll);
+    if (RT_SUCCESS(rc))
+    { /* likely */ }
+    else
+    {
+        Log(("Failed to fetch EPT PD for %RGp (%RGp) rc=%Rrc\n", GCPhysNestedPage, GCPhysPage, rc));
+        return rc;
+    }
+    Assert(pPd);
+    EPTPDE Pde = pPd->a[iPde];
+
+# if 0  /* Enable this later? */
+    /* In the guest SMP case we could have blocked while another VCPU reused this page table. */
+    if (!SHW_PDE_IS_P(Pde))
+    {
+        AssertMsg(pVM->cCpus > 1, ("Unexpected missing PDE %RX64\n", (uint64_t)Pde.u));
+        Log7Func(("CPU%d: SyncPage: Pde at %RGp changed behind our back!\n", pVCpu->idCpu, GCPhysNestedPage));
+        return VINF_SUCCESS;    /* force the instruction to be executed again. */
+    }
+
+    /* Can happen in the guest SMP case; other VCPU activated this PDE while we were blocking to handle the page fault. */
+    if (SHW_PDE_IS_BIG(Pde))
+    {
+        Assert(pVM->pgm.s.fNestedPaging);
+        Log7Func(("CPU%d: SyncPage: %RGp changed behind our back!\n", pVCpu->idCpu, GCPhysNestedPage));
+        return VINF_SUCCESS;
+    }
+# else
+    AssertMsg(SHW_PDE_IS_P(Pde), ("Pde=%RX64 iPde=%u\n", Pde.u, iPde));
+    Assert(!SHW_PDE_IS_BIG(Pde));
+# endif
+
+    PPGMPOOLPAGE pShwPage = pgmPoolGetPage(pPool, Pde.u & EPT_PDE_PG_MASK);
+    PEPTPT       pPt      = (PEPTPT)PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pShwPage);
+
+    Assert(cPages == 1 || !(uErr & X86_TRAP_PF_P));
+# ifdef PGM_SYNC_N_PAGES
+    if (    cPages > 1
+        && !(uErr & X86_TRAP_PF_P)
+        && !VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY))
+    {
+        /*
+         * This code path is currently only taken for non-present pages!
+         *
+         * We're setting PGM_SYNC_NR_PAGES pages around the faulting page to sync it and
+         * deal with locality.
+         */
+        unsigned       iPte    = (GCPhysNestedPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
+        unsigned const iPteEnd = RT_MIN(iPte + PGM_SYNC_NR_PAGES / 2, RT_ELEMENTS(pPt->a));
+        if (iPte < PGM_SYNC_NR_PAGES / 2)
+            iPte = 0;
+        else
+            iPte -= PGM_SYNC_NR_PAGES / 2;
+        for (; iPte < iPteEnd; iPte++)
+        {
+            if (!SHW_PTE_IS_P(pPt->a[iPte]))
+            {
+                PGMPTWALKGST GstWalkPt;
+                PGMPTWALK    WalkPt;
+                GCPhysNestedPage &= ~(SHW_PT_MASK << SHW_PT_SHIFT);
+                GCPhysNestedPage |= (iPte << GUEST_PAGE_SHIFT);
+                rc = pgmGstSlatWalk(pVCpu, GCPhysNestedPage, false /*fIsLinearAddrValid*/, 0 /*GCPtrNested*/, &WalkPt,
+                                    &GstWalkPt);
+                if (RT_SUCCESS(rc))
+                    PGM_BTH_NAME(NestedSyncPageWorker)(pVCpu, &pPt->a[iPte], WalkPt.GCPhys, pShwPage, iPte, &GstWalkPt);
+                else
+                {
+                    /*
+                     * This could be MMIO pages reserved by the nested-hypevisor or genuinely not-present pages.
+                     * Ensure the shadow tables entry is not-present.
+                     */
+                    /** @todo Potential room for optimization (explained in NestedSyncPT). */
+                    AssertMsg(!pPt->a[iPte].u, ("%RX64\n", pPt->a[iPte].u));
+                }
+                Log7Func(("Many: %RGp iPte=%u ShwPte=%RX64\n", GCPhysNestedPage, iPte, SHW_PTE_LOG64(pPt->a[iPte])));
+                if (RT_UNLIKELY(VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY)))
+                    break;
+            }
+            else
+            {
+#  ifdef VBOX_STRICT
+                /* Paranoia - Verify address of the page is what it should be. */
+                PGMPTWALKGST GstWalkPt;
+                PGMPTWALK    WalkPt;
+                GCPhysNestedPage &= ~(SHW_PT_MASK << SHW_PT_SHIFT);
+                GCPhysNestedPage |= (iPte << GUEST_PAGE_SHIFT);
+                rc = pgmGstSlatWalk(pVCpu, GCPhysNestedPage, false /*fIsLinearAddrValid*/, 0 /*GCPtrNested*/, &WalkPt, &GstWalkPt);
+                AssertRC(rc);
+                PPGMPAGE pPage;
+                rc = pgmPhysGetPageEx(pVM, WalkPt.GCPhys, &pPage);
+                AssertRC(rc);
+                AssertMsg(PGM_PAGE_GET_HCPHYS(pPage) == SHW_PTE_GET_HCPHYS(pPt->a[iPte]),
+                          ("PGM page and shadow PTE address conflict. GCPhysNestedPage=%RGp GCPhysPage=%RGp HCPhys=%RHp Shw=%RHp\n",
+                           GCPhysNestedPage, WalkPt.GCPhys, PGM_PAGE_GET_HCPHYS(pPage), SHW_PTE_GET_HCPHYS(pPt->a[iPte])));
+#  endif
+                Log7Func(("Many3: %RGp iPte=%u ShwPte=%RX64\n", GCPhysNestedPage, iPte, SHW_PTE_LOG64(pPt->a[iPte])));
+            }
+        }
+    }
+    else
+# endif /* PGM_SYNC_N_PAGES */
+    {
+        unsigned const iPte = (GCPhysNestedPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
+        PGM_BTH_NAME(NestedSyncPageWorker)(pVCpu, &pPt->a[iPte], GCPhysPage, pShwPage, iPte, pGstWalkAll);
+        Log7Func(("4K: GCPhysPage=%RGp iPte=%u ShwPte=%08llx\n", GCPhysPage, iPte, SHW_PTE_LOG64(pPt->a[iPte])));
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Sync a shadow page table for a nested-guest page table.
+ *
+ * The shadow page table is not present in the shadow PDE.
+ *
+ * Handles mapping conflicts.
+ *
+ * A precondition for this method is that the shadow PDE is not present.  The
+ * caller must take the PGM lock before checking this and continue to hold it
+ * when calling this method.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu               The cross context virtual CPU structure.
+ * @param   GCPhysNestedPage    The nested-guest physical page address of the page
+ *                              being synced.
+ * @param   GCPhysPage          The guest-physical address of the page being synced.
+ * @param   pGstWalkAll         The guest page table walk result.
+ */
+static int PGM_BTH_NAME(NestedSyncPT)(PVMCPUCC pVCpu, RTGCPHYS GCPhysNestedPage, RTGCPHYS GCPhysPage, PPGMPTWALKGST pGstWalkAll)
+{
+    PGM_A20_ASSERT_MASKED(pVCpu, GCPhysPage);
+    Assert(!(GCPhysNestedPage & GUEST_PAGE_OFFSET_MASK));
+    Assert(!(GCPhysPage & GUEST_PAGE_OFFSET_MASK));
+
+    PVMCC    pVM   = pVCpu->CTX_SUFF(pVM);
+    PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
+
+    Log7Func(("GCPhysNestedPage=%RGp GCPhysPage=%RGp\n", GCPhysNestedPage, GCPhysPage));
+
+    PGM_LOCK_ASSERT_OWNER(pVM);
+    STAM_PROFILE_START(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
+
+    PEPTPD         pPd;
+    PEPTPDPT       pPdpt;
+    unsigned const iPde = (GCPhysNestedPage >> EPT_PD_SHIFT)   & EPT_PD_MASK;
+    int rc = pgmShwGetNestedEPTPDPtr(pVCpu, GCPhysNestedPage, &pPdpt, &pPd, pGstWalkAll);
+    if (rc != VINF_SUCCESS)
+    {
+        STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
+        AssertRC(rc);
+        return rc;
+    }
+    Assert(pPd);
+    PSHWPDE pPde = &pPd->a[iPde];
+
+    unsigned const iPdpt = (GCPhysNestedPage >> EPT_PDPT_SHIFT) & EPT_PDPT_MASK;
+    PPGMPOOLPAGE pShwPde = pgmPoolGetPage(pPool, pPdpt->a[iPdpt].u & EPT_PDPTE_PG_MASK);
+    Assert(pShwPde->enmKind == PGMPOOLKIND_EPT_PD_FOR_EPT_PD);
+
+    SHWPDE Pde = *pPde;
+    Assert(!SHW_PDE_IS_P(Pde));    /* We're only supposed to call SyncPT on PDE!P and conflicts. */
+
+# ifdef PGM_WITH_LARGE_PAGES
+    if (BTH_IS_NP_ACTIVE(pVM))
+    {
+        /* Check if we allocated a big page before for this 2 MB range and disable it. */
+        PPGMPAGE pPage;
+        rc = pgmPhysGetPageEx(pVM, GCPhysPage & X86_PDE2M_PAE_PG_MASK, &pPage);
+        if (   RT_SUCCESS(rc)
+            && PGM_PAGE_GET_PDE_TYPE(pPage) == PGM_PAGE_PDE_TYPE_PDE)
+        {
+            Log7Func(("Disabling large page %RGp\n", GCPhysPage));
+            Assert(PGM_A20_IS_ENABLED(pVCpu));  /* Should never be in A20M mode in VMX operation. */
+            PGM_PAGE_SET_PDE_TYPE(pVM, pPage, PGM_PAGE_PDE_TYPE_PDE_DISABLED);
+            pVM->pgm.s.cLargePagesDisabled++;
+        }
+    }
+# endif /* PGM_WITH_LARGE_PAGES */
+
+    /*
+     * Allocate & map the page table.
+     */
+    PSHWPT       pPt;
+    PPGMPOOLPAGE pShwPage;
+
+    RTGCPHYS const GCPhysPt = pGstWalkAll->u.Ept.Pde.u & EPT_PDE_PG_MASK;
+    rc = pgmPoolAlloc(pVM, GCPhysPt, PGMPOOLKIND_EPT_PT_FOR_EPT_PT, PGMPOOLACCESS_DONTCARE,
+                      PGM_A20_IS_ENABLED(pVCpu), pShwPde->idx, iPde, false /*fLockPage*/, &pShwPage);
+    if (   rc == VINF_SUCCESS
+        || rc == VINF_PGM_CACHED_PAGE)
+    { /* likely */ }
+    else
+    {
+       STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
+       AssertMsgFailedReturn(("rc=%Rrc\n", rc), RT_FAILURE_NP(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS);
+    }
+
+    pPt = (PSHWPT)PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pShwPage);
+    Assert(pPt);
+    Assert(PGMPOOL_PAGE_IS_NESTED(pShwPage));
+
+    if (rc == VINF_SUCCESS)
+    {
+        /* Sync the page we've already translated through SLAT. */
+        const unsigned iPte = (GCPhysNestedPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
+        Assert((pGstWalkAll->u.Ept.Pte.u & EPT_PTE_PG_MASK) == GCPhysPage);
+        PGM_BTH_NAME(NestedSyncPageWorker)(pVCpu, &pPt->a[iPte], GCPhysPage, pShwPage, iPte, pGstWalkAll);
+        Log7Func(("GstPte=%RGp ShwPte=%RX64 iPte=%u\n", pGstWalkAll->u.Ept.Pte.u, pPt->a[iPte].u, iPte));
+
+        /* Sync the rest of page table (expensive but might be cheaper than nested-guest VM-exits in hardware). */
+        for (unsigned iPteCur = 0; iPteCur < RT_ELEMENTS(pPt->a); iPteCur++)
+        {
+            if (iPteCur != iPte)
+            {
+                PGMPTWALKGST GstWalkPt;
+                PGMPTWALK    WalkPt;
+                GCPhysNestedPage &= ~(SHW_PT_MASK << SHW_PT_SHIFT);
+                GCPhysNestedPage |= (iPteCur << GUEST_PAGE_SHIFT);
+                int const rc2 = pgmGstSlatWalk(pVCpu, GCPhysNestedPage, false /*fIsLinearAddrValid*/, 0 /*GCPtrNested*/,
+                                               &WalkPt, &GstWalkPt);
+                if (RT_SUCCESS(rc2))
+                {
+                    PGM_BTH_NAME(NestedSyncPageWorker)(pVCpu, &pPt->a[iPteCur], WalkPt.GCPhys, pShwPage, iPteCur, &GstWalkPt);
+                    Log7Func(("GstPte=%RGp ShwPte=%RX64 iPte=%u\n", GstWalkPt.u.Ept.Pte.u, pPt->a[iPteCur].u, iPteCur));
+                }
+                else
+                {
+                    /*
+                     * This could be MMIO pages reserved by the nested-hypevisor or genuinely not-present pages.
+                     * Ensure the shadow tables entry is not-present.
+                     */
+                    /** @todo We currently don't sync. them to cause EPT misconfigs and trap all of them
+                     *        using EPT violation and walk the guest EPT tables to determine EPT
+                     *        misconfigs VM-exits for the nested-guest. In the future we could optimize
+                     *        this by using a specific combination of reserved bits which we can
+                     *        immediately identify as EPT misconfigs for the nested-guest without having
+                     *        to walk its EPT tables. Tracking non-present entries might be tricky...
+                     */
+                    AssertMsg(!pPt->a[iPteCur].u, ("%RX64\n", pPt->a[iPteCur].u));
+                }
+                if (RT_UNLIKELY(VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY)))
+                    break;
+            }
+        }
+    }
+    else
+    {
+        Assert(rc == VINF_PGM_CACHED_PAGE);
+# ifdef VBOX_STRICT
+        /* Paranoia - Verify address of the page is what it should be. */
+        PPGMPAGE pPage;
+        rc = pgmPhysGetPageEx(pVM, GCPhysPage, &pPage);
+        AssertRC(rc);
+        const unsigned iPte = (GCPhysNestedPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
+        AssertMsg(PGM_PAGE_GET_HCPHYS(pPage) == SHW_PTE_GET_HCPHYS(pPt->a[iPte]) || !SHW_PTE_IS_P(pPt->a[iPte]),
+                  ("PGM page and shadow PTE address conflict. GCPhysNestedPage=%RGp GCPhysPage=%RGp Page=%RHp Shw=%RHp\n",
+                   GCPhysNestedPage, GCPhysPage, PGM_PAGE_GET_HCPHYS(pPage), SHW_PTE_GET_HCPHYS(pPt->a[iPte])));
+        Log7Func(("GstPte=%RGp ShwPte=%RX64 iPte=%u [cache]\n", pGstWalkAll->u.Ept.Pte.u, pPt->a[iPte].u,  iPte));
+# endif
+        rc = VINF_SUCCESS; /* Cached entry; assume it's still fully valid. */
+    }
+
+    /* Save the new PDE. */
+    uint64_t const fShwPdeFlags = pGstWalkAll->u.Ept.Pde.u & pVCpu->pgm.s.fGstEptShadowedPdeMask;
+    AssertReturn(!(pGstWalkAll->u.Ept.Pde.u & EPT_E_LEAF), VERR_NOT_SUPPORTED);  /* Implement this later. */
+    Pde.u = pShwPage->Core.Key | fShwPdeFlags;
+    SHW_PDE_ATOMIC_SET2(*pPde, Pde);
+    Log7Func(("GstPde=%RGp ShwPde=%RX64 iPde=%u\n", pGstWalkAll->u.Ept.Pde.u, pPde->u, iPde));
+
+    STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
+    return rc;
+}
+
+#endif  /* !IN_RING3 && VBOX_WITH_NESTED_HWVIRT_VMX_EPT && PGM_SHW_TYPE == PGM_TYPE_EPT*/
 #if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE) && PGM_SHW_TYPE != PGM_TYPE_NONE
-
-/**
- * CheckPageFault helper for returning a page fault indicating a non-present
- * (NP) entry in the page translation structures.
- *
- * @returns VINF_EM_RAW_GUEST_TRAP.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   uErr            The error code of the shadow fault.  Corrections to
- *                          TRPM's copy will be made if necessary.
- * @param   GCPtrPage       For logging.
- * @param   uPageFaultLevel For logging.
- */
-DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnNP)(PVMCPUCC pVCpu, uint32_t uErr, RTGCPTR GCPtrPage, unsigned uPageFaultLevel)
-{
-    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyTrackRealPF));
-    AssertMsg(!(uErr & X86_TRAP_PF_P), ("%#x\n", uErr));
-    AssertMsg(!(uErr & X86_TRAP_PF_RSVD), ("%#x\n", uErr));
-    if (uErr & (X86_TRAP_PF_RSVD | X86_TRAP_PF_P))
-        TRPMSetErrorCode(pVCpu, uErr & ~(X86_TRAP_PF_RSVD | X86_TRAP_PF_P));
-
-    Log(("CheckPageFault: real page fault (notp) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
-    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
-    return VINF_EM_RAW_GUEST_TRAP;
-}
-
-
-/**
- * CheckPageFault helper for returning a page fault indicating a reserved bit
- * (RSVD) error in the page translation structures.
- *
- * @returns VINF_EM_RAW_GUEST_TRAP.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   uErr            The error code of the shadow fault.  Corrections to
- *                          TRPM's copy will be made if necessary.
- * @param   GCPtrPage       For logging.
- * @param   uPageFaultLevel For logging.
- */
-DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnRSVD)(PVMCPUCC pVCpu, uint32_t uErr, RTGCPTR GCPtrPage, unsigned uPageFaultLevel)
-{
-    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyTrackRealPF));
-    if ((uErr & (X86_TRAP_PF_RSVD | X86_TRAP_PF_P)) != (X86_TRAP_PF_RSVD | X86_TRAP_PF_P))
-        TRPMSetErrorCode(pVCpu, uErr | X86_TRAP_PF_RSVD | X86_TRAP_PF_P);
-
-    Log(("CheckPageFault: real page fault (rsvd) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
-    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
-    return VINF_EM_RAW_GUEST_TRAP;
-}
-
-
-/**
- * CheckPageFault helper for returning a page protection fault (P).
- *
- * @returns VINF_EM_RAW_GUEST_TRAP.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   uErr            The error code of the shadow fault.  Corrections to
- *                          TRPM's copy will be made if necessary.
- * @param   GCPtrPage       For logging.
- * @param   uPageFaultLevel For logging.
- */
-DECLINLINE(int) PGM_BTH_NAME(CheckPageFaultReturnProt)(PVMCPUCC pVCpu, uint32_t uErr, RTGCPTR GCPtrPage, unsigned uPageFaultLevel)
-{
-    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyTrackRealPF));
-    AssertMsg(uErr & (X86_TRAP_PF_RW | X86_TRAP_PF_US | X86_TRAP_PF_ID), ("%#x\n", uErr));
-    if ((uErr & (X86_TRAP_PF_P | X86_TRAP_PF_RSVD)) != X86_TRAP_PF_P)
-        TRPMSetErrorCode(pVCpu, (uErr & ~X86_TRAP_PF_RSVD) | X86_TRAP_PF_P);
-
-    Log(("CheckPageFault: real page fault (prot) at %RGv (%d)\n", GCPtrPage, uPageFaultLevel));
-    RT_NOREF_PV(GCPtrPage); RT_NOREF_PV(uPageFaultLevel);
-    return VINF_EM_RAW_GUEST_TRAP;
-}
-
 
 /**
  * Handle dirty bit tracking faults.
@@ -2309,32 +2948,27 @@ static int PGM_BTH_NAME(CheckDirtyPageFault)(PVMCPUCC pVCpu, uint32_t uErr, PSHW
     /*
      * Handle big page.
      */
-    if (pPdeSrc->b.u1Size && GST_IS_PSE_ACTIVE(pVCpu))
+    if ((pPdeSrc->u & X86_PDE_PS) && GST_IS_PSE_ACTIVE(pVCpu))
     {
-        if (    pPdeDst->n.u1Present
-            &&  (pPdeDst->u & PGM_PDFLAGS_TRACK_DIRTY))
+        if ((pPdeDst->u & (X86_PDE_P | PGM_PDFLAGS_TRACK_DIRTY)) == (X86_PDE_P | PGM_PDFLAGS_TRACK_DIRTY))
         {
-            SHWPDE PdeDst = *pPdeDst;
-
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageTrap));
-            Assert(pPdeSrc->b.u1Write);
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageTrap));
+            Assert(pPdeSrc->u & X86_PDE_RW);
 
             /* Note: No need to invalidate this entry on other VCPUs as a stale TLB entry will not harm; write access will simply
-             *       fault again and take this path to only invalidate the entry (see below).
-             */
-            PdeDst.n.u1Write      = 1;
-            PdeDst.n.u1Accessed   = 1;
-            PdeDst.au32[0]       &= ~PGM_PDFLAGS_TRACK_DIRTY;
-            ASMAtomicWriteSize(pPdeDst, PdeDst.u);
+             *       fault again and take this path to only invalidate the entry (see below). */
+            SHWPDE PdeDst = *pPdeDst;
+            PdeDst.u &= ~(SHWUINT)PGM_PDFLAGS_TRACK_DIRTY;
+            PdeDst.u |= X86_PDE_RW | X86_PDE_A;
+            SHW_PDE_ATOMIC_SET2(*pPdeDst, PdeDst);
             PGM_INVL_BIG_PG(pVCpu, GCPtrPage);
             return VINF_PGM_HANDLED_DIRTY_BIT_FAULT;    /* restarts the instruction. */
         }
 
 # ifdef IN_RING0
         /* Check for stale TLB entry; only applies to the SMP guest case. */
-        if (    pVM->cCpus > 1
-            &&  pPdeDst->n.u1Write
-            &&  pPdeDst->n.u1Accessed)
+        if (   pVM->cCpus > 1
+            && (pPdeDst->u & (X86_PDE_P | X86_PDE_RW | X86_PDE_A)) == (X86_PDE_P | X86_PDE_RW | X86_PDE_A))
         {
             PPGMPOOLPAGE    pShwPage = pgmPoolGetPage(pPool, pPdeDst->u & SHW_PDE_PG_MASK);
             if (pShwPage)
@@ -2344,7 +2978,7 @@ static int PGM_BTH_NAME(CheckDirtyPageFault)(PVMCPUCC pVCpu, uint32_t uErr, PSHW
                 if (SHW_PTE_IS_P_RW(*pPteDst))
                 {
                     /* Stale TLB entry. */
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageStale));
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageStale));
                     PGM_INVL_PG(pVCpu, GCPtrPage);
                     return VINF_PGM_HANDLED_DIRTY_BIT_FAULT;    /* restarts the instruction. */
                 }
@@ -2359,13 +2993,9 @@ static int PGM_BTH_NAME(CheckDirtyPageFault)(PVMCPUCC pVCpu, uint32_t uErr, PSHW
      */
     PGSTPT pPTSrc;
     int rc = PGM_GCPHYS_2_PTR_V2(pVM, pVCpu, GST_GET_PDE_GCPHYS(*pPdeSrc), &pPTSrc);
-    if (RT_FAILURE(rc))
-    {
-        AssertRC(rc);
-        return rc;
-    }
+    AssertRCReturn(rc, rc);
 
-    if (pPdeDst->n.u1Present)
+    if (SHW_PDE_IS_P(*pPdeDst))
     {
         GSTPTE const  *pPteSrc = &pPTSrc->a[(GCPtrPage >> GST_PT_SHIFT) & GST_PT_MASK];
         const GSTPTE   PteSrc  = *pPteSrc;
@@ -2386,9 +3016,9 @@ static int PGM_BTH_NAME(CheckDirtyPageFault)(PVMCPUCC pVCpu, uint32_t uErr, PSHW
                     SHWPTE   PteDst = *pPteDst;
 
                     LogFlow(("DIRTY page trap addr=%RGv\n", GCPtrPage));
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageTrap));
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageTrap));
 
-                    Assert(PteSrc.n.u1Write);
+                    Assert(PteSrc.u & X86_PTE_RW);
 
                     /* Note: No need to invalidate this entry on other VCPUs as a stale TLB
                      *       entry will not harm; write access will simply fault again and
@@ -2396,7 +3026,7 @@ static int PGM_BTH_NAME(CheckDirtyPageFault)(PVMCPUCC pVCpu, uint32_t uErr, PSHW
                      */
                     if (RT_LIKELY(pPage))
                     {
-                        if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
+                        if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) && !PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPage))
                         {
                             //AssertMsgFailed(("%R[pgmpage] - we don't set PGM_PTFLAGS_TRACK_DIRTY for these pages\n", pPage));
                             Assert(!PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage));
@@ -2437,7 +3067,7 @@ static int PGM_BTH_NAME(CheckDirtyPageFault)(PVMCPUCC pVCpu, uint32_t uErr, PSHW
                     &&  SHW_PTE_IS_A(*pPteDst))
                 {
                     /* Stale TLB entry. */
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageStale));
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageStale));
                     PGM_INVL_PG(pVCpu, GCPtrPage);
                     return VINF_PGM_HANDLED_DIRTY_BIT_FAULT;    /* restarts the instruction. */
                 }
@@ -2493,7 +3123,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
  && PGM_SHW_TYPE != PGM_TYPE_NONE
     int             rc       = VINF_SUCCESS;
 
-    STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
+    STAM_PROFILE_START(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
 
     /*
      * Some input validation first.
@@ -2534,6 +3164,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
     AssertRCSuccessReturn(rc, rc);
     Assert(pPDDst);
     PSHWPDE         pPdeDst  = &pPDDst->a[iPDDst];
+
 # endif
     SHWPDE          PdeDst   = *pPdeDst;
 
@@ -2543,47 +3174,14 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
     Assert(pShwPde);
 # endif
 
-# ifndef PGM_WITHOUT_MAPPINGS
-    /*
-     * Check for conflicts.
-     * RC: In case of a conflict we'll go to Ring-3 and do a full SyncCR3.
-     * R3: Simply resolve the conflict.
-     */
-    if (PdeDst.u & PGM_PDFLAGS_MAPPING)
-    {
-        Assert(pgmMapAreMappingsEnabled(pVM));
-#  ifndef IN_RING3
-        Log(("SyncPT: Conflict at %RGv\n", GCPtrPage));
-        STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
-        return VERR_ADDRESS_CONFLICT;
-
-#  else  /* IN_RING3 */
-        PPGMMAPPING pMapping = pgmGetMapping(pVM, (RTGCPTR)GCPtrPage);
-        Assert(pMapping);
-#   if PGM_GST_TYPE == PGM_TYPE_32BIT
-        rc = pgmR3SyncPTResolveConflict(pVM, pMapping, pPDSrc, GCPtrPage & (GST_PD_MASK << GST_PD_SHIFT));
-#   elif PGM_GST_TYPE == PGM_TYPE_PAE
-        rc = pgmR3SyncPTResolveConflictPAE(pVM, pMapping, GCPtrPage & (GST_PD_MASK << GST_PD_SHIFT));
-#   else
-        AssertFailed(); NOREF(pMapping); /* can't happen for amd64 */
-#   endif
-        if (RT_FAILURE(rc))
-        {
-            STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
-            return rc;
-        }
-        PdeDst = *pPdeDst;
-#  endif /* IN_RING3 */
-    }
-# endif /* !PGM_WITHOUT_MAPPINGS */
-    Assert(!PdeDst.n.u1Present); /* We're only supposed to call SyncPT on PDE!P and conflicts.*/
+    Assert(!SHW_PDE_IS_P(PdeDst)); /* We're only supposed to call SyncPT on PDE!P.*/
 
     /*
      * Sync the page directory entry.
      */
     GSTPDE      PdeSrc = pPDSrc->a[iPDSrc];
-    const bool  fPageTable = !PdeSrc.b.u1Size || !GST_IS_PSE_ACTIVE(pVCpu);
-    if (   PdeSrc.n.u1Present
+    const bool  fPageTable = !(PdeSrc.u & X86_PDE_PS) || !GST_IS_PSE_ACTIVE(pVCpu);
+    if (   (PdeSrc.u & X86_PDE_P)
         && (fPageTable ? GST_IS_PDE_VALID(pVCpu, PdeSrc) : GST_IS_BIG_PDE_VALID(pVCpu, PdeSrc)) )
     {
         /*
@@ -2597,7 +3195,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
             GCPhys = GST_GET_PDE_GCPHYS(PdeSrc);
 # if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
             /* Select the right PDE as we're emulating a 4kb page table with 2 shadow page tables. */
-            GCPhys = PGM_A20_APPLY(pVCpu, GCPhys | ((iPDDst & 1) * (PAGE_SIZE / 2)));
+            GCPhys = PGM_A20_APPLY(pVCpu, GCPhys | ((iPDDst & 1) * (GUEST_PAGE_SIZE / 2)));
 # endif
             rc = pgmPoolAlloc(pVM, GCPhys, BTH_PGMPOOLKIND_PT_FOR_PT, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
                               pShwPde->idx, iPDDst, false /*fLockPage*/,
@@ -2607,7 +3205,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
         {
             PGMPOOLACCESS enmAccess;
 # if PGM_WITH_NX(PGM_GST_TYPE, PGM_SHW_TYPE)
-            const bool  fNoExecute = PdeSrc.n.u1NoExecute && GST_IS_NX_ACTIVE(pVCpu);
+            const bool  fNoExecute = (PdeSrc.u & X86_PDE_PAE_NX) && GST_IS_NX_ACTIVE(pVCpu);
 # else
             const bool  fNoExecute = false;
 # endif
@@ -2618,16 +3216,16 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
             GCPhys = PGM_A20_APPLY(pVCpu, GCPhys | (GCPtrPage & (1 << X86_PD_PAE_SHIFT)));
 # endif
             /* Determine the right kind of large page to avoid incorrect cached entry reuse. */
-            if (PdeSrc.n.u1User)
+            if (PdeSrc.u & X86_PDE_US)
             {
-                if (PdeSrc.n.u1Write)
+                if (PdeSrc.u & X86_PDE_RW)
                     enmAccess = (fNoExecute) ? PGMPOOLACCESS_USER_RW_NX : PGMPOOLACCESS_USER_RW;
                 else
                     enmAccess = (fNoExecute) ? PGMPOOLACCESS_USER_R_NX  : PGMPOOLACCESS_USER_R;
             }
             else
             {
-                if (PdeSrc.n.u1Write)
+                if (PdeSrc.u & X86_PDE_RW)
                     enmAccess = (fNoExecute) ? PGMPOOLACCESS_SUPERVISOR_RW_NX : PGMPOOLACCESS_SUPERVISOR_RW;
                 else
                     enmAccess = (fNoExecute) ? PGMPOOLACCESS_SUPERVISOR_R_NX  : PGMPOOLACCESS_SUPERVISOR_R;
@@ -2649,15 +3247,14 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
             {
                 PdeDst.u = pShwPage->Core.Key | GST_GET_BIG_PDE_SHW_FLAGS(pVCpu, PdeSrc);
                 /* (see explanation and assumptions further down.) */
-                if (    !PdeSrc.b.u1Dirty
-                    &&  PdeSrc.b.u1Write)
+                if ((PdeSrc.u & (X86_PDE_RW | X86_PDE4M_D)) == X86_PDE_RW)
                 {
-                    STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageBig));
+                    STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageBig));
                     PdeDst.u |= PGM_PDFLAGS_TRACK_DIRTY;
-                    PdeDst.b.u1Write = 0;
+                    PdeDst.u &= ~(SHWUINT)X86_PDE_RW;
                 }
             }
-            ASMAtomicWriteSize(pPdeDst, PdeDst.u);
+            SHW_PDE_ATOMIC_SET2(*pPdeDst, PdeDst);
             PGM_DYNMAP_UNUSED_HINT(pVCpu, pPdeDst);
             return VINF_SUCCESS;
         }
@@ -2680,7 +3277,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
          *
          * The best idea is to leave this change to the caller and add an
          * assertion that it's set already. */
-        pPDSrc->a[iPDSrc].n.u1Accessed = 1;
+        pPDSrc->a[iPDSrc].u |= X86_PDE_A;
         if (fPageTable)
         {
             /*
@@ -2689,7 +3286,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
              * Sync all or just a few entries depending on PGM_SYNC_N_PAGES.
              */
             Log2(("SyncPT:   4K  %RGv PdeSrc:{P=%d RW=%d U=%d raw=%08llx}\n",
-                  GCPtrPage, PdeSrc.b.u1Present, PdeSrc.b.u1Write, PdeSrc.b.u1User, (uint64_t)PdeSrc.u));
+                  GCPtrPage, PdeSrc.u & X86_PTE_P, !!(PdeSrc.u & X86_PTE_RW), !!(PdeSrc.u & X86_PDE_US), (uint64_t)PdeSrc.u));
             PGSTPT pPTSrc;
             rc = PGM_GCPHYS_2_PTR(pVM, GST_GET_PDE_GCPHYS(PdeSrc), &pPTSrc);
             if (RT_SUCCESS(rc))
@@ -2699,7 +3296,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
                  */
                 PdeDst.u = (PdeDst.u & (SHW_PDE_PG_MASK | X86_PDE_AVL_MASK))
                          | GST_GET_PDE_SHW_FLAGS(pVCpu, PdeSrc);
-                ASMAtomicWriteSize(pPdeDst, PdeDst.u);
+                SHW_PDE_ATOMIC_SET2(*pPdeDst, PdeDst);
                 PGM_DYNMAP_UNUSED_HINT(pVCpu, pPdeDst);
 
                 /*
@@ -2715,7 +3312,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
                  * Simple AND operation. Table listed for completeness.
                  *
                  */
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT4K));
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT4K));
 # ifdef PGM_SYNC_N_PAGES
                 unsigned        iPTBase   = (GCPtrPage >> SHW_PT_SHIFT) & SHW_PT_MASK;
                 unsigned        iPTDst    = iPTBase;
@@ -2729,26 +3326,25 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
                 const unsigned  iPTDstEnd = RT_ELEMENTS(pPTDst->a);
 # endif /* !PGM_SYNC_N_PAGES */
                 RTGCPTR         GCPtrCur  = (GCPtrPage & ~(RTGCPTR)((1 << SHW_PD_SHIFT) - 1))
-                                          | ((RTGCPTR)iPTDst << PAGE_SHIFT);
+                                          | ((RTGCPTR)iPTDst << GUEST_PAGE_SHIFT);
 # if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
                 /* Select the right PDE as we're emulating a 4kb page table with 2 shadow page tables. */
                 const unsigned  offPTSrc  = ((GCPtrPage >> SHW_PD_SHIFT) & 1) * 512;
 # else
                 const unsigned  offPTSrc  = 0;
 # endif
-                for (; iPTDst < iPTDstEnd; iPTDst++, GCPtrCur += PAGE_SIZE)
+                for (; iPTDst < iPTDstEnd; iPTDst++, GCPtrCur += GUEST_PAGE_SIZE)
                 {
                     const unsigned iPTSrc = iPTDst + offPTSrc;
                     const GSTPTE   PteSrc = pPTSrc->a[iPTSrc];
-
-                    if (PteSrc.n.u1Present)
+                    if (PteSrc.u & X86_PTE_P)
                     {
                         PGM_BTH_NAME(SyncPageWorker)(pVCpu, &pPTDst->a[iPTDst], PdeSrc, PteSrc, pShwPage, iPTDst);
                         Log2(("SyncPT:   4K+ %RGv PteSrc:{P=%d RW=%d U=%d raw=%08llx}%s dst.raw=%08llx iPTSrc=%x PdeSrc.u=%x physpte=%RGp\n",
                               GCPtrCur,
-                              PteSrc.n.u1Present,
-                              PteSrc.n.u1Write & PdeSrc.n.u1Write,
-                              PteSrc.n.u1User  & PdeSrc.n.u1User,
+                              PteSrc.u & X86_PTE_P,
+                              !!(PteSrc.u & PdeSrc.u & X86_PTE_RW),
+                              !!(PteSrc.u & PdeSrc.u & X86_PTE_US),
                               (uint64_t)PteSrc.u,
                               SHW_PTE_IS_TRACK_DIRTY(pPTDst->a[iPTDst]) ? " Track-Dirty" : "", SHW_PTE_LOG64(pPTDst->a[iPTDst]), iPTSrc, PdeSrc.au32[0],
                               (RTGCPHYS)(GST_GET_PDE_GCPHYS(PdeSrc) + iPTSrc*sizeof(PteSrc)) ));
@@ -2765,7 +3361,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
              * We'll walk the ram range list in parallel and optimize lookups.
              * We will only sync one shadow page table at a time.
              */
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT4M));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT4M));
 
             /**
              * @todo It might be more efficient to sync only a part of the 4MB
@@ -2788,14 +3384,13 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
              */
             /** @todo move the above stuff to a section in the PGM documentation. */
             Assert(!(PdeDst.u & PGM_PDFLAGS_TRACK_DIRTY));
-            if (    !PdeSrc.b.u1Dirty
-                &&  PdeSrc.b.u1Write)
+            if ((PdeSrc.u & (X86_PDE_RW | X86_PDE4M_D)) == X86_PDE_RW)
             {
-                STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,DirtyPageBig));
+                STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,DirtyPageBig));
                 PdeDst.u |= PGM_PDFLAGS_TRACK_DIRTY;
-                PdeDst.b.u1Write = 0;
+                PdeDst.u &= ~(SHWUINT)X86_PDE_RW;
             }
-            ASMAtomicWriteSize(pPdeDst, PdeDst.u);
+            SHW_PDE_ATOMIC_SET2(*pPdeDst, PdeDst);
             PGM_DYNMAP_UNUSED_HINT(pVCpu, pPdeDst);
 
             /*
@@ -2808,7 +3403,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
             /* Loop thru the entries in the shadow PT. */
             const RTGCPTR   GCPtr  = (GCPtrPage >> SHW_PD_SHIFT) << SHW_PD_SHIFT; NOREF(GCPtr);
             Log2(("SyncPT:   BIG %RGv PdeSrc:{P=%d RW=%d U=%d raw=%08llx} Shw=%RGv GCPhys=%RGp %s\n",
-                  GCPtrPage, PdeSrc.b.u1Present, PdeSrc.b.u1Write, PdeSrc.b.u1User, (uint64_t)PdeSrc.u, GCPtr,
+                  GCPtrPage, PdeSrc.u & X86_PDE_P, !!(PdeSrc.u & X86_PDE_RW), !!(PdeSrc.u & X86_PDE_US), (uint64_t)PdeSrc.u, GCPtr,
                   GCPhys, PdeDst.u & PGM_PDFLAGS_TRACK_DIRTY ? " Track-Dirty" : ""));
             PPGMRAMRANGE    pRam   = pgmPhysGetRangeAtOrAbove(pVM, GCPhys);
             unsigned        iPTDst = 0;
@@ -2818,13 +3413,13 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
                 if (pRam && GCPhys >= pRam->GCPhys)
                 {
 # ifndef PGM_WITH_A20
-                    unsigned iHCPage = (GCPhys - pRam->GCPhys) >> PAGE_SHIFT;
+                    unsigned iHCPage = (GCPhys - pRam->GCPhys) >> GUEST_PAGE_SHIFT;
 # endif
                     do
                     {
                         /* Make shadow PTE. */
 # ifdef PGM_WITH_A20
-                        PPGMPAGE    pPage = &pRam->aPages[(GCPhys - pRam->GCPhys) >> PAGE_SHIFT];
+                        PPGMPAGE    pPage = &pRam->aPages[(GCPhys - pRam->GCPhys) >> GUEST_PAGE_SHIFT];
 # else
                         PPGMPAGE    pPage = &pRam->aPages[iHCPage];
 # endif
@@ -2853,8 +3448,8 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
                         }
 # endif
 
-                        if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
-                            PGM_BTH_NAME(SyncHandlerPte)(pVM, pPage, SHW_PTE_GET_U(PteDstBase), &PteDst);
+                        if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) && !PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPage))
+                            PGM_BTH_NAME(SyncHandlerPte)(pVM, pVCpu, pPage, GCPhys, SHW_PTE_GET_U(PteDstBase), &PteDst);
                         else if (PGM_PAGE_IS_BALLOONED(pPage))
                             SHW_PTE_SET(PteDst, 0); /* Handle ballooned pages at #PF time. */
                         else
@@ -2880,7 +3475,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
                               SHW_PTE_IS_TRACK_DIRTY(PteDst) ? " Track-Dirty" : ""));
 
                         /* advance */
-                        GCPhys += PAGE_SIZE;
+                        GCPhys += GUEST_PAGE_SIZE;
                         PGM_A20_APPLY_TO_VAR(pVCpu, GCPhys);
 # ifndef PGM_WITH_A20
                         iHCPage++;
@@ -2899,7 +3494,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
                     do
                     {
                         SHW_PTE_SET(pPTDst->a[iPTDst], 0); /* Invalid page, we must handle them manually. */
-                        GCPhys += PAGE_SIZE;
+                        GCPhys += GUEST_PAGE_SIZE;
                         iPTDst++;
                     } while (   iPTDst < RT_ELEMENTS(pPTDst->a)
                              && GCPhys < pRam->GCPhys);
@@ -2915,11 +3510,11 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
         } /* 4KB / 4MB */
     }
     else
-        AssertRelease(!PdeDst.n.u1Present);
+        AssertRelease(!SHW_PDE_IS_P(PdeDst));
 
-    STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
+    STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
     if (RT_FAILURE(rc))
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPTFailed));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPTFailed));
     return rc;
 
 #elif (PGM_GST_TYPE == PGM_TYPE_REAL || PGM_GST_TYPE == PGM_TYPE_PROT) \
@@ -2928,7 +3523,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
     && PGM_SHW_TYPE != PGM_TYPE_NONE
     NOREF(iPDSrc); NOREF(pPDSrc);
 
-    STAM_PROFILE_START(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
+    STAM_PROFILE_START(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
 
     /*
      * Validate input a little bit.
@@ -2979,7 +3574,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
     rc = pgmShwGetEPTPDPtr(pVCpu, GCPtrPage, &pPdptDst, &pPDDst);
     if (rc != VINF_SUCCESS)
     {
-        STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
+        STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
         AssertRC(rc);
         return rc;
     }
@@ -2987,18 +3582,19 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
     PSHWPDE         pPdeDst = &pPDDst->a[iPDDst];
 
     /* Fetch the pgm pool shadow descriptor. */
+    /** @todo r=bird: didn't pgmShwGetEPTPDPtr just do this lookup already? */
     PPGMPOOLPAGE pShwPde = pgmPoolGetPage(pPool, pPdptDst->a[iPdpt].u & EPT_PDPTE_PG_MASK);
     Assert(pShwPde);
 # endif
     SHWPDE          PdeDst = *pPdeDst;
 
-    Assert(!(PdeDst.u & PGM_PDFLAGS_MAPPING));
-    Assert(!PdeDst.n.u1Present); /* We're only supposed to call SyncPT on PDE!P and conflicts.*/
+    Assert(!SHW_PDE_IS_P(PdeDst)); /* We're only supposed to call SyncPT on PDE!P and conflicts.*/
 
 # if defined(PGM_WITH_LARGE_PAGES) && PGM_SHW_TYPE != PGM_TYPE_32BIT && PGM_SHW_TYPE != PGM_TYPE_PAE
-    if (    BTH_IS_NP_ACTIVE(pVM)
-        && !VM_IS_NEM_ENABLED(pVM)) /** @todo NEM: Large page support. */
+    if (BTH_IS_NP_ACTIVE(pVM))
     {
+        Assert(!VM_IS_NEM_ENABLED(pVM));
+
         /* Check if we allocated a big page before for this 2 MB range. */
         PPGMPAGE pPage;
         rc = pgmPhysGetPageEx(pVM, PGM_A20_APPLY(pVCpu, GCPtrPage & X86_PDE2M_PAE_PG_MASK), &pPage);
@@ -3047,25 +3643,20 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
 
             if (HCPhys != NIL_RTHCPHYS)
             {
-                PdeDst.u &= X86_PDE_AVL_MASK;
-                PdeDst.u |= HCPhys;
-                PdeDst.n.u1Present   = 1;
-                PdeDst.n.u1Write     = 1;
-                PdeDst.b.u1Size      = 1;
-#  if  PGM_SHW_TYPE == PGM_TYPE_EPT
-                PdeDst.n.u1Execute   = 1;
-                PdeDst.b.u1IgnorePAT = 1;
-                PdeDst.b.u3EMT       = VMX_EPT_MEMTYPE_WB;
+#  if PGM_SHW_TYPE == PGM_TYPE_EPT
+                PdeDst.u = HCPhys | EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE | EPT_E_LEAF | EPT_E_IGNORE_PAT | EPT_E_MEMTYPE_WB
+                         | (PdeDst.u & X86_PDE_AVL_MASK) /** @todo do we need this? */;
 #  else
-                PdeDst.n.u1User      = 1;
+                PdeDst.u = HCPhys | X86_PDE_P | X86_PDE_RW | X86_PDE_US | X86_PDE_PS
+                         | (PdeDst.u & X86_PDE_AVL_MASK) /** @todo PGM_PD_FLAGS? */;
 #  endif
-                ASMAtomicWriteSize(pPdeDst, PdeDst.u);
+                SHW_PDE_ATOMIC_SET2(*pPdeDst, PdeDst);
 
                 Log(("SyncPT: Use large page at %RGp PDE=%RX64\n", GCPtrPage, PdeDst.u));
                 /* Add a reference to the first page only. */
                 PGM_BTH_NAME(SyncPageWorkerTrackAddref)(pVCpu, pShwPde, PGM_PAGE_GET_TRACKING(pPage), pPage, iPDDst);
 
-                STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
+                STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
                 return VINF_SUCCESS;
             }
         }
@@ -3089,7 +3680,7 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
         pPTDst = (PSHWPT)PGMPOOL_PAGE_2_PTR_V2(pVM, pVCpu, pShwPage);
     else
     {
-       STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
+       STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
        AssertMsgFailedReturn(("rc=%Rrc\n", rc), RT_FAILURE_NP(rc) ? rc : VERR_IPE_UNEXPECTED_INFO_STATUS);
     }
 
@@ -3099,12 +3690,12 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
         Assert(pPTDst);
 
         /* Mask away the page offset. */
-        GCPtrPage &= ~(RTGCPTR)PAGE_OFFSET_MASK;
+        GCPtrPage &= ~(RTGCPTR)GUEST_PAGE_OFFSET_MASK;
 
         for (unsigned iPTDst = 0; iPTDst < RT_ELEMENTS(pPTDst->a); iPTDst++)
         {
             RTGCPTR GCPtrCurPage = PGM_A20_APPLY(pVCpu, (GCPtrPage & ~(RTGCPTR)(SHW_PT_MASK << SHW_PT_SHIFT))
-                                                      | (iPTDst << PAGE_SHIFT));
+                                                      | (iPTDst << GUEST_PAGE_SHIFT));
 
             PGM_BTH_NAME(SyncPageWorker)(pVCpu, &pPTDst->a[iPTDst], GCPtrCurPage, pShwPage, iPTDst);
             Log2(("SyncPage: 4K+ %RGv PteSrc:{P=1 RW=1 U=1} PteDst=%08llx%s\n",
@@ -3120,21 +3711,18 @@ static int PGM_BTH_NAME(SyncPT)(PVMCPUCC pVCpu, unsigned iPDSrc, PGSTPD pPDSrc, 
         rc = VINF_SUCCESS; /* Cached entry; assume it's still fully valid. */
 
     /* Save the new PDE. */
-    PdeDst.u &= X86_PDE_AVL_MASK;
-    PdeDst.u |= pShwPage->Core.Key;
-    PdeDst.n.u1Present  = 1;
-    PdeDst.n.u1Write    = 1;
 # if PGM_SHW_TYPE == PGM_TYPE_EPT
-    PdeDst.n.u1Execute  = 1;
+    PdeDst.u = pShwPage->Core.Key | EPT_E_READ | EPT_E_WRITE | EPT_E_EXECUTE
+             | (PdeDst.u & X86_PDE_AVL_MASK /** @todo do we really need this? */);
 # else
-    PdeDst.n.u1User     = 1;
-    PdeDst.n.u1Accessed = 1;
+    PdeDst.u = pShwPage->Core.Key | X86_PDE_P | X86_PDE_RW | X86_PDE_US | X86_PDE_A
+             | (PdeDst.u & X86_PDE_AVL_MASK /** @todo use a PGM_PD_FLAGS define */);
 # endif
-    ASMAtomicWriteSize(pPdeDst, PdeDst.u);
+    SHW_PDE_ATOMIC_SET2(*pPdeDst, PdeDst);
 
-    STAM_PROFILE_STOP(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPT), a);
+    STAM_PROFILE_STOP(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPT), a);
     if (RT_FAILURE(rc))
-        STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,SyncPTFailed));
+        STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,SyncPTFailed));
     return rc;
 
 #else
@@ -3192,19 +3780,13 @@ PGM_BTH_DECL(int, PrefetchPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
 # else
     PGSTPD          pPDSrc = NULL;
     const unsigned  iPDSrc = 0;
-    GSTPDE          PdeSrc;
-
-    PdeSrc.u            = 0; /* faked so we don't have to #ifdef everything */
-    PdeSrc.n.u1Present  = 1;
-    PdeSrc.n.u1Write    = 1;
-    PdeSrc.n.u1Accessed = 1;
-    PdeSrc.n.u1User     = 1;
+    GSTPDE const    PdeSrc = { X86_PDE_P | X86_PDE_RW | X86_PDE_US | X86_PDE_A }; /* faked so we don't have to #ifdef everything */
 # endif
 
-    if (PdeSrc.n.u1Present && PdeSrc.n.u1Accessed)
+    if ((PdeSrc.u & (X86_PDE_P | X86_PDE_A)) == (X86_PDE_P | X86_PDE_A))
     {
         PVMCC pVM = pVCpu->CTX_SUFF(pVM);
-        pgmLock(pVM);
+        PGM_LOCK_VOID(pVM);
 
 # if PGM_SHW_TYPE == PGM_TYPE_32BIT
         const X86PDE    PdeDst = pgmShwGet32BitPDE(pVCpu, GCPtrPage);
@@ -3221,7 +3803,7 @@ PGM_BTH_DECL(int, PrefetchPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
         rc = pgmShwSyncPaePDPtr(pVCpu, GCPtrPage, PdpeSrc.u, &pPDDst);
         if (rc != VINF_SUCCESS)
         {
-            pgmUnlock(pVM);
+            PGM_UNLOCK(pVM);
             AssertRC(rc);
             return rc;
         }
@@ -3247,33 +3829,30 @@ PGM_BTH_DECL(int, PrefetchPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
         rc = pgmShwSyncLongModePDPtr(pVCpu, GCPtrPage, pPml4eSrc->u, PdpeSrc.u, &pPDDst);
         if (rc != VINF_SUCCESS)
         {
-            pgmUnlock(pVM);
+            PGM_UNLOCK(pVM);
             AssertRC(rc);
             return rc;
         }
         Assert(pPDDst);
         PdeDst = pPDDst->a[iPDDst];
 # endif
-        if (!(PdeDst.u & PGM_PDFLAGS_MAPPING))
+        if (!(PdeDst.u & X86_PDE_P))
         {
-            if (!PdeDst.n.u1Present)
-            {
-                /** @todo r=bird: This guy will set the A bit on the PDE,
-                 *    probably harmless. */
-                rc = PGM_BTH_NAME(SyncPT)(pVCpu, iPDSrc, pPDSrc, GCPtrPage);
-            }
-            else
-            {
-                /* Note! We used to sync PGM_SYNC_NR_PAGES pages, which triggered assertions in CSAM, because
-                 *       R/W attributes of nearby pages were reset. Not sure how that could happen. Anyway, it
-                 *       makes no sense to prefetch more than one page.
-                 */
-                rc = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrc, GCPtrPage, 1, 0);
-                if (RT_SUCCESS(rc))
-                    rc = VINF_SUCCESS;
-            }
+            /** @todo r=bird: This guy will set the A bit on the PDE,
+             *    probably harmless. */
+            rc = PGM_BTH_NAME(SyncPT)(pVCpu, iPDSrc, pPDSrc, GCPtrPage);
         }
-        pgmUnlock(pVM);
+        else
+        {
+            /* Note! We used to sync PGM_SYNC_NR_PAGES pages, which triggered assertions in CSAM, because
+             *       R/W attributes of nearby pages were reset. Not sure how that could happen. Anyway, it
+             *       makes no sense to prefetch more than one page.
+             */
+            rc = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrc, GCPtrPage, 1, 0);
+            if (RT_SUCCESS(rc))
+                rc = VINF_SUCCESS;
+        }
+        PGM_UNLOCK(pVM);
     }
     return rc;
 
@@ -3353,7 +3932,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, unsig
 # endif /* !PGM_WITH_PAGING */
     int             rc = VINF_SUCCESS;
 
-    pgmLock(pVM);
+    PGM_LOCK_VOID(pVM);
 
     /*
      * First check if the shadow pd is present.
@@ -3373,7 +3952,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, unsig
     rc = pgmShwSyncPaePDPtr(pVCpu, GCPtrPage, PdpeSrc.u, &pPDDst);
     if (rc != VINF_SUCCESS)
     {
-        pgmUnlock(pVM);
+        PGM_UNLOCK(pVM);
         AssertRC(rc);
         return rc;
     }
@@ -3397,7 +3976,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, unsig
     rc = pgmShwSyncLongModePDPtr(pVCpu, GCPtrPage, pPml4eSrc->u, PdpeSrc.u, &pPDDst);
     if (rc != VINF_SUCCESS)
     {
-        pgmUnlock(pVM);
+        PGM_UNLOCK(pVM);
         AssertRC(rc);
         return rc;
     }
@@ -3405,13 +3984,13 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, unsig
     pPdeDst = &pPDDst->a[iPDDst];
 # endif
 
-    if (!pPdeDst->n.u1Present)
+    if (!(pPdeDst->u & X86_PDE_P))
     {
         rc = PGM_BTH_NAME(SyncPT)(pVCpu, iPDSrc, pPDSrc, GCPtrPage);
         if (rc != VINF_SUCCESS)
         {
             PGM_DYNMAP_UNUSED_HINT(pVCpu, pPdeDst);
-            pgmUnlock(pVM);
+            PGM_UNLOCK(pVM);
             AssertRC(rc);
             return rc;
         }
@@ -3428,19 +4007,14 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, unsig
 # if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
         GSTPDE PdeSrc       = pPDSrc->a[iPDSrc];
 # else
-        GSTPDE PdeSrc;
-        PdeSrc.u            = 0; /* faked so we don't have to #ifdef everything */
-        PdeSrc.n.u1Present  = 1;
-        PdeSrc.n.u1Write    = 1;
-        PdeSrc.n.u1Accessed = 1;
-        PdeSrc.n.u1User     = 1;
+        GSTPDE const PdeSrc = { X86_PDE_P | X86_PDE_RW | X86_PDE_US | X86_PDE_A }; /* faked so we don't have to #ifdef everything */
 # endif
 
         Assert(rc != VINF_EM_RAW_GUEST_TRAP);
         if (uErr & X86_TRAP_PF_US)
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageOutOfSyncUser));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncUser));
         else /* supervisor */
-            STAM_COUNTER_INC(&pVCpu->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageOutOfSyncSupervisor));
+            STAM_COUNTER_INC(&pVCpu->pgm.s.Stats.CTX_MID_Z(Stat,PageOutOfSyncSupervisor));
 
         rc = PGM_BTH_NAME(SyncPage)(pVCpu, PdeSrc, GCPtrPage, 1, 0);
         if (RT_SUCCESS(rc))
@@ -3456,7 +4030,7 @@ PGM_BTH_DECL(int, VerifyAccessSyncPage)(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, unsig
         }
     }
     PGM_DYNMAP_UNUSED_HINT(pVCpu, pPdeDst);
-    pgmUnlock(pVM);
+    PGM_UNLOCK(pVM);
     return rc;
 
 #else  /* PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE) */
@@ -3490,11 +4064,11 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr3, uint64_t 
 
 #if !PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE) && PGM_SHW_TYPE != PGM_TYPE_NONE
 # ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
-    pgmLock(pVM);
+    PGM_LOCK_VOID(pVM);
     PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
     if (pPool->cDirtyPages)
         pgmPoolResetDirtyPages(pVM);
-    pgmUnlock(pVM);
+    PGM_UNLOCK(pVM);
 # endif
 #endif /* !NESTED && !EPT */
 
@@ -3502,7 +4076,6 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr3, uint64_t 
     /*
      * Nested / EPT / None - No work.
      */
-    Assert(!pgmMapAreMappingsEnabled(pVM));
     return VINF_SUCCESS;
 
 #elif PGM_SHW_TYPE == PGM_TYPE_AMD64
@@ -3510,35 +4083,10 @@ PGM_BTH_DECL(int, SyncCR3)(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr3, uint64_t 
      * AMD64 (Shw & Gst) - No need to check all paging levels; we zero
      * out the shadow parts when the guest modifies its tables.
      */
-    Assert(!pgmMapAreMappingsEnabled(pVM));
     return VINF_SUCCESS;
 
 #else /* !PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE) && PGM_SHW_TYPE != PGM_TYPE_AMD64 */
 
-#  ifndef PGM_WITHOUT_MAPPINGS
-    /*
-     * Check for and resolve conflicts with our guest mappings if they
-     * are enabled and not fixed.
-     */
-    if (pgmMapAreMappingsFloating(pVM))
-    {
-        int rc = pgmMapResolveConflicts(pVM);
-        Assert(rc == VINF_SUCCESS || rc == VINF_PGM_SYNC_CR3);
-        if (rc == VINF_SUCCESS)
-        { /* likely */ }
-        else if (rc == VINF_PGM_SYNC_CR3)
-        {
-            LogFlow(("SyncCR3: detected conflict -> VINF_PGM_SYNC_CR3\n"));
-            return VINF_PGM_SYNC_CR3;
-        }
-        else if (RT_FAILURE(rc))
-            return rc;
-        else
-            AssertMsgFailed(("%Rrc\n", rc));
-    }
-#  else
-    Assert(!pgmMapAreMappingsEnabled(pVM));
-#  endif
     return VINF_SUCCESS;
 #endif /* !PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE) && PGM_SHW_TYPE != PGM_TYPE_AMD64 */
 }
@@ -3618,17 +4166,17 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
      */
 #  if PGM_SHW_TYPE == PGM_TYPE_32BIT
     unsigned        cPDEs       = X86_PG_ENTRIES;
-    unsigned        cIncrement  = X86_PG_ENTRIES * PAGE_SIZE;
+    unsigned        cIncrement  = X86_PG_ENTRIES * GUEST_PAGE_SIZE;
 #  elif PGM_SHW_TYPE == PGM_TYPE_PAE
 #   if PGM_GST_TYPE == PGM_TYPE_32BIT
     unsigned        cPDEs       = X86_PG_PAE_ENTRIES * 4;   /* treat it as a 2048 entry table. */
 #   else
     unsigned        cPDEs       = X86_PG_PAE_ENTRIES;
 #   endif
-    unsigned        cIncrement  = X86_PG_PAE_ENTRIES * PAGE_SIZE;
+    unsigned        cIncrement  = X86_PG_PAE_ENTRIES * GUEST_PAGE_SIZE;
 #  elif PGM_SHW_TYPE == PGM_TYPE_AMD64
     unsigned        cPDEs       = X86_PG_PAE_ENTRIES;
-    unsigned        cIncrement  = X86_PG_PAE_ENTRIES * PAGE_SIZE;
+    unsigned        cIncrement  = X86_PG_PAE_ENTRIES * GUEST_PAGE_SIZE;
 #  endif
     if (cb != ~(RTGCPTR)0)
         cPDEs = RT_MIN(cb >> SHW_PD_SHIFT, 1);
@@ -3649,7 +4197,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
         pPml4eDst     = pgmShwGetLongModePML4EPtr(pVCpu, iPml4);
 
         /* Fetch the pgm pool shadow descriptor if the shadow pml4e is present. */
-        if (!pPml4eDst->n.u1Present)
+        if (!(pPml4eDst->u & X86_PML4E_P))
         {
             GCPtr += _2M * UINT64_C(512) * UINT64_C(512);
             continue;
@@ -3658,7 +4206,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
         pShwPdpt = pgmPoolGetPage(pPool, pPml4eDst->u & X86_PML4E_PG_MASK);
         GCPhysPdptSrc = PGM_A20_APPLY(pVCpu, pPml4eSrc->u & X86_PML4E_PG_MASK);
 
-        if (pPml4eSrc->n.u1Present != pPml4eDst->n.u1Present)
+        if ((pPml4eSrc->u & X86_PML4E_P) != (pPml4eDst->u & X86_PML4E_P))
         {
             AssertMsgFailed(("Present bit doesn't match! pPml4eDst.u=%#RX64 pPml4eSrc.u=%RX64\n", pPml4eDst->u, pPml4eSrc->u));
             GCPtr += _2M * UINT64_C(512) * UINT64_C(512);
@@ -3674,9 +4222,8 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
             continue;
         }
 
-        if (    pPml4eDst->n.u1User      != pPml4eSrc->n.u1User
-            ||  pPml4eDst->n.u1Write     != pPml4eSrc->n.u1Write
-            ||  pPml4eDst->n.u1NoExecute != pPml4eSrc->n.u1NoExecute)
+        if (   (pPml4eDst->u & (X86_PML4E_US | X86_PML4E_RW | X86_PML4E_NX))
+            != (pPml4eSrc->u & (X86_PML4E_US | X86_PML4E_RW | X86_PML4E_NX)))
         {
             AssertMsgFailed(("User/Write/NoExec bits don't match! pPml4eDst.u=%#RX64 pPml4eSrc.u=%RX64\n", pPml4eDst->u, pPml4eSrc->u));
             GCPtr += _2M * UINT64_C(512) * UINT64_C(512);
@@ -3723,7 +4270,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
 
             pPdpeDst = &pPdptDst->a[iPdpt];
 
-            if (!pPdpeDst->n.u1Present)
+            if (!(pPdpeDst->u & X86_PDPE_P))
             {
                 GCPtr += 512 * _2M;
                 continue;   /* next PDPTE */
@@ -3732,7 +4279,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
             pShwPde      = pgmPoolGetPage(pPool, pPdpeDst->u & X86_PDPE_PG_MASK);
             GCPhysPdeSrc = PGM_A20_APPLY(pVCpu, PdpeSrc.u & X86_PDPE_PG_MASK);
 
-            if (pPdpeDst->n.u1Present != PdpeSrc.n.u1Present)
+            if ((pPdpeDst->u & X86_PDPE_P) != (PdpeSrc.u & X86_PDPE_P))
             {
                 AssertMsgFailed(("Present bit doesn't match! pPdpeDst.u=%#RX64 pPdpeSrc.u=%RX64\n", pPdpeDst->u, PdpeSrc.u));
                 GCPtr += 512 * _2M;
@@ -3753,9 +4300,8 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
             }
 
 #   if PGM_GST_TYPE == PGM_TYPE_AMD64
-            if (    pPdpeDst->lm.u1User      != PdpeSrc.lm.u1User
-                ||  pPdpeDst->lm.u1Write     != PdpeSrc.lm.u1Write
-                ||  pPdpeDst->lm.u1NoExecute != PdpeSrc.lm.u1NoExecute)
+            if (    (pPdpeDst->u & (X86_PDPE_US | X86_PDPE_RW | X86_PDPE_LM_NX))
+                !=  (PdpeSrc.u   & (X86_PDPE_US | X86_PDPE_RW | X86_PDPE_LM_NX)))
             {
                 AssertMsgFailed(("User/Write/NoExec bits don't match! pPdpeDst.u=%#RX64 pPdpeSrc.u=%RX64\n", pPdpeDst->u, PdpeSrc.u));
                 GCPtr += 512 * _2M;
@@ -3788,19 +4334,8 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
 #  else
                 const SHWPDE PdeDst = pPDDst->a[iPDDst];
 #  endif
-                if (PdeDst.u & PGM_PDFLAGS_MAPPING)
-                {
-                    Assert(pgmMapAreMappingsEnabled(pVM));
-                    if ((PdeDst.u & X86_PDE_AVL_MASK) != PGM_PDFLAGS_MAPPING)
-                    {
-                        AssertMsgFailed(("Mapping shall only have PGM_PDFLAGS_MAPPING set! PdeDst.u=%#RX64\n", (uint64_t)PdeDst.u));
-                        cErrors++;
-                        continue;
-                    }
-                }
-                else if (   (PdeDst.u & X86_PDE_P)
-                        || ((PdeDst.u & (X86_PDE_P | PGM_PDFLAGS_TRACK_DIRTY)) == (X86_PDE_P | PGM_PDFLAGS_TRACK_DIRTY))
-                        )
+                if (   (PdeDst.u & X86_PDE_P)
+                    || ((PdeDst.u & (X86_PDE_P | PGM_PDFLAGS_TRACK_DIRTY)) == (X86_PDE_P | PGM_PDFLAGS_TRACK_DIRTY)) )
                 {
                     HCPhysShw = PdeDst.u & SHW_PDE_PG_MASK;
                     PPGMPOOLPAGE pPoolPage = pgmPoolGetPage(pPool, HCPhysShw);
@@ -3828,7 +4363,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                     }
 
                     const GSTPDE PdeSrc = pPDSrc->a[(iPDDst >> (GST_PD_SHIFT - SHW_PD_SHIFT)) & GST_PD_MASK];
-                    if (!PdeSrc.n.u1Present)
+                    if (!(PdeSrc.u & X86_PDE_P))
                     {
                         AssertMsgFailed(("Guest PDE at %RGv is not present! PdeDst=%#RX64 PdeSrc=%#RX64\n",
                                         GCPtr, (uint64_t)PdeDst.u, (uint64_t)PdeSrc.u));
@@ -3836,12 +4371,12 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                         continue;
                     }
 
-                    if (    !PdeSrc.b.u1Size
-                        ||  !fBigPagesSupported)
+                    if (   !(PdeSrc.u & X86_PDE_PS)
+                        || !fBigPagesSupported)
                     {
                         GCPhysGst = GST_GET_PDE_GCPHYS(PdeSrc);
 #  if PGM_SHW_TYPE == PGM_TYPE_PAE && PGM_GST_TYPE == PGM_TYPE_32BIT
-                        GCPhysGst = PGM_A20_APPLY(pVCpu, GCPhysGst | ((iPDDst & 1) * (PAGE_SIZE / 2)));
+                        GCPhysGst = PGM_A20_APPLY(pVCpu, GCPhysGst | ((iPDDst & 1) * (GUEST_PAGE_SIZE / 2)));
 #  endif
                     }
                     else
@@ -3861,8 +4396,8 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
 #  endif
                     }
 
-                    if (    pPoolPage->enmKind
-                        !=  (!PdeSrc.b.u1Size || !fBigPagesSupported ? BTH_PGMPOOLKIND_PT_FOR_PT : BTH_PGMPOOLKIND_PT_FOR_BIG))
+                    if (   pPoolPage->enmKind
+                        != (!(PdeSrc.u & X86_PDE_PS) || !fBigPagesSupported ? BTH_PGMPOOLKIND_PT_FOR_PT : BTH_PGMPOOLKIND_PT_FOR_BIG))
                     {
                         AssertMsgFailed(("Invalid shadow page table kind %d at %RGv! PdeSrc=%#RX64\n",
                                         pPoolPage->enmKind, GCPtr, (uint64_t)PdeSrc.u));
@@ -3886,14 +4421,14 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                         continue;
                     }
 
-                    if (    !PdeSrc.b.u1Size
+                    if (    !(PdeSrc.u & X86_PDE_PS)
                         ||  !fBigPagesSupported)
                     {
                         /*
-                        * Page Table.
-                        */
+                         * Page Table.
+                         */
                         const GSTPT *pPTSrc;
-                        rc = PGM_GCPHYS_2_PTR_V2(pVM, pVCpu, PGM_A20_APPLY(pVCpu, GCPhysGst & ~(RTGCPHYS)(PAGE_SIZE - 1)),
+                        rc = PGM_GCPHYS_2_PTR_V2(pVM, pVCpu, PGM_A20_APPLY(pVCpu, GCPhysGst & ~(RTGCPHYS)(GUEST_PAGE_SIZE - 1)),
                                                  &pPTSrc);
                         if (RT_FAILURE(rc))
                         {
@@ -3929,7 +4464,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
 #  endif
                         for (unsigned iPT = 0, off = 0;
                             iPT < RT_ELEMENTS(pPTDst->a);
-                            iPT++, off += PAGE_SIZE)
+                            iPT++, off += GUEST_PAGE_SIZE)
                         {
                             const SHWPTE PteDst = pPTDst->a[iPT];
 
@@ -3939,7 +4474,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                             Assert(SHW_PTE_IS_P(PteDst));
 
                             const GSTPTE PteSrc = pPTSrc->a[iPT + offPTSrc];
-                            if (!PteSrc.n.u1Present)
+                            if (!(PteSrc.u & X86_PTE_P))
                             {
 #  ifdef IN_RING3
                                 PGMAssertHandlerAndFlagsInSync(pVM);
@@ -3967,6 +4502,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                             rc = PGMPhysGCPhys2HCPhys(pVM, GCPhysGst, &HCPhys);
                             if (RT_FAILURE(rc))
                             {
+#   if 0
                                 if (HCPhysShw != MMR3PageDummyHCPhys(pVM)) /** @todo this is wrong. */
                                 {
                                     AssertMsgFailed(("Cannot find guest physical address %RGp at %RGv! PteSrc=%#RX64 PteDst=%#RX64\n",
@@ -3974,6 +4510,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                                     cErrors++;
                                     continue;
                                 }
+#   endif
                             }
                             else if (HCPhysShw != (HCPhys & SHW_PTE_PG_MASK))
                             {
@@ -3987,7 +4524,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                             pPhysPage = pgmPhysGetPage(pVM, GCPhysGst);
                             if (!pPhysPage)
                             {
-#  ifdef IN_RING3 /** @todo make MMR3PageDummyHCPhys an 'All' function! */
+#  if 0
                                 if (HCPhysShw != MMR3PageDummyHCPhys(pVM))  /** @todo this is wrong. */
                                 {
                                     AssertMsgFailed(("Cannot find guest physical address %RGp at %RGv! PteSrc=%#RX64 PteDst=%#RX64\n",
@@ -4013,7 +4550,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                             }
 
                             /* flags */
-                            if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPhysPage))
+                            if (PGM_PAGE_HAS_ACTIVE_HANDLERS(pPhysPage) && !PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPhysPage))
                             {
                                 if (!PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPhysPage))
                                 {
@@ -4044,7 +4581,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                             }
                             else
                             {
-                                if (!PteSrc.n.u1Dirty && PteSrc.n.u1Write)
+                                if ((PteSrc.u & (X86_PTE_RW | X86_PTE_D)) == X86_PTE_RW)
                                 {
                                     if (SHW_PTE_IS_RW(PteDst))
                                     {
@@ -4081,7 +4618,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                                 else if (SHW_PTE_IS_TRACK_DIRTY(PteDst))
                                 {
                                     /* access bit emulation (not implemented). */
-                                    if (PteSrc.n.u1Accessed || SHW_PTE_IS_P(PteDst))
+                                    if ((PteSrc.u & X86_PTE_A) || SHW_PTE_IS_P(PteDst))
                                     {
                                         AssertMsgFailed(("PGM_PTFLAGS_TRACK_DIRTY set at %RGv but no accessed bit emulation! PteSrc=%#RX64 PteDst=%#RX64\n",
                                                          GCPtr + off, (uint64_t)PteSrc.u, SHW_PTE_LOG64(PteDst)));
@@ -4119,9 +4656,9 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                         * Big Page.
                         */
                         uint64_t fIgnoreFlags = X86_PDE_AVL_MASK | GST_PDE_PG_MASK | X86_PDE4M_G | X86_PDE4M_D | X86_PDE4M_PS | X86_PDE4M_PWT | X86_PDE4M_PCD;
-                        if (!PdeSrc.b.u1Dirty && PdeSrc.b.u1Write)
+                        if ((PdeSrc.u & (X86_PDE_RW | X86_PDE4M_D)) == X86_PDE_RW)
                         {
-                            if (PdeDst.n.u1Write)
+                            if (PdeDst.u & X86_PDE_RW)
                             {
                                 AssertMsgFailed(("!DIRTY page at %RGv is writable! PdeSrc=%#RX64 PdeDst=%#RX64\n",
                                                 GCPtr, (uint64_t)PdeSrc.u, (uint64_t)PdeDst.u));
@@ -4150,14 +4687,14 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                         else if (PdeDst.u & PGM_PDFLAGS_TRACK_DIRTY)
                         {
                             /* access bit emulation (not implemented). */
-                            if (PdeSrc.b.u1Accessed || PdeDst.n.u1Present)
+                            if ((PdeSrc.u & X86_PDE_A) || SHW_PDE_IS_P(PdeDst))
                             {
                                 AssertMsgFailed(("PGM_PDFLAGS_TRACK_DIRTY set at %RGv but no accessed bit emulation! PdeSrc=%#RX64 PdeDst=%#RX64\n",
                                                 GCPtr, (uint64_t)PdeSrc.u, (uint64_t)PdeDst.u));
                                 cErrors++;
                                 continue;
                             }
-                            if (!PdeDst.n.u1Accessed)
+                            if (!SHW_PDE_IS_A(PdeDst))
                             {
                                 AssertMsgFailed(("!ACCESSED page at %RGv is has the accessed bit set! PdeSrc=%#RX64 PdeDst=%#RX64\n",
                                                 GCPtr, (uint64_t)PdeSrc.u, (uint64_t)PdeDst.u));
@@ -4177,7 +4714,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                         /* iterate the page table. */
                         for (unsigned iPT = 0, off = 0;
                             iPT < RT_ELEMENTS(pPTDst->a);
-                            iPT++, off += PAGE_SIZE, GCPhysGst = PGM_A20_APPLY(pVCpu, GCPhysGst + PAGE_SIZE))
+                            iPT++, off += GUEST_PAGE_SIZE, GCPhysGst = PGM_A20_APPLY(pVCpu, GCPhysGst + GUEST_PAGE_SIZE))
                         {
                             const SHWPTE PteDst = pPTDst->a[iPT];
 
@@ -4201,12 +4738,14 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                             rc = PGMPhysGCPhys2HCPhys(pVM, GCPhysGst, &HCPhys);
                             if (RT_FAILURE(rc))
                             {
+#   if 0
                                 if (HCPhysShw != MMR3PageDummyHCPhys(pVM))  /** @todo this is wrong. */
                                 {
                                     AssertMsgFailed(("Cannot find guest physical address %RGp at %RGv! PdeSrc=%#RX64 PteDst=%#RX64\n",
                                                      GCPhysGst, GCPtr + off, (uint64_t)PdeSrc.u, SHW_PTE_LOG64(PteDst)));
                                     cErrors++;
                                 }
+#   endif
                             }
                             else if (HCPhysShw != (HCPhys & X86_PTE_PAE_PG_MASK))
                             {
@@ -4219,7 +4758,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                             pPhysPage = pgmPhysGetPage(pVM, GCPhysGst);
                             if (!pPhysPage)
                             {
-#  ifdef IN_RING3 /** @todo make MMR3PageDummyHCPhys an 'All' function! */
+#  if 0 /** @todo make MMR3PageDummyHCPhys an 'All' function! */
                                 if (HCPhysShw != MMR3PageDummyHCPhys(pVM))  /** @todo this is wrong. */
                                 {
                                     AssertMsgFailed(("Cannot find guest physical address %RGp at %RGv! PdeSrc=%#RX64 PteDst=%#RX64\n",
@@ -4251,7 +4790,8 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                                 {
                                     if (PGM_PAGE_GET_HNDL_PHYS_STATE(pPhysPage) != PGM_PAGE_HNDL_PHYS_STATE_DISABLED)
                                     {
-                                        if (SHW_PTE_IS_RW(PteDst))
+                                        if (   SHW_PTE_IS_RW(PteDst)
+                                            && !PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPhysPage))
                                         {
                                             AssertMsgFailed(("WRITE access flagged at %RGv but the page is writable! pPhysPage=%R[pgmpage] PdeSrc=%#RX64 PteDst=%#RX64\n",
                                                              GCPtr + off, pPhysPage, (uint64_t)PdeSrc.u, SHW_PTE_LOG64(PteDst)));
@@ -4264,6 +4804,7 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
                                 else
                                 {
                                     if (   SHW_PTE_IS_P(PteDst)
+                                        && !PGM_PAGE_IS_HNDL_PHYS_NOT_IN_HM(pPhysPage)
 #  if PGM_SHW_TYPE == PGM_TYPE_EPT || PGM_SHW_TYPE == PGM_TYPE_PAE || PGM_SHW_TYPE == PGM_TYPE_AMD64
                                         && !PGM_PAGE_IS_MMIO(pPhysPage)
 #  endif
@@ -4317,12 +4858,13 @@ PGM_BTH_DECL(unsigned, AssertCR3)(PVMCPUCC pVCpu, uint64_t cr3, uint64_t cr4, RT
  * @retval  VINF_SUCCESS.
  *
  * @param   pVCpu           The cross context virtual CPU structure.
- * @param   GCPhysCR3       The physical address in the CR3 register.  (A20
- *                          mask already applied.)
+ * @param   GCPhysCR3       The physical address in the CR3 register. (A20 mask
+ *                          already applied.)
  */
 PGM_BTH_DECL(int, MapCR3)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
 {
     PVMCC pVM = pVCpu->CTX_SUFF(pVM); NOREF(pVM);
+    int rc = VINF_SUCCESS;
 
     /* Update guest paging info. */
 #if PGM_GST_TYPE == PGM_TYPE_32BIT \
@@ -4332,127 +4874,65 @@ PGM_BTH_DECL(int, MapCR3)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
     LogFlow(("MapCR3: %RGp\n", GCPhysCR3));
     PGM_A20_ASSERT_MASKED(pVCpu, GCPhysCR3);
 
-    /*
-     * Map the page CR3 points at.
-     */
-    RTHCPTR     HCPtrGuestCR3;
-    pgmLock(pVM);
-    PPGMPAGE    pPageCR3 = pgmPhysGetPage(pVM, GCPhysCR3);
-    AssertReturn(pPageCR3, VERR_PGM_INVALID_CR3_ADDR);
-    /** @todo this needs some reworking wrt. locking?  */
-# ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-    HCPtrGuestCR3 = NIL_RTHCPTR;
-    int rc = VINF_SUCCESS;
-# else
-    int rc = pgmPhysGCPhys2CCPtrInternalDepr(pVM, pPageCR3, GCPhysCR3 & GST_CR3_PAGE_MASK, (void **)&HCPtrGuestCR3); /** @todo r=bird: This GCPhysCR3 masking isn't necessary. */
+# if PGM_GST_TYPE == PGM_TYPE_PAE
+    if (   !pVCpu->pgm.s.CTX_SUFF(fPaePdpesAndCr3Mapped)
+        ||  pVCpu->pgm.s.GCPhysPaeCR3 != GCPhysCR3)
 # endif
-    pgmUnlock(pVM);
-    if (RT_SUCCESS(rc))
     {
+        /*
+         * Map the page CR3 points at.
+         */
+        RTHCPTR HCPtrGuestCR3;
+        rc = pgmGstMapCr3(pVCpu, GCPhysCR3, &HCPtrGuestCR3);
+        if (RT_SUCCESS(rc))
+        {
 # if PGM_GST_TYPE == PGM_TYPE_32BIT
-#  ifdef VBOX_WITH_RAM_IN_KERNEL
-#   ifdef IN_RING3
-        pVCpu->pgm.s.pGst32BitPdR3 = (PX86PD)HCPtrGuestCR3;
-        pVCpu->pgm.s.pGst32BitPdR0 = NIL_RTR0PTR;
-#   else
-        pVCpu->pgm.s.pGst32BitPdR3 = NIL_RTR3PTR;
-        pVCpu->pgm.s.pGst32BitPdR0 = (PX86PD)HCPtrGuestCR3;
-#   endif
+#  ifdef IN_RING3
+            pVCpu->pgm.s.pGst32BitPdR3 = (PX86PD)HCPtrGuestCR3;
+            pVCpu->pgm.s.pGst32BitPdR0 = NIL_RTR0PTR;
 #  else
-        pVCpu->pgm.s.pGst32BitPdR3 = (R3PTRTYPE(PX86PD))HCPtrGuestCR3;
-#   ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-        pVCpu->pgm.s.pGst32BitPdR0 = (R0PTRTYPE(PX86PD))HCPtrGuestCR3;
-#   endif
+            pVCpu->pgm.s.pGst32BitPdR3 = NIL_RTR3PTR;
+            pVCpu->pgm.s.pGst32BitPdR0 = (PX86PD)HCPtrGuestCR3;
 #  endif
 
 # elif PGM_GST_TYPE == PGM_TYPE_PAE
-#  ifdef VBOX_WITH_RAM_IN_KERNEL
-#   ifdef IN_RING3
-        pVCpu->pgm.s.pGstPaePdptR3 = (PX86PDPT)HCPtrGuestCR3;
-        pVCpu->pgm.s.pGstPaePdptR0 = NIL_RTR0PTR;
-#   else
-        pVCpu->pgm.s.pGstPaePdptR3 = NIL_RTR3PTR;
-        pVCpu->pgm.s.pGstPaePdptR0 = (PX86PDPT)HCPtrGuestCR3;
-#   endif
+#  ifdef IN_RING3
+            pVCpu->pgm.s.pGstPaePdptR3 = (PX86PDPT)HCPtrGuestCR3;
+            pVCpu->pgm.s.pGstPaePdptR0 = NIL_RTR0PTR;
 #  else
-        pVCpu->pgm.s.pGstPaePdptR3 = (R3PTRTYPE(PX86PDPT))HCPtrGuestCR3;
-#   ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-        pVCpu->pgm.s.pGstPaePdptR0 = (R0PTRTYPE(PX86PDPT))HCPtrGuestCR3;
-#   endif
+            pVCpu->pgm.s.pGstPaePdptR3 = NIL_RTR3PTR;
+            pVCpu->pgm.s.pGstPaePdptR0 = (PX86PDPT)HCPtrGuestCR3;
 #  endif
 
-        /*
-         * Map the 4 PDs too.
-         */
-        PX86PDPT pGuestPDPT = pgmGstGetPaePDPTPtr(pVCpu);
-        for (unsigned i = 0; i < X86_PG_PAE_PDPE_ENTRIES; i++)
-        {
-            pVCpu->pgm.s.aGstPaePdpeRegs[i].u = pGuestPDPT->a[i].u;
-            if (pGuestPDPT->a[i].n.u1Present)
-            {
-                RTHCPTR     HCPtr;
-                RTGCPHYS    GCPhys = PGM_A20_APPLY(pVCpu, pGuestPDPT->a[i].u & X86_PDPE_PG_MASK);
-                pgmLock(pVM);
-                PPGMPAGE    pPage  = pgmPhysGetPage(pVM, GCPhys);
-                AssertReturn(pPage, VERR_PGM_INVALID_PDPE_ADDR);
-#  ifdef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
-                HCPtr = NIL_RTHCPTR;
-                int rc2 = VINF_SUCCESS;
-#  else
-                int rc2 = pgmPhysGCPhys2CCPtrInternalDepr(pVM, pPage, GCPhys, (void **)&HCPtr);
-#  endif
-                pgmUnlock(pVM);
-                if (RT_SUCCESS(rc2))
-                {
-#  ifdef VBOX_WITH_RAM_IN_KERNEL
-#   ifdef IN_RING3
-                    pVCpu->pgm.s.apGstPaePDsR3[i]     = (PX86PDPAE)HCPtr;
-                    pVCpu->pgm.s.apGstPaePDsR0[i]     = NIL_RTR0PTR;
-#   else
-                    pVCpu->pgm.s.apGstPaePDsR3[i]     = NIL_RTR3PTR;
-                    pVCpu->pgm.s.apGstPaePDsR0[i]     = (PX86PDPAE)HCPtr;
-#   endif
-#  else
-                    pVCpu->pgm.s.apGstPaePDsR3[i]     = (R3PTRTYPE(PX86PDPAE))HCPtr;
-#   ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-                    pVCpu->pgm.s.apGstPaePDsR0[i]     = (R0PTRTYPE(PX86PDPAE))HCPtr;
-#   endif
-#  endif
-                    pVCpu->pgm.s.aGCPhysGstPaePDs[i]  = GCPhys;
-                    continue;
-                }
-                AssertMsgFailed(("pgmR3Gst32BitMapCR3: rc2=%d GCPhys=%RGp i=%d\n", rc2, GCPhys, i));
-            }
+            /*
+             * Update CPUM and map the 4 PDs too.
+             */
+            X86PDPE aGstPaePdpes[X86_PG_PAE_PDPE_ENTRIES];
+            memcpy(&aGstPaePdpes, HCPtrGuestCR3, sizeof(aGstPaePdpes));
+            PGMGstMapPaePdpes(pVCpu, &aGstPaePdpes[0]);
 
-            pVCpu->pgm.s.apGstPaePDsR3[i]     = 0;
-#  ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-            pVCpu->pgm.s.apGstPaePDsR0[i]     = 0;
+            pVCpu->pgm.s.GCPhysPaeCR3 = GCPhysCR3;
+#  ifdef IN_RING3
+            pVCpu->pgm.s.fPaePdpesAndCr3MappedR3 = true;
+            pVCpu->pgm.s.fPaePdpesAndCr3MappedR0 = false;
+#  else
+            pVCpu->pgm.s.fPaePdpesAndCr3MappedR3 = false;
+            pVCpu->pgm.s.fPaePdpesAndCr3MappedR0 = true;
 #  endif
-            pVCpu->pgm.s.aGCPhysGstPaePDs[i]  = NIL_RTGCPHYS;
-        }
 
 # elif PGM_GST_TYPE == PGM_TYPE_AMD64
-#  ifdef VBOX_WITH_RAM_IN_KERNEL
-#   ifdef IN_RING3
-        pVCpu->pgm.s.pGstAmd64Pml4R3 = (PX86PML4)HCPtrGuestCR3;
-        pVCpu->pgm.s.pGstAmd64Pml4R0 = NIL_RTR0PTR;
-#   else
-        pVCpu->pgm.s.pGstAmd64Pml4R3 = NIL_RTR3PTR;
-        pVCpu->pgm.s.pGstAmd64Pml4R0 = (PX86PML4)HCPtrGuestCR3;
-#   endif
+#  ifdef IN_RING3
+            pVCpu->pgm.s.pGstAmd64Pml4R3 = (PX86PML4)HCPtrGuestCR3;
+            pVCpu->pgm.s.pGstAmd64Pml4R0 = NIL_RTR0PTR;
 #  else
-        pVCpu->pgm.s.pGstAmd64Pml4R3 = (R3PTRTYPE(PX86PML4))HCPtrGuestCR3;
-#   ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
-        pVCpu->pgm.s.pGstAmd64Pml4R0 = (R0PTRTYPE(PX86PML4))HCPtrGuestCR3;
-#   endif
+            pVCpu->pgm.s.pGstAmd64Pml4R3 = NIL_RTR3PTR;
+            pVCpu->pgm.s.pGstAmd64Pml4R0 = (PX86PML4)HCPtrGuestCR3;
 #  endif
 # endif
+        }
+        else
+            AssertMsgFailed(("rc=%Rrc GCPhysGuestPD=%RGp\n", rc, GCPhysCR3));
     }
-    else
-        AssertMsgFailed(("rc=%Rrc GCPhysGuestPD=%RGp\n", rc, GCPhysCR3));
-
-#else /* prot/real stub */
-    int rc = VINF_SUCCESS;
 #endif
 
     /*
@@ -4474,39 +4954,20 @@ PGM_BTH_DECL(int, MapCR3)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
     PPGMPOOLPAGE pOldShwPageCR3    = pVCpu->pgm.s.CTX_SUFF(pShwPageCR3);
     PPGMPOOLPAGE pNewShwPageCR3;
 
-    pgmLock(pVM);
+    PGM_LOCK_VOID(pVM);
 
 # ifdef PGMPOOL_WITH_OPTIMIZED_DIRTY_PT
     if (pPool->cDirtyPages)
         pgmPoolResetDirtyPages(pVM);
 # endif
 
-    Assert(!(GCPhysCR3 >> (PAGE_SHIFT + 32)));
-    rc = pgmPoolAlloc(pVM, GCPhysCR3 & GST_CR3_PAGE_MASK, BTH_PGMPOOLKIND_ROOT, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
-                      NIL_PGMPOOL_IDX, UINT32_MAX, true /*fLockPage*/,
-                      &pNewShwPageCR3);
-    AssertFatalRC(rc);
-    rc = VINF_SUCCESS;
+    Assert(!(GCPhysCR3 >> (GUEST_PAGE_SHIFT + 32))); /** @todo what is this for? */
+    int const rc2 = pgmPoolAlloc(pVM, GCPhysCR3 & GST_CR3_PAGE_MASK, BTH_PGMPOOLKIND_ROOT, PGMPOOLACCESS_DONTCARE,
+                                 PGM_A20_IS_ENABLED(pVCpu), NIL_PGMPOOL_IDX, UINT32_MAX, true /*fLockPage*/, &pNewShwPageCR3);
+    AssertFatalRC(rc2);
 
-    pVCpu->pgm.s.CTX_SUFF(pShwPageCR3) = pNewShwPageCR3;
-#  ifdef IN_RING0
-    pVCpu->pgm.s.pShwPageCR3R3 = MMHyperCCToR3(pVM, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
-#  else
-    pVCpu->pgm.s.pShwPageCR3R0 = MMHyperCCToR0(pVM, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
-#  endif
-
-#  ifndef PGM_WITHOUT_MAPPINGS
-    /*
-     * Apply all hypervisor mappings to the new CR3.
-     * Note that SyncCR3 will be executed in case CR3 is changed in a guest paging mode; this will
-     * make sure we check for conflicts in the new CR3 root.
-     */
-#   if PGM_WITH_PAGING(PGM_GST_TYPE, PGM_SHW_TYPE)
-    Assert(VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL) || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3));
-#   endif
-    rc = pgmMapActivateCR3(pVM, pNewShwPageCR3);
-    AssertRCReturn(rc, rc);
-#  endif
+    pVCpu->pgm.s.pShwPageCR3R3 = pgmPoolConvertPageToR3(pPool, pNewShwPageCR3);
+    pVCpu->pgm.s.pShwPageCR3R0 = pgmPoolConvertPageToR0(pPool, pNewShwPageCR3);
 
     /* Set the current hypervisor CR3. */
     CPUMSetHyperCR3(pVCpu, PGMGetHyperCR3(pVCpu));
@@ -4516,16 +4977,13 @@ PGM_BTH_DECL(int, MapCR3)(PVMCPUCC pVCpu, RTGCPHYS GCPhysCR3)
         &&  pOldShwPageCR3 != pNewShwPageCR3    /* @todo can happen due to incorrect syncing between REM & PGM; find the real cause */)
     {
         Assert(pOldShwPageCR3->enmKind != PGMPOOLKIND_FREE);
-#  ifndef PGM_WITHOUT_MAPPINGS
-        /* Remove the hypervisor mappings from the shadow page table. */
-        pgmMapDeactivateCR3(pVM, pOldShwPageCR3);
-#  endif
+
         /* Mark the page as unlocked; allow flushing again. */
         pgmPoolUnlockPage(pPool, pOldShwPageCR3);
 
         pgmPoolFreeByPage(pPool, pOldShwPageCR3, NIL_PGMPOOL_IDX, UINT32_MAX);
     }
-    pgmUnlock(pVM);
+    PGM_UNLOCK(pVM);
 # else
     NOREF(GCPhysCR3);
 # endif
@@ -4551,33 +5009,30 @@ PGM_BTH_DECL(int, UnmapCR3)(PVMCPUCC pVCpu)
      */
 #if PGM_GST_TYPE == PGM_TYPE_32BIT
     pVCpu->pgm.s.pGst32BitPdR3 = 0;
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
     pVCpu->pgm.s.pGst32BitPdR0 = 0;
-# endif
 
 #elif PGM_GST_TYPE == PGM_TYPE_PAE
     pVCpu->pgm.s.pGstPaePdptR3 = 0;
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
     pVCpu->pgm.s.pGstPaePdptR0 = 0;
-# endif
     for (unsigned i = 0; i < X86_PG_PAE_PDPE_ENTRIES; i++)
     {
         pVCpu->pgm.s.apGstPaePDsR3[i]    = 0;
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
         pVCpu->pgm.s.apGstPaePDsR0[i]    = 0;
-# endif
         pVCpu->pgm.s.aGCPhysGstPaePDs[i] = NIL_RTGCPHYS;
     }
 
 #elif PGM_GST_TYPE == PGM_TYPE_AMD64
     pVCpu->pgm.s.pGstAmd64Pml4R3 = 0;
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
     pVCpu->pgm.s.pGstAmd64Pml4R0 = 0;
-# endif
 
 #else /* prot/real mode stub */
     /* nothing to do */
 #endif
+
+    /** @todo This should probably be moved inside \#if PGM_GST_TYPE == PGM_TYPE_PAE? */
+    pVCpu->pgm.s.fPaePdpesAndCr3MappedR3 = false;
+    pVCpu->pgm.s.fPaePdpesAndCr3MappedR0 = false;
+    pVCpu->pgm.s.GCPhysPaeCR3            = NIL_RTGCPHYS;
 
     /*
      * Update shadow paging info.
@@ -4588,13 +5043,7 @@ PGM_BTH_DECL(int, UnmapCR3)(PVMCPUCC pVCpu)
 # if PGM_GST_TYPE != PGM_TYPE_REAL
     Assert(!pVM->pgm.s.fNestedPaging);
 # endif
-    pgmLock(pVM);
-
-# ifndef PGM_WITHOUT_MAPPINGS
-    if (pVCpu->pgm.s.CTX_SUFF(pShwPageCR3))
-        /* Remove the hypervisor mappings from the shadow page table. */
-        pgmMapDeactivateCR3(pVM, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
-# endif
+    PGM_LOCK_VOID(pVM);
 
     if (pVCpu->pgm.s.CTX_SUFF(pShwPageCR3))
     {
@@ -4613,7 +5062,7 @@ PGM_BTH_DECL(int, UnmapCR3)(PVMCPUCC pVCpu)
         pVCpu->pgm.s.pShwPageCR3R0 = 0;
     }
 
-    pgmUnlock(pVM);
+    PGM_UNLOCK(pVM);
 #endif
 
     return rc;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2005-2020 Oracle Corporation
+ * Copyright (C) 2005-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -1146,7 +1156,7 @@ static DECLCALLBACK(int) vusbRhSetFrameProcessing(PVUSBIROOTHUBCONNECTOR pInterf
         if (   enmState == VMSTATE_RUNNING
             || enmState == VMSTATE_RUNNING_LS)
         {
-            rc = PDMR3ThreadResume(pThis->hThreadPeriodFrame);
+            rc = PDMDrvHlpThreadResume(pThis->pDrvIns, pThis->hThreadPeriodFrame);
             AssertRCReturn(rc, rc);
         }
     }
@@ -1338,7 +1348,7 @@ static DECLCALLBACK(int) vusbR3RhSavePrep(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
     {
         PDMDrvHlpTimerDestroy(pDrvIns, pThis->pLoad->hTimer);
         pThis->pLoad->hTimer = NIL_TMTIMERHANDLE;
-        RTMemFree(pThis->pLoad);
+        PDMDrvHlpMMHeapFree(pDrvIns, pThis->pLoad);
         pThis->pLoad = NULL;
     }
 
@@ -1437,12 +1447,12 @@ static DECLCALLBACK(int) vusbR3RhLoadPrep(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
 /**
  * Reattaches devices after a saved state load.
  */
-static DECLCALLBACK(void) vusbR3RhLoadReattachDevices(PPDMDRVINS pDrvIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) vusbR3RhLoadReattachDevices(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     PVUSBROOTHUB        pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
     PVUSBROOTHUBLOAD    pLoad = pThis->pLoad;
     LogFlow(("vusbR3RhLoadReattachDevices:\n"));
-    RT_NOREF(pTimer, pvUser);
+    Assert(hTimer == pLoad->hTimer); RT_NOREF(pvUser);
 
     /*
      * Reattach devices.
@@ -1453,7 +1463,7 @@ static DECLCALLBACK(void) vusbR3RhLoadReattachDevices(PPDMDRVINS pDrvIns, PTMTIM
     /*
      * Cleanup.
      */
-    PDMDrvHlpTimerDestroy(pDrvIns, (TMTIMERHANDLE)pTimer);
+    PDMDrvHlpTimerDestroy(pDrvIns, hTimer);
     pLoad->hTimer = NIL_TMTIMERHANDLE;
     RTMemFree(pLoad);
     pThis->pLoad = NULL;
@@ -1475,7 +1485,7 @@ static DECLCALLBACK(int) vusbR3RhLoadDone(PPDMDRVINS pDrvIns, PSSMHANDLE pSSM)
     if (pThis->pLoad)
     {
         int rc = PDMDrvHlpTMTimerCreate(pDrvIns, TMCLOCK_VIRTUAL, vusbR3RhLoadReattachDevices, NULL,
-                                        TMTIMER_FLAGS_NO_CRIT_SECT,
+                                        TMTIMER_FLAGS_NO_CRIT_SECT | TMTIMER_FLAGS_NO_RING0,
                                         "VUSB reattach on load", &pThis->pLoad->hTimer);
         if (RT_SUCCESS(rc))
             rc = PDMDrvHlpTimerSetMillies(pDrvIns, pThis->pLoad->hTimer, 250);
@@ -1547,14 +1557,15 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
 {
     RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PVUSBROOTHUB    pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
+
     LogFlow(("vusbRhConstruct: Instance %d\n", pDrvIns->iInstance));
-    PVUSBROOTHUB pThis = PDMINS_2_DATA(pDrvIns, PVUSBROOTHUB);
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "CaptureFilename\0"))
-        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "CaptureFilename", "");
 
     /*
      * Check that there are no drivers below us.
@@ -1571,7 +1582,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
         return rc;
 
     char *pszCaptureFilename = NULL;
-    rc = CFGMR3QueryStringAlloc(pCfg, "CaptureFilename", &pszCaptureFilename);
+    rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "CaptureFilename", &pszCaptureFilename);
     if (   RT_FAILURE(rc)
         && rc != VERR_CFGM_VALUE_NOT_FOUND)
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
@@ -1648,7 +1659,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
                                        N_("VUSBSniffer cannot open '%s' for writing. The directory must exist and it must be writable for the current user"),
                                        pszCaptureFilename);
 
-        MMR3HeapFree(pszCaptureFilename);
+        PDMDrvHlpMMHeapFree(pDrvIns, pszCaptureFilename);
     }
 
     /*
@@ -1790,10 +1801,14 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
         PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->aStatIsocDetails[i].Bytes,               STAMTYPE_COUNTER, STAMVISIBILITY_USED,    STAMUNIT_BYTES, ".", "/VUSB/%d/Isoc/%d/Bytes",           pDrvIns->iInstance, i);
     }
 
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReapAsyncUrbs, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Profiling the vusbRhReapAsyncUrbs body (omitting calls when nothing is in-flight).",  "/VUSB/%d/ReapAsyncUrbs", pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatSubmitUrb,     STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Profiling the vusbRhSubmitUrb body.",                                 "/VUSB/%d/SubmitUrb",                 pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatFramesProcessedThread, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Processed frames in the dedicated thread", "/VUSB/%d/FramesProcessedThread",       pDrvIns->iInstance);
-    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatFramesProcessedClbk,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Processed frames in the URB completion callback", "/VUSB/%d/FramesProcessedClbk",  pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatReapAsyncUrbs, STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling the vusbRhReapAsyncUrbs body (omitting calls when nothing is in-flight).",
+                           "/VUSB/%d/ReapAsyncUrbs",           pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatSubmitUrb,     STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_CALL, "Profiling the vusbRhSubmitUrb body.",
+                           "/VUSB/%d/SubmitUrb",               pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatFramesProcessedThread, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Processed frames in the dedicated thread",
+                           "/VUSB/%d/FramesProcessedThread",   pDrvIns->iInstance);
+    PDMDrvHlpSTAMRegisterF(pDrvIns, &pThis->StatFramesProcessedClbk,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, "Processed frames in the URB completion callback",
+                           "/VUSB/%d/FramesProcessedClbk",     pDrvIns->iInstance);
 #endif
     PDMDrvHlpSTAMRegisterF(pDrvIns, (void *)&pThis->UrbPool.cUrbsInPool, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT, "The number of URBs in the pool.",
                            "/VUSB/%d/cUrbsInPool",             pDrvIns->iInstance);

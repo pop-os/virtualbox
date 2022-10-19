@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -48,9 +58,11 @@
 *********************************************************************************************************************************/
 RT_C_DECLS_BEGIN
 extern DECLEXPORT(const PDMDEVHLPR0)    g_pdmR0DevHlp;
+extern DECLEXPORT(const PDMDEVHLPR0)    g_pdmR0DevHlpTracing;
 extern DECLEXPORT(const PDMPICHLP)      g_pdmR0PicHlp;
 extern DECLEXPORT(const PDMIOAPICHLP)   g_pdmR0IoApicHlp;
 extern DECLEXPORT(const PDMPCIHLPR0)    g_pdmR0PciHlp;
+extern DECLEXPORT(const PDMIOMMUHLPR0)  g_pdmR0IommuHlp;
 extern DECLEXPORT(const PDMHPETHLPR0)   g_pdmR0HpetHlp;
 extern DECLEXPORT(const PDMPCIRAWHLPR0) g_pdmR0PciRawHlp;
 RT_C_DECLS_END
@@ -59,7 +71,6 @@ RT_C_DECLS_END
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static bool pdmR0IsaSetIrq(PGVM pGVM, int iIrq, int iLevel, uint32_t uTagSrc);
 
 
 /** @name Ring-0 Device Helpers
@@ -126,7 +137,7 @@ static DECLCALLBACK(int) pdmR0DevHlp_Mmio2SetUpContext(PPDMDEVINS pDevIns, PGMMM
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnPCIPhysRead} */
 static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysRead(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, RTGCPHYS GCPhys,
-                                                 void *pvBuf, size_t cbRead)
+                                                 void *pvBuf, size_t cbRead, uint32_t fFlags)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     if (!pPciDev) /* NULL is an alias for the default PCI device. */
@@ -142,20 +153,29 @@ static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysRead(PPDMDEVINS pDevIns, PPDMPCIDEV 
     { /* likely */ }
     else
     {
-        Log(("pdmRCDevHlp_PCIPhysRead: caller=%p/%d: returns %Rrc - Not bus master! GCPhys=%RGp cbRead=%#zx\n",
-             pDevIns, pDevIns->iInstance, VERR_PDM_NOT_PCI_BUS_MASTER, GCPhys, cbRead));
+        LogFunc(("caller=%p/%d: returns %Rrc - Not bus master! GCPhys=%RGp cbRead=%#zx\n", pDevIns, pDevIns->iInstance,
+                 VERR_PDM_NOT_PCI_BUS_MASTER, GCPhys, cbRead));
         memset(pvBuf, 0xff, cbRead);
         return VERR_PDM_NOT_PCI_BUS_MASTER;
     }
 #endif
 
-    return pDevIns->pHlpR0->pfnPhysRead(pDevIns, GCPhys, pvBuf, cbRead);
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    int rc = pdmIommuMemAccessRead(pDevIns, pPciDev, GCPhys, pvBuf, cbRead, fFlags);
+    if (   rc == VERR_IOMMU_NOT_PRESENT
+        || rc == VERR_IOMMU_CANNOT_CALL_SELF)
+    { /* likely - ASSUMING most VMs won't be configured with an IOMMU. */ }
+    else
+        return rc;
+#endif
+
+    return pDevIns->pHlpR0->pfnPhysRead(pDevIns, GCPhys, pvBuf, cbRead, fFlags);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnPCIPhysWrite} */
 static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, RTGCPHYS GCPhys,
-                                                  const void *pvBuf, size_t cbWrite)
+                                                  const void *pvBuf, size_t cbWrite, uint32_t fFlags)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     if (!pPciDev) /* NULL is an alias for the default PCI device. */
@@ -171,13 +191,22 @@ static DECLCALLBACK(int) pdmR0DevHlp_PCIPhysWrite(PPDMDEVINS pDevIns, PPDMPCIDEV
     { /* likely */ }
     else
     {
-        Log(("pdmRCDevHlp_PCIPhysWrite: caller=%p/%d: returns %Rrc - Not bus master! GCPhys=%RGp cbWrite=%#zx\n",
-             pDevIns, pDevIns->iInstance, VERR_PDM_NOT_PCI_BUS_MASTER, GCPhys, cbWrite));
+        LogFunc(("caller=%p/%d: returns %Rrc - Not bus master! GCPhys=%RGp cbWrite=%#zx\n", pDevIns, pDevIns->iInstance,
+                 VERR_PDM_NOT_PCI_BUS_MASTER, GCPhys, cbWrite));
         return VERR_PDM_NOT_PCI_BUS_MASTER;
     }
 #endif
 
-    return pDevIns->pHlpR0->pfnPhysWrite(pDevIns, GCPhys, pvBuf, cbWrite);
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    int rc = pdmIommuMemAccessWrite(pDevIns, pPciDev, GCPhys, pvBuf, cbWrite, fFlags);
+    if (   rc == VERR_IOMMU_NOT_PRESENT
+        || rc == VERR_IOMMU_CANNOT_CALL_SELF)
+    { /* likely - ASSUMING most VMs won't be configured with an IOMMU. */ }
+    else
+        return rc;
+#endif
+
+    return pDevIns->pHlpR0->pfnPhysWrite(pDevIns, GCPhys, pvBuf, cbWrite, fFlags);
 }
 
 
@@ -225,17 +254,17 @@ static DECLCALLBACK(void) pdmR0DevHlp_PCISetIrq(PPDMDEVINS pDevIns, PPDMPCIDEV p
         pdmUnlock(pGVM);
 
         /* queue for ring-3 execution. */
-        PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pGVM->pdm.s.pDevHlpQueueR0);
+        PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pGVM, pGVM->pdm.s.hDevHlpQueue, pGVM);
         AssertReturnVoid(pTask);
 
         pTask->enmOp = PDMDEVHLPTASKOP_PCI_SET_IRQ;
         pTask->pDevInsR3 = PDMDEVINS_2_R3PTR(pDevIns);
-        pTask->u.PciSetIRQ.iIrq = iIrq;
-        pTask->u.PciSetIRQ.iLevel = iLevel;
-        pTask->u.PciSetIRQ.uTagSrc = uTagSrc;
-        pTask->u.PciSetIRQ.pPciDevR3 = MMHyperR0ToR3(pGVM, pPciDev);
+        pTask->u.PciSetIrq.iIrq = iIrq;
+        pTask->u.PciSetIrq.iLevel = iLevel;
+        pTask->u.PciSetIrq.uTagSrc = uTagSrc;
+        pTask->u.PciSetIrq.idxPciDev = pPciDev->Int.s.idxSubDev;
 
-        PDMQueueInsertEx(pGVM->pdm.s.pDevHlpQueueR0, &pTask->Core, 0);
+        PDMQueueInsert(pGVM, pGVM->pdm.s.hDevHlpQueue, pGVM, &pTask->Core);
     }
 
     LogFlow(("pdmR0DevHlp_PCISetIrq: caller=%p/%d: returns void; uTagSrc=%#x\n", pDevIns, pDevIns->iInstance, uTagSrc));
@@ -271,29 +300,11 @@ static DECLCALLBACK(void) pdmR0DevHlp_ISASetIrq(PPDMDEVINS pDevIns, int iIrq, in
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR0,pfnIoApicSendMsi} */
-static DECLCALLBACK(void) pdmR0DevHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, uint32_t uValue)
-{
-    PDMDEV_ASSERT_DEVINS(pDevIns);
-    LogFlow(("pdmR0DevHlp_IoApicSendMsi: caller=%p/%d: GCPhys=%RGp uValue=%#x\n", pDevIns, pDevIns->iInstance, GCPhys, uValue));
-    PGVM pGVM = pDevIns->Internal.s.pGVM;
-
-    uint32_t uTagSrc;
-    pDevIns->Internal.s.pIntR3R0->uLastIrqTag = uTagSrc = pdmCalcIrqTag(pGVM, pDevIns->Internal.s.pInsR3R0->idTracing);
-    VBOXVMM_PDM_IRQ_HILO(VMMGetCpu(pGVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
-
-    if (pGVM->pdm.s.IoApic.pDevInsR0)
-        pGVM->pdm.s.IoApic.pfnSendMsiR0(pGVM->pdm.s.IoApic.pDevInsR0, GCPhys, uValue, uTagSrc);
-    else
-        AssertFatalMsgFailed(("Lazy bastards!"));
-
-    LogFlow(("pdmR0DevHlp_IoApicSendMsi: caller=%p/%d: returns void; uTagSrc=%#x\n", pDevIns, pDevIns->iInstance, uTagSrc));
-}
-
-
 /** @interface_method_impl{PDMDEVHLPR0,pfnPhysRead} */
-static DECLCALLBACK(int) pdmR0DevHlp_PhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead)
+static DECLCALLBACK(int) pdmR0DevHlp_PhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, void *pvBuf, size_t cbRead, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
+
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR0DevHlp_PhysRead: caller=%p/%d: GCPhys=%RGp pvBuf=%p cbRead=%#x\n",
              pDevIns, pDevIns->iInstance, GCPhys, pvBuf, cbRead));
@@ -307,8 +318,10 @@ static DECLCALLBACK(int) pdmR0DevHlp_PhysRead(PPDMDEVINS pDevIns, RTGCPHYS GCPhy
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnPhysWrite} */
-static DECLCALLBACK(int) pdmR0DevHlp_PhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite)
+static DECLCALLBACK(int) pdmR0DevHlp_PhysWrite(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, const void *pvBuf, size_t cbWrite, uint32_t fFlags)
 {
+    RT_NOREF(fFlags);
+
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR0DevHlp_PhysWrite: caller=%p/%d: GCPhys=%RGp pvBuf=%p cbWrite=%#x\n",
              pDevIns, pDevIns->iInstance, GCPhys, pvBuf, cbWrite));
@@ -346,49 +359,6 @@ static DECLCALLBACK(VMSTATE) pdmR0DevHlp_VMState(PPDMDEVINS pDevIns)
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR0,pfnVMSetError} */
-static DECLCALLBACK(int) pdmR0DevHlp_VMSetError(PPDMDEVINS pDevIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...)
-{
-    PDMDEV_ASSERT_DEVINS(pDevIns);
-    va_list args;
-    va_start(args, pszFormat);
-    int rc2 = VMSetErrorV(pDevIns->Internal.s.pGVM, rc, RT_SRC_POS_ARGS, pszFormat, args); Assert(rc2 == rc); NOREF(rc2);
-    va_end(args);
-    return rc;
-}
-
-
-/** @interface_method_impl{PDMDEVHLPR0,pfnVMSetErrorV} */
-static DECLCALLBACK(int) pdmR0DevHlp_VMSetErrorV(PPDMDEVINS pDevIns, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
-{
-    PDMDEV_ASSERT_DEVINS(pDevIns);
-    int rc2 = VMSetErrorV(pDevIns->Internal.s.pGVM, rc, RT_SRC_POS_ARGS, pszFormat, va); Assert(rc2 == rc); NOREF(rc2);
-    return rc;
-}
-
-
-/** @interface_method_impl{PDMDEVHLPR0,pfnVMSetRuntimeError} */
-static DECLCALLBACK(int) pdmR0DevHlp_VMSetRuntimeError(PPDMDEVINS pDevIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, ...)
-{
-    PDMDEV_ASSERT_DEVINS(pDevIns);
-    va_list va;
-    va_start(va, pszFormat);
-    int rc = VMSetRuntimeErrorV(pDevIns->Internal.s.pGVM, fFlags, pszErrorId, pszFormat, va);
-    va_end(va);
-    return rc;
-}
-
-
-/** @interface_method_impl{PDMDEVHLPR0,pfnVMSetRuntimeErrorV} */
-static DECLCALLBACK(int) pdmR0DevHlp_VMSetRuntimeErrorV(PPDMDEVINS pDevIns, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
-{
-    PDMDEV_ASSERT_DEVINS(pDevIns);
-    int rc = VMSetRuntimeErrorV(pDevIns->Internal.s.pGVM, fFlags, pszErrorId, pszFormat, va);
-    return rc;
-}
-
-
-
 /** @interface_method_impl{PDMDEVHLPR0,pfnGetVM} */
 static DECLCALLBACK(PVMCC)  pdmR0DevHlp_GetVM(PPDMDEVINS pDevIns)
 {
@@ -407,7 +377,7 @@ static DECLCALLBACK(PVMCPUCC) pdmR0DevHlp_GetVMCPU(PPDMDEVINS pDevIns)
 }
 
 
-/** @interface_method_impl{PDMDEVHLPRC,pfnGetCurrentCpuId} */
+/** @interface_method_impl{PDMDEVHLPR0,pfnGetCurrentCpuId} */
 static DECLCALLBACK(VMCPUID) pdmR0DevHlp_GetCurrentCpuId(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
@@ -417,74 +387,83 @@ static DECLCALLBACK(VMCPUID) pdmR0DevHlp_GetCurrentCpuId(PPDMDEVINS pDevIns)
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR0,pfnTimerToPtr} */
-static DECLCALLBACK(PTMTIMERR0) pdmR0DevHlp_TimerToPtr(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
+/** @interface_method_impl{PDMDEVHLPR0,pfnGetMainExecutionEngine} */
+static DECLCALLBACK(uint8_t) pdmR0DevHlp_GetMainExecutionEngine(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns);
-    return (PTMTIMERR0)MMHyperR3ToCC(pDevIns->Internal.s.pGVM, hTimer);
+    LogFlow(("pdmR0DevHlp_GetMainExecutionEngine: caller='%s'/%d:\n", pDevIns->pReg->szName, pDevIns->iInstance));
+    return pDevIns->Internal.s.pGVM->bMainExecutionEngine;
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerFromMicro} */
 static DECLCALLBACK(uint64_t) pdmR0DevHlp_TimerFromMicro(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t cMicroSecs)
 {
-    return TMTimerFromMicro(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), cMicroSecs);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerFromMicro(pDevIns->Internal.s.pGVM, hTimer, cMicroSecs);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerFromMilli} */
 static DECLCALLBACK(uint64_t) pdmR0DevHlp_TimerFromMilli(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t cMilliSecs)
 {
-    return TMTimerFromMilli(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), cMilliSecs);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerFromMilli(pDevIns->Internal.s.pGVM, hTimer, cMilliSecs);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerFromNano} */
 static DECLCALLBACK(uint64_t) pdmR0DevHlp_TimerFromNano(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t cNanoSecs)
 {
-    return TMTimerFromNano(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), cNanoSecs);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerFromNano(pDevIns->Internal.s.pGVM, hTimer, cNanoSecs);
 }
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerGet} */
 static DECLCALLBACK(uint64_t) pdmR0DevHlp_TimerGet(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
 {
-    return TMTimerGet(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerGet(pDevIns->Internal.s.pGVM, hTimer);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerGetFreq} */
 static DECLCALLBACK(uint64_t) pdmR0DevHlp_TimerGetFreq(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
 {
-    return TMTimerGetFreq(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerGetFreq(pDevIns->Internal.s.pGVM, hTimer);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerGetNano} */
 static DECLCALLBACK(uint64_t) pdmR0DevHlp_TimerGetNano(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
 {
-    return TMTimerGetNano(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerGetNano(pDevIns->Internal.s.pGVM, hTimer);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerIsActive} */
 static DECLCALLBACK(bool) pdmR0DevHlp_TimerIsActive(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
 {
-    return TMTimerIsActive(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerIsActive(pDevIns->Internal.s.pGVM, hTimer);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerIsLockOwner} */
 static DECLCALLBACK(bool) pdmR0DevHlp_TimerIsLockOwner(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
 {
-    return TMTimerIsLockOwner(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerIsLockOwner(pDevIns->Internal.s.pGVM, hTimer);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerLockClock} */
 static DECLCALLBACK(VBOXSTRICTRC) pdmR0DevHlp_TimerLockClock(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, int rcBusy)
 {
-    return TMTimerLock(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), rcBusy);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerLock(pDevIns->Internal.s.pGVM, hTimer, rcBusy);
 }
 
 
@@ -492,14 +471,16 @@ static DECLCALLBACK(VBOXSTRICTRC) pdmR0DevHlp_TimerLockClock(PPDMDEVINS pDevIns,
 static DECLCALLBACK(VBOXSTRICTRC) pdmR0DevHlp_TimerLockClock2(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer,
                                                               PPDMCRITSECT pCritSect, int rcBusy)
 {
-    VBOXSTRICTRC rc = TMTimerLock(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), rcBusy);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PGVM const pGVM = pDevIns->Internal.s.pGVM;
+    VBOXSTRICTRC rc = TMTimerLock(pGVM, hTimer, rcBusy);
     if (rc == VINF_SUCCESS)
     {
-        rc = PDMCritSectEnter(pCritSect, rcBusy);
+        rc = PDMCritSectEnter(pGVM, pCritSect, rcBusy);
         if (rc == VINF_SUCCESS)
             return rc;
         AssertRC(VBOXSTRICTRC_VAL(rc));
-        TMTimerUnlock(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+        TMTimerUnlock(pGVM, hTimer);
     }
     else
         AssertRC(VBOXSTRICTRC_VAL(rc));
@@ -510,64 +491,74 @@ static DECLCALLBACK(VBOXSTRICTRC) pdmR0DevHlp_TimerLockClock2(PPDMDEVINS pDevIns
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerSet} */
 static DECLCALLBACK(int) pdmR0DevHlp_TimerSet(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t uExpire)
 {
-    return TMTimerSet(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), uExpire);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerSet(pDevIns->Internal.s.pGVM, hTimer, uExpire);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerSetFrequencyHint} */
 static DECLCALLBACK(int) pdmR0DevHlp_TimerSetFrequencyHint(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint32_t uHz)
 {
-    return TMTimerSetFrequencyHint(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), uHz);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerSetFrequencyHint(pDevIns->Internal.s.pGVM, hTimer, uHz);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerSetMicro} */
 static DECLCALLBACK(int) pdmR0DevHlp_TimerSetMicro(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t cMicrosToNext)
 {
-    return TMTimerSetMicro(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), cMicrosToNext);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerSetMicro(pDevIns->Internal.s.pGVM, hTimer, cMicrosToNext);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerSetMillies} */
 static DECLCALLBACK(int) pdmR0DevHlp_TimerSetMillies(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t cMilliesToNext)
 {
-    return TMTimerSetMillies(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), cMilliesToNext);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerSetMillies(pDevIns->Internal.s.pGVM, hTimer, cMilliesToNext);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerSetNano} */
 static DECLCALLBACK(int) pdmR0DevHlp_TimerSetNano(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t cNanosToNext)
 {
-    return TMTimerSetNano(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), cNanosToNext);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerSetNano(pDevIns->Internal.s.pGVM, hTimer, cNanosToNext);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerSetRelative} */
 static DECLCALLBACK(int) pdmR0DevHlp_TimerSetRelative(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, uint64_t cTicksToNext, uint64_t *pu64Now)
 {
-    return TMTimerSetRelative(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer), cTicksToNext, pu64Now);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerSetRelative(pDevIns->Internal.s.pGVM, hTimer, cTicksToNext, pu64Now);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerStop} */
 static DECLCALLBACK(int) pdmR0DevHlp_TimerStop(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
 {
-    return TMTimerStop(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return TMTimerStop(pDevIns->Internal.s.pGVM, hTimer);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerUnlockClock} */
 static DECLCALLBACK(void) pdmR0DevHlp_TimerUnlockClock(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer)
 {
-    TMTimerUnlock(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    TMTimerUnlock(pDevIns->Internal.s.pGVM, hTimer);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnTimerUnlockClock2} */
 static DECLCALLBACK(void) pdmR0DevHlp_TimerUnlockClock2(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, PPDMCRITSECT pCritSect)
 {
-    TMTimerUnlock(pdmR0DevHlp_TimerToPtr(pDevIns, hTimer));
-    int rc = PDMCritSectLeave(pCritSect);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PGVM const pGVM = pDevIns->Internal.s.pGVM;
+    TMTimerUnlock(pGVM, hTimer);
+    int rc = PDMCritSectLeave(pGVM, pCritSect);
     AssertRC(rc);
 }
 
@@ -599,41 +590,27 @@ static DECLCALLBACK(uint64_t) pdmR0DevHlp_TMTimeVirtGetNano(PPDMDEVINS pDevIns)
 }
 
 
-/** @interface_method_impl{PDMDEVHLPR0,pfnQueueToPtr} */
-static DECLCALLBACK(PPDMQUEUE)  pdmR0DevHlp_QueueToPtr(PPDMDEVINS pDevIns, PDMQUEUEHANDLE hQueue)
-{
-    PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns);
-    return (PPDMQUEUE)MMHyperR3ToCC(pDevIns->Internal.s.pGVM, hQueue);
-}
-
-
 /** @interface_method_impl{PDMDEVHLPR0,pfnQueueAlloc} */
 static DECLCALLBACK(PPDMQUEUEITEMCORE) pdmR0DevHlp_QueueAlloc(PPDMDEVINS pDevIns, PDMQUEUEHANDLE hQueue)
 {
-    return PDMQueueAlloc(pdmR0DevHlp_QueueToPtr(pDevIns, hQueue));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMQueueAlloc(pDevIns->Internal.s.pGVM, hQueue, pDevIns);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnQueueInsert} */
-static DECLCALLBACK(void) pdmR0DevHlp_QueueInsert(PPDMDEVINS pDevIns, PDMQUEUEHANDLE hQueue, PPDMQUEUEITEMCORE pItem)
+static DECLCALLBACK(int) pdmR0DevHlp_QueueInsert(PPDMDEVINS pDevIns, PDMQUEUEHANDLE hQueue, PPDMQUEUEITEMCORE pItem)
 {
-    return PDMQueueInsert(pdmR0DevHlp_QueueToPtr(pDevIns, hQueue), pItem);
-}
-
-
-/** @interface_method_impl{PDMDEVHLPR0,pfnQueueInsertEx} */
-static DECLCALLBACK(void) pdmR0DevHlp_QueueInsertEx(PPDMDEVINS pDevIns, PDMQUEUEHANDLE hQueue, PPDMQUEUEITEMCORE pItem,
-                                                    uint64_t cNanoMaxDelay)
-{
-    return PDMQueueInsertEx(pdmR0DevHlp_QueueToPtr(pDevIns, hQueue), pItem, cNanoMaxDelay);
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMQueueInsert(pDevIns->Internal.s.pGVM, hQueue, pDevIns, pItem);
 }
 
 
 /** @interface_method_impl{PDMDEVHLPR0,pfnQueueFlushIfNecessary} */
 static DECLCALLBACK(bool) pdmR0DevHlp_QueueFlushIfNecessary(PPDMDEVINS pDevIns, PDMQUEUEHANDLE hQueue)
 {
-    return PDMQueueFlushIfNecessary(pdmR0DevHlp_QueueToPtr(pDevIns, hQueue));
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMQueueFlushIfNecessary(pDevIns->Internal.s.pGVM, hQueue, pDevIns) == VINF_SUCCESS;
 }
 
 
@@ -829,7 +806,6 @@ static DECLCALLBACK(int) pdmR0DevHlp_SetDeviceCritSect(PPDMDEVINS pDevIns, PPDMC
              pDevIns->pReg->szName, pDevIns->iInstance, pCritSect));
     AssertReturn(PDMCritSectIsInitialized(pCritSect), VERR_INVALID_PARAMETER);
     PGVM pGVM = pDevIns->Internal.s.pGVM;
-    AssertReturn(pCritSect->s.pVMR0 == pGVM, VERR_INVALID_PARAMETER);
 
     VM_ASSERT_EMT(pGVM);
     VM_ASSERT_STATE_RETURN(pGVM, VMSTATE_CREATING, VERR_WRONG_ORDER);
@@ -849,8 +825,7 @@ static DECLCALLBACK(int) pdmR0DevHlp_SetDeviceCritSect(PPDMDEVINS pDevIns, PPDMC
 static DECLCALLBACK(int)      pdmR0DevHlp_CritSectEnter(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, int rcBusy)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns); /** @todo pass pDevIns->Internal.s.pGVM to the crit sect code.   */
-    return PDMCritSectEnter(pCritSect, rcBusy);
+    return PDMCritSectEnter(pDevIns->Internal.s.pGVM, pCritSect, rcBusy);
 }
 
 
@@ -858,8 +833,7 @@ static DECLCALLBACK(int)      pdmR0DevHlp_CritSectEnter(PPDMDEVINS pDevIns, PPDM
 static DECLCALLBACK(int)      pdmR0DevHlp_CritSectEnterDebug(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns); /** @todo pass pDevIns->Internal.s.pGVM to the crit sect code.   */
-    return PDMCritSectEnterDebug(pCritSect, rcBusy, uId, RT_SRC_POS_ARGS);
+    return PDMCritSectEnterDebug(pDevIns->Internal.s.pGVM, pCritSect, rcBusy, uId, RT_SRC_POS_ARGS);
 }
 
 
@@ -867,8 +841,7 @@ static DECLCALLBACK(int)      pdmR0DevHlp_CritSectEnterDebug(PPDMDEVINS pDevIns,
 static DECLCALLBACK(int)      pdmR0DevHlp_CritSectTryEnter(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns); /** @todo pass pDevIns->Internal.s.pGVM to the crit sect code.   */
-    return PDMCritSectTryEnter(pCritSect);
+    return PDMCritSectTryEnter(pDevIns->Internal.s.pGVM, pCritSect);
 }
 
 
@@ -876,8 +849,7 @@ static DECLCALLBACK(int)      pdmR0DevHlp_CritSectTryEnter(PPDMDEVINS pDevIns, P
 static DECLCALLBACK(int)      pdmR0DevHlp_CritSectTryEnterDebug(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns); /** @todo pass pDevIns->Internal.s.pGVM to the crit sect code.   */
-    return PDMCritSectTryEnterDebug(pCritSect, uId, RT_SRC_POS_ARGS);
+    return PDMCritSectTryEnterDebug(pDevIns->Internal.s.pGVM, pCritSect, uId, RT_SRC_POS_ARGS);
 }
 
 
@@ -885,8 +857,7 @@ static DECLCALLBACK(int)      pdmR0DevHlp_CritSectTryEnterDebug(PPDMDEVINS pDevI
 static DECLCALLBACK(int)      pdmR0DevHlp_CritSectLeave(PPDMDEVINS pDevIns, PPDMCRITSECT pCritSect)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns); /** @todo pass pDevIns->Internal.s.pGVM to the crit sect code.   */
-    return PDMCritSectLeave(pCritSect);
+    return PDMCritSectLeave(pDevIns->Internal.s.pGVM, pCritSect);
 }
 
 
@@ -894,8 +865,7 @@ static DECLCALLBACK(int)      pdmR0DevHlp_CritSectLeave(PPDMDEVINS pDevIns, PPDM
 static DECLCALLBACK(bool)     pdmR0DevHlp_CritSectIsOwner(PPDMDEVINS pDevIns, PCPDMCRITSECT pCritSect)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns); /** @todo pass pDevIns->Internal.s.pGVM to the crit sect code.   */
-    return PDMCritSectIsOwner(pCritSect);
+    return PDMCritSectIsOwner(pDevIns->Internal.s.pGVM, pCritSect);
 }
 
 
@@ -912,8 +882,7 @@ static DECLCALLBACK(bool)     pdmR0DevHlp_CritSectIsInitialized(PPDMDEVINS pDevI
 static DECLCALLBACK(bool)     pdmR0DevHlp_CritSectHasWaiters(PPDMDEVINS pDevIns, PCPDMCRITSECT pCritSect)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    RT_NOREF(pDevIns);
-    return PDMCritSectHasWaiters(pCritSect);
+    return PDMCritSectHasWaiters(pDevIns->Internal.s.pGVM, pCritSect);
 }
 
 
@@ -933,6 +902,143 @@ static DECLCALLBACK(int) pdmR0DevHlp_CritSectScheduleExitEvent(PPDMDEVINS pDevIn
     PDMDEV_ASSERT_DEVINS(pDevIns);
     RT_NOREF(pDevIns);
     return PDMHCCritSectScheduleExitEvent(pCritSect, hEventToSignal);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwEnterShared} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwEnterShared(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect, int rcBusy)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwEnterShared(pDevIns->Internal.s.pGVM, pCritSect, rcBusy);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwEnterSharedDebug} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwEnterSharedDebug(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect, int rcBusy,
+                                                                     RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwEnterSharedDebug(pDevIns->Internal.s.pGVM, pCritSect, rcBusy, uId, RT_SRC_POS_ARGS);
+}
+
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwTryEnterShared} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwTryEnterShared(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwTryEnterShared(pDevIns->Internal.s.pGVM, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwTryEnterSharedDebug} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwTryEnterSharedDebug(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect,
+                                                                        RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwTryEnterSharedDebug(pDevIns->Internal.s.pGVM, pCritSect, uId, RT_SRC_POS_ARGS);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwLeaveShared} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwLeaveShared(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwLeaveShared(pDevIns->Internal.s.pGVM, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwEnterExcl} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwEnterExcl(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect, int rcBusy)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwEnterExcl(pDevIns->Internal.s.pGVM, pCritSect, rcBusy);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwEnterExclDebug} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwEnterExclDebug(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect, int rcBusy,
+                                                                   RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwEnterExclDebug(pDevIns->Internal.s.pGVM, pCritSect, rcBusy, uId, RT_SRC_POS_ARGS);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwTryEnterExcl} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwTryEnterExcl(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwTryEnterExcl(pDevIns->Internal.s.pGVM, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwTryEnterExclDebug} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwTryEnterExclDebug(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect,
+                                                                      RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwTryEnterExclDebug(pDevIns->Internal.s.pGVM, pCritSect, uId, RT_SRC_POS_ARGS);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwLeaveExcl} */
+static DECLCALLBACK(int)      pdmR0DevHlp_CritSectRwLeaveExcl(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwLeaveExcl(pDevIns->Internal.s.pGVM, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwIsWriteOwner} */
+static DECLCALLBACK(bool)     pdmR0DevHlp_CritSectRwIsWriteOwner(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwIsWriteOwner(pDevIns->Internal.s.pGVM, pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwIsReadOwner} */
+static DECLCALLBACK(bool)     pdmR0DevHlp_CritSectRwIsReadOwner(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect, bool fWannaHear)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return PDMCritSectRwIsReadOwner(pDevIns->Internal.s.pGVM, pCritSect, fWannaHear);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwGetWriteRecursion} */
+static DECLCALLBACK(uint32_t) pdmR0DevHlp_CritSectRwGetWriteRecursion(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    RT_NOREF(pDevIns);
+    return PDMCritSectRwGetWriteRecursion(pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwGetWriterReadRecursion} */
+static DECLCALLBACK(uint32_t) pdmR0DevHlp_CritSectRwGetWriterReadRecursion(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    RT_NOREF(pDevIns);
+    return PDMCritSectRwGetWriterReadRecursion(pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwGetReadCount} */
+static DECLCALLBACK(uint32_t) pdmR0DevHlp_CritSectRwGetReadCount(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    RT_NOREF(pDevIns);
+    return PDMCritSectRwGetReadCount(pCritSect);
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnCritSectRwIsInitialized} */
+static DECLCALLBACK(bool)     pdmR0DevHlp_CritSectRwIsInitialized(PPDMDEVINS pDevIns, PPDMCRITSECTRW pCritSect)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    RT_NOREF(pDevIns);
+    return PDMCritSectRwIsInitialized(pCritSect);
 }
 
 
@@ -997,6 +1103,64 @@ static DECLCALLBACK(int) pdmR0DevHlp_PCIBusSetUpContext(PPDMDEVINS pDevIns, PPDM
     *ppPciHlp = &g_pdmR0PciHlp;
 
     LogFlow(("pdmR0DevHlp_PCIBusSetUpContext: caller='%p'/%d: returns VINF_SUCCESS\n", pDevIns, pDevIns->iInstance));
+    return VINF_SUCCESS;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnIommuSetUpContext} */
+static DECLCALLBACK(int) pdmR0DevHlp_IommuSetUpContext(PPDMDEVINS pDevIns, PPDMIOMMUREGR0 pIommuReg, PCPDMIOMMUHLPR0 *ppIommuHlp)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_IommuSetUpContext: caller='%p'/%d: pIommuReg=%p{.u32Version=%#x, u32TheEnd=%#x} ppIommuHlp=%p\n",
+             pDevIns, pDevIns->iInstance, pIommuReg, pIommuReg->u32Version, pIommuReg->u32TheEnd, ppIommuHlp));
+    PGVM pGVM = pDevIns->Internal.s.pGVM;
+
+    /*
+     * Validate input.
+     */
+    AssertPtrReturn(pIommuReg, VERR_INVALID_POINTER);
+    AssertLogRelMsgReturn(pIommuReg->u32Version == PDM_IOMMUREGCC_VERSION,
+                          ("%#x vs %#x\n", pIommuReg->u32Version, PDM_IOMMUREGCC_VERSION), VERR_VERSION_MISMATCH);
+    AssertPtrReturn(pIommuReg->pfnMemAccess,     VERR_INVALID_POINTER);
+    AssertPtrReturn(pIommuReg->pfnMemBulkAccess, VERR_INVALID_POINTER);
+    AssertPtrReturn(pIommuReg->pfnMsiRemap,      VERR_INVALID_POINTER);
+    AssertLogRelMsgReturn(pIommuReg->u32TheEnd == PDM_IOMMUREGCC_VERSION,
+                          ("%#x vs %#x\n", pIommuReg->u32TheEnd, PDM_IOMMUREGCC_VERSION), VERR_VERSION_MISMATCH);
+
+    AssertPtrReturn(ppIommuHlp, VERR_INVALID_POINTER);
+
+    VM_ASSERT_STATE_RETURN(pGVM, VMSTATE_CREATING, VERR_WRONG_ORDER);
+    VM_ASSERT_EMT0_RETURN(pGVM, VERR_VM_THREAD_NOT_EMT);
+
+    /* Check the IOMMU shared data (registered earlier from ring-3). */
+    uint32_t const idxIommu = pIommuReg->idxIommu;
+    ASMCompilerBarrier();
+    AssertLogRelMsgReturn(idxIommu < RT_ELEMENTS(pGVM->pdm.s.aIommus), ("idxIommu=%#x\n", idxIommu), VERR_OUT_OF_RANGE);
+    PPDMIOMMUR3 pIommuShared = &pGVM->pdm.s.aIommus[idxIommu];
+    AssertLogRelMsgReturn(pIommuShared->idxIommu == idxIommu, ("%u vs %u\n", pIommuShared->idxIommu, idxIommu), VERR_INVALID_PARAMETER);
+    AssertLogRelMsgReturn(pIommuShared->pDevInsR3 == pDevIns->pDevInsForR3,
+                          ("%p vs %p (idxIommu=%u)\n", pIommuShared->pDevInsR3, pDevIns->pDevInsForR3, idxIommu), VERR_NOT_OWNER);
+
+    /* Check that the IOMMU isn't already registered in ring-0. */
+    AssertCompile(RT_ELEMENTS(pGVM->pdm.s.aIommus) == RT_ELEMENTS(pGVM->pdmr0.s.aIommus));
+    PPDMIOMMUR0 pIommuR0 = &pGVM->pdmr0.s.aIommus[idxIommu];
+    AssertLogRelMsgReturn(pIommuR0->pDevInsR0 == NULL,
+                          ("%p (caller pDevIns=%p, idxIommu=%u)\n", pIommuR0->pDevInsR0, pDevIns, idxIommu),
+                          VERR_ALREADY_EXISTS);
+
+    /*
+     * Register.
+     */
+    pIommuR0->idxIommu         = idxIommu;
+    pIommuR0->uPadding0        = 0xdeaddead;
+    pIommuR0->pDevInsR0        = pDevIns;
+    pIommuR0->pfnMemAccess     = pIommuReg->pfnMemAccess;
+    pIommuR0->pfnMemBulkAccess = pIommuReg->pfnMemBulkAccess;
+    pIommuR0->pfnMsiRemap      = pIommuReg->pfnMsiRemap;
+
+    *ppIommuHlp = &g_pdmR0IommuHlp;
+
+    LogFlow(("pdmR0DevHlp_IommuSetUpContext: caller='%p'/%d: returns VINF_SUCCESS\n", pDevIns, pDevIns->iInstance));
     return VINF_SUCCESS;
 }
 
@@ -1169,6 +1333,85 @@ static DECLCALLBACK(int) pdmR0DevHlp_HpetSetUpContext(PPDMDEVINS pDevIns, PPDMHP
 }
 
 
+/** @interface_method_impl{PDMDEVHLPR0,pfnPGMHandlerPhysicalTypeSetUpContext} */
+static DECLCALLBACK(int) pdmR0DevHlp_PGMHandlerPhysicalTypeSetUpContext(PPDMDEVINS pDevIns, PGMPHYSHANDLERKIND enmKind,
+                                                                        PFNPGMPHYSHANDLER pfnHandler,
+                                                                        PFNPGMRZPHYSPFHANDLER pfnPfHandler,
+                                                                        const char *pszDesc, PGMPHYSHANDLERTYPE hType)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_PGMHandlerPhysicalTypeSetUpContext: caller='%s'/%d: enmKind=%d pfnHandler=%p pfnPfHandler=%p pszDesc=%p:{%s} hType=%#x\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, enmKind, pfnHandler, pfnPfHandler, pszDesc, pszDesc, hType));
+
+    int rc = PGMR0HandlerPhysicalTypeSetUpContext(pDevIns->Internal.s.pGVM, enmKind, PGMPHYSHANDLER_F_R0_DEVINS_IDX,
+                                                  pfnHandler, pfnPfHandler, pszDesc, hType);
+
+    Log(("pdmR0DevHlp_PGMHandlerPhysicalTypeSetUpContext: caller='%s'/%d: returns %Rrc\n",
+         pDevIns->pReg->szName, pDevIns->iInstance, rc));
+    return rc;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnPGMHandlerPhysicalPageTempOff} */
+static DECLCALLBACK(int) pdmR0DevHlp_PGMHandlerPhysicalPageTempOff(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, RTGCPHYS GCPhysPage)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_PGMHandlerPhysicalPageTempOff: caller='%s'/%d: GCPhys=%RGp\n", pDevIns->pReg->szName, pDevIns->iInstance, GCPhys));
+
+    int rc = PGMHandlerPhysicalPageTempOff(pDevIns->Internal.s.pGVM, GCPhys, GCPhysPage);
+
+    Log(("pdmR0DevHlp_PGMHandlerPhysicalPageTempOff: caller='%s'/%d: returns %Rrc\n",
+         pDevIns->pReg->szName, pDevIns->iInstance, rc));
+    return rc;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnMmioMapMmio2Page} */
+static DECLCALLBACK(int) pdmR0DevHlp_MmioMapMmio2Page(PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion, RTGCPHYS offRegion,
+                                                      uint64_t hMmio2, RTGCPHYS offMmio2, uint64_t fPageFlags)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_MmioMapMmio2Page: caller='%s'/%d: hRegion=%RX64 offRegion=%RGp hMmio2=%RX64 offMmio2=%RGp fPageFlags=%RX64\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, hRegion, offRegion, hMmio2, offMmio2, fPageFlags));
+
+    int rc = IOMMmioMapMmio2Page(pDevIns->Internal.s.pGVM, pDevIns, hRegion, offRegion, hMmio2, offMmio2, fPageFlags);
+
+    Log(("pdmR0DevHlp_MmioMapMmio2Page: caller='%s'/%d: returns %Rrc\n",
+         pDevIns->pReg->szName, pDevIns->iInstance, rc));
+    return rc;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnMmioResetRegion} */
+static DECLCALLBACK(int) pdmR0DevHlp_MmioResetRegion(PPDMDEVINS pDevIns, IOMMMIOHANDLE hRegion)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0DevHlp_MmioResetRegion: caller='%s'/%d: hRegion=%RX64\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, hRegion));
+
+    int rc = IOMMmioResetRegion(pDevIns->Internal.s.pGVM, pDevIns, hRegion);
+
+    Log(("pdmR0DevHlp_MmioResetRegion: caller='%s'/%d: returns %Rrc\n",
+         pDevIns->pReg->szName, pDevIns->iInstance, rc));
+    return rc;
+}
+
+
+/** @interface_method_impl{PDMDEVHLPR0,pfnGIMGetMmio2Regions} */
+static DECLCALLBACK(PGIMMMIO2REGION) pdmR0DevHlp_GIMGetMmio2Regions(PPDMDEVINS pDevIns, uint32_t *pcRegions)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+
+    LogFlow(("pdmR0DevHlp_GIMGetMmio2Regions: caller='%s'/%d: pcRegions=%p\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, pcRegions));
+
+    PGIMMMIO2REGION pRegion = GIMGetMmio2Regions(pDevIns->Internal.s.pGVM, pcRegions);
+
+    LogFlow(("pdmR0DevHlp_GIMGetMmio2Regions: caller='%s'/%d: returns %p\n", pDevIns->pReg->szName, pDevIns->iInstance, pRegion));
+    return pRegion;
+}
+
+
 /**
  * The Ring-0 Device Helper Callbacks.
  */
@@ -1182,19 +1425,14 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_PCIPhysWrite,
     pdmR0DevHlp_PCISetIrq,
     pdmR0DevHlp_ISASetIrq,
-    pdmR0DevHlp_IoApicSendMsi,
     pdmR0DevHlp_PhysRead,
     pdmR0DevHlp_PhysWrite,
     pdmR0DevHlp_A20IsEnabled,
     pdmR0DevHlp_VMState,
-    pdmR0DevHlp_VMSetError,
-    pdmR0DevHlp_VMSetErrorV,
-    pdmR0DevHlp_VMSetRuntimeError,
-    pdmR0DevHlp_VMSetRuntimeErrorV,
     pdmR0DevHlp_GetVM,
     pdmR0DevHlp_GetVMCPU,
     pdmR0DevHlp_GetCurrentCpuId,
-    pdmR0DevHlp_TimerToPtr,
+    pdmR0DevHlp_GetMainExecutionEngine,
     pdmR0DevHlp_TimerFromMicro,
     pdmR0DevHlp_TimerFromMilli,
     pdmR0DevHlp_TimerFromNano,
@@ -1217,10 +1455,8 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_TMTimeVirtGet,
     pdmR0DevHlp_TMTimeVirtGetFreq,
     pdmR0DevHlp_TMTimeVirtGetNano,
-    pdmR0DevHlp_QueueToPtr,
     pdmR0DevHlp_QueueAlloc,
     pdmR0DevHlp_QueueInsert,
-    pdmR0DevHlp_QueueInsertEx,
     pdmR0DevHlp_QueueFlushIfNecessary,
     pdmR0DevHlp_TaskTrigger,
     pdmR0DevHlp_SUPSemEventSignal,
@@ -1246,12 +1482,34 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     pdmR0DevHlp_CritSectHasWaiters,
     pdmR0DevHlp_CritSectGetRecursion,
     pdmR0DevHlp_CritSectScheduleExitEvent,
+    pdmR0DevHlp_CritSectRwEnterShared,
+    pdmR0DevHlp_CritSectRwEnterSharedDebug,
+    pdmR0DevHlp_CritSectRwTryEnterShared,
+    pdmR0DevHlp_CritSectRwTryEnterSharedDebug,
+    pdmR0DevHlp_CritSectRwLeaveShared,
+    pdmR0DevHlp_CritSectRwEnterExcl,
+    pdmR0DevHlp_CritSectRwEnterExclDebug,
+    pdmR0DevHlp_CritSectRwTryEnterExcl,
+    pdmR0DevHlp_CritSectRwTryEnterExclDebug,
+    pdmR0DevHlp_CritSectRwLeaveExcl,
+    pdmR0DevHlp_CritSectRwIsWriteOwner,
+    pdmR0DevHlp_CritSectRwIsReadOwner,
+    pdmR0DevHlp_CritSectRwGetWriteRecursion,
+    pdmR0DevHlp_CritSectRwGetWriterReadRecursion,
+    pdmR0DevHlp_CritSectRwGetReadCount,
+    pdmR0DevHlp_CritSectRwIsInitialized,
     pdmR0DevHlp_DBGFTraceBuf,
     pdmR0DevHlp_PCIBusSetUpContext,
+    pdmR0DevHlp_IommuSetUpContext,
     pdmR0DevHlp_PICSetUpContext,
     pdmR0DevHlp_ApicSetUpContext,
     pdmR0DevHlp_IoApicSetUpContext,
     pdmR0DevHlp_HpetSetUpContext,
+    pdmR0DevHlp_PGMHandlerPhysicalTypeSetUpContext,
+    pdmR0DevHlp_PGMHandlerPhysicalPageTempOff,
+    pdmR0DevHlp_MmioMapMmio2Page,
+    pdmR0DevHlp_MmioResetRegion,
+    pdmR0DevHlp_GIMGetMmio2Regions,
     NULL /*pfnReserved1*/,
     NULL /*pfnReserved2*/,
     NULL /*pfnReserved3*/,
@@ -1264,6 +1522,121 @@ extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlp =
     NULL /*pfnReserved10*/,
     PDM_DEVHLPR0_VERSION
 };
+
+
+#ifdef VBOX_WITH_DBGF_TRACING
+/**
+ * The Ring-0 Device Helper Callbacks - tracing variant.
+ */
+extern DECLEXPORT(const PDMDEVHLPR0) g_pdmR0DevHlpTracing =
+{
+    PDM_DEVHLPR0_VERSION,
+    pdmR0DevHlpTracing_IoPortSetUpContextEx,
+    pdmR0DevHlpTracing_MmioSetUpContextEx,
+    pdmR0DevHlp_Mmio2SetUpContext,
+    pdmR0DevHlpTracing_PCIPhysRead,
+    pdmR0DevHlpTracing_PCIPhysWrite,
+    pdmR0DevHlpTracing_PCISetIrq,
+    pdmR0DevHlpTracing_ISASetIrq,
+    pdmR0DevHlp_PhysRead,
+    pdmR0DevHlp_PhysWrite,
+    pdmR0DevHlp_A20IsEnabled,
+    pdmR0DevHlp_VMState,
+    pdmR0DevHlp_GetVM,
+    pdmR0DevHlp_GetVMCPU,
+    pdmR0DevHlp_GetCurrentCpuId,
+    pdmR0DevHlp_GetMainExecutionEngine,
+    pdmR0DevHlp_TimerFromMicro,
+    pdmR0DevHlp_TimerFromMilli,
+    pdmR0DevHlp_TimerFromNano,
+    pdmR0DevHlp_TimerGet,
+    pdmR0DevHlp_TimerGetFreq,
+    pdmR0DevHlp_TimerGetNano,
+    pdmR0DevHlp_TimerIsActive,
+    pdmR0DevHlp_TimerIsLockOwner,
+    pdmR0DevHlp_TimerLockClock,
+    pdmR0DevHlp_TimerLockClock2,
+    pdmR0DevHlp_TimerSet,
+    pdmR0DevHlp_TimerSetFrequencyHint,
+    pdmR0DevHlp_TimerSetMicro,
+    pdmR0DevHlp_TimerSetMillies,
+    pdmR0DevHlp_TimerSetNano,
+    pdmR0DevHlp_TimerSetRelative,
+    pdmR0DevHlp_TimerStop,
+    pdmR0DevHlp_TimerUnlockClock,
+    pdmR0DevHlp_TimerUnlockClock2,
+    pdmR0DevHlp_TMTimeVirtGet,
+    pdmR0DevHlp_TMTimeVirtGetFreq,
+    pdmR0DevHlp_TMTimeVirtGetNano,
+    pdmR0DevHlp_QueueAlloc,
+    pdmR0DevHlp_QueueInsert,
+    pdmR0DevHlp_QueueFlushIfNecessary,
+    pdmR0DevHlp_TaskTrigger,
+    pdmR0DevHlp_SUPSemEventSignal,
+    pdmR0DevHlp_SUPSemEventWaitNoResume,
+    pdmR0DevHlp_SUPSemEventWaitNsAbsIntr,
+    pdmR0DevHlp_SUPSemEventWaitNsRelIntr,
+    pdmR0DevHlp_SUPSemEventGetResolution,
+    pdmR0DevHlp_SUPSemEventMultiSignal,
+    pdmR0DevHlp_SUPSemEventMultiReset,
+    pdmR0DevHlp_SUPSemEventMultiWaitNoResume,
+    pdmR0DevHlp_SUPSemEventMultiWaitNsAbsIntr,
+    pdmR0DevHlp_SUPSemEventMultiWaitNsRelIntr,
+    pdmR0DevHlp_SUPSemEventMultiGetResolution,
+    pdmR0DevHlp_CritSectGetNop,
+    pdmR0DevHlp_SetDeviceCritSect,
+    pdmR0DevHlp_CritSectEnter,
+    pdmR0DevHlp_CritSectEnterDebug,
+    pdmR0DevHlp_CritSectTryEnter,
+    pdmR0DevHlp_CritSectTryEnterDebug,
+    pdmR0DevHlp_CritSectLeave,
+    pdmR0DevHlp_CritSectIsOwner,
+    pdmR0DevHlp_CritSectIsInitialized,
+    pdmR0DevHlp_CritSectHasWaiters,
+    pdmR0DevHlp_CritSectGetRecursion,
+    pdmR0DevHlp_CritSectScheduleExitEvent,
+    pdmR0DevHlp_CritSectRwEnterShared,
+    pdmR0DevHlp_CritSectRwEnterSharedDebug,
+    pdmR0DevHlp_CritSectRwTryEnterShared,
+    pdmR0DevHlp_CritSectRwTryEnterSharedDebug,
+    pdmR0DevHlp_CritSectRwLeaveShared,
+    pdmR0DevHlp_CritSectRwEnterExcl,
+    pdmR0DevHlp_CritSectRwEnterExclDebug,
+    pdmR0DevHlp_CritSectRwTryEnterExcl,
+    pdmR0DevHlp_CritSectRwTryEnterExclDebug,
+    pdmR0DevHlp_CritSectRwLeaveExcl,
+    pdmR0DevHlp_CritSectRwIsWriteOwner,
+    pdmR0DevHlp_CritSectRwIsReadOwner,
+    pdmR0DevHlp_CritSectRwGetWriteRecursion,
+    pdmR0DevHlp_CritSectRwGetWriterReadRecursion,
+    pdmR0DevHlp_CritSectRwGetReadCount,
+    pdmR0DevHlp_CritSectRwIsInitialized,
+    pdmR0DevHlp_DBGFTraceBuf,
+    pdmR0DevHlp_PCIBusSetUpContext,
+    pdmR0DevHlp_IommuSetUpContext,
+    pdmR0DevHlp_PICSetUpContext,
+    pdmR0DevHlp_ApicSetUpContext,
+    pdmR0DevHlp_IoApicSetUpContext,
+    pdmR0DevHlp_HpetSetUpContext,
+    pdmR0DevHlp_PGMHandlerPhysicalTypeSetUpContext,
+    pdmR0DevHlp_PGMHandlerPhysicalPageTempOff,
+    pdmR0DevHlp_MmioMapMmio2Page,
+    pdmR0DevHlp_MmioResetRegion,
+    pdmR0DevHlp_GIMGetMmio2Regions,
+    NULL /*pfnReserved1*/,
+    NULL /*pfnReserved2*/,
+    NULL /*pfnReserved3*/,
+    NULL /*pfnReserved4*/,
+    NULL /*pfnReserved5*/,
+    NULL /*pfnReserved6*/,
+    NULL /*pfnReserved7*/,
+    NULL /*pfnReserved8*/,
+    NULL /*pfnReserved9*/,
+    NULL /*pfnReserved10*/,
+    PDM_DEVHLPR0_VERSION
+};
+#endif
+
 
 /** @} */
 
@@ -1359,6 +1732,37 @@ static DECLCALLBACK(void) pdmR0IoApicHlp_Unlock(PPDMDEVINS pDevIns)
 }
 
 
+/** @interface_method_impl{PDMIOAPICHLP,pfnLockIsOwner} */
+static DECLCALLBACK(bool) pdmR0IoApicHlp_LockIsOwner(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return pdmLockIsOwner(pDevIns->Internal.s.pGVM);
+}
+
+
+/** @interface_method_impl{PDMIOAPICHLP,pfnIommuMsiRemap} */
+static DECLCALLBACK(int) pdmR0IoApicHlp_IommuMsiRemap(PPDMDEVINS pDevIns, uint16_t idDevice, PCMSIMSG pMsiIn, PMSIMSG pMsiOut)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR0IoApicHlp_IommuMsiRemap: caller='%s'/%d: pMsiIn=(%#RX64, %#RU32)\n", pDevIns->pReg->szName,
+             pDevIns->iInstance, pMsiIn->Addr.u64, pMsiIn->Data.u32));
+
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    if (pdmIommuIsPresent(pDevIns))
+    {
+        PGVM pGVM = pDevIns->Internal.s.pGVM;
+        PPDMIOMMUR0 pIommu = &pGVM->pdmr0.s.aIommus[0];
+        if (pIommu->pDevInsR0)
+            return pdmIommuMsiRemap(pDevIns, idDevice, pMsiIn, pMsiOut);
+        AssertMsgFailedReturn(("Implement queueing PDM task for remapping MSI via IOMMU in ring-3"), VERR_IOMMU_IPE_0);
+    }
+#else
+    RT_NOREF(pDevIns, idDevice);
+#endif
+    return VERR_IOMMU_NOT_PRESENT;
+}
+
+
 /**
  * The Ring-0 I/O APIC Helper Callbacks.
  */
@@ -1368,6 +1772,8 @@ extern DECLEXPORT(const PDMIOAPICHLP) g_pdmR0IoApicHlp =
     pdmR0IoApicHlp_ApicBusDeliver,
     pdmR0IoApicHlp_Lock,
     pdmR0IoApicHlp_Unlock,
+    pdmR0IoApicHlp_LockIsOwner,
+    pdmR0IoApicHlp_IommuMsiRemap,
     PDM_IOAPICHLP_VERSION
 };
 
@@ -1394,27 +1800,28 @@ static DECLCALLBACK(void) pdmR0PciHlp_IsaSetIrq(PPDMDEVINS pDevIns, int iIrq, in
 
 
 /** @interface_method_impl{PDMPCIHLPR0,pfnIoApicSetIrq} */
-static DECLCALLBACK(void) pdmR0PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
+static DECLCALLBACK(void) pdmR0PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, PCIBDF uBusDevFn, int iIrq, int iLevel, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmR0PciHlp_IoApicSetIrq: iIrq=%d iLevel=%d uTagSrc=%#x\n", iIrq, iLevel, uTagSrc));
+    Log4(("pdmR0PciHlp_IoApicSetIrq: uBusDevFn=%#x iIrq=%d iLevel=%d uTagSrc=%#x\n", uBusDevFn, iIrq, iLevel, uTagSrc));
     PGVM pGVM = pDevIns->Internal.s.pGVM;
 
     if (pGVM->pdm.s.IoApic.pDevInsR0)
-        pGVM->pdm.s.IoApic.pfnSetIrqR0(pGVM->pdm.s.IoApic.pDevInsR0, iIrq, iLevel, uTagSrc);
+        pGVM->pdm.s.IoApic.pfnSetIrqR0(pGVM->pdm.s.IoApic.pDevInsR0, uBusDevFn, iIrq, iLevel, uTagSrc);
     else if (pGVM->pdm.s.IoApic.pDevInsR3)
     {
         /* queue for ring-3 execution. */
-        PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pGVM->pdm.s.pDevHlpQueueR0);
+        PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pGVM, pGVM->pdm.s.hDevHlpQueue, pGVM);
         if (pTask)
         {
             pTask->enmOp = PDMDEVHLPTASKOP_IOAPIC_SET_IRQ;
             pTask->pDevInsR3 = NIL_RTR3PTR; /* not required */
-            pTask->u.IoApicSetIRQ.iIrq = iIrq;
-            pTask->u.IoApicSetIRQ.iLevel = iLevel;
-            pTask->u.IoApicSetIRQ.uTagSrc = uTagSrc;
+            pTask->u.IoApicSetIrq.uBusDevFn = uBusDevFn;
+            pTask->u.IoApicSetIrq.iIrq = iIrq;
+            pTask->u.IoApicSetIrq.iLevel = iLevel;
+            pTask->u.IoApicSetIrq.uTagSrc = uTagSrc;
 
-            PDMQueueInsertEx(pGVM->pdm.s.pDevHlpQueueR0, &pTask->Core, 0);
+            PDMQueueInsert(pGVM, pGVM->pdm.s.hDevHlpQueue, pGVM, &pTask->Core);
         }
         else
             AssertMsgFailed(("We're out of devhlp queue items!!!\n"));
@@ -1423,15 +1830,13 @@ static DECLCALLBACK(void) pdmR0PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq,
 
 
 /** @interface_method_impl{PDMPCIHLPR0,pfnIoApicSendMsi} */
-static DECLCALLBACK(void) pdmR0PciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, uint32_t uValue, uint32_t uTagSrc)
+static DECLCALLBACK(void) pdmR0PciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, PCIBDF uBusDevFn, PCMSIMSG pMsi, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmR0PciHlp_IoApicSendMsi: GCPhys=%p uValue=%d uTagSrc=%#x\n", GCPhys, uValue, uTagSrc));
-    PGVM pGVM = pDevIns->Internal.s.pGVM;
-    if (pGVM->pdm.s.IoApic.pDevInsR0)
-        pGVM->pdm.s.IoApic.pfnSendMsiR0(pGVM->pdm.s.IoApic.pDevInsR0, GCPhys, uValue, uTagSrc);
-    else
-        AssertFatalMsgFailed(("Lazy bastards!"));
+    Assert(PCIBDF_IS_VALID(uBusDevFn));
+    Log4(("pdmR0PciHlp_IoApicSendMsi: uBusDevFn=%#x Msi=(Addr:%#RX64 Data:%#RX32) uTagSrc=%#x\n", uBusDevFn, pMsi->Addr.u64,
+          pMsi->Data.u32, uTagSrc));
+    PDMIoApicSendMsi(pDevIns->Internal.s.pGVM, uBusDevFn, pMsi, uTagSrc);
 }
 
 
@@ -1476,6 +1881,58 @@ extern DECLEXPORT(const PDMPCIHLPR0) g_pdmR0PciHlp =
     pdmR0PciHlp_Unlock,
     pdmR0PciHlp_GetBusByNo,
     PDM_PCIHLPR0_VERSION, /* the end */
+};
+
+/** @} */
+
+
+/** @name IOMMU Ring-0 Helpers
+ * @{
+ */
+
+/** @interface_method_impl{PDMIOMMUHLPR0,pfnLock} */
+static DECLCALLBACK(int) pdmR0IommuHlp_Lock(PPDMDEVINS pDevIns, int rc)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return pdmLockEx(pDevIns->Internal.s.pGVM, rc);
+}
+
+
+/** @interface_method_impl{PDMIOMMUHLPR0,pfnUnlock} */
+static DECLCALLBACK(void) pdmR0IommuHlp_Unlock(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    pdmUnlock(pDevIns->Internal.s.pGVM);
+}
+
+
+/** @interface_method_impl{PDMIOMMUHLPR0,pfnLockIsOwner} */
+static DECLCALLBACK(bool) pdmR0IommuHlp_LockIsOwner(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    return pdmLockIsOwner(pDevIns->Internal.s.pGVM);
+}
+
+
+/** @interface_method_impl{PDMIOMMUHLPR0,pfnSendMsi} */
+static DECLCALLBACK(void) pdmR0IommuHlp_SendMsi(PPDMDEVINS pDevIns, PCMSIMSG pMsi, uint32_t uTagSrc)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PDMIoApicSendMsi(pDevIns->Internal.s.pGVM, NIL_PCIBDF, pMsi, uTagSrc);
+}
+
+
+/**
+ * The Ring-0 IOMMU Helper Callbacks.
+ */
+extern DECLEXPORT(const PDMIOMMUHLPR0) g_pdmR0IommuHlp =
+{
+    PDM_IOMMUHLPR0_VERSION,
+    pdmR0IommuHlp_Lock,
+    pdmR0IommuHlp_Unlock,
+    pdmR0IommuHlp_LockIsOwner,
+    pdmR0IommuHlp_SendMsi,
+    PDM_IOMMUHLPR0_VERSION, /* the end */
 };
 
 /** @} */
@@ -1528,7 +1985,7 @@ extern DECLEXPORT(const PDMPCIRAWHLPR0) g_pdmR0PciRawHlp =
  *
  * @remarks The caller holds the PDM lock.
  */
-static bool pdmR0IsaSetIrq(PGVM pGVM, int iIrq, int iLevel, uint32_t uTagSrc)
+DECLHIDDEN(bool) pdmR0IsaSetIrq(PGVM pGVM, int iIrq, int iLevel, uint32_t uTagSrc)
 {
     if (RT_LIKELY(    (   pGVM->pdm.s.IoApic.pDevInsR0
                        || !pGVM->pdm.s.IoApic.pDevInsR3)
@@ -1538,21 +1995,22 @@ static bool pdmR0IsaSetIrq(PGVM pGVM, int iIrq, int iLevel, uint32_t uTagSrc)
         if (pGVM->pdm.s.Pic.pDevInsR0)
             pGVM->pdm.s.Pic.pfnSetIrqR0(pGVM->pdm.s.Pic.pDevInsR0, iIrq, iLevel, uTagSrc);
         if (pGVM->pdm.s.IoApic.pDevInsR0)
-            pGVM->pdm.s.IoApic.pfnSetIrqR0(pGVM->pdm.s.IoApic.pDevInsR0, iIrq, iLevel, uTagSrc);
+            pGVM->pdm.s.IoApic.pfnSetIrqR0(pGVM->pdm.s.IoApic.pDevInsR0, NIL_PCIBDF, iIrq, iLevel, uTagSrc);
         return true;
     }
 
     /* queue for ring-3 execution. */
-    PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pGVM->pdm.s.pDevHlpQueueR0);
+    PPDMDEVHLPTASK pTask = (PPDMDEVHLPTASK)PDMQueueAlloc(pGVM, pGVM->pdm.s.hDevHlpQueue, pGVM);
     AssertReturn(pTask, false);
 
     pTask->enmOp = PDMDEVHLPTASKOP_ISA_SET_IRQ;
     pTask->pDevInsR3 = NIL_RTR3PTR; /* not required */
-    pTask->u.IsaSetIRQ.iIrq = iIrq;
-    pTask->u.IsaSetIRQ.iLevel = iLevel;
-    pTask->u.IsaSetIRQ.uTagSrc = uTagSrc;
+    pTask->u.IsaSetIrq.uBusDevFn = NIL_PCIBDF;
+    pTask->u.IsaSetIrq.iIrq = iIrq;
+    pTask->u.IsaSetIrq.iLevel = iLevel;
+    pTask->u.IsaSetIrq.uTagSrc = uTagSrc;
 
-    PDMQueueInsertEx(pGVM->pdm.s.pDevHlpQueueR0, &pTask->Core, 0);
+    PDMQueueInsert(pGVM, pGVM->pdm.s.hDevHlpQueue, pGVM, &pTask->Core);
     return false;
 }
 

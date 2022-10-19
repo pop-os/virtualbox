@@ -90,6 +90,22 @@ CHAR16* mDerEncodedSuffix[] = {
 };
 CHAR16* mSupportX509Suffix = L"*.cer/der/crt";
 
+//
+// Prompt strings during certificate enrollment.
+//
+CHAR16* mX509EnrollPromptTitle[] = {
+  L"",
+  L"ERROR: Unsupported file type!",
+  L"ERROR: Unsupported certificate!",
+  NULL
+};
+CHAR16* mX509EnrollPromptString[] = {
+  L"",
+  L"Only DER encoded certificate file (*.cer/der/crt) is supported.",
+  L"Public key length should be equal to or greater than 2048 bits.",
+  NULL
+};
+
 SECUREBOOT_CONFIG_PRIVATE_DATA  *gSecureBootPrivateData = NULL;
 
 /**
@@ -234,7 +250,7 @@ SaveSecureBootVariable (
                                    it's caller's responsibility to free the memory when finish using it.
 
   @retval EFI_SUCCESS              Create time based payload successfully.
-  @retval EFI_OUT_OF_RESOURCES     There are not enough memory resourses to create time based payload.
+  @retval EFI_OUT_OF_RESOURCES     There are not enough memory resources to create time based payload.
   @retval EFI_INVALID_PARAMETER    The parameter is invalid.
   @retval Others                   Unexpected error happens.
 
@@ -384,13 +400,109 @@ SetSecureBootMode (
 }
 
 /**
+  This code checks if the encode type and key strength of X.509
+  certificate is qualified.
+
+  @param[in]  X509FileContext     FileContext of X.509 certificate storing
+                                  file.
+  @param[out] Error               Error type checked in the certificate.
+
+  @return EFI_SUCCESS             The certificate checked successfully.
+  @return EFI_INVALID_PARAMETER   The parameter is invalid.
+  @return EFI_OUT_OF_RESOURCES    Memory allocation failed.
+
+**/
+EFI_STATUS
+CheckX509Certificate (
+  IN    SECUREBOOT_FILE_CONTEXT*    X509FileContext,
+  OUT   ENROLL_KEY_ERROR*           Error
+)
+{
+  EFI_STATUS     Status;
+  UINT16*        FilePostFix;
+  UINTN          NameLength;
+  UINT8*         X509Data;
+  UINTN          X509DataSize;
+  void*          X509PubKey;
+  UINTN          PubKeyModSize;
+
+  if (X509FileContext->FileName == NULL) {
+    *Error = Unsupported_Type;
+    return EFI_INVALID_PARAMETER;
+  }
+
+  X509Data       = NULL;
+  X509DataSize   = 0;
+  X509PubKey     = NULL;
+  PubKeyModSize  = 0;
+
+  //
+  // Parse the file's postfix. Only support DER encoded X.509 certificate files.
+  //
+  NameLength = StrLen (X509FileContext->FileName);
+  if (NameLength <= 4) {
+    DEBUG ((DEBUG_ERROR, "Wrong X509 NameLength\n"));
+    *Error = Unsupported_Type;
+    return EFI_INVALID_PARAMETER;
+  }
+  FilePostFix = X509FileContext->FileName + NameLength - 4;
+  if (!IsDerEncodeCertificate (FilePostFix)) {
+    DEBUG ((DEBUG_ERROR, "Unsupported file type, only DER encoded certificate (%s) is supported.\n", mSupportX509Suffix));
+    *Error = Unsupported_Type;
+    return EFI_INVALID_PARAMETER;
+  }
+  DEBUG ((DEBUG_INFO, "FileName= %s\n", X509FileContext->FileName));
+  DEBUG ((DEBUG_INFO, "FilePostFix = %s\n", FilePostFix));
+
+  //
+  // Read the certificate file content
+  //
+  Status = ReadFileContent (X509FileContext->FHandle, (VOID**) &X509Data, &X509DataSize, 0);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Error occured while reading the file.\n"));
+    goto ON_EXIT;
+  }
+
+  //
+  // Parse the public key context.
+  //
+  if (RsaGetPublicKeyFromX509 (X509Data, X509DataSize, &X509PubKey) == FALSE) {
+    DEBUG ((DEBUG_ERROR, "Error occured while parsing the pubkey from certificate.\n"));
+    Status = EFI_INVALID_PARAMETER;
+    *Error = Unsupported_Type;
+    goto ON_EXIT;
+  }
+
+  //
+  // Parse Module size of public key using interface provided by CryptoPkg, which is
+  // actually the size of public key.
+  //
+  if (X509PubKey != NULL) {
+    RsaGetKey (X509PubKey, RsaKeyN, NULL, &PubKeyModSize);
+    if (PubKeyModSize < CER_PUBKEY_MIN_SIZE) {
+      DEBUG ((DEBUG_ERROR, "Unqualified PK size, key size should be equal to or greater than 2048 bits.\n"));
+      Status = EFI_INVALID_PARAMETER;
+      *Error = Unqualified_Key;
+    }
+    RsaFree (X509PubKey);
+  }
+
+ ON_EXIT:
+  if (X509Data != NULL) {
+    FreePool (X509Data);
+  }
+
+  return Status;
+}
+
+/**
   Generate the PK signature list from the X509 Certificate storing file (.cer)
 
   @param[in]   X509File              FileHandle of X509 Certificate storing file.
   @param[out]  PkCert                Point to the data buffer to store the signature list.
 
   @return EFI_UNSUPPORTED            Unsupported Key Length.
-  @return EFI_OUT_OF_RESOURCES       There are not enough memory resourses to form the signature list.
+  @return EFI_OUT_OF_RESOURCES       There are not enough memory resources to form the signature list.
 
 **/
 EFI_STATUS
@@ -477,12 +589,6 @@ EnrollPlatformKey (
   UINT32                          Attr;
   UINTN                           DataSize;
   EFI_SIGNATURE_LIST              *PkCert;
-  UINT16*                         FilePostFix;
-  UINTN                           NameLength;
-
-  if (Private->FileContext->FileName == NULL) {
-    return EFI_INVALID_PARAMETER;
-  }
 
   PkCert = NULL;
 
@@ -492,22 +598,7 @@ EnrollPlatformKey (
   }
 
   //
-  // Parse the file's postfix. Only support DER encoded X.509 certificate files.
-  //
-  NameLength = StrLen (Private->FileContext->FileName);
-  if (NameLength <= 4) {
-    return EFI_INVALID_PARAMETER;
-  }
-  FilePostFix = Private->FileContext->FileName + NameLength - 4;
-  if (!IsDerEncodeCertificate(FilePostFix)) {
-    DEBUG ((EFI_D_ERROR, "Unsupported file type, only DER encoded certificate (%s) is supported.", mSupportX509Suffix));
-    return EFI_INVALID_PARAMETER;
-  }
-  DEBUG ((EFI_D_INFO, "FileName= %s\n", Private->FileContext->FileName));
-  DEBUG ((EFI_D_INFO, "FilePostFix = %s\n", FilePostFix));
-
-  //
-  // Prase the selected PK file and generature PK certificate list.
+  // Prase the selected PK file and generate PK certificate list.
   //
   Status = CreatePkX509SignatureList (
             Private->FileContext->FHandle,
@@ -1088,7 +1179,7 @@ IsSignatureFoundInDatabase (
   }
 
   //
-  // Enumerate all signature data in SigDB to check if executable's signature exists.
+  // Enumerate all signature data in SigDB to check if signature exists for executable.
   //
   CertList = (EFI_SIGNATURE_LIST *) Data;
   while ((DataSize > 0) && (DataSize >= CertList->SignatureListSize)) {
@@ -1312,7 +1403,7 @@ Done:
 /**
   Check whether the signature list exists in given variable data.
 
-  It searches the signature list for the ceritificate hash by CertType.
+  It searches the signature list for the certificate hash by CertType.
   If the signature list is found, get the offset of Database for the
   next hash of a certificate.
 
@@ -2107,7 +2198,7 @@ HashPeImageByType (
 }
 
 /**
-  Enroll a new executable's signature into Signature Database.
+  Enroll a new signature of executable into Signature Database.
 
   @param[in] PrivateData     The module's private data.
   @param[in] VariableName    Variable name of signature database, must be
@@ -2177,7 +2268,7 @@ EnrollAuthentication2Descriptor (
   }
 
   //
-  // Diretly set AUTHENTICATION_2 data to SetVariable
+  // Directly set AUTHENTICATION_2 data to SetVariable
   //
   Status = gRT->SetVariable(
                   VariableName,
@@ -2208,7 +2299,7 @@ ON_EXIT:
 
 
 /**
-  Enroll a new executable's signature into Signature Database.
+  Enroll a new signature of executable into Signature Database.
 
   @param[in] PrivateData     The module's private data.
   @param[in] VariableName    Variable name of signature database, must be
@@ -2247,7 +2338,7 @@ EnrollImageSignatureToSigDB (
   // Form the SigDB certificate list.
   // Format the data item into EFI_SIGNATURE_LIST type.
   //
-  // We need to parse executable's signature data from specified signed executable file.
+  // We need to parse signature data of executable from specified signed executable file.
   // In current implementation, we simply trust the pass-in signed executable file.
   // In reality, it's OS's responsibility to verify the signed executable file.
   //
@@ -3269,7 +3360,7 @@ SecureBootExtractConfigFromVariable (
   SecureBootMode   = NULL;
 
   //
-  // Initilize the Date and Time using system time.
+  // Initialize the Date and Time using system time.
   //
   ConfigData->CertificateFormat = HASHALG_RAW;
   ConfigData->AlwaysRevocation = TRUE;
@@ -3306,7 +3397,7 @@ SecureBootExtractConfigFromVariable (
   }
 
   //
-  // Check SecureBootEnable & Pk status, fix the inconsistence.
+  // Check SecureBootEnable & Pk status, fix the inconsistency.
   // If the SecureBootEnable Variable doesn't exist, hide the SecureBoot Enable/Disable
   // Checkbox.
   //
@@ -3314,7 +3405,7 @@ SecureBootExtractConfigFromVariable (
   GetVariable2 (EFI_SECURE_BOOT_ENABLE_NAME, &gEfiSecureBootEnableDisableGuid, (VOID**)&SecureBootEnable, NULL);
 
   //
-  // Fix Pk, SecureBootEnable inconsistence
+  // Fix Pk and SecureBootEnable inconsistency
   //
   if ((SetupMode != NULL) && (*SetupMode) == USER_MODE) {
     ConfigData->HideSecureBoot = FALSE;
@@ -4071,7 +4162,7 @@ ON_EXIT:
 }
 
 /**
-  This functino to load signature data under the signature list.
+  This function to load signature data under the signature list.
 
   @param[in]  PrivateData         Module's private data.
   @param[in]  LabelId             Label number to insert opcodes.
@@ -4300,12 +4391,14 @@ SecureBootCallback (
   UINT16                          *FilePostFix;
   SECUREBOOT_CONFIG_PRIVATE_DATA  *PrivateData;
   BOOLEAN                         GetBrowserDataResult;
+  ENROLL_KEY_ERROR                EnrollKeyErrorCode;
 
-  Status           = EFI_SUCCESS;
-  SecureBootEnable = NULL;
-  SecureBootMode   = NULL;
-  SetupMode        = NULL;
-  File             = NULL;
+  Status             = EFI_SUCCESS;
+  SecureBootEnable   = NULL;
+  SecureBootMode     = NULL;
+  SetupMode          = NULL;
+  File               = NULL;
+  EnrollKeyErrorCode = None_Error;
 
   if ((This == NULL) || (Value == NULL) || (ActionRequest == NULL)) {
     return EFI_INVALID_PARAMETER;
@@ -4718,18 +4811,35 @@ SecureBootCallback (
       }
       break;
     case KEY_VALUE_SAVE_AND_EXIT_PK:
-      Status = EnrollPlatformKey (Private);
+      //
+      // Check the suffix, encode type and the key strength of PK certificate.
+      //
+      Status = CheckX509Certificate (Private->FileContext, &EnrollKeyErrorCode);
+      if (EFI_ERROR (Status)) {
+        if (EnrollKeyErrorCode != None_Error && EnrollKeyErrorCode < Enroll_Error_Max) {
+          CreatePopUp (
+            EFI_LIGHTGRAY | EFI_BACKGROUND_BLUE,
+            &Key,
+            mX509EnrollPromptTitle[EnrollKeyErrorCode],
+            mX509EnrollPromptString[EnrollKeyErrorCode],
+            NULL
+            );
+          break;
+        }
+      } else {
+        Status = EnrollPlatformKey (Private);
+      }
       if (EFI_ERROR (Status)) {
         UnicodeSPrint (
           PromptString,
           sizeof (PromptString),
-          L"Only DER encoded certificate file (%s) is supported.",
-          mSupportX509Suffix
+          L"Error status: %x.",
+          Status
           );
         CreatePopUp (
           EFI_LIGHTGRAY | EFI_BACKGROUND_BLUE,
           &Key,
-          L"ERROR: Unsupported file type!",
+          L"ERROR: Enrollment failed!",
           PromptString,
           NULL
           );

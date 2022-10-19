@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -69,6 +79,8 @@ typedef struct RTPIPEINTERNAL
     int                 fd;
     /** Set if this is the read end, clear if it's the write end. */
     bool                fRead;
+    /** RTPipeFromNative: Leave it open on RTPipeClose. */
+    bool                fLeaveOpen;
     /** Atomically operated state variable.
      *
      *  - Bits 0 thru 29 - Users of the new mode.
@@ -180,14 +192,16 @@ RTDECL(int)  RTPipeCreate(PRTPIPE phPipeRead, PRTPIPE phPipeWrite, uint32_t fFla
             RTPIPEINTERNAL *pThisW = (RTPIPEINTERNAL *)RTMemAlloc(sizeof(RTPIPEINTERNAL));
             if (pThisW)
             {
-                pThisR->u32Magic = RTPIPE_MAGIC;
-                pThisW->u32Magic = RTPIPE_MAGIC;
-                pThisR->fd       = aFds[0];
-                pThisW->fd       = aFds[1];
-                pThisR->fRead    = true;
-                pThisW->fRead    = false;
-                pThisR->u32State = RTPIPE_POSIX_BLOCKING;
-                pThisW->u32State = RTPIPE_POSIX_BLOCKING;
+                pThisR->u32Magic    = RTPIPE_MAGIC;
+                pThisW->u32Magic    = RTPIPE_MAGIC;
+                pThisR->fd          = aFds[0];
+                pThisW->fd          = aFds[1];
+                pThisR->fRead       = true;
+                pThisW->fRead       = false;
+                pThisR->fLeaveOpen  = false;
+                pThisW->fLeaveOpen  = false;
+                pThisR->u32State    = RTPIPE_POSIX_BLOCKING;
+                pThisW->u32State    = RTPIPE_POSIX_BLOCKING;
 
                 *phPipeRead  = pThisR;
                 *phPipeWrite = pThisW;
@@ -212,7 +226,7 @@ RTDECL(int)  RTPipeCreate(PRTPIPE phPipeRead, PRTPIPE phPipeWrite, uint32_t fFla
 }
 
 
-RTDECL(int)  RTPipeClose(RTPIPE hPipe)
+RTDECL(int)  RTPipeCloseEx(RTPIPE hPipe, bool fLeaveOpen)
 {
     RTPIPEINTERNAL *pThis = hPipe;
     if (pThis == NIL_RTPIPE)
@@ -227,7 +241,8 @@ RTDECL(int)  RTPipeClose(RTPIPE hPipe)
 
     int fd = pThis->fd;
     pThis->fd = -1;
-    close(fd);
+    if (!fLeaveOpen && !pThis->fLeaveOpen)
+        close(fd);
 
     if (ASMAtomicReadU32(&pThis->u32State) & RTPIPE_POSIX_USERS_MASK)
     {
@@ -240,10 +255,17 @@ RTDECL(int)  RTPipeClose(RTPIPE hPipe)
     return VINF_SUCCESS;
 }
 
+
+RTDECL(int)  RTPipeClose(RTPIPE hPipe)
+{
+    return RTPipeCloseEx(hPipe, false /*fLeaveOpen*/);
+}
+
+
 RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t fFlags)
 {
     AssertPtrReturn(phPipe, VERR_INVALID_POINTER);
-    AssertReturn(!(fFlags & ~RTPIPE_N_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~RTPIPE_N_VALID_MASK_FN), VERR_INVALID_PARAMETER);
     AssertReturn(!!(fFlags & RTPIPE_N_READ) != !!(fFlags & RTPIPE_N_WRITE), VERR_INVALID_PARAMETER);
 
     /*
@@ -267,10 +289,11 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
     if (!pThis)
         return VERR_NO_MEMORY;
 
-    pThis->u32Magic = RTPIPE_MAGIC;
-    pThis->fd       = hNative;
-    pThis->fRead    = !!(fFlags & RTPIPE_N_READ);
-    pThis->u32State = fFd & O_NONBLOCK ? 0 : RTPIPE_POSIX_BLOCKING;
+    pThis->u32Magic   = RTPIPE_MAGIC;
+    pThis->fd         = hNative;
+    pThis->fRead      = RT_BOOL(fFlags & RTPIPE_N_READ);
+    pThis->fLeaveOpen = RT_BOOL(fFlags & RTPIPE_N_LEAVE_OPEN);
+    pThis->u32State   = fFd & O_NONBLOCK ? 0 : RTPIPE_POSIX_BLOCKING;
 
     /*
      * Fix up inheritability and shut up SIGPIPE and we're done.

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -456,7 +466,10 @@ int AddressCommand::execute(CmdList& list)
         printf("\n");
     }
     if (dry_run)
+    {
+        free((void *)argv);
         return EXIT_SUCCESS;
+    }
 
     int rc = EXIT_FAILURE; /* o/~ hope for the best, expect the worst */
     pid_t childPid = fork();
@@ -511,8 +524,6 @@ int AddressCommand::removeAddresses(const char *pcszAdapter, const char *pcszFam
     char aszAddresses[MAX_ADDRESSES][MAX_ADDRLEN];
     int rc = EXIT_SUCCESS;
     int fds[2];
-    char * const * argv = allocArgv(getShowCommand(pcszAdapter));
-    char * const envp[] = { (char*)"LC_ALL=C", NULL };
 
     memset(aszAddresses, 0, sizeof(aszAddresses));
 
@@ -531,8 +542,18 @@ int AddressCommand::removeAddresses(const char *pcszAdapter, const char *pcszFam
         close(STDOUT_FILENO);
         rc = dup2(fds[1], STDOUT_FILENO);
         if (rc >= 0)
+        {
+            char * const * argv = allocArgv(getShowCommand(pcszAdapter));
+            char * const envp[] = { (char*)"LC_ALL=C", NULL };
+
             if (execve(argv[0], argv, envp) == -1)
+            {
+                free((void *)argv);
                 return errno;
+            }
+
+            free((void *)argv);
+        }
         return rc;
     }
 
@@ -750,104 +771,17 @@ class NetworkAddress
         virtual const char *defaultNetwork() = 0;
     protected:
         bool m_fValid;
-
-        int RTNetStrToIPv4CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *piPrefix);
-        int RTNetStrToIPv6CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV6 pAddr, int *piPrefix);
 };
-
-int NetworkAddress::RTNetStrToIPv4CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV4 pAddr, int *piPrefix)
-{
-    RTNETADDRIPV4 addr;
-    char *pszNext;
-
-    AssertPtrReturn(pcszAddr, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pAddr, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(piPrefix, VERR_INVALID_PARAMETER);
-
-    pcszAddr = RTStrStripL(pcszAddr);
-    int rc = RTNetStrToIPv4AddrEx(pcszAddr, &addr, &pszNext);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /*
-     * If the prefix is missing, treat is as exact (/32) address
-     * specification.
-     */
-    if (*pszNext == '\0' || rc == VWRN_TRAILING_SPACES)
-    {
-        *pAddr = addr;
-        *piPrefix = 32;
-        return VINF_SUCCESS;
-    }
-
-    if (*pszNext == '/')
-        ++pszNext;
-    else
-        return VERR_INVALID_PARAMETER;
-
-    uint32_t prefix;
-    rc = RTStrToUInt32Ex(pszNext, &pszNext, 0, &prefix);
-    if ((rc == VINF_SUCCESS || rc == VWRN_TRAILING_SPACES) && prefix == 0)
-    {
-        *pAddr = addr;
-        *piPrefix = 0;
-        return VINF_SUCCESS;
-    }
-    return RTNetStrToIPv4Cidr(pcszAddr, pAddr, piPrefix);
-}
-
-int NetworkAddress::RTNetStrToIPv6CidrWithZeroPrefixAllowed(const char *pcszAddr, PRTNETADDRIPV6 pAddr, int *piPrefix)
-{
-    RTNETADDRIPV6 Addr;
-    uint8_t u8Prefix;
-    char *pszNext;
-    int rc;
-
-    AssertPtrReturn(pcszAddr, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pAddr, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(piPrefix, VERR_INVALID_PARAMETER);
-
-    pcszAddr = RTStrStripL(pcszAddr);
-    rc = RTNetStrToIPv6AddrEx(pcszAddr, &Addr, &pszNext);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    /*
-     * If the prefix is missing, treat is as exact (/128) address
-     * specification.
-     */
-    if (*pszNext == '\0' || rc == VWRN_TRAILING_SPACES)
-    {
-        *pAddr = Addr;
-        *piPrefix = 128;
-        return VINF_SUCCESS;
-    }
-
-    if (*pszNext != '/')
-        return VERR_INVALID_PARAMETER;
-
-    ++pszNext;
-    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &u8Prefix);
-    if (RT_FAILURE(rc) || rc == VWRN_TRAILING_CHARS)
-        return VERR_INVALID_PARAMETER;
-
-    if (u8Prefix > 128)
-        return VERR_INVALID_PARAMETER;
-
-    *pAddr = Addr;
-    *piPrefix = u8Prefix;
-    return VINF_SUCCESS;
-}
 
 bool NetworkAddress::isValidString(const char *pcszNetwork)
 {
     RTNETADDRIPV4 addrv4;
     RTNETADDRIPV6 addrv6;
     int prefix;
-    int rc = RTNetStrToIPv4CidrWithZeroPrefixAllowed(pcszNetwork, &addrv4, &prefix);
+    int rc = RTNetStrToIPv4Cidr(pcszNetwork, &addrv4, &prefix);
     if (RT_SUCCESS(rc))
         return true;
-    rc = RTNetStrToIPv6CidrWithZeroPrefixAllowed(pcszNetwork, &addrv6, &prefix);
+    rc = RTNetStrToIPv6Cidr(pcszNetwork, &addrv6, &prefix);
     return RT_SUCCESS(rc);
 }
 
@@ -906,7 +840,7 @@ bool NetworkAddressIPv4::matches(const char *pcszNetwork)
 {
     RTNETADDRIPV4 allowedNet, allowedMask;
     int allowedPrefix;
-    int rc = RTNetStrToIPv4CidrWithZeroPrefixAllowed(pcszNetwork, &allowedNet, &allowedPrefix);
+    int rc = RTNetStrToIPv4Cidr(pcszNetwork, &allowedNet, &allowedPrefix);
     if (RT_SUCCESS(rc))
         rc = RTNetPrefixToMaskIPv4(allowedPrefix, &allowedMask);
     if (RT_FAILURE(rc))
@@ -927,7 +861,7 @@ class NetworkAddressIPv6 : public NetworkAddress
 
 NetworkAddressIPv6::NetworkAddressIPv6(const char *pcszIpAddress)
 {
-    int rc = RTNetStrToIPv6CidrWithZeroPrefixAllowed(pcszIpAddress, &m_address, &m_prefix);
+    int rc = RTNetStrToIPv6Cidr(pcszIpAddress, &m_address, &m_prefix);
     m_fValid = RT_SUCCESS(rc);
 }
 
@@ -935,7 +869,7 @@ bool NetworkAddressIPv6::matches(const char *pcszNetwork)
 {
     RTNETADDRIPV6 allowedNet, allowedMask;
     int allowedPrefix;
-    int rc = RTNetStrToIPv6CidrWithZeroPrefixAllowed(pcszNetwork, &allowedNet, &allowedPrefix);
+    int rc = RTNetStrToIPv6Cidr(pcszNetwork, &allowedNet, &allowedPrefix);
     if (RT_SUCCESS(rc))
         rc = RTNetPrefixToMaskIPv6(allowedPrefix, &allowedMask);
     if (RT_FAILURE(rc))

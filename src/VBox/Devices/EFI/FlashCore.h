@@ -10,15 +10,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_EFI_FlashCore_h
@@ -31,6 +41,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pdmifs.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <iprt/assert.h>
@@ -114,8 +125,12 @@ DECLHIDDEN(int) flashR3Init(PFLASHCORE pThis, PPDMDEVINS pDevIns, uint16_t idFla
 DECLHIDDEN(void) flashR3Destruct(PFLASHCORE pThis, PPDMDEVINS pDevIns);
 DECLHIDDEN(int) flashR3LoadFromFile(PFLASHCORE pThis, PPDMDEVINS pDevIns, const char *pszFilename);
 DECLHIDDEN(int) flashR3LoadFromBuf(PFLASHCORE pThis, void const *pvBuf, size_t cbBuf);
+DECLHIDDEN(int) flashR3LoadFromVfs(PFLASHCORE pThis, PPDMDEVINS pDevIns, PPDMIVFSCONNECTOR pDrvVfs,
+                                   const char *pszNamespace, const char *pszPath);
 DECLHIDDEN(int) flashR3SaveToFile(PFLASHCORE pThis, PPDMDEVINS pDevIns, const char *pszFilename);
 DECLHIDDEN(int) flashR3SaveToBuf(PFLASHCORE pThis, void *pvBuf, size_t cbBuf);
+DECLHIDDEN(int) flashR3SaveToVfs(PFLASHCORE pThis, PPDMDEVINS pDevIns, PPDMIVFSCONNECTOR pDrvVfs,
+                                 const char *pszNamespace, const char *pszPath);
 DECLHIDDEN(void) flashR3Reset(PFLASHCORE pThis);
 DECLHIDDEN(int) flashR3SaveExec(PFLASHCORE pThis, PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 DECLHIDDEN(int) flashR3LoadExec(PFLASHCORE pThis, PPDMDEVINS pDevIns, PSSMHANDLE pSSM);

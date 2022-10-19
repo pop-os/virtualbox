@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmusb_h
@@ -434,7 +444,7 @@ typedef PDMUSBREG *PPDMUSBREG;
 typedef PDMUSBREG const *PCPDMUSBREG;
 
 /** Current USBREG version number. */
-#define PDM_USBREG_VERSION                      PDM_VERSION_MAKE(0xeeff, 1, 0)
+#define PDM_USBREG_VERSION                      PDM_VERSION_MAKE(0xeeff, 2, 0)
 
 /** PDM USB Device Flags.
  * @{ */
@@ -541,6 +551,14 @@ typedef struct PDMUSBHLP
     DECLR3CALLBACKMEMBER(void *, pfnMMHeapAllocZ,(PPDMUSBINS pUsbIns, size_t cb));
 
     /**
+     * Free memory allocated with pfnMMHeapAlloc() and pfnMMHeapAllocZ().
+     *
+     * @param   pUsbIns             The USB device instance.
+     * @param   pv                  Pointer to the memory to free.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnMMHeapFree,(PPDMUSBINS pUsbIns, void *pv));
+
+    /**
      * Create a queue.
      *
      * @returns VBox status code.
@@ -584,6 +602,155 @@ typedef struct PDMUSBHLP
                                               PFNSSMUSBSAVEPREP pfnSavePrep, PFNSSMUSBSAVEEXEC pfnSaveExec, PFNSSMUSBSAVEDONE pfnSaveDone,
                                               PFNSSMUSBLOADPREP pfnLoadPrep, PFNSSMUSBLOADEXEC pfnLoadExec, PFNSSMUSBLOADDONE pfnLoadDone));
 
+    /** @name Exported SSM Functions
+     * @{ */
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutStruct,(PSSMHANDLE pSSM, const void *pvStruct, PCSSMFIELD paFields));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutStructEx,(PSSMHANDLE pSSM, const void *pvStruct, size_t cbStruct, uint32_t fFlags, PCSSMFIELD paFields, void *pvUser));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutBool,(PSSMHANDLE pSSM, bool fBool));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU8,(PSSMHANDLE pSSM, uint8_t u8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS8,(PSSMHANDLE pSSM, int8_t i8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU16,(PSSMHANDLE pSSM, uint16_t u16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS16,(PSSMHANDLE pSSM, int16_t i16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU32,(PSSMHANDLE pSSM, uint32_t u32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS32,(PSSMHANDLE pSSM, int32_t i32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU64,(PSSMHANDLE pSSM, uint64_t u64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS64,(PSSMHANDLE pSSM, int64_t i64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU128,(PSSMHANDLE pSSM, uint128_t u128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS128,(PSSMHANDLE pSSM, int128_t i128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutUInt,(PSSMHANDLE pSSM, RTUINT u));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutSInt,(PSSMHANDLE pSSM, RTINT i));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCUInt,(PSSMHANDLE pSSM, RTGCUINT u));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCUIntReg,(PSSMHANDLE pSSM, RTGCUINTREG u));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPhys32,(PSSMHANDLE pSSM, RTGCPHYS32 GCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPhys64,(PSSMHANDLE pSSM, RTGCPHYS64 GCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPhys,(PSSMHANDLE pSSM, RTGCPHYS GCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPtr,(PSSMHANDLE pSSM, RTGCPTR GCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCUIntPtr,(PSSMHANDLE pSSM, RTGCUINTPTR GCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutRCPtr,(PSSMHANDLE pSSM, RTRCPTR RCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutIOPort,(PSSMHANDLE pSSM, RTIOPORT IOPort));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutSel,(PSSMHANDLE pSSM, RTSEL Sel));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutMem,(PSSMHANDLE pSSM, const void *pv, size_t cb));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutStrZ,(PSSMHANDLE pSSM, const char *psz));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStruct,(PSSMHANDLE pSSM, void *pvStruct, PCSSMFIELD paFields));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStructEx,(PSSMHANDLE pSSM, void *pvStruct, size_t cbStruct, uint32_t fFlags, PCSSMFIELD paFields, void *pvUser));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetBool,(PSSMHANDLE pSSM, bool *pfBool));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetBoolV,(PSSMHANDLE pSSM, bool volatile *pfBool));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU8,(PSSMHANDLE pSSM, uint8_t *pu8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU8V,(PSSMHANDLE pSSM, uint8_t volatile *pu8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS8,(PSSMHANDLE pSSM, int8_t *pi8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS8V,(PSSMHANDLE pSSM, int8_t volatile *pi8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU16,(PSSMHANDLE pSSM, uint16_t *pu16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU16V,(PSSMHANDLE pSSM, uint16_t volatile *pu16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS16,(PSSMHANDLE pSSM, int16_t *pi16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS16V,(PSSMHANDLE pSSM, int16_t volatile *pi16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU32,(PSSMHANDLE pSSM, uint32_t *pu32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU32V,(PSSMHANDLE pSSM, uint32_t volatile *pu32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS32,(PSSMHANDLE pSSM, int32_t *pi32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS32V,(PSSMHANDLE pSSM, int32_t volatile *pi32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU64,(PSSMHANDLE pSSM, uint64_t *pu64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU64V,(PSSMHANDLE pSSM, uint64_t volatile *pu64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS64,(PSSMHANDLE pSSM, int64_t *pi64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS64V,(PSSMHANDLE pSSM, int64_t volatile *pi64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU128,(PSSMHANDLE pSSM, uint128_t *pu128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU128V,(PSSMHANDLE pSSM, uint128_t volatile *pu128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS128,(PSSMHANDLE pSSM, int128_t *pi128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS128V,(PSSMHANDLE pSSM, int128_t  volatile *pi128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys32,(PSSMHANDLE pSSM, PRTGCPHYS32 pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys32V,(PSSMHANDLE pSSM, RTGCPHYS32 volatile *pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys64,(PSSMHANDLE pSSM, PRTGCPHYS64 pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys64V,(PSSMHANDLE pSSM, RTGCPHYS64 volatile *pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys,(PSSMHANDLE pSSM, PRTGCPHYS pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhysV,(PSSMHANDLE pSSM, RTGCPHYS volatile *pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetUInt,(PSSMHANDLE pSSM, PRTUINT pu));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetSInt,(PSSMHANDLE pSSM, PRTINT pi));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCUInt,(PSSMHANDLE pSSM, PRTGCUINT pu));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCUIntReg,(PSSMHANDLE pSSM, PRTGCUINTREG pu));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPtr,(PSSMHANDLE pSSM, PRTGCPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCUIntPtr,(PSSMHANDLE pSSM, PRTGCUINTPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetRCPtr,(PSSMHANDLE pSSM, PRTRCPTR pRCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetIOPort,(PSSMHANDLE pSSM, PRTIOPORT pIOPort));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetSel,(PSSMHANDLE pSSM, PRTSEL pSel));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetMem,(PSSMHANDLE pSSM, void *pv, size_t cb));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStrZ,(PSSMHANDLE pSSM, char *psz, size_t cbMax));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStrZEx,(PSSMHANDLE pSSM, char *psz, size_t cbMax, size_t *pcbStr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSkip,(PSSMHANDLE pSSM, size_t cb));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSkipToEndOfUnit,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetLoadError,(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetLoadErrorV,(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(6, 0));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetCfgError,(PSSMHANDLE pSSM, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(5, 6));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetCfgErrorV,(PSSMHANDLE pSSM, RT_SRC_POS_DECL, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(5, 0));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMHandleGetStatus,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(SSMAFTER, pfnSSMHandleGetAfter,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(bool,     pfnSSMHandleIsLiveSave,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleMaxDowntime,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleHostBits,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleRevision,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleVersion,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(const char *, pfnSSMHandleHostOSAndArch,(PSSMHANDLE pSSM));
+    /** @} */
+
+    /** @name Exported CFGM Functions.
+     * @{ */
+    DECLR3CALLBACKMEMBER(bool,      pfnCFGMExists,(           PCFGMNODE pNode, const char *pszName));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryType,(        PCFGMNODE pNode, const char *pszName, PCFGMVALUETYPE penmType));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQuerySize,(        PCFGMNODE pNode, const char *pszName, size_t *pcb));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryInteger,(     PCFGMNODE pNode, const char *pszName, uint64_t *pu64));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryIntegerDef,(  PCFGMNODE pNode, const char *pszName, uint64_t *pu64, uint64_t u64Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryString,(      PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryStringDef,(   PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString, const char *pszDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryBytes,(       PCFGMNODE pNode, const char *pszName, void *pvData, size_t cbData));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU64,(         PCFGMNODE pNode, const char *pszName, uint64_t *pu64));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU64Def,(      PCFGMNODE pNode, const char *pszName, uint64_t *pu64, uint64_t u64Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS64,(         PCFGMNODE pNode, const char *pszName, int64_t *pi64));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS64Def,(      PCFGMNODE pNode, const char *pszName, int64_t *pi64, int64_t i64Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU32,(         PCFGMNODE pNode, const char *pszName, uint32_t *pu32));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU32Def,(      PCFGMNODE pNode, const char *pszName, uint32_t *pu32, uint32_t u32Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS32,(         PCFGMNODE pNode, const char *pszName, int32_t *pi32));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS32Def,(      PCFGMNODE pNode, const char *pszName, int32_t *pi32, int32_t i32Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU16,(         PCFGMNODE pNode, const char *pszName, uint16_t *pu16));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU16Def,(      PCFGMNODE pNode, const char *pszName, uint16_t *pu16, uint16_t u16Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS16,(         PCFGMNODE pNode, const char *pszName, int16_t *pi16));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS16Def,(      PCFGMNODE pNode, const char *pszName, int16_t *pi16, int16_t i16Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU8,(          PCFGMNODE pNode, const char *pszName, uint8_t *pu8));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU8Def,(       PCFGMNODE pNode, const char *pszName, uint8_t *pu8, uint8_t u8Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS8,(          PCFGMNODE pNode, const char *pszName, int8_t *pi8));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS8Def,(       PCFGMNODE pNode, const char *pszName, int8_t *pi8, int8_t i8Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryBool,(        PCFGMNODE pNode, const char *pszName, bool *pf));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryBoolDef,(     PCFGMNODE pNode, const char *pszName, bool *pf, bool fDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryPort,(        PCFGMNODE pNode, const char *pszName, PRTIOPORT pPort));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryPortDef,(     PCFGMNODE pNode, const char *pszName, PRTIOPORT pPort, RTIOPORT PortDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryUInt,(        PCFGMNODE pNode, const char *pszName, unsigned int *pu));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryUIntDef,(     PCFGMNODE pNode, const char *pszName, unsigned int *pu, unsigned int uDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQuerySInt,(        PCFGMNODE pNode, const char *pszName, signed int *pi));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQuerySIntDef,(     PCFGMNODE pNode, const char *pszName, signed int *pi, signed int iDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtr,(       PCFGMNODE pNode, const char *pszName, PRTGCPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrDef,(    PCFGMNODE pNode, const char *pszName, PRTGCPTR pGCPtr, RTGCPTR GCPtrDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrU,(      PCFGMNODE pNode, const char *pszName, PRTGCUINTPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrUDef,(   PCFGMNODE pNode, const char *pszName, PRTGCUINTPTR pGCPtr, RTGCUINTPTR GCPtrDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrS,(      PCFGMNODE pNode, const char *pszName, PRTGCINTPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrSDef,(   PCFGMNODE pNode, const char *pszName, PRTGCINTPTR pGCPtr, RTGCINTPTR GCPtrDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryStringAlloc,( PCFGMNODE pNode, const char *pszName, char **ppszString));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryStringAllocDef,(PCFGMNODE pNode, const char *pszName, char **ppszString, const char *pszDef));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetParent,(PCFGMNODE pNode));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetChild,(PCFGMNODE pNode, const char *pszPath));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetChildF,(PCFGMNODE pNode, const char *pszPathFormat, ...) RT_IPRT_FORMAT_ATTR(2, 3));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetChildFV,(PCFGMNODE pNode, const char *pszPathFormat, va_list Args) RT_IPRT_FORMAT_ATTR(3, 0));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetFirstChild,(PCFGMNODE pNode));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetNextChild,(PCFGMNODE pCur));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMGetName,(PCFGMNODE pCur, char *pszName, size_t cchName));
+    DECLR3CALLBACKMEMBER(size_t,    pfnCFGMGetNameLen,(PCFGMNODE pCur));
+    DECLR3CALLBACKMEMBER(bool,      pfnCFGMAreChildrenValid,(PCFGMNODE pNode, const char *pszzValid));
+    DECLR3CALLBACKMEMBER(PCFGMLEAF, pfnCFGMGetFirstValue,(PCFGMNODE pCur));
+    DECLR3CALLBACKMEMBER(PCFGMLEAF, pfnCFGMGetNextValue,(PCFGMLEAF pCur));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMGetValueName,(PCFGMLEAF pCur, char *pszName, size_t cchName));
+    DECLR3CALLBACKMEMBER(size_t,    pfnCFGMGetValueNameLen,(PCFGMLEAF pCur));
+    DECLR3CALLBACKMEMBER(CFGMVALUETYPE, pfnCFGMGetValueType,(PCFGMLEAF pCur));
+    DECLR3CALLBACKMEMBER(bool,      pfnCFGMAreValuesValid,(PCFGMNODE pNode, const char *pszzValid));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMValidateConfig,(PCFGMNODE pNode, const char *pszNode,
+                                                           const char *pszValidValues, const char *pszValidNodes,
+                                                           const char *pszWho, uint32_t uInstance));
+    /** @} */
+
     /**
      * Register a STAM sample.
      *
@@ -614,10 +781,40 @@ typedef struct PDMUSBHLP
      * @param   fFlags              Flags, see TMTIMER_FLAGS_*.
      * @param   pszDesc             Pointer to description string which must stay around
      *                              until the timer is fully destroyed (i.e. a bit after TMTimerDestroy()).
-     * @param   ppTimer             Where to store the timer on success.
+     * @param   phTimer             Where to store the timer handle on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMUSBINS pUsbIns, TMCLOCK enmClock, PFNTMTIMERUSB pfnCallback, void *pvUser,
-                                                uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer));
+    DECLR3CALLBACKMEMBER(int, pfnTimerCreate,(PPDMUSBINS pUsbIns, TMCLOCK enmClock, PFNTMTIMERUSB pfnCallback, void *pvUser,
+                                              uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer));
+
+    /** @name Timer handle method wrappers
+     * @{ */
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTimerFromMicro,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMicroSecs));
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTimerFromMilli,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMilliSecs));
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTimerFromNano,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cNanoSecs));
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTimerGet,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTimerGetFreq,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(uint64_t, pfnTimerGetNano,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(bool,     pfnTimerIsActive,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(bool,     pfnTimerIsLockOwner,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerLockClock,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    /** Takes the clock lock then enters the specified critical section. */
+    DECLR3CALLBACKMEMBER(int,      pfnTimerLockClock2,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSet,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t uExpire));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSetFrequencyHint,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint32_t uHz));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSetMicro,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMicrosToNext));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSetMillies,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMilliesToNext));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSetNano,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cNanosToNext));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSetRelative,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cTicksToNext, uint64_t *pu64Now));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerStop,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(void,     pfnTimerUnlockClock,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(void,     pfnTimerUnlockClock2,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSetCritSect,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSave,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerLoad,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(int,      pfnTimerDestroy,(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer));
+    /** @sa TMR3TimerSkip */
+    DECLR3CALLBACKMEMBER(int,      pfnTimerSkipLoad,(PSSMHANDLE pSSM, bool *pfActive));
+    /** @} */
 
     /**
      * Set the VM error message
@@ -674,6 +871,16 @@ typedef struct PDMUSBHLP
     DECLR3CALLBACKMEMBER(int, pfnThreadCreate,(PPDMUSBINS pUsbIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADUSB pfnThread,
                                                PFNPDMTHREADWAKEUPUSB pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName));
 
+    /** @name Exported PDM Thread Functions
+     * @{ */
+    DECLR3CALLBACKMEMBER(int, pfnThreadDestroy,(PPDMTHREAD pThread, int *pRcThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadIAmSuspending,(PPDMTHREAD pThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadIAmRunning,(PPDMTHREAD pThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadSleep,(PPDMTHREAD pThread, RTMSINTERVAL cMillies));
+    DECLR3CALLBACKMEMBER(int, pfnThreadSuspend,(PPDMTHREAD pThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadResume,(PPDMTHREAD pThread));
+    /** @} */
+
     /**
      * Set up asynchronous handling of a suspend, reset or power off notification.
      *
@@ -716,6 +923,16 @@ typedef struct PDMUSBHLP
      */
     DECLR3CALLBACKMEMBER(VMRESUMEREASON, pfnVMGetResumeReason,(PPDMUSBINS pUsbIns));
 
+    /**
+     * Queries a generic object from the VMM user.
+     *
+     * @returns Pointer to the object if found, NULL if not.
+     * @param   pUsbIns             The USB device instance.
+     * @param   pUuid               The UUID of what's being queried.  The UUIDs and
+     *                              the usage conventions are defined by the user.
+     */
+    DECLR3CALLBACKMEMBER(void *, pfnQueryGenericUserObject,(PPDMUSBINS pUsbIns, PCRTUUID pUuid));
+
     /** @name Space reserved for minor interface changes.
      * @{ */
     DECLR3CALLBACKMEMBER(void, pfnReserved0,(PPDMUSBINS pUsbIns));
@@ -727,7 +944,6 @@ typedef struct PDMUSBHLP
     DECLR3CALLBACKMEMBER(void, pfnReserved6,(PPDMUSBINS pUsbIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved7,(PPDMUSBINS pUsbIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved8,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved9,(PPDMUSBINS pUsbIns));
     /** @}  */
 
     /** Just a safety precaution. */
@@ -739,7 +955,7 @@ typedef PDMUSBHLP *PPDMUSBHLP;
 typedef const PDMUSBHLP *PCPDMUSBHLP;
 
 /** Current USBHLP version number. */
-#define PDM_USBHLP_VERSION                      PDM_VERSION_MAKE(0xeefe, 3, 0)
+#define PDM_USBHLP_VERSION                      PDM_VERSION_MAKE(0xeefe, 7, 0)
 
 #endif /* IN_RING3 */
 
@@ -996,8 +1212,7 @@ DECLINLINE(void *) PDMUsbHlpMMHeapAllocZ(PPDMUSBINS pUsbIns, size_t cb)
  */
 DECLINLINE(void) PDMUsbHlpMMHeapFree(PPDMUSBINS pUsbIns, void *pv)
 {
-    NOREF(pUsbIns);
-    MMR3HeapFree(pv);
+    pUsbIns->pHlpR3->pfnMMHeapFree(pUsbIns, pv);
 }
 
 /**
@@ -1009,12 +1224,196 @@ DECLINLINE(int) PDMUsbHlpDBGFInfoRegisterArgv(PPDMUSBINS pUsbIns, const char *ps
 }
 
 /**
- * @copydoc PDMUSBHLP::pfnTMTimerCreate
+ * @copydoc PDMUSBHLP::pfnTimerCreate
  */
-DECLINLINE(int) PDMUsbHlpTMTimerCreate(PPDMUSBINS pUsbIns, TMCLOCK enmClock, PFNTMTIMERUSB pfnCallback, void *pvUser,
-                                       uint32_t fFlags, const char *pszDesc, PPTMTIMERR3 ppTimer)
+DECLINLINE(int) PDMUsbHlpTimerCreate(PPDMUSBINS pUsbIns, TMCLOCK enmClock, PFNTMTIMERUSB pfnCallback, void *pvUser,
+                                     uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
 {
-    return pUsbIns->pHlpR3->pfnTMTimerCreate(pUsbIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, ppTimer);
+    return pUsbIns->pHlpR3->pfnTimerCreate(pUsbIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, phTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerFromMicro
+ */
+DECLINLINE(uint64_t) PDMUsbHlpTimerFromMicro(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMicroSecs)
+{
+    return pUsbIns->pHlpR3->pfnTimerFromMicro(pUsbIns, hTimer, cMicroSecs);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerFromMilli
+ */
+DECLINLINE(uint64_t) PDMUsbHlpTimerFromMilli(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMilliSecs)
+{
+    return pUsbIns->pHlpR3->pfnTimerFromMilli(pUsbIns, hTimer, cMilliSecs);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerFromNano
+ */
+DECLINLINE(uint64_t) PDMUsbHlpTimerFromNano(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cNanoSecs)
+{
+    return pUsbIns->pHlpR3->pfnTimerFromNano(pUsbIns, hTimer, cNanoSecs);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerGet
+ */
+DECLINLINE(uint64_t) PDMUsbHlpTimerGet(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerGet(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerGetFreq
+ */
+DECLINLINE(uint64_t) PDMUsbHlpTimerGetFreq(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerGetFreq(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerGetNano
+ */
+DECLINLINE(uint64_t) PDMUsbHlpTimerGetNano(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerGetNano(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerIsActive
+ */
+DECLINLINE(bool)     PDMUsbHlpTimerIsActive(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerIsActive(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerIsLockOwner
+ */
+DECLINLINE(bool)     PDMUsbHlpTimerIsLockOwner(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerIsLockOwner(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerLockClock
+ */
+DECLINLINE(int) PDMUsbHlpTimerLockClock(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerLockClock(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerLockClock2
+ */
+DECLINLINE(int) PDMUsbHlpTimerLockClock2(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PPDMCRITSECT pCritSect)
+{
+    return pUsbIns->pHlpR3->pfnTimerLockClock2(pUsbIns, hTimer, pCritSect);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSet
+ */
+DECLINLINE(int)      PDMUsbHlpTimerSet(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t uExpire)
+{
+    return pUsbIns->pHlpR3->pfnTimerSet(pUsbIns, hTimer, uExpire);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSetFrequencyHint
+ */
+DECLINLINE(int)      PDMUsbHlpTimerSetFrequencyHint(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint32_t uHz)
+{
+    return pUsbIns->pHlpR3->pfnTimerSetFrequencyHint(pUsbIns, hTimer, uHz);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSetMicro
+ */
+DECLINLINE(int)      PDMUsbHlpTimerSetMicro(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMicrosToNext)
+{
+    return pUsbIns->pHlpR3->pfnTimerSetMicro(pUsbIns, hTimer, cMicrosToNext);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSetMillies
+ */
+DECLINLINE(int)      PDMUsbHlpTimerSetMillies(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cMilliesToNext)
+{
+    return pUsbIns->pHlpR3->pfnTimerSetMillies(pUsbIns, hTimer, cMilliesToNext);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSetNano
+ */
+DECLINLINE(int)      PDMUsbHlpTimerSetNano(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cNanosToNext)
+{
+    return pUsbIns->pHlpR3->pfnTimerSetNano(pUsbIns, hTimer, cNanosToNext);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSetRelative
+ */
+DECLINLINE(int)      PDMUsbHlpTimerSetRelative(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, uint64_t cTicksToNext, uint64_t *pu64Now)
+{
+    return pUsbIns->pHlpR3->pfnTimerSetRelative(pUsbIns, hTimer, cTicksToNext, pu64Now);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerStop
+ */
+DECLINLINE(int)      PDMUsbHlpTimerStop(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerStop(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerUnlockClock
+ */
+DECLINLINE(void)     PDMUsbHlpTimerUnlockClock(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    pUsbIns->pHlpR3->pfnTimerUnlockClock(pUsbIns, hTimer);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerUnlockClock2
+ */
+DECLINLINE(void)     PDMUsbHlpTimerUnlockClock2(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PPDMCRITSECT pCritSect)
+{
+    pUsbIns->pHlpR3->pfnTimerUnlockClock2(pUsbIns, hTimer, pCritSect);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSetCritSect
+ */
+DECLINLINE(int) PDMUsbHlpTimerSetCritSect(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PPDMCRITSECT pCritSect)
+{
+    return pUsbIns->pHlpR3->pfnTimerSetCritSect(pUsbIns, hTimer, pCritSect);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerSave
+ */
+DECLINLINE(int) PDMUsbHlpTimerSave(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PSSMHANDLE pSSM)
+{
+    return pUsbIns->pHlpR3->pfnTimerSave(pUsbIns, hTimer, pSSM);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerLoad
+ */
+DECLINLINE(int) PDMUsbHlpTimerLoad(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, PSSMHANDLE pSSM)
+{
+    return pUsbIns->pHlpR3->pfnTimerLoad(pUsbIns, hTimer, pSSM);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnTimerDestroy
+ */
+DECLINLINE(int) PDMUsbHlpTimerDestroy(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer)
+{
+    return pUsbIns->pHlpR3->pfnTimerDestroy(pUsbIns, hTimer);
 }
 
 /**
@@ -1029,6 +1428,14 @@ DECLINLINE(int) PDMUsbHlpSSMRegister(PPDMUSBINS pUsbIns, uint32_t uVersion, size
                                            pfnLivePrep, pfnLiveExec, pfnLiveVote,
                                            pfnSavePrep, pfnSaveExec, pfnSaveDone,
                                            pfnLoadPrep, pfnLoadExec, pfnLoadDone);
+}
+
+/**
+ * @copydoc PDMUSBHLP::pfnQueryGenericUserObject
+ */
+DECLINLINE(void *) PDMUsbHlpQueryGenericUserObject(PPDMUSBINS pUsbIns, PCRTUUID pUuid)
+{
+    return pUsbIns->pHlpR3->pfnQueryGenericUserObject(pUsbIns, pUuid);
 }
 
 #endif /* IN_RING3 */
@@ -1072,11 +1479,11 @@ typedef struct PDMUSBREGCB
  * @param   pCallbacks      Pointer to the callback table.
  * @param   u32Version      VBox version number.
  */
-typedef DECLCALLBACK(int) FNPDMVBOXUSBREGISTER(PCPDMUSBREGCB pCallbacks, uint32_t u32Version);
+typedef DECLCALLBACKTYPE(int, FNPDMVBOXUSBREGISTER,(PCPDMUSBREGCB pCallbacks, uint32_t u32Version));
 
 VMMR3DECL(int)  PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName, PCFGMNODE pDeviceNode, PCRTUUID pUuid,
                                              const char *pszCaptureFilename);
-VMMR3DECL(int)  PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *pszBackend, const char *pszAddress, void *pvBackend,
+VMMR3DECL(int)  PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *pszBackend, const char *pszAddress, PCFGMNODE pSubTree,
                                           VUSBSPEED enmSpeed, uint32_t fMaskedIfs, const char *pszCaptureFilename);
 VMMR3DECL(int)  PDMR3UsbDetachDevice(PUVM pUVM, PCRTUUID pUuid);
 VMMR3DECL(bool) PDMR3UsbHasHub(PUVM pUVM);

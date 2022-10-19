@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -367,14 +377,14 @@ VBOXSTRICTRC iomR3MmioCommitWorker(PVM pVM, PVMCPU pVCpu, PIOMMMIOENTRYR3 pRegEn
     PIOMMMIOSTATSENTRY const pStats = iomMmioGetStats(pVM, pRegEntry);
 # endif
     PPDMDEVINS const         pDevIns = pRegEntry->pDevIns;
-    int rc = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VERR_IGNORED);
+    int rc = PDMCritSectEnter(pVM, pDevIns->CTX_SUFF(pCritSectRo), VERR_IGNORED);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = iomMmioDoWrite(pVM, pVCpu, pRegEntry, pVCpu->iom.s.PendingMmioWrite.GCPhys, offRegion,
                                            pVCpu->iom.s.PendingMmioWrite.abValue, pVCpu->iom.s.PendingMmioWrite.cbValue
                                            IOM_MMIO_STATS_COMMA_ARG);
 
-    PDMCritSectLeave(pDevIns->CTX_SUFF(pCritSectRo));
+    PDMCritSectLeave(pVM, pDevIns->CTX_SUFF(pCritSectRo));
     STAM_PROFILE_STOP(&pStats->ProfWriteR3, Prf);
     return rcStrict;
 }
@@ -669,7 +679,7 @@ DECLINLINE(VBOXSTRICTRC) iomMmioCommonPfHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, ui
          * Enter the device critsect prior to engaging IOM in case of lock contention.
          * Note! Perhaps not a good move?
          */
-        rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_R3_MMIO_READ_WRITE);
+        rcStrict = PDMCritSectEnter(pVM, pDevIns->CTX_SUFF(pCritSectRo), VINF_IOM_R3_MMIO_READ_WRITE);
         if (rcStrict == VINF_SUCCESS)
         {
 #endif /* !IN_RING3 */
@@ -680,7 +690,7 @@ DECLINLINE(VBOXSTRICTRC) iomMmioCommonPfHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, ui
             rcStrict = IEMExecOne(pVCpu);
 
 #ifndef IN_RING3
-            PDMCritSectLeave(pDevIns->CTX_SUFF(pCritSectRo));
+            PDMCritSectLeave(pVM, pDevIns->CTX_SUFF(pCritSectRo));
 #endif
             if (RT_SUCCESS(rcStrict))
             { /* likely */ }
@@ -725,10 +735,10 @@ DECLINLINE(VBOXSTRICTRC) iomMmioCommonPfHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, ui
  * @callback_method_impl{FNPGMRZPHYSPFHANDLER,
  *      \#PF access handler callback for MMIO pages.}
  *
- * @remarks The @a pvUser argument is the MMIO handle.
+ * @remarks The @a uUser argument is the MMIO handle.
  */
-DECLEXPORT(VBOXSTRICTRC) iomMmioPfHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pCtxCore,
-                                             RTGCPTR pvFault, RTGCPHYS GCPhysFault, void *pvUser)
+DECLCALLBACK(VBOXSTRICTRC) iomMmioPfHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pCtxCore,
+                                               RTGCPTR pvFault, RTGCPHYS GCPhysFault, uint64_t uUser)
 {
     STAM_PROFILE_START(&pVM->iom.s.StatMmioPfHandler, Prf);
     LogFlow(("iomMmioPfHandlerNew: GCPhys=%RGp uErr=%#x pvFault=%RGv rip=%RGv\n",
@@ -736,12 +746,12 @@ DECLEXPORT(VBOXSTRICTRC) iomMmioPfHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT
     RT_NOREF(pvFault, pCtxCore);
 
     /* Translate the MMIO handle to a registration entry for the current context. */
-    AssertReturn((uintptr_t)pvUser < RT_MIN(pVM->iom.s.cMmioRegs, pVM->iom.s.cMmioAlloc), VERR_IOM_INVALID_MMIO_HANDLE);
+    AssertReturn(uUser < RT_MIN(pVM->iom.s.cMmioRegs, pVM->iom.s.cMmioAlloc), VERR_IOM_INVALID_MMIO_HANDLE);
 # ifdef IN_RING0
-    AssertReturn((uintptr_t)pvUser < pVM->iomr0.s.cMmioAlloc, VERR_IOM_INVALID_MMIO_HANDLE);
-    CTX_SUFF(PIOMMMIOENTRY) pRegEntry = &pVM->iomr0.s.paMmioRegs[(uintptr_t)pvUser];
+    AssertReturn(uUser < pVM->iomr0.s.cMmioAlloc, VERR_IOM_INVALID_MMIO_HANDLE);
+    CTX_SUFF(PIOMMMIOENTRY) pRegEntry = &pVM->iomr0.s.paMmioRegs[uUser];
 # else
-    CTX_SUFF(PIOMMMIOENTRY) pRegEntry = &pVM->iom.s.paMmioRegs[(uintptr_t)pvUser];
+    CTX_SUFF(PIOMMMIOENTRY) pRegEntry = &pVM->iom.s.paMmioRegs[uUser];
 # endif
 
     VBOXSTRICTRC rcStrict = iomMmioCommonPfHandlerNew(pVM, pVCpu, (uint32_t)uErrorCode, GCPhysFault, pRegEntry);
@@ -794,14 +804,14 @@ VMM_INT_DECL(VBOXSTRICTRC) IOMR0MmioPhysHandler(PVMCC pVM, PVMCPUCC pVCpu, uint3
 /**
  * @callback_method_impl{FNPGMPHYSHANDLER, MMIO page accesses}
  *
- * @remarks The @a pvUser argument is the MMIO handle.
+ * @remarks The @a uUser argument is the MMIO handle.
  */
-PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysFault, void *pvPhys, void *pvBuf,
-                                                 size_t cbBuf, PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, void *pvUser)
+DECLCALLBACK(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysFault, void *pvPhys, void *pvBuf,
+                                             size_t cbBuf, PGMACCESSTYPE enmAccessType, PGMACCESSORIGIN enmOrigin, uint64_t uUser)
 {
     STAM_PROFILE_START(UnusedMacroArg, Prf);
     STAM_COUNTER_INC(&pVM->iom.s.CTX_SUFF(StatMmioHandler));
-    Log4(("iomMmioHandlerNew: GCPhysFault=%RGp cbBuf=%#x enmAccessType=%d enmOrigin=%d pvUser=%p\n", GCPhysFault, cbBuf, enmAccessType, enmOrigin, pvUser));
+    Log4(("iomMmioHandlerNew: GCPhysFault=%RGp cbBuf=%#x enmAccessType=%d enmOrigin=%d uUser=%p\n", GCPhysFault, cbBuf, enmAccessType, enmOrigin, uUser));
 
     Assert(enmAccessType == PGMACCESSTYPE_READ || enmAccessType == PGMACCESSTYPE_WRITE);
     AssertMsg(cbBuf >= 1, ("%zu\n", cbBuf));
@@ -814,16 +824,16 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGC
 #endif
 
     /*
-     * Translate pvUser to an MMIO registration table entry.  We can do this
+     * Translate uUser to an MMIO registration table entry.  We can do this
      * without any locking as the data is static after VM creation.
      */
-    AssertReturn((uintptr_t)pvUser < RT_MIN(pVM->iom.s.cMmioRegs, pVM->iom.s.cMmioAlloc), VERR_IOM_INVALID_MMIO_HANDLE);
+    AssertReturn(uUser < RT_MIN(pVM->iom.s.cMmioRegs, pVM->iom.s.cMmioAlloc), VERR_IOM_INVALID_MMIO_HANDLE);
 #ifdef IN_RING0
-    AssertReturn((uintptr_t)pvUser < pVM->iomr0.s.cMmioAlloc, VERR_IOM_INVALID_MMIO_HANDLE);
-    CTX_SUFF(PIOMMMIOENTRY) const pRegEntry    = &pVM->iomr0.s.paMmioRegs[(uintptr_t)pvUser];
-    PIOMMMIOENTRYR3 const         pRegEntryR3  = &pVM->iomr0.s.paMmioRing3Regs[(uintptr_t)pvUser];
+    AssertReturn(uUser < pVM->iomr0.s.cMmioAlloc, VERR_IOM_INVALID_MMIO_HANDLE);
+    CTX_SUFF(PIOMMMIOENTRY) const pRegEntry    = &pVM->iomr0.s.paMmioRegs[uUser];
+    PIOMMMIOENTRYR3 const         pRegEntryR3  = &pVM->iomr0.s.paMmioRing3Regs[uUser];
 #else
-    CTX_SUFF(PIOMMMIOENTRY) const pRegEntry    = &pVM->iom.s.paMmioRegs[(uintptr_t)pvUser];
+    CTX_SUFF(PIOMMMIOENTRY) const pRegEntry    = &pVM->iom.s.paMmioRegs[uUser];
 #endif
 #ifdef VBOX_WITH_STATISTICS
     PIOMMMIOSTATSENTRY const      pStats       = iomMmioGetStats(pVM, pRegEntry);  /* (Works even without ring-0 device setup.) */
@@ -853,18 +863,18 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGC
     if (   RT_LIKELY(cbBuf <= sizeof(pVCpu->iom.s.PendingMmioWrite.abValue))
         && pRegEntry->cbRegion != 0
         && (  enmAccessType == PGMACCESSTYPE_READ
-            ? pRegEntry->pfnReadCallback  != NULL || pVM->iomr0.s.paMmioRing3Regs[(uintptr_t)pvUser].pfnReadCallback == NULL
-            : pRegEntry->pfnWriteCallback != NULL || pVM->iomr0.s.paMmioRing3Regs[(uintptr_t)pvUser].pfnWriteCallback == NULL)
+            ? pRegEntry->pfnReadCallback  != NULL || pVM->iomr0.s.paMmioRing3Regs[uUser].pfnReadCallback == NULL
+            : pRegEntry->pfnWriteCallback != NULL || pVM->iomr0.s.paMmioRing3Regs[uUser].pfnWriteCallback == NULL)
         && pDevIns )
     { /* likely */ }
     else
     {
-        Log4(("iomMmioHandlerNew: to ring-3: to-big=%RTbool zero-size=%RTbool no-callback=%RTbool pDevIns=%p hRegion=%p\n",
+        Log4(("iomMmioHandlerNew: to ring-3: to-big=%RTbool zero-size=%RTbool no-callback=%RTbool pDevIns=%p hRegion=%#RX64\n",
               !(cbBuf <= sizeof(pVCpu->iom.s.PendingMmioWrite.abValue)), !(pRegEntry->cbRegion != 0),
               !(  enmAccessType == PGMACCESSTYPE_READ
-                ? pRegEntry->pfnReadCallback  != NULL || pVM->iomr0.s.paMmioRing3Regs[(uintptr_t)pvUser].pfnReadCallback == NULL
-                : pRegEntry->pfnWriteCallback != NULL || pVM->iomr0.s.paMmioRing3Regs[(uintptr_t)pvUser].pfnWriteCallback == NULL),
-              pDevIns, pvUser));
+                ? pRegEntry->pfnReadCallback  != NULL || pVM->iomr0.s.paMmioRing3Regs[uUser].pfnReadCallback == NULL
+                : pRegEntry->pfnWriteCallback != NULL || pVM->iomr0.s.paMmioRing3Regs[uUser].pfnWriteCallback == NULL),
+              pDevIns, uUser));
         STAM_COUNTER_INC(enmAccessType == PGMACCESSTYPE_READ ? &pStats->ReadRZToR3 : &pStats->WriteRZToR3);
         STAM_COUNTER_INC(enmAccessType == PGMACCESSTYPE_READ ? &pVM->iom.s.StatMmioReadsR0ToR3 : &pVM->iom.s.StatMmioWritesR0ToR3);
         return rcToRing3;
@@ -909,7 +919,7 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGC
      * Note! We may end up locking the device even when the relevant callback is
      *       NULL.  This is supposed to be an unlikely case, so not optimized yet.
      */
-    VBOXSTRICTRC rcStrict = PDMCritSectEnter(pDevIns->CTX_SUFF(pCritSectRo), rcToRing3);
+    VBOXSTRICTRC rcStrict = PDMCritSectEnter(pVM, pDevIns->CTX_SUFF(pCritSectRo), rcToRing3);
     if (rcStrict == VINF_SUCCESS)
     {
         if (enmAccessType == PGMACCESSTYPE_READ)
@@ -919,7 +929,7 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGC
              */
             rcStrict = iomMmioDoRead(pVM, pRegEntry, GCPhysFault, offRegion, pvBuf, (uint32_t)cbBuf IOM_MMIO_STATS_COMMA_ARG);
 
-            PDMCritSectLeave(pDevIns->CTX_SUFF(pCritSectRo));
+            PDMCritSectLeave(pVM, pDevIns->CTX_SUFF(pCritSectRo));
 #ifndef IN_RING3
             if (rcStrict == VINF_IOM_R3_MMIO_READ)
             {
@@ -937,7 +947,7 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGC
              * Write.
              */
             rcStrict = iomMmioDoWrite(pVM, pVCpu, pRegEntry, GCPhysFault, offRegion, pvBuf, (uint32_t)cbBuf IOM_MMIO_STATS_COMMA_ARG);
-            PDMCritSectLeave(pDevIns->CTX_SUFF(pCritSectRo));
+            PDMCritSectLeave(pVM, pDevIns->CTX_SUFF(pCritSectRo));
 #ifndef IN_RING3
             if (rcStrict == VINF_IOM_R3_MMIO_WRITE)
                 rcStrict = iomMmioRing3WritePending(pVCpu, GCPhysFault, pvBuf, cbBuf, pRegEntry->idxSelf);
@@ -1020,6 +1030,7 @@ PGM_ALL_CB2_DECL(VBOXSTRICTRC) iomMmioHandlerNew(PVMCC pVM, PVMCPUCC pVCpu, RTGC
  *
  * @returns VBox status code.  This API may return VINF_SUCCESS even if no
  *          remapping is made.
+ * @retval  VERR_SEM_BUSY in ring-0 if we cannot get the IOM lock.
  *
  * @param   pVM             The cross context VM structure.
  * @param   pDevIns         The device instance @a hRegion and @a hMmio2 are
@@ -1069,7 +1080,7 @@ VMMDECL(int) IOMMmioMapMmio2Page(PVMCC pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hR
     AssertReturn(pRegEntry->pDevIns == pDevIns, VERR_ACCESS_DENIED);
 #endif
     AssertReturn(offRegion < pRegEntry->cbRegion, VERR_OUT_OF_RANGE);
-    Assert((pRegEntry->cbRegion & PAGE_OFFSET_MASK) == 0);
+    Assert((pRegEntry->cbRegion & GUEST_PAGE_OFFSET_MASK) == 0);
 
     /*
      * When getting and using the mapping address, we must sit on the IOM lock
@@ -1081,12 +1092,12 @@ VMMDECL(int) IOMMmioMapMmio2Page(PVMCC pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hR
         RTGCPHYS const GCPhys = pRegEntry->fMapped ? pRegEntry->GCPhysMapping : NIL_RTGCPHYS;
         if (GCPhys != NIL_RTGCPHYS)
         {
-            Assert(!(GCPhys & PAGE_OFFSET_MASK));
+            Assert(!(GCPhys & GUEST_PAGE_OFFSET_MASK));
 
             /*
              * Do the aliasing; page align the addresses since PGM is picky.
              */
-            rc = PGMHandlerPhysicalPageAliasMmio2(pVM, GCPhys, GCPhys + (offRegion & ~(RTGCPHYS)PAGE_OFFSET_MASK),
+            rc = PGMHandlerPhysicalPageAliasMmio2(pVM, GCPhys, GCPhys + (offRegion & ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK),
                                                   pDevIns, hMmio2, offMmio2);
         }
         else
@@ -1159,15 +1170,15 @@ VMMR0_INT_DECL(int) IOMR0MmioMapMmioHCPage(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS G
         PIOMMMIOENTRYR0 pRegEntry = iomMmioGetEntry(pVM, GCPhys, &offIgn, &idxIgn);
         IOM_UNLOCK_SHARED(pVM);
         Assert(pRegEntry);
-        Assert(pRegEntry && !(pRegEntry->cbRegion & PAGE_OFFSET_MASK));
+        Assert(pRegEntry && !(pRegEntry->cbRegion & GUEST_PAGE_OFFSET_MASK));
     }
 # endif
 
     /*
      * Do the aliasing; page align the addresses since PGM is picky.
      */
-    GCPhys &= ~(RTGCPHYS)PAGE_OFFSET_MASK;
-    HCPhys &= ~(RTHCPHYS)PAGE_OFFSET_MASK;
+    GCPhys &= ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
+    HCPhys &= ~(RTHCPHYS)GUEST_PAGE_OFFSET_MASK;
 
     int rc = PGMHandlerPhysicalPageAliasHC(pVM, GCPhys, GCPhys, HCPhys);
     AssertRCReturn(rc, rc);
@@ -1235,15 +1246,15 @@ VMMDECL(int) IOMMmioResetRegion(PVMCC pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRe
     AssertReturn(pRegEntry->cbRegion > 0, VERR_IOM_INVALID_MMIO_HANDLE);
     AssertReturn(pRegEntry->pDevIns == pDevIns, VERR_ACCESS_DENIED);
 #endif
-    Assert((pRegEntry->cbRegion & PAGE_OFFSET_MASK) == 0);
+    Assert((pRegEntry->cbRegion & GUEST_PAGE_OFFSET_MASK) == 0);
 
     int rcSem = IOM_LOCK_SHARED(pVM);
     RTGCPHYS GCPhys = pRegEntry->fMapped ? pRegEntry->GCPhysMapping : NIL_RTGCPHYS;
     if (rcSem == VINF_SUCCESS)
         IOM_UNLOCK_SHARED(pVM);
 
-    Assert(!(GCPhys              & PAGE_OFFSET_MASK));
-    Assert(!(pRegEntry->cbRegion & PAGE_OFFSET_MASK));
+    Assert(!(GCPhys              & GUEST_PAGE_OFFSET_MASK));
+    Assert(!(pRegEntry->cbRegion & GUEST_PAGE_OFFSET_MASK));
 
     /*
      * Call PGM to do the job work.
@@ -1264,8 +1275,8 @@ VMMDECL(int) IOMMmioResetRegion(PVMCC pVM, PPDMDEVINS pDevIns, IOMMMIOHANDLE hRe
             RTHCPHYS HCPhys;
             rc = PGMShwGetPage(pVCpu, (RTGCPTR)GCPhys, &fFlags, &HCPhys);
             Assert(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT);
-            cb     -= PAGE_SIZE;
-            GCPhys += PAGE_SIZE;
+            cb     -= RT_MIN(GUEST_PAGE_SIZE, HOST_PAGE_SIZE);
+            GCPhys += RT_MIN(GUEST_PAGE_SIZE, HOST_PAGE_SIZE);
         }
     }
 # endif

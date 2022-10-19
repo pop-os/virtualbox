@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -39,13 +49,17 @@
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+extern const unsigned char g_auchDigits[256]; /* shared with strtofloat.cpp - add header? */
+
 /** 8-bit char -> digit.
- * Non-digits have values 255 (most), 254 (zero), 253 (colon) and 252 (space).
+ * Non-digits have values 255 (most), 254 (zero), 253 (colon), 252 (space), 251 (dot).
+ *
+ * @note Also used by strtofloat.cpp
  */
-static const unsigned char g_auchDigits[256] =
+const unsigned char g_auchDigits[256] =
 {
     254,255,255,255,255,255,255,255,255,252,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
-    252,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9,253,255,255,255,255,255,
+    252,255,255,255,255,255,255,255,255,255,255,255,255,255,251,255,  0,  1,  2,  3,  4,  5,  6,  7,  8,  9,253,255,255,255,255,255,
     255, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,255,255,255,255,255,
     255, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,255,255,255,255,255,
     255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
@@ -53,6 +67,11 @@ static const unsigned char g_auchDigits[256] =
     255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,
     255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255,255
 };
+
+#define DIGITS_ZERO_TERM 254
+#define DIGITS_COLON     253
+#define DIGITS_SPACE     252
+#define DIGITS_DOT       251
 
 /** Approximated overflow shift checks. */
 static const char g_auchShift[36] =
@@ -83,6 +102,8 @@ int main()
             ch = 253;
         else if (i == ' ' || i == '\t')
             ch = 252;
+        else if (i == '.')
+            ch = 251;
         if (i == 0)
             printf("\n    %3d", ch);
         else if ((i % 32) == 0)
@@ -109,25 +130,39 @@ int main()
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu64        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu64            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase, uint64_t *pu64)
+RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, uint64_t *pu64)
 {
     const char   *psz = pszValue;
     int           iShift;
     int           rc;
     uint64_t      u64;
     unsigned char uch;
+    bool          fPositive;
+
+    /*
+     * Split the base and length limit (latter is chiefly for sscanf).
+     */
+    unsigned uBase  = uBaseAndMaxLen & 0xff;
+    unsigned cchMax = uBaseAndMaxLen >> 8;
+    if (cchMax == 0)
+        cchMax = ~0U;
+    AssertStmt(uBase < RT_ELEMENTS(g_auchShift), uBase = 0);
 
     /*
      * Positive/Negative stuff.
      */
-    bool fPositive = true;
-    for (;; psz++)
+    fPositive = true;
+    while (cchMax > 0)
     {
         if (*psz == '+')
             fPositive = true;
@@ -135,6 +170,8 @@ RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBas
             fPositive = !fPositive;
         else
             break;
+        psz++;
+        cchMax--;
     }
 
     /*
@@ -142,37 +179,42 @@ RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBas
      */
     if (!uBase)
     {
-        if (    psz[0] == '0'
-            &&  (psz[1] == 'x' || psz[1] == 'X')
-            &&  g_auchDigits[(unsigned char)psz[2]] < 16)
+        uBase = 10;
+        if (psz[0] == '0')
         {
-            uBase = 16;
-            psz += 2;
+            if (   psz[0] == '0'
+                && cchMax > 1
+                && (psz[1] == 'x' || psz[1] == 'X')
+                && g_auchDigits[(unsigned char)psz[2]] < 16)
+            {
+                uBase     = 16;
+                psz      += 2;
+                cchMax   -= 2;
+            }
+            else if (   psz[0] == '0'
+                     && g_auchDigits[(unsigned char)psz[1]] < 8)
+                uBase = 8; /* don't skip the zero, in case it's alone. */
         }
-        else if (   psz[0] == '0'
-                 && g_auchDigits[(unsigned char)psz[1]] < 8)
-        {
-            uBase = 8;
-            psz++;
-        }
-        else
-            uBase = 10;
     }
     else if (   uBase == 16
              && psz[0] == '0'
+             && cchMax > 1
              && (psz[1] == 'x' || psz[1] == 'X')
              && g_auchDigits[(unsigned char)psz[2]] < 16)
-        psz += 2;
+    {
+        cchMax -= 2;
+        psz    += 2;
+    }
 
     /*
      * Interpret the value.
      * Note: We only support ascii digits at this time... :-)
      */
-    iShift = g_auchShift[uBase];
     pszValue = psz; /* (Prefix and sign doesn't count in the digit counting.) */
-    rc = VINF_SUCCESS;
-    u64 = 0;
-    while ((uch = (unsigned char)*psz) != 0)
+    iShift   = g_auchShift[uBase];
+    rc       = VINF_SUCCESS;
+    u64      = 0;
+    while (cchMax > 0 && (uch = (unsigned char)*psz) != 0)
     {
         unsigned char chDigit = g_auchDigits[uch];
         uint64_t u64Prev;
@@ -181,11 +223,12 @@ RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBas
             break;
 
         u64Prev = u64;
-        u64 *= uBase;
-        u64 += chDigit;
+        u64    *= uBase;
+        u64    += chDigit;
         if (u64Prev > u64 || (u64Prev >> iShift))
             rc = VWRN_NUMBER_TOO_BIG;
         psz++;
+        cchMax--;
     }
 
     if (!fPositive)
@@ -207,12 +250,13 @@ RTDECL(int) RTStrToUInt64Ex(const char *pszValue, char **ppszNext, unsigned uBas
     /*
      * Warn about trailing chars/spaces.
      */
-    if (    rc == VINF_SUCCESS
-        &&  *psz)
+    if (   rc == VINF_SUCCESS
+        && *psz
+        && cchMax > 0)
     {
-        while (*psz == ' ' || *psz == '\t')
-            psz++;
-        rc = *psz ? VWRN_TRAILING_CHARS : VWRN_TRAILING_SPACES;
+        while (cchMax > 0 && (*psz == ' ' || *psz == '\t'))
+            psz++, cchMax--;
+        rc = cchMax > 0 && *psz ? VWRN_TRAILING_CHARS : VWRN_TRAILING_SPACES;
     }
 
     return rc;
@@ -233,24 +277,35 @@ RT_EXPORT_SYMBOL(RTStrToUInt64Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_TRAILING_CHARS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu64        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu64            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt64Full(const char *pszValue, unsigned uBase, uint64_t *pu64)
+RTDECL(int) RTStrToUInt64Full(const char *pszValue, unsigned uBaseAndMaxLen, uint64_t *pu64)
 {
     char *psz;
-    int rc = RTStrToUInt64Ex(pszValue, &psz, uBase, pu64);
+    int rc = RTStrToUInt64Ex(pszValue, &psz, uBaseAndMaxLen, pu64);
     if (RT_SUCCESS(rc) && *psz)
     {
         if (rc == VWRN_TRAILING_CHARS || rc == VWRN_TRAILING_SPACES)
             rc = -rc;
-        else
+        else if (rc != VINF_SUCCESS)
         {
-            while (*psz == ' ' || *psz == '\t')
-                psz++;
-            rc = *psz ? VERR_TRAILING_CHARS : VERR_TRAILING_SPACES;
+            unsigned cchMax = uBaseAndMaxLen >> 8;
+            if (!cchMax)
+                cchMax  = ~0U;
+            else
+                cchMax -= (unsigned)(psz - pszValue);
+            if (cchMax > 0)
+            {
+                while (cchMax > 0 && (*psz == ' ' || *psz == '\t'))
+                    psz++, cchMax--;
+                rc = cchMax > 0 && *psz ? VERR_TRAILING_CHARS : VERR_TRAILING_SPACES;
+            }
         }
     }
     return rc;
@@ -289,16 +344,20 @@ RT_EXPORT_SYMBOL(RTStrToUInt64);
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu32        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu32            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt32Ex(const char *pszValue, char **ppszNext, unsigned uBase, uint32_t *pu32)
+RTDECL(int) RTStrToUInt32Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, uint32_t *pu32)
 {
     uint64_t u64;
-    int rc = RTStrToUInt64Ex(pszValue, ppszNext, uBase, &u64);
+    int rc = RTStrToUInt64Ex(pszValue, ppszNext, uBaseAndMaxLen, &u64);
     if (RT_SUCCESS(rc))
     {
         if (u64 & ~0xffffffffULL)
@@ -324,15 +383,18 @@ RT_EXPORT_SYMBOL(RTStrToUInt32Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_TRAILING_CHARS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu32        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu32            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt32Full(const char *pszValue, unsigned uBase, uint32_t *pu32)
+RTDECL(int) RTStrToUInt32Full(const char *pszValue, unsigned uBaseAndMaxLen, uint32_t *pu32)
 {
     uint64_t u64;
-    int rc = RTStrToUInt64Full(pszValue, uBase, &u64);
+    int rc = RTStrToUInt64Full(pszValue, uBaseAndMaxLen, &u64);
     if (RT_SUCCESS(rc))
     {
         if (u64 & ~0xffffffffULL)
@@ -376,16 +438,20 @@ RT_EXPORT_SYMBOL(RTStrToUInt32);
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu16        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu16            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt16Ex(const char *pszValue, char **ppszNext, unsigned uBase, uint16_t *pu16)
+RTDECL(int) RTStrToUInt16Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, uint16_t *pu16)
 {
     uint64_t u64;
-    int rc = RTStrToUInt64Ex(pszValue, ppszNext, uBase, &u64);
+    int rc = RTStrToUInt64Ex(pszValue, ppszNext, uBaseAndMaxLen, &u64);
     if (RT_SUCCESS(rc))
     {
         if (u64 & ~0xffffULL)
@@ -411,15 +477,18 @@ RT_EXPORT_SYMBOL(RTStrToUInt16Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_TRAILING_CHARS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu16        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu16            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt16Full(const char *pszValue, unsigned uBase, uint16_t *pu16)
+RTDECL(int) RTStrToUInt16Full(const char *pszValue, unsigned uBaseAndMaxLen, uint16_t *pu16)
 {
     uint64_t u64;
-    int rc = RTStrToUInt64Full(pszValue, uBase, &u64);
+    int rc = RTStrToUInt64Full(pszValue, uBaseAndMaxLen, &u64);
     if (RT_SUCCESS(rc))
     {
         if (u64 & ~0xffffULL)
@@ -463,16 +532,20 @@ RT_EXPORT_SYMBOL(RTStrToUInt16);
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu8         Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu8             Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt8Ex(const char *pszValue, char **ppszNext, unsigned uBase, uint8_t *pu8)
+RTDECL(int) RTStrToUInt8Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, uint8_t *pu8)
 {
     uint64_t u64;
-    int rc = RTStrToUInt64Ex(pszValue, ppszNext, uBase, &u64);
+    int rc = RTStrToUInt64Ex(pszValue, ppszNext, uBaseAndMaxLen, &u64);
     if (RT_SUCCESS(rc))
     {
         if (u64 & ~0xffULL)
@@ -498,15 +571,18 @@ RT_EXPORT_SYMBOL(RTStrToUInt8Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_TRAILING_CHARS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pu8         Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pu8             Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToUInt8Full(const char *pszValue, unsigned uBase, uint8_t *pu8)
+RTDECL(int) RTStrToUInt8Full(const char *pszValue, unsigned uBaseAndMaxLen, uint8_t *pu8)
 {
     uint64_t u64;
-    int rc = RTStrToUInt64Full(pszValue, uBase, &u64);
+    int rc = RTStrToUInt64Full(pszValue, uBaseAndMaxLen, &u64);
     if (RT_SUCCESS(rc))
     {
         if (u64 & ~0xffULL)
@@ -554,25 +630,39 @@ RT_EXPORT_SYMBOL(RTStrToUInt8);
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi64        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi64            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase, int64_t *pi64)
+RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, int64_t *pi64)
 {
     const char   *psz = pszValue;
     int           iShift;
     int           rc;
     uint64_t      u64;
     unsigned char uch;
+    bool          fPositive;
+
+    /*
+     * Split the base and length limit (latter is chiefly for sscanf).
+     */
+    unsigned uBase  = uBaseAndMaxLen & 0xff;
+    unsigned cchMax = uBaseAndMaxLen >> 8;
+    if (cchMax == 0)
+        cchMax = ~0U;
+    AssertStmt(uBase < RT_ELEMENTS(g_auchShift), uBase = 0);
 
     /*
      * Positive/Negative stuff.
      */
-    bool fPositive = true;
-    for (;; psz++)
+    fPositive = true;
+    while (cchMax > 0)
     {
         if (*psz == '+')
             fPositive = true;
@@ -580,6 +670,8 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
             fPositive = !fPositive;
         else
             break;
+        psz++;
+        cchMax--;
     }
 
     /*
@@ -587,37 +679,42 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
      */
     if (!uBase)
     {
-        if (    *psz == '0'
-            &&  (psz[1] == 'x' || psz[1] == 'X')
-            &&  g_auchDigits[(unsigned char)psz[2]] < 16)
+        uBase = 10;
+        if (psz[0] == '0')
         {
-            uBase = 16;
-            psz += 2;
+            if (   psz[0] == '0'
+                && cchMax > 1
+                && (psz[1] == 'x' || psz[1] == 'X')
+                && g_auchDigits[(unsigned char)psz[2]] < 16)
+            {
+                uBase     = 16;
+                psz      += 2;
+                cchMax   -= 2;
+            }
+            else if (   psz[0] == '0'
+                     && g_auchDigits[(unsigned char)psz[1]] < 8)
+                uBase = 8; /* don't skip the zero, in case it's alone. */
         }
-        else if (   *psz == '0'
-                 && g_auchDigits[(unsigned char)psz[1]] < 8)
-        {
-            uBase = 8;
-            psz++;
-        }
-        else
-            uBase = 10;
     }
     else if (   uBase == 16
-             && *psz == '0'
+             && psz[0] == '0'
+             && cchMax > 1
              && (psz[1] == 'x' || psz[1] == 'X')
              && g_auchDigits[(unsigned char)psz[2]] < 16)
-        psz += 2;
+    {
+        cchMax -= 2;
+        psz    += 2;
+    }
 
     /*
      * Interpret the value.
      * Note: We only support ascii digits at this time... :-)
      */
-    iShift = g_auchShift[uBase];
     pszValue = psz; /* (Prefix and sign doesn't count in the digit counting.) */
-    rc = VINF_SUCCESS;
-    u64 = 0;
-    while ((uch = (unsigned char)*psz) != 0)
+    iShift   = g_auchShift[uBase];
+    rc       = VINF_SUCCESS;
+    u64      = 0;
+    while (cchMax > 0 && (uch = (unsigned char)*psz) != 0)
     {
         unsigned char chDigit = g_auchDigits[uch];
         uint64_t u64Prev;
@@ -626,24 +723,34 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
             break;
 
         u64Prev = u64;
-        u64 *= uBase;
-        u64 += chDigit;
+        u64    *= uBase;
+        u64    += chDigit;
         if (u64Prev > u64 || (u64Prev >> iShift))
             rc = VWRN_NUMBER_TOO_BIG;
         psz++;
+        cchMax--;
     }
 
-    if (   !(u64 & RT_BIT_64(63))
-        || (!fPositive && u64 == RT_BIT_64(63)) )
-    { /* likely */ }
+    /* Mixing pi64 assigning and overflow checks is to pacify a tstRTCRest-1
+       asan overflow warning.  */
+    if (!(u64 & RT_BIT_64(63)))
+    {
+        if (psz == pszValue)
+            rc = VERR_NO_DIGITS;
+        if (pi64)
+            *pi64 = fPositive ? u64 : -(int64_t)u64;
+    }
+    else if (!fPositive && u64 == RT_BIT_64(63))
+    {
+        if (pi64)
+            *pi64 = INT64_MIN;
+    }
     else
+    {
         rc = VWRN_NUMBER_TOO_BIG;
-
-    if (pi64)
-        *pi64 = fPositive ? u64 : -(int64_t)u64;
-
-    if (psz == pszValue)
-        rc = VERR_NO_DIGITS;
+        if (pi64)
+            *pi64 = fPositive ? u64 : -(int64_t)u64;
+    }
 
     if (ppszNext)
         *ppszNext = (char *)psz;
@@ -651,12 +758,13 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
     /*
      * Warn about trailing chars/spaces.
      */
-    if (    rc == VINF_SUCCESS
-        &&  *psz)
+    if (   rc == VINF_SUCCESS
+        && cchMax > 0
+        && *psz)
     {
-        while (*psz == ' ' || *psz == '\t')
-            psz++;
-        rc = *psz ? VWRN_TRAILING_CHARS : VWRN_TRAILING_SPACES;
+        while (cchMax > 0 && (*psz == ' ' || *psz == '\t'))
+            psz++, cchMax--;
+        rc = cchMax > 0 && *psz ? VWRN_TRAILING_CHARS : VWRN_TRAILING_SPACES;
     }
 
     return rc;
@@ -676,24 +784,35 @@ RT_EXPORT_SYMBOL(RTStrToInt64Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi64        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi64            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt64Full(const char *pszValue, unsigned uBase, int64_t *pi64)
+RTDECL(int) RTStrToInt64Full(const char *pszValue, unsigned uBaseAndMaxLen, int64_t *pi64)
 {
     char *psz;
-    int rc = RTStrToInt64Ex(pszValue, &psz, uBase, pi64);
+    int rc = RTStrToInt64Ex(pszValue, &psz, uBaseAndMaxLen, pi64);
     if (RT_SUCCESS(rc) && *psz)
     {
         if (rc == VWRN_TRAILING_CHARS || rc == VWRN_TRAILING_SPACES)
             rc = -rc;
-        else
+        else if (rc != VINF_SUCCESS)
         {
-            while (*psz == ' ' || *psz == '\t')
-                psz++;
-            rc = *psz ? VERR_TRAILING_CHARS : VERR_TRAILING_SPACES;
+            unsigned cchMax = uBaseAndMaxLen >> 8;
+            if (!cchMax)
+                cchMax  = ~0U;
+            else
+                cchMax -= (unsigned)(psz - pszValue);
+            if (cchMax > 0)
+            {
+                while (cchMax > 0 && (*psz == ' ' || *psz == '\t'))
+                    psz++, cchMax--;
+                rc = cchMax > 0 && *psz ? VERR_TRAILING_CHARS : VERR_TRAILING_SPACES;
+            }
         }
     }
     return rc;
@@ -731,16 +850,20 @@ RT_EXPORT_SYMBOL(RTStrToInt64);
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi32        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi32            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt32Ex(const char *pszValue, char **ppszNext, unsigned uBase, int32_t *pi32)
+RTDECL(int) RTStrToInt32Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, int32_t *pi32)
 {
     int64_t i64;
-    int rc = RTStrToInt64Ex(pszValue, ppszNext, uBase, &i64);
+    int rc = RTStrToInt64Ex(pszValue, ppszNext, uBaseAndMaxLen, &i64);
     if (RT_SUCCESS(rc))
     {
         int32_t i32 = (int32_t)i64;
@@ -766,15 +889,18 @@ RT_EXPORT_SYMBOL(RTStrToInt32Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi32        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi32            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt32Full(const char *pszValue, unsigned uBase, int32_t *pi32)
+RTDECL(int) RTStrToInt32Full(const char *pszValue, unsigned uBaseAndMaxLen, int32_t *pi32)
 {
     int64_t i64;
-    int rc = RTStrToInt64Full(pszValue, uBase, &i64);
+    int rc = RTStrToInt64Full(pszValue, uBaseAndMaxLen, &i64);
     if (RT_SUCCESS(rc))
     {
         int32_t i32 = (int32_t)i64;
@@ -818,16 +944,21 @@ RT_EXPORT_SYMBOL(RTStrToInt32);
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi16        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi16            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt16Ex(const char *pszValue, char **ppszNext, unsigned uBase, int16_t *pi16)
+RTDECL(int) RTStrToInt16Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, int16_t *pi16)
 {
     int64_t i64;
-    int rc = RTStrToInt64Ex(pszValue, ppszNext, uBase, &i64);
+    int rc = RTStrToInt64Ex(pszValue, ppszNext, uBaseAndMaxLen, &i64);
     if (RT_SUCCESS(rc))
     {
         int16_t i16 = (int16_t)i64;
@@ -853,15 +984,18 @@ RT_EXPORT_SYMBOL(RTStrToInt16Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi16        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi16            Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt16Full(const char *pszValue, unsigned uBase, int16_t *pi16)
+RTDECL(int) RTStrToInt16Full(const char *pszValue, unsigned uBaseAndMaxLen, int16_t *pi16)
 {
     int64_t i64;
-    int rc = RTStrToInt64Full(pszValue, uBase, &i64);
+    int rc = RTStrToInt64Full(pszValue, uBaseAndMaxLen, &i64);
     if (RT_SUCCESS(rc))
     {
         int16_t i16 = (int16_t)i64;
@@ -905,16 +1039,20 @@ RT_EXPORT_SYMBOL(RTStrToInt16);
  * @retval  VINF_SUCCESS
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   ppszNext    Where to store the pointer to the first char following the number. (Optional)
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi8        Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   ppszNext        Where to store the pointer to the first char
+ *                          following the number. (Optional)
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi8             Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt8Ex(const char *pszValue, char **ppszNext, unsigned uBase, int8_t *pi8)
+RTDECL(int) RTStrToInt8Ex(const char *pszValue, char **ppszNext, unsigned uBaseAndMaxLen, int8_t *pi8)
 {
     int64_t i64;
-    int rc = RTStrToInt64Ex(pszValue, ppszNext, uBase, &i64);
+    int rc = RTStrToInt64Ex(pszValue, ppszNext, uBaseAndMaxLen, &i64);
     if (RT_SUCCESS(rc))
     {
         int8_t i8 = (int8_t)i64;
@@ -940,15 +1078,18 @@ RT_EXPORT_SYMBOL(RTStrToInt8Ex);
  * @retval  VERR_TRAILING_SPACES
  * @retval  VERR_NO_DIGITS
  *
- * @param   pszValue    Pointer to the string value.
- * @param   uBase       The base of the representation used.
- *                      If the function will look for known prefixes before defaulting to 10.
- * @param   pi8         Where to store the converted number. (optional)
+ * @param   pszValue        Pointer to the string value.
+ * @param   uBaseAndMaxLen  The low byte is the base of the representation, the
+ *                          upper 24 bits are the max length to parse.  If the base
+ *                          is zero the function will look for known prefixes before
+ *                          defaulting to 10.  A max length of zero means no length
+ *                          restriction.
+ * @param   pi8             Where to store the converted number. (optional)
  */
-RTDECL(int) RTStrToInt8Full(const char *pszValue, unsigned uBase, int8_t *pi8)
+RTDECL(int) RTStrToInt8Full(const char *pszValue, unsigned uBaseAndMaxLen, int8_t *pi8)
 {
     int64_t i64;
-    int rc = RTStrToInt64Full(pszValue, uBase, &i64);
+    int rc = RTStrToInt64Full(pszValue, uBaseAndMaxLen, &i64);
     if (RT_SUCCESS(rc))
     {
         int8_t i8 = (int8_t)i64;

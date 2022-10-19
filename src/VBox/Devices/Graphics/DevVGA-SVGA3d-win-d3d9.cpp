@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_DEV_VMSVGA
@@ -30,6 +40,22 @@ typedef enum D3D9TextureType
     D3D9TextureType_Bounce,
     D3D9TextureType_Emulated
 } D3D9TextureType;
+
+DECLINLINE(D3DCUBEMAP_FACES) vmsvga3dCubemapFaceFromIndex(uint32_t iFace)
+{
+    D3DCUBEMAP_FACES Face;
+    switch (iFace)
+    {
+        case 0: Face = D3DCUBEMAP_FACE_POSITIVE_X; break;
+        case 1: Face = D3DCUBEMAP_FACE_NEGATIVE_X; break;
+        case 2: Face = D3DCUBEMAP_FACE_POSITIVE_Y; break;
+        case 3: Face = D3DCUBEMAP_FACE_NEGATIVE_Y; break;
+        case 4: Face = D3DCUBEMAP_FACE_POSITIVE_Z; break;
+        default:
+        case 5: Face = D3DCUBEMAP_FACE_NEGATIVE_Z; break;
+    }
+    return Face;
+}
 
 IDirect3DTexture9 *D3D9GetTexture(PVMSVGA3DSURFACE pSurface,
                                   D3D9TextureType enmType)
@@ -909,9 +935,9 @@ HRESULT D3D9Conversion::setConversionState(IDirect3DTexture9 *pSourceTexture,
      * https://docs.microsoft.com/en-us/windows/win32/direct3d9/directly-mapping-texels-to-pixels
      */
     float const xLeft   = -0.5f;
-    float const xRight  = (cWidth - 1) - 0.5f;
+    float const xRight  = (float)(cWidth - 1) - 0.5f;
     float const yTop    = -0.5f;
-    float const yBottom = (cHeight - 1) - 0.5f;
+    float const yBottom = (float)(cHeight - 1) - 0.5f;
 
     Vertex const aVertices[] =
     {

@@ -13,15 +13,21 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stddef.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <errno.h>
+#include <wchar.h>
 #include <ipxe/vsprintf.h>
 
 /** @file */
@@ -165,7 +171,7 @@ static char * format_decimal ( char *end, signed long num, int width,
  * Call's the printf_context::handler() method and increments
  * printf_context::len.
  */
-static inline void cputchar ( struct printf_context *ctx, unsigned int c ) {
+static inline void cputchar ( struct printf_context *ctx, unsigned char c ) {
 	ctx->handler ( ctx, c );
 	++ctx->len;
 }
@@ -185,6 +191,7 @@ size_t vcprintf ( struct printf_context *ctx, const char *fmt, va_list args ) {
 	char *ptr;
 	char tmp_buf[32]; /* 32 is enough for all numerical formats.
 			   * Insane width fields could overflow this buffer. */
+	wchar_t *wptr;
 
 	/* Initialise context */
 	ctx->len = 0;
@@ -234,12 +241,29 @@ size_t vcprintf ( struct printf_context *ctx, const char *fmt, va_list args ) {
 		/* Process conversion specifier */
 		ptr = tmp_buf + sizeof ( tmp_buf ) - 1;
 		*ptr = '\0';
+		wptr = NULL;
 		if ( *fmt == 'c' ) {
-			cputchar ( ctx, va_arg ( args, unsigned int ) );
+			if ( length < &type_sizes[LONG_LEN] ) {
+				cputchar ( ctx, va_arg ( args, unsigned int ) );
+			} else {
+				wchar_t wc;
+				size_t len;
+
+				wc = va_arg ( args, wint_t );
+				len = wcrtomb ( tmp_buf, wc, NULL );
+				tmp_buf[len] = '\0';
+				ptr = tmp_buf;
+			}
 		} else if ( *fmt == 's' ) {
-			ptr = va_arg ( args, char * );
-			if ( ! ptr )
-				ptr = "<NULL>";
+			if ( length < &type_sizes[LONG_LEN] ) {
+				ptr = va_arg ( args, char * );
+				if ( ! ptr )
+					ptr = "<NULL>";
+			} else {
+				wptr = va_arg ( args, wchar_t * );
+				if ( ! wptr )
+					ptr = "<NULL>";
+			}
 		} else if ( *fmt == 'p' ) {
 			intptr_t ptrval;
 
@@ -271,8 +295,17 @@ size_t vcprintf ( struct printf_context *ctx, const char *fmt, va_list args ) {
 			*(--ptr) = *fmt;
 		}
 		/* Write out conversion result */
-		for ( ; *ptr ; ptr++ ) {
-			cputchar ( ctx, *ptr );
+		if ( wptr == NULL ) {
+			for ( ; *ptr ; ptr++ ) {
+				cputchar ( ctx, *ptr );
+			}
+		} else {
+			for ( ; *wptr ; wptr++ ) {
+				size_t len = wcrtomb ( tmp_buf, *wptr, NULL );
+				for ( ptr = tmp_buf ; len-- ; ptr++ ) {
+					cputchar ( ctx, *ptr );
+				}
+			}
 		}
 	}
 

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -44,7 +54,7 @@ public:
 
 protected:
 
-    virtual void contextMenuEvent(QContextMenuEvent * event) /* override */;
+    virtual void contextMenuEvent(QContextMenuEvent * event) RT_OVERRIDE;
 
 private slots:
 
@@ -89,16 +99,18 @@ UIFileManagerLogPanel::UIFileManagerLogPanel(QWidget *pParent /* = 0 */)
     prepare();
 }
 
-void UIFileManagerLogPanel::appendLog(const QString &strLog, FileManagerLogType eLogType)
+void UIFileManagerLogPanel::appendLog(const QString &strLog, const QString &strMachineName, FileManagerLogType eLogType)
 {
     if (!m_pLogTextEdit)
         return;
-    QString strColorTag("<font color=\"Black\">");
+    QString strStartTag("<font color=\"Black\">");
+    QString strEndTag("</font>");
     if (eLogType == FileManagerLogType_Error)
     {
-        strColorTag = "<font color=\"Red\">";
+        strStartTag = "<b><font color=\"Red\">";
+        strEndTag = "</font></b>";
     }
-    QString strColoredLog = QString("%1 %2: %3 %4").arg(strColorTag).arg(QTime::currentTime().toString("hh:mm:ss")).arg(strLog).arg("</font>");
+    QString strColoredLog = QString("%1 %2: %3 %4 %5").arg(strStartTag).arg(QTime::currentTime().toString("hh:mm:ss:z")).arg(strMachineName).arg(strLog).arg(strEndTag);
     m_pLogTextEdit->append(strColoredLog);
 }
 

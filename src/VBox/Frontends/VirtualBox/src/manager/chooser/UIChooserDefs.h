@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_chooser_UIChooserDefs_h
@@ -28,23 +38,63 @@
 #include <iprt/cdefs.h>
 
 
-/** UIChooserItem types. */
-enum UIChooserItemType
+/** UIChooserNode types. */
+enum UIChooserNodeType
 {
-    UIChooserItemType_Any     = QGraphicsItem::UserType,
-    UIChooserItemType_Group,
-    UIChooserItemType_Global,
-    UIChooserItemType_Machine
+    UIChooserNodeType_Any     = QGraphicsItem::UserType,
+    UIChooserNodeType_Group,
+    UIChooserNodeType_Global,
+    UIChooserNodeType_Machine
+};
+
+
+/** UIChooserNodeGroup types. */
+enum UIChooserNodeGroupType
+{
+    UIChooserNodeGroupType_Invalid,
+    UIChooserNodeGroupType_Local,
+    UIChooserNodeGroupType_Provider,
+    UIChooserNodeGroupType_Profile
+};
+
+
+/** UIChooserNode extra-data prefix types. */
+enum UIChooserNodeDataPrefixType
+{
+    UIChooserNodeDataPrefixType_Global,
+    UIChooserNodeDataPrefixType_Machine,
+    UIChooserNodeDataPrefixType_Local,
+    UIChooserNodeDataPrefixType_Provider,
+    UIChooserNodeDataPrefixType_Profile
+};
+
+
+/** UIChooserNode extra-data option types. */
+enum UIChooserNodeDataOptionType
+{
+    UIChooserNodeDataOptionType_GlobalFavorite,
+    UIChooserNodeDataOptionType_GroupOpened
+};
+
+
+/** UIChooserNode extra-data value types. */
+enum UIChooserNodeDataValueType
+{
+    UIChooserNodeDataValueType_GlobalDefault
 };
 
 
 /** UIChooserItem search flags. */
 enum UIChooserItemSearchFlag
 {
-    UIChooserItemSearchFlag_Machine   = RT_BIT(0),
-    UIChooserItemSearchFlag_Global    = RT_BIT(1),
-    UIChooserItemSearchFlag_Group     = RT_BIT(2),
-    UIChooserItemSearchFlag_ExactName = RT_BIT(3)
+    UIChooserItemSearchFlag_Global        = RT_BIT(0),
+    UIChooserItemSearchFlag_Machine       = RT_BIT(1),
+    UIChooserItemSearchFlag_LocalGroup    = RT_BIT(2),
+    UIChooserItemSearchFlag_CloudProvider = RT_BIT(3),
+    UIChooserItemSearchFlag_CloudProfile  = RT_BIT(4),
+    UIChooserItemSearchFlag_ExactId       = RT_BIT(5),
+    UIChooserItemSearchFlag_ExactName     = RT_BIT(6),
+    UIChooserItemSearchFlag_FullName      = RT_BIT(7),
 };
 
 
@@ -55,6 +105,7 @@ enum UIChooserItemDragToken
     UIChooserItemDragToken_Up,
     UIChooserItemDragToken_Down
 };
+
 
 /** UIChooserItemMachine enumeration flags. */
 enum UIChooserItemMachineEnumerationFlag

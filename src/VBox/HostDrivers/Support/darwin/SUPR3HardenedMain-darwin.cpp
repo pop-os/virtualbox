@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -40,6 +50,7 @@
 #include <sys/sysctl.h> /* sysctlbyname() */
 #include <stdio.h>
 #include <stdint.h>
+#include <unistd.h> /* issetugid() */
 #include <mach-o/dyld.h>
 
 #include "SUPLibInternal.h"
@@ -70,28 +81,31 @@ typedef DYLDINTERPOSE *PDYLDINTERPOSE;
 typedef const DYLDINTERPOSE *PCDYLDINTERPOSE;
 
 /** @sa dyld_dynamic_interpose(). */
-typedef const mach_header * FNDYLDDYNAMICINTERPOSE(const struct mach_header* mh, PCDYLDINTERPOSE paSym, size_t cSyms);
+typedef const mach_header *FNDYLDDYNAMICINTERPOSE(const struct mach_header *mh, PCDYLDINTERPOSE paSym, size_t cSyms);
+/** Pointer to dyld_dynamic_interpose. */
 typedef FNDYLDDYNAMICINTERPOSE *PFNDYLDDYNAMICINTERPOSE;
 
 /** @sa dlopen(). */
 typedef void *FNDLOPEN(const char *path, int mode);
+/** Pointer to dlopen. */
 typedef FNDLOPEN *PFNDLOPEN;
 
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
+extern "C" void _dyld_register_func_for_add_image(void (*func)(const struct mach_header *mh, intptr_t vmaddr_slide));
 
-extern "C" void _dyld_register_func_for_add_image(void (*func)(const struct mach_header* mh, intptr_t vmaddr_slide));
-
-static void * supR3HardenedDarwinDlopenInterpose(const char *path, int mode);
+static void *supR3HardenedDarwinDlopenInterpose(const char *path, int mode);
+static int supR3HardenedDarwinIssetugidInterpose(void);
 
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-/** Flag whether macOS 11.x (BigSur) was detected. */
-static bool                    g_fMacOs11 = false;
+/** Flag whether macOS 11.x (BigSur) or later was detected.
+ * See comments in supR3HardenedDarwinDlopenInterpose for details. */
+static bool                    g_fMacOs11Plus = false;
 /** Resolved dyld_dynamic_interpose() value. */
 static PFNDYLDDYNAMICINTERPOSE g_pfnDyldDynamicInterpose = NULL;
 /** Pointer to the real dlopen() function used from the interposer when verification succeeded. */
@@ -101,7 +115,8 @@ static PFNDLOPEN               g_pfnDlopenReal = NULL;
  */
 static const DYLDINTERPOSE     g_aInterposers[] =
 {
-    { (const void *)(uintptr_t)&supR3HardenedDarwinDlopenInterpose, (const void *)(uintptr_t)&dlopen }
+    { (const void *)(uintptr_t)&supR3HardenedDarwinDlopenInterpose,    (const void *)(uintptr_t)&dlopen    },
+    { (const void *)(uintptr_t)&supR3HardenedDarwinIssetugidInterpose, (const void *)(uintptr_t)&issetugid }
 };
 
 
@@ -110,7 +125,7 @@ static const DYLDINTERPOSE     g_aInterposers[] =
  *
  * @sa dlopen() man page.
  */
-static void * supR3HardenedDarwinDlopenInterpose(const char *path, int mode)
+static void *supR3HardenedDarwinDlopenInterpose(const char *path, int mode)
 {
     /*
      * Giving NULL as the filename indicates opening the main program which is fine
@@ -133,7 +148,7 @@ static void * supR3HardenedDarwinDlopenInterpose(const char *path, int mode)
          * The obvious solution is to exclude paths starting with /System/Libraries
          * when we run on BigSur. Other paths are still subject to verification.
          */
-        if (   !g_fMacOs11
+        if (   !g_fMacOs11Plus
             || strncmp(path, RT_STR_TUPLE("/System/Library")))
             rc = supR3HardenedVerifyFileFollowSymlinks(path, RTHCUINTPTR_MAX, true /* fMaybe3rdParty */,
                                                        NULL /* pErrInfo */);
@@ -146,17 +161,48 @@ static void * supR3HardenedDarwinDlopenInterpose(const char *path, int mode)
 
 
 /**
+ * Override this one to try hide the fact that we're setuid to root orginially.
+ *
+ * @sa issetugid() man page.
+ *
+ * Mac OS X: Really ugly hack to bypass a set-uid check in AppKit.
+ *
+ * This will modify the issetugid() function to always return zero.  This must
+ * be done _before_ AppKit is initialized, otherwise it will refuse to play ball
+ * with us as it distrusts set-uid processes since Snow Leopard.  We, however,
+ * have carefully dropped all root privileges at this point and there should be
+ * no reason for any security concern here.
+ */
+static int supR3HardenedDarwinIssetugidInterpose(void)
+{
+#ifdef DEBUG
+    Dl_info Info = {0};
+    char szMsg[512];
+    size_t cchMsg;
+    const void * uCaller = __builtin_return_address(0);
+    if (dladdr(uCaller, &Info))
+        cchMsg = snprintf(szMsg, sizeof(szMsg), "DEBUG: issetugid_for_AppKit was called by %p %s::%s+%p (via %p)\n",
+                          uCaller, Info.dli_fname, Info.dli_sname, (void *)((uintptr_t)uCaller - (uintptr_t)Info.dli_saddr), __builtin_return_address(1));
+    else
+        cchMsg = snprintf(szMsg, sizeof(szMsg), "DEBUG: issetugid_for_AppKit was called by %p (via %p)\n", uCaller, __builtin_return_address(1));
+    write(2, szMsg, cchMsg);
+#endif
+    return 0;
+}
+
+
+/**
  * Callback to get notified of new images being loaded to be able to apply our dlopn() interposer.
  *
  * @returns nothing.
  * @param   mh              Pointer to the mach header of the loaded image.
  * @param   vmaddr_slide    The slide value for ASLR.
  */
-static DECLCALLBACK(void) supR3HardenedDarwinAddImage(const struct mach_header* mh, intptr_t vmaddr_slide)
+static DECLCALLBACK(void) supR3HardenedDarwinAddImage(const struct mach_header *mh, intptr_t vmaddr_slide)
 {
     RT_NOREF(vmaddr_slide);
 
-    g_pfnDyldDynamicInterpose((const struct mach_header*)mh, &g_aInterposers[0], RT_ELEMENTS(g_aInterposers));
+    g_pfnDyldDynamicInterpose(mh, &g_aInterposers[0], RT_ELEMENTS(g_aInterposers));
 }
 
 
@@ -177,8 +223,8 @@ DECLHIDDEN(void) supR3HardenedDarwinInit(void)
     size_t cbVers = sizeof(szVers);
     int rc = sysctlbyname("kern.osproductversion", &szVers[0], &cbVers, NULL, 0);
     if (   !rc
-        && !memcmp(&szVers[0], RT_STR_TUPLE("10.16")))
-        g_fMacOs11 = true;
+        && memcmp(&szVers[0], RT_STR_TUPLE("10.16")) >= 0)
+        g_fMacOs11Plus = true;
 
     /* Saved to call real dlopen() later on, as we will interpose dlopen() from the main binary in the next step as well. */
     g_pfnDlopenReal = (PFNDLOPEN)dlsym(RTLD_DEFAULT, "dlopen");

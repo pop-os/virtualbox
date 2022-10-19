@@ -4,31 +4,38 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
 #include <QMouseEvent>
 #include <QTimer>
 #include <QTouchEvent>
-#ifdef VBOX_WS_X11
-# include <QX11Info>
-#endif
 
 /* GUI includes: */
-#include "UICommon.h"
+#include "UICursor.h"
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
-#include "UIPopupCenter.h"
+#include "UINotificationCenter.h"
 #include "UISession.h"
 #include "UIMachineLogic.h"
 #include "UIMachineWindow.h"
@@ -43,6 +50,9 @@
 #ifdef VBOX_WS_WIN
 # include "VBoxUtils-win.h"
 #endif
+#ifdef VBOX_WS_X11
+# include "VBoxUtils-x11.h"
+#endif
 
 /* COM includes: */
 #include "CDisplay.h"
@@ -50,12 +60,6 @@
 
 /* Other VBox includes: */
 #include <iprt/time.h>
-
-/* External includes: */
-#ifdef VBOX_WS_X11
-#include "VBoxX11Helper.h"
-# include <xcb/xcb.h>
-#endif
 
 
 /* Factory function to create mouse-handler: */
@@ -128,10 +132,7 @@ void UIMouseHandler::cleanupListener(ulong uIndex)
 {
     /* Check if we should release mouse first: */
     if ((int)uIndex == m_iMouseCaptureViewIndex)
-    {
-        LogRel(("GUI: Releasing mouse on cleanup\n"));
         releaseMouse();
-    }
 
     /* If that window still registered: */
     if (m_windows.contains(uIndex))
@@ -344,7 +345,7 @@ bool UIMouseHandler::nativeEventFilter(void *pMessage, ulong uScreenId)
                   *       handler to avoid avoidable races if the event was not for us. */
                 machineLogic()->keyboardHandler()->captureKeyboard(uScreenId);
                 /* Re-send the event so that the window which it was meant for gets it: */
-                xcb_allow_events_checked(QX11Info::connection(), XCB_ALLOW_REPLAY_POINTER, pButtonEvent->time);
+                xcb_allow_events_checked(NativeWindowSubsystem::X11GetConnection(), XCB_ALLOW_REPLAY_POINTER, pButtonEvent->time);
                 /* Do not let Qt see the event: */
                 return true;
             }
@@ -376,7 +377,6 @@ void UIMouseHandler::sltMachineStateChanged()
         case KMachineState_Stuck:
         {
             /* Release the mouse: */
-            LogRel(("GUI: Releasing mouse on pause/stuck\n"));
             releaseMouse();
             break;
         }
@@ -389,7 +389,7 @@ void UIMouseHandler::sltMachineStateChanged()
     if (machineLogic()->activeMachineWindow() &&
         machineState != KMachineState_Paused &&
         machineState != KMachineState_TeleportingPausedVM)
-        popupCenter().forgetAboutPausedVMInput(machineLogic()->activeMachineWindow());
+        UINotificationMessage::forgetAboutPausedVMInput();
 
     /* Notify all the listeners: */
     emit sigStateChange(state());
@@ -402,7 +402,6 @@ void UIMouseHandler::sltMouseCapabilityChanged()
     if (uisession()->isMouseSupportsAbsolute() && uisession()->isMouseIntegrated())
     {
         /* Release the mouse: */
-        LogRel(("GUI: Releasing mouse on capabilities lost\n"));
         releaseMouse();
         /* Also we should switch guest mouse to the absolute mode: */
         mouse().PutMouseEventAbsolute(-1, -1, 0, 0, 0);
@@ -438,14 +437,13 @@ void UIMouseHandler::sltMouseCapabilityChanged()
     }
 #endif
 
-    /* Notify user about mouse supports or not absolute pointing if that method was called by signal: */
+    /* Notify user whether mouse supports absolute pointing
+     * if that method was called by corresponding signal: */
     if (sender())
     {
-        /* don't annoy the user while restoring a VM */
-        KMachineState state = uisession()->machineState();
-        if (state != KMachineState_Restoring)
-            popupCenter().remindAboutMouseIntegration(uisession()->machineLogic()->activeMachineWindow(),
-                                                      uisession()->isMouseSupportsAbsolute());
+        /* Do not annoy user while restoring VM: */
+        if (uisession()->machineState() != KMachineState_Restoring)
+            UINotificationMessage::remindAboutMouseIntegration(uisession()->isMouseSupportsAbsolute());
     }
 
     /* Notify all the listeners: */
@@ -467,7 +465,7 @@ void UIMouseHandler::sltMousePointerShapeChanged()
     {
         QList<ulong> screenIds = m_viewports.keys();
         for (int i = 0; i < screenIds.size(); ++i)
-            UICommon::setCursor(m_viewports[screenIds[i]], Qt::BlankCursor);
+            UICursor::setCursor(m_viewports[screenIds[i]], Qt::BlankCursor);
     }
 
     else
@@ -481,7 +479,7 @@ void UIMouseHandler::sltMousePointerShapeChanged()
     {
         QList<ulong> screenIds = m_viewports.keys();
         for (int i = 0; i < screenIds.size(); ++i)
-            UICommon::setCursor(m_viewports[screenIds[i]], m_views[screenIds[i]]->cursor());
+            UICursor::setCursor(m_viewports[screenIds[i]], m_views[screenIds[i]]->cursor());
     }
 
     else
@@ -494,7 +492,7 @@ void UIMouseHandler::sltMousePointerShapeChanged()
     {
         QList<ulong> screenIds = m_viewports.keys();
         for (int i = 0; i < screenIds.size(); ++i)
-            UICommon::unsetCursor(m_viewports[screenIds[i]]);
+            UICursor::unsetCursor(m_viewports[screenIds[i]]);
     }
 }
 
@@ -608,7 +606,6 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                     case QEvent::FocusOut:
                     {
                         /* Release the mouse: */
-                        LogRel(("GUI: Releasing mouse on focus out\n"));
                         releaseMouse();
                         break;
                     }
@@ -758,7 +755,7 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                 case QEvent::TouchUpdate:
                 case QEvent::TouchEnd:
                 {
-                    if (uisession()->isMouseSupportsMultiTouch())
+                    if (uisession()->isMouseSupportsTouchScreen() || uisession()->isMouseSupportsTouchPad())
                         return multiTouchEvent(static_cast<QTouchEvent*>(pEvent), uScreenId);
                     break;
                 }
@@ -770,7 +767,14 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                      * over the speed acceleration & enables such devices to send a valid wheel event to our
                      * guest mouse device at all: */
                     int iDelta = 0;
+#ifdef VBOX_IS_QT6_OR_LATER
+                    Qt::Orientation const enmOrientation = RT_ABS(pWheelEvent->pixelDelta().x())
+                                                         > RT_ABS(pWheelEvent->pixelDelta().y()) ? Qt::Horizontal : Qt::Vertical;
+                    m_iLastMouseWheelDelta += enmOrientation == Qt::Horizontal
+                                            ? pWheelEvent->pixelDelta().x() : pWheelEvent->pixelDelta().y();
+#else
                     m_iLastMouseWheelDelta += pWheelEvent->delta();
+#endif
                     if (qAbs(m_iLastMouseWheelDelta) >= 120)
                     {
                         /* Rounding iDelta to the nearest multiple of 120: */
@@ -779,7 +783,11 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         m_iLastMouseWheelDelta = m_iLastMouseWheelDelta % 120;
                     }
                     if (mouseEvent(pWheelEvent->type(), uScreenId,
+#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: ... */
+                                   pWheelEvent->position().toPoint(), pWheelEvent->globalPosition().toPoint(),
+#else
                                    pWheelEvent->pos(), pWheelEvent->globalPos(),
+#endif
 #ifdef VBOX_WS_MAC
                                    /* Qt Cocoa is buggy. It always reports a left button pressed when the
                                     * mouse wheel event occurs. A workaround is to ask the application which
@@ -788,7 +796,13 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
 #else /* !VBOX_WS_MAC */
                                    pWheelEvent->buttons(),
 #endif /* !VBOX_WS_MAC */
-                                   iDelta, pWheelEvent->orientation()))
+                                   iDelta,
+#ifdef VBOX_IS_QT6_OR_LATER
+                                   enmOrientation)
+#else
+                                   pWheelEvent->orientation())
+#endif
+                                   )
                         return true;
                     break;
                 }
@@ -907,7 +921,8 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                                 int wheelDelta, Qt::Orientation wheelDirection)
 {
     /* Ignore fake mouse events. */
-    if (uisession()->isMouseSupportsMultiTouch() && mouseIsTouchSource(iEventType, mouseButtons))
+    if (   (uisession()->isMouseSupportsTouchScreen() || uisession()->isMouseSupportsTouchPad())
+        && mouseIsTouchSource(iEventType, mouseButtons))
         return true;
 
     /* Check if machine is still running: */
@@ -923,7 +938,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
         iMouseButtonsState |= KMouseButtonState_LeftButton;
     if (mouseButtons & Qt::RightButton)
         iMouseButtonsState |= KMouseButtonState_RightButton;
-    if (mouseButtons & Qt::MidButton)
+    if (mouseButtons & Qt::MiddleButton)
         iMouseButtonsState |= KMouseButtonState_MiddleButton;
     if (mouseButtons & Qt::XButton1)
         iMouseButtonsState |= KMouseButtonState_XButton1;
@@ -1144,9 +1159,7 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
             if (m_views[uScreenId]->hasFocus() && (iEventType == QEvent::MouseButtonRelease && mouseButtons == Qt::NoButton))
             {
                 if (uisession()->isPaused())
-                {
-                    popupCenter().remindAboutPausedVMInput(machineLogic()->activeMachineWindow());
-                }
+                    UINotificationMessage::remindAboutPausedVMInput();
                 else if (uisession()->isRunning())
                 {
                     /* Temporarily disable auto capture that will take place after this dialog is dismissed because
@@ -1165,7 +1178,6 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                          * otherwise the mouse is immediately ungrabbed again: */
                         qApp->processEvents();
 #endif /* VBOX_WS_X11 */
-                        LogRel(("GUI: Capturing keyboard/mouse on mouse click\n"));
                         machineLogic()->keyboardHandler()->captureKeyboard(uScreenId);
                         const MouseCapturePolicy mcp = gEDataManager->mouseCapturePolicy(uiCommon().managedVMUuid());
                         if (mcp == MouseCapturePolicy_Default)
@@ -1192,17 +1204,27 @@ bool UIMouseHandler::multiTouchEvent(QTouchEvent *pTouchEvent, ulong uScreenId)
     QVector<LONG64> contacts(pTouchEvent->touchPoints().size());
 
     LONG xShift = 0, yShift = 0;
-    ULONG dummy;
-    KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
-    display().GetScreenResolution(uScreenId, dummy, dummy, dummy, xShift, yShift, monitorStatus);
+
+#ifdef VBOX_IS_QT6_OR_LATER
+    bool fTouchScreen = (pTouchEvent->device()->type() == QInputDevice::DeviceType::TouchScreen);
+#else
+    bool fTouchScreen = (pTouchEvent->device()->type() == QTouchDevice::TouchScreen);
+#endif
+    /* Compatibility with previous behavior. If there is no touchpad configured
+     * then treat all multitouch events as touchscreen ones: */
+    fTouchScreen |= !uisession()->isMouseSupportsTouchPad();
+
+    if (fTouchScreen)
+    {
+        ULONG dummy;
+        KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
+        display().GetScreenResolution(uScreenId, dummy, dummy, dummy, xShift, yShift, monitorStatus);
+    }
 
     /* Pass all multi-touch events into guest: */
     int iTouchPointIndex = 0;
     foreach (const QTouchEvent::TouchPoint &touchPoint, pTouchEvent->touchPoints())
     {
-        /* Get touch-point origin: */
-        QPoint currentTouchPoint = touchPoint.pos().toPoint();
-
         /* Get touch-point state: */
         LONG iTouchPointState = KTouchContactState_None;
         switch (touchPoint.state())
@@ -1210,20 +1232,41 @@ bool UIMouseHandler::multiTouchEvent(QTouchEvent *pTouchEvent, ulong uScreenId)
             case Qt::TouchPointPressed:
             case Qt::TouchPointMoved:
             case Qt::TouchPointStationary:
-                iTouchPointState = KTouchContactState_InContact | KTouchContactState_InRange;
+                iTouchPointState = KTouchContactState_InContact;
+                if (fTouchScreen)
+                    iTouchPointState |= KTouchContactState_InRange;
                 break;
             default:
                 break;
         }
 
-        /* Pass absolute touch-point data: */
-        LogRelFlow(("UIMouseHandler::multiTouchEvent: Origin: %dx%d, Id: %d, State: %d\n",
-                    currentTouchPoint.x(), currentTouchPoint.y(), touchPoint.id(), iTouchPointState));
+        if (fTouchScreen)
+        {
+            /* Get absolute touch-point origin: */
+            QPoint currentTouchPoint = touchPoint.pos().toPoint();
 
-        contacts[iTouchPointIndex] = RT_MAKE_U64_FROM_U16((uint16_t)currentTouchPoint.x() + 1 + xShift,
-                                                          (uint16_t)currentTouchPoint.y() + 1 + yShift,
-                                                          RT_MAKE_U16(touchPoint.id(), iTouchPointState),
-                                                          0);
+            /* Pass absolute touch-point data: */
+            LogRelFlow(("UIMouseHandler::multiTouchEvent: TouchScreen, Origin: %dx%d, Id: %d, State: %d\n",
+                        currentTouchPoint.x(), currentTouchPoint.y(), touchPoint.id(), iTouchPointState));
+
+            contacts[iTouchPointIndex] = RT_MAKE_U64_FROM_U16((uint16_t)currentTouchPoint.x() + 1 + xShift,
+                                                              (uint16_t)currentTouchPoint.y() + 1 + yShift,
+                                                              RT_MAKE_U16(touchPoint.id(), iTouchPointState),
+                                                              0);
+        } else {
+            /* Get relative touch-point normalized position: */
+            QPointF rawTouchPoint = touchPoint.normalizedPos();
+
+            /* Pass relative touch-point data as Normalized Integer: */
+            uint16_t xNorm = rawTouchPoint.x() * 0xffff;
+            uint16_t yNorm = rawTouchPoint.y() * 0xffff;
+            LogRelFlow(("UIMouseHandler::multiTouchEvent: TouchPad, Normalized Position: %ux%u, Id: %d, State: %d\n",
+                        xNorm, yNorm, touchPoint.id(), iTouchPointState));
+
+            contacts[iTouchPointIndex] = RT_MAKE_U64_FROM_U16(xNorm, yNorm,
+                                                              RT_MAKE_U16(touchPoint.id(), iTouchPointState),
+                                                              0);
+        }
 
         LogRelFlow(("UIMouseHandler::multiTouchEvent: %RX64\n", contacts[iTouchPointIndex]));
 
@@ -1232,6 +1275,7 @@ bool UIMouseHandler::multiTouchEvent(QTouchEvent *pTouchEvent, ulong uScreenId)
 
     mouse().PutEventMultiTouch(pTouchEvent->touchPoints().size(),
                                contacts,
+                               fTouchScreen,
                                (ULONG)RTTimeMilliTS());
 
     /* Eat by default? */

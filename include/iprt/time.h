@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_time_h
@@ -653,6 +663,47 @@ RTDECL(char *) RTTimeSpecToString(PCRTTIMESPEC pTime, char *psz, size_t cb);
  */
 RTDECL(PRTTIMESPEC) RTTimeSpecFromString(PRTTIMESPEC pTime, const char *pszString);
 
+/**
+ * Formats duration as best we can according to ISO-8601, with no fraction.
+ *
+ * See RTTimeFormatDurationEx for details.
+ *
+ * @returns Number of characters in the output on success. VERR_BUFFER_OVEFLOW
+ *          on failure.
+ * @param   pszDst          Pointer to the output buffer.  In case of overflow,
+ *                          the max number of characters will be written and
+ *                          zero terminated, provided @a cbDst isn't zero.
+ * @param   cbDst           The size of the output buffer.
+ * @param   pDuration       The duration to format.
+ */
+RTDECL(int) RTTimeFormatDuration(char *pszDst, size_t cbDst, PCRTTIMESPEC pDuration);
+
+/**
+ * Formats duration as best we can according to ISO-8601.
+ *
+ * The returned value is on the form "[-]PnnnnnWnDTnnHnnMnn.fffffffffS", where a
+ * sequence of 'n' can be between 1 and the given lenght, and all but the
+ * "nn.fffffffffS" part is optional and will only be outputted when the duration
+ * is sufficiently large.  The code currently does not omit any inbetween
+ * elements other than the day count (D), so an exactly 7 day duration is
+ * formatted as "P1WT0H0M0.000000000S" when @a cFractionDigits is 9.
+ *
+ * @returns Number of characters in the output on success. VERR_BUFFER_OVEFLOW
+ *          on failure.
+ * @retval  VERR_OUT_OF_RANGE if @a cFractionDigits is too large.
+ * @param   pszDst          Pointer to the output buffer.  In case of overflow,
+ *                          the max number of characters will be written and
+ *                          zero terminated, provided @a cbDst isn't zero.
+ * @param   cbDst           The size of the output buffer.
+ * @param   pDuration       The duration to format.
+ * @param   cFractionDigits Number of digits in the second fraction part. Zero
+ *                          for whole no fraction. Max is 9 (nano seconds).
+ */
+RTDECL(ssize_t) RTTimeFormatDurationEx(char *pszDst, size_t cbDst, PCRTTIMESPEC pDuration, uint32_t cFractionDigits);
+
+/** Max length of a RTTimeFormatDurationEx output string. */
+#define RTTIME_DURATION_STR_LEN     (sizeof("-P99999W7D23H59M59.123456789S") + 2)
+
 /** @} */
 
 
@@ -682,7 +733,7 @@ typedef struct RTTIME
     uint32_t    u32Nanosecond;
     /** Flags, of the RTTIME_FLAGS_* \#defines. */
     uint32_t    fFlags;
-    /** UCT time offset in minutes (-840-840).  Positive for timezones east of
+    /** UTC time offset in minutes (-840-840).  Positive for timezones east of
      * UTC, negative for zones to the west.  Same as what RTTimeLocalDeltaNano
      * & RTTimeLocalDeltaNanoFor returns, just different unit. */
     int32_t     offUTC;
@@ -990,8 +1041,22 @@ RTDECL(uint32_t) RTTimeDbgBad(void);
  */
 RTDECL(uint32_t) RTTimeDbgRaces(void);
 
+
+RTDECL(const char *) RTTimeNanoTSWorkerName(void);
+
+
 /** @name RTTimeNanoTS GIP worker functions, for TM.
  * @{ */
+
+/** Extra info optionally returned by the RTTimeNanoTS GIP workers. */
+typedef struct RTITMENANOTSEXTRA
+{
+    /** The TSC value used (delta adjusted). */
+    uint64_t    uTSCValue;
+} RTITMENANOTSEXTRA;
+/** Pointer to extra info optionally returned by the RTTimeNanoTS GIP workers. */
+typedef RTITMENANOTSEXTRA *PRTITMENANOTSEXTRA;
+
 /** Pointer to a RTTIMENANOTSDATA structure. */
 typedef struct RTTIMENANOTSDATA *PRTTIMENANOTSDATA;
 
@@ -1017,28 +1082,31 @@ typedef struct RTTIMENANOTSDATA
      * @param   u64DeltaPrev    The delta relative to the previously returned timestamp.
      * @param   u64PrevNanoTS   The previously returned timestamp (as it was read it).
      */
-    DECLCALLBACKMEMBER(void, pfnBad)(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS);
+    DECLCALLBACKMEMBER(void, pfnBad,(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS));
 
     /**
      * Callback for when rediscovery is required.
      *
      * @returns Nanosecond timestamp.
      * @param   pData           Pointer to this structure.
+     * @param   pExtra          Where to return extra time info. Optional.
      */
-    DECLCALLBACKMEMBER(uint64_t, pfnRediscover)(PRTTIMENANOTSDATA pData);
+    DECLCALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra));
 
     /**
      * Callback for when some CPU index related stuff goes wrong.
      *
      * @returns Nanosecond timestamp.
      * @param   pData           Pointer to this structure.
+     * @param   pExtra          Where to return extra time info. Optional.
      * @param   idApic          The APIC ID if available, otherwise (UINT16_MAX-1).
      * @param   iCpuSet         The CPU set index if available, otherwise
      *                          (UINT16_MAX-1).
      * @param   iGipCpu         The GIP CPU array index if available, otherwise
      *                          (UINT16_MAX-1).
      */
-    DECLCALLBACKMEMBER(uint64_t, pfnBadCpuIndex)(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu);
+    DECLCALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra,
+                                                 uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
 
     /** Number of 1ns steps because of overshooting the period. */
     uint32_t            c1nsSteps;
@@ -1058,8 +1126,9 @@ typedef struct RTTIMENANOTSDATAR3
 {
     R3PTRTYPE(uint64_t volatile  *) pu64Prev;
     DECLR3CALLBACKMEMBER(void, pfnBad,(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS));
-    DECLR3CALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData));
-    DECLR3CALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
+    DECLR3CALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra));
+    DECLR3CALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra,
+                                                   uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
     uint32_t            c1nsSteps;
     uint32_t            cExpired;
     uint32_t            cBadPrev;
@@ -1077,8 +1146,9 @@ typedef struct RTTIMENANOTSDATAR0
 {
     R0PTRTYPE(uint64_t volatile  *) pu64Prev;
     DECLR0CALLBACKMEMBER(void, pfnBad,(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS));
-    DECLR0CALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData));
-    DECLR0CALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
+    DECLR0CALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra));
+    DECLR0CALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra,
+                                                   uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
     uint32_t            c1nsSteps;
     uint32_t            cExpired;
     uint32_t            cBadPrev;
@@ -1096,8 +1166,9 @@ typedef struct RTTIMENANOTSDATARC
 {
     RCPTRTYPE(uint64_t volatile  *) pu64Prev;
     DECLRCCALLBACKMEMBER(void, pfnBad,(PRTTIMENANOTSDATA pData, uint64_t u64NanoTS, uint64_t u64DeltaPrev, uint64_t u64PrevNanoTS));
-    DECLRCCALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData));
-    DECLRCCALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
+    DECLRCCALLBACKMEMBER(uint64_t, pfnRediscover,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra));
+    DECLRCCALLBACKMEMBER(uint64_t, pfnBadCpuIndex,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra,
+                                                   uint16_t idApic, uint16_t iCpuSet, uint16_t iGipCpu));
     uint32_t            c1nsSteps;
     uint32_t            cExpired;
     uint32_t            cBadPrev;
@@ -1108,39 +1179,39 @@ typedef RTTIMENANOTSDATA RTTIMENANOTSDATARC;
 #endif
 
 /** Internal RTTimeNanoTS worker (assembly). */
-typedef DECLCALLBACK(uint64_t) FNTIMENANOTSINTERNAL(PRTTIMENANOTSDATA pData);
+typedef DECLCALLBACKTYPE(uint64_t, FNTIMENANOTSINTERNAL,(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra));
 /** Pointer to an internal RTTimeNanoTS worker (assembly). */
 typedef FNTIMENANOTSINTERNAL *PFNTIMENANOTSINTERNAL;
-RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarNoDelta(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarNoDelta(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarNoDelta(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarNoDelta(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
 #ifdef IN_RING3
-RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicId(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicIdExt0B(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseRdtscp(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseRdtscpGroupChNumCl(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseIdtrLim(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt0B(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicId(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicIdExt0B(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseRdtscp(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseRdtscpGroupChNumCl(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseIdtrLim(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt0B(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt8000001E(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicId(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicIdExt0B(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseApicIdExt8000001E(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseRdtscp(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseRdtscpGroupChNumCl(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsyncUseIdtrLim(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt0B(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseApicIdExt8000001E(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicId(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicIdExt0B(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseApicIdExt8000001E(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseRdtscp(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseRdtscpGroupChNumCl(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsyncUseIdtrLim(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicId(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt0B(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseApicIdExt8000001E(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseRdtscp(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDeltaUseIdtrLim(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
 #else
-RTDECL(uint64_t) RTTimeNanoTSLegacyAsync(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDelta(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceAsync(PRTTIMENANOTSDATA pData);
-RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDelta(PRTTIMENANOTSDATA pData);
+RTDECL(uint64_t) RTTimeNanoTSLegacyAsync(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLegacySyncInvarWithDelta(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceAsync(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
+RTDECL(uint64_t) RTTimeNanoTSLFenceSyncInvarWithDelta(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra);
 #endif
 
 /** @} */

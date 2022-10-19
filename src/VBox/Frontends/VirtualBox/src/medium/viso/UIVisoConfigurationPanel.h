@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_medium_viso_UIVisoConfigurationPanel_h
@@ -29,7 +39,6 @@ class QComboBox;
 class QILabel;
 class QILineEdit;
 class QIToolButton;
-class UIVisoCreator;
 
 class UIVisoConfigurationPanel : public UIDialogPanel
 {
@@ -41,16 +50,15 @@ signals:
     void sigCustomVisoOptionsChanged(const QStringList &customVisoOptions);
 
 public:
-    UIVisoConfigurationPanel(UIVisoCreator *pCreator, QWidget *pParent = 0);
+    UIVisoConfigurationPanel(QWidget *pParent = 0);
     ~UIVisoConfigurationPanel();
-    virtual QString panelName() const /* override */;
+    virtual QString panelName() const RT_OVERRIDE;
     void setVisoName(const QString& strVisoName);
     void setVisoCustomOptions(const QStringList& visoCustomOptions);
 
 protected:
 
-    bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
-    void retranslateUi() /* override */;
+    void retranslateUi() RT_OVERRIDE;
 
 private slots:
 
@@ -63,9 +71,6 @@ private:
     void prepareConnections();
     void addCustomVisoOption();
     void emitCustomVisoOptions();
-
-    /** Holds the parent creator reference. */
-    UIVisoCreator *m_pCreator;
 
     QILabel      *m_pVisoNameLabel;
     QILabel      *m_pCustomOptionsLabel;

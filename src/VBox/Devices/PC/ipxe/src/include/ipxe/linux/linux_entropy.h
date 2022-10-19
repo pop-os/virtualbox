@@ -3,11 +3,11 @@
 
 /** @file
  *
- * iPXE entropy API for linux
+ * /dev/random-based entropy source
  *
  */
 
-FILE_LICENCE(GPL2_OR_LATER);
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #ifdef ENTROPY_LINUX
 #define ENTROPY_PREFIX_linux
@@ -20,13 +20,15 @@ FILE_LICENCE(GPL2_OR_LATER);
  *
  * @ret min_entropy	min-entropy of each sample
  */
-static inline __always_inline double
+static inline __always_inline min_entropy_t
 ENTROPY_INLINE ( linux, min_entropy_per_sample ) ( void ) {
 
-	/* We read single bytes from /dev/random and assume that each
-	 * contains full entropy.
+	/* linux_get_noise() reads a single byte from /dev/random,
+	 * which is supposed to block until a sufficient amount of
+	 * entropy is available.  We therefore assume that each sample
+	 * contains exactly 8 bits of entropy.
 	 */
-	return 8;
+	return MIN_ENTROPY ( 8.0 );
 }
 
 #endif /* _IPXE_LINUX_ENTROPY_H */

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_WebMWriter_h
@@ -21,15 +31,20 @@
 # pragma once
 #endif
 
+#include <iprt/buildconfig.h>
+#include <iprt/mem.h>
+#include <iprt/rand.h>
+#include <iprt/string.h>
+
+#include "VBox/com/VirtualBox.h"
+#include <VBox/version.h>
+
 #include "EBMLWriter.h"
 #include "EBML_MKV.h"
 
 #include <queue>
 #include <map>
 #include <list>
-
-#include <iprt/mem.h>
-#include <iprt/rand.h>
 
 #ifdef VBOX_WITH_LIBVPX
 # ifdef _MSC_VER
@@ -60,40 +75,40 @@
  *  With signed 16-bit timecodes and a default timecode scale of 1ms per unit this makes 65536ms. */
 #define VBOX_WEBM_BLOCK_MAX_LEN_MS          UINT16_MAX
 
-#ifdef VBOX_WITH_LIBOPUS
+#ifdef VBOX_WITH_LIBVORBIS
 # pragma pack(push)
 # pragma pack(1)
-    /** Opus codec private data within the MKV (WEBM) container.
-     *  Taken from: https://wiki.xiph.org/MatroskaOpus */
-    typedef struct WEBMOPUSPRIVDATA
+    /** Ogg Vorbis codec private data within the MKV (WEBM) container.
+     *  Taken from: https://www.matroska.org/technical/codec_specs.html */
+    typedef struct WEBMOGGVORBISPRIVDATA
     {
-        WEBMOPUSPRIVDATA(uint32_t a_u32SampleRate, uint8_t a_u8Channels)
+        WEBMOGGVORBISPRIVDATA(uint32_t a_cbHdrIdent, uint32_t a_cbHdrComments, uint32_t a_cbHdrSetup)
+            : cbHdrIdent(a_cbHdrIdent)
+            , cbHdrComments(a_cbHdrComments)
         {
-            au64Head        = RT_MAKE_U64_FROM_U8('O', 'p', 'u', 's', 'H', 'e', 'a', 'd');
-            u8Version       = 1;
-            u8Channels      = a_u8Channels;
-            u16PreSkip      = 0;
-            u32SampleRate   = a_u32SampleRate;
-            u16Gain         = 0;
-            u8MappingFamily = 0;
+            RT_NOREF(a_cbHdrSetup);
+
+            /* We supply 3 headers total: The "real" header, comments header + setup header. */
+            cHeaders = 3 /* Headers */ - 1; /* Note: Always "minus one" here. */
+
+            Assert(a_cbHdrIdent    <= UINT8_MAX);
+            Assert(a_cbHdrComments <= UINT8_MAX);
+            Assert(a_cbHdrSetup    <= _8K);
+            Assert(a_cbHdrIdent + a_cbHdrComments + a_cbHdrSetup <= sizeof(abHdr));
         }
 
-        uint64_t au64Head;          /**< Defaults to "OpusHead". */
-        uint8_t  u8Version;         /**< Must be set to 1. */
-        uint8_t  u8Channels;
-        uint16_t u16PreSkip;
-        /** Sample rate *before* encoding to Opus.
-         *  Note: This rate has nothing to do with the playback rate later! */
-        uint32_t u32SampleRate;
-        uint16_t u16Gain;
-        /** Must stay 0 -- otherwise a mapping table must be appended
-         *  right after this header. */
-        uint8_t  u8MappingFamily;
-    } WEBMOPUSPRIVDATA, *PWEBMOPUSPRIVDATA;
-    AssertCompileSize(WEBMOPUSPRIVDATA, 19);
-# pragma pack(pop)
-#endif /* VBOX_WITH_LIBOPUS */
+        /** Number of private headers - 1. */
+        uint8_t  cHeaders;
+        /** Size of identification header (in bytes). */
+        uint8_t  cbHdrIdent;
+        /** < Size of comments header (in bytes). */
+        uint8_t  cbHdrComments;
+        /** < Header code area. */
+        uint8_t  abHdr[UINT8_MAX /* Header */ + UINT8_MAX /* Comments header */ + _8K /* Setup header */];
 
+    } WEBMOGGVORBISPRIVDATA, *PWEBMOGGVORBISPRIVDATA;
+# pragma pack(pop)
+#endif
 
 class WebMWriter : public EBMLWriter
 {
@@ -108,28 +123,6 @@ public:
 
     /** Defines the WebM block flags data type. */
     typedef uint8_t  WebMBlockFlags;
-
-    /**
-     * Supported audio codecs.
-     */
-    enum AudioCodec
-    {
-        /** No audio codec specified. */
-        AudioCodec_None = 0,
-        /** Opus. */
-        AudioCodec_Opus = 1
-    };
-
-    /**
-     * Supported video codecs.
-     */
-    enum VideoCodec
-    {
-        /** No video codec specified. */
-        VideoCodec_None = 0,
-        /** VP8. */
-        VideoCodec_VP8  = 1
-    };
 
     /**
      * Track type enumeration.
@@ -248,8 +241,9 @@ public:
      */
     struct WebMTrack
     {
-        WebMTrack(WebMTrackType a_enmType, uint8_t a_uTrack, uint64_t a_offID)
+        WebMTrack(WebMTrackType a_enmType, PRECORDINGCODEC pTheCodec, uint8_t a_uTrack, uint64_t a_offID)
             : enmType(a_enmType)
+            , pCodec(pTheCodec)
             , uTrack(a_uTrack)
             , offUUID(a_offID)
             , cTotalBlocks(0)
@@ -259,7 +253,9 @@ public:
         }
 
         /** The type of this track. */
-        WebMTrackType enmType;
+        WebMTrackType   enmType;
+        /** Pointer to codec data to use. */
+        PRECORDINGCODEC pCodec;
         /** Track parameters. */
         union
         {
@@ -386,18 +382,18 @@ public:
     struct WebMSegment
     {
         WebMSegment(void)
-            : tcAbsStartMs(0)
-            , tcAbsLastWrittenMs(0)
-            , offStart(0)
-            , offInfo(0)
-            , offSeekInfo(0)
-            , offTracks(0)
-            , offCues(0)
-            , cClusters(0)
+            : m_tcAbsStartMs(0)
+            , m_tcAbsLastWrittenMs(0)
+            , m_offStart(0)
+            , m_offInfo(0)
+            , m_offSeekInfo(0)
+            , m_offTracks(0)
+            , m_offCues(0)
+            , m_cClusters(0)
         {
-            uTimecodeScaleFactor = VBOX_WEBM_TIMECODESCALE_FACTOR_MS;
+            m_uTimecodeScaleFactor = VBOX_WEBM_TIMECODESCALE_FACTOR_MS;
 
-            LogFunc(("Default timecode scale is: %RU64ns\n", uTimecodeScaleFactor));
+            LogFunc(("Default timecode scale is: %RU64ns\n", m_uTimecodeScaleFactor));
         }
 
         virtual ~WebMSegment()
@@ -408,11 +404,11 @@ public:
         /**
          * Initializes a segment.
          *
-         * @returns IPRT status code.
+         * @returns VBox status code.
          */
         int init(void)
         {
-            return RTCritSectInit(&CritSect);
+            return RTCritSectInit(&m_CritSect);
         }
 
         /**
@@ -422,7 +418,7 @@ public:
         {
             clear();
 
-            RTCritSectDelete(&CritSect);
+            RTCritSectDelete(&m_CritSect);
         }
 
         /**
@@ -430,65 +426,65 @@ public:
          */
         void clear(void)
         {
-            WebMCuePointList::iterator itCuePoint = lstCuePoints.begin();
-            while (itCuePoint != lstCuePoints.end())
+            WebMCuePointList::iterator itCuePoint = m_lstCuePoints.begin();
+            while (itCuePoint != m_lstCuePoints.end())
             {
                 WebMCuePoint *pCuePoint = (*itCuePoint);
                 AssertPtr(pCuePoint);
                 delete pCuePoint;
 
-                lstCuePoints.erase(itCuePoint);
-                itCuePoint = lstCuePoints.begin();
+                m_lstCuePoints.erase(itCuePoint);
+                itCuePoint = m_lstCuePoints.begin();
             }
 
-            Assert(lstCuePoints.empty());
+            Assert(m_lstCuePoints.empty());
         }
 
         /** Critical section for serializing access to this segment. */
-        RTCRITSECT                      CritSect;
+        RTCRITSECT                      m_CritSect;
 
         /** The timecode scale factor of this segment. */
-        uint64_t                        uTimecodeScaleFactor;
+        uint64_t                        m_uTimecodeScaleFactor;
 
         /** Absolute timecode (in ms) when starting this segment. */
-        WebMTimecodeAbs                 tcAbsStartMs;
+        WebMTimecodeAbs                 m_tcAbsStartMs;
         /** Absolute timecode (in ms) of last write. */
-        WebMTimecodeAbs                 tcAbsLastWrittenMs;
+        WebMTimecodeAbs                 m_tcAbsLastWrittenMs;
 
         /** Absolute offset (in bytes) of CurSeg. */
-        uint64_t                        offStart;
+        uint64_t                        m_offStart;
         /** Absolute offset (in bytes) of general info. */
-        uint64_t                        offInfo;
+        uint64_t                        m_offInfo;
         /** Absolute offset (in bytes) of seeking info. */
-        uint64_t                        offSeekInfo;
+        uint64_t                        m_offSeekInfo;
         /** Absolute offset (in bytes) of tracks. */
-        uint64_t                        offTracks;
+        uint64_t                        m_offTracks;
         /** Absolute offset (in bytes) of cues table. */
-        uint64_t                        offCues;
+        uint64_t                        m_offCues;
         /** List of cue points. Needed for seeking table. */
-        WebMCuePointList                lstCuePoints;
+        WebMCuePointList                m_lstCuePoints;
 
         /** Total number of clusters. */
-        uint64_t                        cClusters;
+        uint64_t                        m_cClusters;
 
         /** Map of tracks.
          *  The key marks the track number (*not* the UUID!). */
-        std::map <uint8_t, WebMTrack *> mapTracks;
+        std::map <uint8_t, WebMTrack *> m_mapTracks;
 
         /** Current cluster which is being handled.
          *
          *  Note that we don't need (and shouldn't need, as this can be a *lot* of data!) a
          *  list of all clusters. */
-        WebMCluster                     CurCluster;
+        WebMCluster                     m_CurCluster;
 
-        WebMQueue                       queueBlocks;
+        WebMQueue                       m_queueBlocks;
 
-    } CurSeg;
+    } m_CurSeg;
 
     /** Audio codec to use. */
-    WebMWriter::AudioCodec      m_enmAudioCodec;
+    RecordingAudioCodec_T       m_enmAudioCodec;
     /** Video codec to use. */
-    WebMWriter::VideoCodec      m_enmVideoCodec;
+    RecordingVideoCodec_T       m_enmVideoCodec;
 
     /** Whether we're currently in the tracks section. */
     bool                        m_fInTracksSection;
@@ -509,20 +505,18 @@ public:
     };
 #endif /* VBOX_WITH_LIBVPX */
 
-#ifdef VBOX_WITH_LIBOPUS
     /**
-     * Block data for Opus-encoded audio data.
+     * Block data for encoded audio data.
      */
-    struct BlockData_Opus
+    struct BlockData_Audio
     {
-        /** Pointer to encoded Opus audio data. */
+        /** Pointer to encoded audio data. */
         const void *pvData;
-        /** Size (in bytes) of encoded Opus audio data. */
+        /** Size (in bytes) of encoded audio data. */
         size_t      cbData;
-        /** PTS (in ms) of encoded Opus audio data. */
+        /** PTS (in ms) of encoded audio data. */
         uint64_t    uPTSMs;
     };
-#endif /* VBOX_WITH_LIBOPUS */
 
 public:
 
@@ -533,18 +527,18 @@ public:
 public:
 
     int OpenEx(const char *a_pszFilename, PRTFILE a_phFile,
-               WebMWriter::AudioCodec a_enmAudioCodec, WebMWriter::VideoCodec a_enmVideoCodec);
+               RecordingAudioCodec_T a_enmAudioCodec, RecordingVideoCodec_T a_enmVideoCodec);
 
     int Open(const char *a_pszFilename, uint64_t a_fOpen,
-             WebMWriter::AudioCodec a_enmAudioCodec, WebMWriter::VideoCodec a_enmVideoCodec);
+             RecordingAudioCodec_T a_enmAudioCodec, RecordingVideoCodec_T a_enmVideoCodec);
 
     int Close(void);
 
-    int AddAudioTrack(uint16_t uHz, uint8_t cChannels, uint8_t cBits, uint8_t *puTrack);
+    int AddAudioTrack(PRECORDINGCODEC pCodec, uint16_t uHz, uint8_t cChannels, uint8_t cBits, uint8_t *puTrack);
 
-    int AddVideoTrack(uint16_t uWidth, uint16_t uHeight, uint32_t uFPS, uint8_t *puTrack);
+    int AddVideoTrack(PRECORDINGCODEC pCodec, uint16_t uWidth, uint16_t uHeight, uint32_t uFPS, uint8_t *puTrack);
 
-    int WriteBlock(uint8_t uTrack, const void *pvData, size_t cbData);
+    int WriteBlock(uint8_t uTrack, const void *pvData, size_t cbData, WebMTimecodeAbs tcAbsPTSMs, WebMBlockFlags uFlags);
 
     const com::Utf8Str& GetFileName(void);
 
@@ -557,11 +551,11 @@ public:
      *
      * @returns Number of written WebM clusters; 0 when no clusters written (empty file).
      */
-    uint64_t GetClusters(void) const { return CurSeg.cClusters; }
+    uint64_t GetClusters(void) const { return m_CurSeg.m_cClusters; }
 
 protected:
 
-    int init(void);
+    int init(RecordingAudioCodec_T a_enmAudioCodec, RecordingVideoCodec_T a_enmVideoCodec);
 
     void destroy(void);
 
@@ -574,14 +568,6 @@ protected:
     int writeSimpleBlockEBML(WebMTrack *a_pTrack, WebMSimpleBlock *a_pBlock);
 
     int writeSimpleBlockQueued(WebMTrack *a_pTrack, WebMSimpleBlock *a_pBlock);
-
-#ifdef VBOX_WITH_LIBVPX
-    int writeSimpleBlockVP8(WebMTrack *a_pTrack, const vpx_codec_enc_cfg_t *a_pCfg, const vpx_codec_cx_pkt_t *a_pPkt);
-#endif
-
-#ifdef VBOX_WITH_LIBOPUS
-    int writeSimpleBlockOpus(WebMTrack *a_pTrack, const void *pvData, size_t cbData, WebMTimecodeAbs tcAbsPTSMs);
-#endif
 
     int processQueue(WebMQueue *pQueue, bool fForce);
 

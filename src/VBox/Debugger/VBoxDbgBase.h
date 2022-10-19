@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef DEBUGGER_INCLUDED_SRC_VBoxDbgBase_h
@@ -24,6 +34,7 @@
 
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/vmapi.h>
+#include <VBox/vmm/vmmr3vtable.h>
 #include <VBox/dbg.h>
 #include <iprt/thread.h>
 #include <QString>
@@ -86,7 +97,7 @@ public:
     /**
      * Wrapper for DBGCCreate().
      */
-    int dbgcCreate(PDBGCBACK pBack, unsigned fFlags);
+    int dbgcCreate(PCDBGCIO pIo, unsigned fFlags);
     /** @} */
 
 
@@ -106,13 +117,15 @@ protected:
 
 private:
     /** @callback_method_impl{FNVMATSTATE}  */
-    static DECLCALLBACK(void) atStateChange(PUVM pUVM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser);
+    static DECLCALLBACK(void) atStateChange(PUVM pUVM, PCVMMR3VTABLE pVMM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser);
 
 private:
     /** Pointer to the debugger GUI object. */
     VBoxDbgGui *m_pDbgGui;
     /** The user mode VM handle. */
     PUVM volatile m_pUVM;
+    /** The VMM function table. */
+    PCVMMR3VTABLE volatile m_pVMM;
     /** The handle of the GUI thread. */
     RTNATIVETHREAD m_hGUIThread;
 };

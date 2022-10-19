@@ -1,6 +1,7 @@
 /** @file
 
-  Copyright (c) 2014 - 2019, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2014 - 2021, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) Microsoft Corporation.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -39,20 +40,13 @@
 //
 #define UFS_MAX_LUNS                12
 #define UFS_WLUN_PREFIX             0xC1
+#define UFS_INIT_COMPLETION_TIMEOUT 600000
 
 typedef struct {
   UINT8    Lun[UFS_MAX_LUNS];
   UINT16   BitMask:12;              // Bit 0~7 is 1/1 mapping to common luns. Bit 8~11 is 1/1 mapping to well-known luns.
   UINT16   Rsvd:4;
 } UFS_EXPOSED_LUNS;
-
-//
-// Iterate through the double linked list. This is delete-safe.
-// Do not touch NextEntry
-//
-#define EFI_LIST_FOR_EACH_SAFE(Entry, NextEntry, ListHead)            \
-  for(Entry = (ListHead)->ForwardLink, NextEntry = Entry->ForwardLink;\
-      Entry != (ListHead); Entry = NextEntry, NextEntry = Entry->ForwardLink)
 
 typedef struct _UFS_PASS_THRU_PRIVATE_DATA {
   UINT32                              Signature;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2005-2020 Oracle Corporation
+ * Copyright (C) 2005-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -161,6 +171,23 @@ int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
                      uint32_t uHistoryFileTime, uint64_t uHistoryFileSize,
                      PRTERRINFO pErrInfo)
 {
+    return VBoxLogRelCreateEx(pcszEntity, pcszLogFile,
+                              fFlags, pcszGroupSettings,
+                              pcszEnvVarBase, fDestFlags,
+                              cMaxEntriesPerGroup, cHistory,
+                              uHistoryFileTime, uHistoryFileSize,
+                              NULL /*pOutputIf*/, NULL /*pvOutputIfUser*/,
+                              pErrInfo);
+}
+
+int VBoxLogRelCreateEx(const char *pcszEntity, const char *pcszLogFile,
+                       uint32_t fFlags, const char *pcszGroupSettings,
+                       const char *pcszEnvVarBase, uint32_t fDestFlags,
+                       uint32_t cMaxEntriesPerGroup, uint32_t cHistory,
+                       uint32_t uHistoryFileTime, uint64_t uHistoryFileSize,
+                       const void *pOutputIf, void *pvOutputIfUser,
+                       PRTERRINFO pErrInfo)
+{
     /* create release logger */
     PRTLOGGER pReleaseLogger;
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
@@ -168,9 +195,10 @@ int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
     fFlags |= RTLOGFLAGS_USECRLF;
 #endif
     g_pszLogEntity = pcszEntity;
-    int vrc = RTLogCreateEx(&pReleaseLogger, fFlags, pcszGroupSettings, pcszEnvVarBase,
-                            RT_ELEMENTS(s_apszGroups), s_apszGroups, cMaxEntriesPerGroup, fDestFlags,
+    int vrc = RTLogCreateEx(&pReleaseLogger, pcszEnvVarBase, fFlags, pcszGroupSettings, RT_ELEMENTS(s_apszGroups), s_apszGroups,
+                            cMaxEntriesPerGroup, 0 /*cBufDescs*/, NULL /*paBufDescs*/, fDestFlags,
                             vboxHeaderFooter, cHistory, uHistoryFileSize, uHistoryFileTime,
+                            (PCRTLOGOUTPUTIF)pOutputIf, pvOutputIfUser,
                             pErrInfo, pcszLogFile ? "%s" : NULL, pcszLogFile);
     if (RT_SUCCESS(vrc))
     {

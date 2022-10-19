@@ -6,15 +6,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 # Testing:
@@ -92,10 +102,10 @@ else
  endif
 endif
 
-# VBOX_KBUILD_TYPE = release|debug|profile|strict
+# VBOX_KBUILD_TYPE = release|debug|profile|strict|asan
 ifdef VBOX_KBUILD_TYPE
  VBOX_KBUILD_TYPE_VAR := VBOX_KBUILD_TYPE
- ifneq ($(filter-out release profile debug strict,$(VBOX_KBUILD_TYPE)),)
+ ifneq ($(filter-out release profile debug strict asan,$(VBOX_KBUILD_TYPE)),)
   $(warning Ignoring unknown VBOX_KBUILD_TYPE value '$(VBOX_KBUILD_TYPE)'.)
   VBOX_KBUILD_TYPE :=
  endif
@@ -103,7 +113,7 @@ else
  ifdef KBUILD_TYPE
   VBOX_KBUILD_TYPE_VAR := KBUILD_TYPE
   VBOX_KBUILD_TYPE := $(KBUILD_TYPE)
-  ifneq ($(filter-out release profile debug strict,$(KBUILD_TYPE)),)
+  ifneq ($(filter-out release profile debug strict asan,$(KBUILD_TYPE)),)
    $(warning Ignoring unknown KBUILD_TYPE value '$(KBUILD_TYPE)'.)
    VBOX_KBUILD_TYPE :=
   endif
@@ -112,7 +122,7 @@ else
    $(warning BUILD_TYPE is deprecated, use VBOX_KBUILD_TYPE instead.)
    VBOX_KBUILD_TYPE_VAR := BUILD_TYPE
    VBOX_KBUILD_TYPE := $(BUILD_TYPE)
-   ifneq ($(filter-out release profile debug strict,$(BUILD_TYPE)),)
+   ifneq ($(filter-out release profile debug strict asan,$(BUILD_TYPE)),)
     $(warning Ignoring unknown BUILD_TYPE value '$(BUILD_TYPE)'.)
     VBOX_KBUILD_TYPE :=
    endif
@@ -267,10 +277,12 @@ VBOX_GCC_CHECK_CC = $(shell \
 # Guess the module directory ASSUMING that this file is located in that directory.
 # Note! The special MAKEFILE_LIST variable was introduced in GNU make 3.80.
 #
-ifdef MAKEFILE_LIST
- VBOX_MODULE_SRC_DIR := $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
-else
- VBOX_MODULE_SRC_DIR := $(CURDIR)/
+ifndef VBOX_MODULE_SRC_DIR
+ ifdef MAKEFILE_LIST
+  VBOX_MODULE_SRC_DIR := $(dir $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
+ else
+  VBOX_MODULE_SRC_DIR := $(CURDIR)/
+ endif
 endif
 
 

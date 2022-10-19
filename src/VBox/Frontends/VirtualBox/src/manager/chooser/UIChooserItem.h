@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_chooser_UIChooserItem_h
@@ -49,18 +59,27 @@ class UIChooserItemMachine;
 class UIChooserModel;
 class UIChooserNode;
 
-/** A simple QGraphicsEffect extension to mark disabled UIChooserItems. Applies blur and gray scale filters. */
+
+/** A simple QGraphicsEffect extension to mark disabled UIChooserItem.
+  * @note Applies blur and gray scale filters. */
 class UIChooserDisabledItemEffect : public QGraphicsEffect
 {
     Q_OBJECT;
 
 public:
 
+    /** Constructs blur effect passing @a pParent to the base-class.
+      * @param  iBlurRadius  Brings the blur effect radius. */
     UIChooserDisabledItemEffect(int iBlurRadius, QObject *pParent = 0);
 
 protected:
 
-    virtual void draw(QPainter *painter);
+    /** Draws effect with passed @a pPainter. */
+    virtual void draw(QPainter *pPainter);
+
+private:
+
+    /** Holds the blur effect radius. */
     int m_iBlurRadius;
 };
 
@@ -89,7 +108,7 @@ public:
       * @param  iDefaultValue  Brings default value for hovering animation.
       * @param  iHoveredValue  Brings hovered value for hovering animation. */
     UIChooserItem(UIChooserItem *pParent, UIChooserNode *pNode,
-                  int iDefaultValue = 100, int iHoveredValue = 90);
+                  int iDefaultValue = 0, int iHoveredValue = 100);
 
     /** @name Item stuff.
       * @{ */
@@ -107,8 +126,6 @@ public:
 
         /** Returns model reference. */
         UIChooserModel *model() const;
-        /** Returns action-pool reference. */
-        UIActionPool *actionPool() const;
 
         /** Returns whether item is root. */
         bool isRoot() const;
@@ -132,8 +149,13 @@ public:
 
         /** Returns whether item is hovered. */
         bool isHovered() const;
-        /** Defines whether item is @a fHovered. */
-        void setHovered(bool fHovered);
+
+        /** Returns whether item is selected.
+          * @note Sometimes it's useful to know whether item is selected in model above. */
+        virtual bool isSelected() const;
+        /** Defines item as @a fSelected.
+          * @note Don't forget to call for base-class method when reimplementing it. */
+        virtual void setSelected(bool fSelected);
 
         /** Starts item editing. */
         virtual void startEditing() = 0;
@@ -146,22 +168,22 @@ public:
         /** Installs event-filter for @a pSource object.
           * @note  Base-class implementation does nothing. */
         virtual void installEventFilterHelper(QObject *pSource) { Q_UNUSED(pSource); }
-        /** Enables the visual effect for disabled item. */
-        void disableEnableItem(bool fDisabled);
+        /** Defines whether visual effect for disabled item is @a fOn. */
+        void setDisabledEffect(bool fOn);
     /** @} */
 
     /** @name Children stuff.
       * @{ */
         /** Returns children items of certain @a enmType. */
-        virtual QList<UIChooserItem*> items(UIChooserItemType enmType = UIChooserItemType_Any) const = 0;
+        virtual QList<UIChooserItem*> items(UIChooserNodeType enmType = UIChooserNodeType_Any) const = 0;
 
         /** Adds possible @a fFavorite child @a pItem to certain @a iPosition. */
         virtual void addItem(UIChooserItem *pItem, bool fFavorite, int iPosition) = 0;
         /** Removes child @a pItem. */
         virtual void removeItem(UIChooserItem *pItem) = 0;
 
-        /** Searches for a first child item answering to specified @a strSearchTag and @a iItemSearchFlags. */
-        virtual UIChooserItem *searchForItem(const QString &strSearchTag, int iItemSearchFlags) = 0;
+        /** Searches for a first child item answering to specified @a strSearchTag and @a iSearchFlags. */
+        virtual UIChooserItem *searchForItem(const QString &strSearchTag, int iSearchFlags) = 0;
 
         /** Searches for a first machine child item. */
         virtual UIChooserItem *firstMachineItem() = 0;
@@ -170,7 +192,7 @@ public:
     /** @name Layout stuff.
       * @{ */
         /** Updates geometry. */
-        virtual void updateGeometry() /* override */;
+        virtual void updateGeometry() RT_OVERRIDE;
 
         /** Updates layout. */
         virtual void updateLayout() = 0;
@@ -212,21 +234,21 @@ protected:
     /** @name Event-handling stuff.
       * @{ */
         /** Handles hover enter @a event. */
-        virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+        virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
         /** Handles hover leave @a event. */
-        virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+        virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
 
         /** Handles mouse press @a event. */
-        virtual void mousePressEvent(QGraphicsSceneMouseEvent *pEvent) /* override */;
+        virtual void mousePressEvent(QGraphicsSceneMouseEvent *pEvent) RT_OVERRIDE;
         /** Handles mouse move @a event. */
-        virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *pEvent) /* override */;
+        virtual void mouseMoveEvent(QGraphicsSceneMouseEvent *pEvent) RT_OVERRIDE;
 
         /** Handles drag move @a event. */
-        virtual void dragMoveEvent(QGraphicsSceneDragDropEvent *pEvent) /* override */;
+        virtual void dragMoveEvent(QGraphicsSceneDragDropEvent *pEvent) RT_OVERRIDE;
         /** Handles drag leave @a event. */
-        virtual void dragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent) /* override */;
+        virtual void dragLeaveEvent(QGraphicsSceneDragDropEvent *pEvent) RT_OVERRIDE;
         /** Handles drop @a event. */
-        virtual void dropEvent(QGraphicsSceneDragDropEvent *pEvent) /* override */;
+        virtual void dropEvent(QGraphicsSceneDragDropEvent *pEvent) RT_OVERRIDE;
     /** @} */
 
     /** @name Item stuff.
@@ -301,22 +323,24 @@ private:
         UIChooserNode *m_pNode;
 
         /** Holds whether item is hovered. */
-        bool                m_fHovered;
+        bool                         m_fHovered;
+        /** Holds whether item is selected. */
+        bool                         m_fSelected;
         /** Holds the hovering animation machine instance. */
-        QStateMachine      *m_pHoveringMachine;
+        QStateMachine               *m_pHoveringMachine;
         /** Holds the forward hovering animation instance. */
-        QPropertyAnimation *m_pHoveringAnimationForward;
+        QPropertyAnimation          *m_pHoveringAnimationForward;
         /** Holds the backward hovering animation instance. */
-        QPropertyAnimation *m_pHoveringAnimationBackward;
+        QPropertyAnimation          *m_pHoveringAnimationBackward;
         /** Holds the animation duration. */
-        int                 m_iAnimationDuration;
+        int                          m_iAnimationDuration;
         /** Holds the default animation value. */
-        int                 m_iDefaultValue;
+        int                          m_iDefaultValue;
         /** Holds the hovered animation value. */
-        int                 m_iHoveredValue;
+        int                          m_iHoveredValue;
         /** Holds the animated value. */
-        int                 m_iAnimatedValue;
-        /** Holds the pointer to blur effect instance. */
+        int                          m_iAnimatedValue;
+        /** Holds the blur effect instance. */
         UIChooserDisabledItemEffect *m_pDisabledEffect;
     /** @} */
 
@@ -351,7 +375,7 @@ public:
     UIChooserItem *item() const { return m_pItem; }
 
     /** Constructs mime-data on the basis of passed @a pItem. */
-    virtual bool hasFormat(const QString &strMimeType) const /* override */;
+    virtual bool hasFormat(const QString &strMimeType) const RT_OVERRIDE;
 
 private:
 

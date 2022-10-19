@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  * This file is based on ast_ttm.c
  * Copyright 2012 Red Hat Inc.
  *
@@ -805,6 +805,7 @@ int vbox_mmap(struct file *filp, struct vm_area_struct *vma)
 	vbox = file_priv->minor->dev->dev_private;
 
 #if RTLNX_VER_MIN(5,14,0) || RTLNX_RHEL_RANGE(8,6, 8,99)
+	(void)vbox;
 	if (drm_dev_is_unplugged(file_priv->minor->dev))
 		return -ENODEV;
 	ret = drm_gem_mmap(filp, vma);

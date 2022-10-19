@@ -4,19 +4,30 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
 #include <QActionGroup>
+#include <QClipboard>
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsView>
 #include <QPropertyAnimation>
@@ -31,9 +42,12 @@
 #include "UIAudioHostDriverEditor.h"
 #include "UIBaseMemoryEditor.h"
 #include "UIBootOrderEditor.h"
-#include "UICommon.h"
+#include "UICloudMachineSettingsDialogPage.h"
+#include "UICloudNetworkingStuff.h"
 #include "UIConverter.h"
+#include "UICursor.h"
 #include "UIDetailsElement.h"
+#include "UIDetailsGenerator.h"
 #include "UIDetailsSet.h"
 #include "UIDetailsModel.h"
 #include "UIExtraDataManager.h"
@@ -44,8 +58,11 @@
 #include "UIMachineAttributeSetter.h"
 #include "UINameAndSystemEditor.h"
 #include "UINetworkAttachmentEditor.h"
+#include "UITaskCloudGetSettingsForm.h"
+#include "UIThreadPool.h"
 #include "UIVideoMemoryEditor.h"
 #include "UIVirtualBoxManager.h"
+#include "UIVisualStateEditor.h"
 
 
 /** Known anchor roles. */
@@ -64,6 +81,7 @@ enum AnchorRole
     AnchorRole_AudioControllerType,
     AnchorRole_NetworkAttachmentType,
     AnchorRole_USBControllerType,
+    AnchorRole_VisualStateType,
 #ifndef VBOX_WS_MAC
     AnchorRole_MenuBar,
 #endif
@@ -71,6 +89,7 @@ enum AnchorRole
 #ifndef VBOX_WS_MAC
     AnchorRole_MiniToolbar,
 #endif
+    AnchorRole_Cloud,
 };
 
 
@@ -78,17 +97,8 @@ UIDetailsElement::UIDetailsElement(UIDetailsSet *pParent, DetailsElementType enm
     : UIDetailsItem(pParent)
     , m_pSet(pParent)
     , m_enmType(enmType)
-#ifdef VBOX_WS_MAC
-    , m_iDefaultToneStart(145)
-    , m_iDefaultToneFinal(155)
-    , m_iHoverToneStart(115)
-    , m_iHoverToneFinal(125)
-#else
-    , m_iDefaultToneStart(160)
-    , m_iDefaultToneFinal(190)
-    , m_iHoverToneStart(160)
-    , m_iHoverToneFinal(190)
-#endif
+    , m_iDefaultDarknessStart(100)
+    , m_iDefaultDarknessFinal(105)
     , m_fHovered(false)
     , m_fNameHovered(false)
     , m_pHoveringMachine(0)
@@ -96,7 +106,7 @@ UIDetailsElement::UIDetailsElement(UIDetailsSet *pParent, DetailsElementType enm
     , m_pHoveringAnimationBackward(0)
     , m_iAnimationDuration(300)
     , m_iDefaultValue(0)
-    , m_iHoveredValue(255)
+    , m_iHoveredValue(100)
     , m_iAnimatedValue(m_iDefaultValue)
     , m_pButton(0)
     , m_fClosed(!fOpened)
@@ -168,29 +178,59 @@ void UIDetailsElement::updateAppearance()
     updateNameHoverLink();
 
     /* Update anchor role restrictions: */
-    ConfigurationAccessLevel cal = m_pSet->configurationAccessLevel();
-    m_pTextPane->setAnchorRoleRestricted("#machine_name",    cal != ConfigurationAccessLevel_Full
-                                                          && cal != ConfigurationAccessLevel_Partial_Saved);
-    m_pTextPane->setAnchorRoleRestricted("#machine_location", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#os_type", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#base_memory", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#boot_order", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#video_memory", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#graphics_controller_type", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#mount", cal == ConfigurationAccessLevel_Null);
-    m_pTextPane->setAnchorRoleRestricted("#attach", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#audio_host_driver_type",    cal != ConfigurationAccessLevel_Full
-                                                                    && cal != ConfigurationAccessLevel_Partial_Saved);
-    m_pTextPane->setAnchorRoleRestricted("#audio_controller_type", cal != ConfigurationAccessLevel_Full);
-    m_pTextPane->setAnchorRoleRestricted("#network_attachment_type", cal == ConfigurationAccessLevel_Null);
-    m_pTextPane->setAnchorRoleRestricted("#usb_controller_type", cal != ConfigurationAccessLevel_Full);
+    const ConfigurationAccessLevel enmCal = m_pSet->configurationAccessLevel();
+    m_pTextPane->setAnchorRoleRestricted("#machine_name",    enmCal != ConfigurationAccessLevel_Full
+                                                          && enmCal != ConfigurationAccessLevel_Partial_Saved);
+    m_pTextPane->setAnchorRoleRestricted("#machine_location", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#os_type", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#base_memory", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#boot_order", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#video_memory", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#graphics_controller_type", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#mount", enmCal == ConfigurationAccessLevel_Null);
+    m_pTextPane->setAnchorRoleRestricted("#attach", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#audio_host_driver_type",    enmCal != ConfigurationAccessLevel_Full
+                                                                    && enmCal != ConfigurationAccessLevel_Partial_Saved);
+    m_pTextPane->setAnchorRoleRestricted("#audio_controller_type", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#network_attachment_type", enmCal == ConfigurationAccessLevel_Null);
+    m_pTextPane->setAnchorRoleRestricted("#usb_controller_type", enmCal != ConfigurationAccessLevel_Full);
+    m_pTextPane->setAnchorRoleRestricted("#visual_state", enmCal == ConfigurationAccessLevel_Null);
 #ifndef VBOX_WS_MAC
-    m_pTextPane->setAnchorRoleRestricted("#menu_bar", cal == ConfigurationAccessLevel_Null);
+    m_pTextPane->setAnchorRoleRestricted("#menu_bar", enmCal == ConfigurationAccessLevel_Null);
 #endif
-    m_pTextPane->setAnchorRoleRestricted("#status_bar", cal == ConfigurationAccessLevel_Null);
+    m_pTextPane->setAnchorRoleRestricted("#status_bar", enmCal == ConfigurationAccessLevel_Null);
 #ifndef VBOX_WS_MAC
-    m_pTextPane->setAnchorRoleRestricted("#mini_toolbar", cal == ConfigurationAccessLevel_Null);
+    m_pTextPane->setAnchorRoleRestricted("#mini_toolbar", enmCal == ConfigurationAccessLevel_Null);
 #endif
+}
+
+void UIDetailsElement::updateLayout()
+{
+    /* Prepare variables: */
+    QSize size = geometry().size().toSize();
+    int iMargin = data(ElementData_Margin).toInt();
+
+    /* Layout button: */
+    int iButtonWidth = m_buttonSize.width();
+    int iButtonHeight = m_buttonSize.height();
+    int iButtonX = size.width() - 2 * iMargin - iButtonWidth;
+    int iButtonY = iButtonHeight == m_iMinimumHeaderHeight ? iMargin :
+                   iMargin + (m_iMinimumHeaderHeight - iButtonHeight) / 2;
+    m_pButton->setPos(iButtonX, iButtonY);
+
+    /* If closed or animation running => hide: */
+    if ((isClosed() || isAnimationRunning()) && m_pTextPane->isVisible())
+        m_pTextPane->hide();
+    /* If opened and animation isn't running => show: */
+    else if (!isClosed() && !isAnimationRunning() && !m_pTextPane->isVisible())
+        m_pTextPane->show();
+
+    /* Layout text-pane: */
+    int iTextPaneX = 2 * iMargin;
+    int iTextPaneY = iMargin + m_iMinimumHeaderHeight + 2 * iMargin;
+    m_pTextPane->setPos(iTextPaneX, iTextPaneY);
+    m_pTextPane->resize(size.width() - 4 * iMargin,
+                        size.height() - 4 * iMargin - m_iMinimumHeaderHeight);
 }
 
 int UIDetailsElement::minimumWidthHint() const
@@ -268,7 +308,7 @@ void UIDetailsElement::mousePressEvent(QGraphicsSceneMouseEvent *pEvent)
         m_enmType < DetailsElementType_Description)
         strCategory = QString("#%1").arg(gpConverter->toInternalString(m_enmType));
     else if (m_enmType == DetailsElementType_Description)
-        strCategory = QString("#%1%%mTeDescription").arg(gpConverter->toInternalString(m_enmType));
+        strCategory = QString("#%1%%m_pEditorDescription").arg(gpConverter->toInternalString(m_enmType));
     emit sigLinkClicked(strCategory, QString(), machine().GetId());
 }
 
@@ -289,8 +329,6 @@ void UIDetailsElement::paint(QPainter *pPainter, const QStyleOptionGraphicsItem 
 
     /* Paint background: */
     paintBackground(pPainter, pOptions);
-    /* Paint frame: */
-    paintFrame(pPainter, pOptions);
     /* Paint element info: */
     paintElementInfo(pPainter, pOptions);
 }
@@ -305,12 +343,26 @@ const CMachine &UIDetailsElement::machine()
     return m_pSet->machine();
 }
 
+const CCloudMachine &UIDetailsElement::cloudMachine()
+{
+    return m_pSet->cloudMachine();
+}
+
+bool UIDetailsElement::isLocal() const
+{
+    return m_pSet->isLocal();
+}
+
 void UIDetailsElement::setName(const QString &strName)
 {
     /* Cache name: */
     m_strName = strName;
     QFontMetrics fm(m_nameFont, model()->paintDevice());
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    m_nameSize = QSize(fm.horizontalAdvance(m_strName), fm.height());
+#else
     m_nameSize = QSize(fm.width(m_strName), fm.height());
+#endif
 
     /* Update linked values: */
     updateMinimumHeaderWidth();
@@ -368,42 +420,6 @@ void UIDetailsElement::clearItems(UIDetailsItemType)
     AssertMsgFailed(("Details element do NOT support children!"));
 }
 
-void UIDetailsElement::updateLayout()
-{
-    /* Prepare variables: */
-    QSize size = geometry().size().toSize();
-    int iMargin = data(ElementData_Margin).toInt();
-
-    /* Layout button: */
-    int iButtonWidth = m_buttonSize.width();
-    int iButtonHeight = m_buttonSize.height();
-    int iButtonX = size.width() - 2 * iMargin - iButtonWidth;
-    int iButtonY = iButtonHeight == m_iMinimumHeaderHeight ? iMargin :
-                   iMargin + (m_iMinimumHeaderHeight - iButtonHeight) / 2;
-    m_pButton->setPos(iButtonX, iButtonY);
-
-    /* If closed: */
-    if (isClosed())
-    {
-        /* Hide text-pane if still visible: */
-        if (m_pTextPane->isVisible())
-            m_pTextPane->hide();
-    }
-    /* If opened: */
-    else
-    {
-        /* Layout text-pane: */
-        int iTextPaneX = 2 * iMargin;
-        int iTextPaneY = iMargin + m_iMinimumHeaderHeight + 2 * iMargin;
-        m_pTextPane->setPos(iTextPaneX, iTextPaneY);
-        m_pTextPane->resize(size.width() - 4 * iMargin,
-                            size.height() - 4 * iMargin - m_iMinimumHeaderHeight);
-        /* Show text-pane if still invisible and animation finished: */
-        if (!m_pTextPane->isVisible() && !isAnimationRunning())
-            m_pTextPane->show();
-    }
-}
-
 int UIDetailsElement::minimumHeightHintForElement(bool fClosed) const
 {
     /* Prepare variables: */
@@ -425,7 +441,7 @@ int UIDetailsElement::minimumHeightHintForElement(bool fClosed) const
     }
 
     /* Additional height during animation: */
-    if (m_fAnimationRunning)
+    if (m_fAnimationRunning && isClosed())
         iMinimumHeightHint += m_iAdditionalHeight;
 
     /* Return value: */
@@ -451,8 +467,11 @@ void UIDetailsElement::sltElementToggleStart()
     /* Setup animation: */
     updateAnimationParameters();
 
-    /* Invert toggle-state: */
-    m_fClosed = !m_fClosed;
+    /* Invert toggle-state instantly only for closed elements.
+     * Opened element being closed should remain opened
+     * until animation is fully finished. */
+    if (m_fClosed)
+        m_fClosed = !m_fClosed;
 }
 
 void UIDetailsElement::sltElementToggleFinish(bool fToggled)
@@ -481,6 +500,7 @@ void UIDetailsElement::sltHandleAnchorClicked(const QString &strAnchor)
     roles["#audio_controller_type"] = AnchorRole_AudioControllerType;
     roles["#network_attachment_type"] = AnchorRole_NetworkAttachmentType;
     roles["#usb_controller_type"] = AnchorRole_USBControllerType;
+    roles["#visual_state"] = AnchorRole_VisualStateType;
 #ifndef VBOX_WS_MAC
     roles["#menu_bar"] = AnchorRole_MenuBar;
 #endif
@@ -488,6 +508,7 @@ void UIDetailsElement::sltHandleAnchorClicked(const QString &strAnchor)
 #ifndef VBOX_WS_MAC
     roles["#mini_toolbar"] = AnchorRole_MiniToolbar;
 #endif
+    roles["#cloud"] = AnchorRole_Cloud;
 
     /* Current anchor role: */
     const QString strRole = strAnchor.section(',', 0, 0);
@@ -501,456 +522,168 @@ void UIDetailsElement::sltHandleAnchorClicked(const QString &strAnchor)
         case AnchorRole_MachineLocation:
         case AnchorRole_OSType:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UINameAndSystemEditor *pEditor =
-                    new UINameAndSystemEditor(pPopup,
-                                              enmRole == AnchorRole_MachineName /* choose name? */,
-                                              enmRole == AnchorRole_MachineLocation /* choose path? */,
-                                              enmRole == AnchorRole_OSType /* choose type? */);
-                if (pEditor)
-                {
-                    switch (enmRole)
-                    {
-                        case AnchorRole_MachineName: pEditor->setName(strData.section(',', 0, 0)); break;
-                        case AnchorRole_MachineLocation: pEditor->setPath(strData.section(',', 0, 0)); break;
-                        case AnchorRole_OSType: pEditor->setTypeId(strData.section(',', 0, 0)); break;
-                        default: break;
-                    }
-
-                    /* Add to popup: */
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                {
-                    switch (enmRole)
-                    {
-                        case AnchorRole_MachineName: setMachineAttribute(machine(), MachineAttribute_Name, QVariant::fromValue(pEditor->name())); break;
-                        case AnchorRole_MachineLocation: setMachineAttribute(machine(), MachineAttribute_Location, QVariant::fromValue(pEditor->path())); break;
-                        case AnchorRole_OSType: setMachineAttribute(machine(), MachineAttribute_OSType, QVariant::fromValue(pEditor->typeId())); break;
-                        default: break;
-                    }
-                }
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupNameAndSystemEditor(enmRole == AnchorRole_MachineName /* choose name? */,
+                                     enmRole == AnchorRole_MachineLocation /* choose path? */,
+                                     enmRole == AnchorRole_OSType /* choose type? */,
+                                     strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_BaseMemory:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UIBaseMemoryEditor *pEditor = new UIBaseMemoryEditor(pPopup, true /* with label */);
-                if (pEditor)
-                {
-                    pEditor->setValue(strData.section(',', 0, 0).toInt());
-                    connect(pEditor, &UIBaseMemoryEditor::sigValidChanged,
-                            pPopup.data(), &QIDialogContainer::setOkButtonEnabled);
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                    setMachineAttribute(machine(), MachineAttribute_BaseMemory, QVariant::fromValue(pEditor->value()));
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupBaseMemoryEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_BootOrder:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UIBootOrderEditor *pEditor = new UIBootOrderEditor(pPopup, true /* with label */);
-                if (pEditor)
-                {
-                    pEditor->setValue(bootItemsFromSerializedString(strData.section(',', 0, 0)));
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                    setMachineAttribute(machine(), MachineAttribute_BootOrder, QVariant::fromValue(pEditor->value()));
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupBootOrderEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_VideoMemory:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UIVideoMemoryEditor *pEditor = new UIVideoMemoryEditor(pPopup, true /* with label */);
-                if (pEditor)
-                {
-                    pEditor->setValue(strData.section(',', 0, 0).toInt());
-                    connect(pEditor, &UIVideoMemoryEditor::sigValidChanged,
-                            pPopup.data(), &QIDialogContainer::setOkButtonEnabled);
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                    setMachineAttribute(machine(), MachineAttribute_VideoMemory, QVariant::fromValue(pEditor->value()));
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupVideoMemoryEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_GraphicsControllerType:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UIGraphicsControllerEditor *pEditor = new UIGraphicsControllerEditor(pPopup, true /* with label */);
-                if (pEditor)
-                {
-                    pEditor->setValue(static_cast<KGraphicsControllerType>(strData.section(',', 0, 0).toInt()));
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                    setMachineAttribute(machine(), MachineAttribute_GraphicsControllerType, QVariant::fromValue(pEditor->value()));
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupGraphicsControllerTypeEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_Storage:
         {
-            /* Prepare storage-menu: */
-            UIMenu menu;
-            menu.setShowToolTip(true);
-
-            /* Storage-controller name: */
-            QString strControllerName = strData.section(',', 0, 0);
-            /* Storage-slot: */
-            StorageSlot storageSlot = gpConverter->fromString<StorageSlot>(strData.section(',', 1));
-
-            /* Fill storage-menu: */
-            uiCommon().prepareStorageMenu(menu, this, SLOT(sltMountStorageMedium()),
-                                          machine(), strControllerName, storageSlot);
-
-            /* Exec menu: */
-            menu.exec(QCursor::pos());
+            popupStorageEditor(strData /* complex value */);
             break;
         }
         case AnchorRole_AudioHostDriverType:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UIAudioHostDriverEditor *pEditor = new UIAudioHostDriverEditor(pPopup, true /* with label */);
-                if (pEditor)
-                {
-                    pEditor->setValue(static_cast<KAudioDriverType>(strData.section(',', 0, 0).toInt()));
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                    setMachineAttribute(machine(), MachineAttribute_AudioHostDriverType, QVariant::fromValue(pEditor->value()));
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupAudioHostDriverTypeEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_AudioControllerType:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UIAudioControllerEditor *pEditor = new UIAudioControllerEditor(pPopup, true /* with label */);
-                if (pEditor)
-                {
-                    pEditor->setValue(static_cast<KAudioControllerType>(strData.section(',', 0, 0).toInt()));
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                    setMachineAttribute(machine(), MachineAttribute_AudioControllerType, QVariant::fromValue(pEditor->value()));
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupAudioControllerTypeEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_NetworkAttachmentType:
         {
-            /* Prepare popup: */
-            QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
-            if (pPopup)
-            {
-                /* Prepare editor: */
-                UINetworkAttachmentEditor *pEditor = new UINetworkAttachmentEditor(pPopup, true /* with label */);
-                if (pEditor)
-                {
-                    pEditor->setValueNames(KNetworkAttachmentType_Bridged, UINetworkAttachmentEditor::bridgedAdapters());
-                    pEditor->setValueNames(KNetworkAttachmentType_Internal, UINetworkAttachmentEditor::internalNetworks());
-                    pEditor->setValueNames(KNetworkAttachmentType_HostOnly, UINetworkAttachmentEditor::hostInterfaces());
-                    pEditor->setValueNames(KNetworkAttachmentType_Generic, UINetworkAttachmentEditor::genericDrivers());
-                    pEditor->setValueNames(KNetworkAttachmentType_NATNetwork, UINetworkAttachmentEditor::natNetworks());
-                    pEditor->setValueType(static_cast<KNetworkAttachmentType>(strData.section(',', 0, 0).section(';', 1, 1).toInt()));
-                    pEditor->setValueName(pEditor->valueType(), strData.section(',', 0, 0).section(';', 2, 2));
-                    connect(pEditor, &UINetworkAttachmentEditor::sigValidChanged,
-                            pPopup.data(), &QIDialogContainer::setOkButtonEnabled);
-                    pPopup->setWidget(pEditor);
-                }
-
-                /* Adjust popup geometry: */
-                pPopup->move(QCursor::pos());
-                pPopup->adjustSize();
-
-                // WORKAROUND:
-                // On Windows, Tool dialogs aren't activated by default by some reason.
-                // So we have created sltActivateWindow wrapping actual activateWindow
-                // to fix that annoying issue.
-                QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
-                /* Execute popup, change machine name if confirmed: */
-                if (pPopup->exec() == QDialog::Accepted)
-                {
-                    UINetworkAdapterDescriptor nad(strData.section(',', 0, 0).section(';', 0, 0).toInt(),
-                                                   pEditor->valueType(), pEditor->valueName(pEditor->valueType()));
-                    setMachineAttribute(machine(), MachineAttribute_NetworkAttachmentType, QVariant::fromValue(nad));
-                }
-
-                /* Delete popup: */
-                delete pPopup;
-            }
+            popupNetworkAttachmentTypeEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
         case AnchorRole_USBControllerType:
         {
-            /* Parse controller type list: */
-            UIUSBControllerTypeSet controllerSet;
-            const QStringList controllerInternals = strData.section(',', 0, 0).split(';');
-            foreach (const QString &strControllerType, controllerInternals)
-            {
-                /* Parse each internal controller description: */
-                bool fParsed = false;
-                KUSBControllerType enmType = static_cast<KUSBControllerType>(strControllerType.toInt(&fParsed));
-                if (!fParsed)
-                    enmType = KUSBControllerType_Null;
-                controllerSet << enmType;
-            }
-
-            /* Prepare existing controller sets: */
-            QMap<int, UIUSBControllerTypeSet> controllerSets;
-            controllerSets[0] = UIUSBControllerTypeSet();
-            controllerSets[1] = UIUSBControllerTypeSet() << KUSBControllerType_OHCI;
-            controllerSets[2] = UIUSBControllerTypeSet() << KUSBControllerType_OHCI << KUSBControllerType_EHCI;
-            controllerSets[3] = UIUSBControllerTypeSet() << KUSBControllerType_XHCI;
-
-            /* Fill menu with actions: */
-            UIMenu menu;
-            QActionGroup group(&menu);
-            QMap<int, QAction*> actions;
-            actions[0] = menu.addAction(QApplication::translate("UIDetails", "Disabled", "details (usb)"));
-            group.addAction(actions.value(0));
-            actions.value(0)->setCheckable(true);
-            actions[1] = menu.addAction(QApplication::translate("UIDetails", "USB 1.1 (OHCI) Controller", "details (usb)"));
-            group.addAction(actions.value(1));
-            actions.value(1)->setCheckable(true);
-            actions[2] = menu.addAction(QApplication::translate("UIDetails", "USB 2.0 (OHCI + EHCI) Controller", "details (usb)"));
-            group.addAction(actions.value(2));
-            actions.value(2)->setCheckable(true);
-            actions[3] = menu.addAction(QApplication::translate("UIDetails", "USB 3.0 (xHCI) Controller", "details (usb)"));
-            group.addAction(actions.value(3));
-            actions.value(3)->setCheckable(true);
-
-            /* Mark current one: */
-            for (int i = 0; i <= 3; ++i)
-                actions.value(i)->setChecked(controllerSets.key(controllerSet) == i);
-
-            /* Execute menu, look for result: */
-            QAction *pTriggeredAction = menu.exec(QCursor::pos());
-            if (pTriggeredAction)
-            {
-                const int iTriggeredIndex = actions.key(pTriggeredAction);
-                if (controllerSets.key(controllerSet) != iTriggeredIndex)
-                    setMachineAttribute(machine(), MachineAttribute_USBControllerType, QVariant::fromValue(controllerSets.value(iTriggeredIndex)));
-            }
+            popupUSBControllerTypeEditor(strData.section(',', 0, 0) /* value */);
+            break;
+        }
+        case AnchorRole_VisualStateType:
+        {
+            popupVisualStateTypeEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
 #ifndef VBOX_WS_MAC
         case AnchorRole_MenuBar:
+        {
+            popupMenuBarEditor(strData.section(',', 0, 0) /* value */);
+            break;
+        }
 #endif
         case AnchorRole_StatusBar:
         {
-            /* Parse whether we have it enabled, true if unable to parse: */
-            bool fParsed = false;
-            bool fEnabled = strData.section(',', 0, 0).toInt(&fParsed);
-            if (!fParsed)
-                fEnabled = true;
-
-            /* Fill menu with actions, use menu-bar NLS for both cases for simplicity: */
-            UIMenu menu;
-            QActionGroup group(&menu);
-            QAction *pActionDisable = menu.addAction(QApplication::translate("UIDetails", "Disabled", "details (user interface/menu-bar)"));
-            group.addAction(pActionDisable);
-            pActionDisable->setCheckable(true);
-            pActionDisable->setChecked(!fEnabled);
-            QAction *pActionEnable = menu.addAction(QApplication::translate("UIDetails", "Enabled", "details (user interface/menu-bar)"));
-            group.addAction(pActionEnable);
-            pActionEnable->setCheckable(true);
-            pActionEnable->setChecked(fEnabled);
-
-            /* Execute menu, look for result: */
-            QAction *pTriggeredAction = menu.exec(QCursor::pos());
-            if (   pTriggeredAction
-                && (   (fEnabled && pTriggeredAction == pActionDisable)
-                    || (!fEnabled && pTriggeredAction == pActionEnable)))
-            {
-                switch (enmRole)
-                {
-#ifndef VBOX_WS_MAC
-                    case AnchorRole_MenuBar: gEDataManager->setMenuBarEnabled(!fEnabled, machine().GetId()); break;
-#endif
-                    case AnchorRole_StatusBar: gEDataManager->setStatusBarEnabled(!fEnabled, machine().GetId()); break;
-                    default: break;
-                }
-            }
+            popupStatusBarEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
 #ifndef VBOX_WS_MAC
         case AnchorRole_MiniToolbar:
         {
-            /* Parse whether we have it enabled: */
-            bool fParsed = false;
-            MiniToolbarAlignment enmAlignment = static_cast<MiniToolbarAlignment>(strData.section(',', 0, 0).toInt(&fParsed));
-            if (!fParsed)
-                enmAlignment = MiniToolbarAlignment_Disabled;
-
-            /* Fill menu with actions: */
-            UIMenu menu;
-            QActionGroup group(&menu);
-            QAction *pActionDisabled = menu.addAction(QApplication::translate("UIDetails", "Disabled", "details (user interface/mini-toolbar)"));
-            group.addAction(pActionDisabled);
-            pActionDisabled->setCheckable(true);
-            pActionDisabled->setChecked(enmAlignment == MiniToolbarAlignment_Disabled);
-            QAction *pActionTop = menu.addAction(QApplication::translate("UIDetails", "Top", "details (user interface/mini-toolbar position)"));
-            group.addAction(pActionTop);
-            pActionTop->setCheckable(true);
-            pActionTop->setChecked(enmAlignment == MiniToolbarAlignment_Top);
-            QAction *pActionBottom = menu.addAction(QApplication::translate("UIDetails", "Bottom", "details (user interface/mini-toolbar position)"));
-            group.addAction(pActionBottom);
-            pActionBottom->setCheckable(true);
-            pActionBottom->setChecked(enmAlignment == MiniToolbarAlignment_Bottom);
-
-            /* Execute menu, look for result: */
-            QAction *pTriggeredAction = menu.exec(QCursor::pos());
-            if (pTriggeredAction)
-            {
-                const QUuid uMachineId = machine().GetId();
-                if (pTriggeredAction == pActionDisabled)
-                    gEDataManager->setMiniToolbarEnabled(false, uMachineId);
-                else if (pTriggeredAction == pActionTop)
-                {
-                    gEDataManager->setMiniToolbarEnabled(true, uMachineId);
-                    gEDataManager->setMiniToolbarAlignment(Qt::AlignTop, uMachineId);
-                }
-                else if (pTriggeredAction == pActionBottom)
-                {
-                    gEDataManager->setMiniToolbarEnabled(true, uMachineId);
-                    gEDataManager->setMiniToolbarAlignment(Qt::AlignBottom, uMachineId);
-                }
-            }
+            popupMiniToolbarEditor(strData.section(',', 0, 0) /* value */);
             break;
         }
 #endif
+        case AnchorRole_Cloud:
+        {
+            popupCloudEditor(strData /* complex value */);
+            break;
+        }
         default:
             break;
+    }
+}
+
+void UIDetailsElement::sltHandleCopyRequest()
+{
+    /* Acquire sender: */
+    QObject *pSender = sender();
+    AssertPtrReturnVoid(pSender);
+
+    /* Acquire clipboard: */
+    QClipboard *pClipboard = QGuiApplication::clipboard();
+    AssertPtrReturnVoid(pClipboard);
+    pClipboard->setText(pSender->property("contents").toString());
+}
+
+void UIDetailsElement::sltHandleEditRequest()
+{
+    /* Acquire sender: */
+    QObject *pSender = sender();
+    AssertPtrReturnVoid(pSender);
+
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Acquire cloud machine: */
+        CCloudMachine comCloudMachine = cloudMachine();
+
+        /* Prepare editor: */
+        UISafePointerCloudMachineSettingsDialogPage pEditor = new UICloudMachineSettingsDialogPage(pPopup,
+                                                                                                   false /* full-scale? */);
+        if (pEditor)
+        {
+            /* Configure editor: */
+            connect(pEditor.data(), &UICloudMachineSettingsDialogPage::sigValidChanged,
+                    pPopup.data(), &QIDialogContainer::setProgressBarHidden);
+            connect(pEditor.data(), &UICloudMachineSettingsDialogPage::sigValidChanged,
+                    pPopup.data(), &QIDialogContainer::setOkButtonEnabled);
+            pEditor->setFilter(pSender->property("filter").toString());
+            /* Create get settings form task: */
+            UITaskCloudGetSettingsForm *pTask = new UITaskCloudGetSettingsForm(comCloudMachine);
+            /* Create get settings form receiver: */
+            UIReceiverCloudGetSettingsForm *pReceiver = new UIReceiverCloudGetSettingsForm(pEditor);
+            if (pReceiver)
+            {
+                connect(pReceiver, &UIReceiverCloudGetSettingsForm::sigTaskComplete,
+                        pEditor.data(), &UICloudMachineSettingsDialogPage::setForm);
+                connect(pReceiver, &UIReceiverCloudGetSettingsForm::sigTaskFailed,
+                        pPopup.data(), &QIDialogContainer::close);
+            }
+            /* Start task: */
+            if (pTask && pReceiver)
+                uiCommon().threadPoolCloud()->enqueueTask(pTask);
+            /* Embed editor: */
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->resize(pPopup->minimumSizeHint());
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+        {
+            /* Makes sure page data committed: */
+            if (pEditor)
+                pEditor->makeSureDataCommitted();
+
+            /* Apply form: */
+            CForm comForm = pEditor->form();
+            applyCloudMachineSettingsForm(comCloudMachine, comForm, gpNotificationCenter);
+        }
+
+        /* Delete popup: */
+        delete pPopup;
     }
 }
 
@@ -964,7 +697,7 @@ void UIDetailsElement::sltMountStorageMedium()
     const UIMediumTarget target = pAction->data().value<UIMediumTarget>();
 
     /* Update current machine mount-target: */
-    uiCommon().updateMachineStorage(machine(), target);
+    uiCommon().updateMachineStorage(machine(), target, gpManager->actionPool());
 }
 
 void UIDetailsElement::prepareElement()
@@ -1122,9 +855,9 @@ void UIDetailsElement::handleHoverEvent(QGraphicsSceneHoverEvent *pEvent)
 void UIDetailsElement::updateNameHoverLink()
 {
     if (m_fNameHovered)
-        UICommon::setCursor(this, Qt::PointingHandCursor);
+        UICursor::setCursor(this, Qt::PointingHandCursor);
     else
-        UICommon::unsetCursor(this);
+        UICursor::unsetCursor(this);
     update();
 }
 
@@ -1147,6 +880,561 @@ void UIDetailsElement::updateButtonVisibility()
         m_pButton->show();
     else if (!m_fHovered && m_pButton->isVisible())
         m_pButton->hide();
+}
+
+void UIDetailsElement::popupNameAndSystemEditor(bool fChooseName, bool fChoosePath, bool fChooseType, const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UINameAndSystemEditor *pEditor = new UINameAndSystemEditor(pPopup,
+                                                                   fChooseName,
+                                                                   fChoosePath,
+                                                                   false /* image? */,
+                                                                   fChooseType);
+        if (pEditor)
+        {
+            if (fChooseName)
+                pEditor->setName(strValue);
+            else if (fChoosePath)
+                pEditor->setPath(strValue);
+            else if (fChooseType)
+                pEditor->setTypeId(strValue);
+
+            /* Add to popup: */
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+        {
+            if (fChooseName)
+                setMachineAttribute(machine(), MachineAttribute_Name, QVariant::fromValue(pEditor->name()));
+            else if (fChooseType)
+                setMachineAttribute(machine(), MachineAttribute_OSType, QVariant::fromValue(pEditor->typeId()));
+            else if (fChoosePath)
+                setMachineLocation(machine().GetId(), pEditor->path());
+        }
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupBaseMemoryEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UIBaseMemoryEditor *pEditor = new UIBaseMemoryEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setValue(strValue.toInt());
+            connect(pEditor, &UIBaseMemoryEditor::sigValidChanged,
+                    pPopup.data(), &QIDialogContainer::setOkButtonEnabled);
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+            setMachineAttribute(machine(), MachineAttribute_BaseMemory, QVariant::fromValue(pEditor->value()));
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupBootOrderEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UIBootOrderEditor *pEditor = new UIBootOrderEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setValue(bootItemsFromSerializedString(strValue));
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+            setMachineAttribute(machine(), MachineAttribute_BootOrder, QVariant::fromValue(pEditor->value()));
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupVideoMemoryEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UIVideoMemoryEditor *pEditor = new UIVideoMemoryEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setValue(strValue.toInt());
+            connect(pEditor, &UIVideoMemoryEditor::sigValidChanged,
+                    pPopup.data(), &QIDialogContainer::setOkButtonEnabled);
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+            setMachineAttribute(machine(), MachineAttribute_VideoMemory, QVariant::fromValue(pEditor->value()));
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupGraphicsControllerTypeEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UIGraphicsControllerEditor *pEditor = new UIGraphicsControllerEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setValue(static_cast<KGraphicsControllerType>(strValue.toInt()));
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+            setMachineAttribute(machine(), MachineAttribute_GraphicsControllerType, QVariant::fromValue(pEditor->value()));
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupStorageEditor(const QString &strValue)
+{
+    /* Prepare storage-menu: */
+    UIMenu menu;
+    menu.setShowToolTip(true);
+
+    /* Storage-controller name: */
+    QString strControllerName = strValue.section(',', 0, 0);
+    /* Storage-slot: */
+    StorageSlot storageSlot = gpConverter->fromString<StorageSlot>(strValue.section(',', 1));
+
+    /* Fill storage-menu: */
+    uiCommon().prepareStorageMenu(menu, this, SLOT(sltMountStorageMedium()),
+                                  machine(), strControllerName, storageSlot);
+
+    /* Exec menu: */
+    menu.exec(QCursor::pos());
+}
+
+void UIDetailsElement::popupAudioHostDriverTypeEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UIAudioHostDriverEditor *pEditor = new UIAudioHostDriverEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setValue(static_cast<KAudioDriverType>(strValue.toInt()));
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+            setMachineAttribute(machine(), MachineAttribute_AudioHostDriverType, QVariant::fromValue(pEditor->value()));
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupAudioControllerTypeEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UIAudioControllerEditor *pEditor = new UIAudioControllerEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setValue(static_cast<KAudioControllerType>(strValue.toInt()));
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+            setMachineAttribute(machine(), MachineAttribute_AudioControllerType, QVariant::fromValue(pEditor->value()));
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupNetworkAttachmentTypeEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UINetworkAttachmentEditor *pEditor = new UINetworkAttachmentEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setValueNames(KNetworkAttachmentType_Bridged, UINetworkAttachmentEditor::bridgedAdapters());
+            pEditor->setValueNames(KNetworkAttachmentType_Internal, UINetworkAttachmentEditor::internalNetworks());
+            pEditor->setValueNames(KNetworkAttachmentType_HostOnly, UINetworkAttachmentEditor::hostInterfaces());
+            pEditor->setValueNames(KNetworkAttachmentType_Generic, UINetworkAttachmentEditor::genericDrivers());
+            pEditor->setValueNames(KNetworkAttachmentType_NATNetwork, UINetworkAttachmentEditor::natNetworks());
+            pEditor->setValueType(static_cast<KNetworkAttachmentType>(strValue.section(';', 1, 1).toInt()));
+            pEditor->setValueName(pEditor->valueType(), strValue.section(';', 2, 2));
+            connect(pEditor, &UINetworkAttachmentEditor::sigValidChanged,
+                    pPopup.data(), &QIDialogContainer::setOkButtonEnabled);
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+        {
+            UINetworkAdapterDescriptor nad(strValue.section(';', 0, 0).toInt(),
+                                           pEditor->valueType(), pEditor->valueName(pEditor->valueType()));
+            setMachineAttribute(machine(), MachineAttribute_NetworkAttachmentType, QVariant::fromValue(nad));
+        }
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+void UIDetailsElement::popupUSBControllerTypeEditor(const QString &strValue)
+{
+    /* Parse controller type list: */
+    UIUSBControllerTypeSet controllerSet;
+    const QStringList controllerInternals = strValue.split(';');
+    foreach (const QString &strControllerType, controllerInternals)
+    {
+        /* Parse each internal controller description: */
+        bool fParsed = false;
+        KUSBControllerType enmType = static_cast<KUSBControllerType>(strControllerType.toInt(&fParsed));
+        if (!fParsed)
+            enmType = KUSBControllerType_Null;
+        controllerSet << enmType;
+    }
+
+    /* Prepare existing controller sets: */
+    QMap<int, UIUSBControllerTypeSet> controllerSets;
+    controllerSets[0] = UIUSBControllerTypeSet();
+    controllerSets[1] = UIUSBControllerTypeSet() << KUSBControllerType_OHCI;
+    controllerSets[2] = UIUSBControllerTypeSet() << KUSBControllerType_OHCI << KUSBControllerType_EHCI;
+    controllerSets[3] = UIUSBControllerTypeSet() << KUSBControllerType_XHCI;
+
+    /* Fill menu with actions: */
+    UIMenu menu;
+    QActionGroup group(&menu);
+    QMap<int, QAction*> actions;
+    actions[0] = menu.addAction(QApplication::translate("UIDetails", "Disabled", "details (usb)"));
+    group.addAction(actions.value(0));
+    actions.value(0)->setCheckable(true);
+    actions[1] = menu.addAction(QApplication::translate("UIDetails", "USB 1.1 (OHCI) Controller", "details (usb)"));
+    group.addAction(actions.value(1));
+    actions.value(1)->setCheckable(true);
+    actions[2] = menu.addAction(QApplication::translate("UIDetails", "USB 2.0 (OHCI + EHCI) Controller", "details (usb)"));
+    group.addAction(actions.value(2));
+    actions.value(2)->setCheckable(true);
+    actions[3] = menu.addAction(QApplication::translate("UIDetails", "USB 3.0 (xHCI) Controller", "details (usb)"));
+    group.addAction(actions.value(3));
+    actions.value(3)->setCheckable(true);
+
+    /* Mark current one: */
+    for (int i = 0; i <= 3; ++i)
+        actions.value(i)->setChecked(controllerSets.key(controllerSet) == i);
+
+    /* Execute menu, look for result: */
+    QAction *pTriggeredAction = menu.exec(QCursor::pos());
+    if (pTriggeredAction)
+    {
+        const int iTriggeredIndex = actions.key(pTriggeredAction);
+        if (controllerSets.key(controllerSet) != iTriggeredIndex)
+            setMachineAttribute(machine(), MachineAttribute_USBControllerType, QVariant::fromValue(controllerSets.value(iTriggeredIndex)));
+    }
+}
+
+void UIDetailsElement::popupVisualStateTypeEditor(const QString &strValue)
+{
+    /* Prepare popup: */
+    QPointer<QIDialogContainer> pPopup = new QIDialogContainer(0, Qt::Tool);
+    if (pPopup)
+    {
+        /* Prepare editor: */
+        UIVisualStateEditor *pEditor = new UIVisualStateEditor(pPopup);
+        if (pEditor)
+        {
+            pEditor->setMachineId(machine().GetId());
+            pEditor->setValue(static_cast<UIVisualStateType>(strValue.toInt()));
+            pPopup->setWidget(pEditor);
+        }
+
+        /* Adjust popup geometry: */
+        pPopup->move(QCursor::pos());
+        pPopup->adjustSize();
+
+        // WORKAROUND:
+        // On Windows, Tool dialogs aren't activated by default by some reason.
+        // So we have created sltActivateWindow wrapping actual activateWindow
+        // to fix that annoying issue.
+        QMetaObject::invokeMethod(pPopup, "sltActivateWindow", Qt::QueuedConnection);
+        /* Execute popup, change machine name if confirmed: */
+        if (pPopup->exec() == QDialog::Accepted)
+            gEDataManager->setRequestedVisualState(pEditor->value(), machine().GetId());
+
+        /* Delete popup: */
+        delete pPopup;
+    }
+}
+
+#ifndef VBOX_WS_MAC
+void UIDetailsElement::popupMenuBarEditor(const QString &strValue)
+{
+    /* Parse whether we have it enabled, true if unable to parse: */
+    bool fParsed = false;
+    bool fEnabled = strValue.toInt(&fParsed);
+    if (!fParsed)
+        fEnabled = true;
+
+    /* Fill menu with actions: */
+    UIMenu menu;
+    QActionGroup group(&menu);
+    QAction *pActionDisable = menu.addAction(QApplication::translate("UIDetails", "Disabled", "details (user interface/menu-bar)"));
+    group.addAction(pActionDisable);
+    pActionDisable->setCheckable(true);
+    pActionDisable->setChecked(!fEnabled);
+    QAction *pActionEnable = menu.addAction(QApplication::translate("UIDetails", "Enabled", "details (user interface/menu-bar)"));
+    group.addAction(pActionEnable);
+    pActionEnable->setCheckable(true);
+    pActionEnable->setChecked(fEnabled);
+
+    /* Execute menu, look for result: */
+    QAction *pTriggeredAction = menu.exec(QCursor::pos());
+    if (   pTriggeredAction
+        && (   (fEnabled && pTriggeredAction == pActionDisable)
+            || (!fEnabled && pTriggeredAction == pActionEnable)))
+    {
+        gEDataManager->setMenuBarEnabled(!fEnabled, machine().GetId());
+    }
+}
+#endif
+
+void UIDetailsElement::popupStatusBarEditor(const QString &strValue)
+{
+    /* Parse whether we have it enabled, true if unable to parse: */
+    bool fParsed = false;
+    bool fEnabled = strValue.toInt(&fParsed);
+    if (!fParsed)
+        fEnabled = true;
+
+    /* Fill menu with actions: */
+    UIMenu menu;
+    QActionGroup group(&menu);
+    QAction *pActionDisable = menu.addAction(QApplication::translate("UIDetails", "Disabled", "details (user interface/status-bar)"));
+    group.addAction(pActionDisable);
+    pActionDisable->setCheckable(true);
+    pActionDisable->setChecked(!fEnabled);
+    QAction *pActionEnable = menu.addAction(QApplication::translate("UIDetails", "Enabled", "details (user interface/status-bar)"));
+    group.addAction(pActionEnable);
+    pActionEnable->setCheckable(true);
+    pActionEnable->setChecked(fEnabled);
+
+    /* Execute menu, look for result: */
+    QAction *pTriggeredAction = menu.exec(QCursor::pos());
+    if (   pTriggeredAction
+        && (   (fEnabled && pTriggeredAction == pActionDisable)
+            || (!fEnabled && pTriggeredAction == pActionEnable)))
+    {
+        gEDataManager->setStatusBarEnabled(!fEnabled, machine().GetId());
+    }
+}
+
+#ifndef VBOX_WS_MAC
+void UIDetailsElement::popupMiniToolbarEditor(const QString &strValue)
+{
+    /* Parse whether we have it enabled: */
+    bool fParsed = false;
+    MiniToolbarAlignment enmAlignment = static_cast<MiniToolbarAlignment>(strValue.toInt(&fParsed));
+    if (!fParsed)
+        enmAlignment = MiniToolbarAlignment_Disabled;
+
+    /* Fill menu with actions: */
+    UIMenu menu;
+    QActionGroup group(&menu);
+    QAction *pActionDisabled = menu.addAction(QApplication::translate("UIDetails", "Disabled", "details (user interface/mini-toolbar)"));
+    group.addAction(pActionDisabled);
+    pActionDisabled->setCheckable(true);
+    pActionDisabled->setChecked(enmAlignment == MiniToolbarAlignment_Disabled);
+    QAction *pActionTop = menu.addAction(QApplication::translate("UIDetails", "Top", "details (user interface/mini-toolbar position)"));
+    group.addAction(pActionTop);
+    pActionTop->setCheckable(true);
+    pActionTop->setChecked(enmAlignment == MiniToolbarAlignment_Top);
+    QAction *pActionBottom = menu.addAction(QApplication::translate("UIDetails", "Bottom", "details (user interface/mini-toolbar position)"));
+    group.addAction(pActionBottom);
+    pActionBottom->setCheckable(true);
+    pActionBottom->setChecked(enmAlignment == MiniToolbarAlignment_Bottom);
+
+    /* Execute menu, look for result: */
+    QAction *pTriggeredAction = menu.exec(QCursor::pos());
+    if (pTriggeredAction)
+    {
+        const QUuid uMachineId = machine().GetId();
+        if (pTriggeredAction == pActionDisabled)
+            gEDataManager->setMiniToolbarEnabled(false, uMachineId);
+        else if (pTriggeredAction == pActionTop)
+        {
+            gEDataManager->setMiniToolbarEnabled(true, uMachineId);
+            gEDataManager->setMiniToolbarAlignment(Qt::AlignTop, uMachineId);
+        }
+        else if (pTriggeredAction == pActionBottom)
+        {
+            gEDataManager->setMiniToolbarEnabled(true, uMachineId);
+            gEDataManager->setMiniToolbarAlignment(Qt::AlignBottom, uMachineId);
+        }
+    }
+}
+#endif
+
+void UIDetailsElement::popupCloudEditor(const QString &strValue)
+{
+    /* Prepare cloud-menu: */
+    UIMenu menu;
+    menu.setShowToolTip(true);
+
+    /* Acquire cloud machine: */
+    CCloudMachine comCloudMachine = cloudMachine();
+    /* Acquire details form: */
+    CForm comForm = comCloudMachine.GetDetailsForm();
+    /* Ignore cloud machine errors: */
+    if (comCloudMachine.isOk())
+    {
+        /* For each form value: */
+        foreach (const CFormValue &comIteratedValue, comForm.GetValues())
+        {
+            /* Acquire label: */
+            const QString &strIteratedLabel = comIteratedValue.GetLabel();
+            if (strIteratedLabel != strValue)
+                continue;
+
+            /* Acquire resulting value in short and full form: */
+            const QString strIteratedResultShort = UIDetailsGenerator::generateFormValueInformation(comIteratedValue);
+            const QString strIteratedResultFull = UIDetailsGenerator::generateFormValueInformation(comIteratedValue, true /* full */);
+
+            /* Add 'Copy' action: */
+            QAction *pAction = menu.addAction(tr("Copy value (%1)").arg(strIteratedResultShort),
+                                              this, &UIDetailsElement::sltHandleCopyRequest);
+            if (pAction)
+            {
+                pAction->setToolTip(strIteratedResultFull);
+                pAction->setProperty("contents", strIteratedResultFull);
+            }
+
+            /* Add 'Edit' action: */
+            if (comIteratedValue.GetEnabled())
+            {
+                QAction *pAction = menu.addAction(tr("Edit value..."),
+                                                  this, &UIDetailsElement::sltHandleEditRequest);
+                if (pAction)
+                    pAction->setProperty("filter", strIteratedLabel);
+            }
+
+            /* Quit prematurely: */
+            break;
+        }
+    }
+
+    /* Exec menu: */
+    menu.exec(QCursor::pos());
 }
 
 void UIDetailsElement::updateMinimumHeaderWidth()
@@ -1181,59 +1469,31 @@ void UIDetailsElement::paintBackground(QPainter *pPainter, const QStyleOptionGra
                          ? QRect(optionRect.topLeft(), QSize(optionRect.width(), iHeadHeight + m_iAdditionalHeight))
                          : optionRect;
 
-    /* Acquire palette: */
-    const QPalette pal = palette();
+    /* Acquire background color: */
+    QColor backgroundColor = QApplication::palette().color(QPalette::Active, QPalette::Window);
 
     /* Paint default background: */
-    const QColor defaultColor = pal.color(QPalette::Active, QPalette::Mid);
-    const QColor dcTone1 = defaultColor.lighter(m_iDefaultToneFinal);
-    const QColor dcTone2 = defaultColor.lighter(m_iDefaultToneStart);
-    QLinearGradient gradientDefault(fullRect.topLeft(), fullRect.bottomLeft());
-    gradientDefault.setColorAt(0, dcTone1);
-    gradientDefault.setColorAt(1, dcTone2);
+    QLinearGradient gradientDefault(fullRect.topLeft(), fullRect.bottomRight());
+    gradientDefault.setColorAt(0, backgroundColor.darker(m_iDefaultDarknessStart));
+    gradientDefault.setColorAt(1, backgroundColor.darker(m_iDefaultDarknessFinal));
     pPainter->fillRect(fullRect, gradientDefault);
 
     /* If element is hovered: */
-    if (m_fHovered)
+    if (animatedValue())
     {
+        /* Acquire header color: */
+        QColor headColor = backgroundColor.lighter(130);
+
         /* Paint hovered background: */
-        const QColor hoveredColor = pal.color(QPalette::Active, QPalette::Highlight);
-        QColor hcTone1 = hoveredColor.lighter(m_iHoverToneFinal);
-        QColor hcTone2 = hoveredColor.lighter(m_iHoverToneStart);
-        hcTone1.setAlpha(m_iAnimatedValue);
-        hcTone2.setAlpha(m_iAnimatedValue);
+        QColor hcTone1 = headColor;
+        QColor hcTone2 = headColor;
+        hcTone1.setAlpha(255 * animatedValue() / 100);
+        hcTone2.setAlpha(0);
         QLinearGradient gradientHovered(headRect.topLeft(), headRect.bottomLeft());
         gradientHovered.setColorAt(0, hcTone1);
         gradientHovered.setColorAt(1, hcTone2);
         pPainter->fillRect(headRect, gradientHovered);
     }
-
-    /* Restore painter: */
-    pPainter->restore();
-}
-
-void UIDetailsElement::paintFrame(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions) const
-{
-    /* Save painter: */
-    pPainter->save();
-
-    /* Prepare variables: */
-    const int iMargin = data(ElementData_Margin).toInt();
-    const int iHeadHeight = 2 * iMargin + m_iMinimumHeaderHeight;
-    const QRect optionRect = pOptions->rect;
-    const QRect rectangle = m_fAnimationRunning
-                          ? QRect(optionRect.topLeft(), QSize(optionRect.width(), iHeadHeight + m_iAdditionalHeight))
-                          : optionRect;
-
-    /* Paint frame: */
-    const QColor strokeColor = palette().color(QPalette::Active, QPalette::Mid).lighter(m_iDefaultToneStart);
-    QPen pen(strokeColor);
-    pen.setWidth(0);
-    pPainter->setPen(pen);
-    pPainter->drawLine(rectangle.topLeft(),    rectangle.topRight());
-    pPainter->drawLine(rectangle.bottomLeft(), rectangle.bottomRight());
-    pPainter->drawLine(rectangle.topLeft(),    rectangle.bottomLeft());
-    pPainter->drawLine(rectangle.topRight(),   rectangle.bottomRight());
 
     /* Restore painter: */
     pPainter->restore();
@@ -1251,8 +1511,8 @@ void UIDetailsElement::paintElementInfo(QPainter *pPainter, const QStyleOptionGr
     const int iMaximumHeight = qMax(iPixmapHeight, iNameHeight);
 
     /* Prepare color: */
-    const QPalette pal = palette();
-    const QColor buttonTextColor = pal.color(QPalette::Active, QPalette::ButtonText);
+    const QPalette pal = QApplication::palette();
+    const QColor buttonTextColor = pal.color(QPalette::Active, QPalette::Text);
     const QColor linkTextColor = pal.color(QPalette::Active, QPalette::Link);
 
     /* Paint pixmap: */

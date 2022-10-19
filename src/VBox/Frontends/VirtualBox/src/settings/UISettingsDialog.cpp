@@ -4,25 +4,38 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
 #include <QCloseEvent>
+#include <QGridLayout>
+#include <QLabel>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QStackedWidget>
 #include <QTimer>
 
 /* GUI includes: */
+#include "QIDialogButtonBox.h"
 #include "QIWidgetValidator.h"
 #include "UICommon.h"
 #include "UIConverter.h"
@@ -34,7 +47,7 @@
 #include "UISettingsPage.h"
 #include "UISettingsSelector.h"
 #include "UISettingsSerializer.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
 #include "UIWarningPane.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils.h"
@@ -49,7 +62,6 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     : QIWithRetranslateUI<QIMainDialog>(pParent)
     , m_pSelector(0)
     , m_pStack(0)
-    , m_fPolished(false)
     , m_enmConfigurationAccessLevel(ConfigurationAccessLevel_Null)
     , m_pSerializeProcess(0)
     , m_fSerializationIsInProgress(false)
@@ -60,6 +72,9 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     , m_fValid(true)
     , m_fSilent(true)
     , m_pWhatsThisTimer(new QTimer(this))
+    , m_pLabelTitle(0)
+    , m_pButtonBox(0)
+    , m_pWidgetStackHandler(0)
 {
     /* Prepare: */
     prepare();
@@ -111,6 +126,10 @@ void UISettingsDialog::reject()
 
 void UISettingsDialog::sltCategoryChanged(int cId)
 {
+#ifndef VBOX_WS_MAC
+    if (m_pButtonBox)
+        uiCommon().setHelpKeyword(m_pButtonBox->button(QDialogButtonBox::Help), m_pageHelpKeywords[cId]);
+#endif
     const int iIndex = m_pages.value(cId);
 
 #ifdef VBOX_WS_MAC
@@ -150,7 +169,7 @@ void UISettingsDialog::sltCategoryChanged(int cId)
 #ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
     setWindowTitle(title());
 #else
-    m_pLbTitle->setText(m_pSelector->itemText(cId));
+    m_pLabelTitle->setText(m_pSelector->itemText(cId));
 #endif
 }
 
@@ -240,8 +259,9 @@ bool UISettingsDialog::eventFilter(QObject *pObject, QEvent *pEvent)
 
 void UISettingsDialog::retranslateUi()
 {
-    /* Translate generated stuff: */
-    Ui::UISettingsDialog::retranslateUi(this);
+    setWhatsThis(tr("<i>Select a settings category from the list on the left-hand side and move the mouse over a settings "
+                    "item to get more information.</i>"));
+    m_pLabelTitle->setText(QString());
 
     /* Translate warning stuff: */
     m_strWarningHint = tr("Invalid settings detected");
@@ -250,7 +270,7 @@ void UISettingsDialog::retranslateUi()
 
 #ifndef VBOX_GUI_WITH_TOOLBAR_SETTINGS
     /* Retranslate current page headline: */
-    m_pLbTitle->setText(m_pSelector->itemText(m_pSelector->currentId()));
+    m_pLabelTitle->setText(m_pSelector->itemText(m_pSelector->currentId()));
 #endif
 
     /* Retranslate all validators: */
@@ -260,22 +280,10 @@ void UISettingsDialog::retranslateUi()
     revalidate();
 }
 
-void UISettingsDialog::showEvent(QShowEvent *pEvent)
+void UISettingsDialog::polishEvent(QShowEvent *pEvent)
 {
-    /* Base-class processing: */
-    QIMainDialog::showEvent(pEvent);
-
-    /* One may think that QWidget::polish() is the right place to do things
-     * below, but apparently, by the time when QWidget::polish() is called,
-     * the widget style & layout are not fully done, at least the minimum
-     * size hint is not properly calculated. Since this is sometimes necessary,
-     * we provide our own "polish" implementation. */
-    if (m_fPolished)
-        return;
-
-    m_fPolished = true;
-
-    int iMinWidth = m_pSelector->minWidth();
+    /* Check what's the minimum selector size: */
+    const int iMinWidth = m_pSelector->minWidth();
 
 #ifdef VBOX_WS_MAC
 
@@ -329,6 +337,9 @@ void UISettingsDialog::showEvent(QShowEvent *pEvent)
     resize(s);
 
 #endif /* VBOX_WS_MAC */
+
+    /* Call to base-class: */
+    QIWithRetranslateUI<QIMainDialog>::polishEvent(pEvent);
 }
 
 void UISettingsDialog::loadData(QVariant &data)
@@ -426,6 +437,11 @@ void UISettingsDialog::addItem(const QString &strBigIcon,
         pSettingsPage->setId(cId);
         assignValidator(pSettingsPage);
     }
+}
+
+void UISettingsDialog::addPageHelpKeyword(int iPageType, const QString &strHelpKeyword)
+{
+    m_pageHelpKeywords[iPageType] = strHelpKeyword;
 }
 
 void UISettingsDialog::revalidate(UIPageValidator *pValidator)
@@ -583,22 +599,21 @@ void UISettingsDialog::sltUpdateWhatsThis(bool fGotFocus)
     }
 
     if (pWhatsThisWidget && !strWhatsThisText.isEmpty())
-        pWhatsThisWidget->setToolTip(QString("<qt>%1</qt>").arg(strWhatsThisText));
+        pWhatsThisWidget->setToolTip(strWhatsThisText);
 }
 
 void UISettingsDialog::prepare()
 {
-    /* Apply UI decorations: */
-    Ui::UISettingsDialog::setupUi(this);
+    prepareWidgets();
 
     /* Configure title: */
-    if (m_pLbTitle)
+    if (m_pLabelTitle)
     {
         /* Page-title font is bold and larger but derived from the system font: */
         QFont pageTitleFont = font();
         pageTitleFont.setBold(true);
         pageTitleFont.setPointSize(pageTitleFont.pointSize() + 2);
-        m_pLbTitle->setFont(pageTitleFont);
+        m_pLabelTitle->setFont(pageTitleFont);
     }
 
     /* Prepare selector: */
@@ -608,14 +623,14 @@ void UISettingsDialog::prepare()
 #ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
 
         /* No page-title with tool-bar: */
-        m_pLbTitle->hide();
+        m_pLabelTitle->hide();
 
         /* Create modern tool-bar selector: */
         m_pSelector = new UISettingsSelectorToolBar(this);
         if (m_pSelector)
         {
             /* Configure tool-bar: */
-            static_cast<UIToolBar*>(m_pSelector->widget())->enableMacToolbar();
+            static_cast<QIToolBar*>(m_pSelector->widget())->enableMacToolbar();
 
             /* Add tool-bar into page: */
             addToolBar(qobject_cast<QToolBar*>(m_pSelector->widget()));
@@ -644,10 +659,10 @@ void UISettingsDialog::prepare()
     }
 
     /* Prepare stack-handler: */
-    if (m_pWtStackHandler)
+    if (m_pWidgetStackHandler)
     {
         /* Create page-stack layout: */
-        QVBoxLayout *pStackLayout = new QVBoxLayout(m_pWtStackHandler);
+        QVBoxLayout *pStackLayout = new QVBoxLayout(m_pWidgetStackHandler);
         if (pStackLayout)
         {
             /* Confugre page-stack layout: */
@@ -670,8 +685,6 @@ void UISettingsDialog::prepare()
     if (m_pButtonBox)
     {
         m_pButtonBox->button(QDialogButtonBox::Ok)->setDefault(true);
-        connect(m_pButtonBox, &QIDialogButtonBox::helpRequested,
-                &msgCenter(), &UIMessageCenter::sltShowHelpHelpDialog);
 
         /* Create status-bar: */
         m_pStatusBar = new QStackedWidget;
@@ -719,6 +732,76 @@ void UISettingsDialog::prepare()
 
     /* Apply language settings: */
     retranslateUi();
+}
+
+void UISettingsDialog::prepareWidgets()
+{
+    /* Prepare central-widget: */
+    setCentralWidget(new QWidget);
+    if (centralWidget())
+    {
+        /* Prepare main layout: */
+        QGridLayout *pLayoutMain = new QGridLayout(centralWidget());
+        if (pLayoutMain)
+        {
+            /* Prepare title label: */
+            m_pLabelTitle = new QLabel(centralWidget());
+            if (m_pLabelTitle)
+            {
+                m_pLabelTitle->setSizePolicy(QSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed));
+                QPalette pal = QApplication::palette();
+                pal.setColor(QPalette::Active, QPalette::Window, pal.color(QPalette::Active, QPalette::Base));
+                m_pLabelTitle->setPalette(pal);
+                QFont fnt;
+                fnt.setFamily(QStringLiteral("Sans Serif"));
+                fnt.setPointSize(11);
+                fnt.setBold(true);
+#ifdef VBOX_IS_QT6_OR_LATER
+                fnt.setWeight(QFont::ExtraBold);
+#else
+                fnt.setWeight(75);
+#endif
+                m_pLabelTitle->setFont(fnt);
+                m_pLabelTitle->setAutoFillBackground(true);
+                m_pLabelTitle->setFrameShadow(QFrame::Sunken);
+                m_pLabelTitle->setMargin(9);
+
+                pLayoutMain->addWidget(m_pLabelTitle, 0, 1);
+            }
+
+            /* Prepare widget stack handler: */
+            m_pWidgetStackHandler = new QWidget(centralWidget());
+            if (m_pWidgetStackHandler)
+            {
+                m_pWidgetStackHandler->setSizePolicy(QSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::MinimumExpanding));
+                pLayoutMain->addWidget(m_pWidgetStackHandler, 1, 1);
+            }
+
+            /* Prepare button-box: */
+            m_pButtonBox = new QIDialogButtonBox(centralWidget());
+            if (m_pButtonBox)
+            {
+#ifndef VBOX_WS_MAC
+                m_pButtonBox->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
+                                                 QDialogButtonBox::NoButton | QDialogButtonBox::Help);
+                m_pButtonBox->button(QDialogButtonBox::Help)->setShortcut(QKeySequence::HelpContents);
+#else
+                // WORKAROUND:
+                // No Help button on macOS for now, conflict with old Qt.
+                m_pButtonBox->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
+                                                 QDialogButtonBox::NoButton);
+#endif
+                connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &UISettingsDialog::reject);
+                connect(m_pButtonBox, &QIDialogButtonBox::accepted, this, &UISettingsDialog::accept);
+#ifndef VBOX_WS_MAC
+                connect(m_pButtonBox->button(QDialogButtonBox::Help), &QAbstractButton::pressed,
+                        &msgCenter(), &UIMessageCenter::sltHandleHelpRequest);
+#endif
+
+                pLayoutMain->addWidget(m_pButtonBox, 2, 0, 1, 2);
+            }
+        }
+    }
 }
 
 void UISettingsDialog::assignValidator(UISettingsPage *pPage)

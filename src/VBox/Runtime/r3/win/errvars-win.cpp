@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -29,7 +39,9 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <iprt/win/winsock2.h>
-#include <errno.h>
+#ifndef IPRT_NO_CRT
+# include <errno.h>
+#endif
 
 #include <iprt/errcore.h>
 #include "internal/iprt.h"
@@ -45,7 +57,9 @@ RTDECL(PRTERRVARS) RTErrVarsSave(PRTERRVARS pVars)
     pVars->ai32Vars[0] = RTERRVARS_MAGIC;
     pVars->ai32Vars[1] = GetLastError();
     pVars->ai32Vars[2] = g_pfnWSAGetLastError ? g_pfnWSAGetLastError() : WSANOTINITIALISED;
+#ifndef IPRT_NO_CRT
     pVars->ai32Vars[3] = errno;
+#endif
     return pVars;
 }
 
@@ -53,7 +67,9 @@ RTDECL(PRTERRVARS) RTErrVarsSave(PRTERRVARS pVars)
 RTDECL(void) RTErrVarsRestore(PCRTERRVARS pVars)
 {
     AssertReturnVoid(pVars->ai32Vars[0] == RTERRVARS_MAGIC);
+#ifndef IPRT_NO_CRT
     errno = pVars->ai32Vars[3];
+#endif
     if (   pVars->ai32Vars[2] != WSANOTINITIALISED
         && g_pfnWSASetLastError)
         g_pfnWSASetLastError(pVars->ai32Vars[2]);
@@ -69,7 +85,10 @@ RTDECL(bool) RTErrVarsAreEqual(PCRTERRVARS pVars1, PCRTERRVARS pVars2)
     return pVars1->ai32Vars[0] == pVars2->ai32Vars[0]
         && pVars1->ai32Vars[1] == pVars2->ai32Vars[1]
         && pVars1->ai32Vars[2] == pVars2->ai32Vars[2]
-        && pVars1->ai32Vars[3] == pVars2->ai32Vars[3];
+#ifndef IPRT_NO_CRT
+        && pVars1->ai32Vars[3] == pVars2->ai32Vars[3]
+#endif
+        ;
 }
 
 
@@ -80,6 +99,10 @@ RTDECL(bool) RTErrVarsHaveChanged(PCRTERRVARS pVars)
     return pVars->ai32Vars[0] != RTERRVARS_MAGIC
         || (uint32_t)pVars->ai32Vars[1] != GetLastError()
         || pVars->ai32Vars[2] != (g_pfnWSAGetLastError ? g_pfnWSAGetLastError() : WSANOTINITIALISED)
-        || pVars->ai32Vars[3] != errno;
+#ifndef IPRT_NO_CRT
+        || pVars->ai32Vars[3] != errno
+#endif
+        ;
+
 }
 

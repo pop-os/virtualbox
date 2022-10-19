@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -728,7 +738,8 @@ static int rtDbgCfgTryDownloadAndOpen(PRTDBGCFGINT pThis, const char *pszServer,
         return VWRN_NOT_FOUND;
     if (!pszCacheSubDir || !*pszCacheSubDir)
         return VWRN_NOT_FOUND;
-    if (!(fFlags & RTDBGCFG_O_SYMSRV))
+    if (   !(fFlags & RTDBGCFG_O_SYMSRV)
+        && !(fFlags & RTDBGCFG_O_DEBUGINFOD))
         return VWRN_NOT_FOUND;
 
     /*
@@ -793,16 +804,28 @@ static int rtDbgCfgTryDownloadAndOpen(PRTDBGCFGINT pThis, const char *pszServer,
             RTHttpUseSystemProxySettings(hHttp);
             RTHttpSetFollowRedirects(hHttp, 8);
 
-            static const char * const s_apszHeaders[] =
+            static const char * const s_apszHeadersMsSymSrv[] =
             {
                 "User-Agent: Microsoft-Symbol-Server/6.6.0999.9",
                 "Pragma: no-cache",
             };
 
-            rc = RTHttpSetHeaders(hHttp, RT_ELEMENTS(s_apszHeaders), s_apszHeaders);
+            static const char * const s_apszHeadersDebuginfod[] =
+            {
+                "User-Agent: IPRT DbgCfg 1.0",
+                "Pragma: no-cache",
+            };
+
+            if (fFlags & RTDBGCFG_O_SYMSRV)
+                rc = RTHttpSetHeaders(hHttp, RT_ELEMENTS(s_apszHeadersMsSymSrv), s_apszHeadersMsSymSrv);
+            else /* Must be debuginfod. */
+                rc = RTHttpSetHeaders(hHttp, RT_ELEMENTS(s_apszHeadersDebuginfod), s_apszHeadersDebuginfod);
             if (RT_SUCCESS(rc))
             {
-                RTStrPrintf(szUrl, sizeof(szUrl), "%s/%s/%s/%s", pszServer, pszFilename, pszCacheSubDir, pszFilename);
+                if (fFlags & RTDBGCFG_O_SYMSRV)
+                    RTStrPrintf(szUrl, sizeof(szUrl), "%s/%s/%s/%s", pszServer, pszFilename, pszCacheSubDir, pszFilename);
+                else
+                    RTStrPrintf(szUrl, sizeof(szUrl), "%s/buildid/%s/debuginfo", pszServer, pszCacheSubDir);
 
                 /** @todo Use some temporary file name and rename it after the operation
                  *        since not all systems support read-deny file sharing
@@ -814,7 +837,8 @@ static int rtDbgCfgTryDownloadAndOpen(PRTDBGCFGINT pThis, const char *pszServer,
                     RTFileDelete(pszPath);
                     rtDbgCfgLog1(pThis, "%Rrc on URL '%s'\n", rc, szUrl);
                 }
-                if (rc == VERR_HTTP_NOT_FOUND)
+                if (   rc == VERR_HTTP_NOT_FOUND
+                    && (fFlags & RTDBGCFG_O_SYMSRV))
                 {
                     /* Try the compressed version of the file. */
                     pszPath[strlen(pszPath) - 1] = '_';
@@ -1389,6 +1413,23 @@ RTDECL(int) RTDbgCfgOpenDwo(RTDBGCFG hDbgCfg, const char *pszFilename, uint32_t 
     return rtDbgCfgOpenWithSubDir(hDbgCfg, pszFilename, szSubDir, NULL,
                                   RT_OPSYS_UNKNOWN | RTDBGCFG_O_EXT_DEBUG_FILE,
                                   pfnCallback, pvUser1, pvUser2);
+}
+
+
+RTDECL(int) RTDbgCfgOpenDwoBuildId(RTDBGCFG hDbgCfg, const char *pszFilename, const uint8_t *pbBuildId,
+                                   size_t cbBuildId, PFNRTDBGCFGOPEN pfnCallback, void *pvUser1, void *pvUser2)
+{
+    char *pszSubDir = NULL;
+    int rc = RTStrAPrintf(&pszSubDir, "%#.*Rhxs", cbBuildId, pbBuildId);
+    if (RT_SUCCESS(rc))
+    {
+        rc = rtDbgCfgOpenWithSubDir(hDbgCfg, pszFilename, pszSubDir, NULL,
+                                    RTDBGCFG_O_DEBUGINFOD | RT_OPSYS_UNKNOWN | RTDBGCFG_O_EXT_DEBUG_FILE,
+                                    pfnCallback, pvUser1, pvUser2);
+        RTStrFree(pszSubDir);
+    }
+
+    return rc;
 }
 
 

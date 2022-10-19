@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 # Include the top-level configure file.
@@ -40,7 +50,8 @@ TEMPLATE_XPCOM_ASDEFS              = $(NO_SUCH_VARIABLE)
 TEMPLATE_XPCOM_CXXFLAGS            = -g -pipe -ansi -Wall -Wno-unused -Wno-non-virtual-dtor \
 	$(VBOX_GCC_Wno-invalid-offsetof) -Wno-sign-compare -Wno-unused -Wno-ctor-dtor-privacy \
 	$(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) \
-	$(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-delete-non-virtual-dtor)
+	$(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-delete-non-virtual-dtor) \
+	$(VBOX_GCC_SANITIZER_FLAGS) $(VBOX_GCC_OPT) $(VBOX_GCC_FP)
 #if !defined(VBOX_GCC_Wno-delete-non-virtual-dtor) && defined(VBOX_GCC_Wno-non-virtual-dtor)
 ifndef VBOX_GCC_Wno-delete-non-virtual-dtor
  ifdef VBOX_GCC_Wno-non-virtual-dtor
@@ -49,18 +60,16 @@ ifndef VBOX_GCC_Wno-delete-non-virtual-dtor
 endif
 TEMPLATE_XPCOM_CXXFLAGS.x86        = -m32
 TEMPLATE_XPCOM_CXXFLAGS.amd64      = -m64
-TEMPLATE_XPCOM_CXXFLAGS.release    = -O
-TEMPLATE_XPCOM_CXXFLAGS.profile    = -O
+TEMPLATE_XPCOM_CXXFLAGS.arm64      = -m64
 TEMPLATE_XPCOM_CXXFLAGS.darwin     = -fpascal-strings -fshort-wchar -fno-common -fno-rtti $(VBOX_DARWIN_DEF_SDK_CXXFLAGS)
 TEMPLATE_XPCOM_CXXFLAGS.freebsd    = -pthread
 TEMPLATE_XPCOM_CXXFLAGS.linux      = -pthread
 TEMPLATE_XPCOM_CXXFLAGS.solaris    = -fno-omit-frame-pointer # for now anyway.
 TEMPLATE_XPCOM_CFLAGS              = -g -pipe -Wall -Wno-unused -Wno-parentheses -Wno-uninitialized $(VBOX_GCC_fvisibility-hidden) \
-	$(VBOX_GCC_fdiagnostics-show-option)
+	$(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_SANITIZER_FLAGS) $(VBOX_GCC_OPT) $(VBOX_GCC_FP)
 TEMPLATE_XPCOM_CFLAGS.x86          = -m32
 TEMPLATE_XPCOM_CFLAGS.amd64        = -m64
-TEMPLATE_XPCOM_CFLAGS.release      = -O
-TEMPLATE_XPCOM_CFLAGS.profile      = -O
+TEMPLATE_XPCOM_CFLAGS.arm64        = -m64
 TEMPLATE_XPCOM_CFLAGS.freebsd      = -pthread
 TEMPLATE_XPCOM_CFLAGS.linux        = -pthread -ansi
 TEMPLATE_XPCOM_CFLAGS.solaris      = -fno-omit-frame-pointer # for now anyway.
@@ -68,23 +77,61 @@ TEMPLATE_XPCOM_DEFS                = \
 	MOZILLA_CLIENT=1 \
 	NDEBUG=1 \
 	_IMPL_NS_COM \
-	XPCOM_DLL_BASE=\"$(basename $(notdir $(LIB_XPCOM)))\" \
-	MOZ_DLL_SUFFIX=\"$(suffix $(LIB_XPCOM))\" \
 	IN_RING3 \
 	VBOX_USE_IPRT_IN_XPCOM
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS              += \
+ 	XPCOM_DLL_BASE="$(basename $(notdir $(LIB_XPCOM)))" \
+ 	MOZ_DLL_SUFFIX="$(suffix $(LIB_XPCOM))"
+else
+ TEMPLATE_XPCOM_DEFS              += \
+ 	XPCOM_DLL_BASE=\"$(basename $(notdir $(LIB_XPCOM)))\" \
+ 	MOZ_DLL_SUFFIX=\"$(suffix $(LIB_XPCOM))\"
+endif
+
 ifdef VBOX_WITH_XPCOM_NAMESPACE_CLEANUP
  TEMPLATE_XPCOM_DEFS              += VBOX_WITH_XPCOM_NAMESPACE_CLEANUP
 endif
 TEMPLATE_XPCOM_DEFS.x86            = i386=1
-TEMPLATE_XPCOM_DEFS.amd64          = HAVE_VA_LIST_AS_ARRAY HAVE_VA_COPY VA_COPY\(a\,b\)=__builtin_va_copy\(a\,b\)
-TEMPLATE_XPCOM_DEFS.darwin         = OSTYPE=\"Darwin8.8.1\" OSARCH=\"Darwin\" XP_UNIX=1 XP_MACOSX=1 TARGET_CARBON=1 HAVE_VISIBILITY_ATTRIBUTE=1 DARWIN=1 $(TEMPLATE_VBOXR3NP_DEFS.darwin)
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS.amd64         = HAVE_VA_LIST_AS_ARRAY HAVE_VA_COPY VA_COPY(a,b)=__builtin_va_copy(a,b)
+else
+ TEMPLATE_XPCOM_DEFS.amd64         = HAVE_VA_LIST_AS_ARRAY HAVE_VA_COPY VA_COPY\(a\,b\)=__builtin_va_copy\(a\,b\)
+endif
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS.arm64         = HAVE_VA_LIST_AS_ARRAY HAVE_VA_COPY VA_COPY(a,b)=__builtin_va_copy(a,b)
+else
+ TEMPLATE_XPCOM_DEFS.arm64         = HAVE_VA_LIST_AS_ARRAY HAVE_VA_COPY VA_COPY\(a\,b\)=__builtin_va_copy\(a\,b\)
+endif
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS.darwin        = OSTYPE="Darwin8.8.1" OSARCH="Darwin" XP_UNIX=1 XP_MACOSX=1 TARGET_CARBON=1 HAVE_VISIBILITY_ATTRIBUTE=1 DARWIN=1 $(TEMPLATE_VBOXR3NP_DEFS.darwin)
+else
+ TEMPLATE_XPCOM_DEFS.darwin        = OSTYPE=\"Darwin8.8.1\" OSARCH=\"Darwin\" XP_UNIX=1 XP_MACOSX=1 TARGET_CARBON=1 HAVE_VISIBILITY_ATTRIBUTE=1 DARWIN=1 $(TEMPLATE_VBOXR3NP_DEFS.darwin)
+endif
 TEMPLATE_XPCOM_DEFS.darwin.amd64   = VBOX_MACOSX_FOLLOWS_UNIX_IO
-TEMPLATE_XPCOM_DEFS.freebsd        = OSTYPE=\"FreeBSD5+\"   OSARCH=\"FreeBSD\" XP_UNIX=1 FREEBSD=1 HAVE_VISIBILITY_ATTRIBUTE=1
-TEMPLATE_XPCOM_DEFS.linux          = OSTYPE=\"Linux2.6\"    OSARCH=\"Linux\"  XP_UNIX=1 _GNU_SOURCE HAVE_VISIBILITY_ATTRIBUTE=1 ## @todo LINUX=1
+TEMPLATE_XPCOM_DEFS.darwin.arm64   = VBOX_MACOSX_FOLLOWS_UNIX_IO
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS.freebsd       = OSTYPE="FreeBSD5+"     OSARCH="FreeBSD"   XP_UNIX=1 FREEBSD=1 HAVE_VISIBILITY_ATTRIBUTE=1
+else
+ TEMPLATE_XPCOM_DEFS.freebsd       = OSTYPE=\"FreeBSD5+\"   OSARCH=\"FreeBSD\" XP_UNIX=1 FREEBSD=1 HAVE_VISIBILITY_ATTRIBUTE=1
+endif
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS.linux         = OSTYPE="Linux2.6"      OSARCH="Linux"     XP_UNIX=1 _GNU_SOURCE HAVE_VISIBILITY_ATTRIBUTE=1 ## @todo LINUX=1
+else
+ TEMPLATE_XPCOM_DEFS.linux         = OSTYPE=\"Linux2.6\"    OSARCH=\"Linux\"   XP_UNIX=1 _GNU_SOURCE HAVE_VISIBILITY_ATTRIBUTE=1 ## @todo LINUX=1
+endif
 # Don't define BSD_SELECT because bsdselect() from kLIBC <= 0.6.3 has problems on SMP
-TEMPLATE_XPCOM_DEFS.os2            = OSTYPE=\"OS/2_4.5\"    OSARCH=\"OS/2\"   XP_OS2 XP_PC OS2=4
-TEMPLATE_XPCOM_DEFS.solaris        = OSTYPE=\"Solaris10\"   OSARCH=\"Solaris\" XP_UNIX=1 XP_SOLARIS=1 HAVE_LIBDL=1 HAVE_SENDFILEV=1 SOLARIS=1 _REENTRANT
-## @todo The LDFLAGS inheriting is being hidden here and below where -fPIC is added.
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS.os2           = OSTYPE="OS/2_4.5"      OSARCH="OS/2"      XP_OS2 XP_PC OS2=4
+else
+ TEMPLATE_XPCOM_DEFS.os2           = OSTYPE=\"OS/2_4.5\"    OSARCH=\"OS/2\"    XP_OS2 XP_PC OS2=4
+endif
+ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
+ TEMPLATE_XPCOM_DEFS.solaris       = OSTYPE="Solaris10"     OSARCH="Solaris"   XP_UNIX=1 XP_SOLARIS=1 HAVE_LIBDL=1 HAVE_SENDFILEV=1 SOLARIS=1 _REENTRANT
+else
+ TEMPLATE_XPCOM_DEFS.solaris       = OSTYPE=\"Solaris10\"   OSARCH=\"Solaris\" XP_UNIX=1 XP_SOLARIS=1 HAVE_LIBDL=1 HAVE_SENDFILEV=1 SOLARIS=1 _REENTRANT
+endif
+TEMPLATE_XPCOM_LDFLAGS             = $(TEMPLATE_VBOXR3NP_LDFLAGS)
 ifdef VBOX_WITH_RUNPATH
 TEMPLATE_XPCOM_LDFLAGS            += '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)'
 else ifdef VBOX_WITH_RELATIVE_RUNPATH
@@ -92,6 +139,7 @@ TEMPLATE_XPCOM_LDFLAGS            += '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RELATIVE_
 endif
 TEMPLATE_XPCOM_LDFLAGS.x86         = -m32
 TEMPLATE_XPCOM_LDFLAGS.amd64       = -m64
+TEMPLATE_XPCOM_LDFLAGS.arm64       = -m64
 TEMPLATE_XPCOM_LDFLAGS.darwin      = $(TEMPLATE_VBOXR3NP_LDFLAGS.darwin) \
 	-fshort-wchar -fno-rtti -fno-exceptions -fpascal-strings \
 	-current_version $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
@@ -153,6 +201,19 @@ endif
 
 # When using IPRT in NSRP or/and using IPRT for logging, link with IPRT.
 TEMPLATE_XPCOM_LIBS               += $(LIB_RUNTIME)
+
+
+#
+# Same as XPCOM except using YASM/NASM instead of the gnu/unix assembler.
+#
+TEMPLATE_XPCOMYASM = XPCOM w/ yasm
+TEMPLATE_XPCOMYASM_EXTENDS = XPCOM
+TEMPLATE_XPCOMYASM_ASTOOL        = $(TEMPLATE_VBOXR3NP_ASTOOL)
+TEMPLATE_XPCOMYASM_ASFLAGS       = $(TEMPLATE_VBOXR3NP_ASFLAGS)
+TEMPLATE_XPCOMYASM_ASFLAGS.x86   = $(TEMPLATE_VBOXR3NP_ASFLAGS.x86)
+TEMPLATE_XPCOMYASM_ASFLAGS.amd64 = $(TEMPLATE_VBOXR3NP_ASFLAGS.amd64)
+TEMPLATE_XPCOMYASM_ASDEFS        = $(TEMPLATE_VBOXR3NP_DEFS)
+
 
 #
 # Template for building the XPCOM executables.
@@ -295,14 +356,12 @@ TEMPLATE_XPCOM-x86_EXTENDS          = XPCOM
 TEMPLATE_XPCOM-x86_BLD_TRG_ARCH     = x86
 TEMPLATE_XPCOM-x86_DEFS             = $(TEMPLATE_XPCOM_DEFS) VBOX_IN_32_ON_64_MAIN_API
 TEMPLATE_XPCOM-x86_LIBS             = $(subst $(LIB_RUNTIME),$(VBOX_LIB_RUNTIME_X86),$(TEMPLATE_XPCOM_LIBS))
-ifeq ($(KBUILD_TARGET),solaris)
- ifdef VBOX_WITH_RUNPATH
-  TEMPLATE_XPCOM-x86_LDFLAGS = \
-	$(filter-out '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)',$(TEMPLATE_XPCOM_LDFLAGS)) \
-	'$(VBOX_GCC_RPATH_OPT)$(VBOX_PATH_APP_PRIVATE)' \
-	'$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)'
- endif
-endif
+
+TEMPLATE_XPCOMYASM-x86              = 32-bit XPCOM libraries (shared) with YASM as assembler.
+TEMPLATE_XPCOMYASM-x86_EXTENDS      = XPCOMYASM
+TEMPLATE_XPCOMYASM-x86_BLD_TRG_ARCH = x86
+TEMPLATE_XPCOMYASM-x86_DEFS         = $(TEMPLATE_XPCOMYASM_DEFS) VBOX_IN_32_ON_64_MAIN_API
+TEMPLATE_XPCOMYASM-x86_LIBS         = $(subst $(LIB_RUNTIME),$(VBOX_LIB_RUNTIME_X86),$(TEMPLATE_XPCOMYASM_LIBS))
 
 
 #

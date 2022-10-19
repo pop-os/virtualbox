@@ -8,31 +8,40 @@ VirtualBox Validation Kit - VM Move Test #1
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 # Standard Python imports.
 import os
 import sys
-import time
 import shutil
 from collections import defaultdict
 
@@ -50,6 +59,9 @@ from testdriver import vboxwrappers
 from tdMoveMedium1 import SubTstDrvMoveMedium1; # pylint: disable=relative-import
 
 
+# @todo r=aeichner: The whole path handling/checking needs fixing to also work on Windows
+#                   The current quick workaround is to spill os.path.normcase() all over the place when
+#                   constructing paths. I'll leave the real fix to the original author...
 class SubTstDrvMoveVm1(base.SubTestDriverBase):
     """
     Sub-test driver for VM Move Test #1.
@@ -197,7 +209,7 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
                 if aReferences:
                     aoMediumAttachments = oMachine.getMediumAttachmentsOfController(sValue) ##@todo r=bird: API call, try-except!
                     for oAttachment in aoMediumAttachments:
-                        aActuals.add(oAttachment.medium.location)
+                        aActuals.add(os.path.normcase(oAttachment.medium.location))
 
             elif sKey == 'SnapshotFile':
                 aReferences = dsReferenceFiles[sKey]
@@ -208,7 +220,7 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
             elif sKey == 'SettingsFile':
                 aReferences = dsReferenceFiles[sKey]
                 if aReferences:
-                    aActuals.add(oMachine.settingsFilePath)
+                    aActuals.add(os.path.normcase(oMachine.settingsFilePath))
 
             # Check saved state files location
             elif sKey == 'SavedStateFile':
@@ -233,7 +245,7 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
                     reporter.log('Item location "%s" isn\'t correct' % (eachItem))
 
                 reporter.log('####### Reference locations: #######')
-                for eachItem in aReferences:
+                for eachItem in aActuals:
                     reporter.log(' "%s"' % (eachItem))
 
                 if len(intersection) != len(aActuals):
@@ -255,10 +267,10 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
 
     def __getStatesFiles(self, oMachine, fPrint = False):
         asStateFilesList = set()
-        sFolder = oMachine.snapshotFolder
+        sFolder = oMachine.snapshotFolder;
         for sFile in self.__safeListDir(sFolder):
             if sFile.endswith(".sav"):
-                sFullPath = os.path.join(sFolder, sFile)
+                sFullPath = os.path.normcase(os.path.join(sFolder, sFile));
                 asStateFilesList.add(sFullPath)
                 if fPrint is True:
                     reporter.log("State file is %s" % (sFullPath))
@@ -269,7 +281,7 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
         sFolder = oMachine.snapshotFolder
         for sFile in self.__safeListDir(sFolder):
             if sFile.endswith(".sav") is False:
-                sFullPath = os.path.join(sFolder, sFile)
+                sFullPath = os.path.normcase(os.path.join(sFolder, sFile));
                 asSnapshotsFilesList.add(sFullPath)
                 if fPrint is True:
                     reporter.log("Snapshot file is %s" % (sFullPath))
@@ -280,7 +292,7 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
         sFolder = oMachine.logFolder
         for sFile in self.__safeListDir(sFolder):
             if sFile.endswith(".log"):
-                sFullPath = os.path.join(sFolder, sFile)
+                sFullPath = os.path.normcase(os.path.join(sFolder, sFile));
                 asLogFilesList.add(sFullPath)
                 if fPrint is True:
                     reporter.log("Log file is %s" % (sFullPath))
@@ -304,10 +316,10 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
 
         for s in self.asImagesNames:
             reporter.log('"%s"' % (s,))
-            dsReferenceFiles['StandardImage'].add(sNewLoc + os.sep + oMachine.name + os.sep + s)
+            dsReferenceFiles['StandardImage'].add(os.path.normcase(sNewLoc + os.sep + oMachine.name + os.sep + s))
 
         sSettingFile = os.path.join(sNewLoc, os.path.join(oMachine.name, oMachine.name + '.vbox'))
-        dsReferenceFiles['SettingsFile'].add(sSettingFile)
+        dsReferenceFiles['SettingsFile'].add(os.path.normcase(sSettingFile))
 
         fRc = self.moveVMToLocation(sNewLoc, oSession.o.machine)
 
@@ -346,11 +358,11 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
         if fRc is True:
             for oAttachment in aoMediumAttachments:
                 sRes = oAttachment.medium.location.rpartition(os.sep)
-                dsReferenceFiles['SnapshotFile'].add(sNewLoc + os.sep + oMachine.name + os.sep +
-                                                     'Snapshots' + os.sep + sRes[2])
+                dsReferenceFiles['SnapshotFile'].add(os.path.normcase(sNewLoc + os.sep + oMachine.name + os.sep +
+                                                     'Snapshots' + os.sep + sRes[2]))
 
             sSettingFile = os.path.join(sNewLoc, os.path.join(oMachine.name, oMachine.name + '.vbox'))
-            dsReferenceFiles['SettingsFile'].add(sSettingFile)
+            dsReferenceFiles['SettingsFile'].add(os.path.normcase(sSettingFile))
 
             fRc = self.moveVMToLocation(sNewLoc, oSession.o.machine)
 
@@ -376,10 +388,12 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
         """
 
         # Run VM and get new Session object.
-        oSession = self.oTstDrv.startVm(oMachine)
+        oSession = self.oTstDrv.startVm(oMachine);
+        if not oSession:
+            return False;
 
         # Some time interval should be here for not closing VM just after start.
-        time.sleep(1)
+        self.oTstDrv.waitForTasks(1000);
 
         if oMachine.state != self.oTstDrv.oVBoxMgr.constants.MachineState_Running:
             reporter.log("Machine '%s' is not Running" % (oMachine.name))
@@ -392,7 +406,7 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
 
         fRc = self.oTstDrv.terminateVmBySession(oSession)
 
-        if fRc is True or False:
+        if fRc is True:
             # Create a new Session object for moving VM.
             oSession = self.oTstDrv.openSession(oMachine)
 
@@ -402,12 +416,14 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
             asLogs = self.__getLogFiles(oMachine)
             for sFile in asLogs:
                 sRes = sFile.rpartition(os.sep)
-                dsReferenceFiles['LogFile'].add(sNewLoc + os.sep + oMachine.name + os.sep + 'Logs' + os.sep + sRes[2])
+                dsReferenceFiles['LogFile'].add(os.path.normcase(sNewLoc + os.sep + oMachine.name + os.sep +
+                                                'Logs' + os.sep + sRes[2]))
 
             asStates = self.__getStatesFiles(oMachine)
             for sFile in asStates:
                 sRes = sFile.rpartition(os.sep)
-                dsReferenceFiles['SavedStateFile'].add(sNewLoc + os.sep + oMachine.name + os.sep + 'Snapshots' + os.sep + sRes[2])
+                dsReferenceFiles['SavedStateFile'].add(os.path.normcase(sNewLoc + os.sep + oMachine.name + os.sep +
+                                                       'Snapshots' + os.sep + sRes[2]))
 
             fRc = self.moveVMToLocation(sNewLoc, oSession.o.machine)
 
@@ -471,7 +487,7 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
             aoMediumAttachments = oMachine.getMediumAttachmentsOfController(sController)
             iPort = len(aoMediumAttachments)
             fRc = oSession.attachDvd(sISOLoc, sController, iPort, iDevice = 0)
-            dsReferenceFiles['ISOImage'].add(os.path.join(os.path.join(sNewLoc, oMachine.name), sISOImageName))
+            dsReferenceFiles['ISOImage'].add(os.path.normcase(os.path.join(os.path.join(sNewLoc, oMachine.name), sISOImageName)))
 
         if fRc is True:
             fRc = self.moveVMToLocation(sNewLoc, oSession.o.machine)
@@ -531,7 +547,8 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
             sFloppyLoc = sOldLoc + os.sep + sFloppyImageName
             sController=self.dsKeys['FloppyImage']
             fRc = fRc and oSession.attachFloppy(sFloppyLoc, sController, 0, 0)
-            dsReferenceFiles['FloppyImage'].add(os.path.join(os.path.join(sNewLoc, oMachine.name), sFloppyImageName))
+            dsReferenceFiles['FloppyImage'].add(os.path.normcase(os.path.join(os.path.join(sNewLoc, oMachine.name),
+                                                                                           sFloppyImageName)))
 
         if fRc is True:
             fRc = self.moveVMToLocation(sNewLoc, oSession.o.machine)
@@ -625,9 +642,9 @@ class SubTstDrvMoveVm1(base.SubTestDriverBase):
             reporter.log("Scenario #1:");
             for s in self.asImagesNames:
                 reporter.log('"%s"' % (s,))
-                dsReferenceFiles['StandardImage'].add(os.path.join(sOrigLoc, s))
+                dsReferenceFiles['StandardImage'].add(os.path.normcase(os.path.join(sOrigLoc, s)))
 
-            sSettingFile = os.path.join(sNewLoc, os.path.join(oMachine.name, oMachine.name + '.vbox'))
+            sSettingFile = os.path.normcase(os.path.join(sNewLoc, os.path.join(oMachine.name, oMachine.name + '.vbox')))
             dsReferenceFiles['SettingsFile'].add(sSettingFile)
 
             fRc = self.moveVMToLocation(sNewLoc, oSession.o.machine)

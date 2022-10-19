@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -43,7 +53,7 @@
 
 
 /**
- * Ensures that we've got a 'Content-Length' header.
+ * Ensures that we've got an 'X-Date' or 'Date' header.
  *
  * @returns IPRT status code.
  * @param   hHttp       The HTTP client handle.
@@ -79,9 +89,13 @@ static int ociSignRequestEnsureXContentSha256(RTHTTP hHttp, void const *pvConten
         return VINF_SUCCESS;
 
 #ifdef RT_STRICT
-    const char *pszContentLength = RTHttpGetHeader(hHttp, RT_STR_TUPLE("Content-Length"));
-    Assert(pszContentLength);
-    AssertMsg(!pszContentLength || RTStrToUInt64(pszContentLength) == cbContent, ("'%s' vs %RU64\n", pszContentLength, cbContent));
+    if (cbContent != 0)
+    {
+        const char *pszContentLength = RTHttpGetHeader(hHttp, RT_STR_TUPLE("Content-Length"));
+        Assert(pszContentLength);
+        AssertMsg(!pszContentLength || RTStrToUInt64(pszContentLength) == cbContent,
+                  ("'%s' vs %RU64\n", pszContentLength, cbContent));
+    }
 #endif
 
     uint8_t abHash[RTSHA256_HASH_SIZE];
@@ -143,15 +157,19 @@ int RTCRestClientApiBase::ociSignRequest(RTHTTP a_hHttp, RTCString const &a_rStr
     int rc = ociSignRequestEnsureHost(a_hHttp, a_rStrFullUrl.c_str());
     if (RT_SUCCESS(rc))
     {
-        bool fHasBody = a_rStrXmitBody.isNotEmpty() || (a_fFlags & kDoCall_RequireBody);
-
-        if (   fHasBody
+        bool fHasBody
+            =  a_rStrXmitBody.isNotEmpty()
+               /* but sometimes we need an empty body signed too */
+            || (a_fFlags & kDoCall_RequireBody)
             || a_enmHttpMethod == RTHTTPMETHOD_POST
-            || a_enmHttpMethod == RTHTTPMETHOD_PUT)
+            || a_enmHttpMethod == RTHTTPMETHOD_PUT;
+
+        if (fHasBody)
+        {
             rc = ociSignRequestEnsureContentLength(a_hHttp, a_rStrXmitBody.length());
-        if (   RT_SUCCESS(rc)
-            && fHasBody)
-            rc = ociSignRequestEnsureXContentSha256(a_hHttp, a_rStrXmitBody.c_str(), a_rStrXmitBody.length());
+            if (RT_SUCCESS(rc))
+                rc = ociSignRequestEnsureXContentSha256(a_hHttp, a_rStrXmitBody.c_str(), a_rStrXmitBody.length());
+        }
         if (RT_SUCCESS(rc))
             rc = ociSignRequestEnsureDateOrXDate(a_hHttp);
         if (RT_SUCCESS(rc))

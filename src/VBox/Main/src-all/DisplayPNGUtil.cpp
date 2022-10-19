@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_DISPLAY
@@ -29,26 +39,26 @@ typedef struct PNGWriteCtx
     uint8_t *pu8PNG;
     uint32_t cbPNG;
     uint32_t cbAllocated;
-    int rc;
+    int vrc;
 } PNGWriteCtx;
 
-static void PNGAPI png_write_data_fn(png_structp png_ptr, png_bytep p, png_size_t cb)
+static void PNGAPI png_write_data_fn(png_structp png_ptr, png_bytep p, png_size_t cb) RT_NOTHROW_DEF
 {
     PNGWriteCtx *pCtx = (PNGWriteCtx *)png_get_io_ptr(png_ptr);
     LogFlowFunc(("png_ptr %p, p %p, cb %d, pCtx %p\n", png_ptr, p, cb, pCtx));
 
-    if (pCtx && RT_SUCCESS(pCtx->rc))
+    if (pCtx && RT_SUCCESS(pCtx->vrc))
     {
         if (pCtx->cbAllocated - pCtx->cbPNG < cb)
         {
             uint32_t cbNew = pCtx->cbPNG + (uint32_t)cb;
-            AssertReturnVoidStmt(cbNew > pCtx->cbPNG && cbNew <= _1G, pCtx->rc = VERR_TOO_MUCH_DATA);
+            AssertReturnVoidStmt(cbNew > pCtx->cbPNG && cbNew <= _1G, pCtx->vrc = VERR_TOO_MUCH_DATA);
             cbNew = RT_ALIGN_32(cbNew, 4096) + 4096;
 
             void *pNew = RTMemRealloc(pCtx->pu8PNG, cbNew);
             if (!pNew)
             {
-                pCtx->rc = VERR_NO_MEMORY;
+                pCtx->vrc = VERR_NO_MEMORY;
                 return;
             }
 
@@ -61,7 +71,7 @@ static void PNGAPI png_write_data_fn(png_structp png_ptr, png_bytep p, png_size_
     }
 }
 
-static void PNGAPI png_output_flush_fn(png_structp png_ptr)
+static void PNGAPI png_output_flush_fn(png_structp png_ptr) RT_NOTHROW_DEF
 {
     NOREF(png_ptr);
     /* Do nothing. */
@@ -71,7 +81,7 @@ int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
                    uint8_t **ppu8PNG, uint32_t *pcbPNG, uint32_t *pcxPNG, uint32_t *pcyPNG,
                    uint8_t fLimitSize)
 {
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
 
     uint8_t * volatile pu8Bitmap = NULL; /* gcc setjmp  warning */
     uint32_t volatile cbBitmap = 0; /* gcc setjmp warning */
@@ -106,29 +116,21 @@ int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
 
         if (pu8Bitmap)
         {
-            uint8_t *dst = pu8Bitmap;
-            uint8_t *src = pu8Data;
-            int dstW = cxBitmap;
-            int dstH = cyBitmap;
-            int srcW = cx;
-            int srcH = cy;
-            int iDeltaLine = cx * 4;
-
-            BitmapScale32 (dst,
-                           dstW, dstH,
-                           src,
-                           iDeltaLine,
-                           srcW, srcH);
+            BitmapScale32(pu8Bitmap /*dst*/,
+                          (int)cxBitmap, (int)cyBitmap,
+                          pu8Data /*src*/,
+                          (int)cx * 4,
+                          (int)cx, (int)cy);
         }
         else
         {
-            rc = VERR_NO_MEMORY;
+            vrc = VERR_NO_MEMORY;
         }
     }
 
     LogFlowFunc(("%dx%d -> %dx%d\n", cx, cy, cxBitmap, cyBitmap));
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         png_bytep *row_pointers = (png_bytep *)RTMemAlloc(cyBitmap * sizeof(png_bytep));
         if (row_pointers)
@@ -143,13 +145,19 @@ int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
                 info_ptr = png_create_info_struct(png_ptr);
                 if (info_ptr)
                 {
+#if RT_MSC_PREREQ(RT_MSC_VER_VC140)
+#pragma warning(push,3)
                     if (!setjmp(png_jmpbuf(png_ptr)))
+#pragma warning(pop)
+#else
+                    if (!setjmp(png_jmpbuf(png_ptr)))
+#endif
                     {
                         PNGWriteCtx ctx;
                         ctx.pu8PNG = NULL;
                         ctx.cbPNG = 0;
                         ctx.cbAllocated = 0;
-                        ctx.rc = VINF_SUCCESS;
+                        ctx.vrc = VINF_SUCCESS;
 
                         png_set_write_fn(png_ptr,
                                          (png_voidp)&ctx,
@@ -178,9 +186,9 @@ int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
 
                         png_write_end(png_ptr, info_ptr);
 
-                        rc = ctx.rc;
+                        vrc = ctx.vrc;
 
-                        if (RT_SUCCESS(rc))
+                        if (RT_SUCCESS(vrc))
                         {
                             *ppu8PNG = ctx.pu8PNG;
                             *pcbPNG = ctx.cbPNG;
@@ -191,12 +199,12 @@ int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
                     }
                     else
                     {
-                        rc = VERR_GENERAL_FAILURE; /* Something within libpng. */
+                        vrc = VERR_GENERAL_FAILURE; /* Something within libpng. */
                     }
                 }
                 else
                 {
-                    rc = VERR_NO_MEMORY;
+                    vrc = VERR_NO_MEMORY;
                 }
 
                 png_destroy_write_struct(&png_ptr, info_ptr ? &info_ptr
@@ -204,14 +212,14 @@ int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
             }
             else
             {
-                rc = VERR_NO_MEMORY;
+                vrc = VERR_NO_MEMORY;
             }
 
             RTMemFree(row_pointers);
         }
         else
         {
-            rc = VERR_NO_MEMORY;
+            vrc = VERR_NO_MEMORY;
         }
     }
 
@@ -220,6 +228,6 @@ int DisplayMakePNG(uint8_t *pu8Data, uint32_t cx, uint32_t cy,
         RTMemFree(pu8Bitmap);
     }
 
-    return rc;
+    return vrc;
 
 }

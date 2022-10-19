@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_medium_UIMediumItem_h
@@ -22,9 +32,9 @@
 #endif
 
 /* GUI includes: */
+#include "QITreeWidget.h"
 #include "UIMedium.h"
 #include "UIMediumDetailsWidget.h"
-#include "QITreeWidget.h"
 
 /** QITreeWidgetItem extension representing Media Manager item. */
 class SHARED_LIBRARY_STUFF UIMediumItem : public QITreeWidgetItem, public UIDataMedium
@@ -46,16 +56,14 @@ public:
       * @param  pParent    Brings the parent item reference. */
     UIMediumItem(const UIMedium &guiMedium, QITreeWidgetItem *pParent);
 
-    /** Copies UIMedium wrapped by <i>this</i> item. */
-    //virtual bool copy();
     /** Moves UIMedium wrapped by <i>this</i> item. */
     virtual bool move();
     /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() = 0;
+    virtual bool remove(bool fShowMessageBox) = 0;
     /** Releases UIMedium wrapped by <i>this</i> item.
       * @param  fInduced  Brings whether this action is caused by other user's action,
       *                   not a direct order to release particularly selected medium. */
-    virtual bool release(bool fInduced = false);
+    virtual bool release(bool fShowMessageBox, bool fInduced);
 
     /** Refreshes item fully. */
     void refreshAll();
@@ -109,7 +117,7 @@ public:
     bool isMediumModifiable() const;
     /** Returns true if the medium is attached to the vm with @p uId. */
     bool isMediumAttachedTo(QUuid uId);
-    bool changeMediumType(KMediumType enmOldType, KMediumType enmNewType);
+    bool changeMediumType(KMediumType enmNewType);
 
 protected:
 
@@ -117,17 +125,32 @@ protected:
     virtual bool releaseFrom(CMachine comMachine) = 0;
 
     /** Returns default text. */
-    virtual QString defaultText() const /* override */;
+    virtual QString defaultText() const RT_OVERRIDE;
+
+protected slots:
+
+    /** Handles medium move progress result. */
+    void sltHandleMoveProgressFinished();
+
+    /** Handles @a comMedium remove request. */
+    void sltHandleMediumRemoveRequest(CMedium comMedium);
 
 private:
+
     /** A simple struct used to save some parameters of machine device attachment.
-      * Used for re-attaching the medium to vms after a medium type change. */
+      * Used for re-attaching the medium to VMs after a medium type change. */
     struct AttachmentCache
     {
-        QString m_strControllerName;
-        QUuid   m_uMachineId;
-        LONG    m_port;
-        LONG    m_device;
+        /** Holds the machine ID. */
+        QUuid        m_uMachineId;
+        /** Holds the controller name. */
+        QString      m_strControllerName;
+        /** Holds the controller bus. */
+        KStorageBus  m_enmControllerBus;
+        /** Holds the attachment port. */
+        LONG         m_iAttachmentPort;
+        /** Holds the attachment device. */
+        LONG         m_iAttachmentDevice;
     };
 
     /** Refreshes item information such as icon, text and tool-tip. */
@@ -167,9 +190,9 @@ public:
 protected:
 
     /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() /* override */;
+    virtual bool remove(bool fShowMessageBox) RT_OVERRIDE;
     /** Releases UIMedium wrapped by <i>this</i> item from virtual @a comMachine. */
-    virtual bool releaseFrom(CMachine comMachine) /* override */;
+    virtual bool releaseFrom(CMachine comMachine) RT_OVERRIDE;
 
 private:
 
@@ -194,9 +217,9 @@ public:
 protected:
 
     /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() /* override */;
+    virtual bool remove(bool fShowMessageBox) RT_OVERRIDE;
     /** Releases UIMedium wrapped by <i>this</i> item from virtual @a comMachine. */
-    virtual bool releaseFrom(CMachine comMachine) /* override */;
+    virtual bool releaseFrom(CMachine comMachine) RT_OVERRIDE;
 };
 
 /** UIMediumItem extension representing floppy-disk item. */
@@ -216,9 +239,9 @@ public:
 protected:
 
     /** Removes UIMedium wrapped by <i>this</i> item. */
-    virtual bool remove() /* override */;
+    virtual bool remove(bool fShowMessageBox) RT_OVERRIDE;
     /** Releases UIMedium wrapped by <i>this</i> item from virtual @a comMachine. */
-    virtual bool releaseFrom(CMachine comMachine) /* override */;
+    virtual bool releaseFrom(CMachine comMachine) RT_OVERRIDE;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_medium_UIMediumItem_h */

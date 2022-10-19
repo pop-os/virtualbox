@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -34,9 +44,7 @@
 #include "UIThreadPool.h"
 
 /* COM includes: */
-#include "COMEnums.h"
 #include "CAudioAdapter.h"
-#include "CMachine.h"
 #include "CMedium.h"
 #include "CMediumAttachment.h"
 #include "CNetworkAdapter.h"
@@ -51,11 +59,51 @@
 #include "CUSBDeviceFilters.h"
 #include "CVRDEServer.h"
 
-UIDetailsUpdateTask::UIDetailsUpdateTask(const CMachine &machine)
+UIDetailsUpdateTask::UIDetailsUpdateTask(const CMachine &comMachine)
     : UITask(UITask::Type_DetailsPopulation)
+    , m_comMachine(comMachine)
 {
-    /* Store machine as property: */
-    setProperty("machine", QVariant::fromValue(machine));
+}
+
+UIDetailsUpdateTask::UIDetailsUpdateTask(const CCloudMachine &comCloudMachine)
+    : UITask(UITask::Type_DetailsPopulation)
+    , m_comCloudMachine(comCloudMachine)
+{
+}
+
+CMachine UIDetailsUpdateTask::machine() const
+{
+    /* Acquire copy under a proper lock: */
+    m_machineMutex.lock();
+    const CMachine comMachine = m_comMachine;
+    m_machineMutex.unlock();
+    return comMachine;
+}
+
+CCloudMachine UIDetailsUpdateTask::cloudMachine() const
+{
+    /* Acquire copy under a proper lock: */
+    m_machineMutex.lock();
+    const CCloudMachine comCloudMachine = m_comCloudMachine;
+    m_machineMutex.unlock();
+    return comCloudMachine;
+}
+
+UITextTable UIDetailsUpdateTask::table() const
+{
+    /* Acquire copy under a proper lock: */
+    m_tableMutex.lock();
+    const UITextTable guiTable = m_guiTable;
+    m_tableMutex.unlock();
+    return guiTable;
+}
+
+void UIDetailsUpdateTask::setTable(const UITextTable &guiTable)
+{
+    /* Assign under a proper lock: */
+    m_tableMutex.lock();
+    m_guiTable = guiTable;
+    m_tableMutex.unlock();
 }
 
 UIDetailsElementInterface::UIDetailsElementInterface(UIDetailsSet *pParent, DetailsElementType type, bool fOpened)
@@ -102,7 +150,7 @@ void UIDetailsElementInterface::sltUpdateAppearanceFinished(UITask *pTask)
         return;
 
     /* Assign new text if changed: */
-    const UITextTable newText = pTask->property("table").value<UITextTable>();
+    const UITextTable newText = qobject_cast<UIDetailsUpdateTask*>(pTask)->table();
     if (text() != newText)
         setText(newText);
 
@@ -128,6 +176,23 @@ UIDetailsElementPreview::UIDetailsElementPreview(UIDetailsSet *pParent, bool fOp
 
     /* Translate finally: */
     retranslateUi();
+}
+
+void UIDetailsElementPreview::updateLayout()
+{
+    /* Call to base-class: */
+    UIDetailsElement::updateLayout();
+
+    /* Show/hide preview: */
+    if ((isClosed() || isAnimationRunning()) && m_pPreview->isVisible())
+        m_pPreview->hide();
+    if (!isClosed() && !isAnimationRunning() && !m_pPreview->isVisible())
+        m_pPreview->show();
+
+    /* Layout Preview: */
+    const int iMargin = data(ElementData_Margin).toInt();
+    m_pPreview->setPos(iMargin, 2 * iMargin + minimumHeaderHeight());
+    m_pPreview->resize(m_pPreview->minimumSizeHint());
 }
 
 void UIDetailsElementPreview::sltPreviewSizeHintChanged()
@@ -193,23 +258,6 @@ int UIDetailsElementPreview::minimumHeightHintForElement(bool fClosed) const
     return iProposedHeight;
 }
 
-void UIDetailsElementPreview::updateLayout()
-{
-    /* Call to base-class: */
-    UIDetailsElement::updateLayout();
-
-    /* Show/hide preview: */
-    if (isClosed() && m_pPreview->isVisible())
-        m_pPreview->hide();
-    if (isOpened() && !m_pPreview->isVisible() && !isAnimationRunning())
-        m_pPreview->show();
-
-    /* And update preview layout itself: */
-    const int iMargin = data(ElementData_Margin).toInt();
-    m_pPreview->setPos(iMargin, 2 * iMargin + minimumHeaderHeight());
-    m_pPreview->resize(m_pPreview->minimumSizeHint());
-}
-
 void UIDetailsElementPreview::updateAppearance()
 {
     /* Call to base-class: */
@@ -225,31 +273,42 @@ void UIDetailsElementPreview::updateAppearance()
 void UIDetailsUpdateTaskGeneral::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationGeneral(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationGeneral(comMachine, m_fOptions));
+}
+
+void UIDetailsUpdateTaskGeneralCloud::run()
+{
+    /* Acquire corresponding machine: */
+    CCloudMachine comCloudMachine = cloudMachine();
+    if (comCloudMachine.isNull())
+        return;
+
+    /* Generate details table: */
+    setTable(UIDetailsGenerator::generateMachineInformationGeneral(comCloudMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementGeneral::createUpdateTask()
 {
-    return new UIDetailsUpdateTaskGeneral(machine(), model()->optionsGeneral());
+    return   isLocal()
+           ? static_cast<UITask*>(new UIDetailsUpdateTaskGeneral(machine(), model()->optionsGeneral()))
+           : static_cast<UITask*>(new UIDetailsUpdateTaskGeneralCloud(cloudMachine(), model()->optionsGeneral()));
 }
 
 
 void UIDetailsUpdateTaskSystem::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationSystem(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationSystem(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementSystem::createUpdateTask()
@@ -261,13 +320,12 @@ UITask *UIDetailsElementSystem::createUpdateTask()
 void UIDetailsUpdateTaskDisplay::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationDisplay(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationDisplay(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementDisplay::createUpdateTask()
@@ -279,13 +337,12 @@ UITask *UIDetailsElementDisplay::createUpdateTask()
 void UIDetailsUpdateTaskStorage::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationStorage(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationStorage(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementStorage::createUpdateTask()
@@ -297,13 +354,12 @@ UITask *UIDetailsElementStorage::createUpdateTask()
 void UIDetailsUpdateTaskAudio::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationAudio(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationAudio(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementAudio::createUpdateTask()
@@ -314,13 +370,12 @@ UITask *UIDetailsElementAudio::createUpdateTask()
 void UIDetailsUpdateTaskNetwork::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationNetwork(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationNetwork(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementNetwork::createUpdateTask()
@@ -331,13 +386,12 @@ UITask *UIDetailsElementNetwork::createUpdateTask()
 void UIDetailsUpdateTaskSerial::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationSerial(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationSerial(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementSerial::createUpdateTask()
@@ -348,13 +402,12 @@ UITask *UIDetailsElementSerial::createUpdateTask()
 void UIDetailsUpdateTaskUSB::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationUSB(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationUSB(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementUSB::createUpdateTask()
@@ -366,13 +419,12 @@ UITask *UIDetailsElementUSB::createUpdateTask()
 void UIDetailsUpdateTaskSF::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationSharedFolders(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationSharedFolders(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementSF::createUpdateTask()
@@ -384,13 +436,12 @@ UITask *UIDetailsElementSF::createUpdateTask()
 void UIDetailsUpdateTaskUI::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationUI(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationUI(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementUI::createUpdateTask()
@@ -402,13 +453,12 @@ UITask *UIDetailsElementUI::createUpdateTask()
 void UIDetailsUpdateTaskDescription::run()
 {
     /* Acquire corresponding machine: */
-    CMachine comMachine = property("machine").value<CMachine>();
+    CMachine comMachine = machine();
     if (comMachine.isNull())
         return;
 
     /* Generate details table: */
-    UITextTable table = UIDetailsGenerator::generateMachineInformationDescription(comMachine, m_fOptions);
-    setProperty("table", QVariant::fromValue(table));
+    setTable(UIDetailsGenerator::generateMachineInformationDescription(comMachine, m_fOptions));
 }
 
 UITask *UIDetailsElementDescription::createUpdateTask()

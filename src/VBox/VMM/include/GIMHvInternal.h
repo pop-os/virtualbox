@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VMM_INCLUDED_SRC_include_GIMHvInternal_h
@@ -1242,7 +1252,7 @@ typedef struct GIMHV
     uint64_t                    uDbgPendingBufferMsr;
     /** Debug status MSR. */
     uint64_t                    uDbgStatusMsr;
-    /** Intermediate debug I/O buffer. */
+    /** Intermediate debug I/O buffer (GIM_HV_PAGE_SIZE). */
     R3PTRTYPE(void *)           pvDbgBuffer;
     R3PTRTYPE(void *)           pvAlignment0;
     /** @} */
@@ -1262,10 +1272,8 @@ AssertCompileMemberAlignment(GIMHV, hSpinlockR0, sizeof(uintptr_t));
  */
 typedef struct GIMHVSTIMER
 {
-    /** Synthetic timer object - R0 ptr. */
-    PTMTIMERR0                  pTimerR0;
-    /** Synthetic timer object - R3 ptr. */
-    PTMTIMERR3                  pTimerR3;
+    /** Synthetic timer handle. */
+    TMTIMERHANDLE               hTimer;
     /** Virtual CPU ID this timer belongs to (for reverse mapping). */
     VMCPUID                     idCpu;
     /** The index of this timer in the auStimers array (for reverse mapping). */
@@ -1274,9 +1282,6 @@ typedef struct GIMHVSTIMER
     uint64_t                    uStimerConfigMsr;
     /** Synthetic timer count MSR. */
     uint64_t                    uStimerCountMsr;
-    /** Timer description. */
-    char                        szTimerDesc[24];
-
 } GIMHVSTIMER;
 /** Pointer to per-VCPU Hyper-V synthetic timer. */
 typedef GIMHVSTIMER *PGIMHVSTIMER;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -23,17 +33,17 @@
 #include <QItemEditorFactory>
 #include <QLineEdit>
 #include <QMenu>
+#include <QRegExp>
 #include <QSpinBox>
 #include <QStyledItemDelegate>
 
 /* GUI includes: */
 #include "QITableView.h"
-#include "UIDesktopWidgetWatchdog.h"
 #include "UIConverter.h"
 #include "UIIconPool.h"
 #include "UIMessageCenter.h"
 #include "UIPortForwardingTable.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
 
 /* Other VBox includes: */
 #include <iprt/cidr.h>
@@ -68,7 +78,7 @@ public:
     {
         setFrame(false);
         setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-        setValidator(new QRegExpValidator(QRegExp("[^,:]*"), this));
+        setValidator(new QRegularExpressionValidator(QRegularExpression("[^,:]*"), this));
     }
 
 private:
@@ -258,7 +268,7 @@ public:
     {}
 
     /** Returns the cell text. */
-    virtual QString text() const /* override */ { return m_strText; }
+    virtual QString text() const RT_OVERRIDE { return m_strText; }
 
 private:
 
@@ -364,14 +374,14 @@ public:
 protected:
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */
+    virtual int childCount() const RT_OVERRIDE
     {
         /* Return cell count: */
         return UIPortForwardingDataType_Max;
     }
 
     /** Returns the child item with @a iIndex. */
-    virtual QITableViewCell *childItem(int iIndex) const /* override */
+    virtual QITableViewCell *childItem(int iIndex) const RT_OVERRIDE
     {
         /* Make sure index within the bounds: */
         AssertReturn(iIndex >= 0 && iIndex < m_cells.size(), 0);
@@ -439,11 +449,16 @@ public:
     QITableViewRow *childItem(int iIndex) const;
 
     /** Returns the list of port forwarding rules. */
-    const UIPortForwardingDataList rules() const;
+    UIPortForwardingDataList rules() const;
+    /** Defines the list of port forwarding @a newRules. */
+    void setRules(const UIPortForwardingDataList &newRules);
     /** Adds empty port forwarding rule for certain @a index. */
     void addRule(const QModelIndex &index);
     /** Removes port forwarding rule with certain @a index. */
     void removeRule(const QModelIndex &index);
+
+    /** Defines guest address @a strHint. */
+    void setGuestAddressHint(const QString &strHint);
 
     /** Returns flags for item with certain @a index. */
     Qt::ItemFlags flags(const QModelIndex &index) const;
@@ -472,6 +487,9 @@ private:
 
     /** Holds the port forwarding row list.  */
     QList<UIPortForwardingRow*> m_dataList;
+
+    /** Holds the guest address hint. */
+    QString  m_strGuestAddressHint;
 };
 
 
@@ -488,9 +506,9 @@ public:
 protected:
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */;
+    virtual int childCount() const RT_OVERRIDE;
     /** Returns the child item with @a iIndex. */
-    virtual QITableViewRow *childItem(int iIndex) const /* override */;
+    virtual QITableViewRow *childItem(int iIndex) const RT_OVERRIDE;
 };
 
 
@@ -531,7 +549,7 @@ QITableViewRow *UIPortForwardingModel::childItem(int iIndex) const
     return m_dataList[iIndex];
 }
 
-const UIPortForwardingDataList UIPortForwardingModel::rules() const
+UIPortForwardingDataList UIPortForwardingModel::rules() const
 {
     /* Return the cached data: */
     UIPortForwardingDataList data;
@@ -540,6 +558,25 @@ const UIPortForwardingDataList UIPortForwardingModel::rules() const
                                          pRow->hostIp(), pRow->hostPort(),
                                          pRow->guestIp(), pRow->guestPort());
     return data;
+}
+
+void UIPortForwardingModel::setRules(const UIPortForwardingDataList &newRules)
+{
+    /* Clear old data first of all: */
+    beginRemoveRows(QModelIndex(), 0, m_dataList.size() - 1);
+    foreach (const UIPortForwardingRow *pRow, m_dataList)
+        delete pRow;
+    m_dataList.clear();
+    endRemoveRows();
+
+    /* Fetch incoming data: */
+    beginInsertRows(QModelIndex(), 0, newRules.size() - 1);
+    foreach (const UIDataPortForwardingRule &rule, newRules)
+        m_dataList << new UIPortForwardingRow(qobject_cast<QITableView*>(parent()),
+                                              rule.name, rule.protocol,
+                                              rule.hostIp, rule.hostPort,
+                                              rule.guestIp, rule.guestPort);
+    endInsertRows();
 }
 
 void UIPortForwardingModel::addRule(const QModelIndex &index)
@@ -562,7 +599,7 @@ void UIPortForwardingModel::addRule(const QModelIndex &index)
     else
         m_dataList << new UIPortForwardingRow(parentTable(),
                                               strTemplate.arg(++uMaxIndex), KNATProtocol_TCP,
-                                              QString(""), 0, QString(""), 0);
+                                              QString(""), 0, m_strGuestAddressHint, 0);
     endInsertRows();
 }
 
@@ -574,6 +611,11 @@ void UIPortForwardingModel::removeRule(const QModelIndex &index)
     delete m_dataList.at(index.row());
     m_dataList.removeAt(index.row());
     endRemoveRows();
+}
+
+void UIPortForwardingModel::setGuestAddressHint(const QString &strHint)
+{
+    m_strGuestAddressHint = strHint;
 }
 
 Qt::ItemFlags UIPortForwardingModel::flags(const QModelIndex &index) const
@@ -715,7 +757,12 @@ QVariant UIPortForwardingModel::data(const QModelIndex &index, int iRole) const
             {
                 case UIPortForwardingDataType_HostIp:
                 case UIPortForwardingDataType_GuestIp:
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+                    return QSize(QApplication::fontMetrics().horizontalAdvance(" 888.888.888.888 "),
+                                 QApplication::fontMetrics().height());
+#else
                     return QSize(QApplication::fontMetrics().width(" 888.888.888.888 "), QApplication::fontMetrics().height());
+#endif
                 default: return QVariant();
             }
         }
@@ -760,18 +807,55 @@ UIPortForwardingTable::UIPortForwardingTable(const UIPortForwardingDataList &rul
     , m_pLayout(0)
     , m_pTableView(0)
     , m_pToolBar(0)
+    , m_pItemEditorFactory(0)
     , m_pTableModel(0)
     , m_pActionAdd(0)
     , m_pActionCopy(0)
     , m_pActionRemove(0)
 {
-    /* Prepare: */
     prepare();
 }
 
-const UIPortForwardingDataList UIPortForwardingTable::rules() const
+UIPortForwardingTable::~UIPortForwardingTable()
+{
+    cleanup();
+}
+
+UIPortForwardingDataList UIPortForwardingTable::rules() const
 {
     return m_pTableModel->rules();
+}
+
+void UIPortForwardingTable::setRules(const UIPortForwardingDataList &newRules,
+                                     bool fHoldPosition /* = false */)
+{
+    /* Remember last chosen item: */
+    const QModelIndex currentIndex = m_pTableView->currentIndex();
+    QITableViewRow *pCurrentItem = currentIndex.isValid() ? m_pTableModel->childItem(currentIndex.row()) : 0;
+    const QString strCurrentName = pCurrentItem ? pCurrentItem->childItem(0)->text() : QString();
+
+    /* Update the list of rules: */
+    m_rules = newRules;
+    m_pTableModel->setRules(m_rules);
+    sltAdjustTable();
+
+    /* Restore last chosen item: */
+    if (fHoldPosition && !strCurrentName.isEmpty())
+    {
+        for (int i = 0; i < m_pTableModel->childCount(); ++i)
+        {
+            QITableViewRow *pItem = m_pTableModel->childItem(i);
+            const QString strName = pItem ? pItem->childItem(0)->text() : QString();
+            if (strName == strCurrentName)
+                m_pTableView->setCurrentIndex(m_pTableModel->index(i, 0));
+        }
+    }
+}
+
+void UIPortForwardingTable::setGuestAddressHint(const QString &strHint)
+{
+    m_strGuestAddressHint = strHint;
+    m_pTableModel->setGuestAddressHint(m_strGuestAddressHint);
 }
 
 bool UIPortForwardingTable::validate() const
@@ -843,6 +927,8 @@ bool UIPortForwardingTable::eventFilter(QObject *pObject, QEvent *pEvent)
             case QEvent::Show:
             case QEvent::Resize:
             {
+                /* Make sure layout requests really processed first of all: */
+                QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
                 /* Adjust table: */
                 sltAdjustTable();
                 break;
@@ -907,6 +993,12 @@ void UIPortForwardingTable::sltRemoveRule()
     sltAdjustTable();
 }
 
+void UIPortForwardingTable::sltTableDataChanged()
+{
+    m_fTableDataChanged = true;
+    emit sigDataChanged();
+}
+
 void UIPortForwardingTable::sltCurrentChanged()
 {
     bool fTableFocused = m_pTableView->hasFocus();
@@ -936,7 +1028,6 @@ void UIPortForwardingTable::sltShowTableContexMenu(const QPoint &pos)
 
 void UIPortForwardingTable::sltAdjustTable()
 {
-    m_pTableView->horizontalHeader()->setStretchLastSection(false);
     /* If table is NOT empty: */
     if (m_pTableModel->rowCount())
     {
@@ -955,7 +1046,6 @@ void UIPortForwardingTable::sltAdjustTable()
         for (uint u = 0; u < UIPortForwardingDataType_Max; ++u)
             m_pTableView->horizontalHeader()->resizeSection(u, uFullWidth / UIPortForwardingDataType_Max);
     }
-    m_pTableView->horizontalHeader()->setStretchLastSection(true);
 }
 
 void UIPortForwardingTable::prepare()
@@ -965,9 +1055,6 @@ void UIPortForwardingTable::prepare()
 
     /* Apply language settings: */
     retranslateUi();
-
-    /* Limit the minimum size to 33% of screen size: */
-    setMinimumSize(gpDesktop->screenGeometry(this).size() / 3);
 }
 
 void UIPortForwardingTable::prepareLayout()
@@ -1000,6 +1087,7 @@ void UIPortForwardingTable::prepareTableView()
     if (m_pTableView)
     {
         /* Configure table-view: */
+        m_pTableView->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
         m_pTableView->setTabKeyNavigation(false);
         m_pTableView->verticalHeader()->hide();
         m_pTableView->verticalHeader()->setDefaultSectionSize((int)(m_pTableView->verticalHeader()->minimumSectionSize() * 1.33));
@@ -1050,39 +1138,39 @@ void UIPortForwardingTable::prepareTableDelegates()
         if (pStyledItemDelegate)
         {
             /* Create new item editor factory: */
-            QItemEditorFactory *pNewItemEditorFactory = new QItemEditorFactory;
-            if (pNewItemEditorFactory)
+            m_pItemEditorFactory = new QItemEditorFactory;
+            if (m_pItemEditorFactory)
             {
                 /* Register NameEditor as the NameData editor: */
                 int iNameId = qRegisterMetaType<NameData>();
                 QStandardItemEditorCreator<NameEditor> *pNameEditorItemCreator = new QStandardItemEditorCreator<NameEditor>();
-                pNewItemEditorFactory->registerEditor((QVariant::Type)iNameId, pNameEditorItemCreator);
+                m_pItemEditorFactory->registerEditor((QVariant::Type)iNameId, pNameEditorItemCreator);
 
                 /* Register ProtocolEditor as the KNATProtocol editor: */
                 int iProtocolId = qRegisterMetaType<KNATProtocol>();
                 QStandardItemEditorCreator<ProtocolEditor> *pProtocolEditorItemCreator = new QStandardItemEditorCreator<ProtocolEditor>();
-                pNewItemEditorFactory->registerEditor((QVariant::Type)iProtocolId, pProtocolEditorItemCreator);
+                m_pItemEditorFactory->registerEditor((QVariant::Type)iProtocolId, pProtocolEditorItemCreator);
 
                 /* Register IPv4Editor/IPv6Editor as the IpData editor: */
                 int iIpId = qRegisterMetaType<IpData>();
                 if (!m_fIPv6)
                 {
                     QStandardItemEditorCreator<IPv4Editor> *pIPv4EditorItemCreator = new QStandardItemEditorCreator<IPv4Editor>();
-                    pNewItemEditorFactory->registerEditor((QVariant::Type)iIpId, pIPv4EditorItemCreator);
+                    m_pItemEditorFactory->registerEditor((QVariant::Type)iIpId, pIPv4EditorItemCreator);
                 }
                 else
                 {
                     QStandardItemEditorCreator<IPv6Editor> *pIPv6EditorItemCreator = new QStandardItemEditorCreator<IPv6Editor>();
-                    pNewItemEditorFactory->registerEditor((QVariant::Type)iIpId, pIPv6EditorItemCreator);
+                    m_pItemEditorFactory->registerEditor((QVariant::Type)iIpId, pIPv6EditorItemCreator);
                 }
 
                 /* Register PortEditor as the PortData editor: */
                 int iPortId = qRegisterMetaType<PortData>();
                 QStandardItemEditorCreator<PortEditor> *pPortEditorItemCreator = new QStandardItemEditorCreator<PortEditor>();
-                pNewItemEditorFactory->registerEditor((QVariant::Type)iPortId, pPortEditorItemCreator);
+                m_pItemEditorFactory->registerEditor((QVariant::Type)iPortId, pPortEditorItemCreator);
 
                 /* Set newly created item editor factory for table delegate: */
-                pStyledItemDelegate->setItemEditorFactory(pNewItemEditorFactory);
+                pStyledItemDelegate->setItemEditorFactory(m_pItemEditorFactory);
             }
         }
     }
@@ -1091,7 +1179,7 @@ void UIPortForwardingTable::prepareTableDelegates()
 void UIPortForwardingTable::prepareToolbar()
 {
     /* Create toolbar: */
-    m_pToolBar = new UIToolBar;
+    m_pToolBar = new QIToolBar;
     if (m_pToolBar)
     {
         /* Determine icon metric: */
@@ -1136,6 +1224,12 @@ void UIPortForwardingTable::prepareToolbar()
         /* Add into layout: */
         m_pLayout->addWidget(m_pToolBar);
     }
+}
+
+void UIPortForwardingTable::cleanup()
+{
+    delete m_pItemEditorFactory;
+    m_pItemEditorFactory = 0;
 }
 
 

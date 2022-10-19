@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -146,7 +156,7 @@ typedef struct DRVSCSI
     /** Size of a VSCSI I/O request. */
     size_t                  cbVScsiIoReqAlloc;
     /** Queue to defer unmounting to EMT. */
-    PPDMQUEUE               pQueue;
+    PDMQUEUEHANDLE          hQueue;
 } DRVSCSI, *PDRVSCSI;
 
 /** Convert a VSCSI I/O request handle to the associated PDMIMEDIAEX I/O request. */
@@ -313,11 +323,11 @@ static DECLCALLBACK(int) drvscsiEject(VSCSILUN hVScsiLun, void *pvScsiLunUser)
     rc = RTSemEventCreate(&hSemEvt);
     if (RT_SUCCESS(rc))
     {
-        PDRVSCSIEJECTSTATE pEjectState = (PDRVSCSIEJECTSTATE)PDMQueueAlloc(pThis->pQueue);
+        PDRVSCSIEJECTSTATE pEjectState = (PDRVSCSIEJECTSTATE)PDMDrvHlpQueueAlloc(pThis->pDrvIns, pThis->hQueue);
         if (pEjectState)
         {
             pEjectState->hSemEvt = hSemEvt;
-            PDMQueueInsert(pThis->pQueue, &pEjectState->Core);
+            PDMDrvHlpQueueInsert(pThis->pDrvIns, pThis->hQueue, &pEjectState->Core);
 
             /* Wait for completion. */
             rc = RTSemEventWait(pEjectState->hSemEvt, RT_INDEFINITE_WAIT);
@@ -1066,13 +1076,18 @@ static DECLCALLBACK(void) drvscsiIoReqVScsiReqCompleted(VSCSIDEVICE hVScsiDevice
  *          If false the item will not be removed and the flushing will stop.
  * @param   pDrvIns     The driver instance.
  * @param   pItem       The item to consume. Upon return this item will be freed.
+ * @thread  EMT
+ *
+ * @todo    r=bird: Seems the idea here is that we have to do this on an EMT,
+ *          probably because of PDMIMOUNT::pfnUnmount.  I don't quite get why
+ *          though, as EMT doesn't exactly serialize anything anymore (SMP)...
  */
 static DECLCALLBACK(bool) drvscsiR3NotifyQueueConsumer(PPDMDRVINS pDrvIns, PPDMQUEUEITEMCORE pItem)
 {
     PDRVSCSIEJECTSTATE pEjectState = (PDRVSCSIEJECTSTATE)pItem;
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
 
-    int rc = pThis->pDrvMount->pfnUnmount(pThis->pDrvMount, false/*=fForce*/, true/*=fEject*/);
+    int rc = pThis->pDrvMount->pfnUnmount(pThis->pDrvMount, false /*fForce*/, true /*fEject*/);
     Assert(RT_SUCCESS(rc) || rc == VERR_PDM_MEDIA_LOCKED || rc == VERR_PDM_MEDIA_NOT_MOUNTED);
     if (RT_SUCCESS(rc))
         pThis->pDevMediaExPort->pfnMediumEjected(pThis->pDevMediaExPort);
@@ -1228,12 +1243,12 @@ static DECLCALLBACK(int) drvscsiAttach(PPDMDRVINS pDrvIns, uint32_t fFlags)
      * Query the media interface.
      */
     pThis->pDrvMedia = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIMEDIA);
-    AssertMsgReturn(VALID_PTR(pThis->pDrvMedia), ("VSCSI configuration error: No media interface!\n"),
+    AssertMsgReturn(RT_VALID_PTR(pThis->pDrvMedia), ("VSCSI configuration error: No media interface!\n"),
                     VERR_PDM_MISSING_INTERFACE);
 
     /* Query the extended media interface. */
     pThis->pDrvMediaEx = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIMEDIAEX);
-    AssertMsgReturn(VALID_PTR(pThis->pDrvMediaEx), ("VSCSI configuration error: No extended media interface!\n"),
+    AssertMsgReturn(RT_VALID_PTR(pThis->pDrvMediaEx), ("VSCSI configuration error: No extended media interface!\n"),
                     VERR_PDM_MISSING_INTERFACE);
 
     pThis->pDrvMount = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIMOUNT);
@@ -1326,10 +1341,10 @@ static DECLCALLBACK(void) drvscsiDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    int rc = VINF_SUCCESS;
+    RT_NOREF(pCfg);
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVSCSI pThis = PDMINS_2_DATA(pDrvIns, PDRVSCSI);
     LogFlowFunc(("pDrvIns=%#p pCfg=%#p\n", pDrvIns, pCfg));
-    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Initialize the instance data.
@@ -1405,7 +1420,7 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     if (pThis->pLedPort != NULL)
     {
         /* Get The Led. */
-        rc = pThis->pLedPort->pfnQueryStatusLed(pThis->pLedPort, 0, &pThis->pLed);
+        int rc = pThis->pLedPort->pfnQueryStatusLed(pThis->pLedPort, 0, &pThis->pLed);
         if (RT_FAILURE(rc))
             pThis->pLed = &pThis->Led;
     }
@@ -1415,14 +1430,12 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     /*
      * Validate and read configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, ""))
-        return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
-                                N_("SCSI configuration error: unknown option specified"));
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "", "");
 
     /*
      * Try attach driver below and query it's media interface.
      */
-    rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pThis->pDrvBase);
+    int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pThis->pDrvBase);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1430,12 +1443,12 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
      * Query the media interface.
      */
     pThis->pDrvMedia = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIMEDIA);
-    AssertMsgReturn(VALID_PTR(pThis->pDrvMedia), ("VSCSI configuration error: No media interface!\n"),
+    AssertMsgReturn(RT_VALID_PTR(pThis->pDrvMedia), ("VSCSI configuration error: No media interface!\n"),
                     VERR_PDM_MISSING_INTERFACE);
 
     /* Query the extended media interface. */
     pThis->pDrvMediaEx = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIMEDIAEX);
-    AssertMsgReturn(VALID_PTR(pThis->pDrvMediaEx), ("VSCSI configuration error: No extended media interface!\n"),
+    AssertMsgReturn(RT_VALID_PTR(pThis->pDrvMediaEx), ("VSCSI configuration error: No extended media interface!\n"),
                     VERR_PDM_MISSING_INTERFACE);
 
     pThis->pDrvMount = PDMIBASE_QUERY_INTERFACE(pThis->pDrvBase, PDMIMOUNT);
@@ -1510,7 +1523,7 @@ static DECLCALLBACK(int) drvscsiConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
         LogRel(("SCSI#%d: Enabled UNMAP support\n", pDrvIns->iInstance));
 
     rc = PDMDrvHlpQueueCreate(pDrvIns, sizeof(DRVSCSIEJECTSTATE), 1, 0, drvscsiR3NotifyQueueConsumer,
-                              "SCSI-Eject", &pThis->pQueue);
+                              "SCSI-Eject", &pThis->hQueue);
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
                                    N_("VSCSI configuration error: Failed to create notification queue"));

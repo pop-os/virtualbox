@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "VBoxClient.h"
@@ -43,17 +53,10 @@
  * virtual terminal while a user session is in place should disable dynamic
  * resizing and cursor integration, switching back should re-enable them. */
 
-/** Display magic number, start of a UUID. */
-#define DISPLAYSTATE_MAGIC UINT32_C(0xf0029993)
-
 /** State information needed for the service.  The main VBoxClient code provides
  *  the daemon logic needed by all services. */
 struct DISPLAYSTATE
 {
-    /** The service interface. */
-    struct VBCLSERVICE *pInterface;
-    /** Magic number for sanity checks. */
-    uint32_t magic;
     /** Are we initialised yet? */
     bool mfInit;
     /** The connection to the server. */
@@ -76,6 +79,8 @@ struct DISPLAYSTATE
     /** Handle to pXRRQueryExtension. */
     Bool (*pXRRQueryExtension) (Display *, int *, int *);
 };
+
+static struct DISPLAYSTATE g_DisplayState;
 
 static unsigned char *getRootProperty(struct DISPLAYSTATE *pState, const char *pszName,
                                       long cItems, Atom type)
@@ -252,27 +257,12 @@ static int initDisplay(struct DISPLAYSTATE *pState)
     return VINF_SUCCESS;
 }
 
-static const char *getName()
+/**
+ * @interface_method_impl{VBCLSERVICE,pfnInit}
+ */
+static DECLCALLBACK(int) init(void)
 {
-    return "Display";
-}
-
-static const char *getPidFilePath()
-{
-    return ".vboxclient-display.pid";
-}
-
-static struct DISPLAYSTATE *getStateFromInterface(struct VBCLSERVICE **ppInterface)
-{
-    struct DISPLAYSTATE *pSelf = (struct DISPLAYSTATE *)ppInterface;
-    if (pSelf->magic != DISPLAYSTATE_MAGIC)
-        VBClLogFatalError("Bad display service object!\n");
-    return pSelf;
-}
-
-static int init(struct VBCLSERVICE **ppInterface)
-{
-    struct DISPLAYSTATE *pSelf = getStateFromInterface(ppInterface);
+    struct DISPLAYSTATE *pSelf = &g_DisplayState;
     int rc;
 
     if (pSelf->mfInit)
@@ -285,10 +275,13 @@ static int init(struct VBCLSERVICE **ppInterface)
     return rc;
 }
 
-static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
+/**
+ * @interface_method_impl{VBCLSERVICE,pfnWorker}
+ */
+static DECLCALLBACK(int) run(bool volatile *pfShutdown)
 {
-    RT_NOREF1(fDaemonised);
-    struct DISPLAYSTATE *pSelf = getStateFromInterface(ppInterface);
+    RT_NOREF(pfShutdown); /** @todo Probably very wrong not to check pfShutdown... Especially given no pfnStop implementation. */
+    struct DISPLAYSTATE *pSelf = &g_DisplayState;
 
     if (!pSelf->mfInit)
         return VERR_WRONG_ORDER;
@@ -296,23 +289,16 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
     return VERR_INTERNAL_ERROR;  /* "Should never reach here." */
 }
 
-struct VBCLSERVICE vbclDisplayInterface =
+VBCLSERVICE g_SvcDisplayLegacy =
 {
-    getName,
-    getPidFilePath,
-    init,
-    run,
-    VBClServiceDefaultCleanup
+    "dp-legacy-x11",                    /* szName */
+    "Legacy display assistant",         /* pszDescription */
+    ".vboxclient-display.pid",          /* pszPidFilePath (no pid file lock) */
+    NULL,                               /* pszUsage */
+    NULL,                               /* pszOptions */
+    NULL,                               /* pfnOption */
+    init,                               /* pfnInit */
+    run,                                /* pfnWorker */
+    NULL,                               /* pfnStop */
+    NULL,                               /* pfnTerm */
 };
-
-struct VBCLSERVICE **VBClGetDisplayService()
-{
-    struct DISPLAYSTATE *pService = (struct DISPLAYSTATE *)RTMemAlloc(sizeof(*pService));
-
-    if (!pService)
-        VBClLogFatalError("Out of memory\n");
-    pService->pInterface = &vbclDisplayInterface;
-    pService->magic = DISPLAYSTATE_MAGIC;
-    pService->mfInit = false;
-    return &pService->pInterface;
-}

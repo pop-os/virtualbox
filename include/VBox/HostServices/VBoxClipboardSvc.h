@@ -17,24 +17,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_HostServices_VBoxClipboardSvc_h
@@ -93,18 +103,6 @@
 /** Reports an error to the guest.
  * @since   6.1 - still a todo  */
 #define VBOX_SHCL_HOST_FN_ERROR              5
-/** Reports that a new clipboard area has been registered.
- * @since   6.1 - not implemented */
-#define VBOX_SHCL_HOST_FN_AREA_REGISTER      6
-/** Reports that a clipboard area has been unregistered.
- * @since   6.1 - not implemented  */
-#define VBOX_SHCL_HOST_FN_AREA_UNREGISTER    7
-/** Reports that a client (host / guest) has attached to a clipboard area.
- * @since   6.1 - not implemented  */
-#define VBOX_SHCL_HOST_FN_AREA_ATTACH        8
-/** Reports that a client (host / guest) has detached from a clipboard area.
- * @since   6.1 - not implemented */
-#define VBOX_SHCL_HOST_FN_AREA_DETACH        9
 /** @} */
 
 
@@ -617,8 +615,13 @@
 /** The guest can handle context IDs where applicable. */
 #define VBOX_SHCL_GF_0_CONTEXT_ID                 RT_BIT_64(0)
 /** The guest can copy & paste files and directories.
- * @since 6.1.?  */
+ * @since 6.x */
 #define VBOX_SHCL_GF_0_TRANSFERS                  RT_BIT_64(1)
+/** The guest supports a (guest OS-)native frontend for showing and handling file transfers.
+ *  If not set, the host will show a modal progress dialog instead and transferring file to
+ *  a guest-specific temporary location first.
+ *  Currently only supported for Windows guests (integrated into Windows Explorer via IDataObject). */
+#define VBOX_SHCL_GF_0_TRANSFERS_FRONTEND         RT_BIT_64(2)
 /** Bit that must be set in the 2nd parameter, will be cleared if the host reponds
  * correctly (old hosts might not). */
 #define VBOX_SHCL_GF_1_MUST_BE_ONE                RT_BIT_64(63)
@@ -637,25 +640,6 @@
  * @since 6.1.? */
 #define VBOX_SHCL_HF_0_TRANSFERS                  RT_BIT_64(1)
 /** @} */
-
-
-/** @name VBOX_SHCL_FMT_XXX - Data formats (flags) for Shared Clipboard.
- * @{
- */
-/** No format set. */
-#define VBOX_SHCL_FMT_NONE          0
-/** Shared Clipboard format is an Unicode text. */
-#define VBOX_SHCL_FMT_UNICODETEXT   RT_BIT(0)
-/** Shared Clipboard format is bitmap (BMP / DIB). */
-#define VBOX_SHCL_FMT_BITMAP        RT_BIT(1)
-/** Shared Clipboard format is HTML. */
-#define VBOX_SHCL_FMT_HTML          RT_BIT(2)
-#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-/** Shared Clipboard format is a transfer list. */
-# define VBOX_SHCL_FMT_URI_LIST     RT_BIT(3)
-#endif
-/** @}  */
-
 
 /** @name Context ID related macros and limits
  * @{ */
@@ -827,7 +811,7 @@ typedef struct _VBoxShClGetHostMsg
 #define VBOX_SHCL_INFO_FLAG_FSOBJINFO     RT_BIT(0)
 
 /**
- * Status messag for lists and objects.
+ * Status message for lists and objects.
  */
 typedef struct _VBoxShClStatusMsg
 {
@@ -837,13 +821,11 @@ typedef struct _VBoxShClStatusMsg
     HGCMFunctionParameter uContext;
     /** uint32_t, in: Transfer status of type SHCLTRANSFERSTATUS. */
     HGCMFunctionParameter uStatus;
-    /** uint32_t, in: Size of payload of this status, based on the status type. */
-    HGCMFunctionParameter cbPayload;
     /** pointer, in: Optional payload of this status, based on the status type. */
     HGCMFunctionParameter pvPayload;
 } VBoxShClStatusMsg;
 
-#define VBOX_SHCL_CPARMS_STATUS 4
+#define VBOX_SHCL_CPARMS_STATUS 3
 
 /** Invalid message type, do not use. */
 #define VBOX_SHCL_REPLYMSGTYPE_INVALID           0
@@ -871,8 +853,6 @@ typedef struct _VBoxShClReplyMsg
     HGCMFunctionParameter enmType;
     /** uint32_t, out: IPRT result of overall operation. */
     HGCMFunctionParameter rc;
-    /** uint32_t, out: Size of optional payload of this reply, based on the message type. */
-    HGCMFunctionParameter cbPayload;
     /** pointer, out: Optional payload of this reply, based on the message type. */
     HGCMFunctionParameter pvPayload;
     union
@@ -897,7 +877,7 @@ typedef struct _VBoxShClReplyMsg
 } VBoxShClReplyMsg;
 
 /** Minimum parameters (HGCM function parameters minus the union) a reply message must have. */
-#define VBOX_SHCL_CPARMS_REPLY_MIN 5
+#define VBOX_SHCL_CPARMS_REPLY_MIN 4
 
 /**
  * Structure for keeping root list message parameters.
@@ -910,6 +890,8 @@ typedef struct _VBoxShClRootListParms
     HGCMFunctionParameter fRoots;
 } VBoxShClRootListParms;
 
+#define VBOX_SHCL_CPARMS_ROOT_LIST 2
+
 /**
  * Requests to read the root list header.
  */
@@ -920,7 +902,7 @@ typedef struct _VBoxShClRootListReadReqMsg
     VBoxShClRootListParms ReqParms;
 } VBoxShClRootListReadReqMsg;
 
-#define VBOX_SHCL_CPARMS_ROOT_LIST_HDR_READ_REQ 2
+#define VBOX_SHCL_CPARMS_ROOT_LIST_HDR_READ_REQ VBOX_SHCL_CPARMS_ROOT_LIST
 
 /**
  * Reads / Writes a root list header.
@@ -934,8 +916,8 @@ typedef struct _VBoxShClRootListHdrMsg
     HGCMFunctionParameter cRoots;
 } VBoxShClRootListHdrMsg;
 
-#define VBOX_SHCL_CPARMS_ROOT_LIST_HDR_READ  3
-#define VBOX_SHCL_CPARMS_ROOT_LIST_HDR_WRITE 3
+#define VBOX_SHCL_CPARMS_ROOT_LIST_HDR_READ  VBOX_SHCL_CPARMS_ROOT_LIST + 1
+#define VBOX_SHCL_CPARMS_ROOT_LIST_HDR_WRITE VBOX_SHCL_CPARMS_ROOT_LIST + 1
 
 /**
  * Structure for keeping list entry message parameters.
@@ -950,6 +932,8 @@ typedef struct _VBoxShClRootListEntryParms
     HGCMFunctionParameter uIndex;
 } VBoxShClRootListEntryParms;
 
+#define VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY 3
+
 /**
  * Request to read a list root entry.
  */
@@ -961,7 +945,7 @@ typedef struct _VBoxShClRootListEntryReadReqMsg
     VBoxShClRootListEntryParms Parms;
 } VBoxShClRootListEntryReadReqMsg;
 
-#define VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY_READ_REQ 3
+#define VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY_READ_REQ VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY
 
 /**
  * Reads / Writes a root list entry.
@@ -981,8 +965,8 @@ typedef struct _VBoxShClRootListEntryMsg
     HGCMFunctionParameter      pvInfo;
 } VBoxShClRootListEntryMsg;
 
-#define VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY_READ  6
-#define VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY_WRITE 6
+#define VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY_READ  VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY + 3
+#define VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY_WRITE VBOX_SHCL_CPARMS_ROOT_LIST_ENTRY + 3
 
 /**
  * Opens a list.
@@ -995,19 +979,15 @@ typedef struct _VBoxShClListOpenMsg
     HGCMFunctionParameter uContext;
     /** uint32_t, in: Listing flags (see VBOX_SHCL_LIST_FLAG_XXX). */
     HGCMFunctionParameter fList;
-    /** uint32_t, in: Size (in bytes) of the filter string. */
-    HGCMFunctionParameter cbFilter;
     /** pointer, in: Filter string. */
     HGCMFunctionParameter pvFilter;
-    /** uint32_t, in: Size (in bytes) of the listing path. */
-    HGCMFunctionParameter cbPath;
     /** pointer, in: Listing poth. If empty or NULL the listing's root path will be opened. */
     HGCMFunctionParameter pvPath;
     /** uint64_t, out: List handle. */
     HGCMFunctionParameter uHandle;
 } VBoxShClListOpenMsg;
 
-#define VBOX_SHCL_CPARMS_LIST_OPEN 7
+#define VBOX_SHCL_CPARMS_LIST_OPEN 5
 
 /**
  * Closes a list.
@@ -1034,6 +1014,8 @@ typedef struct _VBoxShClListHdrReqParms
     HGCMFunctionParameter fFlags;
 } VBoxShClListHdrReqParms;
 
+#define VBOX_SHCL_CPARMS_LIST_HDR_REQ 3
+
 /**
  * Request to read a list header.
  */
@@ -1044,7 +1026,7 @@ typedef struct _VBoxShClListHdrReadReqMsg
     VBoxShClListHdrReqParms ReqParms;
 } VBoxShClListHdrReadReqMsg;
 
-#define VBOX_SHCL_CPARMS_LIST_HDR_READ_REQ 3
+#define VBOX_SHCL_CPARMS_LIST_HDR_READ_REQ VBOX_SHCL_CPARMS_LIST_HDR_REQ
 
 /**
  * Reads / Writes a list header.
@@ -1056,13 +1038,13 @@ typedef struct _VBoxShClListHdrMsg
     VBoxShClListHdrReqParms ReqParms;
     /** uint32_t, in/out: Feature flags (see VBOX_SHCL_FEATURE_FLAG_XXX). */
     HGCMFunctionParameter   fFeatures;
-    /** uint64_t, in/out:  Number of total objects to transfer. */
+    /** uint64_t, in/out: Number of total objects to transfer. */
     HGCMFunctionParameter   cTotalObjects;
-    /** uint64_t, in/out:  Number of total bytes to transfer. */
+    /** uint64_t, in/out: Number of total bytes to transfer. */
     HGCMFunctionParameter   cbTotalSize;
 } VBoxShClListHdrMsg;
 
-#define VBOX_SHCL_CPARMS_LIST_HDR 6
+#define VBOX_SHCL_CPARMS_LIST_HDR VBOX_SHCL_CPARMS_LIST_HDR_REQ + 3
 
 typedef struct _VBoxShClListEntryReqParms
 {
@@ -1074,6 +1056,8 @@ typedef struct _VBoxShClListEntryReqParms
     HGCMFunctionParameter fInfo;
 } VBoxShClListEntryReqParms;
 
+#define VBOX_SHCL_CPARMS_LIST_ENTRY_REQ 3
+
 /**
  * Request to read a list entry.
  */
@@ -1084,7 +1068,7 @@ typedef struct _VBoxShClListEntryReadReqMsg
     VBoxShClListEntryReqParms ReqParms;
 } VBoxShClListEntryReadReqMsg;
 
-#define VBOX_SHCL_CPARMS_LIST_ENTRY_READ 3
+#define VBOX_SHCL_CPARMS_LIST_ENTRY_READ VBOX_SHCL_CPARMS_LIST_ENTRY_REQ
 
 /**
  * Reads / Writes a list entry.
@@ -1096,15 +1080,15 @@ typedef struct _VBoxShClListEntryMsg
     /** in/out: Request parameters. */
     VBoxShClListEntryReqParms ReqParms;
     /** pointer, in/out: Entry name. */
-    HGCMFunctionParameter          szName;
+    HGCMFunctionParameter     szName;
     /** uint32_t, out: Bytes to be used for information/How many bytes were used.  */
-    HGCMFunctionParameter          cbInfo;
+    HGCMFunctionParameter     cbInfo;
     /** pointer, in/out: Information to be set/get (SHCLFSOBJINFO only currently).
      *  Do not forget to set the SHCLFSOBJINFO::Attr::enmAdditional for Get operation as well.  */
-    HGCMFunctionParameter          pvInfo;
+    HGCMFunctionParameter     pvInfo;
 } VBoxShClListEntryMsg;
 
-#define VBOX_SHCL_CPARMS_LIST_ENTRY 6
+#define VBOX_SHCL_CPARMS_LIST_ENTRY VBOX_SHCL_CPARMS_LIST_ENTRY_REQ + 3
 
 /**
  * Opens a Shared Clipboard object.
@@ -1115,17 +1099,15 @@ typedef struct _VBoxShClObjOpenMsg
 
     /** uint64_t, in/out: Context ID. */
     HGCMFunctionParameter uContext;
-    /** uint64_t, in/out: Object handle. */
+    /** uint64_t, out: Object handle. */
     HGCMFunctionParameter uHandle;
-    /** uint32_t, in/out: Size (in bytes) of absoulte path of object to open/create. */
-    HGCMFunctionParameter cbPath;
-    /** pointer, in/out: Absoulte path of object to open/create. */
+    /** pointer, in: Absoulte path of object to open/create. */
     HGCMFunctionParameter szPath;
-    /** uint32_t in/out: Open / Create flags of type SHCL_OBJ_CF_. */
+    /** uint32_t in: Open / Create flags of type SHCL_OBJ_CF_. */
     HGCMFunctionParameter fCreate;
 } VBoxShClObjOpenMsg;
 
-#define VBOX_SHCL_CPARMS_OBJ_OPEN 5
+#define VBOX_SHCL_CPARMS_OBJ_OPEN 4
 
 /**
  * Closes a Shared Clipboard object.
@@ -1184,7 +1166,7 @@ typedef struct _VBoxShClObjReadWriteMsg
     HGCMFunctionParameter uContext;
     /** uint64_t, in/out: SHCLOBJHANDLE of object to write to. */
     HGCMFunctionParameter uHandle;
-    /** uint32_t, in/out: Size (in bytes) of current data chunk. */
+    /** uint32_t, out: Size (in bytes) read/written. */
     HGCMFunctionParameter cbData;
     /** pointer, in/out: Current data chunk. */
     HGCMFunctionParameter pvData;

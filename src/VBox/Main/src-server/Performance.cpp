@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /**
@@ -113,7 +123,7 @@ int CollectorHAL::getHostCpuMHz(ULONG *mhz)
     uint64_t u64TotalMHz = 0;
     RTCPUSET OnlineSet;
     RTMpGetOnlineSet(&OnlineSet);
-    for (RTCPUID iCpu = 0; iCpu < RTCPUSET_MAX_CPUS; iCpu++)
+    for (int iCpu = 0; iCpu < RTCPUSET_MAX_CPUS; iCpu++)
     {
         Log7Func(("{%p}: Checking if CPU %d is member of online set...\n", this, (int)iCpu));
         if (RTCpuSetIsMemberByIndex(&OnlineSet, iCpu))
@@ -129,10 +139,18 @@ int CollectorHAL::getHostCpuMHz(ULONG *mhz)
         }
     }
 
-    AssertReturn(cCpus, VERR_NOT_IMPLEMENTED);
-    *mhz = (ULONG)(u64TotalMHz / cCpus);
+    if (cCpus)
+    {
+        *mhz = (ULONG)(u64TotalMHz / cCpus);
+        return VINF_SUCCESS;
+    }
 
-    return VINF_SUCCESS;
+    /* This is always the case on darwin, so don't assert there. */
+#ifndef RT_OS_DARWIN
+    AssertFailed();
+#endif
+    *mhz = 0;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 #ifndef VBOX_COLLECTOR_TEST_CASE
@@ -158,8 +176,8 @@ void CollectorGuestQueue::push(CollectorGuestRequest* rq)
 
 CollectorGuestRequest* CollectorGuestQueue::pop()
 {
-    int rc = VINF_SUCCESS;
-    CollectorGuestRequest* rq = NULL;
+    int vrc = VINF_SUCCESS;
+    CollectorGuestRequest *rq = NULL;
 
     do
     {
@@ -175,10 +193,8 @@ CollectorGuestRequest* CollectorGuestQueue::pop()
 
         if (rq)
             return rq;
-        else
-            rc = RTSemEventWaitNoResume(mEvent, RT_INDEFINITE_WAIT);
-    }
-    while (RT_SUCCESS(rc));
+        vrc = RTSemEventWaitNoResume(mEvent, RT_INDEFINITE_WAIT);
+    } while (RT_SUCCESS(vrc));
 
     return NULL;
 }
@@ -242,9 +258,9 @@ CollectorGuest::~CollectorGuest()
     // Assert(!cEnabled); why?
 }
 
-int CollectorGuest::enableVMMStats(bool mCollectVMMStats)
+HRESULT CollectorGuest::enableVMMStats(bool mCollectVMMStats)
 {
-    HRESULT ret = S_OK;
+    HRESULT hrc = S_OK;
 
     if (mGuest)
     {
@@ -254,25 +270,25 @@ int CollectorGuest::enableVMMStats(bool mCollectVMMStats)
 
         ComPtr<IInternalSessionControl> directControl;
 
-        ret = mMachine->i_getDirectControl(&directControl);
-        if (ret != S_OK)
-            return ret;
+        hrc = mMachine->i_getDirectControl(&directControl);
+        if (hrc != S_OK)
+            return hrc;
 
         /* enable statistics collection; this is a remote call (!) */
-        ret = directControl->EnableVMMStatistics(mCollectVMMStats);
+        hrc = directControl->EnableVMMStatistics(mCollectVMMStats);
         Log7Func(("{%p}: %sable VMM stats (%s)\n",
-              this, mCollectVMMStats ? "En" : "Dis", SUCCEEDED(ret) ? "success" : "failed"));
+                  this, mCollectVMMStats ? "En" : "Dis", SUCCEEDED(hrc) ? "success" : "failed"));
     }
 
-    return ret;
+    return hrc;
 }
 
-int CollectorGuest::enable(ULONG mask)
+HRESULT CollectorGuest::enable(ULONG mask)
 {
     return enqueueRequest(new CGRQEnable(mask));
 }
 
-int CollectorGuest::disable(ULONG mask)
+HRESULT CollectorGuest::disable(ULONG mask)
 {
     return enqueueRequest(new CGRQDisable(mask));
 }
@@ -323,7 +339,7 @@ HRESULT CollectorGuest::enableInternal(ULONG mask)
     return ret;
 }
 
-int CollectorGuest::disableInternal(ULONG mask)
+HRESULT CollectorGuest::disableInternal(ULONG mask)
 {
     if (!(mEnabled & mask))
         return E_UNEXPECTED;
@@ -344,7 +360,7 @@ int CollectorGuest::disableInternal(ULONG mask)
     return S_OK;
 }
 
-int CollectorGuest::enqueueRequest(CollectorGuestRequest *aRequest)
+HRESULT CollectorGuest::enqueueRequest(CollectorGuestRequest *aRequest)
 {
     if (mManager)
     {
@@ -398,24 +414,25 @@ void CollectorGuest::updateStats(ULONG aValidStats, ULONG aCpuUser,
 CollectorGuestManager::CollectorGuestManager()
   : mVMMStatsProvider(NULL), mGuestBeingCalled(NULL)
 {
-    int rc = RTThreadCreate(&mThread, CollectorGuestManager::requestProcessingThread,
+    int vrc = RTThreadCreate(&mThread, CollectorGuestManager::requestProcessingThread,
                             this, 0, RTTHREADTYPE_MAIN_WORKER, RTTHREADFLAGS_WAITABLE,
                             "CGMgr");
-    NOREF(rc);
-    Log7Func(("{%p}: RTThreadCreate returned %Rrc (mThread=%p)\n", this, rc, mThread));
+    NOREF(vrc);
+    Log7Func(("{%p}: RTThreadCreate returned %Rrc (mThread=%p)\n", this, vrc, mThread));
 }
 
 CollectorGuestManager::~CollectorGuestManager()
 {
     Assert(mGuests.size() == 0);
     int rcThread = 0;
-    int rc = enqueueRequest(new CGRQAbort());
-    if (SUCCEEDED(rc))
+    HRESULT hrc = enqueueRequest(new CGRQAbort());
+    if (SUCCEEDED(hrc))
     {
         /* We wait only if we were able to put the abort request to a queue */
         Log7Func(("{%p}: Waiting for CGM request processing thread to stop...\n", this));
-        rc = RTThreadWait(mThread, 1000 /* 1 sec */, &rcThread);
-        Log7Func(("{%p}: RTThreadWait returned %u (thread exit code: %u)\n", this, rc, rcThread));
+        int vrc = RTThreadWait(mThread, 1000 /* 1 sec */, &rcThread);
+        Log7Func(("{%p}: RTThreadWait returned %Rrc (thread exit code: %Rrc)\n", this, vrc, rcThread));
+        RT_NOREF(vrc);
     }
 }
 
@@ -434,8 +451,6 @@ void CollectorGuestManager::registerGuest(CollectorGuest* pGuest)
 
 void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
 {
-    int rc = S_OK;
-
     Log7Func(("{%p}: About to unregister guest=%p provider=%p\n", this, pGuest, mVMMStatsProvider));
     //mGuests.remove(pGuest); => destroyUnregistered()
     pGuest->unregister();
@@ -456,8 +471,8 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
             {
                 /* Found the guest already collecting stats, elect it */
                 mVMMStatsProvider = *it;
-                rc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(VMSTATS_VMM_RAM));
-                if (FAILED(rc))
+                HRESULT hrc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(VMSTATS_VMM_RAM));
+                if (FAILED(hrc))
                 {
                     /* This is not a good candidate -- try to find another */
                     mVMMStatsProvider = NULL;
@@ -477,8 +492,8 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
 
                 mVMMStatsProvider = *it;
                 //mVMMStatsProvider->enable(VMSTATS_VMM_RAM);
-                rc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(VMSTATS_VMM_RAM));
-                if (SUCCEEDED(rc))
+                HRESULT hrc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(VMSTATS_VMM_RAM));
+                if (SUCCEEDED(hrc))
                     break;
                 /* This was not a good candidate -- try to find another */
                 mVMMStatsProvider = NULL;
@@ -504,7 +519,7 @@ void CollectorGuestManager::destroyUnregistered()
             ++it;
 }
 
-int CollectorGuestManager::enqueueRequest(CollectorGuestRequest *aRequest)
+HRESULT CollectorGuestManager::enqueueRequest(CollectorGuestRequest *aRequest)
 {
 #ifdef DEBUG
     aRequest->debugPrint(this, __PRETTY_FUNCTION__, "added to CGM queue");
@@ -614,8 +629,8 @@ void HostCpuLoad::init(ULONG period, ULONG length)
 void HostCpuLoad::collect()
 {
     ULONG user, kernel, idle;
-    int rc = mHAL->getHostCpuLoad(&user, &kernel, &idle);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getHostCpuLoad(&user, &kernel, &idle);
+    if (RT_SUCCESS(vrc))
     {
         mUser->put(user);
         mKernel->put(kernel);
@@ -639,8 +654,8 @@ void HostCpuLoadRaw::collect()
     uint64_t user, kernel, idle;
     uint64_t userDiff, kernelDiff, idleDiff, totalDiff;
 
-    int rc = mHAL->getRawHostCpuLoad(&user, &kernel, &idle);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getRawHostCpuLoad(&user, &kernel, &idle);
+    if (RT_SUCCESS(vrc))
     {
         userDiff   = user   - mUserPrev;
         kernelDiff = kernel - mKernelPrev;
@@ -672,19 +687,24 @@ void HostCpuLoadRaw::collect()
 #ifndef VBOX_COLLECTOR_TEST_CASE
 static bool getLinkSpeed(const char *szShortName, uint32_t *pSpeed)
 {
+# ifdef VBOX_WITH_HOSTNETIF_API
     NETIFSTATUS enmState = NETIF_S_UNKNOWN;
-    int rc = NetIfGetState(szShortName, &enmState);
-    if (RT_FAILURE(rc))
+    int vrc = NetIfGetState(szShortName, &enmState);
+    if (RT_FAILURE(vrc))
         return false;
     if (enmState != NETIF_S_UP)
         *pSpeed = 0;
     else
     {
-        rc = NetIfGetLinkSpeed(szShortName, pSpeed);
-        if (RT_FAILURE(rc))
+        vrc = NetIfGetLinkSpeed(szShortName, pSpeed);
+        if (RT_FAILURE(vrc))
             return false;
     }
     return true;
+# else  /* !VBOX_WITH_HOSTNETIF_API */
+    RT_NOREF(szShortName, pSpeed);
+    return false;
+# endif /* VBOX_WITH_HOSTNETIF_API */
 }
 
 void HostNetworkSpeed::init(ULONG period, ULONG length)
@@ -712,8 +732,8 @@ void HostNetworkLoadRaw::init(ULONG period, ULONG length)
     uint32_t uSpeedMbit = 65535;
     if (getLinkSpeed(mShortName.c_str(), &uSpeedMbit))
         mSpeed = (uint64_t)uSpeedMbit * (1000000/8); /* Convert to bytes/sec */
-    /*int rc =*/ mHAL->getRawHostNetworkLoad(mShortName.c_str(), &mRxPrev, &mTxPrev);
-    //AssertRC(rc);
+    /*int vrc =*/ mHAL->getRawHostNetworkLoad(mShortName.c_str(), &mRxPrev, &mTxPrev);
+    //AssertRC(vrc);
 }
 
 void HostNetworkLoadRaw::preCollect(CollectorHints& /* hints */, uint64_t /* iTick */)
@@ -772,8 +792,8 @@ void HostDiskLoadRaw::init(ULONG period, ULONG length)
     mPeriod = period;
     mLength = length;
     mUtil->init(mLength);
-    int rc = mHAL->getRawHostDiskLoad(mDiskName.c_str(), &mDiskPrev, &mTotalPrev);
-    AssertRC(rc);
+    int vrc = mHAL->getRawHostDiskLoad(mDiskName.c_str(), &mDiskPrev, &mTotalPrev);
+    AssertRC(vrc);
 }
 
 void HostDiskLoadRaw::preCollect(CollectorHints& hints, uint64_t /* iTick */)
@@ -785,8 +805,8 @@ void HostDiskLoadRaw::collect()
 {
     uint64_t disk, total;
 
-    int rc = mHAL->getRawHostDiskLoad(mDiskName.c_str(), &disk, &total);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getRawHostDiskLoad(mDiskName.c_str(), &disk, &total);
+    if (RT_SUCCESS(vrc))
     {
         uint64_t diskDiff = disk - mDiskPrev;
         uint64_t totalDiff = total - mTotalPrev;
@@ -827,7 +847,7 @@ void HostDiskLoadRaw::collect()
         mTotalPrev = total;
     }
     else
-        LogFlowThisFunc(("Failed to collect data: %Rrc (%d)\n", rc, rc));
+        LogFlowThisFunc(("Failed to collect data: %Rrc (%d)\n", vrc, vrc));
 }
 
 void HostCpuMhz::init(ULONG period, ULONG length)
@@ -840,8 +860,8 @@ void HostCpuMhz::init(ULONG period, ULONG length)
 void HostCpuMhz::collect()
 {
     ULONG mhz;
-    int rc = mHAL->getHostCpuMHz(&mhz);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getHostCpuMHz(&mhz);
+    if (RT_SUCCESS(vrc))
         mMHz->put(mhz);
 }
 
@@ -862,8 +882,8 @@ void HostRamUsage::preCollect(CollectorHints& hints, uint64_t /* iTick */)
 void HostRamUsage::collect()
 {
     ULONG total, used, available;
-    int rc = mHAL->getHostMemoryUsage(&total, &used, &available);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getHostMemoryUsage(&total, &used, &available);
+    if (RT_SUCCESS(vrc))
     {
         mTotal->put(total);
         mUsed->put(used);
@@ -887,8 +907,8 @@ void HostFilesystemUsage::preCollect(CollectorHints& /* hints */, uint64_t /* iT
 void HostFilesystemUsage::collect()
 {
     ULONG total, used, available;
-    int rc = mHAL->getHostFilesystemUsage(mFsName.c_str(), &total, &used, &available);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getHostFilesystemUsage(mFsName.c_str(), &total, &used, &available);
+    if (RT_SUCCESS(vrc))
     {
         mTotal->put(total);
         mUsed->put(used);
@@ -910,12 +930,13 @@ void HostDiskUsage::preCollect(CollectorHints& /* hints */, uint64_t /* iTick */
 void HostDiskUsage::collect()
 {
     uint64_t total;
-    int rc = mHAL->getHostDiskSize(mDiskName.c_str(), &total);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getHostDiskSize(mDiskName.c_str(), &total);
+    if (RT_SUCCESS(vrc))
         mTotal->put((ULONG)(total / _1M));
 }
 
 #ifndef VBOX_COLLECTOR_TEST_CASE
+
 void HostRamVmm::init(ULONG period, ULONG length)
 {
     mPeriod = period;
@@ -926,19 +947,19 @@ void HostRamVmm::init(ULONG period, ULONG length)
     mSharedVMM->init(mLength);
 }
 
-int HostRamVmm::enable()
+HRESULT HostRamVmm::enable()
 {
-    int rc = S_OK;
+    HRESULT hrc = S_OK;
     CollectorGuest *provider = mCollectorGuestManager->getVMMStatsProvider();
     if (provider)
-        rc = provider->enable(VMSTATS_VMM_RAM);
+        hrc = provider->enable(VMSTATS_VMM_RAM);
     BaseMetric::enable();
-    return rc;
+    return hrc;
 }
 
-int HostRamVmm::disable()
+HRESULT HostRamVmm::disable()
 {
-    int rc = S_OK;
+    HRESULT rc = S_OK;
     BaseMetric::disable();
     CollectorGuest *provider = mCollectorGuestManager->getVMMStatsProvider();
     if (provider)
@@ -987,6 +1008,7 @@ void HostRamVmm::collect()
     mBalloonVMM->put(mBalloonedCurrent);
     mSharedVMM->put(mSharedCurrent);
 }
+
 #endif /* !VBOX_COLLECTOR_TEST_CASE */
 
 
@@ -1002,8 +1024,8 @@ void MachineCpuLoad::init(ULONG period, ULONG length)
 void MachineCpuLoad::collect()
 {
     ULONG user, kernel;
-    int rc = mHAL->getProcessCpuLoad(mProcess, &user, &kernel);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getProcessCpuLoad(mProcess, &user, &kernel);
+    if (RT_SUCCESS(vrc))
     {
         mUser->put(user);
         mKernel->put(kernel);
@@ -1019,8 +1041,8 @@ void MachineCpuLoadRaw::collect()
 {
     uint64_t processUser, processKernel, hostTotal;
 
-    int rc = mHAL->getRawProcessCpuLoad(mProcess, &processUser, &processKernel, &hostTotal);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getRawProcessCpuLoad(mProcess, &processUser, &processKernel, &hostTotal);
+    if (RT_SUCCESS(vrc))
     {
         if (hostTotal == mHostTotalPrev)
         {
@@ -1055,13 +1077,14 @@ void MachineRamUsage::preCollect(CollectorHints& hints, uint64_t /* iTick */)
 void MachineRamUsage::collect()
 {
     ULONG used;
-    int rc = mHAL->getProcessMemoryUsage(mProcess, &used);
-    if (RT_SUCCESS(rc))
+    int vrc = mHAL->getProcessMemoryUsage(mProcess, &used);
+    if (RT_SUCCESS(vrc))
         mUsed->put(used);
 }
 
 
 #ifndef VBOX_COLLECTOR_TEST_CASE
+
 void MachineDiskUsage::init(ULONG period, ULONG length)
 {
     mPeriod = period;
@@ -1114,14 +1137,14 @@ void MachineNetRate::collect()
     }
 }
 
-int MachineNetRate::enable()
+HRESULT MachineNetRate::enable()
 {
-    int rc = mCGuest->enable(VMSTATS_NET_RATE);
+    HRESULT rc = mCGuest->enable(VMSTATS_NET_RATE);
     BaseMetric::enable();
     return rc;
 }
 
-int MachineNetRate::disable()
+HRESULT MachineNetRate::disable()
 {
     BaseMetric::disable();
     return mCGuest->disable(VMSTATS_NET_RATE);
@@ -1158,14 +1181,14 @@ void GuestCpuLoad::collect()
     }
 }
 
-int GuestCpuLoad::enable()
+HRESULT GuestCpuLoad::enable()
 {
-    int rc = mCGuest->enable(VMSTATS_GUEST_CPULOAD);
+    HRESULT rc = mCGuest->enable(VMSTATS_GUEST_CPULOAD);
     BaseMetric::enable();
     return rc;
 }
 
-int GuestCpuLoad::disable()
+HRESULT GuestCpuLoad::disable()
 {
     BaseMetric::disable();
     return mCGuest->disable(VMSTATS_GUEST_CPULOAD);
@@ -1198,14 +1221,14 @@ void GuestRamUsage::collect()
     }
 }
 
-int GuestRamUsage::enable()
+HRESULT GuestRamUsage::enable()
 {
-    int rc = mCGuest->enable(VMSTATS_GUEST_RAMUSAGE);
+    HRESULT rc = mCGuest->enable(VMSTATS_GUEST_RAMUSAGE);
     BaseMetric::enable();
     return rc;
 }
 
-int GuestRamUsage::disable()
+HRESULT GuestRamUsage::disable()
 {
     BaseMetric::disable();
     return mCGuest->disable(VMSTATS_GUEST_RAMUSAGE);
@@ -1215,6 +1238,7 @@ void GuestRamUsage::preCollect(CollectorHints& hints,  uint64_t /* iTick */)
 {
     hints.collectGuestStats(mCGuest->getProcess());
 }
+
 #endif /* !VBOX_COLLECTOR_TEST_CASE */
 
 void CircularBuffer::init(ULONG ulLength)

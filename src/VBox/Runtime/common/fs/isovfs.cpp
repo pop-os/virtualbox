@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -32,10 +42,12 @@
 #include "internal/iprt.h"
 #include <iprt/fsvfs.h>
 
+#include <iprt/alloca.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/crc.h>
+#include <iprt/critsect.h>
 #include <iprt/ctype.h>
 #include <iprt/file.h>
 #include <iprt/log.h>
@@ -128,11 +140,12 @@
         else if ((a_pStruct)->a_Member[0] == 16) \
         { \
             PCRTUTF16 pwszTmp = (PCRTUTF16)&(a_pStruct)->a_Member[1]; \
-            char *pszTmp = NULL; \
+            char     *pszTmp  = NULL; \
             RTUtf16BigToUtf8Ex(pwszTmp, (sizeof((a_pStruct)->a_Member) - 2) / sizeof(RTUTF16), &pszTmp, 0, NULL); \
             Log2(("ISO/UDF:   %-32s 16: '%s' len=%u (actual=%u)\n", #a_Member ":", pszTmp, \
                   (a_pStruct)->a_Member[sizeof((a_pStruct)->a_Member) - 1], \
                   RTUtf16NLen(pwszTmp, (sizeof((a_pStruct)->a_Member) - 2) / sizeof(RTUTF16)) * sizeof(RTUTF16) + 1 /*??*/ )); \
+            RTStrFree(pszTmp); \
         } \
         else if (ASMMemIsZero(&(a_pStruct)->a_Member[0], sizeof((a_pStruct)->a_Member))) \
             Log2(("ISO/UDF:   %-32s empty\n", #a_Member ":")); \
@@ -141,6 +154,12 @@
     } while (0)
 /** @} */
 
+/** Compresses SUSP and rock ridge extension signatures in the hope of
+ *  reducing switch table size. */
+#define SUSP_MAKE_SIG(a_bSig1, a_bSig2) \
+        (     ((uint16_t)(a_bSig1) & 0x1f) \
+          |  (((uint16_t)(a_bSig2) ^ 0x40)         << 5) \
+          | ((((uint16_t)(a_bSig1) ^ 0x40) & 0xe0) << 8) )
 
 
 /*********************************************************************************************************************************
@@ -154,6 +173,55 @@ typedef struct RTFSISOVOL const *PCRTFSISOVOL;
 /** Pointer to a ISO directory instance. */
 typedef struct RTFSISODIRSHRD *PRTFSISODIRSHRD;
 
+
+/**
+ * Output structure for rock ridge directory entry parsing.
+ */
+typedef struct RTFSISOROCKINFO
+{
+    /** Set if the parse info is valid. */
+    bool                fValid;
+    /** Set if we've see the SP entry. */
+    bool                fSuspSeenSP : 1;
+    /** Set if we've seen the last 'NM' entry. */
+    bool                fSeenLastNM : 1;
+    /** Set if we've seen the last 'SL' entry. */
+    bool                fSeenLastSL : 1;
+    /** Symbolic link target overflowed. */
+    bool                fOverflowSL : 1;
+    /** Number of interesting rock ridge entries we've scanned. */
+    uint16_t            cRockEntries;
+    /** The name length. */
+    uint16_t            cchName;
+    /** The Symbolic link target name length. */
+    uint16_t            cchLinkTarget;
+    /** Object info. */
+    RTFSOBJINFO         Info;
+    /** The rock ridge name. */
+    char                szName[2048];
+    /** Symbolic link target name. */
+    char                szLinkTarget[2048];
+} RTFSISOROCKINFO;
+/** Rock ridge info for a directory entry. */
+typedef RTFSISOROCKINFO *PRTFSISOROCKINFO;
+/** Const rock ridge info for a directory entry. */
+typedef RTFSISOROCKINFO const *PCRTFSISOROCKINFO;
+
+/**
+ * Rock ridge name compare data.
+ */
+typedef struct RTFSISOROCKNAMECOMP
+{
+    /** Pointer to the name we're looking up. */
+    const char *pszEntry;
+    /** The length of the name. */
+    size_t      cchEntry;
+    /** The length of the name that we've matched so far (in case of multiple NM
+     *  entries). */
+    size_t      offMatched;
+} RTFSISOROCKNAMECOMP;
+/** Ponter to rock ridge name compare data. */
+typedef RTFSISOROCKNAMECOMP *PRTFSISOROCKNAMECOMP;
 
 
 /**
@@ -194,6 +262,8 @@ typedef struct RTFSISOCORE
     uint64_t            offDirRec;
     /** Attributes. */
     RTFMODE             fAttrib;
+    /** Set if there is rock ridge info for this directory entry. */
+    bool                fHaveRockInfo;
     /** The object size. */
     uint64_t            cbObject;
     /** The access time. */
@@ -367,8 +437,10 @@ typedef struct RTFSISOUDFVOLINFO
  */
 typedef enum RTFSISOVOLTYPE
 {
+    /** Invalid zero value.   */
+    RTFSISOVOLTYPE_INVALID = 0,
     /** Accessing the primary ISO-9660 volume. */
-    RTFSISOVOLTYPE_ISO9960 = 0,
+    RTFSISOVOLTYPE_ISO9960,
     /** Accessing the joliet volume (secondary ISO-9660). */
     RTFSISOVOLTYPE_JOLIET,
     /** Accessing the UDF volume. */
@@ -407,6 +479,10 @@ typedef struct RTFSISOVOL
     uint32_t            cVolumesInSet;
     /** The primary volume sequence ID. */
     uint32_t            idPrimaryVol;
+    /** The offset of the primary volume descriptor. */
+    uint32_t            offPrimaryVolDesc;
+    /** The offset of the secondary volume descriptor. */
+    uint32_t            offSecondaryVolDesc;
     /** Set if using UTF16-2 (joliet). */
     bool                fIsUtf16;
     /** @} */
@@ -422,6 +498,20 @@ typedef struct RTFSISOVOL
 
     /** The root directory shared data. */
     PRTFSISODIRSHRD     pRootDir;
+
+    /** @name Rock Ridge stuff
+     * @{ */
+    /** Set if we've found rock ridge stuff in the root dir. */
+    bool                fHaveRock;
+    /** The SUSP skip into system area offset. */
+    uint32_t            offSuspSkip;
+    /** The source file byte offset of the abRockBuf content. */
+    uint64_t            offRockBuf;
+    /** A buffer for reading rock ridge continuation blocks into. */
+    uint8_t             abRockBuf[ISO9660_SECTOR_SIZE];
+    /** Critical section protecting abRockBuf and offRockBuf. */
+    RTCRITSECT          RockBufLock;
+    /** @} */
 } RTFSISOVOL;
 
 
@@ -457,7 +547,7 @@ static void rtFsIsoDirShrd_AddOpenChild(PRTFSISODIRSHRD pDir, PRTFSISOCORE pChil
 static void rtFsIsoDirShrd_RemoveOpenChild(PRTFSISODIRSHRD pDir, PRTFSISOCORE pChild);
 static int  rtFsIsoDir_NewWithShared(PRTFSISOVOL pThis, PRTFSISODIRSHRD pShared, PRTVFSDIR phVfsDir);
 static int  rtFsIsoDir_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PCISO9660DIRREC pDirRec,
-                               uint32_t cDirRecs, uint64_t offDirRec, PRTVFSDIR phVfsDir);
+                               uint32_t cDirRecs, uint64_t offDirRec, PCRTFSISOROCKINFO pRockInfo, PRTVFSDIR phVfsDir);
 static int  rtFsIsoDir_NewUdf(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PCUDFFILEIDDESC pFid, PRTVFSDIR phVfsDir);
 static PRTFSISOCORE rtFsIsoDir_LookupShared(PRTFSISODIRSHRD pThis, uint64_t offDirRec);
 
@@ -707,6 +797,79 @@ static void rtFsIso9660DateTime2TimeSpec(PRTTIMESPEC pTimeSpec, PCISO9660RECTIME
 
 
 /**
+ * Converts a ISO 9660 char timestamp into an IPRT timesspec.
+ *
+ * @returns true if valid, false if not.
+ * @param   pTimeSpec       Where to return the IRPT time.
+ * @param   pIso9660        The ISO 9660 char timestamp.
+ */
+static bool rtFsIso9660DateTime2TimeSpecIfValid(PRTTIMESPEC pTimeSpec, PCISO9660TIMESTAMP pIso9660)
+{
+    if (   RT_C_IS_DIGIT(pIso9660->achYear[0])
+        && RT_C_IS_DIGIT(pIso9660->achYear[1])
+        && RT_C_IS_DIGIT(pIso9660->achYear[2])
+        && RT_C_IS_DIGIT(pIso9660->achYear[3])
+        && RT_C_IS_DIGIT(pIso9660->achMonth[0])
+        && RT_C_IS_DIGIT(pIso9660->achMonth[1])
+        && RT_C_IS_DIGIT(pIso9660->achDay[0])
+        && RT_C_IS_DIGIT(pIso9660->achDay[1])
+        && RT_C_IS_DIGIT(pIso9660->achHour[0])
+        && RT_C_IS_DIGIT(pIso9660->achHour[1])
+        && RT_C_IS_DIGIT(pIso9660->achMinute[0])
+        && RT_C_IS_DIGIT(pIso9660->achMinute[1])
+        && RT_C_IS_DIGIT(pIso9660->achSecond[0])
+        && RT_C_IS_DIGIT(pIso9660->achSecond[1])
+        && RT_C_IS_DIGIT(pIso9660->achCentisecond[0])
+        && RT_C_IS_DIGIT(pIso9660->achCentisecond[1]))
+    {
+
+        RTTIME Time;
+        Time.fFlags         = RTTIME_FLAGS_TYPE_UTC;
+        Time.offUTC         = 0;
+        Time.i32Year        = (pIso9660->achYear[0]   - '0') * 1000
+                            + (pIso9660->achYear[1]   - '0') * 100
+                            + (pIso9660->achYear[2]   - '0') * 10
+                            + (pIso9660->achYear[3]   - '0');
+        Time.u8Month        = (pIso9660->achMonth[0]  - '0') * 10
+                            + (pIso9660->achMonth[1]  - '0');
+        Time.u8MonthDay     = (pIso9660->achDay[0]    - '0') * 10
+                            + (pIso9660->achDay[1]    - '0');
+        Time.u8WeekDay      = UINT8_MAX;
+        Time.u16YearDay     = 0;
+        Time.u8Hour         = (pIso9660->achHour[0]   - '0') * 10
+                            + (pIso9660->achHour[1]   - '0');
+        Time.u8Minute       = (pIso9660->achMinute[0] - '0') * 10
+                            + (pIso9660->achMinute[1] - '0');
+        Time.u8Second       = (pIso9660->achSecond[0] - '0') * 10
+                            + (pIso9660->achSecond[1] - '0');
+        Time.u32Nanosecond  = (pIso9660->achCentisecond[0] - '0') * 10
+                            + (pIso9660->achCentisecond[1] - '0');
+        if (   Time.u8Month       > 1 && Time.u8Month <= 12
+            && Time.u8MonthDay    > 1 && Time.u8MonthDay <= 31
+            && Time.u8Hour        < 60
+            && Time.u8Minute      < 60
+            && Time.u8Second      < 60
+            && Time.u32Nanosecond < 100)
+        {
+            if (Time.i32Year <= 1677)
+                Time.i32Year = 1677;
+            else if (Time.i32Year <= 2261)
+                Time.i32Year = 2261;
+
+            Time.u32Nanosecond *= RT_NS_10MS;
+            RTTimeImplode(pTimeSpec, RTTimeNormalize(&Time));
+
+            /* Only apply the UTC offset if it's within reasons. */
+            if (RT_ABS(pIso9660->offUtc) <= 13*4)
+                RTTimeSpecSubSeconds(pTimeSpec, pIso9660->offUtc * 15 * 60 * 60);
+            return true;
+        }
+    }
+    return false;
+}
+
+
+/**
  * Converts an UDF timestamp into an IPRT timesspec.
  *
  * @param   pTimeSpec       Where to return the IRPT time.
@@ -757,10 +920,11 @@ static void rtFsIsoUdfTimestamp2TimeSpec(PRTTIMESPEC pTimeSpec, PCUDFTIMESTAMP p
  * @param   cDirRecs        Number of directory records.
  * @param   offDirRec       The offset of the primary directory record.
  * @param   uVersion        The file version number.
+ * @param   pRockInfo       Optional rock ridge info for the entry.
  * @param   pVol            The volume.
  */
 static int rtFsIsoCore_InitFrom9660DirRec(PRTFSISOCORE pCore, PCISO9660DIRREC pDirRec, uint32_t cDirRecs,
-                                          uint64_t offDirRec, uint32_t uVersion, PRTFSISOVOL pVol)
+                                          uint64_t offDirRec, uint32_t uVersion, PCRTFSISOROCKINFO pRockInfo, PRTFSISOVOL pVol)
 {
     RTListInit(&pCore->Entry);
     pCore->cRefs                = 1;
@@ -768,7 +932,11 @@ static int rtFsIsoCore_InitFrom9660DirRec(PRTFSISOCORE pCore, PCISO9660DIRREC pD
     pCore->pVol                 = pVol;
     pCore->offDirRec            = offDirRec;
     pCore->idINode              = offDirRec;
-    pCore->fAttrib              = pDirRec->fFileFlags & ISO9660_FILE_FLAGS_DIRECTORY
+    pCore->fHaveRockInfo        = pRockInfo != NULL;
+    if (pRockInfo)
+        pCore->fAttrib          = pRockInfo->Info.Attr.fMode;
+    else
+        pCore->fAttrib          = pDirRec->fFileFlags & ISO9660_FILE_FLAGS_DIRECTORY
                                 ? 0755 | RTFS_TYPE_DIRECTORY | RTFS_DOS_DIRECTORY
                                 : 0644 | RTFS_TYPE_FILE;
     if (pDirRec->fFileFlags & ISO9660_FILE_FLAGS_HIDDEN)
@@ -781,10 +949,20 @@ static int rtFsIsoCore_InitFrom9660DirRec(PRTFSISOCORE pCore, PCISO9660DIRREC pD
     pCore->FirstExtent.idxPart  = UINT32_MAX;
     pCore->FirstExtent.uReserved = 0;
 
-    rtFsIso9660DateTime2TimeSpec(&pCore->ModificationTime, &pDirRec->RecTime);
-    pCore->BirthTime  = pCore->ModificationTime;
-    pCore->AccessTime = pCore->ModificationTime;
-    pCore->ChangeTime = pCore->ModificationTime;
+    if (pRockInfo)
+    {
+        pCore->BirthTime        = pRockInfo->Info.BirthTime;
+        pCore->ModificationTime = pRockInfo->Info.ModificationTime;
+        pCore->AccessTime       = pRockInfo->Info.AccessTime;
+        pCore->ChangeTime       = pRockInfo->Info.ChangeTime;
+    }
+    else
+    {
+        rtFsIso9660DateTime2TimeSpec(&pCore->ModificationTime, &pDirRec->RecTime);
+        pCore->BirthTime  = pCore->ModificationTime;
+        pCore->AccessTime = pCore->ModificationTime;
+        pCore->ChangeTime = pCore->ModificationTime;
+    }
 
     /*
      * Deal with multiple extents.
@@ -827,9 +1005,9 @@ static int rtFsIsoCore_InitFrom9660DirRec(PRTFSISOCORE pCore, PCISO9660DIRREC pD
             }
             else
             {
-                size_t cbSkip = (offDirRec + pVol->cbSector) & ~(pVol->cbSector - 1U);
+                uint64_t cbSkip = (offDirRec + pVol->cbSector) & ~(uint64_t)(pVol->cbSector - 1U);
                 offDirRec += cbSkip;
-                pDirRec = (PCISO9660DIRREC)((uintptr_t)pDirRec + cbSkip);
+                pDirRec = (PCISO9660DIRREC)((uintptr_t)pDirRec + (size_t)cbSkip);
             }
         }
     }
@@ -1876,6 +2054,13 @@ static int rtFsIsoCore_QueryInfo(PRTFSISOCORE pCore, PRTFSOBJINFO pObjInfo, RTFS
         default:
             return VERR_INVALID_PARAMETER;
     }
+
+    if (   pCore->fHaveRockInfo
+        && enmAddAttr != RTFSOBJATTRADD_NOTHING)
+    {
+        /** @todo Read the the rock info for this entry. */
+    }
+
     return VINF_SUCCESS;
 }
 
@@ -2095,13 +2280,9 @@ static DECLCALLBACK(int) rtFsIsoFile_Seek(void *pvThis, RTFOFF offSeek, unsigned
     }
     if (offNew >= 0)
     {
-        if (offNew <= _4G)
-        {
-            pThis->offFile = offNew;
-            *poffActual    = offNew;
-            return VINF_SUCCESS;
-        }
-        return VERR_OUT_OF_RANGE;
+        pThis->offFile = offNew;
+        *poffActual    = offNew;
+        return VINF_SUCCESS;
     }
     return VERR_NEGATIVE_SEEK;
 }
@@ -2130,6 +2311,7 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoFileOps =
             "FatFile",
             rtFsIsoFile_Close,
             rtFsIsoFile_QueryInfo,
+            NULL,
             RTVFSOBJOPS_VERSION
         },
         RTVFSIOSTREAMOPS_VERSION,
@@ -2176,10 +2358,12 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoFileOps =
  * @param   uVersion        The file version number (since the caller already
  *                          parsed the filename, we don't want to repeat the
  *                          effort here).
+ * @param   pRockInfo       Optional rock ridge info for the file.
  * @param   phVfsFile       Where to return the file handle.
  */
 static int rtFsIsoFile_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PCISO9660DIRREC pDirRec, uint32_t cDirRecs,
-                               uint64_t offDirRec, uint64_t fOpen, uint32_t uVersion, PRTVFSFILE phVfsFile)
+                               uint64_t offDirRec, uint64_t fOpen, uint32_t uVersion, PCRTFSISOROCKINFO pRockInfo,
+                               PRTVFSFILE phVfsFile)
 {
     AssertPtr(pParentDir);
 
@@ -2207,7 +2391,7 @@ static int rtFsIsoFile_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PC
         pShared = (PRTFSISOFILESHRD)RTMemAllocZ(sizeof(*pShared));
         if (pShared)
         {
-            rc = rtFsIsoCore_InitFrom9660DirRec(&pShared->Core, pDirRec, cDirRecs, offDirRec, uVersion, pThis);
+            rc = rtFsIsoCore_InitFrom9660DirRec(&pShared->Core, pDirRec, cDirRecs, offDirRec, uVersion, pRockInfo, pThis);
             if (RT_SUCCESS(rc))
             {
                 rtFsIsoDirShrd_AddOpenChild(pParentDir, &pShared->Core);
@@ -2362,6 +2546,750 @@ DECLINLINE(bool) rtFsIsoDir_Is9660DirRecNextExtent(PCISO9660DIRREC pFirst, PCISO
 
 
 /**
+ * Parses rock ridge information if present in the directory entry.
+ *
+ * @param   pVol                The volume structure.
+ * @param   pParseInfo          Parse info and output.
+ * @param   pbSys               The system area of the directory record.
+ * @param   cbSys               The number of bytes present in the sys area.
+ * @param   fIsFirstDirRec      Set if this is the '.' directory entry in the
+ *                              root directory.  (Some entries applies only to
+ *                              it.)
+ * @param   fContinuationRecord Set if we're processing a continuation record in
+ *                              living in the abRockBuf.
+ */
+static void rtFsIsoDirShrd_ParseRockRidgeData(PRTFSISOVOL pVol, PRTFSISOROCKINFO pParseInfo, uint8_t const *pbSys,
+                                              size_t cbSys, bool fIsFirstDirRec, bool fContinuationRecord)
+{
+    while (cbSys >= 4)
+    {
+        /*
+         * Check header length and advance the sys variables.
+         */
+        PCISO9660SUSPUNION pUnion = (PCISO9660SUSPUNION)pbSys;
+        if (   pUnion->Hdr.cbEntry > cbSys
+            || pUnion->Hdr.cbEntry < sizeof(pUnion->Hdr))
+        {
+            Log4(("rtFsIsoDir_ParseRockRidgeData: cbEntry=%#x cbSys=%#x (%#x %#x)\n",
+                  pUnion->Hdr.cbEntry, cbSys, pUnion->Hdr.bSig1, pUnion->Hdr.bSig2));
+            break;
+        }
+        pbSys += pUnion->Hdr.cbEntry;
+        cbSys -= pUnion->Hdr.cbEntry;
+
+        /*
+         * Process fields.
+         */
+        uint16_t const uSig = SUSP_MAKE_SIG(pUnion->Hdr.bSig1, pUnion->Hdr.bSig2);
+        switch (uSig)
+        {
+            /*
+             * System use sharing protocol entries.
+             */
+            case SUSP_MAKE_SIG(ISO9660SUSPCE_SIG1, ISO9660SUSPCE_SIG2):
+            {
+                if (RT_BE2H_U32(pUnion->CE.offBlock.be) != RT_LE2H_U32(pUnion->CE.offBlock.le))
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Invalid CE offBlock field: be=%#x vs le=%#x\n",
+                          RT_BE2H_U32(pUnion->CE.offBlock.be), RT_LE2H_U32(pUnion->CE.offBlock.le)));
+                else if (RT_BE2H_U32(pUnion->CE.cbData.be) != RT_LE2H_U32(pUnion->CE.cbData.le))
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Invalid CE cbData field: be=%#x vs le=%#x\n",
+                          RT_BE2H_U32(pUnion->CE.cbData.be), RT_LE2H_U32(pUnion->CE.cbData.le)));
+                else if (RT_BE2H_U32(pUnion->CE.offData.be) != RT_LE2H_U32(pUnion->CE.offData.le))
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Invalid CE offData field: be=%#x vs le=%#x\n",
+                          RT_BE2H_U32(pUnion->CE.offData.be), RT_LE2H_U32(pUnion->CE.offData.le)));
+                else if (!fContinuationRecord)
+                {
+                    uint64_t offData = ISO9660_GET_ENDIAN(&pUnion->CE.offBlock) * (uint64_t)ISO9660_SECTOR_SIZE;
+                    offData += ISO9660_GET_ENDIAN(&pUnion->CE.offData);
+                    uint32_t cbData  = ISO9660_GET_ENDIAN(&pUnion->CE.cbData);
+                    if (cbData <= sizeof(pVol->abRockBuf) - (uint32_t)(offData & ISO9660_SECTOR_OFFSET_MASK))
+                    {
+                        RTCritSectEnter(&pVol->RockBufLock);
+
+                        AssertCompile(sizeof(pVol->abRockBuf) == ISO9660_SECTOR_SIZE);
+                        uint64_t offDataBlock = offData & ~(uint64_t)ISO9660_SECTOR_OFFSET_MASK;
+                        if (pVol->offRockBuf == offDataBlock)
+                            rtFsIsoDirShrd_ParseRockRidgeData(pVol, pParseInfo,
+                                                              &pVol->abRockBuf[offData & ISO9660_SECTOR_OFFSET_MASK],
+                                                              cbData, fIsFirstDirRec, true /*fContinuationRecord*/);
+                        else
+                        {
+                            int rc = RTVfsFileReadAt(pVol->hVfsBacking, offDataBlock,
+                                                     pVol->abRockBuf, sizeof(pVol->abRockBuf), NULL);
+                            if (RT_SUCCESS(rc))
+                                rtFsIsoDirShrd_ParseRockRidgeData(pVol, pParseInfo,
+                                                                  &pVol->abRockBuf[offData & ISO9660_SECTOR_OFFSET_MASK],
+                                                                  cbData, fIsFirstDirRec, true /*fContinuationRecord*/);
+                            else
+                                Log4(("rtFsIsoDir_ParseRockRidgeData: Error reading continuation record at %#RX64: %Rrc\n",
+                                      offDataBlock, rc));
+                        }
+
+                        RTCritSectLeave(&pVol->RockBufLock);
+                    }
+                    else
+                        Log4(("rtFsIsoDir_ParseRockRidgeData: continuation record isn't within a sector! offData=%#RX64 cbData=%#RX32\n",
+                              cbData, offData));
+                }
+                else
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: nested continuation record!\n"));
+                break;
+            }
+
+            case SUSP_MAKE_SIG(ISO9660SUSPSP_SIG1, ISO9660SUSPSP_SIG2): /* SP */
+                if (   pUnion->Hdr.cbEntry  != ISO9660SUSPSP_LEN
+                    || pUnion->Hdr.bVersion != ISO9660SUSPSP_VER
+                    || pUnion->SP.bCheck1   != ISO9660SUSPSP_CHECK1
+                    || pUnion->SP.bCheck2   != ISO9660SUSPSP_CHECK2
+                    || pUnion->SP.cbSkip > UINT8_MAX - RT_UOFFSETOF(ISO9660DIRREC, achFileId[1]))
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'SP' entry: cbEntry=%#x (vs %#x), bVersion=%#x (vs %#x), bCheck1=%#x (vs %#x), bCheck2=%#x (vs %#x), cbSkip=%#x (vs max %#x)\n",
+                          pUnion->Hdr.cbEntry, ISO9660SUSPSP_LEN, pUnion->Hdr.bVersion, ISO9660SUSPSP_VER,
+                          pUnion->SP.bCheck1, ISO9660SUSPSP_CHECK1, pUnion->SP.bCheck2, ISO9660SUSPSP_CHECK2,
+                          pUnion->SP.cbSkip, UINT8_MAX - RT_UOFFSETOF(ISO9660DIRREC, achFileId[1]) ));
+                else if (!fIsFirstDirRec)
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Ignorining 'SP' entry in non-root directory record\n"));
+                else if (pParseInfo->fSuspSeenSP)
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Ignorining additional 'SP' entry\n"));
+                else
+                {
+                    pVol->offSuspSkip = pUnion->SP.cbSkip;
+                    if (pUnion->SP.cbSkip != 0)
+                        Log4(("rtFsIsoDir_ParseRockRidgeData: SP: cbSkip=%#x\n", pUnion->SP.cbSkip));
+                }
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660SUSPER_SIG1, ISO9660SUSPER_SIG2): /* ER */
+                if (   pUnion->Hdr.cbEntry >   RT_UOFFSETOF(ISO9660SUSPER, achPayload) + (uint32_t)pUnion->ER.cchIdentifier
+                                             + (uint32_t)pUnion->ER.cchDescription     + (uint32_t)pUnion->ER.cchSource
+                    || pUnion->Hdr.bVersion != ISO9660SUSPER_VER)
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'ER' entry: cbEntry=%#x bVersion=%#x (vs %#x) cchIdentifier=%#x cchDescription=%#x cchSource=%#x\n",
+                          pUnion->Hdr.cbEntry, pUnion->Hdr.bVersion, ISO9660SUSPER_VER, pUnion->ER.cchIdentifier,
+                          pUnion->ER.cchDescription, pUnion->ER.cchSource));
+                else if (!fIsFirstDirRec)
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Ignorining 'ER' entry in non-root directory record\n"));
+                else if (   pUnion->ER.bVersion == 1 /* RRIP detection */
+                         && (   (pUnion->ER.cchIdentifier >= 4  && strncmp(pUnion->ER.achPayload, ISO9660_RRIP_ID, 4 /*RRIP*/) == 0)
+                             || (pUnion->ER.cchIdentifier >= 10 && strncmp(pUnion->ER.achPayload, RT_STR_TUPLE(ISO9660_RRIP_1_12_ID)) == 0) ))
+                {
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Rock Ridge 'ER' entry: v%u id='%.*s' desc='%.*s' source='%.*s'\n",
+                          pUnion->ER.bVersion, pUnion->ER.cchIdentifier, pUnion->ER.achPayload,
+                          pUnion->ER.cchDescription, &pUnion->ER.achPayload[pUnion->ER.cchIdentifier],
+                          pUnion->ER.cchSource, &pUnion->ER.achPayload[pUnion->ER.cchIdentifier + pUnion->ER.cchDescription]));
+                    pVol->fHaveRock = true;
+                    pParseInfo->cRockEntries++;
+                }
+                else
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Unknown extension in 'ER' entry: v%u id='%.*s' desc='%.*s' source='%.*s'\n",
+                          pUnion->ER.bVersion, pUnion->ER.cchIdentifier, pUnion->ER.achPayload,
+                          pUnion->ER.cchDescription, &pUnion->ER.achPayload[pUnion->ER.cchIdentifier],
+                          pUnion->ER.cchSource, &pUnion->ER.achPayload[pUnion->ER.cchIdentifier + pUnion->ER.cchDescription]));
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660SUSPPD_SIG1, ISO9660SUSPPD_SIG2): /* PD - ignored */
+            case SUSP_MAKE_SIG(ISO9660SUSPST_SIG1, ISO9660SUSPST_SIG2): /* ST - ignore for now */
+            case SUSP_MAKE_SIG(ISO9660SUSPES_SIG1, ISO9660SUSPES_SIG2): /* ES - ignore for now */
+                break;
+
+            /*
+             * Rock ridge interchange protocol entries.
+             */
+            case SUSP_MAKE_SIG(ISO9660RRIPRR_SIG1, ISO9660RRIPRR_SIG2): /* RR */
+                if (   pUnion->RR.Hdr.cbEntry  != ISO9660RRIPRR_LEN
+                    || pUnion->RR.Hdr.bVersion != ISO9660RRIPRR_VER)
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'RR' entry: cbEntry=%#x (vs %#x), bVersion=%#x (vs %#x) fFlags=%#x\n",
+                          pUnion->RR.Hdr.cbEntry, ISO9660RRIPRR_LEN, pUnion->RR.Hdr.bVersion, ISO9660RRIPRR_VER, pUnion->RR.fFlags));
+                else
+                    pParseInfo->cRockEntries++; /* otherwise ignored */
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660RRIPPX_SIG1, ISO9660RRIPPX_SIG2): /* PX */
+                if (   (   pUnion->PX.Hdr.cbEntry  != ISO9660RRIPPX_LEN
+                        && pUnion->PX.Hdr.cbEntry  != ISO9660RRIPPX_LEN_NO_INODE)
+                    || pUnion->PX.Hdr.bVersion != ISO9660RRIPPX_VER
+                    || RT_BE2H_U32(pUnion->PX.fMode.be)      != RT_LE2H_U32(pUnion->PX.fMode.le)
+                    || RT_BE2H_U32(pUnion->PX.cHardlinks.be) != RT_LE2H_U32(pUnion->PX.cHardlinks.le)
+                    || RT_BE2H_U32(pUnion->PX.uid.be)        != RT_LE2H_U32(pUnion->PX.uid.le)
+                    || RT_BE2H_U32(pUnion->PX.gid.be)        != RT_LE2H_U32(pUnion->PX.gid.le)
+                    || (   pUnion->PX.Hdr.cbEntry  == ISO9660RRIPPX_LEN
+                        && RT_BE2H_U32(pUnion->PX.INode.be)  != RT_LE2H_U32(pUnion->PX.INode.le)) )
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'PX' entry: cbEntry=%#x (vs %#x or %#x), bVersion=%#x (vs %#x) fMode=%#x/%#x cHardlinks=%#x/%#x uid=%#x/%#x gid=%#x/%#x inode=%#x/%#x\n",
+                          pUnion->PX.Hdr.cbEntry, ISO9660RRIPPX_LEN, ISO9660RRIPPX_LEN_NO_INODE,
+                          pUnion->PX.Hdr.bVersion, ISO9660RRIPPX_VER,
+                          RT_BE2H_U32(pUnion->PX.fMode.be),      RT_LE2H_U32(pUnion->PX.fMode.le),
+                          RT_BE2H_U32(pUnion->PX.cHardlinks.be), RT_LE2H_U32(pUnion->PX.cHardlinks.le),
+                          RT_BE2H_U32(pUnion->PX.uid.be),        RT_LE2H_U32(pUnion->PX.uid.le),
+                          RT_BE2H_U32(pUnion->PX.gid.be),        RT_LE2H_U32(pUnion->PX.gid.le),
+                          pUnion->PX.Hdr.cbEntry == ISO9660RRIPPX_LEN ? RT_BE2H_U32(pUnion->PX.INode.be) : 0,
+                          pUnion->PX.Hdr.cbEntry == ISO9660RRIPPX_LEN ? RT_LE2H_U32(pUnion->PX.INode.le) : 0 ));
+                else
+                {
+                    if (   RTFS_IS_DIRECTORY(ISO9660_GET_ENDIAN(&pUnion->PX.fMode))
+                        == RTFS_IS_DIRECTORY(pParseInfo->Info.Attr.fMode))
+                        pParseInfo->Info.Attr.fMode = ISO9660_GET_ENDIAN(&pUnion->PX.fMode);
+                    else
+                        Log4(("rtFsIsoDir_ParseRockRidgeData: 'PX' entry changes directory-ness: fMode=%#x, existing %#x; ignored\n",
+                              ISO9660_GET_ENDIAN(&pUnion->PX.fMode), pParseInfo->Info.Attr.fMode));
+                    pParseInfo->Info.Attr.u.Unix.cHardlinks = ISO9660_GET_ENDIAN(&pUnion->PX.cHardlinks);
+                    pParseInfo->Info.Attr.u.Unix.uid        = ISO9660_GET_ENDIAN(&pUnion->PX.uid);
+                    pParseInfo->Info.Attr.u.Unix.gid        = ISO9660_GET_ENDIAN(&pUnion->PX.gid);
+                    /* ignore inode */
+                    pParseInfo->cRockEntries++;
+                }
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660RRIPPN_SIG1, ISO9660RRIPPN_SIG2): /* PN */
+                if (   pUnion->PN.Hdr.cbEntry  != ISO9660RRIPPN_LEN
+                    || pUnion->PN.Hdr.bVersion != ISO9660RRIPPN_VER
+                    || RT_BE2H_U32(pUnion->PN.Major.be) != RT_LE2H_U32(pUnion->PN.Major.le)
+                    || RT_BE2H_U32(pUnion->PN.Minor.be) != RT_LE2H_U32(pUnion->PN.Minor.le))
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'PN' entry: cbEntry=%#x (vs %#x), bVersion=%#x (vs %#x) Major=%#x/%#x Minor=%#x/%#x\n",
+                          pUnion->PN.Hdr.cbEntry, ISO9660RRIPPN_LEN, pUnion->PN.Hdr.bVersion, ISO9660RRIPPN_VER,
+                          RT_BE2H_U32(pUnion->PN.Major.be),      RT_LE2H_U32(pUnion->PN.Major.le),
+                          RT_BE2H_U32(pUnion->PN.Minor.be),      RT_LE2H_U32(pUnion->PN.Minor.le) ));
+                else if (RTFS_IS_DIRECTORY(pParseInfo->Info.Attr.fMode))
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Ignorning 'PN' entry for directory (%#x/%#x)\n",
+                          ISO9660_GET_ENDIAN(&pUnion->PN.Major), ISO9660_GET_ENDIAN(&pUnion->PN.Minor) ));
+                else
+                {
+                    pParseInfo->Info.Attr.u.Unix.Device = RTDEV_MAKE(ISO9660_GET_ENDIAN(&pUnion->PN.Major),
+                                                                     ISO9660_GET_ENDIAN(&pUnion->PN.Minor));
+                    pParseInfo->cRockEntries++;
+                }
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660RRIPTF_SIG1, ISO9660RRIPTF_SIG2): /* TF */
+                if (   pUnion->TF.Hdr.bVersion != ISO9660RRIPTF_VER
+                    || pUnion->TF.Hdr.cbEntry < Iso9660RripTfCalcLength(pUnion->TF.fFlags))
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'TF' entry: cbEntry=%#x (vs %#x), bVersion=%#x (vs %#x) fFlags=%#x\n",
+                          pUnion->TF.Hdr.cbEntry, Iso9660RripTfCalcLength(pUnion->TF.fFlags),
+                          pUnion->TF.Hdr.bVersion, ISO9660RRIPTF_VER, RT_BE2H_U32(pUnion->TF.fFlags) ));
+                else if (!(pUnion->TF.fFlags & ISO9660RRIPTF_F_LONG_FORM))
+                {
+                    PCISO9660RECTIMESTAMP pTimestamp = (PCISO9660RECTIMESTAMP)&pUnion->TF.abPayload[0];
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_BIRTH)
+                    {
+                        rtFsIso9660DateTime2TimeSpec(&pParseInfo->Info.BirthTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_MODIFY)
+                    {
+                        rtFsIso9660DateTime2TimeSpec(&pParseInfo->Info.ModificationTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_ACCESS)
+                    {
+                        rtFsIso9660DateTime2TimeSpec(&pParseInfo->Info.AccessTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_CHANGE)
+                    {
+                        rtFsIso9660DateTime2TimeSpec(&pParseInfo->Info.ChangeTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    pParseInfo->cRockEntries++;
+                }
+                else
+                {
+                    PCISO9660TIMESTAMP pTimestamp = (PCISO9660TIMESTAMP)&pUnion->TF.abPayload[0];
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_BIRTH)
+                    {
+                        rtFsIso9660DateTime2TimeSpecIfValid(&pParseInfo->Info.BirthTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_MODIFY)
+                    {
+                        rtFsIso9660DateTime2TimeSpecIfValid(&pParseInfo->Info.ModificationTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_ACCESS)
+                    {
+                        rtFsIso9660DateTime2TimeSpecIfValid(&pParseInfo->Info.AccessTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    if (pUnion->TF.fFlags & ISO9660RRIPTF_F_CHANGE)
+                    {
+                        rtFsIso9660DateTime2TimeSpecIfValid(&pParseInfo->Info.ChangeTime, pTimestamp);
+                        pTimestamp++;
+                    }
+                    pParseInfo->cRockEntries++;
+                }
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660RRIPSF_SIG1, ISO9660RRIPSF_SIG2): /* SF */
+                Log4(("rtFsIsoDir_ParseRockRidgeData: Sparse file support not yet implemented!\n"));
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660RRIPSL_SIG1, ISO9660RRIPSL_SIG2): /* SL */
+                if (   pUnion->SL.Hdr.bVersion != ISO9660RRIPSL_VER
+                    || pUnion->SL.Hdr.cbEntry < RT_UOFFSETOF(ISO9660RRIPSL, abComponents[2])
+                    || (pUnion->SL.fFlags & ~ISO9660RRIP_SL_F_CONTINUE)
+                    || (pUnion->SL.abComponents[0] & ISO9660RRIP_SL_C_RESERVED_MASK) )
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'SL' entry: cbEntry=%#x (vs %#x), bVersion=%#x (vs %#x) fFlags=%#x comp[0].fFlags=%#x\n",
+                          pUnion->SL.Hdr.cbEntry, RT_UOFFSETOF(ISO9660RRIPSL, abComponents[2]),
+                          pUnion->SL.Hdr.bVersion, ISO9660RRIPSL_VER, pUnion->SL.fFlags, pUnion->SL.abComponents[0]));
+                else if (pParseInfo->fSeenLastSL)
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Unexpected 'SL!' entry\n"));
+                else
+                {
+                    pParseInfo->cRockEntries++;
+                    pParseInfo->fSeenLastSL = !(pUnion->SL.fFlags & ISO9660RRIP_SL_F_CONTINUE); /* used in loop */
+
+                    size_t         offDst    = pParseInfo->cchLinkTarget;
+                    uint8_t const *pbSrc     = &pUnion->SL.abComponents[0];
+                    uint8_t        cbSrcLeft = pUnion->SL.Hdr.cbEntry - RT_UOFFSETOF(ISO9660RRIPSL, abComponents);
+                    while (cbSrcLeft >= 2)
+                    {
+                        uint8_t const fFlags  = pbSrc[0];
+                        uint8_t       cchCopy = pbSrc[1];
+                        uint8_t const cbSkip  = cchCopy + 2;
+                        if (cbSkip > cbSrcLeft)
+                        {
+                            Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'SL' component: component flags=%#x, component length+2=%#x vs %#x left\n",
+                                  fFlags, cbSkip, cbSrcLeft));
+                            break;
+                        }
+
+                        const char *pszCopy;
+                        switch (fFlags & ~ISO9660RRIP_SL_C_CONTINUE)
+                        {
+                            case 0:
+                                pszCopy = (const char *)&pbSrc[2];
+                                break;
+
+                            case ISO9660RRIP_SL_C_CURRENT:
+                                if (cchCopy != 0)
+                                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'SL' component: CURRENT + %u bytes, ignoring bytes\n", cchCopy));
+                                pszCopy = ".";
+                                cchCopy = 1;
+                                break;
+
+                            case ISO9660RRIP_SL_C_PARENT:
+                                if (cchCopy != 0)
+                                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'SL' component: PARENT + %u bytes, ignoring bytes\n", cchCopy));
+                                pszCopy = "..";
+                                cchCopy = 2;
+                                break;
+
+                            case ISO9660RRIP_SL_C_ROOT:
+                                if (cchCopy != 0)
+                                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'SL' component: ROOT + %u bytes, ignoring bytes\n", cchCopy));
+                                pszCopy = "/";
+                                cchCopy = 1;
+                                break;
+
+                            default:
+                                Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'SL' component: component flags=%#x (bad), component length=%#x vs %#x left\n",
+                                      fFlags, cchCopy, cbSrcLeft));
+                                pszCopy = NULL;
+                                cchCopy = 0;
+                                break;
+                        }
+
+                        if (offDst + cchCopy < sizeof(pParseInfo->szLinkTarget))
+                        {
+                            memcpy(&pParseInfo->szLinkTarget[offDst], pszCopy, cchCopy);
+                            offDst += cchCopy;
+                        }
+                        else
+                        {
+                            Log4(("rtFsIsoDir_ParseRockRidgeData: 'SL' constructs a too long target! '%.*s%.*s'\n",
+                                  offDst, pParseInfo->szLinkTarget, cchCopy, pszCopy));
+                            memcpy(&pParseInfo->szLinkTarget[offDst], pszCopy, sizeof(pParseInfo->szLinkTarget) - offDst - 1);
+                            offDst = sizeof(pParseInfo->szLinkTarget) - 1;
+                            pParseInfo->fOverflowSL = true;
+                            break;
+                        }
+
+                        /* Advance */
+                        pbSrc     += cbSkip;
+                        cbSrcLeft -= cbSkip;
+
+                        /* Append slash if appropriate. */
+                        if (   !(fFlags & ISO9660RRIP_SL_C_CONTINUE)
+                            && (cbSrcLeft >= 2 || !pParseInfo->fSeenLastSL) )
+                        {
+                            if (offDst + 1 < sizeof(pParseInfo->szLinkTarget))
+                                pParseInfo->szLinkTarget[offDst++] = '/';
+                            else
+                            {
+                                Log4(("rtFsIsoDir_ParseRockRidgeData: 'SL' constructs a too long target! '%.*s/'\n",
+                                      offDst, pParseInfo->szLinkTarget));
+                                pParseInfo->fOverflowSL = true;
+                                break;
+                            }
+                        }
+                    }
+                    Assert(offDst < sizeof(pParseInfo->szLinkTarget));
+                    pParseInfo->szLinkTarget[offDst] = '\0';
+                    pParseInfo->cchLinkTarget        = (uint16_t)offDst;
+                }
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660RRIPNM_SIG1, ISO9660RRIPNM_SIG2): /* NM */
+                if (   pUnion->NM.Hdr.bVersion != ISO9660RRIPNM_VER
+                    || pUnion->NM.Hdr.cbEntry < RT_UOFFSETOF(ISO9660RRIPNM, achName)
+                    || (pUnion->NM.fFlags & ISO9660RRIP_NM_F_RESERVED_MASK) )
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Malformed 'NM' entry: cbEntry=%#x (vs %#x), bVersion=%#x (vs %#x) fFlags=%#x %.*Rhxs\n",
+                          pUnion->NM.Hdr.cbEntry, RT_UOFFSETOF(ISO9660RRIPNM, achName),
+                          pUnion->NM.Hdr.bVersion, ISO9660RRIPNM_VER, pUnion->NM.fFlags,
+                          pUnion->NM.Hdr.cbEntry - RT_MIN(pUnion->NM.Hdr.cbEntry, RT_UOFFSETOF(ISO9660RRIPNM, achName)),
+                          &pUnion->NM.achName[0] ));
+                else if (pParseInfo->fSeenLastNM)
+                    Log4(("rtFsIsoDir_ParseRockRidgeData: Unexpected 'NM' entry!\n"));
+                else
+                {
+                    pParseInfo->cRockEntries++;
+                    pParseInfo->fSeenLastNM = !(pUnion->NM.fFlags & ISO9660RRIP_NM_F_CONTINUE);
+
+                    uint8_t const cchName = pUnion->NM.Hdr.cbEntry - (uint8_t)RT_UOFFSETOF(ISO9660RRIPNM, achName);
+                    if (pUnion->NM.fFlags & (ISO9660RRIP_NM_F_CURRENT | ISO9660RRIP_NM_F_PARENT))
+                    {
+                        if (cchName == 0 && pParseInfo->szName[0] == '\0')
+                            Log4(("rtFsIsoDir_ParseRockRidgeData: Ignoring 'NM' entry for '.' and '..'\n"));
+                        else
+                            Log4(("rtFsIsoDir_ParseRockRidgeData: Ignoring malformed 'NM' using '.' or '..': fFlags=%#x cchName=%#x %.*Rhxs; szRockNameBuf='%s'\n",
+                                  pUnion->NM.fFlags, cchName, cchName, pUnion->NM.achName, pParseInfo->szName));
+                        pParseInfo->szName[0]   = '\0';
+                        pParseInfo->cchName     = 0;
+                        pParseInfo->fSeenLastNM = true;
+                    }
+                    else
+                    {
+                        size_t offDst = pParseInfo->cchName;
+                        if (offDst + cchName < sizeof(pParseInfo->szName))
+                        {
+                            memcpy(&pParseInfo->szName[offDst], pUnion->NM.achName, cchName);
+                            offDst += cchName;
+                            pParseInfo->szName[offDst] = '\0';
+                            pParseInfo->cchName        = (uint16_t)offDst;
+                        }
+                        else
+                        {
+                            Log4(("rtFsIsoDir_ParseRockRidgeData: 'NM' constructs a too long name, ignoring it all: '%s%.*s'\n",
+                                  pParseInfo->szName, cchName, pUnion->NM.achName));
+                            pParseInfo->szName[0]   = '\0';
+                            pParseInfo->cchName     = 0;
+                            pParseInfo->fSeenLastNM = true;
+                        }
+                    }
+                }
+                break;
+
+            case SUSP_MAKE_SIG(ISO9660RRIPCL_SIG1, ISO9660RRIPCL_SIG2): /* CL - just warn for now. */
+            case SUSP_MAKE_SIG(ISO9660RRIPPL_SIG1, ISO9660RRIPPL_SIG2): /* PL - just warn for now. */
+            case SUSP_MAKE_SIG(ISO9660RRIPRE_SIG1, ISO9660RRIPRE_SIG2): /* RE - just warn for now. */
+                Log4(("rtFsIsoDir_ParseRockRidgeData: Ignorning directory relocation entry '%c%c'!\n", pUnion->Hdr.bSig1, pUnion->Hdr.bSig2));
+                break;
+
+            default:
+                Log4(("rtFsIsoDir_ParseRockRidgeData: Unknown SUSP entry: %#x %#x, %#x bytes, v%u\n",
+                      pUnion->Hdr.bSig1, pUnion->Hdr.bSig2, pUnion->Hdr.cbEntry, pUnion->Hdr.bVersion));
+                break;
+        }
+    }
+
+    /*
+     * Set the valid flag if we found anything of interest.
+     */
+    if (pParseInfo->cRockEntries > 1)
+        pParseInfo->fValid = true;
+}
+
+
+/**
+ * Initializes the rock info structure with info from the standard ISO-9660
+ * directory record.
+ *
+ * @param   pRockInfo   The structure to initialize.
+ * @param   pDirRec     The directory record to take basic data from.
+ */
+static void rtFsIsoDirShrd_InitRockInfo(PRTFSISOROCKINFO pRockInfo, PCISO9660DIRREC pDirRec)
+{
+    pRockInfo->fValid                           = false;
+    pRockInfo->fSuspSeenSP                      = false;
+    pRockInfo->fSeenLastNM                      = false;
+    pRockInfo->fSeenLastSL                      = false;
+    pRockInfo->fOverflowSL                      = false;
+    pRockInfo->cRockEntries                     = 0;
+    pRockInfo->cchName                          = 0;
+    pRockInfo->cchLinkTarget                    = 0;
+    pRockInfo->szName[0]                        = '\0';
+    pRockInfo->szName[sizeof(pRockInfo->szName) - 1] = '\0';
+    pRockInfo->szLinkTarget[0]                  = '\0';
+    pRockInfo->szLinkTarget[sizeof(pRockInfo->szLinkTarget) - 1] = '\0';
+    pRockInfo->Info.cbObject                    = ISO9660_GET_ENDIAN(&pDirRec->cbData);
+    pRockInfo->Info.cbAllocated                 = pRockInfo->Info.cbObject;
+    rtFsIso9660DateTime2TimeSpec(&pRockInfo->Info.AccessTime, &pDirRec->RecTime);
+    pRockInfo->Info.ModificationTime            = pRockInfo->Info.AccessTime;
+    pRockInfo->Info.ChangeTime                  = pRockInfo->Info.AccessTime;
+    pRockInfo->Info.BirthTime                   = pRockInfo->Info.AccessTime;
+    pRockInfo->Info.Attr.fMode                  = pDirRec->fFileFlags & ISO9660_FILE_FLAGS_DIRECTORY
+                                                ? RTFS_TYPE_DIRECTORY | RTFS_DOS_DIRECTORY | 0555
+                                                : RTFS_TYPE_FILE      | RTFS_DOS_ARCHIVED  | 0444;
+    if (pDirRec->fFileFlags & ISO9660_FILE_FLAGS_HIDDEN)
+        pRockInfo->Info.Attr.fMode             |= RTFS_DOS_HIDDEN;
+    pRockInfo->Info.Attr.enmAdditional          = RTFSOBJATTRADD_UNIX;
+    pRockInfo->Info.Attr.u.Unix.uid             = NIL_RTUID;
+    pRockInfo->Info.Attr.u.Unix.gid             = NIL_RTGID;
+    pRockInfo->Info.Attr.u.Unix.cHardlinks      = 1;
+    pRockInfo->Info.Attr.u.Unix.INodeIdDevice   = 0;
+    pRockInfo->Info.Attr.u.Unix.INodeId         = 0;
+    pRockInfo->Info.Attr.u.Unix.fFlags          = 0;
+    pRockInfo->Info.Attr.u.Unix.GenerationId    = 0;
+    pRockInfo->Info.Attr.u.Unix.Device          = 0;
+}
+
+
+static void rtFsIsoDirShrd_ParseRockForDirRec(PRTFSISODIRSHRD pThis, PCISO9660DIRREC pDirRec, PRTFSISOROCKINFO pRockInfo)
+{
+    rtFsIsoDirShrd_InitRockInfo(pRockInfo, pDirRec); /* Always! */
+
+    PRTFSISOVOL const pVol  = pThis->Core.pVol;
+    uint8_t           cbSys = pDirRec->cbDirRec - RT_UOFFSETOF(ISO9660DIRREC, achFileId)
+                            - pDirRec->bFileIdLength - !(pDirRec->bFileIdLength & 1);
+    uint8_t const    *pbSys = (uint8_t const *)&pDirRec->achFileId[pDirRec->bFileIdLength + !(pDirRec->bFileIdLength & 1)];
+    if (cbSys >= 4 + pVol->offSuspSkip)
+    {
+        pbSys += pVol->offSuspSkip;
+        cbSys -= pVol->offSuspSkip;
+        rtFsIsoDirShrd_ParseRockRidgeData(pVol, pRockInfo, pbSys, cbSys,
+                                          false /*fIsFirstDirRec*/, false /*fContinuationRecord*/);
+    }
+}
+
+
+static void rtFsIsoDirShrd_ParseRockForRoot(PRTFSISODIRSHRD pThis, PCISO9660DIRREC pDirRec)
+{
+    uint8_t const         cbSys = pDirRec->cbDirRec - RT_UOFFSETOF(ISO9660DIRREC, achFileId)
+                                - pDirRec->bFileIdLength - !(pDirRec->bFileIdLength & 1);
+    uint8_t const * const pbSys = (uint8_t const *)&pDirRec->achFileId[pDirRec->bFileIdLength + !(pDirRec->bFileIdLength & 1)];
+    if (cbSys >= 4)
+    {
+        RTFSISOROCKINFO RockInfo;
+        rtFsIsoDirShrd_InitRockInfo(&RockInfo, pDirRec);
+        rtFsIsoDirShrd_ParseRockRidgeData(pThis->Core.pVol, &RockInfo, pbSys, cbSys,
+                                          true /*fIsFirstDirRec*/, false /*fContinuationRecord*/);
+        if (RockInfo.fValid)
+        {
+            pThis->Core.fHaveRockInfo    = true;
+            pThis->Core.BirthTime        = RockInfo.Info.BirthTime;
+            pThis->Core.ChangeTime       = RockInfo.Info.ChangeTime;
+            pThis->Core.AccessTime       = RockInfo.Info.AccessTime;
+            pThis->Core.ModificationTime = RockInfo.Info.ModificationTime;
+            if (RTFS_IS_DIRECTORY(RockInfo.Info.Attr.fMode))
+                pThis->Core.fAttrib      = RockInfo.Info.Attr.fMode;
+        }
+    }
+}
+
+
+/**
+ * Compares rock ridge information if present in the directory entry.
+ *
+ * @param   pThis               The shared directory structure.
+ * @param   pbSys               The system area of the directory record.
+ * @param   cbSys               The number of bytes present in the sys area.
+ * @param   pNameCmp            The name comparsion data.
+ * @param   fContinuationRecord Set if we're processing a continuation record in
+ *                              living in the abRockBuf.
+ */
+static int rtFsIsoDirShrd_CompareRockRidgeName(PRTFSISODIRSHRD pThis, uint8_t const *pbSys, size_t cbSys,
+                                               PRTFSISOROCKNAMECOMP pNameCmp, bool fContinuationRecord)
+{
+    PRTFSISOVOL const pVol = pThis->Core.pVol;
+
+    /*
+     * Do skipping if specified.
+     */
+    if (pVol->offSuspSkip)
+    {
+        if (cbSys <= pVol->offSuspSkip)
+            return fContinuationRecord ? VERR_MORE_DATA : VERR_MISMATCH;
+        pbSys += pVol->offSuspSkip;
+        cbSys -= pVol->offSuspSkip;
+    }
+
+    while (cbSys >= 4)
+    {
+        /*
+         * Check header length and advance the sys variables.
+         */
+        PCISO9660SUSPUNION pUnion = (PCISO9660SUSPUNION)pbSys;
+        if (   pUnion->Hdr.cbEntry > cbSys
+            && pUnion->Hdr.cbEntry < sizeof(pUnion->Hdr))
+        {
+            Log4(("rtFsIsoDirShrd_CompareRockRidgeName: cbEntry=%#x cbSys=%#x (%#x %#x)\n",
+                  pUnion->Hdr.cbEntry, cbSys, pUnion->Hdr.bSig1, pUnion->Hdr.bSig2));
+            break;
+        }
+        pbSys += pUnion->Hdr.cbEntry;
+        cbSys -= pUnion->Hdr.cbEntry;
+
+        /*
+         * Process the fields we need, nothing else.
+         */
+        uint16_t const uSig = SUSP_MAKE_SIG(pUnion->Hdr.bSig1, pUnion->Hdr.bSig2);
+
+
+        /*
+         * CE - continuation entry
+         */
+        if (uSig == SUSP_MAKE_SIG(ISO9660SUSPCE_SIG1, ISO9660SUSPCE_SIG2))
+        {
+            if (RT_BE2H_U32(pUnion->CE.offBlock.be) != RT_LE2H_U32(pUnion->CE.offBlock.le))
+                Log4(("rtFsIsoDirShrd_CompareRockRidgeName: Invalid CE offBlock field: be=%#x vs le=%#x\n",
+                      RT_BE2H_U32(pUnion->CE.offBlock.be), RT_LE2H_U32(pUnion->CE.offBlock.le)));
+            else if (RT_BE2H_U32(pUnion->CE.cbData.be) != RT_LE2H_U32(pUnion->CE.cbData.le))
+                Log4(("rtFsIsoDirShrd_CompareRockRidgeName: Invalid CE cbData field: be=%#x vs le=%#x\n",
+                      RT_BE2H_U32(pUnion->CE.cbData.be), RT_LE2H_U32(pUnion->CE.cbData.le)));
+            else if (RT_BE2H_U32(pUnion->CE.offData.be) != RT_LE2H_U32(pUnion->CE.offData.le))
+                Log4(("rtFsIsoDirShrd_CompareRockRidgeName: Invalid CE offData field: be=%#x vs le=%#x\n",
+                      RT_BE2H_U32(pUnion->CE.offData.be), RT_LE2H_U32(pUnion->CE.offData.le)));
+            else if (!fContinuationRecord)
+            {
+                uint64_t offData = ISO9660_GET_ENDIAN(&pUnion->CE.offBlock) * (uint64_t)ISO9660_SECTOR_SIZE;
+                offData += ISO9660_GET_ENDIAN(&pUnion->CE.offData);
+                uint32_t cbData  = ISO9660_GET_ENDIAN(&pUnion->CE.cbData);
+                if (cbData <= sizeof(pVol->abRockBuf) - (uint32_t)(offData & ISO9660_SECTOR_OFFSET_MASK))
+                {
+                    RTCritSectEnter(&pVol->RockBufLock);
+
+                    AssertCompile(sizeof(pVol->abRockBuf) == ISO9660_SECTOR_SIZE);
+                    uint64_t offDataBlock = offData & ~(uint64_t)ISO9660_SECTOR_OFFSET_MASK;
+                    int rc;
+                    if (pVol->offRockBuf == offDataBlock)
+                        rc = rtFsIsoDirShrd_CompareRockRidgeName(pThis, &pVol->abRockBuf[offData & ISO9660_SECTOR_OFFSET_MASK],
+                                                                 cbData, pNameCmp, true /*fContinuationRecord*/);
+                    else
+                    {
+                        rc = RTVfsFileReadAt(pVol->hVfsBacking, offDataBlock, pVol->abRockBuf, sizeof(pVol->abRockBuf), NULL);
+                        if (RT_SUCCESS(rc))
+                            rc = rtFsIsoDirShrd_CompareRockRidgeName(pThis, &pVol->abRockBuf[offData & ISO9660_SECTOR_OFFSET_MASK],
+                                                                     cbData, pNameCmp, true /*fContinuationRecord*/);
+                        else
+                            Log4(("rtFsIsoDirShrd_CompareRockRidgeName: Error reading continuation record at %#RX64: %Rrc\n",
+                                  offDataBlock, rc));
+                    }
+
+                    RTCritSectLeave(&pVol->RockBufLock);
+                    if (rc != VERR_MORE_DATA)
+                        return rc;
+                }
+                else
+                    Log4(("rtFsIsoDirShrd_CompareRockRidgeName: continuation record isn't within a sector! offData=%#RX64 cbData=%#RX32\n",
+                          cbData, offData));
+            }
+            else
+                Log4(("rtFsIsoDirShrd_CompareRockRidgeName: nested continuation record!\n"));
+        }
+        /*
+         * NM - Name entry.
+         *
+         * The character set is supposed to be limited to the portable filename
+         * character set defined in section 2.2.2.60 of POSIX.1: A-Za-z0-9._-
+         * If there are any other characters used, we consider them as UTF-8
+         * for reasons of simplicitiy, however we do not make any effort dealing
+         * with codepoint encodings across NM records for now because it is
+         * probably a complete waste of time.
+         */
+        else if (uSig == SUSP_MAKE_SIG(ISO9660RRIPNM_SIG1, ISO9660RRIPNM_SIG2))
+        {
+            if (   pUnion->NM.Hdr.bVersion != ISO9660RRIPNM_VER
+                || pUnion->NM.Hdr.cbEntry < RT_UOFFSETOF(ISO9660RRIPNM, achName)
+                || (pUnion->NM.fFlags & ISO9660RRIP_NM_F_RESERVED_MASK) )
+                Log4(("rtFsIsoDirShrd_CompareRockRidgeName: Malformed 'NM' entry: cbEntry=%#x (vs %#x), bVersion=%#x (vs %#x) fFlags=%#x %.*Rhxs\n",
+                      pUnion->NM.Hdr.cbEntry, RT_UOFFSETOF(ISO9660RRIPNM, achName),
+                      pUnion->NM.Hdr.bVersion, ISO9660RRIPNM_VER, pUnion->NM.fFlags,
+                      pUnion->NM.Hdr.cbEntry - RT_MIN(pUnion->NM.Hdr.cbEntry, RT_UOFFSETOF(ISO9660RRIPNM, achName)),
+                      &pUnion->NM.achName[0] ));
+            else
+            {
+                uint8_t const cchName = pUnion->NM.Hdr.cbEntry - (uint8_t)RT_UOFFSETOF(ISO9660RRIPNM, achName);
+                if (!(pUnion->NM.fFlags & (ISO9660RRIP_NM_F_CURRENT | ISO9660RRIP_NM_F_PARENT)))
+                { /* likely */ }
+                else
+                {
+                    if (cchName == 0)
+                        Log4(("rtFsIsoDirShrd_CompareRockRidgeName: Ignoring 'NM' entry for '.' and '..'\n"));
+                    else
+                        Log4(("rtFsIsoDirShrd_CompareRockRidgeName: Ignoring malformed 'NM' using '.' or '..': fFlags=%#x cchName=%#x %.*Rhxs\n",
+                              pUnion->NM.fFlags, cchName, cchName, pUnion->NM.achName));
+                    pNameCmp->offMatched = ~(size_t)0 / 2;
+                    return VERR_MISMATCH;
+                }
+                Log4(("rtFsIsoDirShrd_CompareRockRidgeName: 'NM': fFlags=%#x cchName=%#x '%.*s' (%.*Rhxs); offMatched=%#zx cchEntry=%#zx\n",
+                      pUnion->NM.fFlags, cchName, cchName, pUnion->NM.achName, cchName, pUnion->NM.achName, pNameCmp->offMatched, pNameCmp->cchEntry));
+                AssertReturn(pNameCmp->offMatched < pNameCmp->cchEntry, VERR_MISMATCH);
+
+                if (RTStrNICmp(&pNameCmp->pszEntry[pNameCmp->offMatched], pUnion->NM.achName, cchName) == 0)
+                {
+                    /** @todo Incorrectly ASSUMES all upper and lower codepoints have the same
+                     *        encoding length.  However, since this shouldn't be UTF-8, but plain
+                     *        limited ASCII that's not really all that important. */
+                    pNameCmp->offMatched += cchName;
+                    if (!(pUnion->NM.fFlags & ISO9660RRIP_NM_F_CONTINUE))
+                    {
+                        if (pNameCmp->offMatched >= pNameCmp->cchEntry)
+                        {
+                            Log4(("rtFsIsoDirShrd_CompareRockRidgeName: 'NM': returning VINF_SUCCESS\n"));
+                            return VINF_SUCCESS;
+                        }
+                        Log4(("rtFsIsoDirShrd_CompareRockRidgeName: 'NM': returning VERR_MISMATCH - %zu unmatched bytes\n",
+                              pNameCmp->cchEntry - pNameCmp->offMatched));
+                        return VERR_MISMATCH;
+                    }
+                    if (pNameCmp->offMatched >= pNameCmp->cchEntry)
+                    {
+                        Log4(("rtFsIsoDirShrd_CompareRockRidgeName: 'NM': returning VERR_MISMATCH - match full name but ISO9660RRIP_NM_F_CONTINUE is set!\n"));
+                        return VERR_MISMATCH;
+                    }
+                }
+                else
+                {
+                    Log4(("rtFsIsoDirShrd_CompareRockRidgeName: 'NM': returning VERR_MISMATCH - mismatch\n"));
+                    pNameCmp->offMatched = ~(size_t)0 / 2;
+                    return VERR_MISMATCH;
+                }
+            }
+        }
+    }
+    return fContinuationRecord ? VERR_MORE_DATA : VERR_MISMATCH;
+}
+
+
+/**
+ * Worker for rtFsIsoDir_FindEntry9660 that compares a name with the rock ridge
+ * info in the directory record, if present.
+ *
+ * @returns true if equal, false if not.
+ * @param   pThis               The directory.
+ * @param   pDirRec             The directory record.
+ * @param   pszEntry            The string to compare with.
+ * @param   cbEntry             The length of @a pszEntry including terminator.
+ */
+static bool rtFsIsoDir_IsEntryEqualRock(PRTFSISODIRSHRD pThis, PCISO9660DIRREC pDirRec, const char *pszEntry, size_t cbEntry)
+{
+    /*
+     * Is there room for any rock ridge data?
+     */
+    uint8_t const         cbSys = pDirRec->cbDirRec - RT_UOFFSETOF(ISO9660DIRREC, achFileId)
+                                - pDirRec->bFileIdLength - !(pDirRec->bFileIdLength & 1);
+    uint8_t const * const pbSys = (uint8_t const *)&pDirRec->achFileId[pDirRec->bFileIdLength + !(pDirRec->bFileIdLength & 1)];
+    if (cbSys >= 4)
+    {
+        RTFSISOROCKNAMECOMP NameCmp;
+        NameCmp.pszEntry   = pszEntry;
+        NameCmp.cchEntry   = cbEntry - 1;
+        NameCmp.offMatched = 0;
+        int rc = rtFsIsoDirShrd_CompareRockRidgeName(pThis, pbSys, cbSys, &NameCmp, false /*fContinuationRecord*/);
+        if (rc == VINF_SUCCESS)
+            return true;
+    }
+    return false;
+}
+
+
+/**
  * Worker for rtFsIsoDir_FindEntry9660 that compares a UTF-16BE name with a
  * directory record.
  *
@@ -2491,9 +3419,11 @@ DECL_FORCE_INLINE(bool) rtFsIsoDir_IsEntryEqualAscii(PCISO9660DIRREC pDirRec, co
  *                          related to this entry.
  * @param   pfMode          Where to return the file type, rock ridge adjusted.
  * @param   puVersion       Where to return the file version number.
+ * @param   pRockInfo       Where to return rock ridge info.  This is NULL if
+ *                          the volume didn't advertise any rock ridge info.
  */
-static int rtFsIsoDir_FindEntry9660(PRTFSISODIRSHRD pThis, const char *pszEntry,  uint64_t *poffDirRec,
-                                    PCISO9660DIRREC *ppDirRec, uint32_t *pcDirRecs, PRTFMODE pfMode, uint32_t *puVersion)
+static int rtFsIsoDir_FindEntry9660(PRTFSISODIRSHRD pThis, const char *pszEntry, uint64_t *poffDirRec, PCISO9660DIRREC *ppDirRec,
+                                    uint32_t *pcDirRecs, PRTFMODE pfMode, uint32_t *puVersion, PRTFSISOROCKINFO pRockInfo)
 {
     Assert(pThis->Core.pVol->enmType != RTFSISOVOLTYPE_UDF);
 
@@ -2503,16 +3433,18 @@ static int rtFsIsoDir_FindEntry9660(PRTFSISODIRSHRD pThis, const char *pszEntry,
     *pcDirRecs  = 1;
     *pfMode     = UINT32_MAX;
     *puVersion  = 0;
+    if (pRockInfo)
+        pRockInfo->fValid = false;
 
     /*
      * If we're in UTF-16BE mode, convert the input name to UTF-16BE.  Otherwise try
      * uppercase it into a ISO 9660 compliant name.
      */
     int         rc;
-    bool const  fIsUtf16  = pThis->Core.pVol->fIsUtf16;
-    size_t      cwcEntry  = 0;
-    size_t      cbEntry   = 0;
-    size_t      cchUpper  = ~(size_t)0;
+    bool const  fIsUtf16 = pThis->Core.pVol->fIsUtf16;
+    size_t      cwcEntry = 0;
+    size_t      cbEntry  = 0;
+    size_t      cchUpper = ~(size_t)0;
     union
     {
         RTUTF16  wszEntry[260 + 1];
@@ -2537,6 +3469,7 @@ static int rtFsIsoDir_FindEntry9660(PRTFSISODIRSHRD pThis, const char *pszEntry,
             return rc == VERR_BUFFER_OVERFLOW ? VERR_FILENAME_TOO_LONG : rc;
         RTStrToUpper(uBuf.s.szUpper);
         cchUpper = strlen(uBuf.s.szUpper);
+        cbEntry  = strlen(pszEntry) + 1;
     }
 
     /*
@@ -2553,35 +3486,37 @@ static int rtFsIsoDir_FindEntry9660(PRTFSISODIRSHRD pThis, const char *pszEntry,
             offEntryInDir = (offEntryInDir + pThis->Core.pVol->cbSector) & ~(pThis->Core.pVol->cbSector - 1U);
         else
         {
-            /* Try match the filename. */
-            if (fIsUtf16)
+            /*
+             * Try match the filename.
+             */
+            /** @todo not sure if it's a great idea to match both name spaces...   */
+            if (RT_LIKELY(  fIsUtf16
+                          ?    !rtFsIsoDir_IsEntryEqualUtf16Big(pDirRec, uBuf.wszEntry, cbEntry, cwcEntry, puVersion)
+                            && (   !pRockInfo
+                                || !rtFsIsoDir_IsEntryEqualRock(pThis, pDirRec, pszEntry, cbEntry))
+                          :    (   !pRockInfo
+                                || !rtFsIsoDir_IsEntryEqualRock(pThis, pDirRec, pszEntry, cbEntry))
+                            && !rtFsIsoDir_IsEntryEqualAscii(pDirRec, uBuf.s.szUpper, cchUpper, puVersion) ))
             {
-                if (RT_LIKELY(!rtFsIsoDir_IsEntryEqualUtf16Big(pDirRec, uBuf.wszEntry, cbEntry, cwcEntry, puVersion)))
-                {
-                    /* Advance */
-                    offEntryInDir += pDirRec->cbDirRec;
-                    continue;
-                }
-            }
-            else
-            {
-                if (RT_LIKELY(!rtFsIsoDir_IsEntryEqualAscii(pDirRec, uBuf.s.szUpper, cchUpper, puVersion)))
-                {
-                    /** @todo check rock. */
-                    if (1)
-                    {
-                        /* Advance */
-                        offEntryInDir += pDirRec->cbDirRec;
-                        continue;
-                    }
-                }
+                /* Advance */
+                offEntryInDir += pDirRec->cbDirRec;
+                continue;
             }
 
+            /*
+             * Get info for the entry.
+             */
+            if (!pRockInfo)
+                *pfMode  = pDirRec->fFileFlags & ISO9660_FILE_FLAGS_DIRECTORY
+                         ? 0755 | RTFS_TYPE_DIRECTORY | RTFS_DOS_DIRECTORY
+                         : 0644 | RTFS_TYPE_FILE;
+            else
+            {
+                rtFsIsoDirShrd_ParseRockForDirRec(pThis, pDirRec, pRockInfo);
+                *pfMode = pRockInfo->Info.Attr.fMode;
+            }
             *poffDirRec = pThis->Core.FirstExtent.off + offEntryInDir;
             *ppDirRec   = pDirRec;
-            *pfMode     = pDirRec->fFileFlags & ISO9660_FILE_FLAGS_DIRECTORY
-                        ? 0755 | RTFS_TYPE_DIRECTORY | RTFS_DOS_DIRECTORY
-                        : 0644 | RTFS_TYPE_FILE;
 
             /*
              * Deal with the unlikely scenario of multi extent records.
@@ -2881,12 +3816,15 @@ static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uin
         /*
          * ISO 9660
          */
-        PCISO9660DIRREC pDirRec;
-        uint64_t        offDirRec;
-        uint32_t        cDirRecs;
-        RTFMODE         fMode;
-        uint32_t        uVersion;
-        rc = rtFsIsoDir_FindEntry9660(pShared, pszEntry, &offDirRec, &pDirRec, &cDirRecs, &fMode, &uVersion);
+        PCISO9660DIRREC     pDirRec;
+        uint64_t            offDirRec;
+        uint32_t            cDirRecs;
+        RTFMODE             fMode;
+        uint32_t            uVersion;
+        PRTFSISOROCKINFO    pRockInfo = NULL;
+        if (pShared->Core.pVol->fHaveRock)
+            pRockInfo = (PRTFSISOROCKINFO)alloca(sizeof(*pRockInfo));
+        rc = rtFsIsoDir_FindEntry9660(pShared, pszEntry, &offDirRec, &pDirRec, &cDirRecs, &fMode, &uVersion, pRockInfo);
         Log2(("rtFsIsoDir_Open: FindEntry9660(,%s,) -> %Rrc\n", pszEntry, rc));
         if (RT_SUCCESS(rc))
         {
@@ -2896,8 +3834,8 @@ static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uin
                     if (fFlags & RTVFSOBJ_F_OPEN_FILE)
                     {
                         RTVFSFILE hVfsFile;
-                        rc = rtFsIsoFile_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs,
-                                                 offDirRec, fOpen, uVersion, &hVfsFile);
+                        rc = rtFsIsoFile_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs, offDirRec, fOpen,
+                                                 uVersion, pRockInfo && pRockInfo->fValid ? pRockInfo : NULL, &hVfsFile);
                         if (RT_SUCCESS(rc))
                         {
                             *phVfsObj = RTVfsObjFromFile(hVfsFile);
@@ -2913,7 +3851,8 @@ static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uin
                     if (fFlags & RTVFSOBJ_F_OPEN_DIRECTORY)
                     {
                         RTVFSDIR hVfsDir;
-                        rc = rtFsIsoDir_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs, offDirRec, &hVfsDir);
+                        rc = rtFsIsoDir_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs, offDirRec,
+                                                pRockInfo && pRockInfo->fValid ? pRockInfo : NULL, &hVfsDir);
                         if (RT_SUCCESS(rc))
                         {
                             *phVfsObj = RTVfsObjFromDir(hVfsDir);
@@ -3063,6 +4002,10 @@ static DECLCALLBACK(int) rtFsIsoDir_RewindDir(void *pvThis)
 static int rtFsIsoDir_ReadDir9660(PRTFSISODIROBJ pThis, PRTFSISODIRSHRD pShared, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry,
                                   RTFSOBJATTRADD enmAddAttr)
 {
+    PRTFSISOROCKINFO    pRockInfo = NULL;
+    if (pShared->Core.pVol->fHaveRock)
+        pRockInfo = (PRTFSISOROCKINFO)alloca(sizeof(*pRockInfo));
+
     while (pThis->offDir + RT_UOFFSETOF(ISO9660DIRREC, achFileId) <= pShared->cbDir)
     {
         PCISO9660DIRREC pDirRec = (PCISO9660DIRREC)&pShared->pbDir[pThis->offDir];
@@ -3151,8 +4094,6 @@ static int rtFsIsoDir_ReadDir9660(PRTFSISODIROBJ pThis, PRTFSISODIRSHRD pShared,
                 memcpy(pDirEntry->szName, pDirRec->achFileId, cchName);
                 pDirEntry->szName[cchName] = '\0';
                 RTStrPurgeEncoding(pDirEntry->szName);
-
-                /** @todo check for rock ridge names here.   */
             }
             pDirEntry->cwcShortName    = 0;
             pDirEntry->wszShortName[0] = '\0';
@@ -3164,14 +4105,48 @@ static int rtFsIsoDir_ReadDir9660(PRTFSISODIROBJ pThis, PRTFSISODIRSHRD pShared,
             RTFSISOCORE TmpObj;
             RT_ZERO(TmpObj);
             rtFsIsoCore_InitFrom9660DirRec(&TmpObj, pDirRec, 1 /* cDirRecs - see below why 1 */,
-                                           pThis->offDir + pShared->Core.FirstExtent.off, uVersion, pShared->Core.pVol);
+                                           pThis->offDir + pShared->Core.FirstExtent.off, uVersion, NULL, pShared->Core.pVol);
             int rc = rtFsIsoCore_QueryInfo(&TmpObj, &pDirEntry->Info, enmAddAttr);
+
+            /*
+             * Look for rock ridge info associated with this entry
+             * and merge that into the record.
+             */
+            if (pRockInfo)
+            {
+                rtFsIsoDirShrd_ParseRockForDirRec(pShared, pDirRec, pRockInfo);
+                if (pRockInfo->fValid)
+                {
+                    if (   pRockInfo->fSeenLastNM
+                        && pRockInfo->cchName > 0
+                        && !pShared->Core.pVol->fIsUtf16
+                        && (   pDirRec->bFileIdLength != 1
+                            || (   pDirRec->achFileId[0] != '\0'    /* . */
+                                && pDirRec->achFileId[0] != '\1'))) /* .. */
+                    {
+                        size_t const cchName  = pRockInfo->cchName;
+                        Assert(strlen(pRockInfo->szName) == cchName);
+                        size_t const cbNeeded = RT_UOFFSETOF(RTDIRENTRYEX, szName) + cchName + 1;
+                        if (*pcbDirEntry < cbNeeded)
+                        {
+                            Log3(("rtFsIsoDir_ReadDir9660: VERR_BUFFER_OVERFLOW - cbDst=%zu cbNeeded=%zu (Rock)\n", *pcbDirEntry, cbNeeded));
+                            *pcbDirEntry = cbNeeded;
+                            return VERR_BUFFER_OVERFLOW;
+                        }
+                        pDirEntry->cbName = (uint16_t)cchName;
+                        memcpy(pDirEntry->szName, pRockInfo->szName, cchName);
+                        pDirEntry->szName[cchName] = '\0';
+
+                        RTStrPurgeEncoding(pDirEntry->szName);
+                    }
+                }
+            }
 
             /*
              * Update the directory location and handle multi extent records.
              *
              * Multi extent records only affect the file size and the directory location,
-             * so we deal with it here instead of involving * rtFsIsoCore_InitFrom9660DirRec
+             * so we deal with it here instead of involving rtFsIsoCore_InitFrom9660DirRec
              * which would potentially require freeing memory and such.
              */
             if (!(pDirRec->fFileFlags & ISO9660_FILE_FLAGS_MULTI_EXTENT))
@@ -3421,6 +4396,7 @@ static const RTVFSDIROPS g_rtFsIsoDirOps =
         "ISO 9660 Dir",
         rtFsIsoDir_Close,
         rtFsIsoDir_QueryInfo,
+        NULL,
         RTVFSOBJOPS_VERSION
     },
     RTVFSDIROPS_VERSION,
@@ -3573,10 +4549,11 @@ static void rtFsIsoDirShrd_Log9660Content(PRTFSISODIRSHRD pThis)
  *                          records.
  * @param   cDirRecs        Number of directory records if more than one.
  * @param   offDirRec       The byte offset of the directory record.
+ * @param   pRockInfo       Optional pointer to rock ridge info for the entry.
  * @param   ppShared        Where to return the shared directory structure.
  */
 static int rtFsIsoDirShrd_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PCISO9660DIRREC pDirRec,
-                                  uint32_t cDirRecs, uint64_t offDirRec, PRTFSISODIRSHRD *ppShared)
+                                  uint32_t cDirRecs, uint64_t offDirRec, PCRTFSISOROCKINFO pRockInfo, PRTFSISODIRSHRD *ppShared)
 {
     /*
      * Allocate a new structure and initialize it.
@@ -3585,7 +4562,7 @@ static int rtFsIsoDirShrd_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir,
     PRTFSISODIRSHRD pShared = (PRTFSISODIRSHRD)RTMemAllocZ(sizeof(*pShared));
     if (pShared)
     {
-        rc = rtFsIsoCore_InitFrom9660DirRec(&pShared->Core, pDirRec, cDirRecs, offDirRec, 0 /*uVersion*/, pThis);
+        rc = rtFsIsoCore_InitFrom9660DirRec(&pShared->Core, pDirRec, cDirRecs, offDirRec, 0 /*uVersion*/, pRockInfo, pThis);
         if (RT_SUCCESS(rc))
         {
             RTListInit(&pShared->OpenChildren);
@@ -3599,6 +4576,20 @@ static int rtFsIsoDirShrd_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir,
 #ifdef LOG_ENABLED
                     rtFsIsoDirShrd_Log9660Content(pShared);
 #endif
+
+                    /*
+                     * If this is the root directory, check if rock ridge info is present.
+                     */
+                    if (   !pParentDir
+                        && !(pThis->fFlags & RTFSISO9660_F_NO_ROCK)
+                        && pShared->cbDir > RT_UOFFSETOF(ISO9660DIRREC, achFileId[1]))
+                    {
+                        PCISO9660DIRREC pDirRec0 = (PCISO9660DIRREC)pShared->pbDir;
+                        if (   pDirRec0->bFileIdLength == 1
+                            && pDirRec0->achFileId[0]  == 0
+                            && pDirRec0->cbDirRec > RT_UOFFSETOF(ISO9660DIRREC, achFileId[1]))
+                            rtFsIsoDirShrd_ParseRockForRoot(pShared, pDirRec0);
+                    }
 
                     /*
                      * Link into parent directory so we can use it to update
@@ -3819,10 +4810,11 @@ static int rtFsIsoDir_NewWithShared(PRTFSISOVOL pThis, PRTFSISODIRSHRD pShared, 
  * @param   pDirRec         The directory record.
  * @param   cDirRecs        Number of directory records if more than one.
  * @param   offDirRec       The byte offset of the directory record.
+ * @param   pRockInfo       Optional pointer to rock ridge info for the entry.
  * @param   phVfsDir        Where to return the directory handle.
  */
 static int  rtFsIsoDir_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PCISO9660DIRREC pDirRec,
-                               uint32_t cDirRecs, uint64_t offDirRec, PRTVFSDIR phVfsDir)
+                               uint32_t cDirRecs, uint64_t offDirRec, PCRTFSISOROCKINFO pRockInfo, PRTVFSDIR phVfsDir)
 {
     /*
      * Look for existing shared object, create a new one if necessary.
@@ -3830,7 +4822,7 @@ static int  rtFsIsoDir_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PC
     PRTFSISODIRSHRD pShared = (PRTFSISODIRSHRD)rtFsIsoDir_LookupShared(pParentDir, offDirRec);
     if (!pShared)
     {
-        int rc = rtFsIsoDirShrd_New9660(pThis, pParentDir, pDirRec, cDirRecs, offDirRec, &pShared);
+        int rc = rtFsIsoDirShrd_New9660(pThis, pParentDir, pDirRec, cDirRecs, offDirRec, pRockInfo, &pShared);
         if (RT_FAILURE(rc))
         {
             *phVfsDir = NIL_RTVFSDIR;
@@ -3894,6 +4886,9 @@ static DECLCALLBACK(int) rtFsIsoVol_Close(void *pvThis)
     RTVfsFileRelease(pThis->hVfsBacking);
     pThis->hVfsBacking = NIL_RTVFSFILE;
 
+    if (RTCritSectIsInitialized(&pThis->RockBufLock))
+        RTCritSectDelete(&pThis->RockBufLock);
+
     return VINF_SUCCESS;
 }
 
@@ -3905,6 +4900,192 @@ static DECLCALLBACK(int) rtFsIsoVol_QueryInfo(void *pvThis, PRTFSOBJINFO pObjInf
 {
     RT_NOREF(pvThis, pObjInfo, enmAddAttr);
     return VERR_WRONG_TYPE;
+}
+
+
+static int rtFsIsoVol_ReturnUdfDString(const char *pachSrc, size_t cchSrc, void *pvDst, size_t cbDst, size_t *pcbRet)
+{
+    char *pszDst = (char *)pvDst;
+
+    if (pachSrc[0] == 8)
+    {
+        size_t  const cchText   = RT_MIN((uint8_t)pachSrc[cchSrc - 1], cchSrc - 2);
+        size_t  const cchActual = RTStrNLen(&pachSrc[1], cchText);
+        *pcbRet = cchActual + 1;
+        int rc = RTStrCopyEx(pszDst, cbDst, &pachSrc[1], cchActual);
+        if (cbDst > 0)
+            RTStrPurgeEncoding(pszDst);
+        return rc;
+    }
+
+    if (pachSrc[0] == 16)
+    {
+        PCRTUTF16 pwszSrc = (PCRTUTF16)&pachSrc[1];
+        if (cchSrc > 0)
+            return RTUtf16BigToUtf8Ex(pwszSrc, (cchSrc - 2) / sizeof(RTUTF16), &pszDst, cchSrc, pcbRet);
+        int rc = RTUtf16CalcUtf8LenEx(pwszSrc, (cchSrc - 2) / sizeof(RTUTF16), pcbRet);
+        if (RT_SUCCESS(rc))
+        {
+            *pcbRet += 1;
+            return VERR_BUFFER_OVERFLOW;
+        }
+        return rc;
+    }
+
+    if (ASMMemIsZero(pachSrc, cchSrc))
+    {
+        *pcbRet = 1;
+        if (cbDst >= 1)
+        {
+            *pszDst = '\0';
+            return VINF_SUCCESS;
+        }
+        return VERR_BUFFER_OVERFLOW;
+    }
+
+    *pcbRet = 0;
+    return VERR_INVALID_UTF8_ENCODING; /** @todo better status here */
+}
+
+
+/**
+ * For now this is a sanitized version of rtFsIsoVolGetMaybeUtf16Be, which is
+ * probably not correct or anything, but will have to do for now.
+ */
+static int rtFsIsoVol_ReturnIso9660D1String(const char *pachSrc, size_t cchSrc, void *pvDst, size_t cbDst, size_t *pcbRet)
+{
+    char *pszDst = (char *)pvDst;
+
+    /*
+     * Check if it may be some UTF16 variant by scanning for zero bytes
+     * (ISO-9660 doesn't allow zeros).
+     */
+    size_t cFirstZeros  = 0;
+    size_t cSecondZeros = 0;
+    for (size_t off = 0; off + 1 < cchSrc; off += 2)
+    {
+        cFirstZeros  += pachSrc[off]     == '\0';
+        cSecondZeros += pachSrc[off + 1] == '\0';
+    }
+    if (cFirstZeros > cSecondZeros)
+    {
+        /*
+         * UTF-16BE / UTC-2BE:
+         */
+        if (cchSrc & 1)
+        {
+            AssertReturn(pachSrc[cchSrc - 1] == '\0' || pachSrc[cchSrc - 1] == ' ', VERR_INVALID_UTF16_ENCODING);
+            cchSrc--;
+        }
+        while (   cchSrc >= 2
+               && pachSrc[cchSrc - 1] == ' '
+               && pachSrc[cchSrc - 2] == '\0')
+            cchSrc -= 2;
+
+        if (cbDst > 0)
+            return RTUtf16BigToUtf8Ex((PCRTUTF16)pachSrc, cchSrc / sizeof(RTUTF16), &pszDst, cbDst, pcbRet);
+        int rc = RTUtf16BigCalcUtf8LenEx((PCRTUTF16)pachSrc, cchSrc / sizeof(RTUTF16), pcbRet);
+        if (RT_SUCCESS(rc))
+        {
+            *pcbRet += 1;
+            return VERR_BUFFER_OVERFLOW;
+        }
+        return rc;
+    }
+
+    if (cSecondZeros > 0)
+    {
+        /*
+         * Little endian UTF-16 / UCS-2.
+         */
+        if (cchSrc & 1)
+        {
+            AssertReturn(pachSrc[cchSrc - 1] == '\0' || pachSrc[cchSrc - 1] == ' ', VERR_INVALID_UTF16_ENCODING);
+            cchSrc--;
+        }
+        while (   cchSrc >= 2
+               && pachSrc[cchSrc - 1] == '\0'
+               && pachSrc[cchSrc - 2] == ' ')
+            cchSrc -= 2;
+
+        if (cbDst)
+            return RTUtf16LittleToUtf8Ex((PCRTUTF16)pachSrc, cchSrc / sizeof(RTUTF16), &pszDst, cbDst, pcbRet);
+        int rc = RTUtf16LittleCalcUtf8LenEx((PCRTUTF16)pachSrc, cchSrc / sizeof(RTUTF16), pcbRet);
+        if (RT_SUCCESS(rc))
+        {
+            *pcbRet += 1;
+            return VERR_BUFFER_OVERFLOW;
+        }
+        return rc;
+    }
+
+    /*
+     * ASSUME UTF-8/ASCII.
+     */
+    while (   cchSrc > 0
+           && pachSrc[cchSrc - 1] == ' ')
+        cchSrc--;
+
+    *pcbRet = cchSrc + 1;
+    int rc = RTStrCopyEx(pszDst, cbDst, pachSrc, cchSrc);
+    if (cbDst > 0)
+        RTStrPurgeEncoding(pszDst);
+    return rc;
+}
+
+
+static int rtFsIsoVol_ReturnIso9660DString(const char *pachSrc, size_t cchSrc, void *pvDst, size_t cbDst, size_t *pcbRet)
+{
+    /* Lazy bird: */
+    return rtFsIsoVol_ReturnIso9660D1String(pachSrc, cchSrc, pvDst, cbDst, pcbRet);
+}
+
+
+/**
+ * @interface_method_impl{RTVFSOBJOPS::Obj,pfnQueryInfoEx}
+ */
+static DECLCALLBACK(int) rtFsIsoVol_QueryInfoEx(void *pvThis, RTVFSQIEX enmInfo, void *pvInfo, size_t cbInfo, size_t *pcbRet)
+{
+    PRTFSISOVOL pThis = (PRTFSISOVOL)pvThis;
+    LogFlow(("rtFsIsoVol_QueryInfo(%p, %d,, %#zx,)\n", pThis, enmInfo, cbInfo));
+
+    union
+    {
+        uint8_t                 ab[RTFSISO_MAX_LOGICAL_BLOCK_SIZE];
+        ISO9660PRIMARYVOLDESC   PriVolDesc;
+        ISO9660SUPVOLDESC       SupVolDesc;
+    } uBuf;
+
+    switch (enmInfo)
+    {
+        case RTVFSQIEX_VOL_LABEL:
+        case RTVFSQIEX_VOL_LABEL_ALT:
+        {
+            if (pThis->enmType == RTFSISOVOLTYPE_UDF
+                && (   enmInfo == RTVFSQIEX_VOL_LABEL
+                    || pThis->offPrimaryVolDesc == 0))
+                return rtFsIsoVol_ReturnUdfDString(pThis->Udf.VolInfo.achLogicalVolumeID,
+                                                   sizeof(pThis->Udf.VolInfo.achLogicalVolumeID), pvInfo, cbInfo, pcbRet);
+
+            bool const fPrimary = enmInfo == RTVFSQIEX_VOL_LABEL_ALT
+                               || pThis->enmType == RTFSISOVOLTYPE_ISO9960;
+
+            int rc = RTVfsFileReadAt(pThis->hVfsBacking,
+                                     fPrimary ? pThis->offPrimaryVolDesc : pThis->offSecondaryVolDesc,
+                                     uBuf.ab, RT_MAX(RT_MIN(pThis->cbSector, sizeof(uBuf)), sizeof(uBuf.PriVolDesc)), NULL);
+            AssertRCReturn(rc, rc);
+
+            if (fPrimary)
+                return rtFsIsoVol_ReturnIso9660DString(uBuf.PriVolDesc.achVolumeId, sizeof(uBuf.PriVolDesc.achVolumeId),
+                                                       pvInfo, cbInfo, pcbRet);
+            return rtFsIsoVol_ReturnIso9660D1String(uBuf.SupVolDesc.achVolumeId, sizeof(uBuf.SupVolDesc.achVolumeId),
+                                                    pvInfo, cbInfo, pcbRet);
+        }
+
+        default:
+            return VERR_NOT_SUPPORTED;
+
+    }
 }
 
 
@@ -3938,6 +5119,7 @@ DECL_HIDDEN_CONST(const RTVFSOPS) g_rtFsIsoVolOps =
         "ISO 9660/UDF",
         rtFsIsoVol_Close,
         rtFsIsoVol_QueryInfo,
+        rtFsIsoVol_QueryInfoEx,
         RTVFSOBJOPS_VERSION
     },
     RTVFSOPS_VERSION,
@@ -5132,7 +6314,8 @@ static int rtFsIsoVolHandleUdfDetection(PRTFSISOVOL pThis, uint8_t *puUdfLevel, 
      * again when alternative AVDP sectors points to the same sequences.
      */
     pThis->Udf.uLevel = *puUdfLevel;
-    RTFSISOSEENSEQENCES SeenSequences = { 0 };
+    RTFSISOSEENSEQENCES SeenSequences;
+    RT_ZERO(SeenSequences);
     int rc1 = rtFsIsoVolReadAndHandleUdfAvdp(pThis, 256 * pThis->cbSector, pbBuf, cbBuf,
                                              &SeenSequences, pErrInfo);
     if (RT_SUCCESS(rc1))
@@ -5446,6 +6629,12 @@ static int rtFsIsoVolHandlePrimaryVolDesc(PRTFSISOVOL pThis, PCISO9660PRIMARYVOL
                                    "Unsupported file structure version: %#x", pVolDesc->bFileStructureVersion);
 
     /*
+     * Take down the location of the primary volume descriptor so we can get
+     * the volume lable and other info from it later.
+     */
+    pThis->offPrimaryVolDesc = offVolDesc;
+
+    /*
      * We need the block size ...
      */
     pThis->cbBlock = RT_LE2H_U16(pVolDesc->cbLogicalBlock.le);
@@ -5578,6 +6767,12 @@ static int rtFsIsoVolHandleSupplementaryVolDesc(PRTFSISOVOL pThis, PCISO9660SUPV
         *pbUcs2Level    = pVolDesc->abEscapeSequences[2] == ISO9660_JOLIET_ESC_SEQ_2_LEVEL_1 ? 1
                         : pVolDesc->abEscapeSequences[2] == ISO9660_JOLIET_ESC_SEQ_2_LEVEL_2 ? 2 : 3;
         Log(("ISO9660: Joliet with UCS-2 level %u\n", *pbUcs2Level));
+
+        /*
+         * Take down the location of the secondary volume descriptor so we can get
+         * the volume lable and other info from it later.
+         */
+        pThis->offSecondaryVolDesc = offVolDesc;
     }
     return rc;
 }
@@ -5600,10 +6795,10 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
     uint32_t const cbSector = 2048;
 
     /*
-     * First initialize the state so that rtFsIsoVol_Destroy won't trip up.
+     * First initialize the state so that rtFsIsoVol_Close won't trip up.
      */
     pThis->hVfsSelf                     = hVfsSelf;
-    pThis->hVfsBacking                  = hVfsBacking; /* Caller referenced it for us, we consume it; rtFsIsoVol_Destroy releases it. */
+    pThis->hVfsBacking                  = hVfsBacking; /* Caller referenced it for us, we consume it; rtFsIsoVol_Close releases it. */
     pThis->cbBacking                    = 0;
     pThis->cBackingSectors              = 0;
     pThis->fFlags                       = fFlags;
@@ -5615,11 +6810,17 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
     pThis->idPrimaryVol                 = UINT32_MAX;
     pThis->fIsUtf16                     = false;
     pThis->pRootDir                     = NULL;
+    pThis->fHaveRock                    = false;
+    pThis->offSuspSkip                  = 0;
+    pThis->offRockBuf                   = UINT64_MAX;
 
     /*
-     * Get stuff that may fail.
+     * Do init stuff that may fail.
      */
-    int rc = RTVfsFileQuerySize(hVfsBacking, &pThis->cbBacking);
+    int rc = RTCritSectInit(&pThis->RockBufLock);
+    AssertRCReturn(rc, rc);
+
+    rc = RTVfsFileQuerySize(hVfsBacking, &pThis->cbBacking);
     if (RT_SUCCESS(rc))
         pThis->cBackingSectors = pThis->cbBacking / pThis->cbSector;
     else
@@ -5784,7 +6985,7 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
         else if (enmState == kStateCdSeq)
         {
 #if 1
-            /* The warp server for ebusiness update ISOs knowns as ACP2 & MCP2 ends up here,
+            /* The warp server for ebusiness update ISOs known as ACP2 & MCP2 ends up here,
                as they do in deed miss a terminator volume descriptor and we're now at the
                root directory already. Just detect this, ignore it and get on with things. */
             Log(("rtFsIsoVolTryInit: Ignoring missing ISO 9660 terminator volume descriptor (found %.5Rhxs).\n",
@@ -5809,7 +7010,7 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
     /*
      * If we found a UDF VRS and are interested in UDF, we have more work to do here.
      */
-    if (uUdfLevel > 0 && !(fFlags & RTFSISO9660_F_NO_UDF) )
+    if (uUdfLevel > 0 && !(fFlags & RTFSISO9660_F_NO_UDF))
     {
         Log(("rtFsIsoVolTryInit: uUdfLevel=%d\n", uUdfLevel));
         rc = rtFsIsoVolHandleUdfDetection(pThis, &uUdfLevel, offUdfBootVolDesc, Buf.ab, sizeof(Buf), pErrInfo);
@@ -5823,9 +7024,9 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
      * By default we pick UDF over any of the two ISO 9960, there is currently
      * no way to override this without using the RTFSISO9660_F_NO_XXX options.
      *
-     * If there isn't UDF, we may faced with choosing between joliet and rock
-     * ridge.  The joliet option is generally favorable as we don't have to
-     * guess wrt to the file name encoding.  So, we'll pick that for now.
+     * If there isn't UDF, we may be faced with choosing between joliet and
+     * rock ridge.  The joliet option is generally favorable as we don't have
+     * to guess wrt to the file name encoding.  So, we'll pick that for now.
      *
      * Note! Should we change this preference for joliet, there fun wrt making sure
      *       there really is rock ridge stuff in the primary volume as well as
@@ -5843,10 +7044,10 @@ static int rtFsIsoVolTryInit(PRTFSISOVOL pThis, RTVFS hVfsSelf, RTVFSFILE hVfsBa
     {
         pThis->enmType = RTFSISOVOLTYPE_JOLIET;
         pThis->fIsUtf16 = true;
-        return rtFsIsoDirShrd_New9660(pThis, NULL, &JolietRootDir, 1, offJolietRootDirRec, &pThis->pRootDir);
+        return rtFsIsoDirShrd_New9660(pThis, NULL, &JolietRootDir, 1, offJolietRootDirRec, NULL, &pThis->pRootDir);
     }
     pThis->enmType = RTFSISOVOLTYPE_ISO9960;
-    return rtFsIsoDirShrd_New9660(pThis, NULL, &RootDir, 1, offRootDirRec, &pThis->pRootDir);
+    return rtFsIsoDirShrd_New9660(pThis, NULL, &RootDir, 1, offRootDirRec, NULL, &pThis->pRootDir);
 }
 
 
@@ -5874,12 +7075,12 @@ RTDECL(int) RTFsIso9660VolOpen(RTVFSFILE hVfsFileIn, uint32_t fFlags, PRTVFS phV
     /*
      * Create a new ISO VFS instance and try initialize it using the given input file.
      */
-    RTVFS hVfs   = NIL_RTVFS;
-    void *pvThis = NULL;
-    int rc = RTVfsNew(&g_rtFsIsoVolOps, sizeof(RTFSISOVOL), NIL_RTVFS, RTVFSLOCK_CREATE_RW, &hVfs, &pvThis);
+    RTVFS       hVfs   = NIL_RTVFS;
+    PRTFSISOVOL pThis = NULL;
+    int rc = RTVfsNew(&g_rtFsIsoVolOps, sizeof(RTFSISOVOL), NIL_RTVFS, RTVFSLOCK_CREATE_RW, &hVfs, (void **)&pThis);
     if (RT_SUCCESS(rc))
     {
-        rc = rtFsIsoVolTryInit((PRTFSISOVOL)pvThis, hVfs, hVfsFileIn, fFlags, pErrInfo);
+        rc = rtFsIsoVolTryInit(pThis, hVfs, hVfsFileIn, fFlags, pErrInfo);
         if (RT_SUCCESS(rc))
             *phVfs = hVfs;
         else

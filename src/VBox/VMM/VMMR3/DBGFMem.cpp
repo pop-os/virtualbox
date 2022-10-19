@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -60,7 +70,7 @@ static DECLCALLBACK(int) dbgfR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
     RTGCUINTPTR cbRange = *pcbRange;
     if (!DBGFR3AddrIsValid(pUVM, pAddress))
         return VERR_INVALID_POINTER;
-    if (!VALID_PTR(pHitAddress))
+    if (!RT_VALID_PTR(pHitAddress))
         return VERR_INVALID_POINTER;
 
     /*
@@ -154,7 +164,7 @@ static DECLCALLBACK(int) dbgfR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
      */
     if (!DBGFR3AddrIsValid(pUVM, pAddress))
         return VERR_INVALID_POINTER;
-    if (!VALID_PTR(pvBuf))
+    if (!RT_VALID_PTR(pvBuf))
         return VERR_INVALID_POINTER;
 
     /*
@@ -226,7 +236,7 @@ static DECLCALLBACK(int) dbgfR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADD
      */
     if (!DBGFR3AddrIsValid(pUVM, pAddress))
         return VERR_INVALID_POINTER;
-    if (!VALID_PTR(pszBuf))
+    if (!RT_VALID_PTR(pszBuf))
         return VERR_INVALID_POINTER;
 
     /*
@@ -272,7 +282,7 @@ VMMR3DECL(int) DBGFR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddr
     /*
      * Validate and zero output.
      */
-    if (!VALID_PTR(pszBuf))
+    if (!RT_VALID_PTR(pszBuf))
         return VERR_INVALID_POINTER;
     if (cchBuf <= 0)
         return VERR_INVALID_PARAMETER;
@@ -305,7 +315,7 @@ static DECLCALLBACK(int) dbgfR3MemWrite(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS 
      */
     if (!DBGFR3AddrIsValid(pUVM, pAddress))
         return VERR_INVALID_POINTER;
-    if (!VALID_PTR(pvBuf))
+    if (!RT_VALID_PTR(pvBuf))
         return VERR_INVALID_POINTER;
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
@@ -625,19 +635,18 @@ VMMDECL(int) DBGFR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t fFlags, uint6
      */
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
     AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_CPU_ID);
-    AssertReturn(!(fFlags & ~DBGFPGDMP_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn(fFlags & (DBGFPGDMP_FLAGS_SHADOW | DBGFPGDMP_FLAGS_GUEST), VERR_INVALID_PARAMETER);
-    AssertReturn((fFlags & DBGFPGDMP_FLAGS_CURRENT_MODE) || !(fFlags & DBGFPGDMP_FLAGS_MODE_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~DBGFPGDMP_FLAGS_VALID_MASK), VERR_INVALID_FLAGS);
+    AssertReturn(fFlags & (DBGFPGDMP_FLAGS_SHADOW | DBGFPGDMP_FLAGS_GUEST), VERR_INVALID_FLAGS);
+    AssertReturn((fFlags & DBGFPGDMP_FLAGS_CURRENT_MODE) || (fFlags & DBGFPGDMP_FLAGS_MODE_MASK), VERR_INVALID_FLAGS);
     AssertReturn(   !(fFlags & DBGFPGDMP_FLAGS_EPT)
                  || !(fFlags & (DBGFPGDMP_FLAGS_LME | DBGFPGDMP_FLAGS_PAE | DBGFPGDMP_FLAGS_PSE | DBGFPGDMP_FLAGS_NXE))
-                 , VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pHlp, VERR_INVALID_POINTER);
+                 , VERR_INVALID_FLAGS);
     AssertReturn(cMaxDepth, VERR_INVALID_PARAMETER);
 
     /*
      * Forward the request to the target CPU.
      */
     return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3PagingDumpEx, 8,
-                                    pUVM, idCpu, fFlags, &cr3, &u64FirstAddr, &u64LastAddr, cMaxDepth, pHlp);
+                                    pUVM, idCpu, fFlags, &cr3, &u64FirstAddr, &u64LastAddr, cMaxDepth, pHlp ? pHlp : DBGFR3InfoLogHlp());
 }
 

@@ -4,15 +4,25 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
+;
+; SPDX-License-Identifier: GPL-3.0-only
 ;
 
 ;*******************************************************************************
@@ -226,6 +236,17 @@ BEGINPROC   TestProc32
 
         vfmaddsub132pd ymm1, ymm2, ymm3
 
+        blsr eax, ebx
+        blsi eax, [ebx]
+        db 0c4h, 0e2h, 0f8h, 0f3h, 01bh ;  blsi rax, dword [ebx] - but VEX.W=1 is ignored, so same as previous
+        blsmsk eax, [ebx+edi*2]
+        shlx eax, ebx, ecx
+
+        pmovmskb eax, mm2
+        pmovmskb eax, xmm3
+        vpmovmskb eax, xmm3
+        vpmovmskb eax, ymm3
+
 ENDPROC   TestProc32
 
 
@@ -415,6 +436,26 @@ BEGINPROC TestProc64
         movlps xmm0, [eax + ebx]
         movlps xmm10, [rax + rbx]
         movhlps xmm0, xmm1
+
+        blsr eax, ebx
+        blsr rax, rbx
+        blsi eax, [rbx]
+        blsi rax, [rbx]
+        db 0c4h, 0e2h, 0f8h | 4, 0f3h, 01bh ; blsi rax, [rbx] with VEX.L=1 - should be invalid
+        blsmsk eax, [rbx+rdi*2]
+        blsmsk rax, [rbx+rdi*2]
+        blsmsk r8, [rbx+rdi*2]
+
+        shlx   eax, ebx, ecx
+        shlx   r8, rax, r15
+
+        pmovmskb eax, mm2
+        pmovmskb r9, mm2
+        pmovmskb eax, xmm3
+        pmovmskb r10, xmm3
+        vpmovmskb eax, xmm3
+        vpmovmskb rax, xmm3
+        vpmovmskb r11, ymm9
 
         ret
 ENDPROC   TestProc64

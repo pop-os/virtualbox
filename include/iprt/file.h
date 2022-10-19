@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_file_h
@@ -233,13 +243,20 @@ RTDECL(int) RTFileQuerySizeByPath(const char *pszPath, uint64_t *pcbFile);
  */
 #define RTFILE_O_CREATE_MODE_SHIFT      20
 
-                                      /* UINT32_C(0x40000000)
-                                     and UINT32_C(0x80000000) are unused atm. */
+/** Temporary file that should be automatically deleted when closed.
+ * If not supported by the OS, the open call will fail with VERR_NOT_SUPPORTED
+ * to prevent leaving undeleted files behind.
+ * @note On unix the file wont be visible and cannot be accessed by it's path.
+ *       On Windows it will be visible but only accessible of deletion is
+ *       shared.  Not implemented on OS/2. */
+#define RTFILE_O_TEMP_AUTO_DELETE       UINT32_C(0x40000000)
+
+                                      /* UINT32_C(0x80000000) is unused atm. */
 
 /** Mask of all valid flags.
  * @remark  This doesn't validate the access mode properly.
  */
-#define RTFILE_O_VALID_MASK             UINT32_C(0x3ffffff7)
+#define RTFILE_O_VALID_MASK             UINT32_C(0x7ffffff7)
 
 /** @} */
 
@@ -343,6 +360,16 @@ RTDECL(int)  RTFileOpenEx(const char *pszFilename, uint64_t fOpen, PRTFILE phFil
  * @param   fAccess         The desired access only, i.e. read, write or both.
  */
 RTDECL(int)  RTFileOpenBitBucket(PRTFILE phFile, uint64_t fAccess);
+
+/**
+ * Duplicates a file handle.
+ *
+ * @returns IPRT status code.
+ * @param   hFileSrc        The handle to duplicate.
+ * @param   fFlags          RTFILE_O_INHERIT or zero.
+ * @param   phFileNew       Where to return the new file handle
+ */
+RTDECL(int)  RTFileDup(RTFILE hFileSrc, uint64_t fFlags, PRTFILE phFileNew);
 
 /**
  * Close a file opened by RTFileOpen().
@@ -541,6 +568,9 @@ RTDECL(int)  RTFileSgWriteAt(RTFILE hFile, RTFOFF off, PRTSGBUF pSgBuf, size_t c
  * Flushes the buffers for the specified file.
  *
  * @returns iprt status code.
+ * @retval  VINF_NOT_SUPPORTED if it is a special file that does not support
+ *          flushing.  This is reported as a informational status since in most
+ *          cases this is entirely harmless (e.g. tty) and simplifies the usage.
  * @param   File        Handle to the file.
  */
 RTDECL(int)  RTFileFlush(RTFILE File);
@@ -584,13 +614,17 @@ RTDECL(RTFOFF) RTFileGetMaxSize(RTFILE File);
 RTDECL(int) RTFileQueryMaxSizeEx(RTFILE File, PRTFOFF pcbMax);
 
 /**
- * Determine the maximum file size depending on the file system the file is stored on.
+ * Queries the sector size (/ logical block size) for a disk or similar.
  *
- * @returns The max size of the file.
- *          -1 on failure.
- * @param   File        Handle to the file.
+ * @returns IPRT status code.
+ * @retval  VERR_INVALID_FUNCTION if not a disk/similar.  Could also be returned
+ *          if not really implemented.
+ * @param   hFile       Handle to the disk.  This must typically be a device
+ *                      rather than a file or directory, though this may vary
+ *                      from OS to OS.
+ * @param   pcbSector   Where to store the sector size.
  */
-RTDECL(RTFOFF) RTFileGetMaxSize(RTFILE File);
+RTDECL(int) RTFileQuerySectorSize(RTFILE hFile, uint32_t *pcbSector);
 
 /**
  * Gets the current file position.

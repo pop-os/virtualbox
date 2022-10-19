@@ -28,7 +28,7 @@
     </message>
     <message>
         <source>Preferences...</source>
-        <translation>偏好設定...</translation>
+        <translation>偏好設定…</translation>
     </message>
     <message>
         <source>Quit %1</source>

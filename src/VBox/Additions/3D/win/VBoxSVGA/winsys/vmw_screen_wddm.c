@@ -1,13 +1,23 @@
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /**********************************************************
@@ -39,7 +49,6 @@
 #include "pipe/p_compiler.h"
 #include "util/u_inlines.h"
 #include "util/u_memory.h"
-#include "util/u_format.h"
 
 #include "vmw_context.h"
 #include "vmw_screen.h"
@@ -48,7 +57,7 @@
 #include "svga_drm_public.h"
 #include "svga3d_surfacedefs.h"
 
-#include "state_tracker/drm_driver.h"
+#include "frontend/drm_driver.h"
 
 #include "vmwgfx_drm.h"
 
@@ -144,11 +153,11 @@ vmw_drm_surface_get_handle(struct svga_winsys_screen *sws,
     whandle->offset = 0;
 
     switch (whandle->type) {
-    case DRM_API_HANDLE_TYPE_SHARED:
-    case DRM_API_HANDLE_TYPE_KMS:
+    case WINSYS_HANDLE_TYPE_SHARED:
+    case WINSYS_HANDLE_TYPE_KMS:
        whandle->handle = vsrf->sid;
        break;
-    case DRM_API_HANDLE_TYPE_FD:
+    case WINSYS_HANDLE_TYPE_FD:
        whandle->handle = vsrf->sid; /// @todo will this be enough for WDDM?
        break;
     default:
@@ -158,4 +167,11 @@ vmw_drm_surface_get_handle(struct svga_winsys_screen *sws,
     }
 
     return TRUE;
+}
+
+void
+vmw_svga_winsys_host_log(struct svga_winsys_screen *sws, const char *log)
+{
+   (void)sws;
+   _debug_printf("%s\n", log);
 }

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -208,33 +218,6 @@ RTDECL(uint64_t) ASMAtomicUoReadU64(volatile uint64_t *pu64)
     return *pu64;
 }
 
-RTDECL(void) ASMMemZeroPage(volatile void *pv)
-{
-    uintptr_t volatile *puPtr = (uintptr_t volatile *)pv;
-    uint32_t            cbLeft = PAGE_SIZE / sizeof(uintptr_t);
-    while (cbLeft-- > 0)
-        *puPtr++ = 0;
-}
-
-RTDECL(void) ASMMemZero32(volatile void *pv, size_t cb)
-{
-    uint32_t volatile *pu32   = (uint32_t volatile *)pv;
-    uint32_t           cbLeft = cb / sizeof(uint32_t);
-    while (cbLeft-- > 0)
-        *pu32++ = 0;
-}
-
-RTDECL(void) ASMMemFill32(volatile void *pv, size_t cb, uint32_t u32)
-{
-    uint32_t volatile *pu32 = (uint32_t volatile *)pv;
-    while (cb > 0)
-    {
-        *pu32 = u32;
-        cb -= sizeof(uint32_t);
-        pu32++;
-    }
-}
-
 RTDECL(uint8_t) ASMProbeReadByte(const void *pvByte)
 {
     return *(volatile uint8_t *)pvByte;
@@ -321,135 +304,6 @@ RTDECL(bool) ASMBitTest(const volatile void *pvBitmap, int32_t iBit)
 {
     uint8_t volatile *pau8Bitmap = (uint8_t volatile *)pvBitmap;
     return  pau8Bitmap[iBit / 8] & (uint8_t)RT_BIT_32(iBit & 7) ? true : false;
-}
-
-RTDECL(int) ASMBitFirstClear(const volatile void *pvBitmap, uint32_t cBits)
-{
-    uint32_t           iBit = 0;
-    uint8_t volatile *pu8 = (uint8_t volatile *)pvBitmap;
-
-    while (iBit < cBits)
-    {
-        uint8_t u8 = *pu8;
-        if (u8 != UINT8_MAX)
-        {
-            while (u8 & 1)
-            {
-                u8 >>= 1;
-                iBit++;
-            }
-            if (iBit >= cBits)
-                return -1;
-            return iBit;
-        }
-
-        iBit += 8;
-        pu8++;
-    }
-    return -1;
-}
-
-RTDECL(int) ASMBitNextClear(const volatile void *pvBitmap, uint32_t cBits, uint32_t iBitPrev)
-{
-    const volatile uint8_t *pau8Bitmap = (const volatile uint8_t *)pvBitmap;
-    int                      iBit = ++iBitPrev & 7;
-    if (iBit)
-    {
-        /*
-         * Inspect the byte containing the unaligned bit.
-         */
-        uint8_t u8 = ~pau8Bitmap[iBitPrev / 8] >> iBit;
-        if (u8)
-        {
-            iBit = 0;
-            while (!(u8 & 1))
-            {
-                u8 >>= 1;
-                iBit++;
-            }
-            return iBitPrev + iBit;
-        }
-
-        /*
-         * Skip ahead and see if there is anything left to search.
-         */
-        iBitPrev |= 7;
-        iBitPrev++;
-        if (cBits <= iBitPrev)
-            return -1;
-    }
-
-    /*
-     * Byte search, let ASMBitFirstClear do the dirty work.
-     */
-    iBit = ASMBitFirstClear(&pau8Bitmap[iBitPrev / 8], cBits - iBitPrev);
-    if (iBit >= 0)
-        iBit += iBitPrev;
-    return iBit;
-}
-
-RTDECL(int) ASMBitFirstSet(const volatile void *pvBitmap, uint32_t cBits)
-{
-    uint32_t           iBit = 0;
-    uint8_t volatile *pu8 = (uint8_t volatile *)pvBitmap;
-    while (iBit < cBits)
-    {
-        uint8_t u8 = *pu8;
-        if (u8 != 0)
-        {
-            while (!(u8 & 1))
-            {
-                u8 >>= 1;
-                iBit++;
-            }
-            if (iBit >= cBits)
-                return -1;
-            return iBit;
-        }
-
-        iBit += 8;
-        pu8++;
-    }
-    return -1;
-}
-
-RTDECL(int) ASMBitNextSet(const volatile void *pvBitmap, uint32_t cBits, uint32_t iBitPrev)
-{
-    const volatile uint8_t *pau8Bitmap = (const volatile uint8_t *)pvBitmap;
-    int                      iBit = ++iBitPrev & 7;
-    if (iBit)
-    {
-        /*
-         * Inspect the byte containing the unaligned bit.
-         */
-        uint8_t u8 = pau8Bitmap[iBitPrev / 8] >> iBit;
-        if (u8)
-        {
-            iBit = 0;
-            while (!(u8 & 1))
-            {
-                u8 >>= 1;
-                iBit++;
-            }
-            return iBitPrev + iBit;
-        }
-
-        /*
-         * Skip ahead and see if there is anything left to search.
-         */
-        iBitPrev |= 7;
-        iBitPrev++;
-        if (cBits <= iBitPrev)
-            return -1;
-    }
-
-    /*
-     * Byte search, let ASMBitFirstSet do the dirty work.
-     */
-    iBit = ASMBitFirstSet(&pau8Bitmap[iBitPrev / 8], cBits - iBitPrev);
-    if (iBit >= 0)
-        iBit += iBitPrev;
-    return iBit;
 }
 
 RTDECL(unsigned) ASMBitFirstSetU32(uint32_t u32)

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /*
@@ -220,6 +230,11 @@ void PerformanceCollector::uninit()
         return;
     }
 
+    /* Destroy resource usage sampler first, as the callback will access the metrics. */
+    int vrc = RTTimerLRDestroy(m.sampler);
+    AssertMsgRC(vrc, ("Failed to destroy resource usage sampling timer (%Rra)\n", vrc));
+    m.sampler = NULL;
+
     /* Destroy unregistered metrics */
     BaseMetricList::iterator it;
     for (it = m.baseMetrics.begin(); it != m.baseMetrics.end();)
@@ -237,11 +252,6 @@ void PerformanceCollector::uninit()
      * it is safe to destroy them as well.
      */
     m.gm->destroyUnregistered();
-
-    /* Destroy resource usage sampler */
-    int vrc = RTTimerLRDestroy(m.sampler);
-    AssertMsgRC(vrc, ("Failed to destroy resource usage sampling timer (%Rra)\n", vrc));
-    m.sampler = NULL;
 
     /* Invalidate the magic now. */
     mMagic = 0;
@@ -321,7 +331,7 @@ HRESULT PerformanceCollector::getMetrics(const std::vector<com::Utf8Str> &aMetri
             filteredMetrics.push_back(*it);
 
     aMetrics.resize(filteredMetrics.size());
-    int i = 0;
+    size_t i = 0;
     for (it = filteredMetrics.begin(); it != filteredMetrics.end(); ++it)
     {
         ComObjPtr<PerformanceMetric> metric;
@@ -329,7 +339,7 @@ HRESULT PerformanceCollector::getMetrics(const std::vector<com::Utf8Str> &aMetri
         if (SUCCEEDED(rc))
             rc = metric->init(*it);
         AssertComRCReturnRC(rc);
-        LogFlow(("PerformanceCollector::GetMetrics() store a metric at retMetrics[%d]...\n", i));
+        LogFlow(("PerformanceCollector::GetMetrics() store a metric at retMetrics[%zu]...\n", i));
         aMetrics[i++] = metric;
     }
     return rc;
@@ -374,13 +384,13 @@ HRESULT PerformanceCollector::setupMetrics(const std::vector<com::Utf8Str> &aMet
         }
 
     aAffectedMetrics.resize(filteredMetrics.size());
-    int i = 0;
+    size_t i = 0;
     for (it = filteredMetrics.begin();
          it != filteredMetrics.end() && SUCCEEDED(rc); ++it)
         rc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
 
     if (FAILED(rc))
-        return setError(E_FAIL, "Failed to setup metrics for '%s'",
+        return setError(E_FAIL, tr("Failed to setup metrics for '%s'"),
                         getFailedGuestName().c_str());
     return rc;
 }
@@ -408,7 +418,7 @@ HRESULT PerformanceCollector::enableMetrics(const std::vector<com::Utf8Str> &aMe
         }
 
     aAffectedMetrics.resize(filteredMetrics.size());
-    int i = 0;
+    size_t i = 0;
     for (it = filteredMetrics.begin();
          it != filteredMetrics.end() && SUCCEEDED(rc); ++it)
         rc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
@@ -416,7 +426,7 @@ HRESULT PerformanceCollector::enableMetrics(const std::vector<com::Utf8Str> &aMe
     LogFlowThisFuncLeave();
 
     if (FAILED(rc))
-        return setError(E_FAIL, "Failed to enable metrics for '%s'",
+        return setError(E_FAIL, tr("Failed to enable metrics for '%s'"),
                         getFailedGuestName().c_str());
     return rc;
 }
@@ -444,7 +454,7 @@ HRESULT PerformanceCollector::disableMetrics(const std::vector<com::Utf8Str> &aM
         }
 
     aAffectedMetrics.resize(filteredMetrics.size());
-    int i = 0;
+    size_t i = 0;
     for (it = filteredMetrics.begin();
          it != filteredMetrics.end() && SUCCEEDED(rc); ++it)
         rc = toIPerformanceMetric(*it, aAffectedMetrics[i++]);
@@ -452,7 +462,7 @@ HRESULT PerformanceCollector::disableMetrics(const std::vector<com::Utf8Str> &aM
     LogFlowThisFuncLeave();
 
     if (FAILED(rc))
-        return setError(E_FAIL, "Failed to disable metrics for '%s'",
+        return setError(E_FAIL, tr("Failed to disable metrics for '%s'"),
                         getFailedGuestName().c_str());
     return rc;
 }
@@ -483,7 +493,6 @@ HRESULT PerformanceCollector::queryMetricsData(const std::vector<com::Utf8Str> &
             flatSize += (*it)->getLength();
         }
 
-    int i = 0;
     size_t flatIndex = 0;
     size_t numberOfMetrics = filteredMetrics.size();
     aReturnMetricNames.resize(numberOfMetrics);
@@ -495,6 +504,7 @@ HRESULT PerformanceCollector::queryMetricsData(const std::vector<com::Utf8Str> &
     aReturnDataLengths.resize(numberOfMetrics);
     aReturnData.resize(flatSize);
 
+    size_t i = 0;
     for (it = filteredMetrics.begin(); it != filteredMetrics.end(); ++it, ++i)
     {
         ULONG *values, length, sequenceNumber;
@@ -698,7 +708,11 @@ void PerformanceCollector::samplerCallback(uint64_t iTick)
      * Those should be destroyed now.
      */
     Log7Func(("{%p}: before remove_if: toBeCollected.size()=%d\n", this, toBeCollected.size()));
+#if RT_CPLUSPLUS_PREREQ(201100) /* mem_fun is deprecated in C++11 and removed in C++17 */
+    toBeCollected.remove_if(std::mem_fn(&pm::BaseMetric::isUnregistered));
+#else
     toBeCollected.remove_if(std::mem_fun(&pm::BaseMetric::isUnregistered));
+#endif
     Log7Func(("{%p}: after remove_if: toBeCollected.size()=%d\n", this, toBeCollected.size()));
     Log7Func(("{%p}: before remove_if: m.baseMetrics.size()=%d\n", this, m.baseMetrics.size()));
     for (it = m.baseMetrics.begin(); it != m.baseMetrics.end();)
@@ -718,8 +732,11 @@ void PerformanceCollector::samplerCallback(uint64_t iTick)
     m.gm->destroyUnregistered();
 
     /* Finally, collect the data */
-    std::for_each(toBeCollected.begin(), toBeCollected.end(),
-                  std::mem_fun(&pm::BaseMetric::collect));
+#if RT_CPLUSPLUS_PREREQ(201100) /* mem_fun is deprecated in C++11 and removed in C++17 */
+    std::for_each(toBeCollected.begin(), toBeCollected.end(), std::mem_fn(&pm::BaseMetric::collect));
+#else
+    std::for_each(toBeCollected.begin(), toBeCollected.end(), std::mem_fun(&pm::BaseMetric::collect));
+#endif
     Log4Func(("{%p}: LEAVE\n", this));
 }
 
@@ -769,8 +786,9 @@ HRESULT PerformanceMetric::init(pm::Metric *aMetric)
     m.period      = aMetric->getPeriod();
     m.count       = aMetric->getLength();
     m.unit        = aMetric->getUnit();
-    m.min         = aMetric->getMinValue();
-    m.max         = aMetric->getMaxValue();
+    /** @todo r=bird: LONG/ULONG mixup.   */
+    m.min         = (LONG)aMetric->getMinValue();
+    m.max         = (LONG)aMetric->getMaxValue();
 
     autoInitSpan.setSucceeded();
     return S_OK;
@@ -788,8 +806,9 @@ HRESULT PerformanceMetric::init(pm::BaseMetric *aMetric)
     m.period      = aMetric->getPeriod();
     m.count       = aMetric->getLength();
     m.unit        = aMetric->getUnit();
-    m.min         = aMetric->getMinValue();
-    m.max         = aMetric->getMaxValue();
+    /** @todo r=bird: LONG/ULONG mixup.   */
+    m.min         = (LONG)aMetric->getMinValue();
+    m.max         = (LONG)aMetric->getMaxValue();
 
     autoInitSpan.setSucceeded();
     return S_OK;

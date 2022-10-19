@@ -1,21 +1,30 @@
 <?xml version="1.0"?>
 
 <!--
-/*
  *  A template to generate wrapper classes for [XP]COM interfaces
  *  (defined in XIDL) to use them in the main Qt-based GUI
  *  in platform-independent script-like manner.
- */
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -1543,7 +1552,7 @@
   <xsl:choose>
     <!-- modifiers -->
     <xsl:when test="name(current())='type' and ../@mod">
-      <xsl:if test="../@safearray and ../@mod='ptr'">
+      <xsl:if test="../@safearray='yes' and ../@mod='ptr'">
         <xsl:message terminate="yes">
           <xsl:value-of select="concat(../../../@name,'::',../../@name,'::',../@name,': ')"/>
           <xsl:text>either 'safearray' or 'mod' attribute is allowed, but not both!</xsl:text>
@@ -1574,7 +1583,7 @@
           </xsl:choose>
         </xsl:when>
         <xsl:when test="../@mod='string'">
-          <xsl:if test="../@safearray">
+          <xsl:if test="../@safearray='yes'">
             <xsl:text>QVector&lt;</xsl:text>
           </xsl:if>
           <xsl:choose>
@@ -1591,7 +1600,7 @@
               </xsl:message>
             </xsl:otherwise>
           </xsl:choose>
-          <xsl:if test="../@safearray">
+          <xsl:if test="../@safearray='yes'">
             <xsl:text>&gt;</xsl:text>
           </xsl:if>
         </xsl:when>
@@ -1606,7 +1615,7 @@
     </xsl:when>
     <!-- no modifiers -->
     <xsl:otherwise>
-      <xsl:if test="../@safearray">
+      <xsl:if test="../@safearray='yes'">
         <xsl:text>QVector&lt;</xsl:text>
       </xsl:if>
       <xsl:choose>
@@ -1641,7 +1650,7 @@
           <xsl:message terminate="yes"><xsl:text>Unknown parameter type: </xsl:text><xsl:value-of select="."/></xsl:message>
         </xsl:otherwise>
       </xsl:choose>
-      <xsl:if test="../@safearray">
+      <xsl:if test="../@safearray='yes'">
         <xsl:text>&gt;</xsl:text>
       </xsl:if>
     </xsl:otherwise>
@@ -1657,7 +1666,7 @@
 <xsl:template match="attribute/@type | param/@type" mode="initializer">
   <xsl:choose>
     <!-- safearrays don't need initializers -->
-    <xsl:when test="../@safearray">
+    <xsl:when test="../@safearray='yes'">
     </xsl:when>
     <!-- modifiers -->
     <xsl:when test="name(current())='type' and ../@mod">

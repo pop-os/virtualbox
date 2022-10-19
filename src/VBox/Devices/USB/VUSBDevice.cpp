@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -809,9 +819,75 @@ static void ReadCachedDeviceDesc(PCVUSBDESCDEVICE pDevDesc, uint8_t *pbBuf, uint
 #undef COPY_DATA
 
 /**
+ * Checks whether a descriptor read can be satisfied by reading from the
+ * descriptor cache or has to be passed to the device.
+ * If we have descriptors cached, it is generally safe to satisfy descriptor reads
+ * from the cache. As usual, there is broken USB software and hardware out there
+ * and guests might try to read a nonexistent desciptor (out of range index for
+ * string or configuration descriptor) and rely on it not failing.
+ * Since we cannot very well guess if such invalid requests should really succeed,
+ * and what exactly should happen if they do, we pass such requests to the device.
+ * If the descriptor was cached because it was edited, and the guest bypasses the
+ * edited cache by reading a descriptor with an invalid index, it is probably
+ * best to smash the USB device with a large hammer.
+ *
+ * See @bugref{10016}.
+ *
+ * @returns false if request must be passed to device.
+ */
+bool vusbDevIsDescriptorInCache(PVUSBDEV pDev, PCVUSBSETUP pSetup)
+{
+    unsigned int iIndex = (pSetup->wValue & 0xff);
+    Assert(pSetup->bRequest == VUSB_REQ_GET_DESCRIPTOR);
+
+    if ((pSetup->bmRequestType & VUSB_RECIP_MASK) == VUSB_TO_DEVICE)
+    {
+        if (pDev->pDescCache->fUseCachedDescriptors)
+        {
+            switch (pSetup->wValue >> 8)
+            {
+            case VUSB_DT_DEVICE:
+                if (iIndex == 0)
+                    return true;
+
+                LogRelMax(10, ("VUSB: %s: Warning: Reading device descriptor with non-zero index %u (wLength=%u), passing request to device\n",
+                               pDev->pUsbIns->pszName, iIndex, pSetup->wLength));
+                break;
+
+            case VUSB_DT_CONFIG:
+                if (iIndex < pDev->pDescCache->pDevice->bNumConfigurations)
+                    return true;
+
+                LogRelMax(10, ("VUSB: %s: Warning: Reading configuration descriptor invalid index %u (bNumConfigurations=%u, wLength=%u), passing request to device\n",
+                               pDev->pUsbIns->pszName, iIndex, pDev->pDescCache->pDevice->bNumConfigurations, pSetup->wLength));
+                break;
+
+            case VUSB_DT_STRING:
+                if (pDev->pDescCache->fUseCachedStringsDescriptors)
+                {
+                    if (pSetup->wIndex == 0)    /* Language IDs. */
+                        return true;
+
+                    if (FindCachedString(pDev->pDescCache->paLanguages, pDev->pDescCache->cLanguages,
+                                         pSetup->wIndex, iIndex))
+                        return true;
+                }
+                break;
+
+            default:
+                break;
+            }
+            Log(("VUSB: %s: Descriptor not cached: type=%u descidx=%u lang=%u len=%u, passing request to device\n",
+                 pDev->pUsbIns->pszName, pSetup->wValue >> 8, iIndex, pSetup->wIndex, pSetup->wLength));
+        }
+    }
+    return false;
+}
+
+
+/**
  * Standard device request: GET_DESCRIPTOR
  * @returns success indicator.
- * @remark not really used yet as we consider GET_DESCRIPTOR 'safe'.
  */
 static bool vusbDevStdReqGetDescriptor(PVUSBDEV pDev, int EndPt, PVUSBSETUP pSetup, uint8_t *pbBuf, uint32_t *pcbBuf)
 {
@@ -830,7 +906,7 @@ static bool vusbDevStdReqGetDescriptor(PVUSBDEV pDev, int EndPt, PVUSBSETUP pSet
                 unsigned int iIndex = (pSetup->wValue & 0xff);
                 if (iIndex >= pDev->pDescCache->pDevice->bNumConfigurations)
                 {
-                    LogFlow(("vusbDevStdReqGetDescriptor: %s: iIndex=%p >= bNumConfigurations=%d !!!\n",
+                    LogFlow(("vusbDevStdReqGetDescriptor: %s: iIndex=%u >= bNumConfigurations=%d !!!\n",
                              pDev->pUsbIns->pszName, iIndex, pDev->pDescCache->pDevice->bNumConfigurations));
                     return false;
                 }
@@ -1246,8 +1322,10 @@ void vusbDevDestroy(PVUSBDEV pDev)
     LogFlow(("vusbDevDestroy: pDev=%p[%s] enmState=%d\n", pDev, pDev->pUsbIns->pszName, pDev->enmState));
 
     RTMemFree(pDev->paIfStates);
-    TMR3TimerDestroy(pDev->pResetTimer);
-    pDev->pResetTimer = NULL;
+
+    PDMUsbHlpTimerDestroy(pDev->pUsbIns, pDev->hResetTimer);
+    pDev->hResetTimer = NIL_TMTIMERHANDLE;
+
     for (unsigned i = 0; i < RT_ELEMENTS(pDev->aPipes); i++)
     {
         Assert(pDev->aPipes[i].pCtrl == NULL);
@@ -1315,19 +1393,15 @@ static void vusbDevResetDone(PVUSBDEV pDev, int rc, PFNVUSBRESETDONE pfnDone, vo
 
 
 /**
- * Timer callback for doing reset completion.
- *
- * @param   pUsbIns     The USB device instance.
- * @param   pTimer      The timer instance.
- * @param   pvUser      The VUSB device data.
- * @thread EMT
+ * @callback_method_impl{FNTMTIMERUSB,
+ *          Timer callback for doing reset completion.}
  */
-static DECLCALLBACK(void) vusbDevResetDoneTimer(PPDMUSBINS pUsbIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) vusbDevResetDoneTimer(PPDMUSBINS pUsbIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
-    RT_NOREF(pUsbIns, pTimer);
     PVUSBDEV        pDev  = (PVUSBDEV)pvUser;
     PVUSBRESETARGS  pArgs = (PVUSBRESETARGS)pDev->pvArgs;
     Assert(pDev->pUsbIns == pUsbIns);
+    RT_NOREF(pUsbIns, hTimer);
 
     AssertPtr(pArgs);
 
@@ -1345,11 +1419,13 @@ static DECLCALLBACK(void) vusbDevResetDoneTimer(PPDMUSBINS pUsbIns, PTMTIMER pTi
  *
  * @thread EMT or a VUSB reset thread.
  */
-static int vusbDevResetWorker(PVUSBDEV pDev, bool fResetOnLinux, bool fUseTimer, PVUSBRESETARGS pArgs)
+static DECLCALLBACK(int) vusbDevResetWorker(PVUSBDEV pDev, bool fResetOnLinux, bool fUseTimer, PVUSBRESETARGS pArgs)
 {
-    int rc = VINF_SUCCESS;
-    uint64_t u64EndTS = TMTimerGet(pDev->pResetTimer) + TMTimerFromMilli(pDev->pResetTimer, 10);
+    uint64_t const uTimerDeadline = !fUseTimer ? 0
+                                  :   PDMUsbHlpTimerGet(pDev->pUsbIns, pDev->hResetTimer)
+                                    + PDMUsbHlpTimerFromMilli(pDev->pUsbIns, pDev->hResetTimer, 10);
 
+    int rc = VINF_SUCCESS;
     if (pDev->pUsbIns->pReg->pfnUsbReset)
         rc = pDev->pUsbIns->pReg->pfnUsbReset(pDev->pUsbIns, fResetOnLinux);
 
@@ -1366,7 +1442,7 @@ static int vusbDevResetWorker(PVUSBDEV pDev, bool fResetOnLinux, bool fUseTimer,
          * This avoids suspend + poweroff issues, and it should give
          * us more accurate scheduling than making this thread sleep.
          */
-        int rc2 = TMTimerSet(pDev->pResetTimer, u64EndTS);
+        int rc2 = PDMUsbHlpTimerSet(pDev->pUsbIns, pDev->hResetTimer, uTimerDeadline);
         AssertReleaseRC(rc2);
     }
 
@@ -1728,7 +1804,7 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
         int rc = RTCritSectInit(&pDev->aPipes[i].CritSectCtrl);
         AssertRCReturn(rc, rc);
     }
-    pDev->pResetTimer = NULL;
+    pDev->hResetTimer = NIL_TMTIMERHANDLE;
     pDev->hSniffer = VUSBSNIFFER_NIL;
 
     int rc = RTCritSectInit(&pDev->CritSectAsyncUrbs);
@@ -1743,18 +1819,13 @@ int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilenam
     AssertRCReturn(rc, rc);
 
     /*
-     * Create the reset timer.
+     * Create the reset timer.  Make sure the name is unique as we're generic code.
      */
-    static const char * const s_apszNamesHack[] =
-    {
-        "USB Device Reset Timer  0", "USB Device Reset Timer  1", "USB Device Reset Timer  2", "USB Device Reset Timer  3",
-        "USB Device Reset Timer  4", "USB Device Reset Timer  5", "USB Device Reset Timer  6", "USB Device Reset Timer  7",
-        "USB Device Reset Timer  8", "USB Device Reset Timer  9", "USB Device Reset Timer 10", "USB Device Reset Timer 11",
-        "USB Device Reset Timer 12", "USB Device Reset Timer 13", "USB Device Reset Timer 14", "USB Device Reset Timer 15",
-    };
-    static uint32_t volatile s_idxName = 0;
-    rc = PDMUsbHlpTMTimerCreate(pDev->pUsbIns, TMCLOCK_VIRTUAL, vusbDevResetDoneTimer, pDev, 0 /*fFlags*/,
-                                s_apszNamesHack[s_idxName++ % RT_ELEMENTS(s_apszNamesHack)],  &pDev->pResetTimer);
+    static uint32_t volatile s_iSeq;
+    char                     szDesc[32];
+    RTStrPrintf(szDesc, sizeof(szDesc), "VUSB Reset #%u", ASMAtomicIncU32(&s_iSeq));
+    rc = PDMUsbHlpTimerCreate(pDev->pUsbIns, TMCLOCK_VIRTUAL, vusbDevResetDoneTimer, pDev, 0 /*fFlags*/,
+                              szDesc, &pDev->hResetTimer);
     AssertRCReturn(rc, rc);
 
     if (pszCaptureFilename)

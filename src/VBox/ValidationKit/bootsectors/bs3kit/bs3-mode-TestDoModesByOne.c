@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -101,7 +111,10 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
     {
         const char *pszFmtStr   = "Error #%u (%#x) in %s!\n";
         bool        fSkipped    = true;
-        bool const  fOnlyPaging = RT_BOOL(paEntries[i].fFlags & BS3TESTMODEBYONEENTRY_F_ONLY_PAGING);
+        bool const  fOnlyPaging = RT_BOOL((paEntries[i].fFlags | fFlags) & BS3TESTMODEBYONEENTRY_F_ONLY_PAGING);
+        bool const  fMinimal    = RT_BOOL((paEntries[i].fFlags | fFlags) & BS3TESTMODEBYONEENTRY_F_MINIMAL);
+        bool const  fCurDoV86Modes      = fDoV86Modes && !fMinimal;
+        bool const  fCurDoWeirdV86Modes = fDoWeirdV86Modes && fCurDoV86Modes;
         uint8_t     bErrNo;
         Bs3TestSub(paEntries[i].pszSubTest);
 
@@ -128,6 +141,13 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             bErrNo = TMPL_NM(Bs3TestCallDoerInRM)(CONV_TO_RM_FAR16(paEntries[i].pfnWorker));
             CHECK_RESULT(g_szBs3ModeName_rm);
         }
+# else
+        if (!fOnlyPaging && (paEntries[i].fFlags | fFlags) & BS3TESTMODEBYONEENTRY_F_REAL_MODE_READY)
+        {
+            PRE_DO_CALL(g_szBs3ModeName_rm);
+            bErrNo = TMPL_NM(Bs3TestCallDoerInPE32)(CONV_TO_FLAT(paEntries[i].pfnWorker), BS3_MODE_RM);
+            CHECK_RESULT(g_szBs3ModeName_rm);
+        }
 # endif
 
         if (bCpuType < BS3CPU_80286)
@@ -140,7 +160,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
         /*
          * Unpaged prot mode.
          */
-        if (!fOnlyPaging)
+        if (!fOnlyPaging && (!fMinimal || bCpuType < BS3CPU_80386))
         {
             PRE_DO_CALL(g_szBs3ModeName_pe16);
 # if ARCH_BITS == 16
@@ -168,7 +188,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pe16_32);
         }
 
-        if (fDoWeirdV86Modes && !fOnlyPaging)
+        if (fCurDoWeirdV86Modes && !fOnlyPaging)
         {
             PRE_DO_CALL(g_szBs3ModeName_pe16_v86);
 # if ARCH_BITS == 16
@@ -190,7 +210,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pe32);
         }
 
-        if (!fOnlyPaging)
+        if (!fOnlyPaging && !fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_pe32_16);
 # if ARCH_BITS == 16
@@ -201,7 +221,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pe32_16);
         }
 
-        if (fDoV86Modes && !fOnlyPaging)
+        if (fCurDoV86Modes && !fOnlyPaging)
         {
             PRE_DO_CALL(g_szBs3ModeName_pev86);
 # if ARCH_BITS == 16
@@ -215,7 +235,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
         /*
          * Paged protected mode.
          */
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_pp16);
 # if ARCH_BITS == 16
@@ -226,7 +246,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pp16);
         }
 
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_pp16_32);
 # if ARCH_BITS == 32
@@ -237,7 +257,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pp16_32);
         }
 
-        if (fDoWeirdV86Modes)
+        if (fCurDoWeirdV86Modes)
         {
             PRE_DO_CALL(g_szBs3ModeName_pp16_v86);
 # if ARCH_BITS == 16
@@ -259,7 +279,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pp32);
         }
 
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_pp32_16);
 # if ARCH_BITS == 16
@@ -270,7 +290,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pp32_16);
         }
 
-        if (fDoV86Modes)
+        if (fCurDoV86Modes)
         {
             PRE_DO_CALL(g_szBs3ModeName_ppv86);
 # if ARCH_BITS == 16
@@ -285,7 +305,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
         /*
          * Protected mode with PAE paging.
          */
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_pae16);
 # if ARCH_BITS == 16
@@ -296,7 +316,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pae16);
         }
 
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_pae16_32);
 # if ARCH_BITS == 32
@@ -307,7 +327,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pae16_32);
         }
 
-        if (fDoWeirdV86Modes)
+        if (fCurDoWeirdV86Modes)
         {
             PRE_DO_CALL(g_szBs3ModeName_pae16_v86);
 # if ARCH_BITS == 16
@@ -329,7 +349,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pae32);
         }
 
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_pae32_16);
 # if ARCH_BITS == 16
@@ -340,7 +360,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_pae32_16);
         }
 
-        if (fDoV86Modes)
+        if (fCurDoV86Modes)
         {
             PRE_DO_CALL(g_szBs3ModeName_paev86);
 # if ARCH_BITS == 16
@@ -363,7 +383,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             continue;
         }
 
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_lm16);
 #if ARCH_BITS == 16
@@ -374,7 +394,7 @@ BS3_MODE_DEF(void, Bs3TestDoModesByOne,(PCBS3TESTMODEBYONEENTRY paEntries, size_
             CHECK_RESULT(g_szBs3ModeName_lm16);
         }
 
-        if (true)
+        if (!fMinimal)
         {
             PRE_DO_CALL(g_szBs3ModeName_lm32);
 #if ARCH_BITS == 32

@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdarg.h>
 #include <string.h>
@@ -142,10 +147,8 @@ int xfer_open_socket ( struct interface *intf, int semantics,
 	       socket_family_name ( peer->sa_family ) );
 
 	for_each_table_entry ( opener, SOCKET_OPENERS ) {
-		if ( ( opener->semantics == semantics ) &&
-		     ( opener->family == peer->sa_family ) ) {
+		if ( opener->semantics == semantics )
 			return opener->open ( intf, peer, local );
-		}
 	}
 
 	DBGC ( INTF_COL ( intf ), "INTF " INTF_FMT " attempted to open "

@@ -12,15 +12,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /*
@@ -116,7 +126,7 @@ int testErrorInfo(IVirtualBox *virtualBox)
         rc = GetErrorInfo(0, &errorInfo);
 
         if (FAILED(rc))
-            printf("Error getting error info! rc = 0x%x\n", rc);
+            printf("Error getting error info! rc=%#lx\n", rc);
         else
         {
             BSTR errorDescription = NULL;
@@ -124,7 +134,7 @@ int testErrorInfo(IVirtualBox *virtualBox)
             rc = errorInfo->GetDescription(&errorDescription);
 
             if (FAILED(rc) || !errorDescription)
-                printf("Error getting error description! rc = 0x%x\n", rc);
+                printf("Error getting error description! rc=%#lx\n", rc);
             else
             {
                 printf("Successfully retrieved error description: %S\n", errorDescription);
@@ -160,7 +170,7 @@ int testStartVM(IVirtualBox *virtualBox)
         rc = GetErrorInfo(0, &errorInfo);
 
         if (FAILED(rc))
-            printf("Error getting error info! rc = 0x%x\n", rc);
+            printf("Error getting error info! rc=%#lx\n", rc);
         else
         {
             BSTR errorDescription = NULL;
@@ -168,7 +178,7 @@ int testStartVM(IVirtualBox *virtualBox)
             rc = errorInfo->GetDescription(&errorDescription);
 
             if (FAILED(rc) || !errorDescription)
-                printf("Error getting error description! rc = 0x%x\n", rc);
+                printf("Error getting error description! rc=%#lx\n", rc);
             else
             {
                 printf("Successfully retrieved error description: %S\n", errorDescription);
@@ -192,7 +202,7 @@ int testStartVM(IVirtualBox *virtualBox)
             rc = machine->get_Id(&guid); /* Get the GUID of the machine. */
             if (!SUCCEEDED(rc))
             {
-                printf("Error retrieving machine ID! rc = 0x%x\n", rc);
+                printf("Error retrieving machine ID! rc=%#lx\n", rc);
                 break;
             }
 
@@ -204,7 +214,7 @@ int testStartVM(IVirtualBox *virtualBox)
                                   (void**)&session);
             if (!SUCCEEDED(rc))
             {
-                printf("Error creating Session instance! rc = 0x%x\n", rc);
+                printf("Error creating Session instance! rc=%#lx\n", rc);
                 break;
             }
 
@@ -213,7 +223,7 @@ int testStartVM(IVirtualBox *virtualBox)
                                           NULL, &progress);
             if (!SUCCEEDED(rc))
             {
-                printf("Could not open remote session! rc = 0x%x\n", rc);
+                printf("Could not open remote session! rc=%#lx\n", rc);
                 break;
             }
 
@@ -286,7 +296,7 @@ int main()
             virtualBoxClient->Release();
         }
         else
-            printf("Error creating VirtualBox instance! rc = 0x%x\n", rc);
+            printf("Error creating VirtualBox instance! rc=%#lx\n", rc);
     }
 
     CoUninitialize();

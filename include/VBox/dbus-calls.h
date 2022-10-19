@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 /** The file name of the DBus library */
@@ -44,6 +54,8 @@
                  (error)) \
  RT_PROXY_STUB(dbus_free_string_array, void, (char **str_array), \
                  (str_array)) \
+ RT_PROXY_STUB(dbus_connection_ref, DBusConnection *, (DBusConnection *connection), \
+                 (connection)) \
  RT_PROXY_STUB(dbus_connection_unref, void, (DBusConnection *connection), \
                  (connection)) \
  RT_PROXY_STUB(dbus_connection_close, void, (DBusConnection *connection), \
@@ -104,6 +116,10 @@
  RT_PROXY_STUB(dbus_message_iter_init, dbus_bool_t, \
                  (DBusMessage *message, DBusMessageIter *iter), \
                  (message, iter)) \
+ RT_PROXY_STUB(dbus_message_get_signature, char *, (DBusMessage *message), \
+                 (message)) \
+ RT_PROXY_STUB(dbus_message_iter_get_signature, char *, (DBusMessageIter *iter), \
+                 (iter)) \
  RT_PROXY_STUB(dbus_message_iter_get_arg_type, int, (DBusMessageIter *iter), \
                  (iter)) \
  RT_PROXY_STUB(dbus_message_iter_get_element_type, int, \
@@ -113,8 +129,12 @@
                  (iter1, iter2)) \
  RT_PROXY_STUB(dbus_message_iter_get_basic, void, \
                  (DBusMessageIter *iter, void *pvoid), (iter, pvoid)) \
+ RT_PROXY_STUB(dbus_message_iter_has_next, dbus_bool_t, \
+                 (DBusMessageIter *iter), (iter)) \
  RT_PROXY_STUB(dbus_message_iter_next, dbus_bool_t, (DBusMessageIter *iter), \
                  (iter)) \
+ RT_PROXY_STUB(dbus_message_iter_abandon_container_if_open, void, \
+                 (DBusMessageIter *iter, DBusMessageIter *sub), (iter, sub)) \
  RT_PROXY_STUB(dbus_connection_add_filter, dbus_bool_t, \
                  (DBusConnection *connection, \
                   DBusHandleMessageFunction function1, void *pvoid, \
@@ -135,7 +155,9 @@
  RT_PROXY_STUB(dbus_connection_pop_message, DBusMessage *, \
                  (DBusConnection *connection), (connection)) \
  RT_PROXY_STUB(dbus_set_error_from_message, dbus_bool_t, \
-                 (DBusError *error, DBusMessage *message), (error, message))
+                 (DBusError *error, DBusMessage *message), (error, message)) \
+ RT_PROXY_STUB(dbus_free, void, \
+                 (void *memory), (memory))
 
 #ifdef VBOX_DBUS_GENERATE_HEADER
 # define RT_RUNTIME_LOADER_GENERATE_HEADER

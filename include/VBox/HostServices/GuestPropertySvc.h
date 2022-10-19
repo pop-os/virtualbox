@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_HostServices_GuestPropertySvc_h
@@ -37,13 +47,13 @@
 #include <iprt/string.h>
 
 
-/** Maximum length for property names. */
+/** Maximum size for property names (including the terminator). */
 #define GUEST_PROP_MAX_NAME_LEN             64
-/** Maximum length for property values. */
-#define GUEST_PROP_MAX_VALUE_LEN            128
+/** Maximum size for property values (including the terminator). */
+#define GUEST_PROP_MAX_VALUE_LEN            1024
 /** Maximum number of properties per guest. */
 #define GUEST_PROP_MAX_PROPS                256
-/** Maximum size for enumeration patterns. */
+/** Maximum size for enumeration patterns (including the terminators). */
 #define GUEST_PROP_MAX_PATTERN_LEN          1024
 /** Maximum number of changes we remember for guest notifications. */
 #define GUEST_PROP_MAX_GUEST_NOTIFICATIONS  256
@@ -65,6 +75,52 @@
 #define GUEST_PROP_F_READONLY         (GUEST_PROP_F_RDONLYGUEST | GUEST_PROP_F_RDONLYHOST)
 #define GUEST_PROP_F_ALLFLAGS         (GUEST_PROP_F_TRANSIENT | GUEST_PROP_F_READONLY | GUEST_PROP_F_TRANSRESET)
 /** @} */
+
+/**
+ * Check that a string fits our criteria for a property name.
+ *
+ * @returns IPRT status code
+ * @param   pszName   The string to check, must be valid Utf8
+ * @param   cbName    The number of bytes @a pszName points to, including the
+ *                    terminating character.
+ */
+DECLINLINE(int) GuestPropValidateName(const char *pszName, size_t cbName)
+{
+    /* Property name is expected to be at least 1 charecter long plus terminating character. */
+    AssertReturn(cbName >= 2, VERR_INVALID_PARAMETER);
+    AssertReturn(cbName <= GUEST_PROP_MAX_NAME_LEN, VERR_INVALID_PARAMETER);
+
+    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
+
+    AssertReturn(memchr(pszName, '*', cbName) == NULL, VERR_INVALID_PARAMETER);
+    AssertReturn(memchr(pszName, '?', cbName) == NULL, VERR_INVALID_PARAMETER);
+    AssertReturn(memchr(pszName, '|', cbName) == NULL, VERR_INVALID_PARAMETER);
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Check a string fits our criteria for the value of a guest property.
+ *
+ * @returns IPRT status code
+ * @retval  VINF_SUCCESS if guest property value corresponds to all criteria.
+ * @retval  VERR_TOO_MUCH_DATA if guest property value size exceeds limits.
+ * @retval  VERR_INVALID_PARAMETER if guest property does not correspond to all other criteria.
+ * @param   pszValue  The string to check, must be valid utf-8.
+ * @param   cbValue   The size of of @a pszValue in bytes, including the
+ *                    terminator.
+ * @thread  HGCM
+ */
+DECLINLINE(int) GuestPropValidateValue(const char *pszValue, size_t cbValue)
+{
+    AssertPtrReturn(pszValue, VERR_INVALID_POINTER);
+
+    /* Zero-length values are possible, however buffer should contain terminating character at least. */
+    AssertReturn(cbValue > 0, VERR_INVALID_PARAMETER);
+    AssertReturn(cbValue <= GUEST_PROP_MAX_VALUE_LEN, VERR_TOO_MUCH_DATA);
+
+    return VINF_SUCCESS;
+}
 
 /**
  * Get the name of a flag as a string.
@@ -124,7 +180,7 @@ DECLINLINE(int) GuestPropValidateFlags(const char *pcszFlags, uint32_t *pfFlags)
     const char *pcszNext = pcszFlags;
     int rc = VINF_SUCCESS;
     uint32_t fFlags = 0;
-    AssertLogRelReturn(VALID_PTR(pfFlags), VERR_INVALID_POINTER);
+    AssertLogRelReturn(RT_VALID_PTR(pfFlags), VERR_INVALID_POINTER);
 
     if (pcszFlags)
     {
@@ -181,7 +237,7 @@ DECLINLINE(int) GuestPropWriteFlags(uint32_t fFlags, char *pszFlags)
     };
     int rc = VINF_SUCCESS;
 
-    AssertLogRelReturn(VALID_PTR(pszFlags), VERR_INVALID_POINTER);
+    AssertLogRelReturn(RT_VALID_PTR(pszFlags), VERR_INVALID_POINTER);
     if ((fFlags & ~GUEST_PROP_F_ALLFLAGS) == GUEST_PROP_F_NILFLAG)
     {
         char *pszNext;

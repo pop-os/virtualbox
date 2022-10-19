@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -373,9 +383,11 @@ static DECLCALLBACK(void) drvNetSnifferDestruct(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvNetSnifferConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVNETSNIFFER pThis = PDMINS_2_DATA(pDrvIns, PDRVNETSNIFFER);
-    LogFlow(("drvNetSnifferConstruct:\n"));
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVNETSNIFFER  pThis = PDMINS_2_DATA(pDrvIns, PDRVNETSNIFFER);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
+
+    LogFlow(("drvNetSnifferConstruct:\n"));
 
     /*
      * Init the static parts.
@@ -414,16 +426,15 @@ static DECLCALLBACK(int) drvNetSnifferConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "File\0"))
-        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "File", "");
 
-    if (CFGMR3GetFirstChild(pCfg))
+    if (pHlp->pfnCFGMGetFirstChild(pCfg))
         LogRel(("NetSniffer: Found child config entries -- are you trying to redirect ports?\n"));
 
     /*
      * Get the filename.
      */
-    rc = CFGMR3QueryString(pCfg, "File", pThis->szFilename, sizeof(pThis->szFilename));
+    rc = pHlp->pfnCFGMQueryString(pCfg, "File", pThis->szFilename, sizeof(pThis->szFilename));
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
         if (pDrvIns->iInstance > 0)

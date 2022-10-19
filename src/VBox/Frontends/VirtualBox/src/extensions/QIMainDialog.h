@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QIMainDialog_h
@@ -41,10 +51,10 @@ class SHARED_LIBRARY_STUFF QIMainDialog : public QMainWindow
 
 public:
 
-    /** Constructs main-dialog passing @a pParent and @a fFlags to the base-class.
+    /** Constructs main-dialog passing @a pParent and @a enmFlags to the base-class.
       * @param  fIsAutoCentering  Brigs whether this dialog should be centered according it's parent. */
     QIMainDialog(QWidget *pParent = 0,
-                 Qt::WindowFlags fFlags = Qt::Dialog,
+                 Qt::WindowFlags enmFlags = Qt::Dialog,
                  bool fIsAutoCentering = true);
 
     /** Returns the dialog's result code. */
@@ -72,23 +82,26 @@ public slots:
 protected:
 
     /** Preprocesses any Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
     /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    virtual bool event(QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
+    virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
     /** Handles first show @a pEvent. */
     virtual void polishEvent(QShowEvent *pEvent);
 
     /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+    virtual void resizeEvent(QResizeEvent *pEvent) RT_OVERRIDE;
 
     /** Handles key-press @a pEvent. */
-    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
+    virtual void keyPressEvent(QKeyEvent *pEvent) RT_OVERRIDE;
 
     /** Searches for dialog's default button. */
     QPushButton *searchDefaultButton() const;
+
+    /** Sets reject-by-escape-key flag. */
+    void setRejectByEscape(bool fRejectByEscape);
 
 protected slots:
 
@@ -120,6 +133,8 @@ private:
     QPointer<QPushButton>  m_pDefaultButton;
     /** Holds dialog's size-grip. */
     QPointer<QSizeGrip>    m_pSizeGrip;
+    /** Holds reject by escape flag. When true pressing escape rejects the dialog. Default is true.*/
+    bool m_fRejectByEscape;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_extensions_QIMainDialog_h */

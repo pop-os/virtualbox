@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -64,7 +74,7 @@
 
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+DECLHIDDEN(int) suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, uint32_t fFlags, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
 {
     /*
      * Nothing to do if pre-inited.
@@ -100,11 +110,12 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
 
     pThis->hDevice = hDevice;
     pThis->fUnrestricted = true;
+    RT_NOREF(fFlags);
     return VINF_SUCCESS;
 }
 
 
-int suplibOsTerm(PSUPLIBDATA pThis)
+DECLHIDDEN(int) suplibOsTerm(PSUPLIBDATA pThis)
 {
     /*
      * Check if we're inited at all.
@@ -122,21 +133,21 @@ int suplibOsTerm(PSUPLIBDATA pThis)
 
 #ifndef IN_SUP_HARDENED_R3
 
-int suplibOsInstall(void)
+DECLHIDDEN(int) suplibOsInstall(void)
 {
     /** @remark OS/2: Not supported */
     return VERR_NOT_SUPPORTED;
 }
 
 
-int suplibOsUninstall(void)
+DECLHIDDEN(int) suplibOsUninstall(void)
 {
     /** @remark OS/2: Not supported */
     return VERR_NOT_SUPPORTED;
 }
 
 
-int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
+DECLHIDDEN(int) suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {
     ULONG cbReturned = sizeof(SUPREQHDR);
     int rc = DosDevIOCtl((HFILE)pThis->hDevice, SUP_CTL_CATEGORY, uFunction,
@@ -148,7 +159,7 @@ int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cb
 }
 
 
-int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
+DECLHIDDEN(int) suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 {
     NOREF(idCpu);
     int32_t rcRet = VERR_INTERNAL_ERROR;
@@ -163,9 +174,9 @@ int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
 }
 
 
-int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
+DECLHIDDEN(int) suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, uint32_t fFlags, void **ppvPages)
 {
-    NOREF(pThis);
+    RT_NOREF(pThis, fFlags);
     *ppvPages = NULL;
     int rc = DosAllocMem(ppvPages, cPages << PAGE_SHIFT, PAG_READ | PAG_WRITE | PAG_EXECUTE | PAG_COMMIT | OBJ_ANY);
     if (rc == ERROR_INVALID_PARAMETER)
@@ -178,7 +189,7 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 }
 
 
-int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
+DECLHIDDEN(int) suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
 {
     NOREF(pThis);
     if (pvPages)

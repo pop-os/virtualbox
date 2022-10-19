@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -30,6 +40,7 @@
 
 #include <VBox/log.h>
 #include <VBox/err.h>
+#include <VBox/msi.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/thread.h>
@@ -139,6 +150,32 @@ static DECLCALLBACK(void) pdmR3IoApicHlp_Unlock(PPDMDEVINS pDevIns)
 }
 
 
+/** @interface_method_impl{PDMIOAPICHLP,pfnLockIsOwner} */
+static DECLCALLBACK(bool) pdmR3IoApicHlp_LockIsOwner(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR3IoApicHlp_LockIsOwner: caller='%s'/%d\n", pDevIns->pReg->szName, pDevIns->iInstance));
+    return pdmLockIsOwner(pDevIns->Internal.s.pVMR3);
+}
+
+
+/** @interface_method_impl{PDMIOAPICHLP,pfnIommuMsiRemap} */
+static DECLCALLBACK(int) pdmR3IoApicHlp_IommuMsiRemap(PPDMDEVINS pDevIns, uint16_t idDevice, PCMSIMSG pMsiIn, PMSIMSG pMsiOut)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlow(("pdmR3IoApicHlp_IommuRemapMsi: caller='%s'/%d: pMsiIn=(%#RX64, %#RU32)\n", pDevIns->pReg->szName,
+             pDevIns->iInstance, pMsiIn->Addr.u64, pMsiIn->Data.u32));
+
+#if defined(VBOX_WITH_IOMMU_AMD) || defined(VBOX_WITH_IOMMU_INTEL)
+    if (pdmIommuIsPresent(pDevIns))
+        return pdmIommuMsiRemap(pDevIns, idDevice, pMsiIn, pMsiOut);
+#else
+    RT_NOREF(pDevIns, idDevice);
+#endif
+    return VERR_IOMMU_NOT_PRESENT;
+}
+
+
 /**
  * I/O APIC Device Helpers.
  */
@@ -148,6 +185,8 @@ const PDMIOAPICHLP g_pdmR3DevIoApicHlp =
     pdmR3IoApicHlp_ApicBusDeliver,
     pdmR3IoApicHlp_Lock,
     pdmR3IoApicHlp_Unlock,
+    pdmR3IoApicHlp_LockIsOwner,
+    pdmR3IoApicHlp_IommuMsiRemap,
     PDM_IOAPICHLP_VERSION /* the end */
 };
 
@@ -170,20 +209,22 @@ static DECLCALLBACK(void) pdmR3PciHlp_IsaSetIrq(PPDMDEVINS pDevIns, int iIrq, in
 
 
 /** @interface_method_impl{PDMPCIHLPR3,pfnIoApicSetIrq} */
-static DECLCALLBACK(void) pdmR3PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
+static DECLCALLBACK(void) pdmR3PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, PCIBDF uBusDevFn, int iIrq, int iLevel, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmR3PciHlp_IoApicSetIrq: iIrq=%d iLevel=%d uTagSrc=%#x\n", iIrq, iLevel, uTagSrc));
-    PDMIoApicSetIrq(pDevIns->Internal.s.pVMR3, iIrq, iLevel, uTagSrc);
+    Log4(("pdmR3PciHlp_IoApicSetIrq: uBusDevFn=%#x iIrq=%d iLevel=%d uTagSrc=%#x\n", uBusDevFn, iIrq, iLevel, uTagSrc));
+    PDMIoApicSetIrq(pDevIns->Internal.s.pVMR3, uBusDevFn, iIrq, iLevel, uTagSrc);
 }
 
 
 /** @interface_method_impl{PDMPCIHLPR3,pfnIoApicSendMsi} */
-static DECLCALLBACK(void) pdmR3PciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCPhys, uint32_t uValue, uint32_t uTagSrc)
+static DECLCALLBACK(void) pdmR3PciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, PCIBDF uBusDevFn, PCMSIMSG pMsi, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmR3PciHlp_IoApicSendMsi: address=%p value=%x uTagSrc=%#x\n", GCPhys, uValue, uTagSrc));
-    PDMIoApicSendMsi(pDevIns->Internal.s.pVMR3, GCPhys, uValue, uTagSrc);
+    Assert(PCIBDF_IS_VALID(uBusDevFn));
+    Log4(("pdmR3PciHlp_IoApicSendMsi: uBusDevFn=%#x Msi (Addr=%#RX64 Data=%#x) uTagSrc=%#x\n", uBusDevFn,
+          pMsi->Addr.u64, pMsi->Data.u32, uTagSrc));
+    PDMIoApicSendMsi(pDevIns->Internal.s.pVMR3, uBusDevFn, pMsi, uTagSrc);
 }
 
 
@@ -235,6 +276,60 @@ const PDMPCIHLPR3 g_pdmR3DevPciHlp =
 /** @} */
 
 
+/** @name Ring-3 IOMMU Helpers
+ * @{
+ */
+
+/** @interface_method_impl{PDMIOMMUHLPR3,pfnLock} */
+static DECLCALLBACK(int) pdmR3IommuHlp_Lock(PPDMDEVINS pDevIns, int rc)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlowFunc(("caller='%s'/%d: rc=%Rrc\n", pDevIns->pReg->szName, pDevIns->iInstance, rc));
+    return pdmLockEx(pDevIns->Internal.s.pVMR3, rc);
+}
+
+
+/** @interface_method_impl{PDMIOMMUHLPR3,pfnUnlock} */
+static DECLCALLBACK(void) pdmR3IommuHlp_Unlock(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlowFunc(("caller='%s'/%d:\n", pDevIns->pReg->szName, pDevIns->iInstance));
+    pdmUnlock(pDevIns->Internal.s.pVMR3);
+}
+
+
+/** @interface_method_impl{PDMIOMMUHLPR3,pfnLockIsOwner} */
+static DECLCALLBACK(bool) pdmR3IommuHlp_LockIsOwner(PPDMDEVINS pDevIns)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlowFunc(("caller='%s'/%d:\n", pDevIns->pReg->szName, pDevIns->iInstance));
+    return pdmLockIsOwner(pDevIns->Internal.s.pVMR3);
+}
+
+
+/** @interface_method_impl{PDMIOMMUHLPR3,pfnSendMsi} */
+static DECLCALLBACK(void) pdmR3IommuHlp_SendMsi(PPDMDEVINS pDevIns, PCMSIMSG pMsi, uint32_t uTagSrc)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    LogFlowFunc(("caller='%s'/%d:\n", pDevIns->pReg->szName, pDevIns->iInstance));
+    PDMIoApicSendMsi(pDevIns->Internal.s.pVMR3, NIL_PCIBDF, pMsi, uTagSrc);
+}
+
+
+/**
+ * IOMMU Device Helpers.
+ */
+const PDMIOMMUHLPR3 g_pdmR3DevIommuHlp =
+{
+    PDM_IOMMUHLPR3_VERSION,
+    pdmR3IommuHlp_Lock,
+    pdmR3IommuHlp_Unlock,
+    pdmR3IommuHlp_LockIsOwner,
+    pdmR3IommuHlp_SendMsi,
+    PDM_IOMMUHLPR3_VERSION /* the end */
+};
+
+/** @} */
 
 
 /** @name Ring-3 HPET Helpers
@@ -333,12 +428,16 @@ static DECLCALLBACK(PCPDMPCIRAWHLPRC) pdmR3PciRawHlp_GetRCHelpers(PPDMDEVINS pDe
     VM_ASSERT_EMT(pVM);
 
     RTRCPTR pRCHelpers = NIL_RTRCPTR;
+#if 0
     if (VM_IS_RAW_MODE_ENABLED(pVM))
     {
         int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCPciRawHlp", &pRCHelpers);
         AssertReleaseRC(rc);
         AssertRelease(pRCHelpers);
     }
+#else
+    RT_NOREF(pVM, pDevIns);
+#endif
 
     LogFlow(("pdmR3PciRawHlp_GetGCHelpers: caller='%s'/%d: returns %RRv\n",
              pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));

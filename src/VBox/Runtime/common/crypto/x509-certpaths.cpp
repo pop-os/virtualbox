@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -286,9 +296,13 @@ typedef RTCRX509CERTPATHSINT *PRTCRX509CERTPATHSINT;
 
 /** @name RTCRX509CERTPATHSINT_F_XXX - Certificate path build flags.
  * @{ */
-#define RTCRX509CERTPATHSINT_F_VALID_TIME                    RT_BIT_32(0)
-#define RTCRX509CERTPATHSINT_F_ELIMINATE_UNTRUSTED_PATHS     RT_BIT_32(1)
-#define RTCRX509CERTPATHSINT_F_VALID_MASK                    UINT32_C(0x00000003)
+#define RTCRX509CERTPATHSINT_F_VALID_TIME                   RT_BIT_32(0)
+#define RTCRX509CERTPATHSINT_F_ELIMINATE_UNTRUSTED_PATHS    RT_BIT_32(1)
+/** Whether checking the trust anchor signature (if self signed) and
+ * that it is valid at the verification time, also require it to be a CA if not
+ * leaf node. */
+#define RTCRX509CERTPATHSINT_F_CHECK_TRUST_ANCHOR           RT_BIT_32(2)
+#define RTCRX509CERTPATHSINT_F_VALID_MASK                   UINT32_C(0x00000007)
 /** @} */
 
 
@@ -498,6 +512,20 @@ RTDECL(int) RTCrX509CertPathsSetValidTimeSpec(RTCRX509CERTPATHS hCertPaths, PCRT
 }
 
 
+RTDECL(int) RTCrX509CertPathsSetTrustAnchorChecks(RTCRX509CERTPATHS hCertPaths, bool fEnable)
+{
+    PRTCRX509CERTPATHSINT pThis = hCertPaths;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->u32Magic == RTCRX509CERTPATHSINT_MAGIC, VERR_INVALID_HANDLE);
+
+    if (fEnable)
+        pThis->fFlags |= RTCRX509CERTPATHSINT_F_CHECK_TRUST_ANCHOR;
+    else
+        pThis->fFlags &= ~RTCRX509CERTPATHSINT_F_CHECK_TRUST_ANCHOR;
+    return VINF_SUCCESS;
+}
+
+
 RTDECL(int) RTCrX509CertPathsCreateEx(PRTCRX509CERTPATHS phCertPaths, PCRTCRX509CERTIFICATE pTarget, RTCRSTORE hTrustedStore,
                                       RTCRSTORE hUntrustedStore, PCRTCRX509CERTIFICATE paUntrustedCerts, uint32_t cUntrustedCerts,
                                       PCRTTIMESPEC pValidTime)
@@ -552,6 +580,23 @@ static bool rtCrX509CertPathsIsSelfIssued(PRTCRX509CERTPATHNODE pNode)
         && RTCrX509Name_MatchByRfc5280(&pNode->pCert->TbsCertificate.Subject, &pNode->pCert->TbsCertificate.Issuer);
 }
 
+/**
+ * Helper for checking whether a certificate is in the trusted store or not.
+ */
+static bool rtCrX509CertPathsIsCertInStore(PRTCRX509CERTPATHNODE pNode, RTCRSTORE hStore)
+{
+    bool fRc = false;
+    PCRTCRCERTCTX pCertCtx = RTCrStoreCertByIssuerAndSerialNo(hStore, &pNode->pCert->TbsCertificate.Issuer,
+                                                              &pNode->pCert->TbsCertificate.SerialNumber);
+    if (pCertCtx)
+    {
+        if (pCertCtx->pCert)
+            fRc = RTCrX509Certificate_Compare(pCertCtx->pCert, pNode->pCert) == 0;
+        RTCrCertCtxRelease(pCertCtx);
+    }
+    return fRc;
+}
+
 /** @}  */
 
 
@@ -560,11 +605,6 @@ static bool rtCrX509CertPathsIsSelfIssued(PRTCRX509CERTPATHNODE pNode)
  * @{
  */
 
-/**
- *
- * @returns
- * @param   pThis               .
- */
 static PRTCRX509CERTPATHNODE rtCrX509CertPathsNewNode(PRTCRX509CERTPATHSINT pThis)
 {
     PRTCRX509CERTPATHNODE pNode = (PRTCRX509CERTPATHNODE)RTMemAllocZ(sizeof(*pNode));
@@ -610,7 +650,17 @@ static void rtCrX509CertPathsAddIssuer(PRTCRX509CERTPATHSINT pThis, PRTCRX509CER
             Assert(pTmpNode->pCert);
             if (   pTmpNode->pCert == pCert
                 || RTCrX509Certificate_Compare(pTmpNode->pCert, pCert) == 0)
+            {
+                /* If target and the source it trusted, upgrade the source so we can successfully verify single node 'paths'. */
+                if (   RTCRX509CERTPATHNODE_SRC_IS_TRUSTED(uSrc)
+                    && pTmpNode == pParent
+                    && pTmpNode->uSrc == RTCRX509CERTPATHNODE_SRC_TARGET)
+                {
+                    AssertReturnVoid(!pTmpNode->pParent);
+                    pTmpNode->uSrc = uSrc;
+                }
                 return;
+            }
             pTmpNode = pTmpNode->pParent;
         }
 
@@ -902,6 +952,15 @@ RTDECL(int) RTCrX509CertPathsBuild(RTCRX509CERTPATHS hCertPaths, PRTERRINFO pErr
         pCur->uDepth = 0;
         pCur->uSrc   = RTCRX509CERTPATHNODE_SRC_TARGET;
 
+        /* Check if the target is trusted and do the upgrade (this is outside the RFC,
+           but this simplifies the path validator usage a lot (less work for the caller)). */
+        if (   pThis->pTrustedCert
+            && RTCrX509Certificate_Compare(pThis->pTrustedCert, pCur->pCert) == 0)
+            pCur->uSrc = RTCRX509CERTPATHNODE_SRC_TRUSTED_CERT;
+        else if (   pThis->hTrustedStore != NIL_RTCRSTORE
+                 && rtCrX509CertPathsIsCertInStore(pCur, pThis->hTrustedStore))
+            pCur->uSrc = RTCRX509CERTPATHNODE_SRC_TRUSTED_STORE;
+
         pThis->pErrInfo = pErrInfo;
 
         /*
@@ -1077,36 +1136,9 @@ static void rtCrX509NameDump(PCRTCRX509NAME pName, PFNRTDUMPPRINTFV pfnPrintfV, 
         {
             PRTCRX509ATTRIBUTETYPEANDVALUE pAttrib = pRdn->papItems[j];
 
-            const char *pszType = pAttrib->Type.szObjId;
-            if (   !strncmp(pAttrib->Type.szObjId, "2.5.4.", 6)
-                && (pAttrib->Type.szObjId[8] == '\0' || pAttrib->Type.szObjId[9] == '\0'))
-            {
-                switch (RTStrToUInt8(&pAttrib->Type.szObjId[6]))
-                {
-                    case  3: pszType = "cn"; break;
-                    case  4: pszType = "sn"; break;
-                    case  5: pszType = "serialNumber"; break;
-                    case  6: pszType = "c"; break;
-                    case  7: pszType = "l"; break;
-                    case  8: pszType = "st"; break;
-                    case  9: pszType = "street"; break;
-                    case 10: pszType = "o"; break;
-                    case 11: pszType = "ou"; break;
-                    case 13: pszType = "description"; break;
-                    case 15: pszType = "businessCategory"; break;
-                    case 16: pszType = "postalAddress"; break;
-                    case 17: pszType = "postalCode"; break;
-                    case 18: pszType = "postOfficeBox"; break;
-                    case 20: pszType = "telephoneNumber"; break;
-                    case 26: pszType = "registeredAddress"; break;
-                    case 31: pszType = "member"; break;
-                    case 41: pszType = "name"; break;
-                    case 42: pszType = "givenName"; break;
-                    case 43: pszType = "initials"; break;
-                    case 45: pszType = "x500UniqueIdentifier"; break;
-                    case 50: pszType = "uniqueMember"; break;
-                }
-            }
+            const char *pszType = RTCrX509Name_GetShortRdn(&pAttrib->Type);
+            if (!pszType)
+                pszType = pAttrib->Type.szObjId;
             rtDumpPrintf(pfnPrintfV, pvUser, "/%s=", pszType);
             if (pAttrib->Value.enmType == RTASN1TYPE_STRING)
             {
@@ -1177,6 +1209,12 @@ static void rtCrX509CertPathsDumpOneWorker(PRTCRX509CERTPATHSINT pThis, uint32_t
                 RTAsn1Dump(&pCurLeaf->pCert->SeqCore.Asn1Core, 0, iIndent, pfnPrintfV, pvUser);
             else if (uVerbosity >= 3)
                 RTAsn1Dump(&pCurLeaf->pCert->TbsCertificate.T3.Extensions.SeqCore.Asn1Core, 0, iIndent, pfnPrintfV, pvUser);
+
+            rtDumpIndent(pfnPrintfV, pvUser, iIndent, "Valid  : %s thru %s\n",
+                         RTTimeToString(&pCurLeaf->pCert->TbsCertificate.Validity.NotBefore.Time,
+                                        pThis->szTmp, sizeof(pThis->szTmp) / 2),
+                         RTTimeToString(&pCurLeaf->pCert->TbsCertificate.Validity.NotAfter.Time,
+                                        &pThis->szTmp[sizeof(pThis->szTmp) / 2], sizeof(pThis->szTmp) / 2) );
         }
         else
         {
@@ -1949,7 +1987,6 @@ static void rtCrX509CpvCleanup(PRTCRX509CERTPATHSINT pThis)
 }
 
 
-
 /**
  * Initializes the state.
  *
@@ -2024,6 +2061,74 @@ static void rtCrX509CpvInit(PRTCRX509CERTPATHSINT pThis, PRTCRX509CERTPATHNODE p
     if (   !RTASN1CORE_IS_PRESENT(&pThis->v.pWorkingPublicKeyParameters->u.Core)
         || pThis->v.pWorkingPublicKeyParameters->enmType == RTASN1TYPE_NULL)
         pThis->v.pWorkingPublicKeyParameters = NULL;
+}
+
+
+/**
+ * This does basic trust anchor checks (similar to 6.1.3.a) before starting on
+ * the RFC-5280 algorithm.
+ */
+static bool rtCrX509CpvMaybeCheckTrustAnchor(PRTCRX509CERTPATHSINT pThis, PRTCRX509CERTPATHNODE pTrustAnchor)
+{
+    /*
+     * This is optional (not part of RFC-5280) and we need a full certificate
+     * structure to do it.
+     */
+    if (!(pThis->fFlags & RTCRX509CERTPATHSINT_F_CHECK_TRUST_ANCHOR))
+        return true;
+
+    PCRTCRX509CERTIFICATE const pCert = pTrustAnchor->pCert;
+    if (!pCert)
+        return true;
+
+    /*
+     * Verify the certificate signature if self-signed.
+     */
+    if (RTCrX509Certificate_IsSelfSigned(pCert))
+    {
+        int rc = RTCrX509Certificate_VerifySignature(pCert, pThis->v.pWorkingPublicKeyAlgorithm,
+                                                     pThis->v.pWorkingPublicKeyParameters, pThis->v.pWorkingPublicKey,
+                                                     pThis->pErrInfo);
+        if (RT_FAILURE(rc))
+        {
+            pThis->rc = rc;
+            return false;
+        }
+    }
+
+    /*
+     * Verify that the certificate is valid at the specified time.
+     */
+    AssertCompile(sizeof(pThis->szTmp) >= 36 * 3);
+    if (   (pThis->fFlags & RTCRX509CERTPATHSINT_F_VALID_TIME)
+        && !RTCrX509Validity_IsValidAtTimeSpec(&pCert->TbsCertificate.Validity, &pThis->ValidTime))
+        return rtCrX509CpvFailed(pThis, VERR_CR_X509_CPV_NOT_VALID_AT_TIME,
+                                 "Certificate is not valid (ValidTime=%s Validity=[%s...%s])",
+                                 RTTimeSpecToString(&pThis->ValidTime, &pThis->szTmp[0], 36),
+                                 RTTimeToString(&pCert->TbsCertificate.Validity.NotBefore.Time, &pThis->szTmp[36], 36),
+                                 RTTimeToString(&pCert->TbsCertificate.Validity.NotAfter.Time,  &pThis->szTmp[2*36], 36) );
+
+    /*
+     * Verified that the certficiate is not revoked.
+     */
+    /** @todo rainy day. */
+
+    /*
+     * If non-leaf certificate CA must be set, if basic constraints are present.
+     */
+    if (pTrustAnchor->pParent)
+    {
+        if (RTAsn1Integer_UnsignedCompareWithU32(&pTrustAnchor->pCert->TbsCertificate.T0.Version, RTCRX509TBSCERTIFICATE_V3) != 0)
+            return rtCrX509CpvFailed(pThis, VERR_CR_X509_CPV_NOT_V3_CERT,
+                                     "Only version 3 TA certificates are supported (Version=%llu)",
+                                     pTrustAnchor->pCert->TbsCertificate.T0.Version.uValue);
+        PCRTCRX509BASICCONSTRAINTS pBasicConstraints = pTrustAnchor->pCert->TbsCertificate.T3.pBasicConstraints;
+        if (pBasicConstraints && !pBasicConstraints->CA.fValue)
+            return rtCrX509CpvFailed(pThis, VERR_CR_X509_CPV_NOT_CA_CERT,
+                                     "Trust anchor certificate is not marked as a CA");
+    }
+
+    return true;
 }
 
 
@@ -2471,6 +2576,8 @@ static bool rtCrX509CpvCheckCriticalExtensions(PRTCRX509CERTPATHSINT pThis, PRTC
                 && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCR_APPLE_CS_DEVID_APPLICATION_OID) != 0
                 && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCR_APPLE_CS_DEVID_INSTALLER_OID) != 0
                 && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCR_APPLE_CS_DEVID_KEXT_OID) != 0
+                && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCR_APPLE_CS_DEVID_IPHONE_SW_DEV_OID) != 0
+                && RTAsn1ObjId_CompareWithString(&pCur->ExtnId, RTCR_APPLE_CS_DEVID_MAC_SW_DEV_OID) != 0
                )
             {
                 /* @bugref{10130}: An IntelGraphicsPE2021 cert issued by iKG_AZSKGFDCS has a critical subjectKeyIdentifier
@@ -2553,17 +2660,29 @@ static bool rtCrX509CpvWrapUp(PRTCRX509CERTPATHSINT pThis, PRTCRX509CERTPATHNODE
 static bool rtCrX509CpvOneWorker(PRTCRX509CERTPATHSINT pThis, PRTCRX509CERTPATHNODE pTrustAnchor)
 {
     /*
-     * Special case, target certificate is trusted.
-     */
-    if (!pTrustAnchor->pParent)
-        return rtCrX509CpvFailed(pThis, VERR_CR_X509_CERTPATHS_INTERNAL_ERROR, "Target certificate is trusted.");
-
-    /*
-     * Normal processing.
+     * Init.
      */
     rtCrX509CpvInit(pThis, pTrustAnchor);
     if (RT_SUCCESS(pThis->rc))
     {
+        /*
+         * Maybe do some trust anchor checks.
+         */
+        if (!rtCrX509CpvMaybeCheckTrustAnchor(pThis, pTrustAnchor))
+        {
+            AssertStmt(RT_FAILURE_NP(pThis->rc), pThis->rc = VERR_CR_X509_CERTPATHS_INTERNAL_ERROR);
+            return false;
+        }
+
+        /*
+         * Special case, target certificate is trusted.
+         */
+        if (!pTrustAnchor->pParent)
+            return true; /* rtCrX509CpvWrapUp should not be needed here. */
+
+        /*
+         * Normal processing.
+         */
         PRTCRX509CERTPATHNODE   pNode = pTrustAnchor->pParent;
         uint32_t                iNode = pThis->v.iNode = 1; /* We count to cNode (inclusive).  Same a validation tree depth. */
         while (pNode && RT_SUCCESS(pThis->rc))

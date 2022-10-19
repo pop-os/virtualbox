@@ -7,24 +7,34 @@
 ;
 
 ;
-; Copyright (C) 2007-2020 Oracle Corporation
+; Copyright (C) 2007-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 
@@ -44,6 +54,9 @@
 %define BS3KIT_BOOTSECTOR_FASTER_LOAD
 ;; Enabled load progress dots.
 %define BS3KIT_BOOTSECTOR_LOAD_DOTS
+
+;; Halts on failure location. For debugging.
+;%define HLT_ON_FAILURE 1
 
 
 %ifdef __YASM__
@@ -251,7 +264,7 @@ CPU 386
         call    NAME(bs3InitLoadImage)
 %if 0
         mov     al, '='
-        call    NAME(bs3PrintChrInAl)
+        call    bs3PrintChrInAl
 %endif
 
         ;
@@ -318,7 +331,14 @@ BEGINPROC bs3InitLoadImage
         ;
         mov     ah, 08h
         int     13h
+%ifndef HLT_ON_FAILURE
         jc      .failure
+%else
+        jnc     .ok_geometry_call
+        cli
+        hlt
+.ok_geometry_call:
+%endif
         and     cl, 63                  ; only the sector count.
         mov     bMaxSector, cl
         mov     bMaxHead, dh
@@ -375,7 +395,14 @@ BEGINPROC bs3InitLoadImage
         mov     es, di                  ; es:bx -> buffer
         mov     ax, 0201h               ; al=1 sector; ah=read function
         int     13h
+%ifndef HLT_ON_FAILURE
         jc      .failure
+%else
+        jnc     .read_ok
+        cli
+        hlt
+.read_ok:
+%endif
 
         ; advance to the next sector/head/cylinder.
         inc     cl
@@ -441,9 +468,25 @@ BEGINPROC bs3InitLoadImage
         jnc     .advance_sector
 
         cmp     ah, 9                   ; DMA 64KB crossing error
+%if 0 ; This hack doesn't work. If the FDC is in single sided mode we end up with a garbled image. Probably "missing" sides.
+        je      .read_one
+
+        cmp     ah, 20h                 ; Controller error, probably because we're reading side 1 on a single sided floppy
         jne     .failure
+        cmp     bMaxHead, 0
+        je      .failure
+        cmp     dh, 1
+        jne     .failure
+        xor     dh, dh
+        mov     bMaxHead, dh
+        inc     ch
+        jmp     .the_load_loop
+.read_one
+%else
+        jne     .failure
+%endif
         mov     ax, 1                   ; Retry reading a single sector.
-        jmp .read_again
+        jmp     .read_again
 
         ; advance to the next sector/head/cylinder and address.
 .advance_sector:
@@ -485,12 +528,15 @@ BEGINPROC bs3InitLoadImage
         pop     bp
         ret
 
+%ifndef HLT_ON_FAILURE
         ;
         ; Something went wrong, display a message.
         ;
 .failure:
-%if 1 ; Disable to save space for debugging.
+ %if 1 ; Disable to save space for debugging.
+  %if 1
         push    ax
+  %endif
 
         ; print message
         mov     si, .s_szErrMsg
@@ -501,17 +547,18 @@ BEGINPROC bs3InitLoadImage
         jb      .failure_next_char
 
         ; panic
+  %if 1
         pop     ax
- %if 1
         mov     al, ah
         push    bs3PrintHexInAl
- %endif
+  %endif
         call    Bs3Panic
 .s_szErrMsg:
         db 13, 10, 'rd err! '
-%else
+ %else
         hlt
         jmp .failure
+ %endif
 %endif
 .s_szErrMsgEnd:
 ;ENDPROC bs3InitLoadImage - don't want the padding.

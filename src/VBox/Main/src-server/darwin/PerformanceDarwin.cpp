@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <mach/mach_error.h>
@@ -121,7 +131,8 @@ int CollectorDarwin::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *availa
     if (RT_SUCCESS(rc))
     {
         *total = totalRAM;
-        *available = cb / 1024;
+        cb /= 1024;
+        *available = cb < ~(ULONG)0 ? (ULONG)cb : ~(ULONG)0;
         *used = *total - *available;
     }
     return rc;
@@ -130,16 +141,16 @@ int CollectorDarwin::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *availa
 static int getProcessInfo(RTPROCESS process, struct proc_taskinfo *tinfo)
 {
     Log7(("getProcessInfo() getting info for %d", process));
-    int nb = proc_pidinfo(process, PROC_PIDTASKINFO, 0,  tinfo, sizeof(*tinfo));
-    if (nb <= 0)
+    int cbRet = proc_pidinfo((pid_t)process, PROC_PIDTASKINFO, 0, tinfo, sizeof(*tinfo));
+    if (cbRet <= 0)
     {
-        int rc = errno;
-        Log(("proc_pidinfo() -> %s", strerror(rc)));
-        return RTErrConvertFromDarwin(rc);
+        int iErrNo = errno;
+        Log(("proc_pidinfo() -> %s", strerror(iErrNo)));
+        return RTErrConvertFromDarwin(iErrNo);
     }
-    else if ((unsigned int)nb < sizeof(*tinfo))
+    if ((unsigned int)cbRet < sizeof(*tinfo))
     {
-        Log(("proc_pidinfo() -> too few bytes %d", nb));
+        Log(("proc_pidinfo() -> too few bytes %d", cbRet));
         return VERR_INTERNAL_ERROR;
     }
     return VINF_SUCCESS;
@@ -170,7 +181,8 @@ int CollectorDarwin::getProcessMemoryUsage(RTPROCESS process, ULONG *used)
     int rc = getProcessInfo(process, &tinfo);
     if (RT_SUCCESS(rc))
     {
-        *used = tinfo.pti_resident_size / 1024;
+        uint64_t cKbResident = tinfo.pti_resident_size / 1024;
+        *used = cKbResident < ~(ULONG)0 ? (ULONG)cKbResident : ~(ULONG)0;
     }
     return rc;
 }

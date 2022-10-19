@@ -17,7 +17,9 @@
 #include <Library/BaseMemoryLib.h>
 #include <Library/DebugLib.h>
 #include <Library/MemoryAllocationLib.h>
+#include <Library/PcdLib.h>
 #include <Library/PciHostBridgeLib.h>
+#include <Library/PciHostBridgeUtilityLib.h>
 #include <Library/PciLib.h>
 #include "PciHostBridge.h"
 
@@ -280,7 +282,7 @@ ScanForRootBridges (
           //
           if (Pci.Bridge.SubordinateBus > SubBus) {
             //
-            // If the suborinate bus number of the PCI-PCI bridge is greater
+            // If the subordinate bus number of the PCI-PCI bridge is greater
             // than the PCI root bridge's current subordinate bus number,
             // then update the PCI root bridge's subordinate bus number
             //
@@ -419,7 +421,7 @@ ScanForRootBridges (
 
         //
         // See if the PCI Device is a PCI - ISA or PCI - EISA
-        // or ISA_POSITIVIE_DECODE Bridge device
+        // or ISA_POSITIVE_DECODE Bridge device
         //
         if (Pci.Hdr.ClassCode[2] == PCI_CLASS_BRIDGE) {
           if (Pci.Hdr.ClassCode[1] == PCI_CLASS_BRIDGE_ISA ||
@@ -452,8 +454,9 @@ ScanForRootBridges (
         RootBridges
       );
       ASSERT (RootBridges != NULL);
-      InitRootBridge (
+      PciHostBridgeUtilityInitRootBridge (
         Attributes, Attributes, 0,
+        FALSE, PcdGet16 (PcdOvmfHostBridgePciDevId) != INTEL_Q35_MCH_DEVICE_ID,
         (UINT8) PrimaryBus, (UINT8) SubBus,
         &Io, &Mem, &MemAbove4G, &mNonExistAperture, &mNonExistAperture,
         &RootBridges[*NumberOfRootBridges]

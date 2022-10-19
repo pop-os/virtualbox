@@ -43,7 +43,7 @@
 #include <Library/FileHandleLib.h>
 
 extern CONST  CHAR16                            mFileName[];
-extern        EFI_HANDLE                        gShellLevel2HiiHandle;
+extern        EFI_HII_HANDLE                    gShellLevel2HiiHandle;
 
 /**
   Function for 'attrib' command.
@@ -351,7 +351,7 @@ CopySingleFile(
   @retval SHELL_SUCCESS       The operation was successful.
   @retval SHELL_ACCESS_DENIED A file was read only.
   @retval SHELL_ABORTED       The abort message was received.
-  @retval SHELL_DEVICE_ERROR  A device error occured reading this Node.
+  @retval SHELL_DEVICE_ERROR  A device error occurred reading this Node.
 **/
 SHELL_STATUS
 CascadeDelete(

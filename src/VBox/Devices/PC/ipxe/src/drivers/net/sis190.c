@@ -72,12 +72,6 @@ struct pci_driver sis190_isa_bridge_driver __pci_driver = {
 static const u32 sis190_intr_mask =
 	RxQEmpty | RxQInt | TxQ1Int | TxQ0Int | RxHalt | TxHalt | LinkChange;
 
-/*
- * Maximum number of multicast addresses to filter (vs. Rx-all-multicast).
- * The chips use a 64 element hash table based on the Ethernet CRC.
- */
-static const int multicast_filter_limit = 32;
-
 static void __mdio_cmd(void *ioaddr, u32 ctl)
 {
 	unsigned int i;
@@ -558,7 +552,7 @@ static int sis190_open(struct net_device *dev)
 	int rc;
 
 	/* Allocate TX ring */
-	tp->TxDescRing = malloc_dma(TX_RING_BYTES, RING_ALIGNMENT);
+	tp->TxDescRing = malloc_phys(TX_RING_BYTES, RING_ALIGNMENT);
 	if (!tp->TxDescRing) {
 		DBG("sis190: TX ring allocation failed\n");
 		rc = -ENOMEM;
@@ -567,7 +561,7 @@ static int sis190_open(struct net_device *dev)
 	tp->tx_dma = cpu_to_le32(virt_to_bus(tp->TxDescRing));
 
 	/* Allocate RX ring */
-	tp->RxDescRing = malloc_dma(RX_RING_BYTES, RING_ALIGNMENT);
+	tp->RxDescRing = malloc_phys(RX_RING_BYTES, RING_ALIGNMENT);
 	if (!tp->RxDescRing) {
 		DBG("sis190: RX ring allocation failed\n");
 		rc = -ENOMEM;
@@ -606,8 +600,8 @@ static void sis190_free(struct net_device *dev)
 	struct sis190_private *tp = netdev_priv(dev);
 	int i;
 
-	free_dma(tp->TxDescRing, TX_RING_BYTES);
-	free_dma(tp->RxDescRing, RX_RING_BYTES);
+	free_phys(tp->TxDescRing, TX_RING_BYTES);
+	free_phys(tp->RxDescRing, RX_RING_BYTES);
 
 	tp->TxDescRing = NULL;
 	tp->RxDescRing = NULL;
@@ -892,7 +886,7 @@ static int sis190_init_board(struct pci_device *pdev, struct net_device **netdev
 
 	adjust_pci_device(pdev);
 
-	ioaddr = ioremap(pdev->membase, SIS190_REGS_SIZE);
+	ioaddr = pci_ioremap(pdev, pdev->membase, SIS190_REGS_SIZE);
 	if (!ioaddr) {
 		DBG("sis190: cannot remap MMIO, aborting\n");
 		rc = -EIO;
@@ -971,8 +965,8 @@ static int sis190_get_mac_addr_from_apc(struct pci_device *pdev,
 
 	list_for_each_entry(d, &(pdev->dev.siblings), siblings) {
 		unsigned int i;
-		isa_bridge = container_of(d, struct pci_device, dev);
 		for(i = 0; i < sis190_isa_bridge_driver.id_count; i++) {
+			isa_bridge = container_of(d, struct pci_device, dev);
 			if(isa_bridge->vendor ==
 			     sis190_isa_bridge_driver.ids[i].vendor
 			     && isa_bridge->device ==

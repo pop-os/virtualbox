@@ -417,6 +417,8 @@ FileTimeToLocalTime (
   @param[in] Found          Set to TRUE, if anyone were found.
   @param[in] Count          The count of bits enabled in Attribs.
   @param[in] TimeZone       The current time zone offset.
+  @param[in] ListUnfiltered TRUE to request listing the directory contents
+                            unfiltered.
 
   @retval SHELL_SUCCESS     the printing was sucessful.
 **/
@@ -429,7 +431,8 @@ PrintLsOutput(
   IN CONST CHAR16  *SearchString,
   IN       BOOLEAN *Found,
   IN CONST UINTN   Count,
-  IN CONST INT16   TimeZone
+  IN CONST INT16   TimeZone,
+  IN CONST BOOLEAN ListUnfiltered
   )
 {
   EFI_STATUS            Status;
@@ -486,6 +489,20 @@ PrintLsOutput(
       PrintSfoVolumeInfoTableEntry(ListHead);
     }
 
+    if (!Sfo) {
+      //
+      // Sort the file list by FileName, stably.
+      //
+      // If the call below fails, then the EFI_SHELL_FILE_INFO list anchored to
+      // ListHead will not be changed in any way.
+      //
+      ShellSortFileList (
+        &ListHead,
+        NULL,                       // Duplicates
+        ShellSortFileListByFileName
+        );
+    }
+
     for ( Node = (EFI_SHELL_FILE_INFO *)GetFirstNode(&ListHead->Link), LongestPath = 0
         ; !IsNull(&ListHead->Link, &Node->Link)
         ; Node = (EFI_SHELL_FILE_INFO *)GetNextNode(&ListHead->Link, &Node->Link)
@@ -500,7 +517,7 @@ PrintLsOutput(
       // Change the file time to local time.
       //
       Status = gRT->GetTime(&LocalTime, NULL);
-      if (!EFI_ERROR (Status)) {
+      if (!EFI_ERROR (Status) && (LocalTime.TimeZone != EFI_UNSPECIFIED_TIMEZONE)) {
         if ((Node->Info->CreateTime.TimeZone != EFI_UNSPECIFIED_TIMEZONE) &&
             (Node->Info->CreateTime.Month >= 1 && Node->Info->CreateTime.Month <= 12)) {
           //
@@ -555,7 +572,7 @@ PrintLsOutput(
       HeaderPrinted = TRUE;
     }
 
-    if (!Sfo && ShellStatus != SHELL_ABORTED) {
+    if (!Sfo && ShellStatus != SHELL_ABORTED && HeaderPrinted) {
       PrintNonSfoFooter(FileCount, FileSize, DirCount);
     }
   }
@@ -602,7 +619,8 @@ PrintLsOutput(
             SearchString,
             &FoundOne,
             Count,
-            TimeZone);
+            TimeZone,
+            FALSE);
 
           //
           // Since it's running recursively, we have to break immediately when returned SHELL_ABORTED
@@ -619,7 +637,21 @@ PrintLsOutput(
   ShellCloseFileMetaArg(&ListHead);
 
   if (Found == NULL && !FoundOne) {
-    return (SHELL_NOT_FOUND);
+    if (ListUnfiltered) {
+      //
+      // When running "ls" without any filtering request, avoid outputing
+      // "File not found" when the directory is entirely empty, but print
+      // header and footer stating "0 File(s), 0 Dir(s)".
+      //
+      if (!Sfo) {
+        PrintNonSfoHeader (RootPath);
+        if (ShellStatus != SHELL_ABORTED) {
+          PrintNonSfoFooter (FileCount, FileSize, DirCount);
+        }
+      }
+    } else {
+      return (SHELL_NOT_FOUND);
+    }
   }
 
   if (Found != NULL) {
@@ -662,6 +694,7 @@ ShellCommandRunLs (
   UINTN         Size;
   EFI_TIME      TheTime;
   CHAR16        *SearchString;
+  BOOLEAN       ListUnfiltered;
 
   Size                = 0;
   FullPath            = NULL;
@@ -673,6 +706,7 @@ ShellCommandRunLs (
   SearchString        = NULL;
   CurDir              = NULL;
   Count               = 0;
+  ListUnfiltered      = FALSE;
 
   //
   // initialize the shell lib (we must be in non-auto-init...)
@@ -768,6 +802,7 @@ ShellCommandRunLs (
             ShellStatus = SHELL_NOT_FOUND;
             ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_GEN_NO_CWD), gShellLevel2HiiHandle, L"ls");
           }
+          ListUnfiltered = TRUE;
           //
           // Copy to the 2 strings for starting path and file search string
           //
@@ -808,6 +843,7 @@ ShellCommandRunLs (
               //
               // is listing ends with a directory, then we list all files in that directory
               //
+              ListUnfiltered = TRUE;
               StrnCatGrow(&SearchString, NULL, L"*", 0);
             } else {
               //
@@ -839,7 +875,8 @@ ShellCommandRunLs (
             SearchString,
             NULL,
             Count,
-            TheTime.TimeZone
+            TheTime.TimeZone,
+            ListUnfiltered
            );
           if (ShellStatus == SHELL_NOT_FOUND) {
             ShellPrintHiiEx(-1, -1, NULL, STRING_TOKEN (STR_LS_FILE_NOT_FOUND), gShellLevel2HiiHandle, L"ls", FullPath);

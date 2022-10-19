@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -23,6 +33,7 @@
 #include <QTimer>
 
 /* GUI includes: */
+#include "UIActionPoolRuntime.h"
 #include "UICommon.h"
 #include "UIConverter.h"
 #include "UIModalWindowManager.h"
@@ -39,7 +50,6 @@
 #include "UIKeyboardHandler.h"
 #include "UIMouseHandler.h"
 #include "UIVMCloseDialog.h"
-#include "VBox2DHelpers.h"
 
 /* COM includes: */
 #include "CConsole.h"
@@ -111,6 +121,9 @@ void UIMachineWindow::prepare()
     /* Prepare machine-view: */
     prepareMachineView();
 
+    /* Prepare notification-center: */
+    prepareNotificationCenter();
+
     /* Prepare handlers: */
     prepareHandlers();
 
@@ -134,9 +147,9 @@ void UIMachineWindow::prepare()
     if (gEDataManager->distinguishMachineWindowGroups(uiCommon().managedVMUuid()))
         strWindowName = QString("VirtualBox Machine UUID: %1").arg(uiCommon().managedVMUuid().toString());
     /* Assign WM_CLASS property: */
-    UICommon::setWMClass(this, strWindowName, strWindowClass);
+    NativeWindowSubsystem::X11SetWMClass(this, strWindowName, strWindowClass);
     /* Tell the WM we are well behaved wrt Xwayland keyboard-grabs: */
-    UICommon::setXwaylandMayGrabKeyboardFlag(this);
+    NativeWindowSubsystem::X11SetXwaylandMayGrabKeyboardFlag(this);
 #endif
 }
 
@@ -150,6 +163,9 @@ void UIMachineWindow::cleanup()
 
     /* Cleanup visual-state: */
     cleanupVisualState();
+
+    /* Cleanup notification-center: */
+    cleanupNotificationCenter();
 
     /* Cleanup machine-view: */
     cleanupMachineView();
@@ -222,6 +238,13 @@ const QString& UIMachineWindow::machineName() const
     return uisession()->machineName();
 }
 
+bool UIMachineWindow::shouldResizeToGuestDisplay() const
+{
+    return    actionPool()
+           && actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)
+           && actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)->isChecked();
+}
+
 void UIMachineWindow::adjustMachineViewSize()
 {
     /* We need to adjust guest-screen size if necessary: */
@@ -266,16 +289,8 @@ bool UIMachineWindow::event(QEvent *pEvent)
     {
         case QEvent::WindowActivate:
         {
-            LogRel(("GUI: Machine-window #%d activated\n", m_uScreenId));
-
             /* Initiate registration in the modal window manager: */
             windowManager().setMainWindowShown(this);
-            break;
-        }
-        case QEvent::WindowDeactivate:
-        {
-            LogRel(("GUI: Machine-window #%d deactivated\n", m_uScreenId));
-
             break;
         }
         default:
@@ -320,7 +335,19 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
 
     /* Make sure machine is in one of the allowed states: */
     if (!uisession()->isRunning() && !uisession()->isPaused() && !uisession()->isStuck())
+    {
+#if defined(VBOX_IS_QT6_OR_LATER) && defined(VBOX_WS_MAC)
+        /* If we want to close the application, we need to accept the close event.
+           If we don't the QEvent::Quit processing in QApplication::event fails and
+           [QCocoaApplicationDelegate applicationShouldTerminate] complains printing
+           "Qt DEBUG: Application termination canceled" in the debug log. */
+        /** @todo qt6: This could easily be caused by something else, but needs to be
+         * looked at by a proper GUI expert.  */
+        if (uisession()->isTurnedOff()) /** @todo qt6: Better state check here? */
+            pCloseEvent->accept();
+#endif
         return;
+    }
 
     /* If there is a close hook script defined: */
     const QString strScript = gEDataManager->machineCloseHookScript(uiCommon().managedVMUuid());
@@ -440,31 +467,31 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
     {
         case MachineCloseAction_Detach:
         {
-            /* Just close Runtime UI: */
+            /* Detach GUI: */
             LogRel(("GUI: Request for close-action to detach GUI.\n"));
-            machineLogic()->detach();
+            uisession()->detachUi();
             break;
         }
         case MachineCloseAction_SaveState:
         {
             /* Save VM state: */
             LogRel(("GUI: Request for close-action to save VM state.\n"));
-            machineLogic()->saveState();
+            uisession()->saveState();
             break;
         }
         case MachineCloseAction_Shutdown:
         {
             /* Shutdown VM: */
             LogRel(("GUI: Request for close-action to shutdown VM.\n"));
-            machineLogic()->shutdown();
+            uisession()->shutdown();
             break;
         }
         case MachineCloseAction_PowerOff:
-        case MachineCloseAction_PowerOff_RestoringSnapshot:
         {
             /* Power VM off: */
             LogRel(("GUI: Request for close-action to power VM off.\n"));
-            machineLogic()->powerOff(closeAction == MachineCloseAction_PowerOff_RestoringSnapshot);
+            const bool fDiscardStateOnPowerOff = gEDataManager->discardStateOnPowerOff(uiCommon().managedVMUuid());
+            uisession()->powerOff(machine().GetSnapshotCount() > 0 && fDiscardStateOnPowerOff);
             break;
         }
         default:
@@ -485,7 +512,7 @@ void UIMachineWindow::prepareMainLayout()
 
     /* Create main-layout: */
     m_pMainLayout = new QGridLayout(centralWidget());
-    m_pMainLayout->setMargin(0);
+    m_pMainLayout->setContentsMargins(0, 0, 0, 0);
     m_pMainLayout->setSpacing(0);
 
     /* Create shifting-spacers: */
@@ -503,22 +530,11 @@ void UIMachineWindow::prepareMainLayout()
 
 void UIMachineWindow::prepareMachineView()
 {
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /* Need to force the QGL framebuffer in case 2D Video Acceleration is supported & enabled: */
-    bool bAccelerate2DVideo = machine().GetGraphicsAdapter().GetAccelerate2DVideoEnabled() && VBox2DHelpers::isAcceleration2DVideoAvailable();
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-
     /* Get visual-state type: */
     UIVisualStateType visualStateType = machineLogic()->visualStateType();
 
     /* Create machine-view: */
-    m_pMachineView = UIMachineView::create(  this
-                                           , m_uScreenId
-                                           , visualStateType
-#ifdef VBOX_WITH_VIDEOHWACCEL
-                                           , bAccelerate2DVideo
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-                                           );
+    m_pMachineView = UIMachineView::create(this, m_uScreenId, visualStateType);
 
     /* Listen for frame-buffer resize: */
     connect(m_pMachineView, &UIMachineView::sigFrameBufferResize, this, &UIMachineWindow::sigFrameBufferResize);
@@ -528,6 +544,11 @@ void UIMachineWindow::prepareMachineView()
 
     /* Install focus-proxy: */
     setFocusProxy(m_pMachineView);
+}
+
+void UIMachineWindow::prepareNotificationCenter()
+{
+    // for now it will be added from within particular visual mode windows ..
 }
 
 void UIMachineWindow::prepareHandlers()
@@ -548,6 +569,11 @@ void UIMachineWindow::cleanupHandlers()
     machineLogic()->keyboardHandler()->cleanupListener(m_uScreenId);
 }
 
+void UIMachineWindow::cleanupNotificationCenter()
+{
+    // for now it will be removed from within particular visual mode windows ..
+}
+
 void UIMachineWindow::cleanupMachineView()
 {
     /* Destroy machine-view: */
@@ -566,25 +592,40 @@ void UIMachineWindow::updateAppearanceOf(int iElement)
     /* Update window title: */
     if (iElement & UIVisualElement_WindowTitle)
     {
-        /* Get machine state: */
-        KMachineState state = uisession()->machineState();
+        /* Make sure machine state is one of valid: */
+        const KMachineState enmState = uisession()->machineState();
+        if (enmState == KMachineState_Null)
+            return;
+
         /* Prepare full name: */
-        QString strSnapshotName;
+        QString strMachineName = machineName();
+
+        /* Append snapshot name: */
         if (machine().GetSnapshotCount() > 0)
         {
-            CSnapshot snapshot = machine().GetCurrentSnapshot();
-            strSnapshotName = " (" + snapshot.GetName() + ")";
+            const CSnapshot comSnapshot = machine().GetCurrentSnapshot();
+            strMachineName += " (" + comSnapshot.GetName() + ")";
         }
-        QString strMachineName = machineName() + strSnapshotName;
-        if (state != KMachineState_Null)
-            strMachineName += " [" + gpConverter->toString(state) + "]";
-        /* Unusual on the Mac. */
+
+        /* Append state name: */
+        strMachineName += " [" + gpConverter->toString(enmState) + "]";
+
 #ifndef VBOX_WS_MAC
+        /* Append user product name (besides macOS): */
         const QString strUserProductName = uisession()->machineWindowNamePostfix();
         strMachineName += " - " + (strUserProductName.isEmpty() ? defaultWindowTitle() : strUserProductName);
 #endif /* !VBOX_WS_MAC */
-        if (machine().GetGraphicsAdapter().GetMonitorCount() > 1)
-            strMachineName += QString(" : %1").arg(m_uScreenId + 1);
+
+        /* Check if we can get graphics adapter: */
+        CGraphicsAdapter comAdapter = machine().GetGraphicsAdapter();
+        if (machine().isOk() && comAdapter.isNotNull())
+        {
+            /* Append screen number only if there are more than one present: */
+            if (comAdapter.GetMonitorCount() > 1)
+                strMachineName += QString(" : %1").arg(m_uScreenId + 1);
+        }
+
+        /* Assign title finally: */
         setWindowTitle(strMachineName);
     }
 }
@@ -603,14 +644,14 @@ Qt::Alignment UIMachineWindow::viewAlignment(UIVisualStateType visualStateType)
 {
     switch (visualStateType)
     {
-        case UIVisualStateType_Normal: return 0;
+        case UIVisualStateType_Normal: return Qt::Alignment();
         case UIVisualStateType_Fullscreen: return Qt::AlignVCenter | Qt::AlignHCenter;
-        case UIVisualStateType_Seamless: return 0;
-        case UIVisualStateType_Scale: return 0;
+        case UIVisualStateType_Seamless: return Qt::Alignment();
+        case UIVisualStateType_Scale: return Qt::Alignment();
         case UIVisualStateType_Invalid: case UIVisualStateType_All: break; /* Shut up, MSC! */
     }
     AssertMsgFailed(("Incorrect visual state!"));
-    return 0;
+    return Qt::Alignment();
 }
 
 #ifdef VBOX_WS_MAC

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -40,8 +50,9 @@
  *
  * @returns Nanosecond timestamp.
  * @param   pData       Pointer to the data structure.
+ * @param   pExtra      Where to return extra time info. Optional.
  */
-RTDECL(uint64_t) rtTimeNanoTSInternalRef(PRTTIMENANOTSDATA pData)
+RTDECL(uint64_t) rtTimeNanoTSInternalRef(PRTTIMENANOTSDATA pData, PRTITMENANOTSEXTRA pExtra)
 {
 #if TMPL_MODE == TMPL_MODE_SYNC_INVAR_WITH_DELTA && defined(IN_RING3)
     PSUPGIPCPU pGipCpuAttemptedTscRecalibration = NULL;
@@ -245,6 +256,9 @@ RTDECL(uint64_t) rtTimeNanoTSInternalRef(PRTTIMENANOTSDATA pData)
                             ASMSetFlags(uFlags);
 #endif
 
+                            if (pExtra)
+                                pExtra->uTSCValue = u64Delta;
+
                             /*
                              * Calc NanoTS delta.
                              */
@@ -373,9 +387,9 @@ RTDECL(uint64_t) rtTimeNanoTSInternalRef(PRTTIMENANOTSDATA pData)
   || (   TMPL_GET_CPU_METHOD != SUPGIPGETCPU_APIC_ID \
       && TMPL_GET_CPU_METHOD != SUPGIPGETCPU_APIC_ID_EXT_0B /*?*/ \
       && TMPL_GET_CPU_METHOD != SUPGIPGETCPU_APIC_ID_EXT_8000001E /*?*/)
-                return pData->pfnBadCpuIndex(pData, UINT16_MAX-1, iCpuSet, iGipCpu);
+                return pData->pfnBadCpuIndex(pData, pExtra, UINT16_MAX-1, iCpuSet, iGipCpu);
 # else
-                return pData->pfnBadCpuIndex(pData, idApic, UINT16_MAX-1, iGipCpu);
+                return pData->pfnBadCpuIndex(pData, pExtra, idApic, UINT16_MAX-1, iGipCpu);
 # endif
             }
 #endif
@@ -388,7 +402,7 @@ RTDECL(uint64_t) rtTimeNanoTSInternalRef(PRTTIMENANOTSDATA pData)
 #ifndef IN_RING3
         ASMSetFlags(uFlags);
 #endif
-        return pData->pfnRediscover(pData);
+        return pData->pfnRediscover(pData, pExtra);
     }
 }
 

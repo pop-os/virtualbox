@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -317,10 +327,13 @@ static VBOXSTRICTRC kbd_write_command(PPDMDEVINS pDevIns, PKBDSTATE s, uint32_t 
         break;
     case KBD_CCMD_MOUSE_DISABLE:
         s->mode |= KBD_MODE_DISABLE_MOUSE;
+        PS2MLineDisable(&s->Aux);
         break;
     case KBD_CCMD_MOUSE_ENABLE:
+        PS2MLineEnable(&s->Aux);
         s->mode &= ~KBD_MODE_DISABLE_MOUSE;
         /* Check for queued input. */
+        /// @todo Can there actually be any?
         kbd_update_irq(pDevIns, s);
         break;
     case KBD_CCMD_TEST_MOUSE:
@@ -487,7 +500,11 @@ static VBOXSTRICTRC kbd_write_data(PPDMDEVINS pDevIns, PKBDSTATE s, uint32_t val
         break;
     case KBD_CCMD_WRITE_MOUSE:
         /* Automatically enables aux interface. */
-        s->mode &= ~KBD_MODE_DISABLE_MOUSE;
+        if (s->mode & KBD_MODE_DISABLE_MOUSE)
+        {
+            PS2MLineEnable(&s->Aux);
+            s->mode &= ~KBD_MODE_DISABLE_MOUSE;
+        }
         rc = PS2MByteToAux(pDevIns, &s->Aux, val);
         if (rc == VINF_SUCCESS)
             kbd_update_irq(pDevIns, s);
@@ -723,7 +740,7 @@ static DECLCALLBACK(VBOXSTRICTRC) kbdIOPortCommandWrite(PPDMDEVINS pDevIns, void
 void PS2CmnClearQueue(PPS2QHDR pQHdr, size_t cElements)
 {
     Assert(cElements > 0);
-    LogFlowFunc(("Clearing queue %p\n", pQHdr));
+    LogFlowFunc(("Clearing %s queue %p\n", R3STRING(pQHdr->pszDescR3), pQHdr));
     pQHdr->wpos  = pQHdr->rpos = pQHdr->rpos % cElements;
     pQHdr->cUsed = 0;
 }
@@ -756,12 +773,12 @@ void PS2CmnInsertQueue(PPS2QHDR pQHdr, size_t cElements, uint8_t *pbElements, ui
             pQHdr->wpos = 0; /* Roll over. */
         pQHdr->cUsed = cUsed + 1;
 
-        LogRelFlowFunc(("inserted %#04x into queue %p\n", bValue, pQHdr));
+        LogRelFlowFunc(("inserted %#04x into %s queue %p\n", bValue, R3STRING(pQHdr->pszDescR3), pQHdr));
     }
     else
     {
         Assert(cUsed == cElements);
-        LogRelFlowFunc(("queue %p full (%zu entries)\n", pQHdr, cElements));
+        LogRelFlowFunc(("%s queue %p full (%zu entries)\n", R3STRING(pQHdr->pszDescR3), pQHdr, cElements));
     }
 }
 
@@ -796,12 +813,12 @@ int PS2CmnRemoveQueue(PPS2QHDR pQHdr, size_t cElements, uint8_t const *pbElement
             pQHdr->rpos = 0;   /* Roll over. */
         pQHdr->cUsed = cUsed - 1;
 
-        LogFlowFunc(("removed 0x%02X from queue %p\n", *pbValue, pQHdr));
+        LogFlowFunc(("removed 0x%02X from %s queue %p\n", *pbValue, R3STRING(pQHdr->pszDescR3), pQHdr));
         rc = VINF_SUCCESS;
     }
     else
     {
-        LogFlowFunc(("queue %p empty\n", pQHdr));
+        LogFlowFunc(("%s queue %p empty\n", R3STRING(pQHdr->pszDescR3), pQHdr));
         rc = VINF_TRY_AGAIN;
     }
     return rc;
@@ -827,7 +844,7 @@ void PS2CmnR3SaveQueue(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPS2QHDR pQHdr, size
      */
     pHlp->pfnSSMPutU32(pSSM, cItems);
 
-    LogFlow(("Storing %u items from queue %p\n", cItems, pQHdr));
+    LogFlow(("Storing %u items from %s queue %p\n", cItems, pQHdr->pszDescR3, pQHdr));
 
     /* Save queue data - only the bytes actually used (typically zero). */
     for (uint32_t i = pQHdr->rpos % cElements; cItems-- > 0; i = (i + 1) % cElements)
@@ -852,7 +869,7 @@ int PS2CmnR3LoadQueue(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPS2QHDR pQHdr, size_
     int rc = pHlp->pfnSSMGetU32(pSSM, &cUsed);
     AssertRCReturn(rc, rc);
 
-    LogFlow(("Loading %u items to queue %p\n", cUsed, pQHdr));
+    LogFlow(("Loading %u items to %s queue %p\n", cUsed, pQHdr->pszDescR3, pQHdr));
 
     AssertMsgReturn(cUsed <= cElements, ("Saved size=%u, actual=%zu\n", cUsed, cElements),
                     VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
@@ -922,7 +939,68 @@ static DECLCALLBACK(int) kbdR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     PKBDSTATE    pThis   = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
     PKBDSTATER3  pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PKBDSTATER3);
     RT_NOREF(pSSM);
+    if (pThis->mode & KBD_MODE_DISABLE_MOUSE)
+        PS2MLineDisable(&pThis->Aux);
+    if (pThis->mode & KBD_MODE_DISABLE_KBD)
+        PS2KLineDisable(&pThis->Kbd);
     return PS2KR3LoadDone(pDevIns, &pThis->Kbd, &pThisCC->Kbd);
+}
+
+
+/**
+ * Debug device info handler. Prints basic auxiliary device state.
+ *
+ * @param   pDevIns     Device instance which registered the info.
+ * @param   pHlp        Callback functions for doing output.
+ * @param   pszArgs     Argument string. Optional and specific to the handler.
+ */
+static DECLCALLBACK(void) kbdR3InfoState(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    PKBDSTATE    pThis   = PDMDEVINS_2_DATA(pDevIns, PKBDSTATE);
+    NOREF(pszArgs);
+
+    pHlp->pfnPrintf(pHlp, "Keyboard controller: Active command %02X, DBB out %02X, translation %s\n",
+                    pThis->write_cmd, pThis->dbbout, pThis->translate ? "on"  : "off");
+
+    pHlp->pfnPrintf(pHlp, "Mode: %02X ( ", pThis->mode);
+    if (pThis->mode & KBD_MODE_DISABLE_KBD)
+        pHlp->pfnPrintf(pHlp, "DISABLE_KBD ");
+    if (pThis->mode & KBD_MODE_KBD_INT)
+        pHlp->pfnPrintf(pHlp, "KBD_INT ");
+    if (pThis->mode & KBD_MODE_MOUSE_INT)
+        pHlp->pfnPrintf(pHlp, "AUX_INT ");
+    if (pThis->mode & KBD_MODE_SYS)
+        pHlp->pfnPrintf(pHlp, "SYS ");
+    if (pThis->mode & KBD_MODE_NO_KEYLOCK)
+        pHlp->pfnPrintf(pHlp, "NO_KEYLOCK ");
+    if (pThis->mode & KBD_MODE_DISABLE_KBD)
+        pHlp->pfnPrintf(pHlp, "DISABLE_KBD ");
+    if (pThis->mode & KBD_MODE_DISABLE_MOUSE)
+        pHlp->pfnPrintf(pHlp, "DISABLE_AUX ");
+    if (pThis->mode & KBD_MODE_KCC)
+        pHlp->pfnPrintf(pHlp, "KCC ");
+    if (pThis->mode & KBD_MODE_RFU)
+        pHlp->pfnPrintf(pHlp, "RFU ");
+    pHlp->pfnPrintf(pHlp, " )\n");
+
+    pHlp->pfnPrintf(pHlp, "Status: %02X ( ", pThis->status);
+    if (pThis->status & KBD_STAT_OBF)
+        pHlp->pfnPrintf(pHlp, "OBF ");
+    if (pThis->status & KBD_STAT_IBF)
+        pHlp->pfnPrintf(pHlp, "IBF ");
+    if (pThis->status & KBD_STAT_SELFTEST)
+        pHlp->pfnPrintf(pHlp, "SELFTEST ");
+    if (pThis->status & KBD_STAT_CMD)
+        pHlp->pfnPrintf(pHlp, "CMD ");
+    if (pThis->status & KBD_STAT_UNLOCKED)
+        pHlp->pfnPrintf(pHlp, "UNLOCKED ");
+    if (pThis->status & KBD_STAT_MOUSE_OBF)
+        pHlp->pfnPrintf(pHlp, "AUX_OBF ");
+    if (pThis->status & KBD_STAT_GTO)
+        pHlp->pfnPrintf(pHlp, "GTO ");
+    if (pThis->status & KBD_STAT_PERR)
+        pHlp->pfnPrintf(pHlp, "PERR ");
+    pHlp->pfnPrintf(pHlp, " )\n");
 }
 
 
@@ -1068,6 +1146,11 @@ static DECLCALLBACK(int) kbdR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
                                 NULL, kbdR3SaveExec, NULL,
                                 NULL, kbdR3LoadExec, kbdR3LoadDone);
     AssertRCReturn(rc, rc);
+
+    /*
+     * Register debugger info callbacks.
+     */
+    PDMDevHlpDBGFInfoRegister(pDevIns, "ps2c", "Display keyboard/mouse controller state.", kbdR3InfoState);
 
     /*
      * Attach to the keyboard and mouse drivers.

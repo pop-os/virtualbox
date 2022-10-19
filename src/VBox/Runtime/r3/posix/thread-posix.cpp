@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -30,6 +40,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_THREAD
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -57,6 +68,9 @@
 #if defined(RT_OS_HAIKU)
 # include <OS.h>
 #endif
+#if defined(RT_OS_DARWIN)
+# define sigprocmask pthread_sigmask /* On xnu sigprocmask works on the process, not the calling thread as elsewhere. */
+#endif
 
 #include <iprt/thread.h>
 #include <iprt/log.h>
@@ -76,21 +90,32 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-#ifndef IN_GUEST
+/*#ifndef IN_GUEST - shouldn't need to exclude this now with the non-obtrusive init option. */
 /** Includes RTThreadPoke. */
 # define RTTHREAD_POSIX_WITH_POKE
-#endif
+/*#endif*/
 
 
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-/** The pthread key in which we store the pointer to our own PRTTHREAD structure. */
-static pthread_key_t    g_SelfKey;
+/** The pthread key in which we store the pointer to our own PRTTHREAD structure.
+ * @note There is a defined NIL value here, nor can we really assume this is an
+ *       integer.  However, zero is a valid key on Linux, so we get into trouble
+ *       if we accidentally use it uninitialized.
+ *
+ *       So, we ASSUME it's a integer value and the valid range is in approx 0
+ *       to PTHREAD_KEYS_MAX.  Solaris has at least one negative value (-1)
+ *       defined.  Thus, we go for 16 MAX values below zero and keep our fingers
+ *       cross that it will always be an invalid key value everywhere...
+ *
+ *       See also NIL_RTTLS, which is -1.
+ */
+static pthread_key_t    g_SelfKey = (pthread_key_t)(-PTHREAD_KEYS_MAX * 16);
 #ifdef RTTHREAD_POSIX_WITH_POKE
 /** The signal we use for poking threads.
  * This is set to -1 if no available signal was found. */
-static int              g_iSigPokeThread = -1;
+static int volatile     g_iSigPokeThread = -1;
 #endif
 
 #ifdef IPRT_MAY_HAVE_PTHREAD_SET_NAME_NP
@@ -166,7 +191,10 @@ static void rtThreadPosixSelectPokeSignal(void)
     /*
      * Note! Avoid SIGRTMIN thru SIGRTMIN+2 because of LinuxThreads.
      */
-    static const int s_aiSigCandidates[] =
+# if !defined(RT_OS_LINUX) && !defined(RT_OS_SOLARIS) /* glibc defines SIGRTMAX to __libc_current_sigrtmax() and Solaris libc defines it relying on _sysconf(), causing compiler to deploy serialization here. */
+    static
+# endif
+    const int s_aiSigCandidates[] =
     {
 # ifdef SIGRTMAX
         SIGRTMAX-3,
@@ -234,14 +262,30 @@ DECLHIDDEN(int) rtThreadNativeInit(void)
     return rc;
 }
 
-static void rtThreadPosixBlockSignals(void)
+static void rtThreadPosixBlockSignals(PRTTHREADINT pThread)
 {
+    /*
+     * Mask all signals, including the poke one, if requested.
+     */
+    if (   pThread
+        && (pThread->fFlags & RTTHREADFLAGS_NO_SIGNALS))
+    {
+        sigset_t SigSet;
+        sigfillset(&SigSet);
+        sigdelset(&SigSet, SIGILL);  /* On the m1 we end up spinning on UDF ... */
+        sigdelset(&SigSet, SIGTRAP); /* ... and BRK instruction if these signals are masked. */
+        sigdelset(&SigSet, SIGFPE);  /* Just adding the rest here to be on the safe side. */
+        sigdelset(&SigSet, SIGBUS);
+        sigdelset(&SigSet, SIGSEGV);
+        int rc = sigprocmask(SIG_BLOCK, &SigSet, NULL);
+        AssertMsg(rc == 0, ("rc=%Rrc errno=%d\n", RTErrConvertFromErrno(errno), errno)); RT_NOREF(rc);
+    }
     /*
      * Block SIGALRM - required for timer-posix.cpp.
      * This is done to limit harm done by OSes which doesn't do special SIGALRM scheduling.
      * It will not help much if someone creates threads directly using pthread_create. :/
      */
-    if (!RTR3InitIsUnobtrusive())
+    else if (!RTR3InitIsUnobtrusive())
     {
         sigset_t SigSet;
         sigemptyset(&SigSet);
@@ -251,7 +295,7 @@ static void rtThreadPosixBlockSignals(void)
 
 #ifdef RTTHREAD_POSIX_WITH_POKE
     /*
-     * bird 2020-10-28: Not entirely sure we do this, but it makes sure the signal works
+     * bird 2020-10-28: Not entirely sure why we do this, but it makes sure the signal works
      *                  on the new thread.  Probably some pre-NPTL linux reasons.
      */
     if (g_iSigPokeThread != -1)
@@ -282,7 +326,7 @@ DECLHIDDEN(void) rtThreadNativeReInitObtrusive(void)
     Assert(!RTR3InitIsUnobtrusive());
     rtThreadPosixSelectPokeSignal();
 #endif
-    rtThreadPosixBlockSignals();
+    rtThreadPosixBlockSignals(NULL);
 }
 
 
@@ -327,7 +371,7 @@ static void rtThreadPosixPokeSignal(int iSignal)
  */
 DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
-    rtThreadPosixBlockSignals();
+    rtThreadPosixBlockSignals(pThread);
 
     int rc = pthread_setspecific(g_SelfKey, pThread);
     if (!rc)
@@ -363,7 +407,7 @@ static void *rtThreadNativeMain(void *pvArgs)
     ASMMemoryFence();
 #endif
 
-    rtThreadPosixBlockSignals();
+    rtThreadPosixBlockSignals(pThread);
 
     /*
      * Set the TLS entry and, if possible, the thread name.
@@ -619,13 +663,26 @@ DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNati
 
 RTDECL(RTTHREAD) RTThreadSelf(void)
 {
-    PRTTHREADINT pThread = (PRTTHREADINT)pthread_getspecific(g_SelfKey);
     /** @todo import alien threads? */
-    return pThread;
+#if defined(RT_OS_DARWIN)
+    /* On darwin, there seems to be input checking with pthread_getspecific.
+       So, we must prevent using g_SelfKey before rtThreadNativeInit has run,
+       otherwise we might crash or starting working with total garbage pointer
+       values here (see _os_tsd_get_direct in znu/libsyscall/os/tsd.h).
+
+       Now, since the init value is a "negative" one, we just have to check
+       that it's positive or zero before calling the API. */
+    if (RT_LIKELY((intptr_t)g_SelfKey >= 0))
+        return (PRTTHREADINT)pthread_getspecific(g_SelfKey);
+    return NIL_RTTHREAD;
+#else
+    return (PRTTHREADINT)pthread_getspecific(g_SelfKey);
+#endif
 }
 
 
 #ifdef RTTHREAD_POSIX_WITH_POKE
+
 RTDECL(int) RTThreadPoke(RTTHREAD hThread)
 {
     AssertReturn(hThread != RTThreadSelf(), VERR_INVALID_PARAMETER);
@@ -644,6 +701,33 @@ RTDECL(int) RTThreadPoke(RTTHREAD hThread)
     rtThreadRelease(pThread);
     return rc;
 }
+
+
+RTDECL(int) RTThreadControlPokeSignal(RTTHREAD hThread, bool fEnable)
+{
+    AssertReturn(hThread == RTThreadSelf() && hThread != NIL_RTTHREAD, VERR_INVALID_PARAMETER);
+    int rc;
+    if (g_iSigPokeThread != -1)
+    {
+        sigset_t SigSet;
+        sigemptyset(&SigSet);
+        sigaddset(&SigSet, g_iSigPokeThread);
+
+        int rc2 = sigprocmask(fEnable ? SIG_UNBLOCK : SIG_BLOCK, &SigSet, NULL);
+        if (rc2 == 0)
+            rc = VINF_SUCCESS;
+        else
+        {
+            rc = RTErrConvertFromErrno(errno);
+            AssertMsgFailed(("rc=%Rrc errno=%d (rc2=%d)\n", rc, errno, rc2));
+        }
+    }
+    else
+        rc = VERR_NOT_SUPPORTED;
+    return rc;
+}
+
+
 #endif
 
 /** @todo move this into platform specific files. */

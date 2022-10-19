@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdlib.h>
 #include <errno.h>
@@ -25,6 +30,8 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/uaccess.h>
 #include <ipxe/image.h>
 #include <ipxe/cms.h>
+#include <ipxe/validator.h>
+#include <ipxe/monojob.h>
 #include <usr/imgtrust.h>
 
 /** @file
@@ -43,36 +50,44 @@ FILE_LICENCE ( GPL2_OR_LATER );
  */
 int imgverify ( struct image *image, struct image *signature,
 		const char *name ) {
-	size_t len;
-	void *data;
+	struct asn1_cursor *data;
 	struct cms_signature *sig;
+	struct cms_signer_info *info;
 	time_t now;
+	int next;
 	int rc;
 
 	/* Mark image as untrusted */
 	image_untrust ( image );
 
-	/* Copy signature to internal memory */
-	len = signature->len;
-	data = malloc ( len );
-	if ( ! data ) {
-		rc = -ENOMEM;
-		goto err_alloc;
+	/* Get raw signature data */
+	next = image_asn1 ( signature, 0, &data );
+	if ( next < 0 ) {
+		rc = next;
+		goto err_asn1;
 	}
-	copy_from_user ( data, signature->data, 0, len );
 
 	/* Parse signature */
-	if ( ( rc = cms_signature ( data, len, &sig ) ) != 0 )
+	if ( ( rc = cms_signature ( data->data, data->len, &sig ) ) != 0 )
 		goto err_parse;
 
-	/* Free internal copy of signature */
+	/* Free raw signature data */
 	free ( data );
 	data = NULL;
+
+	/* Complete all certificate chains */
+	list_for_each_entry ( info, &sig->info, list ) {
+		if ( ( rc = create_validator ( &monojob, info->chain,
+					       NULL ) ) != 0 )
+			goto err_create_validator;
+		if ( ( rc = monojob_wait ( NULL, 0 ) ) != 0 )
+			goto err_validator_wait;
+	}
 
 	/* Use signature to verify image */
 	now = time ( NULL );
 	if ( ( rc = cms_verify ( sig, image->data, image->len,
-				 name, now, NULL ) ) != 0 )
+				 name, now, NULL, NULL ) ) != 0 )
 		goto err_verify;
 
 	/* Drop reference to signature */
@@ -86,10 +101,12 @@ int imgverify ( struct image *image, struct image *signature,
 	return 0;
 
  err_verify:
+ err_validator_wait:
+ err_create_validator:
 	cms_put ( sig );
  err_parse:
 	free ( data );
- err_alloc:
+ err_asn1:
 	syslog ( LOG_ERR, "Image \"%s\" signature bad: %s\n",
 		 image->name, strerror ( rc ) );
 	return rc;

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -29,6 +39,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <iprt/bignum.h>
+#include <iprt/uint256.h>
 #include <iprt/uint128.h>
 #include <iprt/uint64.h>
 #include <iprt/uint32.h>
@@ -41,7 +52,9 @@
 #include <iprt/time.h>
 
 #if 1
+# include "../include/internal/openssl-pre.h"
 # include <openssl/bn.h>
+# include "../include/internal/openssl-post.h"
 #endif
 
 
@@ -1499,6 +1512,62 @@ static void testUInt128Multiplication(void)
         RTTESTI_CHECK(pResult == &uResult);
         RTTESTI_CHECK(RTUInt128IsEqual(&uResult, &s_aTests[i].uResult));
     }
+
+    /* extended versions */
+    RTTestSub(g_hTest, "RTUInt128MulEx");
+    static struct
+    {
+        RTUINT128U uFactor1, uFactor2;
+        RTUINT256U uResult;
+    } const s_aTestsEx[] =
+    {
+    { RTUINT128_INIT_C(~0, ~0),     RTUINT128_INIT_C(~0, 0),    RTUINT256_INIT_C(~1, ~0, 1, 0) },
+    { RTUINT128_INIT_C(~0, ~0),     RTUINT128_INIT_C(~0, ~0),   RTUINT256_INIT_C(~0, ~1, 0, 1) },
+        { RTUINT128_INIT_C(0, 0),       RTUINT128_INIT_C(0, 1),     RTUINT256_INIT_C(0, 0, 0, 0) },
+        { RTUINT128_INIT_C(0, 1),       RTUINT128_INIT_C(0, 1),     RTUINT256_INIT_C(0, 0, 0, 1) },
+        { RTUINT128_INIT_C(0, 2),       RTUINT128_INIT_C(0, 2),     RTUINT256_INIT_C(0, 0, 0, 4) },
+        { RTUINT128_INIT_C(2, 0),       RTUINT128_INIT_C(0, 4),     RTUINT256_INIT_C(0, 0, 8, 0) },
+        { RTUINT128_INIT_C(~0, ~0),     RTUINT128_INIT_C(0, 0),     RTUINT256_INIT_C(0, 0, 0, 0) },
+        { RTUINT128_INIT_C(~0, ~0),     RTUINT128_INIT_C(0, ~0),    RTUINT256_INIT_C(0, ~1, ~0, 1) },
+        { RTUINT128_INIT_C(~0, ~0),     RTUINT128_INIT_C(~0, 0),    RTUINT256_INIT_C(~1, ~0, 1, 0) },
+        { RTUINT128_INIT_C(~0, ~0),     RTUINT128_INIT_C(~0, ~0),   RTUINT256_INIT_C(~0, ~1, 0, 1) },
+    };
+    for (uint32_t i = 0; i < RT_ELEMENTS(s_aTestsEx); i++)
+    {
+        RTUINT256U uResult;
+        PRTUINT256U pResult = RTUInt128MulEx(&uResult, &s_aTestsEx[i].uFactor1, &s_aTestsEx[i].uFactor2);
+        if (pResult != &uResult)
+            RTTestIFailed("test #%i returns %p instead of %p", i, pResult, &uResult);
+        else if (!RTUInt256IsEqual(&uResult, &s_aTestsEx[i].uResult))
+            RTTestIFailed("test #%i failed: \nExp: %016RX64`%016RX64`%016RX64`%016RX64\nGot: %016RX64`%016RX64`%016RX64`%016RX64",
+                          i, s_aTestsEx[i].uResult.QWords.qw3, s_aTestsEx[i].uResult.QWords.qw2, s_aTestsEx[i].uResult.QWords.qw1,
+                          s_aTestsEx[i].uResult.QWords.qw0, uResult.QWords.qw3, uResult.QWords.qw2, uResult.QWords.qw1,
+                          uResult.QWords.qw0 );
+
+        if (s_aTestsEx[i].uFactor2.s.Hi == 0)
+        {
+            RTUInt256AssignBitwiseNot(&uResult);
+            pResult = RTUInt128MulByU64Ex(&uResult, &s_aTestsEx[i].uFactor1, s_aTestsEx[i].uFactor2.s.Lo);
+            RTTESTI_CHECK(pResult == &uResult);
+            RTTESTI_CHECK(RTUInt256IsEqual(&uResult, &s_aTestsEx[i].uResult));
+        }
+
+        if (s_aTestsEx[i].uFactor1.s.Hi == 0)
+        {
+            RTUInt256AssignBitwiseNot(&uResult);
+            pResult = RTUInt128MulByU64Ex(&uResult, &s_aTestsEx[i].uFactor2, s_aTestsEx[i].uFactor1.s.Lo);
+            RTTESTI_CHECK(pResult == &uResult);
+            RTTESTI_CHECK(RTUInt256IsEqual(&uResult, &s_aTestsEx[i].uResult));
+        }
+
+#if 0
+        uResult = s_aTestsEx[i].uFactor1;
+        pResult = RTUInt128AssignMul(&uResult, &s_aTestsEx[i].uFactor2);
+        RTTESTI_CHECK(pResult == &uResult);
+        RTTESTI_CHECK(RTUInt128IsEqual(&uResult, &s_aTestsEx[i].uResult));
+#endif
+    }
+
 }
 
 
@@ -1682,6 +1751,108 @@ static void testUInt32Division(void)
 }
 
 
+static void testUInt256Shift(void)
+{
+    {
+        RTTestSub(g_hTest, "RTUInt256ShiftLeft");
+        static struct
+        {
+            RTUINT256U uValue, uResult;
+            unsigned   cShift;
+        } const s_aTests[] =
+        {
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 1   },
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 128 },
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 127 },
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 255 },
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(1, 0, 0, 0), 192 },
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(0, 1, 0, 0), 128 },
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(0, 0, 1, 0), 64 },
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(0, 0, 0, 1), 0},
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(4, 0, 0, 0), 194 },
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(0, 0, 0x10, 0), 68},
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(0, 2, 0, 0), 129},
+            { RTUINT256_INIT_C(0, 0, 0, 1), RTUINT256_INIT_C(0, 0, 0, 0x8000000000000000), 63 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0xfdfcfbfaf9f8f7f6, 0xf5f4f3f2f1f0ff3f, 0x3e3d3c3b3a393837, 0x3635343332313000), 8 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0x6f5f4f3f2f1f0ff3, 0xf3e3d3c3b3a39383, 0x7363534333231300, 0), 68 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0x3e3d3c3b3a393837, 0x3635343332313000, 0, 0), 136 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0x6353433323130000, 0, 0, 0), 204 },
+        };
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aTests); i++)
+        {
+            RTUINT256U uResult;
+            PRTUINT256U pResult = RTUInt256ShiftLeft(&uResult, &s_aTests[i].uValue, s_aTests[i].cShift);
+            if (pResult != &uResult)
+                RTTestIFailed("test #%i returns %p instead of %p", i, pResult, &uResult);
+            else if (RTUInt256IsNotEqual(&uResult, &s_aTests[i].uResult))
+                RTTestIFailed("test #%i failed: \nExp: %016RX64`%016RX64'%016RX64`%016RX64\nGot: %016RX64`%016RX64'%016RX64`%016RX64",
+                              i, s_aTests[i].uResult.QWords.qw3, s_aTests[i].uResult.QWords.qw2, s_aTests[i].uResult.QWords.qw1,
+                              s_aTests[i].uResult.QWords.qw0, uResult.QWords.qw3, uResult.QWords.qw2, uResult.QWords.qw1,
+                              uResult.QWords.qw0);
+
+            uResult = s_aTests[i].uValue;
+            pResult = RTUInt256AssignShiftLeft(&uResult, s_aTests[i].cShift);
+            RTTESTI_CHECK(pResult == &uResult);
+            RTTESTI_CHECK(RTUInt256IsEqual(&uResult, &s_aTests[i].uResult));
+        }
+    }
+    {
+        RTTestSub(g_hTest, "RTUInt256ShiftRight");
+        static struct
+        {
+            RTUINT256U uValue, uResult;
+            unsigned   cShift;
+        } const s_aTests[] =
+        {
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 1   },
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 128 },
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 127 },
+            { RTUINT256_INIT_C(0, 0, 0, 0), RTUINT256_INIT_C(0, 0, 0, 0), 255 },
+            { RTUINT256_INIT_C(1, 0, 0, 1), RTUINT256_INIT_C(0, 0, 0, 1), 192},
+            { RTUINT256_INIT_C(1, 0, 0, 1), RTUINT256_INIT_C(0, 0, 1, 0), 128},
+            { RTUINT256_INIT_C(1, 0, 0, 1), RTUINT256_INIT_C(0, 1, 0, 0), 64},
+            { RTUINT256_INIT_C(1, 0, 0, 1), RTUINT256_INIT_C(1, 0, 0, 1), 0},
+            { RTUINT256_INIT_C(1, 0, 0, 1), RTUINT256_INIT_C(0, 0, 0, 4), 190},
+            { RTUINT256_INIT_C(1, 0, 0, 1), RTUINT256_INIT_C(0, 0, 1, 0), 128},
+            { RTUINT256_INIT_C(1, 0, 0, 1), RTUINT256_INIT_C(0, 8, 0, 0), 61},
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0x00fefdfcfbfaf9f8, 0xf7f6f5f4f3f2f1f0, 0xff3f3e3d3c3b3a39, 0x3837363534333231), 8 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0, 0x0fefdfcfbfaf9f8f, 0x7f6f5f4f3f2f1f0f, 0xf3f3e3d3c3b3a393), 68 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0, 0, 0x0fefdfcfbfaf9f8f, 0x7f6f5f4f3f2f1f0f), 132 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0, 0, 0, 0xfefdfcfbfaf9f8f7), 192 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0, 0, 0, 0x000fefdfcfbfaf9f), 204 },
+            { RTUINT256_INIT_C(0xfefdfcfbfaf9f8f7, 0xf6f5f4f3f2f1f0ff, 0x3f3e3d3c3b3a3938, 0x3736353433323130),
+              RTUINT256_INIT_C(0, 0, 0, 1), 255 },
+        };
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aTests); i++)
+        {
+            RTUINT256U uResult;
+            PRTUINT256U pResult = RTUInt256ShiftRight(&uResult, &s_aTests[i].uValue, s_aTests[i].cShift);
+            if (pResult != &uResult)
+                RTTestIFailed("test #%i returns %p instead of %p", i, pResult, &uResult);
+            else if (RTUInt256IsNotEqual(&uResult, &s_aTests[i].uResult))
+                RTTestIFailed("test #%i failed: \nExp: %016RX64`%016RX64'%016RX64`%016RX64\nGot: %016RX64`%016RX64'%016RX64`%016RX64",
+                              i, s_aTests[i].uResult.QWords.qw3, s_aTests[i].uResult.QWords.qw2, s_aTests[i].uResult.QWords.qw1,
+                              s_aTests[i].uResult.QWords.qw0, uResult.QWords.qw3, uResult.QWords.qw2, uResult.QWords.qw1,
+                              uResult.QWords.qw0);
+
+            uResult = s_aTests[i].uValue;
+            pResult = RTUInt256AssignShiftRight(&uResult, s_aTests[i].cShift);
+            RTTESTI_CHECK(pResult == &uResult);
+            RTTESTI_CHECK(RTUInt256IsEqual(&uResult, &s_aTests[i].uResult));
+        }
+    }
+}
+
+
 
 int main(int argc, char **argv)
 {
@@ -1744,6 +1915,9 @@ int main(int argc, char **argv)
             /* Test UInt32 and UInt64 division as it's used by the watcom support code (BIOS, ValKit, OS/2 GAs). */
             testUInt32Division();
             testUInt64Division();
+
+            /* Test some UInt256 bits given what we do above already. */
+            testUInt256Shift();
 
             /* Test the RTBigInt operations. */
             testCompare();

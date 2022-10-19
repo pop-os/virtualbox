@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vd_ifs_h
@@ -159,9 +169,7 @@ DECLINLINE(int) VDInterfaceAdd(PVDINTERFACE pInterface, const char *pszName, VDI
                     && enmInterface < VDINTERFACETYPE_INVALID,
                     ("enmInterface=%u", enmInterface), VERR_INVALID_PARAMETER);
 
-    AssertMsgReturn(VALID_PTR(ppVDIfs),
-                    ("pInterfaceList=%#p", ppVDIfs),
-                    VERR_INVALID_PARAMETER);
+    AssertPtrReturn(ppVDIfs, VERR_INVALID_PARAMETER);
 
     /* Fill out interface descriptor. */
     pInterface->u32Magic         = VDINTERFACE_MAGIC;
@@ -189,13 +197,8 @@ DECLINLINE(int) VDInterfaceRemove(PVDINTERFACE pInterface, PVDINTERFACE *ppVDIfs
     int rc = VERR_NOT_FOUND;
 
     /* Argument checks. */
-    AssertMsgReturn(VALID_PTR(pInterface),
-                    ("pInterface=%#p", pInterface),
-                    VERR_INVALID_PARAMETER);
-
-    AssertMsgReturn(VALID_PTR(ppVDIfs),
-                    ("pInterfaceList=%#p", ppVDIfs),
-                    VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pInterface, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(ppVDIfs, VERR_INVALID_PARAMETER);
 
     if (*ppVDIfs)
     {
@@ -217,7 +220,8 @@ DECLINLINE(int) VDInterfaceRemove(PVDINTERFACE pInterface, PVDINTERFACE *ppVDIfs
         }
         else if (pCurr)
         {
-            pPrev = pCurr->pNext;
+            Assert(pPrev->pNext == pCurr);
+            pPrev->pNext = pCurr->pNext;
             rc = VINF_SUCCESS;
         }
     }
@@ -302,6 +306,12 @@ DECLINLINE(int) RT_IPRT_FORMAT_ATTR(6, 7) vdIfError(PVDINTERFACEERROR pIfError, 
     if (pIfError)
         pIfError->pfnError(pIfError->Core.pvUser, rc, RT_SRC_POS_ARGS, pszFormat, va);
     va_end(va);
+
+#if defined(LOG_ENABLED) && defined(Log)
+    va_start(va, pszFormat);
+    Log(("vdIfError: %N\n", pszFormat, &va));
+    va_end(va);
+#endif
     return rc;
 }
 
@@ -321,6 +331,12 @@ DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) vdIfErrorMessage(PVDINTERFACEERROR pIf
     if (pIfError && pIfError->pfnMessage)
         rc = pIfError->pfnMessage(pIfError->Core.pvUser, pszFormat, va);
     va_end(va);
+
+#if defined(LOG_ENABLED) && defined(Log)
+    va_start(va, pszFormat);
+    Log(("vdIfErrorMessage: %N\n", pszFormat, &va));
+    va_end(va);
+#endif
     return rc;
 }
 
@@ -332,7 +348,7 @@ DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) vdIfErrorMessage(PVDINTERFACEERROR pIf
  * @param   pvUser          Opaque user data which is passed on request submission.
  * @param   rcReq           Status code of the completed request.
  */
-typedef DECLCALLBACK(int) FNVDCOMPLETED(void *pvUser, int rcReq);
+typedef DECLCALLBACKTYPE(int, FNVDCOMPLETED,(void *pvUser, int rcReq));
 /** Pointer to FNVDCOMPLETED() */
 typedef FNVDCOMPLETED *PFNVDCOMPLETED;
 
@@ -710,7 +726,7 @@ VBOXDDU_DECL(int) VDIfDestroyFromVfsStream(PVDINTERFACEIO pIoIf);
  * @param   pvUser          The opaque user data associated with this interface.
  * @param   uPercentage     Completion percentage.
  */
-typedef DECLCALLBACK(int) FNVDPROGRESS(void *pvUser, unsigned uPercentage);
+typedef DECLCALLBACKTYPE(int, FNVDPROGRESS,(void *pvUser, unsigned uPercentage));
 /** Pointer to FNVDPROGRESS() */
 typedef FNVDPROGRESS *PFNVDPROGRESS;
 

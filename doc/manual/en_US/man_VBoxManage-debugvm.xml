@@ -1,22 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage debugvm
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
-<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+  "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
+<!ENTITY % all.entities SYSTEM "all-entities.ent">
+%all.entities;
+]>
 <refentry id="vboxmanage-debugvm" lang="en">
-
   <refentryinfo>
-    <pubdate>$Date: 2020-02-04 11:54:12 +0100 (Tue, 04 Feb 2020) $</pubdate>
+    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
     <title>VBoxManage debugvm</title>
   </refentryinfo>
 
@@ -28,7 +42,7 @@
   <refnamediv>
     <refname>VBoxManage-debugvm</refname>
     <refpurpose>introspection and guest debugging</refpurpose>
-    <refclass>Oracle VM VirtualBox</refclass>
+    <refclass>&product-name;</refclass>
   </refnamediv>
 
   <refsynopsisdiv>
@@ -99,7 +113,7 @@
       <arg choice="req"><replaceable>uuid|vmname</replaceable></arg>
       <arg choice="plain">setregisters</arg>
       <arg>--cpu=<replaceable>id</replaceable></arg>
-      <arg rep="repeat"><replaceable>reg-set.reg-name=value</replaceable></arg>
+      <arg rep="repeat"><replaceable>reg-set.reg-name</replaceable>=<replaceable>value</replaceable></arg>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-debugvm-show">
       <command>VBoxManage debugvm</command>
@@ -121,6 +135,14 @@
       <arg>--reset</arg>
       <arg>--descriptions</arg>
       <arg>--pattern=<replaceable>pattern</replaceable></arg>
+    </cmdsynopsis>
+    <cmdsynopsis id="synopsis-vboxmanage-debugvm-guestsample">
+      <command>VBoxManage debugvm</command>
+      <arg choice="req"><replaceable>uuid|vmname</replaceable></arg>
+      <arg choice="plain">guestsample</arg>
+      <arg>--filename=<replaceable>filename</replaceable></arg>
+      <arg>--sample-interval-us=<replaceable>interval</replaceable></arg>
+      <arg>--sample-time-us=<replaceable>time</replaceable></arg>
     </cmdsynopsis>
   </refsynopsisdiv>
   <refsect1>
@@ -176,7 +198,7 @@
       </para>
       <variablelist>
         <varlistentry>
-          <term><replaceable>info</replaceable></term>
+          <term><replaceable>item</replaceable></term>
           <listitem>
             <para>Name of the info item to display.  The special name
             <option>help</option> will list all the available info items and
@@ -248,7 +270,7 @@
       <variablelist>
         <varlistentry>
           <term><option>file[=<replaceable>file</replaceable>], nofile</option></term>
-          <listitem><para>Specifies a log file.  It no filname is given, one will be
+          <listitem><para>Specifies a log file.  If no filename is given, one will be
               generated based on the current UTC time and VM process name and placed in
               the current directory of the VM process.  Note that this will currently not
               have any effect if the log file has already been opened.
@@ -604,6 +626,35 @@
         <varlistentry>
           <term><option>--reset</option></term>
           <listitem><para>Select reset instead of display mode.</para></listitem>
+        </varlistentry>
+      </variablelist>
+
+    </refsect2>
+
+    <refsect2 id="vboxmanage-debugvm-guestsample">
+      <title>debugvm guestsample</title>
+      <remark role="help-copy-synopsis"/>
+      <para>
+        Creates a sample report of the guest activity.
+      </para>
+      <para>
+        Retrieves the filename to dump the report to.
+      </para>
+      <variablelist>
+        <varlistentry>
+          <term><option>--filename=<replaceable>filename</replaceable></option></term>
+          <listitem><para>The filename to dump the sample report to.</para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option>--sample-interval-us=<replaceable>interval</replaceable></option></term>
+          <listitem><para>The interval in microseconds between guest samples.</para>
+          </listitem>
+        </varlistentry>
+        <varlistentry>
+          <term><option>--sample-time-us=<replaceable>time</replaceable></option></term>
+          <listitem><para>The amount of microseconds to take guest samples.</para>
+          </listitem>
         </varlistentry>
       </variablelist>
 

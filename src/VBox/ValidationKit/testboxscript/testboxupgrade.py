@@ -7,26 +7,36 @@ TestBox Script - Upgrade from local file ZIP.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 # Standard python imports.
 import os
@@ -34,13 +44,14 @@ import shutil
 import sys
 import subprocess
 import threading
+import time
 import uuid;
 import zipfile
 
 # Validation Kit imports.
+from common        import utils;
 import testboxcommons
 from testboxscript import TBS_EXITCODE_SYNTAX;
-from common import utils;
 
 # Figure where we are.
 try:    __file__
@@ -125,7 +136,8 @@ def _doUpgradeTestRun(sUpgradeDir):
     testboxcommons.log('Testing the new testbox script (%s)...' % (asArgs[0],));
     if sys.executable:
         asArgs.insert(0, sys.executable);
-    oChild = subprocess.Popen(asArgs, shell = False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
+    oChild = subprocess.Popen(asArgs, shell = False,                                        # pylint: disable=consider-using-with
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
 
     asBuf = []
     oThread = threading.Thread(target=_doUpgradeThreadProc, args=(oChild.stdout, asBuf));
@@ -133,6 +145,15 @@ def _doUpgradeTestRun(sUpgradeDir):
     oThread.start();
     oThread.join(30);
 
+    # Give child up to 5 seconds to terminate after producing output.
+    if sys.version_info[0] >= 3 and sys.version_info[1] >= 3:
+        oChild.wait(5); # pylint: disable=too-many-function-args
+    else:
+        for _ in range(50):
+            iStatus = oChild.poll();
+            if iStatus is None:
+                break;
+            time.sleep(0.1);
     iStatus = oChild.poll();
     if iStatus is None:
         testboxcommons.log('Checking the new testboxscript timed out.');
@@ -144,7 +165,7 @@ def _doUpgradeTestRun(sUpgradeDir):
                            % (iStatus, TBS_EXITCODE_SYNTAX));
         return False;
 
-    sOutput = ''.join(asBuf);
+    sOutput = b''.join(asBuf).decode('utf-8');
     sOutput = sOutput.strip();
     try:
         iNewVersion = int(sOutput);
@@ -289,7 +310,7 @@ def upgradeFromZip(sZipFile):
     #       they'll be restricted to the one zip and the one upgrade dir.
     #       We'll remove them next time we upgrade.
     #
-    oZip = zipfile.ZipFile(sZipFile, 'r');
+    oZip = zipfile.ZipFile(sZipFile, 'r');                  # No 'with' support in 2.6 class: pylint: disable=consider-using-with
     asMembers = _doUpgradeCheckZip(oZip);
     if asMembers is None:
         return False;

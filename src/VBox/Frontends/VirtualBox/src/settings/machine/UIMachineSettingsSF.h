@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSF_h
@@ -23,22 +33,21 @@
 
 /* GUI includes: */
 #include "UISettingsPage.h"
-#include "UIMachineSettingsSF.gen.h"
 
 /* COM includes: */
 #include "CSharedFolder.h"
 
 /* Forward declarations: */
-class SFTreeViewItem;
+class UISharedFoldersEditor;
+
 struct UIDataSettingsSharedFolder;
 struct UIDataSettingsSharedFolders;
-enum UISharedFolderType { MachineType, ConsoleType };
 typedef UISettingsCache<UIDataSettingsSharedFolder> UISettingsCacheSharedFolder;
 typedef UISettingsCachePool<UIDataSettingsSharedFolders, UISettingsCacheSharedFolder> UISettingsCacheSharedFolders;
 
+
 /** Machine settings: Shared Folders page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsSF : public UISettingsPageMachine,
-                                                 public Ui::UIMachineSettingsSF
+class SHARED_LIBRARY_STUFF UIMachineSettingsSF : public UISettingsPageMachine
 {
     Q_OBJECT;
 
@@ -47,87 +56,46 @@ public:
     /** Constructs Shared Folders settings page. */
     UIMachineSettingsSF();
     /** Destructs Shared Folders settings page. */
-    ~UIMachineSettingsSF();
+    virtual ~UIMachineSettingsSF() RT_OVERRIDE;
 
 protected:
 
     /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */;
+    virtual bool changed() const RT_OVERRIDE;
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Performs final page polishing. */
-    virtual void polishPage() /* override */;
-
-    /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *aEvent) /* override */;
-
-    /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
-
-private slots:
-
-    /** Handles command to add shared folder. */
-    void sltAddFolder();
-    /** Handles command to edit shared folder. */
-    void sltEditFolder();
-    /** Handles command to remove shared folder. */
-    void sltRemoveFolder();
-
-    /** Handles @a pCurrentItem change. */
-    void sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem);
-    /** Handles @a pItem double-click. */
-    void sltHandleDoubleClick(QTreeWidgetItem *pItem);
-    /** Handles context menu request for @a position. */
-    void sltHandleContextMenuRequest(const QPoint &position);
-
-    /** Performs request to adjust tree. */
-    void sltAdjustTree();
-    /** Performs request to adjust tree fields. */
-    void sltAdjustTreeFields();
+    virtual void polishPage() RT_OVERRIDE;
 
 private:
 
     /** Prepares all. */
     void prepare();
-    /** Prepares shared folders tree. */
-    void prepareFoldersTree();
-    /** Prepares shared folders toolbar. */
-    void prepareFoldersToolbar();
+    /** Prepares Widgets. */
+    void prepareWidgets();
     /** Prepares connections. */
     void prepareConnections();
     /** Cleanups all. */
     void cleanup();
 
-    /** Returns the tree-view root item for corresponding shared folder @a type. */
-    SFTreeViewItem *root(UISharedFolderType type);
-    /** Returns a list of used shared folder names. */
-    QStringList usedList(bool fIncludeSelected);
-
     /** Returns whether the corresponding @a enmFoldersType supported. */
     bool isSharedFolderTypeSupported(UISharedFolderType enmFoldersType) const;
-    /** Updates root item visibility. */
-    void updateRootItemsVisibility();
-    /** Defines whether the root item of @a enmFoldersType is @a fVisible. */
-    void setRootItemVisible(UISharedFolderType enmFoldersType, bool fVisible);
-
-    /** Creates shared folder item based on passed @a data. */
-    void addSharedFolderItem(const UIDataSettingsSharedFolder &sharedFolderData, bool fChoose);
 
     /** Gathers a vector of shared folders of the passed @a enmFoldersType. */
     CSharedFolderVector getSharedFolders(UISharedFolderType enmFoldersType);
@@ -136,22 +104,21 @@ private:
     /** Look for a folder with the the passed @a strFolderName. */
     bool getSharedFolder(const QString &strFolderName, const CSharedFolderVector &folders, CSharedFolder &comFolder);
 
-    /** Saves existing folder data from the cache. */
-    bool saveFoldersData();
+    /** Saves existing data from cache. */
+    bool saveData();
     /** Removes shared folder defined by a @a folderCache. */
     bool removeSharedFolder(const UISettingsCacheSharedFolder &folderCache);
     /** Creates shared folder defined by a @a folderCache. */
     bool createSharedFolder(const UISettingsCacheSharedFolder &folderCache);
 
-    /** Holds the Add action instance. */
-    QAction *m_pActionAdd;
-    /** Holds the Edit action instance. */
-    QAction *m_pActionEdit;
-    /** Holds the Remove action instance. */
-    QAction *m_pActionRemove;
-
     /** Holds the page data cache instance. */
     UISettingsCacheSharedFolders *m_pCache;
+
+    /** @name Widgets
+      * @{ */
+        /** Holds the shared folders editor instance. */
+        UISharedFoldersEditor *m_pEditorSharedFolders;
+    /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSF_h */

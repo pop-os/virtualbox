@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_tools_UIToolsItem_h
@@ -85,7 +95,7 @@ public:
                 UIToolClass enmClass, UIToolType enmType,
                 const QString &strName, const QIcon &icon);
     /** Destructs item. */
-    virtual ~UIToolsItem() /* override */;
+    virtual ~UIToolsItem() RT_OVERRIDE;
 
     /** @name Item stuff.
       * @{ */
@@ -119,7 +129,7 @@ public:
     /** @name Layout stuff.
       * @{ */
         /** Updates geometry. */
-        virtual void updateGeometry() /* override */;
+        virtual void updateGeometry() RT_OVERRIDE;
 
         /** Returns minimum width-hint. */
         int minimumWidthHint() const;
@@ -129,7 +139,7 @@ public:
         /** Returns size-hint.
           * @param  enmWhich    Brings size-hint type.
           * @param  constraint  Brings size constraint. */
-        virtual QSizeF sizeHint(Qt::SizeHint enmWhich, const QSizeF &constraint = QSizeF()) const /* override */;
+        virtual QSizeF sizeHint(Qt::SizeHint enmWhich, const QSizeF &constraint = QSizeF()) const RT_OVERRIDE;
     /** @} */
 
 protected:
@@ -137,18 +147,18 @@ protected:
     /** @name Event-handling stuff.
       * @{ */
         /** Handles show @a pEvent. */
-        virtual void showEvent(QShowEvent *pEvent) /* override */;
+        virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
 
         /** Handles resize @a pEvent. */
-        virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) /* override */;
+        virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) RT_OVERRIDE;
 
         /** Handles hover enter @a event. */
-        virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+        virtual void hoverMoveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
         /** Handles hover leave @a event. */
-        virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) /* override */;
+        virtual void hoverLeaveEvent(QGraphicsSceneHoverEvent *pEvent) RT_OVERRIDE;
 
         /** Performs painting using passed @a pPainter, @a pOptions and optionally specified @a pWidget. */
-        virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) /* override */;
+        virtual void paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *pWidget = 0) RT_OVERRIDE;
     /** @} */
 
 private slots:
@@ -288,18 +298,18 @@ private:
         /** Holds the animated value. */
         int                 m_iAnimatedValue;
 
-        /** Holds minimum default lightness tone. */
-        int  m_iDefaultLightnessMin;
-        /** Holds maximum default lightness tone. */
-        int  m_iDefaultLightnessMax;
-        /** Holds minimum hover lightness tone. */
-        int  m_iHoverLightnessMin;
-        /** Holds maximum hover lightness tone. */
-        int  m_iHoverLightnessMax;
-        /** Holds minimum highlight lightness tone. */
-        int  m_iHighlightLightnessMin;
-        /** Holds maximum highlight lightness tone. */
-        int  m_iHighlightLightnessMax;
+        /** Holds start default lightness tone. */
+        int  m_iDefaultLightnessStart;
+        /** Holds final default lightness tone. */
+        int  m_iDefaultLightnessFinal;
+        /** Holds start hover lightness tone. */
+        int  m_iHoverLightnessStart;
+        /** Holds final hover lightness tone. */
+        int  m_iHoverLightnessFinal;
+        /** Holds start highlight lightness tone. */
+        int  m_iHighlightLightnessStart;
+        /** Holds final highlight lightness tone. */
+        int  m_iHighlightLightnessFinal;
     /** @} */
 
     /** @name Layout stuff.

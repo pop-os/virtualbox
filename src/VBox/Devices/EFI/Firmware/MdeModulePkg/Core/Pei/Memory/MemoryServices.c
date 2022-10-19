@@ -1,7 +1,7 @@
 /** @file
   EFI PEI Core memory services
 
-Copyright (c) 2006 - 2018, Intel Corporation. All rights reserved.<BR>
+Copyright (c) 2006 - 2019, Intel Corporation. All rights reserved.<BR>
 SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -17,7 +17,7 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
                          environment, such as the size and location of temporary RAM, the stack location and
                          the BFV location.
   @param OldCoreData     Pointer to the PEI Core data.
-                         NULL if being run in non-permament memory mode.
+                         NULL if being run in non-permanent memory mode.
 
 **/
 VOID
@@ -32,7 +32,7 @@ InitializeMemoryServices (
 
   //
   // First entering PeiCore, following code will initialized some field
-  // in PeiCore's private data according to hand off data from sec core.
+  // in PeiCore's private data according to hand off data from SEC core.
   //
   if (OldCoreData == NULL) {
 
@@ -61,7 +61,7 @@ InitializeMemoryServices (
   The usage model is that the PEIM that discovers the permanent memory shall invoke this service.
   This routine will hold discoveried memory information into PeiCore's private data,
   and set SwitchStackSignal flag. After PEIM who discovery memory is dispatched,
-  PeiDispatcher will migrate temporary memory to permenement memory.
+  PeiDispatcher will migrate temporary memory to permanent memory.
 
   @param PeiServices        An indirect pointer to the EFI_PEI_SERVICES table published by the PEI Foundation.
   @param MemoryBegin        Start of memory address.
@@ -86,7 +86,7 @@ PeiInstallPeiMemory (
   //
   // PEI_SERVICE.InstallPeiMemory should only be called one time during whole PEI phase.
   // If it is invoked more than one time, ASSERT information is given for developer debugging in debug tip and
-  // simply return EFI_SUCESS in release tip to ignore it.
+  // simply return EFI_SUCCESS in release tip to ignore it.
   //
   if (PrivateData->PeiMemoryInstalled) {
     DEBUG ((EFI_D_ERROR, "ERROR: PeiInstallPeiMemory is called more than once!\n"));
@@ -164,6 +164,88 @@ MigrateMemoryPages (
   DEBUG ((DEBUG_INFO, "Pages Offset = 0x%lX\n", (UINT64) Private->MemoryPages.Offset));
 
   Private->FreePhysicalMemoryTop = NewMemPagesBase;
+}
+
+/**
+  Removes any FV HOBs whose base address is not in PEI installed memory.
+
+  @param[in] Private          Pointer to PeiCore's private data structure.
+
+**/
+VOID
+RemoveFvHobsInTemporaryMemory (
+  IN PEI_CORE_INSTANCE        *Private
+  )
+{
+  EFI_PEI_HOB_POINTERS        Hob;
+  EFI_HOB_FIRMWARE_VOLUME     *FirmwareVolumeHob;
+
+  DEBUG ((DEBUG_INFO, "Removing FVs in FV HOB not already migrated to permanent memory.\n"));
+
+  for (Hob.Raw = GetHobList (); !END_OF_HOB_LIST (Hob); Hob.Raw = GET_NEXT_HOB (Hob)) {
+    if (GET_HOB_TYPE (Hob) == EFI_HOB_TYPE_FV || GET_HOB_TYPE (Hob) == EFI_HOB_TYPE_FV2 || GET_HOB_TYPE (Hob) == EFI_HOB_TYPE_FV3) {
+      FirmwareVolumeHob = Hob.FirmwareVolume;
+      DEBUG ((DEBUG_INFO, "  Found FV HOB.\n"));
+      DEBUG ((
+          DEBUG_INFO,
+          "    BA=%016lx  L=%016lx\n",
+          FirmwareVolumeHob->BaseAddress,
+          FirmwareVolumeHob->Length
+          ));
+      if (
+        !(
+          ((EFI_PHYSICAL_ADDRESS) (UINTN) FirmwareVolumeHob->BaseAddress >= Private->PhysicalMemoryBegin) &&
+          (((EFI_PHYSICAL_ADDRESS) (UINTN) FirmwareVolumeHob->BaseAddress + (FirmwareVolumeHob->Length - 1)) < Private->FreePhysicalMemoryTop)
+          )
+        ) {
+        DEBUG ((DEBUG_INFO, "      Removing FV HOB to an FV in T-RAM (was not migrated).\n"));
+        Hob.Header->HobType = EFI_HOB_TYPE_UNUSED;
+      }
+    }
+  }
+}
+
+/**
+  Migrate the base address in firmware volume allocation HOBs
+  from temporary memory to PEI installed memory.
+
+  @param[in] PrivateData      Pointer to PeiCore's private data structure.
+  @param[in] OrgFvHandle      Address of FV Handle in temporary memory.
+  @param[in] FvHandle         Address of FV Handle in permanent memory.
+
+**/
+VOID
+ConvertFvHob (
+  IN PEI_CORE_INSTANCE          *PrivateData,
+  IN UINTN                      OrgFvHandle,
+  IN UINTN                      FvHandle
+  )
+{
+  EFI_PEI_HOB_POINTERS        Hob;
+  EFI_HOB_FIRMWARE_VOLUME     *FirmwareVolumeHob;
+  EFI_HOB_FIRMWARE_VOLUME2    *FirmwareVolume2Hob;
+  EFI_HOB_FIRMWARE_VOLUME3    *FirmwareVolume3Hob;
+
+  DEBUG ((DEBUG_INFO, "Converting FVs in FV HOB.\n"));
+
+  for (Hob.Raw = GetHobList (); !END_OF_HOB_LIST (Hob); Hob.Raw = GET_NEXT_HOB (Hob)) {
+    if (GET_HOB_TYPE (Hob) == EFI_HOB_TYPE_FV) {
+      FirmwareVolumeHob = Hob.FirmwareVolume;
+      if (FirmwareVolumeHob->BaseAddress == OrgFvHandle) {
+        FirmwareVolumeHob->BaseAddress = FvHandle;
+      }
+    } else if (GET_HOB_TYPE (Hob) == EFI_HOB_TYPE_FV2) {
+      FirmwareVolume2Hob = Hob.FirmwareVolume2;
+      if (FirmwareVolume2Hob->BaseAddress == OrgFvHandle) {
+        FirmwareVolume2Hob->BaseAddress = FvHandle;
+      }
+    } else if (GET_HOB_TYPE (Hob) == EFI_HOB_TYPE_FV3) {
+      FirmwareVolume3Hob = Hob.FirmwareVolume3;
+      if (FirmwareVolume3Hob->BaseAddress == OrgFvHandle) {
+        FirmwareVolume3Hob->BaseAddress = FvHandle;
+      }
+    }
+  }
 }
 
 /**
@@ -758,9 +840,9 @@ PeiFreePages (
 
 /**
 
-  Pool allocation service. Before permanent memory is discoveried, the pool will
-  be allocated the heap in the temporary memory. Genenrally, the size of heap in temporary
-  memory does not exceed to 64K, so the biggest pool size could be allocated is
+  Pool allocation service. Before permanent memory is discovered, the pool will
+  be allocated in the heap in temporary memory. Generally, the size of the heap in temporary
+  memory does not exceed 64K, so the biggest pool size could be allocated is
   64K.
 
   @param PeiServices               An indirect pointer to the EFI_PEI_SERVICES table published by the PEI Foundation.
@@ -789,8 +871,8 @@ PeiAllocatePool (
   //
 
   //
-  // Generally, the size of heap in temporary memory does not exceed to 64K,
-  // HobLength is multiples of 8 bytes, so the maxmium size of pool is 0xFFF8 - sizeof (EFI_HOB_MEMORY_POOL)
+  // Generally, the size of heap in temporary memory does not exceed 64K,
+  // HobLength is multiples of 8 bytes, so the maximum size of pool is 0xFFF8 - sizeof (EFI_HOB_MEMORY_POOL)
   //
   if (Size > (0xFFF8 - sizeof (EFI_HOB_MEMORY_POOL))) {
     return EFI_OUT_OF_RESOURCES;

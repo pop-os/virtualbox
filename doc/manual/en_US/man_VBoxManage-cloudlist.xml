@@ -1,24 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage cloud list
+-->
+<!--
+    Copyright (C) 2018-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2018-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
-<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
 
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
 
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+  "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
+<!ENTITY % all.entities SYSTEM "all-entities.ent">
+%all.entities;
+]>
 <refentry id="vboxmanage-cloudlist" lang="en">
-
   <refentryinfo>
-    <pubdate>$Date: 2020-02-04 11:54:12 +0100 (Tue, 04 Feb 2020) $</pubdate>
+    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
     <title>VBoxManage cloud list</title>
   </refentryinfo>
 
@@ -50,8 +62,8 @@
       <arg choice="req">--profile=<replaceable>name</replaceable></arg>
       <arg choice="plain">list</arg>
       <arg choice="plain">images</arg>
+      <arg choice="req">--compartment-id=<replaceable>string</replaceable></arg>
       <arg>--state=<replaceable>string</replaceable></arg>
-      <arg>--compartment-id=<replaceable>string</replaceable></arg>
     </cmdsynopsis>
   </refsynopsisdiv>
 

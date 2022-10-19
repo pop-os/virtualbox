@@ -4,24 +4,34 @@
 #
 
 #
-# Copyright (C) 2008-2020 Oracle Corporation
+# Copyright (C) 2008-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
+#
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 #
 
 SUB_DEPTH = ../../../..
@@ -166,7 +176,8 @@ SOLARIS_ADD_STRIP_BINS = \
 	vboxfs \
 	vboxmslnk \
 	$(if ($VBOX_WITH_PAM),pam_vbox.so,) \
-	$(if $(VBOX_OSE),,vboxfs_s10)
+	$(if $(VBOX_OSE),,vboxfs_s10) \
+	$(if $(VBOX_WITH_ADDITIONS_SHIPPING_AUDIO_TEST),VBoxAudioTest,)
 
 SOLARIS_ADD_DRIVERS = \
 	vboxguest \
@@ -284,12 +295,12 @@ $(PATH_STAGE_BIN)/additions/$(PKGFILENAME): \
 		$(SOLARIS_ARCH_ADD_DEPFILES)
 	$(call MSG_L1,Installing guest additions)
 	$(QUIET)$(SED) \
-		-e "s/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g" \
-		-e "s/@VBOX_VENDOR@/$(VBOX_VENDOR)/g" \
-		-e "s/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g" \
-		-e "s/@VBOX_SVN_REV@/$(VBOX_SVN_REV)/g" \
-		-e "s/@VBOX_VERSION_REVSTAMP@/$(PKGINFO_REVSTAMP)/g" \
-		-e "s/@UNAME_P@/$(PKGINFO_ARCH)/g" \
+		-e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+g" \
+		-e "s+@VBOX_VENDOR@+$(VBOX_VENDOR)+g" \
+		-e "s+@VBOX_VERSION_STRING@+$(VBOX_VERSION_STRING)+g" \
+		-e "s+@VBOX_SVN_REV@+$(VBOX_SVN_REV)+g" \
+		-e "s+@VBOX_VERSION_REVSTAMP@+$(PKGINFO_REVSTAMP)+g" \
+		-e "s+@UNAME_P@+$(PKGINFO_ARCH)+g" \
 		--output $(SOLARIS_ADDINST_OUT_DIR)/vboxguest.pkginfo \
 		$(VBOX_PATH_SOLARIS_ADDITION_INSTALLER)/vboxguest.pkginfo
 	$(QUIET)$(INSTALL) -m 0755 $(VBOX_PATH_SOLARIS_ADDITION_INSTALLER)/makepackage.sh                     $(SOLARIS_ADDINST_OUT_DIR)/makepackage.sh

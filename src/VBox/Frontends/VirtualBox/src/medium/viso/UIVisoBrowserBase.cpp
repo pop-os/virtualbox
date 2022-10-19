@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -44,12 +54,11 @@ public:
     int  lineEditWidth() const;
     void updateLineEditText(const QString &strText);
 
-
 protected:
 
-    virtual void retranslateUi() /* override */;
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
-    virtual bool eventFilter(QObject *pObj, QEvent *pEvent) /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
+    virtual bool eventFilter(QObject *pObj, QEvent *pEvent) RT_OVERRIDE;
 
 private:
 
@@ -94,7 +103,9 @@ void UILocationSelector::paintEvent(QPaintEvent *pEvent)
 void UILocationSelector::retranslateUi()
 {
     if (m_pExpandButton)
-        m_pExpandButton->setToolTip(QApplication::translate("UIVisoCreator", "Click to show/hide the tree view"));
+        m_pExpandButton->setToolTip(QApplication::translate("UIVisoCreatorWidget", "Click to show/hide the tree view."));
+    if (m_pLineEdit)
+        m_pLineEdit->setToolTip(QApplication::translate("UIVisoCreatorWidget", "Shows the current location."));
 }
 
 bool UILocationSelector::eventFilter(QObject *pObj, QEvent *pEvent)
@@ -148,7 +159,7 @@ void UILocationSelector::prepareWidgets()
 *********************************************************************************************************************************/
 
 UIVisoBrowserBase::UIVisoBrowserBase(QWidget *pParent /* = 0 */)
-    : QIWithRetranslateUI<QWidget>(pParent)
+    : QIWithRetranslateUI<QGroupBox>(pParent)
     , m_pTreeView(0)
     , m_pMainLayout(0)
     , m_pLocationSelector(0)
@@ -192,11 +203,11 @@ void UIVisoBrowserBase::prepareObjects()
     {
         m_pTreeView->hide();
         m_pTreeView->setSelectionMode(QAbstractItemView::SingleSelection);
-        //m_pTreeView->setAlternatingRowColors(true);
         m_pTreeView->header()->hide();
         m_pTreeView->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
         m_pTreeView->setFrameStyle(QFrame::Panel | QFrame::Plain);
         m_pTreeView->installEventFilter(this);
+        m_pTreeView->setTabKeyNavigation(false);
     }
 }
 
@@ -223,7 +234,7 @@ void UIVisoBrowserBase::updateLocationSelectorText(const QString &strText)
 
 void UIVisoBrowserBase::resizeEvent(QResizeEvent *pEvent)
 {
-    QIWithRetranslateUI<QWidget>::resizeEvent(pEvent);
+    QIWithRetranslateUI<QGroupBox>::resizeEvent(pEvent);
     if (m_pTreeView)
         updateTreeViewGeometry(m_pTreeView->isVisible());
 }
@@ -233,7 +244,7 @@ bool UIVisoBrowserBase::eventFilter(QObject *pObj, QEvent *pEvent)
 {
     /* Handle only events sent to m_pTreeView only: */
     if (pObj != m_pTreeView)
-        return QIWithRetranslateUI<QWidget>::eventFilter(pObj, pEvent);
+        return QIWithRetranslateUI<QGroupBox>::eventFilter(pObj, pEvent);
 
     if (pEvent->type() == QEvent::KeyPress)
     {
@@ -251,7 +262,7 @@ bool UIVisoBrowserBase::eventFilter(QObject *pObj, QEvent *pEvent)
     }
 
     /* Call to base-class: */
-    return QIWithRetranslateUI<QWidget>::eventFilter(pObj, pEvent);
+    return QIWithRetranslateUI<QGroupBox>::eventFilter(pObj, pEvent);
 }
 
 void UIVisoBrowserBase::keyPressEvent(QKeyEvent *pEvent)
@@ -262,7 +273,7 @@ void UIVisoBrowserBase::keyPressEvent(QKeyEvent *pEvent)
             updateTreeViewGeometry(false);
 
     }
-    QIWithRetranslateUI<QWidget>::keyPressEvent(pEvent);
+    QIWithRetranslateUI<QGroupBox>::keyPressEvent(pEvent);
 }
 
 void UIVisoBrowserBase::sltFileTableViewContextMenu(const QPoint &point)

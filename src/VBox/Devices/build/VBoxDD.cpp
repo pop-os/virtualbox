@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -116,11 +126,12 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
 #endif
-#ifdef VBOX_WITH_VIRTIO_NET_1_0
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceVirtioNet_1_0);
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceDP8390);
     if (RT_FAILURE(rc))
         return rc;
-#endif
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_Device3C501);
+    if (RT_FAILURE(rc))
+        return rc;
 #ifdef VBOX_WITH_INIP
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceINIP);
     if (RT_FAILURE(rc))
@@ -210,13 +221,29 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceGIMDev);
     if (RT_FAILURE(rc))
         return rc;
-#ifdef VBOX_WITH_NEW_LPC_DEVICE
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceLPC);
     if (RT_FAILURE(rc))
         return rc;
-#endif
 #ifdef VBOX_WITH_VIRTUALKD
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceVirtualKD);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_IOMMU_AMD
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceIommuAmd);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceIommuIntel);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceQemuFwCfg);
+    if (RT_FAILURE(rc))
+        return rc;
+#ifdef VBOX_WITH_TPM
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceTpm);
     if (RT_FAILURE(rc))
         return rc;
 #endif
@@ -288,6 +315,11 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 #endif
+#ifdef VBOX_WITH_VMNET
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvVMNet);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif /* VBOX_WITH_VMNET */
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvAUDIO);
     if (RT_FAILURE(rc))
         return rc;
@@ -395,6 +427,29 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvIfTrace);
     if (RT_FAILURE(rc))
         return rc;
+#ifdef VBOX_WITH_TPM
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvTpmEmu);
+    if (RT_FAILURE(rc))
+        return rc;
+
+# ifdef RT_OS_LINUX
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvTpmHost);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+
+# ifdef VBOX_WITH_LIBTPMS
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvTpmEmuTpms);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+
+# ifdef VBOX_WITH_CLOUD_NET
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvCloudTunnel);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+#endif
 
     return VINF_SUCCESS;
 }

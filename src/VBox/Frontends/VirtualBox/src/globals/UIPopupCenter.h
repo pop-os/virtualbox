@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_globals_UIPopupCenter_h
@@ -145,38 +155,6 @@ public:
 
     /** Recalls popup with @a strID of passed @a pParent. */
     void recall(QWidget *pParent, const QString &strID);
-
-    /* API: Runtime UI stuff: */
-    void cannotSendACPIToMachine(QWidget *pParent);
-    void remindAboutAutoCapture(QWidget *pParent);
-    void remindAboutMouseIntegration(QWidget *pParent, bool fSupportsAbsolute);
-    void remindAboutPausedVMInput(QWidget *pParent);
-    void forgetAboutPausedVMInput(QWidget *pParent);
-    void remindAboutWrongColorDepth(QWidget *pParent, ulong uRealBPP, ulong uWantedBPP);
-    void forgetAboutWrongColorDepth(QWidget *pParent);
-    void cannotAttachUSBDevice(QWidget *pParent, const CConsole &comConsole, const QString &strDevice);
-    void cannotAttachUSBDevice(QWidget *pParent, const CVirtualBoxErrorInfo &comErrorInfo,
-                               const QString &strDevice, const QString &strMachineName);
-    void cannotDetachUSBDevice(QWidget *pParent, const CConsole &comConsole, const QString &strDevice);
-    void cannotDetachUSBDevice(QWidget *pParent, const CVirtualBoxErrorInfo &comErrorInfo,
-                               const QString &strDevice, const QString &strMachineName);
-    void cannotAttachWebCam(QWidget *pParent, const CEmulatedUSB &comDispatcher,
-                            const QString &strWebCamName, const QString &strMachineName);
-    void cannotDetachWebCam(QWidget *pParent, const CEmulatedUSB &comDispatcher,
-                            const QString &strWebCamName, const QString &strMachineName);
-    void cannotToggleRecording(QWidget *pParent, const CMachine &comMachine, bool fEnable);
-    void cannotToggleVRDEServer(QWidget *pParent,  const CVRDEServer &comServer,
-                                const QString &strMachineName, bool fEnable);
-    void cannotToggleNetworkAdapterCable(QWidget *pParent, const CNetworkAdapter &comAdapter,
-                                         const QString &strMachineName, bool fConnect);
-    void remindAboutGuestAdditionsAreNotActive(QWidget *pParent);
-    void cannotToggleAudioOutput(QWidget *pParent, const CAudioAdapter &comAdapter,
-                                 const QString &strMachineName, bool fEnable);
-    void cannotToggleAudioInput(QWidget *pParent, const CAudioAdapter &comAdapter,
-                                const QString &strMachineName, bool fEnable);
-    void cannotMountImage(QWidget *pParent, const QString &strMachineName, const QString &strMediumName);
-    void cannotOpenMedium(QWidget *pParent, const CVirtualBox &comVBox, UIMediumDeviceType enmType, const QString &strLocation);
-    void cannotSaveMachineSettings(QWidget *pParent, const CMachine &comMachine);
 
 private slots:
 

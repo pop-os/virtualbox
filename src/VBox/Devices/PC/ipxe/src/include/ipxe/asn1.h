@@ -7,9 +7,12 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
+#include <stddef.h>
 #include <stdint.h>
+#include <stdarg.h>
+#include <assert.h>
 #include <time.h>
 #include <ipxe/tables.h>
 
@@ -73,6 +76,9 @@ struct asn1_builder_header {
 /** ASN.1 enumeration */
 #define ASN1_ENUMERATED 0x0a
 
+/** ASN.1 UTF-8 string */
+#define ASN1_UTF8_STRING 0x0c
+
 /** ASN.1 UTC time */
 #define ASN1_UTC_TIME 0x17
 
@@ -93,6 +99,10 @@ struct asn1_builder_header {
 
 /** ASN.1 "any tag" magic value */
 #define ASN1_ANY -1U
+
+/** Construct a short ASN.1 value */
+#define ASN1_SHORT( tag, ... ) \
+	(tag), VA_ARG_COUNT ( __VA_ARGS__ ), __VA_ARGS__
 
 /** Initial OID byte */
 #define ASN1_OID_INITIAL( first, second ) ( ( (first) * 40 ) + (second) )
@@ -141,6 +151,30 @@ struct asn1_builder_header {
 	ASN1_OID_TRIPLE ( 113549 ), ASN1_OID_SINGLE ( 1 ),	\
 	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 11 )
 
+/** ASN.1 OID for sha384WithRSAEncryption (1.2.840.113549.1.1.12) */
+#define ASN1_OID_SHA384WITHRSAENCRYPTION			\
+	ASN1_OID_INITIAL ( 1, 2 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_TRIPLE ( 113549 ), ASN1_OID_SINGLE ( 1 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 12 )
+
+/** ASN.1 OID for sha512WithRSAEncryption (1.2.840.113549.1.1.13) */
+#define ASN1_OID_SHA512WITHRSAENCRYPTION			\
+	ASN1_OID_INITIAL ( 1, 2 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_TRIPLE ( 113549 ), ASN1_OID_SINGLE ( 1 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 13 )
+
+/** ASN.1 OID for sha224WithRSAEncryption (1.2.840.113549.1.1.14) */
+#define ASN1_OID_SHA224WITHRSAENCRYPTION			\
+	ASN1_OID_INITIAL ( 1, 2 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_TRIPLE ( 113549 ), ASN1_OID_SINGLE ( 1 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 14 )
+
+/** ASN.1 OID for id-md4 (1.2.840.113549.2.4) */
+#define ASN1_OID_MD4						\
+	ASN1_OID_INITIAL ( 1, 2 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_TRIPLE ( 113549 ), ASN1_OID_SINGLE ( 2 ),	\
+	ASN1_OID_SINGLE ( 4 )
+
 /** ASN.1 OID for id-md5 (1.2.840.113549.2.5) */
 #define ASN1_OID_MD5						\
 	ASN1_OID_INITIAL ( 1, 2 ), ASN1_OID_DOUBLE ( 840 ),	\
@@ -159,6 +193,41 @@ struct asn1_builder_header {
 	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 101 ),		\
 	ASN1_OID_SINGLE ( 3 ), ASN1_OID_SINGLE ( 4 ),		\
 	ASN1_OID_SINGLE ( 2 ), ASN1_OID_SINGLE ( 1 )
+
+/** ASN.1 OID for id-sha384 (2.16.840.1.101.3.4.2.2) */
+#define ASN1_OID_SHA384						\
+	ASN1_OID_INITIAL ( 2, 16 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 101 ),		\
+	ASN1_OID_SINGLE ( 3 ), ASN1_OID_SINGLE ( 4 ),		\
+	ASN1_OID_SINGLE ( 2 ), ASN1_OID_SINGLE ( 2 )
+
+/** ASN.1 OID for id-sha512 (2.16.840.1.101.3.4.2.3) */
+#define ASN1_OID_SHA512						\
+	ASN1_OID_INITIAL ( 2, 16 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 101 ),		\
+	ASN1_OID_SINGLE ( 3 ), ASN1_OID_SINGLE ( 4 ),		\
+	ASN1_OID_SINGLE ( 2 ), ASN1_OID_SINGLE ( 3 )
+
+/** ASN.1 OID for id-sha224 (2.16.840.1.101.3.4.2.4) */
+#define ASN1_OID_SHA224						\
+	ASN1_OID_INITIAL ( 2, 16 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 101 ),		\
+	ASN1_OID_SINGLE ( 3 ), ASN1_OID_SINGLE ( 4 ),		\
+	ASN1_OID_SINGLE ( 2 ), ASN1_OID_SINGLE ( 4 )
+
+/** ASN.1 OID for id-sha512-224 (2.16.840.1.101.3.4.2.5) */
+#define ASN1_OID_SHA512_224						\
+	ASN1_OID_INITIAL ( 2, 16 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 101 ),		\
+	ASN1_OID_SINGLE ( 3 ), ASN1_OID_SINGLE ( 4 ),		\
+	ASN1_OID_SINGLE ( 2 ), ASN1_OID_SINGLE ( 5 )
+
+/** ASN.1 OID for id-sha512-256 (2.16.840.1.101.3.4.2.6) */
+#define ASN1_OID_SHA512_256						\
+	ASN1_OID_INITIAL ( 2, 16 ), ASN1_OID_DOUBLE ( 840 ),	\
+	ASN1_OID_SINGLE ( 1 ), ASN1_OID_SINGLE ( 101 ),		\
+	ASN1_OID_SINGLE ( 3 ), ASN1_OID_SINGLE ( 4 ),		\
+	ASN1_OID_SINGLE ( 2 ), ASN1_OID_SINGLE ( 6 )
 
 /** ASN.1 OID for commonName (2.5.4.3) */
 #define ASN1_OID_COMMON_NAME					\
@@ -222,10 +291,15 @@ struct asn1_builder_header {
 	ASN1_OID_SINGLE ( 5 ), ASN1_OID_SINGLE ( 7 ),		\
 	ASN1_OID_SINGLE ( 3 ), ASN1_OID_SINGLE ( 9 )
 
-/** Define an ASN.1 cursor containing an OID */
-#define ASN1_OID_CURSOR( oid_value ) {				\
-		.data = oid_value,				\
-		.len = sizeof ( oid_value ),			\
+/** ASN.1 OID for id-ce-subjectAltName (2.5.29.17) */
+#define ASN1_OID_SUBJECTALTNAME					\
+	ASN1_OID_INITIAL ( 2, 5 ), ASN1_OID_SINGLE ( 29 ),	\
+	ASN1_OID_SINGLE ( 17 )
+
+/** Define an ASN.1 cursor for a static value */
+#define ASN1_CURSOR( value ) {					\
+		.data = value,					\
+		.len = sizeof ( value ),			\
 	}
 
 /** An ASN.1 OID-identified algorithm */
@@ -246,6 +320,29 @@ struct asn1_algorithm {
 /** Declare an ASN.1 OID-identified algorithm */
 #define __asn1_algorithm __table_entry ( ASN1_ALGORITHMS, 01 )
 
+/* ASN.1 OID-identified algorithms */
+extern struct asn1_algorithm rsa_encryption_algorithm __asn1_algorithm;
+extern struct asn1_algorithm md5_with_rsa_encryption_algorithm __asn1_algorithm;
+extern struct asn1_algorithm
+sha1_with_rsa_encryption_algorithm __asn1_algorithm;
+extern struct asn1_algorithm
+sha256_with_rsa_encryption_algorithm __asn1_algorithm;
+extern struct asn1_algorithm
+sha384_with_rsa_encryption_algorithm __asn1_algorithm;
+extern struct asn1_algorithm
+sha512_with_rsa_encryption_algorithm __asn1_algorithm;
+extern struct asn1_algorithm
+sha224_with_rsa_encryption_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_md4_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_md5_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_sha1_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_sha256_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_sha384_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_sha512_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_sha224_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_sha512_224_algorithm __asn1_algorithm;
+extern struct asn1_algorithm oid_sha512_256_algorithm __asn1_algorithm;
+
 /** An ASN.1 bit string */
 struct asn1_bit_string {
 	/** Data */
@@ -257,17 +354,52 @@ struct asn1_bit_string {
 } __attribute__ (( packed ));
 
 /**
+ * Invalidate ASN.1 object cursor
+ *
+ * @v cursor		ASN.1 object cursor
+ */
+static inline __attribute__ (( always_inline )) void
+asn1_invalidate_cursor ( struct asn1_cursor *cursor ) {
+	cursor->len = 0;
+}
+
+/**
  * Extract ASN.1 type
  *
  * @v cursor		ASN.1 object cursor
- * @ret type		Type
+ * @ret type		Type, or ASN1_END if cursor is invalid
  */
 static inline __attribute__ (( always_inline )) unsigned int
 asn1_type ( const struct asn1_cursor *cursor ) {
-	return ( *( ( const uint8_t * ) cursor->data ) );
+	const uint8_t *type = cursor->data;
+
+	return ( ( cursor->len >= sizeof ( *type ) ) ? *type : ASN1_END );
 }
 
-extern void asn1_invalidate_cursor ( struct asn1_cursor *cursor );
+/**
+ * Get cursor for built object
+ *
+ * @v builder		ASN.1 object builder
+ * @ret cursor		ASN.1 object cursor
+ */
+static inline __attribute__ (( always_inline )) struct asn1_cursor *
+asn1_built ( struct asn1_builder *builder ) {
+	union {
+		struct asn1_builder builder;
+		struct asn1_cursor cursor;
+	} *u = container_of ( builder, typeof ( *u ), builder );
+
+	/* Sanity check */
+	linker_assert ( ( ( const void * ) &u->builder.data ) ==
+			&u->cursor.data, asn1_builder_cursor_data_mismatch );
+	linker_assert ( &u->builder.len == &u->cursor.len,
+			asn1_builder_cursor_len_mismatch );
+
+	return &u->cursor;
+}
+
+extern int asn1_start ( struct asn1_cursor *cursor, unsigned int type,
+			size_t extra );
 extern int asn1_enter ( struct asn1_cursor *cursor, unsigned int type );
 extern int asn1_skip_if_exists ( struct asn1_cursor *cursor,
 				 unsigned int type );
@@ -294,6 +426,7 @@ extern int asn1_signature_algorithm ( const struct asn1_cursor *cursor,
 				      struct asn1_algorithm **algorithm );
 extern int asn1_generalized_time ( const struct asn1_cursor *cursor,
 				   time_t *time );
+extern int asn1_grow ( struct asn1_builder *builder, size_t extra );
 extern int asn1_prepend_raw ( struct asn1_builder *builder, const void *data,
 			      size_t len );
 extern int asn1_prepend ( struct asn1_builder *builder, unsigned int type,

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_SYSTEMPROPERTIES
@@ -22,16 +32,19 @@
 #ifdef VBOX_WITH_EXTPACK
 # include "ExtPackManagerImpl.h"
 #endif
+#include "CPUProfileImpl.h"
 #include "AutoCaller.h"
 #include "Global.h"
 #include "LoggingNew.h"
 #include "AutostartDb.h"
+#include "VirtualBoxTranslator.h"
 
 // generated header
 #include "SchemaDefs.h"
 
 #include <iprt/dir.h>
 #include <iprt/ldr.h>
+#include <iprt/locale.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/uri.h>
@@ -41,6 +54,7 @@
 #include <VBox/param.h>
 #include <VBox/settings.h>
 #include <VBox/vd.h>
+#include <VBox/vmm/cpum.h>
 
 // defines
 /////////////////////////////////////////////////////////////////////////////
@@ -49,8 +63,9 @@
 /////////////////////////////////////////////////////////////////////////////
 
 SystemProperties::SystemProperties()
-    : mParent(NULL),
-      m(new settings::SystemProperties)
+    : mParent(NULL)
+    , m(new settings::SystemProperties)
+    , m_fLoadedX86CPUProfiles(false)
 {
 }
 
@@ -97,6 +112,7 @@ HRESULT SystemProperties::init(VirtualBox *aParent)
 
     i_setVRDEAuthLibrary(Utf8Str::Empty);
     i_setDefaultVRDEExtPack(Utf8Str::Empty);
+    i_setDefaultCryptoExtPack(Utf8Str::Empty);
 
     m->uLogHistoryCount = 3;
 
@@ -710,6 +726,190 @@ HRESULT SystemProperties::getMaxInstancesOfUSBControllerType(ChipsetType_T aChip
     return S_OK;
 }
 
+HRESULT SystemProperties::getCPUProfiles(CPUArchitecture_T aArchitecture, const com::Utf8Str &aNamePattern,
+                                         std::vector<ComPtr<ICPUProfile> > &aProfiles)
+{
+    /*
+     * Validate and adjust the architecture.
+     */
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    CPUArchitecture_T enmSecondaryArch = aArchitecture;
+    bool fLoaded;
+    switch (aArchitecture)
+    {
+        case CPUArchitecture_Any:
+            aArchitecture = CPUArchitecture_AMD64;
+            RT_FALL_THROUGH();
+        case CPUArchitecture_AMD64:
+            enmSecondaryArch = CPUArchitecture_x86;
+            RT_FALL_THROUGH();
+        case CPUArchitecture_x86:
+            fLoaded = m_fLoadedX86CPUProfiles;
+            break;
+        default:
+            return setError(E_INVALIDARG, tr("Invalid or unsupported architecture value: %d"), aArchitecture);
+    }
+
+    /*
+     * Do we need to load the profiles?
+     */
+    HRESULT hrc;
+    if (fLoaded)
+        hrc = S_OK;
+    else
+    {
+        alock.release();
+        AutoWriteLock alockWrite(this COMMA_LOCKVAL_SRC_POS);
+
+        /*
+         * Translate the architecture to a VMM module handle.
+         */
+        const char *pszVMM;
+        switch (aArchitecture)
+        {
+            case CPUArchitecture_AMD64:
+            case CPUArchitecture_x86:
+                pszVMM = "VBoxVMM";
+                fLoaded = m_fLoadedX86CPUProfiles;
+                break;
+            default:
+                AssertFailedReturn(E_INVALIDARG);
+        }
+        if (fLoaded)
+            hrc = S_OK;
+        else
+        {
+            char szPath[RTPATH_MAX];
+            int vrc = RTPathAppPrivateArch(szPath, sizeof(szPath));
+            if (RT_SUCCESS(vrc))
+                vrc = RTPathAppend(szPath, sizeof(szPath), pszVMM);
+            if (RT_SUCCESS(vrc))
+                vrc = RTStrCat(szPath, sizeof(szPath), RTLdrGetSuff());
+            if (RT_SUCCESS(vrc))
+            {
+                RTLDRMOD hMod = NIL_RTLDRMOD;
+                vrc = RTLdrLoad(szPath, &hMod);
+                if (RT_SUCCESS(vrc))
+                {
+                    /*
+                     * Resolve the CPUMDb APIs we need.
+                     */
+                    PFNCPUMDBGETENTRIES      pfnGetEntries
+                        = (PFNCPUMDBGETENTRIES)RTLdrGetFunction(hMod, "CPUMR3DbGetEntries");
+                    PFNCPUMDBGETENTRYBYINDEX pfnGetEntryByIndex
+                        = (PFNCPUMDBGETENTRYBYINDEX)RTLdrGetFunction(hMod, "CPUMR3DbGetEntryByIndex");
+                    if (pfnGetEntries && pfnGetEntryByIndex)
+                    {
+                        size_t const cExistingProfiles = m_llCPUProfiles.size();
+
+                        /*
+                         * Instantate the profiles.
+                         */
+                        hrc = S_OK;
+                        uint32_t const cEntries = pfnGetEntries();
+                        for (uint32_t i = 0; i < cEntries; i++)
+                        {
+                            PCCPUMDBENTRY pDbEntry = pfnGetEntryByIndex(i);
+                            AssertBreakStmt(pDbEntry, hrc = setError(E_UNEXPECTED, "CPUMR3DbGetEntryByIndex failed for %i", i));
+
+                            ComObjPtr<CPUProfile> ptrProfile;
+                            hrc = ptrProfile.createObject();
+                            if (SUCCEEDED(hrc))
+                            {
+                                hrc = ptrProfile->initFromDbEntry(pDbEntry);
+                                if (SUCCEEDED(hrc))
+                                {
+                                    try
+                                    {
+                                        m_llCPUProfiles.push_back(ptrProfile);
+                                        continue;
+                                    }
+                                    catch (std::bad_alloc &)
+                                    {
+                                        hrc = E_OUTOFMEMORY;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+
+                        /*
+                         * On success update the flag and retake the read lock.
+                         * If we fail, drop the profiles we added to the list.
+                         */
+                        if (SUCCEEDED(hrc))
+                        {
+                            switch (aArchitecture)
+                            {
+                                case CPUArchitecture_AMD64:
+                                case CPUArchitecture_x86:
+                                    m_fLoadedX86CPUProfiles = true;
+                                    break;
+                                default:
+                                    AssertFailedStmt(hrc = E_INVALIDARG);
+                            }
+
+                            alockWrite.release();
+                            alock.acquire();
+                        }
+                        else
+                            m_llCPUProfiles.resize(cExistingProfiles);
+                    }
+                    else
+                        hrc = setErrorVrc(VERR_SYMBOL_NOT_FOUND,
+                                          tr("'%s' is missing symbols: CPUMR3DbGetEntries, CPUMR3DbGetEntryByIndex"), szPath);
+                    RTLdrClose(hMod);
+                }
+                else
+                    hrc = setErrorVrc(vrc, tr("Failed to construct load '%s': %Rrc"), szPath, vrc);
+            }
+            else
+                hrc = setErrorVrc(vrc, tr("Failed to construct path to the VMM DLL/Dylib/SharedObject: %Rrc"), vrc);
+        }
+    }
+    if (SUCCEEDED(hrc))
+    {
+        /*
+         * Return the matching profiles.
+         */
+        /* Count matches: */
+        size_t cMatches = 0;
+        for (CPUProfileList_T::const_iterator it = m_llCPUProfiles.begin(); it != m_llCPUProfiles.end(); ++it)
+            if ((*it)->i_match(aArchitecture, enmSecondaryArch, aNamePattern))
+                cMatches++;
+
+        /* Resize the output array. */
+        try
+        {
+            aProfiles.resize(cMatches);
+        }
+        catch (std::bad_alloc &)
+        {
+            aProfiles.resize(0);
+            hrc = E_OUTOFMEMORY;
+        }
+
+        /* Get the return objects: */
+        if (SUCCEEDED(hrc) && cMatches > 0)
+        {
+            size_t iMatch = 0;
+            for (CPUProfileList_T::const_iterator it = m_llCPUProfiles.begin(); it != m_llCPUProfiles.end(); ++it)
+                if ((*it)->i_match(aArchitecture, enmSecondaryArch, aNamePattern))
+                {
+                    AssertBreakStmt(iMatch < cMatches, hrc = E_UNEXPECTED);
+                    hrc = (*it).queryInterfaceTo(aProfiles[iMatch].asOutParam());
+                    if (SUCCEEDED(hrc))
+                        iMatch++;
+                    else
+                        break;
+                }
+            AssertStmt(iMatch == cMatches || FAILED(hrc), hrc = E_UNEXPECTED);
+        }
+    }
+    return hrc;
+}
+
+
 HRESULT SystemProperties::getDefaultMachineFolder(com::Utf8Str &aDefaultMachineFolder)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -967,6 +1167,85 @@ HRESULT SystemProperties::setDefaultVRDEExtPack(const com::Utf8Str &aExtPack)
 }
 
 
+HRESULT SystemProperties::getDefaultCryptoExtPack(com::Utf8Str &aExtPack)
+{
+    HRESULT hrc = S_OK;
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    Utf8Str strExtPack(m->strDefaultCryptoExtPack);
+    if (strExtPack.isNotEmpty())
+    {
+        if (strExtPack.equals(VBOXPUELCRYPTO_KLUDGE_EXTPACK_NAME))
+            hrc = S_OK;
+        else
+#ifdef VBOX_WITH_EXTPACK
+            hrc = mParent->i_getExtPackManager()->i_checkCryptoExtPack(&strExtPack);
+#else
+            hrc = setError(E_FAIL, tr("The extension pack '%s' does not exist"), strExtPack.c_str());
+#endif
+    }
+    else
+    {
+#ifdef VBOX_WITH_EXTPACK
+        hrc = mParent->i_getExtPackManager()->i_getDefaultCryptoExtPack(&strExtPack);
+#endif
+        if (strExtPack.isEmpty())
+        {
+            /*
+            * Klugde - check if VBoxPuelCrypto.dll/.so/.dylib is installed.
+            * This is hardcoded uglyness, sorry.
+            */
+            char szPath[RTPATH_MAX];
+            int vrc = RTPathAppPrivateArch(szPath, sizeof(szPath));
+            if (RT_SUCCESS(vrc))
+                vrc = RTPathAppend(szPath, sizeof(szPath), "VBoxPuelCrypto");
+            if (RT_SUCCESS(vrc))
+                vrc = RTStrCat(szPath, sizeof(szPath), RTLdrGetSuff());
+            if (RT_SUCCESS(vrc) && RTFileExists(szPath))
+            {
+                /* Illegal extpack name, so no conflict. */
+                strExtPack = VBOXPUELCRYPTO_KLUDGE_EXTPACK_NAME;
+            }
+        }
+    }
+
+    if (SUCCEEDED(hrc))
+          aExtPack = strExtPack;
+
+    return S_OK;
+}
+
+
+HRESULT SystemProperties::setDefaultCryptoExtPack(const com::Utf8Str &aExtPack)
+{
+    HRESULT hrc = S_OK;
+    if (aExtPack.isNotEmpty())
+    {
+        if (aExtPack.equals(VBOXPUELCRYPTO_KLUDGE_EXTPACK_NAME))
+            hrc = S_OK;
+        else
+#ifdef VBOX_WITH_EXTPACK
+            hrc = mParent->i_getExtPackManager()->i_checkCryptoExtPack(&aExtPack);
+#else
+            hrc = setError(E_FAIL, tr("The extension pack '%s' does not exist"), aExtPack.c_str());
+#endif
+    }
+    if (SUCCEEDED(hrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        hrc = i_setDefaultCryptoExtPack(aExtPack);
+        if (SUCCEEDED(hrc))
+        {
+            /* VirtualBox::i_saveSettings() needs the VirtualBox write lock. */
+            alock.release();
+            AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+            hrc = mParent->i_saveSettings();
+        }
+    }
+
+    return hrc;
+}
+
+
 HRESULT SystemProperties::getLogHistoryCount(ULONG *count)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -1060,7 +1339,7 @@ HRESULT SystemProperties::getDefaultFrontend(com::Utf8Str &aDefaultFrontend)
 HRESULT SystemProperties::setDefaultFrontend(const com::Utf8Str &aDefaultFrontend)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    if (m->strDefaultFrontend == Utf8Str(aDefaultFrontend))
+    if (m->strDefaultFrontend == aDefaultFrontend)
         return S_OK;
     HRESULT rc = i_setDefaultFrontend(aDefaultFrontend);
     alock.release();
@@ -1241,6 +1520,7 @@ HRESULT SystemProperties::getSupportedPointingHIDTypes(std::vector<PointingHIDTy
         PointingHIDType_ComboMouse,
 #endif
         PointingHIDType_USBMultiTouch,
+        PointingHIDType_USBMultiTouchScreenPlusPad,
     };
     aSupportedPointingHIDTypes.assign(aPointingHIDTypes,
                                       aPointingHIDTypes + RT_ELEMENTS(aPointingHIDTypes));
@@ -1305,14 +1585,35 @@ HRESULT SystemProperties::getSupportedExportOptions(std::vector<ExportOptions_T>
     return S_OK;
 }
 
+HRESULT SystemProperties::getSupportedRecordingFeatures(std::vector<RecordingFeature_T> &aSupportedRecordingFeatures)
+{
+#ifdef VBOX_WITH_RECORDING
+    static const RecordingFeature_T aRecordingFeatures[] =
+    {
+# ifdef VBOX_WITH_AUDIO_RECORDING
+        RecordingFeature_Audio,
+# endif
+        RecordingFeature_Video,
+    };
+    aSupportedRecordingFeatures.assign(aRecordingFeatures,
+                                       aRecordingFeatures + RT_ELEMENTS(aRecordingFeatures));
+#else  /* !VBOX_WITH_RECORDING */
+    aSupportedRecordingFeatures.clear();
+#endif /* VBOX_WITH_RECORDING */
+    return S_OK;
+}
+
 HRESULT SystemProperties::getSupportedRecordingAudioCodecs(std::vector<RecordingAudioCodec_T> &aSupportedRecordingAudioCodecs)
 {
     static const RecordingAudioCodec_T aRecordingAudioCodecs[] =
     {
+        RecordingAudioCodec_None,
 #ifdef DEBUG
         RecordingAudioCodec_WavPCM,
 #endif
-        RecordingAudioCodec_Opus,
+#ifdef VBOX_WITH_LIBVORBIS
+        RecordingAudioCodec_OggVorbis,
+#endif
     };
     aSupportedRecordingAudioCodecs.assign(aRecordingAudioCodecs,
                                           aRecordingAudioCodecs + RT_ELEMENTS(aRecordingAudioCodecs));
@@ -1323,7 +1624,10 @@ HRESULT SystemProperties::getSupportedRecordingVideoCodecs(std::vector<Recording
 {
     static const RecordingVideoCodec_T aRecordingVideoCodecs[] =
     {
+        RecordingVideoCodec_None,
+#ifdef VBOX_WITH_LIBVPX
         RecordingVideoCodec_VP8,
+#endif
 #ifdef DEBUG
         RecordingVideoCodec_VP9,
         RecordingVideoCodec_AV1,
@@ -1334,30 +1638,46 @@ HRESULT SystemProperties::getSupportedRecordingVideoCodecs(std::vector<Recording
     return S_OK;
 }
 
-HRESULT SystemProperties::getSupportedRecordingVSMethods(std::vector<RecordingVideoScalingMethod_T> &aSupportedRecordingVideoScalingMethods)
+HRESULT SystemProperties::getSupportedRecordingVSModes(std::vector<RecordingVideoScalingMode_T> &aSupportedRecordingVideoScalingModes)
 {
-    static const RecordingVideoScalingMethod_T aRecordingVideoScalingMethods[] =
+    static const RecordingVideoScalingMode_T aRecordingVideoScalingModes[] =
     {
-        RecordingVideoScalingMethod_None,
+        RecordingVideoScalingMode_None,
 #ifdef DEBUG
-        RecordingVideoScalingMethod_NearestNeighbor,
-        RecordingVideoScalingMethod_Bilinear,
-        RecordingVideoScalingMethod_Bicubic,
+        RecordingVideoScalingMode_NearestNeighbor,
+        RecordingVideoScalingMode_Bilinear,
+        RecordingVideoScalingMode_Bicubic,
 #endif
     };
-    aSupportedRecordingVideoScalingMethods.assign(aRecordingVideoScalingMethods,
-                                                  aRecordingVideoScalingMethods + RT_ELEMENTS(aRecordingVideoScalingMethods));
+    aSupportedRecordingVideoScalingModes.assign(aRecordingVideoScalingModes,
+                                                aRecordingVideoScalingModes + RT_ELEMENTS(aRecordingVideoScalingModes));
     return S_OK;
 }
 
-HRESULT SystemProperties::getSupportedRecordingVRCModes(std::vector<RecordingVideoRateControlMode_T> &aSupportedRecordingVideoRateControlModes)
+HRESULT SystemProperties::getSupportedRecordingARCModes(std::vector<RecordingRateControlMode_T> &aSupportedRecordingAudioRateControlModes)
 {
-    static const RecordingVideoRateControlMode_T aRecordingVideoRateControlModes[] =
+    static const RecordingRateControlMode_T aRecordingAudioRateControlModes[] =
     {
-        RecordingVideoRateControlMode_CBR,
 #ifdef DEBUG
-        RecordingVideoRateControlMode_VBR,
+        RecordingRateControlMode_ABR,
+        RecordingRateControlMode_CBR,
 #endif
+        RecordingRateControlMode_VBR
+    };
+    aSupportedRecordingAudioRateControlModes.assign(aRecordingAudioRateControlModes,
+                                                    aRecordingAudioRateControlModes + RT_ELEMENTS(aRecordingAudioRateControlModes));
+    return S_OK;
+}
+
+HRESULT SystemProperties::getSupportedRecordingVRCModes(std::vector<RecordingRateControlMode_T> &aSupportedRecordingVideoRateControlModes)
+{
+    static const RecordingRateControlMode_T aRecordingVideoRateControlModes[] =
+    {
+#ifdef DEBUG
+        RecordingRateControlMode_ABR,
+        RecordingRateControlMode_CBR,
+#endif
+        RecordingRateControlMode_VBR
     };
     aSupportedRecordingVideoRateControlModes.assign(aRecordingVideoRateControlModes,
                                                     aRecordingVideoRateControlModes + RT_ELEMENTS(aRecordingVideoRateControlModes));
@@ -1430,6 +1750,9 @@ HRESULT SystemProperties::getSupportedNetworkAttachmentTypes(std::vector<Network
         NetworkAttachmentType_Bridged,
         NetworkAttachmentType_Internal,
         NetworkAttachmentType_HostOnly,
+#ifdef VBOX_WITH_VMNET
+        NetworkAttachmentType_HostOnlyNetwork,
+#endif /* VBOX_WITH_VMNET */
         NetworkAttachmentType_Generic,
         NetworkAttachmentType_NATNetwork,
 #ifdef VBOX_WITH_CLOUD_NET
@@ -1452,9 +1775,6 @@ HRESULT SystemProperties::getSupportedNetworkAdapterTypes(std::vector<NetworkAda
         NetworkAdapterType_I82543GC,
         NetworkAdapterType_I82545EM,
         NetworkAdapterType_Virtio,
-#ifdef VBOX_WITH_VIRTIO_NET_1_0
-        NetworkAdapterType_Virtio_1_0,
-#endif
     };
     aSupportedNetworkAdapterTypes.assign(aNetworkAdapterTypes,
                                          aNetworkAdapterTypes + RT_ELEMENTS(aNetworkAdapterTypes));
@@ -1491,31 +1811,14 @@ HRESULT SystemProperties::getSupportedUartTypes(std::vector<UartType_T> &aSuppor
 
 HRESULT SystemProperties::getSupportedUSBControllerTypes(std::vector<USBControllerType_T> &aSupportedUSBControllerTypes)
 {
-    static const USBControllerType_T aUSBControllerTypesWithoutExtPack[] =
-    {
-        USBControllerType_OHCI,
-    };
-    static const USBControllerType_T aUSBControllerTypesWithExtPack[] =
+    static const USBControllerType_T aUSBControllerTypes[] =
     {
         USBControllerType_OHCI,
         USBControllerType_EHCI,
         USBControllerType_XHCI,
     };
-    bool fExtPack = false;
-# ifdef VBOX_WITH_EXTPACK
-    static const char *s_pszUsbExtPackName = "Oracle VM VirtualBox Extension Pack";
-    if (mParent->i_getExtPackManager()->i_isExtPackUsable(s_pszUsbExtPackName))
-# endif
-    {
-        fExtPack = true;
-    }
-
-    if (fExtPack)
-        aSupportedUSBControllerTypes.assign(aUSBControllerTypesWithExtPack,
-                                            aUSBControllerTypesWithExtPack + RT_ELEMENTS(aUSBControllerTypesWithExtPack));
-    else
-        aSupportedUSBControllerTypes.assign(aUSBControllerTypesWithoutExtPack,
-                                            aUSBControllerTypesWithoutExtPack + RT_ELEMENTS(aUSBControllerTypesWithoutExtPack));
+    aSupportedUSBControllerTypes.assign(aUSBControllerTypes,
+                                        aUSBControllerTypes + RT_ELEMENTS(aUSBControllerTypes));
     return S_OK;
 }
 
@@ -1523,10 +1826,12 @@ HRESULT SystemProperties::getSupportedAudioDriverTypes(std::vector<AudioDriverTy
 {
     static const AudioDriverType_T aAudioDriverTypes[] =
     {
+        AudioDriverType_Default,
 #ifdef RT_OS_WINDOWS
 # if 0 /* deprecated for many years now */
         AudioDriverType_WinMM,
 # endif
+        AudioDriverType_WAS,
         AudioDriverType_DirectSound,
 #endif
 #ifdef RT_OS_DARWIN
@@ -1620,6 +1925,33 @@ HRESULT SystemProperties::getSupportedChipsetTypes(std::vector<ChipsetType_T> &a
     return S_OK;
 }
 
+HRESULT SystemProperties::getSupportedIommuTypes(std::vector<IommuType_T> &aSupportedIommuTypes)
+{
+    static const IommuType_T aIommuTypes[] =
+    {
+        IommuType_None,
+        IommuType_Automatic,
+        IommuType_AMD,
+        /** @todo Add Intel when it's supported. */
+    };
+    aSupportedIommuTypes.assign(aIommuTypes,
+                                aIommuTypes + RT_ELEMENTS(aIommuTypes));
+    return S_OK;
+}
+
+HRESULT SystemProperties::getSupportedTpmTypes(std::vector<TpmType_T> &aSupportedTpmTypes)
+{
+    static const TpmType_T aTpmTypes[] =
+    {
+        TpmType_None,
+        TpmType_v1_2,
+        TpmType_v2_0
+    };
+    aSupportedTpmTypes.assign(aTpmTypes,
+                              aTpmTypes + RT_ELEMENTS(aTpmTypes));
+    return S_OK;
+}
+
 
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
@@ -1649,10 +1981,15 @@ HRESULT SystemProperties::i_loadSettings(const settings::SystemProperties &data)
     rc = i_setDefaultVRDEExtPack(data.strDefaultVRDEExtPack);
     if (FAILED(rc)) return rc;
 
+    rc = i_setDefaultCryptoExtPack(data.strDefaultCryptoExtPack);
+    if (FAILED(rc)) return rc;
+
     m->uLogHistoryCount  = data.uLogHistoryCount;
     m->fExclusiveHwVirt  = data.fExclusiveHwVirt;
     m->uProxyMode        = data.uProxyMode;
     m->strProxyUrl       = data.strProxyUrl;
+
+    m->strLanguageId     = data.strLanguageId;
 
     rc = i_setAutostartDatabasePath(data.strAutostartDatabasePath);
     if (FAILED(rc)) return rc;
@@ -1761,7 +2098,9 @@ ComObjPtr<MediumFormat> SystemProperties::i_mediumFormatFromExtension(const Utf8
  */
 int SystemProperties::i_loadVDPlugin(const char *pszPluginLibrary)
 {
-    return VDPluginLoadFromFilename(pszPluginLibrary);
+    int vrc = VDPluginLoadFromFilename(pszPluginLibrary);
+    LogFlowFunc(("pszPluginLibrary='%s' -> %Rrc\n", pszPluginLibrary, vrc));
+    return vrc;
 }
 
 /**
@@ -1769,7 +2108,9 @@ int SystemProperties::i_loadVDPlugin(const char *pszPluginLibrary)
  */
 int SystemProperties::i_unloadVDPlugin(const char *pszPluginLibrary)
 {
-    return VDPluginUnloadFromFilename(pszPluginLibrary);
+    int vrc = VDPluginUnloadFromFilename(pszPluginLibrary);
+    LogFlowFunc(("pszPluginLibrary='%s' -> %Rrc\n", pszPluginLibrary, vrc));
+    return vrc;
 }
 
 /**
@@ -1912,6 +2253,13 @@ HRESULT SystemProperties::i_setDefaultVRDEExtPack(const com::Utf8Str &aExtPack)
     return S_OK;
 }
 
+HRESULT SystemProperties::i_setDefaultCryptoExtPack(const com::Utf8Str &aExtPack)
+{
+    m->strDefaultCryptoExtPack = aExtPack;
+
+    return S_OK;
+}
+
 HRESULT SystemProperties::i_setAutostartDatabasePath(const com::Utf8Str &aPath)
 {
     HRESULT rc = S_OK;
@@ -1994,3 +2342,61 @@ HRESULT SystemProperties::i_setDefaultFrontend(const com::Utf8Str &aDefaultFront
     return S_OK;
 }
 
+HRESULT SystemProperties::getLanguageId(com::Utf8Str &aLanguageId)
+{
+#ifdef VBOX_WITH_MAIN_NLS
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    aLanguageId = m->strLanguageId;
+    alock.release();
+
+    HRESULT hrc = S_OK;
+    if (aLanguageId.isEmpty())
+    {
+        char szLocale[256];
+        memset(szLocale, 0, sizeof(szLocale));
+        int vrc = RTLocaleQueryNormalizedBaseLocaleName(szLocale, sizeof(szLocale));
+        if (RT_SUCCESS(vrc))
+            aLanguageId = szLocale;
+        else
+            hrc = Global::vboxStatusCodeToCOM(vrc);
+    }
+    return hrc;
+#else
+    aLanguageId = "C";
+    return S_OK;
+#endif
+}
+
+HRESULT SystemProperties::setLanguageId(const com::Utf8Str &aLanguageId)
+{
+#ifdef VBOX_WITH_MAIN_NLS
+    VirtualBoxTranslator *pTranslator = VirtualBoxTranslator::instance();
+    if (!pTranslator)
+        return E_FAIL;
+
+    HRESULT hrc = S_OK;
+    int vrc = pTranslator->i_loadLanguage(aLanguageId.c_str());
+    if (RT_SUCCESS(vrc))
+    {
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        m->strLanguageId = aLanguageId;
+        alock.release();
+
+        // VirtualBox::i_saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        hrc = mParent->i_saveSettings();
+    }
+    else
+        hrc = Global::vboxStatusCodeToCOM(vrc);
+
+    pTranslator->release();
+
+    if (SUCCEEDED(hrc))
+        mParent->i_onLanguageChanged(aLanguageId);
+
+    return hrc;
+#else
+    NOREF(aLanguageId);
+    return E_NOTIMPL;
+#endif
+}

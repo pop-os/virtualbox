@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -36,7 +46,6 @@
 
 #include <VBox/err.h>
 
-#include <iprt/asm-amd64-x86.h>
 #ifdef IN_RING3
 # include <iprt/mem.h>
 #endif
@@ -508,8 +517,9 @@ DECLINLINE(uint64_t) gimHvGetTimeRefCount(PVMCPUCC pVCpu)
  */
 VMM_INT_DECL(void) gimHvStartStimer(PVMCPUCC pVCpu, PCGIMHVSTIMER pHvStimer)
 {
-    PTMTIMER pTimer = pHvStimer->CTX_SUFF(pTimer);
-    Assert(TMTimerIsLockOwner(pTimer));
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+    TMTIMERHANDLE hTimer = pHvStimer->hTimer;
+    Assert(TMTimerIsLockOwner(pVM, hTimer));
 
     uint64_t const uTimerCount = pHvStimer->uStimerCountMsr;
     if (uTimerCount)
@@ -519,7 +529,7 @@ VMM_INT_DECL(void) gimHvStartStimer(PVMCPUCC pVCpu, PCGIMHVSTIMER pHvStimer)
         /* For periodic timers, 'uTimerCountNS' represents the relative interval. */
         if (MSR_GIM_HV_STIMER_IS_PERIODIC(pHvStimer->uStimerConfigMsr))
         {
-            TMTimerSetNano(pTimer, uTimerCountNS);
+            TMTimerSetNano(pVM, hTimer, uTimerCountNS);
             LogFlow(("GIM%u: HyperV: Started relative periodic STIMER%u with uTimerCountNS=%RU64\n", pVCpu->idCpu,
                      pHvStimer->idxStimer, uTimerCountNS));
         }
@@ -531,7 +541,7 @@ VMM_INT_DECL(void) gimHvStartStimer(PVMCPUCC pVCpu, PCGIMHVSTIMER pHvStimer)
             if (uTimerCountNS > uCurRefTimeNS)
             {
                 uint64_t const uRelativeNS = uTimerCountNS - uCurRefTimeNS;
-                TMTimerSetNano(pTimer, uRelativeNS);
+                TMTimerSetNano(pVM, hTimer, uRelativeNS);
                 LogFlow(("GIM%u: HyperV: Started one-shot relative STIMER%u with uRelativeNS=%RU64\n", pVCpu->idCpu,
                          pHvStimer->idxStimer, uRelativeNS));
             }
@@ -553,14 +563,13 @@ VMM_INT_DECL(void) gimHvStartStimer(PVMCPUCC pVCpu, PCGIMHVSTIMER pHvStimer)
 static void gimHvStopStimer(PVMCPUCC pVCpu, PGIMHVSTIMER pHvStimer)
 {
     VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
-    RT_NOREF(pVCpu);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
 
-    PTMTIMER pTimer = pHvStimer->CTX_SUFF(pTimer);
-    Assert(TMTimerIsLockOwner(pTimer));
-    RT_NOREF(pTimer);
+    TMTIMERHANDLE hTimer = pHvStimer->hTimer;
+    Assert(TMTimerIsLockOwner(pVM, hTimer));
 
-    if (TMTimerIsActive(pHvStimer->CTX_SUFF(pTimer)))
-        TMTimerStop(pHvStimer->CTX_SUFF(pTimer));
+    if (TMTimerIsActive(pVM, hTimer))
+        TMTimerStop(pVM, hTimer);
 }
 
 
@@ -756,7 +765,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvReadMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMS
 VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue)
 {
     NOREF(pRange);
-    PVM    pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC  pVM = pVCpu->CTX_SUFF(pVM);
     PGIMHV pHv = &pVM->gim.s.u.Hv;
 
     switch (idMsr)
@@ -851,7 +860,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
             }
 
             /* Enable the hypercall-page. */
-            RTGCPHYS GCPhysHypercallPage = MSR_GIM_HV_HYPERCALL_GUEST_PFN(uRawValue) << PAGE_SHIFT;
+            RTGCPHYS GCPhysHypercallPage = MSR_GIM_HV_HYPERCALL_GUEST_PFN(uRawValue) << GUEST_PAGE_SHIFT;
             int rc = gimR3HvEnableHypercallPage(pVM, GCPhysHypercallPage);
             if (RT_SUCCESS(rc))
             {
@@ -881,7 +890,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
             }
 
             /* Enable the TSC page. */
-            RTGCPHYS GCPhysTscPage = MSR_GIM_HV_REF_TSC_GUEST_PFN(uRawValue) << PAGE_SHIFT;
+            RTGCPHYS GCPhysTscPage = MSR_GIM_HV_REF_TSC_GUEST_PFN(uRawValue) << GUEST_PAGE_SHIFT;
             int rc = gimR3HvEnableTscPage(pVM, GCPhysTscPage, false /* fUseThisTscSequence */, 0 /* uTscSequence */);
             if (RT_SUCCESS(rc))
             {
@@ -903,7 +912,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
 
             if (MSR_GIM_HV_APICASSIST_PAGE_IS_ENABLED(uRawValue))
             {
-                RTGCPHYS GCPhysApicAssistPage = MSR_GIM_HV_APICASSIST_GUEST_PFN(uRawValue) << PAGE_SHIFT;
+                RTGCPHYS GCPhysApicAssistPage = MSR_GIM_HV_APICASSIST_GUEST_PFN(uRawValue) << GUEST_PAGE_SHIFT;
                 if (PGMPhysIsGCPhysNormal(pVM, GCPhysApicAssistPage))
                 {
                     int rc = gimR3HvEnableApicAssistPage(pVCpu, GCPhysApicAssistPage);
@@ -1065,7 +1074,8 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
                     LogRelMax(1, ("GIM: HyperV: Initiated debug data reception via MSR\n"));
                     uint32_t cbReallyRead;
                     Assert(pHv->pvDbgBuffer);
-                    int rc = gimR3HvDebugRead(pVM, pHv->pvDbgBuffer, PAGE_SIZE, PAGE_SIZE, &cbReallyRead, 0, false /*fUdpPkt*/);
+                    int rc = gimR3HvDebugRead(pVM, pHv->pvDbgBuffer, GIM_HV_PAGE_SIZE, GIM_HV_PAGE_SIZE,
+                                              &cbReallyRead, 0, false /*fUdpPkt*/);
                     if (   RT_SUCCESS(rc)
                         && cbReallyRead > 0)
                     {
@@ -1152,10 +1162,9 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
             {
                 Assert(idxStimer < RT_ELEMENTS(pHvCpu->aStimers));
                 PGIMHVSTIMER pHvStimer = &pHvCpu->aStimers[idxStimer];
-                PTMTIMER     pTimer    = pHvStimer->CTX_SUFF(pTimer);
 
                 /* Lock to prevent concurrent access from the timer callback. */
-                int rc = TMTimerLock(pTimer, VERR_IGNORED);
+                int rc = TMTimerLock(pVM, pHvStimer->hTimer, VERR_IGNORED);
                 if (rc == VINF_SUCCESS)
                 {
                     /* Update the MSR value. */
@@ -1175,7 +1184,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
                         /* Auto-enable implies writing to the STIMERx_COUNT MSR is what starts the timer. */
                         if (!MSR_GIM_HV_STIMER_IS_AUTO_ENABLED(uRawValue))
                         {
-                            if (!TMTimerIsActive(pHvStimer->CTX_SUFF(pTimer)))
+                            if (!TMTimerIsActive(pVM, pHvStimer->hTimer))
                             {
                                 gimHvStartStimer(pVCpu, pHvStimer);
                                 Log(("GIM%u: HyperV: Started STIMER%u\n", pVCpu->idCpu, idxStimer));
@@ -1196,7 +1205,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
                         }
                     }
 
-                    TMTimerUnlock(pTimer);
+                    TMTimerUnlock(pVM, pHvStimer->hTimer);
                 }
                 return rc;
             }
@@ -1238,13 +1247,12 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
              */
             if (MSR_GIM_HV_STIMER_IS_AUTO_ENABLED(pHvStimer->uStimerConfigMsr))
             {
-                PTMTIMER pTimer = pHvStimer->CTX_SUFF(pTimer);
-                int rc = TMTimerLock(pTimer, rcBusy);
+                int rc = TMTimerLock(pVM, pHvStimer->hTimer, rcBusy);
                 if (rc == VINF_SUCCESS)
                 {
                     pHvStimer->uStimerCountMsr = uRawValue;
                     gimHvStartStimer(pVCpu, pHvStimer);
-                    TMTimerUnlock(pTimer);
+                    TMTimerUnlock(pVM, pHvStimer->hTimer);
                     Log(("GIM%u: HyperV: Set STIMER_COUNT%u=%RU64 %RU64 msec, auto-started timer\n", pVCpu->idCpu, idxStimer,
                          uRawValue, (uRawValue * 100) / RT_NS_1MS_64));
                 }
@@ -1273,7 +1281,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
             pHvCpu->uSiefpMsr = uRawValue;
             if (MSR_GIM_HV_SIEF_PAGE_IS_ENABLED(uRawValue))
             {
-                RTGCPHYS GCPhysSiefPage = MSR_GIM_HV_SIEF_GUEST_PFN(uRawValue) << PAGE_SHIFT;
+                RTGCPHYS GCPhysSiefPage = MSR_GIM_HV_SIEF_GUEST_PFN(uRawValue) << GUEST_PAGE_SHIFT;
                 if (PGMPhysIsGCPhysNormal(pVM, GCPhysSiefPage))
                 {
                     int rc = gimR3HvEnableSiefPage(pVCpu, GCPhysSiefPage);
@@ -1308,7 +1316,7 @@ VMM_INT_DECL(VBOXSTRICTRC) gimHvWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMM
                 RTGCPHYS GCPhysSimp = MSR_GIM_HV_SIMP_GPA(uRawValue);
                 if (PGMPhysIsGCPhysNormal(pVM, GCPhysSimp))
                 {
-                    uint8_t abSimp[PAGE_SIZE];
+                    uint8_t abSimp[GIM_HV_PAGE_SIZE];
                     RT_ZERO(abSimp);
                     int rc2 = PGMPhysSimpleWriteGCPhys(pVM, GCPhysSimp, &abSimp[0], sizeof(abSimp));
                     if (RT_SUCCESS(rc2))

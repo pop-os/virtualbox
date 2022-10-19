@@ -7,26 +7,36 @@ Test Manager Core - WUI - Admin Main page.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard python imports.
@@ -34,7 +44,7 @@ import cgitb;
 import sys;
 
 # Validation Kit imports.
-from common                                    import webutils
+from common                                    import utils, webutils;
 from testmanager                               import config;
 from testmanager.webui.wuibase                 import WuiDispatcherBase, WuiException
 
@@ -54,6 +64,8 @@ class WuiAdmin(WuiDispatcherBase):
     ## @{
     ksActionSystemLogList           = 'SystemLogList'
     ksActionSystemChangelogList     = 'SystemChangelogList'
+    ksActionSystemDbDump            = 'SystemDbDump'
+    ksActionSystemDbDumpDownload    = 'SystemDbDumpDownload'
 
     ksActionUserList                = 'UserList'
     ksActionUserAdd                 = 'UserAdd'
@@ -157,6 +169,7 @@ class WuiAdmin(WuiDispatcherBase):
     ksActionSchedGroupDoRemove      = 'SchedGroupDel';
     ksActionSchedGroupEdit          = 'SchedGroupEdit';
     ksActionSchedGroupEditPost      = 'SchedGroupEditPost';
+    ksActionSchedQueueList          = 'SchedQueueList';
     ## @}
 
     def __init__(self, oSrvGlue): # pylint: disable=too-many-locals,too-many-statements
@@ -165,10 +178,12 @@ class WuiAdmin(WuiDispatcherBase):
 
 
         #
-        # System Log actions.
+        # System actions.
         #
         self._dDispatch[self.ksActionSystemChangelogList]       = self._actionSystemChangelogList;
         self._dDispatch[self.ksActionSystemLogList]             = self._actionSystemLogList;
+        self._dDispatch[self.ksActionSystemDbDump]              = self._actionSystemDbDump;
+        self._dDispatch[self.ksActionSystemDbDumpDownload]      = self._actionSystemDbDumpDownload;
 
         #
         # User Account actions.
@@ -298,7 +313,7 @@ class WuiAdmin(WuiDispatcherBase):
         self._dDispatch[self.ksActionTestCfgRegenQueues]        = self._actionRegenQueuesCommon;
 
         #
-        # Scheduling Group actions
+        # Scheduling Group and Queue actions
         #
         self._dDispatch[self.ksActionSchedGroupList]            = self._actionSchedGroupList;
         self._dDispatch[self.ksActionSchedGroupAdd]             = self._actionSchedGroupAdd;
@@ -308,6 +323,7 @@ class WuiAdmin(WuiDispatcherBase):
         self._dDispatch[self.ksActionSchedGroupAddPost]         = self._actionSchedGroupAddPost;
         self._dDispatch[self.ksActionSchedGroupEditPost]        = self._actionSchedGroupEditPost;
         self._dDispatch[self.ksActionSchedGroupDoRemove]        = self._actionSchedGroupDoRemove;
+        self._dDispatch[self.ksActionSchedQueueList]            = self._actionSchedQueueList;
 
 
         #
@@ -342,6 +358,7 @@ class WuiAdmin(WuiDispatcherBase):
                 [
                     [ 'Changelog',              self._sActionUrlBase + self.ksActionSystemChangelogList,    False ],
                     [ 'System log',             self._sActionUrlBase + self.ksActionSystemLogList,          False ],
+                    [ 'Partial DB Dump',        self._sActionUrlBase + self.ksActionSystemDbDump,           False ],
                     [ 'User accounts',          self._sActionUrlBase + self.ksActionUserList,               False ],
                     [ 'New user',               self._sActionUrlBase + self.ksActionUserAdd,                True  ],
                 ]
@@ -353,6 +370,7 @@ class WuiAdmin(WuiDispatcherBase):
                     [ 'Scheduling groups',      self._sActionUrlBase + self.ksActionSchedGroupList,         False ],
                     [ 'New testbox',            self._sActionUrlBase + self.ksActionTestBoxAdd,             True  ],
                     [ 'New scheduling group',   self._sActionUrlBase + self.ksActionSchedGroupAdd,          True  ],
+                    [ 'View scheduling queues', self._sActionUrlBase + self.ksActionSchedQueueList,         False ],
                     [ 'Regenerate all scheduling queues', self._sActionUrlBase + self.ksActionTestBoxesRegenQueues, True  ],
                 ]
             ],
@@ -419,12 +437,12 @@ class WuiAdmin(WuiDispatcherBase):
     # System wide changelog actions.
 
     def _actionSystemChangelogList(self):
-        """ Action wrapper. """
+        """ Action handler. """
         from testmanager.core.systemchangelog          import SystemChangelogLogic;
         from testmanager.webui.wuiadminsystemchangelog import WuiAdminSystemChangelogList;
 
         tsEffective     = self.getEffectiveDateParam();
-        cItemsPerPage   = self.getIntParam(self.ksParamItemsPerPage, iMin = 2, iMax =   9999, iDefault = 300);
+        cItemsPerPage   = self.getIntParam(self.ksParamItemsPerPage, iMin = 2, iMax =   9999, iDefault = 384);
         iPage           = self.getIntParam(self.ksParamPageNo,       iMin = 0, iMax = 999999, iDefault = 0);
         cDaysBack       = self.getIntParam(self.ksParamDaysBack,     iMin = 1, iMax = 366,    iDefault = 14);
         self._checkForUnknownParameters();
@@ -443,6 +461,75 @@ class WuiAdmin(WuiDispatcherBase):
         from testmanager.core.systemlog                import SystemLogLogic;
         from testmanager.webui.wuiadminsystemlog       import WuiAdminSystemLogList;
         return self._actionGenericListing(SystemLogLogic, WuiAdminSystemLogList)
+
+    def _actionSystemDbDump(self):
+        """ Action handler. """
+        from testmanager.webui.wuiadminsystemdbdump    import WuiAdminSystemDbDumpForm;
+
+        cDaysBack = self.getIntParam(self.ksParamDaysBack, iMin = config.g_kcTmDbDumpMinDays,
+                                     iMax = config.g_kcTmDbDumpMaxDays, iDefault = config.g_kcTmDbDumpDefaultDays);
+        self._checkForUnknownParameters();
+
+        oContent = WuiAdminSystemDbDumpForm(cDaysBack, oDisp = self);
+        (self._sPageTitle, self._sPageBody) = oContent.showForm();
+        return True;
+
+    def _actionSystemDbDumpDownload(self):
+        """ Action handler. """
+        import datetime;
+        import os;
+
+        cDaysBack = self.getIntParam(self.ksParamDaysBack, iMin = config.g_kcTmDbDumpMinDays,
+                                     iMax = config.g_kcTmDbDumpMaxDays, iDefault = config.g_kcTmDbDumpDefaultDays);
+        self._checkForUnknownParameters();
+
+        #
+        # Generate the dump.
+        #
+        # We generate a file name that's unique to a user is smart enough to only
+        # issue one of these requests at the time.  This also makes sure we  won't
+        #  waste too much space should this code get interrupted and rerun.
+        #
+        oFile    = None;
+        oNow     = datetime.datetime.utcnow();
+        sOutFile = config.g_ksTmDbDumpOutFileTmpl % (self._oCurUser.uid,);
+        sTmpFile = config.g_ksTmDbDumpTmpFileTmpl % (self._oCurUser.uid,);
+        sScript  = os.path.join(config.g_ksTestManagerDir, 'db', 'partial-db-dump.py');
+        try:
+            (iExitCode, sStdOut, sStdErr) = utils.processOutputUnchecked([ sScript,
+                                                                           '--days-to-dump', str(cDaysBack),
+                                                                           '-f', sOutFile,
+                                                                           '-t', sTmpFile,
+                                                                           ]);
+            if iExitCode != 0:
+                raise Exception('iExitCode=%s\n--- stderr ---\n%s\n--- stdout ---\n%s' % (iExitCode, sStdOut, sStdErr,));
+
+            #
+            # Open and send the dump.
+            #
+            oFile = open(sOutFile, 'rb');                       # pylint: disable=consider-using-with
+            cbFile = os.fstat(oFile.fileno()).st_size;
+
+            self._oSrvGlue.setHeaderField('Content-Type', 'application/zip');
+            self._oSrvGlue.setHeaderField('Content-Disposition',
+                                          oNow.strftime('attachment; filename="partial-db-dump-%Y-%m-%dT%H-%M-%S.zip"'));
+            self._oSrvGlue.setHeaderField('Content-Length', str(cbFile));
+
+            while True:
+                abChunk = oFile.read(262144);
+                if not abChunk:
+                    break;
+                self._oSrvGlue.writeRaw(abChunk);
+
+        finally:
+            # Delete the file to save space.
+            if oFile:
+                try:    oFile.close();
+                except: pass;
+            utils.noxcptDeleteFile(sOutFile);
+            utils.noxcptDeleteFile(sTmpFile);
+        return self.ksDispatchRcAllDone;
+
 
     # User Account actions.
 
@@ -636,6 +723,11 @@ class WuiAdmin(WuiDispatcherBase):
         from testmanager.core.schedgroup                import SchedGroupData, SchedGroupLogic;
         return self._actionGenericDoRemove(SchedGroupLogic, SchedGroupData.ksParam_idSchedGroup, self.ksActionSchedGroupList)
 
+    def _actionSchedQueueList(self):
+        """ Action wrapper. """
+        from testmanager.core.schedqueue                import SchedQueueLogic;
+        from testmanager.webui.wuiadminschedqueue       import WuiAdminSchedQueueList;
+        return self._actionGenericListing(SchedQueueLogic, WuiAdminSchedQueueList);
 
     def _actionRegenQueuesCommon(self):
         """
@@ -676,9 +768,14 @@ class WuiAdmin(WuiDispatcherBase):
                             #    self._sPageBody += '<p>%s.</p>' % (webutils.escapeElem(oError[0]),);
                             else:
                                 self._sPageBody += '<p>%s. [Cannot link to %s]</p>' \
-                                                 % (webutils.escapeElem(oError[0]), webutils.escapeElem(str(oError[1])));
+                                                 % (webutils.escapeElem(oError[0]), webutils.escapeElem(str(oError[1])),);
                     for sMsg in asMessages:
                         self._sPageBody += '<p>%s<p>\n' % (webutils.escapeElem(sMsg),);
+
+            # Remove leftovers from deleted scheduling groups.
+            self._sPageBody += '<h3>Cleanups</h3>\n';
+            cOrphans = SchedulerBase.cleanUpOrphanedQueues(self._oDb);
+            self._sPageBody += '<p>Removed %s orphaned (deleted) queue%s.<p>\n' % (cOrphans, '' if cOrphans == 1 else 's', );
         else:
             self._sPageBody = webutils.escapeElem('%s is a read only user and may not regenerate the scheduling queues!'
                                                   % (self._oCurUser.sUsername,));
@@ -740,6 +837,7 @@ class WuiAdmin(WuiDispatcherBase):
         return self._actionGenericDoRemove(TestCaseLogic, TestCaseData.ksParam_idTestCase, self.ksActionTestCaseList);
 
     # Test Group actions
+
     def _actionTestGroupList(self):
         """ Action wrapper. """
         from testmanager.core.testgroup                 import TestGroupLogic;

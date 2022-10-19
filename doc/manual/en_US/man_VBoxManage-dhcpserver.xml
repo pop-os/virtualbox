@@ -1,22 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
     manpage, user manual, usage: VBoxManage dhcpserver
+-->
+<!--
+    Copyright (C) 2006-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2006-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- -->
-<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
+-->
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+  "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
+<!ENTITY % all.entities SYSTEM "all-entities.ent">
+%all.entities;
+]>
 <refentry id="vboxmanage-dhcpserver" lang="en">
-
   <refentryinfo>
-    <pubdate>$Date: 2020-02-04 11:54:12 +0100 (Tue, 04 Feb 2020) $</pubdate>
+    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
     <title>VBoxManage dhcpserver</title>
   </refentryinfo>
 
@@ -28,7 +42,7 @@
   <refnamediv>
     <refname>VBoxManage-dhcpserver</refname>
     <refpurpose>DHCP server management</refpurpose>
-    <refclass>Oracle VM VirtualBox</refclass>
+    <refclass>&product-name;</refclass>
   </refnamediv>
 
   <refsynopsisdiv>
@@ -47,64 +61,64 @@
         <arg choice="plain">--disable</arg>
       </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
-        <arg choice="opt">--global</arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-      </arg>
+      <group rep="repeat">
+        <arg>--global</arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+      </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
+      <group rep="repeat">
         <arg choice="req">--group=<replaceable>name</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-mac=<replaceable>address</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-mac=<replaceable>address</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-mac-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-mac-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-vendor=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-vendor=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-vendor-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-vendor-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-user=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-user=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-user-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-user-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-      </arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--incl-mac=<replaceable>address</replaceable></arg>
+        <arg rep="repeat">--excl-mac=<replaceable>address</replaceable></arg>
+        <arg rep="repeat">--incl-mac-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--excl-mac-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--incl-vendor=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--excl-vendor=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--incl-vendor-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--excl-vendor-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--incl-user=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--excl-user=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--incl-user-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--excl-user-wild=<replaceable>pattern</replaceable></arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+      </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
+      <group rep="repeat">
         <arg choice="req">--vm=<replaceable>name|uuid</replaceable></arg>
-        <arg choice="opt">--nic=<replaceable>1-N</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--fixed-address=<replaceable>address</replaceable></arg>
-      </arg>
+        <arg>--nic=<replaceable>1-N</replaceable></arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--fixed-address=<replaceable>address</replaceable></arg>
+      </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
+      <group rep="repeat">
         <arg choice="req">--mac-address=<replaceable>address</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--fixed-address=<replaceable>address</replaceable></arg>
-      </arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--fixed-address=<replaceable>address</replaceable></arg>
+      </group>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-dhcpserver-modify">
       <command>VBoxManage dhcpserver modify</command>
@@ -112,95 +126,95 @@
         <arg choice="plain">--network=<replaceable>netname</replaceable></arg>
         <arg choice="plain">--interface=<replaceable>ifname</replaceable></arg>
       </group>
-      <arg choice="opt">--server-ip=<replaceable>address</replaceable></arg>
-      <arg choice="opt">--lower-ip=<replaceable>address</replaceable></arg>
-      <arg choice="opt">--upper-ip=<replaceable>address</replaceable></arg>
-      <arg choice="opt">--netmask=<replaceable>mask</replaceable></arg>
-      <group choice="opt">
+      <arg>--server-ip=<replaceable>address</replaceable></arg>
+      <arg>--lower-ip=<replaceable>address</replaceable></arg>
+      <arg>--upper-ip=<replaceable>address</replaceable></arg>
+      <arg>--netmask=<replaceable>mask</replaceable></arg>
+      <group>
         <arg choice="plain">--enable</arg>
         <arg choice="plain">--disable</arg>
       </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
-        <arg choice="opt">--global</arg>
-        <arg choice="opt" rep="repeat">--del-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--remove-config</arg>
-      </arg>
+      <group rep="repeat">
+        <arg>--global</arg>
+        <arg rep="repeat">--del-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--remove-config</arg>
+      </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
+      <group rep="repeat">
         <arg choice="req">--group=<replaceable>name</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-mac=<replaceable>address</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-mac=<replaceable>address</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-mac=<replaceable>address</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-mac-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-mac-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-mac-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-vendor=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-vendor=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-vendor=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-vendor-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-vendor-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-vendor-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-user=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-user=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-user=<replaceable>string</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-user-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--incl-user-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt" rep="repeat">--excl-user-wild=<replaceable>pattern</replaceable></arg>
-        <arg choice="opt">--zap-conditions</arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--remove-config</arg>
-      </arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--del-mac=<replaceable>address</replaceable></arg>
+        <arg rep="repeat">--incl-mac=<replaceable>address</replaceable></arg>
+        <arg rep="repeat">--excl-mac=<replaceable>address</replaceable></arg>
+        <arg rep="repeat">--del-mac-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--incl-mac-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--excl-mac-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--del-vendor=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--incl-vendor=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--excl-vendor=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--del-vendor-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--incl-vendor-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--excl-vendor-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--del-user=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--incl-user=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--excl-user=<replaceable>string</replaceable></arg>
+        <arg rep="repeat">--del-user-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--incl-user-wild=<replaceable>pattern</replaceable></arg>
+        <arg rep="repeat">--excl-user-wild=<replaceable>pattern</replaceable></arg>
+        <arg>--zap-conditions</arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--remove-config</arg>
+      </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
+      <group rep="repeat">
         <arg choice="req">--vm=<replaceable>name|uuid</replaceable></arg>
-        <arg choice="opt">--nic=<replaceable>1-N</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--fixed-address=<replaceable>address</replaceable></arg>
-        <arg choice="opt">--remove-config</arg>
-      </arg>
+        <arg>--nic=<replaceable>1-N</replaceable></arg>
+        <arg rep="repeat">--del-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--fixed-address=<replaceable>address</replaceable></arg>
+        <arg>--remove-config</arg>
+      </group>
       <sbr/>
-      <arg choice="opt" rep="repeat">
+      <group rep="repeat">
         <arg choice="req">--mac-address=<replaceable>address</replaceable></arg>
-        <arg choice="opt" rep="repeat">--del-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
-        <arg choice="opt" rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
-        <arg choice="opt" rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt" rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
-        <arg choice="opt">--min-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--default-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--max-lease-time=<replaceable>seconds</replaceable></arg>
-        <arg choice="opt">--fixed-address=<replaceable>address</replaceable></arg>
-        <arg choice="opt">--remove-config</arg>
-      </arg>
+        <arg rep="repeat">--del-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--set-opt=<replaceable>dhcp-opt-no value</replaceable></arg>
+        <arg rep="repeat">--set-opt-hex=<replaceable>dhcp-opt-no hexstring</replaceable></arg>
+        <arg rep="repeat">--force-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unforce-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--supress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg rep="repeat">--unsupress-opt=<replaceable>dhcp-opt-no</replaceable></arg>
+        <arg>--min-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--default-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--max-lease-time=<replaceable>seconds</replaceable></arg>
+        <arg>--fixed-address=<replaceable>address</replaceable></arg>
+        <arg>--remove-config</arg>
+      </group>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-dhcpserver-remove">
       <command>VBoxManage dhcpserver remove</command>
@@ -209,8 +223,22 @@
         <arg choice="plain">--interface=<replaceable>ifname</replaceable></arg>
       </group>
     </cmdsynopsis>
+    <cmdsynopsis id="synopsis-vboxmanage-dhcpserver-start">
+      <command>VBoxManage dhcpserver start</command>
+      <group choice="req">
+        <arg choice="plain">--network=<replaceable>netname</replaceable></arg>
+        <arg choice="plain">--interface=<replaceable>ifname</replaceable></arg>
+      </group>
+    </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-dhcpserver-restart">
       <command>VBoxManage dhcpserver restart</command>
+      <group choice="req">
+        <arg choice="plain">--network=<replaceable>netname</replaceable></arg>
+        <arg choice="plain">--interface=<replaceable>ifname</replaceable></arg>
+      </group>
+    </cmdsynopsis>
+    <cmdsynopsis id="synopsis-vboxmanage-dhcpserver-stop">
+      <command>VBoxManage dhcpserver stop</command>
       <group choice="req">
         <arg choice="plain">--network=<replaceable>netname</replaceable></arg>
         <arg choice="plain">--interface=<replaceable>ifname</replaceable></arg>
@@ -258,7 +286,7 @@
         <varlistentry>
           <term>--interface=<replaceable>ifname</replaceable></term>
           <listitem><para>The host only interface name.  This would be same value
-            as you would use for the <command>VBoxManage modifyvm --hostonlyadapter</command>
+            as you would use for the <command>VBoxManage modifyvm --host-only-adapter</command>
             option when configuring a VM to use a host-only network.  The value
             can also be found in the Name row in <command>VBoxManage list hostonlyifs</command>.
           </para></listitem>
@@ -507,7 +535,7 @@
         </varlistentry>
         <varlistentry>
           <term><option>--del-user=<replaceable>string</replaceable></option></term>
-          <listitem><para>Delete the specific user class ID pattern from the group conditions.</para></listitem>
+          <listitem><para>Delete the specific user class ID from the group conditions.</para></listitem>
         </varlistentry>
         <varlistentry>
           <term><option>--del-user-wild=<replaceable>pattern</replaceable></option></term>
@@ -528,11 +556,27 @@
       </para>
     </refsect2>
 
+    <refsect2 id="vboxmanage-dhcpserver-start">
+      <title>dhcpserver start</title>
+      <remark role="help-copy-synopsis"/>
+      <para>
+        Start the specified DHCP server.
+      </para>
+    </refsect2>
+
     <refsect2 id="vboxmanage-dhcpserver-restart">
       <title>dhcpserver restart</title>
       <remark role="help-copy-synopsis"/>
       <para>
         Restarts the specified DHCP server.  The DHCP server must be running.
+      </para>
+    </refsect2>
+
+    <refsect2 id="vboxmanage-dhcpserver-stop">
+      <title>dhcpserver stop</title>
+      <remark role="help-copy-synopsis"/>
+      <para>
+        Stops the specified DHCP server.
       </para>
     </refsect2>
 

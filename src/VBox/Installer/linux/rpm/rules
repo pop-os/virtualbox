@@ -5,15 +5,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 # possible overrides:
@@ -25,7 +35,7 @@
 #  NOSUBVER=1       disable generation of the sub-version field (which is
 #                   either the subversion rev [if available] or the build date)
 #  NODOCS=1         don't build docs, use precompiled UserManual*.pdf and
-#                   VirtualBox*.chm from $(vboxroot)/prebuild
+#                   maybe UserManual*.qch and UserManual*.qhc from $(vboxroot)/prebuild
 #  NOMODS=1         don't build any module
 #  NOQT=1           don't build the Qt GUI
 #  NOSDL=1          don't build VBoxSDL
@@ -39,17 +49,17 @@
 #  svn_revision=xxx do not depend on subversion being available, but use this
 #                   hard-coded revision number instead
 #
-# NODOCS will be set if UserManual*.pdf and VirtualBox*.chm are placed in
-# $(vboxroot)/prebuild.
+# NODOCS will be set if UserManual*.pdf, UserManual*.qch and UserManual*.qhc are
+# placed in $(vboxroot)/prebuild.
 # STAGEDISO will be set if VBoxGuestAdditions.iso is placed there.
 #
-# Wine will not be required if both NODOCS and STAGEDISO are set.
+# Wine will not be required if STAGEDISO is set.
 
-verpkg   := VirtualBox-6.1
+verpkg   := VirtualBox-7.0
 vboxroot := $(shell while ! test -r configure && ! test "$$PWD" = "/"; do cd ..; done; pwd)
 instlin  := $(vboxroot)/src/VBox/Installer/linux
 pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd $(vboxroot)/..; pwd))
-outdir   := $(if $(PATH_OUT_BASE),$(PATH_OUT_BASE),$(vboxroot))/out
+outdir   := $(if $(PATH_OUT_BASE),$(PATH_OUT_BASE),$(vboxroot)/out)
 bldbase  := $(outdir)/rpm
 builddir := $(bldbase)/builddir
 stagedir := $(bldbase)/rpmbuild
@@ -64,9 +74,9 @@ NOQT     ?= $(HEADLESS)
 NOSDL    ?= $(HEADLESS)
 NOWEBSVC ?=
 EFI      ?= $(if $(wildcard $(vboxroot)/prebuild/VBoxEFI32.fd $(vboxroot)/prebuild/VBoxEFI64.fd),1,)
-NODOCS   ?= $(if $(wildcard $(vboxroot)/prebuild/UserManual*.pdf),$(if $(wildcard $(vboxroot)/prebuild/VirtualBox*.chm),1,),)
+NODOCS   ?= $(if $(wildcard $(addprefix $(vboxroot)/prebuild/,UserManual*.pdf UserManual*.qch UserManual*.qhc)),1,)
 STAGEDISO ?= $(if $(wildcard $(vboxroot)/prebuild/VBoxGuestAdditions.iso),$(vboxroot)/prebuild,)
-NOWINE   := $(if $(NODOCS),1,$(if $(STAGEDISO),1,$(ose)))
+NOWINE   := $(if $(STAGEDISO),1,$(ose))
 
 ifneq ($(STAGEDISO),)
  ifeq ($(wildcard $(STAGEDISO)/VBoxGuestAdditions.iso),)
@@ -147,6 +157,15 @@ else
  doc_dir := VBOX_PATH_PACKAGE_DOCS="\"/usr/share/doc/packages/$(verpkg)\""
 endif
 
+ifeq ($(NOQT),)
+ ifeq ($(rpmrel),el7)
+  # Protect against the fact that this Makefile is run several times, updating
+  # PATH every time. Still assumes that nothing else is added as a prefix.
+  PATH := $(PATH:/opt/rh/devtoolset-9/root/usr/bin:%=%)
+  export PATH := /opt/rh/devtoolset-9/root/usr/bin:$(PATH)
+ endif
+endif
+
 # EL5 ships Python 2.4 while our Python support requires Python 2.6 or later
 cfg_flags := $(if $(NOQT),--disable-qt,) \
     $(if $(NOSDL),--disable-vboxsdl,) \
@@ -165,8 +184,7 @@ cfg_flags := $(if $(NOQT),--disable-qt,) \
     $(if $(PATH_OUT_BASE),--out-base-dir=$(PATH_OUT_BASE),) \
     --disable-extpack
 
-bld_flags := AUTOCFG=$(bldbase)/AutoConfig.kmk \
-    LOCALCFG=$(instlin)/rpm/LocalConfig.kmk \
+bld_flags := LOCALCFG=$(instlin)/rpm/LocalConfig.kmk \
     PATH_OUT=$(builddir) \
     VBOX_WITHOUT_EXTPACK_PUEL_PACKING=1 \
     VBOX_WITHOUT_EXTPACK_VNC_PACKING=1 \
@@ -178,7 +196,7 @@ bld_flags := AUTOCFG=$(bldbase)/AutoConfig.kmk \
     $(doc_dir) \
     VBOX_PACKAGE_DIST=$(rpmdist) \
     $(if $(svn_revision),VBOX_SVN_REV=$(svn_revision),) \
-    $(if $(NODOCS),VBOX_WITH_DOCS= VBOX_WITH_DOCS_CHM=1,VBOX_WITH_KCHMVIEWER=) \
+    $(if $(NODOCS),VBOX_WITH_DOCS=,) \
     $(if $(VERBOSE),--print-directory KBUILD_VERBOSE=2,--no-print-directory) \
     $(if $(STAGEDISO),VBOX_WITHOUT_ADDITIONS=1,)
 
@@ -193,7 +211,7 @@ $(bldbase)/build-stamp $(verfile): $(bldbase)/configure-stamp
 	. $(bldbase)/env.sh && kmk -C $(vboxroot) $(bld_flags) $(if $(NOPARALLEL),-j1,) all
 	# Files from prebuild go to (builddir)/bin to be used during the
 	# packing stage, overriding what the build did/would produce.
-	$(if $(NODOCS),cp $(addprefix $(vboxroot)/prebuild/,UserManual*.pdf VirtualBox*.chm) $(builddir)/bin,)
+	$(if $(NODOCS),cp $(addprefix $(vboxroot)/prebuild/,UserManual*.pdf UserManual*.qch UserManual*.qhc) $(builddir)/bin,)
 	$(if $(EFI),cp $(vboxroot)/prebuild/VBoxEFI32.fd $(builddir)/bin,)
 	$(if $(EFI),cp $(vboxroot)/prebuild/VBoxEFI64.fd $(builddir)/bin,)
 	mkdir -p $(builddir)/bin/additions
@@ -235,13 +253,17 @@ binary: build
 	    -e 's|%BUILDROOT%|$(bldbase)/buildroot|g' \
 	    -e 's|%OSE%|$(if $(ose),is_ose,not_ose)|g' \
 	    -e 's|%SPEC%|$(rpmspec)|g' \
-	    -e 's|%CHM%|$(if $(NODOCS),with_chm,without_chm)|g' \
+	    -e 's|%QHELP%|$(if $(STAGEDQHELP),with_qhelp,without_qhelp)|g' \
 	    -e 's|%PYTHON%|$(if $(filter el5,$(rpmrel)),without_python,with_python)|g' \
 	    -e 's|%MACROSPYTHON%|$(if $(wildcard /usr/lib/rpm/macros.d/macros.python3),,$(if $(wildcard /usr/lib/rpm/macros.python),%include /usr/lib/rpm/macros.python,))|g' \
 	    -e 's|%INSTMOD%|$(instmod)|g' \
 	    -e 's|%LIBASOUND%|$(if $(filter lib64,$(rpmlib)),libasound.so.2()(64bit),libasound.so.2)|g' \
 	    -e 's|%INITSCRIPTS%|$(if $(filter fedora,$(rpmspec)),initscripts,)|g' \
 	    -e 's|%NETTOOLS%|$(if $(filter fedora18 fedora19 fedora20 fedora21 el5 openSUSE110 openSUSE111 openSUSE112 openSUSE113 openSUSE114,$(rpmrel)),net-tools,iproute)|g' \
+	    -e 's|%LIBVULKAN%|$(if $(filter el7,$(rpmrel)),vulkan,%LIBVULKAN%)|g' \
+	    -e 's|%LIBVULKAN%|$(if $(findstring el,$(rpmrel)),vulkan-loader,%LIBVULKAN%)|g' \
+	    -e 's|%LIBVULKAN%|$(if $(findstring fedora,$(rpmrel)),vulkan-loader,%LIBVULKAN%)|g' \
+	    -e 's|%LIBVULKAN%|$(if $(filter openSUSE153,$(rpmrel)),libvulkan1,)|g' \
 	    $(instlin)/rpm/VirtualBox.tmpl.spec > $(archdir)/VirtualBox.spec
 	mv $(bldbase)/VirtualBox-$(ver) $(bldbase)/$(rpmname)
 	cp $(vboxroot)/tools/linux.$(chrarch)/bin/chrpath $(bldbase)/$(rpmname) || true

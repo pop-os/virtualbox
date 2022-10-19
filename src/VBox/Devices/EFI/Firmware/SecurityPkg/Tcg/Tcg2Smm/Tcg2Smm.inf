@@ -21,6 +21,7 @@
 #  This external input must be validated carefully to avoid security issue.
 #
 # Copyright (c) 2015 - 2019, Intel Corporation. All rights reserved.<BR>
+# Copyright (c) Microsoft Corporation.<BR>
 # SPDX-License-Identifier: BSD-2-Clause-Patent
 #
 ##
@@ -38,7 +39,7 @@
 [Sources]
   Tcg2Smm.h
   Tcg2Smm.c
-  Tpm.asl
+  Tcg2TraditionalMm.c
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -49,7 +50,7 @@
   BaseLib
   BaseMemoryLib
   UefiDriverEntryPoint
-  SmmServicesTableLib
+  MmServicesTableLib
   UefiBootServicesTableLib
   DebugLib
   DxeServicesLib
@@ -57,6 +58,7 @@
   Tpm2CommandLib
   Tcg2PhysicalPresenceLib
   PcdLib
+  SmmMemLib
 
 [Guids]
   ## SOMETIMES_PRODUCES ## Variable:L"MemoryOverwriteRequestControl"
@@ -64,29 +66,18 @@
   gEfiMemoryOverwriteControlDataGuid
 
   gEfiTpmDeviceInstanceTpm20DtpmGuid                            ## PRODUCES           ## GUID       # TPM device identifier
+  gTcg2MmSwSmiRegisteredGuid                                    ## PRODUCES
+  gTpmNvsMmGuid                                                 ## CONSUMES
 
 [Protocols]
   gEfiSmmSwDispatch2ProtocolGuid                                ## CONSUMES
   gEfiSmmVariableProtocolGuid                                   ## CONSUMES
-  gEfiAcpiTableProtocolGuid                                     ## CONSUMES
+  gEfiMmReadyToLockProtocolGuid                                 ## CONSUMES
 
 [Pcd]
   gEfiSecurityPkgTokenSpaceGuid.PcdTpmInstanceGuid              ## CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdAcpiDefaultOemId            ## SOMETIMES_CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdAcpiDefaultOemTableId       ## SOMETIMES_CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdAcpiDefaultOemRevision      ## SOMETIMES_CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdAcpiDefaultCreatorId        ## SOMETIMES_CONSUMES
-  gEfiMdeModulePkgTokenSpaceGuid.PcdAcpiDefaultCreatorRevision  ## SOMETIMES_CONSUMES
-  gEfiSecurityPkgTokenSpaceGuid.PcdTpmBaseAddress               ## CONSUMES
-  gEfiSecurityPkgTokenSpaceGuid.PcdTcgPhysicalPresenceInterfaceVer  ## CONSUMES
-  gEfiSecurityPkgTokenSpaceGuid.PcdTpm2AcpiTableRev                 ## CONSUMES
-  gEfiSecurityPkgTokenSpaceGuid.PcdTpmPlatformClass                 ## SOMETIMES_CONSUMES
-  gEfiSecurityPkgTokenSpaceGuid.PcdTpm2CurrentIrqNum            ## CONSUMES
-  gEfiSecurityPkgTokenSpaceGuid.PcdTpm2PossibleIrqNumBuf        ## CONSUMES
-  gEfiSecurityPkgTokenSpaceGuid.PcdActiveTpmInterfaceType       ## CONSUMES
 
 [Depex]
-  gEfiAcpiTableProtocolGuid AND
   gEfiSmmSwDispatch2ProtocolGuid AND
   gEfiSmmVariableProtocolGuid AND
   gEfiTcg2ProtocolGuid

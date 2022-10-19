@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -42,12 +52,19 @@
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
+#include <libkern/OSReturn.h>
 
 
 /** @name Missing/private IOKitLib declarations and definitions.
  * @{  */
 /** OSKextCopyLoadedKextInfo in IOKit. */
 typedef CFDictionaryRef (* PFNOSKEXTCOPYLOADEDKEXTINFO)(CFArrayRef, CFArrayRef);
+/** KextManagerLoadKextWithURL in IOKit. */
+typedef OSReturn (* PFNKEXTMANAGERLOADKEXTWITHURL)(CFURLRef, CFArrayRef);
+/** KextManagerLoadKextWithIdentifier in IOKit */
+typedef OSReturn (* PFNKEXTMANAGERLOADKEXTWITHIDENTIFIER)(CFStringRef, CFArrayRef);
+/** KextManagerUnloadKextWithIdentifier in IOKit */
+typedef OSReturn (* PFNKEXTMANAGERUNLOADKEXTWITHIDENTIFIER)(CFStringRef);
 
 #ifndef kOSBundleRetainCountKey
 # define kOSBundleRetainCountKey CFSTR("OSBundleRetainCount")
@@ -83,8 +100,11 @@ typedef const RTKRNLMODINFOINT *PCRTKRNLMODINFOINT;
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-static RTONCE                       g_GetIoKitApisOnce = RTONCE_INITIALIZER;
-static PFNOSKEXTCOPYLOADEDKEXTINFO  g_pfnOSKextCopyLoadedKextInfo = NULL;
+static RTONCE                                 g_GetIoKitApisOnce = RTONCE_INITIALIZER;
+static PFNOSKEXTCOPYLOADEDKEXTINFO            g_pfnOSKextCopyLoadedKextInfo = NULL;
+static PFNKEXTMANAGERLOADKEXTWITHURL          g_pfnKextManagerLoadKextWithUrl = NULL;
+static PFNKEXTMANAGERLOADKEXTWITHIDENTIFIER   g_pfnKextManagerLoadKextWithIdentifier = NULL;
+static PFNKEXTMANAGERUNLOADKEXTWITHIDENTIFIER g_pfnKextManagerUnloadKextWithIdentifier = NULL;
 
 /** Do-once callback for setting g_pfnOSKextCopyLoadedKextInfo.   */
 static DECLCALLBACK(int) rtKrnlModDarwinResolveIoKitApis(void *pvUser)
@@ -93,7 +113,12 @@ static DECLCALLBACK(int) rtKrnlModDarwinResolveIoKitApis(void *pvUser)
 //    int rc = RTLdrLoad("/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit", &hMod);
     int rc = RTLdrLoadEx("/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit", &hMod, RTLDRLOAD_FLAGS_NO_SUFFIX, NULL);
     if (RT_SUCCESS(rc))
+    {
         RTLdrGetSymbol(hMod, "OSKextCopyLoadedKextInfo",  (void **)&g_pfnOSKextCopyLoadedKextInfo);
+        RTLdrGetSymbol(hMod, "KextManagerLoadKextWithURL",  (void **)&g_pfnKextManagerLoadKextWithUrl);
+        RTLdrGetSymbol(hMod, "KextManagerLoadKextWithIdentifier",  (void **)&g_pfnKextManagerLoadKextWithIdentifier);
+        RTLdrGetSymbol(hMod, "KextManagerUnloadKextWithIdentifier",  (void **)&g_pfnKextManagerUnloadKextWithIdentifier);
+    }
 
     RT_NOREF(pvUser);
     return VINF_SUCCESS;
@@ -213,7 +238,8 @@ RTDECL(uint32_t) RTKrnlModLoadedGetCount(void)
 RTDECL(int) RTKrnlModLoadedQueryInfoAll(PRTKRNLMODINFO pahKrnlModInfo, uint32_t cEntriesMax,
                                         uint32_t *pcEntries)
 {
-    AssertReturn(VALID_PTR(pahKrnlModInfo) || cEntriesMax == 0, VERR_INVALID_PARAMETER);
+    if (cEntriesMax > 0)
+        AssertPtrReturn(pahKrnlModInfo, VERR_INVALID_POINTER);
 
     int rc = VINF_SUCCESS;
     RTOnce(&g_GetIoKitApisOnce, rtKrnlModDarwinResolveIoKitApis, NULL);
@@ -388,4 +414,58 @@ RTDECL(int) RTKrnlModInfoQueryRefModInfo(RTKRNLMODINFO hKrnlModInfo, uint32_t id
 {
     RT_NOREF3(hKrnlModInfo, idx, phKrnlModInfoRef);
     return VERR_NOT_IMPLEMENTED;
+}
+
+
+RTDECL(int) RTKrnlModLoadByName(const char *pszName)
+{
+    AssertPtrReturn(pszName, VERR_INVALID_PARAMETER);
+
+    RTOnce(&g_GetIoKitApisOnce, rtKrnlModDarwinResolveIoKitApis, NULL);
+    if (!g_pfnKextManagerLoadKextWithIdentifier) return VERR_NOT_SUPPORTED;
+
+    int rc = VINF_SUCCESS;
+    CFStringRef hKextName = CFStringCreateWithCString(kCFAllocatorDefault, pszName, kCFStringEncodingUTF8);
+    if (hKextName)
+    {
+        OSReturn rcOsx = g_pfnKextManagerLoadKextWithIdentifier(hKextName, NULL /*dependencyKextAndFolderURLs*/);
+        if (rcOsx != kOSReturnSuccess)
+            rc = VERR_NOT_SUPPORTED; /** @todo Convert OSReturn values. */
+        CFRelease(hKextName);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    return rc;
+}
+
+
+RTDECL(int) RTKrnlModLoadByPath(const char *pszPath)
+{
+    AssertPtrReturn(pszPath, VERR_INVALID_PARAMETER);
+
+    return VERR_NOT_SUPPORTED;
+}
+
+
+RTDECL(int) RTKrnlModUnloadByName(const char *pszName)
+{
+    AssertPtrReturn(pszName, VERR_INVALID_PARAMETER);
+
+    RTOnce(&g_GetIoKitApisOnce, rtKrnlModDarwinResolveIoKitApis, NULL);
+    if (!g_pfnKextManagerUnloadKextWithIdentifier) return VERR_NOT_SUPPORTED;
+
+    int rc = VINF_SUCCESS;
+    CFStringRef hKextName = CFStringCreateWithCString(kCFAllocatorDefault, pszName, kCFStringEncodingUTF8);
+    if (hKextName)
+    {
+        OSReturn rcOsx = g_pfnKextManagerUnloadKextWithIdentifier(hKextName);
+        if (rcOsx != kOSReturnSuccess)
+            rc = VERR_NOT_SUPPORTED; /** @todo Convert OSReturn values. */
+        CFRelease(hKextName);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    return rc;
 }

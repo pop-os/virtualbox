@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -20,17 +30,11 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <iprt/win/windows.h>
-#include <fcntl.h>
-#include <io.h>
+#include <iprt/win/commctrl.h>
 #include <lmerr.h>
 #include <msiquery.h>
 #include <iprt/win/objbase.h>
-
 #include <iprt/win/shlobj.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <strsafe.h>
 
 #include <VBox/version.h>
 
@@ -50,6 +54,11 @@
 #include <iprt/system.h>
 #include <iprt/thread.h>
 #include <iprt/utf16.h>
+
+#ifndef IPRT_NO_CRT
+# include <stdio.h>
+# include <stdlib.h>
+#endif
 
 #include "VBoxStub.h"
 #include "../StubBld/VBoxStubBld.h"
@@ -489,10 +498,10 @@ static BOOL IsWow64(void)
  */
 static bool PackageIsNeeded(VBOXSTUBPKG const *pPackage)
 {
-    if (pPackage->byArch == VBOXSTUBPKGARCH_ALL)
+    if (pPackage->enmArch == VBOXSTUBPKGARCH_ALL)
         return true;
     VBOXSTUBPKGARCH enmArch = IsWow64() ? VBOXSTUBPKGARCH_AMD64 : VBOXSTUBPKGARCH_X86;
-    return pPackage->byArch == enmArch;
+    return pPackage->enmArch == enmArch;
 }
 
 
@@ -799,7 +808,7 @@ static RTEXITCODE ProcessPackage(unsigned iPackage, const char *pszMsiArgs, cons
     else if (RTStrICmpAscii(pszSuff, ".cab") == 0)
         rcExit = RTEXITCODE_SUCCESS; /* Ignore .cab files, they're generally referenced by other files. */
     else
-        rcExit = ShowError("Internal error: Do not know how to handle file '%s' (%s).", pPackage->szFileName, pRec->szPath);
+        rcExit = ShowError("Internal error: Do not know how to handle file '%s' (%s).", pPackage->szFilename, pRec->szPath);
     return rcExit;
 }
 
@@ -1011,14 +1020,14 @@ static RTEXITCODE ExtractFiles(unsigned cPackages, const char *pszDstDir, bool f
                otherwise generate a random name with the same file extension (@bugref{10201}). */
             RTFILE hFile = NIL_RTFILE;
             char   szDstFile[RTPATH_MAX];
-            if (fExtractOnly || pPackage->byArch == VBOXSTUBPKGARCH_ALL)
-                rc = RTPathJoin(szDstFile, sizeof(szDstFile), pszDstDir, pPackage->szFileName);
+            if (fExtractOnly || pPackage->enmArch == VBOXSTUBPKGARCH_ALL)
+                rc = RTPathJoin(szDstFile, sizeof(szDstFile), pszDstDir, pPackage->szFilename);
             else
             {
                 rc = RTPathJoin(szDstFile, sizeof(szDstFile), pszDstDir, "XXXXXXXXXXXXXXXXXXXXXXXX");
                 if (RT_SUCCESS(rc))
                 {
-                    const char *pszSuffix = RTPathSuffix(pPackage->szFileName);
+                    const char *pszSuffix = RTPathSuffix(pPackage->szFilename);
                     if (pszSuffix)
                         rc = RTStrCat(szDstFile, sizeof(szDstFile), pszSuffix);
                     if (RT_SUCCESS(rc))
@@ -1028,7 +1037,7 @@ static RTEXITCODE ExtractFiles(unsigned cPackages, const char *pszDstDir, bool f
                                                 | (0700 << RTFILE_O_CREATE_MODE_SHIFT));
                         if (RT_FAILURE(rc))
                             return ShowError("Failed to create unique filename for '%s' in '%s': %Rrc",
-                                             pPackage->szFileName, pszDstDir, rc);
+                                             pPackage->szFilename, pszDstDir, rc);
                     }
                 }
             }
@@ -1037,23 +1046,15 @@ static RTEXITCODE ExtractFiles(unsigned cPackages, const char *pszDstDir, bool f
 
             rc = Extract(pPackage, szDstFile, hFile, k);
             if (RT_FAILURE(rc))
-                return ShowError("Error extracting package #%u (%s): %Rrc", k, pPackage->szFileName, rc);
+                return ShowError("Error extracting package #%u (%s): %Rrc", k, pPackage->szFilename, rc);
         }
     }
 
     return RTEXITCODE_SUCCESS;
 }
 
-
-int WINAPI WinMain(HINSTANCE  hInstance,
-                   HINSTANCE  hPrevInstance,
-                   char      *lpCmdLine,
-                   int        nCmdShow)
+int main(int argc, char **argv)
 {
-    RT_NOREF(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
-    char **argv = __argv;
-    int argc    = __argc;
-
     /*
      * Init IPRT. This is _always_ the very first thing we do.
      */
@@ -1076,7 +1077,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
     bool fIgnoreReboot             = false;
     char szExtractPath[RTPATH_MAX] = {0};
     char szMSIArgs[_4K]            = {0};
-    char szMSILogFile[RTPATH_MAX]     = {0};
+    char szMSILogFile[RTPATH_MAX]  = {0};
 
     /* Argument enumeration IDs. */
     enum KVBOXSTUBOPT
@@ -1323,7 +1324,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
      * protect the TEMP directory usage, right?).
      */
     SetLastError(0);
-    HANDLE hMutexAppRunning = CreateMutex(NULL, FALSE, "VBoxStubInstaller");
+    HANDLE hMutexAppRunning = CreateMutexW(NULL, FALSE, L"VBoxStubInstaller");
     if (   hMutexAppRunning != NULL
         && GetLastError() == ERROR_ALREADY_EXISTS)
     {
@@ -1377,10 +1378,20 @@ int WINAPI WinMain(HINSTANCE  hInstance,
         if (!AllocConsole())
             return ShowError("Unable to allocate console: LastError=%u\n", GetLastError());
 
+# ifdef IPRT_NO_CRT
+        PRTSTREAM pNewStdOutErr = NULL;
+        vrc = RTStrmOpen("CONOUT$", "a", &pNewStdOutErr);
+        if (RT_SUCCESS(vrc))
+        {
+            RTStrmSetBufferingMode(pNewStdOutErr, RTSTRMBUFMODE_UNBUFFERED);
+            g_pStdErr  = pNewStdOutErr;
+            g_pStdOut  = pNewStdOutErr;
+        }
+# else
         freopen("CONOUT$", "w", stdout);
         setvbuf(stdout, NULL, _IONBF, 0);
-
         freopen("CONOUT$", "w", stderr);
+# endif
     }
 #endif /* VBOX_STUB_WITH_OWN_CONSOLE */
 
@@ -1433,7 +1444,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
              * Up to this point, we haven't done anything that requires any cleanup.
              * From here on, we do everything in functions so we can counter clean up.
              */
-            rcExit = ExtractFiles(pHeader->byCntPkgs, szExtractPath, fExtractOnly, &pExtractDirRec);
+            rcExit = ExtractFiles(pHeader->cPackages, szExtractPath, fExtractOnly, &pExtractDirRec);
             if (rcExit == RTEXITCODE_SUCCESS)
             {
                 if (fExtractOnly)
@@ -1450,7 +1461,7 @@ int WINAPI WinMain(HINSTANCE  hInstance,
                         rcExit = InstallCertificates();
 #endif
                     unsigned iPackage = 0;
-                    while (   iPackage < pHeader->byCntPkgs
+                    while (   iPackage < pHeader->cPackages
                            && (rcExit == RTEXITCODE_SUCCESS || rcExit == (RTEXITCODE)ERROR_SUCCESS_REBOOT_REQUIRED))
                     {
                         RTEXITCODE rcExit2 = ProcessPackage(iPackage, szMSIArgs, szMSILogFile[0] ? szMSILogFile : NULL);
@@ -1497,3 +1508,15 @@ int WINAPI WinMain(HINSTANCE  hInstance,
 
     return rcExit != (RTEXITCODE)ERROR_SUCCESS_REBOOT_REQUIRED || !fIgnoreReboot ? rcExit : RTEXITCODE_SUCCESS;
 }
+
+#ifndef IPRT_NO_CRT
+int WINAPI WinMain(HINSTANCE  hInstance,
+                   HINSTANCE  hPrevInstance,
+                   char      *lpCmdLine,
+                   int        nCmdShow)
+{
+    RT_NOREF(hInstance, hPrevInstance, lpCmdLine, nCmdShow);
+    return main(__argc, __argv);
+}
+#endif
+

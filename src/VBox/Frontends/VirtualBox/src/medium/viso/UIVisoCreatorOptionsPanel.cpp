@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -50,7 +60,10 @@ void UIVisoCreatorOptionsPanel::setShowHiddenbjects(bool fShow)
 void UIVisoCreatorOptionsPanel::retranslateUi()
 {
     if (m_pShowHiddenObjectsLabel)
-        m_pShowHiddenObjectsLabel->setText(QApplication::translate("UIVisoCreator", "Show Hidden Objects"));
+        m_pShowHiddenObjectsLabel->setText(QApplication::translate("UIVisoCreatorWidget", "Show Hidden Objects"));
+    if (m_pShowHiddenObjectsCheckBox)
+        m_pShowHiddenObjectsCheckBox->setToolTip(QApplication::translate("UIVisoCreatorWidget", "When checked, "
+                                                                         "multiple hidden objects are shown in the file browser"));
 }
 
 void UIVisoCreatorOptionsPanel::sltHandlShowHiddenObjectsChange(int iState)
@@ -67,7 +80,7 @@ void UIVisoCreatorOptionsPanel::prepareObjects()
         return;
 
     m_pShowHiddenObjectsCheckBox = new QCheckBox;
-    m_pShowHiddenObjectsLabel = new QILabel(QApplication::translate("UIVisoCreator", "Show Hidden Objects"));
+    m_pShowHiddenObjectsLabel = new QILabel(QApplication::translate("UIVisoCreatorWidget", "Show Hidden Objects"));
     m_pShowHiddenObjectsLabel->setBuddy(m_pShowHiddenObjectsCheckBox);
     mainLayout()->addWidget(m_pShowHiddenObjectsCheckBox, 0, Qt::AlignLeft);
     mainLayout()->addWidget(m_pShowHiddenObjectsLabel, 0, Qt::AlignLeft);

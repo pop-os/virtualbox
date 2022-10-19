@@ -8,15 +8,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /*
@@ -104,15 +114,15 @@ void listVMs(IVirtualBox *virtualBox)
      * Get the list of all registered VMs
      */
     IMachine **machines = NULL;
-    PRUint32 machineCnt = 0;
+    PRUint32 cMachines = 0;
 
-    rc = virtualBox->GetMachines(&machineCnt, &machines);
+    rc = virtualBox->GetMachines(&cMachines, &machines);
     if (NS_SUCCEEDED(rc))
     {
         /*
          * Iterate through the collection
          */
-        for (PRUint32 i = 0; i < machineCnt; ++ i)
+        for (PRUint32 i = 0; i < cMachines; ++ i)
         {
             IMachine *machine = machines[i];
             if (machine)
@@ -167,6 +177,7 @@ void listVMs(IVirtualBox *virtualBox)
                 machine->Release();
             }
         }
+        nsMemory::Free(machines);
     }
     printf("----------------------------------------------------\n\n");
 }
@@ -189,6 +200,9 @@ void createVM(IVirtualBox *virtualBox)
                                    0, nsnull,   /* groups (safearray)*/
                                    nsnull,      /* ostype */
                                    nsnull,      /* create flags */
+                                   nsnull,      /* cipher */
+                                   nsnull,      /* password id */
+                                   nsnull,      /* password */
                                    getter_AddRefs(machine));
     if (NS_FAILED(rc))
     {
@@ -426,13 +440,19 @@ void createVM(IVirtualBox *virtualBox)
                 printf("Failed to delete the machine! rc=%#x\n",
                        NS_FAILED(rc) ? rc : resultCode);
         }
+
+        /* Release the media array: */
+        for (PRUint32 i = 0; i < cMedia; i++)
+            if (aMedia[i])
+                aMedia[i]->Release();
+        nsMemory::Free(aMedia);
     }
 }
 
 // main
 ///////////////////////////////////////////////////////////////////////////////
 
-int main()
+int main(int argc, char **argv)
 {
     /*
      * Check that PRUnichar is equal in size to what compiler composes L""
@@ -449,6 +469,24 @@ int main()
                (unsigned long) sizeof(wchar_t));
         return -1;
     }
+
+#if 1 /* Please ignore this! It is very very crude. */
+# ifdef RTPATH_APP_PRIVATE_ARCH
+    if (!getenv("VBOX_XPCOM_HOME"))
+        setenv("VBOX_XPCOM_HOME", RTPATH_APP_PRIVATE_ARCH, 1);
+# else
+    char szTmp[8192];
+    if (!getenv("VBOX_XPCOM_HOME"))
+    {
+        strcpy(szTmp, argv[0]);
+        *strrchr(szTmp, '/') = '\0';
+        strcat(szTmp, "/..");
+        fprintf(stderr, "tstVBoxAPIXPCOM: VBOX_XPCOM_HOME is not set, using '%s' instead\n", szTmp);
+        setenv("VBOX_XPCOM_HOME", szTmp, 1);
+    }
+# endif
+#endif
+    (void)argc; (void)argv;
 
     nsresult rc;
 

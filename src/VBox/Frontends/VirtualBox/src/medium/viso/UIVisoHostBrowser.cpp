@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 /* Qt includes: */
 #include <QFileSystemModel>
 #include <QGridLayout>
 #include <QHeaderView>
 #include <QMimeData>
-#include <QTableView>
 #include <QTextEdit>
 #include <QTreeView>
+#include <QTableView>
 
 /* GUI includes: */
 #include "UIVisoHostBrowser.h"
@@ -35,12 +45,13 @@ class UIVisoHostBrowserModel : public QFileSystemModel
     Q_OBJECT;
 
 public:
-    virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const /* override */;
+
+    virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const RT_OVERRIDE;
     UIVisoHostBrowserModel(QObject *pParent);
 
-    virtual QStringList mimeTypes() const /* override */;
+    virtual QStringList mimeTypes() const RT_OVERRIDE;
     /** Prepares the mime data  as a list of text consisting of dragged objects full file path. */
-    QMimeData *mimeData(const QModelIndexList &indexes) const /* override */;
+    QMimeData *mimeData(const QModelIndexList &indexes) const RT_OVERRIDE;
 
 protected:
 
@@ -63,14 +74,28 @@ QVariant UIVisoHostBrowserModel::data(const QModelIndex &index, int enmRole /* =
     {
         QFileInfo info = fileInfo(index);
 
-        if(info.isSymLink() && info.isDir())
-            return QIcon(":/file_manager_folder_symlink_16px.png");
-        else if(info.isSymLink() && info.isFile())
-            return QIcon(":/file_manager_file_symlink_16px.png");
-        else if(info.isFile())
-            return QIcon(":/file_manager_file_16px.png");
+        if(info.isFile())
+        {
+            if(info.isSymLink())
+                return QIcon(":/file_manager_file_symlink_16px.png");
+            else
+                return QIcon(":/file_manager_file_16px.png");
+        }
         else if(info.isDir())
-            return QIcon(":/file_manager_folder_16px.png");
+        {
+            if (filePath(index).contains(".."))
+                return QIcon(":/arrow_up_10px_x2.png");
+            /** A bad hack to detect drive roots and use HD icon. On Windows 10 QFileInfo()::isRoot()
+             * and QDir()::isRoot() return true only for C:/ : */
+#ifdef VBOX_WS_WIN
+            else if (info.absoluteFilePath().length() <= 3)
+                return QIcon(":/hd_32px.png");
+#endif
+            else if(info.isSymLink())
+                return QIcon(":/file_manager_folder_symlink_16px.png");
+            else
+                return QIcon(":/file_manager_folder_16px.png");
+        }
     }
     return QFileSystemModel::data(index, enmRole);
 }
@@ -153,11 +178,11 @@ void UIVisoHostBrowser::prepareObjects()
     {
         m_pTableView->setContextMenuPolicy(Qt::CustomContextMenu);
         m_pMainLayout->addWidget(m_pTableView, 1, 0, 8, 4);
-        m_pTableView->setSelectionMode(QAbstractItemView::ContiguousSelection);
         m_pTableView->setShowGrid(false);
         m_pTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
         m_pTableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
         m_pTableView->setAlternatingRowColors(true);
+        m_pTableView->setTabKeyNavigation(false);
         QHeaderView *pVerticalHeader = m_pTableView->verticalHeader();
         if (pVerticalHeader)
         {
@@ -258,6 +283,16 @@ void UIVisoHostBrowser::setCurrentPath(const QString &strPath)
         return;
     QModelIndex index = m_pTreeModel->index(strPath);
     setTreeCurrentIndex(index);
+}
+
+bool UIVisoHostBrowser::tableViewHasSelection() const
+{
+    if (!m_pTableView)
+        return false;
+    QItemSelectionModel *pSelectionModel = m_pTableView->selectionModel();
+    if (!pSelectionModel)
+        return false;
+    return pSelectionModel->hasSelection();
 }
 
 void UIVisoHostBrowser::sltHandleAddAction()

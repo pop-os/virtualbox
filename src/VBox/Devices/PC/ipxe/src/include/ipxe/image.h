@@ -8,7 +8,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <ipxe/tables.h>
 #include <ipxe/list.h>
@@ -16,6 +16,8 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/refcnt.h>
 
 struct uri;
+struct pixel_buffer;
+struct asn1_cursor;
 struct image_type;
 
 /** An executable image */
@@ -67,13 +69,17 @@ struct image {
 /** Image is trusted */
 #define IMAGE_TRUSTED 0x0004
 
+/** Image will be automatically unregistered after execution */
+#define IMAGE_AUTO_UNREGISTER 0x0008
+
 /** An executable image type */
 struct image_type {
 	/** Name of this image type */
 	char *name;
-	/** Probe image
+	/**
+	 * Probe image
 	 *
-	 * @v image		Executable image
+	 * @v image		Image
 	 * @ret rc		Return status code
 	 *
 	 * Return success if the image is of this image type.
@@ -82,10 +88,31 @@ struct image_type {
 	/**
 	 * Execute image
 	 *
-	 * @v image		Executable image
+	 * @v image		Image
 	 * @ret rc		Return status code
 	 */
 	int ( * exec ) ( struct image *image );
+	/**
+	 * Create pixel buffer from image
+	 *
+	 * @v image		Image
+	 * @v pixbuf		Pixel buffer to fill in
+	 * @ret rc		Return status code
+	 */
+	int ( * pixbuf ) ( struct image *image, struct pixel_buffer **pixbuf );
+	/**
+	 * Extract ASN.1 object from image
+	 *
+	 * @v image		Image
+	 * @v offset		Offset within image
+	 * @v cursor		ASN.1 cursor to fill in
+	 * @ret next		Offset to next image, or negative error
+	 *
+	 * The caller is responsible for eventually calling free() on
+	 * the allocated ASN.1 cursor.
+	 */
+	int ( * asn1 ) ( struct image *image, size_t offset,
+			 struct asn1_cursor **cursor );
 };
 
 /**
@@ -145,17 +172,20 @@ static inline struct image * first_image ( void ) {
 }
 
 extern struct image * alloc_image ( struct uri *uri );
+extern int image_set_uri ( struct image *image, struct uri *uri );
 extern int image_set_name ( struct image *image, const char *name );
 extern int image_set_cmdline ( struct image *image, const char *cmdline );
 extern int register_image ( struct image *image );
 extern void unregister_image ( struct image *image );
 struct image * find_image ( const char *name );
-extern int image_probe ( struct image *image );
 extern int image_exec ( struct image *image );
 extern int image_replace ( struct image *replacement );
 extern int image_select ( struct image *image );
 extern struct image * image_find_selected ( void );
 extern int image_set_trust ( int require_trusted, int permanent );
+extern int image_pixbuf ( struct image *image, struct pixel_buffer **pixbuf );
+extern int image_asn1 ( struct image *image, size_t offset,
+			struct asn1_cursor **cursor );
 
 /**
  * Increment reference count on an image

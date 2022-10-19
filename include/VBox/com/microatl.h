@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_com_microatl_h
@@ -174,22 +184,17 @@ public:
     RTCRITSECT m_CritSect;
 };
 
-template <class TLock> class CComCritSectLock
+template<class TLock>
+class CComCritSectLockManual
 {
 public:
-    CComCritSectLock(CComCriticalSection &cs, bool fInitialLock = true) :
-        m_cs(cs),
-        m_fLocked(false)
+    CComCritSectLockManual(CComCriticalSection &cs)
+        : m_cs(cs)
+        , m_fLocked(false)
     {
-        if (fInitialLock)
-        {
-            HRESULT hrc = Lock();
-            if (FAILED(hrc))
-                throw hrc;
-        }
     }
 
-    ~CComCritSectLock() throw()
+    ~CComCritSectLockManual() throw()
     {
         if (m_fLocked)
             Unlock();
@@ -217,9 +222,33 @@ private:
     TLock &m_cs;
     bool m_fLocked;
 
+    CComCritSectLockManual(const CComCritSectLockManual&) throw(); // Do not call.
+    CComCritSectLockManual &operator=(const CComCritSectLockManual &) throw(); // Do not call.
+};
+
+
+#ifdef RT_EXCEPTIONS_ENABLED
+/** This is called CComCritSecLock in real ATL... */
+template<class TLock>
+class CComCritSectLock : public CComCritSectLockManual<TLock>
+{
+public:
+    CComCritSectLock(CComCriticalSection &cs, bool fInitialLock = true)
+        : CComCritSectLockManual(cs)
+    {
+        if (fInitialLock)
+        {
+            HRESULT hrc = Lock();
+            if (FAILED(hrc))
+                throw hrc;
+        }
+    }
+
+private:
     CComCritSectLock(const CComCritSectLock&) throw(); // Do not call.
     CComCritSectLock &operator=(const CComCritSectLock &) throw(); // Do not call.
 };
+#endif
 
 class CComFakeCriticalSection
 {
@@ -409,7 +438,7 @@ public:
             return E_OUTOFMEMORY;
         pNew->pfn = pfn;
         pNew->pv = pv;
-        CComCritSectLock<CComCriticalSection> lock(m_csStaticDataInitAndTypeInfo, false);
+        CComCritSectLockManual<CComCriticalSection> lock(m_csStaticDataInitAndTypeInfo);
         HRESULT hrc = lock.Lock();
         if (SUCCEEDED(hrc))
         {
@@ -565,7 +594,7 @@ public:
                 {
                     if (!pEntry->pCF)
                     {
-                        CComCritSectLock<CComCriticalSection> lock(_AtlComModule.m_csObjMap, false);
+                        CComCritSectLockManual<CComCriticalSection> lock(_AtlComModule.m_csObjMap);
                         hrc = lock.Lock();
                         if (FAILED(hrc))
                         {
@@ -837,27 +866,31 @@ private:
         Assert(m_pLibID && m_pGUID);
         if (m_pTInfo)
             return S_OK;
-        CComCritSectLock<CComCriticalSection> lock(_pAtlModule->m_csStaticDataInitAndTypeInfo, false);
+
+        CComCritSectLockManual<CComCriticalSection> lock(_pAtlModule->m_csStaticDataInitAndTypeInfo);
         HRESULT hrc = lock.Lock();
-        ITypeLib *pTypeLib = NULL;
-        Assert(*m_pLibID != GUID_NULL);
-        hrc = LoadRegTypeLib(*m_pLibID, m_iMajor, m_iMinor, lcid, &pTypeLib);
         if (SUCCEEDED(hrc))
         {
-            ITypeInfo *pTypeInfo;
-            hrc = pTypeLib->GetTypeInfoOfGuid(*m_pGUID, &pTypeInfo);
+            ITypeLib *pTypeLib = NULL;
+            Assert(*m_pLibID != GUID_NULL);
+            hrc = LoadRegTypeLib(*m_pLibID, m_iMajor, m_iMinor, lcid, &pTypeLib);
             if (SUCCEEDED(hrc))
             {
-                ITypeInfo2 *pTypeInfo2;
-                if (SUCCEEDED(pTypeInfo->QueryInterface(__uuidof(ITypeInfo2), (void **)&pTypeInfo2)))
+                ITypeInfo *pTypeInfo;
+                hrc = pTypeLib->GetTypeInfoOfGuid(*m_pGUID, &pTypeInfo);
+                if (SUCCEEDED(hrc))
                 {
-                    pTypeInfo->Release();
-                    pTypeInfo = pTypeInfo2;
+                    ITypeInfo2 *pTypeInfo2;
+                    if (SUCCEEDED(pTypeInfo->QueryInterface(__uuidof(ITypeInfo2), (void **)&pTypeInfo2)))
+                    {
+                        pTypeInfo->Release();
+                        pTypeInfo = pTypeInfo2;
+                    }
+                    m_pTInfo = pTypeInfo;
+                    _pAtlModule->AddTermFunc(Cleanup, (void *)this);
                 }
-                m_pTInfo = pTypeInfo;
-                _pAtlModule->AddTermFunc(Cleanup, (void *)this);
+                pTypeLib->Release();
             }
-            pTypeLib->Release();
         }
         return hrc;
     }

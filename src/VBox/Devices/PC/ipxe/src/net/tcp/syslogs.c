@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 /** @file
  *
@@ -48,7 +53,6 @@ struct console_driver syslogs_console __console_driver;
 
 /** The encrypted syslog server */
 static struct sockaddr_tcpip logserver = {
-	.st_family = AF_INET,
 	.st_port = htons ( SYSLOG_PORT ),
 };
 
@@ -58,9 +62,10 @@ static struct sockaddr_tcpip logserver = {
  * @v intf		Interface
  * @v rc		Reason for close
  */
-static void syslogs_close ( struct interface *intf __unused, int rc ) {
+static void syslogs_close ( struct interface *intf, int rc ) {
 
 	DBG ( "SYSLOGS console disconnected: %s\n", strerror ( rc ) );
+	intf_restart ( intf, rc );
 }
 
 /**
@@ -112,10 +117,12 @@ static unsigned int syslogs_severity = SYSLOG_DEFAULT_SEVERITY;
 /**
  * Handle ANSI set encrypted syslog priority (private sequence)
  *
+ * @v ctx		ANSI escape sequence context
  * @v count		Parameter count
  * @v params		List of graphic rendition aspects
  */
-static void syslogs_handle_priority ( unsigned int count __unused,
+static void syslogs_handle_priority ( struct ansiesc_context *ctx __unused,
+				      unsigned int count __unused,
 				      int params[] ) {
 	if ( params[0] >= 0 ) {
 		syslogs_severity = params[0];
@@ -162,10 +169,8 @@ static void syslogs_putchar ( int character ) {
 	syslogs_entered = 1;
 
 	/* Send log message */
-	if ( ( rc = xfer_printf ( &syslogs, "<%d>ipxe: %s\n",
-				  SYSLOG_PRIORITY ( SYSLOG_DEFAULT_FACILITY,
-						    syslogs_severity ),
-				  syslogs_buffer ) ) != 0 ) {
+	if ( ( rc = syslog_send ( &syslogs, syslogs_severity,
+				  syslogs_buffer, "\n" ) ) != 0 ) {
 		DBG ( "SYSLOGS could not send log message: %s\n",
 		      strerror ( rc ) );
 	}
@@ -177,7 +182,7 @@ static void syslogs_putchar ( int character ) {
 /** Encrypted syslog console driver */
 struct console_driver syslogs_console __console_driver = {
 	.putchar = syslogs_putchar,
-	.disabled = 1,
+	.disabled = CONSOLE_DISABLED,
 	.usage = CONSOLE_SYSLOGS,
 };
 
@@ -189,7 +194,7 @@ struct console_driver syslogs_console __console_driver = {
  */
 
 /** Encrypted syslog server setting */
-struct setting syslogs_setting __setting ( SETTING_MISC ) = {
+const struct setting syslogs_setting __setting ( SETTING_MISC, syslogs ) = {
 	.name = "syslogs",
 	.description = "Encrypted syslog server",
 	.tag = DHCP_EB_SYSLOGS_SERVER,
@@ -204,16 +209,10 @@ struct setting syslogs_setting __setting ( SETTING_MISC ) = {
 static int apply_syslogs_settings ( void ) {
 	static char *old_server;
 	char *server;
-	struct interface *socket;
-	int len;
 	int rc;
 
 	/* Fetch log server */
-	len = fetch_string_setting_copy ( NULL, &syslogs_setting, &server );
-	if ( len < 0 ) {
-		rc = len;
-		goto err_fetch_server;
-	}
+	fetch_string_setting_copy ( NULL, &syslogs_setting, &server );
 
 	/* Do nothing unless log server has changed */
 	if ( ( ( server == NULL ) && ( old_server == NULL ) ) ||
@@ -226,7 +225,7 @@ static int apply_syslogs_settings ( void ) {
 	old_server = NULL;
 
 	/* Reset encrypted syslog connection */
-	syslogs_console.disabled = 1;
+	syslogs_console.disabled = CONSOLE_DISABLED;
 	intf_restart ( &syslogs, 0 );
 
 	/* Do nothing unless we have a log server */
@@ -235,37 +234,35 @@ static int apply_syslogs_settings ( void ) {
 		rc = 0;
 		goto out_no_server;
 	}
-
-	/* Add TLS filter */
-	if ( ( rc = add_tls ( &syslogs, server, &socket ) ) != 0 ) {
-		DBG ( "SYSLOGS cannot create TLS filter: %s\n",
-		      strerror ( rc ) );
-		goto err_add_tls;
-	}
+	DBG ( "SYSLOGS using log server %s\n", server );
 
 	/* Connect to log server */
-	if ( ( rc = xfer_open_named_socket ( socket, SOCK_STREAM,
+	if ( ( rc = xfer_open_named_socket ( &syslogs, SOCK_STREAM,
 					     (( struct sockaddr *) &logserver ),
 					     server, NULL ) ) != 0 ) {
 		DBG ( "SYSLOGS cannot connect to log server: %s\n",
 		      strerror ( rc ) );
 		goto err_open_named_socket;
 	}
-	DBG ( "SYSLOGS using log server %s\n", server );
+
+	/* Add TLS filter */
+	if ( ( rc = add_tls ( &syslogs, server, NULL, NULL ) ) != 0 ) {
+		DBG ( "SYSLOGS cannot create TLS filter: %s\n",
+		      strerror ( rc ) );
+		goto err_add_tls;
+	}
 
 	/* Record log server */
 	old_server = server;
-	server = NULL;
 
-	/* Success */
-	rc = 0;
+	return 0;
 
- err_open_named_socket:
  err_add_tls:
+ err_open_named_socket:
+	syslogs_close ( &syslogs, rc );
  out_no_server:
  out_no_change:
 	free ( server );
- err_fetch_server:
 	return rc;
 }
 

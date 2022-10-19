@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -594,7 +604,7 @@ static DECLCALLBACK(int) drvCardReaderThreadCmd(PPDMDRVINS pDrvIns, PPDMTHREAD p
     return rc;
 }
 
-static int drvCardReaderWakeupFunc(PUSBCARDREADER pThis)
+static DECLCALLBACK(int) drvCardReaderWakeupFunc(PUSBCARDREADER pThis)
 {
     NOREF(pThis);
     /* Returning a VINF_* will cause RTReqQueueProcess return. */
@@ -1869,24 +1879,22 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
 
 /* static */ DECLCALLBACK(int) UsbCardReader::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    RT_NOREF(fFlags);
+    RT_NOREF(fFlags, pCfg);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     LogFlowFunc(("iInstance/%d, pCfg:%p, fFlags:%x\n", pDrvIns->iInstance, pCfg, fFlags));
     PUSBCARDREADER pThis = PDMINS_2_DATA(pDrvIns, PUSBCARDREADER);
 
     pThis->hReqQCardReaderCmd = NIL_RTREQQUEUE;
 
-    if (!CFGMR3AreValuesValid(pCfg, "Object\0"))
-        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "", "");
     AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
                     VERR_PDM_DRVINS_NO_ATTACH);
 
-    void *pv;
-    int rc = CFGMR3QueryPtr(pCfg, "Object", &pv);
-    AssertMsgRCReturn(rc, ("Configuration error: No/bad \"Object\" value! rc=%Rrc\n", rc), rc);
+    com::Guid uuid(USBCARDREADER_OID);
+    pThis->pUsbCardReader = (UsbCardReader *)PDMDrvHlpQueryGenericUserObject(pDrvIns, uuid.raw());
+    AssertMsgReturn(RT_VALID_PTR(pThis->pUsbCardReader), ("Configuration error: No/bad USB card reader object value!\n"), VERR_NOT_FOUND);
 
-    pThis->pUsbCardReader = (UsbCardReader *)pv;
     pThis->pUsbCardReader->mpDrv = pThis;
     pThis->pDrvIns = pDrvIns;
 
@@ -1909,7 +1917,7 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
     AssertReturn(pThis->pICardReaderUp, VERR_PDM_MISSING_INTERFACE);
 
     /* Command Thread Synchronization primitives */
-    rc = RTReqQueueCreate(&pThis->hReqQCardReaderCmd);
+    int rc = RTReqQueueCreate(&pThis->hReqQCardReaderCmd);
     AssertLogRelRCReturn(rc, rc);
 
     rc = PDMDrvHlpThreadCreate(pDrvIns,

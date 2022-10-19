@@ -3,7 +3,7 @@
 
   Copyright (c) 2010 - 2017, Intel Corporation. All rights reserved.<BR>
   (C) Copyright 2013-2015 Hewlett-Packard Development Company, L.P.<BR>
-  (C) Copyright 2015-2016 Hewlett Packard Enterprise Development LP<BR>
+  (C) Copyright 2015-2021 Hewlett Packard Enterprise Development LP<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -14,7 +14,7 @@
 #include <PiDxe.h>
 #include <Protocol/FirmwareVolume2.h>
 
-EFI_HANDLE        mHandleParsingHiiHandle = NULL;
+EFI_HII_HANDLE    mHandleParsingHiiHandle = NULL;
 HANDLE_INDEX_LIST mHandleList = {{{NULL,NULL},0,0},0};
 GUID_INFO_BLOCK   *mGuidList;
 UINTN             mGuidListCount;
@@ -2251,6 +2251,12 @@ STATIC CONST GUID_INFO_BLOCK mGuidStringList[] = {
   {STRING_TOKEN(STR_HII_POPUP),             &gEfiHiiPopupProtocolGuid,                         NULL},
 
 //
+// UEFI 2.8
+//
+  {STRING_TOKEN(STR_REST_EX),               &gEfiRestExProtocolGuid,                          NULL},
+  {STRING_TOKEN(STR_REDFISH_DISCOVER),      &gEfiRedfishDiscoverProtocolGuid,                 NULL},
+
+//
 // PI Spec ones
 //
   {STRING_TOKEN(STR_IDE_CONT_INIT),         &gEfiIdeControllerInitProtocolGuid,               NULL},
@@ -2462,17 +2468,21 @@ InsertNewGuidNameMapping(
   IN CONST DUMP_PROTOCOL_INFO DumpFunc OPTIONAL
   )
 {
-  ASSERT(Guid   != NULL);
-  ASSERT(NameID != 0);
+  ASSERT (Guid   != NULL);
+  ASSERT (NameID != 0);
 
-  mGuidList = ReallocatePool(mGuidListCount * sizeof(GUID_INFO_BLOCK), mGuidListCount+1 * sizeof(GUID_INFO_BLOCK), mGuidList);
+  mGuidList = ReallocatePool (
+                mGuidListCount * sizeof (GUID_INFO_BLOCK),
+                (mGuidListCount + 1) * sizeof (GUID_INFO_BLOCK),
+                mGuidList
+                );
   if (mGuidList == NULL) {
     mGuidListCount = 0;
     return (EFI_OUT_OF_RESOURCES);
   }
   mGuidListCount++;
 
-  mGuidList[mGuidListCount - 1].GuidId   = AllocateCopyPool(sizeof(EFI_GUID), Guid);
+  mGuidList[mGuidListCount - 1].GuidId   = AllocateCopyPool (sizeof (EFI_GUID), Guid);
   mGuidList[mGuidListCount - 1].StringId = NameID;
   mGuidList[mGuidListCount - 1].DumpInfo = DumpFunc;
 

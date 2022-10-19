@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -23,6 +33,7 @@
 #include <iprt/errcore.h>
 #include <iprt/assert.h>
 #include <iprt/vector.h>
+#include <iprt/thread.h>
 #include <VBox/log.h>
 
 #include "seamless-x11.h"
@@ -69,11 +80,11 @@ static unsigned char *XXGetProperty (Display *aDpy, Window aWnd, Atom aPropType,
 }
 
 /**
-  * Initialise the guest and ensure that it is capable of handling seamless mode
-  *
-  * @param  pHostCallback   host callback.
-  * @returns true if it can handle seamless, false otherwise
-  */
+ * Initialise the guest and ensure that it is capable of handling seamless mode
+ *
+ * @param  pHostCallback   host callback.
+ * @returns true if it can handle seamless, false otherwise
+ */
 int SeamlessX11::init(PFNSENDREGIONUPDATE pHostCallback)
 {
     int rc = VINF_SUCCESS;
@@ -94,6 +105,36 @@ int SeamlessX11::init(PFNSENDREGIONUPDATE pHostCallback)
     unmonitorClientList();
     LogRelFlowFuncLeaveRC(rc);
     return rc;
+}
+
+/**
+ * Shutdown seamless event monitoring.
+ */
+void SeamlessX11::uninit(void)
+{
+    if (mHostCallback)
+        stop();
+    mHostCallback = NULL;
+
+    /* Before closing a Display, make sure X11 is still running. The indicator
+     * that is when XOpenDisplay() returns non NULL. If it is not a
+     * case, XCloseDisplay() will hang on internal X11 mutex forever. */
+    Display *pDisplay = XOpenDisplay(NULL);
+    if (pDisplay)
+    {
+        XCloseDisplay(pDisplay);
+        if (mDisplay)
+        {
+            XCloseDisplay(mDisplay);
+            mDisplay = NULL;
+        }
+    }
+
+    if (mpRects)
+    {
+        RTMemFree(mpRects);
+        mpRects = NULL;
+    }
 }
 
 /**
@@ -312,9 +353,20 @@ void SeamlessX11::nextConfigurationEvent(void)
         mHostCallback(mpRects, mcRects);
     }
     mChanged = false;
-    /* We execute this even when seamless is disabled, as it also waits for
-     * enable and disable notification. */
-    XNextEvent(mDisplay, &event);
+
+    if (XPending(mDisplay) > 0)
+    {
+        /* We execute this even when seamless is disabled, as it also waits for
+         * enable and disable notification. */
+        XNextEvent(mDisplay, &event);
+    } else
+    {
+        /* This function is called in a loop by upper layer. In order to
+         * prevent CPU spinning, sleep a bit before returning. */
+        RTThreadSleep(300 /* ms */);
+        return;
+    }
+
     if (!mEnabled)
         return;
     switch (event.type)
@@ -429,8 +481,7 @@ size_t SeamlessX11::getRectCount(void)
 
 RTVEC_DECL(RectList, RTRECT)
 
-DECLCALLBACK(int) getRectsCallback(VBoxGuestWinInfo *pInfo,
-                                   struct RectList *pRects)
+static DECLCALLBACK(int) getRectsCallback(VBoxGuestWinInfo *pInfo, struct RectList *pRects)
 {
     if (pInfo->mhasShape)
     {
@@ -484,8 +535,7 @@ int SeamlessX11::updateRects(void)
         if (RT_FAILURE(rc))
             return rc;
     }
-    mGuestWindows.doWithAll((PVBOXGUESTWINCALLBACK)getRectsCallback,
-                            &rects);
+    mGuestWindows.doWithAll((PFNVBOXGUESTWINCALLBACK)getRectsCallback, &rects);
     if (mpRects)
         RTMemFree(mpRects);
     mcRects = RectListSize(&rects);
@@ -506,7 +556,11 @@ bool SeamlessX11::interruptEventWait(void)
 
     LogRelFlowFuncEnter();
     if (pDisplay == NULL)
-        VBClLogFatalError("Failed to open X11 display\n");
+    {
+        VBClLogError("Failed to open X11 display\n");
+        return false;
+    }
+
     /* Message contents set to zero. */
     XClientMessageEvent clientMessage = { ClientMessage, 0, 0, 0, 0, 0, 8 };
 

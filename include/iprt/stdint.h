@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_stdint_h
@@ -118,7 +128,9 @@
 # endif
 
     /* x-bit types */
-#  if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
+#  if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) \
+   || defined(RT_ARCH_ARM32) || defined(RT_ARCH_ARM64) \
+   || defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
 #   if !defined(_INT8_T_DECLARED)   && !defined(_INT8_T)
 typedef signed char         int8_t;
 #   endif
@@ -183,6 +195,56 @@ typedef int64_t             intmax_t;
 typedef uint64_t            uintmax_t;
 #   endif
 
+    /* smallest minimum-width integer types - assumes to be the same as above! */
+typedef int8_t              int_least8_t;
+typedef uint8_t             uint_least8_t;
+#   define INT_LEAST8_MIN   INT8_MIN
+#   define INT_LEAST8_MAX   INT8_MAX
+#   define UINT_LEAST8_MAX  UINT8_MAX
+typedef int16_t             int_least16_t;
+typedef uint16_t            uint_least16_t;
+#   define INT_LEAST16_MIN  INT16_MIN
+#   define INT_LEAST16_MAX  INT16_MAX
+#   define UINT_LEAST16_MAX UINT16_MAX
+typedef int32_t             int_least32_t;
+typedef uint32_t            uint_least32_t;
+#   define INT_LEAST32_MIN  INT32_MIN
+#   define INT_LEAST32_MAX  INT32_MAX
+#   define UINT_LEAST32_MAX UINT32_MAX
+typedef int64_t             int_least64_t;
+typedef uint64_t            uint_least64_t;
+#   define INT_LEAST64_MIN  INT64_MIN
+#   define INT_LEAST64_MAX  INT64_MAX
+#   define UINT_LEAST64_MAX UINT64_MAX
+
+    /* fastest minimum-width integer types */
+typedef signed char         int_fast8_t;
+typedef unsigned char       uint_fast8_t;
+#   define INT_FAST8_MIN    INT8_MIN
+#   define INT_FAST8_MAX    INT8_MAX
+#   define UINT_FAST8_MAX   UINT8_MAX
+typedef signed int          int_fast16_t;
+typedef unsigned int        uint_fast16_t;
+#   if ARCH_BITS == 16
+#    define INT_FAST16_MIN  INT16_MIN
+#    define INT_FAST16_MAX  INT16_MAX
+#    define UINT_FAST16_MAX UINT16_MAX
+#   else
+#    define INT_FAST16_MIN  INT32_MIN
+#    define INT_FAST16_MAX  INT32_MAX
+#    define UINT_FAST16_MAX UINT32_MAX
+#   endif
+typedef int32_t             int_fast32_t;
+typedef uint32_t            uint_fast32_t;
+#   define INT_FAST32_MIN   INT32_MIN
+#   define INT_FAST32_MAX   INT32_MAX
+#   define UINT_FAST32_MAX  UINT32_MAX
+typedef int64_t             int_fast64_t;
+typedef uint64_t            uint_fast64_t;
+#   define INT_FAST64_MIN   INT64_MIN
+#   define INT_FAST64_MAX   INT64_MAX
+#   define UINT_FAST64_MAX  UINT64_MAX
+
 #  else
 #   error "PORTME: Add architecture. Don't forget to check the [U]INTx_C() and [U]INTMAX_MIN/MAX macros."
 #  endif
@@ -190,7 +252,7 @@ typedef uint64_t            uintmax_t;
 # endif /* !linux kernel or stuff */
 
     /* pointer <-> integer types */
-# if !defined(_MSC_VER) || defined(DOXYGEN_RUNNING)
+# if (!defined(_MSC_VER) && !defined(__WATCOMC__)) || defined(DOXYGEN_RUNNING)
 #  if ARCH_BITS == 32 \
    || defined(RT_OS_LINUX) \
    || defined(RT_OS_FREEBSD)

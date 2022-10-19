@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 DefinitionBlock ("SSDT.aml", "SSDT", 1, "VBOX  ", "VBOXCPUT", 2)
@@ -252,6 +262,232 @@ DefinitionBlock ("SSDT.aml", "SSDT", 1, "VBOX  ", "VBOXCPUT", 2)
                     )
         {
         }
+        Processor (CPV0, /* Name */
+                    0x20, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+
+        Processor (CPV1, /* Name */
+                    0x21, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV2, /* Name */
+                    0x22, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV3, /* Name */
+                    0x23, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV4, /* Name */
+                    0x24, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV5, /* Name */
+                    0x25, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV6, /* Name */
+                    0x26, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV7, /* Name */
+                    0x27, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV8, /* Name */
+                    0x28, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPV9, /* Name */
+                    0x29, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVA, /* Name */
+                    0x2a, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVB, /* Name */
+                    0x2b, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVC, /* Name */
+                    0x2c, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVD, /* Name */
+                    0x2d, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVE, /* Name */
+                    0x2e, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVF, /* Name */
+                    0x2f, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVG, /* Name */
+                    0x30, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVH, /* Name */
+                    0x31, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVI, /* Name */
+                    0x32, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVJ, /* Name */
+                    0x33, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVK, /* Name */
+                    0x34, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVL, /* Name */
+                    0x35, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVM, /* Name */
+                    0x36, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVN, /* Name */
+                    0x37, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVO, /* Name */
+                    0x38, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVP, /* Name */
+                    0x39, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVQ, /* Name */
+                    0x3a, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVR, /* Name */
+                    0x3b, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVS, /* Name */
+                    0x3c, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVT, /* Name */
+                    0x3d, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVU, /* Name */
+                    0x3e, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+        Processor (CPVV, /* Name */
+                    0x3f, /* Id */
+                    0x0,  /* Processor IO ports range start */
+                    0x0   /* Processor IO ports range length */
+                    )
+        {
+        }
+
     }
 }
 

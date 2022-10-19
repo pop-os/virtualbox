@@ -4,18 +4,29 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_APPLIANCE
+#include <iprt/buildconfig.h>
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/param.h>
@@ -113,7 +124,9 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         // request the machine lock while accessing internal members
         AutoReadLock alock1(this COMMA_LOCKVAL_SRC_POS);
 
-        ComPtr<IAudioAdapter> pAudioAdapter = mAudioAdapter;
+        ComPtr<IAudioAdapter> pAudioAdapter;
+        rc = mAudioSettings->COMGETTER(Adapter)(pAudioAdapter.asOutParam());
+        if (FAILED(rc)) throw rc;
         BOOL fAudioEnabled;
         rc = pAudioAdapter->COMGETTER(Enabled)(&fAudioEnabled);
         if (FAILED(rc)) throw rc;
@@ -934,7 +947,6 @@ HRESULT Appliance::i_writeCloudImpl(const LocationInfo &aLocInfo, ComObjPtr<Prog
     if (SUCCEEDED(hrc))
     {
         if (aLocInfo.strProvider.equals("OCI"))
-        {
             hrc = aProgress->init(mVirtualBox, static_cast<IAppliance *>(this),
                                   Utf8Str(tr("Exporting VM to Cloud...")),
                                   TRUE /* aCancelable */,
@@ -942,11 +954,10 @@ HRESULT Appliance::i_writeCloudImpl(const LocationInfo &aLocInfo, ComObjPtr<Prog
                                   1000, // ULONG ulTotalOperationsWeight,
                                   Utf8Str(tr("Exporting VM to Cloud...")), // aFirstOperationDescription
                                   10); // ULONG ulFirstOperationWeight
-        }
         else
-            hrc = setErrorVrc(VBOX_E_NOT_SUPPORTED,
-                              tr("Only \"OCI\" cloud provider is supported for now. \"%s\" isn't supported."),
-                              aLocInfo.strProvider.c_str());
+            hrc = setError(VBOX_E_NOT_SUPPORTED,
+                           tr("Only \"OCI\" cloud provider is supported for now. \"%s\" isn't supported."),
+                           aLocInfo.strProvider.c_str());
         if (SUCCEEDED(hrc))
         {
             /* Initialize the worker task: */
@@ -2311,8 +2322,8 @@ HRESULT Appliance::i_writeFSOVA(TaskOVF *pTask, AutoWriteLockBase &writeLock)
                                      : pTask->enFormat == ovf::OVFVersion_2_0 ? "vboxovf20"
                                      :                                          "vboxovf");
             RTZipTarFsStreamSetGroup(hVfsFssTar, VBOX_VERSION_MINOR,
-                                     "vbox_v" RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "."
-                                     RT_XSTR(VBOX_VERSION_BUILD) "r" RT_XSTR(VBOX_SVN_REV));
+                                     Utf8StrFmt("vbox_v" RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "."
+                                                RT_XSTR(VBOX_VERSION_BUILD) "r%RU32", RTBldCfgRevision()).c_str());
 
             hrc = i_writeFSImpl(pTask, writeLock, hVfsFssTar);
             RTVfsFsStrmRelease(hVfsFssTar);
@@ -2344,7 +2355,7 @@ HRESULT Appliance::i_exportCloudImpl(TaskCloud *pTask)
     ComPtr<ICloudProviderManager> cpm;
     hrc = mVirtualBox->COMGETTER(CloudProviderManager)(cpm.asOutParam());
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%: Cloud provider manager object wasn't found"), __FUNCTION__);
+        return setError(VBOX_E_OBJECT_NOT_FOUND, tr("%s: Cloud provider manager object wasn't found"), __FUNCTION__);
 
     Utf8Str strProviderName = pTask->locInfo.strProvider;
     ComPtr<ICloudProvider> cloudProvider;
@@ -2352,7 +2363,7 @@ HRESULT Appliance::i_exportCloudImpl(TaskCloud *pTask)
     hrc = cpm->GetProviderByShortName(Bstr(strProviderName.c_str()).raw(), cloudProvider.asOutParam());
 
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%s: Cloud provider object wasn't found"), __FUNCTION__);
+        return setError(VBOX_E_OBJECT_NOT_FOUND, tr("%s: Cloud provider object wasn't found"), __FUNCTION__);
 
     ComPtr<IVirtualSystemDescription> vsd = m->virtualSystemDescriptions.front();
 
@@ -2363,26 +2374,26 @@ HRESULT Appliance::i_exportCloudImpl(TaskCloud *pTask)
     com::SafeArray<BSTR> aExtraConfigValues;
 
     hrc = vsd->GetDescriptionByType(VirtualSystemDescriptionType_CloudProfileName,
-                             ComSafeArrayAsOutParam(retTypes),
-                             ComSafeArrayAsOutParam(aRefs),
-                             ComSafeArrayAsOutParam(aOvfValues),
-                             ComSafeArrayAsOutParam(aVBoxValues),
-                             ComSafeArrayAsOutParam(aExtraConfigValues));
+                                    ComSafeArrayAsOutParam(retTypes),
+                                    ComSafeArrayAsOutParam(aRefs),
+                                    ComSafeArrayAsOutParam(aOvfValues),
+                                    ComSafeArrayAsOutParam(aVBoxValues),
+                                    ComSafeArrayAsOutParam(aExtraConfigValues));
     if (FAILED(hrc))
         return hrc;
 
     Utf8Str profileName(aVBoxValues[0]);
     if (profileName.isEmpty())
-        return setErrorVrc(VBOX_E_OBJECT_NOT_FOUND, tr("%s: Cloud user profile name wasn't found"), __FUNCTION__);
+        return setError(VBOX_E_OBJECT_NOT_FOUND, tr("%s: Cloud user profile name wasn't found"), __FUNCTION__);
 
     hrc = cloudProvider->GetProfileByName(aVBoxValues[0], cloudProfile.asOutParam());
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%s: Cloud profile object wasn't found"), __FUNCTION__);
+        return setError(VBOX_E_OBJECT_NOT_FOUND, tr("%s: Cloud profile object wasn't found"), __FUNCTION__);
 
     ComObjPtr<ICloudClient> cloudClient;
     hrc = cloudProfile->CreateCloudClient(cloudClient.asOutParam());
     if (FAILED(hrc))
-        return setErrorVrc(VERR_COM_OBJECT_NOT_FOUND, tr("%s: Cloud client object wasn't found"), __FUNCTION__);
+        return setError(VBOX_E_OBJECT_NOT_FOUND, tr("%s: Cloud client object wasn't found"), __FUNCTION__);
 
     if (m->virtualSystemDescriptions.size() == 1)
     {
@@ -2524,8 +2535,8 @@ HRESULT Appliance::i_writeFSOPC(TaskOPC *pTask)
                 RTZipTarFsStreamSetFileMode(hVfsFssTar, 0660, 0440);
                 RTZipTarFsStreamSetOwner(hVfsFssTar, VBOX_VERSION_MAJOR, "vboxopc10");
                 RTZipTarFsStreamSetGroup(hVfsFssTar, VBOX_VERSION_MINOR,
-                                         "vbox_v" RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "."
-                                         RT_XSTR(VBOX_VERSION_BUILD) "r" RT_XSTR(VBOX_SVN_REV));
+                                         Utf8StrFmt("vbox_v" RT_XSTR(VBOX_VERSION_MAJOR) "." RT_XSTR(VBOX_VERSION_MINOR) "."
+                                         RT_XSTR(VBOX_VERSION_BUILD) "r%RU32", RTBldCfgRevision()).c_str());
 
                 /*
                  * Let the Medium code do the heavy work.

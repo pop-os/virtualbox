@@ -23,10 +23,6 @@
 #include <Protocol/ScsiPassThruExt.h>
 #include <Uefi/UefiSpec.h>
 
-#ifdef VBOX
-#define STATIC_ASSERT(a_Arg1, a_Arg2) do {} while(0)
-#endif
-
 //
 // Higher versions will be used before lower, 0x10-0xffffffef is the version
 // range for IVH (Indie Hardware Vendors)

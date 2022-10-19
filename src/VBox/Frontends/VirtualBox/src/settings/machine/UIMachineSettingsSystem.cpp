@@ -4,33 +4,53 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
-#include <QHeaderView>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-#include "QIWidgetValidator.h"
-#include "UIConverter.h"
-#include "UIIconPool.h"
-#include "UIMachineSettingsSystem.h"
-#include "UIErrorString.h"
+#include "QITabWidget.h"
+#include "UIAccelerationFeaturesEditor.h"
+#include "UIBaseMemoryEditor.h"
+#include "UIBootOrderEditor.h"
+#include "UIChipsetEditor.h"
 #include "UICommon.h"
+#include "UIErrorString.h"
+#include "UIExecutionCapEditor.h"
+#include "UIMachineSettingsSystem.h"
+#include "UIMotherboardFeaturesEditor.h"
+#include "UIParavirtProviderEditor.h"
+#include "UIPointingHIDEditor.h"
+#include "UIProcessorFeaturesEditor.h"
+#include "UITpmEditor.h"
+#include "UITranslator.h"
+#include "UIVirtualCPUEditor.h"
 
 /* COM includes: */
 #include "CBIOSSettings.h"
-
-/* Other VBox includes: */
-#include <iprt/cdefs.h>
+#include "CNvramStore.h"
+#include "CTrustedPlatformModule.h"
+#include "CUefiVariableStore.h"
 
 
 /** Machine settings: System page data structure. */
@@ -47,10 +67,14 @@ struct UIDataSettingsMachineSystem
         , m_iMemorySize(-1)
         , m_bootItems(UIBootItemDataList())
         , m_chipsetType(KChipsetType_Null)
+        , m_tpmType(KTpmType_None)
         , m_pointingHIDType(KPointingHIDType_None)
         , m_fEnabledIoApic(false)
         , m_fEnabledEFI(false)
         , m_fEnabledUTC(false)
+        , m_fAvailableSecureBoot(false)
+        , m_fEnabledSecureBoot(false)
+        , m_fResetSecureBoot(false)
         /* CPU data: */
         , m_cCPUCount(-1)
         , m_iCPUExecCap(-1)
@@ -75,10 +99,14 @@ struct UIDataSettingsMachineSystem
                && (m_iMemorySize == other.m_iMemorySize)
                && (m_bootItems == other.m_bootItems)
                && (m_chipsetType == other.m_chipsetType)
+               && (m_tpmType == other.m_tpmType)
                && (m_pointingHIDType == other.m_pointingHIDType)
                && (m_fEnabledIoApic == other.m_fEnabledIoApic)
                && (m_fEnabledEFI == other.m_fEnabledEFI)
                && (m_fEnabledUTC == other.m_fEnabledUTC)
+               && (m_fAvailableSecureBoot == other.m_fAvailableSecureBoot)
+               && (m_fEnabledSecureBoot == other.m_fEnabledSecureBoot)
+               && (m_fResetSecureBoot == other.m_fResetSecureBoot)
                /* CPU data: */
                && (m_cCPUCount == other.m_cCPUCount)
                && (m_iCPUExecCap == other.m_iCPUExecCap)
@@ -111,6 +139,8 @@ struct UIDataSettingsMachineSystem
     UIBootItemDataList  m_bootItems;
     /** Holds the chipset type. */
     KChipsetType        m_chipsetType;
+    /** Holds the TPM type. */
+    KTpmType            m_tpmType;
     /** Holds the pointing HID type. */
     KPointingHIDType    m_pointingHIDType;
     /** Holds whether the IO APIC is enabled. */
@@ -119,6 +149,12 @@ struct UIDataSettingsMachineSystem
     bool                m_fEnabledEFI;
     /** Holds whether the UTC is enabled. */
     bool                m_fEnabledUTC;
+    /** Holds whether the secure boot is available. */
+    bool                m_fAvailableSecureBoot;
+    /** Holds whether the secure boot is enabled. */
+    bool                m_fEnabledSecureBoot;
+    /** Holds whether the secure boot is reseted. */
+    bool                m_fResetSecureBoot;
 
     /** Holds the CPU count. */
     int   m_cCPUCount;
@@ -139,18 +175,29 @@ struct UIDataSettingsMachineSystem
 
 
 UIMachineSettingsSystem::UIMachineSettingsSystem()
-    : m_uMinGuestCPU(0), m_uMaxGuestCPU(0)
-    , m_uMinGuestCPUExecCap(0), m_uMedGuestCPUExecCap(0), m_uMaxGuestCPUExecCap(0)
-    , m_fIsUSBEnabled(false)
+    : m_fIsUSBEnabled(false)
     , m_pCache(0)
+    , m_pTabWidget(0)
+    , m_pTabMotherboard(0)
+    , m_pEditorBaseMemory(0)
+    , m_pEditorBootOrder(0)
+    , m_pEditorChipset(0)
+    , m_pEditorTpm(0)
+    , m_pEditorPointingHID(0)
+    , m_pEditorMotherboardFeatures(0)
+    , m_pTabProcessor(0)
+    , m_pEditorVCPU(0)
+    , m_pEditorExecCap(0)
+    , m_pEditorProcessorFeatures(0)
+    , m_pTabAcceleration(0)
+    , m_pEditorParavirtProvider(0)
+    , m_pEditorAccelerationFeatures(0)
 {
-    /* Prepare: */
     prepare();
 }
 
 UIMachineSettingsSystem::~UIMachineSettingsSystem()
 {
-    /* Cleanup: */
     cleanup();
 }
 
@@ -162,7 +209,7 @@ bool UIMachineSettingsSystem::isHWVirtExSupported() const
 
 bool UIMachineSettingsSystem::isHWVirtExEnabled() const
 {
-    return m_pCheckBoxVirtualization->isChecked();
+    return m_pEditorAccelerationFeatures->isEnabledVirtualization();
 }
 
 bool UIMachineSettingsSystem::isNestedPagingSupported() const
@@ -173,7 +220,7 @@ bool UIMachineSettingsSystem::isNestedPagingSupported() const
 
 bool UIMachineSettingsSystem::isNestedPagingEnabled() const
 {
-    return m_pCheckBoxNestedPaging->isChecked();
+    return m_pEditorAccelerationFeatures->isEnabledNestedPaging();
 }
 
 bool UIMachineSettingsSystem::isNestedHWVirtExSupported() const
@@ -184,17 +231,17 @@ bool UIMachineSettingsSystem::isNestedHWVirtExSupported() const
 
 bool UIMachineSettingsSystem::isNestedHWVirtExEnabled() const
 {
-    return m_pCheckBoxNestedVirtualization->isChecked();
+    return m_pEditorProcessorFeatures->isEnabledNestedVirtualization();
 }
 
 bool UIMachineSettingsSystem::isHIDEnabled() const
 {
-    return m_pComboPointingHIDType->currentData().value<KPointingHIDType>() != KPointingHIDType_PS2Mouse;
+    return m_pEditorPointingHID->value() != KPointingHIDType_PS2Mouse;
 }
 
 KChipsetType UIMachineSettingsSystem::chipsetType() const
 {
-    return m_pComboChipsetType->currentData().value<KChipsetType>();
+    return m_pEditorChipset->value();
 }
 
 void UIMachineSettingsSystem::setUSBEnabled(bool fEnabled)
@@ -212,18 +259,22 @@ void UIMachineSettingsSystem::setUSBEnabled(bool fEnabled)
 
 bool UIMachineSettingsSystem::changed() const
 {
-    return m_pCache->wasChanged();
+    return m_pCache ? m_pCache->wasChanged() : false;
 }
 
 void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return;
+
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
     /* Clear cache initially: */
     m_pCache->clear();
 
-    /* Prepare old system data: */
+    /* Prepare old data: */
     UIDataSettingsMachineSystem oldSystemData;
 
     /* Gather support flags: */
@@ -236,10 +287,18 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
     oldSystemData.m_iMemorySize = m_machine.GetMemorySize();
     oldSystemData.m_bootItems = loadBootItems(m_machine);
     oldSystemData.m_chipsetType = m_machine.GetChipsetType();
+    oldSystemData.m_tpmType = m_machine.GetTrustedPlatformModule().GetType();
     oldSystemData.m_pointingHIDType = m_machine.GetPointingHIDType();
     oldSystemData.m_fEnabledIoApic = m_machine.GetBIOSSettings().GetIOAPICEnabled();
     oldSystemData.m_fEnabledEFI = m_machine.GetFirmwareType() >= KFirmwareType_EFI && m_machine.GetFirmwareType() <= KFirmwareType_EFIDUAL;
     oldSystemData.m_fEnabledUTC = m_machine.GetRTCUseUTC();
+    CNvramStore comStoreLvl1 = m_machine.GetNonVolatileStore();
+    CUefiVariableStore comStoreLvl2 = comStoreLvl1.GetUefiVariableStore();
+    oldSystemData.m_fAvailableSecureBoot = comStoreLvl2.isNotNull();
+    oldSystemData.m_fEnabledSecureBoot = oldSystemData.m_fAvailableSecureBoot
+                                       ? comStoreLvl2.GetSecureBootEnabled()
+                                       : false;
+    oldSystemData.m_fResetSecureBoot = false;
 
     /* Gather old 'Processor' data: */
     oldSystemData.m_cCPUCount = oldSystemData.m_fSupportedHwVirtEx ? m_machine.GetCPUCount() : 1;
@@ -252,7 +311,7 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
     oldSystemData.m_fEnabledHwVirtEx = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_Enabled);
     oldSystemData.m_fEnabledNestedPaging = m_machine.GetHWVirtExProperty(KHWVirtExPropertyType_NestedPaging);
 
-    /* Cache old system data: */
+    /* Cache old data: */
     m_pCache->cacheInitialData(oldSystemData);
 
     /* Upload machine to data: */
@@ -261,37 +320,51 @@ void UIMachineSettingsSystem::loadToCacheFrom(QVariant &data)
 
 void UIMachineSettingsSystem::getFromCache()
 {
-    /* Get old system data from the cache: */
+    /* Sanity check: */
+    if (!m_pCache)
+        return;
+
+    /* Get old data from cache: */
     const UIDataSettingsMachineSystem &oldSystemData = m_pCache->base();
 
-    /* We are doing that *now* because these combos have
-     * dynamical content which depends on cashed value: */
-    repopulateComboChipsetType();
-    repopulateComboPointingHIDType();
-    repopulateComboParavirtProviderType();
+    /* Load old 'Motherboard' data from cache: */
+    if (m_pEditorBaseMemory)
+        m_pEditorBaseMemory->setValue(oldSystemData.m_iMemorySize);
+    if (m_pEditorBootOrder)
+        m_pEditorBootOrder->setValue(oldSystemData.m_bootItems);
+    if (m_pEditorChipset)
+        m_pEditorChipset->setValue(oldSystemData.m_chipsetType);
+    if (m_pEditorTpm)
+        m_pEditorTpm->setValue(oldSystemData.m_tpmType);
+    if (m_pEditorPointingHID)
+        m_pEditorPointingHID->setValue(oldSystemData.m_pointingHIDType);
+    if (m_pEditorMotherboardFeatures)
+    {
+        m_pEditorMotherboardFeatures->setEnableIoApic(oldSystemData.m_fEnabledIoApic);
+        m_pEditorMotherboardFeatures->setEnableEfi(oldSystemData.m_fEnabledEFI);
+        m_pEditorMotherboardFeatures->setEnableUtcTime(oldSystemData.m_fEnabledUTC);
+        m_pEditorMotherboardFeatures->setEnableSecureBoot(oldSystemData.m_fEnabledSecureBoot);
+    }
 
-    /* Load old 'Motherboard' data from the cache: */
-    m_pBaseMemoryEditor->setValue(oldSystemData.m_iMemorySize);
-    m_pBootOrderEditor->setValue(oldSystemData.m_bootItems);
-    const int iChipsetTypePosition = m_pComboChipsetType->findData(oldSystemData.m_chipsetType);
-    m_pComboChipsetType->setCurrentIndex(iChipsetTypePosition == -1 ? 0 : iChipsetTypePosition);
-    const int iHIDTypePosition = m_pComboPointingHIDType->findData(oldSystemData.m_pointingHIDType);
-    m_pComboPointingHIDType->setCurrentIndex(iHIDTypePosition == -1 ? 0 : iHIDTypePosition);
-    m_pCheckBoxApic->setChecked(oldSystemData.m_fEnabledIoApic);
-    m_pCheckBoxEFI->setChecked(oldSystemData.m_fEnabledEFI);
-    m_pCheckBoxUseUTC->setChecked(oldSystemData.m_fEnabledUTC);
+    /* Load old 'Processor' data from cache: */
+    if (m_pEditorVCPU)
+        m_pEditorVCPU->setValue(oldSystemData.m_cCPUCount);
+    if (m_pEditorExecCap)
+        m_pEditorExecCap->setValue(oldSystemData.m_iCPUExecCap);
+    if (m_pEditorProcessorFeatures)
+    {
+        m_pEditorProcessorFeatures->setEnablePae(oldSystemData.m_fEnabledPAE);
+        m_pEditorProcessorFeatures->setEnableNestedVirtualization(oldSystemData.m_fEnabledNestedHwVirtEx);
+    }
 
-    /* Load old 'Processor' data from the cache: */
-    m_pSliderCPUCount->setValue(oldSystemData.m_cCPUCount);
-    m_pSliderCPUExecCap->setValue(oldSystemData.m_iCPUExecCap);
-    m_pCheckBoxPAE->setChecked(oldSystemData.m_fEnabledPAE);
-    m_pCheckBoxNestedVirtualization->setChecked(oldSystemData.m_fEnabledNestedHwVirtEx);
-
-    /* Load old 'Acceleration' data from the cache: */
-    const int iParavirtProviderPosition = m_pComboParavirtProviderType->findData(oldSystemData.m_paravirtProvider);
-    m_pComboParavirtProviderType->setCurrentIndex(iParavirtProviderPosition == -1 ? 0 : iParavirtProviderPosition);
-    m_pCheckBoxVirtualization->setChecked(oldSystemData.m_fEnabledHwVirtEx);
-    m_pCheckBoxNestedPaging->setChecked(oldSystemData.m_fEnabledNestedPaging);
+    /* Load old 'Acceleration' data from cache: */
+    if (m_pEditorParavirtProvider)
+        m_pEditorParavirtProvider->setValue(oldSystemData.m_paravirtProvider);
+    if (m_pEditorAccelerationFeatures)
+    {
+        m_pEditorAccelerationFeatures->setEnableVirtualization(oldSystemData.m_fEnabledHwVirtEx);
+        m_pEditorAccelerationFeatures->setEnableNestedPaging(oldSystemData.m_fEnabledNestedPaging);
+    }
 
     /* Polish page finally: */
     polishPage();
@@ -302,7 +375,11 @@ void UIMachineSettingsSystem::getFromCache()
 
 void UIMachineSettingsSystem::putToCache()
 {
-    /* Prepare new system data: */
+    /* Sanity check: */
+    if (!m_pCache)
+        return;
+
+    /* Prepare new data: */
     UIDataSettingsMachineSystem newSystemData;
 
     /* Gather support flags: */
@@ -312,38 +389,60 @@ void UIMachineSettingsSystem::putToCache()
     newSystemData.m_fSupportedNestedPaging = isNestedPagingSupported();
 
     /* Gather 'Motherboard' data: */
-    newSystemData.m_iMemorySize = m_pBaseMemoryEditor->value();
-    newSystemData.m_bootItems = m_pBootOrderEditor->value();
-    newSystemData.m_chipsetType = m_pComboChipsetType->currentData().value<KChipsetType>();
-    newSystemData.m_pointingHIDType = m_pComboPointingHIDType->currentData().value<KPointingHIDType>();
-    newSystemData.m_fEnabledIoApic =    m_pCheckBoxApic->isChecked()
-                                     || m_pSliderCPUCount->value() > 1
-                                     || m_pComboChipsetType->currentData().value<KChipsetType>() == KChipsetType_ICH9;
-    newSystemData.m_fEnabledEFI = m_pCheckBoxEFI->isChecked();
-    newSystemData.m_fEnabledUTC = m_pCheckBoxUseUTC->isChecked();
+    if (m_pEditorBaseMemory)
+        newSystemData.m_iMemorySize = m_pEditorBaseMemory->value();
+    if (m_pEditorBootOrder)
+        newSystemData.m_bootItems = m_pEditorBootOrder->value();
+    if (m_pEditorChipset)
+        newSystemData.m_chipsetType = m_pEditorChipset->value();
+    if (m_pEditorTpm)
+        newSystemData.m_tpmType = m_pEditorTpm->value();
+    if (m_pEditorPointingHID)
+        newSystemData.m_pointingHIDType = m_pEditorPointingHID->value();
+    if (   m_pEditorMotherboardFeatures
+        && m_pEditorVCPU
+        && m_pEditorChipset)
+        newSystemData.m_fEnabledIoApic =    m_pEditorMotherboardFeatures->isEnabledIoApic()
+                                         || m_pEditorVCPU->value() > 1
+                                         || m_pEditorChipset->value() == KChipsetType_ICH9;
+    if (m_pEditorMotherboardFeatures)
+        newSystemData.m_fEnabledEFI = m_pEditorMotherboardFeatures->isEnabledEfi();
+    if (m_pEditorMotherboardFeatures)
+        newSystemData.m_fEnabledUTC = m_pEditorMotherboardFeatures->isEnabledUtcTime();
+    if (m_pEditorMotherboardFeatures)
+    {
+        newSystemData.m_fAvailableSecureBoot = m_pCache->base().m_fAvailableSecureBoot;
+        newSystemData.m_fEnabledSecureBoot = m_pEditorMotherboardFeatures->isEnabledSecureBoot();
+        newSystemData.m_fResetSecureBoot = m_pEditorMotherboardFeatures->isResetSecureBoot();
+    }
 
     /* Gather 'Processor' data: */
-    newSystemData.m_cCPUCount = m_pSliderCPUCount->value();
-    newSystemData.m_iCPUExecCap = m_pSliderCPUExecCap->value();
-    newSystemData.m_fEnabledPAE = m_pCheckBoxPAE->isChecked();
+    if (m_pEditorVCPU)
+        newSystemData.m_cCPUCount = m_pEditorVCPU->value();
+    if (m_pEditorExecCap)
+        newSystemData.m_iCPUExecCap = m_pEditorExecCap->value();
+    if (m_pEditorProcessorFeatures)
+        newSystemData.m_fEnabledPAE = m_pEditorProcessorFeatures->isEnabledPae();
     newSystemData.m_fEnabledNestedHwVirtEx = isNestedHWVirtExEnabled();
 
     /* Gather 'Acceleration' data: */
-    newSystemData.m_paravirtProvider = m_pComboParavirtProviderType->currentData().value<KParavirtProvider>();
+    if (m_pEditorParavirtProvider)
+        newSystemData.m_paravirtProvider = m_pEditorParavirtProvider->value();
     /* Enable HW Virt Ex automatically if it's supported and
      * 1. multiple CPUs, 2. Nested Paging or 3. Nested HW Virt Ex is requested. */
-    newSystemData.m_fEnabledHwVirtEx =    isHWVirtExEnabled()
-                                       || (   isHWVirtExSupported()
-                                           && (   m_pSliderCPUCount->value() > 1
-                                               || isNestedPagingEnabled()
-                                               || isNestedHWVirtExEnabled()));
+    if (m_pEditorVCPU)
+        newSystemData.m_fEnabledHwVirtEx =    isHWVirtExEnabled()
+                                           || (   isHWVirtExSupported()
+                                               && (   m_pEditorVCPU->value() > 1
+                                                   || isNestedPagingEnabled()
+                                                   || isNestedHWVirtExEnabled()));
     /* Enable Nested Paging automatically if it's supported and
      * Nested HW Virt Ex is requested. */
     newSystemData.m_fEnabledNestedPaging =    isNestedPagingEnabled()
                                            || (   isNestedPagingSupported()
                                                && isNestedHWVirtExEnabled());
 
-    /* Cache new system data: */
+    /* Cache new data: */
     m_pCache->cacheCurrentData(newSystemData);
 }
 
@@ -352,8 +451,8 @@ void UIMachineSettingsSystem::saveFromCacheTo(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Update system data and failing state: */
-    setFailed(!saveSystemData());
+    /* Update data and failing state: */
+    setFailed(!saveData());
 
     /* Upload machine to data: */
     UISettingsPageMachine::uploadData(data);
@@ -368,30 +467,30 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = UICommon::removeAccelMark(m_pTabWidgetSystem->tabText(0));
+        message.first = UITranslator::removeAccelMark(m_pTabWidget->tabText(0));
 
         /* RAM amount test: */
         const ulong uFullSize = uiCommon().host().GetMemorySize();
-        if (m_pBaseMemoryEditor->value() > (int)m_pBaseMemoryEditor->maxRAMAlw())
+        if (m_pEditorBaseMemory->value() > (int)m_pEditorBaseMemory->maxRAMAlw())
         {
             message.second << tr(
                 "More than <b>%1%</b> of the host computer's memory (<b>%2</b>) is assigned to the virtual machine. "
                 "Not enough memory is left for the host operating system. Please select a smaller amount.")
-                .arg((unsigned)qRound((double)m_pBaseMemoryEditor->maxRAMAlw() / uFullSize * 100.0))
-                .arg(uiCommon().formatSize((uint64_t)uFullSize * _1M));
+                .arg((unsigned)qRound((double)m_pEditorBaseMemory->maxRAMAlw() / uFullSize * 100.0))
+                .arg(UITranslator::formatSize((uint64_t)uFullSize * _1M));
             fPass = false;
         }
-        else if (m_pBaseMemoryEditor->value() > (int)m_pBaseMemoryEditor->maxRAMOpt())
+        else if (m_pEditorBaseMemory->value() > (int)m_pEditorBaseMemory->maxRAMOpt())
         {
             message.second << tr(
                 "More than <b>%1%</b> of the host computer's memory (<b>%2</b>) is assigned to the virtual machine. "
                 "There might not be enough memory left for the host operating system. Please consider selecting a smaller amount.")
-                .arg((unsigned)qRound((double)m_pBaseMemoryEditor->maxRAMOpt() / uFullSize * 100.0))
-                .arg(uiCommon().formatSize((uint64_t)uFullSize * _1M));
+                .arg((unsigned)qRound((double)m_pEditorBaseMemory->maxRAMOpt() / uFullSize * 100.0))
+                .arg(UITranslator::formatSize((uint64_t)uFullSize * _1M));
         }
 
         /* Chipset type vs IO-APIC test: */
-        if (m_pComboChipsetType->currentData().value<KChipsetType>() == KChipsetType_ICH9 && !m_pCheckBoxApic->isChecked())
+        if (m_pEditorChipset->value() == KChipsetType_ICH9 && !m_pEditorMotherboardFeatures->isEnabledIoApic())
         {
             message.second << tr(
                 "The I/O APIC feature is not currently enabled in the Motherboard section of the System page. "
@@ -417,11 +516,11 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = UICommon::removeAccelMark(m_pTabWidgetSystem->tabText(1));
+        message.first = UITranslator::removeAccelMark(m_pTabWidget->tabText(1));
 
         /* VCPU amount test: */
         const int cTotalCPUs = uiCommon().host().GetProcessorOnlineCoreCount();
-        if (m_pSliderCPUCount->value() > 2 * cTotalCPUs)
+        if (m_pEditorVCPU->value() > 2 * cTotalCPUs)
         {
             message.second << tr(
                 "For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number "
@@ -429,7 +528,7 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
                 .arg(cTotalCPUs);
             fPass = false;
         }
-        else if (m_pSliderCPUCount->value() > cTotalCPUs)
+        else if (m_pEditorVCPU->value() > cTotalCPUs)
         {
             message.second << tr(
                 "More virtual CPUs are assigned to the virtual machine than the number of physical CPUs on the host system (<b>%1</b>). "
@@ -438,7 +537,7 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         }
 
         /* VCPU vs IO-APIC test: */
-        if (m_pSliderCPUCount->value() > 1 && !m_pCheckBoxApic->isChecked())
+        if (m_pEditorVCPU->value() > 1 && !m_pEditorMotherboardFeatures->isEnabledIoApic())
         {
             message.second << tr(
                 "The I/O APIC feature is not currently enabled in the Motherboard section of the System page. "
@@ -447,7 +546,7 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         }
 
         /* VCPU: */
-        if (m_pSliderCPUCount->value() > 1)
+        if (m_pEditorVCPU->value() > 1)
         {
             /* HW Virt Ex test: */
             if (isHWVirtExSupported() && !isHWVirtExEnabled())
@@ -460,20 +559,20 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
         }
 
         /* CPU execution cap test: */
-        if (m_pSliderCPUExecCap->value() < (int)m_uMedGuestCPUExecCap)
+        if (m_pEditorExecCap->value() < m_pEditorExecCap->medExecCap())
         {
             message.second << tr("The processor execution cap is set to a low value. This may make the machine feel slow to respond.");
         }
 
         /* Warn user about possible performance degradation and suggest lowering # of CPUs assigned to the VM instead: */
-        if (m_pSliderCPUExecCap->value() < 100)
+        if (m_pEditorExecCap->value() < 100)
         {
-            if (m_uMaxGuestCPU > 1 && m_pSliderCPUCount->value() > 1)
+            if (m_pEditorVCPU->maxVCPUCount() > 1 && m_pEditorVCPU->value() > 1)
             {
                 message.second << tr("Please consider lowering the number of CPUs assigned to the virtual machine rather "
                                      "than setting the processor execution cap.");
             }
-            else if (m_uMaxGuestCPU > 1)
+            else if (m_pEditorVCPU->maxVCPUCount() > 1)
             {
                 message.second << tr("Lowering the processor execution cap may result in a decline in performance.");
             }
@@ -510,7 +609,7 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
     {
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = UICommon::removeAccelMark(m_pTabWidgetSystem->tabText(2));
+        message.first = UITranslator::removeAccelMark(m_pTabWidget->tabText(2));
 
         /* Nested Paging: */
         if (isNestedPagingEnabled())
@@ -538,145 +637,96 @@ bool UIMachineSettingsSystem::validate(QList<UIValidationMessage> &messages)
 void UIMachineSettingsSystem::setOrderAfter(QWidget *pWidget)
 {
     /* Configure navigation for 'motherboard' tab: */
-    setTabOrder(pWidget, m_pTabWidgetSystem->focusProxy());
-    setTabOrder(m_pTabWidgetSystem->focusProxy(), m_pBaseMemoryEditor);
-    setTabOrder(m_pBaseMemoryEditor, m_pBootOrderEditor);
-    setTabOrder(m_pBootOrderEditor, m_pComboChipsetType);
-    setTabOrder(m_pComboChipsetType, m_pComboPointingHIDType);
-    setTabOrder(m_pComboPointingHIDType, m_pCheckBoxApic);
-    setTabOrder(m_pCheckBoxApic, m_pCheckBoxEFI);
-    setTabOrder(m_pCheckBoxEFI, m_pCheckBoxUseUTC);
+    setTabOrder(pWidget, m_pTabWidget->focusProxy());
+    setTabOrder(m_pTabWidget->focusProxy(), m_pEditorBaseMemory);
+    setTabOrder(m_pEditorBaseMemory, m_pEditorBootOrder);
+    setTabOrder(m_pEditorBootOrder, m_pEditorChipset);
+    setTabOrder(m_pEditorChipset, m_pEditorTpm);
+    setTabOrder(m_pEditorTpm, m_pEditorPointingHID);
+    setTabOrder(m_pEditorPointingHID, m_pEditorMotherboardFeatures);
+    setTabOrder(m_pEditorMotherboardFeatures, m_pEditorVCPU);
 
     /* Configure navigation for 'processor' tab: */
-    setTabOrder(m_pCheckBoxUseUTC, m_pSliderCPUCount);
-    setTabOrder(m_pSliderCPUCount, m_pEditorCPUCount);
-    setTabOrder(m_pEditorCPUCount, m_pSliderCPUExecCap);
-    setTabOrder(m_pSliderCPUExecCap, m_pEditorCPUExecCap);
-    setTabOrder(m_pEditorCPUExecCap, m_pComboParavirtProviderType);
+    setTabOrder(m_pEditorVCPU, m_pEditorExecCap);
+    setTabOrder(m_pEditorExecCap, m_pEditorProcessorFeatures);
+    setTabOrder(m_pEditorProcessorFeatures, m_pEditorParavirtProvider);
 
     /* Configure navigation for 'acceleration' tab: */
-    setTabOrder(m_pComboParavirtProviderType, m_pCheckBoxPAE);
-    setTabOrder(m_pCheckBoxPAE, m_pCheckBoxNestedVirtualization);
-    setTabOrder(m_pCheckBoxNestedVirtualization, m_pCheckBoxVirtualization);
-    setTabOrder(m_pCheckBoxVirtualization, m_pCheckBoxNestedPaging);
+    setTabOrder(m_pEditorParavirtProvider, m_pEditorAccelerationFeatures);
 }
 
 void UIMachineSettingsSystem::retranslateUi()
 {
-    /* Translate uic generated strings: */
-    Ui::UIMachineSettingsSystem::retranslateUi(this);
+    m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabMotherboard), tr("&Motherboard"));
+    m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabProcessor), tr("&Processor"));
+    m_pTabWidget->setTabText(m_pTabWidget->indexOf(m_pTabAcceleration), tr("Acce&leration"));
 
-    /* Retranslate the cpu slider legend: */
-    m_pLabelCPUMin->setText(tr("%1 CPU", "%1 is 1 for now").arg(m_uMinGuestCPU));
-    m_pLabelCPUMax->setText(tr("%1 CPUs", "%1 is host cpu count * 2 for now").arg(m_uMaxGuestCPU));
-
-    /* Retranslate the cpu cap slider legend: */
-    m_pLabelCPUExecCapMin->setText(tr("%1%").arg(m_uMinGuestCPUExecCap));
-    m_pLabelCPUExecCapMax->setText(tr("%1%").arg(m_uMaxGuestCPUExecCap));
-
-    /* Retranslate combo-boxes: */
-    retranslateComboChipsetType();
-    retranslateComboPointingHIDType();
-    retranslateComboParavirtProvider();
+    /* These editors have own labels, but we want them to be properly layouted according to each other: */
+    int iMinimumLayoutHint = 0;
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorBaseMemory->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorBootOrder->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorChipset->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorTpm->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorPointingHID->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorMotherboardFeatures->minimumLabelHorizontalHint());
+    m_pEditorBaseMemory->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorBootOrder->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorChipset->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorTpm->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorPointingHID->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorMotherboardFeatures->setMinimumLayoutIndent(iMinimumLayoutHint);
+    iMinimumLayoutHint = 0;
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorVCPU->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorExecCap->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorProcessorFeatures->minimumLabelHorizontalHint());
+    m_pEditorVCPU->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorExecCap->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorProcessorFeatures->setMinimumLayoutIndent(iMinimumLayoutHint);
+    iMinimumLayoutHint = 0;
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorParavirtProvider->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorAccelerationFeatures->minimumLabelHorizontalHint());
+    m_pEditorParavirtProvider->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorAccelerationFeatures->setMinimumLayoutIndent(iMinimumLayoutHint);
 }
 
 void UIMachineSettingsSystem::polishPage()
 {
-    /* Get old system data from the cache: */
+    /* Get old data from cache: */
     const UIDataSettingsMachineSystem &systemData = m_pCache->base();
 
     /* Polish 'Motherboard' availability: */
-    m_pBaseMemoryLabel->setEnabled(isMachineOffline());
-    m_pBaseMemoryEditor->setEnabled(isMachineOffline());
-    m_pBootOrderLabel->setEnabled(isMachineOffline());
-    m_pBootOrderEditor->setEnabled(isMachineOffline());
-    m_pLabelChipsetType->setEnabled(isMachineOffline());
-    m_pComboChipsetType->setEnabled(isMachineOffline());
-    m_pLabelPointingHIDType->setEnabled(isMachineOffline());
-    m_pComboPointingHIDType->setEnabled(isMachineOffline());
-    m_pLabelMotherboardExtended->setEnabled(isMachineOffline());
-    m_pCheckBoxApic->setEnabled(isMachineOffline());
-    m_pCheckBoxEFI->setEnabled(isMachineOffline());
-    m_pCheckBoxUseUTC->setEnabled(isMachineOffline());
+    m_pEditorBaseMemory->setEnabled(isMachineOffline());
+    m_pEditorBootOrder->setEnabled(isMachineOffline());
+    m_pEditorChipset->setEnabled(isMachineOffline());
+    m_pEditorTpm->setEnabled(isMachineOffline());
+    m_pEditorPointingHID->setEnabled(isMachineOffline());
+    m_pEditorMotherboardFeatures->setEnabled(isMachineOffline());
 
     /* Polish 'Processor' availability: */
-    m_pLabelCPUCount->setEnabled(isMachineOffline());
-    m_pLabelCPUMin->setEnabled(isMachineOffline());
-    m_pLabelCPUMax->setEnabled(isMachineOffline());
-    m_pSliderCPUCount->setEnabled(isMachineOffline() && systemData.m_fSupportedHwVirtEx);
-    m_pEditorCPUCount->setEnabled(isMachineOffline() && systemData.m_fSupportedHwVirtEx);
-    m_pLabelCPUExecCap->setEnabled(isMachineInValidMode());
-    m_pLabelCPUExecCapMin->setEnabled(isMachineInValidMode());
-    m_pLabelCPUExecCapMax->setEnabled(isMachineInValidMode());
-    m_pSliderCPUExecCap->setEnabled(isMachineInValidMode());
-    m_pEditorCPUExecCap->setEnabled(isMachineInValidMode());
-    m_pLabelCPUExtended->setEnabled(isMachineOffline());
-    m_pCheckBoxPAE->setEnabled(isMachineOffline() && systemData.m_fSupportedPAE);
-    m_pCheckBoxNestedVirtualization->setEnabled(   (systemData.m_fSupportedNestedHwVirtEx && isMachineOffline())
-                                                || (systemData.m_fEnabledNestedHwVirtEx && isMachineOffline()));
+    m_pEditorVCPU->setEnabled(isMachineOffline() && systemData.m_fSupportedHwVirtEx);
+    m_pEditorExecCap->setEnabled(isMachineInValidMode());
+    m_pEditorProcessorFeatures->setEnablePaeAvailable(isMachineOffline() && systemData.m_fSupportedPAE);
+    m_pEditorProcessorFeatures->setEnableNestedVirtualizationAvailable(   isMachineOffline()
+                                                                       && (   systemData.m_fSupportedNestedHwVirtEx
+                                                                           || systemData.m_fEnabledNestedHwVirtEx));
 
     /* Polish 'Acceleration' availability: */
-    m_pCheckBoxVirtualization->setEnabled(   (systemData.m_fSupportedHwVirtEx && isMachineOffline())
-                                          || (systemData.m_fEnabledHwVirtEx && isMachineOffline()));
-    m_pCheckBoxNestedPaging->setEnabled(   m_pCheckBoxVirtualization->isChecked()
-                                        && (   (systemData.m_fSupportedNestedPaging && isMachineOffline())
-                                            || (systemData.m_fEnabledNestedPaging && isMachineOffline())));
-    m_pLabelParavirtProvider->setEnabled(isMachineOffline());
-    m_pComboParavirtProviderType->setEnabled(isMachineOffline());
-    m_pLabelVirtualization->setEnabled(isMachineOffline());
-}
-
-void UIMachineSettingsSystem::sltHandleCPUCountSliderChange()
-{
-    /* Apply new memory-size value: */
-    m_pEditorCPUCount->blockSignals(true);
-    m_pEditorCPUCount->setValue(m_pSliderCPUCount->value());
-    m_pEditorCPUCount->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
-}
-
-void UIMachineSettingsSystem::sltHandleCPUCountEditorChange()
-{
-    /* Apply new memory-size value: */
-    m_pSliderCPUCount->blockSignals(true);
-    m_pSliderCPUCount->setValue(m_pEditorCPUCount->value());
-    m_pSliderCPUCount->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
-}
-
-void UIMachineSettingsSystem::sltHandleCPUExecCapSliderChange()
-{
-    /* Apply new memory-size value: */
-    m_pEditorCPUExecCap->blockSignals(true);
-    m_pEditorCPUExecCap->setValue(m_pSliderCPUExecCap->value());
-    m_pEditorCPUExecCap->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
-}
-
-void UIMachineSettingsSystem::sltHandleCPUExecCapEditorChange()
-{
-    /* Apply new memory-size value: */
-    m_pSliderCPUExecCap->blockSignals(true);
-    m_pSliderCPUExecCap->setValue(m_pEditorCPUExecCap->value());
-    m_pSliderCPUExecCap->blockSignals(false);
-
-    /* Revalidate: */
-    revalidate();
+    m_pEditorParavirtProvider->setEnabled(isMachineOffline());
+    m_pEditorAccelerationFeatures->setEnabled(isMachineOffline());
+    m_pEditorAccelerationFeatures->setEnableVirtualizationAvailable(   (systemData.m_fSupportedHwVirtEx && isMachineOffline())
+                                                                    || (systemData.m_fEnabledHwVirtEx && isMachineOffline()));
+    m_pEditorAccelerationFeatures->setEnableNestedPagingAvailable(   m_pEditorAccelerationFeatures->isEnabledVirtualization()
+                                                                  && (   (systemData.m_fSupportedNestedPaging && isMachineOffline())
+                                                                      || (systemData.m_fEnabledNestedPaging && isMachineOffline())));
 }
 
 void UIMachineSettingsSystem::sltHandleHwVirtExToggle()
 {
     /* Update Nested Paging checkbox: */
     AssertPtrReturnVoid(m_pCache);
-    m_pCheckBoxNestedPaging->setEnabled(   m_pCheckBoxVirtualization->isChecked()
-                                        && (   (m_pCache->base().m_fSupportedNestedPaging && isMachineOffline())
-                                            || (m_pCache->base().m_fEnabledNestedPaging && isMachineOffline())));
+    m_pEditorAccelerationFeatures->setEnableNestedPagingAvailable(   m_pEditorAccelerationFeatures->isEnabledVirtualization()
+                                                                  && (   (m_pCache->base().m_fSupportedNestedPaging && isMachineOffline())
+                                                                      || (m_pCache->base().m_fEnabledNestedPaging && isMachineOffline())));
 
     /* Revalidate: */
     revalidate();
@@ -684,139 +734,143 @@ void UIMachineSettingsSystem::sltHandleHwVirtExToggle()
 
 void UIMachineSettingsSystem::prepare()
 {
-    /* Apply UI decorations: */
-    Ui::UIMachineSettingsSystem::setupUi(this);
-
     /* Prepare cache: */
     m_pCache = new UISettingsCacheMachineSystem;
     AssertPtrReturnVoid(m_pCache);
 
-    /* Tree-widget created in the .ui file. */
-    {
-        /* Prepare 'Motherboard' tab: */
-        prepareTabMotherboard();
-        /* Prepare 'Processor' tab: */
-        prepareTabProcessor();
-        /* Prepare 'Acceleration' tab: */
-        prepareTabAcceleration();
-        /* Prepare connections: */
-        prepareConnections();
-    }
+    /* Prepare everything: */
+    prepareWidgets();
+    prepareConnections();
 
     /* Apply language settings: */
     retranslateUi();
 }
 
+void UIMachineSettingsSystem::prepareWidgets()
+{
+    /* Prepare main layout: */
+    QVBoxLayout *pLayoutMain = new QVBoxLayout(this);
+    if (pLayoutMain)
+    {
+        /* Prepare tab-widget: */
+        m_pTabWidget = new QITabWidget(this);
+        if (m_pTabWidget)
+        {
+            /* Prepare each tab separately: */
+            prepareTabMotherboard();
+            prepareTabProcessor();
+            prepareTabAcceleration();
+
+            pLayoutMain->addWidget(m_pTabWidget);
+        }
+    }
+}
+
 void UIMachineSettingsSystem::prepareTabMotherboard()
 {
-    /* Tab and it's layout created in the .ui file. */
+    /* Prepare 'Motherboard' tab: */
+    m_pTabMotherboard = new QWidget;
+    if (m_pTabMotherboard)
     {
-        /* Base-memory label and editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pBaseMemoryLabel);
-        AssertPtrReturnVoid(m_pBaseMemoryEditor);
+        /* Prepare 'Motherboard' tab layout: */
+        QGridLayout *pLayoutMotherboard = new QGridLayout(m_pTabMotherboard);
+        if (pLayoutMotherboard)
         {
-            /* Configure label & editor: */
-            m_pBaseMemoryLabel->setBuddy(m_pBaseMemoryEditor->focusProxy());
+            pLayoutMotherboard->setColumnStretch(1, 1);
+            pLayoutMotherboard->setRowStretch(6, 1);
+
+            /* Prepare base memory editor: */
+            m_pEditorBaseMemory = new UIBaseMemoryEditor(m_pTabMotherboard);
+            if (m_pEditorBaseMemory)
+                pLayoutMotherboard->addWidget(m_pEditorBaseMemory, 0, 0, 1, 2);
+
+            /* Prepare boot order editor: */
+            m_pEditorBootOrder = new UIBootOrderEditor(m_pTabMotherboard);
+            if (m_pEditorBootOrder)
+                pLayoutMotherboard->addWidget(m_pEditorBootOrder, 1, 0);
+
+            /* Prepare chipset editor: */
+            m_pEditorChipset = new UIChipsetEditor(m_pTabMotherboard);
+            if (m_pEditorChipset)
+                pLayoutMotherboard->addWidget(m_pEditorChipset, 2, 0);
+
+            /* Prepare TPM editor: */
+            m_pEditorTpm = new UITpmEditor(m_pTabMotherboard);
+            if (m_pEditorTpm)
+                pLayoutMotherboard->addWidget(m_pEditorTpm, 3, 0);
+
+            /* Prepare pointing HID editor: */
+            m_pEditorPointingHID = new UIPointingHIDEditor(m_pTabMotherboard);
+            if (m_pEditorPointingHID)
+                pLayoutMotherboard->addWidget(m_pEditorPointingHID, 4, 0);
+
+            /* Prepare motherboard features editor: */
+            m_pEditorMotherboardFeatures = new UIMotherboardFeaturesEditor(m_pTabMotherboard);
+            if (m_pEditorMotherboardFeatures)
+                pLayoutMotherboard->addWidget(m_pEditorMotherboardFeatures, 5, 0);
         }
 
-        /* Boot-order label and editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pBootOrderLabel);
-        AssertPtrReturnVoid(m_pBootOrderEditor);
-        {
-            /* Configure label & editor: */
-            m_pBootOrderLabel->setBuddy(m_pBootOrderEditor->focusProxy());
-        }
-
-        /* Chipset Type combo-box created in the .ui file. */
-        AssertPtrReturnVoid(m_pComboChipsetType);
-        {
-            /* Configure combo-box: */
-            m_pComboChipsetType->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-        }
-
-        /* Pointing HID Type combo-box created in the .ui file. */
-        AssertPtrReturnVoid(m_pComboPointingHIDType);
-        {
-            /* Configure combo-box: */
-            m_pComboPointingHIDType->setSizeAdjustPolicy(QComboBox::AdjustToContents);
-        }
+        m_pTabWidget->addTab(m_pTabMotherboard, QString());
     }
 }
 
 void UIMachineSettingsSystem::prepareTabProcessor()
 {
-    /* Prepare common variables: */
-    const CSystemProperties properties = uiCommon().virtualBox().GetSystemProperties();
-    const uint uHostCPUs = uiCommon().host().GetProcessorOnlineCoreCount();
-    m_uMinGuestCPU = properties.GetMinGuestCPUCount();
-    m_uMaxGuestCPU = qMin(2 * uHostCPUs, (uint)properties.GetMaxGuestCPUCount());
-    m_uMinGuestCPUExecCap = 1;
-    m_uMedGuestCPUExecCap = 40;
-    m_uMaxGuestCPUExecCap = 100;
-
-    /* Tab and it's layout created in the .ui file. */
+    /* Prepare 'Processor' tab: */
+    m_pTabProcessor = new QWidget;
+    if (m_pTabProcessor)
     {
-        /* CPU-count slider created in the .ui file. */
-        AssertPtrReturnVoid(m_pSliderCPUCount);
+        /* Prepare 'Processor' tab layout: */
+        QGridLayout *pLayoutProcessor = new QGridLayout(m_pTabProcessor);
+        if (pLayoutProcessor)
         {
-            /* Configure slider: */
-            m_pSliderCPUCount->setPageStep(1);
-            m_pSliderCPUCount->setSingleStep(1);
-            m_pSliderCPUCount->setTickInterval(1);
-            m_pSliderCPUCount->setMinimum(m_uMinGuestCPU);
-            m_pSliderCPUCount->setMaximum(m_uMaxGuestCPU);
-            m_pSliderCPUCount->setOptimalHint(1, uHostCPUs);
-            m_pSliderCPUCount->setWarningHint(uHostCPUs, m_uMaxGuestCPU);
+            pLayoutProcessor->setColumnStretch(1, 1);
+            pLayoutProcessor->setRowStretch(3, 1);
+
+            /* Prepare VCPU editor : */
+            m_pEditorVCPU = new UIVirtualCPUEditor(m_pTabProcessor);
+            if (m_pEditorVCPU)
+                pLayoutProcessor->addWidget(m_pEditorVCPU, 0, 0, 1, 2);
+
+            /* Prepare exec cap editor : */
+            m_pEditorExecCap = new UIExecutionCapEditor(m_pTabProcessor);
+            if (m_pEditorExecCap)
+                pLayoutProcessor->addWidget(m_pEditorExecCap, 1, 0, 1, 2);
+
+            /* Prepare processor features editor: */
+            m_pEditorProcessorFeatures = new UIProcessorFeaturesEditor(m_pTabProcessor);
+            if (m_pEditorProcessorFeatures)
+                pLayoutProcessor->addWidget(m_pEditorProcessorFeatures, 2, 0);
         }
 
-        /* CPU-count editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pEditorCPUCount);
-        {
-            /* Configure editor: */
-            m_pEditorCPUCount->setMinimum(m_uMinGuestCPU);
-            m_pEditorCPUCount->setMaximum(m_uMaxGuestCPU);
-            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorCPUCount, 4);
-        }
-
-        /* CPU-execution-cap slider created in the .ui file. */
-        AssertPtrReturnVoid(m_pSliderCPUExecCap);
-        {
-            /* Configure slider: */
-            m_pSliderCPUExecCap->setPageStep(10);
-            m_pSliderCPUExecCap->setSingleStep(1);
-            m_pSliderCPUExecCap->setTickInterval(10);
-            /* Setup the scale so that ticks are at page step boundaries: */
-            m_pSliderCPUExecCap->setMinimum(m_uMinGuestCPUExecCap);
-            m_pSliderCPUExecCap->setMaximum(m_uMaxGuestCPUExecCap);
-            m_pSliderCPUExecCap->setWarningHint(m_uMinGuestCPUExecCap, m_uMedGuestCPUExecCap);
-            m_pSliderCPUExecCap->setOptimalHint(m_uMedGuestCPUExecCap, m_uMaxGuestCPUExecCap);
-        }
-
-        /* CPU-execution-cap editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pEditorCPUExecCap);
-        {
-            /* Configure editor: */
-            m_pEditorCPUExecCap->setMinimum(m_uMinGuestCPUExecCap);
-            m_pEditorCPUExecCap->setMaximum(m_uMaxGuestCPUExecCap);
-            uiCommon().setMinimumWidthAccordingSymbolCount(m_pEditorCPUExecCap, 4);
-        }
+        m_pTabWidget->addTab(m_pTabProcessor, QString());
     }
 }
 
 void UIMachineSettingsSystem::prepareTabAcceleration()
 {
-    /* Tab and it's layout created in the .ui file. */
+    /* Prepare 'Acceleration' tab: */
+    m_pTabAcceleration = new QWidget;
+    if (m_pTabAcceleration)
     {
-        /* Other widgets created in the .ui file. */
-        AssertPtrReturnVoid(m_pWidgetPlaceholder);
-        AssertPtrReturnVoid(m_pCheckBoxVirtualization);
+        /* Prepare 'Acceleration' tab layout: */
+        QGridLayout *pLayoutAcceleration = new QGridLayout(m_pTabAcceleration);
+        if (pLayoutAcceleration)
         {
-            /* Configure widgets: */
-#ifndef VBOX_WITH_RAW_MODE
-            /* Hide HW Virt Ex checkbox when raw-mode is not supported: */
-            m_pWidgetPlaceholder->setVisible(false);
-            m_pCheckBoxVirtualization->setVisible(false);
-#endif
+            pLayoutAcceleration->setColumnStretch(2, 1);
+            pLayoutAcceleration->setRowStretch(3, 1);
+
+            /* Prepare paravirtualization provider editor: */
+            m_pEditorParavirtProvider = new UIParavirtProviderEditor(m_pTabAcceleration);
+            if (m_pEditorParavirtProvider)
+                pLayoutAcceleration->addWidget(m_pEditorParavirtProvider, 0, 0, 1, 2);
+
+            /* Prepare acceleration features editor: */
+            m_pEditorAccelerationFeatures = new UIAccelerationFeaturesEditor(m_pTabAcceleration);
+            if (m_pEditorAccelerationFeatures)
+                pLayoutAcceleration->addWidget(m_pEditorAccelerationFeatures, 1, 0);
+
+            m_pTabWidget->addTab(m_pTabAcceleration, QString());
         }
     }
 }
@@ -824,26 +878,29 @@ void UIMachineSettingsSystem::prepareTabAcceleration()
 void UIMachineSettingsSystem::prepareConnections()
 {
     /* Configure 'Motherboard' connections: */
-    connect(m_pComboChipsetType, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(m_pEditorChipset, &UIChipsetEditor::sigValueChanged,
             this, &UIMachineSettingsSystem::revalidate);
-    connect(m_pComboPointingHIDType, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+    connect(m_pEditorTpm, &UITpmEditor::sigValueChanged,
             this, &UIMachineSettingsSystem::revalidate);
-    connect(m_pBaseMemoryEditor, &UIBaseMemoryEditor::sigValidChanged, this, &UIMachineSettingsSystem::revalidate);
-    connect(m_pCheckBoxApic, &QCheckBox::stateChanged, this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pEditorPointingHID, &UIPointingHIDEditor::sigValueChanged,
+            this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pEditorBaseMemory, &UIBaseMemoryEditor::sigValidChanged,
+            this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pEditorMotherboardFeatures, &UIMotherboardFeaturesEditor::sigChangedIoApic,
+            this, &UIMachineSettingsSystem::revalidate);
 
     /* Configure 'Processor' connections: */
-    connect(m_pSliderCPUCount, &QIAdvancedSlider::valueChanged, this, &UIMachineSettingsSystem::sltHandleCPUCountSliderChange);
-    connect(m_pEditorCPUCount, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
-            this, &UIMachineSettingsSystem::sltHandleCPUCountEditorChange);
-    connect(m_pSliderCPUExecCap, &QIAdvancedSlider::valueChanged, this, &UIMachineSettingsSystem::sltHandleCPUExecCapSliderChange);
-    connect(m_pEditorCPUExecCap, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
-            this, &UIMachineSettingsSystem::sltHandleCPUExecCapEditorChange);
-    connect(m_pCheckBoxNestedVirtualization, &QCheckBox::stateChanged, this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pEditorVCPU, &UIVirtualCPUEditor::sigValueChanged,
+            this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pEditorExecCap, &UIExecutionCapEditor::sigValueChanged,
+            this, &UIMachineSettingsSystem::revalidate);
+    connect(m_pEditorProcessorFeatures, &UIProcessorFeaturesEditor::sigChangedNestedVirtualization,
+            this, &UIMachineSettingsSystem::revalidate);
 
     /* Configure 'Acceleration' connections: */
-    connect(m_pCheckBoxVirtualization, &QCheckBox::stateChanged,
+    connect(m_pEditorAccelerationFeatures, &UIAccelerationFeaturesEditor::sigChangedVirtualization,
             this, &UIMachineSettingsSystem::sltHandleHwVirtExToggle);
-    connect(m_pCheckBoxNestedPaging, &QCheckBox::stateChanged,
+    connect(m_pEditorAccelerationFeatures, &UIAccelerationFeaturesEditor::sigChangedNestedPaging,
             this, &UIMachineSettingsSystem::revalidate);
 }
 
@@ -854,119 +911,24 @@ void UIMachineSettingsSystem::cleanup()
     m_pCache = 0;
 }
 
-void UIMachineSettingsSystem::repopulateComboChipsetType()
+bool UIMachineSettingsSystem::saveData()
 {
-    /* Chipset Type combo-box created in the .ui file. */
-    AssertPtrReturnVoid(m_pComboChipsetType);
-    {
-        /* Clear combo first of all: */
-        m_pComboChipsetType->clear();
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
 
-        /* Load currently supported chipset types: */
-        CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
-        QVector<KChipsetType> chipsetTypes = comProperties.GetSupportedChipsetTypes();
-        /* Take into account currently cached value: */
-        const KChipsetType enmCachedValue = m_pCache->base().m_chipsetType;
-        if (!chipsetTypes.contains(enmCachedValue))
-            chipsetTypes.prepend(enmCachedValue);
-
-        /* Populate combo finally: */
-        foreach (const KChipsetType &enmType, chipsetTypes)
-            m_pComboChipsetType->addItem(gpConverter->toString(enmType), QVariant::fromValue(enmType));
-    }
-}
-
-void UIMachineSettingsSystem::repopulateComboPointingHIDType()
-{
-    /* Pointing HID Type combo-box created in the .ui file. */
-    AssertPtrReturnVoid(m_pComboPointingHIDType);
-    {
-        /* Clear combo first of all: */
-        m_pComboPointingHIDType->clear();
-
-        /* Load currently supported pointing HID types: */
-        CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
-        QVector<KPointingHIDType> pointingHidTypes = comProperties.GetSupportedPointingHIDTypes();
-        /* Take into account currently cached value: */
-        const KPointingHIDType enmCachedValue = m_pCache->base().m_pointingHIDType;
-        if (!pointingHidTypes.contains(enmCachedValue))
-            pointingHidTypes.prepend(enmCachedValue);
-
-        /* Populate combo finally: */
-        foreach (const KPointingHIDType &enmType, pointingHidTypes)
-            m_pComboPointingHIDType->addItem(gpConverter->toString(enmType), QVariant::fromValue(enmType));
-    }
-}
-
-void UIMachineSettingsSystem::repopulateComboParavirtProviderType()
-{
-    /* Paravirtualization Provider Type combo-box created in the .ui file. */
-    AssertPtrReturnVoid(m_pComboParavirtProviderType);
-    {
-        /* Clear combo first of all: */
-        m_pComboParavirtProviderType->clear();
-
-        /* Load currently supported paravirtualization provider types: */
-        CSystemProperties comProperties = uiCommon().virtualBox().GetSystemProperties();
-        QVector<KParavirtProvider> supportedProviderTypes = comProperties.GetSupportedParavirtProviders();
-        /* Take into account currently cached value: */
-        const KParavirtProvider enmCachedValue = m_pCache->base().m_paravirtProvider;
-        if (!supportedProviderTypes.contains(enmCachedValue))
-            supportedProviderTypes.prepend(enmCachedValue);
-
-        /* Populate combo finally: */
-        foreach (const KParavirtProvider &enmProvider, supportedProviderTypes)
-            m_pComboParavirtProviderType->addItem(gpConverter->toString(enmProvider), QVariant::fromValue(enmProvider));
-    }
-}
-
-void UIMachineSettingsSystem::retranslateComboChipsetType()
-{
-    /* For each the element in m_pComboChipsetType: */
-    for (int iIndex = 0; iIndex < m_pComboChipsetType->count(); ++iIndex)
-    {
-        /* Apply retranslated text: */
-        const KChipsetType enmType = m_pComboChipsetType->currentData().value<KChipsetType>();
-        m_pComboChipsetType->setItemText(iIndex, gpConverter->toString(enmType));
-    }
-}
-
-void UIMachineSettingsSystem::retranslateComboPointingHIDType()
-{
-    /* For each the element in m_pComboPointingHIDType: */
-    for (int iIndex = 0; iIndex < m_pComboPointingHIDType->count(); ++iIndex)
-    {
-        /* Apply retranslated text: */
-        const KPointingHIDType enmType = m_pComboPointingHIDType->currentData().value<KPointingHIDType>();
-        m_pComboPointingHIDType->setItemText(iIndex, gpConverter->toString(enmType));
-    }
-}
-
-void UIMachineSettingsSystem::retranslateComboParavirtProvider()
-{
-    /* For each the element in m_pComboParavirtProviderType: */
-    for (int iIndex = 0; iIndex < m_pComboParavirtProviderType->count(); ++iIndex)
-    {
-        /* Apply retranslated text: */
-        const KParavirtProvider enmType = m_pComboParavirtProviderType->currentData().value<KParavirtProvider>();
-        m_pComboParavirtProviderType->setItemText(iIndex, gpConverter->toString(enmType));
-    }
-}
-
-bool UIMachineSettingsSystem::saveSystemData()
-{
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save general settings from the cache: */
+    /* Save general settings from cache: */
     if (fSuccess && isMachineInValidMode() && m_pCache->wasChanged())
     {
-        /* Save 'Motherboard' data from the cache: */
+        /* Save 'Motherboard' data from cache: */
         if (fSuccess)
             fSuccess = saveMotherboardData();
-        /* Save 'Processor' data from the cache: */
+        /* Save 'Processor' data from cache: */
         if (fSuccess)
             fSuccess = saveProcessorData();
-        /* Save 'Acceleration' data from the cache: */
+        /* Save 'Acceleration' data from cache: */
         if (fSuccess)
             fSuccess = saveAccelerationData();
     }
@@ -976,14 +938,18 @@ bool UIMachineSettingsSystem::saveSystemData()
 
 bool UIMachineSettingsSystem::saveMotherboardData()
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save 'Motherboard' settings from the cache: */
+    /* Save 'Motherboard' settings from cache: */
     if (fSuccess)
     {
-        /* Get old system data from the cache: */
+        /* Get old data from cache: */
         const UIDataSettingsMachineSystem &oldSystemData = m_pCache->base();
-        /* Get new system data from the cache: */
+        /* Get new data from cache: */
         const UIDataSettingsMachineSystem &newSystemData = m_pCache->data();
 
         /* Save memory size: */
@@ -1003,6 +969,14 @@ bool UIMachineSettingsSystem::saveMotherboardData()
         {
             m_machine.SetChipsetType(newSystemData.m_chipsetType);
             fSuccess = m_machine.isOk();
+        }
+        /* Save TPM type: */
+        if (fSuccess && isMachineOffline() && newSystemData.m_tpmType != oldSystemData.m_tpmType)
+        {
+            CTrustedPlatformModule comModule = m_machine.GetTrustedPlatformModule();
+            comModule.SetType(newSystemData.m_tpmType);
+            fSuccess = comModule.isOk();
+            /// @todo convey error info ..
         }
         /* Save pointing HID type: */
         if (fSuccess && isMachineOffline() && newSystemData.m_pointingHIDType != oldSystemData.m_pointingHIDType)
@@ -1028,6 +1002,43 @@ bool UIMachineSettingsSystem::saveMotherboardData()
             m_machine.SetRTCUseUTC(newSystemData.m_fEnabledUTC);
             fSuccess = m_machine.isOk();
         }
+        /* Save whether secure boot is enabled: */
+        if (   fSuccess && isMachineOffline()
+            && (   newSystemData.m_fEnabledSecureBoot != oldSystemData.m_fEnabledSecureBoot
+                || newSystemData.m_fResetSecureBoot != oldSystemData.m_fResetSecureBoot))
+        {
+            CNvramStore comStoreLvl1 = m_machine.GetNonVolatileStore();
+            CUefiVariableStore comStoreLvl2 = comStoreLvl1.GetUefiVariableStore();
+
+            /* Enabling secure boot? */
+            if (   newSystemData.m_fEnabledSecureBoot
+                && newSystemData.m_fEnabledEFI)
+            {
+                /* Secure boot was NOT available
+                 * or requested to be reseted: */
+                if (   !newSystemData.m_fAvailableSecureBoot
+                    || newSystemData.m_fResetSecureBoot)
+                {
+                    /* Init if required: */
+                    if (!newSystemData.m_fAvailableSecureBoot)
+                        comStoreLvl1.InitUefiVariableStore(0);
+                    /* Enroll everything: */
+                    comStoreLvl2 = comStoreLvl1.GetUefiVariableStore();
+                    comStoreLvl2.EnrollOraclePlatformKey();
+                    comStoreLvl2.EnrollDefaultMsSignatures();
+                }
+                comStoreLvl2.SetSecureBootEnabled(true);
+                fSuccess = comStoreLvl2.isOk();
+                /// @todo convey error info ..
+            }
+            /* Disabling secure boot? */
+            else if (!newSystemData.m_fEnabledSecureBoot)
+            {
+                comStoreLvl2.SetSecureBootEnabled(false);
+                fSuccess = comStoreLvl2.isOk();
+                /// @todo convey error info ..
+            }
+        }
 
         /* Show error message if necessary: */
         if (!fSuccess)
@@ -1039,14 +1050,18 @@ bool UIMachineSettingsSystem::saveMotherboardData()
 
 bool UIMachineSettingsSystem::saveProcessorData()
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save 'Processor' settings from the cache: */
+    /* Save 'Processor' settings from cache: */
     if (fSuccess)
     {
-        /* Get old system data from the cache: */
+        /* Get old data from cache: */
         const UIDataSettingsMachineSystem &oldSystemData = m_pCache->base();
-        /* Get new system data from the cache: */
+        /* Get new data from cache: */
         const UIDataSettingsMachineSystem &newSystemData = m_pCache->data();
 
         /* Save CPU count: */
@@ -1084,14 +1099,18 @@ bool UIMachineSettingsSystem::saveProcessorData()
 
 bool UIMachineSettingsSystem::saveAccelerationData()
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save 'Acceleration' settings from the cache: */
+    /* Save 'Acceleration' settings from cache: */
     if (fSuccess)
     {
-        /* Get old system data from the cache: */
+        /* Get old data from cache: */
         const UIDataSettingsMachineSystem &oldSystemData = m_pCache->base();
-        /* Get new system data from the cache: */
+        /* Get new data from cache: */
         const UIDataSettingsMachineSystem &newSystemData = m_pCache->data();
 
         /* Save paravirtualization provider: */

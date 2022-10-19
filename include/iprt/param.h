@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_param_h
@@ -28,6 +38,8 @@
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
+
+#include <iprt/cdefs.h>
 
 /** @todo Much of the PAGE_* stuff here is obsolete and highly risky to have around.
  * As for component configs (MM_*), either we gather all in here or we move those bits away! */
@@ -51,6 +63,8 @@
  */
 #if defined(RT_ARCH_SPARC64)
 # define PAGE_SIZE          8192
+#elif defined(RT_ARCH_ARM64)
+# define PAGE_SIZE          16384
 #else
 # define PAGE_SIZE          4096
 #endif
@@ -61,6 +75,8 @@
  */
 #if defined(RT_ARCH_SPARC64)
 # define PAGE_SHIFT         13
+#elif defined(RT_ARCH_ARM64)
+# define PAGE_SHIFT         14
 #else
 # define PAGE_SHIFT         12
 #endif
@@ -68,34 +84,24 @@
 /**
  * i386 Page offset mask.
  *
- * Do NOT one-complement this for whatever purpose. You may get a 32-bit const when you want a 64-bit one.
- * Use PAGE_BASE_MASK, PAGE_BASE_GC_MASK, PAGE_BASE_HC_MASK, PAGE_ADDRESS() or X86_PTE_PAE_PG_MASK.
+ * @note If you do one-complement this, always insert a target type case after
+ *       the operator!  Otherwise you may end up with weird results.
  */
 #if defined(RT_ARCH_SPARC64)
 # define PAGE_OFFSET_MASK    0x1fff
+#elif defined(RT_ARCH_ARM64)
+# define PAGE_OFFSET_MASK    0x3fff
 #else
 # define PAGE_OFFSET_MASK    0xfff
 #endif
 
 /**
- * Page address mask for the guest context POINTERS.
- * @remark  Physical addresses are always masked using X86_PTE_PAE_PG_MASK!
- */
-#define PAGE_BASE_GC_MASK   (~(RTGCUINTPTR)PAGE_OFFSET_MASK)
-
-/**
- * Page address mask for the host context POINTERS.
- * @remark  Physical addresses are always masked using X86_PTE_PAE_PG_MASK!
- */
-#define PAGE_BASE_HC_MASK   (~(RTHCUINTPTR)PAGE_OFFSET_MASK)
-
-/**
- * Page address mask for the both context POINTERS.
+ * Page address mask for the uintptr_t sized pointers.
  *
  * Be careful when using this since it may be a size too big!
  * @remark  Physical addresses are always masked using X86_PTE_PAE_PG_MASK!
  */
-#define PAGE_BASE_MASK      (~(RTUINTPTR)PAGE_OFFSET_MASK)
+#define PAGE_BASE_MASK      (~(uintptr_t)PAGE_OFFSET_MASK)
 
 /**
  * Get the page aligned address of a POINTER in the CURRENT context.

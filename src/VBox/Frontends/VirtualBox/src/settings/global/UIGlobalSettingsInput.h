@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsInput_h
@@ -23,90 +33,71 @@
 
 /* GUI includes: */
 #include "UISettingsPage.h"
-#include "UIGlobalSettingsInput.gen.h"
 
-/* Forward declartions: */
-class QLineEdit;
-class QTabWidget;
-class UIDataSettingsGlobalInput;
-class UIHotKeyTable;
-class UIHotKeyTableModel;
+/* Forward declarations: */
+class UIAutoCaptureKeyboardEditor;
+class UIShortcutConfigurationEditor;
+struct UIDataSettingsGlobalInput;
 typedef UISettingsCache<UIDataSettingsGlobalInput> UISettingsCacheGlobalInput;
 
 /** Global settings: Input page. */
-class SHARED_LIBRARY_STUFF UIGlobalSettingsInput : public UISettingsPageGlobal,
-                                                   public Ui::UIGlobalSettingsInput
+class SHARED_LIBRARY_STUFF UIGlobalSettingsInput : public UISettingsPageGlobal
 {
     Q_OBJECT;
 
-    /** Hot-key table indexes. */
-    enum { UIHotKeyTableIndex_Selector, UIHotKeyTableIndex_Machine };
-
 public:
 
-    /** Constructs Input settings page. */
+    /** Constructs settings page. */
     UIGlobalSettingsInput();
-    /** Destructs Input settings page. */
-    ~UIGlobalSettingsInput();
+    /** Destructs settings page. */
+    virtual ~UIGlobalSettingsInput() RT_OVERRIDE;
 
 protected:
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Performs validation, updates @a messages list if something is wrong. */
-    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
-
-    /** Defines TAB order for passed @a pWidget. */
-    virtual void setOrderAfter(QWidget *pWidget) /* override */;
+    virtual bool validate(QList<UIValidationMessage> &messages) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
 private:
 
     /** Prepares all. */
     void prepare();
-    /** Prepares 'Selector UI' tab. */
-    void prepareTabSelector();
-    /** Prepares 'Runtime UI' tab. */
-    void prepareTabMachine();
+    /** Prepares widgets. */
+    void prepareWidgets();
     /** Prepares connections. */
     void prepareConnections();
     /** Cleanups all. */
     void cleanup();
 
-    /** Saves existing input data from the cache. */
-    bool saveInputData();
-
-    /** Holds the tab-widget instance. */
-    QTabWidget         *m_pTabWidget;
-    /** Holds the Selector UI shortcuts filter instance. */
-    QLineEdit          *m_pSelectorFilterEditor;
-    /** Holds the Selector UI shortcuts model instance. */
-    UIHotKeyTableModel *m_pSelectorModel;
-    /** Holds the Selector UI shortcuts table instance. */
-    UIHotKeyTable      *m_pSelectorTable;
-    /** Holds the Runtime UI shortcuts filter instance. */
-    QLineEdit          *m_pMachineFilterEditor;
-    /** Holds the Runtime UI shortcuts model instance. */
-    UIHotKeyTableModel *m_pMachineModel;
-    /** Holds the Runtime UI shortcuts table instance. */
-    UIHotKeyTable      *m_pMachineTable;
+    /** Saves existing data from cache. */
+    bool saveData();
 
     /** Holds the page data cache instance. */
     UISettingsCacheGlobalInput *m_pCache;
+
+    /** @name Widgets
+     * @{ */
+        /** Holds the 'shortcut configuration' editor instance. */
+        UIShortcutConfigurationEditor *m_pEditorShortcutConfiguration;
+        /** Holds the 'auto capture keyboard' editor instance. */
+        UIAutoCaptureKeyboardEditor   *m_pEditorAutoCaptureKeyboard;
+    /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsInput_h */

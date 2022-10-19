@@ -1,27 +1,40 @@
 /* $Id: localipc-win.cpp $ */
 /** @file
  * IPRT - Local IPC, Windows Implementation Using Named Pipes.
+ *
+ * @note This code only works on W2K because of the dependency on
+ *       ConvertStringSecurityDescriptorToSecurityDescriptor.
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -29,20 +42,9 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_LOCALIPC
-/*
- * We have to force NT 5.0 here because of
- * ConvertStringSecurityDescriptorToSecurityDescriptor. Note that because of
- * FILE_FLAG_FIRST_PIPE_INSTANCE this code actually requires W2K SP2+.
- */
-#ifndef _WIN32_WINNT
-# define _WIN32_WINNT 0x0500 /* for ConvertStringSecurityDescriptorToSecurityDescriptor */
-#elif _WIN32_WINNT < 0x0500
-# undef _WIN32_WINNT
-# define _WIN32_WINNT 0x0500
-#endif
-#define UNICODE    /* For the SDDL_ strings. */
-#include <iprt/win/windows.h>
+#include <iprt/nt/nt-and-windows.h> /* Need NtCancelIoFile and a few Rtl functions. */
 #include <sddl.h>
+#include <aclapi.h>
 
 #include "internal/iprt.h"
 #include <iprt/localipc.h>
@@ -71,55 +73,6 @@
 *********************************************************************************************************************************/
 /** Pipe prefix string. */
 #define RTLOCALIPC_WIN_PREFIX   L"\\\\.\\pipe\\IPRT-"
-
-/** DACL for block all network access and local users other than the creator/owner.
- *
- * ACE format: (ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid)
- *
- * Note! FILE_GENERIC_WRITE (SDDL_FILE_WRITE) is evil here because it includes
- *       the FILE_CREATE_PIPE_INSTANCE(=FILE_APPEND_DATA) flag. Thus the hardcoded
- *       value 0x0012019b in the client ACE. The server-side still needs
- *       setting FILE_CREATE_PIPE_INSTANCE although.
- *       It expands to:
- *          0x00000001 - FILE_READ_DATA
- *          0x00000008 - FILE_READ_EA
- *          0x00000080 - FILE_READ_ATTRIBUTES
- *          0x00020000 - READ_CONTROL
- *          0x00100000 - SYNCHRONIZE
- *          0x00000002 - FILE_WRITE_DATA
- *          0x00000010 - FILE_WRITE_EA
- *          0x00000100 - FILE_WRITE_ATTRIBUTES
- *       =  0x0012019b (client)
- *       + (only for server):
- *          0x00000004 - FILE_CREATE_PIPE_INSTANCE
- *       =  0x0012019f
- *
- * @todo Triple check this!
- * @todo EVERYONE -> AUTHENTICATED USERS or something more appropriate?
- * @todo Have trouble allowing the owner FILE_CREATE_PIPE_INSTANCE access, so for now I'm hacking
- *       it just to get progress - the service runs as local system.
- *       The CREATOR OWNER and PERSONAL SELF works (the former is only involved in inheriting
- *       it seems, which is why it won't work. The latter I've no idea about. Perhaps the solution
- *       is to go the annoying route of OpenProcessToken, QueryTokenInformation,
- *          ConvertSidToStringSid and then use the result... Suggestions are very welcome
- */
-#define RTLOCALIPC_WIN_SDDL_BASE \
-        SDDL_DACL SDDL_DELIMINATOR \
-        SDDL_ACE_BEGIN SDDL_ACCESS_DENIED L";;" SDDL_GENERIC_ALL L";;;" SDDL_NETWORK SDDL_ACE_END \
-        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" SDDL_FILE_ALL   L";;;" SDDL_LOCAL_SYSTEM SDDL_ACE_END
-
-#define RTLOCALIPC_WIN_SDDL_SERVER \
-        RTLOCALIPC_WIN_SDDL_BASE \
-        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" L"0x0012019f"   L";;;" SDDL_EVERYONE SDDL_ACE_END
-
-#define RTLOCALIPC_WIN_SDDL_CLIENT \
-        RTLOCALIPC_WIN_SDDL_BASE \
-        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" L"0x0012019b"   L";;;" SDDL_EVERYONE SDDL_ACE_END
-
-//        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" SDDL_GENERIC_ALL L";;;" SDDL_PERSONAL_SELF SDDL_ACE_END \
-//        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";CIOI;" SDDL_GENERIC_ALL L";;;" SDDL_CREATOR_OWNER SDDL_ACE_END
-//        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" L"0x0012019b"    L";;;" SDDL_EVERYONE SDDL_ACE_END
-//        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" SDDL_FILE_ALL L";;;" SDDL_LOCAL_SYSTEM SDDL_ACE_END
 
 
 /*********************************************************************************************************************************
@@ -211,12 +164,98 @@ typedef RTLOCALIPCSESSIONINT *PRTLOCALIPCSESSIONINT;
 static int rtLocalIpcWinCreateSession(PRTLOCALIPCSESSIONINT *ppSession, HANDLE hNmPipeSession);
 
 
-/*********************************************************************************************************************************
-*   Global Variables                                                                                                             *
-*********************************************************************************************************************************/
-static bool volatile g_fResolvedApis = false;
-/** advapi32.dll API ConvertStringSecurityDescriptorToSecurityDescriptorW. */
-static decltype(ConvertStringSecurityDescriptorToSecurityDescriptorW) *g_pfnSSDLToSecDescW = NULL;
+/**
+ * DACL for block all network access and local users other than the creator/owner.
+ *
+ * ACE format: (ace_type;ace_flags;rights;object_guid;inherit_object_guid;account_sid)
+ *
+ * Note! FILE_GENERIC_WRITE (SDDL_FILE_WRITE) is evil here because it includes
+ *       the FILE_CREATE_PIPE_INSTANCE(=FILE_APPEND_DATA) flag. Thus the hardcoded
+ *       value 0x0012019b in the client ACE. The server-side still needs
+ *       setting FILE_CREATE_PIPE_INSTANCE although.
+ *       It expands to:
+ *          0x00000001 - FILE_READ_DATA
+ *          0x00000008 - FILE_READ_EA
+ *          0x00000080 - FILE_READ_ATTRIBUTES
+ *          0x00020000 - READ_CONTROL
+ *          0x00100000 - SYNCHRONIZE
+ *          0x00000002 - FILE_WRITE_DATA
+ *          0x00000010 - FILE_WRITE_EA
+ *          0x00000100 - FILE_WRITE_ATTRIBUTES
+ *       =  0x0012019b (client)
+ *       + (only for server):
+ *          0x00000004 - FILE_CREATE_PIPE_INSTANCE
+ *       =  0x0012019f
+ *
+ * @todo Triple check this!
+ * @todo EVERYONE -> AUTHENTICATED USERS or something more appropriate?
+ * @todo Have trouble allowing the owner FILE_CREATE_PIPE_INSTANCE access, so for now I'm hacking
+ *       it just to get progress - the service runs as local system.
+ *       The CREATOR OWNER and PERSONAL SELF works (the former is only involved in inheriting
+ *       it seems, which is why it won't work. The latter I've no idea about. Perhaps the solution
+ *       is to go the annoying route of OpenProcessToken, QueryTokenInformation,
+ *          ConvertSidToStringSid and then use the result... Suggestions are very welcome
+ */
+#define RTLOCALIPC_WIN_SDDL_BASE \
+        SDDL_DACL SDDL_DELIMINATOR \
+        SDDL_ACE_BEGIN SDDL_ACCESS_DENIED L";;" SDDL_GENERIC_ALL L";;;" SDDL_NETWORK SDDL_ACE_END \
+        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" SDDL_FILE_ALL   L";;;" SDDL_LOCAL_SYSTEM SDDL_ACE_END
+#define RTLOCALIPC_WIN_SDDL_SERVER \
+        RTLOCALIPC_WIN_SDDL_BASE \
+        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" L"0x0012019f"   L";;;" SDDL_EVERYONE SDDL_ACE_END
+#define RTLOCALIPC_WIN_SDDL_CLIENT \
+        RTLOCALIPC_WIN_SDDL_BASE \
+        SDDL_ACE_BEGIN SDDL_ACCESS_ALLOWED L";;" L"0x0012019b"   L";;;" SDDL_EVERYONE SDDL_ACE_END
+static NTSTATUS rtLocalIpcBuildDacl(PACL pDacl, bool fServer)
+{
+    static SID_IDENTIFIER_AUTHORITY s_NtAuth    = SECURITY_NT_AUTHORITY;
+    static SID_IDENTIFIER_AUTHORITY s_WorldAuth = SECURITY_WORLD_SID_AUTHORITY;
+    union
+    {
+        SID     Sid;
+        uint8_t abPadding[SECURITY_MAX_SID_SIZE];
+    } Network, LocalSystem, Everyone;
+
+
+    /* 1. SDDL_ACCESS_DENIED L";;" SDDL_GENERIC_ALL L";;;" SDDL_NETWORK */
+    NTSTATUS rcNt = RtlInitializeSid(&Network.Sid, &s_NtAuth, 1);
+    AssertReturn(NT_SUCCESS(rcNt), rcNt);
+    *RtlSubAuthoritySid(&Network.Sid, 0) = SECURITY_NETWORK_RID;
+
+    rcNt = RtlAddAccessDeniedAce(pDacl, ACL_REVISION, GENERIC_ALL, &Network.Sid);
+    AssertReturn(NT_SUCCESS(rcNt), rcNt);
+
+    /* 2. SDDL_ACCESS_ALLOWED L";;" SDDL_FILE_ALL   L";;;" SDDL_LOCAL_SYSTEM */
+    rcNt = RtlInitializeSid(&LocalSystem.Sid, &s_NtAuth, 1);
+    AssertReturn(NT_SUCCESS(rcNt), rcNt);
+    *RtlSubAuthoritySid(&LocalSystem.Sid, 0) = SECURITY_LOCAL_SYSTEM_RID;
+
+    rcNt = RtlAddAccessAllowedAce(pDacl, ACL_REVISION, FILE_ALL_ACCESS, &Network.Sid);
+    AssertReturn(NT_SUCCESS(rcNt), rcNt);
+
+
+    /* 3. server: SDDL_ACCESS_ALLOWED L";;" L"0x0012019f"   L";;;" SDDL_EVERYONE
+          client: SDDL_ACCESS_ALLOWED L";;" L"0x0012019b"   L";;;" SDDL_EVERYONE */
+    rcNt = RtlInitializeSid(&Everyone.Sid, &s_NtAuth, 1);
+    AssertReturn(NT_SUCCESS(rcNt), rcNt);
+    *RtlSubAuthoritySid(&Everyone.Sid, 0) = SECURITY_WORLD_RID;
+
+    DWORD const fAccess = FILE_READ_DATA                       /* 0x00000001 */
+                        | FILE_WRITE_DATA                      /* 0x00000002 */
+                        | FILE_CREATE_PIPE_INSTANCE * fServer  /* 0x00000004 */
+                        | FILE_READ_EA                         /* 0x00000008 */
+                        | FILE_WRITE_EA                        /* 0x00000010 */
+                        | FILE_READ_ATTRIBUTES                 /* 0x00000080 */
+                        | FILE_WRITE_ATTRIBUTES                /* 0x00000100 */
+                        | READ_CONTROL                         /* 0x00020000 */
+                        | SYNCHRONIZE;                         /* 0x00100000*/
+    Assert(fAccess == (fServer ? 0x0012019fU : 0x0012019bU));
+
+    rcNt = RtlAddAccessAllowedAce(pDacl, ACL_REVISION, fAccess, &Network.Sid);
+    AssertReturn(NT_SUCCESS(rcNt), rcNt);
+
+    return true;
+}
 
 
 /**
@@ -227,21 +266,28 @@ static decltype(ConvertStringSecurityDescriptorToSecurityDescriptorW) *g_pfnSSDL
  *                              Must be free'd using LocalFree().
  * @param   fServer             Whether it's for a server or client instance.
  */
-static int rtLocalIpcServerWinAllocSecurityDescriptior(PSECURITY_DESCRIPTOR *ppDesc, bool fServer)
+static int rtLocalIpcServerWinAllocSecurityDescriptor(PSECURITY_DESCRIPTOR *ppDesc, bool fServer)
 {
+    int rc;
+    PSECURITY_DESCRIPTOR pSecDesc = NULL;
+
+#if 0
     /*
      * Resolve the API the first time around.
      */
-    if (!g_fResolvedApis)
-    {
-        g_pfnSSDLToSecDescW = (decltype(g_pfnSSDLToSecDescW))RTLdrGetSystemSymbol("advapi32.dll", "ConvertStringSecurityDescriptorToSecurityDescriptorW");
-        ASMCompilerBarrier();
-        g_fResolvedApis = true;
-    }
+    static bool volatile s_fResolvedApis = false;
+    /** advapi32.dll API ConvertStringSecurityDescriptorToSecurityDescriptorW. */
+    static decltype(ConvertStringSecurityDescriptorToSecurityDescriptorW) *s_pfnSSDLToSecDescW = NULL;
 
-    int rc;
-    PSECURITY_DESCRIPTOR pSecDesc = NULL;
-    if (g_pfnSSDLToSecDescW)
+    if (!s_fResolvedApis)
+    {
+        s_pfnSSDLToSecDescW
+            = (decltype(s_pfnSSDLToSecDescW))RTLdrGetSystemSymbol("advapi32.dll",
+                                                                  "ConvertStringSecurityDescriptorToSecurityDescriptorW");
+        ASMCompilerBarrier();
+        s_fResolvedApis = true;
+    }
+    if (s_pfnSSDLToSecDescW)
     {
         /*
          * We'll create a security descriptor from a SDDL that denies
@@ -249,9 +295,12 @@ static int rtLocalIpcServerWinAllocSecurityDescriptior(PSECURITY_DESCRIPTOR *ppD
          * makes some further restrictions to prevent non-authenticated
          * users from screwing around.
          */
-        PCRTUTF16 pwszSDDL = fServer ? RTLOCALIPC_WIN_SDDL_SERVER : RTLOCALIPC_WIN_SDDL_CLIENT;
-        if (g_pfnSSDLToSecDescW(pwszSDDL, SDDL_REVISION_1, &pSecDesc, NULL))
+        PCRTUTF16 pwszSDDL  = fServer ? RTLOCALIPC_WIN_SDDL_SERVER : RTLOCALIPC_WIN_SDDL_CLIENT;
+        ULONG     cbSecDesc = 0;
+        SetLastError(0);
+        if (s_pfnSSDLToSecDescW(pwszSDDL, SDDL_REVISION_1, &pSecDesc, &cbSecDesc))
         {
+            DWORD dwErr = GetLastError(); RT_NOREF(dwErr);
             AssertPtr(pSecDesc);
             *ppDesc = pSecDesc;
             return VINF_SUCCESS;
@@ -260,10 +309,35 @@ static int rtLocalIpcServerWinAllocSecurityDescriptior(PSECURITY_DESCRIPTOR *ppD
         rc = RTErrConvertFromWin32(GetLastError());
     }
     else
+#endif
     {
-        /* Windows OSes < W2K SP2 not supported for now, bail out. */
-        /** @todo Implement me! */
-        rc = VERR_NOT_SUPPORTED;
+        /*
+         * Manually construct the descriptor.
+         *
+         * This is a bit crude. The 8KB is probably 50+ times more than what we need.
+         */
+        uint32_t const cbAlloc = SECURITY_DESCRIPTOR_MIN_LENGTH * 2 + _8K;
+        pSecDesc = LocalAlloc(LMEM_FIXED, cbAlloc);
+        if (!pSecDesc)
+            return VERR_NO_MEMORY;
+        RT_BZERO(pSecDesc, cbAlloc);
+
+        uint32_t const cbDacl = cbAlloc - SECURITY_DESCRIPTOR_MIN_LENGTH * 2;
+        PACL const     pDacl  = (PACL)((uint8_t *)pSecDesc + SECURITY_DESCRIPTOR_MIN_LENGTH * 2);
+
+        if (   InitializeSecurityDescriptor(pSecDesc, SECURITY_DESCRIPTOR_REVISION)
+            && InitializeAcl(pDacl, cbDacl, ACL_REVISION))
+        {
+            if (rtLocalIpcBuildDacl(pDacl, fServer))
+            {
+                *ppDesc = pSecDesc;
+                return VINF_SUCCESS;
+            }
+            rc = VERR_GENERAL_FAILURE;
+        }
+        else
+            rc = RTErrConvertFromWin32(GetLastError());
+        LocalFree(pSecDesc);
     }
     return rc;
 }
@@ -286,10 +360,35 @@ static int rtLocalIpcServerWinCreatePipeInstance(PHANDLE phNmPipe, PCRTUTF16 pws
 {
     *phNmPipe = INVALID_HANDLE_VALUE;
 
+    /*
+     * Create a security descriptor blocking access to the pipe via network.
+     */
     PSECURITY_DESCRIPTOR pSecDesc;
-    int rc = rtLocalIpcServerWinAllocSecurityDescriptior(&pSecDesc, fFirst /* Server? */);
+    int rc = rtLocalIpcServerWinAllocSecurityDescriptor(&pSecDesc, fFirst /* Server? */);
     if (RT_SUCCESS(rc))
     {
+#if 0
+        { /* Just for checking the security descriptor out in the debugger (!sd <addr> doesn't work): */
+            DWORD dwRet = LookupSecurityDescriptorPartsW(NULL, NULL, NULL, NULL, NULL, NULL, pSecDesc);
+            __debugbreak(); RT_NOREF(dwRet);
+
+            PTRUSTEE_W          pOwner = NULL;
+            PTRUSTEE_W          pGroup = NULL;
+            ULONG               cAces  = 0;
+            PEXPLICIT_ACCESS_W  paAces = NULL;
+            ULONG               cAuditEntries = 0;
+            PEXPLICIT_ACCESS_W  paAuditEntries = NULL;
+            dwRet = LookupSecurityDescriptorPartsW(&pOwner, NULL, NULL, NULL, NULL, NULL, pSecDesc);
+            dwRet = LookupSecurityDescriptorPartsW(NULL, &pGroup, NULL, NULL, NULL, NULL, pSecDesc);
+            dwRet = LookupSecurityDescriptorPartsW(NULL, NULL, &cAces, &paAces, NULL, NULL, pSecDesc);
+            dwRet = LookupSecurityDescriptorPartsW(NULL, NULL, NULL, NULL, &cAuditEntries, &paAuditEntries, pSecDesc);
+            __debugbreak(); RT_NOREF(dwRet);
+        }
+#endif
+
+        /*
+         * Now, create the pipe.
+         */
         SECURITY_ATTRIBUTES SecAttrs;
         SecAttrs.nLength              = sizeof(SECURITY_ATTRIBUTES);
         SecAttrs.lpSecurityDescriptor = pSecDesc;
@@ -312,13 +411,30 @@ static int rtLocalIpcServerWinCreatePipeInstance(PHANDLE phNmPipe, PCRTUTF16 pws
                                           PAGE_SIZE,                     /* nInBufferSize (ditto) */
                                           30*1000,                       /* nDefaultTimeOut = 30 sec */
                                           &SecAttrs);                    /* lpSecurityAttributes */
-        LocalFree(pSecDesc);
         if (hNmPipe != INVALID_HANDLE_VALUE)
+        {
+#if 0 /* For checking access control stuff in windbg (doesn't work): */
+            PSECURITY_DESCRIPTOR pSecDesc2 = NULL;
+            PACL pDacl = NULL;
+            DWORD dwRet;
+            dwRet = GetSecurityInfo(hNmPipe, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL, &pDacl, NULL, &pSecDesc2);
+            PACL pSacl = NULL;
+            dwRet = GetSecurityInfo(hNmPipe, SE_FILE_OBJECT, SACL_SECURITY_INFORMATION, NULL, NULL, NULL, &pSacl, &pSecDesc2);
+            dwRet = GetSecurityInfo(hNmPipe, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | SACL_SECURITY_INFORMATION, NULL, NULL, &pDacl, &pSacl, &pSecDesc2);
+            PSID pSidOwner = NULL;
+            dwRet = GetSecurityInfo(hNmPipe, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, &pSidOwner, NULL, NULL, NULL, &pSecDesc2);
+            PSID pSidGroup = NULL;
+            dwRet = GetSecurityInfo(hNmPipe, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, NULL, &pSidGroup, NULL, NULL, &pSecDesc2);
+            __debugbreak();
+            RT_NOREF(dwRet);
+#endif
             *phNmPipe = hNmPipe;
+            rc = VINF_SUCCESS;
+        }
         else
             rc = RTErrConvertFromWin32(GetLastError());
+        LocalFree(pSecDesc);
     }
-
     return rc;
 }
 
@@ -566,6 +682,13 @@ RTDECL(int) RTLocalIpcServerDestroy(RTLOCALIPCSERVER hServer)
 }
 
 
+RTDECL(int) RTLocalIpcServerGrantGroupAccess(RTLOCALIPCSERVER hServer, RTGID gid)
+{
+    RT_NOREF_PV(hServer); RT_NOREF(gid);
+    return VERR_NOT_SUPPORTED;
+}
+
+
 RTDECL(int) RTLocalIpcServerListen(RTLOCALIPCSERVER hServer, PRTLOCALIPCSESSION phClientSession)
 {
     /*
@@ -653,7 +776,11 @@ RTDECL(int) RTLocalIpcServerListen(RTLOCALIPCSERVER hServer, PRTLOCALIPCSESSION 
                 ||  dwErr == ERROR_PIPE_CONNECTED)
                 fRc = DisconnectNamedPipe(pThis->hNmPipe);
             else if (dwErr == ERROR_IO_PENDING)
-                fRc = CancelIo(pThis->hNmPipe);
+            {
+                IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+                NTSTATUS rcNt = NtCancelIoFile(pThis->hNmPipe, &Ios);
+                fRc = NT_SUCCESS(rcNt);
+            }
             else
                 fRc = TRUE;
             AssertMsg(fRc, ("%d\n", GetLastError()));
@@ -807,7 +934,7 @@ RTDECL(int) RTLocalIpcSessionConnect(PRTLOCALIPCSESSION phSession, const char *p
              * Try open the pipe.
              */
             PSECURITY_DESCRIPTOR pSecDesc;
-            rc = rtLocalIpcServerWinAllocSecurityDescriptior(&pSecDesc, false /*fServer*/);
+            rc = rtLocalIpcServerWinAllocSecurityDescriptor(&pSecDesc, false /*fServer*/);
             if (RT_SUCCESS(rc))
             {
                 PRTUTF16 pwszFullName = RTUtf16Alloc((cwcFullName + 1) * sizeof(RTUTF16));
@@ -823,15 +950,14 @@ RTDECL(int) RTLocalIpcSessionConnect(PRTLOCALIPCSESSION phSession, const char *p
                     SecAttrs.lpSecurityDescriptor = pSecDesc;
                     SecAttrs.bInheritHandle       = FALSE;
 
+                    /* The SECURITY_XXX flags are needed in order to prevent the server from impersonating with
+                       this thread's security context (supported at least back to NT 3.51). See @bugref{9773}. */
                     HANDLE hPipe = CreateFileW(pwszFullName,
                                                GENERIC_READ | GENERIC_WRITE,
                                                0 /*no sharing*/,
                                                &SecAttrs,
                                                OPEN_EXISTING,
-                                               FILE_FLAG_OVERLAPPED
-                                               /* Needed in order to prevent the server to impersonate with this thread's
-                                                * security context. See #9773. */
-                                               | SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS,
+                                               FILE_FLAG_OVERLAPPED | SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS,
                                                NULL /*no template handle*/);
                     if (hPipe != INVALID_HANDLE_VALUE)
                     {
@@ -880,12 +1006,16 @@ static int rtLocalIpcWinCancel(PRTLOCALIPCSESSIONINT pThis)
     ASMAtomicUoWriteBool(&pThis->fCancelled, true);
 
     /*
-     * Call CancelIo since this call cancels both read and write oriented operations.
+     * Call NtCancelIoFile since this call cancels both read and write
+     * oriented operations.
      */
     if (   pThis->fZeroByteRead
         || pThis->Read.hActiveThread != NIL_RTTHREAD
         || pThis->Write.hActiveThread != NIL_RTTHREAD)
-        CancelIo(pThis->hNmPipe);
+    {
+        IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+        NtCancelIoFile(pThis->hNmPipe, &Ios);
+    }
 
     /*
      * Set both event semaphores.
@@ -1019,11 +1149,12 @@ RTDECL(int) RTLocalIpcSessionClose(RTLOCALIPCSESSION hSession)
  *
  * The zero byte read is started by the RTLocalIpcSessionWaitForData method and
  * left pending when the function times out.  This saves us the problem of
- * CancelIo messing with all active I/O operations and the trouble of restarting
- * the zero byte read the next time the method is called.  However should
- * RTLocalIpcSessionRead be called after a failed RTLocalIpcSessionWaitForData
- * call, the zero byte read will still be pending and it must wait for it to
- * complete before the OVERLAPPEDIO structure can be reused.
+ * NtCancelIoFile messing with all active I/O operations and the trouble of
+ * restarting the zero byte read the next time the method is called.  However
+ * should RTLocalIpcSessionRead be called after a failed
+ * RTLocalIpcSessionWaitForData call, the zero byte read will still be pending
+ * and it must wait for it to complete before the OVERLAPPEDIO structure can be
+ * reused.
  *
  * Thus, both functions will do WaitForSingleObject and share this routine to
  * handle the outcome.

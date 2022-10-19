@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -54,7 +64,7 @@
 #include <VBox/version.h>
 
 #include <vector>
-#include <string>
+#include <iprt/sanitized/string>
 
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -107,7 +117,7 @@ struct VBoxNetBaseService::Data
     INTNETIFHANDLE      m_hIf;          /**< The handle to the network interface. */
     PINTNETBUF          m_pIfBuf;       /**< Interface buffer. */
 
-    std::vector<PRTGETOPTDEF> m_vecOptionDefs;
+    std::vector<PCRTGETOPTDEF> m_vecOptionDefs;
 
     int32_t             m_cVerbosity;
 
@@ -328,8 +338,7 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
 
             case 'h': // --help (missed)
                 RTPrintf("%s Version %sr%u\n"
-                         "(C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                         "All rights reserved.\n"
+                         "Copyright (C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                          "\n"
                          "Usage: %s <options>\n"
                          "\n"
@@ -681,7 +690,7 @@ void VBoxNetBaseService::setVerbosityLevel(int32_t aVerbosity)
 }
 
 
-void VBoxNetBaseService::addCommandLineOption(const PRTGETOPTDEF optDef)
+void VBoxNetBaseService::addCommandLineOption(PCRTGETOPTDEF optDef)
 {
     m->m_vecOptionDefs.push_back(optDef);
 }
@@ -842,7 +851,7 @@ PRTGETOPTDEF VBoxNetBaseService::getOptionsPtr()
         return NULL;
     for (unsigned int i = 0; i < m->m_vecOptionDefs.size(); ++i)
     {
-        PRTGETOPTDEF pOpt = m->m_vecOptionDefs[i];
+        PCRTGETOPTDEF pOpt = m->m_vecOptionDefs[i];
         memcpy(&pOptArray[i], pOpt, sizeof(*pOpt));
     }
     return pOptArray;

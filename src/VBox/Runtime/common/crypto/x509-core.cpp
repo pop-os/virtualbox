@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -495,7 +505,7 @@ static const char *rtCrX509CanNameStripLeft(const char *psz, size_t *pcch)
         else if (!rtCrX509CanNameIsSpace(uc) && !rtCrX509CanNameIsNothing(uc))
             break;
     }
-    *pcch -= pszPrev - pszStart;
+    *pcch -= (size_t)(pszPrev - pszStart);
     return pszPrev;
 }
 
@@ -531,7 +541,7 @@ static RTUNICP rtCrX509CanNameGetNextCpWithMappingSlowSpace(const char **ppsz, s
     }
 
     *ppsz  = pszPrev;
-    *pcch -= pszPrev - pszStart;
+    *pcch -= (size_t)(pszPrev - pszStart);
     return uc;
 }
 
@@ -541,7 +551,7 @@ DECLINLINE(RTUNICP) rtCrX509CanNameGetNextCpIgnoreNul(const char **ppsz, size_t 
     while (*pcch > 0)
     {
         const char *psz = *ppsz;
-        RTUNICP uc = *psz;
+        RTUNICP     uc = (RTUNICP)*psz;
         if (uc < 0x80)
         {
             *pcch -= 1;
@@ -551,7 +561,7 @@ DECLINLINE(RTUNICP) rtCrX509CanNameGetNextCpIgnoreNul(const char **ppsz, size_t 
         {
             int rc = RTStrGetCpEx(ppsz, &uc);
             AssertRCReturn(rc, uc);
-            size_t cchCp = *ppsz - psz;
+            size_t cchCp = (size_t)(*ppsz - psz);
             AssertReturn(cchCp <= *pcch, 0);
             *pcch -= cchCp;
         }
@@ -765,6 +775,7 @@ static struct
     const char *pszLongNm;
 } const g_aRdnMap[] =
 {
+    {   "0.9.2342.19200300.100.1.1",  RT_STR_TUPLE("uid"),                  "userid" },
     {   "0.9.2342.19200300.100.1.3",  RT_STR_TUPLE("Mail"),                 "Rfc822Mailbox" },
     {   "0.9.2342.19200300.100.1.25", RT_STR_TUPLE("DC"),                   "DomainComponent" },
     {   "1.2.840.113549.1.9.1",       RT_STR_TUPLE("Email") /*nonstandard*/,"EmailAddress" },
@@ -1133,7 +1144,7 @@ static bool rtCrX509GeneralName_ExtractHostName(const char *pszUri,  const char 
         const char *pszEnd = strchr(pszStart, '/');
         if (!pszEnd)
             pszEnd = strchr(pszStart, '\0');
-        if (memchr(pszStart, ':', pszEnd - pszStart))
+        if (memchr(pszStart, ':', (size_t)(pszEnd - pszStart)))
             do
                 pszEnd--;
             while (*pszEnd != ':');
@@ -1142,7 +1153,7 @@ static bool rtCrX509GeneralName_ExtractHostName(const char *pszUri,  const char 
             /*
              * Drop access credentials at the front of the string if present.
              */
-            const char *pszAt = (const char *)memchr(pszStart, '@', pszEnd - pszStart);
+            const char *pszAt = (const char *)memchr(pszStart, '@', (size_t)(pszEnd - pszStart));
             if (pszAt)
                 pszStart = pszAt + 1;
 
@@ -1151,7 +1162,7 @@ static bool rtCrX509GeneralName_ExtractHostName(const char *pszUri,  const char 
              */
             if (pszEnd != pszStart)
             {
-                *pcchHostName = pszEnd - pszStart;
+                *pcchHostName = (size_t)(pszEnd - pszStart);
                 *pchHostName  = pszStart;
                 return true;
             }

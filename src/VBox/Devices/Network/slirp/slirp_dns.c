@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "slirp.h"
@@ -197,11 +207,18 @@ static int get_dns_addr_domain(PNATState pData)
              * XXX: Note shouldn't patch the address in case of using DNS proxy,
              * because DNS proxy we do revert it back actually.
              */
-            if (address->IPv4.u == RT_N2H_U32_C(INADDR_LOOPBACK))
+            if (   address->IPv4.u == RT_N2H_U32_C(INADDR_LOOPBACK)
+                && pData->fLocalhostReachable)
                 address->IPv4.u = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
             else if (pData->fUseDnsProxy == 0) {
-                /* We detects that using some address in 127/8 network */
-                LogRel(("NAT: DNS server %RTnaipv4 registration detected, switching to the DNS proxy\n", address->IPv4));
+                /*
+                 * Either the resolver lives somewhere else on the 127/8 network or the loopback interface
+                 * is blocked for access from the guest, either way switch to the DNS proxy.
+                 */
+                if (pData->fLocalhostReachable)
+                    LogRel(("NAT: DNS server %RTnaipv4 registration detected, switching to the DNS proxy\n", address->IPv4));
+                else
+                    LogRel(("NAT: Switching to DNS proxying due to access to the loopback interface being blocked\n"));
                 pData->fUseDnsProxy = 1;
             }
         }

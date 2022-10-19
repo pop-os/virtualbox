@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_cpp_restclient_h
@@ -119,8 +129,8 @@ public:
      *          like that, it is just a convenience provided by the caller.  The value
      *          is the sum of the previously returned @a *pcbActual values.
      */
-    typedef DECLCALLBACK(int) FNPRODUCER(RTCRestBinaryParameter *a_pThis, void *a_pvDst, size_t a_cbDst,
-                                         uint64_t a_offContent, size_t *a_pcbActual) /*RT_NOEXCEPT*/;
+    typedef DECLCALLBACKTYPE(int, FNPRODUCER,(RTCRestBinaryParameter *a_pThis, void *a_pvDst, size_t a_cbDst,
+                                              uint64_t a_offContent, size_t *a_pcbActual)) /*RT_NOEXCEPT*/;
     /** Pointer to a byte producer callback. */
     typedef FNPRODUCER *PFNPRODUCER;
 
@@ -257,8 +267,8 @@ public:
      *          like that, it is just a convenience provided by the caller.  The value
      *          is the sum of the previous @a a_cbSrc values.
      */
-    typedef DECLCALLBACK(int) FNCONSUMER(RTCRestBinaryResponse *a_pThis, const void *a_pvSrc, size_t a_cbSrc,
-                                         uint32_t a_uHttpStatus, uint64_t a_offContent, uint64_t a_cbContent) /*RT_NOEXCEPT*/;
+    typedef DECLCALLBACKTYPE(int, FNCONSUMER,(RTCRestBinaryResponse *a_pThis, const void *a_pvSrc, size_t a_cbSrc,
+                                              uint32_t a_uHttpStatus, uint64_t a_offContent, uint64_t a_cbContent)) /*RT_NOEXCEPT*/;
     /** Pointer to a byte consumer callback. */
     typedef FNCONSUMER *PFNCONSUMER;
 
@@ -345,6 +355,13 @@ public:
      * @returns IPRT status code.
      */
     virtual int resetToDefault() RT_NOEXCEPT = 0;
+
+    /**
+     * Getter for the operation name.  Provided by the generated
+     * subclasses so that base class code may use it for more
+     * informative logs.
+     */
+    virtual const char *getOperationName() const RT_NOEXCEPT = 0;
 
     /**
      * Prepares the HTTP handle for transmitting this request.
@@ -470,6 +487,13 @@ public:
      * Resets the object state.
      */
     virtual void reset(void) RT_NOEXCEPT;
+
+    /**
+     * Getter for the operation name.  Provided by the generated
+     * subclasses so that base class code may use it for more
+     * informative logs.
+     */
+    virtual const char *getOperationName() const RT_NOEXCEPT = 0;
 
     /**
      * Prepares the HTTP handle for receiving the response.
@@ -704,6 +728,13 @@ public:
     virtual const char *getDefaultServerBasePath() const RT_NOEXCEPT = 0;
     /** @} */
 
+    /**
+     * Sets the CA file to use for HTTPS.
+     */
+    int setCAFile(const char *pcszCAFile) RT_NOEXCEPT;
+    /** @overload */
+    int setCAFile(const RTCString &strCAFile) RT_NOEXCEPT;
+
     /** Flags to doCall. */
     enum
     {
@@ -716,6 +747,8 @@ protected:
     RTHTTP  m_hHttp;
     /** The server URL to use.  If empty use the default. */
     RTCString m_strServerUrl;
+    /** The CA file to use.  If empty use the default. */
+    RTCString m_strCAFile;
 
     /* Make non-copyable (RTCNonCopyable causes warnings): */
     RTCRestClientApiBase(RTCRestClientApiBase const &);

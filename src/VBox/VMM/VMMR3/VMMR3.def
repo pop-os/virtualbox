@@ -3,15 +3,25 @@
 ; VMM Ring-3 Context DLL - Definition file.
 
 ;
-; Copyright (C) 2010-2020 Oracle Corporation
+; Copyright (C) 2010-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
+;
+; SPDX-License-Identifier: GPL-3.0-only
 ;
 
 LIBRARY VBoxVMM.dll
@@ -40,13 +50,14 @@ EXPORTS
     CFGMR3InsertString
     CFGMR3InsertStringW
     CFGMR3InsertInteger
+    CFGMR3InsertPasswordN
+    CFGMR3InsertPassword
     CFGMR3QueryStringAllocDef
     CFGMR3RemoveValue
     CFGMR3QueryIntegerDef
     CFGMR3QueryGCPtrSDef
     CFGMR3QueryGCPtrUDef
     CFGMR3QueryGCPtrDef
-    CFGMR3QueryPtrDef
     CFGMR3QueryBoolDef
     CFGMR3QueryS8Def
     CFGMR3QueryU8Def
@@ -63,7 +74,6 @@ EXPORTS
     CFGMR3QueryGCPtrS
     CFGMR3QueryGCPtrU
     CFGMR3QueryGCPtr
-    CFGMR3QueryPtr
     CFGMR3QueryBool
     CFGMR3QueryS8
     CFGMR3QueryU8
@@ -100,11 +110,25 @@ EXPORTS
 
     DBGCCreate
 
+    DBGFR3BpClear
+    DBGFR3BpDisable
+    DBGFR3BpEnable
+    DBGFR3BpOwnerCreate
+    DBGFR3BpOwnerDestroy
+    DBGFR3BpSetInt3
+    DBGFR3BpSetInt3Ex
+    DBGFR3BpSetMmio
+    DBGFR3BpSetMmioEx
+    DBGFR3BpSetPortIo
+    DBGFR3BpSetPortIoEx
+    DBGFR3BpSetReg
+    DBGFR3BpSetRegEx
+    DBGFR3BpSetREM
     DBGFR3CoreWrite
     DBGFR3Info
     DBGFR3InfoRegisterExternal
     DBGFR3InfoDeregisterExternal
-    DBGFR3InfoGenricGetOptError
+    DBGFR3InfoGenericGetOptError
     DBGFR3InjectNMI
     DBGFR3LogModifyDestinations
     DBGFR3LogModifyFlags
@@ -121,6 +145,7 @@ EXPORTS
     DBGFR3RegNmQuery
     DBGFR3RegNmQueryAll
     DBGFR3RegNmQueryAllCount
+    DBGFR3RegNmSetBatch
     DBGFR3OSDeregister
     DBGFR3OSRegister
     DBGFR3OSQueryInterface
@@ -135,7 +160,9 @@ EXPORTS
     DBGFR3AddrAdd
     DBGFR3AddrSub
     DBGFR3AsGetConfig
+    DBGFR3CpuGetCount
     DBGFR3CpuGetMode
+    DBGFR3CpuGetState
     DBGFR3AddrFromSelOff
     DBGFR3FlowCreate
     DBGFR3FlowRetain
@@ -145,6 +172,7 @@ EXPORTS
     DBGFR3FlowQueryBranchTblByAddress
     DBGFR3FlowGetBbCount
     DBGFR3FlowGetBranchTblCount
+    DBGFR3FlowGetCallInsnCount
     DBGFR3FlowBbRetain
     DBGFR3FlowBbRelease
     DBGFR3FlowBbGetStartAddress
@@ -174,10 +202,45 @@ EXPORTS
     DBGFR3FlowBranchTblItDestroy
     DBGFR3FlowBranchTblItNext
     DBGFR3FlowBranchTblItReset
+    DBGFR3FlowTraceModCreate
+    DBGFR3FlowTraceModCreateFromFlowGraph
+    DBGFR3FlowTraceModRetain
+    DBGFR3FlowTraceModRelease
+    DBGFR3FlowTraceModEnable
+    DBGFR3FlowTraceModDisable
+    DBGFR3FlowTraceModQueryReport
+    DBGFR3FlowTraceModClear
+    DBGFR3FlowTraceModAddProbe
+    DBGFR3FlowTraceProbeCreate
+    DBGFR3FlowTraceProbeRetain
+    DBGFR3FlowTraceProbeRelease
+    DBGFR3FlowTraceProbeEntriesAdd
+    DBGFR3FlowTraceReportRetain
+    DBGFR3FlowTraceReportRelease
+    DBGFR3FlowTraceReportGetRecordCount
+    DBGFR3FlowTraceReportQueryRecord
+    DBGFR3FlowTraceReportQueryFiltered
+    DBGFR3FlowTraceReportEnumRecords
+    DBGFR3FlowTraceRecordRetain
+    DBGFR3FlowTraceRecordRelease
+    DBGFR3FlowTraceRecordGetSeqNo
+    DBGFR3FlowTraceRecordGetTimestamp
+    DBGFR3FlowTraceRecordGetAddr
+    DBGFR3FlowTraceRecordGetProbe
+    DBGFR3FlowTraceRecordGetValCount
+    DBGFR3FlowTraceRecordGetVals
+    DBGFR3FlowTraceRecordGetValsCommon
+    DBGFR3FlowTraceRecordGetCpuId
     DBGFR3PlugInLoad
     DBGFR3PlugInUnload
     DBGFR3PlugInLoadAll
     DBGFR3PlugInUnloadAll
+    DBGFR3SampleReportCreate
+    DBGFR3SampleReportRetain
+    DBGFR3SampleReportRelease
+    DBGFR3SampleReportStart
+    DBGFR3SampleReportStop
+    DBGFR3SampleReportDumpToFile
     DBGFR3SelQueryInfo
     DBGFR3StackWalkBegin
     DBGFR3StackWalkNext

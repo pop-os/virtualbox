@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -75,7 +85,7 @@ VMMDECL(RTGCPTR) SELMToFlat(PVMCC pVM, DISSELREG SelReg, PCPUMCTXCORE pCtxCore, 
     Assert(CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, &pCtxCore->cs));
 
     /* 64 bits mode: CS, DS, ES and SS are treated as if each segment base is 0
-       (Intel® 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
+       (Intel(r) 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
     if (    pCtxCore->cs.Attr.n.u1Long
         &&  CPUMIsGuestInLongMode(pVCpu))
     {
@@ -140,7 +150,7 @@ VMMDECL(int) SELMToFlatEx(PVMCPU pVCpu, DISSELREG SelReg, PCPUMCTXCORE pCtxCore,
     Assert(CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, &pCtxCore->cs));
 
     /* 64 bits mode: CS, DS, ES and SS are treated as if each segment base is 0
-       (Intel® 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
+       (Intel(r) 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
     RTGCPTR  pvFlat;
     bool     fCheckLimit   = true;
     if (    pCtxCore->cs.Attr.n.u1Long
@@ -298,7 +308,7 @@ DECLINLINE(int) selmValidateAndConvertCSAddrHidden(PVMCPU pVCpu, RTSEL SelCPL, R
             &&  (pSRegCS->Attr.n.u4Type & X86_SEL_TYPE_CODE))
         {
             /* 64 bits mode: CS, DS, ES and SS are treated as if each segment base is 0
-               (Intel® 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
+               (Intel(r) 64 and IA-32 Architectures Software Developer's Manual: 3.4.2.1). */
             if (    pSRegCS->Attr.n.u1Long
                 &&  CPUMIsGuestInLongMode(pVCpu))
             {

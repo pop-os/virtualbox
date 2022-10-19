@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  * --------------------------------------------------------------------
  *
  * This code is based on: kLdr/kLdrModMachO.c from kStuff r113.
@@ -99,6 +109,16 @@
 # define RTLDRMODMACHO_CHECK_RETURN(expr, rc)  AssertReturn(expr, rc)
 #else
 # define RTLDRMODMACHO_CHECK_RETURN(expr, rc)  do { if (RT_LIKELY(expr)) {/* likely */ } else return (rc); } while (0)
+#endif
+
+/** @def RTLDRMODMACHO_CHECK_MSG_RETURN
+ * Checks that an expression is true and return if it isn't.
+ * This is a debug aid.
+ */
+#ifdef RTLDRMODMACHO_STRICT2
+# define RTLDRMODMACHO_CHECK_MSG_RETURN(expr, msgargs, rc)  AssertMsgReturn(expr, msgargs, rc)
+#else
+# define RTLDRMODMACHO_CHECK_MSG_RETURN(expr, msgargs, rc)  do { if (RT_LIKELY(expr)) {/* likely */ } else return (rc); } while (0)
 #endif
 
 /** @def RTLDRMODMACHO_CHECK_RETURN
@@ -413,6 +433,10 @@ static int kldrModMachODoCreate(PRTLDRREADER pRdr, RTFOFF offImage, uint32_t fOp
             fMakeGot = s.Hdr32.filetype == MH_OBJECT || s.Hdr32.filetype == MH_KEXT_BUNDLE;
             cbJmpStub = fMakeGot ? 8 : 0;
             break;
+        case CPU_TYPE_ARM64:
+            fMakeGot = s.Hdr32.filetype == MH_OBJECT || s.Hdr32.filetype == MH_KEXT_BUNDLE;
+            cbJmpStub = fMakeGot ? 8 : 0; /** @todo Not sure if this is right. Need to expore ARM64/MachO a bit more... */
+            break;
         default:
             return VERR_LDRMACHO_UNSUPPORTED_MACHINE;
     }
@@ -524,6 +548,19 @@ static int kldrModMachODoCreate(PRTLDRREADER pRdr, RTFOFF offImage, uint32_t fOp
             switch (s.Hdr32.cpusubtype & ~CPU_SUBTYPE_MASK)
             {
                 case CPU_SUBTYPE_X86_64_ALL: pThis->enmCpu = RTLDRCPU_AMD64_BLEND; break;
+                default:
+                    return VERR_LDRMACHO_UNSUPPORTED_MACHINE;
+            }
+            break;
+
+        case CPU_TYPE_ARM64:
+            pThis->Core.enmArch   = RTLDRARCH_ARM64;
+            pThis->Core.enmEndian = RTLDRENDIAN_LITTLE;
+            switch (s.Hdr32.cpusubtype & ~CPU_SUBTYPE_MASK)
+            {
+                case CPU_SUBTYPE_ARM64_ALL: pThis->enmCpu = RTLDRCPU_ARM64_BLEND; break;
+                case CPU_SUBTYPE_ARM64_V8:  pThis->enmCpu = RTLDRCPU_ARM64_V8; break;
+                case CPU_SUBTYPE_ARM64E:    pThis->enmCpu = RTLDRCPU_ARM64E; break;
                 default:
                     return VERR_LDRMACHO_UNSUPPORTED_MACHINE;
             }
@@ -709,8 +746,9 @@ static int kldrModMachOPreParseLoadCommands(uint8_t *pbLoadCommands, const mach_
                                           VERR_LDRMACHO_BAD_LOAD_COMMAND); \
                 RTLDRMODMACHO_CHECK_RETURN(!(~pSrcSeg->maxprot & pSrcSeg->initprot), \
                                           VERR_LDRMACHO_BAD_LOAD_COMMAND); \
-                RTLDRMODMACHO_CHECK_RETURN(!(pSrcSeg->flags & ~(SG_HIGHVM | SG_FVMLIB | SG_NORELOC | SG_PROTECTED_VERSION_1)), \
-                                          VERR_LDRMACHO_BAD_LOAD_COMMAND); \
+                RTLDRMODMACHO_CHECK_MSG_RETURN(!(pSrcSeg->flags & ~(SG_HIGHVM | SG_FVMLIB | SG_NORELOC | SG_PROTECTED_VERSION_1 | SG_READ_ONLY)), \
+                                               ("flags=%#x %s\n", pSrcSeg->flags, pSrcSeg->segname), \
+                                               VERR_LDRMACHO_BAD_LOAD_COMMAND); \
                 RTLDRMODMACHO_CHECK_RETURN(   pSrcSeg->nsects * sizeof(section_##a_cBits##_t) \
                                           <= u.pLoadCmd->cmdsize - sizeof(segment_command_##a_cBits##_t), \
                                           VERR_LDRMACHO_BAD_LOAD_COMMAND); \
@@ -5669,7 +5707,13 @@ DECLHIDDEN(int) rtldrFatOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH en
                 break;
 
             case RTLDRARCH_ARM32:
+                fMatch = FatEntry.cputype == CPU_TYPE_ARM32;
+                break;
+
             case RTLDRARCH_ARM64:
+                fMatch = FatEntry.cputype == CPU_TYPE_ARM64;
+                break;
+
             case RTLDRARCH_X86_16:
                 fMatch = false;
                 break;

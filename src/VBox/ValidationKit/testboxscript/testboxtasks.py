@@ -7,26 +7,36 @@ TestBox Script - Async Tasks.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard python imports.
@@ -183,44 +193,41 @@ class TestBoxTestDriverTask(TestBoxBaseTask):
         No exceptions.
         """
         fRc = True;
-        self._oBackLogFlushLock.acquire();
 
-        # Grab the current back log.
-        self._oBackLogLock.acquire();
-        asBackLog = self._asBackLog;
-        self._asBackLog  = [];
-        self._cchBackLog = 0;
-        self._secTsBackLogFlush = utils.timestampSecond();
-        self._oBackLogLock.release();
+        with self._oBackLogFlushLock:
+            # Grab the current back log.
+            with self._oBackLogLock:
+                asBackLog = self._asBackLog;
+                self._asBackLog  = [];
+                self._cchBackLog = 0;
+                self._secTsBackLogFlush = utils.timestampSecond();
 
-        # If there is anything to flush, flush it.
-        if asBackLog:
-            sBody = '';
-            for sLine in asBackLog:
-                sBody += sLine + '\n';
+            # If there is anything to flush, flush it.
+            if asBackLog:
+                sBody = '';
+                for sLine in asBackLog:
+                    sBody += sLine + '\n';
 
-            oConnection = None;
-            try:
-                if oGivenConnection is None:
-                    oConnection = self._oTestBoxScript.openTestManagerConnection();
-                    oConnection.postRequest(constants.tbreq.LOG_MAIN, {constants.tbreq.LOG_PARAM_BODY: sBody});
-                    oConnection.close();
-                else:
-                    oGivenConnection.postRequest(constants.tbreq.LOG_MAIN, {constants.tbreq.LOG_PARAM_BODY: sBody});
-            except Exception as oXcpt:
-                testboxcommons.log('_logFlush error: %s' % (oXcpt,));
-                if len(sBody) < self.kcchMaxBackLog * 4:
-                    self._oBackLogLock.acquire();
-                    asBackLog.extend(self._asBackLog);
-                    self._asBackLog = asBackLog;
-                    # Don't restore _cchBackLog as there is no point in retrying immediately.
-                    self._oBackLogLock.release();
-                if oConnection is not None: # Be kind to apache.
-                    try:    oConnection.close();
-                    except: pass;
-                fRc = False;
+                oConnection = None;
+                try:
+                    if oGivenConnection is None:
+                        oConnection = self._oTestBoxScript.openTestManagerConnection();
+                        oConnection.postRequest(constants.tbreq.LOG_MAIN, {constants.tbreq.LOG_PARAM_BODY: sBody});
+                        oConnection.close();
+                    else:
+                        oGivenConnection.postRequest(constants.tbreq.LOG_MAIN, {constants.tbreq.LOG_PARAM_BODY: sBody});
+                except Exception as oXcpt:
+                    testboxcommons.log('_logFlush error: %s' % (oXcpt,));
+                    if len(sBody) < self.kcchMaxBackLog * 4:
+                        with self._oBackLogLock:
+                            asBackLog.extend(self._asBackLog);
+                            self._asBackLog = asBackLog;
+                            # Don't restore _cchBackLog as there is no point in retrying immediately.
+                    if oConnection is not None: # Be kind to apache.
+                        try:    oConnection.close();
+                        except: pass;
+                    fRc = False;
 
-        self._oBackLogFlushLock.release();
         return fRc;
 
     def flushLogOnConnection(self, oConnection):
@@ -247,12 +254,11 @@ class TestBoxTestDriverTask(TestBoxBaseTask):
         else:
             sFullMsg = sMessage;
 
-        self._oBackLogLock.acquire();
-        self._asBackLog.append(sFullMsg);
-        cchBackLog = self._cchBackLog + len(sFullMsg) + 1;
-        self._cchBackLog = cchBackLog;
-        secTsBackLogFlush = self._secTsBackLogFlush;
-        self._oBackLogLock.release();
+        with self._oBackLogLock:
+            self._asBackLog.append(sFullMsg);
+            cchBackLog = self._cchBackLog + len(sFullMsg) + 1;
+            self._cchBackLog = cchBackLog;
+            secTsBackLogFlush = self._secTsBackLogFlush;
 
         testboxcommons.log(sFullMsg);
         return fFlushCheck \
@@ -641,10 +647,9 @@ class TestBoxCleanupTask(TestBoxTestDriverTask):
         an exception.
         """
         try:
-            oFile = open(sPath, "rb");
-            sStr = oFile.read();
+            with open(sPath, "rb") as oFile:
+                sStr = oFile.read();
             sStr = sStr.decode('utf-8');
-            oFile.close();
             return sStr.strip();
         except Exception as oXcpt:
             raise Exception('Failed to read "%s": %s' % (sPath, oXcpt));
@@ -661,8 +666,7 @@ class TestBoxCleanupTask(TestBoxTestDriverTask):
         sScriptCmdLine = os.path.join(self._oTestBoxScript.getPathState(), 'script-cmdline.txt');
         try:
             os.remove(sScriptCmdLine);
-            oFile = open(sScriptCmdLine, 'wb');
-            oFile.close();
+            open(sScriptCmdLine, 'wb').close();                 # pylint: disable=consider-using-with
         except Exception as oXcpt:
             self._log('Error truncating "%s": %s' % (sScriptCmdLine, oXcpt));
 
@@ -780,12 +784,11 @@ class TestBoxExecTask(TestBoxTestDriverTask):
         Writes a state file, raising an exception on failure.
         """
         try:
-            oFile = open(sPath, "wb");
-            oFile.write(sContent.encode('utf-8'));
-            oFile.flush();
-            try:     os.fsync(oFile.fileno());
-            except:  pass;
-            oFile.close();
+            with open(sPath, "wb") as oFile:
+                oFile.write(sContent.encode('utf-8'));
+                oFile.flush();
+                try:     os.fsync(oFile.fileno());
+                except:  pass;
         except Exception as oXcpt:
             raise Exception('Failed to write "%s": %s' % (sPath, oXcpt));
         return True;

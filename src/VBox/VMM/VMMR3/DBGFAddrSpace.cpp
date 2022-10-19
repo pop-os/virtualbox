@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -592,6 +602,7 @@ static DECLCALLBACK(int) dbgfR3AsLazyPopulateR0Callback(PVM pVM, const char *psz
 }
 
 
+#ifdef VBOX_WITH_RAW_MODE_KEEP
 /**
  * @callback_method_impl{FNPDMR3ENUM}
  */
@@ -618,6 +629,7 @@ static DECLCALLBACK(int) dbgfR3AsLazyPopulateRCCallback(PVM pVM, const char *psz
     }
     return VINF_SUCCESS;
 }
+#endif /* VBOX_WITH_RAW_MODE_KEEP */
 
 
 /**
@@ -635,11 +647,13 @@ static void dbgfR3AsLazyPopulate(PUVM pUVM, RTDBGAS hAlias)
         RTDBGAS hDbgAs = pUVM->dbgf.s.ahAsAliases[iAlias];
         if (hAlias == DBGF_AS_R0 && pUVM->pVM)
             PDMR3LdrEnumModules(pUVM->pVM, dbgfR3AsLazyPopulateR0Callback, hDbgAs);
+#ifdef VBOX_WITH_RAW_MODE_KEEP /* needs fixing */
         else if (hAlias == DBGF_AS_RC && pUVM->pVM && VM_IS_RAW_MODE_ENABLED(pUVM->pVM))
         {
             LogRel(("DBGF: Lazy init of RC address space\n"));
             PDMR3LdrEnumModules(pUVM->pVM, dbgfR3AsLazyPopulateRCCallback, hDbgAs);
         }
+#endif
         else if (hAlias == DBGF_AS_PHYS && pUVM->pVM)
         {
             /** @todo Lazy load pc and vga bios symbols or the EFI stuff. */
@@ -1205,6 +1219,8 @@ VMMR3DECL(int) DBGFR3AsSymbolByAddr(PUVM pUVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAd
         dbgfR3AsSymbolJoinNames(pSymbol, hMod);
         if (!phMod)
             RTDbgModRelease(hMod);
+        else
+            *phMod = hMod;
     }
 
     RTDbgAsRelease(hRealAS);

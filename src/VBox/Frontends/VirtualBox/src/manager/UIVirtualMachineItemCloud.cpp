@@ -4,169 +4,265 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
+#include <QPointer>
 #include <QTimer>
 
 /* GUI includes: */
-#include "UICloudMachine.h"
 #include "UICloudNetworkingStuff.h"
 #include "UICommon.h"
 #include "UIConverter.h"
+#include "UIErrorString.h"
 #include "UIIconPool.h"
-#include "UIMessageCenter.h"
-#include "UITaskCloudGetInstanceState.h"
+#include "UINotificationCenter.h"
+#include "UIProgressTask.h"
 #include "UIThreadPool.h"
 #include "UIVirtualMachineItemCloud.h"
 
 /* COM includes: */
 #include "CProgress.h"
+#include "CVirtualBoxErrorInfo.h"
 
 
-UIVirtualMachineItemCloud::UIVirtualMachineItemCloud()
-    : UIVirtualMachineItem(ItemType_CloudFake)
-    , m_pCloudMachine(0)
-    , m_enmFakeCloudItemState(FakeCloudItemState_Loading)
-    , m_pTask(0)
+/** UIProgressTask extension performing cloud machine refresh task.
+  * @todo rework this task to be a part of notification-center. */
+class UIProgressTaskRefreshCloudMachine : public UIProgressTask
 {
-    recache();
+    Q_OBJECT;
+
+public:
+
+    /** Constructs @a comCloudMachine refresh task passing @a pParent to the base-class. */
+    UIProgressTaskRefreshCloudMachine(QObject *pParent, const CCloudMachine &comCloudMachine);
+
+protected:
+
+    /** Creates and returns started progress-wrapper required to init UIProgressObject. */
+    virtual CProgress createProgress() RT_OVERRIDE;
+    /** Handles finished @a comProgress wrapper. */
+    virtual void handleProgressFinished(CProgress &comProgress) RT_OVERRIDE;
+
+private:
+
+    /** Holds the cloud machine wrapper. */
+    CCloudMachine  m_comCloudMachine;
+};
+
+
+/*********************************************************************************************************************************
+*   Class UIProgressTaskRefreshCloudMachine implementation.                                                                      *
+*********************************************************************************************************************************/
+
+UIProgressTaskRefreshCloudMachine::UIProgressTaskRefreshCloudMachine(QObject *pParent, const CCloudMachine &comCloudMachine)
+    : UIProgressTask(pParent)
+    , m_comCloudMachine(comCloudMachine)
+{
 }
 
-UIVirtualMachineItemCloud::UIVirtualMachineItemCloud(const UICloudMachine &guiCloudMachine)
-    : UIVirtualMachineItem(ItemType_CloudReal)
-    , m_pCloudMachine(new UICloudMachine(guiCloudMachine))
-    , m_enmFakeCloudItemState(FakeCloudItemState_NotApplicable)
-    , m_pTask(0)
+CProgress UIProgressTaskRefreshCloudMachine::createProgress()
 {
-    recache();
+    /* Prepare resulting progress-wrapper: */
+    CProgress comResult;
+
+    /* Initialize actual progress-wrapper: */
+    CProgress comProgress = m_comCloudMachine.Refresh();
+    if (!m_comCloudMachine.isOk())
+        UINotificationMessage::cannotRefreshCloudMachine(m_comCloudMachine);
+    else
+        comResult = comProgress;
+
+    /* Return progress-wrapper in any case: */
+    return comResult;
+}
+
+void UIProgressTaskRefreshCloudMachine::handleProgressFinished(CProgress &comProgress)
+{
+    /* Handle progress-wrapper errors: */
+    if (!comProgress.GetCanceled() && (!comProgress.isOk() || comProgress.GetResultCode() != 0))
+        UINotificationMessage::cannotRefreshCloudMachine(comProgress);
+}
+
+
+/*********************************************************************************************************************************
+*   Class UIVirtualMachineItemCloud implementation.                                                                              *
+*********************************************************************************************************************************/
+
+UIVirtualMachineItemCloud::UIVirtualMachineItemCloud(UIFakeCloudVirtualMachineItemState enmState)
+    : UIVirtualMachineItem(UIVirtualMachineItemType_CloudFake)
+    , m_enmMachineState(KCloudMachineState_Invalid)
+    , m_enmFakeCloudItemState(enmState)
+    , m_fRefreshScheduled(false)
+    , m_pProgressTaskRefresh(0)
+{
+    prepare();
+}
+
+UIVirtualMachineItemCloud::UIVirtualMachineItemCloud(const CCloudMachine &comCloudMachine)
+    : UIVirtualMachineItem(UIVirtualMachineItemType_CloudReal)
+    , m_comCloudMachine(comCloudMachine)
+    , m_enmMachineState(KCloudMachineState_Invalid)
+    , m_enmFakeCloudItemState(UIFakeCloudVirtualMachineItemState_NotApplicable)
+    , m_fRefreshScheduled(false)
+    , m_pProgressTaskRefresh(0)
+{
+    prepare();
 }
 
 UIVirtualMachineItemCloud::~UIVirtualMachineItemCloud()
 {
-    delete m_pCloudMachine;
+    cleanup();
 }
 
-void UIVirtualMachineItemCloud::updateState(QWidget *pParent)
+void UIVirtualMachineItemCloud::setFakeCloudItemState(UIFakeCloudVirtualMachineItemState enmState)
 {
-    /* Make sure item is of real cloud type and is initialized: */
-    AssertReturnVoid(itemType() == ItemType_CloudReal);
-    AssertPtrReturnVoid(m_pCloudMachine);
-
-    /* Acquire state: */
-    const QString strState = getInstanceInfo(KVirtualSystemDescriptionType_CloudInstanceState,
-                                             m_pCloudMachine->client(),
-                                             m_strId,
-                                             pParent);
-
-    /* Update state: */
-    updateState(strState);
+    m_enmFakeCloudItemState = enmState;
+    recache();
 }
 
-void UIVirtualMachineItemCloud::updateStateAsync(bool fDelayed)
+void UIVirtualMachineItemCloud::setFakeCloudItemErrorMessage(const QString &strErrorMessage)
 {
-    QTimer::singleShot(fDelayed ? 10000 : 0, this, SLOT(sltCreateGetCloudInstanceStateTask()));
+    m_strFakeCloudItemErrorMessage = strErrorMessage;
+    recache();
 }
 
-void UIVirtualMachineItemCloud::pause(QWidget *pParent)
+void UIVirtualMachineItemCloud::updateInfoAsync(bool fDelayed, bool fSubscribe /* = false */)
 {
-    pauseOrResume(true /* pause? */, pParent);
+    /* Ignore refresh request if progress-task is absent: */
+    if (!m_pProgressTaskRefresh)
+        return;
+
+    /* Mark update scheduled if requested: */
+    if (fSubscribe)
+        m_fRefreshScheduled = true;
+
+    /* Schedule refresh request in a 10 or 0 seconds
+     * if progress-task isn't already scheduled or running: */
+    if (   !m_pProgressTaskRefresh->isScheduled()
+        && !m_pProgressTaskRefresh->isRunning())
+        m_pProgressTaskRefresh->schedule(fDelayed ? 10000 : 0);
 }
 
-void UIVirtualMachineItemCloud::resume(QWidget *pParent)
+void UIVirtualMachineItemCloud::stopAsyncUpdates()
 {
-    pauseOrResume(false /* pause? */, pParent);
+    /* Ignore cancel request if progress-task is absent: */
+    if (!m_pProgressTaskRefresh)
+        return;
+
+    /* Mark update canceled in any case: */
+    m_fRefreshScheduled = false;
 }
 
-void UIVirtualMachineItemCloud::pauseOrResume(bool fPause, QWidget *pParent)
+void UIVirtualMachineItemCloud::waitForAsyncInfoUpdateFinished()
 {
-    /* Acquire cloud client: */
-    CCloudClient comCloudClient = m_pCloudMachine->client();
+    /* Ignore cancel request if progress-task is absent: */
+    if (!m_pProgressTaskRefresh)
+        return;
 
-    /* Now execute async method: */
-    CProgress comProgress;
-    if (fPause)
-        comProgress = comCloudClient.PauseInstance(m_strId);
-    else
-        comProgress = comCloudClient.StartInstance(m_strId);
-    if (!comCloudClient.isOk())
-        msgCenter().cannotAcquireCloudClientParameter(comCloudClient);
-    else
-    {
-        /* Show progress: */
-        /// @todo use proper pause icon
-        if (fPause)
-            msgCenter().showModalProgressDialog(comProgress, UICommon::tr("Pause instance ..."),
-                                                ":/progress_reading_appliance_90px.png", pParent, 0);
-        else
-            msgCenter().showModalProgressDialog(comProgress, UICommon::tr("Start instance ..."),
-                                                ":/progress_start_90px.png", pParent, 0);
-        if (!comProgress.isOk() || comProgress.GetResultCode() != 0)
-            msgCenter().cannotAcquireCloudClientParameter(comProgress);
-        else
-            updateStateAsync(false /* delayed? */);
-    }
+    /* Mark update canceled in any case: */
+    m_fRefreshScheduled = false;
+
+    /* Cancel refresh request
+     * if progress-task already running: */
+    if (m_pProgressTaskRefresh->isRunning())
+        m_pProgressTaskRefresh->cancel();
 }
 
 void UIVirtualMachineItemCloud::recache()
 {
-    /* Determine attributes which are always available: */
-    if (itemType() == ItemType_CloudReal)
+    switch (itemType())
     {
-        AssertPtrReturnVoid(m_pCloudMachine);
-        m_strId = m_pCloudMachine->id();
-        m_strName = m_pCloudMachine->name();
-    }
-
-    /* Now determine whether VM is accessible: */
-    m_fAccessible = true;
-    if (m_fAccessible)
-    {
-        /* Reset last access error information: */
-        m_comAccessError = CVirtualBoxErrorInfo();
-
-        /* Determine own VM attributes: */
-        m_strOSTypeId = "Other";
-
-        /* Determine VM states: */
-        if (   itemType() == ItemType_CloudFake
-            || m_enmMachineState == KMachineState_Null)
-            m_enmMachineState = KMachineState_PoweredOff;
-        if (itemType() == ItemType_CloudFake)
+        case UIVirtualMachineItemType_CloudFake:
         {
+            /* Make sure cloud VM is NOT set: */
+            AssertReturnVoid(m_comCloudMachine.isNull());
+
+            /* Determine ID/name: */
+            m_uId = QUuid();
+            m_strName = QString();
+
+            /* Determine whether VM is accessible: */
+            m_fAccessible = m_strFakeCloudItemErrorMessage.isNull();
+            m_strAccessError = m_strFakeCloudItemErrorMessage;
+
+            /* Determine VM OS type: */
+            m_strOSTypeId = "Other";
+
+            /* Determine VM states: */
+            m_enmMachineState = KCloudMachineState_Stopped;
             switch (m_enmFakeCloudItemState)
             {
-                case UIVirtualMachineItemCloud::FakeCloudItemState_Loading:
+                case UIFakeCloudVirtualMachineItemState_Loading:
                     m_machineStateIcon = UIIconPool::iconSet(":/state_loading_16px.png");
                     break;
-                case UIVirtualMachineItemCloud::FakeCloudItemState_Done:
+                case UIFakeCloudVirtualMachineItemState_Done:
                     m_machineStateIcon = UIIconPool::iconSet(":/vm_new_16px.png");
                     break;
                 default:
                     break;
             }
+
+            /* Determine configuration access level: */
+            m_enmConfigurationAccessLevel = ConfigurationAccessLevel_Null;
+
+            /* Determine whether we should show this VM details: */
+            m_fHasDetails = true;
+
+            break;
         }
-        else
+        case UIVirtualMachineItemType_CloudReal:
+        {
+            /* Make sure cloud VM is set: */
+            AssertReturnVoid(m_comCloudMachine.isNotNull());
+
+            /* Determine ID/name: */
+            m_uId = m_comCloudMachine.GetId();
+            m_strName = m_comCloudMachine.GetName();
+
+            /* Determine whether VM is accessible: */
+            m_fAccessible = m_comCloudMachine.GetAccessible();
+            m_strAccessError = !m_fAccessible ? UIErrorString::formatErrorInfo(m_comCloudMachine.GetAccessError()) : QString();
+
+            /* Determine VM OS type: */
+            m_strOSTypeId = m_fAccessible ? m_comCloudMachine.GetOSTypeId() : "Other";
+
+            /* Determine VM states: */
+            m_enmMachineState = m_fAccessible ? m_comCloudMachine.GetState() : KCloudMachineState_Stopped;
             m_machineStateIcon = gpConverter->toIcon(m_enmMachineState);
 
-        /* Determine configuration access level: */
-        m_enmConfigurationAccessLevel = ConfigurationAccessLevel_Null;
+            /* Determine configuration access level: */
+            m_enmConfigurationAccessLevel = m_fAccessible ? ConfigurationAccessLevel_Full : ConfigurationAccessLevel_Null;
 
-        /* Determine whether we should show this VM details: */
-        m_fHasDetails = false;
-    }
-    else
-    {
-        /// @todo handle inaccessible cloud VM
+            /* Determine whether we should show this VM details: */
+            m_fHasDetails = true;
+
+            break;
+        }
+        default:
+        {
+            AssertFailed();
+            break;
+        }
     }
 
     /* Recache item pixmap: */
@@ -178,41 +274,39 @@ void UIVirtualMachineItemCloud::recache()
 
 void UIVirtualMachineItemCloud::recachePixmap()
 {
-    /* If machine is accessible: */
-    if (m_fAccessible)
-    {
-        /* We are using icon corresponding to cached guest OS type: */
-        if (   itemType() == ItemType_CloudFake
-            && fakeCloudItemState() == FakeCloudItemState_Loading)
-            m_pixmap = uiCommon().vmGuestOSTypePixmapDefault("Cloud", &m_logicalPixmapSize);
-        else
-            m_pixmap = uiCommon().vmGuestOSTypePixmapDefault(m_strOSTypeId, &m_logicalPixmapSize);
-    }
-    /* Otherwise: */
+    /* We are using icon corresponding to cached guest OS type: */
+    if (   itemType() == UIVirtualMachineItemType_CloudFake
+        && fakeCloudItemState() == UIFakeCloudVirtualMachineItemState_Loading)
+        m_pixmap = generalIconPool().guestOSTypePixmapDefault("Cloud", &m_logicalPixmapSize);
     else
-    {
-        /// @todo handle inaccessible cloud VM
-    }
+        m_pixmap = generalIconPool().guestOSTypePixmapDefault(m_strOSTypeId, &m_logicalPixmapSize);
 }
 
 bool UIVirtualMachineItemCloud::isItemEditable() const
 {
-    return accessible();
+    return    accessible()
+           && itemType() == UIVirtualMachineItemType_CloudReal;
+}
+
+bool UIVirtualMachineItemCloud::isItemRemovable() const
+{
+    return    accessible()
+           && itemType() == UIVirtualMachineItemType_CloudReal;
 }
 
 bool UIVirtualMachineItemCloud::isItemSaved() const
 {
     return    accessible()
-           && machineState() == KMachineState_Saved;
+           && itemType() == UIVirtualMachineItemType_CloudReal
+           && (   machineState() == KCloudMachineState_Stopped
+               || machineState() == KCloudMachineState_Running);
 }
 
 bool UIVirtualMachineItemCloud::isItemPoweredOff() const
 {
     return    accessible()
-           && (   machineState() == KMachineState_PoweredOff
-               || machineState() == KMachineState_Saved
-               || machineState() == KMachineState_Teleported
-               || machineState() == KMachineState_Aborted);
+           && (   machineState() == KCloudMachineState_Stopped
+               || machineState() == KCloudMachineState_Terminated);
 }
 
 bool UIVirtualMachineItemCloud::isItemStarted() const
@@ -224,9 +318,7 @@ bool UIVirtualMachineItemCloud::isItemStarted() const
 bool UIVirtualMachineItemCloud::isItemRunning() const
 {
     return    accessible()
-           && (   machineState() == KMachineState_Running
-               || machineState() == KMachineState_Teleporting
-               || machineState() == KMachineState_LiveSnapshotting);
+           && machineState() == KCloudMachineState_Running;
 }
 
 bool UIVirtualMachineItemCloud::isItemRunningHeadless() const
@@ -236,32 +328,34 @@ bool UIVirtualMachineItemCloud::isItemRunningHeadless() const
 
 bool UIVirtualMachineItemCloud::isItemPaused() const
 {
-    return    accessible()
-           && (   machineState() == KMachineState_Paused
-               || machineState() == KMachineState_TeleportingPausedVM);
+    return false;
 }
 
 bool UIVirtualMachineItemCloud::isItemStuck() const
 {
-    return    accessible()
-           && machineState() == KMachineState_Stuck;
+    return false;
+}
+
+bool UIVirtualMachineItemCloud::isItemCanBeSwitchedTo() const
+{
+    return false;
 }
 
 void UIVirtualMachineItemCloud::retranslateUi()
 {
     /* If machine is accessible: */
-    if (m_fAccessible)
+    if (accessible())
     {
-        if (itemType() == ItemType_CloudFake)
+        if (itemType() == UIVirtualMachineItemType_CloudFake)
         {
             /* Update fake machine state name: */
             switch (m_enmFakeCloudItemState)
             {
-                case UIVirtualMachineItemCloud::FakeCloudItemState_Loading:
+                case UIFakeCloudVirtualMachineItemState_Loading:
                     m_strMachineStateName = tr("Loading ...");
                     break;
-                case UIVirtualMachineItemCloud::FakeCloudItemState_Done:
-                    m_strMachineStateName = tr("Up-To-Date");
+                case UIFakeCloudVirtualMachineItemState_Done:
+                    m_strMachineStateName = tr("Empty");
                     break;
                 default:
                     break;
@@ -280,14 +374,13 @@ void UIVirtualMachineItemCloud::retranslateUi()
                                        "<nobr>%2</nobr>")
                                        .arg(m_strName)
                                        .arg(gpConverter->toString(m_enmMachineState));
-
         }
     }
     /* Otherwise: */
     else
     {
         /* We have our own translation for Null states: */
-        m_strMachineStateName = tr("Inaccessible");
+        m_strMachineStateName = tr("Inaccessible", "VM");
 
         /* Update tool-tip: */
         m_strToolTipText = tr("<nobr><b>%1</b></nobr><br>"
@@ -297,53 +390,44 @@ void UIVirtualMachineItemCloud::retranslateUi()
     }
 }
 
-void UIVirtualMachineItemCloud::sltCreateGetCloudInstanceStateTask()
+void UIVirtualMachineItemCloud::sltHandleRefreshCloudMachineInfoDone()
 {
-    /* Make sure item is of real cloud type and is initialized: */
-    AssertReturnVoid(itemType() == ItemType_CloudReal);
-    AssertPtrReturnVoid(m_pCloudMachine);
-
-    /* Create and start task to acquire state async way only if there is no task yet: */
-    if (!m_pTask)
-    {
-        m_pTask = new UITaskCloudGetInstanceState(m_pCloudMachine->client(), m_strId);
-        connect(m_pTask, &UITask::sigComplete,
-                this, &UIVirtualMachineItemCloud::sltHandleGetCloudInstanceStateDone);
-        uiCommon().threadPool()->enqueueTask(m_pTask);
-    }
-}
-
-void UIVirtualMachineItemCloud::sltHandleGetCloudInstanceStateDone(UITask *pTask)
-{
-    /* Skip unrelated tasks: */
-    if (!m_pTask || pTask != m_pTask)
-        return;
-
-    /* Mark our task handled: */
-    m_pTask = 0;
-
-    /* Cast task to corresponding sub-class: */
-    UITaskCloudGetInstanceState *pStateTask = static_cast<UITaskCloudGetInstanceState*>(pTask);
-
-    /* Update state: */
-    updateState(pStateTask->result());
-}
-
-void UIVirtualMachineItemCloud::updateState(const QString &strState)
-{
-    /* Prepare a map of known states: */
-    QMap<QString, KMachineState> states;
-    states["RUNNING"] = KMachineState_Running;
-    states["STOPPED"] = KMachineState_Paused;
-    states["STOPPING"] = KMachineState_Stopping;
-    states["STARTING"] = KMachineState_Starting;
-
-    /* Update our state value: */
-    m_enmMachineState = states.value(strState, KMachineState_PoweredOff);
-
     /* Recache: */
     recache();
 
-    /* Notify listeners finally: */
-    emit sigStateChange();
+    /* Notify listeners: */
+    emit sigRefreshFinished();
+
+    /* Refresh again if scheduled: */
+    if (m_fRefreshScheduled)
+        updateInfoAsync(true /* async? */);
 }
+
+void UIVirtualMachineItemCloud::prepare()
+{
+    /* Prepare progress-task if necessary: */
+    if (itemType() == UIVirtualMachineItemType_CloudReal)
+    {
+        m_pProgressTaskRefresh = new UIProgressTaskRefreshCloudMachine(this, machine());
+        if (m_pProgressTaskRefresh)
+        {
+            connect(m_pProgressTaskRefresh, &UIProgressTaskRefreshCloudMachine::sigProgressStarted,
+                    this, &UIVirtualMachineItemCloud::sigRefreshStarted);
+            connect(m_pProgressTaskRefresh, &UIProgressTaskRefreshCloudMachine::sigProgressFinished,
+                    this, &UIVirtualMachineItemCloud::sltHandleRefreshCloudMachineInfoDone);
+        }
+    }
+
+    /* Recache finally: */
+    recache();
+}
+
+void UIVirtualMachineItemCloud::cleanup()
+{
+    /* Cleanup progress-task: */
+    delete m_pProgressTaskRefresh;
+    m_pProgressTaskRefresh = 0;
+}
+
+
+#include "UIVirtualMachineItemCloud.moc"

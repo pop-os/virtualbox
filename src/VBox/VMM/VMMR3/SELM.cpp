@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_selm   SELM - The Selector Manager
@@ -567,7 +577,9 @@ VMMR3DECL(void) SELMR3DumpDescriptor(X86DESC Desc, RTSEL Sel, const char *pszMsg
 static DECLCALLBACK(void) selmR3InfoGdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     /** @todo SMP support! */
-    PVMCPU      pVCpu = pVM->apCpusR3[0];
+    PVMCPU      pVCpu = VMMGetCpu(pVM);
+    CPUMImportGuestStateOnDemand(pVCpu, CPUMCTX_EXTRN_CR0  | CPUMCTX_EXTRN_CR3 | CPUMCTX_EXTRN_CR4
+                                      | CPUMCTX_EXTRN_EFER | CPUMCTX_EXTRN_GDTR);
 
     VBOXGDTR    GDTR;
     CPUMGetGuestGDTR(pVCpu, &GDTR);
@@ -590,7 +602,7 @@ static DECLCALLBACK(void) selmR3InfoGdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const 
         }
         else if (rc == VERR_PAGE_NOT_PRESENT)
         {
-            if ((GCPtrGDT & PAGE_OFFSET_MASK) + sizeof(X86DESC) - 1 < sizeof(X86DESC))
+            if ((GCPtrGDT & GUEST_PAGE_OFFSET_MASK) + sizeof(X86DESC) - 1 < sizeof(X86DESC))
                 pHlp->pfnPrintf(pHlp, "%04x - page not present (GCAddr=%RGv)\n", iGDT << X86_SEL_SHIFT, GCPtrGDT);
         }
         else
@@ -610,7 +622,9 @@ static DECLCALLBACK(void) selmR3InfoGdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const 
 static DECLCALLBACK(void) selmR3InfoLdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     /** @todo SMP support! */
-    PVMCPU   pVCpu = pVM->apCpusR3[0];
+    PVMCPU   pVCpu = VMMGetCpu(pVM);
+    CPUMImportGuestStateOnDemand(pVCpu, CPUMCTX_EXTRN_CR0  | CPUMCTX_EXTRN_CR3  | CPUMCTX_EXTRN_CR4
+                                      | CPUMCTX_EXTRN_EFER | CPUMCTX_EXTRN_GDTR | CPUMCTX_EXTRN_LDTR);
 
     uint64_t GCPtrLdt;
     uint32_t cbLdt;
@@ -638,7 +652,7 @@ static DECLCALLBACK(void) selmR3InfoLdtGuest(PVM pVM, PCDBGFINFOHLP pHlp, const 
         }
         else if (rc == VERR_PAGE_NOT_PRESENT)
         {
-            if ((GCPtrLdt & PAGE_OFFSET_MASK) + sizeof(X86DESC) - 1 < sizeof(X86DESC))
+            if ((GCPtrLdt & GUEST_PAGE_OFFSET_MASK) + sizeof(X86DESC) - 1 < sizeof(X86DESC))
                 pHlp->pfnPrintf(pHlp, "%04x - page not present (GCAddr=%RGv)\n", (iLdt << X86_SEL_SHIFT) | X86_SEL_LDT, GCPtrLdt);
         }
         else

@@ -58,7 +58,7 @@ E1kNetMacAddrRead (
   IN E1K_NET_DEV        *Dev
   )
 {
-  EFI_STATUS Status = EFI_SUCCESS; /* bird build fix*/
+  EFI_STATUS Status;
   UINT8      i;
 
   for (i = 0; i < 3; i++)

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_UIVirtualMachineItemLocal_h
@@ -66,47 +76,44 @@ public:
 
     /** @name State attributes.
       * @{ */
+        /** Returns cached machine state. */
+        KMachineState machineState() const { return m_enmMachineState; }
         /** Returns cached session state. */
         KSessionState sessionState() const { return m_enmSessionState; }
         /** Returns cached session state name. */
         QString sessionStateName() const { return m_strSessionStateName; }
     /** @} */
 
-    /** @name Console attributes.
-      * @{ */
-        /** Returns whether we can switch to main window of VM process. */
-        bool canSwitchTo() const;
-        /** Tries to switch to the main window of the VM process.
-          * @return true if switched successfully. */
-        bool switchTo();
-    /** @} */
-
     /** @name Update stuff.
       * @{ */
         /** Recaches machine data. */
-        virtual void recache() /* override */;
+        virtual void recache() RT_OVERRIDE;
         /** Recaches machine item pixmap. */
-        virtual void recachePixmap() /* override */;
+        virtual void recachePixmap() RT_OVERRIDE;
     /** @} */
 
     /** @name Validation stuff.
       * @{ */
-        /** Returns whether passed machine @a pItem is editable. */
-        virtual bool isItemEditable() const /* override */;
-        /** Returns whether passed machine @a pItem is saved. */
-        virtual bool isItemSaved() const /* override */;
-        /** Returns whether passed machine @a pItem is powered off. */
-        virtual bool isItemPoweredOff() const /* override */;
-        /** Returns whether passed machine @a pItem is started. */
-        virtual bool isItemStarted() const /* override */;
-        /** Returns whether passed machine @a pItem is running. */
-        virtual bool isItemRunning() const /* override */;
-        /** Returns whether passed machine @a pItem is running headless. */
-        virtual bool isItemRunningHeadless() const /* override */;
-        /** Returns whether passed machine @a pItem is paused. */
-        virtual bool isItemPaused() const /* override */;
-        /** Returns whether passed machine @a pItem is stuck. */
-        virtual bool isItemStuck() const /* override */;
+        /** Returns whether this item is editable. */
+        virtual bool isItemEditable() const RT_OVERRIDE;
+        /** Returns whether this item is removable. */
+        virtual bool isItemRemovable() const RT_OVERRIDE;
+        /** Returns whether this item is saved. */
+        virtual bool isItemSaved() const RT_OVERRIDE;
+        /** Returns whether this item is powered off. */
+        virtual bool isItemPoweredOff() const RT_OVERRIDE;
+        /** Returns whether this item is started. */
+        virtual bool isItemStarted() const RT_OVERRIDE;
+        /** Returns whether this item is running. */
+        virtual bool isItemRunning() const RT_OVERRIDE;
+        /** Returns whether this item is running headless. */
+        virtual bool isItemRunningHeadless() const RT_OVERRIDE;
+        /** Returns whether this item is paused. */
+        virtual bool isItemPaused() const RT_OVERRIDE;
+        /** Returns whether this item is stuck. */
+        virtual bool isItemStuck() const RT_OVERRIDE;
+        /** Returns whether this item can be switched to. */
+        virtual bool isItemCanBeSwitchedTo() const RT_OVERRIDE;
     /** @} */
 
 protected:
@@ -114,7 +121,7 @@ protected:
     /** @name Event handling.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
     /** @} */
 
 private:
@@ -145,6 +152,8 @@ private:
 
     /** @name State attributes.
       * @{ */
+        /** Holds cached machine state. */
+        KMachineState  m_enmMachineState;
         /** Holds cached session state. */
         KSessionState  m_enmSessionState;
         /** Holds cached session state name. */

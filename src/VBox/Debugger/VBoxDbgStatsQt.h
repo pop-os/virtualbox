@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef DEBUGGER_INCLUDED_SRC_VBoxDbgStatsQt_h
@@ -81,7 +91,20 @@ public:
      */
     void resizeColumnsToContent();
 
+    /**
+     * Expands the trees matching the given expression.
+     *
+     * @param   rPatStr      Selection pattern.
+     */
+    void expandMatching(const QString &rPatStr);
+
 protected:
+    /**
+     * @callback_method_impl{VBoxDbgStatsModel::FNITERATOR,
+     * Worker for expandMatching}.
+     */
+    static bool expandMatchingCallback(PDBGGUISTATSNODE pNode, QModelIndex const &a_rIndex, const char *pszFullName, void *pvUser);
+
     /**
      * Expands or collapses a sub-tree.
      *
@@ -186,11 +209,15 @@ public:
      * Creates a VM statistics list view widget.
      *
      * @param   a_pDbgGui       Pointer to the debugger gui object.
-     * @param   pszPat          Initial selection pattern. NULL means everything. (See STAM for details.)
+     * @param   pszFilter       Initial selection pattern. NULL means everything.
+     *                          (See STAM for details.)
+     * @param   pszExpand       Initial expansion pattern. NULL means nothing is
+     *                          expanded.
      * @param   uRefreshRate    The refresh rate. 0 means not to refresh and is the default.
      * @param   pParent         Parent widget.
      */
-    VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszPat = NULL, unsigned uRefreshRate= 0, QWidget *pParent = NULL);
+    VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszFilter = NULL, const char *pszExpand = NULL,
+                 unsigned uRefreshRate = 0, QWidget *pParent = NULL);
 
     /** Destructor. */
     virtual ~VBoxDbgStats();
@@ -237,7 +264,7 @@ protected:
     VBoxDbgStatsView   *m_pView;
 
     /** Move to pattern field action. */
-    QAction *m_pFocusToPat;
+    QAction            *m_pFocusToPat;
 };
 
 

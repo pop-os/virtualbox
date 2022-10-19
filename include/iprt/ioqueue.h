@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_ioqueue_h
@@ -112,7 +122,7 @@ typedef struct RTIOQUEUEPROVVTABLE
      *
      * @returns Flag whether the provider is supported.
      */
-    DECLCALLBACKMEMBER(bool, pfnIsSupported) (void);
+    DECLCALLBACKMEMBER(bool, pfnIsSupported,(void));
 
     /**
      * Initializes the provider specific parts of the given I/O queue.
@@ -123,8 +133,7 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @param   cSqEntries      Number of entries for the submission queue.
      * @param   cCqEntries      Number of entries for the completion queue.
      */
-    DECLCALLBACKMEMBER(int, pfnQueueInit) (RTIOQUEUEPROV hIoQueueProv, uint32_t fFlags,
-                                           uint32_t cSqEntries, uint32_t cCqEntries);
+    DECLCALLBACKMEMBER(int, pfnQueueInit,(RTIOQUEUEPROV hIoQueueProv, uint32_t fFlags, uint32_t cSqEntries, uint32_t cCqEntries));
 
     /**
      * Destroys the provider specific parts of the I/O queue and frees all
@@ -133,7 +142,7 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @returns nothing.
      * @param   hIoQueueProv    The I/O queue provider instance to destroy.
      */
-    DECLCALLBACKMEMBER(void, pfnQueueDestroy) (RTIOQUEUEPROV hIoQueueProv);
+    DECLCALLBACKMEMBER(void, pfnQueueDestroy,(RTIOQUEUEPROV hIoQueueProv));
 
     /**
      * Registers the given handle for use with the I/O queue instance.
@@ -144,7 +153,7 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @param   hIoQueueProv    The I/O queue provider instance.
      * @param   pHandle         The handle to register.
      */
-    DECLCALLBACKMEMBER(int, pfnHandleRegister) (RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle);
+    DECLCALLBACKMEMBER(int, pfnHandleRegister,(RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle));
 
     /**
      * Deregisters the given handle for use with the I/O queue instance.
@@ -155,7 +164,7 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @param   hIoQueueProv    The I/O queue provider instance.
      * @param   pHandle         The handle to deregister.
      */
-    DECLCALLBACKMEMBER(int, pfnHandleDeregister) (RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle);
+    DECLCALLBACKMEMBER(int, pfnHandleDeregister,(RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle));
 
     /**
      * Prepares a request for the given I/O queue.
@@ -170,9 +179,8 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @param   fReqFlags           Additional flags for the request.
      * @param   pvUser              Opaque user data which is passed back in the completion event.
      */
-    DECLCALLBACKMEMBER(int, pfnReqPrepare) (RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle, RTIOQUEUEOP enmOp,
-                                            uint64_t off, void *pvBuf, size_t cbBuf, uint32_t fReqFlags,
-                                            void *pvUser);
+    DECLCALLBACKMEMBER(int, pfnReqPrepare,(RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle, RTIOQUEUEOP enmOp,
+                                           uint64_t off, void *pvBuf, size_t cbBuf, uint32_t fReqFlags, void *pvUser));
 
     /**
      * Prepares a request for the given I/O queue.
@@ -187,9 +195,8 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @param   fReqFlags           Additional flags for the request.
      * @param   pvUser              Opaque user data which is passed back in the completion event.
      */
-    DECLCALLBACKMEMBER(int, pfnReqPrepareSg) (RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle, RTIOQUEUEOP enmOp,
-                                              uint64_t off, PCRTSGBUF pSgBuf, size_t cbSg, uint32_t fReqFlags,
-                                              void *pvUser);
+    DECLCALLBACKMEMBER(int, pfnReqPrepareSg,(RTIOQUEUEPROV hIoQueueProv, PCRTHANDLE pHandle, RTIOQUEUEOP enmOp,
+                                             uint64_t off, PCRTSGBUF pSgBuf, size_t cbSg, uint32_t fReqFlags, void *pvUser));
 
     /**
      * Commits all prepared requests to the consumer for processing.
@@ -198,7 +205,7 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @param   hIoQueueProv        The I/O queue provider instance.
      * @param   pcReqsCommitted     Where to store the number of requests actually committed.
      */
-    DECLCALLBACKMEMBER(int, pfnCommit) (RTIOQUEUEPROV hIoQueueProv, uint32_t *pcReqsCommitted);
+    DECLCALLBACKMEMBER(int, pfnCommit,(RTIOQUEUEPROV hIoQueueProv, uint32_t *pcReqsCommitted));
 
     /**
      * Waits for completion events from the given I/O queue.
@@ -212,8 +219,8 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @param   pcCEvt              Where to store the number of completion events on success.
      * @param   fFlags              Additional flags controlling the wait behavior.
      */
-    DECLCALLBACKMEMBER(int, pfnEvtWait) (RTIOQUEUEPROV hIoQueueProv, PRTIOQUEUECEVT paCEvt, uint32_t cCEvt,
-                                         uint32_t cMinWait, uint32_t *pcCEvt, uint32_t fFlags);
+    DECLCALLBACKMEMBER(int, pfnEvtWait,(RTIOQUEUEPROV hIoQueueProv, PRTIOQUEUECEVT paCEvt, uint32_t cCEvt,
+                                        uint32_t cMinWait, uint32_t *pcCEvt, uint32_t fFlags));
 
     /**
      * Wakes up the thread waiting in RTIOQUEUEPROVVTABLE::pfnEvtWait().
@@ -221,7 +228,7 @@ typedef struct RTIOQUEUEPROVVTABLE
      * @returns IPRT status code.
      * @param   hIoQueueProv        The I/O queue provider instance.
      */
-    DECLCALLBACKMEMBER(int, pfnEvtWaitWakeup) (RTIOQUEUEPROV hIoQueueProv);
+    DECLCALLBACKMEMBER(int, pfnEvtWaitWakeup,(RTIOQUEUEPROV hIoQueueProv));
 
     /** Marks the end of the structure (RTIOQUEUEPROVVTABLE_VERSION). */
     uintptr_t               uEndMarker;

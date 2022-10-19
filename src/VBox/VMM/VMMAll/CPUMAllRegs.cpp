@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -37,7 +47,9 @@
 #include <VBox/vmm/tm.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
-#include <iprt/asm-amd64-x86.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #ifdef IN_RING3
 # include <iprt/thread.h>
 #endif
@@ -47,7 +59,6 @@
 # pragma optimize("y", off)
 #endif
 
-AssertCompile2MemberOffsets(VM, cpum.s.HostFeatures,  cpum.ro.HostFeatures);
 AssertCompile2MemberOffsets(VM, cpum.s.GuestFeatures, cpum.ro.GuestFeatures);
 
 
@@ -780,11 +791,11 @@ VMMDECL(uint64_t) CPUMGetGuestEFER(PCVMCPU pVCpu)
  */
 PCPUMCPUIDLEAF cpumCpuIdGetLeaf(PVM pVM, uint32_t uLeaf)
 {
-    unsigned            iEnd     = pVM->cpum.s.GuestInfo.cCpuIdLeaves;
+    unsigned            iEnd     = RT_MIN(pVM->cpum.s.GuestInfo.cCpuIdLeaves, RT_ELEMENTS(pVM->cpum.s.GuestInfo.aCpuIdLeaves));
     if (iEnd)
     {
         unsigned        iStart   = 0;
-        PCPUMCPUIDLEAF  paLeaves = pVM->cpum.s.GuestInfo.CTX_SUFF(paCpuIdLeaves);
+        PCPUMCPUIDLEAF  paLeaves = pVM->cpum.s.GuestInfo.aCpuIdLeaves;
         for (;;)
         {
             unsigned i = iStart + (iEnd - iStart) / 2U;
@@ -837,11 +848,11 @@ PCPUMCPUIDLEAF cpumCpuIdGetLeaf(PVM pVM, uint32_t uLeaf)
  */
 PCPUMCPUIDLEAF cpumCpuIdGetLeafEx(PVM pVM, uint32_t uLeaf, uint32_t uSubLeaf, bool *pfExactSubLeafHit)
 {
-    unsigned            iEnd     = pVM->cpum.s.GuestInfo.cCpuIdLeaves;
+    unsigned            iEnd     = RT_MIN(pVM->cpum.s.GuestInfo.cCpuIdLeaves, RT_ELEMENTS(pVM->cpum.s.GuestInfo.aCpuIdLeaves));
     if (iEnd)
     {
         unsigned        iStart   = 0;
-        PCPUMCPUIDLEAF  paLeaves = pVM->cpum.s.GuestInfo.CTX_SUFF(paCpuIdLeaves);
+        PCPUMCPUIDLEAF  paLeaves = pVM->cpum.s.GuestInfo.aCpuIdLeaves;
         for (;;)
         {
             unsigned i = iStart + (iEnd - iStart) / 2U;
@@ -895,12 +906,16 @@ PCPUMCPUIDLEAF cpumCpuIdGetLeafEx(PVM pVM, uint32_t uLeaf, uint32_t uSubLeaf, bo
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   uLeaf       The CPUID leaf to get.
  * @param   uSubLeaf    The CPUID sub-leaf to get, if applicable.
+ * @param   f64BitMode  A tristate indicate if the caller is in 64-bit mode or
+ *                      not: 1=true, 0=false, 1=whatever.  This affect how the
+ *                      X86_CPUID_EXT_FEATURE_EDX_SYSCALL flag is returned on
+ *                      Intel CPUs, where it's only returned in 64-bit mode.
  * @param   pEax        Where to store the EAX value.
  * @param   pEbx        Where to store the EBX value.
  * @param   pEcx        Where to store the ECX value.
  * @param   pEdx        Where to store the EDX value.
  */
-VMMDECL(void) CPUMGetGuestCpuId(PVMCPUCC pVCpu, uint32_t uLeaf, uint32_t uSubLeaf,
+VMMDECL(void) CPUMGetGuestCpuId(PVMCPUCC pVCpu, uint32_t uLeaf, uint32_t uSubLeaf, int f64BitMode,
                                 uint32_t *pEax, uint32_t *pEbx, uint32_t *pEcx, uint32_t *pEdx)
 {
     bool            fExactSubLeafHit;
@@ -962,6 +977,16 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPUCC pVCpu, uint32_t uLeaf, uint32_t uSubLea
                 else
                     AssertMsgFailed(("uLeaf=%#x\n", uLeaf));
             }
+
+            /* Intel CPUs supresses the SYSCALL bit when not executing in 64-bit mode: */
+            if (   uLeaf == UINT32_C(0x80000001)
+                && f64BitMode == false
+                && (*pEdx & X86_CPUID_EXT_FEATURE_EDX_SYSCALL)
+                && (   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_INTEL
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_VIA /*?*/
+                    || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_SHANGHAI /*?*/ ) )
+                *pEdx &= ~X86_CPUID_EXT_FEATURE_EDX_SYSCALL;
+
         }
         /*
          * Out of range sub-leaves aren't quite as easy and pretty as we emulate
@@ -1076,31 +1101,49 @@ VMMDECL(CPUMMICROARCH) CPUMGetGuestMicroarch(PCVM pVM)
 }
 
 
+/**
+ * Gets the maximum number of physical and linear address bits supported by the
+ * guest.
+ *
+ * @param   pVM                 The cross context VM structure.
+ * @param   pcPhysAddrWidth     Where to store the physical address width.
+ * @param   pcLinearAddrWidth   Where to store the linear address width.
+ */
+VMMDECL(void) CPUMGetGuestAddrWidths(PCVM pVM, uint8_t *pcPhysAddrWidth, uint8_t *pcLinearAddrWidth)
+{
+    AssertPtr(pVM);
+    AssertReturnVoid(pcPhysAddrWidth);
+    AssertReturnVoid(pcLinearAddrWidth);
+    *pcPhysAddrWidth   = pVM->cpum.s.GuestFeatures.cMaxPhysAddrWidth;
+    *pcLinearAddrWidth = pVM->cpum.s.GuestFeatures.cMaxLinearAddrWidth;
+}
+
+
 VMMDECL(int) CPUMSetGuestDR0(PVMCPUCC pVCpu, uint64_t uDr0)
 {
     pVCpu->cpum.s.Guest.dr[0] = uDr0;
-    return CPUMRecalcHyperDRx(pVCpu, 0, false);
+    return CPUMRecalcHyperDRx(pVCpu, 0);
 }
 
 
 VMMDECL(int) CPUMSetGuestDR1(PVMCPUCC pVCpu, uint64_t uDr1)
 {
     pVCpu->cpum.s.Guest.dr[1] = uDr1;
-    return CPUMRecalcHyperDRx(pVCpu, 1, false);
+    return CPUMRecalcHyperDRx(pVCpu, 1);
 }
 
 
 VMMDECL(int) CPUMSetGuestDR2(PVMCPUCC pVCpu, uint64_t uDr2)
 {
     pVCpu->cpum.s.Guest.dr[2] = uDr2;
-    return CPUMRecalcHyperDRx(pVCpu, 2, false);
+    return CPUMRecalcHyperDRx(pVCpu, 2);
 }
 
 
 VMMDECL(int) CPUMSetGuestDR3(PVMCPUCC pVCpu, uint64_t uDr3)
 {
     pVCpu->cpum.s.Guest.dr[3] = uDr3;
-    return CPUMRecalcHyperDRx(pVCpu, 3, false);
+    return CPUMRecalcHyperDRx(pVCpu, 3);
 }
 
 
@@ -1116,7 +1159,7 @@ VMMDECL(int) CPUMSetGuestDR7(PVMCPUCC pVCpu, uint64_t uDr7)
 {
     pVCpu->cpum.s.Guest.dr[7] = uDr7;
     pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_DR7;
-    return CPUMRecalcHyperDRx(pVCpu, 7, false);
+    return CPUMRecalcHyperDRx(pVCpu, 7);
 }
 
 
@@ -1127,7 +1170,7 @@ VMMDECL(int) CPUMSetGuestDRx(PVMCPUCC pVCpu, uint32_t iReg, uint64_t Value)
     if (iReg == 4 || iReg == 5)
         iReg += 2;
     pVCpu->cpum.s.Guest.dr[iReg] = Value;
-    return CPUMRecalcHyperDRx(pVCpu, iReg, false);
+    return CPUMRecalcHyperDRx(pVCpu, iReg);
 }
 
 
@@ -1158,10 +1201,8 @@ VMMDECL(int) CPUMSetGuestDRx(PVMCPUCC pVCpu, uint32_t iReg, uint64_t Value)
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   iGstReg     The guest debug register number that was modified.
  *                      UINT8_MAX if not guest register.
- * @param   fForceHyper Used in HM to force hyper registers because of single
- *                      stepping.
  */
-VMMDECL(int) CPUMRecalcHyperDRx(PVMCPUCC pVCpu, uint8_t iGstReg, bool fForceHyper)
+VMMDECL(int) CPUMRecalcHyperDRx(PVMCPUCC pVCpu, uint8_t iGstReg)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 #ifndef IN_RING0
@@ -1186,13 +1227,7 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPUCC pVCpu, uint8_t iGstReg, bool fForceHype
         uGstDr7 &= ~X86_DR7_GE_ALL;
 
     const RTGCUINTREG uDbgfDr7 = DBGFBpGetDR7(pVM);
-
-    /** @todo r=bird: I'm totally confused by fForceHyper! */
-#ifdef IN_RING0
-    if (!fForceHyper && (pVCpu->cpum.s.fUseFlags & CPUM_USED_DEBUG_REGS_HYPER))
-        fForceHyper = true;
-#endif
-    if ((!fForceHyper ? uDbgfDr7 : (uGstDr7 | uDbgfDr7)) & X86_DR7_ENABLED_MASK)
+    if ((uGstDr7 | uDbgfDr7) & X86_DR7_ENABLED_MASK)
     {
         Assert(!CPUMIsGuestDebugStateActive(pVCpu));
 
@@ -1377,13 +1412,13 @@ VMM_INT_DECL(int)   CPUMSetGuestXcr0(PVMCPUCC pVCpu, uint64_t uNewValue)
             {
                 if (pVCpu->cpum.s.Guest.fXStateMask != 0)
                     /* Adding more components. */
-                    ASMXRstor(pVCpu->cpum.s.Guest.CTX_SUFF(pXState), fNewComponents);
+                    ASMXRstor(&pVCpu->cpum.s.Guest.XState, fNewComponents);
                 else
                 {
                     /* We're switching from FXSAVE/FXRSTOR to XSAVE/XRSTOR. */
                     pVCpu->cpum.s.Guest.fXStateMask |= XSAVE_C_X87 | XSAVE_C_SSE;
                     if (uNewValue & ~(XSAVE_C_X87 | XSAVE_C_SSE))
-                        ASMXRstor(pVCpu->cpum.s.Guest.CTX_SUFF(pXState), uNewValue & ~(XSAVE_C_X87 | XSAVE_C_SSE));
+                        ASMXRstor(&pVCpu->cpum.s.Guest.XState, uNewValue & ~(XSAVE_C_X87 | XSAVE_C_SSE));
                 }
             }
 #endif
@@ -1612,17 +1647,20 @@ VMMDECL(bool) CPUMIsHostUsingSysCall(PVM pVM)
 /**
  * Checks if we activated the FPU/XMM state of the guest OS.
  *
- * This differs from CPUMIsGuestFPUStateLoaded() in that it refers to the next
- * time we'll be executing guest code, so it may return true for 64-on-32 when
- * we still haven't actually loaded the FPU status, just scheduled it to be
- * loaded the next time we go thru the world switcher (CPUM_SYNC_FPU_STATE).
+ * Obsolete: This differs from CPUMIsGuestFPUStateLoaded() in that it refers to
+ * the next time we'll be executing guest code, so it may return true for
+ * 64-on-32 when we still haven't actually loaded the FPU status, just scheduled
+ * it to be loaded the next time we go thru the world switcher
+ * (CPUM_SYNC_FPU_STATE).
  *
  * @returns true / false.
  * @param   pVCpu   The cross context virtual CPU structure.
  */
 VMMDECL(bool) CPUMIsGuestFPUStateActive(PVMCPU pVCpu)
 {
-    return RT_BOOL(pVCpu->cpum.s.fUseFlags & (CPUM_USED_FPU_GUEST | CPUM_SYNC_FPU_STATE));
+    bool fRet = RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST);
+    AssertMsg(fRet == pVCpu->cpum.s.Guest.fUsedFpuGuest, ("fRet=%d\n", fRet));
+    return fRet;
 }
 
 
@@ -1634,7 +1672,9 @@ VMMDECL(bool) CPUMIsGuestFPUStateActive(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestFPUStateLoaded(PVMCPU pVCpu)
 {
-    return RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST);
+    bool fRet = RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_FPU_GUEST);
+    AssertMsg(fRet == pVCpu->cpum.s.Guest.fUsedFpuGuest, ("fRet=%d\n", fRet));
+    return fRet;
 }
 
 
@@ -1663,19 +1703,6 @@ VMMDECL(bool) CPUMIsGuestDebugStateActive(PVMCPU pVCpu)
 
 
 /**
- * Checks if the guest debug state is to be made active during the world-switch
- * (currently only used for the 32->64 switcher case).
- *
- * @returns boolean
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- */
-VMMDECL(bool) CPUMIsGuestDebugStateActivePending(PVMCPU pVCpu)
-{
-    return RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_DEBUG_REGS_GUEST);
-}
-
-
-/**
  * Checks if the hyper debug state is active.
  *
  * @returns boolean
@@ -1684,19 +1711,6 @@ VMMDECL(bool) CPUMIsGuestDebugStateActivePending(PVMCPU pVCpu)
 VMMDECL(bool) CPUMIsHyperDebugStateActive(PVMCPU pVCpu)
 {
     return RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_USED_DEBUG_REGS_HYPER);
-}
-
-
-/**
- * Checks if the hyper debug state is to be made active during the world-switch
- * (currently only used for the 32->64 switcher case).
- *
- * @returns boolean
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- */
-VMMDECL(bool) CPUMIsHyperDebugStateActivePending(PVMCPU pVCpu)
-{
-    return RT_BOOL(pVCpu->cpum.s.fUseFlags & CPUM_SYNC_DEBUG_REGS_HYPER);
 }
 
 
@@ -2107,7 +2121,7 @@ VMM_INT_DECL(bool) CPUMIsGuestSvmVirtIntrEnabled(PCVMCPU pVCpu, PCCPUMCTX pCtx)
     RT_NOREF(pVCpu);
     Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx));
 
-    PCSVMVMCBCTRL pVmcbCtrl    = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
+    PCSVMVMCBCTRL pVmcbCtrl    = &pCtx->hwvirt.svm.Vmcb.ctrl;
     PCSVMINTCTRL  pVmcbIntCtrl = &pVmcbCtrl->IntCtrl;
     Assert(!pVmcbIntCtrl->n.u1VGifEnable);      /* We don't support passing virtual-GIF feature to the guest yet. */
     if (   !pVmcbIntCtrl->n.u1IgnoreTPR
@@ -2126,8 +2140,7 @@ VMM_INT_DECL(bool) CPUMIsGuestSvmVirtIntrEnabled(PCVMCPU pVCpu, PCCPUMCTX pCtx)
  */
 VMM_INT_DECL(uint8_t) CPUMGetGuestSvmVirtIntrVector(PCCPUMCTX pCtx)
 {
-    PCSVMVMCBCTRL pVmcbCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
-    return pVmcbCtrl->IntCtrl.n.u8VIntrVector;
+    return pCtx->hwvirt.svm.Vmcb.ctrl.IntCtrl.n.u8VIntrVector;
 }
 
 
@@ -2211,10 +2224,8 @@ VMM_INT_DECL(uint64_t) CPUMApplyNestedGuestTscOffset(PCVMCPU pVCpu, uint64_t uTs
     PCCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
     if (CPUMIsGuestInVmxNonRootMode(pCtx))
     {
-        PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-        Assert(pVmcs);
         if (CPUMIsGuestVmxProcCtlsSet(pCtx, VMX_PROC_CTLS_USE_TSC_OFFSETTING))
-            return uTscValue + pVmcs->u64TscOffset.u;
+            return uTscValue + pCtx->hwvirt.vmx.Vmcs.u64TscOffset.u;
         return uTscValue;
     }
 
@@ -2222,11 +2233,7 @@ VMM_INT_DECL(uint64_t) CPUMApplyNestedGuestTscOffset(PCVMCPU pVCpu, uint64_t uTs
     {
         uint64_t offTsc;
         if (!HMGetGuestSvmTscOffset(pVCpu, &offTsc))
-        {
-            PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-            Assert(pVmcb);
-            offTsc = pVmcb->ctrl.u64TSCOffset;
-        }
+            offTsc = pCtx->hwvirt.svm.Vmcb.ctrl.u64TSCOffset;
         return uTscValue + offTsc;
     }
     return uTscValue;
@@ -2249,11 +2256,7 @@ VMM_INT_DECL(uint64_t) CPUMRemoveNestedGuestTscOffset(PCVMCPU pVCpu, uint64_t uT
     if (CPUMIsGuestInVmxNonRootMode(pCtx))
     {
         if (CPUMIsGuestVmxProcCtlsSet(pCtx, VMX_PROC_CTLS_USE_TSC_OFFSETTING))
-        {
-            PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
-            Assert(pVmcs);
-            return uTscValue - pVmcs->u64TscOffset.u;
-        }
+            return uTscValue - pCtx->hwvirt.vmx.Vmcs.u64TscOffset.u;
         return uTscValue;
     }
 
@@ -2261,11 +2264,7 @@ VMM_INT_DECL(uint64_t) CPUMRemoveNestedGuestTscOffset(PCVMCPU pVCpu, uint64_t uT
     {
         uint64_t offTsc;
         if (!HMGetGuestSvmTscOffset(pVCpu, &offTsc))
-        {
-            PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-            Assert(pVmcb);
-            offTsc = pVmcb->ctrl.u64TSCOffset;
-        }
+            offTsc = pCtx->hwvirt.svm.Vmcb.ctrl.u64TSCOffset;
         return uTscValue - offTsc;
     }
     return uTscValue;
@@ -2326,10 +2325,13 @@ VMM_INT_DECL(uint64_t) CPUMGetGuestCR4ValidMask(PVM pVM)
     PCCPUMFEATURES pGuestFeatures = &pVM->cpum.s.GuestFeatures;
     uint64_t fMask = X86_CR4_VME | X86_CR4_PVI
                    | X86_CR4_TSD | X86_CR4_DE
-                   | X86_CR4_PSE | X86_CR4_PAE
-                   | X86_CR4_MCE | X86_CR4_PGE
-                   | X86_CR4_PCE
-                   | X86_CR4_OSXMMEEXCPT;  /** @todo r=ramshankar: Introduced in Pentium III along with SSE. Check fSse here? */
+                   | X86_CR4_MCE | X86_CR4_PCE;
+    if (pGuestFeatures->fPae)
+        fMask |= X86_CR4_PAE;
+    if (pGuestFeatures->fPge)
+        fMask |= X86_CR4_PGE;
+    if (pGuestFeatures->fPse)
+        fMask |= X86_CR4_PSE;
     if (pGuestFeatures->fFxSaveRstor)
         fMask |= X86_CR4_OSFXSR;
     if (pGuestFeatures->fVmx)
@@ -2340,7 +2342,39 @@ VMM_INT_DECL(uint64_t) CPUMGetGuestCR4ValidMask(PVM pVM)
         fMask |= X86_CR4_PCIDE;
     if (pGuestFeatures->fFsGsBase)
         fMask |= X86_CR4_FSGSBASE;
+    if (pGuestFeatures->fSse)
+        fMask |= X86_CR4_OSXMMEEXCPT;
     return fMask;
+}
+
+
+/**
+ * Sets the PAE PDPEs for the guest.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure of the calling thread.
+ * @param   paPaePdpes  The PAE PDPEs to set.
+ */
+VMM_INT_DECL(void) CPUMSetGuestPaePdpes(PVMCPU pVCpu, PCX86PDPE paPaePdpes)
+{
+    Assert(paPaePdpes);
+    for (unsigned i = 0; i < RT_ELEMENTS(pVCpu->cpum.s.Guest.aPaePdpes); i++)
+        pVCpu->cpum.s.Guest.aPaePdpes[i].u = paPaePdpes[i].u;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_CR3;
+}
+
+
+/**
+ * Gets the PAE PDPTEs for the guest.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure of the calling thread.
+ * @param   paPaePdpes  Where to store the PAE PDPEs.
+ */
+VMM_INT_DECL(void) CPUMGetGuestPaePdpes(PVMCPU pVCpu, PX86PDPE paPaePdpes)
+{
+    Assert(paPaePdpes);
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR3);
+    for (unsigned i = 0; i < RT_ELEMENTS(pVCpu->cpum.s.Guest.aPaePdpes); i++)
+        paPaePdpes[i].u = pVCpu->cpum.s.Guest.aPaePdpes[i].u;
 }
 
 
@@ -2363,7 +2397,7 @@ VMM_INT_DECL(int) CPUMStartGuestVmxPremptTimer(PVMCPUCC pVCpu, uint32_t uTimer, 
     Assert(pu64EntryTick);
     VMCPU_ASSERT_EMT(pVCpu);
     uint64_t const cTicksToNext = uTimer << cShift;
-    return TMTimerSetRelative(pVCpu->cpum.s.CTX_SUFF(pNestedVmxPreemptTimer), cTicksToNext, pu64EntryTick);
+    return TMTimerSetRelative(pVCpu->CTX_SUFF(pVM), pVCpu->cpum.s.hNestedVmxPreemptTimer, cTicksToNext, pu64EntryTick);
 }
 
 
@@ -2381,20 +2415,24 @@ VMM_INT_DECL(int) CPUMStopGuestVmxPremptTimer(PVMCPUCC pVCpu)
 {
     /*
      * CPUM gets initialized before TM, so we defer creation of timers till CPUMR3InitCompleted().
-     * However, we still get called during CPUMR3Init() and hence we need to check if we  have
+     * However, we still get called during CPUMR3Init() and hence we need to check if we have
      * a valid timer object before trying to stop it.
      */
-    PTMTIMER pTimer = pVCpu->cpum.s.CTX_SUFF(pNestedVmxPreemptTimer);
-    if (!pTimer)
-        return VERR_NOT_FOUND;
-
-    int rc = TMTimerLock(pTimer, VERR_IGNORED);
-    if (rc == VINF_SUCCESS)
+    int rc;
+    TMTIMERHANDLE hTimer = pVCpu->cpum.s.hNestedVmxPreemptTimer;
+    if (hTimer != NIL_TMTIMERHANDLE)
     {
-        if (TMTimerIsActive(pTimer))
-            TMTimerStop(pTimer);
-        TMTimerUnlock(pTimer);
+        PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+        rc = TMTimerLock(pVM, hTimer, VERR_IGNORED);
+        if (rc == VINF_SUCCESS)
+        {
+            if (TMTimerIsActive(pVM, hTimer))
+                TMTimerStop(pVM, hTimer);
+            TMTimerUnlock(pVM, hTimer);
+        }
     }
+    else
+        rc = VERR_NOT_FOUND;
     return rc;
 }
 
@@ -2454,7 +2492,7 @@ VMM_INT_DECL(uint32_t) CPUMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_t
     uint32_t fRet;
     uint32_t const offMsrRead = offBitmapRead + offMsr;
     Assert(offMsrRead + (iBit >> 3) < offBitmapWrite);
-    if (ASMBitTest(pbMsrBitmap + offMsrRead, iBit))
+    if (ASMBitTest(pbMsrBitmap, (offMsrRead << 3) + iBit))
         fRet = VMXMSRPM_EXIT_RD;
     else
         fRet = VMXMSRPM_ALLOW_RD;
@@ -2464,7 +2502,7 @@ VMM_INT_DECL(uint32_t) CPUMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_t
      */
     uint32_t const offMsrWrite = offBitmapWrite + offMsr;
     Assert(offMsrWrite + (iBit >> 3) < X86_PAGE_4K_SIZE);
-    if (ASMBitTest(pbMsrBitmap + offMsrWrite, iBit))
+    if (ASMBitTest(pbMsrBitmap, (offMsrWrite << 3) + iBit))
         fRet |= VMXMSRPM_EXIT_WR;
     else
         fRet |= VMXMSRPM_ALLOW_WR;
@@ -2479,11 +2517,11 @@ VMM_INT_DECL(uint32_t) CPUMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_t
  * to see if causes a VM-exit.
  *
  * @returns @c true if the I/O port access must cause a VM-exit, @c false otherwise.
- * @param   pvIoBitmap  Pointer to I/O bitmap.
+ * @param   pbIoBitmap  Pointer to I/O bitmap.
  * @param   uPort       The I/O port being accessed.
  * @param   cbAccess    e size of the I/O access in bytes (1, 2 or 4 bytes).
  */
-static bool cpumGetVmxIoBitmapPermission(void const *pvIoBitmap, uint16_t uPort, uint8_t cbAccess)
+static bool cpumGetVmxIoBitmapPermission(uint8_t const *pbIoBitmap, uint16_t uPort, uint8_t cbAccess)
 {
     Assert(cbAccess == 1 || cbAccess == 2 || cbAccess == 4);
 
@@ -2505,7 +2543,6 @@ static bool cpumGetVmxIoBitmapPermission(void const *pvIoBitmap, uint16_t uPort,
     /*
      * If any bit corresponding to the I/O access is set, we must cause a VM-exit.
      */
-    uint8_t const *pbIoBitmap = (uint8_t const *)pvIoBitmap;
     uint16_t const offPerm    = uPort >> 3;                         /* Byte offset of the port. */
     uint16_t const idxPermBit = uPort - (offPerm << 3);             /* Bit offset within byte. */
     Assert(idxPermBit < 8);
@@ -2514,9 +2551,9 @@ static bool cpumGetVmxIoBitmapPermission(void const *pvIoBitmap, uint16_t uPort,
 
     /* Fetch 8 or 16-bits depending on whether the access spans 8-bit boundary. */
     RTUINT16U uPerm;
-    uPerm.s.Lo = *(pbIoBitmap + offPerm);
+    uPerm.s.Lo = pbIoBitmap[offPerm];
     if (idxPermBit + cbAccess > 8)
-        uPerm.s.Hi = *(pbIoBitmap + 1 + offPerm);
+        uPerm.s.Hi = pbIoBitmap[offPerm + 1];
     else
         uPerm.s.Hi = 0;
 
@@ -2632,10 +2669,10 @@ VMM_INT_DECL(bool) CPUMIsGuestVmxVmcsFieldValid(PVMCC pVM, uint64_t u64VmcsField
         case VMX_VMCS64_CTRL_VE_XCPT_INFO_ADDR_HIGH:      return pFeat->fVmxEptXcptVe;
         case VMX_VMCS64_CTRL_XSS_EXITING_BITMAP_FULL:
         case VMX_VMCS64_CTRL_XSS_EXITING_BITMAP_HIGH:     return pFeat->fVmxXsavesXrstors;
-        case VMX_VMCS64_CTRL_ENCLS_EXITING_BITMAP_FULL:
-        case VMX_VMCS64_CTRL_ENCLS_EXITING_BITMAP_HIGH:   return false;
         case VMX_VMCS64_CTRL_TSC_MULTIPLIER_FULL:
         case VMX_VMCS64_CTRL_TSC_MULTIPLIER_HIGH:         return pFeat->fVmxUseTscScaling;
+        case VMX_VMCS64_CTRL_PROC_EXEC3_FULL:
+        case VMX_VMCS64_CTRL_PROC_EXEC3_HIGH:             return pFeat->fVmxTertiaryExecCtls;
 
         /* Read-only data fields. */
         case VMX_VMCS64_RO_GUEST_PHYS_ADDR_FULL:
@@ -2650,8 +2687,6 @@ VMM_INT_DECL(bool) CPUMIsGuestVmxVmcsFieldValid(PVMCC pVM, uint64_t u64VmcsField
         case VMX_VMCS64_GUEST_PAT_HIGH:                   return pFeat->fVmxEntryLoadPatMsr || pFeat->fVmxExitSavePatMsr;
         case VMX_VMCS64_GUEST_EFER_FULL:
         case VMX_VMCS64_GUEST_EFER_HIGH:                  return pFeat->fVmxEntryLoadEferMsr || pFeat->fVmxExitSaveEferMsr;
-        case VMX_VMCS64_GUEST_PERF_GLOBAL_CTRL_FULL:
-        case VMX_VMCS64_GUEST_PERF_GLOBAL_CTRL_HIGH:      return false;
         case VMX_VMCS64_GUEST_PDPTE0_FULL:
         case VMX_VMCS64_GUEST_PDPTE0_HIGH:
         case VMX_VMCS64_GUEST_PDPTE1_FULL:
@@ -2660,16 +2695,12 @@ VMM_INT_DECL(bool) CPUMIsGuestVmxVmcsFieldValid(PVMCC pVM, uint64_t u64VmcsField
         case VMX_VMCS64_GUEST_PDPTE2_HIGH:
         case VMX_VMCS64_GUEST_PDPTE3_FULL:
         case VMX_VMCS64_GUEST_PDPTE3_HIGH:                return pFeat->fVmxEpt;
-        case VMX_VMCS64_GUEST_BNDCFGS_FULL:
-        case VMX_VMCS64_GUEST_BNDCFGS_HIGH:               return false;
 
         /* Host-state fields. */
         case VMX_VMCS64_HOST_PAT_FULL:
         case VMX_VMCS64_HOST_PAT_HIGH:                    return pFeat->fVmxExitLoadPatMsr;
         case VMX_VMCS64_HOST_EFER_FULL:
         case VMX_VMCS64_HOST_EFER_HIGH:                   return pFeat->fVmxExitLoadEferMsr;
-        case VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_FULL:
-        case VMX_VMCS64_HOST_PERF_GLOBAL_CTRL_HIGH:       return false;
 
         /*
          * 32-bit fields.
@@ -2809,11 +2840,7 @@ VMM_INT_DECL(bool) CPUMIsGuestVmxIoInterceptSet(PCVMCPU pVCpu, uint16_t u16Port,
         return true;
 
     if (CPUMIsGuestVmxProcCtlsSet(pCtx, VMX_PROC_CTLS_USE_IO_BITMAPS))
-    {
-        uint8_t const *pbIoBitmap = (uint8_t const *)pCtx->hwvirt.vmx.CTX_SUFF(pvIoBitmap);
-        Assert(pbIoBitmap);
-        return cpumGetVmxIoBitmapPermission(pbIoBitmap, u16Port, cbAccess);
-    }
+        return cpumGetVmxIoBitmapPermission(pCtx->hwvirt.vmx.abIoBitmap, u16Port, cbAccess);
 
     return false;
 }
@@ -2834,11 +2861,10 @@ VMM_INT_DECL(bool) CPUMIsGuestVmxMovToCr3InterceptSet(PVMCPU pVCpu, uint64_t uNe
      *
      * See Intel spec. 25.1.3 "Instructions That Cause VM Exits Conditionally".
      */
-    PCCPUMCTX  pCtx  = &pVCpu->cpum.s.Guest;
-    PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
+    PCCPUMCTX const pCtx = &pVCpu->cpum.s.Guest;
     if (CPUMIsGuestVmxProcCtlsSet(pCtx, VMX_PROC_CTLS_CR3_LOAD_EXIT))
     {
-        uint32_t const uCr3TargetCount = pVmcs->u32Cr3TargetCount;
+        uint32_t const uCr3TargetCount = pCtx->hwvirt.vmx.Vmcs.u32Cr3TargetCount;
         Assert(uCr3TargetCount <= VMX_V_CR3_TARGET_COUNT);
 
         /* If the CR3-target count is 0, cause a VM-exit. */
@@ -2847,10 +2873,10 @@ VMM_INT_DECL(bool) CPUMIsGuestVmxMovToCr3InterceptSet(PVMCPU pVCpu, uint64_t uNe
 
         /* If the CR3 being written doesn't match any of the target values, cause a VM-exit. */
         AssertCompile(VMX_V_CR3_TARGET_COUNT == 4);
-        if (   uNewCr3 != pVmcs->u64Cr3Target0.u
-            && uNewCr3 != pVmcs->u64Cr3Target1.u
-            && uNewCr3 != pVmcs->u64Cr3Target2.u
-            && uNewCr3 != pVmcs->u64Cr3Target3.u)
+        if (   uNewCr3 != pCtx->hwvirt.vmx.Vmcs.u64Cr3Target0.u
+            && uNewCr3 != pCtx->hwvirt.vmx.Vmcs.u64Cr3Target1.u
+            && uNewCr3 != pCtx->hwvirt.vmx.Vmcs.u64Cr3Target2.u
+            && uNewCr3 != pCtx->hwvirt.vmx.Vmcs.u64Cr3Target3.u)
             return true;
     }
     return false;
@@ -2890,13 +2916,13 @@ VMM_INT_DECL(bool) CPUMIsGuestVmxVmreadVmwriteInterceptSet(PCVMCPU pVCpu, uint32
     /*
      * Finally, consult the VMREAD/VMWRITE bitmap whether to intercept the instruction or not.
      */
-    uint32_t const u32VmcsField = RT_LO_U32(u64VmcsField);
-    uint8_t const *pbBitmap     = uExitReason == VMX_EXIT_VMREAD
-                                ? (uint8_t const *)pVCpu->cpum.s.Guest.hwvirt.vmx.CTX_SUFF(pvVmreadBitmap)
-                                : (uint8_t const *)pVCpu->cpum.s.Guest.hwvirt.vmx.CTX_SUFF(pvVmwriteBitmap);
+    uint32_t const        u32VmcsField = RT_LO_U32(u64VmcsField);
+    uint8_t const * const pbBitmap     = uExitReason == VMX_EXIT_VMREAD
+                                       ? &pVCpu->cpum.s.Guest.hwvirt.vmx.abVmreadBitmap[0]
+                                       : &pVCpu->cpum.s.Guest.hwvirt.vmx.abVmwriteBitmap[0];
     Assert(pbBitmap);
     Assert(u32VmcsField >> 3 < VMX_V_VMREAD_VMWRITE_BITMAP_SIZE);
-    return ASMBitTest(pbBitmap + (u32VmcsField >> 3), u32VmcsField & 7);
+    return ASMBitTest(pbBitmap, (u32VmcsField << 3) + (u32VmcsField & 7));
 }
 
 
@@ -3029,5 +3055,44 @@ VMM_INT_DECL(int) CPUMGetSvmMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsr
     *pbOffMsrpm = 0;
     *puMsrpmBit = 0;
     return VERR_OUT_OF_RANGE;
+}
+
+
+/**
+ * Checks whether the guest is in VMX non-root mode and using EPT paging.
+ *
+ * @returns @c true if in VMX non-root operation with EPT, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(bool) CPUMIsGuestVmxEptPagingEnabled(PCVMCPUCC pVCpu)
+{
+    return CPUMIsGuestVmxEptPagingEnabledEx(&pVCpu->cpum.s.Guest);
+}
+
+
+/**
+ * Checks whether the guest is in VMX non-root mode and using EPT paging and the
+ * nested-guest is in PAE mode.
+ *
+ * @returns @c true if in VMX non-root operation with EPT, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(bool) CPUMIsGuestVmxEptPaePagingEnabled(PCVMCPUCC pVCpu)
+{
+    return    CPUMIsGuestVmxEptPagingEnabledEx(&pVCpu->cpum.s.Guest)
+           && CPUMIsGuestInPAEModeEx(&pVCpu->cpum.s.Guest);
+}
+
+
+/**
+ * Returns the guest-physical address of the APIC-access page when executing a
+ * nested-guest.
+ *
+ * @returns The APIC-access page guest-physical address.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(uint64_t) CPUMGetGuestVmxApicAccessPageAddr(PCVMCPUCC pVCpu)
+{
+    return CPUMGetGuestVmxApicAccessPageAddrEx(&pVCpu->cpum.s.Guest);
 }
 

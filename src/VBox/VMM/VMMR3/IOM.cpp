@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -158,11 +168,8 @@ VMMR3_INT_DECL(int) IOMR3Init(PVM pVM)
     /*
      * Register the MMIO access handler type.
      */
-    rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_MMIO, false /*fKeepPgmLock*/,
-                                          iomMmioHandlerNew,
-                                          NULL, "iomMmioHandlerNew", "iomMmioPfHandlerNew",
-                                          NULL, "iomMmioHandlerNew", "iomMmioPfHandlerNew",
-                                          "MMIO New", &pVM->iom.s.hNewMmioHandlerType);
+    rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_MMIO, 0 /*fFlags*/,
+                                          iomMmioHandlerNew, "MMIO", &pVM->iom.s.hNewMmioHandlerType);
     AssertRCReturn(rc, rc);
 
     /*
@@ -176,21 +183,21 @@ VMMR3_INT_DECL(int) IOMR3Init(PVM pVM)
      * sub-trees appear at the end of each group).
      */
     STAM_REG(pVM, &pVM->iom.s.StatIoPortCommits,    STAMTYPE_COUNTER, "/IOM/IoPortCommits",     STAMUNIT_OCCURENCES, "Number of ring-3 I/O port commits.");
-    STAM_REG(pVM, &pVM->iom.s.StatIoPortIn,         STAMTYPE_PROFILE, "/IOM/IoPortIN",          STAMUNIT_OCCURENCES, "Number of IN instructions (attempts)");
-    STAM_REG(pVM, &pVM->iom.s.StatIoPortInS,        STAMTYPE_PROFILE, "/IOM/IoPortINS",         STAMUNIT_OCCURENCES, "Number of INS instructions (attempts)");
-    STAM_REG(pVM, &pVM->iom.s.StatIoPortOutS,       STAMTYPE_PROFILE, "/IOM/IoPortOUT",         STAMUNIT_OCCURENCES, "Number of OUT instructions (attempts)");
-    STAM_REG(pVM, &pVM->iom.s.StatIoPortOutS,       STAMTYPE_PROFILE, "/IOM/IoPortOUTS",        STAMUNIT_OCCURENCES, "Number of OUTS instructions (attempts)");
+    STAM_REG(pVM, &pVM->iom.s.StatIoPortIn,         STAMTYPE_COUNTER, "/IOM/IoPortIN",          STAMUNIT_OCCURENCES, "Number of IN instructions (attempts)");
+    STAM_REG(pVM, &pVM->iom.s.StatIoPortInS,        STAMTYPE_COUNTER, "/IOM/IoPortINS",         STAMUNIT_OCCURENCES, "Number of INS instructions (attempts)");
+    STAM_REG(pVM, &pVM->iom.s.StatIoPortOutS,       STAMTYPE_COUNTER, "/IOM/IoPortOUT",         STAMUNIT_OCCURENCES, "Number of OUT instructions (attempts)");
+    STAM_REG(pVM, &pVM->iom.s.StatIoPortOutS,       STAMTYPE_COUNTER, "/IOM/IoPortOUTS",        STAMUNIT_OCCURENCES, "Number of OUTS instructions (attempts)");
 
     STAM_REG(pVM, &pVM->iom.s.StatMmioHandlerR3,    STAMTYPE_COUNTER, "/IOM/MmioHandlerR3",     STAMUNIT_OCCURENCES, "Number of calls to iomMmioHandlerNew from ring-3.");
     STAM_REG(pVM, &pVM->iom.s.StatMmioHandlerR0,    STAMTYPE_COUNTER, "/IOM/MmioHandlerR0",     STAMUNIT_OCCURENCES, "Number of calls to iomMmioHandlerNew from ring-0.");
     STAM_REG(pVM, &pVM->iom.s.StatMmioReadsR0ToR3,  STAMTYPE_COUNTER, "/IOM/MmioR0ToR3Reads",   STAMUNIT_OCCURENCES, "Number of reads deferred to ring-3.");
     STAM_REG(pVM, &pVM->iom.s.StatMmioWritesR0ToR3, STAMTYPE_COUNTER, "/IOM/MmioR0ToR3Writes",  STAMUNIT_OCCURENCES, "Number of writes deferred to ring-3.");
     STAM_REG(pVM, &pVM->iom.s.StatMmioCommitsR0ToR3,STAMTYPE_COUNTER, "/IOM/MmioR0ToR3Commits", STAMUNIT_OCCURENCES, "Number of commits deferred to ring-3.");
-    STAM_REG(pVM, &pVM->iom.s.StatMmioPfHandler,    STAMTYPE_PROFILE, "/IOM/MmioPfHandler",     STAMUNIT_OCCURENCES, "Number of calls to iomMmioPfHandlerNew.");
-    STAM_REG(pVM, &pVM->iom.s.StatMmioPhysHandler,  STAMTYPE_PROFILE, "/IOM/MmioPhysHandler",   STAMUNIT_OCCURENCES, "Number of calls to IOMR0MmioPhysHandler.");
+    STAM_REG(pVM, &pVM->iom.s.StatMmioPfHandler,    STAMTYPE_PROFILE, "/IOM/MmioPfHandler",     STAMUNIT_TICKS_PER_CALL, "Number of calls to iomMmioPfHandlerNew.");
+    STAM_REG(pVM, &pVM->iom.s.StatMmioPhysHandler,  STAMTYPE_PROFILE, "/IOM/MmioPhysHandler",   STAMUNIT_TICKS_PER_CALL, "Number of calls to IOMR0MmioPhysHandler.");
     STAM_REG(pVM, &pVM->iom.s.StatMmioCommitsDirect,STAMTYPE_COUNTER, "/IOM/MmioCommitsDirect", STAMUNIT_OCCURENCES, "Number of ring-3 MMIO commits direct to handler via handle hint.");
     STAM_REG(pVM, &pVM->iom.s.StatMmioCommitsPgm,   STAMTYPE_COUNTER, "/IOM/MmioCommitsPgm",    STAMUNIT_OCCURENCES, "Number of ring-3 MMIO commits via PGM.");
-    STAM_REL_REG(pVM, &pVM->iom.s.StatMmioStaleMappings,   STAMTYPE_PROFILE, "/IOM/MmioMappingsStale",              STAMUNIT_TICKS_PER_CALL, "Number of times iomMmioHandlerNew got a call for a remapped range at the old mapping.");
+    STAM_REL_REG(pVM, &pVM->iom.s.StatMmioStaleMappings,   STAMTYPE_COUNTER, "/IOM/MmioMappingsStale",              STAMUNIT_TICKS_PER_CALL, "Number of times iomMmioHandlerNew got a call for a remapped range at the old mapping.");
     STAM_REG(pVM, &pVM->iom.s.StatMmioDevLockContentionR0, STAMTYPE_COUNTER, "/IOM/MmioDevLockContentionR0",        STAMUNIT_OCCURENCES,     "Number of device lock contention force return to ring-3.");
 
     LogFlow(("IOMR3Init: returns VINF_SUCCESS\n"));
@@ -215,8 +222,11 @@ VMMR3_INT_DECL(int) IOMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
          * ring-0 tables to simplify ring-0 code.  This also make sure that any
          * later calls to grow the statistics tables will fail.
          */
-        int rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_SYNC_STATS_INDICES, 0, NULL);
-        AssertLogRelRCReturn(rc, rc);
+        if (!SUPR3IsDriverless())
+        {
+            int rc = VMMR3CallR0Emt(pVM, pVM->apCpusR3[0], VMMR0_DO_IOM_SYNC_STATS_INDICES, 0, NULL);
+            AssertLogRelRCReturn(rc, rc);
+        }
 
         /*
          * Register I/O port and MMIO stats now that we're done registering MMIO
@@ -241,6 +251,12 @@ VMMR3_INT_DECL(int) IOMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
 #else
     RT_NOREF(pVM, enmWhat);
 #endif
+
+    /*
+     * Freeze I/O port and MMIO registrations.
+     */
+    pVM->iom.s.fIoPortsFrozen = true;
+    pVM->iom.s.fMmioFrozen    = true;
     return VINF_SUCCESS;
 }
 

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -407,7 +417,7 @@ static DECLCALLBACK(int) drvHostDvdIoReqSendScsiCmd(PPDMIMEDIAEX pInterface, PDM
      * it is CHECK CONDITION.
      */
     if (   *pu8ScsiSts == SCSI_STATUS_CHECK_CONDITION
-        && VALID_PTR(pabSense)
+        && RT_VALID_PTR(pabSense)
         && cbSense > 0)
     {
         size_t cbSenseCpy = RT_MIN(cbSense, sizeof(pThis->abATAPISense));
@@ -467,16 +477,18 @@ static DECLCALLBACK(void) drvHostDvdDestruct(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(int) drvHostDvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     RT_NOREF(fFlags);
-    PDRVHOSTDVD pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTDVD);
+    PDRVHOSTDVD     pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTDVD);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
+
     LogFlow(("drvHostDvdConstruct: iInstance=%d\n", pDrvIns->iInstance));
 
-    int rc = CFGMR3QueryBoolDef(pCfg, "InquiryOverwrite", &pThis->fInquiryOverwrite, true);
+    int rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "InquiryOverwrite", &pThis->fInquiryOverwrite, true);
     if (RT_FAILURE(rc))
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("HostDVD configuration error: failed to read \"InquiryOverwrite\" as boolean"));
 
     bool fPassthrough;
-    rc = CFGMR3QueryBool(pCfg, "Passthrough", &fPassthrough);
+    rc = pHlp->pfnCFGMQueryBool(pCfg, "Passthrough", &fPassthrough);
     if (RT_SUCCESS(rc) && fPassthrough)
     {
         pThis->Core.IMedia.pfnSendCmd            = drvHostDvdSendCmd;

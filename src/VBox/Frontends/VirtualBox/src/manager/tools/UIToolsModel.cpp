@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -22,7 +32,6 @@
 #include <QGraphicsView>
 #include <QPropertyAnimation>
 #include <QScrollBar>
-#include <QRegExp>
 #include <QTimer>
 
 /* GUI includes: */
@@ -73,20 +82,14 @@ UIToolsModel::~UIToolsModel()
 
 void UIToolsModel::init()
 {
-    /* Load last selected item: */
-    loadLastSelectedItems();
+    /* Load settings: */
+    loadSettings();
 
     /* Update linked values: */
     updateLayout();
     updateNavigation();
     sltItemMinimumWidthHintChanged();
     sltItemMinimumHeightHintChanged();
-}
-
-void UIToolsModel::deinit()
-{
-    /* Save last selected item: */
-    saveLastSelectedItems();
 }
 
 UITools *UIToolsModel::tools() const
@@ -162,18 +165,21 @@ UIToolType UIToolsModel::lastSelectedToolMachine() const
     return m_pLastItemMachine->itemType();
 }
 
-void UIToolsModel::setToolsEnabled(UIToolClass enmClass, bool fEnabled)
+void UIToolsModel::setToolClassEnabled(UIToolClass enmClass, bool fEnabled)
 {
     /* Update linked values: */
-    m_statesToolsEnabled[enmClass] = fEnabled;
-    foreach (UIToolsItem *pItem, items())
-        if (pItem->itemClass() == enmClass)
-            pItem->setEnabled(m_statesToolsEnabled.value(enmClass));
+    if (m_enabledToolClasses.value(enmClass) != fEnabled)
+    {
+        m_enabledToolClasses[enmClass] = fEnabled;
+        foreach (UIToolsItem *pItem, items())
+            pItem->setEnabled(   m_enabledToolClasses.value(pItem->itemClass())
+                              && !m_restrictedToolTypes.contains(pItem->itemType()));
+    }
 }
 
-bool UIToolsModel::areToolsEnabled(UIToolClass enmClass) const
+bool UIToolsModel::toolClassEnabled(UIToolClass enmClass) const
 {
-    return m_statesToolsEnabled.value(enmClass);
+    return m_enabledToolClasses.value(enmClass);
 }
 
 void UIToolsModel::setRestrictedToolTypes(const QList<UIToolType> &types)
@@ -182,10 +188,9 @@ void UIToolsModel::setRestrictedToolTypes(const QList<UIToolType> &types)
     if (m_restrictedToolTypes != types)
     {
         m_restrictedToolTypes = types;
-        updateLayout();
-        updateNavigation();
-        sltItemMinimumWidthHintChanged();
-        sltItemMinimumHeightHintChanged();
+        foreach (UIToolsItem *pItem, items())
+            pItem->setEnabled(   m_enabledToolClasses.value(pItem->itemClass())
+                              && !m_restrictedToolTypes.contains(pItem->itemType()));
     }
 }
 
@@ -221,6 +226,12 @@ void UIToolsModel::setCurrentItem(UIToolsItem *pItem)
             case UIToolClass_Machine: m_pLastItemMachine = pItem; break;
             default: break;
         }
+
+        /* Save selected items data: */
+        const QList<UIToolType> set = QList<UIToolType>() << m_pLastItemGlobal->itemType() << m_pLastItemMachine->itemType();
+        LogRel2(("GUI: UIToolsModel: Saving tool items as: Global=%d, Machine=%d\n",
+                 (int)m_pLastItemGlobal->itemType(), (int)m_pLastItemMachine->itemType()));
+        gEDataManager->setToolsPaneLastItemsChosen(set);
     }
     /* Otherwise reset current item: */
     else
@@ -238,6 +249,18 @@ void UIToolsModel::setCurrentItem(UIToolsItem *pItem)
 
     /* Move focus to current-item: */
     setFocusItem(currentItem());
+
+    /* Adjust corrresponding actions finally: */
+    const UIToolType enmType = currentItem() ? currentItem()->itemType() : UIToolType_Welcome;
+    QMap<UIToolType, UIAction*> actions;
+    actions[UIToolType_Welcome] = actionPool()->action(UIActionIndexMN_M_File_M_Tools_T_WelcomeScreen);
+    actions[UIToolType_Extensions] = actionPool()->action(UIActionIndexMN_M_File_M_Tools_T_ExtensionPackManager);
+    actions[UIToolType_Media] = actionPool()->action(UIActionIndexMN_M_File_M_Tools_T_VirtualMediaManager);
+    actions[UIToolType_Network] = actionPool()->action(UIActionIndexMN_M_File_M_Tools_T_NetworkManager);
+    actions[UIToolType_Cloud] = actionPool()->action(UIActionIndexMN_M_File_M_Tools_T_CloudProfileManager);
+    actions[UIToolType_VMActivityOverview] = actionPool()->action(UIActionIndexMN_M_File_M_Tools_T_VMActivityOverview);
+    if (actions.contains(enmType))
+        actions.value(enmType)->setChecked(true);
 }
 
 UIToolsItem *UIToolsModel::currentItem() const
@@ -285,14 +308,6 @@ void UIToolsModel::setFocusItem(UIToolsItem *pItem)
 UIToolsItem *UIToolsModel::focusItem() const
 {
     return m_pFocusItem;
-}
-
-void UIToolsModel::makeSureSomeItemIsSelected()
-{
-    /* Make sure selection item list is never empty
-     * if at least one item (for example 'focus') present: */
-    if (!currentItem() && focusItem())
-        setCurrentItem(focusItem());
 }
 
 const QList<UIToolsItem*> &UIToolsModel::navigationList() const
@@ -349,8 +364,7 @@ void UIToolsModel::updateLayout()
     foreach (UIToolsItem *pItem, items())
     {
         /* Hide/skip unrelated items: */
-        if (   pItem->itemClass() != m_enmCurrentClass
-            || m_restrictedToolTypes.contains(pItem->itemType()))
+        if (pItem->itemClass() != m_enmCurrentClass)
         {
             pItem->hide();
             continue;
@@ -447,13 +461,17 @@ void UIToolsModel::retranslateUi()
     {
         switch (pItem->itemType())
         {
-            case UIToolType_Welcome:   pItem->reconfigure(tr("Welcome")); break;
-            case UIToolType_Media:     pItem->reconfigure(tr("Media")); break;
-            case UIToolType_Network:   pItem->reconfigure(tr("Network")); break;
-            case UIToolType_Cloud:     pItem->reconfigure(tr("Cloud")); break;
-            case UIToolType_Details:   pItem->reconfigure(tr("Details")); break;
-            case UIToolType_Snapshots: pItem->reconfigure(tr("Snapshots")); break;
-            case UIToolType_Logs:      pItem->reconfigure(tr("Logs")); break;
+            case UIToolType_Welcome:              pItem->reconfigure(tr("Welcome")); break;
+            case UIToolType_Extensions:           pItem->reconfigure(tr("Extensions")); break;
+            case UIToolType_Media:                pItem->reconfigure(tr("Media")); break;
+            case UIToolType_Network:              pItem->reconfigure(tr("Network")); break;
+            case UIToolType_Cloud:                pItem->reconfigure(tr("Cloud")); break;
+            case UIToolType_VMActivityOverview:   pItem->reconfigure(tr("Activities")); break;
+            case UIToolType_Details:              pItem->reconfigure(tr("Details")); break;
+            case UIToolType_Snapshots:            pItem->reconfigure(tr("Snapshots")); break;
+            case UIToolType_Logs:                 pItem->reconfigure(tr("Logs")); break;
+            case UIToolType_VMActivity:           pItem->reconfigure(tr("Activity")); break;
+            case UIToolType_FileManager:          pItem->reconfigure(tr("File Manager")); break;
             default: break;
         }
     }
@@ -487,17 +505,17 @@ void UIToolsModel::prepareScene()
 
 void UIToolsModel::prepareItems()
 {
-    /* Check if Ext Pack is ready, some of actions my depend on it: */
-    CExtPack extPack = uiCommon().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
-    const bool fExtPackAccessible = !extPack.isNull() && extPack.GetUsable();
-
     /* Enable both classes of tools initially: */
-    m_statesToolsEnabled[UIToolClass_Global] = true;
-    m_statesToolsEnabled[UIToolClass_Machine] = true;
+    m_enabledToolClasses[UIToolClass_Global] = true;
+    m_enabledToolClasses[UIToolClass_Machine] = true;
 
     /* Welcome: */
     m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Welcome, QString(),
                                UIIconPool::iconSet(":/welcome_screen_24px.png", ":/welcome_screen_24px.png"));
+
+    /* Extensions: */
+    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Extensions, QString(),
+                               UIIconPool::iconSet(":/extension_pack_manager_24px.png", ":/extension_pack_manager_disabled_24px.png"));
 
     /* Media: */
     m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Media, QString(),
@@ -508,9 +526,12 @@ void UIToolsModel::prepareItems()
                                UIIconPool::iconSet(":/host_iface_manager_24px.png", ":/host_iface_manager_disabled_24px.png"));
 
     /* Cloud: */
-    if (fExtPackAccessible)
-        m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Cloud, QString(),
-                                   UIIconPool::iconSet(":/cloud_profile_manager_24px.png", ":/cloud_profile_manager_disabled_24px.png"));
+    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_Cloud, QString(),
+                               UIIconPool::iconSet(":/cloud_profile_manager_24px.png", ":/cloud_profile_manager_disabled_24px.png"));
+
+    /* Activities: */
+    m_items << new UIToolsItem(scene(), UIToolClass_Global, UIToolType_VMActivityOverview, QString(),
+                               UIIconPool::iconSet(":/resources_monitor_24px.png", ":/resources_monitor_disabled_24px.png"));
 
     /* Details: */
     m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Details, QString(),
@@ -523,6 +544,13 @@ void UIToolsModel::prepareItems()
     /* Logs: */
     m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_Logs, QString(),
                                UIIconPool::iconSet(":/vm_show_logs_24px.png", ":/vm_show_logs_disabled_24px.png"));
+
+    /* Activity: */
+    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_VMActivity, QString(),
+                               UIIconPool::iconSet(":/performance_monitor_24px.png", ":/performance_monitor_disabled_24px.png"));
+
+    m_items << new UIToolsItem(scene(), UIToolClass_Machine, UIToolType_FileManager, QString(),
+                               UIIconPool::iconSet(":/file_manager_24px.png", ":/file_manager_disabled_24px.png"));
 }
 
 void UIToolsModel::prepareHandlers()
@@ -546,15 +574,20 @@ void UIToolsModel::prepareConnections()
     }
 }
 
-void UIToolsModel::loadLastSelectedItems()
+void UIToolsModel::loadSettings()
 {
     /* Load selected items data: */
     const QList<UIToolType> data = gEDataManager->toolsPaneLastItemsChosen();
-
-    /* First of them is current global class item definition: */
     UIToolType enmTypeGlobal = data.value(0);
     if (!UIToolStuff::isTypeOfClass(enmTypeGlobal, UIToolClass_Global))
         enmTypeGlobal = UIToolType_Welcome;
+    UIToolType enmTypeMachine = data.value(1);
+    if (!UIToolStuff::isTypeOfClass(enmTypeMachine, UIToolClass_Machine))
+        enmTypeMachine = UIToolType_Details;
+    LogRel2(("GUI: UIToolsModel: Restoring tool items as: Global=%d, Machine=%d\n",
+             (int)enmTypeGlobal, (int)enmTypeMachine));
+
+    /* First of them is current global class item definition: */
     foreach (UIToolsItem *pItem, items())
         if (pItem->itemType() == enmTypeGlobal)
             m_pLastItemGlobal = pItem;
@@ -562,23 +595,11 @@ void UIToolsModel::loadLastSelectedItems()
         m_pLastItemGlobal = item(UIToolType_Welcome);
 
     /* Second of them is current machine class item definition: */
-    UIToolType enmTypeMachine = data.value(1);
-    if (!UIToolStuff::isTypeOfClass(enmTypeMachine, UIToolClass_Machine))
-        enmTypeMachine = UIToolType_Details;
     foreach (UIToolsItem *pItem, items())
         if (pItem->itemType() == enmTypeMachine)
             m_pLastItemMachine = pItem;
     if (m_pLastItemMachine.isNull())
         m_pLastItemMachine = item(UIToolType_Details);
-}
-
-void UIToolsModel::saveLastSelectedItems()
-{
-    /* Prepare selected items data: */
-    const QList<UIToolType> set = QList<UIToolType>() << m_pLastItemGlobal->itemType() << m_pLastItemMachine->itemType();
-
-    /* Save selected items data: */
-    gEDataManager->setToolsPaneLastItemsChosen(set);
 }
 
 void UIToolsModel::cleanupConnections()

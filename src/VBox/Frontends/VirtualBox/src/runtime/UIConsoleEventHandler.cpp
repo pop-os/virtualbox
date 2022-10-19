@@ -4,23 +4,33 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
+#include "UICommon.h"
 #include "UIConsoleEventHandler.h"
+#include "UIExtraDataManager.h"
 #include "UIMainEventListener.h"
 #include "UIMousePointerShapeData.h"
-#include "UIExtraDataManager.h"
-#include "UICommon.h"
 #include "UISession.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils.h"
@@ -28,9 +38,9 @@
 
 /* COM includes: */
 #include "COMEnums.h"
+#include "CConsole.h"
 #include "CEventListener.h"
 #include "CEventSource.h"
-#include "CConsole.h"
 
 
 /** Private QObject extension
@@ -43,8 +53,11 @@ signals:
 
     /** Notifies about mouse pointer @a shapeData change. */
     void sigMousePointerShapeChange(const UIMousePointerShapeData &shapeData);
-    /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative, @a fSupportsMultiTouch and @a fNeedsHostCursor. */
-    void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
+    /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative,
+      * @a fSupportsTouchScreen, @a fSupportsTouchPad, and @a fNeedsHostCursor. */
+    void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative,
+                                  bool fSupportsTouchScreen, bool fSupportsTouchPad,
+                                  bool fNeedsHostCursor);
     /** Notifies about guest request to change the cursor position to @a uX * @a uY.
       * @param  fContainsData  Brings whether the @a uX and @a uY values are valid and could be used by the GUI now. */
     void sigCursorPositionChange(bool fContainsData, unsigned long uX, unsigned long uY);
@@ -92,38 +105,30 @@ public:
     /** Constructs event proxy object on the basis of passed @a pParent and @a pSession. */
     UIConsoleEventHandlerProxy(QObject *pParent, UISession *pSession);
     /** Destructs event proxy object. */
-    ~UIConsoleEventHandlerProxy();
-
-protected:
-
-    /** @name Prepare/Cleanup cascade.
-      * @{ */
-        /** Prepares all. */
-        void prepare();
-        /** Prepares listener. */
-        void prepareListener();
-        /** Prepares connections. */
-        void prepareConnections();
-
-        /** Cleanups connections. */
-        void cleanupConnections();
-        /** Cleanups listener. */
-        void cleanupListener();
-        /** Cleanups all. */
-        void cleanup();
-    /** @} */
+    virtual ~UIConsoleEventHandlerProxy() RT_OVERRIDE;
 
 private slots:
 
-    /** @name Slots for waitable signals.
-      * @{ */
-        /** Returns whether VM window can be shown. */
-        void sltCanShowWindow(bool &fVeto, QString &strReason);
-        /** Shows VM window if possible. */
-        void sltShowWindow(qint64 &winId);
-    /** @} */
+    /** Returns whether VM window can be shown. */
+    void sltCanShowWindow(bool &fVeto, QString &strReason);
+    /** Shows VM window if possible. */
+    void sltShowWindow(qint64 &winId);
 
 private:
+
+    /** Prepares all. */
+    void prepare();
+    /** Prepares listener. */
+    void prepareListener();
+    /** Prepares connections. */
+    void prepareConnections();
+
+    /** Cleanups connections. */
+    void cleanupConnections();
+    /** Cleanups listener. */
+    void cleanupListener();
+    /** Cleanups all. */
+    void cleanup();
 
     /** Holds the UI session reference. */
     UISession *m_pSession;
@@ -143,19 +148,39 @@ UIConsoleEventHandlerProxy::UIConsoleEventHandlerProxy(QObject *pParent, UISessi
     : QObject(pParent)
     , m_pSession(pSession)
 {
-    /* Prepare: */
     prepare();
 }
 
 UIConsoleEventHandlerProxy::~UIConsoleEventHandlerProxy()
 {
-    /* Cleanup: */
     cleanup();
+}
+
+void UIConsoleEventHandlerProxy::sltCanShowWindow(bool & /* fVeto */, QString & /* strReason */)
+{
+    /* Nothing for now. */
+}
+
+void UIConsoleEventHandlerProxy::sltShowWindow(qint64 &winId)
+{
+#ifdef VBOX_WS_MAC
+    /* First of all, just ask the GUI thread to show the machine-window: */
+    winId = 0;
+    if (::darwinSetFrontMostProcess())
+        emit sigShowWindow();
+    else
+    {
+        /* If it's failed for some reason, send the other process our PSN so it can try: */
+        winId = ::darwinGetCurrentProcessId();
+    }
+#else /* !VBOX_WS_MAC */
+    /* Return the ID of the top-level machine-window. */
+    winId = (ULONG64)m_pSession->mainMachineWindowId();
+#endif /* !VBOX_WS_MAC */
 }
 
 void UIConsoleEventHandlerProxy::prepare()
 {
-    /* Prepare: */
     prepareListener();
     prepareConnections();
 }
@@ -202,19 +227,15 @@ void UIConsoleEventHandlerProxy::prepareListener()
         << KVBoxEventType_OnShowWindow
         << KVBoxEventType_OnAudioAdapterChanged
         << KVBoxEventType_OnClipboardModeChanged
-        << KVBoxEventType_OnDnDModeChanged;
+        << KVBoxEventType_OnDnDModeChanged
+    ;
 
     /* Register event listener for console event source: */
-    comEventSourceConsole.RegisterListener(m_comEventListener, eventTypes,
-        gEDataManager->eventHandlingType() == EventHandlingType_Active ? TRUE : FALSE);
+    comEventSourceConsole.RegisterListener(m_comEventListener, eventTypes, FALSE /* active? */);
     AssertWrapperOk(comEventSourceConsole);
 
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
-    {
-        /* Register event sources in their listeners as well: */
-        m_pQtListener->getWrapped()->registerSource(comEventSourceConsole, m_comEventListener);
-    }
+    /* Register event sources in their listeners as well: */
+    m_pQtListener->getWrapped()->registerSource(comEventSourceConsole, m_comEventListener);
 }
 
 void UIConsoleEventHandlerProxy::prepareConnections()
@@ -298,12 +319,8 @@ void UIConsoleEventHandlerProxy::cleanupListener()
     /* Make sure session is passed: */
     AssertPtrReturnVoid(m_pSession);
 
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
-    {
-        /* Unregister everything: */
-        m_pQtListener->getWrapped()->unregisterSources();
-    }
+    /* Unregister everything: */
+    m_pQtListener->getWrapped()->unregisterSources();
 
     /* Get console: */
     const CConsole comConsole = m_pSession->session().GetConsole();
@@ -319,32 +336,8 @@ void UIConsoleEventHandlerProxy::cleanupListener()
 
 void UIConsoleEventHandlerProxy::cleanup()
 {
-    /* Cleanup: */
     cleanupConnections();
     cleanupListener();
-}
-
-void UIConsoleEventHandlerProxy::sltCanShowWindow(bool & /* fVeto */, QString & /* strReason */)
-{
-    /* Nothing for now. */
-}
-
-void UIConsoleEventHandlerProxy::sltShowWindow(qint64 &winId)
-{
-#ifdef VBOX_WS_MAC
-    /* First of all, just ask the GUI thread to show the machine-window: */
-    winId = 0;
-    if (::darwinSetFrontMostProcess())
-        emit sigShowWindow();
-    else
-    {
-        /* If it's failed for some reason, send the other process our PSN so it can try: */
-        winId = ::darwinGetCurrentProcessId();
-    }
-#else /* !VBOX_WS_MAC */
-    /* Return the ID of the top-level machine-window. */
-    winId = (ULONG64)m_pSession->mainMachineWindowId();
-#endif /* !VBOX_WS_MAC */
 }
 
 
@@ -353,35 +346,33 @@ void UIConsoleEventHandlerProxy::sltShowWindow(qint64 &winId)
 *********************************************************************************************************************************/
 
 /* static */
-UIConsoleEventHandler *UIConsoleEventHandler::m_spInstance = 0;
+UIConsoleEventHandler *UIConsoleEventHandler::s_pInstance = 0;
 
 /* static */
 void UIConsoleEventHandler::create(UISession *pSession)
 {
-    if (!m_spInstance)
-        m_spInstance = new UIConsoleEventHandler(pSession);
+    if (!s_pInstance)
+        s_pInstance = new UIConsoleEventHandler(pSession);
 }
 
 /* static */
 void UIConsoleEventHandler::destroy()
 {
-    if (m_spInstance)
+    if (s_pInstance)
     {
-        delete m_spInstance;
-        m_spInstance = 0;
+        delete s_pInstance;
+        s_pInstance = 0;
     }
 }
 
 UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
     : m_pProxy(new UIConsoleEventHandlerProxy(this, pSession))
 {
-    /* Prepare: */
     prepare();
 }
 
 void UIConsoleEventHandler::prepare()
 {
-    /* Prepare: */
     prepareConnections();
 }
 
@@ -401,7 +392,7 @@ void UIConsoleEventHandler::prepareConnections()
             this, &UIConsoleEventHandler::sigKeyboardLedsChangeEvent,
             Qt::QueuedConnection);
     connect(m_pProxy, &UIConsoleEventHandlerProxy::sigStateChange,
-        this, &UIConsoleEventHandler::sigStateChange,
+            this, &UIConsoleEventHandler::sigStateChange,
             Qt::QueuedConnection);
     connect(m_pProxy, &UIConsoleEventHandlerProxy::sigAdditionsChange,
             this, &UIConsoleEventHandler::sigAdditionsChange,
@@ -410,7 +401,7 @@ void UIConsoleEventHandler::prepareConnections()
             this, &UIConsoleEventHandler::sigNetworkAdapterChange,
             Qt::QueuedConnection);
     connect(m_pProxy, &UIConsoleEventHandlerProxy::sigStorageDeviceChange,
-        this, &UIConsoleEventHandler::sigStorageDeviceChange,
+            this, &UIConsoleEventHandler::sigStorageDeviceChange,
             Qt::QueuedConnection);
     connect(m_pProxy, &UIConsoleEventHandlerProxy::sigMediumChange,
             this, &UIConsoleEventHandler::sigMediumChange,

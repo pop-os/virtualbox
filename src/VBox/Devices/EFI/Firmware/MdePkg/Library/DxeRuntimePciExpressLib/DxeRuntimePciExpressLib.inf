@@ -47,7 +47,4 @@
 
 [Pcd]
   gEfiMdePkgTokenSpaceGuid.PcdPciExpressBaseAddress  ## CONSUMES
-
-[Guids]
-  gEfiEventVirtualAddressChangeGuid         ## CONSUMES ## Event
-
+  gEfiMdePkgTokenSpaceGuid.PcdPciExpressBaseSize  ## CONSUMES

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_platform_darwin_VBoxUtils_darwin_h
@@ -87,7 +97,7 @@ QString darwinFromNativeString(NativeNSStringRef pString);
 void darwinSetShowsToolbarButtonImpl(NativeNSWindowRef pWindow, bool fEnabled);
 void darwinSetShowsResizeIndicatorImpl(NativeNSWindowRef pWindow, bool fEnabled);
 void darwinSetHidesAllTitleButtonsImpl(NativeNSWindowRef pWindow);
-SHARED_LIBRARY_STUFF void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, bool fCenter);
+SHARED_LIBRARY_STUFF void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, double dDpr);
 void darwinSetShowsWindowTransparentImpl(NativeNSWindowRef pWindow, bool fEnabled);
 SHARED_LIBRARY_STUFF void darwinSetWindowHasShadow(NativeNSWindowRef pWindow, bool fEnabled);
 SHARED_LIBRARY_STUFF void darwinSetMouseCoalescingEnabled(bool fEnabled);
@@ -104,6 +114,7 @@ void darwinTest(NativeNSViewRef pView, NativeNSViewRef pView1, int h);
 void darwinWindowInvalidateShapeImpl(NativeNSWindowRef pWindow);
 void darwinWindowInvalidateShadowImpl(NativeNSWindowRef pWindow);
 int  darwinWindowToolBarHeight(NativeNSWindowRef pWindow);
+SHARED_LIBRARY_STUFF int darwinWindowTitleHeight(NativeNSWindowRef pWindow);
 bool darwinIsToolbarVisible(NativeNSWindowRef pWindow);
 SHARED_LIBRARY_STUFF bool darwinIsWindowMaximized(NativeNSWindowRef pWindow);
 void darwinMinaturizeWindow(NativeNSWindowRef pWindow);
@@ -260,7 +271,7 @@ private:
  *
  ********************************************************************************/
 void darwinSetShowsToolbarButton(QToolBar *aToolBar, bool fEnabled);
-SHARED_LIBRARY_STUFF void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap, bool fCenter);
+SHARED_LIBRARY_STUFF void darwinLabelWindow(QWidget *pWidget, QPixmap *pPixmap);
 void darwinSetShowsResizeIndicator(QWidget *pWidget, bool fEnabled);
 SHARED_LIBRARY_STUFF void darwinSetHidesAllTitleButtons(QWidget *pWidget);
 void darwinSetShowsWindowTransparent(QWidget *pWidget, bool fEnabled);
@@ -279,6 +290,7 @@ void darwinWindowAnimateResizeNew(QWidget *pWidget, int h, bool fAnimate);
 void darwinWindowInvalidateShape(QWidget *pWidget);
 void darwinWindowInvalidateShadow(QWidget *pWidget);
 int  darwinWindowToolBarHeight(QWidget *pWidget);
+SHARED_LIBRARY_STUFF int darwinWindowTitleHeight(QWidget *pWidget);
 bool darwinIsToolbarVisible(QToolBar *pToolBar);
 SHARED_LIBRARY_STUFF bool darwinIsWindowMaximized(QWidget *pWidget);
 void darwinMinaturizeWindow(QWidget *pWidget);
@@ -305,4 +317,3 @@ SHARED_LIBRARY_STUFF void darwinMouseRelease(QWidget *pWidget);
 SHARED_LIBRARY_STUFF void *darwinCocoaToCarbonEvent(void *pvCocoaEvent);
 
 #endif /* !FEQT_INCLUDED_SRC_platform_darwin_VBoxUtils_darwin_h */
-

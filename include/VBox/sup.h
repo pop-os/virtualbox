@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_sup_h
@@ -36,6 +46,8 @@
 #include <iprt/cpuset.h>
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 # include <iprt/asm-amd64-x86.h>
+#elif defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM64)
+# include <iprt/asm-arm.h>
 #endif
 
 RT_C_DECLS_BEGIN
@@ -109,6 +121,22 @@ typedef enum SUPPAGINGMODE
 #define SUPKERNELFEATURES_GDT_NEED_WRITABLE   RT_BIT(2)
 /** @} */
 
+/**
+ * An VT-x control MSR.
+ * @sa  VMXCTLSMSR.
+ */
+typedef union SUPVMXCTLSMSR
+{
+    uint64_t            u;
+    struct
+    {
+        /** Bits set here _must_ be set in the corresponding VM-execution controls. */
+        uint32_t        allowed0;
+        /** Bits cleared here _must_ be cleared in the corresponding VM-execution controls. */
+        uint32_t        allowed1;
+    } n;
+} SUPVMXCTLSMSR;
+AssertCompileSize(SUPVMXCTLSMSR, sizeof(uint64_t));
 
 /**
  * Hardware-virtualization MSRs.
@@ -117,19 +145,29 @@ typedef struct SUPHWVIRTMSRS
 {
     union
     {
+        /** @sa VMXMSRS */
         struct
         {
             uint64_t        u64FeatCtrl;
             uint64_t        u64Basic;
-            uint64_t        u64PinCtls;
-            uint64_t        u64ProcCtls;
-            uint64_t        u64ProcCtls2;
-            uint64_t        u64ExitCtls;
-            uint64_t        u64EntryCtls;
-            uint64_t        u64TruePinCtls;
-            uint64_t        u64TrueProcCtls;
-            uint64_t        u64TrueEntryCtls;
-            uint64_t        u64TrueExitCtls;
+            /** Pin-based VM-execution controls. */
+            SUPVMXCTLSMSR   PinCtls;
+            /** Processor-based VM-execution controls. */
+            SUPVMXCTLSMSR   ProcCtls;
+            /** Secondary processor-based VM-execution controls. */
+            SUPVMXCTLSMSR   ProcCtls2;
+            /** VM-exit controls. */
+            SUPVMXCTLSMSR   ExitCtls;
+            /** VM-entry controls. */
+            SUPVMXCTLSMSR   EntryCtls;
+            /** True pin-based VM-execution controls. */
+            SUPVMXCTLSMSR   TruePinCtls;
+            /** True processor-based VM-execution controls. */
+            SUPVMXCTLSMSR   TrueProcCtls;
+            /** True VM-entry controls. */
+            SUPVMXCTLSMSR   TrueEntryCtls;
+            /** True VM-exit controls. */
+            SUPVMXCTLSMSR   TrueExitCtls;
             uint64_t        u64Misc;
             uint64_t        u64Cr0Fixed0;
             uint64_t        u64Cr0Fixed1;
@@ -138,7 +176,8 @@ typedef struct SUPHWVIRTMSRS
             uint64_t        u64VmcsEnum;
             uint64_t        u64VmFunc;
             uint64_t        u64EptVpidCaps;
-            uint64_t        a_u64Reserved[9];
+            uint64_t        u64ProcCtls3;
+            uint64_t        au64Reserved[8];
         } vmx;
         struct
         {
@@ -579,7 +618,7 @@ typedef enum SUPGIPMODE
 #if defined(IN_SUP_R3) || defined(IN_SUP_R0)
 extern DECLEXPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
 
-#elif !defined(IN_RING0) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS)
+#elif !defined(IN_RING0) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS) || defined(VBOX_WITH_KMOD_WRAPPED_R0_MODS)
 extern DECLIMPORT(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPage;
 
 #else /* IN_RING0 && !RT_OS_WINDOWS */
@@ -625,10 +664,36 @@ SUPDECL(PSUPGLOBALINFOPAGE)             SUPGetGIP(void);
 /** @} */
 
 /** @internal  */
+SUPDECL(PSUPGIPCPU) SUPGetGipCpuPtrForAsyncMode(PSUPGLOBALINFOPAGE pGip);
 SUPDECL(uint64_t) SUPGetCpuHzFromGipForAsyncMode(PSUPGLOBALINFOPAGE pGip);
 SUPDECL(bool)     SUPIsTscFreqCompatible(uint64_t uCpuHz, uint64_t *puGipCpuHz, bool fRelax);
 SUPDECL(bool)     SUPIsTscFreqCompatibleEx(uint64_t uBaseCpuHz, uint64_t uCpuHz, bool fRelax);
 
+
+/**
+ * Gets CPU entry of the calling CPU.
+ *
+ * @returns Pointer to the CPU entry on success, NULL on failure.
+ * @param   pGip        The GIP pointer.
+ */
+DECLINLINE(PSUPGIPCPU) SUPGetGipCpuPtr(PSUPGLOBALINFOPAGE pGip)
+{
+    if (RT_LIKELY(   pGip
+                  && pGip->u32Magic == SUPGLOBALINFOPAGE_MAGIC))
+    {
+        switch (pGip->u32Mode)
+        {
+            case SUPGIPMODE_INVARIANT_TSC:
+            case SUPGIPMODE_SYNC_TSC:
+                return &pGip->aCPUs[0];
+            case SUPGIPMODE_ASYNC_TSC:
+                return SUPGetGipCpuPtrForAsyncMode(pGip);
+            default: break; /* shut up gcc */
+        }
+    }
+    AssertFailed();
+    return NULL;
+}
 
 /**
  * Gets the TSC frequency of the calling CPU.
@@ -712,7 +777,7 @@ DECLINLINE(PSUPGIPCPU) SUPGetGipCpuBySetIndex(PSUPGLOBALINFOPAGE pGip, uint32_t 
 }
 
 
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_ARM64) ||defined(RT_ARCH_ARM32)
 
 /** @internal */
 SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip);
@@ -725,27 +790,35 @@ SUPDECL(uint64_t) SUPReadTscWithDelta(PSUPGLOBALINFOPAGE pGip);
  */
 DECLINLINE(uint64_t) SUPReadTsc(void)
 {
+# if defined(RT_ARCH_ARM64) || defined(RT_ARCH_ARM32)  /** @todo portme: ring-0 arm. */
+    return ASMReadTSC();
+# else
     PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
-    if (pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
+    if (!pGip || pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
         return ASMReadTSC();
     return SUPReadTscWithDelta(pGip);
+# endif
 }
 
-#endif /* X86 || AMD64 */
+#endif /* X86 || AMD64 || ARM */
 
 /** @internal */
-SUPDECL(uint64_t) SUPGetTscDeltaSlow(PSUPGLOBALINFOPAGE pGip);
+SUPDECL(int64_t) SUPGetTscDeltaSlow(PSUPGLOBALINFOPAGE pGip);
 
 /**
  * Gets the TSC delta for the current CPU.
  *
  * @returns The TSC delta value (will not return the special INT64_MAX value).
- * @remarks Requires GIP to be initialized and valid.
+ * @param   pGip    The GIP, NULL is okay in ring-3.
+ * @remarks Requires GIP to be initialized and valid if pGip isn't NULL.
  */
-DECLINLINE(int64_t) SUPGetTscDelta(void)
+DECLINLINE(int64_t) SUPGetTscDelta(PSUPGLOBALINFOPAGE pGip)
 {
-    PSUPGLOBALINFOPAGE pGip = g_pSUPGlobalInfoPage;
+#ifdef IN_RING3
+    if (!pGip || pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
+#else
     if (pGip->enmUseTscDelta <= SUPGIPUSETSCDELTA_ROUGHLY_ZERO)
+#endif
         return 0;
     return SUPGetTscDeltaSlow(pGip);
 }
@@ -887,6 +960,8 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 #define SUPVTCAPS_VTX_UNRESTRICTED_GUEST    RT_BIT(3)
 /** VT-x: VMCS shadowing is supported. */
 #define SUPVTCAPS_VTX_VMCS_SHADOWING        RT_BIT(4)
+/** AMD-V: Virtualized VMSAVE/VMLOAD is supported. */
+#define SUPVTCAPS_AMDV_VIRT_VMSAVE_VMLOAD   RT_BIT(5)
 /** @} */
 
 /**
@@ -1115,7 +1190,7 @@ SUPR3DECL(int) SUPR3Uninstall(void);
  * @param   argv            The argument vector.
  * @param   envp            The environment vector.
  */
-typedef DECLCALLBACK(int) FNSUPTRUSTEDMAIN(int argc, char **argv, char **envp);
+typedef DECLCALLBACKTYPE(int, FNSUPTRUSTEDMAIN,(int argc, char **argv, char **envp));
 /** Pointer to FNSUPTRUSTEDMAIN(). */
 typedef FNSUPTRUSTEDMAIN *PFNSUPTRUSTEDMAIN;
 
@@ -1152,8 +1227,8 @@ typedef enum SUPINITOP
  * @param   pszMsgFmt       Error message format string.
  * @param   va              The message format arguments.
  */
-typedef DECLCALLBACK(void) FNSUPTRUSTEDERROR(const char *pszWhere, SUPINITOP enmWhat, int rc,
-                                             const char *pszMsgFmt, va_list va) RT_IPRT_FORMAT_ATTR(4, 0);
+typedef DECLCALLBACKTYPE(void, FNSUPTRUSTEDERROR,(const char *pszWhere, SUPINITOP enmWhat, int rc,
+                                                  const char *pszMsgFmt, va_list va)) RT_IPRT_FORMAT_ATTR(4, 0);
 /** Pointer to FNSUPTRUSTEDERROR. */
 typedef FNSUPTRUSTEDERROR *PFNSUPTRUSTEDERROR;
 
@@ -1172,36 +1247,49 @@ typedef FNSUPTRUSTEDERROR *PFNSUPTRUSTEDERROR;
  *
  * @param   pszProgName     The program name. This will be used to figure out which
  *                          DLL/SO/DYLIB to load and execute.
- * @param   fFlags          Flags.
+ * @param   fFlags          SUPSECMAIN_FLAGS_XXX.
  * @param   argc            The argument count.
  * @param   argv            The argument vector.
  * @param   envp            The environment vector.
  */
 DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int argc, char **argv, char **envp);
 
-/** @name SUPR3HardenedMain flags.
+/** @name SUPSECMAIN_FLAGS_XXX - SUPR3HardenedMain flags.
  * @{ */
 /** Don't open the device. (Intended for VirtualBox without -startvm.) */
-#define SUPSECMAIN_FLAGS_DONT_OPEN_DEV      RT_BIT_32(0)
+#define SUPSECMAIN_FLAGS_DONT_OPEN_DEV              RT_BIT_32(0)
 /** The hardened DLL has a "TrustedError" function (see FNSUPTRUSTEDERROR). */
-#define SUPSECMAIN_FLAGS_TRUSTED_ERROR      RT_BIT_32(1)
+#define SUPSECMAIN_FLAGS_TRUSTED_ERROR              RT_BIT_32(1)
 /** Hack for making VirtualBoxVM use VirtualBox.dylib on Mac OS X.
  * @note Not used since 6.0  */
-#define SUPSECMAIN_FLAGS_OSX_VM_APP         RT_BIT_32(2)
-/** Program binary location mask. */
-#define SUPSECMAIN_FLAGS_LOC_MASK           UINT32_C(0x00000030)
-/** Default binary location is the application binary directory.  Does
- * not need to be given explicitly (it's 0).  */
-#define SUPSECMAIN_FLAGS_LOC_APP_BIN        UINT32_C(0x00000000)
-/** The binary is located in the testcase directory instead of the
- * default application binary directory. */
-#define SUPSECMAIN_FLAGS_LOC_TESTCASE       UINT32_C(0x00000010)
-/** The binary is located in a nested application bundle under Resources/ in the
- * main Mac OS X application (think Resources/VirtualBoxVM.app).  */
-#define SUPSECMAIN_FLAGS_LOC_OSX_HLP_APP    UINT32_C(0x00000020)
+#define SUPSECMAIN_FLAGS_OSX_VM_APP                 RT_BIT_32(2)
 /** The first process.
  * @internal  */
-#define SUPSECMAIN_FLAGS_FIRST_PROCESS      UINT32_C(0x00000100)
+#define SUPSECMAIN_FLAGS_FIRST_PROCESS              RT_BIT_32(3)
+/** Program binary location mask. */
+#define SUPSECMAIN_FLAGS_LOC_MASK                   UINT32_C(0x00000030)
+/** Default binary location is the application binary directory.  Does
+ * not need to be given explicitly (it's 0).  */
+#define SUPSECMAIN_FLAGS_LOC_APP_BIN                UINT32_C(0x00000000)
+/** The binary is located in the testcase directory instead of the
+ * default application binary directory. */
+#define SUPSECMAIN_FLAGS_LOC_TESTCASE               UINT32_C(0x00000010)
+/** The binary is located in a nested application bundle under Resources/ in the
+ * main Mac OS X application (think Resources/VirtualBoxVM.app).  */
+#define SUPSECMAIN_FLAGS_LOC_OSX_HLP_APP            UINT32_C(0x00000020)
+/** Force driverless mode. */
+#define SUPSECMAIN_FLAGS_DRIVERLESS                 RT_BIT_32(8)
+/** Driverless IEM-only mode is allowed, so don't fail fatally just because
+ * the VBox support driver is unavailable. */
+#define SUPSECMAIN_FLAGS_DRIVERLESS_IEM_ALLOWED     RT_BIT_32(9)
+#ifdef VBOX_WITH_DRIVERLESS_NEM_FALLBACK
+/** Driverless NEM is a fallback posibility, so don't fail fatally just
+ * because the VBox support driver is unavailable.
+ * This may imply checking NEM requirements, depending on the host.
+ * @note Not supported on Windows. */
+# define SUPSECMAIN_FLAGS_DRIVERLESS_NEM_FALLBACK   RT_BIT_32(10)
+#endif
+
 /** @} */
 
 /**
@@ -1222,10 +1310,33 @@ SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession);
  * call to SUPR3Term(false).
  *
  * @returns VBox status code.
- * @param   fUnrestricted   The desired access.
+ * @param   fFlags          SUPR3INIT_F_XXX
  * @param   ppSession       Where to store the session handle. Defaults to NULL.
  */
-SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession);
+SUPR3DECL(int) SUPR3InitEx(uint32_t fFlags, PSUPDRVSESSION *ppSession);
+/** @name SUPR3INIT_F_XXX - Flags for SUPR3InitEx
+ * @{ */
+/** Unrestricted access. */
+#define SUPR3INIT_F_UNRESTRICTED                RT_BIT_32(0)
+/** Limited access (for Main). */
+#define SUPR3INIT_F_LIMITED                     RT_BIT_32(1)
+/** Force driverless mode. */
+#define SUPR3INIT_F_DRIVERLESS                  RT_BIT_32(2)
+/** Allow driverless IEM mode if the VBox support driver is unavailable.
+ * @see SUPSECMAIN_FLAGS_DRIVERLESS_IEM_ALLOWED */
+#define SUPR3INIT_F_DRIVERLESS_IEM_ALLOWED      RT_BIT_32(3)
+#ifdef VBOX_WITH_DRIVERLESS_NEM_FALLBACK
+/** Allow driverless NEM mode as fallback if the VBox support driver is unavailable.
+ * @see SUPSECMAIN_FLAGS_DRIVERLESS_NEM_FALLBACK */
+# define SUPR3INIT_F_DRIVERLESS_NEM_FALLBACK    RT_BIT_32(4)
+#endif
+/** Mask with all the flags that may trigger driverless mode. */
+#ifdef VBOX_WITH_DRIVERLESS_NEM_FALLBACK
+# define SUPR3INIT_F_DRIVERLESS_MASK            UINT32_C(0x0000001c)
+#else
+# define SUPR3INIT_F_DRIVERLESS_MASK            UINT32_C(0x0000000c)
+#endif
+/** @} */
 
 /**
  * Terminates the support library.
@@ -1239,6 +1350,15 @@ SUPR3DECL(int) SUPR3Term(bool fForced = false);
 #else
 SUPR3DECL(int) SUPR3Term(int fForced);
 #endif
+
+/**
+ * Check if the support library is operating in driverless mode.
+ *
+ * @returns true/false accordingly.
+ * @see     SUPR3INIT_F_DRIVERLESS_IEM_ALLOWED,
+ *          SUPR3INIT_F_DRIVERLESS_NEM_FALLBACK
+ */
+SUPR3DECL(bool) SUPR3IsDriverless(void);
 
 /**
  * Sets the ring-0 VM handle for use with fast IOCtls.
@@ -1359,9 +1479,21 @@ SUPR3DECL(SUPPAGINGMODE) SUPR3GetPagingMode(void);
  *
  * @returns VBox status.
  * @param   cPages          Number of pages to allocate.
+ * @param   fFlags          SUP_PAGE_ALLOC_F_XXX
  * @param   ppvPages        Where to store the base pointer to the allocated pages.
  */
-SUPR3DECL(int) SUPR3PageAlloc(size_t cPages, void **ppvPages);
+SUPR3DECL(int) SUPR3PageAlloc(size_t cPages, uint32_t fFlags, void **ppvPages);
+
+/** @name SUP_PAGE_ALLOC_F_XXX - SUPR3PageAlloc flags.
+ * @{ */
+/** Use large pages if available. */
+#define SUP_PAGE_ALLOC_F_LARGE_PAGES    RT_BIT_32(0)
+/** Advice that the allocated pages will probably be locked by
+ * RTR0MemObjLockUser later, so play nice if needed. */
+#define SUP_PAGE_ALLOC_F_FOR_LOCKING    RT_BIT_32(1)
+/** Mask of valid flags. */
+#define SUP_PAGE_ALLOC_F_VALID_MASK     UINT32_C(0x00000003)
+/** @} */
 
 /**
  * Frees pages allocated with SUPR3PageAlloc().
@@ -1973,9 +2105,92 @@ typedef enum SUPDRVOBJTYPE
  * @param   pvUser1     The first user argument.
  * @param   pvUser2     The second user argument.
  */
-typedef DECLCALLBACK(void) FNSUPDRVDESTRUCTOR(void *pvObj, void *pvUser1, void *pvUser2);
+typedef DECLCALLBACKTYPE(void, FNSUPDRVDESTRUCTOR,(void *pvObj, void *pvUser1, void *pvUser2));
 /** Pointer to a FNSUPDRVDESTRUCTOR(). */
 typedef FNSUPDRVDESTRUCTOR *PFNSUPDRVDESTRUCTOR;
+
+/**
+ * Service request callback function.
+ *
+ * @returns VBox status code.
+ * @param   pSession    The caller's session.
+ * @param   uOperation  The operation identifier.
+ * @param   u64Arg      64-bit integer argument.
+ * @param   pReqHdr     The request header. Input / Output. Optional.
+ */
+typedef DECLCALLBACKTYPE(int, FNSUPR0SERVICEREQHANDLER,(PSUPDRVSESSION pSession, uint32_t uOperation,
+                                                        uint64_t u64Arg, PSUPR0SERVICEREQHDR pReqHdr));
+/** Pointer to a FNR0SERVICEREQHANDLER(). */
+typedef R0PTRTYPE(FNSUPR0SERVICEREQHANDLER *) PFNSUPR0SERVICEREQHANDLER;
+
+/**
+ * Symbol entry for a wrapped module (SUPLDRWRAPPEDMODULE).
+ */
+typedef struct SUPLDRWRAPMODSYMBOL
+{
+    /** The symbol namel. */
+    const char *pszSymbol;
+    /** The symbol address/value. */
+    PFNRT       pfnValue;
+} SUPLDRWRAPMODSYMBOL;
+/** Pointer to a symbol entry for a wrapped module. */
+typedef SUPLDRWRAPMODSYMBOL const *PCSUPLDRWRAPMODSYMBOL;
+
+/**
+ * Registration structure for SUPR0LdrRegisterWrapperModule.
+ *
+ * This is used to register a .r0 module when loaded manually as a native kernel
+ * module/extension/driver/whatever.
+ */
+typedef struct SUPLDRWRAPPEDMODULE
+{
+    /** Magic value (SUPLDRWRAPPEDMODULE_MAGIC). */
+    uint32_t                    uMagic;
+    /** The structure version. */
+    uint16_t                    uVersion;
+    /** SUPLDRWRAPPEDMODULE_F_XXX.   */
+    uint16_t                    fFlags;
+
+    /** As close as possible to the start of the image. */
+    void                       *pvImageStart;
+    /** As close as possible to the end of the image. */
+    void                       *pvImageEnd;
+
+    /** @name Standar entry points
+     * @{ */
+    /** Pointer to the module initialization function (optional). */
+    DECLCALLBACKMEMBER(int,     pfnModuleInit,(void *hMod));
+    /** Pointer to the module termination function (optional). */
+    DECLCALLBACKMEMBER(void,    pfnModuleTerm,(void *hMod));
+    /** The VMMR0EntryFast entry point for VMMR0. */
+    PFNRT                       pfnVMMR0EntryFast;
+    /** The VMMR0EntryEx entry point for VMMR0. */
+    PFNRT                       pfnVMMR0EntryEx;
+    /** The service request handler entry point. */
+    PFNSUPR0SERVICEREQHANDLER   pfnServiceReqHandler;
+    /** @} */
+
+    /** The symbol table. */
+    PCSUPLDRWRAPMODSYMBOL       paSymbols;
+    /** Number of symbols. */
+    uint32_t                    cSymbols;
+
+    /** The normal VBox module name. */
+    char                        szName[32];
+    /** Repeating the magic value here (SUPLDRWRAPPEDMODULE_MAGIC). */
+    uint32_t                    uEndMagic;
+} SUPLDRWRAPPEDMODULE;
+/** Pointer to the wrapped module registration structure. */
+typedef SUPLDRWRAPPEDMODULE const *PCSUPLDRWRAPPEDMODULE;
+
+/** Magic value for the wrapped module structure (Doris lessing). */
+#define SUPLDRWRAPPEDMODULE_MAGIC       UINT32_C(0x19191117)
+/** Current SUPLDRWRAPPEDMODULE structure version. */
+#define SUPLDRWRAPPEDMODULE_VERSION     UINT16_C(0x0001)
+
+/** Set if this is the VMMR0 module.   */
+#define SUPLDRWRAPPEDMODULE_F_VMMR0     UINT16_C(0x0001)
+
 
 SUPR0DECL(void *) SUPR0ObjRegister(PSUPDRVSESSION pSession, SUPDRVOBJTYPE enmType, PFNSUPDRVDESTRUCTOR pfnDestructor, void *pvUser1, void *pvUser2);
 SUPR0DECL(int) SUPR0ObjAddRef(void *pvObj, PSUPDRVSESSION pSession);
@@ -1986,6 +2201,7 @@ SUPR0DECL(int) SUPR0ObjVerifyAccess(void *pvObj, PSUPDRVSESSION pSession, const 
 SUPR0DECL(PVM) SUPR0GetSessionVM(PSUPDRVSESSION pSession);
 SUPR0DECL(PGVM) SUPR0GetSessionGVM(PSUPDRVSESSION pSession);
 SUPR0DECL(int) SUPR0SetSessionVM(PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM);
+SUPR0DECL(RTUID) SUPR0GetSessionUid(PSUPDRVSESSION pSession);
 
 SUPR0DECL(int) SUPR0LockMem(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_t cPages, PRTHCPHYS paPages);
 SUPR0DECL(int) SUPR0UnlockMem(PSUPDRVSESSION pSession, RTR3PTR pvR3);
@@ -2007,6 +2223,10 @@ SUPR0DECL(bool) SUPR0LdrIsLockOwnerByMod(void *hMod, bool fWantToHear);
 SUPR0DECL(int) SUPR0LdrModByName(PSUPDRVSESSION pSession, const char *pszName, void **phMod);
 SUPR0DECL(int) SUPR0LdrModRetain(PSUPDRVSESSION pSession, void *hMod);
 SUPR0DECL(int) SUPR0LdrModRelease(PSUPDRVSESSION pSession, void *hMod);
+#ifdef RT_OS_LINUX
+SUPR0DECL(int) SUPDrvLinuxLdrRegisterWrappedModule(PCSUPLDRWRAPPEDMODULE pWrappedModInfo, const char *pszLnxModName, void **phMod);
+SUPR0DECL(int) SUPDrvLinuxLdrDeregisterWrappedModule(PCSUPLDRWRAPPEDMODULE pWrappedModInfo, void **phMod);
+#endif
 SUPR0DECL(int) SUPR0GetVTSupport(uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fForce);
 SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
@@ -2028,7 +2248,7 @@ SUPR0DECL(int) SUPR0TscDeltaMeasureBySetIndex(PSUPDRVSESSION pSession, uint32_t 
 
 SUPR0DECL(void) SUPR0BadContext(PSUPDRVSESSION pSession, const char *pszFile, uint32_t uLine, const char *pszExpr);
 
-#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 /**
  * Translates a physical address to a virtual mapping (valid up to end of page).
  * @returns VBox status code.
@@ -2135,6 +2355,15 @@ RT_IPRT_FORMAT_ATTR(1, 2) SUPR0Printf(const char *pszFormat, ...)
 # define __inline__ inline
 #endif
 
+#ifdef IN_RING0
+/** Debug printf macro. This also exist in SUPLib, see SUPLibInternal.h. */
+# ifdef DEBUG
+#  define SUP_DPRINTF(a) SUPR0Printf a
+# else
+#  define SUP_DPRINTF(a) do { } while (0)
+# endif
+#endif
+
 /**
  * Returns configuration flags of the host kernel.
  *
@@ -2162,6 +2391,9 @@ SUPR0DECL(bool) SUPR0FpuBegin(bool fCtxHook);
  */
 SUPR0DECL(void) SUPR0FpuEnd(bool fCtxHook);
 
+/** @copydoc RTLogDefaultInstanceEx
+ * @remarks To allow overriding RTLogDefaultInstanceEx locally. */
+SUPR0DECL(struct RTLOGGER *) SUPR0DefaultLogInstanceEx(uint32_t fFlagsAndGroup);
 /** @copydoc RTLogGetDefaultInstanceEx
  * @remarks To allow overriding RTLogGetDefaultInstanceEx locally. */
 SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogInstanceEx(uint32_t fFlagsAndGroup);
@@ -2478,21 +2710,6 @@ SUPR0DECL(void) SUPR0TracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t
                                      uintptr_t uArg3, uintptr_t uArg4);
 SUPR0DECL(void) SUPR0TracerUmodProbeFire(PSUPDRVSESSION pSession, PSUPDRVTRACERUSRCTX pCtx);
 /** @}  */
-
-
-/**
- * Service request callback function.
- *
- * @returns VBox status code.
- * @param   pSession    The caller's session.
- * @param   uOperation  The operation identifier.
- * @param   u64Arg      64-bit integer argument.
- * @param   pReqHdr     The request header. Input / Output. Optional.
- */
-typedef DECLCALLBACK(int) FNSUPR0SERVICEREQHANDLER(PSUPDRVSESSION pSession, uint32_t uOperation,
-                                                   uint64_t u64Arg, PSUPR0SERVICEREQHDR pReqHdr);
-/** Pointer to a FNR0SERVICEREQHANDLER(). */
-typedef R0PTRTYPE(FNSUPR0SERVICEREQHANDLER *) PFNSUPR0SERVICEREQHANDLER;
 
 
 /** @defgroup   grp_sup_r0_idc  The IDC Interface

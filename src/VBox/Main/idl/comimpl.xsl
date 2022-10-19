@@ -5,23 +5,33 @@
      extension-element-prefixes="exsl">
 
 <!--
-
     comimpl.xsl:
         XSLT stylesheet that generates COM C++ classes implementing
         interfaces described in VirtualBox.xidl.
         For now we generate implementation for events, as they are
         rather trivial container classes for their read-only attributes.
         Further extension to other interfaces is possible and anticipated.
+-->
+<!--
+    Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-    Copyright (C) 2010-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
 <xsl:output
@@ -34,6 +44,7 @@
 
 <!-- $G_kind contains what kind of COM class implementation we generate -->
 <xsl:variable name="G_xsltFilename" select="'autogen.xsl'" />
+<xsl:variable name="G_generateBstrVariants" select="'no'" />
 
 
 <!-- - - - - - - - - - - - - - - - - - - - - - -
@@ -53,19 +64,29 @@
   <xsl:text>
  * DO NOT EDIT! This is a generated file.
  * Generated from: src/VBox/Main/idl/VirtualBox.xidl (VirtualBox's interface definitions in XML)
- * Generator: src/VBox/Main/idl/comimpl.xsl
+ * Generator:      src/VBox/Main/idl/comimpl.xsl
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see &lt;https://www.gnu.org/licenses&gt;.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 </xsl:text>
@@ -101,6 +122,7 @@
   <xsl:param name="param" />
   <xsl:param name="dir" />
   <xsl:param name="mod" />
+  <xsl:param name="utf8str" select="'no'" />
 
   <xsl:choose>
     <xsl:when test="$safearray='yes'">
@@ -109,6 +131,7 @@
           <xsl:with-param name="type" select="$type" />
           <xsl:with-param name="safearray" select="''" />
           <xsl:with-param name="dir" select="'in'" />
+          <xsl:with-param name="utf8str" select="$utf8str" />
         </xsl:call-template>
       </xsl:variable>
       <xsl:choose>
@@ -126,18 +149,24 @@
     <xsl:otherwise>
       <xsl:choose>
         <xsl:when test="$mod='ptr'">
-          <xsl:value-of select="'BYTE*'" />
+          <xsl:value-of select="'BYTE *'" />
         </xsl:when>
         <xsl:when test="(($type='wstring') or ($type='uuid'))">
           <xsl:choose>
-            <xsl:when test="$param and ($dir='in')">
+            <xsl:when test="$param and ($dir='in') and ($utf8str!='yes')">
               <xsl:value-of select="'CBSTR'"/>
+            </xsl:when>
+            <xsl:when test="$param and ($dir='in') and ($utf8str='yes')">
+              <xsl:value-of select="'const Utf8Str &amp;'"/>
             </xsl:when>
             <xsl:when test="$param and ($dir='out')">
               <xsl:value-of select="'BSTR'"/>
             </xsl:when>
+            <xsl:when test="$param and ($dir='out') and ($utf8str='yes')">
+              <xsl:value-of select="'Utf8Str &amp;'"/>
+            </xsl:when>
             <xsl:otherwise>
-              <xsl:value-of select="'Bstr'"/>
+              <xsl:value-of select="'Utf8Str'"/>
             </xsl:otherwise>
           </xsl:choose>
         </xsl:when>
@@ -147,7 +176,7 @@
         <xsl:when test="count(key('G_keyInterfacesByName', $type)) > 0">
           <xsl:choose>
             <xsl:when test="$param">
-              <xsl:value-of select="concat($type,'*')"/>
+              <xsl:value-of select="concat($type,' *')"/>
             </xsl:when>
             <xsl:otherwise>
               <xsl:value-of select="concat('ComPtr&lt;',$type,'&gt;')"/>
@@ -185,7 +214,7 @@
         </xsl:otherwise>
       </xsl:choose>
       <xsl:if test="$dir='out'">
-        <xsl:value-of select="'*'"/>
+        <xsl:value-of select="' *'"/>
       </xsl:if>
       <xsl:if test="$param and not($param='_')">
         <xsl:value-of select="concat(' ', $param)"/>
@@ -195,12 +224,45 @@
 
 </xsl:template>
 
+<!-- Checks if interface $name has any string attributes, producing '1' for each string attrib.
+     No output if no string attributes -->
+<xsl:template name="hasStringAttributes">
+  <xsl:param name="name" />
+
+  <!-- Recurse into parent interfaces: -->
+  <xsl:variable name="extends">
+    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+  </xsl:variable>
+  <xsl:choose>
+    <xsl:when test="$extends='IEvent'">
+    </xsl:when>
+    <xsl:when test="$extends='IReusableEvent'">
+    </xsl:when>
+    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+      <xsl:call-template name="hasStringAttributes">
+        <xsl:with-param name="name" select="$extends" />
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:call-template name="fatalError">
+        <xsl:with-param name="msg" select="concat('No idea how to process it: ', $name)" />
+      </xsl:call-template>
+    </xsl:otherwise>
+  </xsl:choose>
+
+  <!-- Find immediate string and uuid attributes and output '1' for each one: -->
+  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[(@type = 'wstring' or @type = 'uuid') and (@name != 'midlDoesNotLikeEmptyInterfaces')]">
+    <xsl:text>1</xsl:text>
+  </xsl:for-each>
+</xsl:template>
+
 
 <xsl:template name="genSetParam">
   <xsl:param name="member"/>
   <xsl:param name="param"/>
   <xsl:param name="type"/>
   <xsl:param name="safearray"/>
+  <xsl:param name="internal"/>
 
   <xsl:choose>
     <xsl:when test="$safearray='yes'">
@@ -211,11 +273,19 @@
           <xsl:with-param name="dir" select="'in'" />
         </xsl:call-template>
       </xsl:variable>
-      <xsl:value-of select="concat('         SafeArray&lt;', $elemtype, '&gt; aArr(ComSafeArrayInArg(',$param,'));&#10;')"/>
-      <xsl:value-of select="concat('         ',$member, '.initFrom(aArr);&#10;')"/>
+      <xsl:text>        SafeArray&lt;</xsl:text><xsl:value-of select="$elemtype"/>
+      <xsl:text>&gt; aArr(ComSafeArrayInArg(</xsl:text><xsl:value-of select="$param"/><xsl:text>));&#10;</xsl:text>
+      <xsl:text>        return </xsl:text><xsl:value-of select="$member"/><xsl:text>.initFrom(aArr);&#10;</xsl:text>
+    </xsl:when>
+    <xsl:when test="($type='wstring') or ($type='uuid')">
+      <xsl:text>        return </xsl:text><xsl:value-of select="$member"/><xsl:text>.assignEx(</xsl:text>
+      <xsl:value-of select="$param"/><xsl:text>);&#10;</xsl:text>
     </xsl:when>
     <xsl:otherwise>
       <xsl:value-of select="concat('         ', $member, ' = ', $param, ';&#10;')"/>
+      <xsl:if test="$internal!='yes'">
+        <xsl:text>        return S_OK;&#10;</xsl:text>
+      </xsl:if>
     </xsl:otherwise>
   </xsl:choose>
 </xsl:template>
@@ -234,24 +304,108 @@
              <xsl:with-param name="dir" select="'in'" />
         </xsl:call-template>
       </xsl:variable>
-      <xsl:value-of select="concat('         SafeArray&lt;', $elemtype,'&gt; result;&#10;')"/>
-      <xsl:value-of select="concat('         ', $member, '.cloneTo(result);&#10;')"/>
-      <xsl:value-of select="concat('         result.detachTo(ComSafeArrayOutArg(', $param, '));&#10;')"/>
+<!-- @todo String arrays probably needs work, I doubt we're generating sensible code for them at the moment. -->
+      <xsl:text>        SafeArray&lt;</xsl:text><xsl:value-of select="$elemtype"/><xsl:text>&gt; result;&#10;</xsl:text>
+      <xsl:text>        HRESULT hrc = </xsl:text><xsl:value-of select="$member"/><xsl:text>.cloneTo(result);&#10;</xsl:text>
+      <xsl:text>        if (SUCCEEDED(hrc))&#10;</xsl:text>
+      <xsl:text>            result.detachTo(ComSafeArrayOutArg(</xsl:text><xsl:value-of select="$param"/><xsl:text>));&#10;</xsl:text>
+      <xsl:text>        return hrc;&#10;</xsl:text>
     </xsl:when>
     <xsl:otherwise>
       <xsl:choose>
         <xsl:when test="($type='wstring') or ($type = 'uuid')">
-          <xsl:value-of select="concat('         ', $member, '.cloneTo(', $param, ');&#10;')"/>
+          <xsl:text>        return </xsl:text><xsl:value-of select="$member"/><xsl:text>.cloneToEx(</xsl:text>
+          <xsl:value-of select="$param"/><xsl:text>);&#10;</xsl:text>
         </xsl:when>
         <xsl:when test="count(key('G_keyInterfacesByName', $type)) > 0">
-          <xsl:value-of select="concat('         ', $member, '.queryInterfaceTo(', $param, ');&#10;')"/>
+          <xsl:text>        return </xsl:text><xsl:value-of select="$member"/><xsl:text>.queryInterfaceTo(</xsl:text>
+          <xsl:value-of select="$param"/><xsl:text>);&#10;</xsl:text>
         </xsl:when>
         <xsl:otherwise>
-          <xsl:value-of select="concat('         *', $param, ' = ', $member, ';&#10;')"/>
+          <xsl:text>        *</xsl:text><xsl:value-of select="$param"/><xsl:text> = </xsl:text>
+          <xsl:value-of select="$member"/><xsl:text>;&#10;</xsl:text>
+          <xsl:text>        return S_OK;&#10;</xsl:text>
         </xsl:otherwise>
       </xsl:choose>
     </xsl:otherwise>
   </xsl:choose>
+</xsl:template>
+
+<xsl:template name="genFormalParams">
+  <xsl:param name="name" />
+  <xsl:param name="utf8str" />
+  <xsl:variable name="extends">
+    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+  </xsl:variable>
+
+  <xsl:choose>
+    <xsl:when test="$extends='IEvent'">
+    </xsl:when>
+    <xsl:when test="$extends='IReusableEvent'">
+    </xsl:when>
+    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+      <xsl:call-template name="genFormalParams">
+        <xsl:with-param name="name" select="$extends" />
+        <xsl:with-param name="utf8str" select="$utf8str" />
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:call-template name="fatalError">
+        <xsl:with-param name="msg" select="concat('No idea how to process it: ', $name)" />
+      </xsl:call-template>
+    </xsl:otherwise>
+  </xsl:choose>
+
+  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[@name != 'midlDoesNotLikeEmptyInterfaces']">
+    <xsl:variable name="aName" select="concat('a_',@name)"/>
+    <xsl:variable name="aTypeName">
+      <xsl:call-template name="typeIdl2Back">
+        <xsl:with-param name="type" select="@type" />
+        <xsl:with-param name="safearray" select="@safearray" />
+        <xsl:with-param name="param" select="$aName" />
+        <xsl:with-param name="dir" select="'in'" />
+        <xsl:with-param name="mod" select="@mod" />
+        <xsl:with-param name="utf8str" select="$utf8str" />
+      </xsl:call-template>
+    </xsl:variable>
+    <xsl:value-of select="concat(', ',$aTypeName)"/>
+  </xsl:for-each>
+</xsl:template>
+
+<xsl:template name="genCallParams">
+  <xsl:param name="name" />
+  <xsl:variable name="extends">
+    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
+  </xsl:variable>
+
+  <xsl:choose>
+    <xsl:when test="$extends='IEvent'">
+    </xsl:when>
+    <xsl:when test="$extends='IReusableEvent'">
+    </xsl:when>
+    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
+      <xsl:call-template name="genCallParams">
+        <xsl:with-param name="name" select="$extends" />
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:call-template name="fatalError">
+        <xsl:with-param name="msg" select="concat('No idea how to process it: ', $name)" />
+      </xsl:call-template>
+    </xsl:otherwise>
+  </xsl:choose>
+
+  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[@name != 'midlDoesNotLikeEmptyInterfaces']">
+    <xsl:variable name="aName" select="concat('a_',@name)"/>
+    <xsl:choose>
+      <xsl:when test="@safearray='yes'">
+        <xsl:value-of select="concat(', ComSafeArrayInArg(',$aName,')')"/>
+      </xsl:when>
+      <xsl:otherwise>
+        <xsl:value-of select="concat(', ',$aName)"/>
+      </xsl:otherwise>
+    </xsl:choose>
+  </xsl:for-each>
 </xsl:template>
 
 <xsl:template name="genAttrInitCode">
@@ -309,27 +463,15 @@
             <xsl:with-param name="dir" select="'in'" />
           </xsl:call-template>
         </xsl:variable>
-        <xsl:value-of select="       '#ifdef RT_OS_WINDOWS&#10;'"/>
-        <xsl:value-of select="concat('              SAFEARRAY *aPtr_', @name, ' = va_arg(args, SAFEARRAY *);&#10;')"/>
-        <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr_', @name, '(aPtr_', @name, ');&#10;')"/>
-        <xsl:value-of select="       '#else&#10;'"/>
-        <xsl:value-of select="concat('              PRUint32 aArrSize_', @name, ' = va_arg(args, PRUint32);&#10;')"/>
-        <xsl:value-of select="concat('              void*    aPtr_', @name, ' = va_arg(args, void*);&#10;')"/>
-        <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr_', @name, '(aArrSize_', @name, ', (', $elemtype,'*)aPtr_', @name, ');&#10;')"/>
-        <xsl:value-of select="       '#endif&#10;'"/>
-        <xsl:value-of select="concat('              ',$obj, '->set_', @name, '(ComSafeArrayAsInParam(aArr_', @name, '));&#10;')"/>
+        <xsl:text>        if (SUCCEEDED(hrc))&#10;</xsl:text>
+        <xsl:value-of select="concat('            hrc = ',$obj, '->set_', @name, '(ComSafeArrayInArg(a_', @name, '));&#10;')"/>
       </xsl:when>
-      <xsl:when test="substring($aType, string-length($aType) - 1) = '_T'"> <!-- To avoid pedantic gcc warnings/errors. -->
-        <xsl:value-of select="       '#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK&#10;'"/>
-        <xsl:value-of select="concat('              ',$aTypeName, ' = (',$aType,')va_arg(args, int);&#10;')"/>
-        <xsl:value-of select="       '#else&#10;'"/>
-        <xsl:value-of select="concat('              ',$aTypeName, ' = va_arg(args, ',$aType,');&#10;')"/>
-        <xsl:value-of select="       '#endif&#10;'"/>
-        <xsl:value-of select="concat('              ',$obj, '->set_', @name, '(',$aName, ');&#10;')"/>
+      <xsl:when test="(@type='wstring') or (@type = 'uuid')">
+        <xsl:text>        if (SUCCEEDED(hrc))&#10;</xsl:text>
+        <xsl:value-of select="concat('            hrc = ',$obj, '->set_', @name, '(',$aName, ');&#10;')"/>
       </xsl:when>
       <xsl:otherwise>
-        <xsl:value-of select="concat('              ',$aTypeName, ' = va_arg(args, ',$aType,');&#10;')"/>
-        <xsl:value-of select="concat('              ',$obj, '->set_', @name, '(',$aName, ');&#10;')"/>
+        <xsl:value-of select="concat('        ',$obj, '->set_', @name, '(',$aName, ');&#10;')"/>
       </xsl:otherwise>
     </xsl:choose>
   </xsl:for-each>
@@ -372,6 +514,7 @@
   <xsl:param name="name" />
   <xsl:param name="depth" />
   <xsl:param name="parents" />
+  <xsl:param name="fGenBstr" />
 
   <xsl:variable name="extends">
     <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
@@ -423,38 +566,55 @@
     <xsl:value-of select="       'private:&#10;'" />
     <xsl:value-of select="concat('    ', $mType, '    ', $mName,';&#10;')" />
     <xsl:value-of select="       'public:&#10;'" />
-    <xsl:value-of select="concat('    STDMETHOD(COMGETTER(', $capsName,'))(',$pTypeNameOut,')&#10;    {&#10;')" />
+    <xsl:value-of select="concat('    STDMETHOD(COMGETTER(', $capsName,'))(',$pTypeNameOut,') RT_OVERRIDE&#10;    {&#10;')" />
     <xsl:call-template name="genRetParam">
       <xsl:with-param name="type" select="@type" />
       <xsl:with-param name="member" select="$mName" />
       <xsl:with-param name="param" select="$pName" />
       <xsl:with-param name="safearray" select="@safearray" />
     </xsl:call-template>
-    <xsl:value-of select="       '         return S_OK;&#10;'" />
     <xsl:value-of select="       '    }&#10;'" />
 
     <xsl:if test="not(@readonly='yes')">
-      <xsl:value-of select="concat('    STDMETHOD(COMSETTER(', $capsName,'))(',$pTypeNameIn,')&#10;    {&#10;')" />
+      <xsl:value-of select="concat('    STDMETHOD(COMSETTER(', $capsName,'))(',$pTypeNameIn,') RT_OVERRIDE&#10;    {&#10;')" />
       <xsl:call-template name="genSetParam">
         <xsl:with-param name="type" select="@type" />
         <xsl:with-param name="member" select="$mName" />
         <xsl:with-param name="param" select="$pName" />
         <xsl:with-param name="safearray" select="@safearray" />
+        <xsl:with-param name="internal" select="'no'" />
       </xsl:call-template>
-      <xsl:value-of select="       '         return S_OK;&#10;'" />
       <xsl:value-of select="       '    }&#10;'" />
     </xsl:if>
 
-    <xsl:value-of select="       '    // purely internal setter&#10;'" />
-    <xsl:value-of select="concat('    HRESULT set_', @name,'(',$pTypeNameIn, ')&#10;    {&#10;')" />
-    <xsl:call-template name="genSetParam">
-      <xsl:with-param name="type" select="@type" />
-      <xsl:with-param name="member" select="$mName" />
-      <xsl:with-param name="param" select="$pName" />
-      <xsl:with-param name="safearray" select="@safearray" />
-    </xsl:call-template>
-    <xsl:value-of select="       '         return S_OK;&#10;'" />
-    <xsl:value-of select="       '    }&#10;'" />
+    <xsl:text>    // purely internal setter&#10;</xsl:text>
+    <xsl:if test="(@type='wstring') or (@type = 'uuid')">
+      <xsl:text>    inline HRESULT set_</xsl:text><xsl:value-of select="@name"/><xsl:text>(const Utf8Str &amp;a_rString)&#10;</xsl:text>
+      <xsl:text>    {&#10;</xsl:text>
+      <xsl:text>        return </xsl:text><xsl:value-of select="$mName"/><xsl:text>.assignEx(a_rString);&#10;</xsl:text>
+      <xsl:text>    }&#10;</xsl:text>
+    </xsl:if>
+    <xsl:if test="not((@type='wstring') or (@type = 'uuid')) or $fGenBstr">
+      <xsl:text>    inline </xsl:text>
+      <xsl:choose>
+        <xsl:when test="(@safearray='yes') or (@type='wstring') or (@type = 'uuid')">
+          <xsl:text>HRESULT</xsl:text>
+        </xsl:when>
+        <xsl:otherwise>
+          <xsl:text>void</xsl:text>
+        </xsl:otherwise>
+      </xsl:choose>
+      <xsl:value-of select="concat(' set_', @name,'(',$pTypeNameIn, ')&#10;    {&#10;')" />
+      <xsl:call-template name="genSetParam">
+        <xsl:with-param name="type" select="@type" />
+        <xsl:with-param name="member" select="$mName" />
+        <xsl:with-param name="param" select="$pName" />
+        <xsl:with-param name="safearray" select="@safearray" />
+        <xsl:with-param name="internal" select="'yes'" />
+      </xsl:call-template>
+      <xsl:value-of select="       '    }&#10;'" />
+    </xsl:if>
+
   </xsl:for-each>
 
   <xsl:choose>
@@ -472,6 +632,7 @@
         <xsl:with-param name="name" select="$extends" />
         <xsl:with-param name="depth" select="$depth+1" />
         <xsl:with-param name="parents" select="concat($parents, ', ', @name)" />
+        <xsl:with-param name="fGenBstr" select="$fGenBstr" />
       </xsl:call-template>
     </xsl:when>
     <xsl:otherwise>
@@ -482,13 +643,114 @@
   </xsl:choose>
 </xsl:template>
 
+<xsl:template name="genReinitFunction">
+  <xsl:param name="name"/>
+  <xsl:param name="evname"/>
+  <xsl:param name="ifname"/>
+  <xsl:param name="implName"/>
+  <xsl:param name="utf8str"/>
+
+  <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Reinit', $evname, '(IEvent *aEvent')"/>
+  <xsl:call-template name="genFormalParams">
+    <xsl:with-param name="name" select="$ifname" />
+    <xsl:with-param name="utf8str" select="'no'" />
+  </xsl:call-template>
+  <xsl:text>)&#10;</xsl:text>
+  <xsl:text>{&#10;</xsl:text>
+  <xsl:text>    </xsl:text><xsl:value-of select="$implName"/><xsl:text> *pEvtImpl = dynamic_cast&lt;</xsl:text>
+  <xsl:value-of select="$implName"/><xsl:text> *&gt;(aEvent);&#10;</xsl:text>
+  <xsl:text>    if (pEvtImpl)&#10;</xsl:text>
+  <xsl:text>    {&#10;</xsl:text>
+  <xsl:text>        pEvtImpl->Reuse();&#10;</xsl:text>
+  <xsl:text>        HRESULT hrc = S_OK;&#10;</xsl:text>
+  <xsl:call-template name="genAttrInitCode">
+    <xsl:with-param name="name" select="$name" />
+    <xsl:with-param name="obj" select="'pEvtImpl'" />
+  </xsl:call-template>
+  <xsl:text>        return hrc;&#10;</xsl:text>
+  <xsl:text>    }&#10;</xsl:text>
+  <xsl:text>    return E_INVALIDARG;&#10;</xsl:text>
+  <xsl:text>}&#10;</xsl:text>
+  <xsl:text>&#10;</xsl:text>
+</xsl:template>
+
+<xsl:template name="genCreateFunction">
+  <xsl:param name="name"/>
+  <xsl:param name="evname"/>
+  <xsl:param name="ifname"/>
+  <xsl:param name="implName"/>
+  <xsl:param name="waitable"/>
+  <xsl:param name="evid"/>
+  <xsl:param name="utf8str"/>
+
+  <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Create', $evname, '(IEvent **aEvent, IEventSource *aSource')"/>
+  <xsl:call-template name="genFormalParams">
+    <xsl:with-param name="name" select="$ifname" />
+    <xsl:with-param name="utf8str" select="$utf8str" />
+  </xsl:call-template>
+  <xsl:text>)&#10;</xsl:text>
+  <xsl:text>{&#10;</xsl:text>
+  <xsl:text>    ComObjPtr&lt;</xsl:text><xsl:value-of select="$implName"/><xsl:text>&gt; EvtObj;&#10;</xsl:text>
+  <xsl:text>    HRESULT hrc = EvtObj.createObject();&#10;</xsl:text>
+  <xsl:text>    if (SUCCEEDED(hrc))&#10;</xsl:text>
+  <xsl:text>    {&#10;</xsl:text>
+  <xsl:text>        hrc = EvtObj-&gt;init(aSource, VBoxEventType_</xsl:text><xsl:value-of select="$evid"/>
+  <xsl:text>, </xsl:text><xsl:value-of select="$waitable" /><xsl:text> /*waitable*/);&#10;</xsl:text>
+  <xsl:call-template name="genAttrInitCode">
+    <xsl:with-param name="name" select="$name" />
+    <xsl:with-param name="obj" select="'EvtObj'" />
+  </xsl:call-template>
+  <xsl:text>        if (SUCCEEDED(hrc))&#10;</xsl:text>
+  <xsl:text>        {&#10;</xsl:text>
+  <xsl:text>            hrc = EvtObj.queryInterfaceTo(aEvent);&#10;</xsl:text>
+  <xsl:text>            if (SUCCEEDED(hrc))&#10;</xsl:text>
+  <xsl:text>                return hrc;&#10;</xsl:text>
+  <xsl:text>        }&#10;</xsl:text>
+  <xsl:text>    }&#10;</xsl:text>
+  <xsl:text>    *aEvent = NULL;&#10;</xsl:text>
+  <xsl:text>    return hrc;&#10;</xsl:text>
+  <xsl:text>}&#10;</xsl:text>
+  <xsl:text>&#10;</xsl:text>
+</xsl:template>
+
+<xsl:template name="genFireFunction">
+  <xsl:param name="evname"/>
+  <xsl:param name="ifname"/>
+  <xsl:param name="utf8str"/>
+
+  <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Fire', $evname, '(IEventSource *aSource')"/>
+  <xsl:call-template name="genFormalParams">
+    <xsl:with-param name="name" select="$ifname" />
+    <xsl:with-param name="utf8str" select="$utf8str" />
+  </xsl:call-template>
+  <xsl:text>)&#10;</xsl:text>
+  <xsl:text>{&#10;</xsl:text>
+  <xsl:text>    AssertReturn(aSource, E_INVALIDARG);&#10;</xsl:text>
+  <xsl:text>    ComPtr&lt;IEvent&gt; ptrEvent;&#10;</xsl:text>
+  <xsl:text>    HRESULT hrc = </xsl:text>
+  <xsl:value-of select="concat('Create', $evname, '(ptrEvent.asOutParam(), aSource')"/>
+  <xsl:call-template name="genCallParams">
+    <xsl:with-param name="name" select="$ifname" />
+  </xsl:call-template>
+  <xsl:text>);&#10;</xsl:text>
+  <xsl:text>    if (SUCCEEDED(hrc))&#10;</xsl:text>
+  <xsl:text>    {&#10;</xsl:text>
+  <xsl:text>        BOOL fDeliveredIgnored = FALSE;&#10;</xsl:text>
+  <xsl:text>        hrc = aSource-&gt;FireEvent(ptrEvent, /* do not wait for delivery */ 0, &amp;fDeliveredIgnored);&#10;</xsl:text>
+  <xsl:text>        AssertComRC(hrc);&#10;</xsl:text>
+  <xsl:text>    }&#10;</xsl:text>
+  <xsl:text>    return hrc;&#10;</xsl:text>
+  <xsl:text>}&#10;</xsl:text>
+  <xsl:text>&#10;</xsl:text>
+</xsl:template>
+
 <xsl:template name="genEventImpl">
   <xsl:param name="implName" />
   <xsl:param name="isVeto" />
   <xsl:param name="isReusable" />
 
   <xsl:value-of select="concat('class ATL_NO_VTABLE ',$implName,
-                        '&#10;    : public VirtualBoxBase,&#10;      VBOX_SCRIPTABLE_IMPL(',
+                        '&#10;    : public VirtualBoxBase&#10;    , VBOX_SCRIPTABLE_IMPL(',
                         @name, ')&#10;{&#10;')" />
   <xsl:value-of select="'public:&#10;'" />
   <xsl:value-of select="concat('    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(', $implName, ', ', @name, ')&#10;')" />
@@ -504,8 +766,8 @@
     <xsl:with-param name="name" select="@name" />
   </xsl:call-template>
   <xsl:value-of select="       '    END_COM_MAP()&#10;'" />
-  <xsl:value-of select="concat('    ',$implName,'() { /*printf(&quot;',$implName,'\n&quot;)*/;}&#10;')" />
-  <xsl:value-of select="concat('    virtual ~',$implName,'() { /*printf(&quot;~',$implName,'\n&quot;)*/; uninit(); }&#10;')" />
+  <xsl:value-of select="concat('    ',$implName,'() { Log12((&quot;',$implName,' %p\n&quot;, this)); }&#10;')" />
+  <xsl:value-of select="concat('    virtual ~',$implName,'() { Log12((&quot;~',$implName,' %p\n&quot;, this)); uninit(); }&#10;')" />
   <xsl:text><![CDATA[
     HRESULT FinalConstruct()
     {
@@ -517,23 +779,23 @@
         uninit();
         BaseFinalRelease();
     }
-    STDMETHOD(COMGETTER(Type))(VBoxEventType_T *aType)
+    STDMETHOD(COMGETTER(Type))(VBoxEventType_T *aType) RT_OVERRIDE
     {
         return mEvent->COMGETTER(Type)(aType);
     }
-    STDMETHOD(COMGETTER(Source))(IEventSource * *aSource)
+    STDMETHOD(COMGETTER(Source))(IEventSource * *aSource) RT_OVERRIDE
     {
         return mEvent->COMGETTER(Source)(aSource);
     }
-    STDMETHOD(COMGETTER(Waitable))(BOOL *aWaitable)
+    STDMETHOD(COMGETTER(Waitable))(BOOL *aWaitable) RT_OVERRIDE
     {
         return mEvent->COMGETTER(Waitable)(aWaitable);
     }
-    STDMETHOD(SetProcessed)()
+    STDMETHOD(SetProcessed)() RT_OVERRIDE
     {
        return mEvent->SetProcessed();
     }
-    STDMETHOD(WaitProcessed)(LONG aTimeout, BOOL *aResult)
+    STDMETHOD(WaitProcessed)(LONG aTimeout, BOOL *aResult) RT_OVERRIDE
     {
         return mEvent->WaitProcessed(aTimeout, aResult);
     }
@@ -549,32 +811,32 @@
   <xsl:choose>
     <xsl:when test="$isVeto='yes'">
 <xsl:text><![CDATA[
-    HRESULT init(IEventSource* aSource, VBoxEventType_T aType, BOOL aWaitable = TRUE)
+    HRESULT init(IEventSource *aSource, VBoxEventType_T aType, BOOL aWaitable = TRUE)
     {
         NOREF(aWaitable);
         return mEvent->init(aSource, aType);
     }
-    STDMETHOD(AddVeto)(IN_BSTR aVeto)
+    STDMETHOD(AddVeto)(IN_BSTR aVeto) RT_OVERRIDE
     {
         return mEvent->AddVeto(aVeto);
     }
-    STDMETHOD(IsVetoed)(BOOL *aResult)
+    STDMETHOD(IsVetoed)(BOOL *aResult) RT_OVERRIDE
     {
        return mEvent->IsVetoed(aResult);
     }
-    STDMETHOD(GetVetos)(ComSafeArrayOut(BSTR, aVetos))
+    STDMETHOD(GetVetos)(ComSafeArrayOut(BSTR, aVetos)) RT_OVERRIDE
     {
        return mEvent->GetVetos(ComSafeArrayOutArg(aVetos));
     }
-    STDMETHOD(AddApproval)(IN_BSTR aReason)
+    STDMETHOD(AddApproval)(IN_BSTR aReason) RT_OVERRIDE
     {
         return mEvent->AddApproval(aReason);
     }
-    STDMETHOD(IsApproved)(BOOL *aResult)
+    STDMETHOD(IsApproved)(BOOL *aResult) RT_OVERRIDE
     {
        return mEvent->IsApproved(aResult);
     }
-    STDMETHOD(GetApprovals)(ComSafeArrayOut(BSTR, aReasons))
+    STDMETHOD(GetApprovals)(ComSafeArrayOut(BSTR, aReasons)) RT_OVERRIDE
     {
        return mEvent->GetApprovals(ComSafeArrayOutArg(aReasons));
     }
@@ -585,20 +847,20 @@ private:
     <xsl:when test="$isReusable='yes'">
       <xsl:text>
 <![CDATA[
-    HRESULT init(IEventSource* aSource, VBoxEventType_T aType, BOOL aWaitable = FALSE)
+    HRESULT init(IEventSource *aSource, VBoxEventType_T aType, BOOL aWaitable = FALSE)
     {
         mGeneration = 1;
         return mEvent->init(aSource, aType, aWaitable);
     }
-    STDMETHOD(COMGETTER(Generation))(ULONG *aGeneration)
+    STDMETHOD(COMGETTER(Generation))(ULONG *aGeneration) RT_OVERRIDE
     {
-      *aGeneration = mGeneration;
-      return S_OK;
+        *aGeneration = mGeneration;
+        return S_OK;
     }
-    STDMETHOD(Reuse)()
+    STDMETHOD(Reuse)() RT_OVERRIDE
     {
-       ASMAtomicIncU32((volatile uint32_t*)&mGeneration);
-       return S_OK;
+        ASMAtomicIncU32((volatile uint32_t *)&mGeneration);
+        return S_OK;
     }
 private:
     volatile ULONG              mGeneration;
@@ -607,7 +869,7 @@ private:
     </xsl:when>
     <xsl:otherwise>
 <xsl:text><![CDATA[
-    HRESULT init(IEventSource* aSource, VBoxEventType_T aType, BOOL aWaitable)
+    HRESULT init(IEventSource *aSource, VBoxEventType_T aType, BOOL aWaitable)
     {
         return mEvent->init(aSource, aType, aWaitable);
     }
@@ -626,6 +888,7 @@ private:
 
   <xsl:call-template name="genAttrCode">
     <xsl:with-param name="name" select="@name" />
+    <xsl:with-param name="fGenBstr" select="($G_generateBstrVariants = 'yes') or (contains(@autogenflags, 'BSTR'))" />
   </xsl:call-template>
   <xsl:value-of select="'};&#10;'" />
 
@@ -637,13 +900,16 @@ private:
     <xsl:with-param name="parents" select="''" />
   </xsl:call-template>
 
-</xsl:template>
-
-
-<xsl:template name="genSwitchCase">
-  <xsl:param name="ifaceName" />
-  <xsl:param name="implName" />
-  <xsl:param name="reinit" />
+  <!-- Associate public functions. -->
+  <xsl:variable name="evname">
+    <xsl:value-of select="substring(@name, 2)" />
+  </xsl:variable>
+  <xsl:variable name="evid">
+    <xsl:value-of select="concat('On', substring(@name, 2, string-length(@name)-6))" />
+  </xsl:variable>
+  <xsl:variable name="ifname">
+    <xsl:value-of select="@name" />
+  </xsl:variable>
   <xsl:variable name="waitable">
     <xsl:choose>
       <xsl:when test="@waitable='yes'">
@@ -654,42 +920,89 @@ private:
       </xsl:otherwise>
     </xsl:choose>
   </xsl:variable>
-  <xsl:value-of select="concat('         case VBoxEventType_', @id, ':&#10;')"/>
-  <xsl:value-of select="       '         {&#10;'"/>
-  <xsl:choose>
-    <xsl:when test="$reinit='yes'">
-      <xsl:value-of select="concat('              ComPtr&lt;', $ifaceName, '&gt; iobj;&#10;')"/>
-      <xsl:value-of select="       '              iobj = mEvent;&#10;'"/>
-      <xsl:value-of select="       '              Assert(!iobj.isNull());&#10;'"/>
-      <xsl:value-of select="concat('              ',$implName, '* obj = (', $implName, '*)(', $ifaceName, '*)iobj;&#10;')"/>
-      <xsl:value-of select="       '              obj->Reuse();&#10;'"/>
-    </xsl:when>
-    <xsl:otherwise>
-      <xsl:value-of select="concat('              ComObjPtr&lt;', $implName, '&gt; obj;&#10;')"/>
-      <xsl:value-of select="       '              obj.createObject();&#10;'"/>
-      <xsl:value-of select="concat('              obj->init(aSource, aType, ', $waitable, ');&#10;')"/>
-    </xsl:otherwise>
-  </xsl:choose>
-  <xsl:call-template name="genAttrInitCode">
-    <xsl:with-param name="name" select="@name" />
-    <xsl:with-param name="obj" select="'obj'" />
-  </xsl:call-template>
-  <xsl:if test="not($reinit='yes')">
-    <xsl:value-of select="       '              obj.queryInterfaceTo(mEvent.asOutParam());&#10;'"/>
+  <xsl:variable name="hasStringAttribs">
+    <xsl:call-template name="hasStringAttributes">
+      <xsl:with-param name="name" select="@name"/>
+    </xsl:call-template>
+  </xsl:variable>
+
+  <!-- Generate ReinitXxxxEvent functions if reusable. -->
+  <xsl:if test="$isReusable='yes'">
+    <xsl:call-template name="genReinitFunction">
+      <xsl:with-param name="name" select="@name"/>
+      <xsl:with-param name="evname" select="$evname"/>
+      <xsl:with-param name="ifname" select="$ifname"/>
+      <xsl:with-param name="implName" select="$implName"/>
+      <xsl:with-param name="utf8str" select="'yes'"/>
+    </xsl:call-template>
+
+    <xsl:if test="($hasStringAttribs != '') and (($G_generateBstrVariants = 'yes') or (contains(@autogenflags, 'BSTR')))">
+      <xsl:call-template name="genReinitFunction">
+        <xsl:with-param name="name" select="@name"/>
+        <xsl:with-param name="evname" select="$evname"/>
+        <xsl:with-param name="ifname" select="$ifname"/>
+        <xsl:with-param name="implName" select="$implName"/>
+        <xsl:with-param name="utf8str" select="'no'"/>
+      </xsl:call-template>
+    </xsl:if>
   </xsl:if>
-  <xsl:value-of select="       '              break;&#10;'"/>
-  <xsl:value-of select="       '         }&#10;'"/>
+
+  <!-- Generate the CreateXxxxEvent function. -->
+  <xsl:call-template name="genCreateFunction">
+    <xsl:with-param name="name" select="@name"/>
+    <xsl:with-param name="evname" select="$evname"/>
+    <xsl:with-param name="ifname" select="$ifname"/>
+    <xsl:with-param name="implName" select="$implName"/>
+    <xsl:with-param name="waitable" select="$waitable"/>
+    <xsl:with-param name="evid" select="$evid"/>
+    <xsl:with-param name="utf8str" select="'yes'"/>
+  </xsl:call-template>
+
+  <xsl:if test="($hasStringAttribs != '') and (($G_generateBstrVariants = 'yes') or (contains(@autogenflags, 'BSTR')))">
+    <xsl:call-template name="genCreateFunction">
+      <xsl:with-param name="name" select="@name"/>
+      <xsl:with-param name="evname" select="$evname"/>
+      <xsl:with-param name="ifname" select="$ifname"/>
+      <xsl:with-param name="implName" select="$implName"/>
+      <xsl:with-param name="waitable" select="$waitable"/>
+      <xsl:with-param name="evid" select="$evid"/>
+      <xsl:with-param name="utf8str" select="'no'"/>
+    </xsl:call-template>
+  </xsl:if>
+
+  <!-- Generate the FireXxxxEvent function. -->
+  <xsl:call-template name="genFireFunction">
+    <xsl:with-param name="evname" select="$evname"/>
+    <xsl:with-param name="ifname" select="$ifname"/>
+    <xsl:with-param name="utf8str" select="'yes'"/>
+  </xsl:call-template>
+
+  <xsl:if test="($hasStringAttribs != '') and (($G_generateBstrVariants = 'yes') or (contains(@autogenflags, 'BSTR')))">
+    <xsl:call-template name="genFireFunction">
+      <xsl:with-param name="evname" select="$evname"/>
+      <xsl:with-param name="ifname" select="$ifname"/>
+      <xsl:with-param name="utf8str" select="'no'"/>
+    </xsl:call-template>
+  </xsl:if>
+
 </xsl:template>
 
+
+<!--
+ Produces VBoxEvents.cpp
+ -->
 <xsl:template name="genCommonEventCode">
   <xsl:call-template name="fileheader">
     <xsl:with-param name="name" select="'VBoxEvents.cpp'" />
   </xsl:call-template>
 
 <xsl:text><![CDATA[
+#define LOG_GROUP LOG_GROUP_MAIN_EVENT
 #include <VBox/com/array.h>
+#include <VBox/log.h>
 #include <iprt/asm.h>
-#include "EventImpl.h"
+#include "VBoxEvents.h"
+
 ]]></xsl:text>
 
   <!-- Interfaces -->
@@ -721,183 +1034,130 @@ private:
     </xsl:choose>
   </xsl:for-each>
 
-  <xsl:text><![CDATA[
-HRESULT VBoxEventDesc::init(IEventSource *aSource, VBoxEventType_T aType, ...)
-{
-    va_list args;
-
-    mEventSource = aSource;
-    va_start(args, aType);
-    switch (aType)
-    {
-]]></xsl:text>
-
-  <xsl:for-each select="//interface[@autogen=$G_kind]">
-    <xsl:variable name="implName">
-      <xsl:value-of select="substring(@name, 2)" />
-    </xsl:variable>
-    <xsl:call-template name="genSwitchCase">
-      <xsl:with-param name="ifaceName" select="@name" />
-      <xsl:with-param name="implName" select="$implName" />
-      <xsl:with-param name="reinit" select="'no'" />
-    </xsl:call-template>
-  </xsl:for-each>
-
-  <xsl:text><![CDATA[
-         default:
-            AssertFailed();
-    }
-    va_end(args);
-
-    return S_OK;
-}
-]]></xsl:text>
-
- <xsl:text><![CDATA[
-HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
-{
-    va_list args;
-
-    va_start(args, aType);
-    switch (aType)
-    {
-]]></xsl:text>
-
-  <xsl:for-each select="//interface[@autogen=$G_kind and @extends='IReusableEvent']">
-    <xsl:variable name="implName">
-      <xsl:value-of select="substring(@name, 2)" />
-    </xsl:variable>
-    <xsl:call-template name="genSwitchCase">
-      <xsl:with-param name="ifaceName" select="@name" />
-      <xsl:with-param name="implName" select="$implName" />
-      <xsl:with-param name="reinit" select="'yes'" />
-    </xsl:call-template>
-  </xsl:for-each>
-
-  <xsl:text><![CDATA[
-         default:
-            AssertFailed();
-    }
-    va_end(args);
-
-    return S_OK;
-}
-]]></xsl:text>
-
 </xsl:template>
 
-<xsl:template name="genFormalParams">
-  <xsl:param name="name" />
-  <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
-  </xsl:variable>
 
-  <xsl:choose>
-    <xsl:when test="$extends='IEvent'">
-    </xsl:when>
-    <xsl:when test="$extends='IReusableEvent'">
-    </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
-      <xsl:call-template name="genFormalParams">
-        <xsl:with-param name="name" select="$extends" />
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:otherwise>
-      <xsl:call-template name="fatalError">
-        <xsl:with-param name="msg" select="concat('No idea how to process it: ', $name)" />
-      </xsl:call-template>
-    </xsl:otherwise>
-  </xsl:choose>
-
-  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[@name != 'midlDoesNotLikeEmptyInterfaces']">
-    <xsl:variable name="aName" select="concat('a_',@name)"/>
-    <xsl:variable name="aTypeName">
-      <xsl:call-template name="typeIdl2Back">
-        <xsl:with-param name="type" select="@type" />
-        <xsl:with-param name="safearray" select="@safearray" />
-        <xsl:with-param name="param" select="$aName" />
-        <xsl:with-param name="dir" select="'in'" />
-        <xsl:with-param name="mod" select="@mod" />
-      </xsl:call-template>
-    </xsl:variable>
-    <xsl:value-of select="concat(', ',$aTypeName)"/>
-  </xsl:for-each>
-</xsl:template>
-
-<xsl:template name="genFactParams">
-  <xsl:param name="name" />
-  <xsl:variable name="extends">
-    <xsl:value-of select="key('G_keyInterfacesByName', $name)/@extends" />
-  </xsl:variable>
-
-  <xsl:choose>
-    <xsl:when test="$extends='IEvent'">
-    </xsl:when>
-    <xsl:when test="$extends='IReusableEvent'">
-    </xsl:when>
-    <xsl:when test="count(key('G_keyInterfacesByName', $extends)) > 0">
-      <xsl:call-template name="genFactParams">
-        <xsl:with-param name="name" select="$extends" />
-      </xsl:call-template>
-    </xsl:when>
-    <xsl:otherwise>
-      <xsl:call-template name="fatalError">
-        <xsl:with-param name="msg" select="concat('No idea how to process it: ', $name)" />
-      </xsl:call-template>
-    </xsl:otherwise>
-  </xsl:choose>
-
-  <xsl:for-each select="key('G_keyInterfacesByName', $name)/attribute[@name != 'midlDoesNotLikeEmptyInterfaces']">
-    <xsl:variable name="aName" select="concat('a_',@name)"/>
-    <xsl:choose>
-      <xsl:when test="@safearray='yes'">
-        <xsl:value-of select="concat(', ComSafeArrayInArg(',$aName,')')"/>
-      </xsl:when>
-      <xsl:otherwise>
-        <xsl:value-of select="concat(', ',$aName)"/>
-      </xsl:otherwise>
-    </xsl:choose>
-  </xsl:for-each>
-</xsl:template>
-
+<!--
+ Produces VBoxEvents.h
+ -->
 <xsl:template name="genCommonEventHeader">
   <xsl:call-template name="fileheader">
     <xsl:with-param name="name" select="'VBoxEvents.h'" />
   </xsl:call-template>
 
-<xsl:text><![CDATA[
+  <xsl:text><![CDATA[
 #include "EventImpl.h"
+
 ]]></xsl:text>
 
-  <!-- Interfaces -->
+  <!-- Simple methods for firing off events. -->
+ <xsl:text>/** @name Fire off events&#10;</xsl:text>
+ <xsl:text> * @{ */&#10;</xsl:text>
   <xsl:for-each select="//interface[@autogen='VBoxEvent']">
-    <xsl:value-of select="concat('// ', @name,  ' generation routine &#10;')" />
+    <xsl:value-of select="concat('/** Fire an ', @name,  ' event. */&#10;')" />
     <xsl:variable name="evname">
       <xsl:value-of select="substring(@name, 2)" />
     </xsl:variable>
-    <xsl:variable name="evid">
-      <xsl:value-of select="concat('On', substring(@name, 2, string-length(@name)-6))" />
-    </xsl:variable>
-
     <xsl:variable name="ifname">
       <xsl:value-of select="@name" />
     </xsl:variable>
+    <xsl:variable name="hasStringAttribs">
+      <xsl:call-template name="hasStringAttributes">
+        <xsl:with-param name="name" select="@name"/>
+      </xsl:call-template>
+    </xsl:variable>
 
-    <xsl:value-of select="concat('DECLINLINE(void) fire', $evname, '(IEventSource* aSource')"/>
+    <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Fire', $evname, '(IEventSource *aSource')"/>
     <xsl:call-template name="genFormalParams">
       <xsl:with-param name="name" select="$ifname" />
+      <xsl:with-param name="utf8str" select="'yes'" />
     </xsl:call-template>
-    <xsl:value-of select="       ')&#10;{&#10;'"/>
+    <xsl:text>);&#10;</xsl:text>
 
-    <xsl:value-of select="       '    VBoxEventDesc evDesc;&#10;'"/>
-    <xsl:value-of select="concat('    evDesc.init(aSource, VBoxEventType_',$evid)"/>
-    <xsl:call-template name="genFactParams">
-      <xsl:with-param name="name" select="$ifname" />
-    </xsl:call-template>
-    <xsl:value-of select="');&#10;'"/>
-    <xsl:value-of select="       '    evDesc.fire(/* do not wait for delivery */ 0);&#10;'"/>
-    <xsl:value-of select="       '}&#10;'"/>
+    <xsl:if test="($hasStringAttribs != '') and (($G_generateBstrVariants = 'yes') or (contains(@autogenflags, 'BSTR')))">
+      <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Fire', $evname, '(IEventSource *aSource')"/>
+      <xsl:call-template name="genFormalParams">
+        <xsl:with-param name="name" select="$ifname" />
+        <xsl:with-param name="utf8str" select="'no'" />
+      </xsl:call-template>
+      <xsl:text>);&#10;</xsl:text>
+    </xsl:if>
   </xsl:for-each>
+  <xsl:text>/** @} */&#10;&#10;</xsl:text>
+
+  <!-- Event instantiation methods. -->
+  <xsl:text>/** @name Instantiate events&#10;</xsl:text>
+  <xsl:text> * @{ */&#10;</xsl:text>
+  <xsl:for-each select="//interface[@autogen='VBoxEvent']">
+    <xsl:value-of select="concat('/** Create an ', @name,  ' event. */&#10;')" />
+    <xsl:variable name="evname">
+      <xsl:value-of select="substring(@name, 2)" />
+    </xsl:variable>
+    <xsl:variable name="ifname">
+      <xsl:value-of select="@name" />
+    </xsl:variable>
+    <xsl:variable name="hasStringAttribs">
+      <xsl:call-template name="hasStringAttributes">
+        <xsl:with-param name="name" select="@name"/>
+      </xsl:call-template>
+    </xsl:variable>
+
+    <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Create', $evname, '(IEvent **aEvent, IEventSource *aSource')"/>
+    <xsl:call-template name="genFormalParams">
+      <xsl:with-param name="name" select="$ifname" />
+      <xsl:with-param name="utf8str" select="'yes'" />
+    </xsl:call-template>
+    <xsl:text>);&#10;</xsl:text>
+
+    <xsl:if test="($hasStringAttribs != '') and (($G_generateBstrVariants = 'yes') or (contains(@autogenflags, 'BSTR')))">
+      <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Create', $evname, '(IEvent **aEvent, IEventSource *aSource')"/>
+      <xsl:call-template name="genFormalParams">
+        <xsl:with-param name="name" select="$ifname" />
+        <xsl:with-param name="utf8str" select="'no'" />
+      </xsl:call-template>
+      <xsl:text>);&#10;</xsl:text>
+    </xsl:if>
+  </xsl:for-each>
+  <xsl:text>/** @} */&#10;</xsl:text>
+  <xsl:text>&#10;</xsl:text>
+
+  <!-- Reinitialization methods for reusable events. -->
+  <xsl:text>/** @name Re-init reusable events&#10;</xsl:text>
+  <xsl:text> * @{ */&#10;</xsl:text>
+  <xsl:for-each select="//interface[@autogen='VBoxEvent']">
+    <xsl:if test="@extends='IReusableEvent'">
+      <xsl:value-of select="concat('/** Re-init an ', @name,  ' event. */&#10;')" />
+      <xsl:variable name="evname">
+        <xsl:value-of select="substring(@name, 2)" />
+      </xsl:variable>
+      <xsl:variable name="ifname">
+        <xsl:value-of select="@name" />
+      </xsl:variable>
+      <xsl:variable name="hasStringAttribs">
+        <xsl:call-template name="hasStringAttributes">
+          <xsl:with-param name="name" select="@name"/>
+        </xsl:call-template>
+      </xsl:variable>
+
+      <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Reinit', $evname, '(IEvent *aEvent')"/>
+      <xsl:call-template name="genFormalParams">
+        <xsl:with-param name="name" select="$ifname" />
+        <xsl:with-param name="utf8str" select="'yes'" />
+      </xsl:call-template>
+      <xsl:text>);&#10;</xsl:text>
+
+      <xsl:if test="($hasStringAttribs != '') and (($G_generateBstrVariants = 'yes') or (contains(@autogenflags, 'BSTR')))">
+        <xsl:value-of select="concat('DECLHIDDEN(HRESULT) Reinit', $evname, '(IEvent *aEvent')"/>
+        <xsl:call-template name="genFormalParams">
+          <xsl:with-param name="name" select="$ifname" />
+          <xsl:with-param name="utf8str" select="'no'" />
+        </xsl:call-template>
+        <xsl:text>);&#10;</xsl:text>
+      </xsl:if>
+    </xsl:if>
+  </xsl:for-each>
+  <xsl:text>/** @} */&#10;</xsl:text>
+
 </xsl:template>
 
 <xsl:template match="/">

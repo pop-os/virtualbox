@@ -4,31 +4,41 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <iprt/win/windows.h>
+#include <iprt/nt/nt-and-windows.h>
 
 #include <iprt/pipe.h>
 #include "internal/iprt.h"
@@ -67,6 +77,8 @@ typedef struct RTPIPEINTERNAL
     HANDLE              hPipe;
     /** Set if this is the read end, clear if it's the write end. */
     bool                fRead;
+    /** RTPipeFromNative: Leave native handle open on RTPipeClose. */
+    bool                fLeaveOpen;
     /** Set if there is already pending I/O. */
     bool                fIOPending;
     /** Set if the zero byte read that the poll code using is pending. */
@@ -97,52 +109,6 @@ typedef struct RTPIPEINTERNAL
     uint8_t             abBuf[8];
 } RTPIPEINTERNAL;
 
-
-/* from ntdef.h */
-typedef LONG NTSTATUS;
-
-/* from ntddk.h */
-typedef struct _IO_STATUS_BLOCK {
-    union {
-        NTSTATUS Status;
-        PVOID Pointer;
-    };
-    ULONG_PTR Information;
-} IO_STATUS_BLOCK, *PIO_STATUS_BLOCK;
-
-typedef enum _FILE_INFORMATION_CLASS {
-    FilePipeInformation = 23,
-    FilePipeLocalInformation = 24,
-    FilePipeRemoteInformation = 25,
-} FILE_INFORMATION_CLASS, *PFILE_INFORMATION_CLASS;
-
-/* from ntifs.h */
-typedef struct _FILE_PIPE_LOCAL_INFORMATION {
-     ULONG NamedPipeType;
-     ULONG NamedPipeConfiguration;
-     ULONG MaximumInstances;
-     ULONG CurrentInstances;
-     ULONG InboundQuota;
-     ULONG ReadDataAvailable;
-     ULONG OutboundQuota;
-     ULONG WriteQuotaAvailable;
-     ULONG NamedPipeState;
-     ULONG NamedPipeEnd;
-} FILE_PIPE_LOCAL_INFORMATION, *PFILE_PIPE_LOCAL_INFORMATION;
-
-#define FILE_PIPE_DISCONNECTED_STATE    0x00000001U
-#define FILE_PIPE_LISTENING_STATE       0x00000002U
-#define FILE_PIPE_CONNECTED_STATE       0x00000003U
-#define FILE_PIPE_CLOSING_STATE         0x00000004U
-
-#define FILE_PIPE_INBOUND               0x00000000U
-#define FILE_PIPE_OUTBOUND              0x00000001U
-#define FILE_PIPE_FULL_DUPLEX           0x00000002U
-
-#define FILE_PIPE_CLIENT_END            0x00000000U
-#define FILE_PIPE_SERVER_END            0x00000001U
-
-extern "C" NTSYSAPI NTSTATUS WINAPI NtQueryInformationFile(HANDLE, PIO_STATUS_BLOCK, PVOID, LONG, FILE_INFORMATION_CLASS);
 
 
 /**
@@ -284,6 +250,8 @@ RTDECL(int)  RTPipeCreate(PRTPIPE phPipeRead, PRTPIPE phPipeWrite, uint32_t fFla
                             pThisW->hPipe               = hPipeW;
                             pThisR->fRead               = true;
                             pThisW->fRead               = false;
+                            pThisR->fLeaveOpen          = false;
+                            pThisW->fLeaveOpen          = false;
                             //pThisR->fIOPending        = false;
                             //pThisW->fIOPending        = false;
                             //pThisR->fZeroByteRead     = false;
@@ -400,7 +368,7 @@ static int rtPipeWriteCheckCompletion(RTPIPEINTERNAL *pThis)
 
 
 
-RTDECL(int)  RTPipeClose(RTPIPE hPipe)
+RTDECL(int)  RTPipeCloseEx(RTPIPE hPipe, bool fLeaveOpen)
 {
     RTPIPEINTERNAL *pThis = hPipe;
     if (pThis == NIL_RTPIPE)
@@ -418,7 +386,8 @@ RTDECL(int)  RTPipeClose(RTPIPE hPipe)
     if (!pThis->fRead && pThis->fIOPending)
         rtPipeWriteCheckCompletion(pThis);
 
-    CloseHandle(pThis->hPipe);
+    if (!fLeaveOpen && !pThis->fLeaveOpen)
+        CloseHandle(pThis->hPipe);
     pThis->hPipe = INVALID_HANDLE_VALUE;
 
     CloseHandle(pThis->Overlapped.hEvent);
@@ -436,10 +405,16 @@ RTDECL(int)  RTPipeClose(RTPIPE hPipe)
 }
 
 
+RTDECL(int)  RTPipeClose(RTPIPE hPipe)
+{
+    return RTPipeCloseEx(hPipe, false /*fLeaveOpen*/);
+}
+
+
 RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t fFlags)
 {
     AssertPtrReturn(phPipe, VERR_INVALID_POINTER);
-    AssertReturn(!(fFlags & ~RTPIPE_N_VALID_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~RTPIPE_N_VALID_MASK_FN), VERR_INVALID_PARAMETER);
     AssertReturn(!!(fFlags & RTPIPE_N_READ) != !!(fFlags & RTPIPE_N_WRITE), VERR_INVALID_PARAMETER);
 
     /*
@@ -482,7 +457,8 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
         {
             pThis->u32Magic             = RTPIPE_MAGIC;
             pThis->hPipe                = hNative;
-            pThis->fRead                = !!(fFlags & RTPIPE_N_READ);
+            pThis->fRead                = RT_BOOL(fFlags & RTPIPE_N_READ);
+            pThis->fLeaveOpen           = RT_BOOL(fFlags & RTPIPE_N_LEAVE_OPEN);
             //pThis->fIOPending         = false;
             //pThis->fZeroByteRead      = false;
             //pThis->fBrokenPipe        = false;
@@ -497,7 +473,7 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
             HANDLE                      hNative2 = INVALID_HANDLE_VALUE;
             FILE_PIPE_LOCAL_INFORMATION Info;
             RT_ZERO(Info);
-            if (   g_enmWinVer != kRTWinOSType_NT310
+            if (   g_pfnSetHandleInformation
                 && rtPipeQueryNtInfo(pThis, &Info))
                 rc = VINF_SUCCESS;
             else
@@ -510,7 +486,10 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
                 {
                     pThis->hPipe = hNative2;
                     if (rtPipeQueryNtInfo(pThis, &Info))
+                    {
+                        pThis->fLeaveOpen = false;
                         rc = VINF_SUCCESS;
+                    }
                     else
                     {
                         rc = VERR_ACCESS_DENIED;
@@ -537,9 +516,9 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
                            VERR_INVALID_HANDLE);
                 if (   RT_SUCCESS(rc)
                     && hNative2 == INVALID_HANDLE_VALUE
-                    && !SetHandleInformation(hNative,
-                                             HANDLE_FLAG_INHERIT /*dwMask*/,
-                                             fFlags & RTPIPE_N_INHERIT ? HANDLE_FLAG_INHERIT : 0))
+                    && !g_pfnSetHandleInformation(hNative,
+                                                  HANDLE_FLAG_INHERIT /*dwMask*/,
+                                                  fFlags & RTPIPE_N_INHERIT ? HANDLE_FLAG_INHERIT : 0))
                 {
                     rc = RTErrConvertFromWin32(GetLastError());
                     AssertMsgFailed(("%Rrc\n", rc));
@@ -552,9 +531,10 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
                      */
                     if (hNative2 != INVALID_HANDLE_VALUE)
                     {
-                        if (   hNative != GetStdHandle(STD_INPUT_HANDLE)
+                        if (   !(fFlags & RTPIPE_N_LEAVE_OPEN)
+                            && hNative != GetStdHandle(STD_INPUT_HANDLE)
                             && hNative != GetStdHandle(STD_OUTPUT_HANDLE)
-                            && hNative != GetStdHandle(STD_ERROR_HANDLE))
+                            && hNative != GetStdHandle(STD_ERROR_HANDLE) )
                             CloseHandle(hNative);
                     }
                     *phPipe = pThis;
@@ -612,8 +592,8 @@ RTDECL(int) RTPipeRead(RTPIPE hPipe, void *pvBuf, size_t cbToRead, size_t *pcbRe
             pThis->cUsers++;
 
             /*
-             * Kick of a an overlapped read.  It should return immediately if
-             * there is bytes in the buffer.  If not, we'll cancel it and see
+             * Kick off a an overlapped read.  It should return immediately if
+             * there are bytes in the buffer.  If not, we'll cancel it and see
              * what we get back.
              */
             rc = ResetEvent(pThis->Overlapped.hEvent); Assert(rc == TRUE);
@@ -631,8 +611,14 @@ RTDECL(int) RTPipeRead(RTPIPE hPipe, void *pvBuf, size_t cbToRead, size_t *pcbRe
                 pThis->fIOPending = true;
                 RTCritSectLeave(&pThis->CritSect);
 
-                if (!CancelIo(pThis->hPipe))
+                /* We use NtCancelIoFile here because the CancelIo API
+                   providing access to it wasn't available till NT4.  This
+                   code needs to work (or at least load) with NT 3.1 */
+                IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+                NTSTATUS rcNt = NtCancelIoFile(pThis->hPipe, &Ios);
+                if (!NT_SUCCESS(rcNt))
                     WaitForSingleObject(pThis->Overlapped.hEvent, INFINITE);
+
                 if (GetOverlappedResult(pThis->hPipe, &pThis->Overlapped, &cbRead, TRUE /*fWait*/))
                 {
                     *pcbRead = cbRead;
@@ -780,7 +766,10 @@ RTDECL(int) RTPipeWrite(RTPIPE hPipe, const void *pvBuf, size_t cbToWrite, size_
                     /** @todo fixme: To get the pipe writing support to work the
                      *               block below needs to be commented out until a
                      *               way is found to address the problem of the incorrectly
-                     *               set field Info.WriteQuotaAvailable. */
+                     *               set field Info.WriteQuotaAvailable.
+                     * Update: We now just write up to RTPIPE_NT_SIZE more.  This is quite
+                     *         possibely what lead to the misunderstanding here wrt to
+                     *         WriteQuotaAvailable updating. */
 #if 0
                     else if (   cbToWrite >= Info.WriteQuotaAvailable
                              && Info.OutboundQuota != 0
@@ -1077,6 +1066,24 @@ RTDECL(int) RTPipeSelectOne(RTPIPE hPipe, RTMSINTERVAL cMillies)
             else
             {
                 FILE_PIPE_LOCAL_INFORMATION Info;
+#if 1
+                /* We can always write one bounce buffer full of data regardless of
+                   the pipe buffer state.  We must of course take this into account,
+                   or code like "Full write buffer" test in tstRTPipe gets confused. */
+                rc = VINF_SUCCESS;
+                if (rtPipeQueryNtInfo(pThis, &Info))
+                {
+                    /* Check for broken pipe. */
+                    if (Info.NamedPipeState != FILE_PIPE_CLOSING_STATE)
+                        pThis->fPromisedWritable = true;
+                    else
+                        rc = VERR_BROKEN_PIPE;
+                }
+                else
+                    pThis->fPromisedWritable = true;
+                break;
+
+#else /* old code: */
                 if (rtPipeQueryNtInfo(pThis, &Info))
                 {
                     /* Check for broken pipe. */
@@ -1085,18 +1092,19 @@ RTDECL(int) RTPipeSelectOne(RTPIPE hPipe, RTMSINTERVAL cMillies)
                         rc = VERR_BROKEN_PIPE;
                         break;
                     }
+
                     /* Check for available write buffer space. */
-                    else if (Info.WriteQuotaAvailable > 0)
+                    if (Info.WriteQuotaAvailable > 0)
                     {
                         pThis->fPromisedWritable = false;
                         rc = VINF_SUCCESS;
                         break;
                     }
+
                     /* delayed buffer alloc or timeout: phony promise
                        later: See if we still can associate a semaphore with
                               the pipe, like on OS/2. */
-                    else if (   Info.OutboundQuota == 0
-                             || cMillies)
+                    if (Info.OutboundQuota == 0 || cMillies)
                     {
                         pThis->fPromisedWritable = true;
                         rc = VINF_SUCCESS;
@@ -1109,6 +1117,7 @@ RTDECL(int) RTPipeSelectOne(RTPIPE hPipe, RTMSINTERVAL cMillies)
                     rc = VINF_SUCCESS;
                     break;
                 }
+#endif
             }
         }
         if (RT_FAILURE(rc))
@@ -1158,7 +1167,10 @@ RTDECL(int) RTPipeSelectOne(RTPIPE hPipe, RTMSINTERVAL cMillies)
                 pThis->cUsers--;
                 pThis->fIOPending = false;
                 if (rc != VINF_SUCCESS)
-                    CancelIo(pThis->hPipe);
+                {
+                    IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+                    NtCancelIoFile(pThis->hPipe, &Ios);
+                }
                 DWORD cbRead = 0;
                 GetOverlappedResult(pThis->hPipe, &pThis->Overlapped, &cbRead, TRUE /*fWait*/);
             }
@@ -1497,7 +1509,9 @@ uint32_t rtPipePollDone(RTPIPE hPipe, uint32_t fEvents, bool fFinalEntry, bool f
     uint32_t fRetEvents = 0;
     if (pThis->fZeroByteRead)
     {
-        CancelIo(pThis->hPipe);
+        IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+        NtCancelIoFile(pThis->hPipe, &Ios);
+
         DWORD cbRead = 0;
         if (   !GetOverlappedResult(pThis->hPipe, &pThis->Overlapped, &cbRead, TRUE /*fWait*/)
             && GetLastError() != ERROR_OPERATION_ABORTED)

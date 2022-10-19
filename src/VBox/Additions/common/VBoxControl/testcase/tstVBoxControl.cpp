@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -87,13 +97,13 @@ VBGLR3DECL(int)     VbglR3GuestPropRead(HGCMCLIENTID idClient,
              idClient, pszName);
     static char szValue[] = "Value";
     static char szFlags[] = "TRANSIENT";
-    if (VALID_PTR(ppszValue))
+    if (ppszValue)
         *ppszValue = szValue;
-    if (VALID_PTR(pu64Timestamp))
+    if (pu64Timestamp)
         *pu64Timestamp = 12345;
-    if (VALID_PTR(ppszFlags))
+    if (ppszFlags)
         *ppszFlags = szFlags;
-    if (VALID_PTR(pcbBufActual))
+    if (pcbBufActual)
         *pcbBufActual = 256;
     return VINF_SUCCESS;
 }
@@ -128,13 +138,13 @@ VBGLR3DECL(int)     VbglR3GuestPropEnum(HGCMCLIENTID idClient,
     static char szValue[] = "Value";
     static char szFlags[] = "TRANSIENT";
     *ppHandle = &Handle;
-    if (VALID_PTR(ppszName))
+    if (ppszName)
         *ppszName = szName;
-    if (VALID_PTR(ppszValue))
+    if (ppszValue)
         *ppszValue = szValue;
-    if (VALID_PTR(pu64Timestamp))
+    if (pu64Timestamp)
         *pu64Timestamp = 12345;
-    if (VALID_PTR(ppszFlags))
+    if (ppszFlags)
         *ppszFlags = szFlags;
     return VINF_SUCCESS;
 }
@@ -147,15 +157,15 @@ VBGLR3DECL(int)     VbglR3GuestPropEnumNext(PVBGLR3GUESTPROPENUM pHandle,
 {
     RT_NOREF1(pHandle);
     RTPrintf("Called enumerate next...\n");
-    AssertReturn(VALID_PTR(ppszName) || VALID_PTR(ppszValue) || VALID_PTR(ppszFlags),
+    AssertReturn(RT_VALID_PTR(ppszName) || RT_VALID_PTR(ppszValue) || RT_VALID_PTR(ppszFlags),
                  VERR_INVALID_POINTER);
-    if (VALID_PTR(ppszName))
+    if (ppszName)
         *ppszName = NULL;
-    if (VALID_PTR(ppszValue))
+    if (ppszValue)
         *ppszValue = NULL;
-    if (VALID_PTR(pu64Timestamp))
+    if (pu64Timestamp)
         *pu64Timestamp = 0;
-    if (VALID_PTR(ppszFlags))
+    if (ppszFlags)
         *ppszFlags = NULL;
     return VINF_SUCCESS;
 }
@@ -176,7 +186,8 @@ VBGLR3DECL(int)     VbglR3GuestPropWait(HGCMCLIENTID idClient,
                                         char **ppszValue,
                                         uint64_t *pu64Timestamp,
                                         char **ppszFlags,
-                                        uint32_t *pcbBufActual)
+                                        uint32_t *pcbBufActual,
+                                        bool *pfWasDeleted)
 {
     RT_NOREF2(pvBuf, cbBuf);
     if (u32Timeout == RT_INDEFINITE_WAIT)
@@ -190,16 +201,18 @@ VBGLR3DECL(int)     VbglR3GuestPropWait(HGCMCLIENTID idClient,
     static char szName[] = "Name";
     static char szValue[] = "Value";
     static char szFlags[] = "TRANSIENT";
-    if (VALID_PTR(ppszName))
+    if (ppszName)
         *ppszName = szName;
-    if (VALID_PTR(ppszValue))
+    if (ppszValue)
         *ppszValue = szValue;
-    if (VALID_PTR(pu64Timestamp))
+    if (pu64Timestamp)
         *pu64Timestamp = 12345;
-    if (VALID_PTR(ppszFlags))
+    if (ppszFlags)
         *ppszFlags = szFlags;
-    if (VALID_PTR(pcbBufActual))
+    if (pcbBufActual)
         *pcbBufActual = 256;
+    if (pfWasDeleted)
+        *pfWasDeleted = false;
     return VINF_SUCCESS;
 }
 

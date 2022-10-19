@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_testcase_VDScript_h
@@ -82,7 +92,7 @@ typedef struct VDSCRIPTARG
 typedef VDSCRIPTARG *PVDSCRIPTARG;
 
 /** Script callback. */
-typedef DECLCALLBACK(int) FNVDSCRIPTCALLBACK(PVDSCRIPTARG paScriptArgs, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNVDSCRIPTCALLBACK,(PVDSCRIPTARG paScriptArgs, void *pvUser));
 /** Pointer to a script callback. */
 typedef FNVDSCRIPTCALLBACK *PFNVDSCRIPTCALLBACK;
 
@@ -126,7 +136,7 @@ typedef const VDSCRIPTCALLBACK *PCVDSCRIPTCALLBACK;
  * @param   pvBuf          Where to store the read bits.
  * @param   cbRead         How much to read.
  */
-typedef DECLCALLBACK(int) FNVDSCRIPTASREAD(void *pvUser, VDSCRIPTARG Address, void *pvBuf, size_t cbRead);
+typedef DECLCALLBACKTYPE(int, FNVDSCRIPTASREAD,(void *pvUser, VDSCRIPTARG Address, void *pvBuf, size_t cbRead));
 /** Pointer to a read callback. */
 typedef FNVDSCRIPTASREAD *PFNVDSCRIPTASREAD;
 
@@ -140,7 +150,7 @@ typedef FNVDSCRIPTASREAD *PFNVDSCRIPTASREAD;
  * @param   pvBuf          Data to write.
  * @param   cbWrite        How much to write.
  */
-typedef DECLCALLBACK(int) FNVDSCRIPTASWRITE(void *pvUser, VDSCRIPTARG Address, const void *pvBuf, size_t cbWrite);
+typedef DECLCALLBACKTYPE(int, FNVDSCRIPTASWRITE,(void *pvUser, VDSCRIPTARG Address, const void *pvBuf, size_t cbWrite));
 /** Pointer to a write callback. */
 typedef FNVDSCRIPTASWRITE *PFNVDSCRIPTASWRITE;
 

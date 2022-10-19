@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_INTERNAL_rand_h
@@ -57,7 +67,7 @@ typedef struct RTRANDINT
      * @param   pb          Where to store the bytes.
      * @param   cb          The number of bytes to produce.
      */
-    DECLCALLBACKMEMBER(void ,    pfnGetBytes)(PRTRANDINT pThis, uint8_t *pb, size_t cb);
+    DECLCALLBACKMEMBER(void , pfnGetBytes,(PRTRANDINT pThis, uint8_t *pb, size_t cb));
 
     /**
      * Generates a unsigned 32-bit random number.
@@ -67,7 +77,7 @@ typedef struct RTRANDINT
      * @param   u32First    The first number in the range.
      * @param   u32Last     The last number in the range (i.e. inclusive).
      */
-    DECLCALLBACKMEMBER(uint32_t, pfnGetU32)(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last);
+    DECLCALLBACKMEMBER(uint32_t, pfnGetU32,(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last));
 
     /**
      * Generates a unsigned 64-bit random number.
@@ -77,7 +87,7 @@ typedef struct RTRANDINT
      * @param   u64First    The first number in the range.
      * @param   u64Last     The last number in the range (i.e. inclusive).
      */
-    DECLCALLBACKMEMBER(uint64_t, pfnGetU64)(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last);
+    DECLCALLBACKMEMBER(uint64_t, pfnGetU64,(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last));
 
     /**
      * Generic seeding.
@@ -88,7 +98,7 @@ typedef struct RTRANDINT
      * @param   pThis       Pointer to the instance data.
      * @param   u64Seed     The seed.
      */
-    DECLCALLBACKMEMBER(int, pfnSeed)(PRTRANDINT pThis, uint64_t u64Seed);
+    DECLCALLBACKMEMBER(int, pfnSeed,(PRTRANDINT pThis, uint64_t u64Seed));
 
     /**
      * Save the current state of a pseudo generator.
@@ -110,7 +120,7 @@ typedef struct RTRANDINT
      *                      size required / used on return (including the
      *                      terminator, thus the 'cb' instead of 'cch').
      */
-    DECLCALLBACKMEMBER(int, pfnSaveState)(PRTRANDINT pThis, char *pszState, size_t *pcbState);
+    DECLCALLBACKMEMBER(int, pfnSaveState,(PRTRANDINT pThis, char *pszState, size_t *pcbState));
 
     /**
      * Restores the state of a pseudo generator.
@@ -124,7 +134,7 @@ typedef struct RTRANDINT
      * @param   pThis       Pointer to the instance data.
      * @param   pszState    The state to load.
      */
-    DECLCALLBACKMEMBER(int, pfnRestoreState)(PRTRANDINT pThis, char const *pszState);
+    DECLCALLBACKMEMBER(int, pfnRestoreState,(PRTRANDINT pThis, char const *pszState));
 
     /**
      * Destroys the instance.
@@ -135,7 +145,7 @@ typedef struct RTRANDINT
      * @returns IPRT status code. State undefined on failure.
      * @param   pThis       Pointer to the instance data.
      */
-    DECLCALLBACKMEMBER(int, pfnDestroy)(PRTRANDINT pThis);
+    DECLCALLBACKMEMBER(int, pfnDestroy,(PRTRANDINT pThis));
 
     /** Union containing the specific state info for each generator. */
     union
@@ -161,16 +171,16 @@ typedef struct RTRANDINT
 
 RT_C_DECLS_BEGIN
 
-DECLHIDDEN(DECLCALLBACK(void))      rtRandAdvSynthesizeBytesFromU32(PRTRANDINT pThis, uint8_t *pb, size_t cb);
-DECLHIDDEN(DECLCALLBACK(void))      rtRandAdvSynthesizeBytesFromU64(PRTRANDINT pThis, uint8_t *pb, size_t cb);
-DECLHIDDEN(DECLCALLBACK(uint32_t))  rtRandAdvSynthesizeU32FromBytes(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last);
-DECLHIDDEN(DECLCALLBACK(uint32_t))  rtRandAdvSynthesizeU32FromU64(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last);
-DECLHIDDEN(DECLCALLBACK(uint64_t))  rtRandAdvSynthesizeU64FromBytes(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last);
-DECLHIDDEN(DECLCALLBACK(uint64_t))  rtRandAdvSynthesizeU64FromU32(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last);
-DECLHIDDEN(DECLCALLBACK(int))       rtRandAdvStubSeed(PRTRANDINT pThis, uint64_t u64Seed);
-DECLHIDDEN(DECLCALLBACK(int))       rtRandAdvStubSaveState(PRTRANDINT pThis, char *pszState, size_t *pcbState);
-DECLHIDDEN(DECLCALLBACK(int))       rtRandAdvStubRestoreState(PRTRANDINT pThis, char const *pszState);
-DECLHIDDEN(DECLCALLBACK(int))       rtRandAdvDefaultDestroy(PRTRANDINT pThis);
+DECL_HIDDEN_CALLBACK(void)      rtRandAdvSynthesizeBytesFromU32(PRTRANDINT pThis, uint8_t *pb, size_t cb);
+DECL_HIDDEN_CALLBACK(void)      rtRandAdvSynthesizeBytesFromU64(PRTRANDINT pThis, uint8_t *pb, size_t cb);
+DECL_HIDDEN_CALLBACK(uint32_t)  rtRandAdvSynthesizeU32FromBytes(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last);
+DECL_HIDDEN_CALLBACK(uint32_t)  rtRandAdvSynthesizeU32FromU64(PRTRANDINT pThis, uint32_t u32First, uint32_t u32Last);
+DECL_HIDDEN_CALLBACK(uint64_t)  rtRandAdvSynthesizeU64FromBytes(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last);
+DECL_HIDDEN_CALLBACK(uint64_t)  rtRandAdvSynthesizeU64FromU32(PRTRANDINT pThis, uint64_t u64First, uint64_t u64Last);
+DECL_HIDDEN_CALLBACK(int)       rtRandAdvStubSeed(PRTRANDINT pThis, uint64_t u64Seed);
+DECL_HIDDEN_CALLBACK(int)       rtRandAdvStubSaveState(PRTRANDINT pThis, char *pszState, size_t *pcbState);
+DECL_HIDDEN_CALLBACK(int)       rtRandAdvStubRestoreState(PRTRANDINT pThis, char const *pszState);
+DECL_HIDDEN_CALLBACK(int)       rtRandAdvDefaultDestroy(PRTRANDINT pThis);
 
 RT_C_DECLS_END
 

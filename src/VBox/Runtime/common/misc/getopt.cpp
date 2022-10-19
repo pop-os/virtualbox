@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -39,6 +49,15 @@
 #include <iprt/message.h>
 #include <iprt/string.h>
 #include <iprt/uuid.h>
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+#ifdef IN_RT_STATIC  /* We don't need full unicode case insensitive if we ASSUME basic latin only. */
+# define RTStrICmp  RTStrICmpAscii
+# define RTStrNICmp RTStrNICmpAscii
+#endif
 
 
 /*********************************************************************************************************************************
@@ -77,19 +96,31 @@ RTDECL(int) RTGetOptInit(PRTGETOPTSTATE pState, int argc, char **argv,
     pState->fFlags       = fFlags;
     pState->cNonOptions  = 0;
 
+#ifdef RT_STRICT
     /* validate the options. */
     for (size_t i = 0; i < cOptions; i++)
     {
         Assert(!(paOptions[i].fFlags & ~RTGETOPT_VALID_MASK));
+        Assert(   !(paOptions[i].fFlags & (RTGETOPT_FLAG_INDEX_DEF_MASK | RTGETOPT_FLAG_INDEX_DEF_DASH))
+               || (paOptions[i].fFlags & RTGETOPT_FLAG_INDEX) );
         Assert(paOptions[i].iShort > 0);
         Assert(paOptions[i].iShort != VINF_GETOPT_NOT_OPTION);
         Assert(paOptions[i].iShort != '-');
+        if (paOptions[i].fFlags & RTGETOPT_FLAG_ICASE)
+        {
+            const char   *psz = paOptions[i].pszLong;
+            unsigned char ch;
+            while ((ch = *psz++) != '\0')
+                Assert(ch <= 0x7f); /* ASSUMPTION that we can use RTStrICmpAscii and RTStrNICmpAscii. */
+        }
     }
+#endif
 
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTGetOptInit);
 
+#ifndef IPRT_GETOPT_WITHOUT_NETWORK_ADDRESSES
 
 /**
  * Converts an stringified IPv4 address into the RTNETADDRIPV4 representation.
@@ -127,6 +158,7 @@ static int rtgetoptConvertMacAddr(const char *pszValue, PRTMAC pAddr)
     return VINF_SUCCESS;
 }
 
+#endif /* IPRT_GETOPT_WITHOUT_NETWORK_ADDRESSES */
 
 /**
  * Searches for a long option.
@@ -144,7 +176,8 @@ static PCRTGETOPTDEF rtGetOptSearchLong(const char *pszOption, PCRTGETOPTDEF paO
     {
         if (pOpt->pszLong)
         {
-            if ((pOpt->fFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING)
+            uint32_t const fOptFlags = pOpt->fFlags;
+            if ((fOptFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING)
             {
                 /*
                  * A value is required with the argument. We're trying to be
@@ -158,10 +191,14 @@ static PCRTGETOPTDEF rtGetOptSearchLong(const char *pszOption, PCRTGETOPTDEF paO
                  */
                 size_t cchLong = strlen(pOpt->pszLong);
                 if (   !strncmp(pszOption, pOpt->pszLong, cchLong)
-                    || (   pOpt->fFlags & RTGETOPT_FLAG_ICASE
+                    || (   (fOptFlags & RTGETOPT_FLAG_ICASE)
                         && !RTStrNICmp(pszOption, pOpt->pszLong, cchLong)))
                 {
-                    if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
+                    if (   (fOptFlags & RTGETOPT_FLAG_INDEX_DEF_DASH)
+                        && pszOption[cchLong] == '-'
+                        && RT_C_IS_DIGIT(pszOption[cchLong + 1])) /* given "--long" we match "--long-1" but not "--long-". */
+                        cchLong++;
+                    if (fOptFlags & RTGETOPT_FLAG_INDEX)
                         while (RT_C_IS_DIGIT(pszOption[cchLong]))
                             cchLong++;
                     if (   pszOption[cchLong] == '\0'
@@ -170,7 +207,7 @@ static PCRTGETOPTDEF rtGetOptSearchLong(const char *pszOption, PCRTGETOPTDEF paO
                         return pOpt;
                 }
             }
-            else if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
+            else if (fOptFlags & RTGETOPT_FLAG_INDEX)
             {
                 /*
                  * The option takes an index but no value.
@@ -178,9 +215,13 @@ static PCRTGETOPTDEF rtGetOptSearchLong(const char *pszOption, PCRTGETOPTDEF paO
                  */
                 size_t cchLong = strlen(pOpt->pszLong);
                 if (   !strncmp(pszOption, pOpt->pszLong, cchLong)
-                    || (   pOpt->fFlags & RTGETOPT_FLAG_ICASE
+                    || (   (fOptFlags & RTGETOPT_FLAG_ICASE)
                         && !RTStrNICmp(pszOption, pOpt->pszLong, cchLong)))
                 {
+                    if (   (fOptFlags & RTGETOPT_FLAG_INDEX_DEF_DASH)
+                        && pszOption[cchLong] == '-'
+                        && RT_C_IS_DIGIT(pszOption[cchLong + 1]))
+                        cchLong++;
                     while (RT_C_IS_DIGIT(pszOption[cchLong]))
                         cchLong++;
                     if (pszOption[cchLong] == '\0')
@@ -188,7 +229,7 @@ static PCRTGETOPTDEF rtGetOptSearchLong(const char *pszOption, PCRTGETOPTDEF paO
                 }
             }
             else if (   !strcmp(pszOption, pOpt->pszLong)
-                     || (   pOpt->fFlags & RTGETOPT_FLAG_ICASE
+                     || (   (fOptFlags & RTGETOPT_FLAG_ICASE)
                          && !RTStrICmp(pszOption, pOpt->pszLong)))
                 return pOpt;
         }
@@ -369,6 +410,8 @@ static int rtGetOptProcessValue(uint32_t fFlags, const char *pszValue, PRTGETOPT
 #undef MY_INT_CASE
 #undef MY_BASE_INT_CASE
 
+#ifndef IPRT_GETOPT_WITHOUT_NETWORK_ADDRESSES
+
         case RTGETOPT_REQ_IPV4ADDR:
         {
             RTNETADDRIPV4 Addr;
@@ -397,6 +440,8 @@ static int rtGetOptProcessValue(uint32_t fFlags, const char *pszValue, PRTGETOPT
             pValueUnion->MacAddr = Addr;
             break;
         }
+
+#endif /* IPRT_GETOPT_WITHOUT_NETWORK_ADDRESSES */
 
         case RTGETOPT_REQ_UUID:
         {
@@ -441,13 +486,14 @@ static int rtGetOptProcessValue(uint32_t fFlags, const char *pszValue, PRTGETOPT
                             if (rc == VINF_SUCCESS) \
                             { /* likely */ } \
                             else \
-                               { RTAssertMsg2("z rc=%Rrc: '%s' '%s' uBase=%d\n", rc, pszValue, pszNext, uBase); return VERR_GETOPT_INVALID_ARGUMENT_FORMAT; } \
+                                AssertMsgFailedReturn(("z rc=%Rrc: '%s' '%s' uBase=%d\n", rc, pszValue, pszNext, uBase), \
+                                                       VERR_GETOPT_INVALID_ARGUMENT_FORMAT); \
                         } \
                         else if (fSwitchValue != (a_fReqValueOptional)) \
-                        { RTAssertMsg2("x\n"); return VERR_GETOPT_INVALID_ARGUMENT_FORMAT; } \
+                            AssertMsgFailedReturn(("x\n"), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); \
                     } \
                     else if (fSwitchValue != (a_fReqValueOptional)) \
-                        { RTAssertMsg2("y\n"); return VERR_GETOPT_INVALID_ARGUMENT_FORMAT; } \
+                        AssertMsgFailedReturn(("y\n"), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); \
                     pValueUnion->a_MemberPrefix##Second = Value2; \
                     pValueUnion->a_MemberPrefix##First  = Value1; \
                     break; \
@@ -624,7 +670,8 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
     {
         pValueUnion->pDef = pOpt; /* in case of no value or error. */
 
-        if ((pOpt->fFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING)
+        uint32_t const fOptFlags = pOpt->fFlags;
+        if ((fOptFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING)
         {
             /*
              * Find the argument value.
@@ -656,34 +703,46 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
             else
             {
                 size_t cchLong = strlen(pOpt->pszLong);
-                if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
+                if (fOptFlags & RTGETOPT_FLAG_INDEX)
                 {
-
-                    if (pszArgThis[cchLong] == '\0')
-                        return VERR_GETOPT_INDEX_MISSING;
-
-                    uint32_t uIndex;
-                    char *pszRet = NULL;
-                    int rc = RTStrToUInt32Ex(&pszArgThis[cchLong], &pszRet, 10, &uIndex);
-                    if (rc == VWRN_TRAILING_CHARS)
+                    if (   pszArgThis[cchLong] != '\0'
+                        || (fOptFlags & RTGETOPT_FLAG_INDEX_DEF_MASK))
                     {
-                        if (   pszRet[0] != ':'
-                            && pszRet[0] != '=')
-                            return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-                        pState->uIndex = uIndex;
-                        pszValue = pszRet + 1;
-                    }
-                    else if (rc == VINF_SUCCESS)
-                    {
-                        if (iThis + 1 + pState->cNonOptions >= pState->argc)
-                            return VERR_GETOPT_REQUIRED_ARGUMENT_MISSING;
-                        pState->uIndex = uIndex;
-                        pszValue = pState->argv[iThis + pState->cNonOptions + 1];
-                        rtGetOptMoveArgvEntries(&pState->argv[iThis + 1], &pState->argv[iThis + pState->cNonOptions + 1]);
-                        pState->iNext++;
+                        if (   (fOptFlags & RTGETOPT_FLAG_INDEX_DEF_DASH)
+                            && pszArgThis[cchLong] == '-')
+                            cchLong++;
+
+                        uint32_t uIndex;
+                        char *pszRet = NULL;
+                        int rc = RTStrToUInt32Ex(&pszArgThis[cchLong], &pszRet, 10, &uIndex);
+                        if (   rc == VERR_NO_DIGITS
+                            && (fOptFlags & RTGETOPT_FLAG_INDEX_DEF_MASK))
+                        {
+                            uIndex = ((fOptFlags & RTGETOPT_FLAG_INDEX_DEF_MASK) >> RTGETOPT_FLAG_INDEX_DEF_SHIFT) - 1;
+                            rc = pszRet[0] == '\0' ? VINF_SUCCESS : VWRN_TRAILING_CHARS;
+                        }
+                        if (rc == VWRN_TRAILING_CHARS)
+                        {
+                            if (   pszRet[0] != ':'
+                                && pszRet[0] != '=')
+                                return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
+                            pState->uIndex = uIndex;
+                            pszValue = pszRet + 1;
+                        }
+                        else if (rc == VINF_SUCCESS)
+                        {
+                            if (iThis + 1 + pState->cNonOptions >= pState->argc)
+                                return VERR_GETOPT_REQUIRED_ARGUMENT_MISSING;
+                            pState->uIndex = uIndex;
+                            pszValue = pState->argv[iThis + pState->cNonOptions + 1];
+                            rtGetOptMoveArgvEntries(&pState->argv[iThis + 1], &pState->argv[iThis + pState->cNonOptions + 1]);
+                            pState->iNext++;
+                        }
+                        else
+                            AssertMsgFailedReturn(("%s\n", pszArgThis), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); /* search bug */
                     }
                     else
-                        AssertMsgFailedReturn(("%s\n", pszArgThis), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); /* search bug */
+                        return VERR_GETOPT_INDEX_MISSING;
                 }
                 else
                 {
@@ -703,7 +762,7 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
             /*
              * Set up the ValueUnion.
              */
-            int rc = rtGetOptProcessValue(pOpt->fFlags, pszValue, pValueUnion);
+            int rc = rtGetOptProcessValue(fOptFlags, pszValue, pValueUnion);
             if (RT_FAILURE(rc))
                 return rc;
         }
@@ -729,17 +788,24 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
                 pState->iNext++;
             }
         }
-        else if (pOpt->fFlags & RTGETOPT_FLAG_INDEX)
+        else if (fOptFlags & RTGETOPT_FLAG_INDEX)
         {
-            size_t cchLong = strlen(pOpt->pszLong);
-            if (pszArgThis[cchLong] == '\0')
-                return VERR_GETOPT_INDEX_MISSING;
-
+            size_t   cchLong = strlen(pOpt->pszLong);
             uint32_t uIndex;
-            if (RTStrToUInt32Full(&pszArgThis[cchLong], 10, &uIndex) == VINF_SUCCESS)
-                pState->uIndex = uIndex;
+            if (pszArgThis[cchLong] != '\0')
+            {
+                if (   (fOptFlags & RTGETOPT_FLAG_INDEX_DEF_DASH)
+                    && pszArgThis[cchLong] == '-')
+                    cchLong++;
+                if (RTStrToUInt32Full(&pszArgThis[cchLong], 10, &uIndex) == VINF_SUCCESS)
+                    pState->uIndex = uIndex;
+                else
+                    AssertMsgFailedReturn(("%s\n", pszArgThis), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); /* search bug */
+            }
+            else if (fOptFlags & RTGETOPT_FLAG_INDEX_DEF_MASK)
+                uIndex = ((fOptFlags & RTGETOPT_FLAG_INDEX_DEF_MASK) >> RTGETOPT_FLAG_INDEX_DEF_SHIFT) - 1;
             else
-                AssertMsgFailedReturn(("%s\n", pszArgThis), VERR_GETOPT_INVALID_ARGUMENT_FORMAT); /* search bug */
+                return VERR_GETOPT_INDEX_MISSING;
         }
 
         pState->pDef = pOpt;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_ExtPackManagerImpl_h
@@ -43,7 +53,7 @@ class ATL_NO_VTABLE ExtPackFile :
 public:
     /** @name COM and internal init/term/mapping cruft.
      * @{ */
-    DECLARE_EMPTY_CTOR_DTOR(ExtPackFile)
+    DECLARE_COMMON_CLASS_METHODS(ExtPackFile)
 
     HRESULT     FinalConstruct();
     void        FinalRelease();
@@ -66,6 +76,7 @@ private:
     HRESULT getRevision(ULONG *aRevision);
     HRESULT getEdition(com::Utf8Str &aEdition);
     HRESULT getVRDEModule(com::Utf8Str &aVRDEModule);
+    HRESULT getCryptoModule(com::Utf8Str &aCryptoModule);
     HRESULT getPlugIns(std::vector<ComPtr<IExtPackPlugIn> > &aPlugIns);
     HRESULT getUsable(BOOL *aUsable);
     HRESULT getWhyUnusable(com::Utf8Str &aWhyUnusable);
@@ -101,7 +112,7 @@ class ATL_NO_VTABLE ExtPack :
 public:
     /** @name COM and internal init/term/mapping cruft.
      * @{ */
-    DECLARE_EMPTY_CTOR_DTOR(ExtPack)
+    DECLARE_COMMON_CLASS_METHODS(ExtPack)
 
     HRESULT     FinalConstruct();
     void        FinalRelease();
@@ -124,14 +135,18 @@ public:
     bool        i_callVmCreatedHook(IVirtualBox *a_pVirtualBox, IMachine *a_pMachine, AutoWriteLock *a_pLock);
 #endif
 #ifdef VBOX_COM_INPROC
-    bool        i_callVmConfigureVmmHook(IConsole *a_pConsole, PVM a_pVM, AutoWriteLock *a_pLock, int *a_pvrc);
-    bool        i_callVmPowerOnHook(IConsole *a_pConsole, PVM a_pVM, AutoWriteLock *a_pLock, int *a_pvrc);
-    bool        i_callVmPowerOffHook(IConsole *a_pConsole, PVM a_pVM, AutoWriteLock *a_pLock);
+    bool        i_callVmConfigureVmmHook(IConsole *a_pConsole, PVM a_pVM, PCVMMR3VTABLE a_pVMM,
+                                         AutoWriteLock *a_pLock, int *a_pvrc);
+    bool        i_callVmPowerOnHook(IConsole *a_pConsole, PVM a_pVM, PCVMMR3VTABLE a_pVMM, AutoWriteLock *a_pLock, int *a_pvrc);
+    bool        i_callVmPowerOffHook(IConsole *a_pConsole, PVM a_pVM, PCVMMR3VTABLE a_pVMM, AutoWriteLock *a_pLock);
 #endif
     HRESULT     i_checkVrde(void);
+    HRESULT     i_checkCrypto(void);
     HRESULT     i_getVrdpLibraryName(Utf8Str *a_pstrVrdeLibrary);
+    HRESULT     i_getCryptoLibraryName(Utf8Str *a_pstrCryptoLibrary);
     HRESULT     i_getLibraryName(const char *a_pszModuleName, Utf8Str *a_pstrLibrary);
     bool        i_wantsToBeDefaultVrde(void) const;
+    bool        i_wantsToBeDefaultCrypto(void) const;
     HRESULT     i_refresh(bool *pfCanDelete);
 #ifndef VBOX_COM_INPROC
     bool        i_areThereCloudProviderUninstallVetos();
@@ -173,7 +188,20 @@ protected:
                                                          uint32_t cTimeoutMS);
     static DECLCALLBACK(uint32_t) i_hlpCompleteProgress(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
                                                         uint32_t uResultCode);
-    static DECLCALLBACK(int)    i_hlpReservedN(PCVBOXEXTPACKHLP pHlp);
+    static DECLCALLBACK(uint32_t) i_hlpCreateEvent(PCVBOXEXTPACKHLP pHlp,
+                                                   VBOXEXTPACK_IF_CS(IEventSource) *aSource,
+                                                   /* VBoxEventType_T */ uint32_t aType, bool aWaitable,
+                                                   VBOXEXTPACK_IF_CS(IEvent) **ppEventOut);
+    static DECLCALLBACK(uint32_t) i_hlpCreateVetoEvent(PCVBOXEXTPACKHLP pHlp,
+                                                       VBOXEXTPACK_IF_CS(IEventSource) *aSource,
+                                                       /* VBoxEventType_T */ uint32_t aType,
+                                                       VBOXEXTPACK_IF_CS(IVetoEvent) **ppEventOut);
+    static DECLCALLBACK(const char *) i_hlpTranslate(PCVBOXEXTPACKHLP pHlp,
+                                                     const char  *pszComponent,
+                                                     const char  *pszSourceText,
+                                                     const char  *pszComment = NULL,
+                                                     const size_t aNum = ~(size_t)0);
+    static DECLCALLBACK(int)      i_hlpReservedN(PCVBOXEXTPACKHLP pHlp);
     /** @}  */
 
 private:
@@ -185,6 +213,7 @@ private:
     HRESULT getRevision(ULONG *aRevision);
     HRESULT getEdition(com::Utf8Str &aEdition);
     HRESULT getVRDEModule(com::Utf8Str &aVRDEModule);
+    HRESULT getCryptoModule(com::Utf8Str &aCryptoModule);
     HRESULT getPlugIns(std::vector<ComPtr<IExtPackPlugIn> > &aPlugIns);
     HRESULT getUsable(BOOL *aUsable);
     HRESULT getWhyUnusable(com::Utf8Str &aWhyUnusable);
@@ -217,7 +246,7 @@ class ATL_NO_VTABLE ExtPackManager :
 public:
     /** @name COM and internal init/term/mapping cruft.
      * @{ */
-    DECLARE_EMPTY_CTOR_DTOR(ExtPackManager)
+    DECLARE_COMMON_CLASS_METHODS(ExtPackManager)
 
     HRESULT     FinalConstruct();
     void        FinalRelease();
@@ -240,14 +269,17 @@ public:
     void        i_callAllVmCreatedHooks(IMachine *a_pMachine);
 #endif
 #ifdef VBOX_COM_INPROC
-    int         i_callAllVmConfigureVmmHooks(IConsole *a_pConsole, PVM a_pVM);
-    int         i_callAllVmPowerOnHooks(IConsole *a_pConsole, PVM a_pVM);
-    void        i_callAllVmPowerOffHooks(IConsole *a_pConsole, PVM a_pVM);
+    int         i_callAllVmConfigureVmmHooks(IConsole *a_pConsole, PVM a_pVM, PCVMMR3VTABLE a_pVMM);
+    int         i_callAllVmPowerOnHooks(IConsole *a_pConsole, PVM a_pVM, PCVMMR3VTABLE a_pVMM);
+    void        i_callAllVmPowerOffHooks(IConsole *a_pConsole, PVM a_pVM, PCVMMR3VTABLE a_pVMM);
 #endif
     HRESULT     i_checkVrdeExtPack(Utf8Str const *a_pstrExtPack);
     int         i_getVrdeLibraryPathForExtPack(Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrVrdeLibrary);
+    HRESULT     i_checkCryptoExtPack(Utf8Str const *a_pstrExtPack);
+    int         i_getCryptoLibraryPathForExtPack(Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrVrdeLibrary);
     HRESULT     i_getLibraryPathForExtPack(const char *a_pszModuleName, const char *a_pszExtPack, Utf8Str *a_pstrLibrary);
     HRESULT     i_getDefaultVrdeExtPack(Utf8Str *a_pstrExtPack);
+    HRESULT     i_getDefaultCryptoExtPack(Utf8Str *a_pstrExtPack);
     bool        i_isExtPackUsable(const char *a_pszExtPack);
     void        i_dumpAllToReleaseLog(void);
     uint64_t    i_getUpdateCounter(void);

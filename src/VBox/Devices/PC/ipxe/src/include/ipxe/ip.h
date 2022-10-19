@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <ipxe/in.h>
@@ -70,20 +70,15 @@ struct ipv4_miniroute {
 	struct in_addr gateway;
 };
 
-/* IPv4 fragment reassembly buffer */
-struct ipv4_fragment {
-	/* List of fragment reassembly buffers */
-	struct list_head list;
-	/** Reassembled packet */
-	struct io_buffer *iobuf;
-	/** Current offset */
-	size_t offset;
-	/** Reassembly timer */
-	struct retry_timer timer;
-};
-
 extern struct list_head ipv4_miniroutes;
 
 extern struct net_protocol ipv4_protocol __net_protocol;
+
+extern int ipv4_has_any_addr ( struct net_device *netdev );
+extern int parse_ipv4_setting ( const struct setting_type *type,
+				const char *value, void *buf, size_t len );
+extern int format_ipv4_setting ( const struct setting_type *type,
+				 const void *raw, size_t raw_len, char *buf,
+				 size_t len );
 
 #endif /* _IPXE_IP_H */

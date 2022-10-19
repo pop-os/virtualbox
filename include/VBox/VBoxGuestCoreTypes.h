@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -228,7 +228,7 @@ typedef VBGLIOCHGCMCALL const RT_FAR *PCVBGLIOCHGCMCALL;
  * Mouse event noticification callback function.
  * @param   pvUser      Argument given when setting the callback.
  */
-typedef DECLCALLBACK(void) FNVBOXGUESTMOUSENOTIFY(void *pvUser);
+typedef DECLCALLBACKTYPE(void, FNVBOXGUESTMOUSENOTIFY,(void *pvUser));
 /** Pointer to a mouse event notification callback function. */
 typedef FNVBOXGUESTMOUSENOTIFY *PFNVBOXGUESTMOUSENOTIFY; /**< @todo fix type prefix */
 

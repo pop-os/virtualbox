@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -20,7 +30,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <iprt/test.h>
-#include <iprt/param.h>
+#include <VBox/param.h>
 #include <iprt/mem.h>
 #include <iprt/errcore.h>
 #include <iprt/assert.h>
@@ -192,13 +202,13 @@ int main()
         return rcExit;
     RTTestBanner(hTest);
 
-    g_pbEfPage = (uint8_t *)RTTestGuardedAllocTail(hTest, PAGE_SIZE);
+    g_pbEfPage = (uint8_t *)RTTestGuardedAllocTail(hTest, HOST_PAGE_SIZE);
     RTTESTI_CHECK(g_pbEfPage != NULL);
 
-    g_pbEfExecPage = (uint8_t *)RTMemExecAlloc(PAGE_SIZE*2);
+    g_pbEfExecPage = (uint8_t *)RTMemExecAlloc(HOST_PAGE_SIZE*2);
     RTTESTI_CHECK(g_pbEfExecPage != NULL);
-    RTTESTI_CHECK(!((uintptr_t)g_pbEfExecPage & PAGE_OFFSET_MASK));
-    RTTESTI_CHECK_RC(RTMemProtect(g_pbEfExecPage + PAGE_SIZE, PAGE_SIZE, RTMEM_PROT_NONE), VINF_SUCCESS);
+    RTTESTI_CHECK(!((uintptr_t)g_pbEfExecPage & HOST_PAGE_OFFSET_MASK));
+    RTTESTI_CHECK_RC(RTMemProtect(g_pbEfExecPage + HOST_PAGE_SIZE, HOST_PAGE_SIZE, RTMEM_PROT_NONE), VINF_SUCCESS);
 
 #ifdef USE_SIGNAL
     static int const s_aiSigs[] = { SIGBUS, SIGSEGV, SIGFPE, SIGILL };

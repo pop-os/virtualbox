@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2007-2020 Oracle Corporation
+# Copyright (C) 2007-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 ro_LOG_FILE=""
@@ -392,33 +402,72 @@ terminate_proc() {
 }
 
 
-maybe_run_python_bindings_installer() {
-    VBOX_INSTALL_PATH="${1}"
+# install_python_bindings(pythonbin pythondesc)
+# failure: non fatal
+install_python_bindings()
+{
+    pythonbin="$1"
+    pythondesc="$2"
 
-    # Check for python2 only, because the generic package does not provide
-    # any XPCOM bindings support for python3 since there is no standard ABI.
-    PYTHON=""
-    for p in python python2 python2.6 python2.7; do
-        if [ "`$p -c 'import sys
-if sys.version_info >= (2, 6) and sys.version_info < (3, 0):
-    print \"test\"' 2> /dev/null`" = "test" ]; then
-            PYTHON=$p
-        fi
-    done
-    if [ -z "$PYTHON" ]; then
-        echo  1>&2 "Python 2 (2.6 or 2.7) not available, skipping bindings installation."
+    # The python binary might not be there, so just exit silently
+    if test -z "$pythonbin"; then
+        return 0
+    fi
+
+    if test -z "$pythondesc"; then
+        echo 1>&2 "missing argument to install_python_bindings"
         return 1
     fi
 
-    echo  1>&2 "Python found: $PYTHON, installing bindings..."
+    echo 1>&2 "Python found: $pythonbin, installing bindings..."
+
+    # check if python has working distutils
+    "$pythonbin" -c "from distutils.core import setup" > /dev/null 2>&1
+    if test "$?" -ne 0; then
+        echo 1>&2 "Skipped: $pythondesc install is unusable, missing package 'distutils'"
+        return 0
+    fi
+
     # Pass install path via environment
     export VBOX_INSTALL_PATH
-    $SHELL -c "cd $VBOX_INSTALL_PATH/sdk/installer && $PYTHON vboxapisetup.py install \
+    $SHELL -c "cd $VBOX_INSTALL_PATH/sdk/installer && $pythonbin vboxapisetup.py install \
         --record $CONFIG_DIR/python-$CONFIG_FILES"
     cat $CONFIG_DIR/python-$CONFIG_FILES >> $CONFIG_DIR/$CONFIG_FILES
-    rm $CONFIG_DIR/python-$CONFIG_FILES
-    # remove files created during build
+    rm -f $CONFIG_DIR/python-$CONFIG_FILES
+
+    # Remove files created by Python API setup.
     rm -rf $VBOX_INSTALL_PATH/sdk/installer/build
+}
+
+maybe_run_python_bindings_installer() {
+    VBOX_INSTALL_PATH="${1}"
+
+    # Loop over all usual suspect Python executable names and try installing
+    # the VirtualBox API bindings. Needs to prevent double installs which waste
+    # quite a bit of time.
+    PYTHONS=""
+    for p in python2.6 python2.7 python2 python3.3 python3.4 python3.5 python3.6 python3.7 python3.8 python3.9 python3.10 python3 python; do
+        if [ "`$p -c 'import sys
+if sys.version_info >= (2, 6) and (sys.version_info < (3, 0) or sys.version_info >= (3, 3)):
+    print(\"test\")' 2> /dev/null`" != "test" ]; then
+            continue
+        fi
+        # Get python major/minor version, and skip if it was already covered.
+        # Uses grep -F to avoid trouble with '.' matching any char.
+        pyvers="`$p -c 'import sys
+print("%s.%s" % (sys.version_info[0], sys.version_info[1]))' 2> /dev/null`"
+        if echo "$PYTHONS" | grep -Fq ":$pyvers:"; then
+            continue
+        fi
+        # Record which version will be installed. If it fails there is no point
+        # trying with different executable/symlink reporting the same version.
+        PYTHONS="$PYTHONS:$pyvers:"
+        install_python_bindings "$p" "Python $pyvers"
+    done
+    if [ -z "$PYTHONS" ]; then
+        echo 1>&2 "Python (2.6, 2.7 or 3.3 and later) unavailable, skipping bindings installation."
+        return 1
+    fi
 
     return 0
 }

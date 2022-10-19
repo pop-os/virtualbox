@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_UIToolPaneGlobal_h
@@ -33,8 +43,10 @@ class QStackedLayout;
 class QVBoxLayout;
 class UIActionPool;
 class UICloudProfileManagerWidget;
-class UIHostNetworkManagerWidget;
+class UIExtensionPackManagerWidget;
 class UIMediumManagerWidget;
+class UINetworkManagerWidget;
+class UIVMActivityOverviewWidget;
 class UIVirtualMachineItem;
 class UIWelcomePane;
 class CMachine;
@@ -47,15 +59,20 @@ class UIToolPaneGlobal : public QWidget
 
 signals:
 
-    /** Notifies listeners about Cloud Profile Manager change. */
-    void sigCloudProfileManagerChange();
+    /** Notifies listeners about request to switch to Activity pane of machine with @a uMachineId. */
+    void sigSwitchToMachineActivityPane(const QUuid &uMachineId);
 
 public:
 
     /** Constructs tools pane passing @a pParent to the base-class. */
     UIToolPaneGlobal(UIActionPool *pActionPool, QWidget *pParent = 0);
     /** Destructs tools pane. */
-    virtual ~UIToolPaneGlobal() /* override */;
+    virtual ~UIToolPaneGlobal() RT_OVERRIDE;
+
+    /** Defines whether this pane is @a fActive. */
+    void setActive(bool fActive);
+    /** Returns whether this pane is active. */
+    bool active() const { return m_fActive; }
 
     /** Returns type of tool currently opened. */
     UIToolType currentTool() const;
@@ -65,6 +82,8 @@ public:
     void openTool(UIToolType enmType);
     /** Closes tool of passed @a enmType, deletes one if exists. */
     void closeTool(UIToolType enmType);
+    /** Returns the help keyword of the current tool's widget. */
+    QString currentHelpKeyword() const;
 
 private:
 
@@ -75,20 +94,29 @@ private:
     /** Cleanups all. */
     void cleanup();
 
+    /** Handles token change. */
+    void handleTokenChange();
+
     /** Holds the action pool reference. */
     UIActionPool *m_pActionPool;
 
     /** Holds the stacked-layout instance. */
-    QStackedLayout              *m_pLayout;
+    QStackedLayout               *m_pLayout;
     /** Holds the Welcome pane instance. */
-    UIWelcomePane               *m_pPaneWelcome;
+    UIWelcomePane                *m_pPaneWelcome;
+    /** Holds the Extension Pack Manager instance. */
+    UIExtensionPackManagerWidget *m_pPaneExtensions;
     /** Holds the Virtual Media Manager instance. */
-    UIMediumManagerWidget       *m_pPaneMedia;
-    /** Holds the Host Network Manager instance. */
-    UIHostNetworkManagerWidget  *m_pPaneNetwork;
+    UIMediumManagerWidget        *m_pPaneMedia;
+    /** Holds the Network Manager instance. */
+    UINetworkManagerWidget       *m_pPaneNetwork;
     /** Holds the Cloud Profile Manager instance. */
-    UICloudProfileManagerWidget *m_pPaneCloud;
+    UICloudProfileManagerWidget  *m_pPaneCloud;
+    /** Holds the VM Activity Overview instance. */
+    UIVMActivityOverviewWidget   *m_pPaneVMActivityOverview;
+
+    /** Holds whether this pane is active. */
+    bool  m_fActive;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_manager_UIToolPaneGlobal_h */
-

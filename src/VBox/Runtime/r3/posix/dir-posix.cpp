@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -161,13 +171,17 @@ RTDECL(int) RTDirRemove(const char *pszPath)
                 char       *pszFree = NULL;
                 const char *pszStat = pszNativePath;
                 size_t      cch     = strlen(pszNativePath);
-                if (cch > 2 && pszNativePath[cch - 1] == '/')
+                if (cch > 2 && RTPATH_IS_SLASH(pszNativePath[cch - 1]))
                 {
-                    pszStat = pszFree = (char *)RTMemTmpAlloc(cch);
-                    memcpy(pszFree, pszNativePath, cch);
-                    do
-                        pszFree[--cch] = '\0';
-                    while (cch > 2 && pszFree[cch - 1] == '/');
+                    pszFree = (char *)RTMemTmpAlloc(cch);
+                    if (pszFree)
+                    {
+                        memcpy(pszFree, pszNativePath, cch);
+                        do
+                            pszFree[--cch] = '\0';
+                        while (cch > 2 && RTPATH_IS_SLASH(pszFree[cch - 1]));
+                        pszStat = pszFree;
+                    }
                 }
 
                 struct stat st;
@@ -500,12 +514,12 @@ RTDECL(int) RTDirRead(RTDIR hDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry)
      */
     if (!rtDirValidHandle(pDir))
         return VERR_INVALID_PARAMETER;
-    AssertMsgReturn(VALID_PTR(pDirEntry), ("%p\n", pDirEntry), VERR_INVALID_POINTER);
+    AssertPtrReturn(pDirEntry, VERR_INVALID_POINTER);
 
     size_t cbDirEntry = sizeof(*pDirEntry);
     if (pcbDirEntry)
     {
-        AssertMsgReturn(VALID_PTR(pcbDirEntry), ("%p\n", pcbDirEntry), VERR_INVALID_POINTER);
+        AssertPtrReturn(pcbDirEntry, VERR_INVALID_POINTER);
         cbDirEntry = *pcbDirEntry;
         AssertMsgReturn(cbDirEntry >= RT_UOFFSETOF(RTDIRENTRY, szName[2]),
                         ("Invalid *pcbDirEntry=%d (min %zu)\n", *pcbDirEntry, RT_UOFFSETOF(RTDIRENTRYEX, szName[2])),
@@ -600,7 +614,7 @@ RTDECL(int) RTDirReadEx(RTDIR hDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry
      */
     if (!rtDirValidHandle(pDir))
         return VERR_INVALID_PARAMETER;
-    AssertMsgReturn(VALID_PTR(pDirEntry), ("%p\n", pDirEntry), VERR_INVALID_POINTER);
+    AssertPtrReturn(pDirEntry, VERR_INVALID_POINTER);
     AssertMsgReturn(    enmAdditionalAttribs >= RTFSOBJATTRADD_NOTHING
                     &&  enmAdditionalAttribs <= RTFSOBJATTRADD_LAST,
                     ("Invalid enmAdditionalAttribs=%p\n", enmAdditionalAttribs),
@@ -609,7 +623,7 @@ RTDECL(int) RTDirReadEx(RTDIR hDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry
     size_t cbDirEntry = sizeof(*pDirEntry);
     if (pcbDirEntry)
     {
-        AssertMsgReturn(VALID_PTR(pcbDirEntry), ("%p\n", pcbDirEntry), VERR_INVALID_POINTER);
+        AssertPtrReturn(pcbDirEntry, VERR_INVALID_POINTER);
         cbDirEntry = *pcbDirEntry;
         AssertMsgReturn(cbDirEntry >= RT_UOFFSETOF(RTDIRENTRYEX, szName[2]),
                         ("Invalid *pcbDirEntry=%zu (min %zu)\n", *pcbDirEntry, RT_UOFFSETOF(RTDIRENTRYEX, szName[2])),
@@ -701,8 +715,8 @@ RTDECL(int) RTDirRename(const char *pszSrc, const char *pszDst, unsigned fRename
     /*
      * Validate input.
      */
-    AssertMsgReturn(VALID_PTR(pszSrc), ("%p\n", pszSrc), VERR_INVALID_POINTER);
-    AssertMsgReturn(VALID_PTR(pszDst), ("%p\n", pszDst), VERR_INVALID_POINTER);
+    AssertPtrReturn(pszSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDst, VERR_INVALID_POINTER);
     AssertMsgReturn(*pszSrc, ("%p\n", pszSrc), VERR_INVALID_PARAMETER);
     AssertMsgReturn(*pszDst, ("%p\n", pszDst), VERR_INVALID_PARAMETER);
     AssertMsgReturn(!(fRename & ~RTPATHRENAME_FLAGS_REPLACE), ("%#x\n", fRename), VERR_INVALID_PARAMETER);

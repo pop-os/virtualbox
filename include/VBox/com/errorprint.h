@@ -7,24 +7,34 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_com_errorprint_h
@@ -47,9 +57,10 @@ namespace com
 // shared prototypes; these are defined in shared glue code and are
 // compiled only once for all front-ends
 void GluePrintErrorInfo(const com::ErrorInfo &info);
-void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t uLine);
+void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t uLine, bool fWarning = false);
 void GluePrintRCMessage(HRESULT rc);
 void GlueHandleComError(ComPtr<IUnknown> iface, const char *pcszContext, HRESULT rc, const char *pcszSourceFile, uint32_t uLine);
+void GlueHandleComErrorNoCtx(ComPtr<IUnknown> iface, HRESULT rc);
 void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszContext, HRESULT rc,
                                 const char *pcszSourceFile, uint32_t uLine);
 
@@ -86,12 +97,15 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
 #define CHECK_ERROR2_EX(type, hrc, iface, method, stmtError) \
     if (1) { \
         type hrc = iface->method; \
-        if (SUCCEEDED(hrc)) \
+        if (SUCCEEDED(hrc) && !SUCCEEDED_WARNING(hrc)) \
         { /*likely*/ } \
         else \
         { \
             com::GlueHandleComError(iface, #method, (hrc), __FILE__, __LINE__); \
-            stmtError; \
+            if (!SUCCEEDED_WARNING(hrc)) \
+            { \
+                stmtError; \
+            } \
         } \
     } else do { /* nothing */ } while (0)
 
@@ -109,9 +123,9 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
  */
 #define CHECK_ERROR(iface, method) \
     do { \
-        rc = iface->method; \
-        if (FAILED(rc)) \
-            com::GlueHandleComError(iface, #method, rc, __FILE__, __LINE__); \
+        hrc = iface->method; \
+        if (FAILED(hrc) || SUCCEEDED_WARNING(hrc)) \
+            com::GlueHandleComError(iface, #method, hrc, __FILE__, __LINE__); \
     } while (0)
 /**
  * Simplified version of CHECK_ERROR2_EX, no error statement or type necessary.
@@ -141,11 +155,14 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
  */
 #define CHECK_ERROR_STMT(iface, method, stmt) \
     do { \
-        rc = iface->method; \
-        if (FAILED(rc)) \
+        hrc = iface->method; \
+        if (FAILED(hrc) || SUCCEEDED_WARNING(hrc)) \
         { \
-            com::GlueHandleComError(iface, #method, rc, __FILE__, __LINE__); \
-            stmt; \
+            com::GlueHandleComError(iface, #method, hrc, __FILE__, __LINE__); \
+            if (!SUCCEEDED_WARNING(hrc) \
+            { \
+                stmt; \
+            } \
         } \
     } while (0)
 /**
@@ -180,22 +197,24 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
 # define CHECK_ERROR_BREAK(iface, method) \
     __extension__ \
     ({ \
-        rc = iface->method; \
-        if (FAILED(rc)) \
+        hrc = iface->method; \
+        if (FAILED(hrc) || SUCCEEDED_WARNING(hrc)) \
         { \
-            com::GlueHandleComError(iface, #method, rc, __FILE__, __LINE__); \
-            break; \
+            com::GlueHandleComError(iface, #method, hrc, __FILE__, __LINE__); \
+            if (!SUCCEEDED_WARNING(hrc)) \
+                break; \
         } \
     })
 #else
 # define CHECK_ERROR_BREAK(iface, method) \
     if (1) \
     { \
-        rc = iface->method; \
-        if (FAILED(rc)) \
+        hrc = iface->method; \
+        if (FAILED(hrc)) \
         { \
-            com::GlueHandleComError(iface, #method, rc, __FILE__, __LINE__); \
-            break; \
+            com::GlueHandleComError(iface, #method, hrc, __FILE__, __LINE__); \
+            if (!SUCCEEDED_WARNING(hrc)) \
+                break; \
         } \
     } \
     else do {} while (0)
@@ -240,11 +259,12 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
  */
 #define CHECK_ERROR_RET(iface, method, ret) \
     do { \
-        rc = iface->method; \
-        if (FAILED(rc)) \
+        hrc = iface->method; \
+        if (FAILED(hrc) || SUCCEEDED_WARNING(hrc)) \
         { \
-            com::GlueHandleComError(iface, #method, rc, __FILE__, __LINE__); \
-            return (ret); \
+            com::GlueHandleComError(iface, #method, hrc, __FILE__, __LINE__); \
+            if (!SUCCEEDED_WARNING(hrc)) \
+                return (ret); \
         } \
     } while (0)
 /**
@@ -278,10 +298,10 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
 #define CHECK_PROGRESS_ERROR(progress, msg) \
     do { \
         LONG iRc; \
-        rc = progress->COMGETTER(ResultCode)(&iRc); \
-        if (FAILED(rc) || FAILED(iRc)) \
+        hrc = progress->COMGETTER(ResultCode)(&iRc); \
+        if (FAILED(hrc) || FAILED(iRc)) \
         { \
-            if (SUCCEEDED(rc)) rc = iRc; else iRc = rc; \
+            if (SUCCEEDED(hrc)) hrc = iRc; else iRc = hrc; \
             RTMsgError msg; \
             com::GlueHandleComErrorProgress(progress, __PRETTY_FUNCTION__, iRc, __FILE__, __LINE__); \
         } \
@@ -297,10 +317,10 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
     __extension__ \
     ({ \
         LONG iRc; \
-        rc = progress->COMGETTER(ResultCode)(&iRc); \
-        if (FAILED(rc) || FAILED(iRc)) \
+        hrc = progress->COMGETTER(ResultCode)(&iRc); \
+        if (FAILED(hrc) || FAILED(iRc)) \
         { \
-            if (SUCCEEDED(rc)) rc = iRc; else iRc = rc; \
+            if (SUCCEEDED(hrc)) hrc = iRc; else iRc = hrc; \
             RTMsgError msg; \
             com::GlueHandleComErrorProgress(progress, __PRETTY_FUNCTION__, iRc, __FILE__, __LINE__); \
             break; \
@@ -311,10 +331,10 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
     if (1) \
     { \
         LONG iRc; \
-        rc = progress->COMGETTER(ResultCode)(&iRc); \
-        if (FAILED(rc) || FAILED(iRc)) \
+        hrc = progress->COMGETTER(ResultCode)(&iRc); \
+        if (FAILED(hrc) || FAILED(iRc)) \
         { \
-            if (SUCCEEDED(rc)) rc = iRc; else iRc = rc; \
+            if (SUCCEEDED(hrc)) hrc = iRc; else iRc = hrc; \
             RTMsgError msg; \
             com::GlueHandleComErrorProgress(progress, __PRETTY_FUNCTION__, iRc, __FILE__, __LINE__); \
             break; \

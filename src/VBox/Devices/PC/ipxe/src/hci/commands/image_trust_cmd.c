@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stdio.h>
@@ -51,8 +56,7 @@ static struct option_descriptor imgtrust_opts[] = {
 
 /** "imgtrust" command descriptor */
 static struct command_descriptor imgtrust_cmd =
-	COMMAND_DESC ( struct imgtrust_options, imgtrust_opts, 0, 0,
-		       "[--allow] [--permanent]" );
+	COMMAND_DESC ( struct imgtrust_options, imgtrust_opts, 0, 0, NULL );
 
 /**
  * The "imgtrust" command
@@ -83,9 +87,11 @@ static int imgtrust_exec ( int argc, char **argv ) {
 /** "imgverify" options */
 struct imgverify_options {
 	/** Required signer common name */
-	const char *signer;
+	char *signer;
 	/** Keep signature after verification */
 	int keep;
+	/** Download timeout */
+	unsigned long timeout;
 };
 
 /** "imgverify" option list */
@@ -94,13 +100,14 @@ static struct option_descriptor imgverify_opts[] = {
 		      struct imgverify_options, signer, parse_string ),
 	OPTION_DESC ( "keep", 'k', no_argument,
 		      struct imgverify_options, keep, parse_flag ),
+	OPTION_DESC ( "timeout", 't', required_argument,
+		      struct imgverify_options, timeout, parse_timeout),
 };
 
 /** "imgverify" command descriptor */
 static struct command_descriptor imgverify_cmd =
 	COMMAND_DESC ( struct imgverify_options, imgverify_opts, 2, 2,
-		       "[--signer <signer>] [--keep] <uri|image> "
-		       "<signature uri|image>" );
+		       "<uri|image> <signature uri|image>" );
 
 /**
  * The "imgverify" command
@@ -128,11 +135,12 @@ static int imgverify_exec ( int argc, char **argv ) {
 	signature_name_uri = argv[ optind + 1 ];
 
 	/* Acquire the image */
-	if ( ( rc = imgacquire ( image_name_uri, &image ) ) != 0 )
+	if ( ( rc = imgacquire ( image_name_uri, opts.timeout, &image ) ) != 0 )
 		goto err_acquire_image;
 
 	/* Acquire the signature image */
-	if ( ( rc = imgacquire ( signature_name_uri, &signature ) ) != 0 )
+	if ( ( rc = imgacquire ( signature_name_uri, opts.timeout,
+				 &signature ) ) != 0 )
 		goto err_acquire_signature;
 
 	/* Verify image */
@@ -164,9 +172,3 @@ struct command image_trust_commands[] __command = {
 		.exec = imgverify_exec,
 	},
 };
-
-/* Drag in objects typically required for signature verification */
-REQUIRE_OBJECT ( rsa );
-REQUIRE_OBJECT ( md5 );
-REQUIRE_OBJECT ( sha1 );
-REQUIRE_OBJECT ( sha256 );

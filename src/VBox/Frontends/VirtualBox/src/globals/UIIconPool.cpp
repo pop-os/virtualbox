@@ -4,20 +4,31 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
 #include <QApplication>
 #include <QFile>
+#include <QPainter>
 #include <QStyle>
 #include <QWidget>
 
@@ -235,6 +246,26 @@ QIcon UIIconPool::defaultIcon(UIDefaultIconType defaultIconType, const QWidget *
 }
 
 /* static */
+QPixmap UIIconPool::joinPixmaps(const QPixmap &pixmap1, const QPixmap &pixmap2)
+{
+    if (pixmap1.isNull())
+        return pixmap2;
+    if (pixmap2.isNull())
+        return pixmap1;
+
+    QPixmap result(pixmap1.width() + pixmap2.width() + 2,
+                   qMax(pixmap1.height(), pixmap2.height()));
+    result.fill(Qt::transparent);
+
+    QPainter painter(&result);
+    painter.drawPixmap(0, 0, pixmap1);
+    painter.drawPixmap(pixmap1.width() + 2, result.height() - pixmap2.height(), pixmap2);
+    painter.end();
+
+    return result;
+}
+
+/* static */
 void UIIconPool::addName(QIcon &icon, const QString &strName,
                          QIcon::Mode mode /* = QIcon::Normal */, QIcon::State state /* = QIcon::Off */)
 {
@@ -269,8 +300,34 @@ void UIIconPool::addName(QIcon &icon, const QString &strName,
 *   Class UIIconPoolGeneral implementation.                                                                                      *
 *********************************************************************************************************************************/
 
+/* static */
+UIIconPoolGeneral *UIIconPoolGeneral::s_pInstance = 0;
+
+/* static */
+void UIIconPoolGeneral::create()
+{
+    AssertReturnVoid(!s_pInstance);
+    new UIIconPoolGeneral;
+}
+
+/* static */
+void UIIconPoolGeneral::destroy()
+{
+    AssertPtrReturnVoid(s_pInstance);
+    delete s_pInstance;
+}
+
+/* static */
+UIIconPoolGeneral *UIIconPoolGeneral::instance()
+{
+    return s_pInstance;
+}
+
 UIIconPoolGeneral::UIIconPoolGeneral()
 {
+    /* Init instance: */
+    s_pInstance = this;
+
     /* Prepare OS type icon-name hash: */
     m_guestOSTypeIconNames.insert("Other",           ":/os_other.png");
     m_guestOSTypeIconNames.insert("Other_64",        ":/os_other_64.png");
@@ -304,6 +361,7 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert("Windows11_64",    ":/os_win11_64.png");
     m_guestOSTypeIconNames.insert("Windows2016_64",  ":/os_win2k16_64.png");
     m_guestOSTypeIconNames.insert("Windows2019_64",  ":/os_win2k19_64.png");
+    m_guestOSTypeIconNames.insert("Windows2022_64",  ":/os_win2k19_64.png"); /** @todo new icon */
     m_guestOSTypeIconNames.insert("WindowsNT",       ":/os_win_other.png");
     m_guestOSTypeIconNames.insert("WindowsNT_64",    ":/os_win_other_64.png");
     m_guestOSTypeIconNames.insert("OS2Warp3",        ":/os_os2warp3.png");
@@ -322,22 +380,116 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert("ArchLinux_64",    ":/os_archlinux_64.png");
     m_guestOSTypeIconNames.insert("Debian",          ":/os_debian.png");
     m_guestOSTypeIconNames.insert("Debian_64",       ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian31",        ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian4",         ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian4_64",      ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian5",         ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian5_64",      ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian5",         ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian5_64",      ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian6",         ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian6_64",      ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian7",         ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian7_64",      ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian8",         ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian8_64",      ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian9",         ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian9_64",      ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian10",        ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian10_64",     ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("Debian11",        ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian11_64",     ":/os_debian_64.png");
     m_guestOSTypeIconNames.insert("OpenSUSE",        ":/os_opensuse.png");
     m_guestOSTypeIconNames.insert("OpenSUSE_64",     ":/os_opensuse_64.png");
+    m_guestOSTypeIconNames.insert("OpenSUSE_Leap_64", ":/os_opensuse_64.png");
+    m_guestOSTypeIconNames.insert("OpenSUSE_Tumbleweed",    ":/os_opensuse.png");
+    m_guestOSTypeIconNames.insert("OpenSUSE_Tumbleweed_64", ":/os_opensuse_64.png");
+    m_guestOSTypeIconNames.insert("SUSE_LE",         ":/os_opensuse.png");
+    m_guestOSTypeIconNames.insert("SUSE_LE_64",      ":/os_opensuse_64.png");
     m_guestOSTypeIconNames.insert("Fedora",          ":/os_fedora.png");
     m_guestOSTypeIconNames.insert("Fedora_64",       ":/os_fedora_64.png");
     m_guestOSTypeIconNames.insert("Gentoo",          ":/os_gentoo.png");
     m_guestOSTypeIconNames.insert("Gentoo_64",       ":/os_gentoo_64.png");
     m_guestOSTypeIconNames.insert("Mandriva",        ":/os_mandriva.png");
     m_guestOSTypeIconNames.insert("Mandriva_64",     ":/os_mandriva_64.png");
+    m_guestOSTypeIconNames.insert("OpenMandriva_Lx", ":/os_mandriva.png");
+    m_guestOSTypeIconNames.insert("OpenMandriva_Lx_64", ":/os_mandriva_64.png");
+    m_guestOSTypeIconNames.insert("PCLinuxOS",       ":/os_mandriva.png");
+    m_guestOSTypeIconNames.insert("PCLinuxOS_64",    ":/os_mandriva_64.png");
+    m_guestOSTypeIconNames.insert("Mageia",          ":/os_mandriva.png");
+    m_guestOSTypeIconNames.insert("Mageia_64",       ":/os_mandriva_64.png");
     m_guestOSTypeIconNames.insert("RedHat",          ":/os_redhat.png");
     m_guestOSTypeIconNames.insert("RedHat_64",       ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("RedHat3",         ":/os_redhat.png");
+    m_guestOSTypeIconNames.insert("RedHat3_64",      ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("RedHat4",         ":/os_redhat.png");
+    m_guestOSTypeIconNames.insert("RedHat4_64",      ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("RedHat5",         ":/os_redhat.png");
+    m_guestOSTypeIconNames.insert("RedHat5_64",      ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("RedHat6",         ":/os_redhat.png");
+    m_guestOSTypeIconNames.insert("RedHat6_64",      ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("RedHat7_64",      ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("RedHat8_64",      ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("RedHat9_64",      ":/os_redhat_64.png");
     m_guestOSTypeIconNames.insert("Turbolinux",      ":/os_turbolinux.png");
     m_guestOSTypeIconNames.insert("Turbolinux_64",   ":/os_turbolinux_64.png");
     m_guestOSTypeIconNames.insert("Ubuntu",          ":/os_ubuntu.png");
     m_guestOSTypeIconNames.insert("Ubuntu_64",       ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu10_LTS",    ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu10_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu10",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu10_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu11",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu11_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu12_LTS",    ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu12_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu12",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu12_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu13",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu13_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu14_LTS",    ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu14_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu14",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu14_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu15",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu15_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu16_LTS",    ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu16_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu16",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu16_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu17",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu17_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu18_LTS",    ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu18_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu18",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu18_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu19",        ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu19_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu20_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu20_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu21_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu21_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu22_LTS_64", ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu22_64",     ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Lubuntu",         ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Lubuntu_64",      ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Xubuntu",         ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Xubuntu_64",      ":/os_ubuntu_64.png");
     m_guestOSTypeIconNames.insert("Xandros",         ":/os_xandros.png");
     m_guestOSTypeIconNames.insert("Xandros_64",      ":/os_xandros_64.png");
+    m_guestOSTypeIconNames.insert("Oracle",          ":/os_oracle.png");
+    m_guestOSTypeIconNames.insert("Oracle_64",       ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Oracle3",         ":/os_oracle.png");
+    m_guestOSTypeIconNames.insert("Oracle3_64",      ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Oracle4",         ":/os_oracle.png");
+    m_guestOSTypeIconNames.insert("Oracle4_64",      ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Oracle5",         ":/os_oracle.png");
+    m_guestOSTypeIconNames.insert("Oracle5_64",      ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Oracle6",         ":/os_oracle.png");
+    m_guestOSTypeIconNames.insert("Oracle6_64",      ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Oracle7_64",      ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Oracle8_64",      ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Oracle9_64",      ":/os_oracle_64.png");
     m_guestOSTypeIconNames.insert("Oracle",          ":/os_oracle.png");
     m_guestOSTypeIconNames.insert("Oracle_64",       ":/os_oracle_64.png");
     m_guestOSTypeIconNames.insert("Linux",           ":/os_linux.png");
@@ -370,6 +522,18 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert("JRockitVE",       ":/os_jrockitve.png");
     m_guestOSTypeIconNames.insert("VBoxBS_64",       ":/os_other_64.png");
     m_guestOSTypeIconNames.insert("Cloud",           ":/os_cloud.png");
+
+    /* Prepare warning/error icons: */
+    m_pixWarning = defaultIcon(UIDefaultIconType_MessageBoxWarning).pixmap(16, 16);
+    Assert(!m_pixWarning.isNull());
+    m_pixError = defaultIcon(UIDefaultIconType_MessageBoxCritical).pixmap(16, 16);
+    Assert(!m_pixError.isNull());
+}
+
+UIIconPoolGeneral::~UIIconPoolGeneral()
+{
+    /* Deinit instance: */
+    s_pInstance = 0;
 }
 
 QIcon UIIconPoolGeneral::userMachineIcon(const CMachine &comMachine) const
@@ -383,9 +547,11 @@ QIcon UIIconPoolGeneral::userMachineIcon(const CMachine &comMachine) const
 
     /* 1. First, load icon from IMachine extra-data: */
     if (icon.isNull())
+    {
         foreach (const QString &strIconName, gEDataManager->machineWindowIconNames(uMachineId))
             if (!strIconName.isEmpty() && QFile::exists(strIconName))
                 icon.addFile(strIconName);
+    }
 
     /* 2. Otherwise, load icon from IMachine interface itself: */
     if (icon.isNull())
@@ -537,4 +703,3 @@ QPixmap UIIconPoolGeneral::guestOSTypePixmapDefault(const QString &strOSTypeID, 
     /* Return pixmap: */
     return pixmap;
 }
-

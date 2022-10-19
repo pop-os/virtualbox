@@ -7,26 +7,36 @@ Test eXecution Service Client.
 """
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 146372 $"
+__version__ = "$Revision: 153224 $"
 
 # Standard Python imports.
 import array;
@@ -284,7 +294,7 @@ class TransportBase(object):
         while len(abMsg) % 16:
             abMsg.append(0);
 
-        reporter.log2('sendMsgInt: op=%s len=%d to=%d' % (sOpcode, len(abMsg), cMsTimeout));
+        reporter.log2('sendMsgInt: op=%s len=%d timeout=%d' % (sOpcode, len(abMsg), cMsTimeout));
         return self.sendBytes(abMsg, cMsTimeout);
 
     def recvMsg(self, cMsTimeout, fNoDataOk = False):
@@ -657,7 +667,7 @@ class Session(TdTaskBase):
 
         rc = self.waitForTask(self.cMsTimeout + 5000);
         if rc is False:
-            reporter.maybeErr(self.fErr, 'asyncToSync: waitForTask failed...');
+            reporter.maybeErr(self.fErr, 'asyncToSync: waitForTask (timeout %d) failed...' % (self.cMsTimeout,));
             self.cancelTask();
             #reporter.log2('asyncToSync(%s): returns False (#2)' % (fnAsync, rc));
             return False;
@@ -710,6 +720,24 @@ class Session(TdTaskBase):
         if rc is True:
             rc = self.recvAckLogged("BYE");
         self.oTransport.disconnect();
+        return rc;
+
+    def taskVer(self):
+        """Requests version information from TXS"""
+        rc = self.sendMsg("VER");
+        if rc is True:
+            rc = False;
+            cbMsg, sOpcode, abPayload = self.recvReply();
+            if cbMsg is not None:
+                sOpcode = sOpcode.strip();
+                if sOpcode == "ACK VER":
+                    sVer = getSZ(abPayload, 0);
+                    if sVer is not None:
+                        rc = sVer;
+                else:
+                    reporter.maybeErr(self.fErr, 'taskVer got a bad reply: %s' % (sOpcode,));
+            else:
+                reporter.maybeErr(self.fErr, 'taskVer got 3xNone from recvReply.');
         return rc;
 
     def taskUuid(self):
@@ -903,11 +931,20 @@ class Session(TdTaskBase):
 
             # Parse the exit status (True), abort (None) or do nothing (False).
             if rc is True:
-                if sOpcode != 'PROC OK':
+                if sOpcode == 'PROC OK':
+                    pass;
+                else:
+                    rc = False;
                     # Do proper parsing some other day if needed:
                     #   PROC TOK, PROC TOA, PROC DWN, PROC DOO,
                     #   PROC NOK + rc, PROC SIG + sig, PROC ABD, FAILED.
-                    rc = False;
+                    if sOpcode == 'PROC DOO':
+                        reporter.log('taskExecEx: PROC DOO[FUS]: %s' % (abPayload,));
+                    elif sOpcode.startswith('PROC NOK'):
+                        reporter.log('taskExecEx: PROC NOK: rcExit=%s' % (abPayload,));
+                    elif abPayload and sOpcode.startswith('PROC '):
+                        reporter.log('taskExecEx: %s payload=%s' % (sOpcode, abPayload,));
+
             else:
                 if rc is None:
                     # Abort it.
@@ -1058,6 +1095,16 @@ class Session(TdTaskBase):
     #def "STAT    "
     #def "LSTAT   "
     #def "LIST    "
+
+    def taskCopyFile(self, sSrcFile, sDstFile, fMode, fFallbackOkay):
+        """ Copies a file within the remote from source to destination. """
+        _ = fFallbackOkay; # Not used yet.
+        # Note: If fMode is set to 0, it's up to the target OS' implementation with
+        #       what a file mode the destination file gets created (i.e. via umask).
+        rc = self.sendMsg('CPFILE', (int(fMode), sSrcFile, sDstFile,));
+        if rc is True:
+            rc = self.recvAckLogged('CPFILE');
+        return rc;
 
     def taskUploadFile(self, sLocalFile, sRemoteFile, fMode, fFallbackOkay):
         #
@@ -1280,10 +1327,33 @@ class Session(TdTaskBase):
                 rc = False;
         return rc;
 
+    def taskPackFile(self, sRemoteFile, sRemoteSource):
+        rc = self.sendMsg('PKFILE', (sRemoteFile, sRemoteSource));
+        if rc is True:
+            rc = self.recvAckLogged('PKFILE');
+        return rc;
+
     def taskUnpackFile(self, sRemoteFile, sRemoteDir):
         rc = self.sendMsg('UNPKFILE', (sRemoteFile, sRemoteDir));
         if rc is True:
             rc = self.recvAckLogged('UNPKFILE');
+        return rc;
+
+    def taskExpandString(self, sString):
+        rc = self.sendMsg('EXP STR ', (sString,));
+        if rc is True:
+            rc = False;
+            cbMsg, sOpcode, abPayload = self.recvReply();
+            if cbMsg is not None:
+                sOpcode = sOpcode.strip();
+                if sOpcode == "STRING":
+                    sStringExp = getSZ(abPayload, 0);
+                    if sStringExp is not None:
+                        rc = sStringExp;
+                else: # Also handles SHORTSTR reply (not enough space to store result).
+                    reporter.maybeErr(self.fErr, 'taskExpandString got a bad reply: %s' % (sOpcode,));
+            else:
+                reporter.maybeErr(self.fErr, 'taskExpandString got 3xNone from recvReply.');
         return rc;
 
     # pylint: enable=missing-docstring
@@ -1346,6 +1416,20 @@ class Session(TdTaskBase):
         """Synchronous version."""
         return self.asyncToSync(self.asyncDisconnect, cMsTimeout, fIgnoreErrors);
 
+    def asyncVer(self, cMsTimeout = 30000, fIgnoreErrors = False):
+        """
+        Initiates a task for getting the TXS version information.
+
+        Returns True on success, False on failure (logged).
+
+        The task returns the version string on success and False on failure.
+        """
+        return self.startTask(cMsTimeout, fIgnoreErrors, "ver", self.taskVer);
+
+    def syncVer(self, cMsTimeout = 30000, fIgnoreErrors = False):
+        """Synchronous version."""
+        return self.asyncToSync(self.asyncVer, cMsTimeout, fIgnoreErrors);
+
     def asyncUuid(self, cMsTimeout = 30000, fIgnoreErrors = False):
         """
         Initiates a task for getting the TXS UUID.
@@ -1354,7 +1438,7 @@ class Session(TdTaskBase):
 
         The task returns UUID string (in {}) on success and False on failure.
         """
-        return self.startTask(cMsTimeout, fIgnoreErrors, "bye", self.taskUuid);
+        return self.startTask(cMsTimeout, fIgnoreErrors, "uuid", self.taskUuid);
 
     def syncUuid(self, cMsTimeout = 30000, fIgnoreErrors = False):
         """Synchronous version."""
@@ -1654,7 +1738,7 @@ class Session(TdTaskBase):
 
         Returns timeout in milliseconds.
         """
-        return 30000 + cbFile / 256; # 256 KiB/s (picked out of thin air)
+        return 30000 + cbFile / 32; # 32 KiB/s (picked out of thin air)
 
     @staticmethod
     def calcUploadTimeout(sLocalFile):
@@ -1666,6 +1750,22 @@ class Session(TdTaskBase):
         try:    cbFile = os.path.getsize(sLocalFile);
         except: cbFile = 1024*1024;
         return Session.calcFileXferTimeout(cbFile);
+
+    def asyncCopyFile(self, sSrcFile, sDstFile,
+                      fMode = 0, fFallbackOkay = True, cMsTimeout = 30000, fIgnoreErrors = False):
+        """
+        Initiates a file copying task on the remote.
+
+        Returns True on success, False on failure (logged).
+
+        The task returns True on success, False on failure (logged).
+        """
+        return self.startTask(cMsTimeout, fIgnoreErrors, "cpfile",
+                              self.taskCopyFile, (sSrcFile, sDstFile, fMode, fFallbackOkay));
+
+    def syncCopyFile(self, sSrcFile, sDstFile, fMode = 0, cMsTimeout = 30000, fIgnoreErrors = False):
+        """Synchronous version."""
+        return self.asyncToSync(self.asyncCopyFile, sSrcFile, sDstFile, fMode, cMsTimeout, fIgnoreErrors);
 
     def asyncUploadFile(self, sLocalFile, sRemoteFile,
                         fMode = 0, fFallbackOkay = True, cMsTimeout = 30000, fIgnoreErrors = False):
@@ -1737,6 +1837,21 @@ class Session(TdTaskBase):
         return self.asyncToSync(self.asyncDownloadString, sRemoteFile, sEncoding, fIgnoreEncodingErrors,
                                 cMsTimeout, fIgnoreErrors);
 
+    def asyncPackFile(self, sRemoteFile, sRemoteSource, cMsTimeout = 120000, fIgnoreErrors = False):
+        """
+        Initiates a packing file/directory task.
+
+        Returns True on success, False on failure (logged).
+
+        The task returns True on success, False on failure (logged).
+        """
+        return self.startTask(cMsTimeout, fIgnoreErrors, "packFile", self.taskPackFile,
+                              (sRemoteFile, sRemoteSource));
+
+    def syncPackFile(self, sRemoteFile, sRemoteSource, cMsTimeout = 120000, fIgnoreErrors = False):
+        """Synchronous version."""
+        return self.asyncToSync(self.asyncPackFile, sRemoteFile, sRemoteSource, cMsTimeout, fIgnoreErrors);
+
     def asyncUnpackFile(self, sRemoteFile, sRemoteDir, cMsTimeout = 120000, fIgnoreErrors = False):
         """
         Initiates a unpack file task.
@@ -1751,6 +1866,21 @@ class Session(TdTaskBase):
     def syncUnpackFile(self, sRemoteFile, sRemoteDir, cMsTimeout = 120000, fIgnoreErrors = False):
         """Synchronous version."""
         return self.asyncToSync(self.asyncUnpackFile, sRemoteFile, sRemoteDir, cMsTimeout, fIgnoreErrors);
+
+    def asyncExpandString(self, sString, cMsTimeout = 120000, fIgnoreErrors = False):
+        """
+        Initiates an expand string task.
+
+        Returns expanded string on success, False on failure (logged).
+
+        The task returns True on success, False on failure (logged).
+        """
+        return self.startTask(cMsTimeout, fIgnoreErrors, "expandString",
+                              self.taskExpandString, (sString,));
+
+    def syncExpandString(self, sString, cMsTimeout = 120000, fIgnoreErrors = False):
+        """Synchronous version."""
+        return self.asyncToSync(self.asyncExpandString, sString, cMsTimeout, fIgnoreErrors);
 
 
 class TransportTcp(TransportBase):
@@ -1860,7 +1990,7 @@ class TransportTcp(TransportBase):
             self.oWakeupW = None;
             if oWakeupW is not None:
                 reporter.log2('TransportTcp::cancelConnect: wakeup call');
-                try:    oWakeupW.send('cancelled!\n');
+                try:    oWakeupW.send(b'cancelled!\n');
                 except: reporter.logXcpt();
                 try:    oWakeupW.shutdown(socket.SHUT_WR);
                 except: reporter.logXcpt();
@@ -1905,8 +2035,8 @@ class TransportTcp(TransportBase):
             reporter.log2('TransportTcp::accept: operation in progress (%s)...' % (e,));
             try:
                 select.select([oSocket, oWakeupR], [], [oSocket, oWakeupR], cMsTimeout / 1000.0);
-            except socket.error as e:
-                if e[0] != errno.EBADF  or  not self.fConnectCanceled:
+            except socket.error as oXctp:
+                if oXctp.errno != errno.EBADF  or  not self.fConnectCanceled:
                     raise;
                 reporter.log('socket.select() on accept was canceled');
                 return None;
@@ -1916,9 +2046,9 @@ class TransportTcp(TransportBase):
             # Try accept again.
             try:
                 (oClientSocket, tClientAddr) = oSocket.accept();
-            except socket.error as e:
+            except socket.error as oXcpt:
                 if not self.__isInProgressXcpt(e):
-                    if e[0] != errno.EBADF  or  not self.fConnectCanceled:
+                    if oXcpt.errno != errno.EBADF  or  not self.fConnectCanceled:
                         raise;
                     reporter.log('socket.accept() was canceled');
                     return None;

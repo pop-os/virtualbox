@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -903,7 +913,8 @@ static void vbvaVHWACommandCompleteAllPending(PPDMDEVINS pDevIns, PVGASTATE pThi
     if (!ASMAtomicUoReadU32(&pThis->pendingVhwaCommands.cPending))
         return;
 
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+    int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
 
     VBOX_VHWA_PENDINGCMD *pIter, *pNext;
     RTListForEachSafe(&pThis->pendingVhwaCommands.PendingList, pIter, pNext, VBOX_VHWA_PENDINGCMD, Node)
@@ -925,7 +936,8 @@ static void vbvaVHWACommandClearAllPending(PPDMDEVINS pDevIns, PVGASTATE pThis)
     if (!ASMAtomicUoReadU32(&pThis->pendingVhwaCommands.cPending))
         return;
 
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+    int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
 
     VBOX_VHWA_PENDINGCMD *pIter, *pNext;
     RTListForEachSafe(&pThis->pendingVhwaCommands.PendingList, pIter, pNext, VBOX_VHWA_PENDINGCMD, Node)
@@ -950,7 +962,10 @@ static void vbvaVHWACommandPend(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC
         {
             pCommand->Flags |= VBOXVHWACMD_FLAG_HG_ASYNCH;
             pPend->pCommand = pCommand;
-            PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+
+            int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+            PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
+
             if (ASMAtomicUoReadU32(&pThis->pendingVhwaCommands.cPending) < VBOX_VHWA_MAX_PENDING_COMMANDS)
             {
                 RTListAppend(&pThis->pendingVhwaCommands.PendingList, &pPend->Node);
@@ -1107,7 +1122,8 @@ static bool vbvaVHWACheckPendingCommands(PPDMDEVINS pDevIns, PVGASTATE pThis, PV
     if (!ASMAtomicUoReadU32(&pThis->pendingVhwaCommands.cPending))
         return true;
 
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+    int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSect, rcLock);
 
     VBOX_VHWA_PENDINGCMD *pIter, *pNext;
     RTListForEachSafe(&pThis->pendingVhwaCommands.PendingList, pIter, pNext, VBOX_VHWA_PENDINGCMD, Node)
@@ -1275,12 +1291,12 @@ static int vbvaVHWAReset(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisC
     return VERR_OUT_OF_RESOURCES;
 }
 
-typedef DECLCALLBACK(bool) FNVBOXVHWAHHCMDPRECB(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, VBOXVHWACMD *pCmd,
-                                                uint32_t iDisplay, void *pvContext);
+typedef DECLCALLBACKTYPE(bool, FNVBOXVHWAHHCMDPRECB,(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, VBOXVHWACMD *pCmd,
+                                                uint32_t iDisplay, void *pvContext));
 typedef FNVBOXVHWAHHCMDPRECB *PFNVBOXVHWAHHCMDPRECB;
 
-typedef DECLCALLBACK(bool) FNVBOXVHWAHHCMDPOSTCB(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, VBOXVHWACMD *pCmd,
-                                                 uint32_t iDisplay, int rc, void *pvContext);
+typedef DECLCALLBACKTYPE(bool, FNVBOXVHWAHHCMDPOSTCB,(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, VBOXVHWACMD *pCmd,
+                                                 uint32_t iDisplay, int rc, void *pvContext));
 typedef FNVBOXVHWAHHCMDPOSTCB *PFNVBOXVHWAHHCMDPOSTCB;
 
 static int vbvaVHWAHHPost(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, VBOXVHWACMD *pCmd,
@@ -2109,7 +2125,8 @@ int vboxVBVALoadStateDone(PPDMDEVINS pDevIns)
 
 void VBVARaiseIrq(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, uint32_t fFlags)
 {
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSectIRQ, VERR_SEM_BUSY);
+    int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSectIRQ, VERR_SEM_BUSY);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSectIRQ, rcLock);
 
     const uint32_t fu32CurrentGuestFlags = HGSMIGetHostGuestFlags(pThisCC->pHGSMI);
     if ((fu32CurrentGuestFlags & HGSMIHOSTFLAGS_IRQ) == 0)
@@ -2136,7 +2153,8 @@ void VBVARaiseIrq(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC, uint
 
 void VBVAOnResume(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC)
 {
-    PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSectIRQ, VERR_SEM_BUSY);
+    int const rcLock = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSectIRQ, VERR_SEM_BUSY);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->CritSectIRQ, rcLock);
 
     if (HGSMIGetHostGuestFlags(pThisCC->pHGSMI) & HGSMIHOSTFLAGS_IRQ)
         PDMDevHlpPCISetIrqNoWait(pDevIns, 0, PDM_IRQ_LEVEL_HIGH);
@@ -2809,7 +2827,7 @@ DECLCALLBACK(int) vbvaR3PortSendModeHint(PPDMIDISPLAYPORT pInterface,  uint32_t 
     PPDMDEVINS  pDevIns = pThisCC->pDevIns;
     PVGASTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PVGASTATE);
     int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->CritSect, VERR_SEM_BUSY);
-    AssertRC(rc);
+    AssertRCReturn(rc, rc);
 
     rc = vbvaSendModeHintWorker(pDevIns, pThis, pThisCC, cx, cy, cBPP, iDisplay, dx, dy, fEnabled, fNotifyGuest);
 
@@ -2819,10 +2837,8 @@ DECLCALLBACK(int) vbvaR3PortSendModeHint(PPDMIDISPLAYPORT pInterface,  uint32_t 
 
 int VBVAInit(PPDMDEVINS pDevIns, PVGASTATE pThis, PVGASTATECC pThisCC)
 {
-    PVM pVM = PDMDevHlpGetVM(pDevIns);
-
     int rc = HGSMICreate(&pThisCC->pHGSMI,
-                         pVM,
+                         pDevIns,
                          "VBVA",
                          0,
                          pThisCC->pbVRam,

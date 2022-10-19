@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSystem_h
@@ -23,16 +33,25 @@
 
 /* GUI includes: */
 #include "UISettingsPage.h"
-#include "UIMachineSettingsSystem.gen.h"
 
 /* Forward declarations: */
 struct UIDataSettingsMachineSystem;
 typedef UISettingsCache<UIDataSettingsMachineSystem> UISettingsCacheMachineSystem;
-class CMachine;
+class QITabWidget;
+class UIAccelerationFeaturesEditor;
+class UIBaseMemoryEditor;
+class UIBootOrderEditor;
+class UIChipsetEditor;
+class UIExecutionCapEditor;
+class UIMotherboardFeaturesEditor;
+class UIParavirtProviderEditor;
+class UIPointingHIDEditor;
+class UIProcessorFeaturesEditor;
+class UITpmEditor;
+class UIVirtualCPUEditor;
 
 /** Machine settings: System page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsSystem : public UISettingsPageMachine,
-                                                     public Ui::UIMachineSettingsSystem
+class SHARED_LIBRARY_STUFF UIMachineSettingsSystem : public UISettingsPageMachine
 {
     Q_OBJECT;
 
@@ -41,7 +60,7 @@ public:
     /** Constructs System settings page. */
     UIMachineSettingsSystem();
     /** Destructs System settings page. */
-    ~UIMachineSettingsSystem();
+    virtual ~UIMachineSettingsSystem() RT_OVERRIDE;
 
     /** Returns whether the HW Virt Ex is supported. */
     bool isHWVirtExSupported() const;
@@ -70,44 +89,35 @@ public:
 protected:
 
     /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */;
+    virtual bool changed() const RT_OVERRIDE;
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Performs validation, updates @a messages list if something is wrong. */
-    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
+    virtual bool validate(QList<UIValidationMessage> &messages) RT_OVERRIDE;
 
     /** Defines TAB order for passed @a pWidget. */
-    virtual void setOrderAfter(QWidget *pWidget) /* override */;
+    virtual void setOrderAfter(QWidget *pWidget) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Performs final page polishing. */
-    virtual void polishPage() /* override */;
+    virtual void polishPage() RT_OVERRIDE;
 
 private slots:
-
-    /** Handles CPU count slider change. */
-    void sltHandleCPUCountSliderChange();
-    /** Handles CPU count editor change. */
-    void sltHandleCPUCountEditorChange();
-    /** Handles CPU execution cap slider change. */
-    void sltHandleCPUExecCapSliderChange();
-    /** Handles CPU execution cap editor change. */
-    void sltHandleCPUExecCapEditorChange();
 
     /** Handles HW Virt Ex check-box toggling. */
     void sltHandleHwVirtExToggle();
@@ -116,6 +126,8 @@ private:
 
     /** Prepares all. */
     void prepare();
+    /** Prepares widgets. */
+    void prepareWidgets();
     /** Prepares 'Motherboard' tab. */
     void prepareTabMotherboard();
     /** Prepares 'Processor' tab. */
@@ -127,45 +139,57 @@ private:
     /** Cleanups all. */
     void cleanup();
 
-    /** Repopulates Chipset type combo-box. */
-    void repopulateComboChipsetType();
-    /** Repopulates Pointing HID type combo-box. */
-    void repopulateComboPointingHIDType();
-    /** Repopulates Paravirtualization Provider type combo-box. */
-    void repopulateComboParavirtProviderType();
-
-    /** Retranslates Chipset type combo-box. */
-    void retranslateComboChipsetType();
-    /** Retranslates Pointing HID type combo-box. */
-    void retranslateComboPointingHIDType();
-    /** Retranslates Paravirtualization providers combo-box. */
-    void retranslateComboParavirtProvider();
-
-    /** Saves existing system data from the cache. */
-    bool saveSystemData();
-    /** Saves existing 'Motherboard' data from the cache. */
+    /** Saves existing data from cache. */
+    bool saveData();
+    /** Saves existing 'Motherboard' data from cache. */
     bool saveMotherboardData();
-    /** Saves existing 'Processor' data from the cache. */
+    /** Saves existing 'Processor' data from cache. */
     bool saveProcessorData();
-    /** Saves existing 'Acceleration' data from the cache. */
+    /** Saves existing 'Acceleration' data from cache. */
     bool saveAccelerationData();
-
-    /** Holds the minimum guest CPU count. */
-    uint  m_uMinGuestCPU;
-    /** Holds the maximum guest CPU count. */
-    uint  m_uMaxGuestCPU;
-    /** Holds the minimum guest CPU execution cap. */
-    uint  m_uMinGuestCPUExecCap;
-    /** Holds the medium guest CPU execution cap. */
-    uint  m_uMedGuestCPUExecCap;
-    /** Holds the maximum guest CPU execution cap. */
-    uint  m_uMaxGuestCPUExecCap;
 
     /** Holds whether the USB is enabled. */
     bool m_fIsUSBEnabled;
 
     /** Holds the page data cache instance. */
     UISettingsCacheMachineSystem *m_pCache;
+
+    /** @name Widgets
+     * @{ */
+        /** Holds the tab-widget instance. */
+        QITabWidget *m_pTabWidget;
+
+        /** Holds the 'Motherboard' tab instance. */
+        QWidget                     *m_pTabMotherboard;
+        /** Holds the base memory editor instance. */
+        UIBaseMemoryEditor          *m_pEditorBaseMemory;
+        /** Holds the boot order editor instance. */
+        UIBootOrderEditor           *m_pEditorBootOrder;
+        /** Holds the chipset editor instance. */
+        UIChipsetEditor             *m_pEditorChipset;
+        /** Holds the TPM editor instance. */
+        UITpmEditor                 *m_pEditorTpm;
+        /** Holds the pointing HID editor instance. */
+        UIPointingHIDEditor         *m_pEditorPointingHID;
+        /** Holds the motherboard features editor instance. */
+        UIMotherboardFeaturesEditor *m_pEditorMotherboardFeatures;
+
+        /** Holds the 'Processor' tab instance. */
+        QWidget                   *m_pTabProcessor;
+        /** Holds the VCPU editor instance. */
+        UIVirtualCPUEditor        *m_pEditorVCPU;
+        /** Holds the exec cap editor instance. */
+        UIExecutionCapEditor      *m_pEditorExecCap;
+        /** Holds the motherboard features editor instance. */
+        UIProcessorFeaturesEditor *m_pEditorProcessorFeatures;
+
+        /** Holds the 'Acceleration' tab instance. */
+        QWidget                      *m_pTabAcceleration;
+        /** Holds the paravirtualization provider editor instance. */
+        UIParavirtProviderEditor     *m_pEditorParavirtProvider;
+        /** Holds the acceleration features editor instance. */
+        UIAccelerationFeaturesEditor *m_pEditorAccelerationFeatures;
+   /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSystem_h */

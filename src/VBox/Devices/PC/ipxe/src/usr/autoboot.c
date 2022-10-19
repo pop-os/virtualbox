@@ -13,16 +13,20 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
 #include <ipxe/netdevice.h>
-#include <ipxe/device.h>
 #include <ipxe/dhcp.h>
 #include <ipxe/settings.h>
 #include <ipxe/image.h>
@@ -30,13 +34,19 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/uri.h>
 #include <ipxe/open.h>
 #include <ipxe/init.h>
-#include <ipxe/pci.h>
-#include <ipxe/pci_io.h>
+#include <ipxe/keys.h>
+#include <ipxe/version.h>
+#include <ipxe/shell.h>
+#include <ipxe/features.h>
+#include <ipxe/image.h>
+#include <ipxe/timer.h>
 #include <usr/ifmgmt.h>
 #include <usr/route.h>
-#include <usr/dhcpmgmt.h>
 #include <usr/imgmgmt.h>
+#include <usr/prompt.h>
 #include <usr/autoboot.h>
+#include <config/general.h>
+#include <config/branding.h>
 
 /** @file
  *
@@ -44,10 +54,31 @@ FILE_LICENCE ( GPL2_OR_LATER );
  *
  */
 
+/** Link-layer address of preferred autoboot device, if known */
+static uint8_t autoboot_ll_addr[MAX_LL_ADDR_LEN];
+
+/** Device location of preferred autoboot device, if known */
+static struct device_description autoboot_desc;
+
+/** Autoboot device tester */
+static int ( * is_autoboot_device ) ( struct net_device *netdev );
+
 /* Disambiguate the various error causes */
 #define ENOENT_BOOT __einfo_error ( EINFO_ENOENT_BOOT )
 #define EINFO_ENOENT_BOOT \
 	__einfo_uniqify ( EINFO_ENOENT, 0x01, "Nothing to boot" )
+
+#define NORMAL	"\033[0m"
+#define BOLD	"\033[1m"
+#define CYAN	"\033[36m"
+
+/** The "scriptlet" setting */
+const struct setting scriptlet_setting __setting ( SETTING_MISC, scriptlet ) = {
+	.name = "scriptlet",
+	.description = "Boot scriptlet",
+	.tag = DHCP_EB_SCRIPTLET,
+	.type = &setting_type_string,
+};
 
 /**
  * Perform PXE menu boot when PXE stack is not available
@@ -55,55 +86,10 @@ FILE_LICENCE ( GPL2_OR_LATER );
 __weak int pxe_menu_boot ( struct net_device *netdev __unused ) {
 	return -ENOTSUP;
 }
-#ifndef VBOX
-/**
- * Identify the boot network device
- *
- * @ret netdev		Boot network device
- */
-static struct net_device * find_boot_netdev ( void ) {
-	return NULL;
-}
-#endif
-
-/**
- * Parse next-server and filename into a URI
- *
- * @v next_server	Next-server address
- * @v filename		Filename
- * @ret uri		URI, or NULL on failure
- */
-static struct uri * parse_next_server_and_filename ( struct in_addr next_server,
-						     const char *filename ) {
-	char buf[ 23 /* "tftp://xxx.xxx.xxx.xxx/" */ + strlen ( filename )
-		  + 1 /* NUL */ ];
-	struct uri *uri;
-
-	/* Parse filename */
-	uri = parse_uri ( filename );
-	if ( ! uri )
-		return NULL;
-
-	/* Construct a tftp:// URI for the filename, if applicable.
-	 * We can't just rely on the current working URI, because the
-	 * relative URI resolution will remove the distinction between
-	 * filenames with and without initial slashes, which is
-	 * significant for TFTP.
-	 */
-	if ( next_server.s_addr && filename[0] && ! uri_is_absolute ( uri ) ) {
-		uri_put ( uri );
-		snprintf ( buf, sizeof ( buf ), "tftp://%s/%s",
-			   inet_ntoa ( next_server ), filename );
-		uri = parse_uri ( buf );
-		if ( ! uri )
-			return NULL;
-	}
-
-	return uri;
-}
 
 /** The "keep-san" setting */
-struct setting keep_san_setting __setting ( SETTING_SANBOOT_EXTRA ) = {
+const struct setting keep_san_setting __setting ( SETTING_SANBOOT_EXTRA,
+						  keep-san ) = {
 	.name = "keep-san",
 	.description = "Preserve SAN connection",
 	.tag = DHCP_EB_KEEP_SAN,
@@ -111,7 +97,8 @@ struct setting keep_san_setting __setting ( SETTING_SANBOOT_EXTRA ) = {
 };
 
 /** The "skip-san-boot" setting */
-struct setting skip_san_boot_setting __setting ( SETTING_SANBOOT_EXTRA ) = {
+const struct setting skip_san_boot_setting __setting ( SETTING_SANBOOT_EXTRA,
+						       skip-san-boot ) = {
 	.name = "skip-san-boot",
 	.description = "Do not boot from SAN device",
 	.tag = DHCP_EB_SKIP_SAN_BOOT,
@@ -122,8 +109,10 @@ struct setting skip_san_boot_setting __setting ( SETTING_SANBOOT_EXTRA ) = {
  * Boot from filename and root-path URIs
  *
  * @v filename		Filename
- * @v root_path		Root path
+ * @v root_paths	Root path(s)
+ * @v root_path_count	Number of root paths
  * @v drive		SAN drive (if applicable)
+ * @v san_filename	SAN filename (or NULL to use default)
  * @v flags		Boot action flags
  * @ret rc		Return status code
  *
@@ -133,21 +122,19 @@ struct setting skip_san_boot_setting __setting ( SETTING_SANBOOT_EXTRA ) = {
  * provide backwards compatibility for the "keep-san" and
  * "skip-san-boot" options.
  */
-int uriboot ( struct uri *filename, struct uri *root_path, int drive,
-	      unsigned int flags ) {
-#ifdef VBOX
-	(void)root_path;
-	(void)drive;
-	(void)flags;
-#endif
-
+int uriboot ( struct uri *filename, struct uri **root_paths,
+	      unsigned int root_path_count, int drive,
+	      const char *san_filename, unsigned int flags ) {
 	struct image *image;
 	int rc;
 
-#ifndef VBOX
 	/* Hook SAN device, if applicable */
-	if ( root_path ) {
-		if ( ( rc = san_hook ( root_path, drive ) ) != 0 ) {
+	if ( root_path_count ) {
+		drive = san_hook ( drive, root_paths, root_path_count,
+				   ( ( flags & URIBOOT_NO_SAN_DESCRIBE ) ?
+				     SAN_NO_DESCRIBE : 0 ) );
+		if ( drive < 0 ) {
+			rc = drive;
 			printf ( "Could not open SAN device: %s\n",
 				 strerror ( rc ) );
 			goto err_san_hook;
@@ -156,22 +143,23 @@ int uriboot ( struct uri *filename, struct uri *root_path, int drive,
 	}
 
 	/* Describe SAN device, if applicable */
-	if ( ( drive >= 0 ) && ! ( flags & URIBOOT_NO_SAN_DESCRIBE ) ) {
-		if ( ( rc = san_describe ( drive ) ) != 0 ) {
-			printf ( "Could not describe SAN device %#02x: %s\n",
-				 drive, strerror ( rc ) );
+	if ( ! ( flags & URIBOOT_NO_SAN_DESCRIBE ) ) {
+		if ( ( rc = san_describe() ) != 0 ) {
+			printf ( "Could not describe SAN devices: %s\n",
+				 strerror ( rc ) );
 			goto err_san_describe;
 		}
 	}
-#endif
 
 	/* Allow a root-path-only boot with skip-san enabled to succeed */
 	rc = 0;
 
 	/* Attempt filename boot if applicable */
 	if ( filename ) {
-		if ( ( rc = imgdownload ( filename, &image ) ) != 0 )
+		if ( ( rc = imgdownload ( filename, 0, &image ) ) != 0 )
 			goto err_download;
+		imgstat ( image );
+		image->flags |= IMAGE_AUTO_UNREGISTER;
 		if ( ( rc = image_exec ( image ) ) != 0 ) {
 			printf ( "Could not boot image: %s\n",
 				 strerror ( rc ) );
@@ -187,12 +175,14 @@ int uriboot ( struct uri *filename, struct uri *root_path, int drive,
 			printf ( "\n" );
 		}
 	}
-#ifndef VBOX
+
 	/* Attempt SAN boot if applicable */
-	if ( ( drive >= 0 ) && ! ( flags & URIBOOT_NO_SAN_BOOT ) ) {
+	if ( ! ( flags & URIBOOT_NO_SAN_BOOT ) ) {
 		if ( fetch_intz_setting ( NULL, &skip_san_boot_setting) == 0 ) {
-			printf ( "Booting from SAN device %#02x\n", drive );
-			rc = san_boot ( drive );
+			printf ( "Booting%s%s from SAN device %#02x\n",
+				 ( san_filename ? " " : "" ),
+				 ( san_filename ? san_filename : "" ), drive );
+			rc = san_boot ( drive, san_filename );
 			printf ( "Boot from SAN device %#02x failed: %s\n",
 				 drive, strerror ( rc ) );
 		} else {
@@ -204,9 +194,10 @@ int uriboot ( struct uri *filename, struct uri *root_path, int drive,
 		}
 	}
 
+ err_download:
  err_san_describe:
 	/* Unhook SAN device, if applicable */
-	if ( ( drive >= 0 ) && ! ( flags & URIBOOT_NO_SAN_UNHOOK ) ) {
+	if ( ! ( flags & URIBOOT_NO_SAN_UNHOOK ) ) {
 		if ( fetch_intz_setting ( NULL, &keep_san_setting ) == 0 ) {
 			san_unhook ( drive );
 			printf ( "Unregistered SAN device %#02x\n", drive );
@@ -215,8 +206,6 @@ int uriboot ( struct uri *filename, struct uri *root_path, int drive,
 		}
 	}
  err_san_hook:
-#endif
- err_download:
 	return rc;
 }
 
@@ -243,31 +232,54 @@ static void close_all_netdevs ( void ) {
  * @ret uri		URI, or NULL on failure
  */
 struct uri * fetch_next_server_and_filename ( struct settings *settings ) {
-	struct in_addr next_server;
-	char buf[256];
+	union {
+		struct sockaddr sa;
+		struct sockaddr_in sin;
+	} next_server;
+	char *raw_filename = NULL;
+	struct uri *uri = NULL;
 	char *filename;
-	struct uri *uri;
 
-	/* Fetch next-server setting */
-	fetch_ipv4_setting ( settings, &next_server_setting, &next_server );
-	if ( next_server.s_addr )
-		printf ( "Next server: %s\n", inet_ntoa ( next_server ) );
+	/* Initialise server address */
+	memset ( &next_server, 0, sizeof ( next_server ) );
 
-	/* Fetch filename setting */
-	fetch_string_setting ( settings, &filename_setting,
-			       buf, sizeof ( buf ) );
-	if ( buf[0] )
-		printf ( "Filename: %s\n", buf );
+	/* If we have a filename, fetch it along with the next-server
+	 * setting from the same settings block.
+	 */
+	if ( fetch_setting ( settings, &filename_setting, &settings,
+			     NULL, NULL, 0 ) >= 0 ) {
+		fetch_string_setting_copy ( settings, &filename_setting,
+					    &raw_filename );
+		fetch_ipv4_setting ( settings, &next_server_setting,
+				     &next_server.sin.sin_addr );
+	}
+	if ( ! raw_filename )
+		goto err_fetch;
+
+	/* Populate server address */
+	if ( next_server.sin.sin_addr.s_addr ) {
+		next_server.sin.sin_family = AF_INET;
+		printf ( "Next server: %s\n",
+			 inet_ntoa ( next_server.sin.sin_addr ) );
+	}
 
 	/* Expand filename setting */
-	filename = expand_settings ( buf );
+	filename = expand_settings ( raw_filename );
 	if ( ! filename )
-		return NULL;
+		goto err_expand;
+	if ( filename[0] )
+		printf ( "Filename: %s\n", filename );
 
-	/* Parse next server and filename */
-	uri = parse_next_server_and_filename ( next_server, filename );
+	/* Construct URI */
+	uri = pxe_uri ( &next_server.sa, filename );
+	if ( ! uri )
+		goto err_parse;
 
+ err_parse:
 	free ( filename );
+ err_expand:
+	free ( raw_filename );
+ err_fetch:
 	return uri;
 }
 
@@ -278,26 +290,63 @@ struct uri * fetch_next_server_and_filename ( struct settings *settings ) {
  * @ret uri		URI, or NULL on failure
  */
 static struct uri * fetch_root_path ( struct settings *settings ) {
-	char buf[256];
+	struct uri *uri = NULL;
+	char *raw_root_path;
 	char *root_path;
-	struct uri *uri;
 
 	/* Fetch root-path setting */
-	fetch_string_setting ( settings, &root_path_setting,
-			       buf, sizeof ( buf ) );
-	if ( buf[0] )
-		printf ( "Root path: %s\n", buf );
+	fetch_string_setting_copy ( settings, &root_path_setting,
+				    &raw_root_path );
+	if ( ! raw_root_path )
+		goto err_fetch;
 
 	/* Expand filename setting */
-	root_path = expand_settings ( buf );
+	root_path = expand_settings ( raw_root_path );
 	if ( ! root_path )
-		return NULL;
+		goto err_expand;
+	if ( root_path[0] )
+		printf ( "Root path: %s\n", root_path );
 
 	/* Parse root path */
 	uri = parse_uri ( root_path );
+	if ( ! uri )
+		goto err_parse;
 
+ err_parse:
 	free ( root_path );
+ err_expand:
+	free ( raw_root_path );
+ err_fetch:
 	return uri;
+}
+
+/**
+ * Fetch san-filename setting
+ *
+ * @v settings		Settings block
+ * @ret san_filename	SAN filename, or NULL on failure
+ */
+static char * fetch_san_filename ( struct settings *settings ) {
+	char *raw_san_filename;
+	char *san_filename = NULL;
+
+	/* Fetch san-filename setting */
+	fetch_string_setting_copy ( settings, &san_filename_setting,
+				    &raw_san_filename );
+	if ( ! raw_san_filename )
+		goto err_fetch;
+
+	/* Expand san-filename setting */
+	san_filename = expand_settings ( raw_san_filename );
+	if ( ! san_filename )
+		goto err_expand;
+	if ( san_filename[0] )
+		printf ( "SAN filename: %s\n", san_filename );
+
+ err_expand:
+	free ( raw_san_filename );
+ err_fetch:
+	return san_filename;
 }
 
 /**
@@ -312,7 +361,7 @@ static int have_pxe_menu ( void ) {
 		= { .tag = DHCP_PXE_DISCOVERY_CONTROL };
 	struct setting pxe_boot_menu_setting
 		= { .tag = DHCP_PXE_BOOT_MENU };
-	char buf[256];
+	char buf[ 10 /* "PXEClient" + NUL */ ];
 	unsigned int pxe_discovery_control;
 
 	fetch_string_setting ( NULL, &vendor_class_id_setting,
@@ -335,6 +384,7 @@ static int have_pxe_menu ( void ) {
 int netboot ( struct net_device *netdev ) {
 	struct uri *filename;
 	struct uri *root_path;
+	char *san_filename;
 	int rc;
 
 	/* Close all other network devices */
@@ -345,8 +395,8 @@ int netboot ( struct net_device *netdev ) {
 		goto err_ifopen;
 	ifstat ( netdev );
 
-	/* Configure device via DHCP */
-	if ( ( rc = dhcp ( netdev ) ) != 0 )
+	/* Configure device */
+	if ( ( rc = ifconf ( netdev, NULL, 0 ) ) != 0 )
 		goto err_dhcp;
 	route();
 
@@ -357,32 +407,22 @@ int netboot ( struct net_device *netdev ) {
 		goto err_pxe_menu_boot;
 	}
 
-	/* Fetch next server and filename */
+	/* Fetch next server and filename (if any) */
 	filename = fetch_next_server_and_filename ( NULL );
-	if ( ! filename )
-		goto err_filename;
-	if ( ! uri_has_path ( filename ) ) {
-		/* Ignore empty filename */
-		uri_put ( filename );
-		filename = NULL;
-	}
 
-	/* Fetch root path */
+	/* Fetch root path (if any) */
 	root_path = fetch_root_path ( NULL );
-	if ( ! root_path )
-		goto err_root_path;
-	if ( ! uri_is_absolute ( root_path ) ) {
-		/* Ignore empty root path */
-		uri_put ( root_path );
-		root_path = NULL;
-	}
+
+	/* Fetch SAN filename (if any) */
+	san_filename = fetch_san_filename ( NULL );
 
 	/* If we have both a filename and a root path, ignore an
-	 * unsupported URI scheme in the root path, since it may
-	 * represent an NFS root.
+	 * unsupported or missing URI scheme in the root path, since
+	 * it may represent an NFS root.
 	 */
 	if ( filename && root_path &&
-	     ( xfer_uri_opener ( root_path->scheme ) == NULL ) ) {
+	     ( ( ! uri_is_absolute ( root_path ) ) ||
+	       ( xfer_uri_opener ( root_path->scheme ) == NULL ) ) ) {
 		printf ( "Ignoring unsupported root path\n" );
 		uri_put ( root_path );
 		root_path = NULL;
@@ -394,23 +434,18 @@ int netboot ( struct net_device *netdev ) {
 		printf ( "Nothing to boot: %s\n", strerror ( rc ) );
 		goto err_no_boot;
 	}
-#ifndef VBOX
+
 	/* Boot using next server, filename and root path */
-	if ( ( rc = uriboot ( filename, root_path, san_default_drive(),
+	if ( ( rc = uriboot ( filename, &root_path, ( root_path ? 1 : 0 ),
+			      san_default_drive(), san_filename,
 			      ( root_path ? 0 : URIBOOT_NO_SAN ) ) ) != 0 )
-#else
-	/* Boot using next server, filename and root path. Defaults is Harddrive */
-	if ( ( rc = uriboot ( filename, root_path, 0x80,
-			      ( root_path ? 0 : URIBOOT_NO_SAN ) ) ) != 0 )
-#endif
 		goto err_uriboot;
 
  err_uriboot:
  err_no_boot:
+	free ( san_filename );
 	uri_put ( root_path );
- err_root_path:
 	uri_put ( filename );
- err_filename:
  err_pxe_menu_boot:
  err_dhcp:
  err_ifopen:
@@ -418,44 +453,169 @@ int netboot ( struct net_device *netdev ) {
 }
 
 /**
+ * Test if network device matches the autoboot device bus type and location
+ *
+ * @v netdev		Network device
+ * @ret is_autoboot	Network device matches the autoboot device
+ */
+static int is_autoboot_busloc ( struct net_device *netdev ) {
+	struct device *dev;
+
+	for ( dev = netdev->dev ; dev ; dev = dev->parent ) {
+		if ( ( dev->desc.bus_type == autoboot_desc.bus_type ) &&
+		     ( dev->desc.location == autoboot_desc.location ) )
+			return 1;
+	}
+	return 0;
+}
+
+/**
+ * Identify autoboot device by bus type and location
+ *
+ * @v bus_type		Bus type
+ * @v location		Location
+ */
+void set_autoboot_busloc ( unsigned int bus_type, unsigned int location ) {
+
+	/* Record autoboot device description */
+	autoboot_desc.bus_type = bus_type;
+	autoboot_desc.location = location;
+
+	/* Mark autoboot device as present */
+	is_autoboot_device = is_autoboot_busloc;
+}
+
+/**
+ * Test if network device matches the autoboot device link-layer address
+ *
+ * @v netdev		Network device
+ * @ret is_autoboot	Network device matches the autoboot device
+ */
+static int is_autoboot_ll_addr ( struct net_device *netdev ) {
+
+	return ( memcmp ( netdev->ll_addr, autoboot_ll_addr,
+			  netdev->ll_protocol->ll_addr_len ) == 0 );
+}
+
+/**
+ * Identify autoboot device by link-layer address
+ *
+ * @v ll_addr		Link-layer address
+ * @v len		Length of link-layer address
+ */
+void set_autoboot_ll_addr ( const void *ll_addr, size_t len ) {
+
+	/* Record autoboot link-layer address (truncated if necessary) */
+	if ( len > sizeof ( autoboot_ll_addr ) )
+		len = sizeof ( autoboot_ll_addr );
+	memcpy ( autoboot_ll_addr, ll_addr, len );
+
+	/* Mark autoboot device as present */
+	is_autoboot_device = is_autoboot_ll_addr;
+}
+
+/**
  * Boot the system
  */
-int autoboot ( void ) {
-	struct net_device *boot_netdev = NULL;
-#ifndef VBOX
+static int autoboot ( void ) {
 	struct net_device *netdev;
-#endif
 	int rc = -ENODEV;
-	int nic_index = 0;
-	uint16_t busdevfn;
 
-#ifdef VBOX
-	for (nic_index = 0; nic_index < NET_BOOT_NICS; nic_index++)
-	{
-		busdevfn = cmos2_read(2 + nic_index * 2);
-		busdevfn |= cmos2_read(3 + nic_index * 2) << 8;
-		if (busdevfn != 0xffff && busdevfn != 0)
-		{
-			boot_netdev = find_netdev_by_location(BUS_TYPE_PCI, busdevfn);
-			if (boot_netdev != NULL)
-			{
-				rc = netboot(boot_netdev);
-			}
-		}
-	}
-#else
-	/* If we have an identifable boot device, try that first */
-	if ( ( boot_netdev = find_boot_netdev() ) )
-		rc = netboot ( boot_netdev );
-
-	/* If that fails, try booting from any of the other devices */
+	/* Try booting from each network device.  If we have a
+	 * specified autoboot device location, then use only devices
+	 * matching that location.
+	 */
 	for_each_netdev ( netdev ) {
-		if ( netdev == boot_netdev )
+
+		/* Skip any non-matching devices, if applicable */
+		if ( is_autoboot_device && ( ! is_autoboot_device ( netdev ) ) )
 			continue;
+
+		/* Attempt booting from this device */
 		rc = netboot ( netdev );
 	}
-#endif
 
 	printf ( "No more network devices\n" );
 	return rc;
+}
+
+/**
+ * Prompt for shell entry
+ *
+ * @ret	enter_shell	User wants to enter shell
+ */
+static int shell_banner ( void ) {
+
+	/* Skip prompt if timeout is zero */
+	if ( BANNER_TIMEOUT <= 0 )
+		return 0;
+
+	/* Prompt user */
+	printf ( "\n" );
+	return ( prompt ( "Press Ctrl-B for the " PRODUCT_SHORT_NAME
+			  " command line...",
+			  ( ( BANNER_TIMEOUT * TICKS_PER_SEC ) / 10 ),
+			  CTRL_B ) == 0 );
+}
+
+/**
+ * Main iPXE flow of execution
+ *
+ * @v netdev		Network device, or NULL
+ * @ret rc		Return status code
+ */
+int ipxe ( struct net_device *netdev ) {
+	struct feature *feature;
+	struct image *image;
+	char *scriptlet;
+	int rc;
+
+	/*
+	 * Print welcome banner
+	 *
+	 *
+	 * If you wish to brand this build of iPXE, please do so by
+	 * defining the string PRODUCT_NAME in config/branding.h.
+	 *
+	 * While nothing in the GPL prevents you from removing all
+	 * references to iPXE or http://ipxe.org, we prefer you not to
+	 * do so.
+	 *
+	 */
+	printf ( NORMAL "\n\n" PRODUCT_NAME "\n" BOLD PRODUCT_SHORT_NAME " %s"
+		 NORMAL " -- " PRODUCT_TAG_LINE " -- "
+		 CYAN PRODUCT_URI NORMAL "\nFeatures:", product_version );
+	for_each_table_entry ( feature, FEATURES )
+		printf ( " %s", feature->name );
+	printf ( "\n" );
+
+	/* Boot system */
+	if ( ( image = first_image() ) != NULL ) {
+		/* We have an embedded image; execute it */
+		return image_exec ( image );
+	} else if ( shell_banner() ) {
+		/* User wants shell; just give them a shell */
+		return shell();
+	} else {
+		fetch_string_setting_copy ( NULL, &scriptlet_setting,
+					    &scriptlet );
+		if ( scriptlet ) {
+			/* User has defined a scriptlet; execute it */
+			rc = system ( scriptlet );
+			free ( scriptlet );
+			return rc;
+		} else {
+			/* Try booting.  If booting fails, offer the
+			 * user another chance to enter the shell.
+			 */
+			if ( netdev ) {
+				rc = netboot ( netdev );
+			} else {
+				rc = autoboot();
+			}
+			if ( shell_banner() )
+				rc = shell();
+			return rc;
+		}
+	}
 }

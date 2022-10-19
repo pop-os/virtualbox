@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -219,6 +229,18 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
     {
         pSetup = pPipe->pCtrl->pMsg;
         if (pSetup->bRequest == VUSB_REQ_GET_DESCRIPTOR)
+        {
+            /* HID report (0x22) and physical (0x23) descriptors do not use standard format
+             * with descriptor length/type at the front. Don't try to dump them, we'll only
+             * misinterpret them.
+             */
+            if (    ((pSetup->bmRequestType >> 5) & 0x3) == 1   /* class */
+                && ((RT_HIBYTE(pSetup->wValue) == 0x22) || (RT_HIBYTE(pSetup->wValue) == 0x23)))
+            {
+                fDescriptors = false;
+            }
+        }
+        else
             fDescriptors = true;
     }
 
@@ -375,7 +397,7 @@ DECLHIDDEN(void) vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
                                 Log(("URB: %*s:       %04x: Length=%d String=%.*ls\n",
                                      s_cchMaxMsg, pszMsg, pb - pbData, cb - 2, cb / 2 - 1, pb + 2));
                             else
-                                Log(("URB: %*s:       %04x: Length=0!\n", s_cchMaxMsg, pszMsg, pb - pbData));
+                                Log(("URB: %*s:       %04x: Length=0\n", s_cchMaxMsg, pszMsg, pb - pbData));
                         }
                         break;
 

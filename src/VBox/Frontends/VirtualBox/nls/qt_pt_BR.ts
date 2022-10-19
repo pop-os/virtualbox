@@ -1624,7 +1624,7 @@ Pressione ESC para cancelar</translation>
     </message>
     <message>
         <source>Destination file exists</source>
-        <translation>O arquivo de destino já existe</translation>
+        <translation>O arquivo de destino existe.</translation>
     </message>
     <message>
         <source>Error while renaming.</source>

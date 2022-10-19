@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -41,6 +51,7 @@
 #define USBHID_STR_ID_PRODUCT_M     2
 #define USBHID_STR_ID_PRODUCT_T     3
 #define USBHID_STR_ID_PRODUCT_MT    4
+#define USBHID_STR_ID_PRODUCT_TP    5
 /** @} */
 
 /** @name USB HID specific descriptor types
@@ -54,7 +65,8 @@
 #define VBOX_USB_VENDOR             0x80EE
 #define USBHID_PID_MOUSE            0x0020
 #define USBHID_PID_TABLET           0x0021
-#define USBHID_PID_MULTI_TOUCH      0x0022
+#define USBHID_PID_MT_TOUCHSCREEN   0x0022
+#define USBHID_PID_MT_TOUCHPAD      0x0023
 /** @} */
 
 
@@ -89,8 +101,10 @@ typedef enum USBHIDMODE
     USBHIDMODE_RELATIVE = 0,
     /** Absolute. */
     USBHIDMODE_ABSOLUTE,
-    /** Multi-touch. */
-    USBHIDMODE_MULTI_TOUCH
+    /** Multi-touch Touchscreen. */
+    USBHIDMODE_MT_ABSOLUTE,
+    /** Multi-touch Touchpad. */
+    USBHIDMODE_MT_RELATIVE,
 } USBHIDMODE;
 
 
@@ -149,9 +163,11 @@ typedef struct USBHIDM_ACCUM
 #define MT_CONTACTS_PER_REPORT 5
 
 #define MT_CONTACT_MAX_COUNT 10
+#define TPAD_CONTACT_MAX_COUNT 5
 
 #define MT_CONTACT_F_IN_CONTACT 0x01
 #define MT_CONTACT_F_IN_RANGE   0x02
+#define MT_CONTACT_F_CONFIDENCE 0x04
 
 #define MT_CONTACT_S_ACTIVE    0x01 /* Contact must be reported to the guest. */
 #define MT_CONTACT_S_CANCELLED 0x02 /* Contact loss must be reported to the guest. */
@@ -299,6 +315,26 @@ typedef struct USBHIDMT_REPORT_POINTER
     uint16_t    x;
     uint16_t    y;
 } USBHIDMT_REPORT_POINTER;
+
+/**
+ * The USB HID report structure for the touchpad device.
+ * It is a superset of the multi-touch report.
+ */
+typedef struct USBHIDTP_REPORT
+{
+    USBHIDMT_REPORT mt;
+    uint8_t         buttons;    /* Required by Win10, not used. */
+} USBHIDTP_REPORT, *PUSBHIDTP_REPORT;
+
+typedef union USBHIDALL_REPORT
+{
+    USBHIDM_REPORT          m;
+    USBHIDT_REPORT          t;
+    USBHIDMT_REPORT         mt;
+    USBHIDMT_REPORT_POINTER mp;
+    USBHIDTP_REPORT         tp;
+} USBHIDALL_REPORT, *PUSBHIDALL_REPORT;
+
 #pragma pack()
 
 
@@ -311,6 +347,7 @@ static const PDMUSBDESCCACHESTRING g_aUsbHidStrings_en_US[] =
     { USBHID_STR_ID_PRODUCT_M,      "USB Mouse"       },
     { USBHID_STR_ID_PRODUCT_T,      "USB Tablet"      },
     { USBHID_STR_ID_PRODUCT_MT,     "USB Multi-Touch" },
+    { USBHID_STR_ID_PRODUCT_TP,     "USB Touchpad"    },
 };
 
 static const PDMUSBDESCCACHELANG g_aUsbHidLanguages[] =
@@ -353,6 +390,23 @@ static const VUSBDESCENDPOINTEX g_aUsbHidTEndpointDescs[] =
 };
 
 static const VUSBDESCENDPOINTEX g_aUsbHidMTEndpointDescs[] =
+{
+    {
+        {
+            /* .bLength = */            sizeof(VUSBDESCENDPOINT),
+            /* .bDescriptorType = */    VUSB_DT_ENDPOINT,
+            /* .bEndpointAddress = */   0x81 /* ep=1, in */,
+            /* .bmAttributes = */       3 /* interrupt */,
+            /* .wMaxPacketSize = */     64,
+            /* .bInterval = */          10,
+        },
+        /* .pvMore = */     NULL,
+        /* .pvClass = */    NULL,
+        /* .cbClass = */    0
+    },
+};
+
+static const VUSBDESCENDPOINTEX g_aUsbHidTPEndpointDescs[] =
 {
     {
         {
@@ -728,6 +782,170 @@ static const uint8_t g_UsbHidMTReportDesc[] =
 /* End Collection                        */ 0xC0
 };
 
+
+#define TOUCHPAD_REPORT_FINGER_USAGE \
+/*     Usage Page (Digitizer)            */ 0x05, 0x0D, \
+/*     Usage (Finger)                    */ 0x09, 0x22, \
+/*     Collection (Logical)              */ 0xA1, 0x02, \
+/*         Usage (Tip Switch)            */ 0x09, 0x42, \
+/*         Logical Minimum (0)           */ 0x15, 0x00, \
+/*         Logical Maximum (1)           */ 0x25, 0x01, \
+/*         Report Size (1)               */ 0x75, 0x01, \
+/*         Report Count (1)              */ 0x95, 0x01, \
+/*         Input (Var)                   */ 0x81, 0x02, \
+                                                        \
+/*         Note: In Range not required   */             \
+/*         Report Count (1)              */ 0x95, 0x01, \
+/*         Input (Cnst,Var)              */ 0x81, 0x03, \
+                                                        \
+/*         Usage (Confidence)            */ 0x09, 0x47, \
+/*         Logical Minimum (0)           */ 0x15, 0x00, \
+/*         Logical Maximum (1)           */ 0x25, 0x01, \
+/*         Report Size (1)               */ 0x75, 0x01, \
+/*         Report Count (1)              */ 0x95, 0x01, \
+/*         Input (Var)                   */ 0x81, 0x02, \
+                                                        \
+/*         Report Count (5)              */ 0x95, 0x05, \
+/*         Input (Cnst,Var)              */ 0x81, 0x03, \
+                                                        \
+/*         Report Size (8)               */ 0x75, 0x08, \
+/*         Usage (Contact identifier)    */ 0x09, 0x51, \
+/*         Report Count (1)              */ 0x95, 0x01, \
+/*         Logical Minimum (0)           */ 0x15, 0x00, \
+/*         Logical Maximum (32)          */ 0x25, 0x20, \
+/*         Input (Var)                   */ 0x81, 0x02, \
+                                                        \
+/*         Usage Page (Generic Desktop)  */ 0x05, 0x01, \
+/*         Logical Minimum (0)           */ 0x15, 0x00, \
+/*         Logical Maximum (65535)       */ 0x27, 0xFF, 0xFF, 0x00, 0x00, \
+/*         Report Size (16)              */ 0x75, 0x10, \
+/*         Unit Exponent (-2)            */ 0x55, 0x0e, \
+/*         Unit (Eng Lin: Length (in))   */ 0x65, 0x13, \
+/*         Usage (X)                     */ 0x09, 0x30, \
+/*         Physical Minimum (0)          */ 0x35, 0x00, \
+/*         Physical Maximum (461)        */ 0x46, 0xcd, 0x01, \
+/*         Report Count (1)              */ 0x95, 0x01, \
+/*         Input (Var)                   */ 0x81, 0x02, \
+/*         Usage (Y)                     */ 0x09, 0x31, \
+/*         Physical Maximum (346)        */ 0x46, 0x5a, 0x01, \
+/*         Input (Var)                   */ 0x81, 0x02, \
+/*     End Collection                    */ 0xC0,
+
+static const uint8_t g_UsbHidTPReportDesc[] =
+    {
+/* Usage Page (Digitizer)                */ 0x05, 0x0D,
+/* Usage (Touch Pad)                     */ 0x09, 0x05,
+/* Collection (Application)              */ 0xA1, 0x01,
+/*     Report ID                         */ 0x85, REPORTID_TOUCH_EVENT,
+/*     Usage Page (Digitizer)            */ 0x05, 0x0D,
+/*     Usage (Contact count)             */ 0x09, 0x54,
+/*     Report Size (8)                   */ 0x75, 0x08,
+/*     Logical Minimum (0)               */ 0x15, 0x00,
+/*     Logical Maximum (12)              */ 0x25, 0x0C,
+/*     Report Count (1)                  */ 0x95, 0x01,
+/*     Input (Var)                       */ 0x81, 0x02,
+
+/* MT_CONTACTS_PER_REPORT structs u8TipSwitch, u8ContactIdentifier, u16X, u16Y */
+TOUCHPAD_REPORT_FINGER_USAGE
+TOUCHPAD_REPORT_FINGER_USAGE
+TOUCHPAD_REPORT_FINGER_USAGE
+TOUCHPAD_REPORT_FINGER_USAGE
+TOUCHPAD_REPORT_FINGER_USAGE
+
+/* Note: "Scan time" usage is required for all touch devices (in 100microseconds units). */
+/*     Usage Page (Digitizer)            */ 0x05, 0x0D,
+/*     Logical Minimum (0)               */ 0x17, 0x00, 0x00, 0x00, 0x00,
+/*     Logical Maximum (2147483647)      */ 0x27, 0xFF, 0xFF, 0xFF, 0x7F,
+/*     Report Size (32)                  */ 0x75, 0x20,
+/*     Report Count (1)                  */ 0x95, 0x01,
+/*     Unit Exponent (0)                 */ 0x55, 0x00,
+/*     Unit (None)                       */ 0x65, 0x00,
+/*     Usage (Scan time)                 */ 0x09, 0x56,
+/*     Input (Var)                       */ 0x81, 0x02,
+
+/* Note: Button required by Windows 10 Precision Touchpad */
+/*     Usage Page (Button)               */ 0x05, 0x09,
+/*     Usage (Button 1)                  */ 0x09, 0x01,
+/*     Logical Maximum (1)               */ 0x25, 0x01,
+/*     Report Size (1)                   */ 0x75, 0x01,
+/*     Report Count (1)                  */ 0x95, 0x01,
+/*     Input (Var)                       */ 0x81, 0x02,
+/*     Report Count (7)                  */ 0x95, 0x07,
+/*     Input (Cnst,Var)                  */ 0x81, 0x03,
+
+/*     Usage Page (Digitizer)            */ 0x05, 0x0D,
+/*     Report ID                         */ 0x85, REPORTID_TOUCH_MAX_COUNT,
+/*     Usage (Contact count maximum)     */ 0x09, 0x55,
+/*     Usage (Device identifier)         */ 0x09, 0x53,
+/*     Report Size (8)                   */ 0x75, 0x08,
+/*     Report Count (2)                  */ 0x95, 0x02,
+/*     Logical Maximum (255)             */ 0x26, 0xFF, 0x00,
+/*     Feature (Var)                     */ 0xB1, 0x02,
+
+/*     Usage Page (Vendor-Defined 1)     */ 0x06, 0x00, 0xFF,
+/*     Usage (QA blob)                   */ 0x09, 0xC5,
+/*     Report ID                         */ 0x85, REPORTID_TOUCH_QABLOB,
+/*     Logical Minimum (0)               */ 0x15, 0x00,
+/*     Logical Maximum (255)             */ 0x26, 0xFF, 0x00,
+/*     Report Size (8)                   */ 0x75, 0x08,
+/*     Report Count (256)                */ 0x96, 0x00, 0x01,
+/*     Feature (Var)                     */ 0xB1, 0x02,
+/* End Collection                        */ 0xC0,
+
+/* Note: the pointer report is required by specification:
+ * "The report descriptor for a multiple input device must include at least
+ * one top-level collection for the primary device and a separate top-level
+ * collection for the mouse."
+ */
+/* Usage Page (Generic Desktop)          */ 0x05, 0x01,
+/* Usage (Pointer)                       */ 0x09, 0x01,
+/* Collection (Application)              */ 0xA1, 0x01,
+/*     Report ID                         */ 0x85, REPORTID_TOUCH_POINTER,
+/*     Usage (Pointer)                   */ 0x09, 0x01,
+/*     Collection (Logical)              */ 0xA1, 0x02,
+/*         Usage Page (Button)           */ 0x05, 0x09,
+/*         Usage Minimum (Button 1)      */ 0x19, 0x01,
+/*         Usage Maximum (Button 2)      */ 0x29, 0x02,
+/*         Logical Minimum (0)           */ 0x15, 0x00,
+/*         Logical Maximum (1)           */ 0x25, 0x01,
+/*         Report Count (2)              */ 0x95, 0x02,
+/*         Report Size (1)               */ 0x75, 0x01,
+/*         Input (Var)                   */ 0x81, 0x02,
+/*         Report Count (1)              */ 0x95, 0x01,
+/*         Report Size (6)               */ 0x75, 0x06,
+/*         Input (Cnst,Ary,Abs)          */ 0x81, 0x01,
+/*         Usage Page (Generic Desktop)  */ 0x05, 0x01,
+/*         Usage (X)                     */ 0x09, 0x30,
+/*         Usage (Y)                     */ 0x09, 0x31,
+/*         Logical Minimum (0)           */ 0x16, 0x00, 0x00,
+/*         Logical Maximum (32K)         */ 0x26, 0xFF, 0x7F,
+/*         Physical Minimum (0)          */ 0x36, 0x00, 0x00,
+/*         Physical Maximum (32K)        */ 0x46, 0xFF, 0x7F,
+/*         Unit (None)                   */ 0x66, 0x00, 0x00,
+/*         Report Size (16)              */ 0x75, 0x10,
+/*         Report Count (2)              */ 0x95, 0x02,
+/*         Input (Var)                   */ 0x81, 0x02,
+/*     End Collection                    */ 0xC0,
+/* End Collection                        */ 0xC0,
+
+/* Usage Page (Digitizer)                */ 0x05, 0x0D,
+/* Usage (Device configuration)          */ 0x09, 0x0E,
+/* Collection (Application)              */ 0xA1, 0x01,
+/*     Report ID                         */ 0x85, REPORTID_TOUCH_DEVCONFIG,
+/*     Usage (Device settings)           */ 0x09, 0x23,
+/*     Collection (Logical)              */ 0xA1, 0x02,
+/*         Usage (Device mode)           */ 0x09, 0x52,
+/*         Usage (Device identifier)     */ 0x09, 0x53,
+/*         Logical Minimum (0)           */ 0x15, 0x00,
+/*         Logical Maximum (10)          */ 0x25, 0x0A,
+/*         Report Size (8)               */ 0x75, 0x08,
+/*         Report Count (2)              */ 0x95, 0x02,
+/*         Feature (Var)                 */ 0xB1, 0x02,
+/*     End Collection                    */ 0xC0,
+/* End Collection                        */ 0xC0
+    };
+
+
 /** @todo Do these really have to all be duplicated three times? */
 /* Additional HID class interface descriptor. */
 static const uint8_t g_UsbHidMIfHidDesc[] =
@@ -764,6 +982,19 @@ static const uint8_t g_UsbHidMTIfHidDesc[] =
     /* .bDescriptorType = */        0x22,       /* Report */
     /* .wDescriptorLength = */      (uint8_t)(sizeof(g_UsbHidMTReportDesc) & 0xFF),
                                     (uint8_t)((sizeof(g_UsbHidMTReportDesc) >> 8) & 0xFF)
+};
+
+/* Additional HID class interface descriptor. */
+static const uint8_t g_UsbHidTPIfHidDesc[] =
+{
+    /* .bLength = */                0x09,
+    /* .bDescriptorType = */        0x21,       /* HID */
+    /* .bcdHID = */                 0x10, 0x02, /* 2.1 */
+    /* .bCountryCode = */           0,
+    /* .bNumDescriptors = */        1,
+    /* .bDescriptorType = */        0x22,       /* Report */
+    /* .wDescriptorLength = */      (uint8_t)(sizeof(g_UsbHidTPReportDesc) & 0xFF),
+                                    (uint8_t)((sizeof(g_UsbHidTPReportDesc) >> 8) & 0xFF)
 };
 
 static const VUSBDESCINTERFACEEX g_UsbHidMInterfaceDesc =
@@ -829,6 +1060,27 @@ static const VUSBDESCINTERFACEEX g_UsbHidMTInterfaceDesc =
     /* .cbIAD = */ 0
 };
 
+static const VUSBDESCINTERFACEEX g_UsbHidTPInterfaceDesc =
+{
+    {
+        /* .bLength = */                sizeof(VUSBDESCINTERFACE),
+        /* .bDescriptorType = */        VUSB_DT_INTERFACE,
+        /* .bInterfaceNumber = */       0,
+        /* .bAlternateSetting = */      0,
+        /* .bNumEndpoints = */          1,
+        /* .bInterfaceClass = */        3 /* HID */,
+        /* .bInterfaceSubClass = */     0 /* No subclass - no boot interface. */,
+        /* .bInterfaceProtocol = */     0 /* No protocol - no boot interface. */,
+        /* .iInterface = */             0
+    },
+    /* .pvMore = */     NULL,
+    /* .pvClass = */    &g_UsbHidTPIfHidDesc,
+    /* .cbClass = */    sizeof(g_UsbHidTPIfHidDesc),
+    &g_aUsbHidTPEndpointDescs[0],
+    /* .pIAD = */ NULL,
+    /* .cbIAD = */ 0
+};
+
 static const VUSBINTERFACE g_aUsbHidMInterfaces[] =
 {
     { &g_UsbHidMInterfaceDesc, /* .cSettings = */ 1 },
@@ -842,6 +1094,11 @@ static const VUSBINTERFACE g_aUsbHidTInterfaces[] =
 static const VUSBINTERFACE g_aUsbHidMTInterfaces[] =
 {
     { &g_UsbHidMTInterfaceDesc, /* .cSettings = */ 1 },
+};
+
+static const VUSBINTERFACE g_aUsbHidTPInterfaces[] =
+{
+    { &g_UsbHidTPInterfaceDesc, /* .cSettings = */ 1 },
 };
 
 static const VUSBDESCCONFIGEX g_UsbHidMConfigDesc =
@@ -901,6 +1158,25 @@ static const VUSBDESCCONFIGEX g_UsbHidMTConfigDesc =
     NULL                            /* pvOriginal */
 };
 
+static const VUSBDESCCONFIGEX g_UsbHidTPConfigDesc =
+{
+    {
+        /* .bLength = */            sizeof(VUSBDESCCONFIG),
+        /* .bDescriptorType = */    VUSB_DT_CONFIG,
+        /* .wTotalLength = */       0 /* recalculated on read */,
+        /* .bNumInterfaces = */     RT_ELEMENTS(g_aUsbHidTPInterfaces),
+        /* .bConfigurationValue =*/ 1,
+        /* .iConfiguration = */     0,
+        /* .bmAttributes = */       RT_BIT(7),
+        /* .MaxPower = */           50 /* 100mA */
+    },
+    NULL,                           /* pvMore */
+    NULL,                           /* pvClass */
+    0,                              /* cbClass */
+    &g_aUsbHidTPInterfaces[0],
+    NULL                            /* pvOriginal */
+};
+
 static const VUSBDESCDEVICE g_UsbHidMDeviceDesc =
 {
     /* .bLength = */                sizeof(g_UsbHidMDeviceDesc),
@@ -947,13 +1223,32 @@ static const VUSBDESCDEVICE g_UsbHidMTDeviceDesc =
     /* .bDeviceProtocol = */        0 /* Protocol specified in the interface desc. */,
     /* .bMaxPacketSize0 = */        8,
     /* .idVendor = */               VBOX_USB_VENDOR,
-    /* .idProduct = */              USBHID_PID_MULTI_TOUCH,
+    /* .idProduct = */              USBHID_PID_MT_TOUCHSCREEN,
     /* .bcdDevice = */              0x0100, /* 1.0 */
     /* .iManufacturer = */          USBHID_STR_ID_MANUFACTURER,
     /* .iProduct = */               USBHID_STR_ID_PRODUCT_MT,
     /* .iSerialNumber = */          0,
     /* .bNumConfigurations = */     1
 };
+
+static const VUSBDESCDEVICE g_UsbHidTPDeviceDesc =
+{
+    /* .bLength = */                sizeof(g_UsbHidTPDeviceDesc),
+    /* .bDescriptorType = */        VUSB_DT_DEVICE,
+    /* .bcdUsb = */                 0x110,  /* 1.1 */
+    /* .bDeviceClass = */           0 /* Class specified in the interface desc. */,
+    /* .bDeviceSubClass = */        0 /* Subclass specified in the interface desc. */,
+    /* .bDeviceProtocol = */        0 /* Protocol specified in the interface desc. */,
+    /* .bMaxPacketSize0 = */        8,
+    /* .idVendor = */               VBOX_USB_VENDOR,
+    /* .idProduct = */              USBHID_PID_MT_TOUCHPAD,
+    /* .bcdDevice = */              0x0100, /* 1.0 */
+    /* .iManufacturer = */          USBHID_STR_ID_MANUFACTURER,
+    /* .iProduct = */               USBHID_STR_ID_PRODUCT_TP,
+    /* .iSerialNumber = */          0,
+    /* .bNumConfigurations = */     1
+};
+
 
 static const PDMUSBDESCCACHE g_UsbHidMDescCache =
 {
@@ -979,6 +1274,16 @@ static const PDMUSBDESCCACHE g_UsbHidMTDescCache =
 {
     /* .pDevice = */                &g_UsbHidMTDeviceDesc,
     /* .paConfigs = */              &g_UsbHidMTConfigDesc,
+    /* .paLanguages = */            g_aUsbHidLanguages,
+    /* .cLanguages = */             RT_ELEMENTS(g_aUsbHidLanguages),
+    /* .fUseCachedDescriptors = */  true,
+    /* .fUseCachedStringsDescriptors = */ true
+};
+
+static const PDMUSBDESCCACHE g_UsbHidTPDescCache =
+{
+    /* .pDevice = */                &g_UsbHidTPDeviceDesc,
+    /* .paConfigs = */              &g_UsbHidTPConfigDesc,
     /* .paLanguages = */            g_aUsbHidLanguages,
     /* .cLanguages = */             RT_ELEMENTS(g_aUsbHidLanguages),
     /* .fUseCachedDescriptors = */  true,
@@ -1134,15 +1439,47 @@ static int usbHidCompleteStall(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb, cons
 
 
 /**
- * Completes the URB with a OK state.
+ * Completes the URB after device successfully processed it. Optionally copies data
+ * into the URB. May still generate an error if the URB is not big enough.
  */
-static int usbHidCompleteOk(PUSBHID pThis, PVUSBURB pUrb, size_t cbData)
+static int usbHidCompleteOk(PUSBHID pThis, PVUSBURB pUrb, const void *pSrc, size_t cbSrc)
 {
-    LogRelFlow(("usbHidCompleteOk/#%u: pUrb=%p:%s cbData=%#zx\n",
-                pThis->pUsbIns->iInstance, pUrb, pUrb->pszDesc, cbData));
+    Log(("usbHidCompleteOk/#%u: pUrb=%p:%s (cbData=%#x) cbSrc=%#zx\n", pThis->pUsbIns->iInstance, pUrb, pUrb->pszDesc, pUrb->cbData, cbSrc));
 
     pUrb->enmStatus = VUSBSTATUS_OK;
-    pUrb->cbData    = (uint32_t)cbData;
+    size_t  cbCopy  = 0;
+    size_t  cbSetup = 0;
+
+    if (pSrc)   /* Can be NULL if not copying anything. */
+    {
+        Assert(cbSrc);
+        uint8_t *pDst = pUrb->abData;
+
+        /* Returned data is written after the setup message in control URBs. */
+        if (pUrb->enmType == VUSBXFERTYPE_MSG)
+            cbSetup = sizeof(VUSBSETUP);
+
+        Assert(pUrb->cbData >= cbSetup);    /* Only triggers if URB is corrupted. */
+
+        if (pUrb->cbData > cbSetup)
+        {
+            /* There is at least one byte of room in the URB. */
+            cbCopy = RT_MIN(pUrb->cbData - cbSetup, cbSrc);
+            memcpy(pDst + cbSetup, pSrc, cbCopy);
+            pUrb->cbData = (uint32_t)(cbCopy + cbSetup);
+            Log(("Copied %zu bytes to pUrb->abData[%zu], source had %zu bytes\n", cbCopy, cbSetup, cbSrc));
+        }
+
+        /* Need to check length differences. If cbSrc is less than what
+         * the URB has space for, it'll be resolved as a short packet. But
+         * if cbSrc is bigger, there is a real problem and the host needs
+         * to see an overrun/babble error.
+         */
+        if (RT_UNLIKELY(cbSrc > cbCopy))
+            pUrb->enmStatus = VUSBSTATUS_DATA_OVERRUN;
+    }
+    else
+        Assert(cbSrc == 0); /* Make up your mind, caller! */
 
     usbHidLinkDone(pThis, pUrb);
     return VINF_SUCCESS;
@@ -1192,7 +1529,7 @@ static int usbHidResetWorker(PUSBHID pThis, PVUSBURB pUrb, bool fSetConfig)
     }
 
     if (pUrb)
-        return usbHidCompleteOk(pThis, pUrb, 0);
+        return usbHidCompleteOk(pThis, pUrb, NULL, 0);
     return VINF_SUCCESS;
 }
 
@@ -1278,6 +1615,9 @@ static int usbHidSendMultiTouchReport(PUSBHID pThis, PVUSBURB pUrb)
      */
     uint8_t cContacts = 0;
 
+    uint8_t cMaxContacts = pThis->enmMode == USBHIDMODE_MT_RELATIVE ? TPAD_CONTACT_MAX_COUNT  : MT_CONTACT_MAX_COUNT;
+    size_t  cbReport     = pThis->enmMode == USBHIDMODE_MT_RELATIVE ? sizeof(USBHIDTP_REPORT) : sizeof(USBHIDMT_REPORT);
+
     Assert(pThis->fHasPendingChanges);
 
     if (!pThis->fTouchReporting)
@@ -1289,7 +1629,7 @@ static int usbHidSendMultiTouchReport(PUSBHID pThis, PVUSBURB pUrb)
          * Also mark all active contacts in reporting state as dirty,
          * that is they must be reported to the guest.
          */
-        for (i = 0; i < MT_CONTACT_MAX_COUNT; i++)
+        for (i = 0; i < cMaxContacts; i++)
         {
             pRepContact = &pThis->aReportingContactState[i];
             pCurContact = &pThis->aCurrentContactState[i];
@@ -1340,11 +1680,13 @@ static int usbHidSendMultiTouchReport(PUSBHID pThis, PVUSBURB pUrb)
     }
 
     /* Report current state. */
-    USBHIDMT_REPORT *p = (USBHIDMT_REPORT *)&pUrb->abData[0];
+    USBHIDTP_REPORT r;
+    USBHIDTP_REPORT *p = &r;
     RT_ZERO(*p);
 
-    p->idReport = REPORTID_TOUCH_EVENT;
-    p->cContacts = cContacts;
+    p->mt.idReport = REPORTID_TOUCH_EVENT;
+    p->mt.cContacts = cContacts;
+    p->buttons = 0; /* Not currently used. */
 
     uint8_t iReportedContact;
     for (iReportedContact = 0; iReportedContact < MT_CONTACTS_PER_REPORT; iReportedContact++)
@@ -1372,13 +1714,18 @@ static int usbHidSendMultiTouchReport(PUSBHID pThis, PVUSBURB pUrb)
             pRepContact->status &= ~MT_CONTACT_S_DIRTY;
         }
 
-        p->aContacts[iReportedContact].fContact = pRepContact->flags;
-        p->aContacts[iReportedContact].cContact = pRepContact->id;
-        p->aContacts[iReportedContact].x = pRepContact->x >> pThis->u8CoordShift;
-        p->aContacts[iReportedContact].y = pRepContact->y >> pThis->u8CoordShift;
+        p->mt.aContacts[iReportedContact].fContact = pRepContact->flags;
+        p->mt.aContacts[iReportedContact].cContact = pRepContact->id;
+        p->mt.aContacts[iReportedContact].x = pRepContact->x >> pThis->u8CoordShift;
+        p->mt.aContacts[iReportedContact].y = pRepContact->y >> pThis->u8CoordShift;
+
+        if (pThis->enmMode == USBHIDMODE_MT_RELATIVE) {
+            /** @todo Parse touch confidence in Qt frontend */
+            p->mt.aContacts[iReportedContact].fContact |= MT_CONTACT_F_CONFIDENCE;
+        }
     }
 
-    p->u32ScanTime = pThis->u32LastTouchScanTime * 10;
+    p->mt.u32ScanTime = pThis->u32LastTouchScanTime * 10;
 
     Assert(iReportedContact > 0);
 
@@ -1397,9 +1744,10 @@ static int usbHidSendMultiTouchReport(PUSBHID pThis, PVUSBURB pUrb)
         pThis->fHasPendingChanges = true;
     }
 
-    LogRel3(("usbHid: reporting touch contact:\n%.*Rhxd\n", sizeof(USBHIDMT_REPORT), p));
-    return usbHidCompleteOk(pThis, pUrb, sizeof(USBHIDMT_REPORT));
+    LogRel3(("usbHid: reporting touch contact:\n%.*Rhxd\n", cbReport, p));
+    return usbHidCompleteOk(pThis, pUrb, p, cbReport);
 }
+
 
 /**
  * Sends a state report to the host if there is a pending URB.
@@ -1408,9 +1756,9 @@ static int usbHidSendReport(PUSBHID pThis)
 {
     PVUSBURB    pUrb = usbHidQueueRemoveHead(&pThis->ToHostQueue);
 
-    if (pThis->enmMode == USBHIDMODE_MULTI_TOUCH)
+    if (pThis->enmMode == USBHIDMODE_MT_ABSOLUTE || pThis->enmMode == USBHIDMODE_MT_RELATIVE)
     {
-        /* This device uses a different reporting method and fHasPendingChanges maintenance. */
+        /* These modes use a different reporting method and maintain fHasPendingChanges. */
         if (pUrb)
             return usbHidSendMultiTouchReport(pThis, pUrb);
         return VINF_SUCCESS;
@@ -1418,12 +1766,13 @@ static int usbHidSendReport(PUSBHID pThis)
 
     if (pUrb)
     {
-        PUSBHIDTM_REPORT    pReport = (PUSBHIDTM_REPORT)&pUrb->abData[0];
+        USBHIDTM_REPORT     report;
+        PUSBHIDTM_REPORT    pReport = &report;
         size_t              cbCopy;
 
         cbCopy = usbHidFillReport(pReport, &pThis->PtrDelta, pThis->enmMode);
         pThis->fHasPendingChanges = false;
-        return usbHidCompleteOk(pThis, pUrb, cbCopy);
+        return usbHidCompleteOk(pThis, pUrb, pReport, cbCopy);
     }
     else
     {
@@ -1501,9 +1850,10 @@ static DECLCALLBACK(int) usbHidMousePutEventAbs(PPDMIMOUSEPORT pInterface,
 }
 
 /**
- * @interface_method_impl{PDMIMOUSEPORT,pfnPutEventMultiTouch}
+ * Worker for usbHidMousePutEventTouchScreen and
+ * usbHidMousePutEventTouchPad.
  */
-static DECLCALLBACK(int) usbHidMousePutEventMultiTouch(PPDMIMOUSEPORT pInterface,
+static DECLCALLBACK(int) usbHidMousePutEventMultiTouch(PUSBHID pThis,
                                                        uint8_t cContacts,
                                                        const uint64_t *pau64Contacts,
                                                        uint32_t u32ScanTime)
@@ -1523,22 +1873,29 @@ static DECLCALLBACK(int) usbHidMousePutEventMultiTouch(PPDMIMOUSEPORT pInterface
         paNewContacts[i].x      = (uint16_t)u32Lo;
         paNewContacts[i].y      = (uint16_t)(u32Lo >> 16);
         paNewContacts[i].id     = RT_BYTE1(u32Hi);
-        paNewContacts[i].flags  = RT_BYTE2(u32Hi) & (MT_CONTACT_F_IN_CONTACT | MT_CONTACT_F_IN_RANGE);
+        paNewContacts[i].flags  = RT_BYTE2(u32Hi);
         paNewContacts[i].status = MT_CONTACT_S_DIRTY;
         paNewContacts[i].oldId  = 0; /* Not used. */
-        if (paNewContacts[i].flags & MT_CONTACT_F_IN_CONTACT)
+
+        if (pThis->enmMode == USBHIDMODE_MT_ABSOLUTE)
         {
-            paNewContacts[i].flags |= MT_CONTACT_F_IN_RANGE;
+            paNewContacts[i].flags &= MT_CONTACT_F_IN_CONTACT | MT_CONTACT_F_IN_RANGE;
+            if (paNewContacts[i].flags & MT_CONTACT_F_IN_CONTACT)
+            {
+                paNewContacts[i].flags |= MT_CONTACT_F_IN_RANGE;
+            }
+        }
+        else
+        {
+            Assert(pThis->enmMode == USBHIDMODE_MT_RELATIVE);
+            paNewContacts[i].flags &= MT_CONTACT_F_IN_CONTACT;
         }
     }
 
-    PUSBHID pThis = RT_FROM_MEMBER(pInterface, USBHID, Lun0.IPort);
     MTCONTACT *pCurContact = NULL;
     MTCONTACT *pNewContact = NULL;
 
     RTCritSectEnter(&pThis->CritSect);
-
-    Assert(pThis->enmMode == USBHIDMODE_MULTI_TOUCH);
 
     /* Maintain a state of all current contacts.
      * Intr URBs will be completed according to the state.
@@ -1674,6 +2031,36 @@ static DECLCALLBACK(int) usbHidMousePutEventMultiTouch(PPDMIMOUSEPORT pInterface
 }
 
 /**
+ * @interface_method_impl{PDMIMOUSEPORT,pfnPutEventTouchScreen}
+ */
+static DECLCALLBACK(int) usbHidMousePutEventTouchScreen(PPDMIMOUSEPORT pInterface,
+                                                       uint8_t cContacts,
+                                                       const uint64_t *pau64Contacts,
+                                                       uint32_t u32ScanTime)
+{
+    PUSBHID pThis = RT_FROM_MEMBER(pInterface, USBHID, Lun0.IPort);
+
+    Assert(pThis->enmMode == USBHIDMODE_MT_ABSOLUTE);
+
+    return usbHidMousePutEventMultiTouch(pThis, cContacts, pau64Contacts, u32ScanTime);
+}
+
+/**
+ * @interface_method_impl{PDMIMOUSEPORT,pfnPutEventTouchPad}
+ */
+static DECLCALLBACK(int) usbHidMousePutEventTouchPad(PPDMIMOUSEPORT pInterface,
+                                                       uint8_t cContacts,
+                                                       const uint64_t *pau64Contacts,
+                                                       uint32_t u32ScanTime)
+{
+    PUSBHID pThis = RT_FROM_MEMBER(pInterface, USBHID, Lun0.IPort);
+
+    Assert(pThis->enmMode == USBHIDMODE_MT_RELATIVE);
+
+    return usbHidMousePutEventMultiTouch(pThis, cContacts, pau64Contacts, u32ScanTime);
+}
+
+/**
  * @interface_method_impl{PDMUSBREG,pfnUrbReap}
  */
 static DECLCALLBACK(PVUSBURB) usbHidUrbReap(PPDMUSBINS pUsbIns, RTMSINTERVAL cMillies)
@@ -1763,7 +2150,7 @@ static int usbHidHandleIntrDevToHost(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb
         {
             AssertFailed();
             LogRelFlow(("usbHidHandleIntrDevToHost: Entering STATUS\n"));
-            return usbHidCompleteOk(pThis, pUrb, 0);
+            return usbHidCompleteOk(pThis, pUrb, NULL, 0);
         }
 
         /*
@@ -1774,7 +2161,7 @@ static int usbHidHandleIntrDevToHost(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb
             AssertFailed();
             LogRelFlow(("usbHidHandleIntrDevToHost: Entering READY\n"));
             pThis->enmState = USBHIDREQSTATE_READY;
-            return usbHidCompleteOk(pThis, pUrb, 0);
+            return usbHidCompleteOk(pThis, pUrb, NULL, 0);
         }
 
         case USBHIDREQSTATE_READY:
@@ -1803,8 +2190,9 @@ static int usbHidHandleIntrDevToHost(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb
 #define SET_IDLE     0x0A
 #define SET_PROTOCOL 0x0B
 
-static uint8_t const g_abQASampleBlob[256] =
+static uint8_t const g_abQASampleBlob[256 + 1] =
 {
+    REPORTID_TOUCH_QABLOB,  /* Report Id. */
     0xfc, 0x28, 0xfe, 0x84, 0x40, 0xcb, 0x9a, 0x87,
     0x0d, 0xbe, 0x57, 0x3c, 0xb6, 0x70, 0x09, 0x88,
     0x07, 0x97, 0x2d, 0x2b, 0xe3, 0x38, 0x34, 0xb6,
@@ -1843,7 +2231,7 @@ static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
 {
     PVUSBSETUP pSetup = (PVUSBSETUP)&pUrb->abData[0];
 
-    if (pThis->enmMode != USBHIDMODE_MULTI_TOUCH)
+    if ((pThis->enmMode != USBHIDMODE_MT_ABSOLUTE) && (pThis->enmMode != USBHIDMODE_MT_RELATIVE))
     {
         LogRelFlow(("usbHid: bmRequestType=%#x bRequest=%#x wValue=%#x wIndex=%#x wLength=%#x\n",
                     pSetup->bmRequestType, pSetup->bRequest, pSetup->wValue,
@@ -1866,11 +2254,13 @@ static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                         pUrb->cbData - sizeof(VUSBSETUP), &pUrb->abData[sizeof(VUSBSETUP)]));
             if (pSetup->bRequest == GET_REPORT)
             {
-                uint32_t cbData = 0; /* 0 means that the report is unsupported. */
+                uint8_t     abData[sizeof(USBHIDALL_REPORT)];
+                uint8_t     *pData = (uint8_t *)&abData;
+                uint32_t    cbData = 0; /* 0 means that the report is unsupported. */
 
                 if (u8ReportType == 1 && u8ReportID == REPORTID_TOUCH_POINTER)
                 {
-                    USBHIDMT_REPORT_POINTER *p = (USBHIDMT_REPORT_POINTER *)&pUrb->abData[sizeof(VUSBSETUP)];
+                    USBHIDMT_REPORT_POINTER *p = (USBHIDMT_REPORT_POINTER *)&abData;
                     /* The actual state should be reported here. */
                     p->idReport = REPORTID_TOUCH_POINTER;
                     p->fButtons = 0;
@@ -1880,40 +2270,70 @@ static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                 }
                 else if (u8ReportType == 1 && u8ReportID == REPORTID_TOUCH_EVENT)
                 {
-                    USBHIDMT_REPORT *p = (USBHIDMT_REPORT *)&pUrb->abData[sizeof(VUSBSETUP)];
-                    /* The actual state should be reported here. */
-                    RT_ZERO(*p);
-                    p->idReport = REPORTID_TOUCH_EVENT;
-                    cbData = sizeof(USBHIDMT_REPORT);
+                    switch (pThis->enmMode)
+                    {
+                        case USBHIDMODE_MT_ABSOLUTE:
+                        {
+                            USBHIDMT_REPORT *p = (USBHIDMT_REPORT *)&abData;
+                            /* The actual state should be reported here. */
+                            RT_ZERO(*p);
+                            p->idReport = REPORTID_TOUCH_EVENT;
+                            cbData = sizeof(USBHIDMT_REPORT);
+                            break;
+                        }
+                        case USBHIDMODE_MT_RELATIVE:
+                        {
+                            USBHIDTP_REPORT *p = (USBHIDTP_REPORT *)&abData;
+                            /* The actual state should be reported here. */
+                            RT_ZERO(*p);
+                            p->mt.idReport = REPORTID_TOUCH_EVENT;
+                            cbData = sizeof(USBHIDTP_REPORT);
+                            break;
+                        }
+                        default:
+                            AssertMsgFailed(("Invalid HID mode %d\n", pThis->enmMode));
+                            break;
+                    }
                 }
                 else if (u8ReportType == 3 && u8ReportID == REPORTID_TOUCH_MAX_COUNT)
                 {
-                    pUrb->abData[sizeof(VUSBSETUP) + 0] = REPORTID_TOUCH_MAX_COUNT;
-                    pUrb->abData[sizeof(VUSBSETUP) + 1] = MT_CONTACT_MAX_COUNT; /* Contact count maximum. */
-                    pUrb->abData[sizeof(VUSBSETUP) + 2] = 0;  /* Device identifier */
+                    uint8_t cMaxContacts = 0;
+                    switch (pThis->enmMode)
+                    {
+                        case USBHIDMODE_MT_ABSOLUTE:
+                            cMaxContacts = MT_CONTACT_MAX_COUNT;
+                            break;
+                        case USBHIDMODE_MT_RELATIVE:
+                            cMaxContacts = TPAD_CONTACT_MAX_COUNT;
+                            break;
+                        default:
+                            AssertMsgFailed(("Invalid HID mode %d\n", pThis->enmMode));
+                            break;
+                    }
+                    abData[0] = REPORTID_TOUCH_MAX_COUNT;
+                    abData[1] = cMaxContacts;           /* Contact count maximum. */
+                    abData[2] = 0;                      /* Device identifier */
                     cbData = 3;
                 }
                 else if (u8ReportType == 3 && u8ReportID == REPORTID_TOUCH_QABLOB)
                 {
-                    pUrb->abData[sizeof(VUSBSETUP) + 0] = REPORTID_TOUCH_QABLOB;  /* Report Id. */
-                    memcpy(&pUrb->abData[sizeof(VUSBSETUP) + 1],
-                           g_abQASampleBlob, sizeof(g_abQASampleBlob));
-                    cbData = sizeof(g_abQASampleBlob) + 1;
+                    pData  = (uint8_t *)&g_abQASampleBlob;
+                    cbData = sizeof(g_abQASampleBlob);
                 }
                 else if (u8ReportType == 3 && u8ReportID == REPORTID_TOUCH_DEVCONFIG)
                 {
-                    pUrb->abData[sizeof(VUSBSETUP) + 0] = REPORTID_TOUCH_DEVCONFIG;
-                    pUrb->abData[sizeof(VUSBSETUP) + 1] = 2;  /* Device mode:
-                                                               * "HID touch device supporting contact
-                                                               * identifier and contact count maximum."
-                                                               */
-                    pUrb->abData[sizeof(VUSBSETUP) + 2] = 0;  /* Device identifier */
+                    abData[0] = REPORTID_TOUCH_DEVCONFIG;
+                    abData[1] = 2;  /* Device mode:
+                                     * "HID touch device supporting contact
+                                     * identifier and contact count maximum."
+                                     */
+                    abData[2] = 0;  /* Device identifier */
                     cbData = 3;
                 }
 
                 if (cbData > 0)
                 {
-                    rc = usbHidCompleteOk(pThis, pUrb, sizeof(VUSBSETUP) + cbData);
+                    rc = usbHidCompleteOk(pThis, pUrb, pData, cbData);
                 }
                 else
                 {
@@ -1923,7 +2343,7 @@ static int usbHidRequestClass(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
             else
             {
                 /* SET_REPORT */
-                rc = usbHidCompleteOk(pThis, pUrb, pUrb->cbData);
+                rc = usbHidCompleteOk(pThis, pUrb, NULL, 0);
             }
         } break;
         default:
@@ -1990,9 +2410,13 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                                         cbDesc = sizeof(g_UsbHidMIfHidDesc);
                                         pDesc = (const uint8_t *)&g_UsbHidMIfHidDesc;
                                         break;
-                                    case USBHIDMODE_MULTI_TOUCH:
+                                    case USBHIDMODE_MT_ABSOLUTE:
                                         cbDesc = sizeof(g_UsbHidMTIfHidDesc);
                                         pDesc = (const uint8_t *)&g_UsbHidMTIfHidDesc;
+                                        break;
+                                    case USBHIDMODE_MT_RELATIVE:
+                                        cbDesc = sizeof(g_UsbHidTPIfHidDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidTPIfHidDesc;
                                         break;
                                     default:
                                         cbDesc = 0;
@@ -2000,13 +2424,11 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                                         break;
                                 }
                                 /* Returned data is written after the setup message. */
-                                cbCopy = pUrb->cbData - sizeof(*pSetup);
-                                cbCopy = RT_MIN(cbCopy, cbDesc);
+                                cbCopy = RT_MIN(pSetup->wValue, cbDesc);
                                 LogRelFlow(("usbHidMouse: GET_DESCRIPTOR DT_IF_HID_DESCRIPTOR wValue=%#x wIndex=%#x cbCopy=%#x\n",
                                             pSetup->wValue, pSetup->wIndex,
                                             cbCopy));
-                                memcpy(&pUrb->abData[sizeof(*pSetup)], pDesc, cbCopy);
-                                return usbHidCompleteOk(pThis, pUrb, cbCopy + sizeof(*pSetup));
+                                return usbHidCompleteOk(pThis, pUrb, pDesc, cbCopy);
                             }
 
                             case DT_IF_HID_REPORT:
@@ -2021,9 +2443,13 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                                         cbDesc = sizeof(g_UsbHidMReportDesc);
                                         pDesc = (const uint8_t *)&g_UsbHidMReportDesc;
                                         break;
-                                    case USBHIDMODE_MULTI_TOUCH:
+                                    case USBHIDMODE_MT_ABSOLUTE:
                                         cbDesc = sizeof(g_UsbHidMTReportDesc);
                                         pDesc = (const uint8_t *)&g_UsbHidMTReportDesc;
+                                        break;
+                                    case USBHIDMODE_MT_RELATIVE:
+                                        cbDesc = sizeof(g_UsbHidTPReportDesc);
+                                        pDesc = (const uint8_t *)&g_UsbHidTPReportDesc;
                                         break;
                                     default:
                                         cbDesc = 0;
@@ -2031,13 +2457,11 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                                         break;
                                 }
                                 /* Returned data is written after the setup message. */
-                                cbCopy = pUrb->cbData - sizeof(*pSetup);
-                                cbCopy = RT_MIN(cbCopy, cbDesc);
+                                cbCopy = RT_MIN(pSetup->wLength, cbDesc);
                                 LogRelFlow(("usbHid: GET_DESCRIPTOR DT_IF_HID_REPORT wValue=%#x wIndex=%#x cbCopy=%#x\n",
                                             pSetup->wValue, pSetup->wIndex,
                                             cbCopy));
-                                memcpy(&pUrb->abData[sizeof(*pSetup)], pDesc, cbCopy);
-                                return usbHidCompleteOk(pThis, pUrb, cbCopy + sizeof(*pSetup));
+                                return usbHidCompleteOk(pThis, pUrb, pDesc, cbCopy);
                             }
 
                             default:
@@ -2074,16 +2498,14 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                         Assert(pSetup->wIndex == 0);
                         LogRelFlow(("usbHid: GET_STATUS (device)\n"));
                         wRet = 0;   /* Not self-powered, no remote wakeup. */
-                        memcpy(&pUrb->abData[sizeof(*pSetup)], &wRet, sizeof(wRet));
-                        return usbHidCompleteOk(pThis, pUrb, sizeof(wRet) + sizeof(*pSetup));
+                        return usbHidCompleteOk(pThis, pUrb, &wRet, sizeof(wRet));
                     }
 
                     case VUSB_TO_INTERFACE | VUSB_REQ_STANDARD | VUSB_DIR_TO_HOST:
                     {
                         if (pSetup->wIndex == 0)
                         {
-                            memcpy(&pUrb->abData[sizeof(*pSetup)], &wRet, sizeof(wRet));
-                            return usbHidCompleteOk(pThis, pUrb, sizeof(wRet) + sizeof(*pSetup));
+                            return usbHidCompleteOk(pThis, pUrb, &wRet, sizeof(wRet));
                         }
                         LogRelFlow(("usbHid: GET_STATUS (interface) invalid, wIndex=%#x\n", pSetup->wIndex));
                         break;
@@ -2094,8 +2516,7 @@ static int usbHidHandleDefaultPipe(PUSBHID pThis, PUSBHIDEP pEp, PVUSBURB pUrb)
                         if (pSetup->wIndex < RT_ELEMENTS(pThis->aEps))
                         {
                             wRet = pThis->aEps[pSetup->wIndex].fHalted ? 1 : 0;
-                            memcpy(&pUrb->abData[sizeof(*pSetup)], &wRet, sizeof(wRet));
-                            return usbHidCompleteOk(pThis, pUrb, sizeof(wRet) + sizeof(*pSetup));
+                            return usbHidCompleteOk(pThis, pUrb, &wRet, sizeof(wRet));
                         }
                         LogRelFlow(("usbHid: GET_STATUS (endpoint) invalid, wIndex=%#x\n", pSetup->wIndex));
                         break;
@@ -2241,7 +2662,8 @@ static DECLCALLBACK(int) usbHidUsbSetConfiguration(PPDMUSBINS pUsbIns, uint8_t b
     pThis->Lun0.pDrv->pfnReportModes(pThis->Lun0.pDrv,
                                      pThis->enmMode == USBHIDMODE_RELATIVE,
                                      pThis->enmMode == USBHIDMODE_ABSOLUTE,
-                                     pThis->enmMode == USBHIDMODE_MULTI_TOUCH);
+                                     pThis->enmMode == USBHIDMODE_MT_ABSOLUTE,
+                                     pThis->enmMode == USBHIDMODE_MT_RELATIVE);
 
     RTCritSectLeave(&pThis->CritSect);
     return VINF_SUCCESS;
@@ -2261,8 +2683,10 @@ static DECLCALLBACK(PCPDMUSBDESCCACHE) usbHidUsbGetDescriptorCache(PPDMUSBINS pU
             return &g_UsbHidTDescCache;
         case USBHIDMODE_RELATIVE:
             return &g_UsbHidMDescCache;
-        case USBHIDMODE_MULTI_TOUCH:
+        case USBHIDMODE_MT_ABSOLUTE:
             return &g_UsbHidMTDescCache;
+        case USBHIDMODE_MT_RELATIVE:
+            return &g_UsbHidTPDescCache;
         default:
             return NULL;
     }
@@ -2280,7 +2704,7 @@ static DECLCALLBACK(int) usbHidUsbReset(PPDMUSBINS pUsbIns, bool fResetOnLinux)
     RTCritSectEnter(&pThis->CritSect);
 
     /* We can not handle any input until device is configured again. */
-    pThis->Lun0.pDrv->pfnReportModes(pThis->Lun0.pDrv, false, false, false);
+    pThis->Lun0.pDrv->pfnReportModes(pThis->Lun0.pDrv, false, false, false, false);
 
     int rc = usbHidResetWorker(pThis, NULL, false /*fSetConfig*/);
 
@@ -2320,7 +2744,9 @@ static DECLCALLBACK(int) usbHidConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFG
 {
     RT_NOREF1(pCfgGlobal);
     PDMUSB_CHECK_VERSIONS_RETURN(pUsbIns);
-    PUSBHID pThis = PDMINS_2_DATA(pUsbIns, PUSBHID);
+    PUSBHID     pThis = PDMINS_2_DATA(pUsbIns, PUSBHID);
+    PCPDMUSBHLP pHlp  = pUsbIns->pHlpR3;
+
     LogRelFlow(("usbHidConstruct/#%u:\n", iInstance));
 
     /*
@@ -2341,11 +2767,11 @@ static DECLCALLBACK(int) usbHidConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFG
     /*
      * Validate and read the configuration.
      */
-    rc = CFGMR3ValidateConfig(pCfg, "/", "Mode|CoordShift", "Config", "UsbHid", iInstance);
+    rc = pHlp->pfnCFGMValidateConfig(pCfg, "/", "Mode|CoordShift", "Config", "UsbHid", iInstance);
     if (RT_FAILURE(rc))
         return rc;
     char szMode[64];
-    rc = CFGMR3QueryStringDef(pCfg, "Mode", szMode, sizeof(szMode), "relative");
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "Mode", szMode, sizeof(szMode), "relative");
     if (RT_FAILURE(rc))
         return PDMUsbHlpVMSetError(pUsbIns, rc, RT_SRC_POS, N_("HID failed to query settings"));
     if (!RTStrCmp(szMode, "relative"))
@@ -2353,17 +2779,20 @@ static DECLCALLBACK(int) usbHidConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFG
     else if (!RTStrCmp(szMode, "absolute"))
         pThis->enmMode = USBHIDMODE_ABSOLUTE;
     else if (!RTStrCmp(szMode, "multitouch"))
-        pThis->enmMode = USBHIDMODE_MULTI_TOUCH;
+        pThis->enmMode = USBHIDMODE_MT_ABSOLUTE;
+    else if (!RTStrCmp(szMode, "touchpad"))
+        pThis->enmMode = USBHIDMODE_MT_RELATIVE;
     else
         return PDMUsbHlpVMSetError(pUsbIns, rc, RT_SRC_POS,
                                    N_("Invalid HID device mode"));
 
     LogRelFlow(("usbHidConstruct/#%u: mode '%s'\n", iInstance, szMode));
 
-    pThis->Lun0.IBase.pfnQueryInterface = usbHidMouseQueryInterface;
-    pThis->Lun0.IPort.pfnPutEvent       = usbHidMousePutEvent;
-    pThis->Lun0.IPort.pfnPutEventAbs    = usbHidMousePutEventAbs;
-    pThis->Lun0.IPort.pfnPutEventMultiTouch = usbHidMousePutEventMultiTouch;
+    pThis->Lun0.IBase.pfnQueryInterface      = usbHidMouseQueryInterface;
+    pThis->Lun0.IPort.pfnPutEvent            = usbHidMousePutEvent;
+    pThis->Lun0.IPort.pfnPutEventAbs         = usbHidMousePutEventAbs;
+    pThis->Lun0.IPort.pfnPutEventTouchScreen = usbHidMousePutEventTouchScreen;
+    pThis->Lun0.IPort.pfnPutEventTouchPad    = usbHidMousePutEventTouchPad;
 
     /*
      * Attach the mouse driver.
@@ -2376,7 +2805,7 @@ static DECLCALLBACK(int) usbHidConstruct(PPDMUSBINS pUsbIns, int iInstance, PCFG
     if (!pThis->Lun0.pDrv)
         return PDMUsbHlpVMSetError(pUsbIns, VERR_PDM_MISSING_INTERFACE, RT_SRC_POS, N_("HID failed to query mouse interface"));
 
-    rc = CFGMR3QueryU8Def(pCfg, "CoordShift", &pThis->u8CoordShift, 1);
+    rc = pHlp->pfnCFGMQueryU8Def(pCfg, "CoordShift", &pThis->u8CoordShift, 1);
     if (RT_FAILURE(rc))
         return PDMUsbHlpVMSetError(pUsbIns, rc, RT_SRC_POS, N_("HID failed to query shift factor"));
 

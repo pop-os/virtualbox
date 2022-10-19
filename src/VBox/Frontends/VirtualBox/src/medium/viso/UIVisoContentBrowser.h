@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_medium_viso_UIVisoContentBrowser_h
@@ -56,8 +66,9 @@ public:
     /** Returns the content of the VISO as a string list. Each element of the list becomes a line in the
       * .viso file. */
     QStringList entryList();
-    virtual void showHideHiddenObjects(bool bShow) /* override */;
+    virtual void showHideHiddenObjects(bool bShow)  override final;
     void setVisoName(const QString &strName);
+    virtual bool tableViewHasSelection() const final override;
 
 public slots:
 
@@ -71,16 +82,16 @@ public slots:
 
 protected:
 
-    void retranslateUi();
-    virtual void tableViewItemDoubleClick(const QModelIndex &index) /* override */;
+    void retranslateUi() final override;
+    virtual void tableViewItemDoubleClick(const QModelIndex &index)  final override;
     /** @name Functions to set view root indices explicitly. They block the related signals. @p is converted
         to the correct index before setting.
       * @{ */
-        virtual void setTableRootIndex(QModelIndex index = QModelIndex()) /* override */;
-        virtual void setTreeCurrentIndex(QModelIndex index = QModelIndex()) /* override */;
+        virtual void setTableRootIndex(QModelIndex index = QModelIndex())  final override;
+        virtual void setTreeCurrentIndex(QModelIndex index = QModelIndex()) final override;
     /** @} */
 
-    virtual void treeSelectionChanged(const QModelIndex &selectedTreeIndex) /* override */;
+    virtual void treeSelectionChanged(const QModelIndex &selectedTreeIndex) final override;
 
 private slots:
 

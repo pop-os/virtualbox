@@ -2,20 +2,30 @@
 /** @file
  * VirtualBox IDisplay implementation, helpers for legacy GAs.
  *
- * Methods and helpers to support old guest additions 3.x or older.
- * This is not used by the current guest additions.
+ * Methods and helpers to support old Guest Additions 3.x or older.
+ * This is not used by the current Guest Additions.
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_DISPLAY
@@ -40,10 +50,10 @@ int videoAccelConstruct(VIDEOACCEL *pVideoAccel)
     pVideoAccel->cbVbvaPartial = 0;
 
     pVideoAccel->hXRoadsVideoAccel = NIL_RTSEMXROADS;
-    int rc = RTSemXRoadsCreate(&pVideoAccel->hXRoadsVideoAccel);
-    AssertRC(rc);
+    int vrc = RTSemXRoadsCreate(&pVideoAccel->hXRoadsVideoAccel);
+    AssertRC(vrc);
 
-    return rc;
+    return vrc;
 }
 
 void videoAccelDestroy(VIDEOACCEL *pVideoAccel)
@@ -255,19 +265,16 @@ void videoAccelLeaveVMMDev(VIDEOACCEL *pVideoAccel)
  */
 int Display::i_VideoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory, PPDMIDISPLAYPORT pUpPort)
 {
-    int rc;
     LogRelFlowFunc(("fEnable = %d\n", fEnable));
 
-    rc = i_videoAccelEnable(fEnable, pVbvaMemory, pUpPort);
+    int vrc = i_videoAccelEnable(fEnable, pVbvaMemory, pUpPort);
 
-    LogRelFlowFunc(("%Rrc.\n", rc));
-    return rc;
+    LogRelFlowFunc(("%Rrc.\n", vrc));
+    return vrc;
 }
 
 int Display::i_videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory, PPDMIDISPLAYPORT pUpPort)
 {
-    int rc = VINF_SUCCESS;
-
     VIDEOACCEL *pVideoAccel = &mVideoAccelLegacy;
 
     /* Called each time the guest wants to use acceleration,
@@ -291,7 +298,7 @@ int Display::i_videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory, PPDMIDISP
 
     /* Check that current status is not being changed */
     if (pVideoAccel->fVideoAccelEnabled == fEnable)
-        return rc;
+        return VINF_SUCCESS;
 
     if (pVideoAccel->fVideoAccelEnabled)
     {
@@ -354,8 +361,8 @@ int Display::i_videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory, PPDMIDISP
             pVMMDevPort->pfnVBVAChange(pVMMDevPort, fEnable);
     }
 
-    LogRelFlowFunc(("%Rrc.\n", rc));
-    return rc;
+    LogRelFlowFunc(("VINF_SUCCESS.\n"));
+    return VINF_SUCCESS;
 }
 
 static bool i_vbvaVerifyRingBuffer(VBVAMEMORY *pVbvaMemory)
@@ -635,8 +642,8 @@ static void i_vbvaReleaseCmd(VIDEOACCEL *pVideoAccel, VBVACMDHDR *pHdr, int32_t 
  */
 void Display::i_VideoAccelFlush(PPDMIDISPLAYPORT pUpPort)
 {
-    int rc = i_videoAccelFlush(pUpPort);
-    if (RT_FAILURE(rc))
+    int vrc = i_videoAccelFlush(pUpPort);
+    if (RT_FAILURE(vrc))
     {
         /* Disable on errors. */
         i_videoAccelEnable(false, NULL, pUpPort);
@@ -757,7 +764,7 @@ int Display::i_videoAccelFlush(PPDMIDISPLAYPORT pUpPort)
 
 int Display::i_videoAccelRefreshProcess(PPDMIDISPLAYPORT pUpPort)
 {
-    int rc = VWRN_INVALID_STATE; /* Default is to do a display update in VGA device. */
+    int vrc = VWRN_INVALID_STATE; /* Default is to do a display update in VGA device. */
 
     VIDEOACCEL *pVideoAccel = &mVideoAccelLegacy;
 
@@ -766,22 +773,22 @@ int Display::i_videoAccelRefreshProcess(PPDMIDISPLAYPORT pUpPort)
     if (pVideoAccel->fVideoAccelEnabled)
     {
         Assert(pVideoAccel->pVbvaMemory);
-        rc = i_videoAccelFlush(pUpPort);
-        if (RT_FAILURE(rc))
+        vrc = i_videoAccelFlush(pUpPort);
+        if (RT_FAILURE(vrc))
         {
             /* Disable on errors. */
             i_videoAccelEnable(false, NULL, pUpPort);
-            rc = VWRN_INVALID_STATE; /* Do a display update in VGA device. */
+            vrc = VWRN_INVALID_STATE; /* Do a display update in VGA device. */
         }
         else
         {
-            rc = VINF_SUCCESS;
+            vrc = VINF_SUCCESS;
         }
     }
 
     videoAccelLeaveVGA(pVideoAccel);
 
-    return rc;
+    return vrc;
 }
 
 void Display::processAdapterData(void *pvVRAM, uint32_t u32VRAMSize)
@@ -951,19 +958,16 @@ void Display::processDisplayData(void *pvVRAM, unsigned uScreenId)
                 if (pFBInfo->fDisabled)
                 {
                     pFBInfo->fDisabled = false;
-                    fireGuestMonitorChangedEvent(mParent->i_getEventSource(),
-                                                 GuestMonitorChangedEventType_Enabled,
-                                                 uScreenId,
-                                                 pFBInfo->xOrigin, pFBInfo->yOrigin,
-                                                 pFBInfo->w, pFBInfo->h);
+                    ::FireGuestMonitorChangedEvent(mParent->i_getEventSource(), GuestMonitorChangedEventType_Enabled, uScreenId,
+                                                   pFBInfo->xOrigin, pFBInfo->yOrigin, pFBInfo->w, pFBInfo->h);
                 }
 
                 i_handleDisplayResize(uScreenId, pScreen->bitsPerPixel,
-                                                      (uint8_t *)pvVRAM + pFBInfo->u32Offset,
-                                                      pScreen->u32LineSize,
-                                                      pScreen->u16Width, pScreen->u16Height,
-                                                      VBVA_SCREEN_F_ACTIVE,
-                                                      pScreen->xOrigin, pScreen->yOrigin, false);
+                                      (uint8_t *)pvVRAM + pFBInfo->u32Offset,
+                                      pScreen->u32LineSize,
+                                      pScreen->u16Width, pScreen->u16Height,
+                                      VBVA_SCREEN_F_ACTIVE,
+                                      pScreen->xOrigin, pScreen->yOrigin, false);
             }
         }
         else if (pHdr->u8Type == VBOX_VIDEO_INFO_TYPE_END)

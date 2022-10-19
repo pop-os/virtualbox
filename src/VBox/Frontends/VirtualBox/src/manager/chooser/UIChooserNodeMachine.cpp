@@ -4,16 +4,34 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
+
+/* Qt includes: */
+#include <qglobal.h>
+#ifdef VBOX_IS_QT6_OR_LATER
+# include <QRegularExpression>
+#else
+# include <QRegExp>
+#endif
 
 /* GUI includes: */
 #include "UIChooserAbstractModel.h"
@@ -23,72 +41,94 @@
 
 
 UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
-                                           bool fFavorite,
-                                           int  iPosition,
+                                           int iPosition,
                                            const CMachine &comMachine)
-    : UIChooserNode(pParent, fFavorite)
+    : UIChooserNode(pParent, false /* favorite */)
     , m_pCache(new UIVirtualMachineItemLocal(comMachine))
 {
+    /* Add to parent: */
     if (parentNode())
         parentNode()->addNode(this, iPosition);
+
+    /* Apply language settings: */
     retranslateUi();
 }
 
 UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
-                                           bool fFavorite,
                                            int iPosition,
-                                           const UICloudMachine &guiCloudMachine)
-    : UIChooserNode(pParent, fFavorite)
-    , m_pCache(new UIVirtualMachineItemCloud(guiCloudMachine))
+                                           const CCloudMachine &comCloudMachine)
+    : UIChooserNode(pParent, false /* favorite */)
+    , m_pCache(new UIVirtualMachineItemCloud(comCloudMachine))
 {
+    /* Add to parent: */
     if (parentNode())
         parentNode()->addNode(this, iPosition);
+
     /* Cloud VM item can notify machine node only directly (no console), we have to setup listener: */
-    connect(static_cast<UIVirtualMachineItemCloud*>(m_pCache), &UIVirtualMachineItemCloud::sigStateChange,
+    connect(static_cast<UIVirtualMachineItemCloud*>(m_pCache), &UIVirtualMachineItemCloud::sigRefreshFinished,
             this, &UIChooserNodeMachine::sltHandleStateChange);
-    connect(static_cast<UIVirtualMachineItemCloud*>(m_pCache), &UIVirtualMachineItemCloud::sigStateChange,
-            static_cast<UIChooserAbstractModel*>(model()), &UIChooserAbstractModel::sltHandleCloudMachineStateChange);
+    connect(static_cast<UIVirtualMachineItemCloud*>(m_pCache), &UIVirtualMachineItemCloud::sigRefreshStarted,
+            static_cast<UIChooserAbstractModel*>(model()), &UIChooserAbstractModel::sltHandleCloudMachineRefreshStarted);
+    connect(static_cast<UIVirtualMachineItemCloud*>(m_pCache), &UIVirtualMachineItemCloud::sigRefreshFinished,
+            static_cast<UIChooserAbstractModel*>(model()), &UIChooserAbstractModel::sltHandleCloudMachineRefreshFinished);
+
+    /* Apply language settings: */
     retranslateUi();
 }
 
 UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
-                                           bool fFavorite,
-                                           int  iPosition)
-    : UIChooserNode(pParent, fFavorite)
-    , m_pCache(new UIVirtualMachineItemCloud)
+                                           int iPosition,
+                                           UIFakeCloudVirtualMachineItemState enmState)
+    : UIChooserNode(pParent, false /* favorite */)
+    , m_pCache(new UIVirtualMachineItemCloud(enmState))
 {
+    /* Add to parent: */
     if (parentNode())
         parentNode()->addNode(this, iPosition);
+
+    /* Apply language settings: */
     retranslateUi();
 }
 
 UIChooserNodeMachine::UIChooserNodeMachine(UIChooserNode *pParent,
-                                           UIChooserNodeMachine *pCopyFrom,
-                                           int iPosition)
+                                           int iPosition,
+                                           UIChooserNodeMachine *pCopyFrom)
     : UIChooserNode(pParent, pCopyFrom->isFavorite())
 {
-    switch (pCopyFrom->cache()->itemType())
+    /* Prepare cache of corresponding type: */
+    switch (pCopyFrom->cacheType())
     {
-        case UIVirtualMachineItem::ItemType_Local:
+        case UIVirtualMachineItemType_Local:
             m_pCache = new UIVirtualMachineItemLocal(pCopyFrom->cache()->toLocal()->machine());
             break;
-        case UIVirtualMachineItem::ItemType_CloudFake:
-            m_pCache = new UIVirtualMachineItemCloud;
+        case UIVirtualMachineItemType_CloudFake:
+            m_pCache = new UIVirtualMachineItemCloud(pCopyFrom->cache()->toCloud()->fakeCloudItemState());
+            break;
+        case UIVirtualMachineItemType_CloudReal:
+            m_pCache = new UIVirtualMachineItemCloud(pCopyFrom->cache()->toCloud()->machine());
             break;
         default:
             break;
     }
 
+    /* Add to parent: */
     if (parentNode())
         parentNode()->addNode(this, iPosition);
+
+    /* Apply language settings: */
     retranslateUi();
 }
 
 UIChooserNodeMachine::~UIChooserNodeMachine()
 {
+    /* Delete item: */
     delete item();
+
+    /* Remove from parent: */
     if (parentNode())
         parentNode()->removeNode(this);
+
+    /* Cleanup cache: */
     delete m_pCache;
 }
 
@@ -113,18 +153,19 @@ QString UIChooserNodeMachine::description() const
     return m_strDescription;
 }
 
-QString UIChooserNodeMachine::definition() const
+QString UIChooserNodeMachine::definition(bool) const
 {
-    return QString("m=%1").arg(name());
+    const QString strNodePrefix = UIChooserAbstractModel::prefixToString(UIChooserNodeDataPrefixType_Machine);
+    return QString("%1=%2").arg(strNodePrefix).arg(UIChooserAbstractModel::toOldStyleUuid(id()));
 }
 
-bool UIChooserNodeMachine::hasNodes(UIChooserItemType enmType /* = UIChooserItemType_Any */) const
+bool UIChooserNodeMachine::hasNodes(UIChooserNodeType enmType /* = UIChooserNodeType_Any */) const
 {
     Q_UNUSED(enmType);
     AssertFailedReturn(false);
 }
 
-QList<UIChooserNode*> UIChooserNodeMachine::nodes(UIChooserItemType enmType /* = UIChooserItemType_Any */) const
+QList<UIChooserNode*> UIChooserNodeMachine::nodes(UIChooserNodeType enmType /* = UIChooserNodeType_Any */) const
 {
     Q_UNUSED(enmType);
     AssertFailedReturn(QList<UIChooserNode*>());
@@ -146,7 +187,7 @@ void UIChooserNodeMachine::removeNode(UIChooserNode *pNode)
 void UIChooserNodeMachine::removeAllNodes(const QUuid &uId)
 {
     /* Skip other ids: */
-    if (QUuid(m_pCache->id()) != uId)
+    if (id() != uId)
         return;
 
     /* Remove this node: */
@@ -156,7 +197,7 @@ void UIChooserNodeMachine::removeAllNodes(const QUuid &uId)
 void UIChooserNodeMachine::updateAllNodes(const QUuid &uId)
 {
     /* Skip other ids: */
-    if (QUuid(m_pCache->id()) != uId)
+    if (id() != uId)
         return;
 
     /* Update cache: */
@@ -167,42 +208,72 @@ void UIChooserNodeMachine::updateAllNodes(const QUuid &uId)
         item()->updateItem();
 }
 
-bool UIChooserNodeMachine::hasAtLeastOneCloudNode() const
-{
-    return cache()->itemType() != UIVirtualMachineItem::ItemType_Local;
-}
-
 int UIChooserNodeMachine::positionOf(UIChooserNode *pNode)
 {
     Q_UNUSED(pNode);
     AssertFailedReturn(0);
 }
 
-void UIChooserNodeMachine::searchForNodes(const QString &strSearchTerm, int iItemSearchFlags, QList<UIChooserNode*> &matchedItems)
+void UIChooserNodeMachine::searchForNodes(const QString &strSearchTerm, int iSearchFlags, QList<UIChooserNode*> &matchedItems)
 {
-    if (!(iItemSearchFlags & UIChooserItemSearchFlag_Machine))
+    /* Ignore if we are not searching for the machine-node: */
+    if (!(iSearchFlags & UIChooserItemSearchFlag_Machine))
         return;
 
+    /* If the search term is empty we just add the node to the matched list: */
     if (strSearchTerm.isEmpty())
-    {
         matchedItems << this;
-        return;
-    }
-
-    if (iItemSearchFlags & UIChooserItemSearchFlag_ExactName)
+    else
     {
-        if (name() == strSearchTerm)
-            matchedItems << this;
-        return;
+        /* If exact ID flag specified => check node ID:  */
+        if (iSearchFlags & UIChooserItemSearchFlag_ExactId)
+        {
+            if (id() == QUuid(strSearchTerm))
+                matchedItems << this;
+        }
+        /* If exact name flag specified => check full node name: */
+        else if (iSearchFlags & UIChooserItemSearchFlag_ExactName)
+        {
+            if (name() == strSearchTerm)
+                matchedItems << this;
+        }
+        /* Otherwise check if name contains search term, including wildcards: */
+        else
+        {
+#ifdef VBOX_IS_QT6_OR_LATER /* fromWildcard is 6.0+ */
+            QRegularExpression searchRegEx = QRegularExpression::fromWildcard(strSearchTerm, Qt::CaseInsensitive);
+#else
+            QRegExp searchRegEx(strSearchTerm, Qt::CaseInsensitive, QRegExp::WildcardUnix);
+#endif
+            if (name().contains(searchRegEx))
+                matchedItems << this;
+        }
     }
-    QRegExp searchRegEx(strSearchTerm, Qt::CaseInsensitive, QRegExp::WildcardUnix);
-    if (name().contains(searchRegEx))
-        matchedItems << this;
 }
 
 void UIChooserNodeMachine::sortNodes()
 {
     AssertFailedReturnVoid();
+}
+
+UIVirtualMachineItem *UIChooserNodeMachine::cache() const
+{
+    return m_pCache;
+}
+
+UIVirtualMachineItemType UIChooserNodeMachine::cacheType() const
+{
+    return cache() ? cache()->itemType() : UIVirtualMachineItemType_Invalid;
+}
+
+QUuid UIChooserNodeMachine::id() const
+{
+    return cache() ? cache()->id() : QUuid();
+}
+
+bool UIChooserNodeMachine::accessible() const
+{
+    return cache() ? cache()->accessible() : false;
 }
 
 void UIChooserNodeMachine::retranslateUi()

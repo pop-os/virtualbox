@@ -3,24 +3,34 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 %define VMX_VMCS_GUEST_FIELD_ES                                 0800h
@@ -150,37 +160,4 @@
 %define VMX_VMCS_HOST_SYSENTER_EIP                              06C12h
 %define VMX_VMCS_HOST_RSP                                       06C14h
 %define VMX_VMCS_HOST_RIP                                       06C16h
-
-%define VMX_RESTORE_HOST_SEL_DS                                 1h    ;RT_BIT(0)
-%define VMX_RESTORE_HOST_SEL_ES                                 2h    ;RT_BIT(1)
-%define VMX_RESTORE_HOST_SEL_FS                                 4h    ;RT_BIT(2)
-%define VMX_RESTORE_HOST_SEL_GS                                 8h    ;RT_BIT(3)
-%define VMX_RESTORE_HOST_SEL_TR                                 10h   ;RT_BIT(4)
-%define VMX_RESTORE_HOST_GDTR                                   20h   ;RT_BIT(5)
-%define VMX_RESTORE_HOST_IDTR                                   40h   ;RT_BIT(6)
-%define VMX_RESTORE_HOST_GDT_READ_ONLY                          80h   ;RT_BIT(7)
-%define VMX_RESTORE_HOST_REQUIRED                              100h   ;RT_BIT(8)
-%define VMX_RESTORE_HOST_GDT_NEED_WRITABLE                     200h   ;RT_BIT(9)
-
-;; C version hm_vmx.h.
-struc VMXRESTOREHOST
-    .uHostSelDS         resw    1
-    .uHostSelES         resw    1
-    .uHostSelFS         resw    1
-    .uHostSelGS         resw    1
-    .uHostSelTR         resw    1
-    .abPadding0         resb    4
-    .HostGdtr           resb    10
-    .abPadding1         resb    6
-    .HostGdtrRw         resb    10
-    .abPadding2         resb    6
-    .HostIdtr           resb    10
-    .uHostFSBase        resq    1
-    .uHostGSBase        resq    1
-endstruc
-AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtr,     16-2)
-AssertCompileMemberOffset(VMXRESTOREHOST, HostGdtrRw,   32-2)
-AssertCompileMemberOffset(VMXRESTOREHOST, HostIdtr,     48-2)
-AssertCompileMemberOffset(VMXRESTOREHOST, uHostFSBase,    56)
-AssertCompileSize(VMXRESTOREHOST, 72)
 

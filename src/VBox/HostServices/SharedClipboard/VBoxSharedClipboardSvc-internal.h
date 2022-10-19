@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_SharedClipboard_VBoxSharedClipboardSvc_internal_h
@@ -88,7 +98,8 @@ typedef struct SHCLCLIENTPODSTATE
 } SHCLCLIENTPODSTATE, *PSHCLCLIENTPODSTATE;
 
 /** @name SHCLCLIENTSTATE_FLAGS_XXX
- * @note Part of saved state! */
+ * @note Part of saved state!
+ * @{ */
 /** No Shared Clipboard client flags defined. */
 #define SHCLCLIENTSTATE_FLAGS_NONE              0
 /** Client has a guest read operation active. Currently unused. */
@@ -96,6 +107,37 @@ typedef struct SHCLCLIENTPODSTATE
 /** Client has a guest write operation active. Currently unused. */
 #define SHCLCLIENTSTATE_FLAGS_WRITE_ACTIVE      RT_BIT(1)
 /** @} */
+
+/**
+ * Structure needed to support backwards compatbility for old(er) Guest Additions (< 6.1),
+ * which did not know the context ID concept then.
+ */
+typedef struct SHCLCLIENTLEGACYCID
+{
+    /** List node. */
+    RTLISTNODE Node;
+    /** The actual context ID. */
+    uint64_t   uCID;
+    /** Not used yet; useful to have it in the saved state though. */
+    uint32_t   enmType;
+    /** @todo Add an union here as soon as we utilize \a enmType. */
+    SHCLFORMAT uFormat;
+} SHCLCLIENTLEGACYCID;
+/** Pointer to a SHCLCLIENTLEGACYCID struct. */
+typedef SHCLCLIENTLEGACYCID *PSHCLCLIENTLEGACYCID;
+
+/**
+ * Structure for keeping legacy state, required for keeping backwards compatibility
+ * to old(er) Guest Additions.
+ */
+typedef struct SHCLCLIENTLEGACYSTATE
+{
+    /** List of context IDs (of type SHCLCLIENTLEGACYCID) for older Guest Additions which (< 6.1)
+     *  which did not know the concept of context IDs. */
+    RTLISTANCHOR lstCID;
+    /** Number of context IDs currently in \a lstCID. */
+    uint16_t     cCID;
+} SHCLCLIENTLEGACYSTATE;
 
 /**
  * Structure for keeping generic client state data within the Shared Clipboard host service.
@@ -106,8 +148,10 @@ typedef struct SHCLCLIENTSTATE
     struct SHCLCLIENTSTATE *pNext;
     struct SHCLCLIENTSTATE *pPrev;
 
+    /** Backend-dependent opaque context structure.
+     *  This contains data only known to a certain backend implementation.
+     *  Optional and can be NULL. */
     SHCLCONTEXT            *pCtx;
-
     /** The client's HGCM ID. Not related to the session ID below! */
     uint32_t                uClientID;
     /** The client's session ID. */
@@ -133,8 +177,29 @@ typedef struct _SHCLCLIENTCMDCTX
     uint64_t uContextID;
 } SHCLCLIENTCMDCTX, *PSHCLCLIENTCMDCTX;
 
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
+/**
+ * Structure for keeping transfer-related data per HGCM client.
+ */
+typedef struct _SHCLIENTTRANSFERS
+{
+    /** Transfer context. */
+    SHCLTRANSFERCTX             Ctx;
+} SHCLIENTTRANSFERS, *PSHCLIENTTRANSFERS;
+#endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
+
+/** Prototypes for the Shared Clipboard backend. */
+struct SHCLBACKEND;
+typedef SHCLBACKEND *PSHCLBACKEND;
+
+/**
+ * Structure for keeping data per (connected) HGCM client.
+ */
 typedef struct _SHCLCLIENT
 {
+    /** Pointer to associated backend, if any.
+     *  Might be NULL if not being used. */
+    PSHCLBACKEND                pBackend;
     /** General client state data. */
     SHCLCLIENTSTATE             State;
     /** The critical section protecting the queue, event source and whatnot.   */
@@ -142,13 +207,14 @@ typedef struct _SHCLCLIENT
     /** The client's message queue (SHCLCLIENTMSG). */
     RTLISTANCHOR                MsgQueue;
     /** Number of allocated messages (updated atomically, not under critsect). */
-    uint32_t volatile           cAllocatedMessages;
+    uint32_t volatile           cMsgAllocated;
+    /** Legacy cruft we have to keep to support old(er) Guest Additions. */
+    SHCLCLIENTLEGACYSTATE       Legacy;
     /** The client's own event source.
      *  Needed for events which are not bound to a specific transfer. */
     SHCLEVENTSOURCE             EventSrc;
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
-    /** Transfer contextdata. */
-    SHCLTRANSFERCTX          TransferCtx;
+    SHCLIENTTRANSFERS           Transfers;
 #endif
     /** Structure for keeping the client's pending (deferred return) state.
      *  A client is in a deferred state when it asks for the next HGCM message,
@@ -157,14 +223,14 @@ typedef struct _SHCLCLIENT
     struct
     {
         /** The client's HGCM call handle. Needed for completing a deferred call. */
-        VBOXHGCMCALLHANDLE   hHandle;
+        VBOXHGCMCALLHANDLE      hHandle;
         /** Message type (function number) to use when completing the deferred call.
          *  A non-0 value means the client is in pending mode. */
-        uint32_t             uType;
+        uint32_t                uType;
         /** Parameter count to use when completing the deferred call. */
-        uint32_t             cParms;
+        uint32_t                cParms;
         /** Parameters to use when completing the deferred call. */
-        PVBOXHGCMSVCPARM     paParms;
+        PVBOXHGCMSVCPARM        paParms;
     } Pending;
 } SHCLCLIENT, *PSHCLCLIENT;
 
@@ -223,6 +289,8 @@ int shClSvcMsgAddAndWakeupClient(PSHCLCLIENT pClient, PSHCLCLIENTMSG pMsg);
 
 int shClSvcClientInit(PSHCLCLIENT pClient, uint32_t uClientID);
 void shClSvcClientDestroy(PSHCLCLIENT pClient);
+void shClSvcClientLock(PSHCLCLIENT pClient);
+void shClSvcClientUnlock(PSHCLCLIENT pClient);
 void shClSvcClientReset(PSHCLCLIENT pClient);
 
 int shClSvcClientStateInit(PSHCLCLIENTSTATE pClientState, uint32_t uClientID);
@@ -243,9 +311,10 @@ void shClSvcClientTransfersReset(PSHCLCLIENT pClient);
  * Locking is between the (host) service thread and the platform-dependent (window) thread.
  * @{
  */
-int ShClSvcDataReadRequest(PSHCLCLIENT pClient, SHCLFORMATS fFormats, PSHCLEVENTID pidEvent);
-int ShClSvcDataReadSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData);
+int ShClSvcGuestDataRequest(PSHCLCLIENT pClient, SHCLFORMATS fFormats, PSHCLEVENT *ppEvent);
+int ShClSvcGuestDataSignal(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData);
 int ShClSvcHostReportFormats(PSHCLCLIENT pClient, SHCLFORMATS fFormats);
+PSHCLBACKEND ShClSvcGetBackend(void);
 uint32_t ShClSvcGetMode(void);
 bool ShClSvcGetHeadless(void);
 bool ShClSvcLock(void);
@@ -261,77 +330,117 @@ DECLINLINE(bool) ShClSvcIsBackendActive(void)
 }
 /** @} */
 
-
-/** @name Platform-dependent implementations for the Shared Clipboard host service, called *only* by the host service.
+/** @name Platform-dependent implementations for the Shared Clipboard host service ("backends"),
+ *        called *only* by the host service.
  * @{
  */
 /**
+ * Structure for keeping Shared Clipboard backend instance data.
+ */
+typedef struct SHCLBACKEND
+{
+    /** Callback table to use.
+     *  Some callbacks might be optional and therefore NULL -- see the table for more details. */
+    SHCLCALLBACKS Callbacks;
+} SHCLBACKEND;
+/** Pointer to a Shared Clipboard backend. */
+typedef SHCLBACKEND *PSHCLBACKEND;
+
+/**
  * Called on initialization.
  *
+ * @param   pBackend    Shared Clipboard backend to initialize.
  * @param   pTable      The HGCM service call and parameter table.  Mainly for
  *                      adjusting the limits.
  */
-int ShClSvcImplInit(VBOXHGCMSVCFNTABLE *pTable);
+int ShClBackendInit(PSHCLBACKEND pBackend, VBOXHGCMSVCFNTABLE *pTable);
 
 /**
  * Called on destruction.
+ *
+ * @param   pBackend    Shared Clipboard backend to destroy.
  */
-void ShClSvcImplDestroy(void);
+void ShClBackendDestroy(PSHCLBACKEND pBackend);
+
 /**
  * Called when a new HGCM client connects.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to set callbacks for.
+ * @param   pCallbacks          Backend callbacks to use.
+ *                              When NULL is specified, the backend's default callbacks are being used.
+ */
+void ShClBackendSetCallbacks(PSHCLBACKEND pBackend, PSHCLCALLBACKS pCallbacks);
+
+/**
+ * Called when a new HGCM client connects.
+ *
+ * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to connect to.
  * @param   pClient             Shared Clipboard client context.
  * @param   fHeadless           Whether this is a headless connection or not.
  */
-int ShClSvcImplConnect(PSHCLCLIENT pClient, bool fHeadless);
+int ShClBackendConnect(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, bool fHeadless);
+
 /**
  * Called when a HGCM client disconnects.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to disconnect from.
  * @param   pClient             Shared Clipboard client context.
  */
-int ShClSvcImplDisconnect(PSHCLCLIENT pClient);
+int ShClBackendDisconnect(PSHCLBACKEND pBackend, PSHCLCLIENT pClient);
+
 /**
- * Called when the guest reported available clipboard formats to the host OS.
+ * Called when the guest reports available clipboard formats to the host OS.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to announce formats to.
  * @param   pClient             Shared Clipboard client context.
  * @param   fFormats            The announced formats from the guest,
  *                              VBOX_SHCL_FMT_XXX.
  */
-int ShClSvcImplFormatAnnounce(PSHCLCLIENT pClient, SHCLFORMATS fFormats);
-/** @todo Document: Can return VINF_HGCM_ASYNC_EXECUTE to defer returning read data.*/
+int ShClBackendReportFormats(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, SHCLFORMATS fFormats);
+
 /**
  * Called when the guest wants to read host clipboard data.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to read data from.
  * @param   pClient             Shared Clipboard client context.
  * @param   pCmdCtx             Shared Clipboard command context.
  * @param   uFormat             Clipboard format to read.
  * @param   pvData              Where to return the read clipboard data.
  * @param   cbData              Size (in bytes) of buffer where to return the clipboard data.
  * @param   pcbActual           Where to return the amount of bytes read.
+ *
+ * @todo    Document: Can return VINF_HGCM_ASYNC_EXECUTE to defer returning read
+ *          data
  */
-int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual);
+int ShClBackendReadData(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat,
+                        void *pvData, uint32_t cbData, uint32_t *pcbActual);
+
 /**
  * Called when the guest writes clipboard data to the host.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to write data to.
  * @param   pClient             Shared Clipboard client context.
  * @param   pCmdCtx             Shared Clipboard command context.
  * @param   uFormat             Clipboard format to write.
  * @param   pvData              Clipboard data to write.
  * @param   cbData              Size (in bytes) of buffer clipboard data to write.
  */
-int ShClSvcImplWriteData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData);
+int ShClBackendWriteData(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx, SHCLFORMAT uFormat, void *pvData, uint32_t cbData);
+
 /**
  * Called when synchronization of the clipboard contents of the host clipboard with the guest is needed.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to synchronize.
  * @param   pClient             Shared Clipboard client context.
  */
-int ShClSvcImplSync(PSHCLCLIENT pClient);
+int ShClBackendSync(PSHCLBACKEND pBackend, PSHCLCLIENT pClient);
 /** @} */
 
 #ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS
@@ -339,29 +448,32 @@ int ShClSvcImplSync(PSHCLCLIENT pClient);
  * @{
  */
 /**
- * Called when a transfer gets created.
+ * Called after a transfer got created.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to use.
  * @param   pClient             Shared Clipboard client context.
  * @param   pTransfer           Shared Clipboard transfer created.
  */
-int ShClSvcImplTransferCreate(PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer);
+int ShClBackendTransferCreate(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer);
 /**
- * Called when a transfer gets destroyed.
+ * Called before a transfer gets destroyed.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to use.
  * @param   pClient             Shared Clipboard client context.
  * @param   pTransfer           Shared Clipboard transfer to destroy.
  */
-int ShClSvcImplTransferDestroy(PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer);
+int ShClBackendTransferDestroy(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer);
 /**
  * Called when getting (determining) the transfer roots on the host side.
  *
  * @returns VBox status code.
+ * @param   pBackend            Shared Clipboard backend to use.
  * @param   pClient             Shared Clipboard client context.
  * @param   pTransfer           Shared Clipboard transfer to get roots for.
  */
-int ShClSvcImplTransferGetRoots(PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer);
+int ShClBackendTransferGetRoots(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer);
 /** @} */
 #endif
 
@@ -369,7 +481,6 @@ int ShClSvcImplTransferGetRoots(PSHCLCLIENT pClient, PSHCLTRANSFER pTransfer);
 /** @name Internal Shared Clipboard transfer host service functions.
  * @{
  */
-int shClSvcTransferAreaDetach(PSHCLCLIENTSTATE pClientState, PSHCLTRANSFER pTransfer);
 int shClSvcTransferHandler(PSHCLCLIENT pClient, VBOXHGCMCALLHANDLE callHandle, uint32_t u32Function,
                            uint32_t cParms, VBOXHGCMSVCPARM paParms[], uint64_t tsArrival);
 int shClSvcTransferHostHandler(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
@@ -378,36 +489,37 @@ int shClSvcTransferHostHandler(uint32_t u32Function, uint32_t cParms, VBOXHGCMSV
 /** @name Shared Clipboard transfer interface implementations for the host service.
  * @{
  */
-int shClSvcTransferIfaceOpen(PSHCLPROVIDERCTX pCtx);
-int shClSvcTransferIfaceClose(PSHCLPROVIDERCTX pCtx);
+#ifdef VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS_HTTP
 
-int shClSvcTransferIfaceGetRoots(PSHCLPROVIDERCTX pCtx, PSHCLROOTLIST *ppRootList);
+#endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS_HTTP */
 
-int shClSvcTransferIfaceListOpen(PSHCLPROVIDERCTX pCtx, PSHCLLISTOPENPARMS pOpenParms, PSHCLLISTHANDLE phList);
-int shClSvcTransferIfaceListClose(PSHCLPROVIDERCTX pCtx, SHCLLISTHANDLE hList);
-int shClSvcTransferIfaceListHdrRead(PSHCLPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTHDR pListHdr);
-int shClSvcTransferIfaceListHdrWrite(PSHCLPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTHDR pListHdr);
-int shClSvcTransferIfaceListEntryRead(PSHCLPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTENTRY pListEntry);
-int shClSvcTransferIfaceListEntryWrite(PSHCLPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTENTRY pListEntry);
+int shClSvcTransferIfaceGetRoots(PSHCLTXPROVIDERCTX pCtx, PSHCLROOTLIST *ppRootList);
 
-int shClSvcTransferIfaceObjOpen(PSHCLPROVIDERCTX pCtx, PSHCLOBJOPENCREATEPARMS pCreateParms,
+int shClSvcTransferIfaceListOpen(PSHCLTXPROVIDERCTX pCtx, PSHCLLISTOPENPARMS pOpenParms, PSHCLLISTHANDLE phList);
+int shClSvcTransferIfaceListClose(PSHCLTXPROVIDERCTX pCtx, SHCLLISTHANDLE hList);
+int shClSvcTransferIfaceListHdrRead(PSHCLTXPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTHDR pListHdr);
+int shClSvcTransferIfaceListHdrWrite(PSHCLTXPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTHDR pListHdr);
+int shClSvcTransferIfaceListEntryRead(PSHCLTXPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTENTRY pListEntry);
+int shClSvcTransferIfaceListEntryWrite(PSHCLTXPROVIDERCTX pCtx, SHCLLISTHANDLE hList, PSHCLLISTENTRY pListEntry);
+
+int shClSvcTransferIfaceObjOpen(PSHCLTXPROVIDERCTX pCtx, PSHCLOBJOPENCREATEPARMS pCreateParms,
                                 PSHCLOBJHANDLE phObj);
-int shClSvcTransferIfaceObjClose(PSHCLPROVIDERCTX pCtx, SHCLOBJHANDLE hObj);
-int shClSvcTransferIfaceObjRead(PSHCLPROVIDERCTX pCtx, SHCLOBJHANDLE hObj,
+int shClSvcTransferIfaceObjClose(PSHCLTXPROVIDERCTX pCtx, SHCLOBJHANDLE hObj);
+int shClSvcTransferIfaceObjRead(PSHCLTXPROVIDERCTX pCtx, SHCLOBJHANDLE hObj,
                                 void *pvData, uint32_t cbData, uint32_t fFlags, uint32_t *pcbRead);
-int shClSvcTransferIfaceObjWrite(PSHCLPROVIDERCTX pCtx, SHCLOBJHANDLE hObj,
+int shClSvcTransferIfaceObjWrite(PSHCLTXPROVIDERCTX pCtx, SHCLOBJHANDLE hObj,
                                  void *pvData, uint32_t cbData, uint32_t fFlags, uint32_t *pcbWritten);
 /** @} */
 
 /** @name Shared Clipboard transfer callbacks for the host service.
  * @{
  */
-DECLCALLBACK(void) VBoxSvcClipboardTransferPrepareCallback(PSHCLTRANSFERCALLBACKDATA pData);
-DECLCALLBACK(void) VBoxSvcClipboardDataHeaderCompleteCallback(PSHCLTRANSFERCALLBACKDATA pData);
-DECLCALLBACK(void) VBoxSvcClipboardDataCompleteCallback(PSHCLTRANSFERCALLBACKDATA pData);
-DECLCALLBACK(void) VBoxSvcClipboardTransferCompleteCallback(PSHCLTRANSFERCALLBACKDATA pData, int rc);
-DECLCALLBACK(void) VBoxSvcClipboardTransferCanceledCallback(PSHCLTRANSFERCALLBACKDATA pData);
-DECLCALLBACK(void) VBoxSvcClipboardTransferErrorCallback(PSHCLTRANSFERCALLBACKDATA pData, int rc);
+DECLCALLBACK(void) VBoxSvcClipboardTransferPrepareCallback(PSHCLTXPROVIDERCTX pCtx);
+DECLCALLBACK(void) VBoxSvcClipboardDataHeaderCompleteCallback(PSHCLTXPROVIDERCTX pCtx);
+DECLCALLBACK(void) VBoxSvcClipboardDataCompleteCallback(PSHCLTXPROVIDERCTX pCtx);
+DECLCALLBACK(void) VBoxSvcClipboardTransferCompleteCallback(PSHCLTXPROVIDERCTX pCtx, int rc);
+DECLCALLBACK(void) VBoxSvcClipboardTransferCanceledCallback(PSHCLTXPROVIDERCTX pCtx);
+DECLCALLBACK(void) VBoxSvcClipboardTransferErrorCallback(PSHCLTXPROVIDERCTX pCtx, int rc);
 /** @} */
 #endif /* VBOX_WITH_SHARED_CLIPBOARD_TRANSFERS */
 

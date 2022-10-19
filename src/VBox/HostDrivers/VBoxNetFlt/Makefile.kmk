@@ -4,24 +4,34 @@
 #
 
 #
-# Copyright (C) 2008-2020 Oracle Corporation
+# Copyright (C) 2008-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
+#
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 #
 
 SUB_DEPTH = ../../../..
@@ -32,7 +42,9 @@ if1of ($(KBUILD_TARGET), darwin win) # this ifeq must go, see @todo around elif
  #
  # VBoxNetFlt.sys - The mixed case driver.
  #
- SYSMODS += VBoxNetFlt
+ ifdef VBOX_WITH_VBOXDRV
+  SYSMODS += VBoxNetFlt
+ endif
  VBoxNetFlt_TEMPLATE = VBOXR0DRV
  VBoxNetFlt_INST = $(INST_VBOXNETFLT)$(if $(eq $(KBUILD_TARGET),darwin),Contents/MacOS/)
  VBoxNetFlt_DEBUG_INST.darwin = $(patsubst %/,%,$(INST_VBOXNETFLT))
@@ -44,7 +56,7 @@ if1of ($(KBUILD_TARGET), darwin win) # this ifeq must go, see @todo around elif
  VBoxNetFlt_INCS = .
  VBoxNetFlt_SOURCES.darwin = \
  	darwin/VBoxNetFlt-darwin.cpp
- VBoxNetFlt_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK)INCS
+ VBoxNetFlt_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK_INCS)
  VBoxNetFlt_SOURCES.win = \
  	win/drv/VBoxNetFltP-win.cpp \
  	win/drv/VBoxNetFltM-win.cpp \
@@ -78,7 +90,7 @@ if1of ($(KBUILD_TARGET), darwin win) # this ifeq must go, see @todo around elif
 
 
 # Darwin extras.
-ifeq ($(KBUILD_TARGET),darwin)
+if "$(KBUILD_TARGET)" == "darwin" && defined(VBOX_WITH_VBOXDRV)
  INSTALLS += VBoxNetFlt.kext
  VBoxNetFlt.kext_INST     = $(INST_VBOXNETFLT)Contents/
  VBoxNetFlt.kext_SOURCES  = $(VBoxNetFlt.kext_0_OUTDIR)/Contents/Info.plist
@@ -89,13 +101,13 @@ $$(VBoxNetFlt.kext_0_OUTDIR)/Contents/Info.plist: $(PATH_SUB_CURRENT)/darwin/Inf
 	$(call MSG_GENERATE,VBoxNetFlt,$@,$<)
 	$(QUIET)$(RM) -f $@
 	$(QUIET)$(SED) \
-		-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \
-		-e 's/@VBOX_VERSION_MAJOR@/$(VBOX_VERSION_MAJOR)/g' \
-		-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
-		-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
-		-e 's/@VBOX_VENDOR@/$(VBOX_VENDOR)/g' \
-		-e 's/@VBOX_PRODUCT@/$(VBOX_PRODUCT)/g' \
-		-e 's/@VBOX_C_YEAR@/$(VBOX_C_YEAR)/g' \
+		-e 's+@VBOX_VERSION_STRING@+$(VBOX_VERSION_STRING)+g' \
+		-e 's+@VBOX_VERSION_MAJOR@+$(VBOX_VERSION_MAJOR)+g' \
+		-e 's+@VBOX_VERSION_MINOR@+$(VBOX_VERSION_MINOR)+g' \
+		-e 's+@VBOX_VERSION_BUILD@+$(VBOX_VERSION_BUILD)+g' \
+		-e 's+@VBOX_VENDOR@+$(VBOX_VENDOR)+g' \
+		-e 's+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+g' \
+		-e 's+@VBOX_C_YEAR@+$(VBOX_C_YEAR)+g' \
 		--output $@ \
 		$<
 
@@ -105,7 +117,7 @@ $$(VBoxNetFlt.kext_0_OUTDIR)/Contents/Info.plist: $(PATH_SUB_CURRENT)/darwin/Inf
  Scripts-darwin_INST = $(INST_DIST)
  Scripts-darwin_EXEC_SOURCES = \
  	darwin/loadnetflt.sh
-endif # darwin
+endif # darwin && host-drivers
 
 
 ifeq ($(KBUILD_TARGET),win)
@@ -164,7 +176,7 @@ $(PATH_TARGET)/VBoxNetFltCat.dir/VBoxNetFlt.cat: \
  VBoxNetLwf_DEFS = IN_RT_R0 IN_SUP_STATIC
  VBoxNetLwf_INCS = .
  VBoxNetLwf_SOURCES = VBoxNetFlt.c VBoxNetFlt.rc
- VBoxNetLwf_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK)INCS
+ VBoxNetLwf_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK_INCS)
  VBoxNetLwf_SOURCES.win = \
  	win/drv/VBoxNetLwf-win.cpp
  # with WINDDKWLH the WIN9X_COMPAT_SPINLOCK is needed to avoid inline declaration of KeInitializeSpinLock
@@ -228,153 +240,115 @@ $(PATH_TARGET)/VBoxNetLwfCat.dir/VBoxNetLwf.cat: \
 
 
  #
- # WinNetConfig - static library with host network interface config API
+ # WinNetConfig - static library with host network interface config API (for the installer)
  #
- LIBRARIES.win += WinNetConfig
- WinNetConfig_TEMPLATE = VBOXR3STATIC
- WinNetConfig_DEFS     = _WIN32_WINNT=0x0501 _UNICODE UNICODE
- WinNetConfig_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
- WinNetConfig_SOURCES  = \
- 	win/cfg/VBoxNetCfg.cpp
- WinNetConfig_INCS.win += $(PATH_TOOL_$(VBOX_VCC_TOOL)_INC)
+ LIBRARIES.win += WinNetConfigSharedStatic
+ WinNetConfigSharedStatic_TEMPLATE = VBoxR3StaticDllNoAsan
+ WinNetConfigSharedStatic_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
+ WinNetConfigSharedStatic_DEFS     = _UNICODE UNICODE
+ WinNetConfigSharedStatic_SOURCES  = \
+ 	win/cfg/VBoxNetCfg.cpp \
+       ../../Main/glue/string.cpp
+
+ # Version for DLLs:
+ LIBRARIES.win += WinNetConfigDll
+ WinNetConfigDll_TEMPLATE = VBoxR3Dll
+ WinNetConfigDll_EXTENDS  = WinNetConfigSharedStatic
+
+ # Version for EXEs:
+ LIBRARIES.win += WinNetConfigExe
+ WinNetConfigExe_TEMPLATE = VBOXR3EXE
+ WinNetConfigExe_EXTENDS  = WinNetConfigSharedStatic
+
+
+ #
+ # Template for NetFltInstall and friends.
+ #
+ TEMPLATE_VBoxNetFltR3 = Template for NetFltInstall, NetFltUninstall, NetAdpInstall, NetAdpUninstall, ++
+ TEMPLATE_VBoxNetFltR3_EXTENDS  = VBOXR3EXE
+ TEMPLATE_VBoxNetFltR3_SDKS     = $(TEMPLATE_VBOXR3EXE_SDKS) ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL VBOX_WIN_NEWDEV
+ TEMPLATE_VBoxNetFltR3_LIBS     = $(TEMPLATE_VBOXR3EXE_LIBS) \
+ 	$(WinNetConfigExe_1_TARGET) \
+	$(PATH_STAGE_LIB)/VBoxDrvCfgExe$(VBOX_SUFF_LIB) \
+       $(LIB_RUNTIME) \
+  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
+ 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
 
  #
  # NetFltInstall
  #
  PROGRAMS.win  += NetFltInstall
- NetFltInstall_TEMPLATE = VBOXR3STATIC
- NetFltInstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetFltInstall_TEMPLATE = VBoxNetFltR3
  NetFltInstall_SOURCES  = win/tools/VBoxNetFltInstall.cpp
- NetFltInstall_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
-
 
  #
  # NetFltUninstall
  #
  PROGRAMS.win  += NetFltUninstall
- NetFltUninstall_TEMPLATE = VBOXR3STATIC
- NetFltUninstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetFltUninstall_TEMPLATE = VBoxNetFltR3
  NetFltUninstall_SOURCES  = win/tools/VBoxNetFltUninstall.cpp
- NetFltUninstall_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
 
  #
  # NetAdpInstall
  #
  PROGRAMS.win  += NetAdpInstall
- NetAdpInstall_TEMPLATE = VBOXR3STATIC
- NetAdpInstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetAdpInstall_TEMPLATE = VBoxNetFltR3
  NetAdpInstall_SOURCES  = win/tools/VBoxNetAdpInstall.cpp
- NetAdpInstall_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
-
 
  #
  # NetAdpUninstall
  #
  PROGRAMS.win  += NetAdpUninstall
- NetAdpUninstall_TEMPLATE = VBOXR3STATIC
- NetAdpUninstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetAdpUninstall_TEMPLATE = VBoxNetFltR3
  NetAdpUninstall_SOURCES  = win/tools/VBoxNetAdpUninstall.cpp
- NetAdpUninstall_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
 
  #
  # NetAdp6Install
  #
  PROGRAMS.win  += NetAdp6Install
- NetAdp6Install_TEMPLATE = VBOXR3STATIC
- NetAdp6Install_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetAdp6Install_TEMPLATE = VBoxNetFltR3
  NetAdp6Install_SOURCES  = win/tools/VBoxNetAdpInstall.cpp
- NetAdp6Install_DEFS    += NDIS60=1
- NetAdp6Install_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
-
+ NetAdp6Install_DEFS     = NDIS60=1
 
  #
  # NetAdp6Uninstall
  #
  PROGRAMS.win  += NetAdp6Uninstall
- NetAdp6Uninstall_TEMPLATE = VBOXR3STATIC
- NetAdp6Uninstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetAdp6Uninstall_TEMPLATE = VBoxNetFltR3
  NetAdp6Uninstall_SOURCES  = win/tools/VBoxNetAdpUninstall.cpp
- NetAdp6Uninstall_DEFS    += NDIS60=1
- NetAdp6Uninstall_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
+ NetAdp6Uninstall_DEFS     = NDIS60=1
 
  #
  # NetLwfInstall
  #
  PROGRAMS.win  += NetLwfInstall
- NetLwfInstall_TEMPLATE = VBOXR3STATIC
- NetLwfInstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetLwfInstall_TEMPLATE = VBoxNetFltR3
  NetLwfInstall_SOURCES  = win/tools/VBoxNetLwfInstall.cpp
- NetLwfInstall_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
-
 
  #
  # NetLwfUninstall
  #
  PROGRAMS.win  += NetLwfUninstall
- NetLwfUninstall_TEMPLATE = VBOXR3STATIC
- NetLwfUninstall_SDKS     = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ NetLwfUninstall_TEMPLATE = VBoxNetFltR3
  NetLwfUninstall_SOURCES  = win/tools/VBoxNetLwfUninstall.cpp
- NetLwfUninstall_LIBS     = \
- 	$(WinNetConfig_1_TARGET) \
-	$(PATH_STAGE_LIB)/VBoxDrvCfg$(VBOX_SUFF_LIB) \
- 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/Newdev.lib \
-  	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/comsupp.lib \
- 	$(PATH_SDK_$(VBOX_WINPSDK)_LIB)/WbemUuid.Lib
 
  #
  # VBoxNetFltNobj
  #
  DLLS.win += VBoxNetFltNobj
- VBoxNetFltNobj_TEMPLATE   = VBOXR3STATIC
+ VBoxNetFltNobj_TEMPLATE   = VBoxR3StaticDll
  if defined(VBOX_SIGNING_MODE)
   VBoxNetFltNobj_INSTTYPE  = none
   VBoxNetFltNobj_DEBUG_INSTTYPE = both
  endif
- VBoxNetFltNobj_SDKS       = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
- VBoxNetFltNobj_DEFS       = _WIN32_WINNT=0x0500 WIN32 _ATL_STATIC_REGISTRY
+ VBoxNetFltNobj_SDKS       = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
+ VBoxNetFltNobj_DEFS       = WIN32 _ATL_STATIC_REGISTRY
  VBoxNetFltNobj_INCS       = \
  	$(VBoxNetFltNobj_0_OUTDIR)
  VBoxNetFltNobj_SOURCES    = \
  	win/nobj/VBoxNetFltNobj.cpp \
  	win/nobj/VBoxNetFltNobj.def \
  	win/nobj/VBoxNetFltNobj.rc
- VBoxNetFltNobj_LIBS       = \
- 	$(VBOX_LIB_RUNTIME_STATIC)
  #VBoxNetFltNobj_INTERMEDIATES =
  VBoxNetFltNobj_DEPS       = \
  	$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT_i.c \
@@ -391,11 +365,15 @@ $$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT_i.c \
 + $$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT.tlb: \
 		$(PATH_SUB_CURRENT)/win/nobj/VBoxNetFltNobjT.idl \
 		| $$(dir $$@)
-	$(VBOX_WIN_MIDL) /nologo \
+	$(VBOX_MIDL_REDIRECT) $(VBOX_WIN_MIDL) /nologo \
 		/out $(call VBOX_FN_MAKE_WIN_PATH,$(VBoxNetFltNobj_0_OUTDIR)) \
-		/cpp_cmd $(subst $(EXEC_X86_WIN32),,$(call VBOX_FN_MAKE_WIN_PATH,$(TOOL_$(VBOX_VCC_TOOL)_CC))) \
-		$(addprefix /I , $(call VBOX_FN_MAKE_WIN_PATH,$(SDK_$(VBOX_WINDDK)_INCS))) \
+		/cpp_cmd $(VBOX_MIDL_CPP_CMD) \
+		$(qforeachfile unq, incdir, $(SDK_$(VBOX_WINDDK)_INCS) $(SDK_$(VBOX_WINPSDK)_INCS),/I $(quote-sh $(incdir))) \
 		$(call VBOX_FN_MAKE_WIN_PATH,$<)
+	$(call def_VBoxMidlOutputDisableMscWarnings,$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT.h)
+	$(call def_VBoxMidlOutputDisableMscWarnings,$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT_i.c)
+	$(call def_VBoxMidlOutputDisableMscWarnings,$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT_p.c)
+
 
  #
  # VBoxNetAdp.sys - The VirtualBox Adapter miniport driver.
@@ -409,7 +387,7 @@ $$(VBoxNetFltNobj_0_OUTDIR)/VBoxNetFltNobjT_i.c \
  endif
  VBoxNetAdp_DEFS = IN_RT_R0 IN_SUP_STATIC
  VBoxNetAdp_INCS := $(PATH_SUB_CURRENT)
- VBoxNetAdp_SDKS = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK)INCS
+ VBoxNetAdp_SDKS = ReorderCompilerIncs $(VBOX_WINDDK_WLH) $(VBOX_WINPSDK_INCS)
  VBoxNetAdp_SOURCES = \
  	VBoxNetFlt.c \
  	win/drv/VBoxNetFltM-win.cpp \

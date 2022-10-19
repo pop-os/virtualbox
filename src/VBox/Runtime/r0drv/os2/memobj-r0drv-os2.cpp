@@ -6,24 +6,34 @@
 /*
  * Contributed by knut st. osmundsen.
  *
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -135,33 +145,35 @@ DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPage(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
     NOREF(fExecutable);
 
     /* create the object. */
     const ULONG cPages = cb >> PAGE_SHIFT;
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF_DYN(RTR0MEMOBJOS2, aPages[cPages]),
-                                                           RTR0MEMOBJTYPE_PAGE, NULL, cb);
-    if (!pMemOs2)
-        return VERR_NO_MEMORY;
-
-    /* do the allocation. */
-    int rc = KernVMAlloc(cb, VMDHA_FIXED, &pMemOs2->Core.pv, (PPVOID)-1, NULL);
-    if (!rc)
+                                                           RTR0MEMOBJTYPE_PAGE, NULL, cb, pszTag);
+    if (pMemOs2)
     {
-        ULONG cPagesRet = cPages;
-        rc = KernLinToPageList(pMemOs2->Core.pv, cb, &pMemOs2->aPages[0], &cPagesRet);
+        /* do the allocation. */
+        int rc = KernVMAlloc(cb, VMDHA_FIXED, &pMemOs2->Core.pv, (PPVOID)-1, NULL);
         if (!rc)
         {
-            rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
-            *ppMem = &pMemOs2->Core;
-            return VINF_SUCCESS;
+            ULONG cPagesRet = cPages;
+            rc = KernLinToPageList(pMemOs2->Core.pv, cb, &pMemOs2->aPages[0], &cPagesRet);
+            if (!rc)
+            {
+                rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
+                pMemOs2->Core.fFlags |= RTR0MEMOBJ_FLAGS_UNINITIALIZED_AT_ALLOC; /* doesn't seem to be possible to zero anything */
+                *ppMem = &pMemOs2->Core;
+                return VINF_SUCCESS;
+            }
+            KernVMFree(pMemOs2->Core.pv);
         }
-        KernVMFree(pMemOs2->Core.pv);
+        rtR0MemObjDelete(&pMemOs2->Core);
+        return RTErrConvertFromOS2(rc);
     }
-    rtR0MemObjDelete(&pMemOs2->Core);
-    return RTErrConvertFromOS2(rc);
+    return VERR_NO_MEMORY;
 }
 
 
@@ -172,62 +184,68 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLarge(PPRTR0MEMOBJINTERNAL ppMem, size_t cb
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
     NOREF(fExecutable);
 
     /* create the object. */
     const ULONG cPages = cb >> PAGE_SHIFT;
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF_DYN(RTR0MEMOBJOS2, aPages[cPages]),
-                                                           RTR0MEMOBJTYPE_LOW, NULL, cb);
-    if (!pMemOs2)
-        return VERR_NO_MEMORY;
-
-    /* do the allocation. */
-    int rc = KernVMAlloc(cb, VMDHA_FIXED, &pMemOs2->Core.pv, (PPVOID)-1, NULL);
-    if (!rc)
+                                                           RTR0MEMOBJTYPE_LOW, NULL, cb, pszTag);
+    if (pMemOs2)
     {
-        ULONG cPagesRet = cPages;
-        rc = KernLinToPageList(pMemOs2->Core.pv, cb, &pMemOs2->aPages[0], &cPagesRet);
+        /* do the allocation. */
+        int rc = KernVMAlloc(cb, VMDHA_FIXED, &pMemOs2->Core.pv, (PPVOID)-1, NULL);
         if (!rc)
         {
-            rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
-            *ppMem = &pMemOs2->Core;
-            return VINF_SUCCESS;
+            ULONG cPagesRet = cPages;
+            rc = KernLinToPageList(pMemOs2->Core.pv, cb, &pMemOs2->aPages[0], &cPagesRet);
+            if (!rc)
+            {
+                rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
+                pMemOs2->Core.fFlags |= RTR0MEMOBJ_FLAGS_UNINITIALIZED_AT_ALLOC; /* doesn't seem to be possible to zero anything */
+                *ppMem = &pMemOs2->Core;
+                return VINF_SUCCESS;
+            }
+            KernVMFree(pMemOs2->Core.pv);
         }
-        KernVMFree(pMemOs2->Core.pv);
+        rtR0MemObjDelete(&pMemOs2->Core);
+        rc = RTErrConvertFromOS2(rc);
+        return rc == VERR_NO_MEMORY ? VERR_NO_LOW_MEMORY : rc;
     }
-    rtR0MemObjDelete(&pMemOs2->Core);
-    rc = RTErrConvertFromOS2(rc);
-    return rc == VERR_NO_MEMORY ? VERR_NO_LOW_MEMORY : rc;
+    return VERR_NO_MEMORY;
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable)
+DECLHIDDEN(int) rtR0MemObjNativeAllocCont(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, bool fExecutable, const char *pszTag)
 {
     NOREF(fExecutable);
 
     /* create the object. */
-    PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_CONT, NULL, cb);
-    if (!pMemOs2)
-        return VERR_NO_MEMORY;
-
-    /* do the allocation. */
-    ULONG ulPhys = ~0UL;
-    int rc = KernVMAlloc(cb, VMDHA_FIXED | VMDHA_CONTIG, &pMemOs2->Core.pv, (PPVOID)&ulPhys, NULL);
-    if (!rc)
+    PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_CONT,
+                                                           NULL, cb, pszTag);
+    if (pMemOs2)
     {
-        Assert(ulPhys != ~0UL);
-        pMemOs2->Core.u.Cont.Phys = ulPhys;
-        *ppMem = &pMemOs2->Core;
-        return VINF_SUCCESS;
+        /* do the allocation. */
+        ULONG ulPhys = ~0UL;
+        int rc = KernVMAlloc(cb, VMDHA_FIXED | VMDHA_CONTIG, &pMemOs2->Core.pv, (PPVOID)&ulPhys, NULL);
+        if (!rc)
+        {
+            Assert(ulPhys != ~0UL);
+            pMemOs2->Core.fFlags |= RTR0MEMOBJ_FLAGS_UNINITIALIZED_AT_ALLOC; /* doesn't seem to be possible to zero anything */
+            pMemOs2->Core.u.Cont.Phys = ulPhys;
+            *ppMem = &pMemOs2->Core;
+            return VINF_SUCCESS;
+        }
+        rtR0MemObjDelete(&pMemOs2->Core);
+        return RTErrConvertFromOS2(rc);
     }
-    rtR0MemObjDelete(&pMemOs2->Core);
-    return RTErrConvertFromOS2(rc);
+    return VERR_NO_MEMORY;
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, size_t uAlignment,
+                                          const char *pszTag)
 {
     AssertMsgReturn(PhysHighest >= 16 *_1M, ("PhysHigest=%RHp\n", PhysHighest), VERR_NOT_SUPPORTED);
 
@@ -236,123 +254,133 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhys(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
         return VERR_NOT_SUPPORTED;
 
     /* create the object. */
-    PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_PHYS, NULL, cb);
-    if (!pMemOs2)
-        return VERR_NO_MEMORY;
-
-    /* do the allocation. */
-    ULONG ulPhys = ~0UL;
-    int rc = KernVMAlloc(cb, VMDHA_FIXED | VMDHA_CONTIG | (PhysHighest < _4G ? VMDHA_16M : 0), &pMemOs2->Core.pv, (PPVOID)&ulPhys, NULL);
-    if (!rc)
+    PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_PHYS,
+                                                           NULL, cb, pszTag);
+    if (pMemOs2)
     {
-        Assert(ulPhys != ~0UL);
-        pMemOs2->Core.u.Phys.fAllocated = true;
-        pMemOs2->Core.u.Phys.PhysBase = ulPhys;
-        *ppMem = &pMemOs2->Core;
-        return VINF_SUCCESS;
+        /* do the allocation. */
+        ULONG ulPhys = ~0UL;
+        int rc = KernVMAlloc(cb, VMDHA_FIXED | VMDHA_CONTIG | (PhysHighest < _4G ? VMDHA_16M : 0),
+                             &pMemOs2->Core.pv, (PPVOID)&ulPhys, NULL);
+        if (!rc)
+        {
+            Assert(ulPhys != ~0UL);
+            pMemOs2->Core.fFlags |= RTR0MEMOBJ_FLAGS_UNINITIALIZED_AT_ALLOC; /* doesn't seem to be possible to zero anything */
+            pMemOs2->Core.u.Phys.fAllocated = true;
+            pMemOs2->Core.u.Phys.PhysBase = ulPhys;
+            *ppMem = &pMemOs2->Core;
+            return VINF_SUCCESS;
+        }
+        rtR0MemObjDelete(&pMemOs2->Core);
+        return RTErrConvertFromOS2(rc);
     }
-    rtR0MemObjDelete(&pMemOs2->Core);
-    return RTErrConvertFromOS2(rc);
+    return VERR_NO_MEMORY;
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest)
+DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, RTHCPHYS PhysHighest, const char *pszTag)
 {
-    /** @todo rtR0MemObjNativeAllocPhys / darwin. */
-    return rtR0MemObjNativeAllocPhys(ppMem, cb, PhysHighest, PAGE_SIZE);
+    /** @todo rtR0MemObjNativeAllocPhysNC / os2. */
+    return rtR0MemObjNativeAllocPhys(ppMem, cb, PhysHighest, PAGE_SIZE, pszTag);
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
+DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy,
+                                          const char *pszTag)
 {
     AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_SUPPORTED);
 
     /* create the object. */
-    PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_PHYS, NULL, cb);
-    if (!pMemOs2)
-        return VERR_NO_MEMORY;
-
-    /* there is no allocation here, right? it needs to be mapped somewhere first. */
-    pMemOs2->Core.u.Phys.fAllocated = false;
-    pMemOs2->Core.u.Phys.PhysBase = Phys;
-    pMemOs2->Core.u.Phys.uCachePolicy = uCachePolicy;
-    *ppMem = &pMemOs2->Core;
-    return VINF_SUCCESS;
+    PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_PHYS,
+                                                           NULL, cb, pszTag);
+    if (pMemOs2)
+    {
+        /* there is no allocation here, right? it needs to be mapped somewhere first. */
+        pMemOs2->Core.u.Phys.fAllocated = false;
+        pMemOs2->Core.u.Phys.PhysBase = Phys;
+        pMemOs2->Core.u.Phys.uCachePolicy = uCachePolicy;
+        *ppMem = &pMemOs2->Core;
+        return VINF_SUCCESS;
+    }
+    return VERR_NO_MEMORY;
 }
 
 
 DECLHIDDEN(int) rtR0MemObjNativeLockUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3Ptr, size_t cb, uint32_t fAccess,
-                                         RTR0PROCESS R0Process)
+                                         RTR0PROCESS R0Process, const char *pszTag)
 {
     AssertMsgReturn(R0Process == RTR0ProcHandleSelf(), ("%p != %p\n", R0Process, RTR0ProcHandleSelf()), VERR_NOT_SUPPORTED);
 
     /* create the object. */
     const ULONG cPages = cb >> PAGE_SHIFT;
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF_DYN(RTR0MEMOBJOS2, aPages[cPages]),
-                                                           RTR0MEMOBJTYPE_LOCK, (void *)R3Ptr, cb);
-    if (!pMemOs2)
-        return VERR_NO_MEMORY;
-
-    /* lock it. */
-    ULONG cPagesRet = cPages;
-    int rc = KernVMLock(VMDHL_LONG | (fAccess & RTMEM_PROT_WRITE ? VMDHL_WRITE : 0),
-                        (void *)R3Ptr, cb, &pMemOs2->Lock, &pMemOs2->aPages[0], &cPagesRet);
-    if (!rc)
+                                                           RTR0MEMOBJTYPE_LOCK, (void *)R3Ptr, cb, pszTag);
+    if (pMemOs2)
     {
-        rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
-        Assert(cb == pMemOs2->Core.cb);
-        Assert(R3Ptr == (RTR3PTR)pMemOs2->Core.pv);
-        pMemOs2->Core.u.Lock.R0Process = R0Process;
-        *ppMem = &pMemOs2->Core;
-        return VINF_SUCCESS;
+        /* lock it. */
+        ULONG cPagesRet = cPages;
+        int rc = KernVMLock(VMDHL_LONG | (fAccess & RTMEM_PROT_WRITE ? VMDHL_WRITE : 0),
+                            (void *)R3Ptr, cb, &pMemOs2->Lock, &pMemOs2->aPages[0], &cPagesRet);
+        if (!rc)
+        {
+            rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
+            Assert(cb == pMemOs2->Core.cb);
+            Assert(R3Ptr == (RTR3PTR)pMemOs2->Core.pv);
+            pMemOs2->Core.u.Lock.R0Process = R0Process;
+            *ppMem = &pMemOs2->Core;
+            return VINF_SUCCESS;
+        }
+        rtR0MemObjDelete(&pMemOs2->Core);
+        return RTErrConvertFromOS2(rc);
     }
-    rtR0MemObjDelete(&pMemOs2->Core);
-    return RTErrConvertFromOS2(rc);
+    return VERR_NO_MEMORY;
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess)
+DECLHIDDEN(int) rtR0MemObjNativeLockKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pv, size_t cb, uint32_t fAccess, const char *pszTag)
 {
     /* create the object. */
     const ULONG cPages = cb >> PAGE_SHIFT;
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF_DYN(RTR0MEMOBJOS2, aPages[cPages]),
-                                                           RTR0MEMOBJTYPE_LOCK, pv, cb);
-    if (!pMemOs2)
-        return VERR_NO_MEMORY;
-
-    /* lock it. */
-    ULONG cPagesRet = cPages;
-    int rc = KernVMLock(VMDHL_LONG | (fAccess & RTMEM_PROT_WRITE ? VMDHL_WRITE : 0),
-                        pv, cb, &pMemOs2->Lock, &pMemOs2->aPages[0], &cPagesRet);
-    if (!rc)
+                                                           RTR0MEMOBJTYPE_LOCK, pv, cb, pszTag);
+    if (pMemOs2)
     {
-        rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
-        pMemOs2->Core.u.Lock.R0Process = NIL_RTR0PROCESS;
-        *ppMem = &pMemOs2->Core;
-        return VINF_SUCCESS;
+        /* lock it. */
+        ULONG cPagesRet = cPages;
+        int rc = KernVMLock(VMDHL_LONG | (fAccess & RTMEM_PROT_WRITE ? VMDHL_WRITE : 0),
+                            pv, cb, &pMemOs2->Lock, &pMemOs2->aPages[0], &cPagesRet);
+        if (!rc)
+        {
+            rtR0MemObjFixPageList(&pMemOs2->aPages[0], cPages, cPagesRet);
+            pMemOs2->Core.u.Lock.R0Process = NIL_RTR0PROCESS;
+            *ppMem = &pMemOs2->Core;
+            return VINF_SUCCESS;
+        }
+        rtR0MemObjDelete(&pMemOs2->Core);
+        return RTErrConvertFromOS2(rc);
     }
-    rtR0MemObjDelete(&pMemOs2->Core);
-    return RTErrConvertFromOS2(rc);
+    return VERR_NO_MEMORY;
 }
 
 
-DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment)
+DECLHIDDEN(int) rtR0MemObjNativeReserveKernel(PPRTR0MEMOBJINTERNAL ppMem, void *pvFixed, size_t cb, size_t uAlignment,
+                                              const char *pszTag)
 {
-    RT_NOREF(ppMem, pvFixed, cb, uAlignment);
+    RT_NOREF(ppMem, pvFixed, cb, uAlignment, pszTag);
     return VERR_NOT_SUPPORTED;
 }
 
 
 DECLHIDDEN(int) rtR0MemObjNativeReserveUser(PPRTR0MEMOBJINTERNAL ppMem, RTR3PTR R3PtrFixed, size_t cb, size_t uAlignment,
-                                            RTR0PROCESS R0Process)
+                                            RTR0PROCESS R0Process, const char *pszTag)
 {
-    RT_NOREF(ppMem, R3PtrFixed, cb, uAlignment, R0Process);
+    RT_NOREF(ppMem, R3PtrFixed, cb, uAlignment, R0Process, pszTag);
     return VERR_NOT_SUPPORTED;
 }
 
 
 DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, void *pvFixed, size_t uAlignment,
-                                          unsigned fProt, size_t offSub, size_t cbSub)
+                                          unsigned fProt, size_t offSub, size_t cbSub, const char *pszTag)
 {
     AssertMsgReturn(pvFixed == (void *)-1, ("%p\n", pvFixed), VERR_NOT_SUPPORTED);
 
@@ -422,7 +450,7 @@ DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ
     if (!cbSub)
         cbSub = pMemToMapOs2->Core.cb - offSub;
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_MAPPING,
-                                                           (uint8_t *)pvR0 + offSub, cbSub);
+                                                           (uint8_t *)pvR0 + offSub, cbSub, pszTag);
     if (pMemOs2)
     {
         pMemOs2->Core.u.Mapping.R0Process = NIL_RTR0PROCESS;
@@ -434,7 +462,7 @@ DECLHIDDEN(int) rtR0MemObjNativeMapKernel(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ
 
 
 DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, RTR3PTR R3PtrFixed, size_t uAlignment,
-                                        unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub)
+                                        unsigned fProt, RTR0PROCESS R0Process, size_t offSub, size_t cbSub, const char *pszTag)
 {
     AssertMsgReturn(R0Process == RTR0ProcHandleSelf(), ("%p != %p\n", R0Process, RTR0ProcHandleSelf()), VERR_NOT_SUPPORTED);
     AssertMsgReturn(R3PtrFixed == (RTR3PTR)-1, ("%p\n", R3PtrFixed), VERR_NOT_SUPPORTED);
@@ -512,7 +540,7 @@ DECLHIDDEN(int) rtR0MemObjNativeMapUser(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ p
      * Create a mapping object for it.
      */
     PRTR0MEMOBJOS2 pMemOs2 = (PRTR0MEMOBJOS2)rtR0MemObjNew(RT_UOFFSETOF(RTR0MEMOBJOS2, Lock), RTR0MEMOBJTYPE_MAPPING,
-                                                           pvR3, pMemToMapOs2->Core.cb);
+                                                           pvR3, pMemToMapOs2->Core.cb, pszTag);
     if (pMemOs2)
     {
         Assert(pMemOs2->Core.pv == pvR3);

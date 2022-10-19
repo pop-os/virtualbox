@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <time.h>
 
@@ -37,6 +42,9 @@ FILE_LICENCE ( GPL2_OR_LATER );
  * either divisible by 4 but not divisible by 100, or is divisible by
  * 400.
  */
+
+/** Current system clock offset */
+signed long time_offset;
 
 /** Days of week (for debugging) */
 static const char *weekdays[] = {

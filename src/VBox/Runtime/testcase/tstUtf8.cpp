@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -43,6 +53,9 @@
 #include <iprt/uni.h>
 #include <iprt/uuid.h>
 
+#ifdef RT_OS_WINDOWS
+# include <iprt/win/windows.h> /* For GetACP(). */
+#endif
 
 
 /**
@@ -98,24 +111,35 @@ static void test1(RTTEST hTest)
         rc = RTStrUtf8ToCurrentCP(&pszCurrent, pszUtf8);
         if (rc == VINF_SUCCESS)
         {
+            RTStrFree(pszUtf8);
             rc = RTStrCurrentCPToUtf8(&pszUtf8, pszCurrent);
             if (rc == VINF_SUCCESS)
                 RTTestPassed(hTest, "Random UTF-16 -> UTF-8 -> Current -> UTF-8 successful.\n");
             else
                 RTTestFailed(hTest, "%d: The third part of random UTF-16 -> UTF-8 -> Current -> UTF-8 failed with return value %Rrc.",
                              __LINE__, rc);
+            if (RT_SUCCESS(rc))
+                RTStrFree(pszUtf8);
+            RTStrFree(pszCurrent);
         }
-        else if (rc == VERR_NO_TRANSLATION)
-            RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VERR_NO_TRANSLATION.  This is probably as it should be.\n");
-        else if (rc == VWRN_NO_TRANSLATION)
-            RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VWRN_NO_TRANSLATION.  This is probably as it should be.\n");
         else
-            RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 failed with return value %Rrc.",
-                         __LINE__, rc);
+        {
+            if (rc == VERR_NO_TRANSLATION)
+                RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VERR_NO_TRANSLATION.  This is probably as it should be.\n");
+            else if (rc == VWRN_NO_TRANSLATION)
+                RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VWRN_NO_TRANSLATION.  This is probably as it should be.\n");
+            else
+                RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 failed with return value %Rrc.",
+                             __LINE__, rc);
+            if (RT_SUCCESS(rc))
+                RTStrFree(pszCurrent);
+            RTStrFree(pszUtf8);
+        }
     }
     else
         RTTestFailed(hTest, "%d: The first part of random UTF-16 -> UTF-8 -> Current -> UTF-8 failed with return value %Rrc.",
                      __LINE__, rc);
+    RTMemFree(pwszRand);
 
     /*
      * Generate a new random string.
@@ -141,14 +165,17 @@ static void test1(RTTEST hTest)
                 RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> UTF-16 failed.", __LINE__);
                 RTTestPrintf(hTest, RTTESTLVL_FAILURE, "First differing character is at position %d and has the value %x.\n", i, pwsz[i]);
             }
+            RTUtf16Free(pwsz);
         }
         else
             RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> UTF-16 failed with return value %Rrc.",
                          __LINE__, rc);
+        RTStrFree(pszUtf8);
     }
     else
         RTTestFailed(hTest, "%d: The first part of random UTF-16 -> UTF-8 -> UTF-16 failed with return value %Rrc.",
                      __LINE__, rc);
+    RTMemFree(pwszRand);
 
     /*
      * Generate yet another random string and convert it to a buffer.
@@ -177,12 +204,14 @@ static void test1(RTTEST hTest)
                 RTTestFailed(hTest, "%d: Incorrect conversion of UTF-16 -> fixed length UTF-8 -> UTF-16.\n", __LINE__);
                 RTTestPrintf(hTest, RTTESTLVL_FAILURE, "First differing character is at position %d and has the value %x.\n", i, pwsz[i]);
             }
+            RTUtf16Free(pwsz);
         }
         else
             RTTestFailed(hTest, "%d: The second part of random UTF-16 -> fixed length UTF-8 -> UTF-16 failed with return value %Rrc.\n", __LINE__, rc);
     }
     else
         RTTestFailed(hTest, "%d: The first part of random UTF-16 -> fixed length UTF-8 -> UTF-16 failed with return value %Rrc.\n", __LINE__, rc);
+    RTMemFree(pwszRand);
 
     /*
      * And again.
@@ -214,10 +243,13 @@ static void test1(RTTEST hTest)
         }
         else
             RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> fixed length UTF-16 failed with return value %Rrc.\n", __LINE__, rc);
+        RTStrFree(pszUtf8);
     }
     else
         RTTestFailed(hTest, "%d: The first part of random UTF-16 -> UTF-8 -> fixed length UTF-16 failed with return value %Rrc.\n",
                      __LINE__, rc);
+    RTMemFree(pwszRand);
+
     pwszRand = (PRTUTF16)RTMemAlloc(31 * sizeof(*pwsz));
     for (int i = 0; i < 30; i++)
         pwszRand[i] = GetRandUtf16();
@@ -229,6 +261,7 @@ static void test1(RTTEST hTest)
     else
         RTTestFailed(hTest, "%d: Random UTF-16 -> fixed length UTF-8 with too small buffer returned value %d instead of VERR_BUFFER_OVERFLOW.\n",
                      __LINE__, rc);
+    RTMemFree(pwszRand);
 
     /*
      * last time...
@@ -248,11 +281,12 @@ static void test1(RTTEST hTest)
         else
             RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> fixed length UTF-16 with too short buffer returned value %Rrc instead of VERR_BUFFER_OVERFLOW.\n",
                          __LINE__, rc);
+        RTStrFree(pszUtf8);
     }
     else
         RTTestFailed(hTest, "%d:The first part of random UTF-16 -> UTF-8 -> fixed length UTF-16 failed with return value %Rrc.\n",
                      __LINE__, rc);
-
+    RTMemFree(pwszRand);
 
     RTTestSubDone(hTest);
 }
@@ -494,6 +528,7 @@ void test2(RTTEST hTest)
             RTTestFailed(hTest, "UTF-8 -> Code Points failed, rc=%Rrc.\n", rc);
 
         /** @todo RTCpsToUtf8 or something. */
+        RTUniFree(paCps);
     }
     else
         RTTestFailed(hTest, "UTF-8 -> Code Points failed, rc=%Rrc.\n", rc);
@@ -1044,6 +1079,45 @@ static void testStrEnd(RTTEST hTest)
     for (size_t i = 0; i < _1M; i++)
         RTTESTI_CHECK(RTStrEnd(s_szEmpty, ~i) == &s_szEmpty[0]);
 
+    /* Check the implementation won't ever overshoot the '\0' in the input in
+       anyway that may lead to a SIGSEV. (VC++ 14.1 does this) */
+    size_t const cchStr = 1023;
+    char *pszStr = (char *)RTTestGuardedAllocTail(hTest, cchStr + 1);
+    memset(pszStr, ' ', cchStr);
+    char * const pszStrEnd = &pszStr[cchStr];
+    *pszStrEnd = '\0';
+    RTTEST_CHECK_RETV(hTest, strlen(pszStr) == cchStr);
+
+    for (size_t off = 0; off <= cchStr; off++)
+    {
+        RTTEST_CHECK(hTest, RTStrEnd(&pszStr[off], cchStr + 1 - off) == pszStrEnd);
+        RTTEST_CHECK(hTest, RTStrEnd(&pszStr[off], RTSTR_MAX) == pszStrEnd);
+
+        RTTEST_CHECK(hTest, memchr(&pszStr[off], '\0', cchStr + 1 - off) == pszStrEnd);
+        RTTEST_CHECK(hTest, strchr(&pszStr[off], '\0') == pszStrEnd);
+        RTTEST_CHECK(hTest, strchr(&pszStr[off], '?') == NULL);
+
+        size_t cchMax = 0;
+        for (; cchMax <= cchStr - off; cchMax++)
+        {
+            const char *pszRet = RTStrEnd(&pszStr[off], cchMax);
+            if (pszRet != NULL)
+            {
+                RTTestFailed(hTest, "off=%zu cchMax=%zu: %p, expected NULL\n", off, cchMax, pszRet);
+                break;
+            }
+        }
+        for (; cchMax <= _8K; cchMax++)
+        {
+            const char *pszRet = RTStrEnd(&pszStr[off], cchMax);
+            if (pszRet != pszStrEnd)
+            {
+                RTTestFailed(hTest, "off=%zu cchMax=%zu: off by %p\n", off, cchMax, pszRet);
+                break;
+            }
+        }
+    }
+    RTTestGuardedFree(hTest, pszStr);
 }
 
 
@@ -1056,18 +1130,18 @@ static void testStrStr(RTTEST hTest)
     do { \
         const char *pszRet = expr; \
         if (pszRet != NULL) \
-            RTTestFailed(hTest, "%d: %#x -> %s expected NULL", __LINE__, #expr, pszRet); \
+            RTTestFailed(hTest, "%d: %s -> %s expected NULL", __LINE__, #expr, pszRet); \
     } while (0)
 
 #define CHECK(expr, expect) \
     do { \
-        const char *pszRet = expr; \
-        const char *pszExpect = (expect); \
+        const char * const pszRet = expr; \
+        const char * const pszExpect = (expect); \
         if (   (pszRet != NULL && pszExpect == NULL) \
             || (pszRet == NULL && pszExpect != NULL) \
             || strcmp(pszRet, pszExpect) \
             ) \
-            RTTestFailed(hTest, "%d: %#x -> %s expected %s", __LINE__, #expr, pszRet, pszExpect); \
+            RTTestFailed(hTest, "%d: %s -> %s expected %s", __LINE__, #expr, pszRet, pszExpect); \
     } while (0)
 
 
@@ -1406,26 +1480,50 @@ void testUtf16Latin1(RTTEST hTest)
 }
 
 
-static void testNoTransation(RTTEST hTest)
+static void testNoTranslation(RTTEST hTest)
 {
     /*
      * Try trigger a VERR_NO_TRANSLATION error in convert to
      * current CP to latin-1.
+     *
+     * On Windows / DOS OSes this is codepage 850.
+     *
+     * Note! On Windows-y systems there ALWAYS are two codepages active:
+     *       the OEM codepage for legacy (console) applications, and the ACP (ANSI CodePage).
+     *       'chcp' only will tell you the OEM codepage, however.
      */
+
+    /* Unicode code points (some of it on 2300-23FF -> misc. technical) to try. */
     const RTUTF16 s_swzTest1[] = { 0x2358, 0x2242, 0x2357, 0x2359,  0x22f9, 0x2c4e, 0x0030, 0x0060,
                                    0x0092, 0x00c1, 0x00f2, 0x1f80,  0x0088, 0x2c38, 0x2c30, 0x0000 };
     char *pszTest1;
     int rc = RTUtf16ToUtf8(s_swzTest1, &pszTest1);
     RTTESTI_CHECK_RC_RETV(rc, VINF_SUCCESS);
 
+#ifdef RT_OS_WINDOWS
+    UINT const uACP = GetACP();
+    RTTestIPrintf(RTTESTLVL_ALWAYS, "Current Windows ANSI codepage is: %u%s\n",
+                  uACP, uACP == 65001 /* UTF-8 */ ? " (UTF-8)" : "");
+#endif
+
     RTTestSub(hTest, "VERR_NO_TRANSLATION/RTStrUtf8ToCurrentCP");
     char *pszOut;
     rc = RTStrUtf8ToCurrentCP(&pszOut, pszTest1);
     if (rc == VINF_SUCCESS)
     {
-        RTTESTI_CHECK(!strcmp(pszOut, pszTest1));
         RTTestIPrintf(RTTESTLVL_ALWAYS, "CurrentCP is UTF-8 or similar (LC_ALL=%s LANG=%s LC_CTYPE=%s)\n",
                       RTEnvGet("LC_ALL"), RTEnvGet("LANG"), RTEnvGet("LC_CTYPE"));
+#ifdef RT_OS_WINDOWS
+        if (uACP == 65001 /* UTF-8 */)
+        {
+            /* The following string comparison will fail if the active ACP isn't UTF-8 (65001), so skip this then.
+             * This applies to older Windows OSes like NT4. */
+#endif
+            if (strcmp(pszOut, pszTest1))
+                RTTestFailed(hTest, "mismatch\nutf8: %.*Rhxs\n got: %.*Rhxs\n", strlen(pszTest1), pszTest1, strlen(pszOut), pszOut);
+#ifdef RT_OS_WINDOWS
+        }
+#endif
         RTStrFree(pszOut);
     }
     else
@@ -1547,7 +1645,7 @@ int main()
     testStrStr(hTest);
     testUtf8Latin1(hTest);
     testUtf16Latin1(hTest);
-    testNoTransation(hTest);
+    testNoTranslation(hTest);
     testGetPut(hTest);
 
     Benchmarks(hTest);

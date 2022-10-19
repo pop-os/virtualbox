@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_UnattendedImpl_h
@@ -30,6 +40,24 @@ class UnattendedInstaller;
 struct UnattendedInstallationDisk;
 struct ControllerSlot;
 
+/**
+ * A data type to store image data which is read from intall.wim file.
+ * Currently relevant only for Windows OSs.
+ */
+struct WIMImage
+{
+    Utf8Str  mName;
+    Utf8Str  mVersion;
+    Utf8Str  mArch;
+    Utf8Str  mFlavor;
+    RTCList<RTCString, RTCString *> mLanguages;
+    Utf8Str  mDefaultLanguage;
+    uint32_t mImageIndex;
+    VBOXOSTYPE mOSType;
+    WIMImage() : mImageIndex(0), mOSType(VBOXOSTYPE_Unknown) { }
+    const Utf8Str &formatName(Utf8Str &r_strName) const;
+    VBOXOSTYPE mEnmOsType;
+};
 
 /**
  * Class implementing the IUnattended interface.
@@ -40,7 +68,7 @@ class ATL_NO_VTABLE Unattended
     : public UnattendedWrap
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(Unattended)
+    DECLARE_COMMON_CLASS_METHODS(Unattended)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -80,8 +108,8 @@ public:
     bool           i_isRtcUsingUtc() const;
     bool           i_isGuestOs64Bit() const;
     bool           i_isFirmwareEFI() const;
-    VBOXOSTYPE     i_getGuestOsType() const;
     Utf8Str const &i_getDetectedOSVersion();
+    bool           i_getAvoidUpdatesOverNetwork() const;
 
 private:
     ComPtr<VirtualBox> const mParent;       /**< Strong reference to the parent object (VirtualBox/IMachine). */
@@ -92,7 +120,6 @@ private:
     bool            mfRtcUseUtc;            /**< Copy of IMachine::RTCUseUTC (locking reasons). */
     bool            mfGuestOs64Bit;         /**< 64-bit (true) or 32-bit guest OS (set by prepare). */
     FirmwareType_T  menmFirmwareType;       /**< Firmware type BIOS/EFI (set by prepare). */
-    VBOXOSTYPE      meGuestOsType;          /**< The guest OS type (set by prepare). */
     UnattendedInstaller *mpInstaller;       /**< The installer instance (set by prepare, deleted by done). */
 
     /** @name Values of the IUnattended attributes.
@@ -120,14 +147,17 @@ private:
     Utf8Str         mStrPostInstallScriptTemplatePath;
     Utf8Str         mStrPostInstallCommand;
     Utf8Str         mStrExtraInstallKernelParameters;
+    Utf8Str         mStrProxy;
 
     bool            mfDoneDetectIsoOS;         /**< Set by detectIsoOS(), cleared by setIsoPath(). */
     Utf8Str         mStrDetectedOSTypeId;
     Utf8Str         mStrDetectedOSVersion;
     Utf8Str         mStrDetectedOSFlavor;
+    VBOXOSTYPE      mEnmOsType;
     RTCList<RTCString, RTCString *> mDetectedOSLanguages; /**< (only relevant for windows at the moment) */
     Utf8Str         mStrDetectedOSHints;
-    Utf8Str         mStrProxy;
+    RTCList<WIMImage> mDetectedImages;
+    bool            mfAvoidUpdatesOverNetwork;
     /** @} */
 
     // wrapped IUnattended functions:
@@ -209,6 +239,11 @@ private:
     HRESULT getDetectedOSLanguages(com::Utf8Str &aDetectedOSLanguages);
     HRESULT getDetectedOSFlavor(com::Utf8Str &aDetectedOSFlavor);
     HRESULT getDetectedOSHints(com::Utf8Str &aDetectedOSHints);
+    HRESULT getDetectedImageNames(std::vector<com::Utf8Str> &aDetectedImageNames);
+    HRESULT getDetectedImageIndices(std::vector<ULONG> &aDetectedImageIndices);
+    HRESULT getIsUnattendedInstallSupported(BOOL *aIsUnattendedInstallSupported);
+    HRESULT getAvoidUpdatesOverNetwork(BOOL *aAvoidUpdatesOverNetwork);
+    HRESULT setAvoidUpdatesOverNetwork(BOOL aAvoidUpdatesOverNetwork);
     //internal functions
 
     /**
@@ -228,8 +263,11 @@ private:
         uint8_t     ab[4096];
         uint32_t    au32[1024];
     } DETECTBUFFER;
-    HRESULT i_innerDetectIsoOSWindows(RTVFS hVfsIso, DETECTBUFFER *puBuf, VBOXOSTYPE *penmOsType);
-    HRESULT i_innerDetectIsoOSLinux(RTVFS hVfsIso, DETECTBUFFER *puBuf, VBOXOSTYPE *penmOsType);
+    HRESULT i_innerDetectIsoOSWindows(RTVFS hVfsIso, DETECTBUFFER *puBuf);
+    HRESULT i_innerDetectIsoOSLinux(RTVFS hVfsIso, DETECTBUFFER *puBuf);
+    HRESULT i_innerDetectIsoOSLinuxFedora(RTVFS hVfsIso, DETECTBUFFER *puBuf, char *pszVolId);
+    HRESULT i_innerDetectIsoOSOs2(RTVFS hVfsIso, DETECTBUFFER *puBuf);
+    HRESULT i_innerDetectIsoOSFreeBsd(RTVFS hVfsIso, DETECTBUFFER *puBuf);
 
     /**
      * Worker for reconfigureVM().
@@ -267,7 +305,14 @@ private:
      * Check whether guest is 64bit platform or not
      */
     bool i_isGuestOSArchX64(Utf8Str const &rStrGuestOsTypeId);
+
+    /**
+     * Updates the detected attributes when the image index or image list changes.
+     *
+     * @returns true if we've got all necessary stuff for a successful detection.
+     */
+    bool i_updateDetectedAttributeForImage(WIMImage const &rImage);
+
 };
 
 #endif /* !MAIN_INCLUDED_UnattendedImpl_h */
-

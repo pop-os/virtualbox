@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -455,16 +465,16 @@ static size_t autostartConfigTokenGetLength(PCFGTOKEN pToken)
 /**
  * Log unexpected token error.
  *
- * @returns nothing.
+ * @returns VBox status code (VERR_INVALID_PARAMETER).
  * @param   pToken          The token which caused the error.
  * @param   pszExpected     String of the token which was expected.
  */
-static void autostartConfigTokenizerMsgUnexpectedToken(PCFGTOKEN pToken, const char *pszExpected)
+static int autostartConfigTokenizerMsgUnexpectedToken(PCFGTOKEN pToken, const char *pszExpected)
 {
-    autostartSvcLogError("Unexpected token '%s' at %d:%d.%d, expected '%s'",
-                         autostartConfigTokenToString(pToken),
-                         pToken->iLine, pToken->cchStart,
-                         pToken->cchStart + autostartConfigTokenGetLength(pToken) - 1, pszExpected);
+    return autostartSvcLogErrorRc(VERR_INVALID_PARAMETER, "Unexpected token '%s' at %d:%d.%d, expected '%s'",
+                                autostartConfigTokenToString(pToken),
+                                pToken->iLine, pToken->cchStart,
+                                pToken->cchStart + autostartConfigTokenGetLength(pToken) - 1, pszExpected);
 }
 
 /**
@@ -483,10 +493,7 @@ static int autostartConfigTokenizerCheckAndConsume(PCFGTOKENIZER pCfgTokenizer, 
     if (RT_SUCCESS(rc))
     {
         if (pCfgToken->enmType != enmType)
-        {
-            autostartConfigTokenizerMsgUnexpectedToken(pCfgToken, autostartConfigTokenTypeToStr(enmType));
-            rc = VERR_INVALID_PARAMETER;
-        }
+            return autostartConfigTokenizerMsgUnexpectedToken(pCfgToken, autostartConfigTokenTypeToStr(enmType));
 
         autostartConfigTokenFree(pCfgTokenizer, pCfgToken);
     }
@@ -572,10 +579,7 @@ static int autostartConfigParseValue(PCFGTOKENIZER pCfgTokenizer, const char *ps
         *ppCfgAst = pCfgAst;
     }
     else
-    {
-        autostartConfigTokenizerMsgUnexpectedToken(pToken, "non reserved token");
-        rc = VERR_INVALID_PARAMETER;
-    }
+        rc = autostartConfigTokenizerMsgUnexpectedToken(pToken, "non reserved token");
 
     return rc;
 }
@@ -640,10 +644,7 @@ static int autostartConfigParseCompoundNode(PCFGTOKENIZER pCfgTokenizer, const c
             }
         }
         else if (RT_SUCCESS(rc))
-        {
-            autostartConfigTokenizerMsgUnexpectedToken(pToken, "non reserved token");
-            rc = VERR_INVALID_PARAMETER;
-        }
+            rc = autostartConfigTokenizerMsgUnexpectedToken(pToken, "non reserved token");
 
         /* Add to the current compound node. */
         if (RT_SUCCESS(rc))
@@ -723,6 +724,7 @@ DECLHIDDEN(void) autostartConfigAstDestroy(PCFGAST pCfgAst)
             break;
         }
         case CFGASTNODETYPE_LIST:
+            RT_FALL_THROUGH();
         default:
             AssertMsgFailed(("Invalid AST node type %d\n", pCfgAst->enmType));
     }

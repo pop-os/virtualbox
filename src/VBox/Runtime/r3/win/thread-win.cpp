@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -31,8 +41,10 @@
 #define LOG_GROUP RTLOGGROUP_THREAD
 #include <iprt/nt/nt-and-windows.h>
 
-#include <errno.h>
-#include <process.h>
+#ifndef IPRT_NO_CRT
+# include <errno.h>
+# include <process.h>
+#endif
 
 #include <iprt/thread.h>
 #include "internal/iprt.h"
@@ -83,7 +95,6 @@ static PFNOLEUNINITIALIZE volatile  g_pfnOleUninitialize = NULL;
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static unsigned __stdcall rtThreadNativeMain(void *pvArgs);
 static void rtThreadWinTellDebuggerThreadName(uint32_t idThread, const char *pszName);
 DECLINLINE(void) rtThreadWinSetThreadName(PRTTHREADINT pThread, DWORD idThread);
 
@@ -183,7 +194,7 @@ static void rtThreadWinTellDebuggerThreadName(uint32_t idThread, const char *psz
  */
 DECLINLINE(void) rtThreadWinSetThreadName(PRTTHREADINT pThread, DWORD idThread)
 {
-    if (IsDebuggerPresent())
+    if (g_pfnIsDebuggerPresent && g_pfnIsDebuggerPresent())
         rtThreadWinTellDebuggerThreadName(idThread, &pThread->szName[0]);
 
     /* The SetThreadDescription API introduced in windows 10 1607 / server 2016
@@ -347,7 +358,11 @@ static bool rtThreadNativeWinCoInitialize(unsigned fFlags)
 /**
  * Wrapper which unpacks the param stuff and calls thread function.
  */
-static unsigned __stdcall rtThreadNativeMain(void *pvArgs)
+#ifndef IPRT_NO_CRT
+static unsigned __stdcall rtThreadNativeMain(void *pvArgs) RT_NOTHROW_DEF
+#else
+static DWORD __stdcall rtThreadNativeMain(void *pvArgs) RT_NOTHROW_DEF
+#endif
 {
     DWORD           dwThreadId = GetCurrentThreadId();
     PRTTHREADINT    pThread = (PRTTHREADINT)pvArgs;
@@ -362,13 +377,19 @@ static unsigned __stdcall rtThreadNativeMain(void *pvArgs)
 
     int rc = rtThreadMain(pThread, dwThreadId, &pThread->szName[0]);
 
+    TlsSetValue(g_dwSelfTLS, NULL); /* rtThreadMain already released the structure. */
+
     if (fUninitCom && g_pfnCoUninitialize)
         g_pfnCoUninitialize();
 
-    TlsSetValue(g_dwSelfTLS, NULL);
     rtThreadNativeUninitComAndOle();
+#ifndef IPRT_NO_CRT
     _endthreadex(rc);
-    return rc;
+    return rc; /* not reached */
+#else
+    for (;;)
+        ExitThread(rc);
+#endif
 }
 
 
@@ -388,8 +409,9 @@ DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNati
      * Create the thread.
      */
     pThread->hThread = (uintptr_t)INVALID_HANDLE_VALUE;
+#ifndef IPRT_NO_CRT
     unsigned    uThreadId = 0;
-    uintptr_t   hThread   = _beginthreadex(NULL, cbStack, rtThreadNativeMain, pThread, 0, &uThreadId);
+    uintptr_t   hThread   = _beginthreadex(NULL /*pSecAttrs*/, cbStack, rtThreadNativeMain, pThread, 0 /*fFlags*/, &uThreadId);
     if (hThread != 0 && hThread != ~0U)
     {
         pThread->hThread = hThread;
@@ -397,6 +419,17 @@ DECLHIDDEN(int) rtThreadNativeCreate(PRTTHREADINT pThread, PRTNATIVETHREAD pNati
         return VINF_SUCCESS;
     }
     return RTErrConvertFromErrno(errno);
+#else
+    DWORD  idThread = 0;
+    HANDLE hThread = CreateThread(NULL /*pSecAttrs*/, cbStack, rtThreadNativeMain, pThread, 0 /*fFlags*/, &idThread);
+    if (hThread != NULL)
+    {
+        pThread->hThread = (uintptr_t)hThread;
+        *pNativeThread = idThread;
+        return VINF_SUCCESS;
+    }
+    return RTErrConvertFromWin32(GetLastError());
+#endif
 }
 
 
@@ -444,41 +477,54 @@ static int rtThreadGetCurrentProcessorNumber(void)
 
 RTR3DECL(int) RTThreadSetAffinity(PCRTCPUSET pCpuSet)
 {
-    DWORD_PTR fNewMask = pCpuSet ? RTCpuSetToU64(pCpuSet) : ~(DWORD_PTR)0;
-    DWORD_PTR dwRet = SetThreadAffinityMask(GetCurrentThread(), fNewMask);
-    if (dwRet)
-        return VINF_SUCCESS;
+    /* The affinity functionality was added in NT 3.50, so we resolve the APIs
+       dynamically to be able to run on NT 3.1. */
+    if (g_pfnSetThreadAffinityMask)
+    {
+        DWORD_PTR fNewMask = pCpuSet ? RTCpuSetToU64(pCpuSet) : ~(DWORD_PTR)0;
+        DWORD_PTR dwRet = g_pfnSetThreadAffinityMask(GetCurrentThread(), fNewMask);
+        if (dwRet)
+            return VINF_SUCCESS;
 
-    int iLastError = GetLastError();
-    AssertMsgFailed(("SetThreadAffinityMask failed, LastError=%d\n", iLastError));
-    return RTErrConvertFromWin32(iLastError);
+        int iLastError = GetLastError();
+        AssertMsgFailed(("SetThreadAffinityMask failed, LastError=%d\n", iLastError));
+        return RTErrConvertFromWin32(iLastError);
+    }
+    return VERR_NOT_SUPPORTED;
 }
 
 
 RTR3DECL(int) RTThreadGetAffinity(PRTCPUSET pCpuSet)
 {
-    /*
-     * Haven't found no query api, but the set api returns the old mask, so let's use that.
-     */
-    DWORD_PTR dwIgnored;
-    DWORD_PTR dwProcAff = 0;
-    if (GetProcessAffinityMask(GetCurrentProcess(), &dwProcAff, &dwIgnored))
+    /* The affinity functionality was added in NT 3.50, so we resolve the APIs
+       dynamically to be able to run on NT 3.1. */
+    if (   g_pfnSetThreadAffinityMask
+        && g_pfnGetProcessAffinityMask)
     {
-        HANDLE hThread = GetCurrentThread();
-        DWORD_PTR dwRet = SetThreadAffinityMask(hThread, dwProcAff);
-        if (dwRet)
+        /*
+         * Haven't found no query api, but the set api returns the old mask, so let's use that.
+         */
+        DWORD_PTR dwIgnored;
+        DWORD_PTR dwProcAff = 0;
+        if (g_pfnGetProcessAffinityMask(GetCurrentProcess(), &dwProcAff, &dwIgnored))
         {
-            DWORD_PTR dwSet = SetThreadAffinityMask(hThread, dwRet);
-            Assert(dwSet == dwProcAff); NOREF(dwRet);
+            HANDLE hThread = GetCurrentThread();
+            DWORD_PTR dwRet = g_pfnSetThreadAffinityMask(hThread, dwProcAff);
+            if (dwRet)
+            {
+                DWORD_PTR dwSet = g_pfnSetThreadAffinityMask(hThread, dwRet);
+                Assert(dwSet == dwProcAff); NOREF(dwRet);
 
-            RTCpuSetFromU64(pCpuSet, (uint64_t)dwSet);
-            return VINF_SUCCESS;
+                RTCpuSetFromU64(pCpuSet, (uint64_t)dwSet);
+                return VINF_SUCCESS;
+            }
         }
-    }
 
-    int iLastError = GetLastError();
-    AssertMsgFailed(("SetThreadAffinityMask or GetProcessAffinityMask failed, LastError=%d\n", iLastError));
-    return RTErrConvertFromWin32(iLastError);
+        int iLastError = GetLastError();
+        AssertMsgFailed(("SetThreadAffinityMask or GetProcessAffinityMask failed, LastError=%d\n", iLastError));
+        return RTErrConvertFromWin32(iLastError);
+    }
+    return VERR_NOT_SUPPORTED;
 }
 
 

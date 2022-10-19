@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_HGCM
@@ -35,7 +45,7 @@ static RTCRITSECT g_critsect;
 static uint32_t volatile g_u32InternalHandleCount;
 static uint32_t volatile g_u32ClientHandleCount;
 
-static PAVLULNODECORE g_pTree;
+static PAVLU32NODECORE g_pTree;
 
 
 DECLINLINE(int) hgcmObjEnter(void)
@@ -56,11 +66,11 @@ int hgcmObjInit(void)
     g_u32ClientHandleCount = 0;
     g_pTree = NULL;
 
-    int rc = RTCritSectInit(&g_critsect);
+    int vrc = RTCritSectInit(&g_critsect);
 
-    LogFlow(("MAIN::hgcmObjInit: rc = %Rrc\n", rc));
+    LogFlow(("MAIN::hgcmObjInit: vrc = %Rrc\n", vrc));
 
-    return rc;
+    return vrc;
 }
 
 void hgcmObjUninit(void)
@@ -75,9 +85,9 @@ uint32_t hgcmObjMake(HGCMObject *pObject, uint32_t u32HandleIn)
 
     LogFlow(("MAIN::hgcmObjGenerateHandle: pObject %p\n", pObject));
 
-    int rc = hgcmObjEnter();
+    int vrc = hgcmObjEnter();
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         ObjectAVLCore *pCore = &pObject->m_core;
 
@@ -122,7 +132,7 @@ uint32_t hgcmObjMake(HGCMObject *pObject, uint32_t u32HandleIn)
             /* Insert object to AVL tree. */
             pCore->AvlCore.Key = Key;
 
-            bool fRC = RTAvlULInsert(&g_pTree, &pCore->AvlCore);
+            bool fRC = RTAvlU32Insert(&g_pTree, &pCore->AvlCore);
 
             /* Could not insert a handle. */
             if (!fRC)
@@ -157,7 +167,7 @@ uint32_t hgcmObjMake(HGCMObject *pObject, uint32_t u32HandleIn)
         AssertReleaseMsgFailed(("MAIN::hgcmObjGenerateHandle: Failed to acquire object pool semaphore"));
     }
 
-    LogFlow(("MAIN::hgcmObjGenerateHandle: handle = 0x%08X, rc = %Rrc, return void\n", handle, rc));
+    LogFlow(("MAIN::hgcmObjGenerateHandle: handle = 0x%08X, vrc = %Rrc, return void\n", handle, vrc));
 
     return handle;
 }
@@ -174,17 +184,17 @@ uint32_t hgcmObjAssignHandle(HGCMObject *pObject, uint32_t u32Handle)
 
 void hgcmObjDeleteHandle(uint32_t handle)
 {
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
 
     LogFlow(("MAIN::hgcmObjDeleteHandle: handle 0x%08X\n", handle));
 
     if (handle)
     {
-        rc = hgcmObjEnter();
+        vrc = hgcmObjEnter();
 
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS(vrc))
         {
-            ObjectAVLCore *pCore = (ObjectAVLCore *)RTAvlULRemove(&g_pTree, handle);
+            ObjectAVLCore *pCore = (ObjectAVLCore *)RTAvlU32Remove(&g_pTree, handle);
 
             if (pCore)
             {
@@ -197,11 +207,11 @@ void hgcmObjDeleteHandle(uint32_t handle)
         }
         else
         {
-            AssertReleaseMsgFailed(("Failed to acquire object pool semaphore, rc = %Rrc", rc));
+            AssertReleaseMsgFailed(("Failed to acquire object pool semaphore, vrc = %Rrc", vrc));
         }
     }
 
-    LogFlow(("MAIN::hgcmObjDeleteHandle: rc = %Rrc, return void\n", rc));
+    LogFlow(("MAIN::hgcmObjDeleteHandle: vrc = %Rrc, return void\n", vrc));
 }
 
 HGCMObject *hgcmObjReference (uint32_t handle, HGCMOBJ_TYPE enmObjType)
@@ -215,11 +225,11 @@ HGCMObject *hgcmObjReference (uint32_t handle, HGCMOBJ_TYPE enmObjType)
         return pObject;
     }
 
-    int rc = hgcmObjEnter();
+    int vrc = hgcmObjEnter();
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
-        ObjectAVLCore *pCore = (ObjectAVLCore *)RTAvlULGet(&g_pTree, handle);
+        ObjectAVLCore *pCore = (ObjectAVLCore *)RTAvlU32Get(&g_pTree, handle);
 
         Assert(!pCore || (pCore->pSelf && pCore->pSelf->Type() == enmObjType));
         if (    pCore
@@ -237,7 +247,7 @@ HGCMObject *hgcmObjReference (uint32_t handle, HGCMOBJ_TYPE enmObjType)
     }
     else
     {
-        AssertReleaseMsgFailed(("Failed to acquire object pool semaphore, rc = %Rrc", rc));
+        AssertReleaseMsgFailed(("Failed to acquire object pool semaphore, vrc = %Rrc", vrc));
     }
 
     LogFlow(("MAIN::hgcmObjReference: return pObject %p\n", pObject));
@@ -265,9 +275,9 @@ void hgcmObjSetHandleCount(uint32_t u32ClientHandleCount)
 {
     Assert(g_u32ClientHandleCount <= u32ClientHandleCount);
 
-    int rc = hgcmObjEnter();
+    int vrc = hgcmObjEnter();
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         if (g_u32ClientHandleCount <= u32ClientHandleCount)
             g_u32ClientHandleCount = u32ClientHandleCount;

@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 #
@@ -73,9 +83,6 @@ endif
 ifdef XML_CATALOG_DOCBOOK
  $(error XML_CATALOG_DOCBOOK was renamed to VBOX_XML_CATALOG_DOCBOOK!)
 endif
-ifdef VBOXMANAGEPATH
- $(error VBOXMANAGEPATH was renamed to VBOXMANAGEHELP_PATH!)
-endif
 ifdef PDFLATEX_INTERACTION
  $(error PDFLATEX_INTERACTION was renamed to VBOX_PDFLATEX_INTERACTION!)
 endif
@@ -86,16 +93,16 @@ ifdef HHC
  $(error HHC was renamed to VBOX_HHC!)
 endif
 
-
-
-VBOXMANAGEHELP_PATH       ?= $(PATH_STAGE_BIN)/VBoxManageHelp$(SUFF_EXE)
+VBOX_QHELP_OUTPUT_FILES = \
+	UserManual.qch \
+	UserManual.qhc
 
  # VBOX_PDFLATEX_INTERACTION = errorstopmode - Use this when you wants to figure out build failures
  #                                             without catting the log a million times.
 VBOX_PDFLATEX_INTERACTION ?= batchmode
 ifeq ($(KBUILD_HOST),win)
  ifndef VBOX_PDFLATEX
-  VBOX_PDFLATEX           := $(firstword $(rsort $(wildcard $(PATH_DEVTOOLS)/win.x86/miktex-portable/*/miktex/bin/pdflatex.exe)))
+  VBOX_PDFLATEX           := $(firstword $(rsort $(wildcard $(KBUILD_DEVTOOLS)/win.x86/miktex-portable/*/miktex/bin/pdflatex.exe)))
   ifneq ($(VBOX_PDFLATEX),)
    VBOX_PDFLATEX_CMD       = $(VBOX_PDFLATEX) -halt-on-error -interaction $(VBOX_PDFLATEX_INTERACTION)
   endif
@@ -149,11 +156,32 @@ if defined(VBOX_WITH_DOCS) && (!defined(VBOX_ONLY_BUILD) || defined(VBOX_ONLY_DO
   VBOX_PATH_BIN_CHM =
  endif
 
+ ifdef VBOX_WITH_DOCS_QHELP
+  INSTALLS += VBox-docs-usermanual-qhc
+  INSTALLS += VBox-docs-usermanual-qch
+  ifdef VBOX_WITH_QT6
+   USES += qt6
+   QHELPGENERATOR = $(PATH_TOOL_QT6_LIBEXEC)/qhelpgenerator
+  else # Qt5
+   USES += qt5
+   QHELPGENERATOR_VERSION_MINOR = $(shell $(REDIRECT) -E QT_QPA_PLATFORM_PLUGIN_PATH=$(PATH_SDK_QT5)/plugins -- $(PATH_TOOL_QT5_BIN)/qhelpgenerator -v 2>/dev/null | $(SED) -ne 's/.*(Qt [1-9][0-9]*\.\([1-9][0-9]*\)\.[1-9][0-9]*).*$$/\1/p')
+   QHELPGENERATOR = $(PATH_TOOL_QT5_BIN)/$(if-expr $(QHELPGENERATOR_VERSION_MINOR) >= 12,qhelpgenerator,qcollectiongenerator)
+  endif
+ endif
+ ifdef VBOX_WITH_DOCS_QHELP_PACKING
+  VBOX_PATH_BIN_QHELP = $(PATH_STAGE_BIN)/UserManual.qch
+  VBOX_PATH_BIN_QHELP += $(PATH_STAGE_BIN)/UserManual.qhc
+ else  # Do not install/pack qhelp.
+  VBOX_PATH_BIN_QHELP =
+ endif
+
+
  ifndef VBOX_ONLY_SDK
   VBOX_MANUAL_PACK += \
   		$(PATH_STAGE_BIN)/UserManual.pdf \
   		$(VBOX_PATH_BIN_HTML) \
-  		$(VBOX_PATH_BIN_CHM)
+  		$(VBOX_PATH_BIN_CHM) \
+  		$(VBOX_PATH_BIN_QHELP)
   INSTALLS += VBox-docs-usermanual
 
   ifdef VBOX_WITH_DOCS_TRANSLATIONS
@@ -185,7 +213,6 @@ $(foreach lang,$(VBOX_MANUAL_LANGUAGES), \
  $(eval VBOX_MANUAL_XML_FILES_GENERATED_$$(lang) := \
  	$$(addprefix $$(VBOX_PATH_MANUAL_OUTBASE)/$$(lang)/user_,$$(filter man_VBoxManage%,$$(VBOX_MANUAL_XML_REFENTRY_FILES))) \
  	$$(addprefix $$(VBOX_PATH_MANUAL_OUTBASE)/overview_,$$(filter man_VBoxManage%,$$(VBOX_MANUAL_XML_REFENTRY_FILES))) \
- 	$$(VBOX_PATH_MANUAL_OUTBASE)/user_VBoxManage_CommandsOverview.xml \
  	$$(VBOX_PATH_MANUAL_OUTBASE)/$$(lang)/user_man_VBoxHeadless.xml \
  	$$(VBOX_PATH_MANUAL_OUTBASE)/$$(lang)/user_man_vboximg-mount.xml \
  	$$(VBOX_PATH_MANUAL_OUTBASE)/$$(lang)/user_isomakercmd-man.xml))
@@ -195,6 +222,7 @@ $(foreach lang,$(VBOX_MANUAL_LANGUAGES), \
 
  VBOX_ACCESSIBILITY_XML_FILES = \
  	Accessibility.xml
+
 
  # Wildcard the images path for every supported language
  $(foreach f,$(VBOX_MANUAL_LANGUAGES), \
@@ -217,6 +245,8 @@ $(foreach lang,$(VBOX_MANUAL_LANGUAGES), \
  		$(addsuffix /images, $(VBOX_MANUAL_LANGUAGES)) \
  		$(addsuffix /html-single, $(VBOX_MANUAL_LANGUAGES)) \
  		$(addsuffix /html-chunks, $(VBOX_MANUAL_LANGUAGES)) \
+		$(addsuffix /qhelp, $(VBOX_MANUAL_LANGUAGES)) \
+ 		$(addsuffix /qhelp/images, $(VBOX_MANUAL_LANGUAGES)) \
  		$(addsuffix /HTMLHelp, $(VBOX_MANUAL_LANGUAGES)) \
  		$(addsuffix /HTMLHelp/images, $(VBOX_MANUAL_LANGUAGES)) \
  	)
@@ -229,11 +259,11 @@ $(foreach lang,$(VBOX_MANUAL_LANGUAGES), \
  	$(VBOX_XML_CATALOG_DOCBOOK) \
  	$(VBOX_XML_CATALOG_MANUAL) \
  	$(VBOX_XML_ENTITIES) \
- 	$(VBOX_XML_XREF_TO_TEXT) \
- 	$(VBOX_XML_XREF_TO_TEXT).cat \
  	$(foreach lang,$(VBOX_MANUAL_LANGUAGES),$(addprefix $(VBOX_PATH_MANUAL_OUTBASE)/$(lang)/, \
+        $(VBOX_XML_XREF_TO_TEXT) \
+        $(VBOX_XML_XREF_TO_TEXT).cat \
         $(addprefix user_,$(VBOX_MANUAL_XML_REFENTRY_FILES)) \
-	 $(VBOX_MANUAL_XML_REFENTRY_FILES) \
+		$(VBOX_MANUAL_XML_REFENTRY_FILES) \
         $(patsubst man_%,%.1,$(basename $(VBOX_MANUAL_XML_REFENTRY_FILES))) \
         man_VBoxHeadless.xml \
         user_man_VBoxHeadless.xml \
@@ -245,27 +275,40 @@ $(foreach lang,$(VBOX_MANUAL_LANGUAGES), \
         $(VBOX_MANUAL_PNG_FILES_$(lang)) \
         $(notdir $(VBOX_MANUAL_TEX_UNICODE_FILES)) \
         $(addprefix HTMLHelp/,$(VBOX_MANUAL_PNG_FILES_$(lang))) \
+        $(addprefix qhelp/,   $(VBOX_MANUAL_PNG_FILES_$(lang))) \
         html-single/UserManual.html \
+        $(addprefix qhelp/, UserManual.qhp UserManual.qhcp $(VBOX_QHELP_OUTPUT_FILES)) \
         $(addprefix HTMLHelp/,    index.html go01.html) \
+        $(addprefix qhelp/,       index.html go01.html) \
         $(addprefix html-chunks/, index.html go01.html) \
         $(foreach n,01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 \
             ,html-chunks/ch$(n).html \
             html-chunks/re$(n).html \
             HTMLHelp/ch$(n).html \
             HTMLHelp/re$(n).html \
-            $(foreach d2,0 1 2 3 4 5 6 7 8 9,$(foreach d1,0 1 2 3 4 5 6 7 8 9,HTMLHelp/ch$(n)s$(d2)$(d1).html)) ) \
+            $(foreach d2,0 1 2 3 4 5 6 7 8 9,$(foreach d1,0 1 2 3 4 5 6 7 8 9,HTMLHelp/ch$(n)s$(d2)$(d1).html)) \
+            qhelp/ch$(n).html \
+            qhelp/re$(n).html \
+            $(foreach d2,0 1 2 3 4 5 6 7 8 9,$(foreach d1,0 1 2 3 4 5 6 7 8 9,qhelp/ch$(n)s$(d2)$(d1).html)) ) \
         $(foreach n,a b c \
             ,html-chunks/ap$(n).html \
             HTMLHelp/ap$(n).html \
-            $(foreach s,01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20,HTMLHelp/ap$(n)s$(s).html) ) \
+            $(foreach s,01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20,HTMLHelp/ap$(n)s$(s).html) \
+            qhelp/ap$(n).html \
+            $(foreach s,01 02 03 04 05 06 07 08 09 10 11 12 13 14 15 16 17 18 19 20,qhelp/ap$(n)s$(s).html) ) \
         $(foreach n,01 02 03 04 05 \
             ,html-chunks/pr$(n).html \
             HTMLHelp/pr$(n).html \
-            $(foreach s,01 02 03 04 05 06 07 08,HTMLHelp/pr$(n)s$(s).html) ) \
+            $(foreach s,01 02 03 04 05 06 07 08,HTMLHelp/pr$(n)s$(s).html) \
+            qhelp/pr$(n).html \
+            $(foreach s,01 02 03 04 05 06 07 08,qhelp/pr$(n)s$(s).html) ) \
         HTMLHelp/toc.hhc \
         HTMLHelp/htmlhelp.hhp \
+        qhelp/toc.hhc \
+        qhelp/htmlhelp.hhp \
         UserManual.pdf \
         VirtualBox.chm \
+        $(VBOX_QHELP_OUTPUT_FILES) \
         ChangeLog.html \
         validatemanual.run \
         validateaccessibility.run \
@@ -273,7 +316,6 @@ $(foreach lang,$(VBOX_MANUAL_LANGUAGES), \
         )) \
  	$(VBOX_PATH_MANUAL_OUTBASE)/titlepage-htmlhelp.xsl \
  	$(addprefix $(VBOX_PATH_MANUAL_OUTBASE)/overview_,$(VBOX_MANUAL_XML_REFENTRY_FILES)) \
- 	$(VBOX_PATH_MANUAL_OUTBASE)/user_VBoxManage_CommandsOverview.xml \
  	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),$(PATH_STAGE_BIN)/UserManual_$(f).pdf) \
  	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),$(PATH_STAGE_BIN)/VirtualBox_$(f).chm) \
  	$(PATH_STAGE_BIN)/UserManual.pdf \
@@ -304,6 +346,14 @@ endif # if defined(VBOX_WITH_DOCS) && (!defined(VBOX_ONLY_BUILD) || defined(VBOX
 VBox-docs-usermanual_INST = $(INST_BIN)
 VBox-docs-usermanual_MODE = a+r,u+w
 VBox-docs-usermanual_SOURCES = $(VBOX_PATH_MANUAL_OUTBASE)/en_US/UserManual.pdf
+
+VBox-docs-usermanual-qhc_INST = $(INST_BIN)
+VBox-docs-usermanual-qhc_MODE = a+r,u+w
+VBox-docs-usermanual-qhc_SOURCES = $(VBOX_PATH_MANUAL_OUTBASE)/en_US/qhelp/UserManual.qhc
+
+VBox-docs-usermanual-qch_INST = $(INST_BIN)
+VBox-docs-usermanual-qch_MODE = a+r,u+w
+VBox-docs-usermanual-qch_SOURCES = $(VBOX_PATH_MANUAL_OUTBASE)/en_US/qhelp/UserManual.qch
 
 #
 # target for installing translated UserManual_*.pdf
@@ -354,8 +404,6 @@ VBox-docs-accessibility-html_INST = $(INST_BIN)
 VBox-docs-accessibility-html_MODE = a+r,u+w
 VBox-docs-accessibility-html_SOURCES = $(VBOX_PATH_MANUAL_OUTBASE)/en_US/html-single/Accessibility.html
 
-
-
 if defined(VBOX_WITH_DOCS) && (!defined(VBOX_ONLY_BUILD) || defined(VBOX_ONLY_DOCS) || defined(VBOX_ONLY_SDK))
 
 ##
@@ -391,33 +439,6 @@ $(addprefix $(VBOX_PATH_MANUAL_OUTBASE)/overview_,$(VBOX_MANUAL_XML_REFENTRY_FIL
 	$(call MSG_TOOL,xsltproc $(notdir $(filter %.xsl,$^)),,$(firstword $(filter %.xml,$^)),$@)
 	$(QUIET)$(call VBOX_XSLTPROC_WITH_CAT) --output "$@" $< $(filter %.xml,$^)
 
-$(VBOX_PATH_MANUAL_OUTBASE)/user_VBoxManage_CommandsOverview.xml: $(VBOXMANAGEHELP_PATH) $(MAKEFILE_CURRENT) | $$(dir $$@)
-	$(call MSG_GENERATE,,$@,)
-	$(QUIET)$(RM) -f $@ $@.dumpopts
-	$(QUIET)$(APPEND) -tn "$@" \
-		'<?xml version="1.0" encoding="UTF-8"?>' \
-               '<!DOCTYPE chapter PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN" "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd">' \
-               '<sect1> <!-- this will be skipped via xpointer in the include. --> '
-	$(QUIET)$(REDIRECT) -wo $@.dumpopts -E 'VBOX_LOG_FLAGS=disabled' -E 'VBOX_LOG_DEST=nofile' \
-		$(if $(eq $(KBUILD_TARGET),darwin), -E 'DYLD_FALLBACK_LIBRARY_PATH=$(dir $(LIB_RUNTIME))') \
-		-- \
-		$(VBOXMANAGEHELP_PATH) --dumpopts
-	$(QUIET)$(SED) \
-		-e ':a' \
-		-e 'N' \
-		-e '$(DOLLAR)!ba' \
-		-e 's/</\&lt\;/g' \
-		-e 's/>/\&gt\;/g' \
-		-e 's/\n*$(DOLLAR)/<\/screen>/' \
-		-e 's/^/<screen>/' \
-		--append $@ $@.dumpopts
-	$(QUIET)$(RM) -f $@.dumpopts
-	$(QUIET)$(APPEND) -n "$@" \
-               '  <remark role="VBoxManage-overview">' \
-               $(foreach refentry, $(filter man_VBoxManage%,$(VBOX_MANUAL_XML_REFENTRY_FILES)) \
-		, '  <xi:include href="overview_$(refentry)" xpointer="element(/1)" xmlns:xi="http://www.w3.org/2001/XInclude" />') \
-               '  </remark>' \
-               '</sect1>'
 
 
 
@@ -677,6 +698,20 @@ accessibility:: $(PATH_STAGE_BIN)/Accessibility.pdf
 accessibility-html:: $(VBOX_PATH_MANUAL_OUTBASE)/en_US/html-single/Accessibility.html
 
 
+# A few things which are shared between htmlhelp and qhelp docs.
+VBOX_DOCBOOK_HTMLHELP_FORMATCFG = \
+ 	$(VBOX_PATH_MANUAL_SRC)/docbook-htmlhelp-formatcfg.xsl \
+ 	$(VBOX_PATH_MANUAL_SRC)/common-formatcfg.xsl \
+ 	$(VBOX_PATH_MANUAL_SRC)/common-html-formatcfg.xsl
+
+# Prepare the XSL file for our title page, htmlhelp and qhelp variant.
+$(VBOX_PATH_MANUAL_OUTBASE)/titlepage-htmlhelp.xsl: \
+		$(VBOX_PATH_MANUAL_SRC)/titlepage-htmlhelp.xml $(MAKEFILE_CURRENT) | $$(dir $$@)
+	$(call MSG_L1,xsltproc $<)
+	$(QUIET)$(RM) -f $@.tmp $@
+	$(QUIET)$(VBOX_XSLTPROC) --xinclude --nonet -o $@.tmp $(VBOX_PATH_DOCBOOK)/template/titlepage.xsl $<
+	$(QUIET)$(MV) -f $@.tmp $@
+
 
 ifdef VBOX_WITH_DOCS_CHM
  #
@@ -685,19 +720,6 @@ ifdef VBOX_WITH_DOCS_CHM
  # We first generate a .hhp help source file from the preprocessed
  # DocBook XML files, as defined above, then feed that into the
  # Microsoft Help Compiler.
- #
- VBOX_DOCBOOK_HTMLHELP_FORMATCFG = \
- 	$(VBOX_PATH_MANUAL_SRC)/docbook-htmlhelp-formatcfg.xsl \
- 	$(VBOX_PATH_MANUAL_SRC)/common-formatcfg.xsl \
- 	$(VBOX_PATH_MANUAL_SRC)/common-html-formatcfg.xsl
-
- # Prepare the XSL file for our title page, htmlhelp variant.
- $(VBOX_PATH_MANUAL_OUTBASE)/titlepage-htmlhelp.xsl: \
-		$(VBOX_PATH_MANUAL_SRC)/titlepage-htmlhelp.xml $(MAKEFILE_CURRENT) | $$(dir $$@)
-	$(call MSG_L1,xsltproc $<)
-	$(QUIET)$(RM) -f $@.tmp $@
-	$(QUIET)$(VBOX_XSLTPROC) --xinclude --nonet -o $@.tmp $(VBOX_PATH_DOCBOOK)/template/titlepage.xsl $<
-	$(QUIET)$(MV) -f $@.tmp $@
 
  # Generate CHM from HHP
  # Note: out_dir needs to be referenced with an escaped $ so it doesn't expand as eval expands it input.
@@ -815,8 +837,8 @@ $(VBOX_PATH_MANUAL_OUTBASE)/en_US/UserManual.zip: \
 
 html:: $(VBOX_PATH_MANUAL_OUTBASE)/en_US/html-single/UserManual.html
 html:: $(VBOX_PATH_MANUAL_OUTBASE)/en_US/html-chunks/index.html
+qhelp:: $(addprefix $(VBOX_PATH_MANUAL_OUTBASE)/en_US/qhelp/, $(VBOX_QHELP_OUTPUT_FILES))
 html-zip:: $(VBOX_PATH_MANUAL_OUTBASE)/en_US/UserManual.zip
-
 
 #
 # ChangeLog.html
@@ -854,14 +876,14 @@ define def_vbox_refentry_to_manpage
 $$(VBOX_PATH_MANUAL_OUTBASE)/$(1)/$(2): \
 		$$(VBOX_PATH_MANUAL_SRC)/$(1)/$(2) \
 		$$(VBOX_PATH_MANUAL_SRC)/docbook-refentry-to-manpage-preprocessing.xsl \
-		$$(VBOX_XML_XREF_TO_TEXT) \
+		$$(VBOX_PATH_MANUAL_OUTBASE)/$(1)/$$(VBOX_XML_XREF_TO_TEXT) \
 		$$(VBOX_XML_CATALOG) $$(VBOX_XML_CATALOG_DOCBOOK) $$(VBOX_XML_CATALOG_MANUAL) \
 		$$(VBOX_XML_ENTITIES) $$(VBOX_VERSION_STAMP) | $$$$(dir $$$$@)
 	$$(call MSG_TOOL,xsltproc $$(notdir $$(firstword $$(filter %.xsl,$$^))),,$$(firstword $$(filter %.xml,$$^)),$$@)
 	$$(QUIET)$$(RM) -f "$$@"
 	$$(QUIET)$$(call VBOX_XSLTPROC_WITH_CAT) --output $$@ \
 		$$(VBOX_PATH_MANUAL_SRC)/docbook-refentry-to-manpage-preprocessing.xsl $$<
-	$$(QUIET)$$(call VBOX_XSLTPROC_WITH_CAT) --output $$@.tmp $$(VBOX_XML_XREF_TO_TEXT) $$@
+	$$(QUIET)$$(call VBOX_XSLTPROC_WITH_CAT) --output $$@.tmp $$(VBOX_PATH_MANUAL_OUTBASE)/$(1)/$$(VBOX_XML_XREF_TO_TEXT) $$@
 	$$(QUIET)$$(MV) -f -- "$$@.tmp" "$$@"
 if defined(VBOX_HAVE_XMLLINT)
 	$$(VBOX_XMLLINT_WITH_CAT) --dtdvalid $$(VBOX_PATH_DOCBOOK_DTD)/docbookx.dtd $$@
@@ -874,10 +896,95 @@ $$(VBOX_PATH_MANUAL_OUTBASE)/$(1)/$(patsubst man_%,%.1,$(basename $(2))): \
 		$$(VBOX_XML_ENTITIES) $$(VBOX_VERSION_STAMP) | $$$$(dir $$$$@)
 	$$(call MSG_TOOL,xsltproc $$(notdir $$(firstword $$(filter %.xsl,$$^))),,$$(firstword $$(filter %.xml,$$^)),$$@)
 	$$(QUIET)$$(RM) -f "$$@"
-	$$(QUIET)$$(call VBOX_XSLTPROC_WITH_CAT) --output $$@ $$(VBOX_PATH_MANUAL_SRC)/docbook-refentry-to-manpage.xsl $$<
+	$$(QUIET)$$(call VBOX_XSLTPROC_WITH_CAT) --maxdepth 6000 --output $$@ $$(VBOX_PATH_MANUAL_SRC)/docbook-refentry-to-manpage.xsl $$<
 endef
 $(foreach lang,$(VBOX_MANUAL_LANGUAGES),$(foreach file,$(VBOX_MANUAL_XML_REFENTRY_FILES) \
 , $(evalcall2 def_vbox_refentry_to_manpage,$(lang),$(file))))
+
+
+ifdef VBOX_WITH_DOCS_QHELP
+ #
+ # VirtualBox.qch/VirtualBox.qhc
+ #
+ # We first generate a .hhp help source file from the preprocessed
+ # DocBook XML files, as defined above, then feed that into a converter
+ # creating the suitable input for creating a QHelp collection file.
+
+ # Generate QCH from QHelp source
+ # Note: out_dir needs to be referenced with an escaped $ so it doesn't expand as eval expands it input.
+ define def_vbox_usermanual_qhp_to_qch
+ local out_dir := $(VBOX_PATH_MANUAL_OUTBASE)/$(lang)
+ $$(out_dir)/qhelp/UserManual.qch + \
+ $$(out_dir)/qhelp/UserManual.qhc: \
+		$$(out_dir)/qhelp/UserManual.qhcp \
+		$$(out_dir)/qhelp/UserManual.qhp \
+		$$(addprefix $$(out_dir)/qhelp/,$$(VBOX_MANUAL_PNG_FILES_$(lang))) \
+		| $$$$(dir $$$$@)
+	$$(call MSG_L1,$$(notdir $$(QHELPGENERATOR)) $$<,=> $$@)
+	$$(QUIET)$$(RM) -f $$@
+	$$(QUIET)$$(REDIRECT) -E QT_QPA_PLATFORM_PLUGIN_PATH=$$(PATH_SDK_QT5)/plugins -- $$(QHELPGENERATOR) $$<
+	$$(call MSG_L1,Fresh QCH is now at $$@)
+ endef
+ $(foreach lang,$(VBOX_MANUAL_LANGUAGES),$(evalcall2 def_vbox_usermanual_qhp_to_qch))
+
+ # Generate QHP from HHP for QHelp
+ # Note: out_dir needs to be referenced with an escaped $ so it doesn't expand as eval expands it input.
+ define def_vbox_usermanual_hhp_qhelp_to_qhp
+ local out_dir := $(VBOX_PATH_MANUAL_OUTBASE)/$(lang)
+ $$(out_dir)/qhelp/UserManual.qhp: \
+		$$(out_dir)/qhelp/htmlhelp.hhp \
+		$$(addprefix $$(out_dir)/qhelp/,$$(VBOX_MANUAL_PNG_FILES_$(lang))) \
+		| $$$$(dir $$$$@)
+	$$(call MSG_L1,htmlhelp-qthelp.py $$<,=> $$@)
+	$$(QUIET)$$(RM) -f $$@
+	$$(QUIET)$$(VBOX_BLD_PYTHON) $$(VBOX_PATH_MANUAL_SRC)/htmlhelp-qthelp.py -d $$(<D) -o $$@
+ endef
+ $(foreach lang,$(VBOX_MANUAL_LANGUAGES),$(evalcall2 def_vbox_usermanual_hhp_qhelp_to_qhp))
+
+ # Generate HHP for QHelp from XML
+ # Note: out_dir needs to be referenced with an escaped $ so it doesn't expand as eval expands it input.
+ define def_vbox_usermanual_xml_to_hhp_qhelp
+ local out_dir := $(VBOX_PATH_MANUAL_OUTBASE)/$(lang)
+ $$(out_dir)/qhelp/htmlhelp.hhp: \
+		$$(addprefix $$(VBOX_PATH_MANUAL_SRC)/$(lang)/,$$(VBOX_MANUAL_XML_FILES)) \
+		$$(VBOX_MANUAL_XML_FILES_COMMON) \
+		$$(VBOX_MANUAL_XML_FILES_GENERATED_$(lang)) \
+		$$(VBOX_DOCBOOK_HTMLHELP_FORMATCFG) \
+		$$(VBOX_PATH_MANUAL_OUTBASE)/titlepage-htmlhelp.xsl \
+		$$(if $$(VBOX_HAVE_XMLLINT),$$(out_dir)/validatemanual.run,) \
+		$$(VBOX_XML_CATALOG) $$(VBOX_XML_CATALOG_DOCBOOK) $$(VBOX_XML_CATALOG_MANUAL) \
+		$$(VBOX_XML_ENTITIES) | $$$$(dir $$$$@)
+	$$(call MSG_TOOL,xsltproc $$(notdir $$(firstword $$(filter %.xsl,$$^))),,$$(firstword $$(filter %.xml,$$^)),$$@)
+	$$(QUIET)$$(RM) -f $$@
+	$$(QUIET)$$(call VBOX_XSLTPROC_WITH_CAT) --output $$(@D)/ \
+		--stringparam htmlhelp.chm \
+		$$(subst /,\\,$$(VBOX_PATH_MANUAL_OUTBASE)/$(lang)/VirtualBox.chm) \
+		$$(HTMLHELPOPTS) $$(VBOX_PATH_MANUAL_SRC)/docbook-htmlhelp-formatcfg.xsl \
+		$$<
+ endef
+ $(foreach lang,$(VBOX_MANUAL_LANGUAGES),$(evalcall2 def_vbox_usermanual_xml_to_hhp_qhelp))
+
+ # copy the qhcp file.
+ define def_vbox_cp_qhcp
+ local out_dir := $(VBOX_PATH_MANUAL_OUTBASE)/$(lang)/qhelp
+ $$(out_dir)/UserManual.qhcp: \
+		$$(out_dir)/%: $(VBOX_PATH_MANUAL_SRC)/% | $$$$(dir $$$$@)
+	$$(QUIET)$$(INSTALL_STAGING) -m0644 -- '$$<' '$$(@D)'
+ endef
+ $(foreach lang,$(VBOX_MANUAL_LANGUAGES),$(eval $(def_vbox_cp_qhcp)))
+
+ # copy the PNG files.
+ # Note: out_dir needs to be referenced with an escaped $ so it doesn't expand as eval expands it input.
+ define def_vbox_cp_images_qhelp
+ local out_dir := $(VBOX_PATH_MANUAL_OUTBASE)/$(lang)/qhelp
+ $(addprefix $$(out_dir)/,$(VBOX_MANUAL_PNG_FILES_$(lang))): \
+		$$(out_dir)/%: $(VBOX_PATH_MANUAL_SRC)/$(lang)/% | $$$$(dir $$$$@)
+	$$(call MSG_L1,Copying temporary $$< => $$@)
+	$$(QUIET)$$(INSTALL_STAGING) -m0644 -- '$$<' '$$(@D)'
+ endef
+ $(foreach lang,$(VBOX_MANUAL_LANGUAGES),$(eval $(def_vbox_cp_images_qhelp)))
+
+endif # VBOX_WITH_DOCS_QHELP
 
 
 # Handy aliases.

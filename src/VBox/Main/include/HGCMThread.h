@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_HGCMThread_h
@@ -54,11 +64,9 @@ typedef FNHGCMNEWMSGALLOC *PFNHGCMNEWMSGALLOC;
  * @retval VERR_NOT_AVAILABLE if HGCM has been disconnected from the VMMDev
  *         (shouldn't happen).
  */
-typedef DECLCALLBACK(int) FNHGCMMSGCALLBACK(int32_t result, HGCMMsgCore *pMsgCore);
-/** @copydoc FNHGCMMSGCALLBACK */
-typedef FNHGCMMSGCALLBACK HGCMMSGCALLBACK;
+typedef DECLCALLBACKTYPE(int, FNHGCMMSGCALLBACK,(int32_t result, HGCMMsgCore *pMsgCore));
 /** Pointer to a message completeion callback function. */
-typedef HGCMMSGCALLBACK *PHGCMMSGCALLBACK;
+typedef FNHGCMMSGCALLBACK *PFNHGCMMSGCALLBACK;
 
 
 /** HGCM core message. */
@@ -77,7 +85,7 @@ class HGCMMsgCore : public HGCMReferencedObject
         HGCMThread *m_pThread;
 
         /** Callback function pointer. */
-        PHGCMMSGCALLBACK m_pfnCallback;
+        PFNHGCMMSGCALLBACK m_pfnCallback;
 
         /** Next element in a message queue. */
         HGCMMsgCore *m_pNext;
@@ -116,7 +124,7 @@ class HGCMMsgCore : public HGCMReferencedObject
  *  @param pThread       The HGCM thread instance.
  *  @param pvUser        User specified thread parameter.
  */
-typedef DECLCALLBACK(void) FNHGCMTHREAD(HGCMThread *pThread, void *pvUser);
+typedef DECLCALLBACKTYPE(void, FNHGCMTHREAD,(HGCMThread *pThread, void *pvUser));
 typedef FNHGCMTHREAD *PFNHGCMTHREAD;
 
 
@@ -144,11 +152,13 @@ void hgcmThreadUninit(void);
  *                          HGCMService, will deregister them.  NULL if no stats.
  * @param pUVM              The user mode VM handle to register statistics with.
  *                          NULL if no stats.
+ * @param pVMM              The VMM vtable for statistics registration. NULL if
+ *                          no stats.
  *
  * @return VBox status code.
  */
 int hgcmThreadCreate(HGCMThread **ppThread, const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser,
-                     const char *pszStatsSubDir, PUVM pUVM);
+                     const char *pszStatsSubDir, PUVM pUVM, PCVMMR3VTABLE pVMM);
 
 /** Wait for termination of a HGCM worker thread.
  *
@@ -180,7 +190,7 @@ int hgcmMsgAlloc(HGCMThread *pThread, HGCMMsgCore **ppHandle, uint32_t u32MsgId,
  *
  * @thread any
  */
-int hgcmMsgPost(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback);
+int hgcmMsgPost(HGCMMsgCore *pMsg, PFNHGCMMSGCALLBACK pfnCallback);
 
 /** Send a message to HGCM worker thread.
  *

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2015-2021 Oracle Corporation
+ * Copyright (C) 2015-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on: sb16.c from QEMU AUDIO subsystem (r3917).
@@ -330,8 +340,8 @@ static void sb16StreamTransferScheduleNext(PSB16STATE pThis, PSB16STREAM pStream
 static int  sb16StreamDoDmaOutput(PSB16STATE pThis, PSB16STREAM pStream, int uDmaChan, uint32_t offDma, uint32_t cbDma, uint32_t cbToRead, uint32_t *pcbRead);
 static DECLCALLBACK(void) sb16StreamUpdateAsyncIoJob(PPDMDEVINS pDevIns, PAUDMIXSINK pSink, void *pvUser);
 
-static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser);
-static DECLCALLBACK(void) sb16TimerIRQ(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser);
+static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser);
+static DECLCALLBACK(void) sb16TimerIRQ(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser);
 DECLINLINE(void) sb16TimerSet(PPDMDEVINS pDevIns, PSB16STREAM pStream, uint64_t cTicksToDeadline);
 
 static void sb16SpeakerControl(PSB16STATE pThis, bool fOn);
@@ -445,7 +455,7 @@ static void sb16DmaCmd8(PPDMDEVINS pDevIns, PSB16STATE pThis, PSB16STREAM pStrea
     /** @todo Check if stream's DMA block size is properly aligned to the set PCM props. */
 
     sb16DmaCmdContinue8(pDevIns, pThis, pStream);
-    sb16SpeakerControl(pThis, 1);
+    sb16SpeakerControl(pThis, true /* fOn */);
 }
 
 static void sb16DmaCmd(PPDMDEVINS pDevIns, PSB16STATE pThis, PSB16STREAM pStream,
@@ -505,7 +515,7 @@ static void sb16DmaCmd(PPDMDEVINS pDevIns, PSB16STATE pThis, PSB16STREAM pStream
     /** @todo Check if stream's DMA block size is properly aligned to the set PCM props. */
 
     sb16StreamControl(pDevIns, pThis, pStream, true /* fRun */);
-    sb16SpeakerControl(pThis, 1);
+    sb16SpeakerControl(pThis, true /* fOn */);
 }
 
 static inline void sb16DspSeData(PSB16STATE pThis, uint8_t val)
@@ -1611,7 +1621,7 @@ static DECLCALLBACK(uint32_t) sb16DMARead(PPDMDEVINS pDevIns, void *pvUser, unsi
         if (0 == pStream->dma_auto) /** @todo r=andy BUGBUG Why do we first assert the IRQ if dma_auto is 0? Revisit this. */
         {
             sb16StreamControl(pDevIns, pThis, pStream, false /* fRun */);
-            sb16SpeakerControl(pThis, 0);
+            sb16SpeakerControl(pThis, false /* fOn */);
         }
     }
 
@@ -1629,10 +1639,10 @@ static DECLCALLBACK(uint32_t) sb16DMARead(PPDMDEVINS pDevIns, void *pvUser, unsi
 /**
  * @callback_method_impl{PFNTMTIMERDEV}
  */
-static DECLCALLBACK(void) sb16TimerIRQ(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) sb16TimerIRQ(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     PSB16STATE pThis = PDMDEVINS_2_DATA(pDevIns, PSB16STATE);
-    RT_NOREF(pTimer, pThis);
+    RT_NOREF(hTimer, pThis);
 
     PSB16STREAM pStream = (PSB16STREAM)pvUser;
     AssertPtrReturnVoid(pStream);
@@ -1659,14 +1669,14 @@ DECLINLINE(void) sb16TimerSet(PPDMDEVINS pDevIns, PSB16STREAM pStream, uint64_t 
 /**
  * @callback_method_impl{FNTMTIMERDEV}
  */
-static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     PSB16STATE pThis = PDMDEVINS_2_DATA(pDevIns, PSB16STATE);
     STAM_PROFILE_START(&pThis->StatTimerIO, a);
 
     PSB16STREAM pStream = (PSB16STREAM)pvUser;
     AssertPtrReturnVoid(pStream);
-    RT_NOREF(pTimer);
+    AssertReturnVoid(hTimer == pStream->hTimerIO);
 
     const uint64_t cTicksNow = PDMDevHlpTimerGet(pDevIns, pStream->hTimerIO);
 
@@ -2522,7 +2532,7 @@ static int sb16Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, PSB16STATE pThis)
     if (fStreamEnabled)
     {
         /* Sanity: If stream is going be enabled, PCM props must be valid. Otherwise the saved state is borked somehow. */
-        AssertMsgReturn(AudioHlpPcmPropsAreValid(&pStream->Cfg.Props),
+        AssertMsgReturn(AudioHlpPcmPropsAreValidAndSupported(&pStream->Cfg.Props),
                         ("PCM properties for stream #%RU8 are invalid\n", pStream->uIdx), VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
         sb16StreamControl(pDevIns, pThis, pStream, true /* fRun */);
     }
@@ -2745,7 +2755,7 @@ static DECLCALLBACK(void) sb16DevReset(PPDMDEVINS pDevIns)
     pThis->cmd = -1;
 
     sb16MixerReset(pThis);
-    sb16SpeakerControl(pThis, 0);
+    sb16SpeakerControl(pThis, false /* fOn */);
     sb16DspCmdResetLegacy(pThis);
 }
 
@@ -2944,13 +2954,26 @@ static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     pThis->mixer_regs[0x81] = (1 << pStream->HwCfgRuntime.uDmaChanLow) | (1 << pStream->HwCfgRuntime.uDmaChanHigh);
     pThis->mixer_regs[0x82] = 2 << 5;
 
-    sb16MixerReset(pThis);
+    /*
+     * Perform a device reset before we set up the mixer below,
+     * to have a defined state. This includes the mixer reset + legacy reset.
+     */
+    sb16DevReset(pThis->pDevInsR3);
+
+    /*
+     * Make sure that the mixer sink(s) have a valid format set.
+     *
+     * This is needed in order to make the driver attaching logic working done by Main
+     * for machine construction. Must come after sb16DevReset().
+     */
+    PSB16STREAM const pStreamOut = &pThis->aStreams[SB16_IDX_OUT];
+    AudioMixerSinkSetFormat(pThis->pSinkOut, &pStreamOut->Cfg.Props, pStreamOut->Cfg.Device.cMsSchedulingHint);
 
     /*
      * Create timers.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, sb16TimerIRQ, pThis,
-                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "SB16 IRQ timer", &pThis->hTimerIRQ);
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT | TMTIMER_FLAGS_NO_RING0, "SB16 IRQ", &pThis->hTimerIRQ);
     AssertRCReturn(rc, rc);
 
     static const char * const s_apszNames[] = { "SB16 OUT" };
@@ -2958,7 +2981,7 @@ static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     for (unsigned i = 0; i < SB16_MAX_STREAMS; i++)
     {
         rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, sb16TimerIO, &pThis->aStreams[i],
-                                  TMTIMER_FLAGS_DEFAULT_CRIT_SECT, s_apszNames[i], &pThis->aStreams[i].hTimerIO);
+                                  TMTIMER_FLAGS_DEFAULT_CRIT_SECT | TMTIMER_FLAGS_NO_RING0, s_apszNames[i], &pThis->aStreams[i].hTimerIO);
         AssertRCReturn(rc, rc);
 
         pThis->aStreams[i].cTicksTimerIOInterval = PDMDevHlpTimerGetFreq(pDevIns, pThis->aStreams[i].hTimerIO)
@@ -3033,8 +3056,6 @@ static DECLCALLBACK(int) sb16Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         }
         AssertLogRelMsgReturn(RT_SUCCESS(rc),  ("LUN#%u: rc=%Rrc\n", iLun, rc), rc);
     }
-
-    sb16DspCmdResetLegacy(pThis);
 
     /*
      * Register statistics.

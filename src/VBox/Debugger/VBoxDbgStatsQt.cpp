@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -40,6 +50,8 @@
 #include <iprt/string.h>
 #include <iprt/mem.h>
 #include <iprt/assert.h>
+
+#include "VBoxDbgGui.h"
 
 
 /*********************************************************************************************************************************
@@ -101,8 +113,8 @@ typedef struct DBGGUISTATSNODE
     uint32_t                cChildren;
     /** Our index among the parent's children. */
     uint32_t                iSelf;
-    /** The unit. */
-    STAMUNIT                enmUnit;
+    /** The unit string. (not allocated) */
+    const char             *pszUnit;
     /** The data type.
      * For filler nodes not containing data, this will be set to STAMTYPE_INVALID. */
     STAMTYPE                enmType;
@@ -157,6 +169,8 @@ typedef struct DBGGUISTATSSTACK
         PDBGGUISTATSNODE    pNode;
         /** The current child. */
         int32_t             iChild;
+        /** Name string offset (if used). */
+        uint16_t            cchName;
     } a[32];
 } DBGGUISTATSSTACK;
 
@@ -223,7 +237,7 @@ public:
      * Similar to updateStatsByPattern, except that it only works on a sub-tree and
      * will not remove anything that's outside that tree.
      *
-     * @param  a_rIndex     The sub-tree root. Invalid index means root.
+     * @param   a_rIndex    The sub-tree root. Invalid index means root.
      *
      * @todo    Create a default implementation using updateStatsByPattern.
      */
@@ -232,7 +246,7 @@ public:
     /**
      * Reset the stats matching the specified pattern.
      *
-     * @param  a_rPatStr    The selection pattern.
+     * @param   a_rPatStr   The selection pattern.
      *
      * @remarks The default implementation is an empty stub.
      */
@@ -247,6 +261,25 @@ public:
      * @remarks The default implementation makes use of resetStatsByPattern
      */
     virtual void resetStatsByIndex(QModelIndex const &a_rIndex, bool a_fSubTree = true);
+
+    /**
+     * Iterator callback function.
+     * @returns true to continue, false to stop.
+     */
+    typedef bool FNITERATOR(PDBGGUISTATSNODE pNode, QModelIndex const &a_rIndex, const char *pszFullName, void *pvUser);
+
+    /**
+     * Callback iterator.
+     *
+     * @param   a_rPatStr           The selection pattern.
+     * @param   a_pfnCallback       Callback function.
+     * @param   a_pvUser            Callback argument.
+     * @param   a_fMatchChildren    How to handle children of matching nodes:
+     *                                - @c true: continue with the children,
+     *                                - @c false: skip children.
+     */
+    virtual void iterateStatsByPattern(QString const &a_rPatStr, FNITERATOR *a_pfnCallback, void *a_pvUser,
+                                       bool a_fMatchChildren = true);
 
     /**
      * Gets the model index of the root node.
@@ -287,12 +320,12 @@ protected:
     /**
      * Initializes a pristine node.
      */
-    static int initNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit, const char *pszDesc);
+    static int initNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample, const char *pszUnit, const char *pszDesc);
 
     /**
      * Updates (or reinitializes if you like) a node.
      */
-    static void updateNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit, const char *pszDesc);
+    static void updateNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample, const char *pszUnit, const char *pszDesc);
 
     /**
      * Called by updateStatsByPattern(), makes the necessary preparations.
@@ -340,7 +373,7 @@ protected:
      *  changes.
      * @copydoc FNSTAMR3ENUM */
     static DECLCALLBACK(int) updateCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
-                                            STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser);
+                                            const char *pszUnit, STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser);
 
     /**
      * Calculates the full path of a node.
@@ -559,8 +592,9 @@ public:
      * @param   a_pDbgGui       Pointer to the debugger gui object.
      * @param   a_rPatStr       The selection pattern.
      * @param   a_pParent       The parent object. NULL is fine.
+     * @param   a_pVMM          The VMM function table.
      */
-    VBoxDbgStatsModelVM(VBoxDbgGui *a_pDbgGui, QString &a_rPatStr, QObject *a_pParent);
+    VBoxDbgStatsModelVM(VBoxDbgGui *a_pDbgGui, QString &a_rPatStr, QObject *a_pParent, PCVMMR3VTABLE a_pVMM);
 
     /** Destructor */
     virtual ~VBoxDbgStatsModelVM();
@@ -573,7 +607,8 @@ protected:
      * Enumeration callback used by createNewTree.
      */
     static DECLCALLBACK(int) createNewTreeCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
-                                                   STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser);
+                                                   const char *pszUnit, STAMVISIBILITY enmVisibility, const char *pszDesc,
+                                                   void *pvUser);
 
     /**
      * Constructs a new statistics tree by query data from the VM.
@@ -583,6 +618,9 @@ protected:
      * @param   a_rPatStr       The selection pattern.
      */
     PDBGGUISTATSNODE createNewTree(QString &a_rPatStr);
+
+    /** The VMM function table. */
+    PCVMMR3VTABLE m_pVMM;
 };
 
 
@@ -799,7 +837,7 @@ VBoxDbgStatsModel::destroyNode(PDBGGUISTATSNODE a_pNode)
 
     a_pNode->cChildren = 0;
     a_pNode->iSelf = UINT32_MAX;
-    a_pNode->enmUnit = STAMUNIT_INVALID;
+    a_pNode->pszUnit = "";
     a_pNode->enmType = STAMTYPE_INVALID;
 
     RTMemFree(a_pNode->pszName);
@@ -834,7 +872,7 @@ VBoxDbgStatsModel::createRootNode(void)
         return NULL;
     pRoot->iSelf = 0;
     pRoot->enmType = STAMTYPE_INVALID;
-    pRoot->enmUnit = STAMUNIT_INVALID;
+    pRoot->pszUnit = "";
     pRoot->pszName = (char *)RTMemDup("/", sizeof("/"));
     pRoot->cchName = 1;
     pRoot->enmState = kDbgGuiStatsNodeState_kRoot;
@@ -854,7 +892,7 @@ VBoxDbgStatsModel::createAndInsertNode(PDBGGUISTATSNODE pParent, const char *psz
         return NULL;
     pNode->iSelf = UINT32_MAX;
     pNode->enmType = STAMTYPE_INVALID;
-    pNode->enmUnit = STAMUNIT_INVALID;
+    pNode->pszUnit = "";
     pNode->pszName = (char *)RTMemDupEx(pszName, cchName, 1);
     pNode->cchName = cchName;
     pNode->enmState = kDbgGuiStatsNodeState_kVisible;
@@ -962,33 +1000,33 @@ VBoxDbgStatsModel::removeAndDestroy(PDBGGUISTATSNODE pNode)
 #if 1
         /* destroy the children first with the appropriate begin/endRemoveRows signals. */
         DBGGUISTATSSTACK    Stack;
-        Stack.a[0].pNode = pNode;
+        Stack.a[0].pNode  = pNode;
         Stack.a[0].iChild = -1;
         Stack.iTop = 0;
         while (Stack.iTop >= 0)
         {
             /* get top element */
-            PDBGGUISTATSNODE pNode  = Stack.a[Stack.iTop].pNode;
-            uint32_t         iChild = ++Stack.a[Stack.iTop].iChild;
-            if (iChild < pNode->cChildren)
+            PDBGGUISTATSNODE pCurNode = Stack.a[Stack.iTop].pNode;
+            uint32_t         iChild   = ++Stack.a[Stack.iTop].iChild;
+            if (iChild < pCurNode->cChildren)
             {
                 /* push */
                 Stack.iTop++;
                 Assert(Stack.iTop < (int32_t)RT_ELEMENTS(Stack.a));
-                Stack.a[Stack.iTop].pNode = pNode->papChildren[iChild];
+                Stack.a[Stack.iTop].pNode  = pCurNode->papChildren[iChild];
                 Stack.a[Stack.iTop].iChild = 0;
             }
             else
             {
                 /* pop and destroy all the children. */
                 Stack.iTop--;
-                uint32_t i = pNode->cChildren;
+                uint32_t i = pCurNode->cChildren;
                 if (i)
                 {
-                    beginRemoveRows(createIndex(pNode->iSelf, 0, pNode), 0, i - 1);
+                    beginRemoveRows(createIndex(pCurNode->iSelf, 0, pCurNode), 0, i - 1);
                     while (i-- > 0)
-                        destroyNode(pNode->papChildren[i]);
-                    pNode->cChildren = 0;
+                        destroyNode(pCurNode->papChildren[i]);
+                    pCurNode->cChildren = 0;
                     endRemoveRows();
                 }
             }
@@ -1037,12 +1075,13 @@ VBoxDbgStatsModel::resetNode(PDBGGUISTATSNODE pNode)
 
 
 /*static*/ int
-VBoxDbgStatsModel::initNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit, const char *pszDesc)
+VBoxDbgStatsModel::initNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample,
+                            const char *pszUnit, const char *pszDesc)
 {
     /*
      * Copy the data.
      */
-    pNode->enmUnit = enmUnit;
+    pNode->pszUnit = pszUnit;
     Assert(pNode->enmType == STAMTYPE_INVALID);
     pNode->enmType = enmType;
     if (pszDesc)
@@ -1116,9 +1155,8 @@ VBoxDbgStatsModel::initNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSa
 
 
 /*static*/ void
-VBoxDbgStatsModel::updateNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit, const char *pszDesc)
+VBoxDbgStatsModel::updateNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pvSample, const char *pszUnit, const char *pszDesc)
 {
-
     /*
      * Reset and init the node if the type changed.
      */
@@ -1126,7 +1164,7 @@ VBoxDbgStatsModel::updateNode(PDBGGUISTATSNODE pNode, STAMTYPE enmType, void *pv
     {
         if (pNode->enmType != STAMTYPE_INVALID)
             resetNode(pNode);
-        initNode(pNode, enmType, pvSample, enmUnit, pszDesc);
+        initNode(pNode, enmType, pvSample, pszUnit, pszDesc);
         pNode->enmState = kDbgGuiStatsNodeState_kRefresh;
     }
     else
@@ -1742,10 +1780,11 @@ VBoxDbgStatsModel::updateCallbackAdvance(PDBGGUISTATSNODE pNode)
 
 /*static*/ DECLCALLBACK(int)
 VBoxDbgStatsModel::updateCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
-                                  STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser)
+                                  const char *pszUnit, STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser)
 {
     VBoxDbgStatsModelVM *pThis = (VBoxDbgStatsModelVM *)pvUser;
     Log3(("updateCallback: %s\n", pszName));
+    RT_NOREF(enmUnit);
 
     /*
      * Skip the ones which shouldn't be visible in the GUI.
@@ -1783,7 +1822,7 @@ VBoxDbgStatsModel::updateCallback(const char *pszName, STAMTYPE enmType, void *p
     /*
      * Perform the update and advance to the next one.
      */
-    updateNode(pNode, enmType, pvSample, enmUnit, pszDesc);
+    updateNode(pNode, enmType, pvSample, pszUnit, pszDesc);
     pThis->updateCallbackAdvance(pNode);
 
     return VINF_SUCCESS;
@@ -1915,7 +1954,7 @@ VBoxDbgStatsModel::updateDone(bool a_fSuccess)
                     {
                         do  pNode->papChildren[iChild]->enmState = kDbgGuiStatsNodeState_kVisible;
                         while (   ++iChild < pNode->cChildren
-                                 && pNode->papChildren[iChild]->enmState == kDbgGuiStatsNodeState_kRefresh);
+                               && pNode->papChildren[iChild]->enmState == kDbgGuiStatsNodeState_kRefresh);
                         QModelIndex BottomRight = createIndex(iChild - 1, DBGGUI_STATS_COLUMNS - 1, pNode->papChildren[iChild - 1]);
 
                         /* emit the refresh signal */
@@ -1993,6 +2032,66 @@ VBoxDbgStatsModel::resetStatsByIndex(QModelIndex const &a_rIndex, bool fSubTree 
         }
 
         resetStatsByPattern(szPat);
+    }
+}
+
+
+void
+VBoxDbgStatsModel::iterateStatsByPattern(QString const &a_rPatStr, VBoxDbgStatsModel::FNITERATOR *a_pfnCallback, void *a_pvUser,
+                                         bool a_fMatchChildren /*= true*/)
+{
+    const QByteArray   &PatBytes   = a_rPatStr.toUtf8();
+    const char * const  pszPattern = PatBytes.constData();
+    size_t const        cchPattern = strlen(pszPattern);
+
+    DBGGUISTATSSTACK Stack;
+    Stack.a[0].pNode   = m_pRoot;
+    Stack.a[0].iChild  = 0;
+    Stack.a[0].cchName = 0;
+    Stack.iTop         = 0;
+
+    char szName[1024];
+    szName[0] = '\0';
+
+    while (Stack.iTop >= 0)
+    {
+        /* get top element */
+        PDBGGUISTATSNODE const pNode   = Stack.a[Stack.iTop].pNode;
+        uint16_t               cchName = Stack.a[Stack.iTop].cchName;
+        uint32_t const         iChild  = Stack.a[Stack.iTop].iChild++;
+        if (iChild < pNode->cChildren)
+        {
+            PDBGGUISTATSNODE pChild = pNode->papChildren[iChild];
+
+            /* Build the name and match the pattern. */
+            Assert(cchName + 1 + pChild->cchName < sizeof(szName));
+            szName[cchName++] = '/';
+            memcpy(&szName[cchName], pChild->pszName, pChild->cchName);
+            cchName += (uint16_t)pChild->cchName;
+            szName[cchName] = '\0';
+
+            if (RTStrSimplePatternMultiMatch(pszPattern, cchPattern, szName, cchName, NULL))
+            {
+                /* Do callback. */
+                QModelIndex const Index = createIndex(iChild, 0, pChild);
+                if (!a_pfnCallback(pChild, Index, szName, a_pvUser))
+                    return;
+                if (!a_fMatchChildren)
+                    continue;
+            }
+
+            /* push */
+            Stack.iTop++;
+            Assert(Stack.iTop < (int32_t)RT_ELEMENTS(Stack.a));
+            Stack.a[Stack.iTop].pNode   = pChild;
+            Stack.a[Stack.iTop].iChild  = 0;
+            Stack.a[Stack.iTop].cchName = cchName;
+        }
+        else
+        {
+            /* pop */
+            Stack.iTop--;
+        }
     }
 }
 
@@ -2148,9 +2247,7 @@ VBoxDbgStatsModel::headerData(int a_iSection, Qt::Orientation a_eOrientation, in
 /*static*/ QString
 VBoxDbgStatsModel::strUnit(PCDBGGUISTATSNODE pNode)
 {
-    if (pNode->enmUnit == STAMUNIT_INVALID)
-        return "";
-    return STAMR3GetUnit(pNode->enmUnit);
+    return pNode->pszUnit;
 }
 
 
@@ -2430,7 +2527,7 @@ VBoxDbgStatsModel::stringifyNodeNoRecursion(PDBGGUISTATSNODE a_pNode, QString &a
     switch (a_pNode->enmType)
     {
         case STAMTYPE_COUNTER:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8llu %s", a_pNode->Data.Counter.c, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8llu %s", a_pNode->Data.Counter.c, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_PROFILE:
@@ -2439,7 +2536,7 @@ VBoxDbgStatsModel::stringifyNodeNoRecursion(PDBGGUISTATSNODE a_pNode, QString &a
             uint64_t u64 = a_pNode->Data.Profile.cPeriods ? a_pNode->Data.Profile.cPeriods : 1;
             RTStrPrintf(szBuf, sizeof(szBuf),
                         "%8llu %s (%12llu ticks, %7llu times, max %9llu, min %7lld)",
-                        a_pNode->Data.Profile.cTicks / u64, STAMR3GetUnit(a_pNode->enmUnit),
+                        a_pNode->Data.Profile.cTicks / u64, a_pNode->pszUnit,
                         a_pNode->Data.Profile.cTicks, a_pNode->Data.Profile.cPeriods, a_pNode->Data.Profile.cTicksMax, a_pNode->Data.Profile.cTicksMin);
             break;
         }
@@ -2448,58 +2545,58 @@ VBoxDbgStatsModel::stringifyNodeNoRecursion(PDBGGUISTATSNODE a_pNode, QString &a
         case STAMTYPE_RATIO_U32_RESET:
             RTStrPrintf(szBuf, sizeof(szBuf),
                         "%8u:%-8u %s",
-                        a_pNode->Data.RatioU32.u32A, a_pNode->Data.RatioU32.u32B, STAMR3GetUnit(a_pNode->enmUnit));
+                        a_pNode->Data.RatioU32.u32A, a_pNode->Data.RatioU32.u32B, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_CALLBACK:
             if (a_pNode->Data.pStr)
                 a_rString += *a_pNode->Data.pStr;
-            RTStrPrintf(szBuf, sizeof(szBuf), " %s", STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), " %s", a_pNode->pszUnit);
             break;
 
         case STAMTYPE_U8:
         case STAMTYPE_U8_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8u %s", a_pNode->Data.u8, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8u %s", a_pNode->Data.u8, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_X8:
         case STAMTYPE_X8_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8x %s", a_pNode->Data.u8, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8x %s", a_pNode->Data.u8, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_U16:
         case STAMTYPE_U16_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8u %s", a_pNode->Data.u16, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8u %s", a_pNode->Data.u16, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_X16:
         case STAMTYPE_X16_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8x %s", a_pNode->Data.u16, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8x %s", a_pNode->Data.u16, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_U32:
         case STAMTYPE_U32_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8u %s", a_pNode->Data.u32, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8u %s", a_pNode->Data.u32, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_X32:
         case STAMTYPE_X32_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8x %s", a_pNode->Data.u32, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8x %s", a_pNode->Data.u32, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_U64:
         case STAMTYPE_U64_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8llu %s", a_pNode->Data.u64, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8llu %s", a_pNode->Data.u64, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_X64:
         case STAMTYPE_X64_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%8llx %s", a_pNode->Data.u64, STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%8llx %s", a_pNode->Data.u64, a_pNode->pszUnit);
             break;
 
         case STAMTYPE_BOOL:
         case STAMTYPE_BOOL_RESET:
-            RTStrPrintf(szBuf, sizeof(szBuf), "%s %s", a_pNode->Data.f ? "true    " : "false   ", STAMR3GetUnit(a_pNode->enmUnit));
+            RTStrPrintf(szBuf, sizeof(szBuf), "%s %s", a_pNode->Data.f ? "true    " : "false   ", a_pNode->pszUnit);
             break;
 
         default:
@@ -2596,8 +2693,8 @@ VBoxDbgStatsModel::logTree(QModelIndex &a_rRoot, bool a_fReleaseLog) const
  */
 
 
-VBoxDbgStatsModelVM::VBoxDbgStatsModelVM(VBoxDbgGui *a_pDbgGui, QString &a_rPatStr, QObject *a_pParent)
-    : VBoxDbgStatsModel(a_pParent), VBoxDbgBase(a_pDbgGui)
+VBoxDbgStatsModelVM::VBoxDbgStatsModelVM(VBoxDbgGui *a_pDbgGui, QString &a_rPatStr, QObject *a_pParent, PCVMMR3VTABLE a_pVMM)
+    : VBoxDbgStatsModel(a_pParent), VBoxDbgBase(a_pDbgGui), m_pVMM(a_pVMM)
 {
     /*
      * Create a model containing the STAM entries matching the pattern.
@@ -2640,10 +2737,11 @@ VBoxDbgStatsModelVM::resetStatsByPattern(QString const &a_rPatStr)
 
 /*static*/ DECLCALLBACK(int)
 VBoxDbgStatsModelVM::createNewTreeCallback(const char *pszName, STAMTYPE enmType, void *pvSample, STAMUNIT enmUnit,
-                                           STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser)
+                                           const char *pszUnit, STAMVISIBILITY enmVisibility, const char *pszDesc, void *pvUser)
 {
     PDBGGUISTATSNODE pRoot = (PDBGGUISTATSNODE)pvUser;
     Log3(("createNewTreeCallback: %s\n", pszName));
+    RT_NOREF(enmUnit);
 
     /*
      * Skip the ones which shouldn't be visible in the GUI.
@@ -2686,7 +2784,7 @@ VBoxDbgStatsModelVM::createNewTreeCallback(const char *pszName, STAMTYPE enmType
     /*
      * Save the data.
      */
-    return initNode(pNode, enmType, pvSample, enmUnit, pszDesc);
+    return initNode(pNode, enmType, pvSample, pszUnit, pszDesc);
 }
 
 
@@ -2870,12 +2968,40 @@ VBoxDbgStatsView::resizeColumnsToContent()
 }
 
 
+/*static*/ bool
+VBoxDbgStatsView::expandMatchingCallback(PDBGGUISTATSNODE pNode, QModelIndex const &a_rIndex,
+                                         const char *pszFullName, void *pvUser)
+{
+    VBoxDbgStatsView *pThis = (VBoxDbgStatsView *)pvUser;
+
+    pThis->setExpanded(a_rIndex, true);
+
+    QModelIndex ParentIndex = pThis->m_pModel->parent(a_rIndex);
+    while (ParentIndex.isValid() && !pThis->isExpanded(ParentIndex))
+    {
+        pThis->setExpanded(ParentIndex, true);
+        ParentIndex = pThis->m_pModel->parent(ParentIndex);
+    }
+
+    RT_NOREF(pNode, pszFullName);
+    return true;
+}
+
+
+void
+VBoxDbgStatsView::expandMatching(const QString &rPatStr)
+{
+    m_pModel->iterateStatsByPattern(rPatStr, expandMatchingCallback, this);
+}
+
+
 void
 VBoxDbgStatsView::setSubTreeExpanded(QModelIndex const &a_rIndex, bool a_fExpanded)
 {
     int cRows = m_pModel->rowCount(a_rIndex);
-    for (int i = 0; i < cRows; i++)
-        setSubTreeExpanded(a_rIndex.child(i, 0), a_fExpanded);
+    if (a_rIndex.model())
+        for (int i = 0; i < cRows; i++)
+            setSubTreeExpanded(a_rIndex.model()->index(i, 0, a_rIndex), a_fExpanded);
     setExpanded(a_rIndex, a_fExpanded);
 }
 
@@ -3038,9 +3164,10 @@ VBoxDbgStatsView::actAdjColumns()
  */
 
 
-VBoxDbgStats::VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszPat/* = NULL*/, unsigned uRefreshRate/* = 0*/, QWidget *pParent/* = NULL*/)
+VBoxDbgStats::VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszFilter /*= NULL*/, const char *pszExpand /*= NULL*/,
+                           unsigned uRefreshRate/* = 0*/, QWidget *pParent/* = NULL*/)
     : VBoxDbgBaseWindow(a_pDbgGui, pParent, "Statistics")
-    , m_PatStr(pszPat), m_pPatCB(NULL), m_uRefreshRate(0), m_pTimer(NULL), m_pView(NULL)
+    , m_PatStr(pszFilter), m_pPatCB(NULL), m_uRefreshRate(0), m_pTimer(NULL), m_pView(NULL)
 {
     /* Delete dialog on close: */
     setAttribute(Qt::WA_DeleteOnClose);
@@ -3056,7 +3183,7 @@ VBoxDbgStats::VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszPat/* = NULL*/,
     pLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
 
     m_pPatCB = new QComboBox();
-    m_pPatCB->setAutoCompletion(false);
+    m_pPatCB->setCompleter(0);
     pHLayout->addWidget(m_pPatCB);
     if (!m_PatStr.isEmpty())
         m_pPatCB->addItem(m_PatStr);
@@ -3089,7 +3216,7 @@ VBoxDbgStats::VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszPat/* = NULL*/,
     /*
      * Create the tree view and setup the layout.
      */
-    VBoxDbgStatsModelVM *pModel = new VBoxDbgStatsModelVM(a_pDbgGui, m_PatStr, NULL);
+    VBoxDbgStatsModelVM *pModel = new VBoxDbgStatsModelVM(a_pDbgGui, m_PatStr, NULL, a_pDbgGui->getVMMFunctionTable());
     m_pView = new VBoxDbgStatsView(a_pDbgGui, pModel, this);
 
     QWidget *pHBox = new QWidget;
@@ -3107,6 +3234,9 @@ VBoxDbgStats::VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszPat/* = NULL*/,
     m_pView->expandAll();
     m_pView->resizeColumnsToContent();
     m_pView->collapseAll();
+
+    if (pszExpand && *pszExpand)
+        m_pView->expandMatching(QString(pszExpand));
 
     /*
      * Create a refresh timer and start it.

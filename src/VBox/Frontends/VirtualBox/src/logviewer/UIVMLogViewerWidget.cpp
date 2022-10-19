@@ -4,18 +4,29 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
+#include <QCheckBox>
 #include <QDateTime>
 #include <QDir>
 #include <QFont>
@@ -24,6 +35,10 @@
 #include <QPlainTextEdit>
 #include <QScrollBar>
 #include <QStyle>
+#include <QStyleFactory>
+#include <QStylePainter>
+#include <QStyleOptionTab>
+#include <QTabBar>
 #include <QTextBlock>
 #include <QVBoxLayout>
 #ifdef RT_OS_SOLARIS
@@ -37,13 +52,15 @@
 #include "UIExtraDataManager.h"
 #include "UIIconPool.h"
 #include "UIMessageCenter.h"
+#include "UIVirtualMachineItem.h"
 #include "UIVMLogPage.h"
 #include "UIVMLogViewerWidget.h"
 #include "UIVMLogViewerBookmarksPanel.h"
 #include "UIVMLogViewerFilterPanel.h"
 #include "UIVMLogViewerSearchPanel.h"
 #include "UIVMLogViewerOptionsPanel.h"
-#include "UIToolBar.h"
+#include "QIToolBar.h"
+#include "QIToolButton.h"
 #include "UICommon.h"
 
 /* COM includes: */
@@ -51,16 +68,144 @@
 
 /** Limit the read string size to avoid bloated log viewer pages. */
 const ULONG uAllowedLogSize = _256M;
+
+class UILogTabCloseButton : public QIToolButton
+{
+    Q_OBJECT;
+
+public:
+
+    //UILogTabCloseButton(QWidget *pParent, const QUuid &uMachineId, const QString &strMachineName);
+    UILogTabCloseButton(QWidget *pParent, const QUuid &uMachineId)
+        : QIToolButton(pParent)
+        , m_uMachineId(uMachineId)
+    {
+        setAutoRaise(true);
+        setIcon(UIIconPool::iconSet(":/close_16px.png"));
+    }
+
+    const QUuid &machineId() const
+    {
+        return m_uMachineId;
+    }
+
+protected:
+
+    QUuid m_uMachineId;
+};
+/*********************************************************************************************************************************
+*   UILabelTab definition.                                                                                        *
+*********************************************************************************************************************************/
+
+class UILabelTab : public UIVMLogTab
+{
+
+    Q_OBJECT;
+
+public:
+
+    UILabelTab(QWidget *pParent, const QUuid &uMachineId, const QString &strMachineName);
+
+protected:
+
+    void retranslateUi();
+};
+
+/*********************************************************************************************************************************
+*   UITabBar definition.                                                                                        *
+*********************************************************************************************************************************/
+/** A QTabBar extention to be able to override paintEvent for custom tab coloring. */
+class UITabBar : public QTabBar
+{
+
+    Q_OBJECT;
+
+public:
+
+    UITabBar(QWidget *pParent = 0);
+
+protected:
+
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
+};
+
+/*********************************************************************************************************************************
+*   UITabWidget definition.                                                                                        *
+*********************************************************************************************************************************/
+
+/** A QITabWidget used only for setTabBar since it is protected. */
+class UITabWidget : public QITabWidget
+{
+
+    Q_OBJECT;
+
+public:
+
+    UITabWidget(QWidget *pParent = 0);
+};
+
+/*********************************************************************************************************************************
+*   UILabelTab implementation.                                                                                        *
+*********************************************************************************************************************************/
+
+UILabelTab::UILabelTab(QWidget *pParent, const QUuid &uMachineId, const QString &strMachineName)
+    : UIVMLogTab(pParent, uMachineId, strMachineName)
+{
+}
+
+void UILabelTab::retranslateUi()
+{
+}
+
+/*********************************************************************************************************************************
+*   UITabBar implementation.                                                                                        *
+*********************************************************************************************************************************/
+
+UITabBar::UITabBar(QWidget *pParent /* = 0 */)
+    :QTabBar(pParent)
+{
+}
+
+void UITabBar::paintEvent(QPaintEvent *pEvent)
+{
+    Q_UNUSED(pEvent);
+    QStylePainter painter(this);
+    for (int i = 0; i < count(); i++)
+    {
+        QStyleOptionTab opt;
+        initStyleOption(&opt, i);
+        bool fLabelTab = tabData(i).toBool();
+
+        if (!fLabelTab)
+            painter.drawControl(QStyle::CE_TabBarTabShape, opt);
+        painter.drawControl(QStyle::CE_TabBarTabLabel, opt);
+    }
+}
+
+/*********************************************************************************************************************************
+*   UITabWidget implementation.                                                                                        *
+*********************************************************************************************************************************/
+
+UITabWidget::UITabWidget(QWidget *pParent /* = 0 */)
+    :QITabWidget(pParent)
+{
+    setTabBar(new UITabBar(this));
+}
+
+
+/*********************************************************************************************************************************
+*   UIVMLogViewerWidget implementation.                                                                                          *
+*********************************************************************************************************************************/
+
 UIVMLogViewerWidget::UIVMLogViewerWidget(EmbedTo enmEmbedding,
                                          UIActionPool *pActionPool,
                                          bool fShowToolbar /* = true */,
-                                         const CMachine &comMachine /* = CMachine() */,
+                                         const QUuid &uMachineId /* = QUuid() */,
                                          QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QWidget>(pParent)
     , m_enmEmbedding(enmEmbedding)
     , m_pActionPool(pActionPool)
     , m_fShowToolbar(fShowToolbar)
-    , m_comMachine(comMachine)
     , m_fIsPolished(false)
     , m_pTabWidget(0)
     , m_pSearchPanel(0)
@@ -72,16 +217,21 @@ UIVMLogViewerWidget::UIVMLogViewerWidget(EmbedTo enmEmbedding,
     , m_bShowLineNumbers(true)
     , m_bWrapLines(false)
     , m_font(QFontDatabase::systemFont(QFontDatabase::FixedFont))
+    , m_pCornerButton(0)
+    , m_pMachineSelectionMenu(0)
+    , m_fCommitDataSignalReceived(false)
 {
     /* Prepare VM Log-Viewer: */
     prepare();
     restorePanelVisibility();
+    if (!uMachineId.isNull())
+        setMachines(QVector<QUuid>() << uMachineId);
+    connect(&uiCommon(), &UICommon::sigAskToCommitData,
+            this, &UIVMLogViewerWidget::sltCommitDataSignalReceived);
 }
 
 UIVMLogViewerWidget::~UIVMLogViewerWidget()
 {
-    /* Cleanup VM Log-Viewer: */
-    cleanup();
 }
 
 int UIVMLogViewerWidget::defaultLogPageWidth() const
@@ -97,7 +247,11 @@ int UIVMLogViewerWidget::defaultLogPageWidth() const
     if (!pBrowser)
         return 0;
     /* Compute a width for 132 characters plus scrollbar and frame width: */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    int iDefaultWidth = pBrowser->fontMetrics().horizontalAdvance(QChar('x')) * 132 +
+#else
     int iDefaultWidth = pBrowser->fontMetrics().width(QChar('x')) * 132 +
+#endif
                         pBrowser->verticalScrollBar()->width() +
                         pBrowser->frameWidth() * 2;
 
@@ -109,12 +263,111 @@ QMenu *UIVMLogViewerWidget::menu() const
     return m_pActionPool->action(UIActionIndex_M_LogWindow)->menu();
 }
 
-void UIVMLogViewerWidget::setMachine(const CMachine &comMachine)
+
+void UIVMLogViewerWidget::setSelectedVMListItems(const QList<UIVirtualMachineItem*> &items)
 {
-    if (comMachine == m_comMachine)
+    QVector<QUuid> selectedMachines;
+
+    foreach (const UIVirtualMachineItem *item, items)
+    {
+        if (!item)
+            continue;
+        selectedMachines << item->id();
+    }
+    setMachines(selectedMachines);
+}
+
+void UIVMLogViewerWidget::addSelectedVMListItems(const QList<UIVirtualMachineItem*> &items)
+{
+    QVector<QUuid> selectedMachines(m_machines);
+
+    foreach (const UIVirtualMachineItem *item, items)
+    {
+        if (!item)
+            continue;
+        selectedMachines << item->id();
+    }
+    setMachines(selectedMachines);
+}
+
+void UIVMLogViewerWidget::setMachines(const QVector<QUuid> &machineIDs)
+{
+    /* List of machines that are newly added to selected machine list: */
+    QVector<QUuid> newSelections;
+    QVector<QUuid> unselectedMachines(m_machines);
+
+    foreach (const QUuid &id, machineIDs)
+    {
+        unselectedMachines.removeAll(id);
+        if (!m_machines.contains(id))
+            newSelections << id;
+    }
+    m_machines = machineIDs;
+
+    m_pTabWidget->hide();
+    /* Read logs and create pages/tabs for newly selected machines: */
+    createLogViewerPages(newSelections);
+    /* Remove the log pages/tabs of unselected machines from the tab widget: */
+    removeLogViewerPages(unselectedMachines);
+    /* Assign color indexes to tabs based on machines. We use two alternating colors to indicate different machine logs. */
+    markLabelTabs();
+    labelTabHandler();
+    m_pTabWidget->show();
+}
+
+void UIVMLogViewerWidget::markLabelTabs()
+{
+    if (!m_pTabWidget || !m_pTabWidget->tabBar() || m_pTabWidget->tabBar()->count() == 0)
         return;
-    m_comMachine = comMachine;
-    sltRefresh();
+    QTabBar *pTabBar = m_pTabWidget->tabBar();
+
+    for (int i = 0; i < pTabBar->count(); ++i)
+    {
+        if (qobject_cast<UILabelTab*>(m_pTabWidget->widget(i)))
+        {
+            pTabBar->setTabData(i, true);
+            /* Add close button only for dialog mode in manager UI. */
+            if (uiCommon().uiType() == UICommon::UIType_SelectorUI && m_enmEmbedding == EmbedTo_Dialog)
+            {
+                UIVMLogTab *pTab = logTab(i);
+                if (pTab)
+                {
+                    UILogTabCloseButton *pCloseButton = new UILogTabCloseButton(0, pTab->machineId());
+                    pCloseButton->setIcon(UIIconPool::iconSet(":/close_16px.png"));
+                    pTabBar->setTabButton(i, QTabBar::RightSide, pCloseButton);
+                    pCloseButton->setToolTip(tr("Close this machine's logs"));
+                    connect(pCloseButton, &UILogTabCloseButton::clicked, this, &UIVMLogViewerWidget::sltTabCloseButtonClick);
+                }
+            }
+        }
+        else
+        {
+            pTabBar->setTabData(i, false);
+        }
+
+    }
+}
+
+QString UIVMLogViewerWidget::readLogFile(CMachine &comMachine, int iLogFileId)
+{
+    QString strLogFileContent;
+    ULONG uOffset = 0;
+
+    while (true)
+    {
+        QVector<BYTE> data = comMachine.ReadLog(iLogFileId, uOffset, _1M);
+        if (data.size() == 0)
+            break;
+        strLogFileContent.append(QString::fromUtf8((char*)data.data(), data.size()));
+        uOffset += data.size();
+        /* Don't read futher if we have reached the allowed size limit: */
+        if (uOffset >= uAllowedLogSize)
+        {
+            strLogFileContent.append("\n=========Log file has been truncated as it is too large.======");
+            break;
+        }
+    }
+    return strLogFileContent;
 }
 
 QFont UIVMLogViewerWidget::currentFont() const
@@ -130,92 +383,78 @@ bool UIVMLogViewerWidget::shouldBeMaximized() const
     return gEDataManager->logWindowShouldBeMaximized();
 }
 
+void UIVMLogViewerWidget::saveOptions()
+{
+    if (!m_fCommitDataSignalReceived)
+        gEDataManager->setLogViweverOptions(m_font, m_bWrapLines, m_bShowLineNumbers);
+}
+
+void UIVMLogViewerWidget::savePanelVisibility()
+{
+    if (m_fCommitDataSignalReceived)
+        return;
+    /* Save a list of currently visible panels: */
+    QStringList strNameList;
+    foreach(UIDialogPanel* pPanel, m_visiblePanelsList)
+        strNameList.append(pPanel->panelName());
+    gEDataManager->setLogViewerVisiblePanels(strNameList);
+}
+
 void UIVMLogViewerWidget::sltRefresh()
 {
     if (!m_pTabWidget)
         return;
-    /* Disconnect this connection to avoid initial signals during page creation/deletion: */
-    disconnect(m_pTabWidget, &QITabWidget::currentChanged, m_pFilterPanel, &UIVMLogViewerFilterPanel::applyFilter);
-    disconnect(m_pTabWidget, &QITabWidget::currentChanged, this, &UIVMLogViewerWidget::sltTabIndexChange);
 
-    m_logPageList.clear();
-    m_pTabWidget->setEnabled(true);
-    int currentTabIndex = m_pTabWidget->currentIndex();
-    /* Hide the container widget during updates to avoid flickering: */
-    m_pTabWidget->hide();
-    QVector<QVector<LogBookmark> > logPageBookmarks;
-    /* Clear the tab widget. This might be an overkill but most secure way to deal with the case where
-       number of the log files changes. Store the bookmark vectors before deleting the pages*/
-    while (m_pTabWidget->count())
-    {
-        QWidget *pFirstPage = m_pTabWidget->widget(0);
-        UIVMLogPage *pLogPage = qobject_cast<UIVMLogPage*>(pFirstPage);
-        if (pLogPage)
-            logPageBookmarks.push_back(pLogPage->bookmarkVector());
-        m_pTabWidget->removeTab(0);
-        delete pFirstPage;
-    }
+    UIVMLogPage *pCurrentPage = currentLogPage();
+    if (!pCurrentPage || pCurrentPage->logFileId() == -1)
+        return;
 
-    bool noLogsToShow = createLogViewerPages();
+    CMachine comMachine = uiCommon().virtualBox().FindMachine(pCurrentPage->machineId().toString());
+    if (comMachine.isNull())
+        return;
 
-    /* Apply the filter settings: */
-    if (m_pFilterPanel)
-        m_pFilterPanel->applyFilter();
+    QString strLogContent = readLogFile(comMachine, pCurrentPage->logFileId());
+    pCurrentPage->setLogContent(strLogContent, false);
 
-    /* Restore the bookmarks: */
-    if (!noLogsToShow)
-    {
-        for (int i = 0; i <  m_pTabWidget->count(); ++i)
-        {
-            UIVMLogPage *pLogPage = qobject_cast<UIVMLogPage*>(m_pTabWidget->widget(i));
-            if (pLogPage && i < logPageBookmarks.size())
-                pLogPage->setBookmarkVector(logPageBookmarks[i]);
-        }
-    }
-
-    /* Setup this connection after refresh to avoid initial signals during page creation: */
-    if (m_pFilterPanel)
-        connect(m_pTabWidget, &QITabWidget::currentChanged, m_pFilterPanel, &UIVMLogViewerFilterPanel::applyFilter);
-    connect(m_pTabWidget, &QITabWidget::currentChanged, this, &UIVMLogViewerWidget::sltTabIndexChange);
-
-    /* Show the first tab widget's page after the refresh: */
-    int tabIndex = (currentTabIndex < m_pTabWidget->count()) ? currentTabIndex : 0;
-    m_pTabWidget->setCurrentIndex(tabIndex);
-    sltTabIndexChange(tabIndex);
-
-    /* Enable/Disable toolbar actions (except Refresh) & tab widget according log presence: */
-    m_pActionPool->action(UIActionIndex_M_Log_T_Find)->setEnabled(!noLogsToShow);
-    m_pActionPool->action(UIActionIndex_M_Log_T_Filter)->setEnabled(!noLogsToShow);
-    m_pActionPool->action(UIActionIndex_M_Log_S_Save)->setEnabled(!noLogsToShow);
-    m_pActionPool->action(UIActionIndex_M_Log_T_Bookmark)->setEnabled(!noLogsToShow);
-    m_pActionPool->action(UIActionIndex_M_Log_T_Options)->setEnabled(!noLogsToShow);
-
-    m_pTabWidget->show();
     if (m_pSearchPanel && m_pSearchPanel->isVisible())
         m_pSearchPanel->refresh();
 
-    /* If there are no log files to show the hide all the open panels: */
-    if (noLogsToShow)
-    {
-        for (QMap<UIDialogPanel*, QAction*>::iterator iterator = m_panelActionMap.begin();
-            iterator != m_panelActionMap.end(); ++iterator)
-        {
-            if (iterator.key())
-            hidePanel(iterator.key());
-        }
-    }
+    /* Re-Apply the filter settings: */
+    if (m_pFilterPanel)
+        m_pFilterPanel->applyFilter();
+}
+
+void UIVMLogViewerWidget::sltReload()
+{
+    if (!m_pTabWidget)
+        return;
+
+    m_pTabWidget->blockSignals(true);
+    m_pTabWidget->hide();
+
+    removeAllLogPages();
+    createLogViewerPages(m_machines);
+
+    /* re-Apply the filter settings: */
+    if (m_pFilterPanel)
+        m_pFilterPanel->applyFilter();
+
+    m_pTabWidget->blockSignals(false);
+    markLabelTabs();
+    m_pTabWidget->show();
 }
 
 void UIVMLogViewerWidget::sltSave()
 {
-    if (m_comMachine.isNull())
+    UIVMLogPage *pLogPage = currentLogPage();
+    if (!pLogPage)
         return;
 
-    UIVMLogPage *logPage = currentLogPage();
-    if (!logPage)
+    CMachine comMachine = uiCommon().virtualBox().FindMachine(pLogPage->machineId().toString());
+    if (comMachine.isNull())
         return;
 
-    const QString& fileName = logPage->logFileName();
+    const QString& fileName = pLogPage->logFileName();
     if (fileName.isEmpty())
         return;
     /* Prepare "save as" dialog: */
@@ -223,7 +462,7 @@ void UIVMLogViewerWidget::sltSave()
     /* Prepare default filename: */
     const QDateTime dtInfo = fileInfo.lastModified();
     const QString strDtString = dtInfo.toString("yyyy-MM-dd-hh-mm-ss");
-    const QString strDefaultFileName = QString("%1-%2.log").arg(m_comMachine.GetName()).arg(strDtString);
+    const QString strDefaultFileName = QString("%1-%2.log").arg(comMachine.GetName()).arg(strDtString);
     const QString strDefaultFullName = QDir::toNativeSeparators(QDir::home().absolutePath() + "/" + strDefaultFileName);
 
     const QString strNewFileName = QIFileDialog::getSaveFileName(strDefaultFullName,
@@ -240,29 +479,29 @@ void UIVMLogViewerWidget::sltSave()
         if (QFile::exists(strNewFileName))
             QFile::remove(strNewFileName);
         /* Copy log into the file: */
-        QFile::copy(m_comMachine.QueryLogFilename(m_pTabWidget->currentIndex()), strNewFileName);
+        QFile::copy(comMachine.QueryLogFilename(m_pTabWidget->currentIndex()), strNewFileName);
     }
 }
 
 void UIVMLogViewerWidget::sltDeleteBookmark(int index)
 {
-    UIVMLogPage* logPage = currentLogPage();
-    if (!logPage)
+    UIVMLogPage* pLogPage = currentLogPage();
+    if (!pLogPage)
         return;
-    logPage->deleteBookmark(index);
+    pLogPage->deleteBookmark(index);
     if (m_pBookmarksPanel)
-        m_pBookmarksPanel->updateBookmarkList(logPage->bookmarkVector());
+        m_pBookmarksPanel->updateBookmarkList(pLogPage->bookmarkVector());
 }
 
 void UIVMLogViewerWidget::sltDeleteAllBookmarks()
 {
-    UIVMLogPage* logPage = currentLogPage();
-    if (!logPage)
+    UIVMLogPage* pLogPage = currentLogPage();
+    if (!pLogPage)
         return;
-    logPage->deleteAllBookmarks();
+    pLogPage->deleteAllBookmarks();
 
     if (m_pBookmarksPanel)
-        m_pBookmarksPanel->updateBookmarkList(logPage->bookmarkVector());
+        m_pBookmarksPanel->updateBookmarkList(pLogPage->bookmarkVector());
 }
 
 void UIVMLogViewerWidget::sltUpdateBookmarkPanel()
@@ -313,24 +552,25 @@ void UIVMLogViewerWidget::sltHandleSearchUpdated()
         return;
 }
 
-void UIVMLogViewerWidget::sltTabIndexChange(int tabIndex)
+void UIVMLogViewerWidget::sltCurrentTabChanged(int tabIndex)
 {
     Q_UNUSED(tabIndex);
-
+    if (labelTabHandler())
+        return;
     /* Dont refresh the search here as it is refreshed by the filtering mechanism
-       which is updated as tab current index changes: */
+       which is updated as tab current index changes (see sltFilterApplied): */
+    if (m_pFilterPanel)
+        m_pFilterPanel->applyFilter();
 
     /* We keep a separate QVector<LogBookmark> for each log page: */
     if (m_pBookmarksPanel && currentLogPage())
         m_pBookmarksPanel->updateBookmarkList(currentLogPage()->bookmarkVector());
 }
 
-void UIVMLogViewerWidget::sltFilterApplied(bool isOriginal)
+void UIVMLogViewerWidget::sltFilterApplied()
 {
-    if (currentLogPage())
-        currentLogPage()->setFiltered(!isOriginal);
     /* Reapply the search to get highlighting etc. correctly */
-    if (m_pSearchPanel && m_pSearchPanel->isVisible())
+    if (m_pSearchPanel)
         m_pSearchPanel->refresh();
 }
 
@@ -347,6 +587,11 @@ void UIVMLogViewerWidget::sltHandleHidePanel(UIDialogPanel *pPanel)
     hidePanel(pPanel);
 }
 
+void UIVMLogViewerWidget::sltHandleShowPanel(UIDialogPanel *pPanel)
+{
+    showPanel(pPanel);
+}
+
 void UIVMLogViewerWidget::sltShowLineNumbers(bool bShowLineNumbers)
 {
     if (m_bShowLineNumbers == bShowLineNumbers)
@@ -354,12 +599,13 @@ void UIVMLogViewerWidget::sltShowLineNumbers(bool bShowLineNumbers)
 
     m_bShowLineNumbers = bShowLineNumbers;
     /* Set all log page instances. */
-    for (int i = 0; i < m_logPageList.size(); ++i)
+    for (int i = 0; m_pTabWidget && (i <  m_pTabWidget->count()); ++i)
     {
-        UIVMLogPage* pLogPage = qobject_cast<UIVMLogPage*>(m_logPageList[i]);
+        UIVMLogPage* pLogPage = logPage(i);
         if (pLogPage)
             pLogPage->setShowLineNumbers(m_bShowLineNumbers);
     }
+    saveOptions();
 }
 
 void UIVMLogViewerWidget::sltWrapLines(bool bWrapLines)
@@ -369,12 +615,13 @@ void UIVMLogViewerWidget::sltWrapLines(bool bWrapLines)
 
     m_bWrapLines = bWrapLines;
     /* Set all log page instances. */
-    for (int i = 0; i < m_logPageList.size(); ++i)
+    for (int i = 0; m_pTabWidget && (i <  m_pTabWidget->count()); ++i)
     {
-        UIVMLogPage* pLogPage = qobject_cast<UIVMLogPage*>(m_logPageList[i]);
+        UIVMLogPage* pLogPage = logPage(i);
         if (pLogPage)
             pLogPage->setWrapLines(m_bWrapLines);
     }
+    saveOptions();
 }
 
 void UIVMLogViewerWidget::sltFontSizeChanged(int fontSize)
@@ -382,12 +629,13 @@ void UIVMLogViewerWidget::sltFontSizeChanged(int fontSize)
     if (m_font.pointSize() == fontSize)
         return;
     m_font.setPointSize(fontSize);
-    for (int i = 0; i < m_logPageList.size(); ++i)
+    for (int i = 0; m_pTabWidget && (i <  m_pTabWidget->count()); ++i)
     {
-        UIVMLogPage* pLogPage = qobject_cast<UIVMLogPage*>(m_logPageList[i]);
+        UIVMLogPage* pLogPage = logPage(i);
         if (pLogPage)
             pLogPage->setCurrentFont(m_font);
     }
+    saveOptions();
 }
 
 void UIVMLogViewerWidget::sltChangeFont(QFont font)
@@ -395,12 +643,13 @@ void UIVMLogViewerWidget::sltChangeFont(QFont font)
     if (m_font == font)
         return;
     m_font = font;
-    for (int i = 0; i < m_logPageList.size(); ++i)
+    for (int i = 0; m_pTabWidget && (i <  m_pTabWidget->count()); ++i)
     {
-        UIVMLogPage* pLogPage = qobject_cast<UIVMLogPage*>(m_logPageList[i]);
+        UIVMLogPage* pLogPage = logPage(i);
         if (pLogPage)
             pLogPage->setCurrentFont(m_font);
     }
+    saveOptions();
 }
 
 void UIVMLogViewerWidget::sltResetOptionsToDefault()
@@ -415,6 +664,37 @@ void UIVMLogViewerWidget::sltResetOptionsToDefault()
         m_pOptionsPanel->setWrapLines(false);
         m_pOptionsPanel->setFontSizeInPoints(m_font.pointSize());
     }
+    saveOptions();
+}
+
+void UIVMLogViewerWidget::sltCloseMachineLogs()
+{
+    QAction *pAction = qobject_cast<QAction*>(sender());
+    if (!pAction)
+        return;
+    QUuid machineId = pAction->data().toUuid();
+    if (machineId.isNull())
+        return;
+    QVector<QUuid> machineList;
+    machineList << machineId;
+    removeLogViewerPages(machineList);
+}
+
+void UIVMLogViewerWidget::sltTabCloseButtonClick()
+{
+    UILogTabCloseButton *pButton = qobject_cast<UILogTabCloseButton*>(sender());
+    if (!pButton)
+        return;
+    if (pButton->machineId().isNull())
+        return;
+    QVector<QUuid> list;
+    list << pButton->machineId();
+    removeLogViewerPages(list);
+}
+
+void UIVMLogViewerWidget::sltCommitDataSignalReceived()
+{
+    m_fCommitDataSignalReceived = true;
 }
 
 void UIVMLogViewerWidget::prepare()
@@ -430,10 +710,9 @@ void UIVMLogViewerWidget::prepare()
     /* Apply language settings: */
     retranslateUi();
 
-    /* Reading log files: */
-    sltRefresh();
     /* Setup escape shortcut: */
     manageEscapeShortCut();
+    uiCommon().setHelpKeyword(this, "log-viewer");
 }
 
 void UIVMLogViewerWidget::prepareActions()
@@ -457,6 +736,8 @@ void UIVMLogViewerWidget::prepareActions()
             this, &UIVMLogViewerWidget::sltPanelActionToggled);
     connect(m_pActionPool->action(UIActionIndex_M_Log_S_Refresh), &QAction::triggered,
             this, &UIVMLogViewerWidget::sltRefresh);
+    connect(m_pActionPool->action(UIActionIndex_M_Log_S_Reload), &QAction::triggered,
+            this, &UIVMLogViewerWidget::sltReload);
     connect(m_pActionPool->action(UIActionIndex_M_Log_S_Save), &QAction::triggered,
             this, &UIVMLogViewerWidget::sltSave);
 }
@@ -480,11 +761,12 @@ void UIVMLogViewerWidget::prepareWidgets()
             prepareToolBar();
 
         /* Create VM Log-Viewer container: */
-        m_pTabWidget = new QITabWidget;
+        m_pTabWidget = new UITabWidget;
         if (m_pTabWidget)
         {
             /* Add into layout: */
             m_pMainLayout->addWidget(m_pTabWidget);
+            connect(m_pTabWidget, &QITabWidget::currentChanged, this, &UIVMLogViewerWidget::sltCurrentTabChanged);
         }
 
         /* Create VM Log-Viewer search-panel: */
@@ -500,6 +782,8 @@ void UIVMLogViewerWidget::prepareWidgets()
                     this, &UIVMLogViewerWidget::sltHandleSearchUpdated);
             connect(m_pSearchPanel, &UIVMLogViewerSearchPanel::sigHidePanel,
                     this, &UIVMLogViewerWidget::sltHandleHidePanel);
+            connect(m_pSearchPanel, &UIVMLogViewerSearchPanel::sigShowPanel,
+                    this, &UIVMLogViewerWidget::sltHandleShowPanel);
             m_panelActionMap.insert(m_pSearchPanel, m_pActionPool->action(UIActionIndex_M_Log_T_Find));
 
             /* Add into layout: */
@@ -517,6 +801,8 @@ void UIVMLogViewerWidget::prepareWidgets()
                     this, &UIVMLogViewerWidget::sltFilterApplied);
             connect(m_pFilterPanel, &UIVMLogViewerFilterPanel::sigHidePanel,
                     this, &UIVMLogViewerWidget::sltHandleHidePanel);
+           connect(m_pFilterPanel, &UIVMLogViewerFilterPanel::sigShowPanel,
+                    this, &UIVMLogViewerWidget::sltHandleShowPanel);
             m_panelActionMap.insert(m_pFilterPanel, m_pActionPool->action(UIActionIndex_M_Log_T_Filter));
 
             /* Add into layout: */
@@ -538,7 +824,8 @@ void UIVMLogViewerWidget::prepareWidgets()
             m_panelActionMap.insert(m_pBookmarksPanel, m_pActionPool->action(UIActionIndex_M_Log_T_Bookmark));
             connect(m_pBookmarksPanel, &UIVMLogViewerBookmarksPanel::sigHidePanel,
                     this, &UIVMLogViewerWidget::sltHandleHidePanel);
-
+            connect(m_pBookmarksPanel, &UIVMLogViewerBookmarksPanel::sigShowPanel,
+                    this, &UIVMLogViewerWidget::sltHandleShowPanel);
             /* Add into layout: */
             m_pMainLayout->addWidget(m_pBookmarksPanel);
         }
@@ -558,6 +845,7 @@ void UIVMLogViewerWidget::prepareWidgets()
             connect(m_pOptionsPanel, &UIVMLogViewerOptionsPanel::sigChangeFont, this, &UIVMLogViewerWidget::sltChangeFont);
             connect(m_pOptionsPanel, &UIVMLogViewerOptionsPanel::sigResetToDefaults, this, &UIVMLogViewerWidget::sltResetOptionsToDefault);
             connect(m_pOptionsPanel, &UIVMLogViewerOptionsPanel::sigHidePanel, this, &UIVMLogViewerWidget::sltHandleHidePanel);
+            connect(m_pOptionsPanel, &UIVMLogViewerOptionsPanel::sigShowPanel, this, &UIVMLogViewerWidget::sltHandleShowPanel);
 
             m_panelActionMap.insert(m_pOptionsPanel, m_pActionPool->action(UIActionIndex_M_Log_T_Options));
 
@@ -570,7 +858,7 @@ void UIVMLogViewerWidget::prepareWidgets()
 void UIVMLogViewerWidget::prepareToolBar()
 {
     /* Create toolbar: */
-    m_pToolBar = new UIToolBar(parentWidget());
+    m_pToolBar = new QIToolBar(parentWidget());
     if (m_pToolBar)
     {
         /* Configure toolbar: */
@@ -587,6 +875,7 @@ void UIVMLogViewerWidget::prepareToolBar()
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndex_M_Log_T_Options));
         m_pToolBar->addSeparator();
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndex_M_Log_S_Refresh));
+        m_pToolBar->addAction(m_pActionPool->action(UIActionIndex_M_Log_S_Reload));
 
 #ifdef VBOX_WS_MAC
         /* Check whether we are embedded into a stack: */
@@ -636,22 +925,6 @@ void UIVMLogViewerWidget::restorePanelVisibility()
     }
 }
 
-void UIVMLogViewerWidget::saveOptions()
-{
-    /* Save a list of currently visible panels: */
-    QStringList strNameList;
-    foreach(UIDialogPanel* pPanel, m_visiblePanelsList)
-        strNameList.append(pPanel->panelName());
-    gEDataManager->setLogViewerVisiblePanels(strNameList);
-    gEDataManager->setLogViweverOptions(m_font, m_bWrapLines, m_bShowLineNumbers);
-}
-
-void UIVMLogViewerWidget::cleanup()
-{
-    /* Save options: */
-    saveOptions();
-}
-
 void UIVMLogViewerWidget::retranslateUi()
 {
     /* Translate toolbar: */
@@ -664,6 +937,8 @@ void UIVMLogViewerWidget::retranslateUi()
     if (m_pToolBar)
         m_pToolBar->updateLayout();
 #endif
+    if (m_pCornerButton)
+        m_pCornerButton->setToolTip(tr("Select machines to show their log"));
 }
 
 void UIVMLogViewerWidget::showEvent(QShowEvent *pEvent)
@@ -713,24 +988,30 @@ void UIVMLogViewerWidget::keyPressEvent(QKeyEvent *pEvent)
     QWidget::keyPressEvent(pEvent);
 }
 
-QPlainTextEdit* UIVMLogViewerWidget::logPage(int pIndex) const
+QVector<UIVMLogTab*> UIVMLogViewerWidget::logTabs()
 {
-    if (!m_pTabWidget->isEnabled())
-        return 0;
-    QWidget* pContainer = m_pTabWidget->widget(pIndex);
-    if (!pContainer)
-        return 0;
-    QPlainTextEdit *pBrowser = pContainer->findChild<QPlainTextEdit*>();
-    return pBrowser;
+    QVector<UIVMLogTab*> tabs;
+    if (m_pTabWidget)
+        return tabs;
+    for (int i = 0; i < m_pTabWidget->count(); ++i)
+    {
+        UIVMLogTab *pPage = logTab(i);
+        if (pPage)
+            tabs << pPage;
+    }
+    return tabs;
 }
 
-void UIVMLogViewerWidget::createLogPage(const QString &strFileName, const QString &strLogContent, bool noLogsToShow /* = false */)
+void UIVMLogViewerWidget::createLogPage(const QString &strFileName,
+                                        const QString &strMachineName,
+                                        const QUuid &machineId, int iLogFileId,
+                                        const QString &strLogContent, bool noLogsToShow)
 {
     if (!m_pTabWidget)
         return;
 
     /* Create page-container: */
-    UIVMLogPage* pLogPage = new UIVMLogPage();
+    UIVMLogPage* pLogPage = new UIVMLogPage(this, machineId, strMachineName);
     if (pLogPage)
     {
         connect(pLogPage, &UIVMLogPage::sigBookmarksUpdated, this, &UIVMLogViewerWidget::sltUpdateBookmarkPanel);
@@ -739,114 +1020,150 @@ void UIVMLogViewerWidget::createLogPage(const QString &strFileName, const QStrin
         pLogPage->setShowLineNumbers(m_bShowLineNumbers);
         pLogPage->setWrapLines(m_bWrapLines);
         pLogPage->setCurrentFont(m_font);
-
+        pLogPage->setLogFileId(iLogFileId);
         /* Set the file name only if we really have log file to read. */
         if (!noLogsToShow)
             pLogPage->setLogFileName(strFileName);
 
-        /* Add page-container to viewer-container: */
-        int tabIndex = m_pTabWidget->insertTab(m_pTabWidget->count(), pLogPage, QFileInfo(strFileName).fileName());
+        int iIndex = m_pTabWidget->addTab(pLogPage, QFileInfo(strFileName).fileName());
+        /* !!Hack alert. Setting html to text edit while th tab is not current ends up in an empty text edit: */
+        if (noLogsToShow)
+            m_pTabWidget->setCurrentIndex(iIndex);
 
-        pLogPage->setTabIndex(tabIndex);
-        m_logPageList.resize(m_pTabWidget->count());
-        m_logPageList[tabIndex] = pLogPage;
-
-        /* Set text edit since we want to display this text: */
-        if (!noLogsToShow)
-        {
-            pLogPage->setTextEditText(strLogContent);
-            /* Set the log string of the UIVMLogPage: */
-            pLogPage->setLogString(strLogContent);
-        }
-        /* In case there are some errors append the error text as html: */
-        else
-        {
-            pLogPage->setTextEditTextAsHtml(strLogContent);
-            pLogPage->markForError();
-        }
+        pLogPage->setLogContent(strLogContent, noLogsToShow);
         pLogPage->setScrollBarMarkingsVector(m_pSearchPanel->matchLocationVector());
     }
 }
 
 const UIVMLogPage *UIVMLogViewerWidget::currentLogPage() const
 {
-    int currentTabIndex = m_pTabWidget->currentIndex();
-    if (currentTabIndex >= m_logPageList.size())
+    if (!m_pTabWidget)
         return 0;
-    return qobject_cast<const UIVMLogPage*>(m_logPageList.at(currentTabIndex));
+    return qobject_cast<const UIVMLogPage*>(m_pTabWidget->currentWidget());
 }
 
 UIVMLogPage *UIVMLogViewerWidget::currentLogPage()
 {
-    int currentTabIndex = m_pTabWidget->currentIndex();
-    if (currentTabIndex >= m_logPageList.size() || currentTabIndex == -1)
+    if (!m_pTabWidget)
         return 0;
-
-    return qobject_cast<UIVMLogPage*>(m_logPageList.at(currentTabIndex));
+    return qobject_cast<UIVMLogPage*>(m_pTabWidget->currentWidget());
 }
 
-bool UIVMLogViewerWidget::createLogViewerPages()
+UIVMLogTab *UIVMLogViewerWidget::logTab(int iIndex)
 {
-    bool noLogsToShow = false;
+    if (!m_pTabWidget)
+        return 0;
+    return qobject_cast<UIVMLogTab*>(m_pTabWidget->widget(iIndex));
+}
 
-    QString strDummyTabText;
-    /* check if the machine is valid: */
-    if (m_comMachine.isNull())
-    {
-        noLogsToShow = true;
-        strDummyTabText = QString(tr("<p><b>No machine</b> is currently selected or the selected machine is not valid. "
-                                     "Please select a Virtual Machine to see its logs"));
-    }
+UIVMLogPage *UIVMLogViewerWidget::logPage(int iIndex)
+{
+    if (!m_pTabWidget)
+        return 0;
+    return qobject_cast<UIVMLogPage*>(m_pTabWidget->widget(iIndex));
+}
+
+void UIVMLogViewerWidget::createLogViewerPages(const QVector<QUuid> &machineList)
+{
+    if (!m_pTabWidget)
+        return;
+    m_pTabWidget->blockSignals(true);
 
     const CSystemProperties &sys = uiCommon().virtualBox().GetSystemProperties();
     unsigned cMaxLogs = sys.GetLogHistoryCount() + 1 /*VBox.log*/ + 1 /*VBoxHardening.log*/; /** @todo Add api for getting total possible log count! */
-    bool logFileRead = false;
-    for (unsigned i = 0; i < cMaxLogs && !noLogsToShow; ++i)
+    foreach (const QUuid &machineId, machineList)
     {
-        /* Query the log file name for index i: */
-        QString strFileName = m_comMachine.QueryLogFilename(i);
-        if (!strFileName.isEmpty())
+        CMachine comMachine = uiCommon().virtualBox().FindMachine(machineId.toString());
+        if (comMachine.isNull())
+            continue;
+
+        QUuid uMachineId = comMachine.GetId();
+        QString strMachineName = comMachine.GetName();
+
+        if (uiCommon().uiType() == UICommon::UIType_SelectorUI)
+            m_pTabWidget->addTab(new UILabelTab(this, uMachineId, strMachineName), strMachineName);
+
+        bool fNoLogFileForMachine = true;
+        for (unsigned iLogFileId = 0; iLogFileId < cMaxLogs; ++iLogFileId)
         {
-            /* Try to read the log file with the index i: */
-            ULONG uOffset = 0;
-            QString strText;
-            while (true)
+            QString strLogContent = readLogFile(comMachine, iLogFileId);
+            if (!strLogContent.isEmpty())
             {
-                QVector<BYTE> data = m_comMachine.ReadLog(i, uOffset, _1M);
-                if (data.size() == 0)
-                    break;
-                strText.append(QString::fromUtf8((char*)data.data(), data.size()));
-                uOffset += data.size();
-                /* Don't read futher if we have reached the allowed size limit: */
-                if (uOffset >= uAllowedLogSize)
-                {
-                    strText.append("\n=========Log file has been truncate as it is too large.======");
-                    break;
-                }
-            }
-            /* Anything read at all? */
-            if (uOffset > 0)
-            {
-                logFileRead = true;
-                createLogPage(strFileName, strText);
+                fNoLogFileForMachine = false;
+                createLogPage(comMachine.QueryLogFilename(iLogFileId),
+                              strMachineName,
+                              uMachineId, iLogFileId,
+                              strLogContent, false);
             }
         }
+        if (fNoLogFileForMachine)
+        {
+            QString strDummyTabText = QString(tr("<p>No log files for the machine %1 found. Press the "
+                                                 "<b>Reload</b> button to reload the log folder "
+                                                 "<nobr><b>%2</b></nobr>.</p>")
+                                              .arg(strMachineName).arg(comMachine.GetLogFolder()));
+            createLogPage(QString("NoLogFile"), strMachineName, uMachineId, -1 /* iLogFileId */, strDummyTabText, true);
+        }
     }
-    if (!noLogsToShow && !logFileRead)
-    {
-        noLogsToShow = true;
-        strDummyTabText = QString(tr("<p>No log files found. Press the "
-                                     "<b>Refresh</b> button to rescan the log folder "
-                                     "<nobr><b>%1</b></nobr>.</p>")
-                                     .arg(m_comMachine.GetLogFolder()));
-    }
+    m_pTabWidget->blockSignals(false);
+    labelTabHandler();
+}
 
-    /* if noLogsToShow then ceate a single log page with an error message: */
-    if (noLogsToShow)
+void UIVMLogViewerWidget::removeLogViewerPages(const QVector<QUuid> &machineList)
+{
+    /* Nothing to do: */
+    if (machineList.isEmpty() || !m_pTabWidget)
+        return;
+
+    QVector<QUuid> currentMachineList(m_machines);
+    /* Make sure that we remove the machine(s) from our machine list: */
+    foreach (const QUuid &id, machineList)
+        currentMachineList.removeAll(id);
+    if (currentMachineList.isEmpty())
+        return;
+    m_machines = currentMachineList;
+
+    m_pTabWidget->blockSignals(true);
+    /* Cache log page pointers and tab titles: */
+    QVector<QPair<UIVMLogTab*, QString> > logTabs;
+    for (int i = 0; i < m_pTabWidget->count(); ++i)
     {
-        createLogPage("No Logs", strDummyTabText, noLogsToShow);
+        UIVMLogTab *pTab = logTab(i);
+        if (pTab)
+            logTabs << QPair<UIVMLogTab*, QString>(pTab, m_pTabWidget->tabText(i));
     }
-    return noLogsToShow;
+    /* Remove all the tabs from tab widget, note that this does not delete tab widgets: */
+    m_pTabWidget->clear();
+    QVector<UIVMLogTab*> pagesToRemove;
+    /* Add tab widgets (log pages) back as long as machine id is not in machineList: */
+    for (int i = 0; i < logTabs.size(); ++i)
+    {
+        if (!logTabs[i].first)
+            continue;
+        const QUuid &id = logTabs[i].first->machineId();
+
+        if (machineList.contains(id))
+            pagesToRemove << logTabs[i].first;
+        else
+            m_pTabWidget->addTab(logTabs[i].first, logTabs[i].second);
+    }
+    /* Delete all the other pages: */
+    qDeleteAll(pagesToRemove.begin(), pagesToRemove.end());
+    m_pTabWidget->blockSignals(false);
+    labelTabHandler();
+    markLabelTabs();
+}
+
+void UIVMLogViewerWidget::removeAllLogPages()
+{
+    if (!m_pTabWidget)
+        return;
+
+    QVector<QWidget*> pagesToRemove;
+    for (int i = 0; i < m_pTabWidget->count(); ++i)
+        pagesToRemove << m_pTabWidget->widget(i);
+    m_pTabWidget->clear();
+    qDeleteAll(pagesToRemove.begin(), pagesToRemove.end());
 }
 
 void UIVMLogViewerWidget::resetHighlighthing()
@@ -861,7 +1178,7 @@ void UIVMLogViewerWidget::resetHighlighthing()
 
 void UIVMLogViewerWidget::hidePanel(UIDialogPanel* panel)
 {
-    if (!panel)
+    if (!panel || !m_pActionPool)
         return;
     if (panel->isVisible())
         panel->setVisible(false);
@@ -873,6 +1190,7 @@ void UIVMLogViewerWidget::hidePanel(UIDialogPanel* panel)
     }
     m_visiblePanelsList.removeOne(panel);
     manageEscapeShortCut();
+    savePanelVisibility();
 }
 
 void UIVMLogViewerWidget::showPanel(UIDialogPanel* panel)
@@ -888,6 +1206,7 @@ void UIVMLogViewerWidget::showPanel(UIDialogPanel* panel)
     if (!m_visiblePanelsList.contains(panel))
         m_visiblePanelsList.push_back(panel);
     manageEscapeShortCut();
+    savePanelVisibility();
 }
 
 void UIVMLogViewerWidget::manageEscapeShortCut()
@@ -908,3 +1227,14 @@ void UIVMLogViewerWidget::manageEscapeShortCut()
     }
     m_visiblePanelsList.back()->setCloseButtonShortCut(QKeySequence(Qt::Key_Escape));
 }
+
+bool UIVMLogViewerWidget::labelTabHandler()
+{
+    if (!m_pTabWidget || !qobject_cast<UILabelTab*>(m_pTabWidget->currentWidget()))
+        return false;
+    if (m_pTabWidget->currentIndex() < m_pTabWidget->count() - 1)
+        m_pTabWidget->setCurrentIndex(m_pTabWidget->currentIndex() + 1);
+    return true;
+}
+
+#include "UIVMLogViewerWidget.moc"

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -78,9 +88,9 @@ extern kern_return_t _start(struct kmod_info *pKModInfo, void *pvData);
 extern kern_return_t _stop(struct kmod_info *pKModInfo, void *pvData);
 
 KMOD_EXPLICIT_DECL(VBoxSF, VBOX_VERSION_STRING, _start, _stop)
-DECLHIDDEN(kmod_start_func_t *) _realmain      = vboxSfDwnModuleLoad;
-DECLHIDDEN(kmod_stop_func_t *)  _antimain      = vboxSfDwnModuleUnload;
-DECLHIDDEN(int)                 _kext_apple_cc = __APPLE_CC__;
+DECL_HIDDEN_DATA(kmod_start_func_t *) _realmain      = vboxSfDwnModuleLoad;
+DECL_HIDDEN_DATA(kmod_stop_func_t *)  _antimain      = vboxSfDwnModuleUnload;
+DECL_HIDDEN_DATA(int)                 _kext_apple_cc = __APPLE_CC__;
 RT_C_DECLS_END
 
 

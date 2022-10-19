@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2020 Oracle Corporation
+ * Copyright (C) 2020-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <iprt/assert.h>
@@ -48,7 +58,9 @@ static void tstPaths(RTTEST hTest)
      * Paths handling.
      */
     RTTEST_CHECK_RC_OK(hTest, DnDTransferObjectInitEx(&Obj, DNDTRANSFEROBJTYPE_FILE, "", "/rel/path/to/dst"));
+    RTTestDisableAssertions(hTest);
     RTTEST_CHECK_RC   (hTest, DnDTransferObjectInitEx(&Obj, DNDTRANSFEROBJTYPE_FILE, "", "/rel/path/to/dst"), VERR_WRONG_ORDER);
+    RTTestRestoreAssertions(hTest);
     DnDTransferObjectReset(&Obj);
 
     RTTEST_CHECK_RC_OK(hTest, DnDTransferObjectInitEx(&Obj, DNDTRANSFEROBJTYPE_FILE, "/src/path1", "dst/path2"));
@@ -82,8 +94,10 @@ static void tstPaths(RTTEST hTest)
      * Invalid stuff.
      */
     DnDTransferObjectReset(&Obj);
+    RTTestDisableAssertions(hTest);
     RTTEST_CHECK(hTest, DnDTransferObjectInitEx(&Obj, DNDTRANSFEROBJTYPE_DIRECTORY, "/src/path3", "../../dst/path3") == VERR_INVALID_PARAMETER);
     RTTEST_CHECK(hTest, DnDTransferObjectInitEx(&Obj, DNDTRANSFEROBJTYPE_DIRECTORY, "/src/../../path3", "dst/path3") == VERR_INVALID_PARAMETER);
+    RTTestRestoreAssertions(hTest);
 
     /*
      * Reset handling.

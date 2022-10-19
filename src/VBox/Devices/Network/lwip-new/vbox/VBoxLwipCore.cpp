@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /**
@@ -45,7 +55,8 @@ extern "C" {
 #include "lwip/tcpip.h"
 }
 
-typedef struct {
+typedef struct LWIPCOREUSERCALLBACK
+{
     PFNRT1 pfn;
     void *pvUser;
 } LWIPCOREUSERCALLBACK, *PLWIPCOREUSERCALLBACK;
@@ -63,9 +74,9 @@ static LWIPCORE g_LwipCore;
 
 
 /**
- * @note: this function executes on TCPIP thread.
+ * @note this function executes on TCPIP thread.
  */
-static void lwipCoreUserCallback(void *pvArg)
+static void lwipCoreUserCallback(void *pvArg) RT_NOTHROW_DEF
 {
     LogFlowFunc(("ENTER: pvArg:%p\n", pvArg));
 
@@ -80,9 +91,9 @@ static void lwipCoreUserCallback(void *pvArg)
 
 
 /**
- * @note: this function executes on TCPIP thread.
+ * @note this function executes on TCPIP thread.
  */
-static void lwipCoreInitDone(void *pvArg)
+static void lwipCoreInitDone(void *pvArg) RT_NOTHROW_DEF
 {
     LogFlowFunc(("ENTER: pvArg:%p\n", pvArg));
 
@@ -94,9 +105,9 @@ static void lwipCoreInitDone(void *pvArg)
 
 
 /**
- * @note: this function executes on TCPIP thread.
+ * @note this function executes on TCPIP thread.
  */
-static void lwipCoreFiniDone(void *pvArg)
+static void lwipCoreFiniDone(void *pvArg) RT_NOTHROW_DEF
 {
     LogFlowFunc(("ENTER: pvArg:%p\n", pvArg));
 

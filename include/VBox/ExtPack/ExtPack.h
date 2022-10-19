@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_ExtPack_ExtPack_h
@@ -46,6 +56,9 @@ VBOXEXTPACK_IF_CS(IConsole);
 VBOXEXTPACK_IF_CS(IMachine);
 VBOXEXTPACK_IF_CS(IVirtualBox);
 VBOXEXTPACK_IF_CS(IProgress);
+VBOXEXTPACK_IF_CS(IEvent);
+VBOXEXTPACK_IF_CS(IVetoEvent);
+VBOXEXTPACK_IF_CS(IEventSource);
 
 /**
  * Module kind for use with VBOXEXTPACKHLP::pfnFindModule.
@@ -312,6 +325,39 @@ typedef struct VBOXEXTPACKHLP
     DECLR3CALLBACKMEMBER(uint32_t, pfnCompleteProgress,(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IProgress) *pProgress,
                                                         uint32_t uResultCode));
 
+
+    DECLR3CALLBACKMEMBER(uint32_t, pfnCreateEvent,(PCVBOXEXTPACKHLP pHlp,
+                                                   VBOXEXTPACK_IF_CS(IEventSource) *aSource,
+                                                   /* VBoxEventType_T */ uint32_t aType, bool aWaitable,
+                                                   VBOXEXTPACK_IF_CS(IEvent) **ppEventOut));
+
+    DECLR3CALLBACKMEMBER(uint32_t, pfnCreateVetoEvent,(PCVBOXEXTPACKHLP pHlp,
+                                                       VBOXEXTPACK_IF_CS(IEventSource) *aSource,
+                                                       /* VBoxEventType_T */ uint32_t aType,
+                                                       VBOXEXTPACK_IF_CS(IVetoEvent) **ppEventOut));
+
+    /**
+     * Translate the string using registered translation files.
+     *
+     * Translation files are excluded from translation engine. Although
+     * the already loaded translation remains in the translation cache the new
+     * translation will not be loaded after returning from the function if the
+     * user changes the language.
+     *
+     * @returns Translated string on success the pszSourceText otherwise.
+     * @param   pHlp                      Pointer to this helper structure.
+     * @param   aComponent                Translation context e.g. class name
+     * @param   pszSourceText             String to translate
+     * @param   pszComment                Comment to the string to resolve possible ambiguities
+     *                                    (NULL means no comment).
+     * @param   aNum                      Number used to define plural form of the translation
+     */
+    DECLR3CALLBACKMEMBER(const char *, pfnTranslate,(PCVBOXEXTPACKHLP pHlp,
+                                                     const char  *pszComponent,
+                                                     const char  *pszSourceText,
+                                                     const char  *pszComment,
+                                                     const size_t aNum));
+
     DECLR3CALLBACKMEMBER(int, pfnReserved1,(PCVBOXEXTPACKHLP pHlp)); /**< Reserved for minor structure revisions. */
     DECLR3CALLBACKMEMBER(int, pfnReserved2,(PCVBOXEXTPACKHLP pHlp)); /**< Reserved for minor structure revisions. */
     DECLR3CALLBACKMEMBER(int, pfnReserved3,(PCVBOXEXTPACKHLP pHlp)); /**< Reserved for minor structure revisions. */
@@ -326,7 +372,7 @@ typedef struct VBOXEXTPACKHLP
     uint32_t                    u32EndMarker;
 } VBOXEXTPACKHLP;
 /** Current version of the VBOXEXTPACKHLP structure.  */
-#define VBOXEXTPACKHLP_VERSION          RT_MAKE_U32(0, 3)
+#define VBOXEXTPACKHLP_VERSION          RT_MAKE_U32(0, 5)
 
 
 /** Pointer to the extension pack callback table. */
@@ -345,6 +391,8 @@ typedef struct VBOXEXTPACKREG
     uint32_t                    u32Version;
     /** The VirtualBox version this extension pack was built against.  */
     uint32_t                    uVBoxVersion;
+    /** Translation files base name. Set to NULL if no translation files. */
+    const char                 *pszNlsBaseName;
 
     /**
      * Hook for doing setups after the extension pack was installed.
@@ -359,8 +407,8 @@ typedef struct VBOXEXTPACKREG
      * @param   pVirtualBox The VirtualBox interface.
      * @param   pErrInfo    Where to return extended error information.
      */
-    DECLCALLBACKMEMBER(int, pfnInstalled)(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox,
-                                          PRTERRINFO pErrInfo);
+    DECLCALLBACKMEMBER(int, pfnInstalled,(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox,
+                                          PRTERRINFO pErrInfo));
 
     /**
      * Hook for cleaning up before the extension pack is uninstalled.
@@ -372,7 +420,7 @@ typedef struct VBOXEXTPACKREG
      * @todo    This is currently called holding locks making pVirtualBox
      *          relatively unusable.
      */
-    DECLCALLBACKMEMBER(int, pfnUninstall)(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox);
+    DECLCALLBACKMEMBER(int, pfnUninstall,(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox));
 
     /**
      * Hook for doing work after the VirtualBox object is ready.
@@ -380,7 +428,7 @@ typedef struct VBOXEXTPACKREG
      * @param   pThis       Pointer to this structure.
      * @param   pVirtualBox The VirtualBox interface.
      */
-    DECLCALLBACKMEMBER(void, pfnVirtualBoxReady)(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox);
+    DECLCALLBACKMEMBER(void, pfnVirtualBoxReady,(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox));
 
     /**
      * Hook for doing work before unloading.
@@ -391,7 +439,7 @@ typedef struct VBOXEXTPACKREG
      * @remarks This is not called on uninstall, then pfnUninstall will be the
      *          last callback.
      */
-    DECLCALLBACKMEMBER(void, pfnUnload)(PCVBOXEXTPACKREG pThis);
+    DECLCALLBACKMEMBER(void, pfnUnload,(PCVBOXEXTPACKREG pThis));
 
     /**
      * Hook for changing the default VM configuration upon creation.
@@ -401,8 +449,8 @@ typedef struct VBOXEXTPACKREG
      * @param   pVirtualBox The VirtualBox interface.
      * @param   pMachine    The machine interface.
      */
-    DECLCALLBACKMEMBER(int, pfnVMCreated)(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox,
-                                          VBOXEXTPACK_IF_CS(IMachine) *pMachine);
+    DECLCALLBACKMEMBER(int, pfnVMCreated,(PCVBOXEXTPACKREG pThis, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox,
+                                          VBOXEXTPACK_IF_CS(IMachine) *pMachine));
 
     /**
      * Query the IUnknown interface to an object in the main module.
@@ -411,7 +459,7 @@ typedef struct VBOXEXTPACKREG
      * @param   pThis       Pointer to this structure.
      * @param   pObjectId   Pointer to the object ID (UUID).
      */
-    DECLCALLBACKMEMBER(void *, pfnQueryObject)(PCVBOXEXTPACKREG pThis, PCRTUUID pObjectId);
+    DECLCALLBACKMEMBER(void *, pfnQueryObject,(PCVBOXEXTPACKREG pThis, PCRTUUID pObjectId));
 
     DECLR3CALLBACKMEMBER(int, pfnReserved1,(PCVBOXEXTPACKREG pThis)); /**< Reserved for minor structure revisions. */
     DECLR3CALLBACKMEMBER(int, pfnReserved2,(PCVBOXEXTPACKREG pThis)); /**< Reserved for minor structure revisions. */
@@ -427,7 +475,7 @@ typedef struct VBOXEXTPACKREG
     uint32_t                    u32EndMarker;
 } VBOXEXTPACKREG;
 /** Current version of the VBOXEXTPACKREG structure.  */
-#define VBOXEXTPACKREG_VERSION        RT_MAKE_U32(0, 2)
+#define VBOXEXTPACKREG_VERSION        RT_MAKE_U32(0, 3)
 
 
 /**
@@ -446,7 +494,7 @@ typedef struct VBOXEXTPACKREG
  *                          (i.e. use some static const data for it).
  * @param   pErrInfo        Where to return extended error information.
  */
-typedef DECLCALLBACK(int) FNVBOXEXTPACKREGISTER(PCVBOXEXTPACKHLP pHlp, PCVBOXEXTPACKREG *ppReg, PRTERRINFO pErrInfo);
+typedef DECLCALLBACKTYPE(int, FNVBOXEXTPACKREGISTER,(PCVBOXEXTPACKHLP pHlp, PCVBOXEXTPACKREG *ppReg, PRTERRINFO pErrInfo));
 /** Pointer to a FNVBOXEXTPACKREGISTER. */
 typedef FNVBOXEXTPACKREGISTER *PFNVBOXEXTPACKREGISTER;
 
@@ -470,6 +518,8 @@ typedef struct VBOXEXTPACKVMREG
     uint32_t                    u32Version;
     /** The VirtualBox version this extension pack was built against.  */
     uint32_t                    uVBoxVersion;
+    /** Translation files base name.  Set to NULL if no translation files.  */
+    const char                 *pszNlsBaseName;
 
     /**
      * Hook for doing work after the Console object is ready.
@@ -477,7 +527,7 @@ typedef struct VBOXEXTPACKVMREG
      * @param   pThis       Pointer to this structure.
      * @param   pConsole    The Console interface.
      */
-    DECLCALLBACKMEMBER(void, pfnConsoleReady)(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole);
+    DECLCALLBACKMEMBER(void, pfnConsoleReady,(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole));
 
     /**
      * Hook for doing work before unloading.
@@ -486,7 +536,7 @@ typedef struct VBOXEXTPACKVMREG
      *
      * @remarks The helpers are not available at this point in time.
      */
-    DECLCALLBACKMEMBER(void, pfnUnload)(PCVBOXEXTPACKVMREG pThis);
+    DECLCALLBACKMEMBER(void, pfnUnload,(PCVBOXEXTPACKVMREG pThis));
 
     /**
      * Hook for configuring the VMM for a VM.
@@ -495,8 +545,10 @@ typedef struct VBOXEXTPACKVMREG
      * @param   pThis       Pointer to this structure.
      * @param   pConsole    The console interface.
      * @param   pVM         The cross context VM structure.
+     * @param   pVMM        The VMM function table.
      */
-    DECLCALLBACKMEMBER(int, pfnVMConfigureVMM)(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole, PVM pVM);
+    DECLCALLBACKMEMBER(int, pfnVMConfigureVMM,(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole,
+                                               PVM pVM, PCVMMR3VTABLE pVMM));
 
     /**
      * Hook for doing work right before powering on the VM.
@@ -505,8 +557,10 @@ typedef struct VBOXEXTPACKVMREG
      * @param   pThis       Pointer to this structure.
      * @param   pConsole    The console interface.
      * @param   pVM         The cross context VM structure.
+     * @param   pVMM        The VMM function table.
      */
-    DECLCALLBACKMEMBER(int, pfnVMPowerOn)(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole, PVM pVM);
+    DECLCALLBACKMEMBER(int, pfnVMPowerOn,(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole,
+                                          PVM pVM, PCVMMR3VTABLE pVMM));
 
     /**
      * Hook for doing work after powering off the VM.
@@ -514,8 +568,10 @@ typedef struct VBOXEXTPACKVMREG
      * @param   pThis       Pointer to this structure.
      * @param   pConsole    The console interface.
      * @param   pVM         The cross context VM structure. Can be NULL.
+     * @param   pVMM        The VMM function table.
      */
-    DECLCALLBACKMEMBER(void, pfnVMPowerOff)(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole, PVM pVM);
+    DECLCALLBACKMEMBER(void, pfnVMPowerOff,(PCVBOXEXTPACKVMREG pThis, VBOXEXTPACK_IF_CS(IConsole) *pConsole,
+                                            PVM pVM, PCVMMR3VTABLE pVMM));
 
     /**
      * Query the IUnknown interface to an object in the main VM module.
@@ -524,7 +580,7 @@ typedef struct VBOXEXTPACKVMREG
      * @param   pThis       Pointer to this structure.
      * @param   pObjectId   Pointer to the object ID (UUID).
      */
-    DECLCALLBACKMEMBER(void *, pfnQueryObject)(PCVBOXEXTPACKVMREG pThis, PCRTUUID pObjectId);
+    DECLCALLBACKMEMBER(void *, pfnQueryObject,(PCVBOXEXTPACKVMREG pThis, PCRTUUID pObjectId));
 
     DECLR3CALLBACKMEMBER(int, pfnReserved1,(PCVBOXEXTPACKVMREG pThis)); /**< Reserved for minor structure revisions. */
     DECLR3CALLBACKMEMBER(int, pfnReserved2,(PCVBOXEXTPACKVMREG pThis)); /**< Reserved for minor structure revisions. */
@@ -540,7 +596,7 @@ typedef struct VBOXEXTPACKVMREG
     uint32_t                    u32EndMarker;
 } VBOXEXTPACKVMREG;
 /** Current version of the VBOXEXTPACKVMREG structure.  */
-#define VBOXEXTPACKVMREG_VERSION      RT_MAKE_U32(0, 2)
+#define VBOXEXTPACKVMREG_VERSION      RT_MAKE_U32(1, 0)
 
 
 /**
@@ -559,7 +615,7 @@ typedef struct VBOXEXTPACKVMREG
  *                          (i.e. use some static const data for it).
  * @param   pErrInfo        Where to return extended error information.
  */
-typedef DECLCALLBACK(int) FNVBOXEXTPACKVMREGISTER(PCVBOXEXTPACKHLP pHlp, PCVBOXEXTPACKVMREG *ppReg, PRTERRINFO pErrInfo);
+typedef DECLCALLBACKTYPE(int, FNVBOXEXTPACKVMREGISTER,(PCVBOXEXTPACKHLP pHlp, PCVBOXEXTPACKVMREG *ppReg, PRTERRINFO pErrInfo));
 /** Pointer to a FNVBOXEXTPACKVMREGISTER. */
 typedef FNVBOXEXTPACKVMREGISTER *PFNVBOXEXTPACKVMREGISTER;
 

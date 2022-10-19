@@ -4,21 +4,32 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
 #include <QAction>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemDelegate>
 #include <QGridLayout>
@@ -30,17 +41,18 @@
 #include "QIDialogButtonBox.h"
 #include "QILabel.h"
 #include "QILineEdit.h"
+#include "QIToolBar.h"
 #include "QIToolButton.h"
-#include "UICommon.h"
 #include "UIActionPool.h"
+#include "UICommon.h"
 #include "UICustomFileSystemModel.h"
 #include "UIErrorString.h"
+#include "UIFileManager.h"
 #include "UIFileManagerGuestTable.h"
 #include "UIFileManagerTable.h"
-#include "UIFileManager.h"
 #include "UIIconPool.h"
 #include "UIPathOperations.h"
-#include "UIToolBar.h"
+#include "UITranslator.h"
 
 /* COM includes: */
 #include "CFsObjInfo.h"
@@ -65,7 +77,7 @@ public:
 
     UIFileManagerHistoryComboBox(QWidget *pParent = 0);
     /** Emit sigHidePopup as the popup is hidded. */
-    virtual void hidePopup() /* override */;
+    virtual void hidePopup() RT_OVERRIDE;
 };
 
 
@@ -87,7 +99,7 @@ public:
 
 protected:
 
-    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+    virtual void resizeEvent(QResizeEvent *pEvent) RT_OVERRIDE;
 
 private:
 
@@ -177,6 +189,11 @@ class UIFileDelegate : public QItemDelegate
 
     Q_OBJECT;
 
+public:
+
+    UIFileDelegate(QObject *pParent)
+        : QItemDelegate(pParent){}
+
 protected:
 
     virtual void drawFocus ( QPainter * /*painter*/, const QStyleOptionViewItem & /*option*/, const QRect & /*rect*/ ) const {}
@@ -195,7 +212,7 @@ class UIStringInputDialog : public QIDialog
 
 public:
 
-    UIStringInputDialog(QWidget *pParent = 0, Qt::WindowFlags flags = 0);
+    UIStringInputDialog(QWidget *pParent = 0, Qt::WindowFlags enmFlags = Qt::WindowFlags());
     QString getString() const;
 
 private:
@@ -216,7 +233,7 @@ class UIFileDeleteConfirmationDialog : public QIDialog
 
 public:
 
-    UIFileDeleteConfirmationDialog(QWidget *pParent = 0, Qt::WindowFlags flags = 0);
+    UIFileDeleteConfirmationDialog(QWidget *pParent = 0, Qt::WindowFlags enmFlags = Qt::WindowFlags());
     /** Returns whether m_pAskNextTimeCheckBox is checked or not. */
     bool askDeleteConfirmationNextTime() const;
 
@@ -283,11 +300,19 @@ void UIFileManagerNavigationWidget::reset()
 {
     if (m_pHistoryComboBox)
     {
+#ifdef VBOX_IS_QT6_OR_LATER
+        disconnect(m_pHistoryComboBox, static_cast<void(QComboBox::*)(const QString&)>(&QComboBox::currentTextChanged),
+                   this, &UIFileManagerNavigationWidget::sltHandlePathChange);
+        m_pHistoryComboBox->clear();
+        connect(m_pHistoryComboBox, static_cast<void(QComboBox::*)(const QString&)>(&QComboBox::currentTextChanged),
+                this, &UIFileManagerNavigationWidget::sltHandlePathChange);
+#else
         disconnect(m_pHistoryComboBox, static_cast<void(QComboBox::*)(const QString&)>(&QComboBox::currentIndexChanged),
                    this, &UIFileManagerNavigationWidget::sltHandlePathChange);
         m_pHistoryComboBox->clear();
         connect(m_pHistoryComboBox, static_cast<void(QComboBox::*)(const QString&)>(&QComboBox::currentIndexChanged),
                 this, &UIFileManagerNavigationWidget::sltHandlePathChange);
+#endif
     }
 
     if (m_pBreadCrumbs)
@@ -322,8 +347,13 @@ void UIFileManagerNavigationWidget::prepare()
                     this, &UIFileManagerNavigationWidget::sltHandlePathChange);
             connect(m_pHistoryComboBox, &UIFileManagerHistoryComboBox::sigHidePopup,
                     this, &UIFileManagerNavigationWidget::sltHandleHidePopup);
+#ifdef VBOX_IS_QT6_OR_LATER
+            connect(m_pHistoryComboBox, static_cast<void(QComboBox::*)(const QString&)>(&QComboBox::currentTextChanged),
+                    this, &UIFileManagerNavigationWidget::sltHandlePathChange);
+#else
             connect(m_pHistoryComboBox, static_cast<void(QComboBox::*)(const QString&)>(&QComboBox::currentIndexChanged),
                     this, &UIFileManagerNavigationWidget::sltHandlePathChange);
+#endif
 
             m_pContainer->addWidget(m_pBreadCrumbs);
             m_pContainer->addWidget(m_pHistoryComboBox);
@@ -384,7 +414,7 @@ UIFileManagerBreadCrumbs::UIFileManagerBreadCrumbs(QWidget *pParent /* = 0 */)
     :QLabel(pParent)
     , m_pathSeparator('/')
 {
-    float fFontMult = 1.2f;
+    float fFontMult = 1.f;
     QFont mFont = font();
     if (mFont.pixelSize() == -1)
         mFont.setPointSize(fFontMult * mFont.pointSize());
@@ -395,10 +425,10 @@ UIFileManagerBreadCrumbs::UIFileManagerBreadCrumbs(QWidget *pParent /* = 0 */)
     setFrameShape(QFrame::Box);
     setLineWidth(1);
     setAutoFillBackground(true);
-    QPalette newPalette = palette();
-    newPalette.setColor(QPalette::Background, qApp->palette().color(QPalette::Light));
-    setPalette(newPalette);
-    /* Allow the labe become smaller than the current text. calling setpath in resizeEvent truncated the text anyway: */
+    QPalette pal = QApplication::palette();
+    pal.setColor(QPalette::Active, QPalette::Window, pal.color(QPalette::Active, QPalette::Base));
+    setPalette(pal);
+    /* Allow the label become smaller than the current text. calling setpath in resizeEvent truncated the text anyway: */
     setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
 }
 
@@ -435,16 +465,24 @@ void UIFileManagerBreadCrumbs::setPath(const QString &strPath)
     {
         QString strFolder = UIPathOperations::removeTrailingDelimiters(folderList.at(i)).replace('/', m_pathSeparator);
         QString strWord = QString("<a href=\"%1\" style=\"color:black;text-decoration:none;\">%2</a>").arg(strPathUpto[i]).arg(strFolder);
+
         if (i < folderList.size() - 1)
         {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+            iWidth += fontMetrics().horizontalAdvance(" > ");
+#else
             iWidth += fontMetrics().width(" > ");
+#endif
             strWord.append("<b> > </b>");
         }
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+        iWidth += fontMetrics().horizontalAdvance(strFolder);
+#else
         iWidth += fontMetrics().width(strFolder);
+#endif
 
         if (iWidth < width())
             strLabelText.prepend(strWord);
-
     }
     setText(strLabelText);
 }
@@ -540,8 +578,8 @@ void UIGuestControlFileView::selectionChanged(const QItemSelection & selected, c
 *   UIFileStringInputDialog implementation.                                                                                      *
 *********************************************************************************************************************************/
 
-UIStringInputDialog::UIStringInputDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags flags /* = 0 */)
-    :QIDialog(pParent, flags)
+UIStringInputDialog::UIStringInputDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = Qt::WindowFlags() */)
+    :QIDialog(pParent, enmFlags)
 {
     QVBoxLayout *layout = new QVBoxLayout(this);
     m_pLineEdit = new QILineEdit(this);
@@ -566,8 +604,8 @@ QString UIStringInputDialog::getString() const
 *   UIPropertiesDialog implementation.                                                                                           *
 *********************************************************************************************************************************/
 
-UIPropertiesDialog::UIPropertiesDialog(QWidget *pParent, Qt::WindowFlags flags)
-    :QIDialog(pParent, flags)
+UIPropertiesDialog::UIPropertiesDialog(QWidget *pParent, Qt::WindowFlags enmFlags)
+    :QIDialog(pParent, enmFlags)
     , m_pMainLayout(new QVBoxLayout)
     , m_pInfoEdit(new QTextEdit)
 {
@@ -638,8 +676,8 @@ UIDirectoryStatistics::UIDirectoryStatistics()
 +*   UIFileDeleteConfirmationDialog implementation.                                                                                *
 +*********************************************************************************************************************************/
 
-UIFileDeleteConfirmationDialog::UIFileDeleteConfirmationDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags flags /* = 0 */)
-    :QIDialog(pParent, flags)
+UIFileDeleteConfirmationDialog::UIFileDeleteConfirmationDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = Qt::WindowFlags() */)
+    :QIDialog(pParent, enmFlags)
     , m_pAskNextTimeCheckBox(0)
     , m_pQuestionLabel(0)
 {
@@ -696,13 +734,13 @@ UIFileManagerTable::UIFileManagerTable(UIActionPool *pActionPool, QWidget *pPare
     , m_pPropertiesDialog(0)
     , m_pActionPool(pActionPool)
     , m_pToolBar(0)
+    , m_pMainLayout(0)
     , m_pModel(0)
     , m_pView(0)
     , m_pProxyModel(0)
     , m_pNavigationWidget(0)
-    , m_pMainLayout(0)
-    , m_pWarningLabel(0)
     , m_pathSeparator('/')
+    , m_pToolBarLayout(0)
 {
     prepareObjects();
 }
@@ -720,11 +758,6 @@ void UIFileManagerTable::reset()
         m_pNavigationWidget->reset();
 }
 
-void UIFileManagerTable::emitLogOutput(const QString& strOutput, FileManagerLogType eLogType)
-{
-    emit sigLogOutput(strOutput, eLogType);
-}
-
 void UIFileManagerTable::prepareObjects()
 {
     m_pMainLayout = new QGridLayout();
@@ -734,13 +767,28 @@ void UIFileManagerTable::prepareObjects()
     m_pMainLayout->setContentsMargins(0, 0, 0, 0);
     setLayout(m_pMainLayout);
 
-    m_pToolBar = new UIToolBar;
-    if (m_pToolBar)
-        m_pMainLayout->addWidget(m_pToolBar, 0, 0, 1, 7);
+    m_pToolBarLayout = new QHBoxLayout;
+    if (m_pToolBarLayout)
+    {
+        m_pToolBarLayout->setSpacing(0);
+        m_pToolBarLayout->setContentsMargins(0, 0, 0, 0);
+
+        m_pToolBar = new QIToolBar;
+        if (m_pToolBar)
+        {
+            m_pToolBarLayout->addWidget(m_pToolBar);
+            m_sessionWidgets << m_pToolBar;
+        }
+
+        m_pMainLayout->addLayout(m_pToolBarLayout, 0, 0, 1, 7);
+    }
 
     m_pLocationLabel = new QILabel;
     if (m_pLocationLabel)
+    {
         m_pMainLayout->addWidget(m_pLocationLabel, 1, 0, 1, 1);
+        m_sessionWidgets << m_pLocationLabel;
+    }
 
     m_pNavigationWidget = new UIFileManagerNavigationWidget;
     if (m_pNavigationWidget)
@@ -749,6 +797,7 @@ void UIFileManagerTable::prepareObjects()
         connect(m_pNavigationWidget, &UIFileManagerNavigationWidget::sigPathChanged,
                 this, &UIFileManagerTable::sltHandleNavigationWidgetPathChange);
         m_pMainLayout->addWidget(m_pNavigationWidget, 1, 1, 1, 6);
+        m_sessionWidgets << m_pNavigationWidget;
     }
 
     m_pModel = new UICustomFileSystemModel(this);
@@ -765,6 +814,7 @@ void UIFileManagerTable::prepareObjects()
     m_pView = new UIGuestControlFileView(this);
     if (m_pView)
     {
+        m_pView->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
         m_pMainLayout->addWidget(m_pView, 2, 0, 5, 7);
 
         QHeaderView *pHorizontalHeader = m_pView->horizontalHeader();
@@ -776,7 +826,7 @@ void UIFileManagerTable::prepareObjects()
         }
 
         m_pView->setModel(m_pProxyModel);
-        m_pView->setItemDelegate(new UIFileDelegate);
+        m_pView->setItemDelegate(new UIFileDelegate(this));
         m_pView->setSortingEnabled(true);
         m_pView->sortByColumn(0, Qt::AscendingOrder);
 
@@ -790,24 +840,8 @@ void UIFileManagerTable::prepareObjects()
                 this, &UIFileManagerTable::sltCreateFileViewContextMenu);
         m_pView->hideColumn(UICustomFileSystemModelColumn_Path);
         m_pView->hideColumn(UICustomFileSystemModelColumn_LocalPath);
+        m_sessionWidgets << m_pView;
     }
-    m_pWarningLabel = new QILabel(this);
-    if (m_pWarningLabel)
-    {
-        m_pMainLayout->addWidget(m_pWarningLabel, 2, 0, 5, 7);
-        QFont labelFont = m_pWarningLabel->font();
-        float fSizeMultiplier = 1.5f;
-        if (labelFont.pointSize() != -1)
-            labelFont.setPointSize(fSizeMultiplier * labelFont.pointSize());
-        else
-            labelFont.setPixelSize(fSizeMultiplier * labelFont.pixelSize());
-        labelFont.setBold(true);
-        m_pWarningLabel->setFont(labelFont);
-        m_pWarningLabel->setAlignment(Qt::AlignCenter | Qt::AlignVCenter);
-        m_pWarningLabel->setWordWrap(true);
-    }
-    m_pWarningLabel->setVisible(!isEnabled());
-    m_pView->setVisible(isEnabled());
 
     m_pSearchLineEdit = new QILineEdit;
     if (m_pSearchLineEdit)
@@ -849,8 +883,7 @@ void UIFileManagerTable::changeLocation(const QModelIndex &index)
     }
     setSelectionDependentActionsEnabled(false);
 
-    /** @todo check if we really need this and if not remove it */
-    //m_pModel->signalUpdate();
+    m_pView->scrollToTop();
 }
 
 void UIFileManagerTable::initializeFileTree()
@@ -1200,7 +1233,7 @@ void UIFileManagerTable::sltHandleItemRenameAttempt(UICustomFileSystemItem *pIte
         /* Restore the previous name. relist the view: */
         pItem->setData(strOldName, static_cast<int>(UICustomFileSystemModelColumn_Name));
         relist();
-        sigLogOutput(QString(pItem->path()).append(" could not be renamed"), FileManagerLogType_Error);
+        emit sigLogOutput(QString(pItem->path()).append(" could not be renamed"), QString(), FileManagerLogType_Error);
     }
 }
 
@@ -1289,18 +1322,12 @@ void UIFileManagerTable::retranslateUi()
     UICustomFileSystemItem *pRootItem = rootItem();
     if (pRootItem)
     {
-        pRootItem->setData(UICustomFileSystemModel::tr("Name"), UICustomFileSystemModelColumn_Name);
-        pRootItem->setData(UICustomFileSystemModel::tr("Size"), UICustomFileSystemModelColumn_Size);
-        pRootItem->setData(UICustomFileSystemModel::tr("Change Time"), UICustomFileSystemModelColumn_ChangeTime);
-        pRootItem->setData(UICustomFileSystemModel::tr("Owner"), UICustomFileSystemModelColumn_Owner);
-        pRootItem->setData(UICustomFileSystemModel::tr("Permissions"), UICustomFileSystemModelColumn_Permissions);
+        pRootItem->setData(UIFileManager::tr("Name"), UICustomFileSystemModelColumn_Name);
+        pRootItem->setData(UIFileManager::tr("Size"), UICustomFileSystemModelColumn_Size);
+        pRootItem->setData(UIFileManager::tr("Change Time"), UICustomFileSystemModelColumn_ChangeTime);
+        pRootItem->setData(UIFileManager::tr("Owner"), UICustomFileSystemModelColumn_Owner);
+        pRootItem->setData(UIFileManager::tr("Permissions"), UICustomFileSystemModelColumn_Permissions);
     }
-    /// @todo Using \n breaks between words of the same sentence isn't allowed. This isn't easily translateable to other
-    ///       languages.  Moreover, using of \n isn't allowed at all.  This isn't exactly a cross-platform identifier.
-    ///       You can use only <br> between sentenses of the same paragraph. Most of Qt text is HTML by definition, so
-    ///       it does support <br> tags.
-    if (m_pWarningLabel)
-        m_pWarningLabel->setText(UIFileManager::tr("No Guest Session found!<br>Please use the Session Panel to start a new guest session"));
 }
 
 bool UIFileManagerTable::eventFilter(QObject *pObject, QEvent *pEvent) /* override */
@@ -1429,9 +1456,9 @@ CGuestFsObjInfo UIFileManagerTable::guestFsObjectInfo(const QString& path, CGues
 void UIFileManagerTable::setSelectionDependentActionsEnabled(bool fIsEnabled)
 {
     foreach (QAction *pAction, m_selectionDependentActions)
-    {
         pAction->setEnabled(fIsEnabled);
-    }
+    if (m_pView)
+        emit sigSelectionChanged(m_pView->hasSelection());
 }
 
 UICustomFileSystemItem* UIFileManagerTable::rootItem()
@@ -1448,14 +1475,15 @@ void UIFileManagerTable::setPathSeparator(const QChar &separator)
         m_pNavigationWidget->setPathSeparator(m_pathSeparator);
 }
 
+QHBoxLayout* UIFileManagerTable::toolBarLayout()
+{
+    return m_pToolBarLayout;
+}
+
 bool UIFileManagerTable::event(QEvent *pEvent)
 {
     if (pEvent->type() == QEvent::EnabledChange)
-    {
-        m_pWarningLabel->setVisible(!isEnabled());
-        m_pView->setVisible(isEnabled());
         retranslateUi();
-    }
     return QIWithRetranslateUI<QWidget>::event(pEvent);
 }
 
@@ -1483,7 +1511,7 @@ QString UIFileManagerTable::fileTypeString(KFsObjType type)
 
 /* static */ QString UIFileManagerTable::humanReadableSize(ULONG64 size)
 {
-    return uiCommon().formatSize(size);
+    return UITranslator::formatSize(size);
 }
 
 void UIFileManagerTable::optionsUpdated()
@@ -1500,6 +1528,13 @@ void UIFileManagerTable::optionsUpdated()
             m_pModel->setShowHumanReadableSizes(pOptions->fShowHumanReadableSizes);
     }
     relist();
+}
+
+bool UIFileManagerTable::hasSelection() const
+{
+    if (m_pView)
+        return m_pView->hasSelection();
+    return false;
 }
 
 void UIFileManagerTable::sltReceiveDirectoryStatistics(UIDirectoryStatistics statistics)
@@ -1603,4 +1638,12 @@ void UIFileManagerTable::markUnmarkSearchLineEdit(bool fMark)
     m_pSearchLineEdit->setPalette(palette);
 }
 
+void UIFileManagerTable::setSessionWidgetsEnabled(bool fEnabled)
+{
+    foreach (QWidget *pWidget, m_sessionWidgets)
+    {
+        if (pWidget)
+            pWidget->setEnabled(fEnabled);
+    }
+}
 #include "UIFileManagerTable.moc"

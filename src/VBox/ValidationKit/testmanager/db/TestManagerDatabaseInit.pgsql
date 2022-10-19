@@ -4,24 +4,34 @@
 --
 
 --
--- Copyright (C) 2012-2020 Oracle Corporation
+-- Copyright (C) 2012-2022 Oracle and/or its affiliates.
 --
--- This file is part of VirtualBox Open Source Edition (OSE), as
--- available from http://www.virtualbox.org. This file is free software;
--- you can redistribute it and/or modify it under the terms of the GNU
--- General Public License (GPL) as published by the Free Software
--- Foundation, in version 2 as it comes in the "COPYING" file of the
--- VirtualBox OSE distribution. VirtualBox OSE is distributed in the
--- hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+-- This file is part of VirtualBox base platform packages, as
+-- available from https://www.virtualbox.org.
+--
+-- This program is free software; you can redistribute it and/or
+-- modify it under the terms of the GNU General Public License
+-- as published by the Free Software Foundation, in version 3 of the
+-- License.
+--
+-- This program is distributed in the hope that it will be useful, but
+-- WITHOUT ANY WARRANTY; without even the implied warranty of
+-- MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+-- General Public License for more details.
+--
+-- You should have received a copy of the GNU General Public License
+-- along with this program; if not, see <https://www.gnu.org/licenses>.
 --
 -- The contents of this file may alternatively be used under the terms
 -- of the Common Development and Distribution License Version 1.0
--- (CDDL) only, as it comes in the "COPYING.CDDL" file of the
--- VirtualBox OSE distribution, in which case the provisions of the
+-- (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+-- in the VirtualBox distribution, in which case the provisions of the
 -- CDDL are applicable instead of those of the GPL.
 --
 -- You may elect to license modified versions of this file under the
 -- terms and conditions of either the GPL or the CDDL or both.
+--
+-- SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 --
 
 --
@@ -1312,6 +1322,31 @@ CREATE TABLE VcsRevisions (
 
     UNIQUE (sRepository, iRevision)
 );
+CREATE INDEX VcsRevisionsByDate ON VcsRevisions (tsCreated DESC);
+
+
+--- @table VcsBugReferences
+-- This is for relating commits to a bug and vice versa.
+--
+-- This feature isn't so much for the test manager as a cheap way of extending
+-- bug trackers without VCS integration.  We just need to parse the commit
+-- messages when inserting them into the VcsRevisions table.
+--
+-- Same input, updating and history considerations as VcsRevisions.
+--
+CREATE TABLE VcsBugReferences (
+    --- The version control tree name.
+    sRepository         TEXT        NOT NULL,
+    --- The version control tree revision number.
+    iRevision           INTEGER     NOT NULL,
+    --- The bug tracker identifier - see g_kdBugTrackers in config.py.
+    sBugTracker         CHAR(4)     NOT NULL,
+    --- The bug number in the bug tracker.
+    lBugNo              BIGINT      NOT NULL,
+
+    UNIQUE (sRepository, iRevision, sBugTracker, lBugNo)
+);
+CREATE INDEX VcsBugReferencesLookupIdx ON VcsBugReferences (sBugTracker, lBugNo);
 
 
 
@@ -1904,6 +1939,9 @@ CREATE TABLE SchedQueues (
     --
     cMissingGangMembers smallint    DEFAULT 1  NOT NULL,
 
+    --- @todo
+    --- The number of times this has been considered for scheduling.
+    -- cConsidered SMALLINT DEFAULT 0 NOT NULL,
 
     PRIMARY KEY (idSchedGroup, idItem)
 );

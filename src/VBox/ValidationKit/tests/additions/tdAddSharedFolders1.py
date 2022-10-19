@@ -7,26 +7,36 @@ VirtualBox Validation Kit - Shared Folders #1.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 # Standard Python imports.
 import os
@@ -63,6 +73,7 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
             '${TXSDIR}/FsPerf${EXESUFF}',
             'E:/vboxvalidationkit/${OS/ARCH}/FsPerf${EXESUFF}',
         ];
+        self.sGuestSlash = '';
 
     def parseOption(self, asArgs, iArg):
         if asArgs[iArg] == '--add-shared-folders-tests': # 'add' as in 'additions', not the verb.
@@ -93,6 +104,93 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
 
         return True;
 
+    def mountShareEx(self, oSession, oTxsSession, sShareName, sHostPath, sGuestMountPoint, fMustSucceed):
+        """
+        Automount a shared folder in the guest, extended version.
+
+        Returns success status, based on fMustSucceed.
+        """
+        reporter.testStart('Automounting "%s"' % (sShareName,));
+
+        reporter.log2('Creating shared folder "%s" at "%s" ...' % (sShareName, sGuestMountPoint));
+        try:
+            oConsole = oSession.o.console;
+            oConsole.createSharedFolder(sShareName, sHostPath, True, True, sGuestMountPoint);
+        except:
+            if fMustSucceed:
+                reporter.errorXcpt('createSharedFolder(%s,%s,True,True,%s)' % (sShareName, sHostPath, sGuestMountPoint));
+            else:
+                reporter.log('createSharedFolder(%s,%s,True,True,%s) failed, good' % (sShareName, sHostPath, sGuestMountPoint));
+            reporter.testDone();
+            return False is fMustSucceed;
+
+        # Check whether we can see the shared folder now.  Retry for 30 seconds.
+        msStart = base.timestampMilli();
+        while True:
+            fRc = oTxsSession.syncIsDir(sGuestMountPoint + self.sGuestSlash + 'candle.dir');
+            reporter.log2('candle.dir check -> %s' % (fRc,));
+            if fRc is fMustSucceed:
+                break;
+            if base.timestampMilli() - msStart > 30000:
+                reporter.error('Shared folder mounting timed out!');
+                break;
+            self.oTstDrv.sleep(1);
+
+        reporter.testDone();
+
+        return fRc == fMustSucceed;
+
+    def mountShare(self, oSession, oTxsSession, sShareName, sHostPath, sGuestMountPoint):
+        """
+        Automount a shared folder in the guest.
+
+        Returns success status.
+        """
+        return self.mountShareEx(oSession, oTxsSession, sShareName, sHostPath, sGuestMountPoint, fMustSucceed = True);
+
+    def unmountShareEx(self, oSession, oTxsSession, sShareName, sGuestMountPoint, fMustSucceed):
+        """
+        Unmounts a shared folder in the guest.
+
+        Returns success status, based on fMustSucceed.
+        """
+        reporter.log2('Autounmount');
+        try:
+            oConsole = oSession.o.console;
+            oConsole.removeSharedFolder(sShareName);
+        except:
+            if fMustSucceed:
+                reporter.errorXcpt('removeSharedFolder(%s)' % (sShareName,));
+            else:
+                reporter.log('removeSharedFolder(%s)' % (sShareName,));
+            reporter.testDone();
+            return False is fMustSucceed;
+
+        # Check whether the shared folder is gone on the guest now.  Retry for 30 seconds.
+        msStart = base.timestampMilli();
+        while True:
+            fRc = oTxsSession.syncIsDir(sGuestMountPoint + self.sGuestSlash + 'candle.dir');
+            reporter.log2('candle.dir check -> %s' % (fRc,));
+            if fRc is not fMustSucceed:
+                break;
+            if base.timestampMilli() - msStart > 30000:
+                reporter.error('Shared folder unmounting timed out!');
+                fRc = False;
+                break;
+            self.oTstDrv.sleep(1);
+
+        reporter.testDone();
+
+        return fRc is not fMustSucceed;
+
+    def unmountShare(self, oSession, oTxsSession, sShareName, sGuestMountPoint):
+        """
+        Unmounts a shared folder in the guest, extended version.
+
+        Returns success status, based on fMustSucceed.
+        """
+        return self.unmountShareEx(oSession, oTxsSession, sShareName, sGuestMountPoint, fMustSucceed = True);
+
     def testIt(self, oTestVm, oSession, oTxsSession):
         """
         Executes the test.
@@ -108,55 +206,34 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
             reporter.log('Requires 6.0 or later (for now)');
             return (None, oTxsSession);
 
+        # Guess a free mount point inside the guest.
+        if oTestVm.isWindows() or oTestVm.isOS2():
+            self.sGuestSlash  = '\\';
+        else:
+            self.sGuestSlash  = '/';
+
         #
         # Create the host directory to share. Empty except for a 'candle.dir' subdir
         # that we use to check that it mounted correctly.
         #
-        sSharedFolder1 = os.path.join(self.oTstDrv.sScratchPath, 'shfl1');
-        reporter.log2('Creating shared host folder "%s"...' % (sSharedFolder1,));
-        if os.path.exists(sSharedFolder1):
-            try:    shutil.rmtree(sSharedFolder1);
-            except: return (reporter.errorXcpt('shutil.rmtree(%s)' % (sSharedFolder1,)), oTxsSession);
-        try:    os.mkdir(sSharedFolder1);
-        except: return (reporter.errorXcpt('os.mkdir(%s)' % (sSharedFolder1,)), oTxsSession);
-        try:    os.mkdir(os.path.join(sSharedFolder1, 'candle.dir'));
-        except: return (reporter.errorXcpt('os.mkdir(%s)' % (sSharedFolder1,)), oTxsSession);
+        sShareName1     = 'shfl1';
+        sShareHostPath1 = os.path.join(self.oTstDrv.sScratchPath, sShareName1);
+        reporter.log2('Creating shared host folder "%s"...' % (sShareHostPath1,));
+        if os.path.exists(sShareHostPath1):
+            try:    shutil.rmtree(sShareHostPath1);
+            except: return (reporter.errorXcpt('shutil.rmtree(%s)' % (sShareHostPath1,)), oTxsSession);
+        try:    os.mkdir(sShareHostPath1);
+        except: return (reporter.errorXcpt('os.mkdir(%s)' % (sShareHostPath1,)), oTxsSession);
+        try:    os.mkdir(os.path.join(sShareHostPath1, 'candle.dir'));
+        except: return (reporter.errorXcpt('os.mkdir(%s)' % (sShareHostPath1,)), oTxsSession);
 
         # Guess a free mount point inside the guest.
         if oTestVm.isWindows() or oTestVm.isOS2():
             sMountPoint1 = 'V:';
-            sGuestSlash  = '\\';
         else:
-            sMountPoint1 = '/mnt/shfl1';
-            sGuestSlash  = '/';
+            sMountPoint1 = '/mnt/' + sShareName1;
 
-        #
-        # Automount a shared folder in the guest.
-        #
-        reporter.testStart('Automount');
-
-        reporter.log2('Creating shared folder shfl1...');
-        try:
-            oConsole = oSession.o.console;
-            oConsole.createSharedFolder('shfl1', sSharedFolder1, True, True, sMountPoint1);
-        except:
-            reporter.errorXcpt('createSharedFolder(shfl1,%s,True,True,%s)' % (sSharedFolder1,sMountPoint1));
-            reporter.testDone();
-            return (False, oTxsSession);
-
-        # Check whether we can see the shared folder now.  Retry for 30 seconds.
-        msStart = base.timestampMilli();
-        while True:
-            fRc = oTxsSession.syncIsDir(sMountPoint1 + sGuestSlash + 'candle.dir');
-            reporter.log2('candle.dir check -> %s' % (fRc,));
-            if fRc is not False:
-                break;
-            if base.timestampMilli() - msStart > 30000:
-                reporter.error('Shared folder mounting timed out!');
-                break;
-            self.oTstDrv.sleep(1);
-
-        reporter.testDone();
+        fRc = self.mountShare(oSession, oTxsSession, sShareName1, sShareHostPath1, sMountPoint1);
         if fRc is not True:
             return (False, oTxsSession); # skip the remainder if we cannot auto mount the folder.
 
@@ -165,15 +242,15 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
         #
         fSkip = 'fsperf' not in self.asTests;
         if fSkip is False:
-            cMbFree = utils.getDiskUsage(sSharedFolder1);
+            cMbFree = utils.getDiskUsage(sShareHostPath1);
             if cMbFree >= 16:
                 reporter.log2('Free space: %u MBs' % (cMbFree,));
             else:
-                reporter.log('Skipping FsPerf because only %u MB free on %s' % (cMbFree, sSharedFolder1,));
+                reporter.log('Skipping FsPerf because only %u MB free on %s' % (cMbFree, sShareHostPath1,));
                 fSkip = True;
         if fSkip is False:
             # Common arguments:
-            asArgs = ['FsPerf', '-d', sMountPoint1 + sGuestSlash + 'fstestdir-1', '-s8'];
+            asArgs = ['FsPerf', '-d', sMountPoint1 + self.sGuestSlash + 'fstestdir-1', '-s8'];
 
             # Skip part of mmap on older windows systems without CcCoherencyFlushAndPurgeCache (>= w7).
             reporter.log2('oTestVm.sGuestOsType=%s' % (oTestVm.sGuestOsType,));
@@ -213,10 +290,41 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
             # Run FsPerf:
             reporter.log2('Starting guest FsPerf (%s)...' % (asArgs,));
             sFsPerfPath = self._locateGstFsPerf(oTxsSession);
-            fRc = self.oTstDrv.txsRunTest(oTxsSession, 'FsPerf', 30 * 60 * 1000, sFsPerfPath, asArgs);
-            reporter.log2('FsPerf -> %s' % (fRc,));
 
-            sTestDir = os.path.join(sSharedFolder1, 'fstestdir-1');
+            ## @todo For some odd reason the combined GA/VaKit .ISO (by IPRT/fs/isomakercmd)
+            #        sometimes (?) contains FsPerf as non-executable (-r--r--r-- 1 root root) on Linux.
+            #
+            #        So work around this for now by copying the desired FsPerf binary to the temp directory,
+            #        make it executable and execute it from there.
+            fISOMakerCmdIsBuggy = oTestVm.isLinux();
+            if fISOMakerCmdIsBuggy:
+                sFsPerfPathTemp = oTestVm.pathJoin(self.oTstDrv.getGuestTempDir(oTestVm), 'FsPerf${EXESUFF}');
+                if oTestVm.isWindows() \
+                or oTestVm.isOS2():
+                    sCopy           = self.oTstDrv.getGuestSystemShell();
+                    sCopyArgs       = ( sCopy, "/C", "copy", "/Y",  sFsPerfPath, sFsPerfPathTemp );
+                else:
+                    sCopy           = oTestVm.pathJoin(self.oTstDrv.getGuestSystemDir(oTestVm), 'cp');
+                    sCopyArgs       = ( sCopy, "-a", "-v", sFsPerfPath, sFsPerfPathTemp );
+                fRc = self.oTstDrv.txsRunTest(oTxsSession, 'Copying FsPerf', 60 * 1000,
+                                              sCopy, sCopyArgs, fCheckSessionStatus = True);
+                fRc = fRc and oTxsSession.syncChMod(sFsPerfPathTemp, 0o755);
+                if fRc:
+                    sFsPerfPath = sFsPerfPathTemp;
+
+            fRc = self.oTstDrv.txsRunTest(oTxsSession, 'Running FsPerf', 90 * 60 * 1000, sFsPerfPath, asArgs,
+                                          fCheckSessionStatus = True);
+            reporter.log2('FsPerf -> %s' % (fRc,));
+            if fRc:
+                # Do a bit of diagnosis to find out why this failed.
+                if     not oTestVm.isWindows() \
+                   and not oTestVm.isOS2():
+                    sCmdLs = oTestVm.pathJoin(self.oTstDrv.getGuestSystemDir(oTestVm), 'ls');
+                    oTxsSession.syncExec(sCmdLs, (sCmdLs, "-al", sFsPerfPath), fIgnoreErrors = True);
+                    oTxsSession.syncExec(sCmdLs, (sCmdLs, "-al", "-R", "/opt"), fIgnoreErrors = True);
+                    oTxsSession.syncExec(sCmdLs, (sCmdLs, "-al", "-R", "/media/cdrom"), fIgnoreErrors = True);
+
+            sTestDir = os.path.join(sShareHostPath1, 'fstestdir-1');
             if os.path.exists(sTestDir):
                 fRc = reporter.errorXcpt('test directory lingers: %s' % (sTestDir,));
                 try:    shutil.rmtree(sTestDir);
@@ -225,8 +333,15 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
             reporter.testStart('FsPerf');
             reporter.testDone(fSkip or fRc is None);
 
-        return (fRc, oTxsSession);
+        #
+        # Check if auto-unmounting works.
+        #
+        if fRc is True:
+            fRc = self.unmountShare(oSession, oTxsSession, sShareName1, sMountPoint1);
 
+        ## @todo Add tests for multiple automount shares, random unmounting, reboot test.
+
+        return (fRc, oTxsSession);
 
     def _locateGstFsPerf(self, oTxsSession):
         """
@@ -234,6 +349,7 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
         """
         for sFsPerfPath in self.asGstFsPerfPaths:
             if oTxsSession.syncIsFile(sFsPerfPath):
+                reporter.log('Using FsPerf at "%s"' % (sFsPerfPath,));
                 return sFsPerfPath;
         reporter.log('Unable to find guest FsPerf in any of these places: %s' % ('\n    '.join(self.asGstFsPerfPaths),));
         return self.asGstFsPerfPaths[0];
@@ -243,4 +359,3 @@ class SubTstDrvAddSharedFolders1(base.SubTestDriverBase):
 if __name__ == '__main__':
     reporter.error('Cannot run standalone, use tdAddBasic1.py');
     sys.exit(1);
-

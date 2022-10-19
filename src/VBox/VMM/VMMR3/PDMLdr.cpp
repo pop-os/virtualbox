@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 //#define PDMLDR_FAKE_MODE
@@ -121,10 +131,12 @@ int pdmR3LdrInitU(PUVM pUVM)
  * This will unload and free all modules.
  *
  * @param   pUVM        The user mode VM structure.
+ * @param   fFinal      This is clear when in the PDMR3Term/vmR3Destroy call
+ *                      chain, and set when called from PDMR3TermUVM.
  *
  * @remarks This is normally called twice during termination.
  */
-void pdmR3LdrTermU(PUVM pUVM)
+void pdmR3LdrTermU(PUVM pUVM, bool fFinal)
 {
     /*
      * Free the modules.
@@ -132,6 +144,7 @@ void pdmR3LdrTermU(PUVM pUVM)
     RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
     PPDMMOD pModule = pUVM->pdm.s.pModules;
     pUVM->pdm.s.pModules = NULL;
+    PPDMMOD *ppNext = &pUVM->pdm.s.pModules;
     while (pModule)
     {
         /* free loader item. */
@@ -147,11 +160,25 @@ void pdmR3LdrTermU(PUVM pUVM)
         {
             case PDMMOD_TYPE_R0:
             {
-                Assert(pModule->ImageBase);
-                int rc2 = SUPR3FreeModule((void *)(uintptr_t)pModule->ImageBase);
-                AssertRC(rc2);
-                pModule->ImageBase = 0;
-                break;
+                if (fFinal)
+                {
+                    Assert(pModule->ImageBase);
+                    int rc2 = SUPR3FreeModule((void *)(uintptr_t)pModule->ImageBase);
+                    AssertRC(rc2);
+                    pModule->ImageBase = 0;
+                    break;
+                }
+
+                /* Postpone ring-0 module till the PDMR3TermUVM() phase as VMMR0.r0 is still
+                   busy when we're called the first time very very early in vmR3Destroy().  */
+                PPDMMOD pNextModule = pModule->pNext;
+
+                pModule->pNext = NULL;
+                *ppNext = pModule;
+                ppNext = &pModule->pNext;
+
+                pModule = pNextModule;
+                continue;
             }
 
 #ifdef VBOX_WITH_RAW_MODE_KEEP
@@ -383,14 +410,6 @@ static DECLCALLBACK(int) pdmR3GetImportRC(RTLDRMOD hLdrMod, const char *pszModul
             if (RT_SUCCESS(rc))
                 *pValue = RCPtr;
         }
-        else if (   !strncmp(pszSymbol, "TM", 2)
-                 || !strcmp(pszSymbol, "g_pSUPGlobalInfoPage"))
-        {
-            RTRCPTR RCPtr = 0;
-            rc = TMR3GetImportRC(pVM, pszSymbol, &RCPtr);
-            if (RT_SUCCESS(rc))
-                *pValue = RCPtr;
-        }
         else
         {
             AssertMsg(!pszModule, ("Unknown builtin symbol '%s' for module '%s'!\n", pszSymbol, pModule->szName)); NOREF(pModule);
@@ -465,7 +484,6 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
     /*
      * Validate input.
      */
-    AssertMsg(MMR3IsInitialized(pVM), ("bad init order!\n"));
     AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_PDM_HM_IPE);
 
     /*
@@ -536,9 +554,9 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
          * Allocate space in the hypervisor.
          */
         size_t          cb = RTLdrSize(pModule->hLdrMod);
-        cb = RT_ALIGN_Z(cb, PAGE_SIZE);
-        uint32_t        cPages = (uint32_t)(cb >> PAGE_SHIFT);
-        if (((size_t)cPages << PAGE_SHIFT) == cb)
+        cb = RT_ALIGN_Z(cb, RT_MAX(GUEST_PAGE_SIZE, HOST_PAGE_SIZE));
+        uint32_t        cPages = (uint32_t)(cb >> HOST_PAGE_SHIFT);
+        if (((size_t)cPages << HOST_PAGE_SHIFT) == cb)
         {
             PSUPPAGE    paPages = (PSUPPAGE)RTMemTmpAlloc(cPages * sizeof(paPages[0]));
             if (paPages)
@@ -547,11 +565,10 @@ VMMR3DECL(int) PDMR3LdrLoadRC(PVM pVM, const char *pszFilename, const char *pszN
                 if (RT_SUCCESS(rc))
                 {
                     RTGCPTR GCPtr;
-                    rc = MMR3HyperMapPages(pVM, pModule->pvBits, NIL_RTR0PTR,
-                                           cPages, paPages, pModule->szName, &GCPtr);
+                    rc = VERR_NOT_IMPLEMENTED; //MMR3HyperMapPages(pVM, pModule->pvBits, NIL_RTR0PTR, cPages, paPages, pModule->szName, &GCPtr);
                     if (RT_SUCCESS(rc))
                     {
-                        MMR3HyperReserveFence(pVM);
+                        //MMR3HyperReserveFence(pVM);
 
                         /*
                          * Get relocated image bits.
@@ -948,7 +965,6 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *p
 {
 #if defined(PDMLDR_FAKE_MODE) || !defined(VBOX_WITH_RAW_MODE_KEEP)
     RT_NOREF(pVM, pszModule, pszSymbol);
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
     *pRCPtrValue = NIL_RTRCPTR;
     return VINF_SUCCESS;
 
@@ -959,7 +975,6 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRC(PVM pVM, const char *pszModule, const char *p
     AssertPtr(pVM);
     AssertPtrNull(pszModule);
     AssertPtr(pRCPtrValue);
-    AssertMsg(MMR3IsInitialized(pVM), ("bad init order!\n"));
 
     if (!pszModule)
         pszModule = VMMRC_MAIN_MODULE_NAME;
@@ -1018,7 +1033,6 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const cha
 {
 #if defined(PDMLDR_FAKE_MODE) || !defined(VBOX_WITH_RAW_MODE_KEEP)
     RT_NOREF(pVM, pszModule, pszSearchPath, pszSymbol);
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
     *pRCPtrValue = NIL_RTRCPTR;
     return VINF_SUCCESS;
 
@@ -1028,7 +1042,6 @@ VMMR3DECL(int) PDMR3LdrGetSymbolRCLazy(PVM pVM, const char *pszModule, const cha
         pszModule = VMMRC_MAIN_MODULE_NAME;
     AssertPtr(pszModule);
     AssertPtr(pRCPtrValue);
-    AssertMsg(MMR3IsInitialized(pVM), ("bad init order!\n"));
 
     /*
      * Since we're lazy, we'll only check if the module is present
@@ -1213,7 +1226,7 @@ static char *pdmR3File(const char *pszFile, const char *pszDefaultExt, const cha
                 pszNext = pszEnd + 1;
             if (pszEnd != psz)
             {
-                rc = RTPathJoinEx(szPath, sizeof(szPath), psz, pszEnd - psz, pszFile, cchFile);
+                rc = RTPathJoinEx(szPath, sizeof(szPath), psz, pszEnd - psz, pszFile, cchFile, RTPATH_STR_F_STYLE_HOST);
                 if (RT_SUCCESS(rc))
                 {
                     if (RTFileExists(szPath))
@@ -1631,7 +1644,7 @@ VMMR3_INT_DECL(int) PDMR3LdrGetInterfaceSymbols(PVM pVM, void *pvInterface, size
                                                 const char *pszSymPrefix, const char *pszSymList,
                                                 bool fRing0)
 {
-    bool const fNullRun = !fRing0 && !VM_IS_RAW_MODE_ENABLED(pVM);
+    bool const fNullRun = !fRing0;
 
     /*
      * Find the module.

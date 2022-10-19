@@ -28,7 +28,7 @@
   Ia32/ArchInterruptDefs.h
 
 [Sources.X64]
-  X64/ExceptionHandlerAsm.nasm
+  X64/Xcode5ExceptionHandlerAsm.nasm
   X64/ArchExceptionHandler.c
   X64/ArchInterruptDefs.h
 
@@ -42,6 +42,9 @@
   gEfiMdeModulePkgTokenSpaceGuid.PcdCpuStackGuard
   gUefiCpuPkgTokenSpaceGuid.PcdCpuStackSwitchExceptionList
   gUefiCpuPkgTokenSpaceGuid.PcdCpuKnownGoodStackSize
+
+[FeaturePcd]
+  gUefiCpuPkgTokenSpaceGuid.PcdCpuSmmStackGuard                    ## CONSUMES
 
 [Packages]
   MdePkg/MdePkg.dec
@@ -57,3 +60,4 @@
   PeCoffGetEntryPointLib
   MemoryAllocationLib
   DebugLib
+  VmgExitLib

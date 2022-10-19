@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_widgets_UIApplianceEditorWidget_h
@@ -33,6 +43,7 @@
 
 /* COM includes: */
 #include "COMEnums.h"
+#include "CAppliance.h"
 #include "CVirtualSystemDescription.h"
 
 /* Forward declarations: */
@@ -166,27 +177,27 @@ public:
     /** Returns the root index in the model. */
     virtual QModelIndex root() const;
     /** Returns the index of the item in the model specified by the given @a iRow, @a iColumn and @a parentIdx. */
-    virtual QModelIndex index(int iRow, int iColumn, const QModelIndex &parentIdx = QModelIndex()) const /* override */;
+    virtual QModelIndex index(int iRow, int iColumn, const QModelIndex &parentIdx = QModelIndex()) const RT_OVERRIDE;
     /** Returns the parent of the model item with the given @a idx. */
-    virtual QModelIndex parent(const QModelIndex &idx) const /* override */;
+    virtual QModelIndex parent(const QModelIndex &idx) const RT_OVERRIDE;
 
     /** Returns the number of rows for the children of the given @a parentIdx. */
-    virtual int rowCount(const QModelIndex &parentIdx = QModelIndex()) const /* override */;
+    virtual int rowCount(const QModelIndex &parentIdx = QModelIndex()) const RT_OVERRIDE;
     /** Returns the number of columns for the children of the given @a parentIdx. */
-    virtual int columnCount(const QModelIndex &parentIdx = QModelIndex()) const /* override */;
+    virtual int columnCount(const QModelIndex &parentIdx = QModelIndex()) const RT_OVERRIDE;
 
     /** Returns the item flags for the given @a idx. */
-    virtual Qt::ItemFlags flags(const QModelIndex &idx) const /* override */;
+    virtual Qt::ItemFlags flags(const QModelIndex &idx) const RT_OVERRIDE;
     /** Returns the data for the given @a iRole and @a iSection in the header with the specified @a enmOrientation. */
-    virtual QVariant headerData(int iSection, Qt::Orientation enmOrientation, int iRole) const /* override */;
+    virtual QVariant headerData(int iSection, Qt::Orientation enmOrientation, int iRole) const RT_OVERRIDE;
 
     /** Defines the @a iRole data for the item at @a idx to @a value. */
-    virtual bool setData(const QModelIndex &idx, const QVariant &value, int iRole) /* override */;
+    virtual bool setData(const QModelIndex &idx, const QVariant &value, int iRole) RT_OVERRIDE;
     /** Returns the data stored under the given @a iRole for the item referred to by the @a idx. */
-    virtual QVariant data(const QModelIndex &idx, int iRole = Qt::DisplayRole) const /* override */;
+    virtual QVariant data(const QModelIndex &idx, int iRole = Qt::DisplayRole) const RT_OVERRIDE;
 
     /** Returns a model index for the buddy of the item represented by @a idx. */
-    virtual QModelIndex buddy(const QModelIndex &idx) const /* override */;
+    virtual QModelIndex buddy(const QModelIndex &idx) const RT_OVERRIDE;
 
     /** Restores the default values for the item with the given @a parentIdx. */
     void restoreDefaults(QModelIndex parentIdx = QModelIndex());
@@ -222,31 +233,31 @@ class UIApplianceDelegate : public QItemDelegate
 
 public:
 
-    /** Constructs the Appliance Delegate passing @a pParent to the base-class.
+    /** Constructs the Appliance Delegate.
       * @param  pProxy  Brings the proxy model reference used to redirect requests to. */
-    UIApplianceDelegate(QAbstractProxyModel *pProxy, QObject *pParent = 0);
+    UIApplianceDelegate(QAbstractProxyModel *pProxy);
 
     /** Returns the widget used to edit the item specified by @a idx for editing.
       * @param  pParent      Brings the parent to be assigned for newly created editor.
       * @param  styleOption  Bring the style option set for the newly created editor. */
-    virtual QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+    virtual QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const RT_OVERRIDE;
 
     /** Defines the contents of the given @a pEditor to the data for the item at the given @a idx. */
-    virtual void setEditorData(QWidget *pEditor, const QModelIndex &idx) const /* override */;
+    virtual void setEditorData(QWidget *pEditor, const QModelIndex &idx) const RT_OVERRIDE;
     /** Defines the data for the item at the given @a idx in the @a pModel to the contents of the given @a pEditor. */
-    virtual void setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) const /* override */;
+    virtual void setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) const RT_OVERRIDE;
 
     /** Updates the geometry of the @a pEditor for the item with the given @a idx, according to the rectangle specified in the @a styleOption. */
-    virtual void updateEditorGeometry(QWidget *pEditor, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+    virtual void updateEditorGeometry(QWidget *pEditor, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const RT_OVERRIDE;
 
     /** Returns the size hint for the item at the given @a idx and specified @a styleOption. */
-    virtual QSize sizeHint(const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+    virtual QSize sizeHint(const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const RT_OVERRIDE;
 
 protected:
 
 #ifdef VBOX_WS_MAC
     /** Filters @a pEvent if this object has been installed as an event filter for the watched @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
 #endif
 
 private:
@@ -269,11 +280,11 @@ public:
 protected:
 
     /** Returns whether item in the row indicated by the given @a iSourceRow and @a srcParenIdx should be included in the model. */
-    virtual bool filterAcceptsRow(int iSourceRow, const QModelIndex &srcParenIdx) const /* override */;
+    virtual bool filterAcceptsRow(int iSourceRow, const QModelIndex &srcParenIdx) const RT_OVERRIDE;
 
     /** Returns whether value of the item referred to by the given index @a leftIdx is less
       * than the value of the item referred to by the given index @a rightIdx. */
-    virtual bool lessThan(const QModelIndex &leftIdx, const QModelIndex &rightIdx) const /* override */;
+    virtual bool lessThan(const QModelIndex &leftIdx, const QModelIndex &rightIdx) const RT_OVERRIDE;
 
     /** Holds the array of sorted Virtual System Description types. */
     static KVirtualSystemDescriptionType s_aSortList[];
@@ -293,13 +304,17 @@ public:
     /** Constructs the Appliance Editor widget passing @a pParent to the base-class. */
     UIApplianceEditorWidget(QWidget *pParent = 0);
 
+    /** Clears everything. */
+    void clear();
+
+    /** Defines @a comAppliance wrapper instance. */
+    virtual void setAppliance(const CAppliance &comAppliance);
+
     /** Defines the list of VSD @a hints. */
     void setVsdHints(const AbstractVSDParameterList &hints);
 
-    /** Returns whether the Appliance Editor has valid state. */
-    bool isValid() const { return m_pAppliance != 0; }
-    /** Returns the currently set appliance reference. */
-    CAppliance *appliance() const { return m_pAppliance; }
+    /** Defines virtual system base folder @a strPath. */
+    void setVirtualSystemBaseFolder(const QString &strPath);
 
     /** Returns the minimum guest RAM. */
     static int minGuestRAM() { return m_minGuestRAM; }
@@ -318,15 +333,14 @@ public slots:
 protected:
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
-    void setVirtualSystemBaseFolder(const QString& path);
+    /** Holds the currently set appliance reference. */
+    CAppliance  m_comAppliance;
 
     /** Holds the list of VSD hints. */
     AbstractVSDParameterList  m_listVsdHints;
 
-    /** Holds the currently set appliance reference. */
-    CAppliance         *m_pAppliance;
     /** Holds the Appliance model reference. */
     UIApplianceModel *m_pModel;
 

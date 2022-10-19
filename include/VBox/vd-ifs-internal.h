@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vd_ifs_internal_h
@@ -39,6 +49,22 @@ RT_C_DECLS_BEGIN
  * @{ */
 
 /**
+ * Read data callback.
+ *
+ * @return  VBox status code.
+ * @return  VERR_VD_NOT_OPENED if no image is opened in HDD container.
+ * @param   pvUser          The opaque data passed for the operation.
+ * @param   uOffset         Offset of first reading byte from start of disk.
+ *                          Must be aligned to a sector boundary.
+ * @param   pvBuffer        Pointer to buffer for reading data.
+ * @param   cbBuffer        Number of bytes to read.
+ *                          Must be aligned to a sector boundary.
+ */
+typedef DECLCALLBACKTYPE(int, FNVDPARENTREAD,(void *pvUser, uint64_t uOffset, void *pvBuffer, size_t cbBuffer));
+/** Pointer to a FNVDPARENTREAD. */
+typedef FNVDPARENTREAD *PFNVDPARENTREAD;
+
+/**
  * Interface to get the parent state.
  *
  * Per-operation interface. Optional, present only if there is a parent, and
@@ -49,21 +75,12 @@ typedef struct VDINTERFACEPARENTSTATE
     /**
      * Common interface header.
      */
-    VDINTERFACE    Core;
+    VDINTERFACE     Core;
 
     /**
-     * Read data callback.
-     *
-     * @return  VBox status code.
-     * @return  VERR_VD_NOT_OPENED if no image is opened in HDD container.
-     * @param   pvUser          The opaque data passed for the operation.
-     * @param   uOffset         Offset of first reading byte from start of disk.
-     *                          Must be aligned to a sector boundary.
-     * @param   pvBuffer        Pointer to buffer for reading data.
-     * @param   cbBuffer        Number of bytes to read.
-     *                          Must be aligned to a sector boundary.
+     * Read data callback, see FNVDPARENTREAD for details.
      */
-    DECLR3CALLBACKMEMBER(int, pfnParentRead, (void *pvUser, uint64_t uOffset, void *pvBuffer, size_t cbBuffer));
+    PFNVDPARENTREAD pfnParentRead;
 
 } VDINTERFACEPARENTSTATE, *PVDINTERFACEPARENTSTATE;
 
@@ -106,7 +123,7 @@ typedef PVDIOSTORAGE *PPVDIOSTORAGE;
  * @param   pvUser          Opaque user data passed during a read/write request.
  * @param   rcReq           Status code for the completed request.
  */
-typedef DECLCALLBACK(int) FNVDXFERCOMPLETED(void *pBackendData, PVDIOCTX pIoCtx, void *pvUser, int rcReq);
+typedef DECLCALLBACKTYPE(int, FNVDXFERCOMPLETED,(void *pBackendData, PVDIOCTX pIoCtx, void *pvUser, int rcReq));
 /** Pointer to FNVDXFERCOMPLETED() */
 typedef FNVDXFERCOMPLETED *PFNVDXFERCOMPLETED;
 

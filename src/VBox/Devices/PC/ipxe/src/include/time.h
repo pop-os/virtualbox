@@ -6,6 +6,8 @@
  * Date and time
  */
 
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
+
 #include <sys/time.h>
 #include <ipxe/time.h>
 
@@ -37,10 +39,10 @@ struct tm {
  * @v t			Time to fill in, or NULL
  * @ret time		Current time
  */
-static inline time_t time ( time_t *t ) {
+static inline __attribute__ (( always_inline )) time_t time ( time_t *t ) {
 	time_t now;
 
-	now = time_now();
+	now = ( time_now() + time_offset );
 	if ( t )
 		*t = now;
 	return now;

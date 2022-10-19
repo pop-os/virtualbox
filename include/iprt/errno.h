@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_errno_h
@@ -121,7 +131,7 @@
 # elif defined(RT_OS_WINDOWS)
 #  define EDEADLK               (36)
 # else
-#  define EDEADLK               (45)
+#  define EDEADLK               (45)    /* solaris */
 # endif
 #endif
 #ifndef EDEADLOCK
@@ -205,6 +215,8 @@
 #  define ENOMSG                (83)
 # elif defined(RT_OS_LINUX)
 #  define ENOMSG                (42)
+# elif defined(RT_OS_WINDOWS)
+#  define ENOMSG                (122)
 # else
 #  define ENOMSG                (35)
 # endif
@@ -221,7 +233,7 @@
 # elif defined(RT_OS_LINUX)
 #  define EIDRM                 (43)
 # elif defined(RT_OS_WINDOWS)
-#  define EIDRM                 (600)
+#  define EIDRM                 (111)
 # else
 #  define EIDRM                 (36)
 # endif
@@ -231,8 +243,10 @@
 #  define EINPROGRESS           (36)
 # elif defined(RT_OS_LINUX)
 #  define EINPROGRESS           (115)
+# elif defined(RT_OS_WINDOWS)
+#  define EINPROGRESS           (112)
 # else
-#  define EINPROGRESS           (150)
+#  define EINPROGRESS           (150)   /* solaris */
 # endif
 #endif
 #ifndef ENAMETOOLONG
@@ -240,8 +254,10 @@
 #  define ENAMETOOLONG          (63)
 # elif defined(RT_OS_LINUX)
 #  define ENAMETOOLONG          (36)
+# elif defined(RT_OS_WINDOWS)
+#  define ENAMETOOLONG          (38)
 # else
-#  define ENAMETOOLONG          (78)
+#  define ENAMETOOLONG          (78)    /* solaris */
 # endif
 #endif
 
@@ -258,6 +274,8 @@
 #  define ENOLCK                (77)
 # elif defined(RT_OS_LINUX)
 #  define ENOLCK                (37)
+# elif defined(RT_OS_WINDOWS)
+#  define ENOLCK                (39)
 # else
 #  define ENOLCK                (46)
 # endif
@@ -267,12 +285,107 @@
 #  define EALREADY              (37)
 # elif defined(RT_OS_LINUX)
 #  define EALREADY              (114)
+# elif defined(RT_OS_WINDOWS)
+#  define EALREADY              (103)
 # else
 #  define EALREADY              (149)
 # endif
 #endif
 
-/** @todo errno constants {37..44}. */
+/* 38 - Also ENAMETOOLONG on Windows. */
+#ifndef ENOSYS
+# if defined(RT_ERRNO_OS_BSD)
+#  define ENOSYS                (78)
+# elif defined(RT_OS_LINUX)
+#  define ENOSYS                (38)
+# elif defined(RT_OS_WINDOWS)
+#  define ENOSYS                (40)
+# else
+#  define ENOSYS                (89)    /* solaris */
+# endif
+#endif
+#ifndef ENOTSOCK
+# if defined(RT_ERRNO_OS_BSD)
+#  define ENOTSOCK              (38)
+# elif defined(RT_OS_LINUX)
+#  define ENOTSOCK              (88)
+# elif defined(RT_OS_WINDOWS)
+#  define ENOTSOCK              (128)
+# else
+#  define ENOTSOCK              (95)    /* solaris */
+# endif
+#endif
+#ifndef EL2NSYNC
+# if defined(RT_OS_LINUX)
+#  define EL2NSYNC              (45)
+# elif defined(RT_ERRNO_OS_SYSV_HARDCORE)
+#  define EL2NSYNC              (38)    /* solaris */
+# endif
+#endif
+
+/* 39 - Also ENOLCK on Windows. */
+#ifndef ENOTEMPTY
+# if defined(RT_ERRNO_OS_BSD)
+#  define ENOTEMPTY             (66)
+# elif defined(RT_OS_LINUX)
+#  define ENOTEMPTY             (39)
+# elif defined(RT_OS_WINDOWS)
+#  define ENOTEMPTY             (41)
+# else
+#  define ENOTEMPTY             (93)    /* solaris */
+# endif
+#endif
+#ifndef EDESTADDRREQ
+# if defined(RT_ERRNO_OS_BSD)
+#  define EDESTADDRREQ          (39)
+# elif defined(RT_OS_LINUX)
+#  define EDESTADDRREQ          (89)
+# elif defined(RT_OS_WINDOWS)
+#  define EDESTADDRREQ          (109)
+# else
+#  define EDESTADDRREQ          (96)    /* solaris */
+# endif
+#endif
+#ifndef EL3HLT
+# if defined(RT_OS_LINUX)
+#  define EL3HLT                (46)
+# elif defined(RT_ERRNO_OS_SYSV_HARDCORE)
+#  define EL3HLT                (39)    /* solaris */
+# endif
+#endif
+
+/* 40 - Also ENOSYS on Windows. */
+#ifndef ELOOP
+# if defined(RT_ERRNO_OS_BSD)
+#  define ELOOP                 (62)
+# elif defined(RT_OS_LINUX)
+#  define ELOOP                 (40)
+# elif defined(RT_OS_WINDOWS)
+#  define ELOOP                 (114)
+# else
+#  define ELOOP                 (90)    /* solaris */
+# endif
+#endif
+#ifndef EMSGSIZE
+# if defined(RT_ERRNO_OS_BSD)
+#  define EMSGSIZE              (40)
+# elif defined(RT_OS_LINUX)
+#  define EMSGSIZE              (90)
+# elif defined(RT_OS_WINDOWS)
+#  define EMSGSIZE              (115)
+# else
+#  define EMSGSIZE              (97)    /* solaris */
+# endif
+#endif
+#ifndef EL3RST
+# if defined(RT_OS_LINUX)
+#  define EL3RST                (47)
+# elif defined(RT_ERRNO_OS_SYSV_HARDCORE)
+#  define EL3RST                (40)    /* solaris */
+# endif
+#endif
+
+/** @todo errno constants {41..44}. */
 
 /* 45 - also EDEADLK on Solaris, EL2NSYNC on Linux. */
 #ifndef ENOTSUP
@@ -280,6 +393,8 @@
 #  define ENOTSUP               (45)
 # elif defined(RT_OS_LINUX)
 #  define ENOTSUP               (95)
+# elif defined(RT_OS_WINDOWS)
+#  define ENOTSUP               (129)
 # else
 #  define ENOTSUP               (48)
 # endif
@@ -289,6 +404,8 @@
 #  define EOPNOTSUPP            ENOTSUP
 # elif defined(RT_OS_LINUX)
 #  define EOPNOTSUPP            ENOTSUP
+# elif defined(RT_OS_WINDOWS)
+#  define EOPNOTSUPP            (130)
 # else
 #  define EOPNOTSUPP            (122)
 # endif
@@ -304,6 +421,8 @@
 #  define EOVERFLOW             (84)
 # elif defined(RT_OS_LINUX)
 #  define EOVERFLOW             (75)
+# elif defined(RT_OS_WINDOWS)
+#  define EOVERFLOW             (132)
 # else
 #  define EOVERFLOW             (79)
 # endif

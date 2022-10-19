@@ -10,26 +10,36 @@ include/VBox/VMMDevTesting.h.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2020 Oracle Corporation
+Copyright (C) 2012-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 
@@ -69,7 +79,21 @@ PP1K                    = 0x1c;
 PP10K                   = 0x1d;
 PPM                     = 0x1e;
 PPB                     = 0x1f;
-END                     = 0x20;
+TICKS                   = 0x20;
+TICKS_PER_CALL          = 0x21;
+TICKS_PER_OCCURENCE     = 0x22;
+PAGES                   = 0x23;
+PAGES_PER_SEC           = 0x24;
+TICKS_PER_PAGE          = 0x25;
+NS_PER_PAGE             = 0x26;
+PS                      = 0x27;
+PS_PER_CALL             = 0x28;
+PS_PER_FRAME            = 0x29;
+PS_PER_OCCURRENCE       = 0x2a;
+PS_PER_PACKET           = 0x2b;
+PS_PER_ROUND_TRIP       = 0x2c;
+PS_PER_PAGE             = 0x2d;
+END                     = 0x2e;
 ## @}
 
 
@@ -108,8 +132,24 @@ g_asNames = \
     'pp10k',
     'ppm',
     'ppb',
+    'ticks',
+    'ticks/call',
+    'ticks/occ',
+    'pages',
+    'pages/s',
+    'ticks/page',
+    'ns/page',
+    'ps',
+    'ps/call',
+    'ps/frame',
+    'ps/occurrences',
+    'ps/packet',
+    'ps/roundtrips',
+    'ps/page',
 ];
 assert g_asNames[PP1K] == 'pp1k';
+assert g_asNames[NS_PER_PAGE] == 'ns/page';
+assert g_asNames[PS_PER_PAGE] == 'ps/page';
 
 
 ## Translation table for XML -> number.

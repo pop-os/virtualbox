@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsDisplay_h
@@ -23,15 +33,16 @@
 
 /* GUI includes: */
 #include "UISettingsPage.h"
-#include "UIGlobalSettingsDisplay.gen.h"
 
 /* Forward declarations: */
+class UIDisplayFeaturesEditor;
+class UIMaximumGuestScreenSizeEditor;
+class UIScaleFactorEditor;
 struct UIDataSettingsGlobalDisplay;
 typedef UISettingsCache<UIDataSettingsGlobalDisplay> UISettingsCacheGlobalDisplay;
 
 /** Global settings: Display page. */
-class SHARED_LIBRARY_STUFF UIGlobalSettingsDisplay : public UISettingsPageGlobal,
-                                                     public Ui::UIGlobalSettingsDisplay
+class SHARED_LIBRARY_STUFF UIGlobalSettingsDisplay : public UISettingsPageGlobal
 {
     Q_OBJECT;
 
@@ -40,47 +51,51 @@ public:
     /** Constructs Display settings page. */
     UIGlobalSettingsDisplay();
     /** Destructs Display settings page. */
-    ~UIGlobalSettingsDisplay();
+    virtual ~UIGlobalSettingsDisplay() RT_OVERRIDE;
 
 protected:
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
-
-private slots:
-
-    /** Handles maximum guest-screen size policy change. */
-    void sltHandleMaximumGuestScreenSizePolicyChange();
+    virtual void retranslateUi() RT_OVERRIDE;
 
 private:
 
     /** Prepares all. */
     void prepare();
+    /** Prepares widgets. */
+    void prepareWidgets();
     /** Cleanups all. */
     void cleanup();
 
-    /** Reloads maximum guest-screen size policy combo-box. */
-    void reloadMaximumGuestScreenSizePolicyComboBox();
-
-    /** Saves existing display data from the cache. */
-    bool saveDisplayData();
+    /** Saves existing data from cache. */
+    bool saveData();
 
     /** Holds the page data cache instance. */
     UISettingsCacheGlobalDisplay *m_pCache;
+
+    /** @name Widgets
+     * @{ */
+        /** Holds the maximum guest screen size editor instance. */
+        UIMaximumGuestScreenSizeEditor *m_pEditorMaximumGuestScreenSize;
+        /** Holds the scale-factor editor instance. */
+        UIScaleFactorEditor            *m_pEditorScaleFactor;
+        /** Holds the global display features editor instance. */
+        UIDisplayFeaturesEditor        *m_pEditorGlobalDisplayFeatures;
+    /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsDisplay_h */

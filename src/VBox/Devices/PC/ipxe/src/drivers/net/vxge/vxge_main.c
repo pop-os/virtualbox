@@ -252,7 +252,7 @@ static void vxge_poll(struct net_device *ndev)
 /*
  * vxge_irq - enable or Disable interrupts
  *
- * @netdev   netdevice sturcture reference
+ * @netdev   netdevice structure reference
  * @action   requested interrupt action
  */
 static void vxge_irq(struct net_device *netdev __unused, int action)
@@ -509,7 +509,7 @@ vxge_probe(struct pci_device *pdev)
 	vxge_debug(VXGE_INFO, "vxge_probe for device " PCI_FMT "\n",
 			PCI_ARGS(pdev));
 
-	pci_read_config_byte(pdev, PCI_REVISION_ID, &revision);
+	pci_read_config_byte(pdev, PCI_REVISION, &revision);
 	titan1 = is_titan1(pdev->device, revision);
 
 	mmio_start = pci_bar_start(pdev, PCI_BASE_ADDRESS_0);
@@ -520,7 +520,7 @@ vxge_probe(struct pci_device *pdev)
 	/* sets the bus master */
 	adjust_pci_device(pdev);
 
-	bar0 = ioremap(mmio_start, mmio_len);
+	bar0 = pci_ioremap(pdev, mmio_start, mmio_len);
 	if (!bar0) {
 		vxge_debug(VXGE_ERR,
 			"%s : cannot remap io memory bar0\n", __func__);

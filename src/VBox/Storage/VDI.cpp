@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -714,7 +724,7 @@ static int vdiCreateImage(PVDIIMAGEDESC pImage, uint64_t cbSize,
     AssertPtrReturn(pImage->pIfIo, VERR_INVALID_PARAMETER);
 
     /* Special check for comment length. */
-    if (   VALID_PTR(pszComment)
+    if (   RT_VALID_PTR(pszComment)
         && strlen(pszComment) >= VDI_IMAGE_COMMENT_SIZE)
         rc = vdIfError(pImage->pIfError, VERR_VD_VDI_COMMENT_TOO_LONG, RT_SRC_POS,
                        N_("VDI: comment is too long for '%s'"), pImage->pszFilename);
@@ -1416,7 +1426,9 @@ static DECLCALLBACK(int) vdiProbe(const char *pszFilename, PVDINTERFACE pVDIfsDi
     LogFlowFunc(("pszFilename=\"%s\"\n", pszFilename));
     int rc = VINF_SUCCESS;
 
-    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename != '\0', VERR_INVALID_PARAMETER);
+
 
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)RTMemAllocZ(RT_UOFFSETOF(VDIIMAGEDESC, RegionList.aRegions[1]));
     if (RT_LIKELY(pImage))
@@ -1454,7 +1466,9 @@ static DECLCALLBACK(int) vdiOpen(const char *pszFilename, unsigned uOpenFlags,
 
     /* Check open flags. All valid flags are supported. */
     AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename != '\0', VERR_INVALID_PARAMETER);
+
 
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)RTMemAllocZ(RT_UOFFSETOF(VDIIMAGEDESC, RegionList.aRegions[1]));
     if (RT_LIKELY(pImage))
@@ -1507,10 +1521,10 @@ static DECLCALLBACK(int) vdiCreate(const char *pszFilename, uint64_t cbSize,
 
     /* Check open flags. All valid flags are supported. */
     AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn(   VALID_PTR(pszFilename)
-                 && *pszFilename
-                 && VALID_PTR(pPCHSGeometry)
-                 && VALID_PTR(pLCHSGeometry), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pszFilename, VERR_INVALID_POINTER);
+    AssertReturn(*pszFilename != '\0', VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pPCHSGeometry, VERR_INVALID_POINTER);
+    AssertPtrReturn(pLCHSGeometry, VERR_INVALID_POINTER);
 
     PVDIIMAGEDESC pImage = (PVDIIMAGEDESC)RTMemAllocZ(RT_UOFFSETOF(VDIIMAGEDESC, RegionList.aRegions[1]));
     if (RT_LIKELY(pImage))
@@ -1613,7 +1627,8 @@ static DECLCALLBACK(int) vdiRead(void *pBackendData, uint64_t uOffset, size_t cb
     AssertPtr(pImage);
     Assert(!(uOffset % 512));
     Assert(!(cbToRead % 512));
-    AssertReturn((VALID_PTR(pIoCtx) && cbToRead), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pIoCtx, VERR_INVALID_POINTER);
+    AssertReturn(cbToRead, VERR_INVALID_PARAMETER);
     AssertReturn(uOffset + cbToRead <= getImageDiskSize(&pImage->Header), VERR_INVALID_PARAMETER);
 
     /* Calculate starting block number and offset inside it. */
@@ -1672,7 +1687,8 @@ static DECLCALLBACK(int) vdiWrite(void *pBackendData, uint64_t uOffset, size_t c
     AssertPtr(pImage);
     Assert(!(uOffset % 512));
     Assert(!(cbToWrite % 512));
-    AssertReturn((VALID_PTR(pIoCtx) && cbToWrite), VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pIoCtx, VERR_INVALID_POINTER);
+    AssertReturn(cbToWrite, VERR_INVALID_PARAMETER);
 
     if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
     {
@@ -2310,7 +2326,7 @@ static DECLCALLBACK(int) vdiCompact(void *pBackendData, unsigned uPercentStart,
     void *pvBuf = NULL, *pvTmp = NULL;
     unsigned *paBlocks2 = NULL;
 
-    DECLCALLBACKMEMBER(int, pfnParentRead)(void *, uint64_t, void *, size_t) = NULL;
+    PFNVDPARENTREAD pfnParentRead = NULL;
     void *pvParent = NULL;
     PVDINTERFACEPARENTSTATE pIfParentState = VDIfParentStateGet(pVDIfsOperation);
     if (pIfParentState)
@@ -2567,8 +2583,9 @@ static DECLCALLBACK(int) vdiResize(void *pBackendData, uint64_t cbSize,
     else if (cbSize > getImageDiskSize(&pImage->Header))
     {
         unsigned cBlocksAllocated = getImageBlocksAllocated(&pImage->Header); /** < Blocks currently allocated, doesn't change during resize */
-        uint32_t cBlocksNew = cbSize / getImageBlockSize(&pImage->Header);    /** < New number of blocks in the image after the resize */
-        if (cbSize % getImageBlockSize(&pImage->Header))
+        unsigned const cbBlock = RT_MAX(getImageBlockSize(&pImage->Header), 1);
+        uint32_t cBlocksNew = cbSize / cbBlock;                               /** < New number of blocks in the image after the resize */
+        if (cbSize % cbBlock)
             cBlocksNew++;
 
         uint32_t cBlocksOld      = getImageBlocks(&pImage->Header);           /** < Number of blocks before the resize. */
@@ -2581,8 +2598,8 @@ static DECLCALLBACK(int) vdiResize(void *pBackendData, uint64_t cbSize,
             {
                 /* Calculate how many sectors need to be relocated. */
                 uint64_t cbOverlapping = offStartDataNew - pImage->offStartData;
-                unsigned cBlocksReloc = cbOverlapping / getImageBlockSize(&pImage->Header);
-                if (cbOverlapping % getImageBlockSize(&pImage->Header))
+                unsigned cBlocksReloc = cbOverlapping / cbBlock;
+                if (cbOverlapping % cbBlock)
                     cBlocksReloc++;
 
                 /* Since only full blocks can be relocated the new data start is
@@ -2798,11 +2815,10 @@ static DECLCALLBACK(int) vdiDiscard(void *pBackendData, PVDIOCTX pIoCtx,
 
         if (IS_VDI_IMAGE_BLOCK_ALLOCATED(pImage->paBlocks[uBlock]))
         {
+            unsigned const cbBlock = RT_MAX(getImageBlockSize(&pImage->Header), 1);
+            size_t const cbPreAllocated = offDiscard % cbBlock;
+            size_t const cbPostAllocated = getImageBlockSize(&pImage->Header) - cbDiscard - cbPreAllocated;
             uint8_t *pbBlockData;
-            size_t cbPreAllocated, cbPostAllocated;
-
-            cbPreAllocated = offDiscard % getImageBlockSize(&pImage->Header);
-            cbPostAllocated = getImageBlockSize(&pImage->Header) - cbDiscard - cbPreAllocated;
 
             /* Read the block data. */
             pvBlock = RTMemAlloc(pImage->cbTotalBlockData);

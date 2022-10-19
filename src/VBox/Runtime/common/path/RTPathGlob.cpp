@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -270,7 +280,7 @@ typedef struct RTPATHMATCHVAR
      * @param   pCache      Pointer to the path matching cache.  May speed up
      *                      enumerating PATH items and similar.
      */
-    DECLCALLBACKMEMBER(int, pfnQuery)(uint32_t iItem, char *pszBuf, size_t cbBuf, size_t *pcchValue, PRTPATHMATCHCACHE pCache);
+    DECLCALLBACKMEMBER(int, pfnQuery,(uint32_t iItem, char *pszBuf, size_t cbBuf, size_t *pcchValue, PRTPATHMATCHCACHE pCache));
 
     /**
      * Matching method, optional.
@@ -284,7 +294,7 @@ typedef struct RTPATHMATCHVAR
      * @param   fIgnoreCase Whether to ignore case or not when comparing.
      * @param   pcchMatched Where to return the length of the match (value length).
      */
-    DECLCALLBACKMEMBER(int, pfnMatch)(const char *pchMatch, size_t cchMatch, bool fIgnoreCase, size_t *pcchMatched);
+    DECLCALLBACKMEMBER(int, pfnMatch,(const char *pchMatch, size_t cchMatch, bool fIgnoreCase, size_t *pcchMatched));
 
 } RTPATHMATCHVAR;
 
@@ -1367,7 +1377,7 @@ static int rtPathGlobParse(PRTPATHGLOB pGlob, const char *pszPattern, PRTPATHPAR
             else
                 AssertMsgFailedReturn(("'%.*s' is not supported yet\n", pszComp, pParsed->aComps[0].cch),
                                       VERR_PATH_MATCH_FEATURE_NOT_IMPLEMENTED);
-            pGlob->offFirstPath = (uint32_t)RTPathEnsureTrailingSeparator(pGlob->szPath, sizeof(pGlob->szPath));
+            pGlob->offFirstPath = (uint16_t)RTPathEnsureTrailingSeparator(pGlob->szPath, sizeof(pGlob->szPath));
             pGlob->iFirstComp   = iComp = 1;
         }
     }

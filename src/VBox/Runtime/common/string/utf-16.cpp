@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -739,8 +749,8 @@ RTDECL(int)  RTUtf16ToUtf8Tag(PCRTUTF16 pwszString, char **ppszString, const cha
     /*
      * Validate input.
      */
-    Assert(VALID_PTR(ppszString));
-    Assert(VALID_PTR(pwszString));
+    AssertPtr(ppszString);
+    AssertPtr(pwszString);
     *ppszString = NULL;
 
     /*
@@ -786,8 +796,8 @@ RTDECL(int)  RTUtf16BigToUtf8Tag(PCRTUTF16 pwszString, char **ppszString, const 
     /*
      * Validate input.
      */
-    Assert(VALID_PTR(ppszString));
-    Assert(VALID_PTR(pwszString));
+    AssertPtr(ppszString);
+    AssertPtr(pwszString);
     *ppszString = NULL;
 
     /*
@@ -825,8 +835,8 @@ RTDECL(int)  RTUtf16LittleToUtf8Tag(PCRTUTF16 pwszString, char **ppszString, con
     /*
      * Validate input.
      */
-    Assert(VALID_PTR(ppszString));
-    Assert(VALID_PTR(pwszString));
+    AssertPtr(ppszString);
+    AssertPtr(pwszString);
     *ppszString = NULL;
 
     /*
@@ -1184,6 +1194,65 @@ RTDECL(int) RTUtf16GetCpExInternal(PCRTUTF16 *ppwsz, PRTUNICP pCp)
     return rc;
 }
 RT_EXPORT_SYMBOL(RTUtf16GetCpExInternal);
+
+
+RTDECL(int) RTUtf16GetCpNExInternal(PCRTUTF16 *ppwsz, size_t *pcwc, PRTUNICP pCp)
+{
+    int          rc;
+    const size_t cwc = *pcwc;
+    if (cwc > 0)
+    {
+        PCRTUTF16     pwsz = *ppwsz;
+        const RTUTF16 wc   = **ppwsz;
+
+        /* simple */
+        if (wc < 0xd800 || (wc > 0xdfff && wc < 0xfffe))
+        {
+            *pCp   = wc;
+            *pcwc  = cwc  - 1;
+            *ppwsz = pwsz + 1;
+            return VINF_SUCCESS;
+        }
+
+        if (wc < 0xfffe)
+        {
+            /* surrogate pair */
+            if (wc < 0xdc00)
+            {
+                if (cwc >= 2)
+                {
+                    const RTUTF16 wc2 = pwsz[1];
+                    if (wc2 >= 0xdc00 && wc2 <= 0xdfff)
+                    {
+                        *pCp   = 0x10000 + (((wc & 0x3ff) << 10) | (wc2 & 0x3ff));
+                        *pcwc  = cwc  - 2;
+                        *ppwsz = pwsz + 2;
+                        return VINF_SUCCESS;
+                    }
+
+                    RTStrAssertMsgFailed(("wc=%#08x wc2=%#08x - invalid 2nd char in surrogate pair\n", wc, wc2));
+                }
+                else
+                    RTStrAssertMsgFailed(("wc=%#08x - incomplete surrogate pair\n", wc));
+            }
+            else
+                RTStrAssertMsgFailed(("wc=%#08x - invalid surrogate pair order\n", wc));
+            rc = VERR_INVALID_UTF16_ENCODING;
+        }
+        else
+        {
+            RTStrAssertMsgFailed(("wc=%#08x - endian indicator\n", wc));
+            rc = VERR_CODE_POINT_ENDIAN_INDICATOR;
+        }
+        *pcwc  = cwc  - 1;
+        *ppwsz = pwsz + 1;
+    }
+    else
+        rc = VERR_END_OF_STRING;
+    *pCp = RTUNICP_INVALID;
+    return rc;
+}
+RT_EXPORT_SYMBOL(RTUtf16GetCpNExInternal);
 
 
 RTDECL(int) RTUtf16BigGetCpExInternal(PCRTUTF16 *ppwsz, PRTUNICP pCp)

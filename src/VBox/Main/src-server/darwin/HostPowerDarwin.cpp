@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_HOST
@@ -200,28 +210,29 @@ void HostPowerServiceDarwin::checkBatteryCriticalLevel(bool *pfCriticalChanged)
                          CFStringCompare((CFStringRef)psValue, CFSTR(kIOPSBatteryPowerValue), 0) == kCFCompareEqualTo)
                     powerSource = POWER_SOURCE_BATTERY;
 
-                int curCapacity = 0;
-                int maxCapacity = 1;
-                float remCapacity = 0.0f;
 
                 /* Fetch the current capacity value of the power source */
+                int curCapacity = 0;
                 result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSCurrentCapacityKey), &psValue);
                 if (result)
                     CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &curCapacity);
+
                 /* Fetch the maximum capacity value of the power source */
+                int maxCapacity = 1;
                 result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSMaxCapacityKey), &psValue);
                 if (result)
                     CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &maxCapacity);
 
                 /* Calculate the remaining capacity in percent */
-                remCapacity = ((float)curCapacity/(float)maxCapacity * 100.0);
+                float remCapacity = ((float)curCapacity/(float)maxCapacity * 100.0f);
 
                 /* Check for critical. 5 percent is default. */
                 int criticalValue = 5;
                 result = CFDictionaryGetValueIfPresent(pSource, CFSTR(kIOPSDeadWarnLevelKey), &psValue);
                 if (result)
                     CFNumberGetValue((CFNumberRef)psValue, kCFNumberSInt32Type, &criticalValue);
-                critical = (remCapacity < criticalValue);
+                critical = remCapacity < criticalValue;
+
                 /* We have to take action only if we are on battery, the
                  * previous state wasn't critical, the state has changed & the
                  * user requested that info. */

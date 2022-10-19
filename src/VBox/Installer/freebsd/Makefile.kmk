@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../../..
@@ -59,19 +69,20 @@ freebsd-misc_MODE = a+r,u+w
 freebsd-misc_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/$(if $(VBOX_OSE),OSE,NonOSE)/VirtualBox_32px.png=>VBox.png \
 	$(if $(VBOX_OSE),,$(VBOX_BRAND_LICENSE_TXT)=>LICENSE) \
-	$(if $(VBOX_WITH_QTGUI),$(freebsd-misc_0_OUTDIR)/virtualbox.desktop,)
+	$(if $(VBOX_WITH_QTGUI),$(freebsd-misc_0_OUTDIR)/virtualbox.desktop,) \
+	$(if $(VBOX_WITH_QTGUI),$(freebsd-misc_0_OUTDIR)/virtualboxvm.desktop,)
 freebsd-misc_CLEAN = $(freebsd-misc_0_OUTDIR)/virtualbox.desktop
+freebsd-misc_CLEAN += $(freebsd-misc_0_OUTDIR)/virtualboxvm.desktop
 
-$$(PATH_freebsd-misc)/virtualbox.desktop: $(PATH_SUB_CURRENT)/virtualbox.desktop $(VBOX_VERSION_STAMP) | $$(dir $$@)
+$$(PATH_freebsd-misc)/virtualbox.desktop: $(VBOX_PATH_INST_COMMON_SRC)/virtualbox.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
-ifdef VBOX_PATH_PACKAGE_DOCS
-	$(QUIET)$(SED) -e "s+\$$VBOX_DOC_PATH+$(VBOX_PATH_PACKAGE_DOCS)+" --output $@ $<
-else
-	$(QUIET)$(SED) -e "s+\$$VBOX_DOC_PATH+/opt/VirtualBox+" --output $@ $<
-endif
+	$(QUIET)$(SED) -e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+" \
+		--output $@ $<
 
-
-
+$$(PATH_freebsd-misc)/virtualboxvm.desktop: $(VBOX_PATH_INST_COMMON_SRC)/virtualboxvm.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
+	$(call MSG_GENERATE,,$@,$<)
+	$(QUIET)$(SED) -e "s+@VBOX_PRODUCT@+$(VBOX_PRODUCT)+" \
+		--output $@ $<
 #
 # The files residing in bin/ that we'll ship.
 #
@@ -102,7 +113,8 @@ VBOX_FBSD_STRIP_BIN = \
 		components/VBoxC.so,) \
 		VBoxTestOGL \
 	$(if $(VBOX_WITH_PYTHON),VBoxPython.so,) \
-	$(if $(VBOX_WITH_DTRACE),VBoxDTrace,)
+	$(if $(VBOX_WITH_DTRACE),VBoxDTrace,) \
+	$(if $(VBOX_WITH_HOST_SHIPPING_AUDIO_TEST),VBoxAudioTest,)
 
 # Do not remove relocation information of these binaries
 VBOX_FBSD_STRIP_OBJ = \
@@ -132,7 +144,8 @@ VBOX_FBSD_SYMLINKS = \
 		VBoxManage \
 		VBoxSVC) \
 	$(if $(VBOX_WITH_VBOXSDL),VBoxSDL,) \
-	$(if $(VBOX_WITH_DTRACE),VBoxDTrace,)
+	$(if $(VBOX_WITH_DTRACE),VBoxDTrace,) \
+	$(if $(VBOX_WITH_HOST_SHIPPING_AUDIO_TEST),VBoxAudioTest,)
 
 # Qt GUI
 ifdef VBOX_WITH_QTGUI
@@ -150,7 +163,8 @@ ifdef VBOX_WITH_QTGUI
 	$(if $(VBOX_WITH_ORACLE_QT),accessible/libqtaccessiblewidgets.so,) \
  	$(foreach f,$(VBOX_APPROVED_GUI_LANGUAGES),nls/VirtualBox_$(f).qm nls/qt_$(f).qm)
  VBOX_FBSD_DESKTOP_FILE = \
-	virtualbox.desktop
+	virtualbox.desktop \
+	virtualboxvm.desktop
  VBOX_FBSD_ICON_FILE = \
 	VBox.png
 endif
@@ -166,8 +180,6 @@ ifdef VBOX_WITH_DOCS_PACKING
  VBOX_FBSD_NO_STRIP += \
 	VirtualBox.chm UserManual.pdf \
 	$(foreach f,$(VBOX_MANUAL_ADD_LANGUAGES),VirtualBox_$(f).chm UserManual_$(f).pdf)
- VBOX_FBSD_STRIP_BIN += \
-	$(if $(VBOX_WITH_KCHMVIEWER),kchmviewer,)
 endif
 
 # VRDP
@@ -175,14 +187,6 @@ ifdef VBOX_WITH_VRDP
  VBOX_FBSD_STRIP_BIN += \
 	VBoxVRDP.so \
 	VBoxAuth.so
- VBOX_FBSD_NO_STRIP += \
-	rdesktop-vrdp.tar.gz
- ifdef VBOX_WITH_VRDP_RDESKTOP
-#  VBOX_FBSD_NO_STRIP += \
-#	rdesktop-vrdp-keymaps
-  VBOX_FBSD_STRIP_BIN += \
-	rdesktop-vrdp
- endif
 endif
 
 # Headless

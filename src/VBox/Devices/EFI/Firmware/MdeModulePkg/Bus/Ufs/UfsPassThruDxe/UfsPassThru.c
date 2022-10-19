@@ -1,6 +1,7 @@
 /** @file
 
-  Copyright (c) 2014 - 2019, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) 2014 - 2021, Intel Corporation. All rights reserved.<BR>
+  Copyright (c) Microsoft Corporation.<BR>
   SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
@@ -748,7 +749,7 @@ UfsFinishDeviceInitialization (
 {
   EFI_STATUS  Status;
   UINT8  DeviceInitStatus;
-  UINT8  Timeout;
+  UINT32 Timeout;
 
   DeviceInitStatus = 0xFF;
 
@@ -760,7 +761,10 @@ UfsFinishDeviceInitialization (
     return Status;
   }
 
-  Timeout = 5;
+  //
+  // There are cards that can take upto 600ms to clear fDeviceInit flag.
+  //
+  Timeout = UFS_INIT_COMPLETION_TIMEOUT;
   do {
     Status = UfsReadFlag (Private, UfsFlagDevInit, &DeviceInitStatus);
     if (EFI_ERROR (Status)) {
@@ -770,7 +774,13 @@ UfsFinishDeviceInitialization (
     Timeout--;
   } while (DeviceInitStatus != 0 && Timeout != 0);
 
-  return EFI_SUCCESS;
+  if (Timeout == 0) {
+    DEBUG ((DEBUG_ERROR, "UfsFinishDeviceInitialization DeviceInitStatus=%x EFI_TIMEOUT \n", DeviceInitStatus));
+    return EFI_TIMEOUT;
+  } else {
+    DEBUG ((DEBUG_INFO, "UfsFinishDeviceInitialization Timeout left=%x EFI_SUCCESS \n", Timeout));
+    return EFI_SUCCESS;
+  }
 }
 
 /**
@@ -822,7 +832,9 @@ UfsPassThruDriverBindingStart (
   UINTN                                 UfsHcBase;
   UINT32                                Index;
   UFS_UNIT_DESC                         UnitDescriptor;
+  UFS_DEV_DESC                          DeviceDescriptor;
   UINT32                                UnitDescriptorSize;
+  UINT32                                DeviceDescriptorSize;
 
   Status    = EFI_SUCCESS;
   UfsHc     = NULL;
@@ -916,7 +928,6 @@ UfsPassThruDriverBindingStart (
 
   //
   // Check if 8 common luns are active and set corresponding bit mask.
-  // TODO: Parse device descriptor to decide if exposing RPMB LUN to upper layer for authentication access.
   //
   UnitDescriptorSize = sizeof (UFS_UNIT_DESC);
   for (Index = 0; Index < 8; Index++) {
@@ -928,6 +939,20 @@ UfsPassThruDriverBindingStart (
     if (UnitDescriptor.LunEn == 0x1) {
       DEBUG ((DEBUG_INFO, "UFS LUN %X is enabled\n", Index));
       Private->Luns.BitMask |= (BIT0 << Index);
+    }
+  }
+
+  //
+  // Check if RPMB WLUN is supported and set corresponding bit mask.
+  //
+  DeviceDescriptorSize = sizeof (UFS_DEV_DESC);
+  Status = UfsRwDeviceDesc (Private, TRUE, UfsDeviceDesc, 0, 0, &DeviceDescriptor, &DeviceDescriptorSize);
+  if (EFI_ERROR (Status)) {
+    DEBUG ((DEBUG_ERROR, "Failed to read device descriptor, status = %r\n", Status));
+  } else {
+    if (DeviceDescriptor.SecurityLun == 0x1) {
+      DEBUG ((DEBUG_INFO, "UFS WLUN RPMB is supported\n"));
+      Private->Luns.BitMask |= BIT11;
     }
   }
 
@@ -1068,7 +1093,7 @@ UfsPassThruDriverBindingStop (
   // Cleanup the resources of I/O requests in the async I/O queue
   //
   if (!IsListEmpty(&Private->Queue)) {
-    EFI_LIST_FOR_EACH_SAFE (Entry, NextEntry, &Private->Queue) {
+    BASE_LIST_FOR_EACH_SAFE (Entry, NextEntry, &Private->Queue) {
       TransReq  = UFS_PASS_THRU_TRANS_REQ_FROM_THIS (Entry);
 
       //

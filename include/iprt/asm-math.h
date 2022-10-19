@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_asm_math_h
@@ -32,12 +42,8 @@
 #include <iprt/types.h>
 
 #if defined(_MSC_VER) && RT_INLINE_ASM_USES_INTRIN
-# pragma warning(push)
-# pragma warning(disable:4668) /* Several incorrect __cplusplus uses. */
-# pragma warning(disable:4255) /* Incorrect __slwpcb prototype. */
-# include <intrin.h>
-# pragma warning(pop)
-  /* Emit the intrinsics at all optimization levels. */
+/* Emit the intrinsics at all optimization levels. */
+# include <iprt/sanitized/intrin.h>
 # pragma intrinsic(__emul)
 # pragma intrinsic(__emulu)
 # ifdef RT_ARCH_AMD64
@@ -124,23 +130,22 @@ DECLINLINE(int64_t) ASMMult2xS32RetS64(int32_t i32F1, int32_t i32F2)
 #endif
 
 
-#if ARCH_BITS == 64
 DECLINLINE(uint64_t) ASMMult2xU64Ret2xU64(uint64_t u64F1, uint64_t u64F2, uint64_t *pu64ProdHi)
 {
-# if defined(RT_ARCH_AMD64) && (RT_INLINE_ASM_GNU_STYLE || RT_INLINE_ASM_USES_INTRIN)
-#  if RT_INLINE_ASM_GNU_STYLE
+#if defined(RT_ARCH_AMD64) && (RT_INLINE_ASM_GNU_STYLE || RT_INLINE_ASM_USES_INTRIN)
+# if RT_INLINE_ASM_GNU_STYLE
     uint64_t u64Low, u64High;
     __asm__ __volatile__("mulq %%rdx"
                          : "=a" (u64Low), "=d" (u64High)
                          : "0" (u64F1), "1" (u64F2));
     *pu64ProdHi = u64High;
     return u64Low;
-#  elif RT_INLINE_ASM_USES_INTRIN
+# elif RT_INLINE_ASM_USES_INTRIN
     return _umul128(u64F1, u64F2, pu64ProdHi);
-#  else
-#   error "hmm"
-#  endif
-# else  /* generic: */
+# else
+#  error "hmm"
+# endif
+#else  /* generic: */
     /*
      *   F1 * F2 = Prod
      *   --   --
@@ -179,9 +184,8 @@ DECLINLINE(uint64_t) ASMMult2xU64Ret2xU64(uint64_t u64F1, uint64_t u64F2, uint64
     Prod.s.Hi += ASMMult2xU32RetU64(F1.s.Hi, F2.s.Hi);
     *pu64ProdHi  = Prod.s.Hi;
     return Prod.s.Lo;
-# endif
-}
 #endif
+}
 
 
 

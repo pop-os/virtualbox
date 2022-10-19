@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -50,18 +60,21 @@
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
 /** The current saved state version. */
-#define LSILOGIC_SAVED_STATE_VERSION                5
+#define LSILOGIC_SAVED_STATE_VERSION                      6
+/** The saved state version used by VirtualBox before removal of the
+ * VBoxSCSI BIOS interface. */
+#define LSILOGIC_SAVED_STATE_VERSION_PRE_VBOXSCSI_REMOVAL 5
 /** The saved state version used by VirtualBox before the diagnostic
  * memory access was implemented. */
-#define LSILOGIC_SAVED_STATE_VERSION_PRE_DIAG_MEM   4
+#define LSILOGIC_SAVED_STATE_VERSION_PRE_DIAG_MEM         4
 /** The saved state version used by VirtualBox before the doorbell status flag
  * was changed from bool to a 32bit enum. */
-#define LSILOGIC_SAVED_STATE_VERSION_BOOL_DOORBELL  3
+#define LSILOGIC_SAVED_STATE_VERSION_BOOL_DOORBELL        3
 /** The saved state version used by VirtualBox before SAS support was added. */
-#define LSILOGIC_SAVED_STATE_VERSION_PRE_SAS        2
+#define LSILOGIC_SAVED_STATE_VERSION_PRE_SAS              2
 /** The saved state version used by VirtualBox 3.0 and earlier.  It does not
  * include the device config part. */
-#define LSILOGIC_SAVED_STATE_VERSION_VBOX_30        1
+#define LSILOGIC_SAVED_STATE_VERSION_VBOX_30              1
 
 /** Maximum number of entries in the release log. */
 #define MAX_REL_LOG_ERRORS                          1024
@@ -98,10 +111,10 @@ typedef struct LSILOGICSCSI *PLSILOGICSCSI;
  *                      On return this contains the remaining amount if
  *                      cbCopy < *pcbSkip or 0 otherwise.
  */
-typedef DECLCALLBACK(void) LSILOGICR3MEMCOPYCALLBACK(PPDMDEVINS pDevIns, RTGCPHYS GCPhys,
-                                                     PRTSGBUF pSgBuf, size_t cbCopy, size_t *pcbSkip);
+typedef DECLCALLBACKTYPE(void, FNLSILOGICR3MEMCOPYCALLBACK,(PPDMDEVINS pDevIns, RTGCPHYS GCPhys,
+                                                            PRTSGBUF pSgBuf, size_t cbCopy, size_t *pcbSkip));
 /** Pointer to a memory copy buffer callback. */
-typedef LSILOGICR3MEMCOPYCALLBACK *PLSILOGICR3MEMCOPYCALLBACK;
+typedef FNLSILOGICR3MEMCOPYCALLBACK *PFNLSILOGICR3MEMCOPYCALLBACK;
 #endif
 
 /**
@@ -288,10 +301,7 @@ typedef struct LSILOGICSCSI
     bool volatile               fSignalIdle;
     /** Flag whether the worker thread is sleeping. */
     volatile bool               fWrkThreadSleeping;
-    /** Flag whether a request from the BIOS is pending which the
-     * worker thread needs to process. */
-    volatile bool               fBiosReqPending;
-    bool                        fPadding3;
+    bool                        afPadding3[2];
 
     /** Current address to read from or write to in the diagnostic memory region. */
     uint32_t                    u32DiagMemAddr;
@@ -336,9 +346,6 @@ typedef struct LSILOGICSCSIR3
     R3PTRTYPE(PPDMIMEDIANOTIFY) pMediaNotify;
     /** Pointer to the configuration page area. */
     R3PTRTYPE(PMptConfigurationPagesSupported) pConfigurationPages;
-
-    /** BIOS emulation. */
-    VBOXSCSI                    VBoxSCSI;
 
     /** Current size of the memory regions. */
     uint32_t                    cbMemRegns;
@@ -410,8 +417,6 @@ typedef struct LSILOGICREQ
     uint32_t                    cChainOffset;
     /** Pointer to the sense buffer. */
     uint8_t                     abSenseBuffer[18];
-    /** Flag whether the request was issued from the BIOS. */
-    bool                        fBIOS;
     /** SCSI status code. */
     uint8_t                     u8ScsiSts;
 } LSILOGICREQ;
@@ -733,15 +738,13 @@ static void lsilogicR3ConfigurationPagesFree(PLSILOGICSCSI pThis, PLSILOGICSCSIC
  */
 static void lsilogicR3FinishContextReply(PPDMDEVINS pDevIns, PLSILOGICSCSI pThis, uint32_t u32MessageContext)
 {
-    int rc;
-
     LogFlowFunc(("pThis=%#p u32MessageContext=%#x\n", pThis, u32MessageContext));
 
     AssertMsg(pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_NOT_IN_USE, ("We are in a doorbell function\n"));
 
     /* Write message context ID into reply post queue. */
-    rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->ReplyPostQueueCritSect, VINF_SUCCESS);
-    AssertRC(rc);
+    int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->ReplyPostQueueCritSect, VINF_SUCCESS);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->ReplyPostQueueCritSect, rc);
 
     /* Check for a entry in the queue. */
     if (!lsilogicReplyPostQueueGetFrameCount(pThis))
@@ -796,10 +799,9 @@ static void lsilogicFinishAddressReply(PPDMDEVINS pDevIns, PLSILOGICSCSI pThis, 
          * that this case happens in R0 or GC.
          */
 # ifdef IN_RING3
-        int rc;
         /* Grab a free reply message from the queue. */
-        rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->ReplyFreeQueueCritSect, VINF_SUCCESS);
-        AssertRC(rc);
+        int rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->ReplyFreeQueueCritSect, VINF_SUCCESS);
+        PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->ReplyFreeQueueCritSect, rc);
 
         /* Check for a free reply frame. */
         if (!lsilogicReplyFreeQueueGetFrameCount(pThis))
@@ -818,17 +820,15 @@ static void lsilogicFinishAddressReply(PPDMDEVINS pDevIns, PLSILOGICSCSI pThis, 
         PDMDevHlpCritSectLeave(pDevIns, &pThis->ReplyFreeQueueCritSect);
 
         /* Build 64bit physical address. */
-        RTGCPHYS const GCPhysReplyMessage = LSILOGIC_RTGCPHYS_FROM_U32(pThis->u32HostMFAHighAddr, u32ReplyFrameAddressLow);
-        uint32_t const cbReplyFrame = pThis->cbReplyFrame; /* Can be changed from EMT */
-        RT_UNTRUSTED_NONVOLATILE_COPY_FENCE();
-        size_t cbReplyCopied = RT_MIN(cbReplyFrame, sizeof(MptReplyUnion));
+        RTGCPHYS GCPhysReplyMessage = LSILOGIC_RTGCPHYS_FROM_U32(pThis->u32HostMFAHighAddr, u32ReplyFrameAddressLow);
+        size_t cbReplyCopied = (pThis->cbReplyFrame < sizeof(MptReplyUnion)) ? pThis->cbReplyFrame : sizeof(MptReplyUnion);
 
         /* Write reply to guest memory. */
-        PDMDevHlpPCIPhysWrite(pDevIns, GCPhysReplyMessage, pReply, cbReplyCopied);
+        PDMDevHlpPCIPhysWriteMeta(pDevIns, GCPhysReplyMessage, pReply, cbReplyCopied);
 
         /* Write low 32bits of reply frame into post reply queue. */
         rc = PDMDevHlpCritSectEnter(pDevIns, &pThis->ReplyPostQueueCritSect, VINF_SUCCESS);
-        AssertRC(rc);
+        PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, &pThis->ReplyPostQueueCritSect, rc);
 
         /* Check for a entry in the queue. */
         if (!lsilogicReplyPostQueueGetFrameCount(pThis))
@@ -1479,7 +1479,6 @@ static VBOXSTRICTRC lsilogicRegisterWrite(PPDMDEVINS pDevIns, PLSILOGICSCSI pThi
                     }
                     default:
                         AssertMsgFailed(("Unknown function %u to perform\n", uFunction));
-                        break;
                 }
             }
             else if (pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_FN_HANDSHAKE)
@@ -1966,7 +1965,7 @@ static void lsilogicDumpSGEntry(PMptSGEntryUnion pSGEntry)
 /**
  * Copy from guest to host memory worker.
  *
- * @copydoc LSILOGICR3MEMCOPYCALLBACK
+ * @copydoc FNLSILOGICR3MEMCOPYCALLBACK
  */
 static DECLCALLBACK(void) lsilogicR3CopyBufferFromGuestWorker(PPDMDEVINS pDevIns, RTGCPHYS GCPhys,
                                                               PRTSGBUF pSgBuf, size_t cbCopy, size_t *pcbSkip)
@@ -1982,7 +1981,7 @@ static DECLCALLBACK(void) lsilogicR3CopyBufferFromGuestWorker(PPDMDEVINS pDevIns
         void *pvSeg = RTSgBufGetNextSegment(pSgBuf, &cbSeg);
 
         AssertPtr(pvSeg);
-        PDMDevHlpPhysRead(pDevIns, GCPhys, pvSeg, cbSeg);
+        PDMDevHlpPCIPhysReadUser(pDevIns, GCPhys, pvSeg, cbSeg);
         GCPhys += cbSeg;
         cbCopy -= cbSeg;
     }
@@ -1991,7 +1990,7 @@ static DECLCALLBACK(void) lsilogicR3CopyBufferFromGuestWorker(PPDMDEVINS pDevIns
 /**
  * Copy from host to guest memory worker.
  *
- * @copydoc LSILOGICR3MEMCOPYCALLBACK
+ * @copydoc FNLSILOGICR3MEMCOPYCALLBACK
  */
 static DECLCALLBACK(void) lsilogicR3CopyBufferToGuestWorker(PPDMDEVINS pDevIns, RTGCPHYS GCPhys,
                                                             PRTSGBUF pSgBuf, size_t cbCopy, size_t *pcbSkip)
@@ -2007,7 +2006,7 @@ static DECLCALLBACK(void) lsilogicR3CopyBufferToGuestWorker(PPDMDEVINS pDevIns, 
         void *pvSeg = RTSgBufGetNextSegment(pSgBuf, &cbSeg);
 
         AssertPtr(pvSeg);
-        PDMDevHlpPCIPhysWrite(pDevIns, GCPhys, pvSeg, cbSeg);
+        PDMDevHlpPCIPhysWriteUser(pDevIns, GCPhys, pvSeg, cbSeg);
         GCPhys += cbSeg;
         cbCopy -= cbSeg;
     }
@@ -2026,7 +2025,7 @@ static DECLCALLBACK(void) lsilogicR3CopyBufferToGuestWorker(PPDMDEVINS pDevIns, 
  * @param   cbCopy          How many bytes to copy.
  */
 static size_t lsilogicSgBufWalker(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq,
-                                  PLSILOGICR3MEMCOPYCALLBACK pfnCopyWorker,
+                                  PFNLSILOGICR3MEMCOPYCALLBACK pfnCopyWorker,
                                   PRTSGBUF pSgBuf, size_t cbSkip, size_t cbCopy)
 {
     bool     fEndOfList = false;
@@ -2055,7 +2054,7 @@ static size_t lsilogicSgBufWalker(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq,
             Log(("%s: Reading SG entry from %RGp\n", __FUNCTION__, GCPhysSgEntryNext));
 
             /* Read the entry. */
-            PDMDevHlpPhysRead(pDevIns, GCPhysSgEntryNext, &SGEntry, sizeof(MptSGEntryUnion));
+            PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysSgEntryNext, &SGEntry, sizeof(MptSGEntryUnion));
 
 # ifdef LOG_ENABLED
             lsilogicDumpSGEntry(&SGEntry);
@@ -2100,7 +2099,7 @@ static size_t lsilogicSgBufWalker(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq,
         {
             MptSGEntryChain SGEntryChain;
 
-            PDMDevHlpPhysRead(pDevIns, GCPhysSegmentStart + cChainOffsetNext, &SGEntryChain, sizeof(MptSGEntryChain));
+            PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysSegmentStart + cChainOffsetNext, &SGEntryChain, sizeof(MptSGEntryChain));
 
             AssertMsg(SGEntryChain.u2ElementType == MPTSGENTRYTYPE_CHAIN, ("Invalid SG entry type\n"));
 
@@ -2222,71 +2221,59 @@ static void lsilogicR3DumpSCSIIORequest(PMptSCSIIORequest pSCSIIORequest)
  *
  * @returns nothing.
  * @param   pDevIns     The device instance.
- * @param   pThisCC     Pointer to the ring-3 LsiLogic device state.
  * @param   pThis       Pointer to the shared LsiLogic device state.
  * @param   pReq        The request to complete.
  * @param   rcReq       Status code of the request.
  */
-static void lsilogicR3ReqComplete(PPDMDEVINS pDevIns, PLSILOGICSCSI pThis, PLSILOGICSCSICC pThisCC, PLSILOGICREQ pReq, int rcReq)
+static void lsilogicR3ReqComplete(PPDMDEVINS pDevIns, PLSILOGICSCSI pThis, PLSILOGICREQ pReq, int rcReq)
 {
     PLSILOGICDEVICE pTgtDev = pReq->pTargetDevice;
+    RTGCPHYS GCPhysAddrSenseBuffer;
 
-    if (!pReq->fBIOS)
-    {
-        RTGCPHYS GCPhysAddrSenseBuffer;
+    GCPhysAddrSenseBuffer = pReq->GuestRequest.SCSIIO.u32SenseBufferLowAddress;
+    GCPhysAddrSenseBuffer |= ((uint64_t)pThis->u32SenseBufferHighAddr << 32);
 
-        GCPhysAddrSenseBuffer = pReq->GuestRequest.SCSIIO.u32SenseBufferLowAddress;
-        GCPhysAddrSenseBuffer |= ((uint64_t)pThis->u32SenseBufferHighAddr << 32);
-
-        /* Copy the sense buffer over. */
-        if (pReq->GuestRequest.SCSIIO.u8SenseBufferLength > 0)
-            PDMDevHlpPCIPhysWrite(pDevIns, GCPhysAddrSenseBuffer, pReq->abSenseBuffer,
+    /* Copy the sense buffer over. */
+    if (pReq->GuestRequest.SCSIIO.u8SenseBufferLength > 0)
+        PDMDevHlpPCIPhysWriteMeta(pDevIns, GCPhysAddrSenseBuffer, pReq->abSenseBuffer,
                                   RT_UNLIKELY(  pReq->GuestRequest.SCSIIO.u8SenseBufferLength
                                               < sizeof(pReq->abSenseBuffer))
                                   ? pReq->GuestRequest.SCSIIO.u8SenseBufferLength
                                   : sizeof(pReq->abSenseBuffer));
 
-        if (RT_SUCCESS(rcReq) && RT_LIKELY(pReq->u8ScsiSts == SCSI_STATUS_OK))
-        {
-            uint32_t u32MsgCtx = pReq->GuestRequest.SCSIIO.u32MessageContext;
+    if (RT_SUCCESS(rcReq) && RT_LIKELY(pReq->u8ScsiSts == SCSI_STATUS_OK))
+    {
+        uint32_t u32MsgCtx = pReq->GuestRequest.SCSIIO.u32MessageContext;
 
-            /* Free the request before posting completion. */
-            pTgtDev->pDrvMediaEx->pfnIoReqFree(pTgtDev->pDrvMediaEx, pReq->hIoReq);
-            lsilogicR3FinishContextReply(pDevIns, pThis, u32MsgCtx);
-        }
-        else
-        {
-            MptReplyUnion IOCReply;
-            RT_ZERO(IOCReply);
-
-            /* The SCSI target encountered an error during processing post a reply. */
-            IOCReply.SCSIIOError.u8TargetID          = pReq->GuestRequest.SCSIIO.u8TargetID;
-            IOCReply.SCSIIOError.u8Bus               = pReq->GuestRequest.SCSIIO.u8Bus;
-            IOCReply.SCSIIOError.u8MessageLength     = 8;
-            IOCReply.SCSIIOError.u8Function          = pReq->GuestRequest.SCSIIO.u8Function;
-            IOCReply.SCSIIOError.u8CDBLength         = pReq->GuestRequest.SCSIIO.u8CDBLength;
-            IOCReply.SCSIIOError.u8SenseBufferLength = pReq->GuestRequest.SCSIIO.u8SenseBufferLength;
-            IOCReply.SCSIIOError.u8MessageFlags      = pReq->GuestRequest.SCSIIO.u8MessageFlags;
-            IOCReply.SCSIIOError.u32MessageContext   = pReq->GuestRequest.SCSIIO.u32MessageContext;
-            IOCReply.SCSIIOError.u8SCSIStatus        = pReq->u8ScsiSts;
-            IOCReply.SCSIIOError.u8SCSIState         = MPT_SCSI_IO_ERROR_SCSI_STATE_AUTOSENSE_VALID;
-            IOCReply.SCSIIOError.u16IOCStatus        = 0;
-            IOCReply.SCSIIOError.u32IOCLogInfo       = 0;
-            IOCReply.SCSIIOError.u32TransferCount    = 0;
-            IOCReply.SCSIIOError.u32SenseCount       = sizeof(pReq->abSenseBuffer);
-            IOCReply.SCSIIOError.u32ResponseInfo     = 0;
-
-            /* Free the request before posting completion. */
-            pTgtDev->pDrvMediaEx->pfnIoReqFree(pTgtDev->pDrvMediaEx, pReq->hIoReq);
-            lsilogicFinishAddressReply(pDevIns, pThis, &IOCReply, false);
-        }
+        /* Free the request before posting completion. */
+        pTgtDev->pDrvMediaEx->pfnIoReqFree(pTgtDev->pDrvMediaEx, pReq->hIoReq);
+        lsilogicR3FinishContextReply(pDevIns, pThis, u32MsgCtx);
     }
     else
     {
-        uint8_t u8ScsiSts = pReq->u8ScsiSts;
+        MptReplyUnion IOCReply;
+        RT_ZERO(IOCReply);
+
+        /* The SCSI target encountered an error during processing post a reply. */
+        IOCReply.SCSIIOError.u8TargetID          = pReq->GuestRequest.SCSIIO.u8TargetID;
+        IOCReply.SCSIIOError.u8Bus               = pReq->GuestRequest.SCSIIO.u8Bus;
+        IOCReply.SCSIIOError.u8MessageLength     = 8;
+        IOCReply.SCSIIOError.u8Function          = pReq->GuestRequest.SCSIIO.u8Function;
+        IOCReply.SCSIIOError.u8CDBLength         = pReq->GuestRequest.SCSIIO.u8CDBLength;
+        IOCReply.SCSIIOError.u8SenseBufferLength = pReq->GuestRequest.SCSIIO.u8SenseBufferLength;
+        IOCReply.SCSIIOError.u8MessageFlags      = pReq->GuestRequest.SCSIIO.u8MessageFlags;
+        IOCReply.SCSIIOError.u32MessageContext   = pReq->GuestRequest.SCSIIO.u32MessageContext;
+        IOCReply.SCSIIOError.u8SCSIStatus        = pReq->u8ScsiSts;
+        IOCReply.SCSIIOError.u8SCSIState         = MPT_SCSI_IO_ERROR_SCSI_STATE_AUTOSENSE_VALID;
+        IOCReply.SCSIIOError.u16IOCStatus        = 0;
+        IOCReply.SCSIIOError.u32IOCLogInfo       = 0;
+        IOCReply.SCSIIOError.u32TransferCount    = 0;
+        IOCReply.SCSIIOError.u32SenseCount       = sizeof(pReq->abSenseBuffer);
+        IOCReply.SCSIIOError.u32ResponseInfo     = 0;
+
+        /* Free the request before posting completion. */
         pTgtDev->pDrvMediaEx->pfnIoReqFree(pTgtDev->pDrvMediaEx, pReq->hIoReq);
-        int rc = vboxscsiRequestFinished(&pThisCC->VBoxSCSI, u8ScsiSts);
-        AssertMsgRC(rc, ("Finishing BIOS SCSI request failed rc=%Rrc\n", rc));
+        lsilogicFinishAddressReply(pDevIns, pThis, &IOCReply, false);
     }
 
     ASMAtomicDecU32(&pTgtDev->cOutstandingRequests);
@@ -2337,7 +2324,6 @@ static int lsilogicR3ProcessSCSIIORequest(PPDMDEVINS pDevIns, PLSILOGICSCSI pThi
                 pLsiReq->hIoReq                 = hIoReq;
                 pLsiReq->pTargetDevice          = pTgtDev;
                 pLsiReq->GCPhysMessageFrameAddr = GCPhysMessageFrameAddr;
-                pLsiReq->fBIOS                  = false;
                 pLsiReq->GCPhysSgStart          = GCPhysMessageFrameAddr + sizeof(MptSCSIIORequest);
                 pLsiReq->cChainOffset           = pGuestReq->SCSIIO.u8ChainOffset;
                 if (pLsiReq->cChainOffset)
@@ -2368,7 +2354,7 @@ static int lsilogicR3ProcessSCSIIORequest(PPDMDEVINS pDevIns, PLSILOGICSCSI pThi
                                                                &pLsiReq->abSenseBuffer[0], sizeof(pLsiReq->abSenseBuffer), NULL,
                                                                &pLsiReq->u8ScsiSts, 30 * RT_MS_1SEC);
                 if (rc != VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS)
-                    lsilogicR3ReqComplete(pDevIns, pThis, pThisCC, pLsiReq, rc);
+                    lsilogicR3ReqComplete(pDevIns, pThis, pLsiReq, rc);
 
                 return VINF_SUCCESS;
             }
@@ -2458,14 +2444,9 @@ static DECLCALLBACK(int) lsilogicR3IoReqCopyFromBuf(PPDMIMEDIAEXPORT pInterface,
     RT_NOREF1(hIoReq);
     PLSILOGICDEVICE pTgtDev = RT_FROM_MEMBER(pInterface, LSILOGICDEVICE, IMediaExPort);
     PPDMDEVINS      pDevIns = pTgtDev->pDevIns;
-    PLSILOGICSCSICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PLSILOGICSCSICC);
     PLSILOGICREQ    pReq    = (PLSILOGICREQ)pvIoReqAlloc;
 
-    size_t cbCopied = 0;
-    if (!pReq->fBIOS)
-        cbCopied = lsilogicR3CopySgBufToGuest(pDevIns, pReq, pSgBuf, offDst, cbCopy);
-    else
-        cbCopied = vboxscsiCopyToBuf(&pThisCC->VBoxSCSI, pSgBuf, offDst, cbCopy);
+    size_t cbCopied = lsilogicR3CopySgBufToGuest(pDevIns, pReq, pSgBuf, offDst, cbCopy);
     return cbCopied == cbCopy ? VINF_SUCCESS : VERR_PDM_MEDIAEX_IOBUF_OVERFLOW;
 }
 
@@ -2479,14 +2460,9 @@ static DECLCALLBACK(int) lsilogicR3IoReqCopyToBuf(PPDMIMEDIAEXPORT pInterface, P
     RT_NOREF1(hIoReq);
     PLSILOGICDEVICE pTgtDev = RT_FROM_MEMBER(pInterface, LSILOGICDEVICE, IMediaExPort);
     PPDMDEVINS      pDevIns = pTgtDev->pDevIns;
-    PLSILOGICSCSICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PLSILOGICSCSICC);
     PLSILOGICREQ    pReq    = (PLSILOGICREQ)pvIoReqAlloc;
 
-    size_t cbCopied = 0;
-    if (!pReq->fBIOS)
-        cbCopied = lsilogicR3CopySgBufFromGuest(pDevIns, pReq, pSgBuf, offSrc, cbCopy);
-    else
-        cbCopied = vboxscsiCopyFromBuf(&pThisCC->VBoxSCSI, pSgBuf, offSrc, cbCopy);
+    size_t cbCopied = lsilogicR3CopySgBufFromGuest(pDevIns, pReq, pSgBuf, offSrc, cbCopy);
     return cbCopied == cbCopy ? VINF_SUCCESS : VERR_PDM_MEDIAEX_IOBUF_UNDERRUN;
 }
 
@@ -2500,8 +2476,7 @@ static DECLCALLBACK(int) lsilogicR3IoReqCompleteNotify(PPDMIMEDIAEXPORT pInterfa
     PLSILOGICDEVICE pTgtDev = RT_FROM_MEMBER(pInterface, LSILOGICDEVICE, IMediaExPort);
     PPDMDEVINS      pDevIns = pTgtDev->pDevIns;
     PLSILOGICSCSI   pThis   = PDMDEVINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    PLSILOGICSCSICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PLSILOGICSCSICC);
-    lsilogicR3ReqComplete(pDevIns, pThis, pThisCC, (PLSILOGICREQ)pvIoReqAlloc, rcReq);
+    lsilogicR3ReqComplete(pDevIns, pThis, (PLSILOGICREQ)pvIoReqAlloc, rcReq);
     return VINF_SUCCESS;
 }
 
@@ -2546,9 +2521,9 @@ static DECLCALLBACK(void) lsilogicR3MediumEjected(PPDMIMEDIAEXPORT pInterface)
 
     if (pThisCC->pMediaNotify)
     {
-        int rc = VMR3ReqCallNoWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
-                                   (PFNRT)pThisCC->pMediaNotify->pfnEjected, 2,
-                                   pThisCC->pMediaNotify, pTgtDev->iLUN);
+        int rc = PDMDevHlpVMReqCallNoWait(pDevIns, VMCPUID_ANY,
+                                          (PFNRT)pThisCC->pMediaNotify->pfnEjected, 2,
+                                          pThisCC->pMediaNotify, pTgtDev->iLUN);
         AssertRC(rc);
     }
 }
@@ -3340,7 +3315,7 @@ static int lsilogicR3ProcessConfigurationRequest(PPDMDEVINS pDevIns, PLSILOGICSC
                 if (pConfigurationReq->SimpleSGElement.f64BitAddress)
                     GCPhysAddrPageBuffer |= (uint64_t)pConfigurationReq->SimpleSGElement.u32DataBufferAddressHigh << 32;
 
-                PDMDevHlpPCIPhysWrite(pDevIns, GCPhysAddrPageBuffer, pbPageData, RT_MIN(cbBuffer, cbPage));
+                PDMDevHlpPCIPhysWriteMeta(pDevIns, GCPhysAddrPageBuffer, pbPageData, RT_MIN(cbBuffer, cbPage));
             }
             break;
         }
@@ -3356,8 +3331,7 @@ static int lsilogicR3ProcessConfigurationRequest(PPDMDEVINS pDevIns, PLSILOGICSC
 
                 LogFlow(("cbBuffer=%u cbPage=%u\n", cbBuffer, cbPage));
 
-                PDMDevHlpPhysRead(pDevIns, GCPhysAddrPageBuffer, pbPageData,
-                                  RT_MIN(cbBuffer, cbPage));
+                PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysAddrPageBuffer, pbPageData, RT_MIN(cbBuffer, cbPage));
             }
             break;
         }
@@ -3914,172 +3888,6 @@ static int lsilogicR3GetCtrlTypeFromString(PLSILOGICSCSI pThis, const char *pcsz
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, Legacy ISA port.}
- */
-static DECLCALLBACK(VBOXSTRICTRC)
-lsilogicR3IsaIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t *pu32, unsigned cb)
-{
-    RT_NOREF(pvUser, cb);
-    PLSILOGICSCSICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PLSILOGICSCSICC);
-
-    ASSERT_GUEST(cb == 1);
-
-    int rc = vboxscsiReadRegister(&pThisCC->VBoxSCSI, offPort, pu32);
-    AssertMsg(rc == VINF_SUCCESS, ("Unexpected BIOS register read status: %Rrc\n", rc));
-
-    Log2(("%s: pu32=%p:{%.*Rhxs} offPort=%d rc=%Rrc\n", __FUNCTION__, pu32, 1, pu32, offPort, rc));
-
-    return rc;
-}
-
-/**
- * Prepares a request from the BIOS.
- *
- * @returns VBox status code.
- * @param   pThis       Pointer to the shared LsiLogic device state.
- * @param   pThisCC     Pointer to the ring-3 LsiLogic device state.
- */
-static int lsilogicR3PrepareBiosScsiRequest(PLSILOGICSCSI pThis, PLSILOGICSCSICC pThisCC)
-{
-    int rc;
-    uint32_t uTargetDevice;
-    uint32_t uLun;
-    uint8_t *pbCdb;
-    size_t cbCdb;
-    size_t cbBuf;
-
-    rc = vboxscsiSetupRequest(&pThisCC->VBoxSCSI, &uLun, &pbCdb, &cbCdb, &cbBuf, &uTargetDevice);
-    AssertMsgRCReturn(rc, ("Setting up SCSI request failed rc=%Rrc\n", rc), rc);
-
-    if (   uTargetDevice < pThis->cDeviceStates
-        && pThisCC->paDeviceStates[uTargetDevice].pDrvBase)
-    {
-        PLSILOGICDEVICE pTgtDev = &pThisCC->paDeviceStates[uTargetDevice];
-        PDMMEDIAEXIOREQ hIoReq;
-        PLSILOGICREQ pReq;
-
-        rc = pTgtDev->pDrvMediaEx->pfnIoReqAlloc(pTgtDev->pDrvMediaEx, &hIoReq, (void **)&pReq,
-                                                 0, PDMIMEDIAEX_F_SUSPEND_ON_RECOVERABLE_ERR);
-        AssertMsgRCReturn(rc, ("Getting task from cache failed rc=%Rrc\n", rc), rc);
-
-        pReq->fBIOS = true;
-        pReq->hIoReq = hIoReq;
-        pReq->pTargetDevice = pTgtDev;
-
-        ASMAtomicIncU32(&pTgtDev->cOutstandingRequests);
-
-        rc = pTgtDev->pDrvMediaEx->pfnIoReqSendScsiCmd(pTgtDev->pDrvMediaEx, pReq->hIoReq, uLun,
-                                                       pbCdb, cbCdb, PDMMEDIAEXIOREQSCSITXDIR_UNKNOWN, NULL,
-                                                       cbBuf, NULL, 0, NULL, &pReq->u8ScsiSts, 30 * RT_MS_1SEC);
-        if (rc == VINF_SUCCESS || rc != VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS)
-        {
-            uint8_t u8ScsiSts = pReq->u8ScsiSts;
-            pTgtDev->pDrvMediaEx->pfnIoReqFree(pTgtDev->pDrvMediaEx, pReq->hIoReq);
-            rc = vboxscsiRequestFinished(&pThisCC->VBoxSCSI, u8ScsiSts);
-        }
-        else if (rc == VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS)
-            rc = VINF_SUCCESS;
-
-        return rc;
-    }
-
-    /* Device is not present. */
-    AssertMsg(pbCdb[0] == SCSI_INQUIRY,
-              ("Device is not present but command is not inquiry\n"));
-
-    SCSIINQUIRYDATA ScsiInquiryData;
-
-    memset(&ScsiInquiryData, 0, sizeof(SCSIINQUIRYDATA));
-    ScsiInquiryData.u5PeripheralDeviceType = SCSI_INQUIRY_DATA_PERIPHERAL_DEVICE_TYPE_UNKNOWN;
-    ScsiInquiryData.u3PeripheralQualifier = SCSI_INQUIRY_DATA_PERIPHERAL_QUALIFIER_NOT_CONNECTED_NOT_SUPPORTED;
-
-    memcpy(pThisCC->VBoxSCSI.pbBuf, &ScsiInquiryData, 5);
-
-    rc = vboxscsiRequestFinished(&pThisCC->VBoxSCSI, SCSI_STATUS_OK);
-    AssertMsgRCReturn(rc, ("Finishing BIOS SCSI request failed rc=%Rrc\n", rc), rc);
-
-    return rc;
-}
-
-/**
- * @callback_method_impl{FNIOMIOPORTNEWOUT, Legacy ISA port.}
- */
-static DECLCALLBACK(VBOXSTRICTRC)
-lsilogicR3IsaIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort, uint32_t u32, unsigned cb)
-{
-    PLSILOGICSCSI   pThis   = PDMDEVINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    PLSILOGICSCSICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PLSILOGICSCSICC);
-    Log2(("#%d %s: pvUser=%#p cb=%d u32=%#x offPort=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, u32, offPort));
-    RT_NOREF(pvUser, cb);
-
-    ASSERT_GUEST(cb == 1);
-
-    /*
-     * If there is already a request form the BIOS pending ignore this write
-     * because it should not happen.
-     */
-    if (ASMAtomicReadBool(&pThis->fBiosReqPending))
-        return VINF_SUCCESS;
-
-    int rc = vboxscsiWriteRegister(&pThisCC->VBoxSCSI, offPort, (uint8_t)u32);
-    if (rc == VERR_MORE_DATA)
-    {
-        ASMAtomicXchgBool(&pThis->fBiosReqPending, true);
-        /* Notify the worker thread that there are pending requests. */
-        LogFlowFunc(("Signal event semaphore\n"));
-        rc = PDMDevHlpSUPSemEventSignal(pDevIns, pThis->hEvtProcess);
-        AssertRC(rc);
-    }
-    else
-        AssertMsg(rc == VINF_SUCCESS, ("Unexpected BIOS register write status: %Rrc\n", rc));
-
-    return VINF_SUCCESS;
-}
-
-/**
- * @callback_method_impl{FNIOMIOPORTNEWOUTSTRING,
- * Port I/O Handler for primary port range OUT string operations.}
- */
-static DECLCALLBACK(VBOXSTRICTRC) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort,
-                                                              uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb)
-{
-    PLSILOGICSCSI   pThis   = PDMDEVINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    PLSILOGICSCSICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PLSILOGICSCSICC);
-    Log2(("#%d %s: pvUser=%#p cb=%d offPort=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, offPort));
-    RT_NOREF(pvUser);
-
-    int rc = vboxscsiWriteString(pDevIns, &pThisCC->VBoxSCSI, offPort, pbSrc, pcTransfers, cb);
-    if (rc == VERR_MORE_DATA)
-    {
-        ASMAtomicXchgBool(&pThis->fBiosReqPending, true);
-        /* Notify the worker thread that there are pending requests. */
-        LogFlowFunc(("Signal event semaphore\n"));
-        rc = PDMDevHlpSUPSemEventSignal(pDevIns, pThis->hEvtProcess);
-        AssertRC(rc);
-    }
-    else
-        AssertMsg(rc == VINF_SUCCESS, ("Unexpected BIOS register write status: %Rrc\n", rc));
-
-    return VINF_SUCCESS;
-}
-
-/**
- * @callback_method_impl{FNIOMIOPORTINSTRING,
- * Port I/O Handler for primary port range IN string operations.}
- */
-static DECLCALLBACK(VBOXSTRICTRC) lsilogicR3IsaIOPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT offPort,
-                                                             uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb)
-{
-    PLSILOGICSCSICC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PLSILOGICSCSICC);
-    LogFlowFunc(("#%d %s: pvUser=%#p cb=%d offPort=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, offPort));
-    RT_NOREF(pvUser);
-
-    int rc = vboxscsiReadString(pDevIns, &pThisCC->VBoxSCSI, offPort, pbDst, pcTransfers, cb);
-    AssertMsg(rc == VINF_SUCCESS, ("Unexpected BIOS register read status: %Rrc\n", rc));
-    return rc;
-}
-
-/**
  * @callback_method_impl{PFNDBGFHANDLERDEV}
  */
 static DECLCALLBACK(void) lsilogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
@@ -4196,14 +4004,6 @@ static DECLCALLBACK(int) lsilogicR3Worker(PPDMDEVINS pDevIns, PPDMTHREAD pThread
 
         ASMAtomicWriteBool(&pThis->fWrkThreadSleeping, false);
 
-        /* Check whether there is a BIOS request pending and process it first. */
-        if (ASMAtomicReadBool(&pThis->fBiosReqPending))
-        {
-            rc = lsilogicR3PrepareBiosScsiRequest(pThis, pThisCC);
-            AssertRC(rc);
-            ASMAtomicXchgBool(&pThis->fBiosReqPending, false);
-        }
-
         /* Only process request which arrived before we received the notification. */
         uint32_t uRequestQueueNextEntryWrite = ASMAtomicReadU32(&pThis->uRequestQueueNextEntryFreeWrite);
 
@@ -4217,7 +4017,7 @@ static DECLCALLBACK(int) lsilogicR3Worker(PPDMDEVINS pDevIns, PPDMTHREAD pThread
                                                                           (u32RequestMessageFrameDesc & ~0x07));
 
             /* Read the message header from the guest first. */
-            PDMDevHlpPhysRead(pDevIns, GCPhysMessageFrameAddr, &GuestRequest, sizeof(MptMessageHdr));
+            PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysMessageFrameAddr, &GuestRequest, sizeof(MptMessageHdr));
 
             /* Determine the size of the request. */
             uint32_t cbRequest = 0;
@@ -4265,7 +4065,7 @@ static DECLCALLBACK(int) lsilogicR3Worker(PPDMDEVINS pDevIns, PPDMTHREAD pThread
             if (cbRequest != 0)
             {
                 /* Read the complete message frame from guest memory now. */
-                PDMDevHlpPhysRead(pDevIns, GCPhysMessageFrameAddr, &GuestRequest, cbRequest);
+                PDMDevHlpPCIPhysReadMeta(pDevIns, GCPhysMessageFrameAddr, &GuestRequest, cbRequest);
 
                 /* Handle SCSI I/O requests now. */
                 if (GuestRequest.Header.u8Function == MPT_MESSAGE_HDR_FUNCTION_SCSI_IO_REQUEST)
@@ -4379,20 +4179,12 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 
                 for (;;)
                 {
-                    if (!pReq->fBIOS)
-                    {
-                        /* Write only the lower 32bit part of the address. */
-                        ASMAtomicWriteU32(&pThis->aRequestQueue[pThis->uRequestQueueNextEntryFreeWrite],
-                                          pReq->GCPhysMessageFrameAddr & UINT32_C(0xffffffff));
+                    /* Write only the lower 32bit part of the address. */
+                    ASMAtomicWriteU32(&pThis->aRequestQueue[pThis->uRequestQueueNextEntryFreeWrite],
+                                      pReq->GCPhysMessageFrameAddr & UINT32_C(0xffffffff));
 
-                        pThis->uRequestQueueNextEntryFreeWrite++;
-                        pThis->uRequestQueueNextEntryFreeWrite %= pThis->cRequestQueueEntries;
-                    }
-                    else
-                    {
-                        AssertMsg(!pReq->pRedoNext, ("Only one BIOS task can be active!\n"));
-                        vboxscsiSetRequestRedo(&pThisCC->VBoxSCSI);
-                    }
+                    pThis->uRequestQueueNextEntryFreeWrite++;
+                    pThis->uRequestQueueNextEntryFreeWrite %= pThis->cRequestQueueEntries;
 
                     cReqsRedo--;
                     if (!cReqsRedo)
@@ -4538,7 +4330,6 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     else
         AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
 
-    vboxscsiR3SaveExec(pHlp, &pThisCC->VBoxSCSI, pSSM);
     return pHlp->pfnSSMPutU32(pSSM, UINT32_MAX);
 }
 
@@ -4564,11 +4355,8 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     PCPDMDEVHLPR3   pHlp    = pDevIns->pHlpR3;
     int             rc;
 
-    if (    uVersion != LSILOGIC_SAVED_STATE_VERSION
-        &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_PRE_DIAG_MEM
-        &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_BOOL_DOORBELL
-        &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_PRE_SAS
-        &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_VBOX_30)
+    if (   uVersion > LSILOGIC_SAVED_STATE_VERSION
+        || uVersion < LSILOGIC_SAVED_STATE_VERSION_VBOX_30)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
     /* device config */
@@ -4875,12 +4663,8 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
             AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
     }
 
-    rc = vboxscsiR3LoadExec(pHlp, &pThisCC->VBoxSCSI, pSSM);
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("LsiLogic: Failed to restore BIOS state: %Rrc.\n", rc));
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic: Failed to restore BIOS state\n"));
-    }
+    if (uVersion <= LSILOGIC_SAVED_STATE_VERSION_PRE_VBOXSCSI_REMOVAL)
+        vboxscsiR3LoadExecLegacy(pHlp, pSSM);
 
     uint32_t u32;
     rc = pHlp->pfnSSMGetU32(pSSM, &u32);
@@ -5116,13 +4900,13 @@ static DECLCALLBACK(int)  lsilogicR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, ui
     {
         /* Query the media interface. */
         pDevice->pDrvMedia = PDMIBASE_QUERY_INTERFACE(pDevice->pDrvBase, PDMIMEDIA);
-        AssertMsgReturn(VALID_PTR(pDevice->pDrvMedia),
+        AssertMsgReturn(RT_VALID_PTR(pDevice->pDrvMedia),
                         ("LsiLogic configuration error: LUN#%d misses the basic media interface!\n", pDevice->iLUN),
                         VERR_PDM_MISSING_INTERFACE);
 
         /* Get the extended media interface. */
         pDevice->pDrvMediaEx = PDMIBASE_QUERY_INTERFACE(pDevice->pDrvBase, PDMIMEDIAEX);
-        AssertMsgReturn(VALID_PTR(pDevice->pDrvMediaEx),
+        AssertMsgReturn(RT_VALID_PTR(pDevice->pDrvMediaEx),
                         ("LsiLogic configuration error: LUN#%d misses the extended media interface!\n", pDevice->iLUN),
                         VERR_PDM_MISSING_INTERFACE);
 
@@ -5155,8 +4939,6 @@ static void lsilogicR3ResetCommon(PPDMDEVINS pDevIns)
 
     rc = lsilogicR3HardReset(pDevIns, pThis, pThisCC);
     AssertRC(rc);
-
-    vboxscsiHwReset(&pThisCC->VBoxSCSI);
 }
 
 /**
@@ -5229,8 +5011,6 @@ static DECLCALLBACK(int) lsilogicR3Destruct(PPDMDEVINS pDevIns)
 
     lsilogicR3ConfigurationPagesFree(pThis, pThisCC);
     lsilogicR3MemRegionsFree(pThisCC);
-    vboxscsiDestroy(&pThisCC->VBoxSCSI);
-
     return VINF_SUCCESS;
 }
 
@@ -5249,7 +5029,6 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
      * Initialize enought of the state to make the destructure not trip up.
      */
     pThis->hEvtProcess = NIL_SUPSEMEVENT;
-    pThis->fBiosReqPending = false;
     RTListInit(&pThisCC->ListMemRegns);
     pThis->hMmioReg = NIL_IOMMMIOHANDLE;
     pThis->hMmioDiag = NIL_IOMMMIOHANDLE;
@@ -5268,7 +5047,7 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
                                   "RequestQueueDepth|"
                                   "ControllerType|"
                                   "NumPorts|"
-                                  "Bootable",
+                                  "Bootable", /* Keep it for legacy configs, even though it doesn't do anything anymore, see @bugref{4841}. */
                                   "");
 
     rc = pHlp->pfnCFGMQueryU32Def(pCfg, "ReplyQueueDepth",
@@ -5324,13 +5103,6 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
     else if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("LsiLogic configuration error: failed to read NumPorts as integer"));
-
-    bool fBootable;
-    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "Bootable", &fBootable, true);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                N_("LsiLogic configuration error: failed to read Bootable as boolean"));
-    Log(("%s: Bootable=%RTbool\n", __FUNCTION__, fBootable));
 
     /* Init static parts. */
     PPDMPCIDEV pPciDev = pDevIns->apPciDevs[0];
@@ -5522,13 +5294,13 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         {
             /* Query the media interface. */
             pDevice->pDrvMedia = PDMIBASE_QUERY_INTERFACE(pDevice->pDrvBase, PDMIMEDIA);
-            AssertMsgReturn(VALID_PTR(pDevice->pDrvMedia),
+            AssertMsgReturn(RT_VALID_PTR(pDevice->pDrvMedia),
                             ("LsiLogic configuration error: LUN#%d misses the basic media interface!\n", pDevice->iLUN),
                             VERR_PDM_MISSING_INTERFACE);
 
             /* Get the extended media interface. */
             pDevice->pDrvMediaEx = PDMIBASE_QUERY_INTERFACE(pDevice->pDrvBase, PDMIMEDIAEX);
-            AssertMsgReturn(VALID_PTR(pDevice->pDrvMediaEx),
+            AssertMsgReturn(RT_VALID_PTR(pDevice->pDrvMediaEx),
                             ("LsiLogic configuration error: LUN#%d misses the extended media interface!\n", pDevice->iLUN),
                             VERR_PDM_MISSING_INTERFACE);
 
@@ -5565,32 +5337,6 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         AssertMsgReturn(rc == VERR_PDM_NO_ATTACHED_DRIVER,
                         ("Failed to attach to status driver. rc=%Rrc\n", rc),
                         PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic cannot attach to status driver")));
-
-    /* Initialize the SCSI emulation for the BIOS. */
-    rc = vboxscsiInitialize(&pThisCC->VBoxSCSI);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic failed to initialize BIOS SCSI interface"));
-
-    /*
-     * Register I/O port space in ISA region for BIOS access
-     * if the controller is marked as bootable.
-     */
-    if (fBootable)
-    {
-        if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
-            rc = PDMDevHlpIoPortCreateExAndMap(pDevIns, LSILOGIC_BIOS_IO_PORT, 4 /*cPorts*/, 0 /*fFlags*/,
-                                               lsilogicR3IsaIOPortWrite, lsilogicR3IsaIOPortRead,
-                                               lsilogicR3IsaIOPortWriteStr, lsilogicR3IsaIOPortReadStr, NULL /*pvUser*/,
-                                               "LsiLogic BIOS", NULL /*paExtDesc*/, &pThis->hIoPortsBios);
-        else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
-            rc = PDMDevHlpIoPortCreateExAndMap(pDevIns, LSILOGIC_SAS_BIOS_IO_PORT, 4 /*cPorts*/, 0 /*fFlags*/,
-                                               lsilogicR3IsaIOPortWrite, lsilogicR3IsaIOPortRead,
-                                               lsilogicR3IsaIOPortWriteStr, lsilogicR3IsaIOPortReadStr, NULL /*pvUser*/,
-                                               "LsiLogic SAS BIOS", NULL /*paExtDesc*/, &pThis->hIoPortsBios);
-        else
-            AssertMsgFailedReturn(("Invalid controller type %d\n", pThis->enmCtrlType), VERR_INTERNAL_ERROR_3);
-        AssertRCReturn(rc, PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic cannot register legacy I/O handlers")));
-    }
 
     /* Register save state handlers. */
     rc = PDMDevHlpSSMRegisterEx(pDevIns, LSILOGIC_SAVED_STATE_VERSION, sizeof(*pThis), NULL,

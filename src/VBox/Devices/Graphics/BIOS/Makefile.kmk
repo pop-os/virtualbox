@@ -4,15 +4,25 @@
 #
 
 #
-# Copyright (C) 2012-2020 Oracle Corporation
+# Copyright (C) 2012-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 SUB_DEPTH = ../../../../..
@@ -40,8 +50,8 @@ ifdef VBOX_WITH_OPEN_WATCOM
  	order \
  	 clname CODE  \
 	  segment VGAROM segaddr=0xC000 \
- 	  segment _TEXT  segaddr=0xC000 offset=0x980 \
- 	  segment VBE32  segaddr=0xC000 offset=0x4600 \
+ 	  segment _TEXT  segaddr=0xC000 offset=0x9F0 \
+ 	  segment VBE32  segaddr=0xC000 offset=0x4640 \
  	 clname DATA \
  	  segment _DATA  segaddr=0xC000 offset=0x4780 \
 
@@ -70,7 +80,7 @@ ifdef VBOX_WITH_OPEN_WATCOM
 		--bios-sym $$(basename $$<).sym \
                --bios-type vga \
 		--output $$(VBoxVgaBios$(1)_0_OUTDIR)/VBoxVgaBiosAlternative$(1).asm
-	$$(QUIET)yasm -f bin \
+	$$(QUIET)$$(TOOL_YASM_AS) -f bin \
 		-o $$(VBoxVgaBios$(1)_0_OUTDIR)/VBoxVgaBiosAlternative$(1).bin \
 		-l $$(VBoxVgaBios$(1)_0_OUTDIR)/VBoxVgaBiosAlternative$(1).lst \
 		$$(VBoxVgaBios$(1)_0_OUTDIR)/VBoxVgaBiosAlternative$(1).asm
@@ -126,7 +136,7 @@ define def_VBoxVgaBiosBin
  		$$(PATH_SUB_CURRENT)/VBoxVgaBiosAlternative$(1).md5sum \
  		$$(VBOX_BIN2C) | $$$$(dir $$$$@)
 	$$(call MSG_TOOL,bin2c,VgaBiosBin,$$<,$$@)
-	$$(QUIET)yasm -f bin -o $$(VgaBiosBin_0_OUTDIR)/VBoxVgaBios$(1).rom $$<
+	$$(QUIET)$$(TOOL_YASM_AS) -f bin -o $$(VgaBiosBin_0_OUTDIR)/VBoxVgaBios$(1).rom $$<
 	$$(QUIET)$$(REDIRECT) -C $$(VgaBiosBin_0_OUTDIR) -- \
 		$$(MD5SUM_EXT) -c $$(basename $$<).md5sum
 	$$(QUIET)$$(VBOX_BIN2C) -min 32 -max 36 -mask 0x0fff -ascii -export VgaBiosBinary$(1) $$(VgaBiosBin_0_OUTDIR)/VBoxVgaBios$(1).rom $$@
@@ -189,4 +199,3 @@ ifdef VBOX_WITH_OPEN_WATCOM
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)
-

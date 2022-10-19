@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -30,10 +40,10 @@
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static DECLCALLBACK(bool) tstDBGCBackInput(PDBGCBACK pBack, uint32_t cMillies);
-static DECLCALLBACK(int)  tstDBGCBackRead(PDBGCBACK pBack, void *pvBuf, size_t cbBuf, size_t *pcbRead);
-static DECLCALLBACK(int)  tstDBGCBackWrite(PDBGCBACK pBack, const void *pvBuf, size_t cbBuf, size_t *pcbWritten);
-static DECLCALLBACK(void) tstDBGCBackSetReady(PDBGCBACK pBack, bool fReady);
+static DECLCALLBACK(bool) tstDBGCBackInput(PCDBGCIO pBack, uint32_t cMillies);
+static DECLCALLBACK(int)  tstDBGCBackRead(PCDBGCIO pBack, void *pvBuf, size_t cbBuf, size_t *pcbRead);
+static DECLCALLBACK(int)  tstDBGCBackWrite(PCDBGCIO pBack, const void *pvBuf, size_t cbBuf, size_t *pcbWritten);
+static DECLCALLBACK(void) tstDBGCBackSetReady(PCDBGCIO pBack, bool fReady);
 
 
 /*********************************************************************************************************************************
@@ -42,12 +52,15 @@ static DECLCALLBACK(void) tstDBGCBackSetReady(PDBGCBACK pBack, bool fReady);
 /** The test handle. */
 static RTTEST g_hTest = NIL_RTTEST;
 
-/** The DBGC backend structure for use in this testcase. */
-static DBGCBACK g_tstBack =
+/** The DBGC I/O structure for use in this testcase. */
+static DBGCIO g_tstBack =
 {
+    NULL, /**pfnDestroy*/
     tstDBGCBackInput,
     tstDBGCBackRead,
     tstDBGCBackWrite,
+    NULL, /**pfnPktBegin*/
+    NULL, /**pfnPktEnd*/
     tstDBGCBackSetReady
 };
 /** For keeping track of output prefixing. */
@@ -70,7 +83,7 @@ static size_t   g_offOutput = 0;
  *                      it's instance data.
  * @param   cMillies    Number of milliseconds to wait on input data.
  */
-static DECLCALLBACK(bool) tstDBGCBackInput(PDBGCBACK pBack, uint32_t cMillies)
+static DECLCALLBACK(bool) tstDBGCBackInput(PCDBGCIO pBack, uint32_t cMillies)
 {
     return g_pszInput != NULL
        && *g_pszInput != '\0';
@@ -90,7 +103,7 @@ static DECLCALLBACK(bool) tstDBGCBackInput(PDBGCBACK pBack, uint32_t cMillies)
  *                      If NULL the entire buffer must be filled for a
  *                      successful return.
  */
-static DECLCALLBACK(int) tstDBGCBackRead(PDBGCBACK pBack, void *pvBuf, size_t cbBuf, size_t *pcbRead)
+static DECLCALLBACK(int) tstDBGCBackRead(PCDBGCIO pBack, void *pvBuf, size_t cbBuf, size_t *pcbRead)
 {
     if (g_pszInput && *g_pszInput)
     {
@@ -119,7 +132,7 @@ static DECLCALLBACK(int) tstDBGCBackRead(PDBGCBACK pBack, void *pvBuf, size_t cb
  * @param   pcbWritten  Where to store the number of bytes actually written.
  *                      If NULL the entire buffer must be successfully written.
  */
-static DECLCALLBACK(int) tstDBGCBackWrite(PDBGCBACK pBack, const void *pvBuf, size_t cbBuf, size_t *pcbWritten)
+static DECLCALLBACK(int) tstDBGCBackWrite(PCDBGCIO pBack, const void *pvBuf, size_t cbBuf, size_t *pcbWritten)
 {
     const char *pch = (const char *)pvBuf;
     if (pcbWritten)
@@ -158,7 +171,7 @@ static DECLCALLBACK(int) tstDBGCBackWrite(PDBGCBACK pBack, const void *pvBuf, si
  *                      it's instance data.
  * @param   fReady      Whether it's ready (true) or busy (false).
  */
-static DECLCALLBACK(void) tstDBGCBackSetReady(PDBGCBACK pBack, bool fReady)
+static DECLCALLBACK(void) tstDBGCBackSetReady(PCDBGCIO pBack, bool fReady)
 {
 }
 
@@ -1166,6 +1179,7 @@ int main()
     if (RT_SUCCESS(rc))
     {
         pDbgc->pVM = (PVM)pDbgc;
+        pDbgc->pUVM = (PUVM)pDbgc;
         rc = dbgcProcessInput(pDbgc, true /* fNoExecute */);
         tstCompleteOutput();
         if (RT_SUCCESS(rc))

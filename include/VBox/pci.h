@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_pci_h
@@ -38,6 +48,162 @@
  * @{
  */
 
+/** @name PCI device classes.
+ * @{ */
+#define VBOX_PCI_CLASS_UNCLASSIFIED             0x00
+#define VBOX_PCI_CLASS_MASS_STORAGE             0x01
+#define VBOX_PCI_CLASS_NETWORK                  0x02
+#define VBOX_PCI_CLASS_DISPLAY                  0x03
+#define VBOX_PCI_CLASS_MULTI_MEDIA              0x04
+#define VBOX_PCI_CLASS_MEMORY                   0x05
+#define VBOX_PCI_CLASS_BRIDGE                   0x06
+#define VBOX_PCI_CLASS_COMM                     0x07
+#define VBOX_PCI_CLASS_SYSTEM                   0x08
+#define VBOX_PCI_CLASS_INPUT                    0x09
+#define VBOX_PCI_CLASS_DOCKING_STATION          0x0a
+#define VBOX_PCI_CLASS_PROCESSOR                0x0b
+#define VBOX_PCI_CLASS_SERIAL_BUS               0x0c
+#define VBOX_PCI_CLASS_WIRELESS                 0x0d
+#define VBOX_PCI_CLASS_INTELLIGENT              0x0e
+#define VBOX_PCI_CLASS_SAT_COMM                 0x0f
+#define VBOX_PCI_CLASS_ENCRYPTION               0x10
+#define VBOX_PCI_CLASS_SIG_PROC                 0x11
+#define VBOX_PCI_CLASS_PROC_ACCEL               0x12
+#define VBOX_PCI_CLASS_NON_ESS_INSTR            0x13
+#define VBOX_PCI_CLASS_CO_PROCESSOR             0x40
+#define VBOX_PCI_CLASS_UNASSIGNED               0xff
+/** @} */
+
+/** @name PCI device sub-classes.
+ * @{ */
+#define VBOX_PCI_SUB_UNCLASSIFIED_NON_VGA       0x00
+#define VBOX_PCI_SUB_UNCLASSIFIED_VGA           0x01
+
+#define VBOX_PCI_SUB_MASS_STORAGE_SCSI_BUS      0x00
+#define VBOX_PCI_SUB_MASS_STORAGE_IDE           0x01
+#define VBOX_PCI_SUB_MASS_STORAGE_FLOPPY        0x02
+#define VBOX_PCI_SUB_MASS_STORAGE_IPI_BUS       0x03
+#define VBOX_PCI_SUB_MASS_STORAGE_RAID          0x04
+#define VBOX_PCI_SUB_MASS_STORAGE_ATA           0x05
+#define VBOX_PCI_SUB_MASS_STORAGE_SATA          0x06
+#define VBOX_PCI_SUB_MASS_STORAGE_SCSI          0x07
+#define VBOX_PCI_SUB_MASS_STORAGE_NVME          0x08
+#define VBOX_PCI_SUB_MASS_STORAGE_OTHER         0x80
+
+#define VBOX_PCI_SUB_NETWORK_ETHERNET           0x00
+#define VBOX_PCI_SUB_NETWORK_TOKEN_RING         0x01
+#define VBOX_PCI_SUB_NETWORK_FDDI               0x02
+#define VBOX_PCI_SUB_NETWORK_ATM                0x03
+#define VBOX_PCI_SUB_NETWORK_ISDN               0x04
+#define VBOX_PCI_SUB_NETWORK_WORLD_FIP          0x05
+#define VBOX_PCI_SUB_NETWORK_PICMG              0x06
+#define VBOX_PCI_SUB_NETWORK_INFINIBAND         0x07
+#define VBOX_PCI_SUB_NETWORK_FABRIC             0x08
+#define VBOX_PCI_SUB_NETWORK_OTHER              0x80
+
+#define VBOX_PCI_SUB_DISPLAY_VGA                0x00
+#define VBOX_PCI_SUB_DISPLAY_XGA                0x01
+#define VBOX_PCI_SUB_DISPLAY_3D                 0x02
+#define VBOX_PCI_SUB_DISPLAY_OTHER              0x80
+
+#define VBOX_PCI_SUB_MULTI_MEDIA_MM_VIDEO       0x00
+#define VBOX_PCI_SUB_MULTI_MEDIA_MM_AUDIO       0x01
+#define VBOX_PCI_SUB_MULTI_MEDIA_TELE           0x02
+#define VBOX_PCI_SUB_MULTI_MEDIA_AUDIO          0x03
+#define VBOX_PCI_SUB_MULTI_MEDIA_OTHER          0x80
+
+#define VBOX_PCI_SUB_MEMORY_RAM                 0x00
+#define VBOX_PCI_SUB_MEMORY_FLASH               0x01
+#define VBOX_PCI_SUB_MEMORY_OTHER               0x80
+
+#define VBOX_PCI_SUB_BRIDGE_HOST                0x00
+#define VBOX_PCI_SUB_BRIDGE_ISA                 0x01
+#define VBOX_PCI_SUB_BRIDGE_EISA                0x02
+#define VBOX_PCI_SUB_BRIDGE_MCA                 0x03
+#define VBOX_PCI_SUB_BRIDGE_PCI                 0x04
+#define VBOX_PCI_SUB_BRIDGE_PCMCIA              0x05
+#define VBOX_PCI_SUB_BRIDGE_NUBUS               0x06
+#define VBOX_PCI_SUB_BRIDGE_CARDBUS             0x07
+#define VBOX_PCI_SUB_BRIDGE_RACEWAY             0x08
+#define VBOX_PCI_SUB_BRIDGE_SEMI_PCI            0x09
+#define VBOX_PCI_SUB_BRIDGE_INFINIBAND_PCI      0x0a
+#define VBOX_PCI_SUB_BRIDGE_OTHER               0x80
+
+#define VBOX_PCI_SUB_COMM_SERIAL                0x00
+#define VBOX_PCI_SUB_COMM_PARALLEL              0x01
+#define VBOX_PCI_SUB_COMM_MULTIPORT_SERIAL      0x02
+#define VBOX_PCI_SUB_COMM_MODEM                 0x03
+#define VBOX_PCI_SUB_COMM_GBIP                  0x04
+#define VBOX_PCI_SUB_COMM_SMART_CARD            0x05
+#define VBOX_PCI_SUB_COMM_OTHER                 0x80
+
+#define VBOX_PCI_SUB_SYSTEM_PIC                 0x00
+#define VBOX_PCI_SUB_SYSTEM_DMA                 0x01
+#define VBOX_PCI_SUB_SYSTEM_TIMER               0x02
+#define VBOX_PCI_SUB_SYSTEM_RTC                 0x03
+#define VBOX_PCI_SUB_SYSTEM_PCI_HOTPLUG         0x04
+#define VBOX_PCI_SUB_SYSTEM_SD_HOST             0x05
+#define VBOX_PCI_SUB_SYSTEM_IOMMU               0x06
+#define VBOX_PCI_SUB_SYSTEM_OTHER               0x80
+
+#define VBOX_PCI_SUB_INPUT_KEYBOARD             0x00
+#define VBOX_PCI_SUB_INPUT_PEN                  0x01
+#define VBOX_PCI_SUB_INPUT_MOUSE                0x02
+#define VBOX_PCI_SUB_INPUT_SCANNER              0x03
+#define VBOX_PCI_SUB_INPUT_GAMEPORT             0x04
+#define VBOX_PCI_SUB_INPUT_OTHER                0x80
+
+#define VBOX_PCI_SUB_DOCKING_ST_GENERIC         0x00
+#define VBOX_PCI_SUB_DOCKING_ST_OTHER           0x80
+
+#define VBOX_PCI_SUB_PROCESSOR_386              0x00
+#define VBOX_PCI_SUB_PROCESSOR_486              0x01
+#define VBOX_PCI_SUB_PROCESSOR_PENTIUM          0x02
+#define VBOX_PCI_SUB_PROCESSOR_PENTIUM_PRO      0x03
+#define VBOX_PCI_SUB_PROCESSOR_ALPHA            0x10
+#define VBOX_PCI_SUB_PROCESSOR_POWERPC          0x20
+#define VBOX_PCI_SUB_PROCESSOR_MIPS             0x30
+#define VBOX_PCI_SUB_PROCESSOR_CO_PROC          0x40
+#define VBOX_PCI_SUB_PROCESSOR_OTHER            0x80
+
+#define VBOX_PCI_SUB_SERIAL_BUS_FIREWIRE        0x00
+#define VBOX_PCI_SUB_SERIAL_BUS_ACCESS          0x01
+#define VBOX_PCI_SUB_SERIAL_BUS_SSA             0x02
+#define VBOX_PCI_SUB_SERIAL_BUS_USB             0x03
+#define VBOX_PCI_SUB_SERIAL_BUS_FIBRE           0x04
+#define VBOX_PCI_SUB_SERIAL_BUS_SMBUS           0x05
+#define VBOX_PCI_SUB_SERIAL_BUS_INFINIBAND      0x06
+#define VBOX_PCI_SUB_SERIAL_BUS_IPMI            0x07
+#define VBOX_PCI_SUB_SERIAL_BUS_SERCOS          0x08
+#define VBOX_PCI_SUB_SERIAL_BUS_CANBUS          0x09
+#define VBOX_PCI_SUB_SERIAL_BUS_OTHER           0x80
+
+#define VBOX_PCI_SUB_WIRELESS_IRDA              0x00
+#define VBOX_PCI_SUB_WIRELESS_IR                0x01
+#define VBOX_PCI_SUB_WIRELESS_RF                0x10
+#define VBOX_PCI_SUB_WIRELESS_BLUETOOTH         0x11
+#define VBOX_PCI_SUB_WIRELESS_BROADBAND         0x12
+#define VBOX_PCI_SUB_WIRELESS_ETH_8021A         0x20
+#define VBOX_PCI_SUB_WIRELESS_ETH_8021B         0x21
+#define VBOX_PCI_SUB_WIRELESS_OTHER             0x80
+
+#define VBOX_PCI_SUB_INTELLIGENT_I20            0x00
+
+#define VBOX_PCI_SUB_SAT_COMM_TV                0x01
+#define VBOX_PCI_SUB_SAT_COMM_AUDIO             0x02
+#define VBOX_PCI_SUB_SAT_COMM_VOICE             0x03
+#define VBOX_PCI_SUB_SAT_COMM_DATA              0x04
+
+#define VBOX_PCI_SUB_ENCRYPT_NETWORK            0x00
+#define VBOX_PCI_SUB_ENCRYPT_ENTERTAINMENT      0x01
+#define VBOX_PCI_SUB_ENCRYPT_OTHER              0x80
+
+#define VBOX_PCI_SUB_SIG_PROC_DPIO              0x00
+#define VBOX_PCI_SUB_SIG_PROC_PERF_COUNTERS     0x01
+#define VBOX_PCI_SUB_SIG_PROC_COMM_SYNC         0x10
+#define VBOX_PCI_SUB_SIG_PROC_MANAGEMENT        0x20
+#define VBOX_PCI_SUB_SIG_PROC_OTHER             0x80
+/** @} */
 
 /**
  * PCI configuration word 4 (command) and word 6 (status).
@@ -72,6 +238,23 @@ typedef enum PCIADDRESSSPACE
     PCI_ADDRESS_SPACE_MEM_PREFETCH = 0x08
 } PCIADDRESSSPACE;
 
+
+/**
+ * PCI Memory Request with Address Type.
+ * In accordance with the PCI ATS spec.
+ * See PCI ATS spec. 2.1."Memory Requests with Address Type".
+ */
+typedef enum PCIADDRTYPE
+{
+    /** Untranslated request. */
+    PCIADDRTYPE_UNTRANSLATED = 0x0,
+    /** Translation request. */
+    PCIADDRTYPE_TRANSLATION,
+    /** Translated requested.   */
+    PCIADDRTYPE_TRANSLATED,
+    /** Reserved. */
+    PCIADDRTYPE_RSVD
+} PCIADDRTYPE;
 
 
 /** @name PCI Configuration Space Registers
@@ -456,12 +639,51 @@ typedef enum PCIADDRESSSPACE
 #define VBOX_PCI_MAX_FUNCTIONS      8
 /** Number of devices per bus. */
 #define VBOX_PCI_MAX_DEVICES        32
+/** The function number mask for a device+function number. */
+#define VBOX_PCI_DEVFN_FUN_MASK     0x7
 /** The device number shift count for a device+function number. */
 #define VBOX_PCI_DEVFN_DEV_SHIFT    3
-/** The device number shift count for a device+function number. */
-#define VBOX_PCI_DEVFN_FUN_MASK     0x7
+/** The device number mask for a device+function number. */
+#define VBOX_PCI_DEVFN_DEV_MASK     0x1f
+/** The bus number shift count for a bus+device+function number. */
+#define VBOX_PCI_BUS_SHIFT          0x8
+/** The bus number mask a bus+device+function number. */
+#define VBOX_PCI_BUS_MASK           0xff
 /** Make a device+function number.   */
-#define VBOX_PCI_DEVFN_MAKE(a_uPciDevNo, a_uPciFunNo) (((a_uPciDevNo) << VBOX_PCI_DEVFN_DEV_SHIFT) | (a_uPciFunNo))
+#define VBOX_PCI_DEVFN_MAKE(a_uPciDevNo, a_uPciFunNo) (  ((a_uPciDevNo) << VBOX_PCI_DEVFN_DEV_SHIFT) \
+                                                       | ((a_uPciFunNo) & VBOX_PCI_DEVFN_FUN_MASK))
+
+/** Checks whether the PCIBDF is valid. */
+#define PCIBDF_IS_VALID(a_uBusDevFn)    (!((a_uBusDevFn) & PCI_BDF_F_INVALID))
+/** Make a PCIBDF given the bus and device:function. */
+#define PCIBDF_MAKE(a_uBus, a_uDevFn)   (((a_uBus) << VBOX_PCI_BUS_SHIFT) | (a_uDevFn))
+
+/** Southbridge I/O APIC (when IOMMU is enabled): Bus. */
+#define VBOX_PCI_BUS_SB_IOAPIC      0
+/** Southbridge I/O APIC (when IOMMU is enabled): Device. */
+#define VBOX_PCI_DEV_SB_IOAPIC      0x14
+/** Southbridge I/O APIC (when IOMMU is enabled): Function. */
+#define VBOX_PCI_FN_SB_IOAPIC       0
+/** PCI BDF (hardcoded by linux guests) reserved for the SB I/O APIC when using VMs
+ *  with an AMD IOMMU. */
+#define VBOX_PCI_BDF_SB_IOAPIC      PCIBDF_MAKE(VBOX_PCI_BUS_SB_IOAPIC, \
+                                                VBOX_PCI_DEVFN_MAKE(VBOX_PCI_DEV_SB_IOAPIC, VBOX_PCI_FN_SB_IOAPIC))
+
+/**
+ * A PCI PASID (Process Address Space ID).
+ *
+ * A PASID is 20 bits wide. We use bit 31 to indicate the PASID is invalid or not
+ * present.
+ */
+typedef uint32_t PCIPASID;
+/** PCIPASID: Valid. */
+#define PCIPASID_F_VALID            RT_BIT(31)
+/** Nil PCIPASID value. */
+#define NIL_PCIPASID                UINT32_C(0)
+/** Returns whether the PCI PASID is valid. */
+#define PCIPASID_IS_VALID(a)        (((a) & PCIPASID_F_VALID) != 0)
+/** Returns the PASID value of a PCI PASID. */
+#define PCIPASID_VAL(a)             ((a) & UINT32_C(0xfffff))
 
 
 #if defined(__cplusplus) && defined(IN_RING3)

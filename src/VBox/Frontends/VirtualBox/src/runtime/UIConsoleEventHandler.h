@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_runtime_UIConsoleEventHandler_h
@@ -27,10 +37,10 @@
 
 /* COM includes: */
 #include "COMEnums.h"
-#include "CVirtualBoxErrorInfo.h"
 #include "CMediumAttachment.h"
 #include "CNetworkAdapter.h"
 #include "CUSBDevice.h"
+#include "CVirtualBoxErrorInfo.h"
 
 /* Forward declarations: */
 class UIConsoleEventHandlerProxy;
@@ -48,8 +58,11 @@ signals:
 
     /** Notifies about mouse pointer @a shapeData change. */
     void sigMousePointerShapeChange(const UIMousePointerShapeData &shapeData);
-    /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative, @a fSupportsMultiTouch and @a fNeedsHostCursor. */
-    void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
+    /** Notifies about mouse capability change to @a fSupportsAbsolute, @a fSupportsRelative,
+     * @a fSupportsTouchScreen, @a fSupportsTouchPad and @a fNeedsHostCursor. */
+    void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative,
+                                  bool fSupportsTouchScreen, bool fSupportsTouchPad,
+                                  bool fNeedsHostCursor);
     /** Notifies about guest request to change the cursor position to @a uX * @a uY.
       * @param  fContainsData  Brings whether the @a uX and @a uY values are valid and could be used by the GUI now. */
     void sigCursorPositionChange(bool fContainsData, unsigned long uX, unsigned long uY);
@@ -95,7 +108,7 @@ signals:
 public:
 
     /** Returns singleton instance created by the factory. */
-    static UIConsoleEventHandler* instance() { return m_spInstance; }
+    static UIConsoleEventHandler *instance() { return s_pInstance; }
     /** Creates singleton instance created by the factory. */
     static void create(UISession *pSession);
     /** Destroys singleton instance created by the factory. */
@@ -106,18 +119,15 @@ protected:
     /** Constructs console event handler for passed @a pSession. */
     UIConsoleEventHandler(UISession *pSession);
 
-    /** @name Prepare cascade.
-      * @{ */
-        /** Prepares all. */
-        void prepare();
-        /** Prepares connections. */
-        void prepareConnections();
-    /** @} */
+    /** Prepares all. */
+    void prepare();
+    /** Prepares connections. */
+    void prepareConnections();
 
 private:
 
     /** Holds the singleton static console event handler instance. */
-    static UIConsoleEventHandler *m_spInstance;
+    static UIConsoleEventHandler *s_pInstance;
 
     /** Holds the console event proxy instance. */
     UIConsoleEventHandlerProxy *m_pProxy;

@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -287,7 +297,9 @@ RTDECL(int) RTFileOpenEx(const char *pszFilename, uint64_t fOpen, PRTFILE phFile
     }
 
     DWORD dwFlagsAndAttributes;
-    dwFlagsAndAttributes = FILE_ATTRIBUTE_NORMAL;
+    dwFlagsAndAttributes = !(fOpen & RTFILE_O_TEMP_AUTO_DELETE) ? FILE_ATTRIBUTE_NORMAL : FILE_ATTRIBUTE_TEMPORARY;
+    if (fOpen & RTFILE_O_TEMP_AUTO_DELETE)
+        fOpen |= FILE_FLAG_DELETE_ON_CLOSE;
     if (fOpen & RTFILE_O_WRITE_THROUGH)
         dwFlagsAndAttributes |= FILE_FLAG_WRITE_THROUGH;
     if (fOpen & RTFILE_O_ASYNC_IO)
@@ -403,6 +415,30 @@ RTR3DECL(int)  RTFileOpenBitBucket(PRTFILE phFile, uint64_t fAccess)
 }
 
 
+RTDECL(int)  RTFileDup(RTFILE hFileSrc, uint64_t fFlags, PRTFILE phFileNew)
+{
+    /*
+     * Validate input.
+     */
+    AssertPtrReturn(phFileNew, VERR_INVALID_POINTER);
+    *phFileNew = NIL_RTFILE;
+    AssertPtrReturn(phFileNew, VERR_INVALID_POINTER);
+    AssertReturn(!(fFlags & ~(uint64_t)RTFILE_O_INHERIT), VERR_INVALID_FLAGS);
+
+    /*
+     * Do the job.
+     */
+    HANDLE hNew = INVALID_HANDLE_VALUE;
+    if (DuplicateHandle(GetCurrentProcess(), (HANDLE)RTFileToNative(hFileSrc),
+                        GetCurrentProcess(), &hNew, 0, RT_BOOL(fFlags & RTFILE_O_INHERIT), DUPLICATE_SAME_ACCESS))
+    {
+        *phFileNew = (RTFILE)hNew;
+        return VINF_SUCCESS;
+    }
+    return RTErrConvertFromWin32(GetLastError());
+}
+
+
 RTR3DECL(int)  RTFileClose(RTFILE hFile)
 {
     if (hFile == NIL_RTFILE)
@@ -511,9 +547,9 @@ RTR3DECL(int)  RTFileRead(RTFILE hFile, void *pvBuf, size_t cbToRead, size_t *pc
         cbRead = 0;
         while (cbToReadAdj > cbRead)
         {
-            ULONG cbToRead   = RT_MIN(cbChunk, cbToReadAdj - cbRead);
-            ULONG cbReadPart = 0;
-            if (!ReadFile((HANDLE)RTFileToNative(hFile), (char *)pvBuf + cbRead, cbToRead, &cbReadPart, NULL))
+            ULONG cbToReadNow = RT_MIN(cbChunk, cbToReadAdj - cbRead);
+            ULONG cbReadPart  = 0;
+            if (!ReadFile((HANDLE)RTFileToNative(hFile), (char *)pvBuf + cbRead, cbToReadNow, &cbReadPart, NULL))
             {
                 /* If we failed because the buffer is too big, shrink it and
                    try again. */
@@ -649,9 +685,9 @@ RTR3DECL(int)  RTFileWrite(RTFILE hFile, const void *pvBuf, size_t cbToWrite, si
         cbWritten = 0;
         while (cbWritten < cbToWriteAdj)
         {
-            ULONG cbToWrite     = RT_MIN(cbChunk, cbToWriteAdj - cbWritten);
+            ULONG cbToWriteNow  = RT_MIN(cbChunk, cbToWriteAdj - cbWritten);
             ULONG cbWrittenPart = 0;
-            if (!WriteFile((HANDLE)RTFileToNative(hFile), (const char *)pvBuf + cbWritten, cbToWrite, &cbWrittenPart, NULL))
+            if (!WriteFile((HANDLE)RTFileToNative(hFile), (const char *)pvBuf + cbWritten, cbToWriteNow, &cbWrittenPart, NULL))
             {
                 /* If we failed because the buffer is too big, shrink it and
                    try again. */
@@ -664,7 +700,7 @@ RTR3DECL(int)  RTFileWrite(RTFILE hFile, const void *pvBuf, size_t cbToWrite, si
                 }
                 int rc = RTErrConvertFromWin32(dwErr);
                 if (rc == VERR_DISK_FULL)
-                    rc = rtFileWinCheckIfDiskReallyFull(hFile, RTFileTell(hFile) + cbToWrite);
+                    rc = rtFileWinCheckIfDiskReallyFull(hFile, RTFileTell(hFile) + cbToWriteNow);
                 return rc;
             }
             cbWritten += cbWrittenPart;
@@ -892,17 +928,17 @@ static HANDLE rtFileReOpenAppendOnlyWithFullWriteAccess(HANDLE hFile)
                 OBJECT_ATTRIBUTES   ObjAttr;
                 InitializeObjectAttributes(&ObjAttr, &NtName, BasicInfo.Attributes & ~OBJ_INHERIT, NULL, NULL);
 
-                NTSTATUS rcNt = NtCreateFile(&hDupFile,
-                                             BasicInfo.GrantedAccess | FILE_WRITE_DATA,
-                                             &ObjAttr,
-                                             &Ios,
-                                             NULL /* AllocationSize*/,
-                                             FILE_ATTRIBUTE_NORMAL,
-                                             FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                                             FILE_OPEN,
-                                             FILE_OPEN_FOR_BACKUP_INTENT /*??*/,
-                                             NULL /*EaBuffer*/,
-                                             0 /*EaLength*/);
+                rcNt = NtCreateFile(&hDupFile,
+                                    BasicInfo.GrantedAccess | FILE_WRITE_DATA,
+                                    &ObjAttr,
+                                    &Ios,
+                                    NULL /* AllocationSize*/,
+                                    FILE_ATTRIBUTE_NORMAL,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    FILE_OPEN,
+                                    FILE_OPEN_FOR_BACKUP_INTENT /*??*/,
+                                    NULL /*EaBuffer*/,
+                                    0 /*EaLength*/);
                 RTUtf16Free(NtName.Buffer);
                 if (NT_SUCCESS(rcNt))
                 {
@@ -1470,8 +1506,8 @@ RTDECL(int) RTFileRename(const char *pszSrc, const char *pszDst, unsigned fRenam
     /*
      * Validate input.
      */
-    AssertMsgReturn(VALID_PTR(pszSrc), ("%p\n", pszSrc), VERR_INVALID_POINTER);
-    AssertMsgReturn(VALID_PTR(pszDst), ("%p\n", pszDst), VERR_INVALID_POINTER);
+    AssertPtrReturn(pszSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDst, VERR_INVALID_POINTER);
     AssertMsgReturn(!(fRename & ~RTPATHRENAME_FLAGS_REPLACE), ("%#x\n", fRename), VERR_INVALID_PARAMETER);
 
     /*
@@ -1493,8 +1529,8 @@ RTDECL(int) RTFileMove(const char *pszSrc, const char *pszDst, unsigned fMove)
     /*
      * Validate input.
      */
-    AssertMsgReturn(VALID_PTR(pszSrc), ("%p\n", pszSrc), VERR_INVALID_POINTER);
-    AssertMsgReturn(VALID_PTR(pszDst), ("%p\n", pszDst), VERR_INVALID_POINTER);
+    AssertPtrReturn(pszSrc, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszDst, VERR_INVALID_POINTER);
     AssertMsgReturn(!(fMove & ~RTFILEMOVE_FLAGS_REPLACE), ("%#x\n", fMove), VERR_INVALID_PARAMETER);
 
     /*

@@ -1,5 +1,5 @@
 Some source files in the VirtualBox Open Source Edition (OSE) are
-dual-licensed under both the GNU General Public License V2.0 (GPL2, see
+dual-licensed under both the GNU General Public License V3.0 (GPL3, see
 the COPYING file) and the Common Development and Distribution License,
 Version 1.0 (CDDL), as shown below. This applies only to source files
 where this dual-licensing is explicitly worded in the file's header.
@@ -376,6 +376,11 @@ COMMON DEVELOPMENT AND DISTRIBUTION LICENSE Version 1.0
 NOTICE PURSUANT TO SECTION 9 OF THE COMMON DEVELOPMENT AND
 DISTRIBUTION LICENSE (CDDL)
 
-For Covered Software in this distribution, this License shall be
-governed by the laws of Germany. Legal venue shall be Stuttgart,
-Germany.
+For Covered Software in this distribution, this License shall
+be governed by the laws of the State of California (excluding
+conflict-of-law provisions).
+
+Any litigation relating to this License shall be subject to the
+jurisdiction of the Federal Courts of the Northern District of
+California and the state courts of the State of California, with
+venue lying in Santa Clara County, California.

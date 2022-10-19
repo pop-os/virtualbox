@@ -1,5 +1,6 @@
 ;------------------------------------------------------------------------------ ;
 ; Copyright (c) 2016 - 2019, Intel Corporation. All rights reserved.<BR>
+; Copyright (c) 2020, AMD Incorporated. All rights reserved.<BR>
 ; SPDX-License-Identifier: BSD-2-Clause-Patent
 ;
 ; Module Name:
@@ -16,7 +17,7 @@
 %include "Nasm.inc"
 
 ;
-; Variables referrenced by C code
+; Variables referenced by C code
 ;
 
 %define MSR_IA32_S_CET                     0x6A2
@@ -67,9 +68,10 @@ extern ASM_PFX(CpuSmmDebugExit)
 global ASM_PFX(gPatchSmbase)
 extern ASM_PFX(mXdSupported)
 global ASM_PFX(gPatchXdSupported)
+global ASM_PFX(gPatchMsrIa32MiscEnableSupported)
 global ASM_PFX(gPatchSmiStack)
 global ASM_PFX(gPatchSmiCr3)
-global ASM_PFX(gPatch5LevelPagingSupport)
+global ASM_PFX(gPatch5LevelPagingNeeded)
 global ASM_PFX(gcSmiHandlerTemplate)
 global ASM_PFX(gcSmiHandlerSize)
 
@@ -127,7 +129,7 @@ ASM_PFX(gPatchSmiCr3):
     mov     eax, 0x668                   ; as cr4.PGE is not set here, refresh cr3
 
     mov     cl, strict byte 0            ; source operand will be patched
-ASM_PFX(gPatch5LevelPagingSupport):
+ASM_PFX(gPatch5LevelPagingNeeded):
     cmp     cl, 0
     je      SkipEnable5LevelPaging
     ;
@@ -152,18 +154,32 @@ SkipEnable5LevelPaging:
 ASM_PFX(gPatchXdSupported):
     cmp     al, 0
     jz      @SkipXd
+
+; If MSR_IA32_MISC_ENABLE is supported, clear XD Disable bit
+    mov     al, strict byte 1           ; source operand may be patched
+ASM_PFX(gPatchMsrIa32MiscEnableSupported):
+    cmp     al, 1
+    jz      MsrIa32MiscEnableSupported
+
+; MSR_IA32_MISC_ENABLE not supported
+    sub     esp, 4
+    xor     rdx, rdx
+    push    rdx                         ; don't try to restore the XD Disable bit just before RSM
+    jmp     EnableNxe
+
 ;
 ; Check XD disable bit
 ;
+MsrIa32MiscEnableSupported:
     mov     ecx, MSR_IA32_MISC_ENABLE
     rdmsr
     sub     esp, 4
     push    rdx                        ; save MSR_IA32_MISC_ENABLE[63-32]
     test    edx, BIT2                  ; MSR_IA32_MISC_ENABLE[34]
-    jz      .0
+    jz      EnableNxe
     and     dx, 0xFFFB                 ; clear XD Disable bit if it is set
     wrmsr
-.0:
+EnableNxe:
     mov     ecx, MSR_EFER
     rdmsr
     or      ax, MSR_EFER_XD            ; enable NXE

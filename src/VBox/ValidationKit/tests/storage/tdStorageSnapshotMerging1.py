@@ -8,32 +8,41 @@ VirtualBox Validation Kit - Storage snapshotting and merging testcase.
 
 __copyright__ = \
 """
-Copyright (C) 2013-2020 Oracle Corporation
+Copyright (C) 2013-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 143455 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard Python imports.
 import os;
 import sys;
-import zlib;
 
 # Only the main script needs to modify the path.
 try:    __file__
@@ -42,6 +51,7 @@ g_ksValidationKitDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.a
 sys.path.append(g_ksValidationKitDir);
 
 # Validation Kit imports.
+from common     import utils;
 from testdriver import reporter;
 from testdriver import base;
 from testdriver import vbox;
@@ -51,20 +61,6 @@ from testdriver import vboxwrappers;
 # Python 3 hacks:
 if sys.version_info[0] >= 3:
     long = int;     # pylint: disable=redefined-builtin,invalid-name
-
-
-def crc32_of_file(filepath):
-    fileobj = open(filepath,'rb');
-    current = 0;
-
-    while True:
-        buf = fileobj.read(1024 * 1024);
-        if not buf:
-            break
-        current = zlib.crc32(buf, current);
-
-    fileobj.close();
-    return current % 2**32;
 
 
 class tdStorageSnapshot(vbox.TestDriver):                                      # pylint: disable=too-many-instance-attributes
@@ -348,7 +344,7 @@ class tdStorageSnapshot(vbox.TestDriver):                                      #
 
                     uResCrc32 = long(0);
                     if fRc:
-                        uResCrc32 = long(crc32_of_file(sResFilePathRaw));
+                        uResCrc32 = long(utils.calcCrc32OfFile(sResFilePathRaw));
                         if uResCrc32 == uOrigCrc:
                             reporter.log('Snapshot merged successfully. Crc32 is correct');
                             fRc = True;

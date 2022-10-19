@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
@@ -82,7 +92,7 @@ int SharedClipboardWinOpen(HWND hWnd)
     {
         const DWORD dwLastErr = GetLastError();
         rc = RTErrConvertFromWin32(dwLastErr);
-        LogFunc(("Failed to open clipboard, rc=%Rrc (0x%x)\n", rc, dwLastErr));
+        LogRel(("Failed to open clipboard, rc=%Rrc (0x%x)\n", rc, dwLastErr));
     }
 
     return rc;
@@ -310,7 +320,7 @@ int SharedClipboardWinChainRemove(PSHCLWINCTX pCtx)
  * @param   dwData              Pointer to user-provided data. Contains our Windows clipboard context.
  * @param   lResult             Additional data to pass. Not used currently.
  */
-VOID CALLBACK SharedClipboardWinChainPingProc(HWND hWnd, UINT uMsg, ULONG_PTR dwData, LRESULT lResult)
+VOID CALLBACK SharedClipboardWinChainPingProc(HWND hWnd, UINT uMsg, ULONG_PTR dwData, LRESULT lResult) RT_NOTHROW_DEF
 {
     RT_NOREF(hWnd);
     RT_NOREF(uMsg);
@@ -576,7 +586,7 @@ int SharedClipboardWinConvertCFHTMLToMIME(const char *pszSource, const uint32_t 
  * For more format details, check out:
  * https://docs.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/platform-apis/aa767917(v=vs.85)
  *
- * @returns VBox status code. 
+ * @returns VBox status code.
  * @param   pszSource   Source buffer that contains utf-16 string in mime html format
  * @param   cb          Size of source buffer in bytes
  * @param   ppszOutput  Where to return the allocated output buffer to put converted UTF-8

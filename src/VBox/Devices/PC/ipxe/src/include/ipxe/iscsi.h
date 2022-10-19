@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <ipxe/socket.h>
@@ -16,6 +16,8 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/refcnt.h>
 #include <ipxe/xfer.h>
 #include <ipxe/process.h>
+#include <ipxe/acpi.h>
+#include <ipxe/settings.h>
 
 /** Default iSCSI port */
 #define ISCSI_PORT 3260
@@ -36,7 +38,7 @@ union iscsi_segment_lengths {
 		 */
 		uint8_t data_len[3];
 	} bytes;
-	/** Ths data length (measured in bytes), in network byte
+	/** The data length (measured in bytes), in network byte
 	 * order, with ahs_len as the first byte.
 	 */
 	uint32_t ahs_and_data_len;
@@ -647,6 +649,8 @@ struct iscsi_session {
 	struct sockaddr target_sockaddr;
 	/** SCSI LUN (for boot firmware table) */
 	struct scsi_lun lun;
+	/** ACPI descriptor */
+	struct acpi_descriptor desc;
 };
 
 /** iSCSI session is currently in the security negotiation phase */
@@ -696,5 +700,8 @@ struct iscsi_session {
 
 /** Default initiator IQN prefix */
 #define ISCSI_DEFAULT_IQN_PREFIX "iqn.2010-04.org.ipxe"
+
+extern const struct setting
+initiator_iqn_setting __setting ( SETTING_SANBOOT_EXTRA, initiator-iqn );
 
 #endif /* _IPXE_ISCSI_H */

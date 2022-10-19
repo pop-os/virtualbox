@@ -7,15 +7,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_Graphics_DevVGASavedState_h
@@ -46,7 +56,12 @@
         } \
     } while (0)
 
-#define VGA_SAVEDSTATE_VERSION                   21
+#define VGA_SAVEDSTATE_VERSION                   26
+#define VGA_SAVEDSTATE_VERSION_VMSVGA_DX_SFLAGS  26 /* SVGA3dSurfaceAllFlags. */
+#define VGA_SAVEDSTATE_VERSION_VMSVGA_DX_CMDBUF  25 /* Command buffers capability is not tied to VGPU10 setting. */
+#define VGA_SAVEDSTATE_VERSION_VMSVGA_DX         24 /* VGPU10. */
+#define VGA_SAVEDSTATE_VERSION_VMSVGA_MIPLEVELS  23 /* Surface struct with number of miplevels. */
+#define VGA_SAVEDSTATE_VERSION_VMSVGA_CURSOR     22 /* Legacy cursor registers. */
 #define VGA_SAVEDSTATE_VERSION_VMSVGA_SCREENS    21 /* Screen objects. */
 #define VGA_SAVEDSTATE_VERSION_VMSVGA            20 /* Multiple updates and fixes for VMSVGA saved state. */
 #define VGA_SAVEDSTATE_VERSION_VMSVGA_TEX_STAGES 19

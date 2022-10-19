@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_INTERNAL_magics_h
@@ -84,9 +94,13 @@
 /** The value of RTFILEAIOREQINT::u32Magic. (Stephen Edwin King)  */
 #define RTFILEAIOREQ_MAGIC              UINT32_C(0x19470921)
 /** The magic value for RTFTPSERVERINTERNAL::u32Magic. */
-#define RTFTPSERVER_MAGIC               UINT32_C(0xfeed0004) /**< @todo find a value */
+#define RTFTPSERVER_MAGIC               UINT32_C(0x20170610)
 /** The value of RTFTPSERVERINTERNAL::u32Magic after close. */
 #define RTFTPSERVER_MAGIC_DEAD          (~RTFTPSERVER_MAGIC)
+/** The magic value for RTFTPSERVERINTERNAL::u32Magic. */
+#define RTHTTPSERVER_MAGIC              UINT32_C(0x20200602)
+/** The value for RTFTPSERVERINTERNAL::u32Magic after close. */
+#define RTHTTPSERVER_MAGIC_DEAD         (~RTHTTPSERVER_MAGIC)
 /** The value of RTENVINTERNAL::u32Magic. (Rumiko Takahashi) */
 #define RTENV_MAGIC                     UINT32_C(0x19571010)
 /** The value of RTERRVARS::ai32Vars[0]. (Ryuichi Sakamoto) */
@@ -103,6 +117,10 @@
 #define RTHTTP_MAGIC                    UINT32_C(0x18420225)
 /** The value of RTHTTPINTERNAL::u32Magic after close. */
 #define RTHTTP_MAGIC_DEAD               UINT32_C(0x19120330)
+/** The magic value for RTHTTPHEADERLISTINTERNAL::u32Magic. (Ken Follett) */
+#define RTHTTPHEADERLIST_MAGIC          UINT32_C(0x19490605)
+/** The value of RTHTTPHEADERLISTINTERNAL::u32Magic after close. */
+#define RTHTTPHEADERLIST_MAGIC_DEAD     (~RTHTTPHEADERLIST_MAGIC)
 /** The value of RTINIFILEINT::u32Magic. (Jane Austen) */
 #define RTINIFILE_MAGIC                 UINT32_C(0x17751216)
 /** The value of RTINIFILEINT::u32Magic after close. */

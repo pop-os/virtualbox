@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_globals_UICustomFileSystemModel_h
@@ -143,9 +153,9 @@ public:
 
 protected:
 
-    virtual bool lessThan(const QModelIndex &left, const QModelIndex &right) const /* override */;
+    virtual bool lessThan(const QModelIndex &left, const QModelIndex &right) const RT_OVERRIDE;
     /** Currently filters out hidden objects if options is set to "not showing them". */
-    virtual bool filterAcceptsRow(int iSourceRow, const QModelIndex &sourceParent) const /* override */;
+    virtual bool filterAcceptsRow(int iSourceRow, const QModelIndex &sourceParent) const RT_OVERRIDE;
 
 private:
 
@@ -170,18 +180,18 @@ public:
     explicit UICustomFileSystemModel(QObject *parent = 0);
     ~UICustomFileSystemModel();
 
-    QVariant       data(const QModelIndex &index, int role) const /* override */;
+    QVariant       data(const QModelIndex &index, int role) const RT_OVERRIDE;
     bool           setData(const QModelIndex &index, const QVariant &value, int role);
 
-    Qt::ItemFlags  flags(const QModelIndex &index) const /* override */;
+    Qt::ItemFlags  flags(const QModelIndex &index) const RT_OVERRIDE;
     QVariant       headerData(int section, Qt::Orientation orientation,
-                              int role = Qt::DisplayRole) const /* override */;
+                              int role = Qt::DisplayRole) const RT_OVERRIDE;
     QModelIndex    index(int row, int column,
-                      const QModelIndex &parent = QModelIndex()) const /* override */;
+                      const QModelIndex &parent = QModelIndex()) const RT_OVERRIDE;
     QModelIndex    index(UICustomFileSystemItem* item);
-    QModelIndex    parent(const QModelIndex &index) const /* override */;
-    int            rowCount(const QModelIndex &parent = QModelIndex()) const /* override */;
-    int            columnCount(const QModelIndex &parent = QModelIndex()) const /* override */;
+    QModelIndex    parent(const QModelIndex &index) const RT_OVERRIDE;
+    int            rowCount(const QModelIndex &parent = QModelIndex()) const RT_OVERRIDE;
+    int            columnCount(const QModelIndex &parent = QModelIndex()) const RT_OVERRIDE;
     void           signalUpdate();
     QModelIndex    rootIndex() const;
     void           beginReset();

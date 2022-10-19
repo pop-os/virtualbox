@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
@@ -420,232 +430,3 @@ void UIPopupCenter::unassignPopupStackParent(UIPopupStack *pPopupStack, QWidget 
     /* Unassign event-filter: */
     pParent->window()->removeEventFilter(pPopupStack);
 }
-
-void UIPopupCenter::cannotSendACPIToMachine(QWidget *pParent)
-{
-    alert(pParent, "cannotSendACPIToMachine",
-          QApplication::translate("UIMessageCenter", "You are trying to shut down the guest with the ACPI power button. "
-                                                     "This is currently not possible because the guest does not support software shutdown."));
-}
-
-void UIPopupCenter::remindAboutAutoCapture(QWidget *pParent)
-{
-    alert(pParent, "remindAboutAutoCapture",
-          QApplication::translate("UIMessageCenter", "<p>You have the <b>Auto capture keyboard</b> option turned on. "
-                                                     "This will cause the Virtual Machine to automatically <b>capture</b> "
-                                                     "the keyboard every time the VM window is activated and make it "
-                                                     "unavailable to other applications running on your host machine: "
-                                                     "when the keyboard is captured, all keystrokes (including system ones "
-                                                     "like Alt-Tab) will be directed to the VM.</p>"
-                                                     "<p>You can press the <b>host key</b> at any time to <b>uncapture</b> the "
-                                                     "keyboard and mouse (if it is captured) and return them to normal "
-                                                     "operation. The currently assigned host key is shown on the status bar "
-                                                     "at the bottom of the Virtual Machine window, next to the&nbsp;"
-                                                     "<img src=:/hostkey_16px.png/>&nbsp;icon. This icon, together "
-                                                     "with the mouse icon placed nearby, indicate the current keyboard "
-                                                     "and mouse capture state.</p>") +
-          QApplication::translate("UIMessageCenter", "<p>The host key is currently defined as <b>%1</b>.</p>",
-                                                     "additional message box paragraph")
-                                                     .arg(UIHostCombo::toReadableString(gEDataManager->hostKeyCombination())),
-          true);
-}
-
-void UIPopupCenter::remindAboutMouseIntegration(QWidget *pParent, bool fSupportsAbsolute)
-{
-    if (fSupportsAbsolute)
-    {
-        alert(pParent, "remindAboutMouseIntegration",
-              QApplication::translate("UIMessageCenter", "<p>The Virtual Machine reports that the guest OS supports <b>mouse pointer integration</b>. "
-                                                         "This means that you do not need to <i>capture</i> the mouse pointer to be able to use it in your guest OS -- "
-                                                         "all mouse actions you perform when the mouse pointer is over the Virtual Machine's display "
-                                                         "are directly sent to the guest OS. If the mouse is currently captured, it will be automatically uncaptured.</p>"
-                                                         "<p>The mouse icon on the status bar will look like&nbsp;<img src=:/mouse_seamless_16px.png/>&nbsp;to inform you "
-                                                         "that mouse pointer integration is supported by the guest OS and is currently turned on.</p>"
-                                                         "<p><b>Note</b>: Some applications may behave incorrectly in mouse pointer integration mode. "
-                                                         "You can always disable it for the current session (and enable it again) "
-                                                         "by selecting the corresponding action from the menu bar.</p>"),
-              true);
-    }
-    else
-    {
-        alert(pParent, "remindAboutMouseIntegration",
-              QApplication::translate("UIMessageCenter", "<p>The Virtual Machine reports that the guest OS does not support <b>mouse pointer integration</b> "
-                                                         "in the current video mode. You need to capture the mouse (by clicking over the VM display "
-                                                         "or pressing the host key) in order to use the mouse inside the guest OS.</p>"),
-              true);
-    }
-}
-
-void UIPopupCenter::remindAboutPausedVMInput(QWidget *pParent)
-{
-    alert(pParent, "remindAboutPausedVMInput",
-          QApplication::translate("UIMessageCenter", "<p>The Virtual Machine is currently in the <b>Paused</b> state and not able to see any keyboard or mouse input. "
-                                                     "If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action "
-                                                     "from the menu bar.</p>"),
-          true);
-}
-
-void UIPopupCenter::forgetAboutPausedVMInput(QWidget *pParent)
-{
-    recall(pParent, "remindAboutPausedVMInput");
-}
-
-void UIPopupCenter::remindAboutWrongColorDepth(QWidget *pParent, ulong uRealBPP, ulong uWantedBPP)
-{
-    alert(pParent, "remindAboutWrongColorDepth",
-          QApplication::translate("UIMessageCenter", "<p>The virtual screen is currently set to a <b>%1&nbsp;bit</b> color mode. For better "
-                                                     "performance please change this to <b>%2&nbsp;bit</b>. This can usually be done from the"
-                                                     " <b>Display</b> section of the guest operating system's Control Panel or System Settings.</p>")
-                                                     .arg(uRealBPP).arg(uWantedBPP),
-          true);
-}
-
-void UIPopupCenter::forgetAboutWrongColorDepth(QWidget *pParent)
-{
-    recall(pParent, "remindAboutWrongColorDepth");
-}
-
-void UIPopupCenter::cannotAttachUSBDevice(QWidget *pParent, const CConsole &comConsole, const QString &strDevice)
-{
-    alertWithDetails(pParent, "cannotAttachUSBDevice",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to attach the USB device <b>%1</b> to the virtual machine <b>%2</b>.")
-                                             .arg(strDevice, CConsole(comConsole).GetMachine().GetName()),
-                     UIErrorString::formatErrorInfo(comConsole));
-}
-
-void UIPopupCenter::cannotAttachUSBDevice(QWidget *pParent, const CVirtualBoxErrorInfo &comErrorInfo,
-                                          const QString &strDevice, const QString &strMachineName)
-{
-    alertWithDetails(pParent, "cannotAttachUSBDevice",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to attach the USB device <b>%1</b> to the virtual machine <b>%2</b>.")
-                                             .arg(strDevice).arg(strMachineName),
-                     UIErrorString::formatErrorInfo(comErrorInfo));
-}
-
-void UIPopupCenter::cannotDetachUSBDevice(QWidget *pParent, const CConsole &comConsole, const QString &strDevice)
-{
-    alertWithDetails(pParent, "cannotDetachUSBDevice",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to detach the USB device <b>%1</b> from the virtual machine <b>%2</b>.")
-                                             .arg(strDevice, CConsole(comConsole).GetMachine().GetName()),
-                     UIErrorString::formatErrorInfo(comConsole));
-}
-
-void UIPopupCenter::cannotDetachUSBDevice(QWidget *pParent, const CVirtualBoxErrorInfo &comErrorInfo,
-                                          const QString &strDevice, const QString &strMachineName)
-{
-    alertWithDetails(pParent, "cannotDetachUSBDevice",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to detach the USB device <b>%1</b> from the virtual machine <b>%2</b>.")
-                                             .arg(strDevice, strMachineName),
-                     UIErrorString::formatErrorInfo(comErrorInfo));
-}
-
-void UIPopupCenter::cannotAttachWebCam(QWidget *pParent, const CEmulatedUSB &comDispatcher,
-                                       const QString &strWebCamName, const QString &strMachineName)
-{
-    alertWithDetails(pParent, "cannotAttachWebCam",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to attach the webcam <b>%1</b> to the virtual machine <b>%2</b>.")
-                                             .arg(strWebCamName, strMachineName),
-                     UIErrorString::formatErrorInfo(comDispatcher));
-}
-
-void UIPopupCenter::cannotDetachWebCam(QWidget *pParent, const CEmulatedUSB &comDispatcher,
-                                       const QString &strWebCamName, const QString &strMachineName)
-{
-    alertWithDetails(pParent, "cannotDetachWebCam",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to detach the webcam <b>%1</b> from the virtual machine <b>%2</b>.")
-                                             .arg(strWebCamName, strMachineName),
-                     UIErrorString::formatErrorInfo(comDispatcher));
-}
-
-void UIPopupCenter::cannotToggleRecording(QWidget *pParent, const CMachine &comMachine, bool fEnable)
-{
-    /* Get machine-name preserving error-info: */
-    QString strMachineName(CMachine(comMachine).GetName());
-    alertWithDetails(pParent, "cannotToggleRecording",
-                     fEnable ?
-                     QApplication::translate("UIMessageCenter", "Failed to enable recording for the virtual machine <b>%1</b>.").arg(strMachineName) :
-                     QApplication::translate("UIMessageCenter", "Failed to disable recording for the virtual machine <b>%1</b>.").arg(strMachineName),
-                     UIErrorString::formatErrorInfo(comMachine));
-}
-
-void UIPopupCenter::cannotToggleVRDEServer(QWidget *pParent, const CVRDEServer &comServer, const QString &strMachineName, bool fEnable)
-{
-    alertWithDetails(pParent, "cannotToggleVRDEServer",
-                     fEnable ?
-                     QApplication::translate("UIMessageCenter", "Failed to enable the remote desktop server for the virtual machine <b>%1</b>.").arg(strMachineName) :
-                     QApplication::translate("UIMessageCenter", "Failed to disable the remote desktop server for the virtual machine <b>%1</b>.").arg(strMachineName),
-                     UIErrorString::formatErrorInfo(comServer));
-}
-
-void UIPopupCenter::cannotToggleNetworkAdapterCable(QWidget *pParent, const CNetworkAdapter &comAdapter, const QString &strMachineName, bool fConnect)
-{
-    alertWithDetails(pParent, "cannotToggleNetworkAdapterCable",
-                     fConnect ?
-                     QApplication::translate("UIMessageCenter", "Failed to connect the network adapter cable of the virtual machine <b>%1</b>.").arg(strMachineName) :
-                     QApplication::translate("UIMessageCenter", "Failed to disconnect the network adapter cable of the virtual machine <b>%1</b>.").arg(strMachineName),
-                     UIErrorString::formatErrorInfo(comAdapter));
-}
-
-void UIPopupCenter::remindAboutGuestAdditionsAreNotActive(QWidget *pParent)
-{
-    alert(pParent, "remindAboutGuestAdditionsAreNotActive",
-          QApplication::translate("UIMessageCenter", "<p>The VirtualBox Guest Additions do not appear to be available on this virtual machine, "
-                                  "and shared folders cannot be used without them. To use shared folders inside the virtual machine, "
-                                  "please install the Guest Additions if they are not installed, or re-install them if they are "
-                                  "not working correctly, by selecting <b>Insert Guest Additions CD image</b> from the <b>Devices</b> menu. "
-                                  "If they are installed but the machine is not yet fully started then shared folders will be available once it is.</p>"),
-          true);
-}
-
-void UIPopupCenter::cannotToggleAudioOutput(QWidget *pParent, const CAudioAdapter &comAdapter, const QString &strMachineName, bool fEnable)
-{
-    alertWithDetails(pParent, "cannotToggleAudioOutput",
-                     fEnable ?
-                     QApplication::translate("UIMessageCenter", "Failed to enable the audio adapter output for the virtual machine <b>%1</b>.").arg(strMachineName) :
-                     QApplication::translate("UIMessageCenter", "Failed to disable the audio adapter output for the virtual machine <b>%1</b>.").arg(strMachineName),
-                     UIErrorString::formatErrorInfo(comAdapter));
-}
-
-void UIPopupCenter::cannotToggleAudioInput(QWidget *pParent, const CAudioAdapter &comAdapter, const QString &strMachineName, bool fEnable)
-{
-    alertWithDetails(pParent, "cannotToggleAudioInput",
-                     fEnable ?
-                     QApplication::translate("UIMessageCenter", "Failed to enable the audio adapter input for the virtual machine <b>%1</b>.").arg(strMachineName) :
-                     QApplication::translate("UIMessageCenter", "Failed to disable the audio adapter input for the virtual machine <b>%1</b>.").arg(strMachineName),
-                     UIErrorString::formatErrorInfo(comAdapter));
-}
-
-void UIPopupCenter::cannotMountImage(QWidget *pParent, const QString &strMachineName, const QString &strMediumName)
-{
-    alert(pParent, "cannotMountImage",
-          QApplication::translate("UIMessageCenter",
-                                  "<p>Could not insert the <b>%1</b> disk image file into the virtual machine <b>%2</b>, "
-                                  "as the machine has no optical drives. Please add a drive using the storage page of the "
-                                  "virtual machine settings window.</p>")
-                                  .arg(strMediumName, strMachineName));
-}
-
-void UIPopupCenter::cannotOpenMedium(QWidget *pParent, const CVirtualBox &comVBox, UIMediumDeviceType /* enmType */, const QString &strLocation)
-{
-    alertWithDetails(pParent, "cannotOpenMedium",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to open the disk image file <nobr><b>%1</b></nobr>.")
-                                             .arg(strLocation),
-                     UIErrorString::formatErrorInfo(comVBox));
-}
-
-void UIPopupCenter::cannotSaveMachineSettings(QWidget *pParent, const CMachine &comMachine)
-{
-    alertWithDetails(pParent, "cannotSaveMachineSettings",
-                     QApplication::translate("UIMessageCenter",
-                                             "Failed to save the settings of the virtual machine <b>%1</b> to <b><nobr>%2</nobr></b>.")
-                                             .arg(CMachine(comMachine).GetName(), CMachine(comMachine).GetSettingsFilePath()),
-                     UIErrorString::formatErrorInfo(comMachine));
-}
-

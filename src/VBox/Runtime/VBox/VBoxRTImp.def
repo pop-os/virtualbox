@@ -4,24 +4,34 @@
 ;
 
 ;
-; Copyright (C) 2010-2020 Oracle Corporation
+; Copyright (C) 2010-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 LIBRARY VBoxRT.dll
@@ -66,6 +76,15 @@ EXPORTS
     ASMAtomicUoReadU64      ; not-some-systems...
     ASMAtomicXchgU16        ; not-some-systems...
     ASMAtomicXchgU64        ; not-some-systems...
+    ASMBitFirstClear            ; not-amd64 not-x86
+    ASMBitNextClear             ; not-amd64 not-x86
+    ASMBitFirstSet              ; not-amd64 not-x86
+    ASMBitNextSet               ; not-amd64 not-x86
+    ASMMemZeroPage              ; not-amd64 not-x86
+    ASMMemZero32                ; not-amd64 not-x86
+    ASMMemFill32                ; not-amd64 not-x86
+    ASMMemFirstMismatchingU8    ; not-amd64 not-x86
+    ASMMemFirstNonZero          ; not-amd64 not-x86
 
     RTAsn1BitString_AreContentBitsValid
     RTAsn1BitString_CheckSanity
@@ -685,10 +704,18 @@ EXPORTS
     RTBase64DecodeEx
     RTBase64DecodedSize
     RTBase64DecodedSizeEx
+    RTBase64DecodeUtf16
+    RTBase64DecodeUtf16Ex
+    RTBase64DecodedUtf16Size
+    RTBase64DecodedUtf16SizeEx
     RTBase64Encode
     RTBase64EncodeEx
     RTBase64EncodedLength
     RTBase64EncodedLengthEx
+    RTBase64EncodeUtf16
+    RTBase64EncodeUtf16Ex
+    RTBase64EncodedUtf16Length
+    RTBase64EncodedUtf16LengthEx
     RTBigNumAdd
     RTBigNumAssign
     RTBigNumBitWidth
@@ -777,6 +804,15 @@ EXPORTS
     RTCritSectSetSubClass
     RTCritSectTryEnter
     RTCritSectTryEnterDebug
+    RTCrCipherCtxDecryptFinish
+    RTCrCipherCtxDecryptInit
+    RTCrCipherCtxDecryptProcess
+    RTCrCipherCtxEncryptFinish
+    RTCrCipherCtxEncryptInit
+    RTCrCipherCtxEncryptProcess
+    RTCrCipherCtxFree
+    RTCrCipherDecryptEx
+    RTCrCipherEncryptEx
     RTCrCipherDecrypt
     RTCrCipherEncrypt
     RTCrCipherGetBlockSize
@@ -977,7 +1013,6 @@ EXPORTS
     RTEnvFreeUtf16Block
     RTEnvGet
     RTEnvGetEx
-    RTEnvGetExecEnvP
     RTEnvPut
     RTEnvPutEx
     RTEnvQueryUtf16Block
@@ -985,10 +1020,12 @@ EXPORTS
     RTEnvSetEx
     RTEnvUnset
     RTEnvUnsetEx
-    RTErrCOMGet
     RTErrConvertFromErrno
     RTErrConvertToErrno
-    RTErrGet
+    RTErrIsKnown
+    RTErrQueryDefine
+    RTErrQueryMsgShort
+    RTErrQueryMsgFull
     RTErrInfoAlloc
     RTErrInfoAllocEx
     RTErrInfoFree
@@ -1114,7 +1151,7 @@ EXPORTS
     RTHttpGetHeaderText
     RTHttpGetRedirLocation
     RTHttpGetText
-    RTHttpMethodName
+    RTHttpMethodToStr
     RTHttpPerform
     RTHttpReset
     RTHttpSetCAFile
@@ -1246,14 +1283,12 @@ EXPORTS
     RTLockValidatorWriteLockDec
     RTLockValidatorWriteLockGetCount
     RTLockValidatorWriteLockInc
-    RTLogCloneRC
     RTLogComPrintf
     RTLogComPrintfV
-    RTLogCopyGroupsAndFlagsForR0
+    ;RTLogCopyGroupsAndFlagsForR0
     RTLogCreate
     RTLogCreateEx
     RTLogCreateExV
-    RTLogCreateForR0
     RTLogDefaultInit
     RTLogDefaultInstance
     RTLogDefaultInstanceEx
@@ -1261,14 +1296,10 @@ EXPORTS
     RTLogDestroy
     RTLogFlags
     RTLogFlush
-    RTLogFlushRC
-    RTLogFlushToLogger
+    ;RTLogFlushToLogger
     RTLogFormatV
     RTLogGetDefaultInstance
     RTLogGetDefaultInstanceEx
-    RTLogGetDestinations
-    RTLogGetFlags
-    RTLogGetGroupSettings
     RTLogGroupSettings
     RTLogLogger
     RTLogLoggerEx
@@ -1276,6 +1307,9 @@ EXPORTS
     RTLogLoggerV
     RTLogPrintf
     RTLogPrintfV
+    RTLogQueryDestinations
+    RTLogQueryFlags
+    RTLogQueryGroupSettings
     RTLogRelGetDefaultInstance
     RTLogRelGetDefaultInstanceEx
     RTLogRelLogger
@@ -1293,6 +1327,7 @@ EXPORTS
     RTLogWriteStdErr
     RTLogWriteStdOut
     RTLogWriteUser
+    RTLocaleQueryNormalizedBaseLocaleName
     RTManifestCreate
     RTManifestDup
     RTManifestEntryAdd
@@ -1411,6 +1446,8 @@ EXPORTS
     RTMsgInfo
     RTMsgInfoV
     RTMsgInitFailure
+    RTMsgSyntax
+    RTMsgSyntaxV
     RTMsgWarning
     RTMsgWarningV
     RTNetIPv4AddDataChecksum
@@ -1462,6 +1499,7 @@ EXPORTS
     RTPathJoinA
     RTPathJoinEx
     RTPathParseSimple
+    RTPathPurgeFilename
     RTPathQueryInfo
     RTPathQueryInfoEx
     RTPathReal
@@ -1474,6 +1512,7 @@ EXPORTS
     RTPathSetTimes
     RTPathSetTimesEx
     RTPathSharedLibs
+    RTPathSkipRootSpec
     RTPathStartsWith
     RTPathStartsWithRoot
     RTPathStripFilename
@@ -2045,6 +2084,8 @@ EXPORTS
     RTTlsGetEx
     RTTlsSet
     RTUniFree
+    RTUriParse
+    RTUtf16BigToUtf8ExTag
     RTUtf16CalcLatin1Len
     RTUtf16CalcLatin1LenEx
     RTUtf16CalcUtf8Len
@@ -2058,6 +2099,8 @@ EXPORTS
     RTUtf16ICmp
     RTUtf16Len
     RTUtf16NLen
+    RTUtf16NCmp
+    RTUtf16NCmpUtf8
     RTUtf16LocaleICmp
     RTUtf16PutCpInternal
     RTUtf16ToLatin1ExTag
@@ -2157,6 +2200,8 @@ EXPORTS
     RTVfsLockReleaseReadSlow
     RTVfsLockReleaseWriteSlow
     RTVfsLockRetain
+    RTVfsMemFileCreate
+    RTVfsMemIoStrmCreate
     RTVfsMemorizeIoStreamAsFile
     RTVfsNewBaseObj
     RTVfsNewFile
@@ -2236,4 +2281,3 @@ EXPORTS
     RTHttpRawSetVerbose
     RTHttpRawSetWriteCallback
     RTHttpRawSetWriteHeaderCallback
-

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt include: */
@@ -80,16 +90,19 @@ void UIDetailsGroup::buildGroup(const QList<UIVirtualMachineItem*> &machineItems
     /* Filter out cloud VM items for now: */
     QList<UIVirtualMachineItem*> filteredItems;
     foreach (UIVirtualMachineItem *pItem, machineItems)
-        if (pItem->itemType() == UIVirtualMachineItem::ItemType_Local)
+        if (   pItem->itemType() == UIVirtualMachineItemType_Local
+            || pItem->itemType() == UIVirtualMachineItemType_CloudReal)
             filteredItems << pItem;
 
     /* Remember passed machine-items: */
     m_machineItems = filteredItems;
 
     /* Cleanup superflous items: */
-    bool fCleanupPerformed = m_items.size() > m_machineItems.size();
+    const bool fCleanupPerformed = m_items.size() > m_machineItems.size();
     while (m_items.size() > m_machineItems.size())
         delete m_items.last();
+    foreach (UIDetailsItem *pItem, m_items)
+        pItem->toSet()->clearSet();
     if (fCleanupPerformed)
         updateGeometry();
 
@@ -191,12 +204,6 @@ void UIDetailsGroup::sltBuildStep(const QUuid &uStepId, int iStepNumber)
     }
 }
 
-void UIDetailsGroup::paint(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions, QWidget *)
-{
-    /* Paint background: */
-    paintBackground(pPainter, pOptions);
-}
-
 void UIDetailsGroup::addItem(UIDetailsItem *pItem)
 {
     switch (pItem->type())
@@ -269,24 +276,4 @@ void UIDetailsGroup::prepareConnections()
     /* Prepare group-item connections: */
     connect(this, &UIDetailsGroup::sigMinimumWidthHintChanged,
             model(), &UIDetailsModel::sigRootItemMinimumWidthHintChanged);
-}
-
-void UIDetailsGroup::paintBackground(QPainter *pPainter, const QStyleOptionGraphicsItem *pOptions) const
-{
-    /* Save painter: */
-    pPainter->save();
-
-    /* Prepare variables: */
-    const QRect optionRect = pOptions->rect;
-
-    /* Paint default background: */
-#ifdef VBOX_WS_MAC
-    const QColor defaultColor = palette().color(QPalette::Active, QPalette::Mid).lighter(145);
-#else
-    const QColor defaultColor = palette().color(QPalette::Active, QPalette::Mid).lighter(160);
-#endif
-    pPainter->fillRect(optionRect, defaultColor);
-
-    /* Restore painter: */
-    pPainter->restore();
 }

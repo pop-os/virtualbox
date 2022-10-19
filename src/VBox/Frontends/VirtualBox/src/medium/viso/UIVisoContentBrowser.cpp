@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -68,7 +78,7 @@ public:
 protected:
 
     /** Used to filter-out files and show only directories. */
-    virtual bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const /* override */;
+    virtual bool filterAcceptsRow(int source_row, const QModelIndex &source_parent) const RT_OVERRIDE;
 };
 
 
@@ -153,6 +163,23 @@ UIVisoContentBrowser::UIVisoContentBrowser(QWidget *pParent)
 {
     prepareObjects();
     prepareConnections();
+
+    /* Assuming the root items only child is the one with the path '/', navigate into it. */
+    /* Hack alert. for some reason without invalidating proxy models mapFromSource return invalid index. */
+    if (m_pTableProxyModel)
+        m_pTableProxyModel->invalidate();
+    if (m_pTreeProxyModel)
+        m_pTreeProxyModel->setSourceModel(m_pModel);
+    if (rootItem() && rootItem()->childCount() > 0)
+    {
+        UICustomFileSystemItem *pStartItem = static_cast<UICustomFileSystemItem*>(rootItem()->children()[0]);
+        if (pStartItem)
+        {
+            QModelIndex iindex = m_pModel->index(pStartItem);
+            if (iindex.isValid())
+                tableViewItemDoubleClick(convertIndexToTableIndex(iindex));
+        }
+    }
 }
 
 UIVisoContentBrowser::~UIVisoContentBrowser()
@@ -234,13 +261,13 @@ void UIVisoContentBrowser::retranslateUi()
     UICustomFileSystemItem *pRootItem = rootItem();
     if (pRootItem)
     {
-        pRootItem->setData(QApplication::translate("UIVisoCreator", "Name"), UICustomFileSystemModelColumn_Name);
-        pRootItem->setData(QApplication::translate("UIVisoCreator", "Size"), UICustomFileSystemModelColumn_Size);
-        pRootItem->setData(QApplication::translate("UIVisoCreator", "Change Time"), UICustomFileSystemModelColumn_ChangeTime);
-        pRootItem->setData(QApplication::translate("UIVisoCreator", "Owner"), UICustomFileSystemModelColumn_Owner);
-        pRootItem->setData(QApplication::translate("UIVisoCreator", "Permissions"), UICustomFileSystemModelColumn_Permissions);
-        pRootItem->setData(QApplication::translate("UIVisoCreator", "Local Path"), UICustomFileSystemModelColumn_LocalPath);
-        pRootItem->setData(QApplication::translate("UIVisoCreator", "ISO Path"), UICustomFileSystemModelColumn_Path);
+        pRootItem->setData(QApplication::translate("UIVisoCreatorWidget", "Name"), UICustomFileSystemModelColumn_Name);
+        pRootItem->setData(QApplication::translate("UIVisoCreatorWidget", "Size"), UICustomFileSystemModelColumn_Size);
+        pRootItem->setData(QApplication::translate("UIVisoCreatorWidget", "Change Time"), UICustomFileSystemModelColumn_ChangeTime);
+        pRootItem->setData(QApplication::translate("UIVisoCreatorWidget", "Owner"), UICustomFileSystemModelColumn_Owner);
+        pRootItem->setData(QApplication::translate("UIVisoCreatorWidget", "Permissions"), UICustomFileSystemModelColumn_Permissions);
+        pRootItem->setData(QApplication::translate("UIVisoCreatorWidget", "Local Path"), UICustomFileSystemModelColumn_LocalPath);
+        pRootItem->setData(QApplication::translate("UIVisoCreatorWidget", "ISO Path"), UICustomFileSystemModelColumn_Path);
     }
 }
 
@@ -385,11 +412,12 @@ void UIVisoContentBrowser::prepareObjects()
     {
         m_pMainLayout->addWidget(m_pTableView, 1, 0, 6, 4);
         m_pTableView->setContextMenuPolicy(Qt::CustomContextMenu);
-        m_pTableView->setSelectionMode(QAbstractItemView::ContiguousSelection);
+        m_pTableView->setSelectionMode(QAbstractItemView::ExtendedSelection);
         m_pTableView->setShowGrid(false);
         m_pTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
         m_pTableView->setEditTriggers(QAbstractItemView::NoEditTriggers);
         m_pTableView->setAlternatingRowColors(true);
+        m_pTableView->setTabKeyNavigation(false);
         QHeaderView *pVerticalHeader = m_pTableView->verticalHeader();
         if (pVerticalHeader)
         {
@@ -460,9 +488,9 @@ void UIVisoContentBrowser::initializeModel()
 
     const QString startPath = QString("/%1").arg(m_strVisoName);
 
-    UICustomFileSystemItem* startItem = new UICustomFileSystemItem(startPath, rootItem(), KFsObjType_Directory);
-    startItem->setPath("/");
-    startItem->setIsOpened(false);
+    UICustomFileSystemItem *pStartItem = new UICustomFileSystemItem(startPath, rootItem(), KFsObjType_Directory);
+    pStartItem->setPath("/");
+    pStartItem->setIsOpened(false);
 }
 
 void UIVisoContentBrowser::setTableRootIndex(QModelIndex index /* = QModelIndex */)
@@ -479,9 +507,9 @@ void UIVisoContentBrowser::setTableRootIndex(QModelIndex index /* = QModelIndex 
     }
     else
     {
-        QItemSelectionModel *selectionModel = m_pTreeView->selectionModel();
-        if (selectionModel)
+        if (m_pTreeView && m_pTreeView->selectionModel())
         {
+            QItemSelectionModel *selectionModel = m_pTreeView->selectionModel();
             if (!selectionModel->selectedIndexes().isEmpty())
             {
                 QModelIndex treeIndex = selectionModel->selectedIndexes().at(0);
@@ -568,6 +596,16 @@ void UIVisoContentBrowser::setVisoName(const QString &strName)
     updateStartItemName();
 }
 
+bool UIVisoContentBrowser::tableViewHasSelection() const
+{
+    if (!m_pTableView)
+        return false;
+    QItemSelectionModel *pSelectionModel = m_pTableView->selectionModel();
+    if (!pSelectionModel)
+        return false;
+    return pSelectionModel->hasSelection();
+}
+
 QModelIndex UIVisoContentBrowser::convertIndexToTableIndex(const QModelIndex &index)
 {
     if (!index.isValid())
@@ -577,8 +615,9 @@ QModelIndex UIVisoContentBrowser::convertIndexToTableIndex(const QModelIndex &in
         return index;
     else if (index.model() == m_pModel)
         return m_pTableProxyModel->mapFromSource(index);
-    /* else if (index.model() == m_pTreeProxyModel): */
-    return m_pTableProxyModel->mapFromSource(m_pTreeProxyModel->mapToSource(index));
+    else if (index.model() == m_pTreeProxyModel)
+        return m_pTableProxyModel->mapFromSource(m_pTreeProxyModel->mapToSource(index));
+    return QModelIndex();
 }
 
 QModelIndex UIVisoContentBrowser::convertIndexToTreeIndex(const QModelIndex &index)
@@ -590,8 +629,9 @@ QModelIndex UIVisoContentBrowser::convertIndexToTreeIndex(const QModelIndex &ind
         return index;
     else if (index.model() == m_pModel)
         return m_pTreeProxyModel->mapFromSource(index);
-    /* else if (index.model() == m_pTableProxyModel): */
-    return m_pTreeProxyModel->mapFromSource(m_pTableProxyModel->mapToSource(index));
+    else if (index.model() == m_pTableProxyModel)
+        return m_pTreeProxyModel->mapFromSource(m_pTableProxyModel->mapToSource(index));
+    return QModelIndex();
 }
 
 void UIVisoContentBrowser::scanHostDirectory(UICustomFileSystemItem *directoryItem)
@@ -649,7 +689,7 @@ void UIVisoContentBrowser::updateStartItemName()
 {
     if (!rootItem() || !rootItem()->child(0))
         return;
-    const QString strName = QString("%1%2").arg(QDir::toNativeSeparators("/")).arg(m_strVisoName);
+    const QString strName(QDir::toNativeSeparators("/"));
 
     rootItem()->child(0)->setData(strName, UICustomFileSystemModelColumn_Name);
     /* If the table root index is the start item then we have to update the location selector text here: */

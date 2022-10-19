@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stdarg.h>
@@ -82,6 +82,9 @@ struct dhcp_packet;
 
 /** Root path */
 #define DHCP_ROOT_PATH 17
+
+/** Maximum transmission unit */
+#define DHCP_MTU 26
 
 /** Vendor encapsulated options */
 #define DHCP_VENDOR_ENCAP 43
@@ -210,6 +213,29 @@ struct dhcp_pxe_boot_menu_item {
 /** Vendor class identifier */
 #define DHCP_VENDOR_CLASS_ID 60
 
+/** Vendor class identifier for PXE clients */
+#define DHCP_VENDOR_PXECLIENT( arch, ndi )				\
+	'P', 'X', 'E', 'C', 'l', 'i', 'e', 'n', 't', ':',		\
+	'A', 'r', 'c', 'h', ':', DHCP_VENDOR_PXECLIENT_ARCH ( arch ),	\
+	':', 'U', 'N', 'D', 'I', ':', DHCP_VENDOR_PXECLIENT_UNDI ( ndi )
+
+/** Vendor class identifier architecture for PXE clients */
+#define DHCP_VENDOR_PXECLIENT_ARCH( arch )				\
+	( '0' + ( ( (arch) / 10000 ) % 10 ) ),				\
+	( '0' + ( ( (arch) /  1000 ) % 10 ) ),				\
+	( '0' + ( ( (arch) /   100 ) % 10 ) ),				\
+	( '0' + ( ( (arch) /    10 ) % 10 ) ),				\
+	( '0' + ( ( (arch) /     1 ) % 10 ) )
+
+/** Vendor class identifier UNDI version for PXE clients */
+#define DHCP_VENDOR_PXECLIENT_UNDI( type, major, minor )		\
+	DHCP_VENDOR_PXECLIENT_UNDI_VERSION ( major ),			\
+	DHCP_VENDOR_PXECLIENT_UNDI_VERSION ( minor )
+#define DHCP_VENDOR_PXECLIENT_UNDI_VERSION( version )			\
+	( '0' + ( ( (version) /   100 ) % 10 ) ),			\
+	( '0' + ( ( (version) /    10 ) % 10 ) ),			\
+	( '0' + ( ( (version) /     1 ) % 10 ) )
+
 /** Client identifier */
 #define DHCP_CLIENT_ID 61
 
@@ -266,12 +292,16 @@ enum dhcp_client_architecture_values {
 	DHCP_CLIENT_ARCHITECTURE_LC = 0x0005,
 	/** EFI IA32 */
 	DHCP_CLIENT_ARCHITECTURE_IA32 = 0x0006,
-	/** EFI BC */
-	DHCP_CLIENT_ARCHITECTURE_EFI = 0x0007,
+	/** EFI x86-64 */
+	DHCP_CLIENT_ARCHITECTURE_X86_64 = 0x0007,
 	/** EFI Xscale */
 	DHCP_CLIENT_ARCHITECTURE_XSCALE = 0x0008,
-	/** EFI x86-64 */
-	DHCP_CLIENT_ARCHITECTURE_X86_64 = 0x0009,
+	/** EFI BC */
+	DHCP_CLIENT_ARCHITECTURE_EFI = 0x0009,
+	/** EFI 32-bit ARM */
+	DHCP_CLIENT_ARCHITECTURE_ARM32 = 0x000a,
+	/** EFI 64-bit ARM */
+	DHCP_CLIENT_ARCHITECTURE_ARM64 = 0x000b,
 };
 
 /** Client network device interface */
@@ -289,6 +319,9 @@ struct dhcp_client_uuid {
 } __attribute__ (( packed ));
 
 #define DHCP_CLIENT_UUID_TYPE 0
+
+/** DNS domain search list */
+#define DHCP_DOMAIN_SEARCH 119
 
 /** Etherboot-specific encapsulated options
  *
@@ -397,22 +430,28 @@ struct dhcp_netdev_desc {
 	uint16_t device;
 } __attribute__ (( packed ));
 
-/** Use cached network settings
- *
- * Cached network settings may be available from a prior DHCP request
- * (if running as a PXE NBP), non-volatile storage on the NIC, or
- * settings set via the command line or an embedded image. If this
- * flag is not set, it will be assumed that those sources are
- * insufficient and that DHCP should still be run when autobooting.
- */
+/** Use cached network settings (obsolete; do not reuse this value) */
 #define DHCP_EB_USE_CACHED DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xb2 )
 
-/** BIOS drive number
+/** SAN retry count
  *
- * This is the drive number for a drive emulated via INT 13.  0x80 is
+ * This is the maximum number of times that SAN operations will be
+ * retried.
+ */
+#define DHCP_EB_SAN_RETRY DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xbb )
+
+/** SAN filename
+ *
+ * This is the path of the bootloader within the SAN device.
+ */
+#define DHCP_EB_SAN_FILENAME DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xbc )
+
+/** SAN drive number
+ *
+ * This is the drive number for a SAN-hooked drive.  For BIOS, 0x80 is
  * the first hard disk, 0x81 is the second hard disk, etc.
  */
-#define DHCP_EB_BIOS_DRIVE DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xbd )
+#define DHCP_EB_SAN_DRIVE DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xbd )
 
 /** Username
  *
@@ -449,6 +488,18 @@ struct dhcp_netdev_desc {
  * storage, rather than transmitted as part of a DHCP packet.
  */
 #define DHCP_EB_REVERSE_PASSWORD DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xc1 )
+
+/** User ID
+ *
+ * This will be used as the user id for AUTH_SYS based authentication in NFS.
+ */
+#define DHCP_EB_UID DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xc2 )
+
+/** Group ID
+ *
+ * This will be used as the group id for AUTH_SYS based authentication in NFS.
+ */
+#define DHCP_EB_GID DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xc3 )
 
 /** iPXE version number */
 #define DHCP_EB_VERSION DHCP_ENCAP_OPT ( DHCP_EB_ENCAP, 0xeb )
@@ -631,16 +682,6 @@ struct dhcphdr {
  */
 #define DHCP_MIN_LEN 552
 
-/** Timeouts for sending DHCP packets */
-#define DHCP_MIN_TIMEOUT ( 1 * TICKS_PER_SEC )
-#define DHCP_MAX_TIMEOUT ( 10 * TICKS_PER_SEC )
-
-/** Maximum time that we will wait for ProxyDHCP responses */
-#define PROXYDHCP_MAX_TIMEOUT ( 2 * TICKS_PER_SEC )
-
-/** Maximum time that we will wait for Boot Server responses */
-#define PXEBS_MAX_TIMEOUT ( 3 * TICKS_PER_SEC )
-
 /** Settings block name used for DHCP responses */
 #define DHCP_SETTINGS_NAME "dhcp"
 
@@ -651,8 +692,6 @@ struct dhcphdr {
 #define PXEBS_SETTINGS_NAME "pxebs"
 
 extern uint32_t dhcp_last_xid;
-extern unsigned int dhcp_chaddr ( struct net_device *netdev, void *chaddr,
-				  uint16_t *flags );
 extern int dhcp_create_packet ( struct dhcp_packet *dhcppkt,
 				struct net_device *netdev, uint8_t msgtype,
 				uint32_t xid, const void *options,
@@ -666,13 +705,5 @@ extern int dhcp_create_request ( struct dhcp_packet *dhcppkt,
 extern int start_dhcp ( struct interface *job, struct net_device *netdev );
 extern int start_pxebs ( struct interface *job, struct net_device *netdev,
 			 unsigned int pxe_type );
-
-/* In environments that can provide cached DHCP packets, this function
- * should look for such a packet and call store_cached_dhcpack() with
- * it if it exists.
- */
-extern void get_cached_dhcpack ( void );
-
-extern void store_cached_dhcpack ( userptr_t data, size_t len );
 
 #endif /* _IPXE_DHCP_H */

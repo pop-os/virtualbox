@@ -3,24 +3,34 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 %ifndef ___VBox_vmm_cpum_mac__
@@ -246,50 +256,77 @@ struc CPUMCTX
     .msrSFMASK          resb    8
     .msrKERNELGSBASE    resb    8
     .uMsrPadding0       resb    8
+
+    alignb 8
+    .fExtrn             resq    1
+
+    alignb 32
+    .aPaePdpes          resq    4
+
     alignb 8
     .aXcr               resq    2
     .fXStateMask        resq    1
-    .pXStateR0      RTR0PTR_RES 1
+    .fUsedFpuGuest      resb    1
     alignb 8
-    .pXStateR3      RTR3PTR_RES 1
     .aoffXState         resw    64
-    .fWorldSwitcher     resd    1
+    alignb 256
+    .abXState           resb    0x4000-0x300
+    .XState             EQU     .abXState
+
+    alignb 4096
+    .hwvirt                             resb        0
+    .hwvirt.svm                         resb        0
+    .hwvirt.vmx                         resb        0
+
+    .hwvirt.svm.Vmcb                    EQU         .hwvirt.svm
+    .hwvirt.svm.abMsrBitmap             EQU         (.hwvirt.svm.Vmcb                   + 0x1000)
+    .hwvirt.svm.abIoBitmap              EQU         (.hwvirt.svm.abMsrBitmap            + 0x2000)
+    .hwvirt.svm.uMsrHSavePa             EQU         (.hwvirt.svm.abIoBitmap             + 0x3000)   ; resq        1
+    .hwvirt.svm.GCPhysVmcb              EQU         (.hwvirt.svm.uMsrHSavePa            + 8)        ; resq        1
     alignb 8
-    .fExtrn             resq    1
+    .hwvirt.svm.HostState               EQU         (.hwvirt.svm.GCPhysVmcb             + 8)        ; resb        184
+    .hwvirt.svm.uPrevPauseTick          EQU         (.hwvirt.svm.HostState              + 184)      ; resq        1
+    .hwvirt.svm.cPauseFilter            EQU         (.hwvirt.svm.uPrevPauseTick         + 8)        ; resw        1
+    .hwvirt.svm.cPauseFilterThreshold   EQU         (.hwvirt.svm.cPauseFilter           + 2)        ; resw        1
+    .hwvirt.svm.fInterceptEvents        EQU         (.hwvirt.svm.cPauseFilterThreshold  + 2)        ; resb        1
+
+    .hwvirt.vmx.Vmcs                    resb        0x1000
+    .hwvirt.vmx.ShadowVmcs              resb        0x1000
+    .hwvirt.vmx.abVmreadBitmap          resb        0x1000
+    .hwvirt.vmx.abVmwriteBitmap         resb        0x1000
+    .hwvirt.vmx.aEntryMsrLoadArea       resb        0x2000
+    .hwvirt.vmx.aExitMsrStoreArea       resb        0x2000
+    .hwvirt.vmx.aExitMsrLoadArea        resb        0x2000
+    .hwvirt.vmx.abMsrBitmap             resb        0x1000
+    .hwvirt.vmx.abIoBitmap              resb        0x1000+0x1000
+    .hwvirt.vmx.abVirtApicPage          resb        0x1000
     alignb 8
-    .hwvirt.svm.uMsrHSavePa            resq          1
-    .hwvirt.svm.GCPhysVmcb             resq          1
-    .hwvirt.svm.pVmcbR0                RTR0PTR_RES   1
+    .hwvirt.vmx.GCPhysVmxon             resq        1
+    .hwvirt.vmx.GCPhysVmcs              resq        1
+    .hwvirt.vmx.GCPhysShadowVmcs        resq        1
+    .hwvirt.vmx.enmDiag                 resd        1
+    .hwvirt.vmx.enmAbort                resd        1
+    .hwvirt.vmx.uDiagAux                resq        1
+    .hwvirt.vmx.uAbortAux               resd        1
+    .hwvirt.vmx.fInVmxRootMode          resb        1
+    .hwvirt.vmx.fInVmxNonRootMode       resb        1
+    .hwvirt.vmx.fInterceptEvents        resb        1
+    .hwvirt.vmx.fNmiUnblockingIret      resb        1
+    .hwvirt.vmx.uFirstPauseLoopTick     resq        1
+    .hwvirt.vmx.uPrevPauseTick          resq        1
+    .hwvirt.vmx.uEntryTick              resq        1
+    .hwvirt.vmx.offVirtApicWrite        resw        1
+    .hwvirt.vmx.fVirtNmiBlocking        resb        1
     alignb 8
-    .hwvirt.svm.pVmcbR3                RTR3PTR_RES   1
+    .hwvirt.vmx.Msrs                    resb        224
+
     alignb 8
-    .hwvirt.svm.HostState              resb        184
-    .hwvirt.svm.uPrevPauseTick         resq          1
-    .hwvirt.svm.cPauseFilter           resw          1
-    .hwvirt.svm.cPauseFilterThreshold  resw          1
-    .hwvirt.svm.fInterceptEvents       resb          1
+    .hwvirt.enmHwvirt                   resd        1
+    .hwvirt.fGif                        resb        1
     alignb 8
-    .hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES   1
-    alignb 8
-    .hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES   1
-    alignb 8
-    .hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES   1
-    alignb 8
-    .hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES   1
-    alignb 8
-    .hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES  1
-    .hwvirt.svm.abPadding0             resb        272
-    .hwvirt.enmHwvirt                  resd          1
-    .hwvirt.fGif                       resb          1
-    alignb 8
-    .hwvirt.fLocalForcedActions        resd          1
+    .hwvirt.fLocalForcedActions         resd        1
     alignb 64
 endstruc
-
-%define CPUMCTX_WSF_IBPB_EXIT           RT_BIT_32(0)
-%define CPUMCTX_WSF_IBPB_ENTRY          RT_BIT_32(1)
-%define CPUMCTX_WSF_L1D_ENTRY           RT_BIT_32(2)
-%define CPUMCTX_WSF_MDS_ENTRY           RT_BIT_32(3)
 
 
 %define CPUMSELREG_FLAGS_VALID      0x0001

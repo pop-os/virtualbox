@@ -7,24 +7,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -674,39 +684,6 @@ int RTCString::replaceNoThrow(size_t offStart, size_t cchLength, const char *psz
     return replaceWorkerNoThrow(offStart, cchLength, pszReplacement, strlen(pszReplacement));
 }
 
-RTCString &RTCString::truncate(size_t cchMax) RT_NOEXCEPT
-{
-    if (cchMax < m_cch)
-    {
-        /*
-         * Make sure the truncated string ends with a correctly encoded
-         * codepoint and is not missing a few bytes.
-         */
-        if (cchMax > 0)
-        {
-            char chTail = m_psz[cchMax];
-            if (   (chTail & 0x80) == 0         /* single byte codepoint */
-                || (chTail & 0xc0) == 0xc0)     /* first byte of codepoint sequence. */
-            { /* likely */ }
-            else
-            {
-                /* We need to find the start of the codepoint sequence: */
-                do
-                    cchMax -= 1;
-                while (   cchMax > 0
-                       && (m_psz[cchMax] & 0xc0) != 0xc0);
-            }
-        }
-
-        /*
-         * Do the truncating.
-         */
-        m_psz[cchMax] = '\0';
-        m_cch = cchMax;
-    }
-    return *this;
-}
-
 RTCString &RTCString::replace(size_t offStart, size_t cchLength, const char *pszReplacement, size_t cchReplacement)
 {
     return replaceWorker(offStart, cchLength, pszReplacement, RTStrNLen(pszReplacement, cchReplacement));
@@ -803,6 +780,40 @@ int RTCString::replaceWorkerNoThrow(size_t offStart, size_t cchLength, const cha
     m_cch = cchNew;
 
     return VINF_SUCCESS;
+}
+
+
+RTCString &RTCString::truncate(size_t cchMax) RT_NOEXCEPT
+{
+    if (cchMax < m_cch)
+    {
+        /*
+         * Make sure the truncated string ends with a correctly encoded
+         * codepoint and is not missing a few bytes.
+         */
+        if (cchMax > 0)
+        {
+            char chTail = m_psz[cchMax];
+            if (   (chTail & 0x80) == 0         /* single byte codepoint */
+                || (chTail & 0xc0) == 0xc0)     /* first byte of codepoint sequence. */
+            { /* likely */ }
+            else
+            {
+                /* We need to find the start of the codepoint sequence: */
+                do
+                    cchMax -= 1;
+                while (   cchMax > 0
+                       && (m_psz[cchMax] & 0xc0) != 0xc0);
+            }
+        }
+
+        /*
+         * Do the truncating.
+         */
+        m_psz[cchMax] = '\0';
+        m_cch = cchMax;
+    }
+    return *this;
 }
 
 
@@ -1176,21 +1187,21 @@ RTCString::join(const RTCList<RTCString, RTCString *> &a_rList,
                              "" /* a_rstrPrefix */, a_rstrSep);
 }
 
-const RTCString operator+(const RTCString &a_rStr1, const RTCString &a_rStr2)
+RTDECL(const RTCString) operator+(const RTCString &a_rStr1, const RTCString &a_rStr2)
 {
     RTCString strRet(a_rStr1);
     strRet += a_rStr2;
     return strRet;
 }
 
-const RTCString operator+(const RTCString &a_rStr1, const char *a_pszStr2)
+RTDECL(const RTCString) operator+(const RTCString &a_rStr1, const char *a_pszStr2)
 {
     RTCString strRet(a_rStr1);
     strRet += a_pszStr2;
     return strRet;
 }
 
-const RTCString operator+(const char *a_psz1, const RTCString &a_rStr2)
+RTDECL(const RTCString) operator+(const char *a_psz1, const RTCString &a_rStr2)
 {
     RTCString strRet(a_psz1);
     strRet += a_rStr2;

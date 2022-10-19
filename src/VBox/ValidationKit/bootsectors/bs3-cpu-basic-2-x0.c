@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -52,6 +62,21 @@
 #define BS3CB2SIDTSGDT_F_386PLUS   UINT8_C(0x02)
 
 
+/** @name MYOP_XXX - Values for FNBS3CPUBASIC2ACTSTCODE::fOp.
+ *
+ * These are flags, though we've precombined a few shortening things down.
+ *
+ * @{ */
+#define MYOP_LD           0x1       /**< The instruction loads. */
+#define MYOP_ST           0x2       /**< The instruction stores */
+#define MYOP_EFL          0x4       /**< The instruction modifies EFLAGS. */
+#define MYOP_AC_GP        0x8       /**< The instruction may cause either \#AC or \#GP (FXSAVE). */
+
+#define MYOP_LD_ST        0x3       /**< Convenience: The instruction both loads and stores. */
+#define MYOP_LD_DIV       0x5       /**< Convenience: DIV instruction - loading and modifying flags. */
+/** @} */
+
+
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
@@ -70,6 +95,27 @@ typedef struct BS3CB2SIDTSGDT
     uint8_t     bMode;
     uint8_t     fFlags;
 } BS3CB2SIDTSGDT;
+
+
+typedef void BS3_CALL FNBS3CPUBASIC2ACSNIPPET(void);
+
+typedef struct FNBS3CPUBASIC2ACTSTCODE
+{
+    FNBS3CPUBASIC2ACSNIPPET BS3_FAR    *pfn;
+    uint8_t                             fOp;
+    uint16_t                            cbMem;
+    uint8_t                             cbAlign;
+    uint8_t                             offFaultInstr; /**< For skipping fninit with the fld test. */
+} FNBS3CPUBASIC2ACTSTCODE;
+typedef FNBS3CPUBASIC2ACTSTCODE const *PCFNBS3CPUBASIC2ACTSTCODE;
+
+typedef struct BS3CPUBASIC2ACTTSTCMNMODE
+{
+    uint8_t                     bMode;
+    uint16_t                    cEntries;
+    PCFNBS3CPUBASIC2ACTSTCODE   paEntries;
+} BS3CPUBASIC2PFTTSTCMNMODE;
+typedef BS3CPUBASIC2PFTTSTCMNMODE const *PCBS3CPUBASIC2PFTTSTCMNMODE;
 
 
 /*********************************************************************************************************************************
@@ -141,6 +187,37 @@ extern FNBS3FAR     bs3CpuBasic2_lgdt_opsize_ss_bx__sgdt_es_di__lgdt_es_si__ud2_
 extern FNBS3FAR     bs3CpuBasic2_lgdt_opsize_ss_bx__sgdt_es_di__lgdt_es_si__ud2_c32;
 extern FNBS3FAR     bs3CpuBasic2_lgdt_opsize_rexw_bx__sgdt_es_di__lgdt_es_si__ud2_c64;
 
+
+/* bs3-cpu-basic-2-template.mac: */
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_mov_ax_ds_bx__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_mov_ds_bx_ax__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_xchg_ds_bx_ax__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_cmpxchg_ds_bx_cx__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_div_ds_bx__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fld_ds_bx__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fbld_ds_bx__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fldz_fstp_ds_bx__ud2_c16;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fxsave_ds_bx__ud2_c16;
+
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_mov_ax_ds_bx__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_mov_ds_bx_ax__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_xchg_ds_bx_ax__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_cmpxchg_ds_bx_cx__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_div_ds_bx__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fld_ds_bx__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fbld_ds_bx__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fldz_fstp_ds_bx__ud2_c32;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fxsave_ds_bx__ud2_c32;
+
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_mov_ax_ds_bx__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_mov_ds_bx_ax__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_xchg_ds_bx_ax__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_cmpxchg_ds_bx_cx__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_div_ds_bx__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fld_ds_bx__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fbld_ds_bx__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fninit_fldz_fstp_ds_bx__ud2_c64;
+FNBS3CPUBASIC2ACSNIPPET bs3CpuBasic2_fxsave_ds_bx__ud2_c64;
 
 
 /*********************************************************************************************************************************
@@ -283,6 +360,54 @@ static const BS3CB2INVLDESCTYPE g_aInvalidSsTypes[] =
 #endif
 
 
+static const FNBS3CPUBASIC2ACTSTCODE g_aCmn16[] =
+{
+    {   bs3CpuBasic2_mov_ax_ds_bx__ud2_c16,             MYOP_LD,                2,  2 },
+    {   bs3CpuBasic2_mov_ds_bx_ax__ud2_c16,             MYOP_ST,                2,  2 },
+    {   bs3CpuBasic2_xchg_ds_bx_ax__ud2_c16,            MYOP_LD_ST,             2,  2 },
+    {   bs3CpuBasic2_cmpxchg_ds_bx_cx__ud2_c16,         MYOP_LD_ST | MYOP_EFL,  2,  2 },
+    {   bs3CpuBasic2_div_ds_bx__ud2_c16,                MYOP_LD_DIV,            2,  2 },
+    {   bs3CpuBasic2_fninit_fld_ds_bx__ud2_c16,         MYOP_LD,               10,  8, 2 /*fninit*/ },
+    {   bs3CpuBasic2_fninit_fbld_ds_bx__ud2_c16,        MYOP_LD,               10,  8, 2 /*fninit*/ },
+    {   bs3CpuBasic2_fninit_fldz_fstp_ds_bx__ud2_c16,   MYOP_ST,               10,  8, 4 /*fninit+fldz*/ },
+    {   bs3CpuBasic2_fxsave_ds_bx__ud2_c16,             MYOP_ST | MYOP_AC_GP, 512, 16 },
+};
+
+static const FNBS3CPUBASIC2ACTSTCODE g_aCmn32[] =
+{
+    {   bs3CpuBasic2_mov_ax_ds_bx__ud2_c32,             MYOP_LD,                4,  4 },
+    {   bs3CpuBasic2_mov_ds_bx_ax__ud2_c32,             MYOP_ST,                4,  4 },
+    {   bs3CpuBasic2_xchg_ds_bx_ax__ud2_c32,            MYOP_LD_ST,             4,  4 },
+    {   bs3CpuBasic2_cmpxchg_ds_bx_cx__ud2_c32,         MYOP_LD_ST | MYOP_EFL,  4,  4 },
+    {   bs3CpuBasic2_div_ds_bx__ud2_c32,                MYOP_LD_DIV,            4,  4 },
+    {   bs3CpuBasic2_fninit_fld_ds_bx__ud2_c32,         MYOP_LD,               10,  8, 2 /*fninit*/ },
+    {   bs3CpuBasic2_fninit_fbld_ds_bx__ud2_c32,        MYOP_LD,               10,  8, 2 /*fninit*/ },
+    {   bs3CpuBasic2_fninit_fldz_fstp_ds_bx__ud2_c32,   MYOP_ST,               10,  8, 4 /*fninit+fldz*/ },
+    {   bs3CpuBasic2_fxsave_ds_bx__ud2_c32,             MYOP_ST | MYOP_AC_GP, 512, 16 },
+};
+
+static const FNBS3CPUBASIC2ACTSTCODE g_aCmn64[] =
+{
+    {   bs3CpuBasic2_mov_ax_ds_bx__ud2_c64,             MYOP_LD,                8,  8 },
+    {   bs3CpuBasic2_mov_ds_bx_ax__ud2_c64,             MYOP_ST,                8,  8 },
+    {   bs3CpuBasic2_xchg_ds_bx_ax__ud2_c64,            MYOP_LD_ST,             8,  8 },
+    {   bs3CpuBasic2_cmpxchg_ds_bx_cx__ud2_c64,         MYOP_LD_ST | MYOP_EFL,  8,  8 },
+    {   bs3CpuBasic2_div_ds_bx__ud2_c64,                MYOP_LD_DIV,            8,  8 },
+    {   bs3CpuBasic2_fninit_fld_ds_bx__ud2_c64,         MYOP_LD,               10,  8, 2 /*fninit*/ },
+    {   bs3CpuBasic2_fninit_fbld_ds_bx__ud2_c64,        MYOP_LD,               10,  8, 2 /*fninit*/ },
+    {   bs3CpuBasic2_fninit_fldz_fstp_ds_bx__ud2_c64,   MYOP_ST,               10,  8, 4 /*fninit+fldz*/ },
+    {   bs3CpuBasic2_fxsave_ds_bx__ud2_c64,             MYOP_ST | MYOP_AC_GP, 512, 16 },
+};
+
+static const BS3CPUBASIC2PFTTSTCMNMODE g_aCmnModes[] =
+{
+    {   BS3_MODE_CODE_16,  RT_ELEMENTS(g_aCmn16), g_aCmn16 },
+    {   BS3_MODE_CODE_V86, RT_ELEMENTS(g_aCmn16), g_aCmn16 },
+    {   BS3_MODE_CODE_32,  RT_ELEMENTS(g_aCmn32), g_aCmn32 },
+    {   BS3_MODE_CODE_64,  RT_ELEMENTS(g_aCmn64), g_aCmn64 },
+};
+
+
 /**
  * Sets globals according to the mode.
  *
@@ -295,6 +420,16 @@ static void bs3CpuBasic2_SetGlobals(uint8_t bTestMode)
     g_f16BitSys     = BS3_MODE_IS_16BIT_SYS(bTestMode);
     g_usBs3TestStep = 0;
 }
+
+
+uint32_t ASMGetESP(void);
+#pragma aux ASMGetESP = \
+    ".386" \
+    "mov ax, sp" \
+    "mov edx, esp" \
+    "shr edx, 16" \
+    value [ax dx] \
+    modify exact [ax dx];
 
 
 /**
@@ -365,7 +500,7 @@ static void bs3CpuBasic2_CompareTrapCtx2(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pS
  * Compares a CPU trap.
  */
 static void bs3CpuBasic2_CompareCpuTrapCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx, uint16_t uErrCd,
-                                           uint8_t bXcpt, bool f486ResumeFlagHint)
+                                           uint8_t bXcpt, bool f486ResumeFlagHint, uint8_t cbIpAdjust)
 {
     uint16_t const cErrorsBefore = Bs3TestSubErrorCount();
     uint32_t fExtraEfl;
@@ -373,7 +508,6 @@ static void bs3CpuBasic2_CompareCpuTrapCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX 
     CHECK_MEMBER("bXcpt",   "%#04x",    pTrapCtx->bXcpt,        bXcpt);
     CHECK_MEMBER("bErrCd",  "%#06RX16", (uint16_t)pTrapCtx->uErrCd, (uint16_t)uErrCd); /* 486 only writes a word */
 
-    fExtraEfl = X86_EFL_RF;
     if (   g_f16BitSys
         || (   !f486ResumeFlagHint
             && (g_uBs3CpuDetected & BS3CPU_TYPE_MASK) <= BS3CPU_80486 ) )
@@ -383,7 +517,7 @@ static void bs3CpuBasic2_CompareCpuTrapCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX 
 #if 0 /** @todo Running on an AMD Phenom II X6 1100T under AMD-V I'm not getting good X86_EFL_RF results.  Enable this to get on with other work.  */
     fExtraEfl = pTrapCtx->Ctx.rflags.u32 & X86_EFL_RF;
 #endif
-    Bs3TestCheckRegCtxEx(&pTrapCtx->Ctx, pStartCtx, 0 /*cbIpAdjust*/, 0 /*cbSpAdjust*/, fExtraEfl, g_pszTestMode, g_usBs3TestStep);
+    Bs3TestCheckRegCtxEx(&pTrapCtx->Ctx, pStartCtx, cbIpAdjust, 0 /*cbSpAdjust*/, fExtraEfl, g_pszTestMode, g_usBs3TestStep);
     if (Bs3TestSubErrorCount() != cErrorsBefore)
     {
         Bs3TrapPrintFrame(pTrapCtx);
@@ -401,7 +535,7 @@ static void bs3CpuBasic2_CompareCpuTrapCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX 
  */
 static void bs3CpuBasic2_CompareGpCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx, uint16_t uErrCd)
 {
-    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_GP, true /*f486ResumeFlagHint*/);
+    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_GP, true /*f486ResumeFlagHint*/, 0 /*cbIpAdjust*/);
 }
 
 #if 0
@@ -410,7 +544,7 @@ static void bs3CpuBasic2_CompareGpCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStar
  */
 static void bs3CpuBasic2_CompareNpCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx, uint16_t uErrCd)
 {
-    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_NP, true /*f486ResumeFlagHint*/);
+    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_NP, true /*f486ResumeFlagHint*/, 0 /*cbIpAdjust*/);
 }
 #endif
 
@@ -419,7 +553,7 @@ static void bs3CpuBasic2_CompareNpCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStar
  */
 static void bs3CpuBasic2_CompareSsCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx, uint16_t uErrCd, bool f486ResumeFlagHint)
 {
-    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_SS, f486ResumeFlagHint);
+    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_SS, f486ResumeFlagHint, 0 /*cbIpAdjust*/);
 }
 
 #if 0
@@ -428,18 +562,19 @@ static void bs3CpuBasic2_CompareSsCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStar
  */
 static void bs3CpuBasic2_CompareTsCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx, uint16_t uErrCd)
 {
-    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_TS, false /*f486ResumeFlagHint*/);
+    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_TS, false /*f486ResumeFlagHint*/, 0 /*cbIpAdjust*/);
 }
 #endif
 
 /**
  * Compares \#PF trap.
  */
-static void bs3CpuBasic2_ComparePfCtx(PCBS3TRAPFRAME pTrapCtx, PBS3REGCTX pStartCtx, uint16_t uErrCd, uint64_t uCr2Expected)
+static void bs3CpuBasic2_ComparePfCtx(PCBS3TRAPFRAME pTrapCtx, PBS3REGCTX pStartCtx, uint16_t uErrCd,
+                                      uint64_t uCr2Expected, uint8_t cbIpAdjust)
 {
     uint64_t const uCr2Saved     = pStartCtx->cr2.u;
     pStartCtx->cr2.u = uCr2Expected;
-    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_PF, true /*f486ResumeFlagHint*/);
+    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, uErrCd, X86_XCPT_PF, true /*f486ResumeFlagHint*/, cbIpAdjust);
     pStartCtx->cr2.u = uCr2Saved;
 }
 
@@ -448,7 +583,16 @@ static void bs3CpuBasic2_ComparePfCtx(PCBS3TRAPFRAME pTrapCtx, PBS3REGCTX pStart
  */
 static void bs3CpuBasic2_CompareUdCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx)
 {
-    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, 0 /*no error code*/, X86_XCPT_UD, true /*f486ResumeFlagHint*/);
+    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, 0 /*no error code*/, X86_XCPT_UD,
+                                   true /*f486ResumeFlagHint*/, 0 /*cbIpAdjust*/);
+}
+
+/**
+ * Compares \#AC trap.
+ */
+static void bs3CpuBasic2_CompareAcCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx, uint8_t cbIpAdjust)
+{
+    bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, 0 /*always zero*/, X86_XCPT_AC, true /*f486ResumeFlagHint*/, cbIpAdjust);
 }
 
 
@@ -1425,6 +1569,266 @@ static void bs3CpuBasic2_RaiseXcpt1Common(uint16_t const uSysR0Cs, uint16_t cons
 #endif /* convert me */
 
 
+static void bs3CpuBasic2_RaiseXcpt11Worker(uint8_t bMode, uint8_t *pbBuf, unsigned cbCacheLine, bool fAm, bool fPf,
+                                           RTCCUINTXREG uFlatBufPtr, BS3CPUBASIC2PFTTSTCMNMODE const BS3_FAR *pCmn)
+{
+    BS3TRAPFRAME        TrapCtx;
+    BS3REGCTX           Ctx;
+    BS3REGCTX           CtxUdExpected;
+    uint8_t const       cRings = bMode == BS3_MODE_RM ? 1 : 4;
+    uint8_t             iRing;
+    uint16_t            iTest;
+
+    /* make sure they're allocated  */
+    Bs3MemZero(&TrapCtx, sizeof(TrapCtx));
+    Bs3MemZero(&Ctx, sizeof(Ctx));
+    Bs3MemZero(&CtxUdExpected, sizeof(CtxUdExpected));
+
+    /*
+     * Test all relevant rings.
+     *
+     * The memory operand is ds:xBX, so point it to pbBuf.
+     * The test snippets mostly use xAX as operand, with the div
+     * one also using xDX, so make sure they make some sense.
+     */
+    Bs3RegCtxSaveEx(&Ctx, bMode, 512);
+
+    Ctx.cr0.u32 &= ~(X86_CR0_MP | X86_CR0_EM | X86_CR0_TS); /* so fninit + fld works */
+
+    for (iRing = BS3_MODE_IS_V86(bMode) ? 3 : 0; iRing < cRings; iRing++)
+    {
+        uint32_t    uEbx;
+        uint8_t     fAc;
+
+        if (!BS3_MODE_IS_RM_OR_V86(bMode))
+            Bs3RegCtxConvertToRingX(&Ctx, iRing);
+
+        if (!fPf || BS3_MODE_IS_32BIT_CODE(bMode) || BS3_MODE_IS_64BIT_CODE(bMode))
+            Bs3RegCtxSetGrpDsFromCurPtr(&Ctx, &Ctx.rbx, pbBuf);
+        else
+        {
+            /* Bs3RegCtxSetGrpDsFromCurPtr barfs when trying to output a sel:off address for the aliased buffer. */
+            Ctx.ds      = BS3_FP_SEG(pbBuf);
+            Ctx.rbx.u32 = BS3_FP_OFF(pbBuf);
+        }
+        uEbx = Ctx.rbx.u32;
+
+        Ctx.rax.u = (bMode & BS3_MODE_CODE_MASK) == BS3_MODE_CODE_64
+                  ? UINT64_C(0x80868028680386fe) : UINT32_C(0x65020686);
+        Ctx.rdx.u = UINT32_C(0x00100100); /* careful with range due to div */
+
+        Bs3MemCpy(&CtxUdExpected, &Ctx, sizeof(Ctx));
+
+        /*
+         * AC flag loop.
+         */
+        for (fAc = 0; fAc < 2; fAc++)
+        {
+            if (fAc)
+                Ctx.rflags.u32 |= X86_EFL_AC;
+            else
+                Ctx.rflags.u32 &= ~X86_EFL_AC;
+
+            /*
+             * Loop over the test snippets.
+             */
+            for (iTest = 0; iTest < pCmn->cEntries; iTest++)
+            {
+                uint8_t const    fOp     = pCmn->paEntries[iTest].fOp;
+                uint16_t const   cbMem   = pCmn->paEntries[iTest].cbMem;
+                uint8_t const    cbAlign = pCmn->paEntries[iTest].cbAlign;
+                uint16_t const   cbMax   = cbCacheLine + cbMem;
+                uint16_t         offMem;
+                uint8_t BS3_FAR *poffUd = (uint8_t BS3_FAR *)Bs3SelLnkPtrToCurPtr(pCmn->paEntries[iTest].pfn);
+                Bs3RegCtxSetRipCsFromLnkPtr(&Ctx, pCmn->paEntries[iTest].pfn);
+                CtxUdExpected.rip    = Ctx.rip;
+                CtxUdExpected.rip.u  = Ctx.rip.u + poffUd[-1];
+                CtxUdExpected.cs     = Ctx.cs;
+                CtxUdExpected.rflags = Ctx.rflags;
+                if (bMode == BS3_MODE_RM)
+                    CtxUdExpected.rflags.u32 &= ~X86_EFL_AC; /** @todo investigate. automatically cleared, or is it just our code?  Observed with bs3-cpu-instr-3 too (10980xe), seems to be the CPU doing it. */
+                CtxUdExpected.rdx    = Ctx.rdx;
+                CtxUdExpected.rax    = Ctx.rax;
+                if (fOp & MYOP_LD)
+                {
+                    switch (cbMem)
+                    {
+                        case 2:
+                            CtxUdExpected.rax.u16 = 0x0101;
+                            break;
+                        case 4:
+                            CtxUdExpected.rax.u32 = UINT32_C(0x01010101);
+                            break;
+                        case 8:
+                            CtxUdExpected.rax.u64 = UINT64_C(0x0101010101010101);
+                            break;
+                    }
+                }
+
+                /*
+                 * Buffer misalignment loop.
+                 * Note! We must make sure to cross a cache line here to make sure
+                 *       to cover the split-lock scenario. (The buffer is cache
+                 *       line aligned.)
+                 */
+                for (offMem = 0; offMem < cbMax; offMem++)
+                {
+                    bool const fMisaligned = (offMem & (cbAlign - 1)) != 0;
+                    unsigned   offBuf      = cbMax + cbMem * 2;
+                    while (offBuf-- > 0)
+                        pbBuf[offBuf] = 1; /* byte-by-byte to make sure it doesn't trigger AC. */
+
+                    CtxUdExpected.rbx.u32 = Ctx.rbx.u32 = uEbx + offMem; /* ASSUMES memory in first 4GB. */
+                    if (BS3_MODE_IS_16BIT_SYS(bMode))
+                        g_uBs3TrapEipHint = Ctx.rip.u32;
+
+                    //Bs3TestPrintf("iRing=%d iTest=%d cs:rip=%04RX16:%08RX32 ds:rbx=%04RX16:%08RX32 ss:esp=%04RX16:%08RX32 bXcpt=%#x errcd=%#x fAm=%d fAc=%d ESP=%#RX32\n",
+                    //              iRing, iTest, Ctx.cs, Ctx.rip.u32, Ctx.ds, Ctx.rbx.u32, Ctx.ss, Ctx.rsp.u32, TrapCtx.bXcpt, (unsigned)TrapCtx.uErrCd, fAm, fAc, ASMGetESP());
+
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+
+                    if (   (pCmn->paEntries[iTest].fOp & MYOP_AC_GP)
+                             && fMisaligned
+                             && (!fAm || iRing != 3 || !fAc || (offMem & 3 /* 10980XE */) == 0) )
+                    {
+                        if (fAc && bMode == BS3_MODE_RM)
+                            TrapCtx.Ctx.rflags.u32 |= X86_EFL_AC;
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &Ctx, 0);
+                    }
+                    else if (fPf && iRing == 3 && (!fAm || !fAc || !fMisaligned)) /* #AC beats #PF */
+                        bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx,
+                                                  X86_TRAP_PF_P | X86_TRAP_PF_US
+                                                  | (pCmn->paEntries[iTest].fOp & MYOP_ST ? X86_TRAP_PF_RW : 0),
+                                                  uFlatBufPtr + offMem + (cbMem > 64 ? cbMem - 1 /*FXSAVE*/ : 0),
+                                                  pCmn->paEntries[iTest].offFaultInstr);
+                    else if (!fAm || iRing != 3 || !fAc || !fMisaligned)
+                    {
+                        if (fOp & MYOP_EFL)
+                        {
+                            CtxUdExpected.rflags.u16 &= ~X86_EFL_STATUS_BITS;
+                            CtxUdExpected.rflags.u16 |= TrapCtx.Ctx.rflags.u16 & X86_EFL_STATUS_BITS;
+                        }
+                        if (fOp == MYOP_LD_DIV)
+                        {
+                            CtxUdExpected.rax = TrapCtx.Ctx.rax;
+                            CtxUdExpected.rdx = TrapCtx.Ctx.rdx;
+                        }
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxUdExpected);
+                    }
+                    else
+                        bs3CpuBasic2_CompareAcCtx(&TrapCtx, &Ctx, pCmn->paEntries[iTest].offFaultInstr);
+
+                    g_usBs3TestStep++;
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * Entrypoint for \#AC tests.
+ *
+ * @returns 0 or BS3TESTDOMODE_SKIPPED.
+ * @param   bMode       The CPU mode we're testing.
+ *
+ * @note    When testing v8086 code, we'll be running in v8086 mode. So, careful
+ *          with control registers and such.
+ */
+BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_RaiseXcpt11)(uint8_t bMode)
+{
+    unsigned            cbCacheLine = 128; /** @todo detect */
+    uint8_t BS3_FAR    *pbBufAlloc;
+    uint8_t BS3_FAR    *pbBuf;
+    unsigned            idxCmnModes;
+    uint32_t            fCr0;
+
+    /*
+     * Skip if 386 or older.
+     */
+    if ((g_uBs3CpuDetected & BS3CPU_TYPE_MASK) < BS3CPU_80486)
+    {
+        Bs3TestSkipped("#AC test requires 486 or later");
+        return BS3TESTDOMODE_SKIPPED;
+    }
+
+    bs3CpuBasic2_SetGlobals(bMode);
+
+    /* Get us a 64-byte aligned buffer. */
+    pbBufAlloc = pbBuf = Bs3MemAllocZ(BS3_MODE_IS_RM_OR_V86(bMode) ? BS3MEMKIND_REAL : BS3MEMKIND_TILED, X86_PAGE_SIZE * 2);
+    if (!pbBufAlloc)
+        return Bs3TestFailed("Failed to allocate 2 pages of real-mode memory");
+    if (BS3_FP_OFF(pbBuf) & (X86_PAGE_SIZE - 1))
+        pbBuf = &pbBufAlloc[X86_PAGE_SIZE - (BS3_FP_OFF(pbBuf) & X86_PAGE_OFFSET_MASK)];
+    BS3_ASSERT(pbBuf - pbBufAlloc <= X86_PAGE_SIZE);
+    //Bs3TestPrintf("pbBuf=%p\n", pbBuf);
+
+    /* Find the g_aCmnModes entry. */
+    idxCmnModes = 0;
+    while (g_aCmnModes[idxCmnModes].bMode != (bMode & BS3_MODE_CODE_MASK))
+        idxCmnModes++;
+    //Bs3TestPrintf("idxCmnModes=%d bMode=%#x\n", idxCmnModes, bMode);
+
+    /* First round is w/o alignment checks enabled. */
+    //Bs3TestPrintf("round 1\n");
+    fCr0 = Bs3RegGetCr0();
+    BS3_ASSERT(!(fCr0 & X86_CR0_AM));
+    Bs3RegSetCr0(fCr0 & ~X86_CR0_AM);
+#if 1
+    bs3CpuBasic2_RaiseXcpt11Worker(bMode, pbBuf, cbCacheLine, false /*fAm*/, false /*fPf*/, 0, &g_aCmnModes[idxCmnModes]);
+#endif
+
+    /* The second round is with aligment checks enabled. */
+#if 1
+    //Bs3TestPrintf("round 2\n");
+    Bs3RegSetCr0(Bs3RegGetCr0() | X86_CR0_AM);
+    bs3CpuBasic2_RaiseXcpt11Worker(bMode, pbBuf, cbCacheLine, true /*fAm*/, false /*fPf*/, 0, &g_aCmnModes[idxCmnModes]);
+#endif
+
+#if 1
+    /* The third and fourth round access the buffer via a page alias that's not
+       accessible from ring-3.  The third round has ACs disabled and the fourth
+       has them enabled. */
+    if (BS3_MODE_IS_PAGED(bMode) && !BS3_MODE_IS_V86(bMode))
+    {
+        /* Alias the buffer as system memory so ring-3 access with AC+AM will cause #PF: */
+        /** @todo the aliasing is not necessary any more...   */
+        int            rc;
+        RTCCUINTXREG   uFlatBufPtr = Bs3SelPtrToFlat(pbBuf);
+        uint64_t const uAliasPgPtr = bMode & BS3_MODE_CODE_64 ? UINT64_C(0x0000648680000000) : UINT32_C(0x80000000);
+        rc = Bs3PagingAlias(uAliasPgPtr, uFlatBufPtr & ~(uint64_t)X86_PAGE_OFFSET_MASK, X86_PAGE_SIZE * 2,
+                            X86_PTE_P | X86_PTE_RW);
+        if (RT_SUCCESS(rc))
+        {
+            /* We 'misalign' the segment base here to make sure it's the final
+               address that gets alignment checked and not just the operand value. */
+            RTCCUINTXREG     uAliasBufPtr = (RTCCUINTXREG)uAliasPgPtr + (uFlatBufPtr & X86_PAGE_OFFSET_MASK);
+            uint8_t BS3_FAR *pbBufAlias   = BS3_FP_MAKE(BS3_SEL_SPARE_00 | 3, (uFlatBufPtr & X86_PAGE_OFFSET_MASK) + 1);
+            Bs3SelSetup16BitData(&Bs3GdteSpare00, uAliasPgPtr - 1);
+
+            //Bs3TestPrintf("round 3 pbBufAlias=%p\n", pbBufAlias);
+            Bs3RegSetCr0(Bs3RegGetCr0() & ~X86_CR0_AM);
+            bs3CpuBasic2_RaiseXcpt11Worker(bMode, pbBufAlias, cbCacheLine, false /*fAm*/,
+                                           true /*fPf*/, uAliasBufPtr, &g_aCmnModes[idxCmnModes]);
+
+            //Bs3TestPrintf("round 4\n");
+            Bs3RegSetCr0(Bs3RegGetCr0() | X86_CR0_AM);
+            bs3CpuBasic2_RaiseXcpt11Worker(bMode, pbBufAlias, cbCacheLine, true /*fAm*/,
+                                           true /*fPf*/, uAliasBufPtr, &g_aCmnModes[idxCmnModes]);
+
+            Bs3PagingUnalias(uAliasPgPtr, X86_PAGE_SIZE * 2);
+        }
+        else
+            Bs3TestFailedF("Bs3PagingAlias failed with %Rrc", rc);
+    }
+#endif
+
+    Bs3MemFree(pbBufAlloc, X86_PAGE_SIZE * 2);
+    Bs3RegSetCr0(fCr0);
+    return 0;
+}
+
+
 /**
  * Executes one round of SIDT and SGDT tests using one assembly worker.
  *
@@ -1715,7 +2119,7 @@ static void bs3CpuBasic2_sidt_sgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
             else
             {
                 bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, X86_TRAP_PF_RW | (Ctx.bCpl == 3 ? X86_TRAP_PF_US : 0),
-                                          uFlatTest + RT_MAX(off, X86_PAGE_SIZE));
+                                          uFlatTest + RT_MAX(off, X86_PAGE_SIZE), 0 /*cbIpAdjust*/);
                 if (   off <= X86_PAGE_SIZE - 2
                     && Bs3MemCmp(&pbTest[off], pbExpected, 2) != 0)
                     Bs3TestFailedF("Mismatch (#10): Expected limit %.2Rhxs, got %.2Rhxs; off=%#x\n",
@@ -1750,7 +2154,8 @@ static void bs3CpuBasic2_sidt_sgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
             }
             else
             {
-                bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, X86_TRAP_PF_RW | (Ctx.bCpl == 3 ? X86_TRAP_PF_US : 0), uFlatTest + off);
+                bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, X86_TRAP_PF_RW | (Ctx.bCpl == 3 ? X86_TRAP_PF_US : 0),
+                                          uFlatTest + off, 0 /*cbIpAdjust*/);
                 if (   -off < cbIdtr
                     && !ASMMemIsAllU8(pbTest, cbIdtr + off, bFiller))
                     Bs3TestFailedF("Wrote partial content on #PF (#12): bFiller=%#x, found %.*Rhxs; off=%d\n",
@@ -1805,7 +2210,7 @@ static void bs3CpuBasic2_sidt_sgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                         else
                         {
                             bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, X86_TRAP_PF_RW | (Ctx.bCpl == 3 ? X86_TRAP_PF_US : 0),
-                                                      uFlatTest + RT_MAX(off, X86_PAGE_SIZE));
+                                                      uFlatTest + RT_MAX(off, X86_PAGE_SIZE), 0 /*cbIpAdjust*/);
                             if (   off <= X86_PAGE_SIZE - 2
                                 && Bs3MemCmp(&pbTest[off], pbExpected, 2) != 0)
                                 Bs3TestFailedF("Mismatch (#15): Expected limit %.2Rhxs, got %.2Rhxs; off=%#x\n",
@@ -1840,7 +2245,7 @@ static void bs3CpuBasic2_sidt_sgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                         else
                         {
                             bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, X86_TRAP_PF_RW | (Ctx.bCpl == 3 ? X86_TRAP_PF_US : 0),
-                                                      uFlatTest + RT_MAX(off, X86_PAGE_SIZE));
+                                                      uFlatTest + RT_MAX(off, X86_PAGE_SIZE), 0 /*cbIpAdjust*/);
                             if (   off < X86_PAGE_SIZE
                                 && !ASMMemIsAllU8(&pbTest[off], X86_PAGE_SIZE - off, bFiller))
                                 Bs3TestFailedF("Mismatch (#16): Partial limit write on #PF: bFiller=%#x, got %.*Rhxs\n",
@@ -1911,7 +2316,7 @@ static void bs3CpuBasic2_sidt_sgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                     {
                         if (cbLimit < off && off < X86_PAGE_SIZE)
                             bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, X86_TRAP_PF_RW | (Ctx.bCpl == 3 ? X86_TRAP_PF_US : 0),
-                                                      uFlatTest + off);
+                                                      uFlatTest + off, 0 /*cbIpAdjust*/);
                         else if (pWorker->fSs)
                             bs3CpuBasic2_CompareSsCtx(&TrapCtx, &Ctx, 0, false /*f486ResumeFlagHint*/);
                         else
@@ -2536,7 +2941,7 @@ static void bs3CpuBasic2_lidt_lgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                                    pWorker->pszDesc, cbIdtr*2, abExpectedFilled, cbIdtr*2, pbBufSave);
             }
             else
-                bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE));
+                bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE), 0 /*cbIpAdjust*/);
             g_usBs3TestStep++;
 
             /* Again with zero limit and maybe messed up base as well (triple fault if buggy).
@@ -2555,7 +2960,7 @@ static void bs3CpuBasic2_lidt_lgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                 if (bRing != 0)
                     bs3CpuBasic2_CompareGpCtx(&TrapCtx, &Ctx, 0);
                 else
-                    bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE));
+                    bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE), 0 /*cbIpAdjust*/);
                 g_usBs3TestStep++;
             }
         }
@@ -2585,7 +2990,7 @@ static void bs3CpuBasic2_lidt_lgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                                    pWorker->pszDesc, cbIdtr*2, abExpectedFilled, cbIdtr*2, pbBufSave);
             }
             else
-                bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + off);
+                bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + off, 0 /*cbIpAdjust*/);
             g_usBs3TestStep++;
 
             /* Again with messed up base as well (triple fault if buggy). */
@@ -2598,7 +3003,7 @@ static void bs3CpuBasic2_lidt_lgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                 if (bRing != 0)
                     bs3CpuBasic2_CompareGpCtx(&TrapCtx, &Ctx, 0);
                 else
-                    bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + off);
+                    bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + off, 0 /*cbIpAdjust*/);
                 g_usBs3TestStep++;
             }
         }
@@ -2654,13 +3059,13 @@ static void bs3CpuBasic2_lidt_lgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                                                pWorker->pszDesc, cbIdtr*2, abExpectedFilled, cbIdtr*2, pbBufSave);
                         }
                         else
-                            bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE));
+                            bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE), 0 /*cbIpAdjust*/);
                     }
                     /* No #GP/#SS on limit, but instead #PF? */
                     else if (  !f486Weirdness
                              ? off     < cbLimit && off >= 0xfff
                              : off + 2 < cbLimit && off >= 0xffd)
-                        bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE));
+                        bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + RT_MAX(off, X86_PAGE_SIZE), 0 /*cbIpAdjust*/);
                     /* #GP/#SS on limit or base. */
                     else if (pWorker->fSs)
                         bs3CpuBasic2_CompareSsCtx(&TrapCtx, &Ctx, 0, false /*f486ResumeFlagHint*/);
@@ -2713,7 +3118,7 @@ static void bs3CpuBasic2_lidt_lgdt_One(BS3CB2SIDTSGDT const BS3_FAR *pWorker, ui
                                            pWorker->pszDesc, cbIdtr*2, abExpectedFilled, cbIdtr*2, pbBufSave);
                     }
                     else if (cbLimit < off && off < X86_PAGE_SIZE)
-                        bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + off);
+                        bs3CpuBasic2_ComparePfCtx(&TrapCtx, &Ctx, 0, uFlatTest + off, 0 /*cbIpAdjust*/);
                     else if (pWorker->fSs)
                         bs3CpuBasic2_CompareSsCtx(&TrapCtx, &Ctx, 0, false /*f486ResumeFlagHint*/);
                     else
@@ -2916,15 +3321,6 @@ static void iretbuf_SetupFrame(PIRETBUF pIretBuf, unsigned const cbPop,
          pIretBuf->au16[4*4] = uSS;
      }
 }
-
-uint32_t ASMGetESP(void);
-#pragma aux ASMGetESP = \
-    ".386" \
-    "mov ax, sp" \
-    "mov edx, esp" \
-    "shr edx, 16" \
-    value [ax dx] \
-    modify exact [ax dx];
 
 
 static void bs3CpuBasic2_iret_Worker(uint8_t bTestMode, FPFNBS3FAR pfnIret, unsigned const cbPop,

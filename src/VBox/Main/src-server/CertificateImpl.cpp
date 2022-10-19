@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_CERTIFICATE
@@ -416,7 +426,7 @@ HRESULT Certificate::queryInfo(LONG aWhat, com::Utf8Str &aResult)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     /* Insurance. */
     NOREF(aResult);
-    return setError(E_FAIL, "Unknown item %u", aWhat);
+    return setError(E_FAIL, tr("Unknown item %u"), aWhat);
 }
 
 /** @} */
@@ -448,6 +458,8 @@ HRESULT Certificate::i_getAlgorithmName(PCRTCRX509ALGORITHMIDENTIFIER a_pAlgId, 
     else if (strcmp(pszOid, RTCRX509ALGORITHMIDENTIFIERID_SHA256_WITH_RSA))     pszName = "sha256WithRSAEncryption";
     else if (strcmp(pszOid, RTCRX509ALGORITHMIDENTIFIERID_SHA384_WITH_RSA))     pszName = "sha384WithRSAEncryption";
     else if (strcmp(pszOid, RTCRX509ALGORITHMIDENTIFIERID_SHA512_WITH_RSA))     pszName = "sha512WithRSAEncryption";
+    else if (strcmp(pszOid, RTCRX509ALGORITHMIDENTIFIERID_SHA512T224_WITH_RSA)) pszName = "sha512-224WithRSAEncryption";
+    else if (strcmp(pszOid, RTCRX509ALGORITHMIDENTIFIERID_SHA512T256_WITH_RSA)) pszName = "sha512-256WithRSAEncryption";
     else
         pszName = pszOid;
     a_rReturn = pszName;
@@ -565,11 +577,11 @@ HRESULT Certificate::i_getEncodedBytes(PRTASN1CORE a_pAsn1Obj, std::vector<BYTE>
             {
                 vrc = RTAsn1EncodeToBuffer(a_pAsn1Obj, 0, &a_rReturn.front(), a_rReturn.size(), NULL);
                 if (RT_FAILURE(vrc))
-                    hrc = setErrorVrc(vrc, "RTAsn1EncodeToBuffer failed with %Rrc", vrc);
+                    hrc = setErrorVrc(vrc, tr("RTAsn1EncodeToBuffer failed with %Rrc"), vrc);
             }
         }
         else
-            hrc = setErrorVrc(vrc, "RTAsn1EncodePrepare failed with %Rrc", vrc);
+            hrc = setErrorVrc(vrc, tr("RTAsn1EncodePrepare failed with %Rrc"), vrc);
     }
     return hrc;
 }

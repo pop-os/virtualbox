@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -46,10 +56,10 @@ static void vqueueReset(PVQUEUE pQueue)
 
 static void vqueueInit(PVQUEUE pQueue, uint32_t uPageNumber)
 {
-    pQueue->VRing.addrDescriptors = (uint64_t)uPageNumber << PAGE_SHIFT;
+    pQueue->VRing.addrDescriptors = (uint64_t)uPageNumber << GUEST_PAGE_SHIFT;
     pQueue->VRing.addrAvail       = pQueue->VRing.addrDescriptors + sizeof(VRINGDESC) * pQueue->VRing.uSize;
     pQueue->VRing.addrUsed        = RT_ALIGN(pQueue->VRing.addrAvail + RT_UOFFSETOF_DYN(VRINGAVAIL, auRing[pQueue->VRing.uSize]),
-                                             PAGE_SIZE); /* The used ring must start from the next page. */
+                                             GUEST_PAGE_SIZE); /* The used ring must start from the next page. */
     pQueue->uNextAvailIndex       = 0;
     pQueue->uNextUsedIndex        = 0;
 }
@@ -692,29 +702,30 @@ void vpciR3DumpStateWorker(PVPCISTATE pThis, PCDBGFINFOHLP pHlp)
 }
 
 # ifdef LOG_ENABLED
-void vpciR3DumpState(PVPCISTATE pThis, const char *pcszCaller)
+void vpciR3DumpState(PPDMDEVINS pDevIns, PVPCISTATE pThis, const char *pcszCaller)
 {
     if (LogIs2Enabled())
     {
         Log2(("vpciR3DumpState: (called from %s)\n", pcszCaller));
-        vpciR3DumpStateWorker(pThis, DBGFR3InfoLogHlp());
+        vpciR3DumpStateWorker(pThis, PDMDevHlpDBGFInfoLogHlp(pDevIns));
     }
 }
 # else
-#  define vpciR3DumpState(x, s)  do {} while (0)
+#  define vpciR3DumpState(d, x, s)  do { } while (0)
 # endif
 
 /**
  * Saved the core virtio state.
  *
  * @returns VBox status code.
+ * @param   pDevIns     The device insatnce data.
  * @param   pHlp        The device helpers.
  * @param   pThis       The shared virtio core instance data.
  * @param   pSSM        The handle to the saved state.
  */
-int vpciR3SaveExec(PCPDMDEVHLPR3 pHlp, PVPCISTATE pThis, PSSMHANDLE pSSM)
+int vpciR3SaveExec(PPDMDEVINS pDevIns, PCPDMDEVHLPR3 pHlp, PVPCISTATE pThis, PSSMHANDLE pSSM)
 {
-    vpciR3DumpState(pThis, "vpciR3SaveExec");
+    vpciR3DumpState(pDevIns, pThis, "vpciR3SaveExec"); RT_NOREF(pDevIns);
 
     pHlp->pfnSSMPutU32(pSSM, pThis->uGuestFeatures);
     pHlp->pfnSSMPutU16(pSSM, pThis->uQueueSelector);
@@ -740,6 +751,7 @@ int vpciR3SaveExec(PCPDMDEVHLPR3 pHlp, PVPCISTATE pThis, PSSMHANDLE pSSM)
  * Loads a saved device state.
  *
  * @returns VBox status code.
+ * @param   pDevIns     The device insatnce data.
  * @param   pHlp        The device helpers.
  * @param   pThis       The shared virtio core instance data.
  * @param   pSSM        The handle to the saved state.
@@ -747,7 +759,7 @@ int vpciR3SaveExec(PCPDMDEVHLPR3 pHlp, PVPCISTATE pThis, PSSMHANDLE pSSM)
  * @param   uPass       The data pass.
  * @param   cQueues     The default queue count (for old states).
  */
-int vpciR3LoadExec(PCPDMDEVHLPR3 pHlp, PVPCISTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass, uint32_t cQueues)
+int vpciR3LoadExec(PPDMDEVINS pDevIns, PCPDMDEVHLPR3 pHlp, PVPCISTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass, uint32_t cQueues)
 {
     int rc;
 
@@ -789,7 +801,7 @@ int vpciR3LoadExec(PCPDMDEVHLPR3 pHlp, PVPCISTATE pThis, PSSMHANDLE pSSM, uint32
         }
     }
 
-    vpciR3DumpState(pThis, "vpciLoadExec");
+    vpciR3DumpState(pDevIns, pThis, "vpciLoadExec"); RT_NOREF(pDevIns);
 
     return VINF_SUCCESS;
 }
@@ -930,9 +942,6 @@ int vpciR3Init(PPDMDEVINS pDevIns, PVPCISTATE pThis, PVPCISTATECC pThisCC, uint1
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatIOWriteR3,   STAMTYPE_PROFILE, "IO/WriteR3",         STAMUNIT_TICKS_PER_CALL, "Profiling IO writes in R3");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatIOWriteR0,   STAMTYPE_PROFILE, "IO/WriteR0",         STAMUNIT_TICKS_PER_CALL, "Profiling IO writes in R0");
     PDMDevHlpSTAMRegister(pDevIns, &pThis->StatIOWriteRC,   STAMTYPE_PROFILE, "IO/WriteRC",         STAMUNIT_TICKS_PER_CALL, "Profiling IO writes in RC");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatCsR3,        STAMTYPE_PROFILE, "Cs/CsR3",            STAMUNIT_TICKS_PER_CALL, "Profiling CS wait in R3");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatCsR0,        STAMTYPE_PROFILE, "Cs/CsR0",            STAMUNIT_TICKS_PER_CALL, "Profiling CS wait in R0");
-    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatCsRC,        STAMTYPE_PROFILE, "Cs/CsRC",            STAMUNIT_TICKS_PER_CALL, "Profiling CS wait in RC");
 # endif /* VBOX_WITH_STATISTICS */
 
     return VINF_SUCCESS;

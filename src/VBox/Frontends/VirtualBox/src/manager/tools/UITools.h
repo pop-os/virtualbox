@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_tools_UITools_h
@@ -56,9 +66,7 @@ signals:
 public:
 
     /** Constructs Tools-pane passing @a pParent to the base-class. */
-    UITools(UIVirtualBoxManagerWidget *pParent);
-    /** Destructs Tools-pane. */
-    virtual ~UITools() /* override */;
+    UITools(UIVirtualBoxManagerWidget *pParent = 0);
 
     /** @name General stuff.
       * @{ */
@@ -89,9 +97,9 @@ public:
         UIToolType lastSelectedToolMachine() const;
 
         /** Defines whether certain @a enmClass of tools is @a fEnabled.*/
-        void setToolsEnabled(UIToolClass enmClass, bool fEnabled);
+        void setToolClassEnabled(UIToolClass enmClass, bool fEnabled);
         /** Returns whether certain class of tools is enabled.*/
-        bool areToolsEnabled(UIToolClass enmClass) const;
+        bool toolClassEnabled(UIToolClass enmClass) const;
 
         /** Defines restructed tool @a types. */
         void setRestrictedToolTypes(const QList<UIToolType> &types);
@@ -111,23 +119,16 @@ private:
       * @{ */
         /** Prepares all. */
         void prepare();
-        /** Prepares palette. */
-        void preparePalette();
-        /** Prepares layout. */
-        void prepareLayout();
+        /** Prepares contents. */
+        void prepareContents();
         /** Prepares model. */
         void prepareModel();
         /** Prepares view. */
         void prepareView();
         /** Prepares connections. */
         void prepareConnections();
-        /** Loads settings. */
-        void loadSettings();
-
-        /** Saves settings. */
-        void saveSettings();
-        /** Cleanups all. */
-        void cleanup();
+        /** Inits model. */
+        void initModel();
     /** @} */
 
     /** @name General stuff.

@@ -260,7 +260,7 @@ GetRegisterIndex (
 
   @retval EFI_SUCCESS           The register was read from Save State.
   @retval EFI_NOT_FOUND         The register is not defined for the Save State of Processor.
-  @retval EFI_INVALID_PARAMTER  This or Buffer is NULL.
+  @retval EFI_INVALID_PARAMETER  This or Buffer is NULL.
 
 **/
 EFI_STATUS
@@ -343,7 +343,7 @@ ReadSaveStateRegisterByIndex (
 
   @retval EFI_SUCCESS           The register was read from Save State.
   @retval EFI_NOT_FOUND         The register is not defined for the Save State of Processor.
-  @retval EFI_INVALID_PARAMTER  This or Buffer is NULL.
+  @retval EFI_INVALID_PARAMETER Buffer is NULL, or Width does not meet requirement per Register type.
 
 **/
 EFI_STATUS
@@ -419,6 +419,13 @@ ReadSaveStateRegister (
     }
 
     //
+    // Make sure the incoming buffer is large enough to hold IoInfo before accessing
+    //
+    if (Width < sizeof (EFI_SMM_SAVE_STATE_IO_INFO)) {
+      return EFI_INVALID_PARAMETER;
+    }
+
+    //
     // Zero the IoInfo structure that will be returned in Buffer
     //
     IoInfo = (EFI_SMM_SAVE_STATE_IO_INFO *)Buffer;
@@ -455,7 +462,7 @@ ReadSaveStateRegister (
 
   @retval EFI_SUCCESS           The register was written to Save State.
   @retval EFI_NOT_FOUND         The register is not defined for the Save State of Processor.
-  @retval EFI_INVALID_PARAMTER  ProcessorIndex or Width is not correct.
+  @retval EFI_INVALID_PARAMETER  ProcessorIndex or Width is not correct.
 
 **/
 EFI_STATUS

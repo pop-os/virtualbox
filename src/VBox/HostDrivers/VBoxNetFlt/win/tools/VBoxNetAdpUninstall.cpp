@@ -4,49 +4,70 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <VBox/VBoxNetCfg-win.h>
 #include <VBox/VBoxDrvCfg-win.h>
-#include <stdio.h>
 
 #include <devguid.h>
 
-#ifdef NDIS60
-#define VBOX_NETADP_HWID L"sun_VBoxNetAdp6"
-#else /* !NDIS60 */
-#define VBOX_NETADP_HWID L"sun_VBoxNetAdp"
-#endif /* !NDIS60 */
+#include <iprt/initterm.h>
+#include <iprt/message.h>
 
-static VOID winNetCfgLogger (LPCSTR szString)
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+#ifdef NDIS60
+# define VBOX_NETADP_HWID L"sun_VBoxNetAdp6"
+#else
+# define VBOX_NETADP_HWID L"sun_VBoxNetAdp"
+#endif
+
+
+static DECLCALLBACK(void) winNetCfgLogger(const char *pszString)
 {
-    printf("%s", szString);
+    RTMsgInfo("%s", pszString);
 }
 
-static int VBoxNetAdpUninstall()
+static int VBoxNetAdpUninstall(void)
 {
-    int r = 1;
-    VBoxNetCfgWinSetLogging(winNetCfgLogger);
+    RTMsgInfo("Uninstalling all Host-Only interfaces ...");
 
-    printf("uninstalling all Host-Only interfaces..\n");
+    int rcExit = RTEXITCODE_FAILURE;
+    VBoxNetCfgWinSetLogging(winNetCfgLogger);
 
     HRESULT hr = CoInitialize(NULL);
     if (hr == S_OK)
@@ -56,34 +77,31 @@ static int VBoxNetAdpUninstall()
         {
             hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, L"Net", VBOX_NETADP_HWID, 0/* could be SUOI_FORCEDELETE */);
             if (hr == S_OK)
-            {
-                printf("uninstalled successfully\n");
-            }
+                RTMsgInfo("Uninstalled successfully!");
             else
-            {
-                printf("uninstalled successfully, but failed to remove infs\n");
-            }
-            r = 0;
+                RTMsgError("uninstalled successfully, but failed to remove infs (%Rhrc)\n", hr);
+            rcExit = RTEXITCODE_SUCCESS;
         }
         else
-        {
-            printf("uninstall failed, hr = 0x%x\n", hr);
-        }
+            RTMsgError("uninstall failed: %Rhrc", hr);
 
         CoUninitialize();
     }
     else
-    {
-        wprintf(L"Error initializing COM (0x%x)\n", hr);
-    }
+        RTMsgError("Failed initializing COM: %Rhrc", hr);
 
     VBoxNetCfgWinSetLogging(NULL);
 
-    return r;
+    return rcExit;
 }
 
 int __cdecl main(int argc, char **argv)
 {
-    RT_NOREF2(argc, argv);
+    RTR3InitExeNoArguments(0);
+    if (argc != 1)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "This utility takes no arguments\n");
+    NOREF(argv);
+
     return VBoxNetAdpUninstall();
 }
+

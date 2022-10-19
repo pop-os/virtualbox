@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef ___iprt_asn1_generator_pass_h /* (special, only part of the file) */
@@ -108,13 +118,13 @@
  * Internal header file.
  *
  */
-# define RTASN1TMPL_BEGIN_COMMON() extern DECLHIDDEN(RTASN1COREVTABLE const) RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable)
+# define RTASN1TMPL_BEGIN_COMMON() extern DECL_HIDDEN_DATA(RTASN1COREVTABLE const) RT_CONCAT3(g_,RTASN1TMPL_INT_NAME,_Vtable)
 
 # define RTASN1TMPL_BEGIN_SEQCORE()                 RTASN1TMPL_BEGIN_COMMON()
 # define RTASN1TMPL_BEGIN_SETCORE()                 RTASN1TMPL_BEGIN_COMMON()
 # define RTASN1TMPL_MEMBER_EX(a_Name, a_Type, a_Api, a_Constraints)                                 RTASN1TMPL_SEMICOLON_DUMMY()
 # define RTASN1TMPL_MEMBER_OPT_XTAG_EX(a_TnNm, a_CtxTagN, a_Name, a_Type, a_Api, a_uTag, a_Constraints) \
-    extern "C" DECLHIDDEN(RTASN1COREVTABLE const)   RT_CONCAT5(g_,RTASN1TMPL_INT_NAME,_XTAG_,a_Name,_Vtable)
+    extern "C" DECL_HIDDEN_DATA(RTASN1COREVTABLE const) RT_CONCAT5(g_,RTASN1TMPL_INT_NAME,_XTAG_,a_Name,_Vtable)
 
 # define RTASN1TMPL_MEMBER_DYN_BEGIN(a_ObjIdMembNm, a_enmType, a_enmMembNm, a_Allocation)           RTASN1TMPL_SEMICOLON_DUMMY()
 # define RTASN1TMPL_MEMBER_DYN_END(a_ObjIdMembNm, a_enmType, a_enmMembNm, a_Allocation)             RTASN1TMPL_SEMICOLON_DUMMY()
@@ -126,7 +136,7 @@
 # define RTASN1TMPL_PCHOICE_ITAG_EX(a_uTag, a_enmChoice, a_PtrName, a_Name, a_Type, a_Api, a_fClue, a_Constraints) \
                                                                                                     RTASN1TMPL_SEMICOLON_DUMMY()
 # define RTASN1TMPL_PCHOICE_XTAG_EX(a_uTag, a_enmChoice, a_PtrTnNm, a_CtxTagN, a_Name, a_Type, a_Api, a_Constraints) \
-    extern "C" DECLHIDDEN(RTASN1COREVTABLE const)   RT_CONCAT5(g_,RTASN1TMPL_INT_NAME,_PCHOICE_XTAG_,a_Name,_Vtable)
+    extern "C" DECL_HIDDEN_DATA(RTASN1COREVTABLE const) RT_CONCAT5(g_,RTASN1TMPL_INT_NAME,_PCHOICE_XTAG_,a_Name,_Vtable)
 
 # define RTASN1TMPL_END_PCHOICE()                   RTASN1TMPL_SEMICOLON_DUMMY()
 

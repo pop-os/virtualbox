@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_HOSTVIDEOINPUTDEVICE
@@ -118,19 +128,33 @@ static DECLCALLBACK(int) hostWebcamAdd(void *pvUser,
 }
 
 /** @todo These typedefs must be in a header. */
-typedef DECLCALLBACK(int) FNVBOXHOSTWEBCAMADD(void *pvUser,
-                                              const char *pszName,
-                                              const char *pszPath,
-                                              const char *pszAlias,
-                                              uint64_t *pu64Result);
+typedef DECLCALLBACKTYPE(int, FNVBOXHOSTWEBCAMADD,(void *pvUser,
+                                                   const char *pszName,
+                                                   const char *pszPath,
+                                                   const char *pszAlias,
+                                                   uint64_t *pu64Result));
 typedef FNVBOXHOSTWEBCAMADD *PFNVBOXHOSTWEBCAMADD;
 
-typedef DECLCALLBACK(int) FNVBOXHOSTWEBCAMLIST(PFNVBOXHOSTWEBCAMADD pfnWebcamAdd,
-                                               void *pvUser,
-                                               uint64_t *pu64WebcamAddResult);
+typedef DECLCALLBACKTYPE(int, FNVBOXHOSTWEBCAMLIST,(PFNVBOXHOSTWEBCAMADD pfnWebcamAdd,
+                                                    void *pvUser,
+                                                    uint64_t *pu64WebcamAddResult));
 typedef FNVBOXHOSTWEBCAMLIST *PFNVBOXHOSTWEBCAMLIST;
 
+
+/*
+ * Work around clang being unhappy about PFNVBOXHOSTWEBCAMLIST
+ * ("exception specifications are not allowed beyond a single level of
+ * indirection").  The original comment for 13.0 check said: "assuming
+ * this issue will be fixed eventually".  Well, 13.0 is now out, and
+ * it was not.
+ */
+#define CLANG_EXCEPTION_SPEC_HACK (RT_CLANG_PREREQ(11, 0) /* && !RT_CLANG_PREREQ(13, 0) */)
+
+#if CLANG_EXCEPTION_SPEC_HACK
+static int loadHostWebcamLibrary(const char *pszPath, RTLDRMOD *phmod, void **ppfn)
+#else
 static int loadHostWebcamLibrary(const char *pszPath, RTLDRMOD *phmod, PFNVBOXHOSTWEBCAMLIST *ppfn)
+#endif
 {
     int rc;
     if (RTPathHavePath(pszPath))
@@ -184,7 +208,11 @@ static HRESULT fillDeviceList(VirtualBox *pVirtualBox, HostVideoInputDeviceList 
     {
         PFNVBOXHOSTWEBCAMLIST pfn = NULL;
         RTLDRMOD hmod = NIL_RTLDRMOD;
+#if CLANG_EXCEPTION_SPEC_HACK
+        int vrc = loadHostWebcamLibrary(strLibrary.c_str(), &hmod, (void **)&pfn);
+#else
         int vrc = loadHostWebcamLibrary(strLibrary.c_str(), &hmod, &pfn);
+#endif
 
         LogRel(("Load [%s] vrc=%Rrc\n", strLibrary.c_str(), vrc));
 
@@ -192,7 +220,7 @@ static HRESULT fillDeviceList(VirtualBox *pVirtualBox, HostVideoInputDeviceList 
         {
             uint64_t u64Result = S_OK;
             vrc = pfn(hostWebcamAdd, pList, &u64Result);
-            Log(("VBoxHostWebcamList vrc %Rrc, result 0x%08X\n", vrc, u64Result));
+            Log(("VBoxHostWebcamList vrc %Rrc, result 0x%08RX64\n", vrc, u64Result));
             if (RT_FAILURE(vrc))
             {
                 hr = (HRESULT)u64Result;
@@ -205,7 +233,8 @@ static HRESULT fillDeviceList(VirtualBox *pVirtualBox, HostVideoInputDeviceList 
         if (SUCCEEDED(hr))
         {
             if (RT_FAILURE(vrc))
-                hr = pVirtualBox->setErrorBoth(VBOX_E_IPRT_ERROR, vrc, "Failed to get webcam list: %Rrc", vrc);
+                hr = pVirtualBox->setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                                               HostVideoInputDevice::tr("Failed to get webcam list: %Rrc"), vrc);
         }
     }
 

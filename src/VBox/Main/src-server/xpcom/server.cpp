@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2004-2020 Oracle Corporation
+ * Copyright (C) 2004-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_VBOXSVC
@@ -163,7 +173,7 @@ public:
 
                 int vrc = RTTimerLRStart(sTimer, gShutdownDelayMs * RT_NS_1MS_64);
                 AssertRC(vrc);
-                timerStarted = !!(SUCCEEDED(vrc));
+                timerStarted = RT_BOOL(RT_SUCCESS(vrc));
             }
             else
             {
@@ -632,9 +642,7 @@ static void showUsage(const char *pcszFileName)
 {
     RTPrintf(VBOX_PRODUCT " VBoxSVC "
              VBOX_VERSION_STRING "\n"
-             "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-             "All rights reserved.\n"
-             "\n");
+             "Copyright (C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
     RTPrintf("By default the service will be started in the background.\n"
              "\n");
     RTPrintf("Usage:\n"
@@ -888,8 +896,7 @@ int main(int argc, char **argv)
             for (size_t i = cSize; i > 0; i--)
                 putchar('*');
             RTPrintf("\n%s\n", szBuf);
-            RTPrintf("(C) 2004-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                     "All rights reserved.\n");
+            RTPrintf("Copyright (C) 2004-" VBOX_C_YEAR " " VBOX_VENDOR "\n\n");
 #ifdef DEBUG
             RTPrintf("Debug version.\n");
 #endif
@@ -912,11 +919,9 @@ int main(int argc, char **argv)
             vrc = RTFileOpen(&hPidFile, g_pszPidFile, RTFILE_O_WRITE | RTFILE_O_CREATE_REPLACE | RTFILE_O_DENY_NONE);
             if (RT_SUCCESS(vrc))
             {
-                char szBuf[32];
-                const char *lf = "\n";
-                RTStrFormatNumber(szBuf, getpid(), 10, 0, 0, 0);
-                RTFileWrite(hPidFile, szBuf, strlen(szBuf), NULL);
-                RTFileWrite(hPidFile, lf, strlen(lf), NULL);
+                char szBuf[64];
+                size_t cchToWrite = RTStrPrintf(szBuf, sizeof(szBuf), "%ld\n", (long)getpid());
+                RTFileWrite(hPidFile, szBuf, cchToWrite, NULL);
                 RTFileClose(hPidFile);
             }
         }

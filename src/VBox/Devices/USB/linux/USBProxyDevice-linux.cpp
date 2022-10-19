@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -127,9 +137,9 @@ typedef struct USBPROXYDEVLNX
     RTLISTANCHOR        ListInFlight;
     /** Are we using sysfs to find the active configuration? */
     bool                fUsingSysfs;
-    /** Pipe handle for waiking up - writing end. */
+    /** Pipe handle for waking up - writing end. */
     RTPIPE              hPipeWakeupW;
-    /** Pipe handle for waiking up - reading end. */
+    /** Pipe handle for waking up - reading end. */
     RTPIPE              hPipeWakeupR;
     /** The device node/sysfs path of the device.
      * Used to figure out the configuration after a reset. */
@@ -590,9 +600,8 @@ RTDECL(int) USBProxyDeviceLinuxGetFD(PUSBPROXYDEV pProxyDev)
  *                          the form "sysfs:<sysfs path>//device:<device node>".
  *                          In the second case, the two paths are guaranteed
  *                          not to contain the substring "//".
- * @param   pvBackend       Backend specific pointer, unused for the linux backend.
  */
-static DECLCALLBACK(int) usbProxyLinuxOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
+static DECLCALLBACK(int) usbProxyLinuxOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress)
 {
     LogFlow(("usbProxyLinuxOpen: pProxyDev=%p pszAddress=%s\n", pProxyDev, pszAddress));
     const char *pszDevNode;
@@ -671,10 +680,7 @@ static DECLCALLBACK(int) usbProxyLinuxOpen(PUSBPROXYDEV pProxyDev, const char *p
     else if (rc == VERR_ACCESS_DENIED)
         rc = VERR_VUSB_USBFS_PERMISSION;
 
-    Log(("usbProxyLinuxOpen(%p, %s) failed, rc=%s!\n", pProxyDev, pszAddress,
-         RTErrGetShort(rc)));
-
-    NOREF(pvBackend);
+    Log(("usbProxyLinuxOpen(%p, %s) failed, rc=%Rrc!\n", pProxyDev, pszAddress, rc));
     return rc;
 }
 
@@ -834,8 +840,7 @@ static DECLCALLBACK(int) usbProxyLinuxReset(PUSBPROXYDEV pProxyDev, bool fResetO
     if (usbProxyLinuxDoIoCtl(pProxyDev, USBDEVFS_RESET, NULL, false, 10))
     {
         int rc = errno;
-        LogRel(("usb-linux: Reset failed, rc=%s errno=%d.\n",
-               RTErrGetShort(RTErrConvertFromErrno(rc)), rc));
+        LogRel(("usb-linux: Reset failed, rc=%Rrc errno=%d.\n", RTErrConvertFromErrno(rc), rc));
         pProxyDev->iActiveCfg = -1;
         return RTErrConvertFromErrno(rc);
     }

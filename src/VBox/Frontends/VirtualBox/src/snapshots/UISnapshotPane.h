@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_snapshots_UISnapshotPane_h
@@ -33,12 +43,14 @@ class QIcon;
 class QReadWriteLock;
 class QTimer;
 class QTreeWidgetItem;
+class QVBoxLayout;
+class QIToolBar;
 class QITreeWidgetItem;
 class UIActionPool;
 class UISnapshotDetailsWidget;
 class UISnapshotItem;
 class UISnapshotTree;
-class UIToolBar;
+class UIVirtualMachineItem;
 
 
 /** Snapshot age format. */
@@ -67,10 +79,10 @@ public:
     /** Constructs snapshot pane passing @a pParent to the base-class. */
     UISnapshotPane(UIActionPool *pActionPool, bool fShowToolbar = true, QWidget *pParent = 0);
     /** Destructs snapshot pane. */
-    virtual ~UISnapshotPane() /* override */;
+    virtual ~UISnapshotPane() RT_OVERRIDE;
 
-    /** Defines the @a comMachine object to be parsed. */
-    void setMachine(const CMachine &comMachine);
+    /** Defines the machine @a items to be parsed. */
+    void setMachineItems(const QList<UIVirtualMachineItem*> &items);
 
     /** Returns cached snapshot-item icon depending on @a fOnline flag. */
     const QIcon *snapshotItemIcon(bool fOnline) const;
@@ -83,13 +95,13 @@ protected:
     /** @name Qt event handlers.
       * @{ */
         /** Handles translation event. */
-        virtual void retranslateUi() /* override */;
+        virtual void retranslateUi() RT_OVERRIDE;
 
         /** Handles resize @a pEvent. */
-        virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
+        virtual void resizeEvent(QResizeEvent *pEvent) RT_OVERRIDE;
 
         /** Handles show @a pEvent. */
-        virtual void showEvent(QShowEvent *pEvent) /* override */;
+        virtual void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
     /** @} */
 
 private slots:
@@ -172,7 +184,7 @@ private:
         /** Refreshes everything. */
         void refreshAll();
         /** Populates snapshot items for corresponding @a comSnapshot using @a pItem as parent. */
-        void populateSnapshots(const CSnapshot &comSnapshot, QITreeWidgetItem *pItem);
+        void populateSnapshots(const QUuid &uMachineId, const CSnapshot &comSnapshot, QITreeWidgetItem *pItem);
 
         /** Cleanups all. */
         void cleanup();
@@ -211,18 +223,16 @@ private:
     /** @name General variables.
       * @{ */
         /** Holds the action-pool reference. */
-        UIActionPool  *m_pActionPool;
+        UIActionPool *m_pActionPool;
         /** Holds whether we should show toolbar. */
-        bool           m_fShowToolbar;
-        /** Holds the COM machine object. */
-        CMachine       m_comMachine;
-        /** Holds the machine object ID. */
-        QUuid        m_uMachineId;
-        /** Holds the cached session state. */
-        KSessionState  m_enmSessionState;
+        bool          m_fShowToolbar;
 
-        /** Holds whether the snapshot operations are allowed. */
-        bool  m_fShapshotOperationsAllowed;
+        /** Holds the COM machine object list. */
+        QMap<QUuid, CMachine>       m_machines;
+        /** Holds the cached session state list. */
+        QMap<QUuid, KSessionState>  m_sessionStates;
+        /** Holds the list of operation allowance states. */
+        QMap<QUuid, bool>           m_operationAllowed;
 
         /** Holds the snapshot item editing protector. */
         QReadWriteLock *m_pLockReadWrite;
@@ -238,15 +248,19 @@ private:
 
     /** @name Widget variables.
       * @{ */
+        /** Holds the main layout instance. */
+        QVBoxLayout *m_pLayoutMain;
+
         /** Holds the toolbar instance. */
-        UIToolBar *m_pToolBar;
+        QIToolBar *m_pToolBar;
 
         /** Holds the snapshot tree instance. */
         UISnapshotTree *m_pSnapshotTree;
-        /** Holds the "current snapshot" item reference. */
-        UISnapshotItem *m_pCurrentSnapshotItem;
-        /** Holds the "current state" item reference. */
-        UISnapshotItem *m_pCurrentStateItem;
+
+        /** Holds the "current snapshot" item list. */
+        QMap<QUuid, UISnapshotItem*>  m_currentSnapshotItems;
+        /** Holds the "current state" item list. */
+        QMap<QUuid, UISnapshotItem*>  m_currentStateItems;
 
         /** Holds the details-widget instance. */
         UISnapshotDetailsWidget *m_pDetailsWidget;

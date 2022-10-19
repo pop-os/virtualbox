@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <VBox/HostServices/Service.h>
@@ -22,7 +32,9 @@ using namespace HGCM;
 Message::Message(void)
     : m_uMsg(0)
     , m_cParms(0)
-    , m_paParms(NULL) { }
+    , m_paParms(NULL)
+{
+}
 
 Message::Message(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[])
     : m_uMsg(0)
@@ -40,7 +52,7 @@ Message::~Message(void)
 /**
  * Resets the message by free'ing all allocated parameters and resetting the rest.
  */
-void Message::reset(void)
+void Message::reset(void) RT_NOEXCEPT
 {
     if (m_paParms)
     {
@@ -66,7 +78,7 @@ void Message::reset(void)
  *
  * @returns Parameter count.
  */
-uint32_t Message::GetParamCount(void) const
+uint32_t Message::GetParamCount(void) const RT_NOEXCEPT
 {
     return m_cParms;
 }
@@ -79,7 +91,7 @@ uint32_t Message::GetParamCount(void) const
  * @param   cParms          Size (in parameters) of @a aParms array.
  * @param   aParms          Where to store the HGCM parameter data.
  */
-int Message::GetData(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[]) const
+int Message::GetData(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[]) const RT_NOEXCEPT
 {
     if (m_uMsg != uMsg)
     {
@@ -102,9 +114,9 @@ int Message::GetData(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[]) c
  * @param   uParm           Index of parameter to retrieve.
  * @param   pu32Info        Where to store the parameter value.
  */
-int Message::GetParmU32(uint32_t uParm, uint32_t *pu32Info) const
+int Message::GetParmU32(uint32_t uParm, uint32_t *pu32Info) const RT_NOEXCEPT
 {
-    AssertPtrNullReturn(pu32Info, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pu32Info, VERR_INVALID_PARAMETER);
     AssertReturn(uParm < m_cParms, VERR_INVALID_PARAMETER);
     AssertReturn(m_paParms[uParm].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_INVALID_PARAMETER);
 
@@ -120,9 +132,9 @@ int Message::GetParmU32(uint32_t uParm, uint32_t *pu32Info) const
  * @param   uParm           Index of parameter to retrieve.
  * @param   pu64Info        Where to store the parameter value.
  */
-int Message::GetParmU64(uint32_t uParm, uint64_t *pu64Info) const
+int Message::GetParmU64(uint32_t uParm, uint64_t *pu64Info) const RT_NOEXCEPT
 {
-    AssertPtrNullReturn(pu64Info, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pu64Info, VERR_INVALID_PARAMETER);
     AssertReturn(uParm < m_cParms, VERR_INVALID_PARAMETER);
     AssertReturn(m_paParms[uParm].type == VBOX_HGCM_SVC_PARM_64BIT, VERR_INVALID_PARAMETER);
 
@@ -141,10 +153,10 @@ int Message::GetParmU64(uint32_t uParm, uint64_t *pu64Info) const
  *
  * @remarks Does not copy (store) the actual content of the pointer (deep copy).
  */
-int Message::GetParmPtr(uint32_t uParm, void **ppvAddr, uint32_t *pcbSize) const
+int Message::GetParmPtr(uint32_t uParm, void **ppvAddr, uint32_t *pcbSize) const RT_NOEXCEPT
 {
-    AssertPtrNullReturn(ppvAddr, VERR_INVALID_PARAMETER);
-    AssertPtrNullReturn(pcbSize, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(ppvAddr, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcbSize, VERR_INVALID_PARAMETER);
     AssertReturn(uParm < m_cParms, VERR_INVALID_PARAMETER);
     AssertReturn(m_paParms[uParm].type == VBOX_HGCM_SVC_PARM_PTR, VERR_INVALID_PARAMETER);
 
@@ -159,7 +171,7 @@ int Message::GetParmPtr(uint32_t uParm, void **ppvAddr, uint32_t *pcbSize) const
  *
  * @returns Message type.
  */
-uint32_t Message::GetType(void) const
+uint32_t Message::GetType(void) const RT_NOEXCEPT
 {
     return m_uMsg;
 }
@@ -179,7 +191,7 @@ uint32_t Message::GetType(void) const
 /* static */
 int Message::CopyParms(PVBOXHGCMSVCPARM paParmsDst, uint32_t cParmsDst,
                        PVBOXHGCMSVCPARM paParmsSrc, uint32_t cParmsSrc,
-                       bool fDeepCopy)
+                       bool fDeepCopy) RT_NOEXCEPT
 {
     AssertPtrReturn(paParmsSrc, VERR_INVALID_POINTER);
     AssertPtrReturn(paParmsDst, VERR_INVALID_POINTER);
@@ -187,7 +199,6 @@ int Message::CopyParms(PVBOXHGCMSVCPARM paParmsDst, uint32_t cParmsDst,
     if (cParmsSrc > cParmsDst)
         return VERR_BUFFER_OVERFLOW;
 
-    int rc = VINF_SUCCESS;
     for (uint32_t i = 0; i < cParmsSrc; i++)
     {
         paParmsDst[i].type = paParmsSrc[i].type;
@@ -214,47 +225,36 @@ int Message::CopyParms(PVBOXHGCMSVCPARM paParmsDst, uint32_t cParmsDst,
                     {
                         paParmsDst[i].u.pointer.addr = RTMemAlloc(paParmsDst[i].u.pointer.size);
                         if (!paParmsDst[i].u.pointer.addr)
-                        {
-                            rc = VERR_NO_MEMORY;
-                            break;
-                        }
+                            return VERR_NO_MEMORY;
                     }
                 }
                 else
                 {
                     /* No, but we have to check if there is enough room. */
                     if (paParmsDst[i].u.pointer.size < paParmsSrc[i].u.pointer.size)
-                    {
-                        rc = VERR_BUFFER_OVERFLOW;
-                        break;
-                    }
+                        return VERR_BUFFER_OVERFLOW;
                 }
 
                 if (paParmsSrc[i].u.pointer.size)
                 {
                     if (   paParmsDst[i].u.pointer.addr
                         && paParmsDst[i].u.pointer.size)
-                    {
                         memcpy(paParmsDst[i].u.pointer.addr,
                                paParmsSrc[i].u.pointer.addr,
                                RT_MIN(paParmsDst[i].u.pointer.size, paParmsSrc[i].u.pointer.size));
-                    }
                     else
-                        rc = VERR_INVALID_POINTER;
+                        return VERR_INVALID_POINTER;
                 }
                 break;
             }
             default:
             {
                 AssertMsgFailed(("Unknown HGCM type %u\n", paParmsSrc[i].type));
-                rc = VERR_INVALID_PARAMETER;
-                break;
+                return VERR_INVALID_PARAMETER;
             }
         }
-        if (RT_FAILURE(rc))
-            break;
     }
-    return rc;
+    return VINF_SUCCESS;
 }
 
 /**
@@ -265,10 +265,12 @@ int Message::CopyParms(PVBOXHGCMSVCPARM paParmsDst, uint32_t cParmsDst,
  * @param   cParms          Number of parameters to set.
  * @param   aParms          Array of parameters to set.
  */
-int Message::initData(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[])
+int Message::initData(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[]) RT_NOEXCEPT
 {
+    /** @todo r=bird: There is a define for the max number of HGCM parameters,
+     *        it's way smaller than 256, something like 61 IIRC. */
     AssertReturn(cParms < 256, VERR_INVALID_PARAMETER);
-    AssertPtrNullReturn(aParms, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(aParms, VERR_INVALID_PARAMETER);
 
     /* Cleanup any eventual old stuff. */
     reset();

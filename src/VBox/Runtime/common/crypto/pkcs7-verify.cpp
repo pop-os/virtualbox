@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -42,9 +52,11 @@
 
 #ifdef IPRT_WITH_OPENSSL
 # include "internal/iprt-openssl.h"
+# include "internal/openssl-pre.h"
 # include <openssl/pkcs7.h>
 # include <openssl/x509.h>
 # include <openssl/err.h>
+# include "internal/openssl-post.h"
 #endif
 
 
@@ -115,8 +127,10 @@ static int rtCrPkcs7VerifySignedDataUsingOpenSsl(PCRTCRPKCS7CONTENTINFO pContent
             }
             else
                 rcOssl = RTErrInfoSet(pErrInfo, rcOssl, "RTCrStoreConvertToOpenSslCertStore failed");
+#include "internal/openssl-pre.h" /* Need to disable C5039 warning here. */
             if (pAddCerts)
                 sk_X509_pop_free(pAddCerts, X509_free);
+#include "internal/openssl-post.h"
         }
         else
             rcOssl = RTErrInfoSet(pErrInfo, rcOssl, "RTCrStoreConvertToOpenSslCertStack failed");
@@ -373,7 +387,7 @@ static int rtCrPkcs7VerifyFindDigest(PRTCRDIGEST phDigest, PCRTCRPKCS7SIGNEDDATA
  * @param   pSignedData         The SignedData.
  * @param   hDigests            The digest corresponding to
  *                              pSignerInfo->DigestAlgorithm.
- * @param   fFlags              Verficiation flags.
+ * @param   fFlags              Verification flags.
  * @param   hAdditionalCerts    Store containing optional certificates,
  *                              optional.
  * @param   hTrustedCerts       Store containing trusted certificates, required.
@@ -395,22 +409,16 @@ static int rtCrPkcs7VerifySignerInfo(PCRTCRPKCS7SIGNERINFO pSignerInfo, PCRTCRPK
      */
     PCRTCRCERTCTX           pSignerCertCtx = NULL;
     PCRTCRX509CERTIFICATE   pSignerCert = NULL;
-    RTCRSTORE               hSignerCertSrc = hTrustedCerts;
-    if (hSignerCertSrc != NIL_RTCRSTORE)
-        pSignerCertCtx = RTCrStoreCertByIssuerAndSerialNo(hSignerCertSrc, &pSignerInfo->IssuerAndSerialNumber.Name,
+    if (hTrustedCerts != NIL_RTCRSTORE)
+        pSignerCertCtx = RTCrStoreCertByIssuerAndSerialNo(hTrustedCerts, &pSignerInfo->IssuerAndSerialNumber.Name,
                                                           &pSignerInfo->IssuerAndSerialNumber.SerialNumber);
-    if (!pSignerCertCtx)
-    {
-        hSignerCertSrc = hAdditionalCerts;
-        if (hSignerCertSrc != NIL_RTCRSTORE)
-            pSignerCertCtx = RTCrStoreCertByIssuerAndSerialNo(hSignerCertSrc, &pSignerInfo->IssuerAndSerialNumber.Name,
-                                                              &pSignerInfo->IssuerAndSerialNumber.SerialNumber);
-    }
+    if (!pSignerCertCtx && hAdditionalCerts != NIL_RTCRSTORE)
+        pSignerCertCtx = RTCrStoreCertByIssuerAndSerialNo(hAdditionalCerts, &pSignerInfo->IssuerAndSerialNumber.Name,
+                                                          &pSignerInfo->IssuerAndSerialNumber.SerialNumber);
     if (pSignerCertCtx)
         pSignerCert = pSignerCertCtx->pCert;
     else
     {
-        hSignerCertSrc = NULL;
         pSignerCert = RTCrPkcs7SetOfCerts_FindX509ByIssuerAndSerialNumber(&pSignedData->Certificates,
                                                                           &pSignerInfo->IssuerAndSerialNumber.Name,
                                                                           &pSignerInfo->IssuerAndSerialNumber.SerialNumber);
@@ -422,13 +430,17 @@ static int rtCrPkcs7VerifySignerInfo(PCRTCRPKCS7SIGNERINFO pSignerInfo, PCRTCRPK
     }
 
     /*
-     * If not a trusted certificate, we'll have to build certificate paths
-     * and verify them.  If no valid paths are found, this step will fail.
+     * Unless caller requesed all certificates to be trusted fully, we always
+     * pass it on to the certificate path builder so it can do the requested
+     * checks on trust anchors.   (We didn't used to do this as the path
+     * builder could handle trusted targets.  A benefit here is that
+     * pfnVerifyCert can assume a hCertPaths now, and get the validation time
+     * from it if it wants it.)
+     *
+     * If no valid paths are found, this step will fail.
      */
-    int rc = VINF_SUCCESS;
-    if (   (   hSignerCertSrc == NIL_RTCRSTORE
-            || hSignerCertSrc != hTrustedCerts)
-        && !(fFlags & RTCRPKCS7VERIFY_SD_F_TRUST_ALL_CERTS) )
+    int rc;
+    if (!(fFlags & RTCRPKCS7VERIFY_SD_F_TRUST_ALL_CERTS))
     {
         RTCRX509CERTPATHS hCertPaths;
         rc = RTCrX509CertPathsCreate(&hCertPaths, pSignerCert);
@@ -441,6 +453,8 @@ static int rtCrPkcs7VerifySignerInfo(PCRTCRPKCS7SIGNERINFO pSignerInfo, PCRTCRPK
                 rc = RTCrX509CertPathsSetUntrustedStore(hCertPaths, hAdditionalCerts);
             if (pSignedData->Certificates.cItems > 0 && RT_SUCCESS(rc))
                 rc = RTCrX509CertPathsSetUntrustedSet(hCertPaths, &pSignedData->Certificates);
+            if ((fFlags & RTCRPKCS7VERIFY_SD_F_CHECK_TRUST_ANCHORS) && RT_SUCCESS(rc))
+                rc = RTCrX509CertPathsSetTrustAnchorChecks(hCertPaths, true /*fEnable*/);
             if (RT_SUCCESS(rc))
             {
                 rc = RTCrX509CertPathsBuild(hCertPaths, pErrInfo);
@@ -501,7 +515,7 @@ static int rtCrPkcs7VerifySignerInfo(PCRTCRPKCS7SIGNERINFO pSignerInfo, PCRTCRPK
                     rc = RTCrPkixSignatureVerifyOctetString(hSignature, hDigest, &pSignerInfo->EncryptedDigest);
                     if (RT_FAILURE(rc))
                         rc = RTErrInfoSetF(pErrInfo, VERR_CR_PKCS7_SIGNATURE_VERIFICATION_FAILED,
-                                           "Signature verficiation failed: %Rrc", rc);
+                                           "Signature verification failed: %Rrc", rc);
                     RTCrPkixSignatureRelease(hSignature);
                 }
                 else
@@ -528,7 +542,7 @@ static int rtCrPkcs7VerifySignerInfo(PCRTCRPKCS7SIGNERINFO pSignerInfo, PCRTCRPK
  * @param   pPrimarySignerInfo  The primary signature (can be a counter
  *                              signature too if nested).
  * @param   pSignedData         The SignedData.
- * @param   fFlags              Verficiation flags.
+ * @param   fFlags              Verification flags.
  * @param   hAdditionalCerts    Store containing optional certificates,
  *                              optional.
  * @param   hTrustedCerts       Store containing trusted certificates, required.
@@ -645,12 +659,20 @@ static int rtCrPkcs7VerifySignedDataEx(PCRTCRPKCS7CONTENTINFO pContentInfo, uint
         if (RT_SUCCESS(rc))
         {
             /*
-             * Validate the signed infos.
+             * Validate the signed infos.  The flags may select one particular entry.
              */
+            RTTIMESPEC const GivenValidationTime = *pValidationTime;
             uint32_t fPrimaryVccFlags = !(fFlags & RTCRPKCS7VERIFY_SD_F_USAGE_TIMESTAMPING)
                                       ? RTCRPKCS7VCC_F_SIGNED_DATA : RTCRPKCS7VCC_F_TIMESTAMP;
+            uint32_t cItems           = pSignedData->SignerInfos.cItems;
+            i                         = 0;
+            if (fFlags & RTCRPKCS7VERIFY_SD_F_HAS_SIGNER_INDEX)
+            {
+                i      = (fFlags & RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_MASK) >> RTCRPKCS7VERIFY_SD_F_SIGNER_INDEX_SHIFT;
+                cItems = RT_MIN(cItems, i + 1);
+            }
             rc = VERR_CR_PKCS7_NO_SIGNER_INFOS;
-            for (i = 0; i < pSignedData->SignerInfos.cItems; i++)
+            for (; i < cItems; i++)
             {
                 PCRTCRPKCS7SIGNERINFO   pSignerInfo = pSignedData->SignerInfos.papItems[i];
                 RTCRDIGEST              hThisDigest = NIL_RTCRDIGEST; /* (gcc maybe incredible stupid.) */
@@ -685,7 +707,8 @@ static int rtCrPkcs7VerifySignedDataEx(PCRTCRPKCS7CONTENTINFO pContentInfo, uint
                         {
                             rc = VINF_SUCCESS;
                             if (!(fFlags & RTCRPKCS7VERIFY_SD_F_USE_SIGNING_TIME_UNVERIFIED))
-                                rc = rtCrPkcs7VerifyCounterSignerInfo(pSigningTimeSigner, pSignerInfo, pSignedData, fFlags,
+                                rc = rtCrPkcs7VerifyCounterSignerInfo(pSigningTimeSigner, pSignerInfo, pSignedData,
+                                                                      fFlags & ~RTCRPKCS7VERIFY_SD_F_UPDATE_VALIDATION_TIME,
                                                                       hAdditionalCerts, hTrustedCerts, &ThisValidationTime,
                                                                       pfnVerifyCert, RTCRPKCS7VCC_F_TIMESTAMP, pvUser, pErrInfo);
                             if (RT_SUCCESS(rc))
@@ -695,6 +718,8 @@ static int rtCrPkcs7VerifySignedDataEx(PCRTCRPKCS7CONTENTINFO pContentInfo, uint
                         }
                         fDone = RT_SUCCESS(rc)
                              || (fFlags & RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_SIGNING_TIME_IF_PRESENT);
+                        if ((fFlags & RTCRPKCS7VERIFY_SD_F_UPDATE_VALIDATION_TIME) && fDone)
+                            *(PRTTIMESPEC)pValidationTime = ThisValidationTime;
                     }
                     else
                     {
@@ -729,6 +754,8 @@ static int rtCrPkcs7VerifySignedDataEx(PCRTCRPKCS7CONTENTINFO pContentInfo, uint
                                                                pfnVerifyCert, fPrimaryVccFlags, pvUser, pErrInfo);
                             fDone = RT_SUCCESS(rc)
                                  || (fFlags & RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_MS_TIMESTAMP_IF_PRESENT);
+                            if ((fFlags & RTCRPKCS7VERIFY_SD_F_UPDATE_VALIDATION_TIME) && fDone)
+                                *(PRTTIMESPEC)pValidationTime = ThisValidationTime;
                         }
                         else
                         {
@@ -744,7 +771,7 @@ static int rtCrPkcs7VerifySignedDataEx(PCRTCRPKCS7CONTENTINFO pContentInfo, uint
                  */
                 if (!fDone)
                     rc = rtCrPkcs7VerifySignerInfo(pSignerInfo, pSignedData, hThisDigest, fFlags, hAdditionalCerts, hTrustedCerts,
-                                                   pValidationTime, pfnVerifyCert, fPrimaryVccFlags, pvUser, pErrInfo);
+                                                   &GivenValidationTime, pfnVerifyCert, fPrimaryVccFlags, pvUser, pErrInfo);
                 RTCrDigestRelease(hThisDigest);
                 if (RT_FAILURE(rc))
                     break;
@@ -771,6 +798,10 @@ static int rtCrPkcs7VerifySignedDataEx(PCRTCRPKCS7CONTENTINFO pContentInfo, uint
     /** @todo figure out how to verify MS timstamp signatures using OpenSSL. */
     if (fFlags & RTCRPKCS7VERIFY_SD_F_USAGE_TIMESTAMPING)
         return rc;
+    /** @todo figure out if we can verify just one signer info item using OpenSSL. */
+    if (!(fFlags & RTCRPKCS7VERIFY_SD_F_HAS_SIGNER_INDEX) && pSignedData->SignerInfos.cItems > 1)
+        return rc;
+
     int rcOssl = rtCrPkcs7VerifySignedDataUsingOpenSsl(pContentInfo, fFlags, hAdditionalCerts, hTrustedCerts,
                                                        pvContent, cbContent, RT_SUCCESS(rc) ? pErrInfo : NULL);
     if (RT_SUCCESS(rcOssl) && RT_SUCCESS(rc))

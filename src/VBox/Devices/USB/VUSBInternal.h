@@ -9,15 +9,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_USB_VUSBInternal_h
@@ -99,7 +109,7 @@ typedef struct VUSBURBVUSBINT
      * Callback which will free the URB once it's reaped and completed.
      * @param   pUrb    The URB.
      */
-    DECLCALLBACKMEMBER(void, pfnFree)(PVUSBURB pUrb);
+    DECLCALLBACKMEMBER(void, pfnFree,(PVUSBURB pUrb));
     /** Submit timestamp. (logging only) */
     uint64_t        u64SubmitTS;
 } VUSBURBVUSBINT;
@@ -144,6 +154,8 @@ typedef struct vusb_ctrl_extra
      * This starts at the default 8KB, and this structure will be reallocated to
      * accommodate any larger request (unlikely). */
     uint32_t            cbMax;
+    /** VUSB internal data for the extra URB. */
+    VUSBURBVUSBINT      VUsbExtra;
     /** The message URB. */
     VUSBURB             Urb;
 } VUSBCTRLEXTRA, *PVUSBCTRLEXTRA;
@@ -262,7 +274,7 @@ typedef struct VUSBDEV
     } Urb;
 
     /** The reset timer handle. */
-    PTMTIMER            pResetTimer;
+    TMTIMERHANDLE       hResetTimer;
     /** Reset handler arguments. */
     void               *pvArgs;
     /** URB submit and reap thread. */
@@ -497,6 +509,8 @@ DECLHIDDEN(uint64_t) vusbRhR3ProcessFrame(PVUSBROOTHUB pThis, bool fCallback);
 
 int  vusbUrbQueueAsyncRh(PVUSBURB pUrb);
 
+bool vusbDevIsDescriptorInCache(PVUSBDEV pDev, PCVUSBSETUP pSetup);
+
 /**
  * Initializes the given URB pool.
  *
@@ -599,7 +613,7 @@ DECLINLINE(void) vusbUrbCompletionRh(PVUSBURB pUrb)
  */
 #ifdef VBOX_STRICT
 # define vusbUrbAssert(pUrb) do { \
-    AssertMsg(VALID_PTR((pUrb)),  ("%p\n", (pUrb))); \
+    AssertPtr((pUrb)); \
     AssertMsg((pUrb)->u32Magic == VUSBURB_MAGIC, ("%#x", (pUrb)->u32Magic)); \
     AssertMsg((pUrb)->enmState > VUSBURBSTATE_INVALID && (pUrb)->enmState < VUSBURBSTATE_END, \
               ("%d\n", (pUrb)->enmState)); \

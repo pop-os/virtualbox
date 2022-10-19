@@ -7,7 +7,7 @@
  * Transport Layer Security Protocol
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <ipxe/refcnt.h>
@@ -18,6 +18,10 @@ FILE_LICENCE ( GPL2_OR_LATER );
 #include <ipxe/sha1.h>
 #include <ipxe/sha256.h>
 #include <ipxe/x509.h>
+#include <ipxe/privkey.h>
+#include <ipxe/pending.h>
+#include <ipxe/iobuf.h>
+#include <ipxe/tables.h>
 
 /** A TLS header */
 struct tls_header {
@@ -60,6 +64,7 @@ struct tls_header {
 #define TLS_HELLO_REQUEST 0
 #define TLS_CLIENT_HELLO 1
 #define TLS_SERVER_HELLO 2
+#define TLS_NEW_SESSION_TICKET 4
 #define TLS_CERTIFICATE 11
 #define TLS_SERVER_KEY_EXCHANGE 12
 #define TLS_CERTIFICATE_REQUEST 13
@@ -83,14 +88,41 @@ struct tls_header {
 /* TLS hash algorithm identifiers */
 #define TLS_MD5_ALGORITHM 1
 #define TLS_SHA1_ALGORITHM 2
+#define TLS_SHA224_ALGORITHM 3
 #define TLS_SHA256_ALGORITHM 4
+#define TLS_SHA384_ALGORITHM 5
+#define TLS_SHA512_ALGORITHM 6
 
 /* TLS signature algorithm identifiers */
 #define TLS_RSA_ALGORITHM 1
 
-/* TLS extension types */
+/* TLS server name extension */
 #define TLS_SERVER_NAME 0
 #define TLS_SERVER_NAME_HOST_NAME 0
+
+/* TLS maximum fragment length extension */
+#define TLS_MAX_FRAGMENT_LENGTH 1
+#define TLS_MAX_FRAGMENT_LENGTH_512 1
+#define TLS_MAX_FRAGMENT_LENGTH_1024 2
+#define TLS_MAX_FRAGMENT_LENGTH_2048 3
+#define TLS_MAX_FRAGMENT_LENGTH_4096 4
+
+/* TLS signature algorithms extension */
+#define TLS_SIGNATURE_ALGORITHMS 13
+
+/* TLS session ticket extension */
+#define TLS_SESSION_TICKET 35
+
+/* TLS renegotiation information extension */
+#define TLS_RENEGOTIATION_INFO 0xff01
+
+/** TLS verification data */
+struct tls_verify_data {
+	/** Client verification data */
+	uint8_t client[12];
+	/** Server verification data */
+	uint8_t server[12];
+} __attribute__ (( packed ));
 
 /** TLS RX state machine state */
 enum tls_rx_state {
@@ -121,6 +153,14 @@ struct tls_cipher_suite {
 	/** Numeric code (in network-endian order) */
 	uint16_t code;
 };
+
+/** TLS cipher suite table */
+#define TLS_CIPHER_SUITES						\
+	__table ( struct tls_cipher_suite, "tls_cipher_suites" )
+
+/** Declare a TLS cipher suite */
+#define __tls_cipher_suite( pref )					\
+	__table_entry ( TLS_CIPHER_SUITES, pref )
 
 /** A TLS cipher specification */
 struct tls_cipherspec {
@@ -155,6 +195,19 @@ struct tls_signature_hash_algorithm {
 	/** Numeric code */
 	struct tls_signature_hash_id code;
 };
+
+/** TLS signature hash algorithm table
+ *
+ * Note that the default (TLSv1.1 and earlier) algorithm using
+ * MD5+SHA1 is never explicitly specified.
+ */
+#define TLS_SIG_HASH_ALGORITHMS						\
+	__table ( struct tls_signature_hash_algorithm,			\
+		  "tls_sig_hash_algorithms" )
+
+/** Declare a TLS signature hash algorithm */
+#define __tls_sig_hash_algorithm					\
+	__table_entry ( TLS_SIG_HASH_ALGORITHMS, 01 )
 
 /** TLS pre-master secret */
 struct tls_pre_master_secret {
@@ -198,9 +251,49 @@ struct md5_sha1_digest {
 struct tls_session {
 	/** Reference counter */
 	struct refcnt refcnt;
+	/** List of sessions */
+	struct list_head list;
 
 	/** Server name */
 	const char *name;
+	/** Root of trust */
+	struct x509_root *root;
+	/** Private key */
+	struct private_key *key;
+
+	/** Session ID */
+	uint8_t id[32];
+	/** Length of session ID */
+	size_t id_len;
+	/** Session ticket */
+	void *ticket;
+	/** Length of session ticket */
+	size_t ticket_len;
+	/** Master secret */
+	uint8_t master_secret[48];
+
+	/** List of connections */
+	struct list_head conn;
+};
+
+/** A TLS connection */
+struct tls_connection {
+	/** Reference counter */
+	struct refcnt refcnt;
+
+	/** Session */
+	struct tls_session *session;
+	/** List of connections within the same session */
+	struct list_head list;
+	/** Session ID */
+	uint8_t session_id[32];
+	/** Length of session ID */
+	size_t session_id_len;
+	/** New session ticket */
+	void *new_session_ticket;
+	/** Length of new session ticket */
+	size_t new_session_ticket_len;
+
 	/** Plaintext stream */
 	struct interface plainstream;
 	/** Ciphertext stream */
@@ -232,18 +325,28 @@ struct tls_session {
 	struct digest_algorithm *handshake_digest;
 	/** Digest algorithm context used for handshake verification */
 	uint8_t *handshake_ctx;
-	/** Public-key algorithm used for Certificate Verify (if sent) */
-	struct pubkey_algorithm *verify_pubkey;
+	/** Private key */
+	struct private_key *key;
+	/** Client certificate chain (if used) */
+	struct x509_chain *certs;
+	/** Secure renegotiation flag */
+	int secure_renegotiation;
+	/** Verification data */
+	struct tls_verify_data verify;
 
+	/** Root of trust */
+	struct x509_root *root;
 	/** Server certificate chain */
 	struct x509_chain *chain;
 	/** Certificate validator */
 	struct interface validator;
 
-	/** Client has finished security negotiation */
-	unsigned int client_finished;
-	/** Server has finished security negotiation */
-	unsigned int server_finished;
+	/** Client security negotiation pending operation */
+	struct pending_operation client_negotiation;
+	/** Server security negotiation pending operation */
+	struct pending_operation server_negotiation;
+	/** Certificate validation pending operation */
+	struct pending_operation validation;
 
 	/** TX sequence number */
 	uint64_t tx_seq;
@@ -256,15 +359,36 @@ struct tls_session {
 	uint64_t rx_seq;
 	/** RX state */
 	enum tls_rx_state rx_state;
-	/** Offset within current RX state */
-	size_t rx_rcvd;
 	/** Current received record header */
 	struct tls_header rx_header;
-	/** Current received raw data buffer */
-	void *rx_data;
+	/** Current received record header (static I/O buffer) */
+	struct io_buffer rx_header_iobuf;
+	/** List of received data buffers */
+	struct list_head rx_data;
 };
 
+/** RX I/O buffer size
+ *
+ * The maximum fragment length extension is optional, and many common
+ * implementations (including OpenSSL) do not support it.  We must
+ * therefore be prepared to receive records of up to 16kB in length.
+ * The chance of an allocation of this size failing is non-negligible,
+ * so we must split received data into smaller allocations.
+ */
+#define TLS_RX_BUFSIZE 4096
+
+/** Minimum RX I/O buffer size
+ *
+ * To simplify manipulations, we ensure that no RX I/O buffer is
+ * smaller than this size.  This allows us to assume that the MAC and
+ * padding are entirely contained within the final I/O buffer.
+ */
+#define TLS_RX_MIN_BUFSIZE 512
+
+/** RX I/O buffer alignment */
+#define TLS_RX_ALIGN 16
+
 extern int add_tls ( struct interface *xfer, const char *name,
-		     struct interface **next );
+		     struct x509_root *root, struct private_key *key );
 
 #endif /* _IPXE_TLS_H */

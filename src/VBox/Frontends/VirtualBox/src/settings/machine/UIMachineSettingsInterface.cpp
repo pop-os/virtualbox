@@ -4,22 +4,38 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
+
+/* Qt includes: */
+#include <QVBoxLayout>
 
 /* GUI includes: */
 #include "UIActionPool.h"
 #include "UIExtraDataManager.h"
 #include "UIMachineSettingsInterface.h"
-
+#include "UIStatusBarEditorWindow.h"
+#include "UIMenuBarEditorWindow.h"
+#include "UIMiniToolbarSettingsEditor.h"
+#include "UIVisualStateEditor.h"
 
 /** Machine settings: User Interface page data structure. */
 struct UIDataSettingsMachineInterface
@@ -44,9 +60,10 @@ struct UIDataSettingsMachineInterface
 #endif /* VBOX_WS_MAC */
         , m_restrictionsOfMenuHelp(UIExtraDataMetaDefs::MenuHelpActionType_Invalid)
 #ifndef VBOX_WS_MAC
-        , m_fShowMiniToolBar(false)
-        , m_fMiniToolBarAtTop(false)
+        , m_fShowMiniToolbar(false)
+        , m_fMiniToolbarAtTop(false)
 #endif /* !VBOX_WS_MAC */
+        , m_enmVisualState(UIVisualStateType_Invalid)
     {}
 
     /** Returns whether the @a other passed data is equal to this one. */
@@ -73,9 +90,10 @@ struct UIDataSettingsMachineInterface
 #endif /* VBOX_WS_MAC */
                && (m_restrictionsOfMenuHelp == other.m_restrictionsOfMenuHelp)
 #ifndef VBOX_WS_MAC
-               && (m_fShowMiniToolBar == other.m_fShowMiniToolBar)
-               && (m_fMiniToolBarAtTop == other.m_fMiniToolBarAtTop)
+               && (m_fShowMiniToolbar == other.m_fShowMiniToolbar)
+               && (m_fMiniToolbarAtTop == other.m_fMiniToolbarAtTop)
 #endif /* !VBOX_WS_MAC */
+               && (m_enmVisualState == other.m_enmVisualState)
                ;
     }
 
@@ -120,10 +138,13 @@ struct UIDataSettingsMachineInterface
 
 #ifndef VBOX_WS_MAC
     /** Holds whether the mini-toolbar is enabled. */
-    bool  m_fShowMiniToolBar;
+    bool  m_fShowMiniToolbar;
     /** Holds whether the mini-toolbar should be aligned at top of screen. */
-    bool  m_fMiniToolBarAtTop;
+    bool  m_fMiniToolbarAtTop;
 #endif /* !VBOX_WS_MAC */
+
+    /** Holds the visual state. */
+    UIVisualStateType  m_enmVisualState;
 };
 
 
@@ -131,34 +152,40 @@ UIMachineSettingsInterface::UIMachineSettingsInterface(const QUuid &uMachineId)
     : m_uMachineId(uMachineId)
     , m_pActionPool(0)
     , m_pCache(0)
+    , m_pEditorMenuBar(0)
+    , m_pEditorVisualState(0)
+    , m_pEditorMiniToolabSettings(0)
+    , m_pEditorStatusBar(0)
 {
-    /* Prepare: */
     prepare();
 }
 
 UIMachineSettingsInterface::~UIMachineSettingsInterface()
 {
-    /* Cleanup: */
     cleanup();
 }
 
 bool UIMachineSettingsInterface::changed() const
 {
-    return m_pCache->wasChanged();
+    return m_pCache ? m_pCache->wasChanged() : false;
 }
 
 void UIMachineSettingsInterface::loadToCacheFrom(QVariant &data)
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return;
+
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
     /* Clear cache initially: */
     m_pCache->clear();
 
-    /* Prepare old interface data: */
+    /* Prepare old data: */
     UIDataSettingsMachineInterface oldInterfaceData;
 
-    /* Gather old interface data: */
+    /* Gather old data: */
     oldInterfaceData.m_fStatusBarEnabled = gEDataManager->statusBarEnabled(m_machine.GetId());
     oldInterfaceData.m_statusBarRestrictions = gEDataManager->restrictedStatusBarIndicators(m_machine.GetId());
     oldInterfaceData.m_statusBarOrder = gEDataManager->statusBarIndicatorOrder(m_machine.GetId());
@@ -179,11 +206,12 @@ void UIMachineSettingsInterface::loadToCacheFrom(QVariant &data)
 #endif
     oldInterfaceData.m_restrictionsOfMenuHelp = gEDataManager->restrictedRuntimeMenuHelpActionTypes(m_machine.GetId());
 #ifndef VBOX_WS_MAC
-    oldInterfaceData.m_fShowMiniToolBar = gEDataManager->miniToolbarEnabled(m_machine.GetId());
-    oldInterfaceData.m_fMiniToolBarAtTop = gEDataManager->miniToolbarAlignment(m_machine.GetId()) == Qt::AlignTop;
+    oldInterfaceData.m_fShowMiniToolbar = gEDataManager->miniToolbarEnabled(m_machine.GetId());
+    oldInterfaceData.m_fMiniToolbarAtTop = gEDataManager->miniToolbarAlignment(m_machine.GetId()) == Qt::AlignTop;
 #endif
+    oldInterfaceData.m_enmVisualState = gEDataManager->requestedVisualState(m_machine.GetId());
 
-    /* Cache old interface data: */
+    /* Cache old data: */
     m_pCache->cacheInitialData(oldInterfaceData);
 
     /* Upload machine to data: */
@@ -192,33 +220,51 @@ void UIMachineSettingsInterface::loadToCacheFrom(QVariant &data)
 
 void UIMachineSettingsInterface::getFromCache()
 {
-    /* Get old interface data from the cache: */
+    /* Sanity check: */
+    if (!m_pCache)
+        return;
+
+    /* Get old data from cache: */
     const UIDataSettingsMachineInterface &oldInterfaceData = m_pCache->base();
 
-    /* Load old interface data from the cache: */
-    m_pStatusBarEditor->setStatusBarEnabled(oldInterfaceData.m_fStatusBarEnabled);
-    m_pStatusBarEditor->setStatusBarConfiguration(oldInterfaceData.m_statusBarRestrictions,
-                                                  oldInterfaceData.m_statusBarOrder);
+    /* Load old data from cache: */
+    if (m_pEditorStatusBar)
+    {
+        m_pEditorStatusBar->setStatusBarEnabled(oldInterfaceData.m_fStatusBarEnabled);
+        m_pEditorStatusBar->setStatusBarConfiguration(oldInterfaceData.m_statusBarRestrictions,
+                                                      oldInterfaceData.m_statusBarOrder);
+    }
+    if (m_pEditorMenuBar)
+    {
 #ifndef VBOX_WS_MAC
-    m_pMenuBarEditor->setMenuBarEnabled(oldInterfaceData.m_fMenuBarEnabled);
+        m_pEditorMenuBar->setMenuBarEnabled(oldInterfaceData.m_fMenuBarEnabled);
 #endif
-    m_pMenuBarEditor->setRestrictionsOfMenuBar(oldInterfaceData.m_restrictionsOfMenuBar);
-    m_pMenuBarEditor->setRestrictionsOfMenuApplication(oldInterfaceData.m_restrictionsOfMenuApplication);
-    m_pMenuBarEditor->setRestrictionsOfMenuMachine(oldInterfaceData.m_restrictionsOfMenuMachine);
-    m_pMenuBarEditor->setRestrictionsOfMenuView(oldInterfaceData.m_restrictionsOfMenuView);
-    m_pMenuBarEditor->setRestrictionsOfMenuInput(oldInterfaceData.m_restrictionsOfMenuInput);
-    m_pMenuBarEditor->setRestrictionsOfMenuDevices(oldInterfaceData.m_restrictionsOfMenuDevices);
+        m_pEditorMenuBar->setRestrictionsOfMenuBar(oldInterfaceData.m_restrictionsOfMenuBar);
+        m_pEditorMenuBar->setRestrictionsOfMenuApplication(oldInterfaceData.m_restrictionsOfMenuApplication);
+        m_pEditorMenuBar->setRestrictionsOfMenuMachine(oldInterfaceData.m_restrictionsOfMenuMachine);
+        m_pEditorMenuBar->setRestrictionsOfMenuView(oldInterfaceData.m_restrictionsOfMenuView);
+        m_pEditorMenuBar->setRestrictionsOfMenuInput(oldInterfaceData.m_restrictionsOfMenuInput);
+        m_pEditorMenuBar->setRestrictionsOfMenuDevices(oldInterfaceData.m_restrictionsOfMenuDevices);
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    m_pMenuBarEditor->setRestrictionsOfMenuDebug(oldInterfaceData.m_restrictionsOfMenuDebug);
+        m_pEditorMenuBar->setRestrictionsOfMenuDebug(oldInterfaceData.m_restrictionsOfMenuDebug);
 #endif
 #ifdef VBOX_WS_MAC
-    m_pMenuBarEditor->setRestrictionsOfMenuWindow(oldInterfaceData.m_restrictionsOfMenuWindow);
+        m_pEditorMenuBar->setRestrictionsOfMenuWindow(oldInterfaceData.m_restrictionsOfMenuWindow);
 #endif
-    m_pMenuBarEditor->setRestrictionsOfMenuHelp(oldInterfaceData.m_restrictionsOfMenuHelp);
+        m_pEditorMenuBar->setRestrictionsOfMenuHelp(oldInterfaceData.m_restrictionsOfMenuHelp);
+    }
 #ifndef VBOX_WS_MAC
-    m_pCheckBoxShowMiniToolBar->setChecked(oldInterfaceData.m_fShowMiniToolBar);
-    m_pComboToolBarAlignment->setChecked(oldInterfaceData.m_fMiniToolBarAtTop);
+    if (m_pEditorMiniToolabSettings)
+    {
+        m_pEditorMiniToolabSettings->setShowMiniToolbar(oldInterfaceData.m_fShowMiniToolbar);
+        m_pEditorMiniToolabSettings->setMiniToolbarAtTop(oldInterfaceData.m_fMiniToolbarAtTop);
+    }
 #endif
+    if (m_pEditorVisualState)
+    {
+        m_pEditorVisualState->setMachineId(m_machine.GetId());
+        m_pEditorVisualState->setValue(oldInterfaceData.m_enmVisualState);
+    }
 
     /* Polish page finally: */
     polishPage();
@@ -229,35 +275,48 @@ void UIMachineSettingsInterface::getFromCache()
 
 void UIMachineSettingsInterface::putToCache()
 {
-    /* Prepare new interface data: */
+    /* Sanity check: */
+    if (!m_pCache)
+        return;
+
+    /* Prepare new data: */
     UIDataSettingsMachineInterface newInterfaceData;
 
-    /* Gather new interface data: */
-    newInterfaceData.m_fStatusBarEnabled = m_pStatusBarEditor->isStatusBarEnabled();
-    newInterfaceData.m_statusBarRestrictions = m_pStatusBarEditor->statusBarIndicatorRestrictions();
-    newInterfaceData.m_statusBarOrder = m_pStatusBarEditor->statusBarIndicatorOrder();
+    /* Cache new data: */
+    if (m_pEditorStatusBar)
+    {
+        newInterfaceData.m_fStatusBarEnabled = m_pEditorStatusBar->isStatusBarEnabled();
+        newInterfaceData.m_statusBarRestrictions = m_pEditorStatusBar->statusBarIndicatorRestrictions();
+        newInterfaceData.m_statusBarOrder = m_pEditorStatusBar->statusBarIndicatorOrder();
+    }
+    if (m_pEditorMenuBar)
+    {
 #ifndef VBOX_WS_MAC
-    newInterfaceData.m_fMenuBarEnabled = m_pMenuBarEditor->isMenuBarEnabled();
+        newInterfaceData.m_fMenuBarEnabled = m_pEditorMenuBar->isMenuBarEnabled();
 #endif
-    newInterfaceData.m_restrictionsOfMenuBar = m_pMenuBarEditor->restrictionsOfMenuBar();
-    newInterfaceData.m_restrictionsOfMenuApplication = m_pMenuBarEditor->restrictionsOfMenuApplication();
-    newInterfaceData.m_restrictionsOfMenuMachine = m_pMenuBarEditor->restrictionsOfMenuMachine();
-    newInterfaceData.m_restrictionsOfMenuView = m_pMenuBarEditor->restrictionsOfMenuView();
-    newInterfaceData.m_restrictionsOfMenuInput = m_pMenuBarEditor->restrictionsOfMenuInput();
-    newInterfaceData.m_restrictionsOfMenuDevices = m_pMenuBarEditor->restrictionsOfMenuDevices();
+        newInterfaceData.m_restrictionsOfMenuBar = m_pEditorMenuBar->restrictionsOfMenuBar();
+        newInterfaceData.m_restrictionsOfMenuApplication = m_pEditorMenuBar->restrictionsOfMenuApplication();
+        newInterfaceData.m_restrictionsOfMenuMachine = m_pEditorMenuBar->restrictionsOfMenuMachine();
+        newInterfaceData.m_restrictionsOfMenuView = m_pEditorMenuBar->restrictionsOfMenuView();
+        newInterfaceData.m_restrictionsOfMenuInput = m_pEditorMenuBar->restrictionsOfMenuInput();
+        newInterfaceData.m_restrictionsOfMenuDevices = m_pEditorMenuBar->restrictionsOfMenuDevices();
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    newInterfaceData.m_restrictionsOfMenuDebug = m_pMenuBarEditor->restrictionsOfMenuDebug();
+        newInterfaceData.m_restrictionsOfMenuDebug = m_pEditorMenuBar->restrictionsOfMenuDebug();
 #endif
 #ifdef VBOX_WS_MAC
-    newInterfaceData.m_restrictionsOfMenuWindow = m_pMenuBarEditor->restrictionsOfMenuWindow();
+        newInterfaceData.m_restrictionsOfMenuWindow = m_pEditorMenuBar->restrictionsOfMenuWindow();
 #endif
-    newInterfaceData.m_restrictionsOfMenuHelp = m_pMenuBarEditor->restrictionsOfMenuHelp();
+        newInterfaceData.m_restrictionsOfMenuHelp = m_pEditorMenuBar->restrictionsOfMenuHelp();
+    }
 #ifndef VBOX_WS_MAC
-    newInterfaceData.m_fShowMiniToolBar = m_pCheckBoxShowMiniToolBar->isChecked();
-    newInterfaceData.m_fMiniToolBarAtTop = m_pComboToolBarAlignment->isChecked();
+    if (m_pEditorMiniToolabSettings)
+    {
+        newInterfaceData.m_fShowMiniToolbar = m_pEditorMiniToolabSettings->showMiniToolbar();
+        newInterfaceData.m_fMiniToolbarAtTop = m_pEditorMiniToolabSettings->miniToolbarAtTop();
+    }
 #endif
-
-    /* Cache new interface data: */
+    if (m_pEditorVisualState)
+        newInterfaceData.m_enmVisualState = m_pEditorVisualState->value();
     m_pCache->cacheCurrentData(newInterfaceData);
 }
 
@@ -266,8 +325,8 @@ void UIMachineSettingsInterface::saveFromCacheTo(QVariant &data)
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Update interface data and failing state: */
-    setFailed(!saveInterfaceData());
+    /* Update data and failing state: */
+    setFailed(!saveData());
 
     /* Upload machine to data: */
     UISettingsPageMachine::uploadData(data);
@@ -275,61 +334,88 @@ void UIMachineSettingsInterface::saveFromCacheTo(QVariant &data)
 
 void UIMachineSettingsInterface::retranslateUi()
 {
-    /* Translate uic generated strings: */
-    Ui::UIMachineSettingsInterface::retranslateUi(this);
+    /* These editors have own labels, but we want them to be properly layouted according to each other: */
+    int iMinimumLayoutHint = 0;
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorVisualState->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorMiniToolabSettings->minimumLabelHorizontalHint());
+    m_pEditorVisualState->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pEditorMiniToolabSettings->setMinimumLayoutIndent(iMinimumLayoutHint);
 }
 
 void UIMachineSettingsInterface::polishPage()
 {
     /* Polish interface page availability: */
-    m_pMenuBarEditor->setEnabled(isMachineInValidMode());
+    m_pEditorMenuBar->setEnabled(isMachineInValidMode());
 #ifdef VBOX_WS_MAC
-    m_pLabelMiniToolBar->hide();
-    m_pCheckBoxShowMiniToolBar->hide();
-    m_pComboToolBarAlignment->hide();
-#else /* !VBOX_WS_MAC */
-    m_pLabelMiniToolBar->setEnabled(isMachineInValidMode());
-    m_pCheckBoxShowMiniToolBar->setEnabled(isMachineInValidMode());
-    m_pComboToolBarAlignment->setEnabled(isMachineInValidMode() && m_pCheckBoxShowMiniToolBar->isChecked());
-#endif /* !VBOX_WS_MAC */
-    m_pStatusBarEditor->setEnabled(isMachineInValidMode());
+    m_pEditorMiniToolabSettings->hide();
+#else
+    m_pEditorMiniToolabSettings->setEnabled(isMachineInValidMode());
+#endif
+    m_pEditorStatusBar->setEnabled(isMachineInValidMode());
 }
 
 void UIMachineSettingsInterface::prepare()
 {
-    /* Apply UI decorations: */
-    Ui::UIMachineSettingsInterface::setupUi(this);
+    /* Prepare action-pool: */
+    m_pActionPool = UIActionPool::create(UIActionPoolType_Runtime);
 
     /* Prepare cache: */
     m_pCache = new UISettingsCacheMachineInterface;
     AssertPtrReturnVoid(m_pCache);
 
-    /* Layout created in the .ui file. */
-    {
-        /* Menu-bar editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pMenuBarEditor);
-        {
-            /* Configure editor: */
-            m_pActionPool = UIActionPool::create(UIActionPoolType_Runtime);
-            m_pMenuBarEditor->setActionPool(m_pActionPool);
-            m_pMenuBarEditor->setMachineID(m_uMachineId);
-        }
-
-        /* Status-bar editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pStatusBarEditor);
-        {
-            /* Configure editor: */
-            m_pStatusBarEditor->setMachineID(m_uMachineId);
-        }
-    }
+    /* Prepare everything: */
+    prepareWidgets();
+    prepareConnections();
 
     /* Apply language settings: */
     retranslateUi();
 }
 
+void UIMachineSettingsInterface::prepareWidgets()
+{
+    /* Prepare main layout: */
+    QVBoxLayout *pLayout = new QVBoxLayout(this);
+    if (pLayout)
+    {
+        /* Prepare menu-bar editor: */
+        m_pEditorMenuBar = new UIMenuBarEditorWidget(this);
+        if (m_pEditorMenuBar)
+        {
+            m_pEditorMenuBar->setActionPool(m_pActionPool);
+            m_pEditorMenuBar->setMachineID(m_uMachineId);
+
+            pLayout->addWidget(m_pEditorMenuBar);
+        }
+
+        /* Prepare visual-state editor: */
+        m_pEditorVisualState = new UIVisualStateEditor(this);
+        if (m_pEditorVisualState)
+            pLayout->addWidget(m_pEditorVisualState);
+
+        /* Prepare mini-toolbar settings editor: */
+        m_pEditorMiniToolabSettings = new UIMiniToolbarSettingsEditor(this);
+        if (m_pEditorMiniToolabSettings)
+            pLayout->addWidget(m_pEditorMiniToolabSettings);
+
+        pLayout->addStretch();
+
+        /* Prepare status-bar editor: */
+        m_pEditorStatusBar = new UIStatusBarEditorWidget(this);
+        if (m_pEditorStatusBar)
+        {
+            m_pEditorStatusBar->setMachineID(m_uMachineId);
+            pLayout->addWidget(m_pEditorStatusBar);
+        }
+    }
+}
+
+void UIMachineSettingsInterface::prepareConnections()
+{
+}
+
 void UIMachineSettingsInterface::cleanup()
 {
-    /* Destroy personal action-pool: */
+    /* Cleanup action-pool: */
     UIActionPool::destroy(m_pActionPool);
 
     /* Cleanup cache: */
@@ -337,22 +423,29 @@ void UIMachineSettingsInterface::cleanup()
     m_pCache = 0;
 }
 
-bool UIMachineSettingsInterface::saveInterfaceData()
+bool UIMachineSettingsInterface::saveData()
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save display settings from the cache: */
+    /* Save display settings from cache: */
     if (fSuccess && isMachineInValidMode() && m_pCache->wasChanged())
     {
-        /* Save 'Menu-bar' data from the cache: */
+        /* Save 'Menu-bar' data from cache: */
         if (fSuccess)
             fSuccess = saveMenuBarData();
-        /* Save 'Status-bar' data from the cache: */
+        /* Save 'Status-bar' data from cache: */
         if (fSuccess)
             fSuccess = saveStatusBarData();
-        /* Save 'Status-bar' data from the cache: */
+        /* Save 'Mini-toolbar' data from cache: */
         if (fSuccess)
             fSuccess = saveMiniToolbarData();
+        /* Save 'Visual State' data from cache: */
+        if (fSuccess)
+            fSuccess = saveVisualStateData();
     }
     /* Return result: */
     return fSuccess;
@@ -360,14 +453,18 @@ bool UIMachineSettingsInterface::saveInterfaceData()
 
 bool UIMachineSettingsInterface::saveMenuBarData()
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save 'Menu-bar' data from the cache: */
+    /* Save 'Menu-bar' data from cache: */
     if (fSuccess)
     {
-        /* Get old interface data from the cache: */
+        /* Get old data from cache: */
         const UIDataSettingsMachineInterface &oldInterfaceData = m_pCache->base();
-        /* Get new interface data from the cache: */
+        /* Get new data from cache: */
         const UIDataSettingsMachineInterface &newInterfaceData = m_pCache->data();
 
 #ifndef VBOX_WS_MAC
@@ -413,14 +510,18 @@ bool UIMachineSettingsInterface::saveMenuBarData()
 
 bool UIMachineSettingsInterface::saveStatusBarData()
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save 'Status-bar' data from the cache: */
+    /* Save 'Status-bar' data from cache: */
     if (fSuccess)
     {
-        /* Get old interface data from the cache: */
+        /* Get old data from cache: */
         const UIDataSettingsMachineInterface &oldInterfaceData = m_pCache->base();
-        /* Get new interface data from the cache: */
+        /* Get new data from cache: */
         const UIDataSettingsMachineInterface &newInterfaceData = m_pCache->data();
 
         /* Save whether status-bar is enabled: */
@@ -439,26 +540,53 @@ bool UIMachineSettingsInterface::saveStatusBarData()
 
 bool UIMachineSettingsInterface::saveMiniToolbarData()
 {
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save 'Mini-toolbar' data from the cache: */
+    /* Save 'Mini-toolbar' data from cache: */
     if (fSuccess)
     {
-        /* Get old interface data from the cache: */
+        /* Get old data from cache: */
         const UIDataSettingsMachineInterface &oldInterfaceData = m_pCache->base(); Q_UNUSED(oldInterfaceData);
-        /* Get new interface data from the cache: */
+        /* Get new data from cache: */
         const UIDataSettingsMachineInterface &newInterfaceData = m_pCache->data(); Q_UNUSED(newInterfaceData);
 
 #ifndef VBOX_WS_MAC
         /* Save whether mini-toolbar is enabled: */
-        if (fSuccess && newInterfaceData.m_fShowMiniToolBar != oldInterfaceData.m_fShowMiniToolBar)
-            /* fSuccess = */ gEDataManager->setMiniToolbarEnabled(newInterfaceData.m_fShowMiniToolBar, m_machine.GetId());
+        if (fSuccess && newInterfaceData.m_fShowMiniToolbar != oldInterfaceData.m_fShowMiniToolbar)
+            /* fSuccess = */ gEDataManager->setMiniToolbarEnabled(newInterfaceData.m_fShowMiniToolbar, m_machine.GetId());
         /* Save whether mini-toolbar should be location at top of screen: */
-        if (fSuccess && newInterfaceData.m_fMiniToolBarAtTop != oldInterfaceData.m_fMiniToolBarAtTop)
-            /* fSuccess = */ gEDataManager->setMiniToolbarAlignment(newInterfaceData.m_fMiniToolBarAtTop ? Qt::AlignTop : Qt::AlignBottom, m_machine.GetId());
+        if (fSuccess && newInterfaceData.m_fMiniToolbarAtTop != oldInterfaceData.m_fMiniToolbarAtTop)
+            /* fSuccess = */ gEDataManager->setMiniToolbarAlignment(newInterfaceData.m_fMiniToolbarAtTop ? Qt::AlignTop : Qt::AlignBottom, m_machine.GetId());
 #endif
     }
     /* Return result: */
     return fSuccess;
 }
 
+bool UIMachineSettingsInterface::saveVisualStateData()
+{
+    /* Sanity check: */
+    if (!m_pCache)
+        return false;
+
+    /* Prepare result: */
+    bool fSuccess = true;
+    /* Save 'Visual State' data from cache: */
+    if (fSuccess)
+    {
+        /* Get old data from cache: */
+        const UIDataSettingsMachineInterface &oldInterfaceData = m_pCache->base();
+        /* Get new data from cache: */
+        const UIDataSettingsMachineInterface &newInterfaceData = m_pCache->data();
+
+        /* Save desired visual state: */
+        if (fSuccess && newInterfaceData.m_enmVisualState != oldInterfaceData.m_enmVisualState)
+            /* fSuccess = */ gEDataManager->setRequestedVisualState(newInterfaceData.m_enmVisualState, m_machine.GetId());
+    }
+    /* Return result: */
+    return fSuccess;
+}

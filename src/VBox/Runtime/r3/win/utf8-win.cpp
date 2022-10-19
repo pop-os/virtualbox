@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -49,19 +59,21 @@ RTR3DECL(int)  RTStrUtf8ToCurrentCPExTag(char **ppszString, const char *pszStrin
 {
     Assert(ppszString);
     Assert(pszString);
+    *ppszString = NULL;
 
     /*
-     * Check for zero length input string.
+     * If the ANSI codepage (CP_ACP) is UTF-8, no translation is needed.
+     * Same goes for empty strings.
      */
-    if (cchString < 1 || !*pszString)
+    if (   cchString == 0
+        || *pszString == '\0')
+        return RTStrDupNExTag(ppszString, pszString, 0, pszTag);
+    if (GetACP() == CP_UTF8)
     {
-        *ppszString = (char *)RTMemTmpAllocZTag(sizeof(char), pszTag);
-        if (*ppszString)
-            return VINF_SUCCESS;
-        return VERR_NO_TMP_MEMORY;
+        int rc = RTStrValidateEncodingEx(pszString, cchString, 0);
+        AssertRCReturn(rc, rc);
+        return RTStrDupNExTag(ppszString, pszString, cchString, pszTag);
     }
-
-    *ppszString = NULL;
 
     /*
      * Convert to wide char first.
@@ -114,30 +126,32 @@ RTR3DECL(int)  RTStrUtf8ToCurrentCPExTag(char **ppszString, const char *pszStrin
     return rc;
 }
 
-
-RTR3DECL(int)  RTStrCurrentCPToUtf8Tag(char **ppszString, const char *pszString, const char *pszTag)
+static int rtStrCPToUtf8Tag(char **ppszString, const char *pszString, uint32_t uCodePage, const char *pszTag)
 {
     Assert(ppszString);
     Assert(pszString);
     *ppszString = NULL;
 
-    /** @todo is there a quicker way? Currently: ACP -> UTF-16 -> UTF-8 */
-
-    size_t cch = strlen(pszString);
-    if (cch <= 0)
+    /*
+     * If the ANSI codepage (CP_ACP) is UTF-8, no translation is needed.
+     * Same goes for empty strings.
+     */
+    if (*pszString == '\0')
+        return RTStrDupExTag(ppszString, pszString, pszTag);
+    if (GetACP() == CP_UTF8)
     {
-        /* zero length string passed. */
-        *ppszString = (char *)RTMemTmpAllocZTag(sizeof(char), pszTag);
-        if (*ppszString)
-            return VINF_SUCCESS;
-        return VERR_NO_TMP_MEMORY;
+        int rc = RTStrValidateEncoding(pszString);
+        AssertRCReturn(rc, rc);
+        return RTStrDupExTag(ppszString, pszString, pszTag);
     }
+
+    /** @todo is there a quicker way? Currently: ACP -> UTF-16 -> UTF-8 */
 
     /*
      * First calc result string length.
      */
     int rc;
-    int cwc = MultiByteToWideChar(CP_ACP, 0, pszString, -1, NULL, 0);
+    int cwc = MultiByteToWideChar((UINT)uCodePage, 0, pszString, -1, NULL, 0);
     if (cwc > 0)
     {
         /*
@@ -149,7 +163,7 @@ RTR3DECL(int)  RTStrCurrentCPToUtf8Tag(char **ppszString, const char *pszString,
             /*
              * Do the translation.
              */
-            if (MultiByteToWideChar(CP_ACP, 0, pszString, -1, pwszString, cwc) > 0)
+            if (MultiByteToWideChar((UINT)uCodePage, 0, pszString, -1, pwszString, cwc) > 0)
             {
                 /*
                  * Now we got UTF-16, convert it to UTF-8
@@ -177,3 +191,14 @@ RTR3DECL(int)  RTStrCurrentCPToUtf8Tag(char **ppszString, const char *pszString,
     return rc;
 }
 
+
+RTR3DECL(int)  RTStrCurrentCPToUtf8Tag(char **ppszString, const char *pszString, const char *pszTag)
+{
+    return rtStrCPToUtf8Tag(ppszString, pszString, CP_ACP, pszTag);
+}
+
+
+RTR3DECL(int)  RTStrConsoleCPToUtf8Tag(char **ppszString, const char *pszString, const char *pszTag)
+{
+    return rtStrCPToUtf8Tag(ppszString, pszString, GetConsoleCP(), pszTag);
+}

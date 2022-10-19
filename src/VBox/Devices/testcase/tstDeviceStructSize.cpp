@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -64,10 +74,6 @@
 #endif
 #undef LOG_GROUP
 #include "../Network/DevPCNet.cpp"
-#ifdef VBOX_WITH_VIRTIO
-# undef LOG_GROUP
-# include "../Network/DevVirtioNet.cpp"
-#endif
 #undef LOG_GROUP
 #include "../PC/DevACPI.cpp"
 #undef LOG_GROUP
@@ -130,6 +136,15 @@
 # include "../Bus/DevPciRaw.cpp"
 #endif
 
+#ifdef VBOX_WITH_IOMMU_AMD
+# undef LOG_GROUP
+# include "../Bus/DevIommuAmd.cpp"
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+# undef LOG_GROUP
+# include "../Bus/DevIommuIntel.cpp"
+#endif
+
 #include <VBox/vmm/pdmaudioifs.h>
 
 #undef LOG_GROUP
@@ -153,7 +168,7 @@
 #endif
 
 
-#include <stdio.h>
+#include <iprt/stream.h>
 
 
 /*********************************************************************************************************************************
@@ -169,12 +184,12 @@
     do { \
         if (off != RT_OFFSETOF(type, m)) \
         { \
-            printf("tstDeviceStructSize: Error! %#010x %s  Member offset wrong by %d (should be %d -- but is %d)\n", \
-                   RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), off, RT_OFFSETOF(type, m)); \
+            RTPrintf("tstDeviceStructSize: Error! %#010x %s  Member offset wrong by %d (should be %d -- but is %d)\n", \
+                     RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), off, RT_OFFSETOF(type, m)); \
             rc++; \
         } \
         else  \
-            printf("%#08x (%d) %s\n", RT_OFFSETOF(type, m), RT_OFFSETOF(type, m), #type "." #m); \
+            RTPrintf("%#08x (%d) %s\n", RT_OFFSETOF(type, m), RT_OFFSETOF(type, m), #type "." #m); \
     } while (0)
 
 /**
@@ -186,12 +201,12 @@
     do { \
         if (size != sizeof(type)) \
         { \
-            printf("tstDeviceStructSize: Error! sizeof(%s): %#x (%d)  Size wrong by %d (should be %d -- but is %d)\n", \
-                   #type, (int)sizeof(type), (int)sizeof(type), (int)sizeof(type) - (int)size, (int)size, (int)sizeof(type)); \
+            RTPrintf("tstDeviceStructSize: Error! sizeof(%s): %#x (%d)  Size wrong by %d (should be %d -- but is %d)\n", \
+                     #type, (int)sizeof(type), (int)sizeof(type), (int)sizeof(type) - (int)size, (int)size, (int)sizeof(type)); \
             rc++; \
         } \
         else \
-            printf("tstDeviceStructSize: info: sizeof(%s): %#x (%d)\n", #type, (int)sizeof(type), (int)sizeof(type)); \
+            RTPrintf("tstDeviceStructSize: info: sizeof(%s): %#x (%d)\n", #type, (int)sizeof(type), (int)sizeof(type)); \
     } while (0)
 
 /**
@@ -202,13 +217,13 @@
     { \
         if (RT_OFFSETOF(strct, member) & ((align) - 1) ) \
         { \
-            printf("tstDeviceStructSize: error! %s::%s offset=%#x (%u) expected alignment %#x, meaning %#x (%u) off\n", \
-                   #strct, #member, \
-                   (unsigned)RT_OFFSETOF(strct, member), \
-                   (unsigned)RT_OFFSETOF(strct, member), \
-                   (unsigned)(align), \
-                   (unsigned)(((align) - RT_OFFSETOF(strct, member)) & ((align) - 1)), \
-                   (unsigned)(((align) - RT_OFFSETOF(strct, member)) & ((align) - 1)) ); \
+            RTPrintf("tstDeviceStructSize: error! %s::%s offset=%#x (%u) expected alignment %#x, meaning %#x (%u) off\n", \
+                     #strct, #member, \
+                     (unsigned)RT_OFFSETOF(strct, member), \
+                     (unsigned)RT_OFFSETOF(strct, member), \
+                     (unsigned)(align), \
+                     (unsigned)(((align) - RT_OFFSETOF(strct, member)) & ((align) - 1)), \
+                     (unsigned)(((align) - RT_OFFSETOF(strct, member)) & ((align) - 1)) ); \
             rc++; \
         } \
     } while (0)
@@ -220,13 +235,13 @@
     do { \
         if (RT_ALIGN_Z(sizeof(type), (align)) != sizeof(type)) \
         { \
-            printf("tstDeviceStructSize: error! %s size=%#x (%u), align=%#x %#x (%u) bytes off\n", \
-                   #type, \
-                   (unsigned)sizeof(type), \
-                   (unsigned)sizeof(type), \
-                   (align), \
-                   (unsigned)RT_ALIGN_Z(sizeof(type), align) - (unsigned)sizeof(type), \
-                   (unsigned)RT_ALIGN_Z(sizeof(type), align) - (unsigned)sizeof(type)); \
+            RTPrintf("tstDeviceStructSize: error! %s size=%#x (%u), align=%#x %#x (%u) bytes off\n", \
+                     #type, \
+                     (unsigned)sizeof(type), \
+                     (unsigned)sizeof(type), \
+                     (align), \
+                     (unsigned)RT_ALIGN_Z(sizeof(type), align) - (unsigned)sizeof(type), \
+                     (unsigned)RT_ALIGN_Z(sizeof(type), align) - (unsigned)sizeof(type)); \
             rc++; \
         } \
     } while (0)
@@ -240,14 +255,14 @@
         strct *p = NULL; NOREF(p); \
         if (sizeof(p->member.s) > sizeof(p->member.padding)) \
         { \
-            printf("tstDeviceStructSize: error! padding of %s::%s is too small, padding=%d struct=%d correct=%d\n", #strct, #member, \
-                   (int)sizeof(p->member.padding), (int)sizeof(p->member.s), (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("tstDeviceStructSize: error! padding of %s::%s is too small, padding=%d struct=%d correct=%d\n", #strct, #member, \
+                     (int)sizeof(p->member.padding), (int)sizeof(p->member.s), (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
             rc++; \
         } \
         else if (RT_ALIGN_Z(sizeof(p->member.padding), (align)) != sizeof(p->member.padding)) \
         { \
-            printf("tstDeviceStructSize: error! padding of %s::%s is misaligned, padding=%d correct=%d\n", #strct, #member, \
-                   (int)sizeof(p->member.padding), (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
+            RTPrintf("tstDeviceStructSize: error! padding of %s::%s is misaligned, padding=%d correct=%d\n", #strct, #member, \
+                     (int)sizeof(p->member.padding), (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
             rc++; \
         } \
     } while (0)
@@ -261,8 +276,8 @@
         strct *p = NULL; NOREF(p); \
         if (sizeof(p->s) > sizeof(p->padding)) \
         { \
-            printf("tstDeviceStructSize: error! padding of %s is too small, padding=%d struct=%d correct=%d\n", #strct, \
-                   (int)sizeof(p->padding), (int)sizeof(p->s), (int)RT_ALIGN_Z(sizeof(p->s), 32)); \
+            RTPrintf("tstDeviceStructSize: error! padding of %s is too small, padding=%d struct=%d correct=%d\n", #strct, \
+                     (int)sizeof(p->padding), (int)sizeof(p->s), (int)RT_ALIGN_Z(sizeof(p->s), 32)); \
             rc++; \
         } \
     } while (0)
@@ -276,8 +291,8 @@
         strct *p = NULL; NOREF(p); \
         if (sizeof(p->member) > sizeof(p->pad_member)) \
         { \
-            printf("tstDeviceStructSize: error! padding of %s::%s is too small, padding=%d struct=%d\n", #strct, #member, \
-                   (int)sizeof(p->pad_member), (int)sizeof(p->member)); \
+            RTPrintf("tstDeviceStructSize: error! padding of %s::%s is too small, padding=%d struct=%d\n", #strct, #member, \
+                     (int)sizeof(p->pad_member), (int)sizeof(p->member)); \
             rc++; \
         } \
     } while (0)
@@ -288,14 +303,14 @@
 #define PRINT_OFFSET(strct, member) \
     do \
     { \
-        printf("tstDeviceStructSize: info: %s::%s offset %d sizeof %d\n",  #strct, #member, (int)RT_OFFSETOF(strct, member), (int)RT_SIZEOFMEMB(strct, member)); \
+        RTPrintf("tstDeviceStructSize: info: %s::%s offset %d sizeof %d\n",  #strct, #member, (int)RT_OFFSETOF(strct, member), (int)RT_SIZEOFMEMB(strct, member)); \
     } while (0)
 
 
 int main()
 {
     int rc = 0;
-    printf("tstDeviceStructSize: TESTING\n");
+    RTPrintf("tstDeviceStructSize: TESTING\n");
 
     /* Assert sanity */
     CHECK_SIZE(uint128_t, 128/8);
@@ -337,9 +352,6 @@ int main()
     CHECK_MEMBER_ALIGNMENT(E1KSTATE, csRx, 8);
     CHECK_MEMBER_ALIGNMENT(E1KSTATE, StatReceiveBytes, 8);
 #endif
-#ifdef VBOX_WITH_VIRTIO
-    CHECK_MEMBER_ALIGNMENT(VNETSTATE, StatReceiveBytes, 8);
-#endif
     //CHECK_MEMBER_ALIGNMENT(E1KSTATE, csTx, 8);
 #ifdef VBOX_WITH_USB
 # ifdef VBOX_WITH_EHCI_IMPL
@@ -367,7 +379,6 @@ int main()
     CHECK_MEMBER_ALIGNMENT(LSILOGICSCSI, ReplyPostQueueCritSect, 8);
     CHECK_MEMBER_ALIGNMENT(LSILOGICSCSI, ReplyFreeQueueCritSect, 8);
     CHECK_MEMBER_ALIGNMENT(LSILOGICSCSI, uReplyFreeQueueNextEntryFreeWrite, 8);
-    CHECK_MEMBER_ALIGNMENT(LSILOGICSCSICC, VBoxSCSI, 8);
 #ifdef VBOX_WITH_USB
     CHECK_MEMBER_ALIGNMENT(OHCI, RootHub, 8);
 # ifdef VBOX_WITH_STATISTICS
@@ -398,20 +409,35 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VGASTATE, StatRZMemoryRead, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, CritSectIRQ, 8);
     CHECK_MEMBER_ALIGNMENT(VMMDEV, CritSect, 8);
-#ifdef VBOX_WITH_VIRTIO
-    CHECK_MEMBER_ALIGNMENT(VPCISTATE, cs, 8);
-    CHECK_MEMBER_ALIGNMENT(VPCISTATE, led, 4);
-    CHECK_MEMBER_ALIGNMENT(VPCISTATE, Queues, 8);
-#endif
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
     CHECK_MEMBER_ALIGNMENT(PCIRAWSENDREQ, u.aGetRegionInfo.u64RegionSize, 8);
+#endif
+#ifdef VBOX_WITH_IOMMU_AMD
+    CHECK_MEMBER_ALIGNMENT(IOMMU, IommuBar, 8);
+    CHECK_MEMBER_ALIGNMENT(IOMMU, aDevTabBaseAddrs, 8);
+    CHECK_MEMBER_ALIGNMENT(IOMMU, CmdBufHeadPtr, 8);
+    CHECK_MEMBER_ALIGNMENT(IOMMU, Status, 8);
+# ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(IOMMU, StatMmioReadR3, 8);
+# endif
+#endif
+#ifdef VBOX_WITH_IOMMU_INTEL
+    CHECK_MEMBER_ALIGNMENT(DMAR, abRegs0, 8);
+    CHECK_MEMBER_ALIGNMENT(DMAR, abRegs1, 8);
+    CHECK_MEMBER_ALIGNMENT(DMAR, uIrtaReg, 8);
+    CHECK_MEMBER_ALIGNMENT(DMAR, uRtaddrReg, 8);
+    CHECK_MEMBER_ALIGNMENT(DMAR, hEvtInvQueue, 8);
+# ifdef VBOX_WITH_STATISTICS
+    CHECK_MEMBER_ALIGNMENT(DMAR, StatMmioReadR3, 8);
+    CHECK_MEMBER_ALIGNMENT(DMAR, StatPasidDevtlbInvDsc, 8);
+# endif
 #endif
 
 #ifdef VBOX_WITH_RAW_MODE
     /*
      * Compare HC and RC.
      */
-    printf("tstDeviceStructSize: Comparing HC and RC...\n");
+    RTPrintf("tstDeviceStructSize: Comparing HC and RC...\n");
 # include "tstDeviceStructSizeRC.h"
 #endif
 
@@ -419,8 +445,8 @@ int main()
      * Report result.
      */
     if (rc)
-        printf("tstDeviceStructSize: FAILURE - %d errors\n", rc);
+        RTPrintf("tstDeviceStructSize: FAILURE - %d errors\n", rc);
     else
-        printf("tstDeviceStructSize: SUCCESS\n");
+        RTPrintf("tstDeviceStructSize: SUCCESS\n");
     return rc;
 }

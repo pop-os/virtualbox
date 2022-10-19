@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -61,6 +71,7 @@ RTDATADECL(const char * volatile)    g_pszRTAssertExpr;
 RTDATADECL(const char * volatile)    g_pszRTAssertFile;
 RTDATADECL(uint32_t volatile)        g_u32RTAssertLine;
 RTDATADECL(const char * volatile)    g_pszRTAssertFunction;
+
 
 RTDECL(bool) RTAssertMayPanic(void)
 {
@@ -118,7 +129,7 @@ static struct
 } g_aSupR3HardenedEarlyHeaps[8];
 
 
-static uint32_t supR3HardenedEarlyFind(void *pv)
+static uint32_t supR3HardenedEarlyFind(void *pv) RT_NOTHROW_DEF
 {
     uint32_t iHeap = g_cSupR3HardenedEarlyHeaps;
     while (iHeap-- > 0)
@@ -128,7 +139,7 @@ static uint32_t supR3HardenedEarlyFind(void *pv)
 }
 
 
-static void supR3HardenedEarlyCompact(void)
+static void supR3HardenedEarlyCompact(void) RT_NOTHROW_DEF
 {
     uint32_t iHeap = g_cSupR3HardenedEarlyHeaps;
     while (iHeap-- > 0)
@@ -147,7 +158,7 @@ static void supR3HardenedEarlyCompact(void)
 }
 
 
-static void *supR3HardenedEarlyAlloc(size_t cb, bool fZero)
+static void *supR3HardenedEarlyAlloc(size_t cb, bool fZero) RT_NOTHROW_DEF
 {
     /*
      * Try allocate on existing heaps.
@@ -218,7 +229,7 @@ static void *supR3HardenedEarlyAlloc(size_t cb, bool fZero)
  *
  * @returns Heap handle.
  */
-static HANDLE supR3HardenedHeapInit(void)
+static HANDLE supR3HardenedHeapInit(void) RT_NOTHROW_DEF
 {
     Assert(g_enmSupR3HardenedMainState >= SUPR3HARDENEDMAINSTATE_WIN_EP_CALLED);
     HANDLE hHeap = RtlCreateHeap(HEAP_GROWABLE | HEAP_CLASS_PRIVATE, NULL /*HeapBase*/,
@@ -247,24 +258,28 @@ DECLHIDDEN(void) supR3HardenedWinCompactHeaps(void)
 
 
 
+#undef RTMemTmpAllocTag
 RTDECL(void *) RTMemTmpAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     return RTMemAllocTag(cb, pszTag);
 }
 
 
+#undef RTMemTmpAllocZTag
 RTDECL(void *) RTMemTmpAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     return RTMemAllocZTag(cb, pszTag);
 }
 
 
+#undef RTMemTmpFree
 RTDECL(void) RTMemTmpFree(void *pv) RT_NO_THROW_DEF
 {
     RTMemFree(pv);
 }
 
 
+#undef RTMemAllocTag
 RTDECL(void *) RTMemAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     RT_NOREF1(pszTag);
@@ -284,6 +299,7 @@ RTDECL(void *) RTMemAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 }
 
 
+#undef RTMemAllocZTag
 RTDECL(void *) RTMemAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     RT_NOREF1(pszTag);
@@ -303,6 +319,7 @@ RTDECL(void *) RTMemAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 }
 
 
+#undef RTMemAllocVarTag
 RTDECL(void *) RTMemAllocVarTag(size_t cbUnaligned, const char *pszTag) RT_NO_THROW_DEF
 {
     size_t cbAligned;
@@ -314,6 +331,7 @@ RTDECL(void *) RTMemAllocVarTag(size_t cbUnaligned, const char *pszTag) RT_NO_TH
 }
 
 
+#undef RTMemAllocZVarTag
 RTDECL(void *) RTMemAllocZVarTag(size_t cbUnaligned, const char *pszTag) RT_NO_THROW_DEF
 {
     size_t cbAligned;
@@ -325,6 +343,7 @@ RTDECL(void *) RTMemAllocZVarTag(size_t cbUnaligned, const char *pszTag) RT_NO_T
 }
 
 
+#undef RTMemReallocTag
 RTDECL(void *) RTMemReallocTag(void *pvOld, size_t cbNew, const char *pszTag) RT_NO_THROW_DEF
 {
     if (!pvOld)
@@ -386,6 +405,7 @@ RTDECL(void *) RTMemReallocTag(void *pvOld, size_t cbNew, const char *pszTag) RT
 }
 
 
+#undef RTMemFree
 RTDECL(void) RTMemFree(void *pv) RT_NO_THROW_DEF
 {
     if (pv)

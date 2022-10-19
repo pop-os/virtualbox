@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_Input_DevPS2_h
@@ -33,9 +43,11 @@ typedef struct KBDSTATE *PKBDSTATE;
  * @{ */
 typedef struct PS2QHDR
 {
-    uint32_t volatile   rpos;
-    uint32_t volatile   wpos;
-    uint32_t volatile   cUsed;
+    uint32_t volatile       rpos;
+    uint32_t volatile       wpos;
+    uint32_t volatile       cUsed;
+    uint32_t                uPadding;
+    R3PTRTYPE(const char *) pszDescR3;
 } PS2QHDR;
 /** Pointer to a queue header. */
 typedef PS2QHDR *PPS2QHDR;
@@ -86,10 +98,6 @@ int  PS2CmnR3LoadQueue(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPS2QHDR pQHdr, size
 #define VBOX_USB_MAX_USAGE_CODE     0xE7
 /** The size of an array needed to store all USB usage codes */
 #define VBOX_USB_USAGE_ARRAY_SIZE   (VBOX_USB_MAX_USAGE_CODE + 1)
-/** USB HID Keyboard Usage Page. */
-#define USB_HID_KB_PAGE             7
-/** USB HID Consumer Control Usage Page. */
-#define USB_HID_CC_PAGE             12
 /** @} */
 
 /* Internal keyboard queue sizes. The input queue doesn't need to be
@@ -148,7 +156,9 @@ typedef struct PS2K
     bool                fThrottleActive;
     /** Set if the input rate should be throttled. */
     bool                fThrottleEnabled;
-    uint8_t             abAlignment2[2];
+    /** Set if the serial line is disabled on the KBC. */
+    bool                fLineDisabled;
+    uint8_t             abAlignment2[1];
 
     /** Command delay timer. */
     TMTIMERHANDLE       hKbdDelayTimer;
@@ -195,6 +205,9 @@ typedef PS2KR3 *PPS2KR3;
 
 int  PS2KByteToKbd(PPDMDEVINS pDevIns, PPS2K pThis, uint8_t cmd);
 int  PS2KByteFromKbd(PPDMDEVINS pDevIns, PPS2K pThis, uint8_t *pVal);
+
+void PS2KLineDisable(PPS2K pThis);
+void PS2KLineEnable(PPS2K pThis);
 
 int  PS2KR3Construct(PPDMDEVINS pDevIns, PPS2K pThis, PPS2KR3 pThisCC, PCFGMNODE pCfg);
 int  PS2KR3Attach(PPDMDEVINS pDevIns, PPS2KR3 pThisCC, unsigned iLUN, uint32_t fFlags);
@@ -267,6 +280,8 @@ typedef struct PS2M
     uint8_t             u8Resolution;
     /** Currently processed command (if any). */
     uint8_t             u8CurrCmd;
+    /** Set if the serial line is disabled on the KBC. */
+    bool                fLineDisabled;
     /** Set if the throttle delay is active. */
     bool                fThrottleActive;
     /** Set if the throttle delay is active. */
@@ -339,6 +354,9 @@ typedef PS2MR3 *PPS2MR3;
 
 int  PS2MByteToAux(PPDMDEVINS pDevIns, PPS2M pThis, uint8_t cmd);
 int  PS2MByteFromAux(PPS2M pThis, uint8_t *pVal);
+
+void PS2MLineDisable(PPS2M pThis);
+void PS2MLineEnable(PPS2M pThis);
 
 int  PS2MR3Construct(PPDMDEVINS pDevIns, PPS2M pThis, PPS2MR3 pThisCC);
 int  PS2MR3Attach(PPDMDEVINS pDevIns, PPS2MR3 pThisCC, unsigned iLUN, uint32_t fFlags);

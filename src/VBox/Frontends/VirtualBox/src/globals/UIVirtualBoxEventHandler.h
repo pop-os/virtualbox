@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_globals_UIVirtualBoxEventHandler_h
@@ -31,20 +41,17 @@
 #include "COMEnums.h"
 #include "CMedium.h"
 #include "CMediumAttachment.h"
+#include "CUpdateAgent.h"
 
 /* Forward declarations: */
 class UIVirtualBoxEventHandlerProxy;
 
-/** Singleton QObject extension
-  * providing GUI with the CVirtualBoxClient and CVirtualBox event-sources. */
+/** Singleton QObject extension providing GUI with CVirtualBox event-source. */
 class SHARED_LIBRARY_STUFF UIVirtualBoxEventHandler : public QObject
 {
     Q_OBJECT;
 
 signals:
-
-    /** Notifies about the VBoxSVC become @a fAvailable. */
-    void sigVBoxSVCAvailabilityChange(bool fAvailable);
 
     /** Notifies about @a state change event for the machine with @a uId. */
     void sigMachineStateChange(const QUuid &uId, const KMachineState state);
@@ -62,6 +69,14 @@ signals:
     void sigSnapshotChange(const QUuid &uId, const QUuid &uSnapshotId);
     /** Notifies about snapshot with @a uSnapshotId was restored for the machine with @a uId. */
     void sigSnapshotRestore(const QUuid &uId, const QUuid &uSnapshotId);
+    /** Notifies about request to uninstall cloud provider with @a uId. */
+    void sigCloudProviderUninstall(const QUuid &uId);
+    /** Notifies about cloud provider list changed. */
+    void sigCloudProviderListChanged();
+    /** Notifies about cloud profile with specified @a strName of provider with specified @a uProviderId is @a fRegistered. */
+    void sigCloudProfileRegistered(const QUuid &uProviderId, const QString &strName, bool fRegistered);
+    /** Notifies about cloud profile with specified @a strName of provider with specified @a uProviderId is changed. */
+    void sigCloudProfileChanged(const QUuid &uProviderId, const QString &strName);
 
     /** Notifies about storage controller change.
       * @param  uMachineId         Brings the ID of machine corresponding controller belongs to.
@@ -81,6 +96,14 @@ signals:
       * @param  enmMediumType  Brings corresponding medium type.
       * @param  fRegistered    Brings whether medium is registered or unregistered. */
     void sigMediumRegistered(const QUuid &uMediumId, KDeviceType enmMediumType, bool fRegistered);
+    /** Notifies about an available update of an update agent. */
+    void sigUpdateAgentAvailable(CUpdateAgent, QString, KUpdateChannel, KUpdateSeverity, QString, QString, QString);
+    /** Notifies about an error of an update agent. */
+    void sigUpdateAgentError(CUpdateAgent, QString, long);
+    /** Notifies about a state change of an update agent. */
+    void sigUpdateAgentStateChanged(CUpdateAgent, KUpdateState);
+    /** Notifies about update agent @a comAgent settings change. */
+    void sigUpdateAgentSettingsChanged(CUpdateAgent comAgent, const QString &strAttributeHint);
 
 public:
 
@@ -112,4 +135,3 @@ private:
 #define gVBoxEvents UIVirtualBoxEventHandler::instance()
 
 #endif /* !FEQT_INCLUDED_SRC_globals_UIVirtualBoxEventHandler_h */
-

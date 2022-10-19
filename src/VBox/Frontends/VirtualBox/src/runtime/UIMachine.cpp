@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* GUI includes: */
@@ -80,7 +90,7 @@ bool UIMachine::startMachine(const QUuid &uID)
         AssertMsgReturn(!machine.isNull(), ("UICommon::managedVMUuid() should have filter that case before!\n"), false);
 
         /* Try to launch corresponding machine: */
-        if (!uiCommon().launchMachine(machine, UICommon::LaunchMode_Separate))
+        if (!UICommon::launchMachine(machine, UICommon::LaunchMode_Separate))
             return false;
     }
 
@@ -136,6 +146,22 @@ void UIMachine::asyncChangeVisualState(UIVisualStateType visualState)
     emit sigRequestAsyncVisualStateChange(visualState);
 }
 
+void UIMachine::setRequestedVisualState(UIVisualStateType visualStateType)
+{
+    /* Remember requested visual state: */
+    m_enmRequestedVisualState = visualStateType;
+
+    /* Save only if it's different from Invalid and from current one: */
+    if (   m_enmRequestedVisualState != UIVisualStateType_Invalid
+        && gEDataManager->requestedVisualState(uiCommon().managedVMUuid()) != m_enmRequestedVisualState)
+        gEDataManager->setRequestedVisualState(m_enmRequestedVisualState, uiCommon().managedVMUuid());
+}
+
+UIVisualStateType UIMachine::requestedVisualState() const
+{
+    return m_enmRequestedVisualState;
+}
+
 void UIMachine::closeRuntimeUI()
 {
     /* Quit application: */
@@ -165,6 +191,9 @@ void UIMachine::sltChangeVisualState(UIVisualStateType visualState)
 
         /* Remember new visual state: */
         m_visualState = visualState;
+
+        /* Save requested visual state: */
+        gEDataManager->setRequestedVisualState(m_visualState, uiCommon().managedVMUuid());
     }
     else
     {
@@ -189,6 +218,7 @@ UIMachine::UIMachine()
     , m_allowedVisualStates(UIVisualStateType_Invalid)
     , m_initialVisualState(UIVisualStateType_Normal)
     , m_visualState(UIVisualStateType_Invalid)
+    , m_enmRequestedVisualState(UIVisualStateType_Invalid)
     , m_pMachineLogic(0)
 {
     m_spInstance = this;
@@ -246,18 +276,16 @@ void UIMachine::prepareMachineLogic()
     /* Acquire allowed visual states: */
     m_allowedVisualStates = static_cast<UIVisualStateType>(UIVisualStateType_All ^ restrictedVisualStates);
 
-    /* Load requested visual state: */
-    UIVisualStateType requestedVisualState = gEDataManager->requestedVisualState(uiCommon().managedVMUuid());
+    /* Load requested visual state, it can override initial one: */
+    m_enmRequestedVisualState = gEDataManager->requestedVisualState(uiCommon().managedVMUuid());
     /* Check if requested visual state is allowed: */
-    if (isVisualStateAllowed(requestedVisualState))
+    if (isVisualStateAllowed(m_enmRequestedVisualState))
     {
-        switch (requestedVisualState)
+        switch (m_enmRequestedVisualState)
         {
-            /* Direct transition to scale/fullscreen mode allowed: */
+            /* Direct transition allowed to scale/fullscreen modes only: */
             case UIVisualStateType_Scale:      m_initialVisualState = UIVisualStateType_Scale; break;
             case UIVisualStateType_Fullscreen: m_initialVisualState = UIVisualStateType_Fullscreen; break;
-            /* While to seamless is not, so we have to make request to do transition later: */
-            case UIVisualStateType_Seamless:   uisession()->setRequestedVisualState(UIVisualStateType_Seamless); break;
             default: break;
         }
     }
@@ -268,19 +296,6 @@ void UIMachine::prepareMachineLogic()
 
 void UIMachine::cleanupMachineLogic()
 {
-    /* Session UI can have requested visual state: */
-    if (uisession())
-    {
-        /* Get requested visual state: */
-        UIVisualStateType requestedVisualState = uisession()->requestedVisualState();
-        /* Or current visual state if requested is invalid: */
-        if (requestedVisualState == UIVisualStateType_Invalid)
-            requestedVisualState = m_visualState;
-
-        /* Save requested visual state: */
-        gEDataManager->setRequestedVisualState(requestedVisualState, uiCommon().managedVMUuid());
-    }
-
     /* Destroy machine-logic if exists: */
     if (m_pMachineLogic)
     {

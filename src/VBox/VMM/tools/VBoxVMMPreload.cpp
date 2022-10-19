@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -121,8 +131,7 @@ static RTEXITCODE ParseOptions(int argc, char **argv, bool *pfExit)
 
             case 'h':
                 RTPrintf(VBOX_PRODUCT " VMM ring-0 Module Preloader Version " VBOX_VERSION_STRING
-                         "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-                         "All rights reserved.\n"
+                         "Copyright (C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                          "\n"
                          "Usage: VBoxVMMPreload [-hlqvV] [-o|--only <mod>]\n"
                          "\n");
@@ -216,9 +225,9 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 int main(int argc, char **argv, char **envp)
 {
     int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
-    return TrustedMain(argc, argv, envp);
+    if (RT_SUCCESS(rc))
+        return TrustedMain(argc, argv, envp);
+    return RTMsgInitFailure(rc);
 }
 #endif /* !VBOX_WITH_HARDENING */
 

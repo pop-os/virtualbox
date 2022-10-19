@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_initterm_h
@@ -50,34 +60,47 @@ RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
 
-/** @name RTR3Init flags (RTR3INIT_XXX).
+/** @name RTR3INIT_FLAGS_XXX - RTR3Init* flags.
+ * @see RTR3InitExeNoArguments, RTR3InitExe, RTR3InitDll, RTR3InitEx
  * @{ */
-/** Try initialize SUPLib. */
-# define RTR3INIT_FLAGS_SUPLIB       RT_BIT(0)
 /** Initializing IPRT from a DLL. */
-# define RTR3INIT_FLAGS_DLL          RT_BIT(1)
-/** We are sharing a process space, so we need to behave. */
-# define RTR3INIT_FLAGS_UNOBTRUSIVE  RT_BIT(2)
-/** The caller ensures that the argument bector is UTF-8. */
-# define RTR3INIT_FLAGS_UTF8_ARGV    RT_BIT(3)
+# define RTR3INIT_FLAGS_DLL             RT_BIT(0)
+/** The caller ensures that the argument vector is UTF-8. */
+# define RTR3INIT_FLAGS_UTF8_ARGV       RT_BIT(1)
 /** Indicates that this is a standalone application without any additional
  * shared libraries in the application directory. Mainly windows loader mess. */
-# define RTR3INIT_FLAGS_STANDALONE_APP RT_BIT(4)
+# define RTR3INIT_FLAGS_STANDALONE_APP  RT_BIT(2)
+/** We are sharing a process space, so we need to behave. */
+# define RTR3INIT_FLAGS_UNOBTRUSIVE     RT_BIT(3)
+
+/** Initialize SUPLib (must not fail). */
+# define RTR3INIT_FLAGS_SUPLIB          RT_BIT(16)
+/** Try initialize SUPLib and ignore failures. */
+# define RTR3INIT_FLAGS_TRY_SUPLIB      RT_BIT(17)
+/** Shift count for passing thru SUPR3INIT_F_XXX flags.   */
+# define RTR3INIT_FLAGS_SUPLIB_SHIFT    18
+/** The mask covering the passthru SUPR3INIT_F_XXX flags. */
+# define RTR3INIT_FLAGS_SUPLIB_MASK     UINT32_C(0xfffc0000)
+
+/** Valid flag mask. */
+# define RTR3INIT_FLAGS_VALID_MASK      UINT32_C(0xffff000f)
 /** @} */
 
 /** @name RTR3InitEx version
  * @{ */
 /** Version 1. */
-# define RTR3INIT_VER_1              UINT32_C(1)
+# define RTR3INIT_VER_1                 UINT32_C(1)
+/** Version 2 - new flags, rearranged a bit. */
+# define RTR3INIT_VER_2                 UINT32_C(2)
 /** The current version. */
-# define RTR3INIT_VER_CUR            RTR3INIT_VER_1
+# define RTR3INIT_VER_CUR               RTR3INIT_VER_2
 /** @} */
 
 /**
  * Initializes the runtime library.
  *
  * @returns iprt status code.
- * @param   fFlags          Flags, see RTR3INIT_XXX.
+ * @param   fFlags          Flags, see RTR3INIT_FLAGS_XXX.
  */
 RTR3DECL(int) RTR3InitExeNoArguments(uint32_t fFlags);
 
@@ -87,7 +110,7 @@ RTR3DECL(int) RTR3InitExeNoArguments(uint32_t fFlags);
  * @returns iprt status code.
  * @param   cArgs           Pointer to the argument count.
  * @param   ppapszArgs      Pointer to the argument vector pointer.
- * @param   fFlags          Flags, see RTR3INIT_XXX.
+ * @param   fFlags          Flags, see RTR3INIT_FLAGS_XXX.
  */
 RTR3DECL(int) RTR3InitExe(int cArgs, char ***ppapszArgs, uint32_t fFlags);
 
@@ -95,7 +118,7 @@ RTR3DECL(int) RTR3InitExe(int cArgs, char ***ppapszArgs, uint32_t fFlags);
  * Initializes the runtime library.
  *
  * @returns iprt status code.
- * @param   fFlags          Flags, see RTR3INIT_XXX.
+ * @param   fFlags          Flags, see RTR3INIT_FLAGS_XXX.
  */
 RTR3DECL(int) RTR3InitDll(uint32_t fFlags);
 
@@ -106,7 +129,7 @@ RTR3DECL(int) RTR3InitDll(uint32_t fFlags);
  *
  * @returns IPRT status code.
  * @param   iVersion        The interface version. Must be 0 atm.
- * @param   fFlags          Flags, see RTR3INIT_XXX.
+ * @param   fFlags          Flags, see RTR3INIT_FLAGS_XXX.
  * @param   cArgs           Pointer to the argument count.
  * @param   ppapszArgs      Pointer to the argument vector pointer. NULL
  *                          allowed if @a cArgs is 0.
@@ -206,7 +229,7 @@ typedef enum RTTERMREASON
  * @param   iStatus             The meaning of this depends on enmReason.
  * @param   pvUser              User argument passed to RTTermRegisterCallback.
  */
-typedef DECLCALLBACK(void) FNRTTERMCALLBACK(RTTERMREASON enmReason, int32_t iStatus, void *pvUser);
+typedef DECLCALLBACKTYPE(void, FNRTTERMCALLBACK,(RTTERMREASON enmReason, int32_t iStatus, void *pvUser));
 /** Pointer to an IPRT termination callback function. */
 typedef FNRTTERMCALLBACK *PFNRTTERMCALLBACK;
 

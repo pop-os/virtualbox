@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2005-2020 Oracle Corporation
+ * Copyright (C) 2005-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_com_utils_h
@@ -83,6 +93,37 @@ int VBoxLogRelCreate(const char *pszEntity, const char *pszLogFile,
                      uint32_t cMaxEntriesPerGroup, uint32_t cHistory,
                      uint32_t uHistoryFileTime, uint64_t uHistoryFileSize,
                      PRTERRINFO pErrInfo);
+
+/**
+ * Creates a release log file, used both in VBoxSVC and in API clients.
+ *
+ * @param   pszEntity        Human readable name of the program.
+ * @param   pszLogFile       Name of the release log file.
+ * @param   fFlags           Logger instance flags.
+ * @param   pszGroupSettings Group logging settings.
+ * @param   pszEnvVarBase    Base environment variable name for the logger.
+ * @param   fDestFlags       Logger destination flags.
+ * @param   cMaxEntriesPerGroup Limit for log entries per group. UINT32_MAX for no limit.
+ * @param   cHistory         Number of old log files to keep.
+ * @param   uHistoryFileTime Maximum amount of time to put in a log file.
+ * @param   uHistoryFileSize Maximum size of a log file before rotating.
+ * @param   pOutputIf        The optional file output interface, can be NULL which will
+ *                           make use of the default one.
+ * @param   pvOutputIfUser   The opaque user data to pass to the callbacks in the output interface.
+ * @param   pErrInfo         Where to return extended error information.
+ *                           Optional.
+ *
+ * @returns VBox status code.
+ *
+ * @note Can't include log.h here because of precompiled header fun, hence pOutputIf is void *...
+ */
+int VBoxLogRelCreateEx(const char *pszEntity, const char *pszLogFile,
+                       uint32_t fFlags, const char *pszGroupSettings,
+                       const char *pszEnvVarBase, uint32_t fDestFlags,
+                       uint32_t cMaxEntriesPerGroup, uint32_t cHistory,
+                       uint32_t uHistoryFileTime, uint64_t uHistoryFileSize,
+                       const void *pOutputIf, void *pvOutputIfUser,
+                       PRTERRINFO pErrInfo);
 
 } /* namespace com */
 

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -141,7 +151,7 @@ void EmWebcam::EmWebcamDestruct(EMWEBCAMDRV *pDrv)
 
 void EmWebcam::EmWebcamCbNotify(uint32_t u32Id, const void *pvData, uint32_t cbData)
 {
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
 
     switch (u32Id)
     {
@@ -167,14 +177,14 @@ void EmWebcam::EmWebcamCbNotify(uint32_t u32Id, const void *pvData, uint32_t cbD
             if (mpRemote)
             {
                 AssertFailed();
-                rc = VERR_NOT_SUPPORTED;
+                vrc = VERR_NOT_SUPPORTED;
                 break;
             }
 
             EMWEBCAMREMOTE *pRemote = (EMWEBCAMREMOTE *)RTMemAllocZ(sizeof(EMWEBCAMREMOTE));
             if (pRemote == NULL)
             {
-                rc = VERR_NO_MEMORY;
+                vrc = VERR_NO_MEMORY;
                 break;
             }
 
@@ -189,8 +199,8 @@ void EmWebcam::EmWebcamCbNotify(uint32_t u32Id, const void *pvData, uint32_t cbD
             mpRemote = pRemote;
 
             /* Tell the server that this webcam will be used. */
-            rc = mParent->VideoInDeviceAttach(&mpRemote->deviceHandle, mpRemote);
-            if (RT_FAILURE(rc))
+            vrc = mParent->VideoInDeviceAttach(&mpRemote->deviceHandle, mpRemote);
+            if (RT_FAILURE(vrc))
             {
                 RTMemFree(mpRemote);
                 mpRemote = NULL;
@@ -198,9 +208,9 @@ void EmWebcam::EmWebcamCbNotify(uint32_t u32Id, const void *pvData, uint32_t cbD
             }
 
             /* Get the device description. */
-            rc = mParent->VideoInGetDeviceDesc(NULL, &mpRemote->deviceHandle);
+            vrc = mParent->VideoInGetDeviceDesc(NULL, &mpRemote->deviceHandle);
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(vrc))
             {
                 mParent->VideoInDeviceDetach(&mpRemote->deviceHandle);
                 RTMemFree(mpRemote);
@@ -228,7 +238,7 @@ void EmWebcam::EmWebcamCbNotify(uint32_t u32Id, const void *pvData, uint32_t cbD
         } break;
 
         default:
-            rc = VERR_INVALID_PARAMETER;
+            vrc = VERR_INVALID_PARAMETER;
             AssertFailed();
             break;
     }
@@ -320,7 +330,7 @@ int EmWebcam::SendControl(EMWEBCAMDRV *pDrv, void *pvUser, uint64_t u64DeviceId,
 {
     AssertReturn(pDrv == mpDrv, VERR_NOT_SUPPORTED);
 
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
 
     EMWEBCAMREQCTX *pCtx = NULL;
 
@@ -328,32 +338,32 @@ int EmWebcam::SendControl(EMWEBCAMDRV *pDrv, void *pvUser, uint64_t u64DeviceId,
     if (   !mpRemote
         || mpRemote->u64DeviceId != u64DeviceId)
     {
-        rc = VERR_NOT_SUPPORTED;
+        vrc = VERR_NOT_SUPPORTED;
     }
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         pCtx = (EMWEBCAMREQCTX *)RTMemAlloc(sizeof(EMWEBCAMREQCTX));
         if (!pCtx)
         {
-            rc = VERR_NO_MEMORY;
+            vrc = VERR_NO_MEMORY;
         }
     }
 
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(vrc))
     {
         pCtx->pRemote = mpRemote;
         pCtx->pvUser = pvUser;
 
-        rc = mParent->VideoInControl(pCtx, &mpRemote->deviceHandle, pControl, cbControl);
+        vrc = mParent->VideoInControl(pCtx, &mpRemote->deviceHandle, pControl, cbControl);
 
-        if (RT_FAILURE(rc))
+        if (RT_FAILURE(vrc))
         {
             RTMemFree(pCtx);
         }
     }
 
-    return rc;
+    return vrc;
 }
 
 /* static */ DECLCALLBACK(void *) EmWebcam::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
@@ -403,15 +413,25 @@ int EmWebcam::SendControl(EMWEBCAMDRV *pDrv, void *pvUser, uint64_t u64DeviceId,
         return VERR_PDM_MISSING_INTERFACE;
     }
 
-    void *pv = NULL;
-    int rc = CFGMR3QueryPtr(pCfg, "Object", &pv);
-    if (!RT_VALID_PTR(pv))
-         rc = VERR_INVALID_PARAMETER;
-    AssertMsgReturn(RT_SUCCESS(rc),
-                    ("Configuration error: No/bad \"Object\" %p value! rc=%Rrc\n", pv, rc), rc);
+    char *pszId = NULL;
+    int vrc = pDrvIns->pHlpR3->pfnCFGMQueryStringAlloc(pCfg, "Id", &pszId);
+    if (RT_SUCCESS(vrc))
+    {
+        RTUUID UuidEmulatedUsbIf;
+        vrc = RTUuidFromStr(&UuidEmulatedUsbIf, EMULATEDUSBIF_OID); AssertRC(vrc);
+
+        PEMULATEDUSBIF pEmulatedUsbIf = (PEMULATEDUSBIF)PDMDrvHlpQueryGenericUserObject(pDrvIns, &UuidEmulatedUsbIf);
+        AssertPtrReturn(pEmulatedUsbIf, VERR_INVALID_PARAMETER);
+
+        vrc = pEmulatedUsbIf->pfnQueryEmulatedUsbDataById(pEmulatedUsbIf->pvUser, pszId,
+                                                          NULL /*ppvEmUsbCb*/, NULL /*ppvEmUsbCbData*/, (void **)&pThis->pRemote);
+        pDrvIns->pHlpR3->pfnMMHeapFree(pDrvIns, pszId);
+        AssertRCReturn(vrc, vrc);
+    }
+    else
+        return vrc;
 
     /* Everything ok. Initialize. */
-    pThis->pRemote = (EMWEBCAMREMOTE *)pv;
     pThis->pRemote->pEmWebcam->EmWebcamConstruct(pThis);
 
     pDrvIns->IBase.pfnQueryInterface = drvQueryInterface;

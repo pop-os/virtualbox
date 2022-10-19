@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_stream_h
@@ -40,8 +50,10 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
+#ifndef IPRT_INCLUDED_message_h
 /** Pointer to a stream. */
 typedef struct RTSTREAM *PRTSTREAM;
+#endif
 
 /** Pointer to the standard input stream. */
 extern RTDATADECL(PRTSTREAM)    g_pStdIn;
@@ -59,7 +71,19 @@ extern RTDATADECL(PRTSTREAM)    g_pStdOut;
  * @returns iprt status code.
  * @param   pszFilename     Path to the file to open.
  * @param   pszMode         The open mode. See fopen() standard.
- *                          Format: <a|r|w>[+][b|t]
+ *                          Format: <a|r|w>[+][b|t][x][e|N|E]
+ *                              - 'a': Open or create file and writes
+ *                                append tos it.
+ *                              - 'r': Open existing file and read from it.
+ *                              - 'w': Open or truncate existing file and write
+ *                                to it.
+ *                              - '+': Open for both read and write access.
+ *                              - 'b' / 't': binary / text
+ *                              - 'x': exclusively create, no open. Only
+ *                                possible with 'w'.
+ *                              - 'e' / 'N': No inherit on exec.  (The 'e' is
+ *                                how Linux and FreeBSD expresses this, the
+ *                                latter is Visual C++).
  * @param   ppStream        Where to store the opened stream.
  */
 RTR3DECL(int) RTStrmOpen(const char *pszFilename, const char *pszMode, PRTSTREAM *ppStream);
@@ -69,7 +93,19 @@ RTR3DECL(int) RTStrmOpen(const char *pszFilename, const char *pszMode, PRTSTREAM
  *
  * @returns iprt status code.
  * @param   pszMode         The open mode. See fopen() standard.
- *                          Format: <a|r|w>[+][b|t]
+ *                          Format: <a|r|w>[+][b|t][x][e|N|E]
+ *                              - 'a': Open or create file and writes
+ *                                append tos it.
+ *                              - 'r': Open existing file and read from it.
+ *                              - 'w': Open or truncate existing file and write
+ *                                to it.
+ *                              - '+': Open for both read and write access.
+ *                              - 'b' / 't': binary / text
+ *                              - 'x': exclusively create, no open. Only
+ *                                possible with 'w'.
+ *                              - 'e' / 'N': No inherit on exec.  (The 'e' is
+ *                                how Linux and FreeBSD expresses this, the
+ *                                latter is Visual C++).
  * @param   ppStream        Where to store the opened stream.
  * @param   pszFilenameFmt  Filename path format string.
  * @param   args            Arguments to the format string.
@@ -82,7 +118,19 @@ RTR3DECL(int) RTStrmOpenFV(const char *pszMode, PRTSTREAM *ppStream, const char 
  *
  * @returns iprt status code.
  * @param   pszMode         The open mode. See fopen() standard.
- *                          Format: <a|r|w>[+][b|t]
+ *                          Format: <a|r|w>[+][b|t][x][e|N|E]
+ *                              - 'a': Open or create file and writes
+ *                                append tos it.
+ *                              - 'r': Open existing file and read from it.
+ *                              - 'w': Open or truncate existing file and write
+ *                                to it.
+ *                              - '+': Open for both read and write access.
+ *                              - 'b' / 't': binary / text
+ *                              - 'x': exclusively create, no open. Only
+ *                                possible with 'w'.
+ *                              - 'e' / 'N': No inherit on exec.  (The 'e' is
+ *                                how Linux and FreeBSD expresses this, the
+ *                                latter is Visual C++).
  * @param   ppStream        Where to store the opened stream.
  * @param   pszFilenameFmt  Filename path format string.
  * @param   ...             Arguments to the format string.
@@ -90,10 +138,43 @@ RTR3DECL(int) RTStrmOpenFV(const char *pszMode, PRTSTREAM *ppStream, const char 
 RTR3DECL(int) RTStrmOpenF(const char *pszMode, PRTSTREAM *ppStream, const char *pszFilenameFmt, ...) RT_IPRT_FORMAT_ATTR(3, 4);
 
 /**
+ * Opens a file stream for a RTFILE handle, taking ownership of the handle.
+ *
+ * @returns iprt status code.
+ * @param   hFile           The file handle to use.  On success, handle
+ *                          ownership is transfered to the stream and it will be
+ *                          closed when the stream closes.
+ * @param   pszMode         The open mode, accept the same as RTStrOpen and
+ *                          friends however it is only used to figure out what
+ *                          we can do with the handle.
+ * @param   fFlags          Reserved, must be zero.
+ * @param   ppStream        Where to store the opened stream.
+ */
+RTR3DECL(int) RTStrmOpenFileHandle(RTFILE hFile, const char *pszMode, uint32_t fFlags, PRTSTREAM *ppStream);
+
+/**
+ * Queries the file handle backing the stream.
+ *
+ * @returns iprt status code.
+ * @retval  VERR_NOT_AVAILABLE if the stream has no valid handle associated with
+ *          it.
+ *
+ * @param   pStream         The stream.
+ * @param   phFile          Where to return the file handle.  This should not be
+ *                          closed!
+ */
+RTR3DECL(int) RTStrmQueryFileHandle(PRTSTREAM pStream, PRTFILE phFile);
+
+/**
  * Closes the specified stream.
  *
  * @returns iprt status code.
  * @param   pStream         The stream to close.
+ *
+ * @note    The stream will be closed and freed even when failure is returned.
+ *          It cannot be used again after this call.  The error status is only
+ *          to indicate that the flushing of buffers or the closing of the
+ *          underlying file handle failed.
  */
 RTR3DECL(int) RTStrmClose(PRTSTREAM pStream);
 
@@ -129,11 +210,33 @@ RTR3DECL(int) RTStrmClearError(PRTSTREAM pStream);
  */
 RTR3DECL(int) RTStrmSetMode(PRTSTREAM pStream, int fBinary, int fCurrentCodeSet);
 
+/** Stream buffering modes. */
+typedef enum RTSTRMBUFMODE
+{
+    RTSTRMBUFMODE_INVALID = 0,
+    RTSTRMBUFMODE_FULL,         /**< Full buffering. */
+    RTSTRMBUFMODE_LINE,         /**< Line buffering. On Windows this could be the same as RTSTRMBUFMODE_FULL. */
+    RTSTRMBUFMODE_UNBUFFERED,   /**< No buffering. */
+    RTSTRMBUFMODE_END,
+    RTSTRMBUFMODE_32BIT_HACK = 0x7fffffff
+} RTSTRMBUFMODE;
+
+/**
+ * Changes the stream buffering mode.
+ *
+ * @returns iprt status code.
+ * @param   pStream         The stream.
+ * @param   enmBufMode      The new buffering mode.
+ */
+RTR3DECL(int) RTStrmSetBufferingMode(PRTSTREAM pStream, RTSTRMBUFMODE enmBufMode);
+
 /**
  * Returns the current echo mode.
+ *
  * This works only for standard input streams.
  *
  * @returns iprt status code.
+ * @retval  VERR_INVALID_FUNCTION if not a TTY.
  * @param   pStream         The stream.
  * @param   pfEchoChars     Where to store the flag whether typed characters are echoed.
  */
@@ -141,9 +244,11 @@ RTR3DECL(int) RTStrmInputGetEchoChars(PRTSTREAM pStream, bool *pfEchoChars);
 
 /**
  * Changes the behavior for echoing inpit characters on the command line.
+ *
  * This works only for standard input streams.
  *
  * @returns iprt status code.
+ * @retval  VERR_INVALID_FUNCTION if not a TTY.
  * @param   pStream         The stream.
  * @param   fEchoChars      Flag whether echoing typed characters is wanted.
  */
@@ -183,17 +288,44 @@ RTR3DECL(int) RTStrmQueryTerminalWidth(PRTSTREAM pStream, uint32_t *pcchWidth);
 RTR3DECL(int) RTStrmRewind(PRTSTREAM pStream);
 
 /**
+ * Changes the file position.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   pStream         The stream.
+ * @param   off             The seek offset.
+ * @param   uMethod         Seek method, i.e. one of the RTFILE_SEEK_* defines.
+ *
+ * @remarks Not all streams are seekable and that behavior is currently
+ *          undefined for those.
+ */
+RTR3DECL(int) RTStrmSeek(PRTSTREAM pStream, RTFOFF off, uint32_t uMethod);
+
+/**
+ * Tells the stream position.
+ *
+ * @returns Stream position or IPRT error status. Non-negative numbers are
+ *          stream positions, while negative numbers are IPRT error stauses.
+ *
+ * @param   pStream         The stream.
+ *
+ * @remarks Not all streams have a position and that behavior is currently
+ *          undefined for those.
+ */
+RTR3DECL(RTFOFF) RTStrmTell(PRTSTREAM pStream);
+
+/**
  * Reads from a file stream.
  *
  * @returns iprt status code.
  * @param   pStream         The stream.
  * @param   pvBuf           Where to put the read bits.
  *                          Must be cbRead bytes or more.
- * @param   cbRead          Number of bytes to read.
+ * @param   cbToRead        Number of bytes to read.
  * @param   pcbRead         Where to store the number of bytes actually read.
  *                          If NULL cbRead bytes are read or an error is returned.
  */
-RTR3DECL(int) RTStrmReadEx(PRTSTREAM pStream, void *pvBuf, size_t cbRead, size_t *pcbRead);
+RTR3DECL(int) RTStrmReadEx(PRTSTREAM pStream, void *pvBuf, size_t cbToRead, size_t *pcbRead);
 
 /**
  * Writes to a file stream.
@@ -201,11 +333,11 @@ RTR3DECL(int) RTStrmReadEx(PRTSTREAM pStream, void *pvBuf, size_t cbRead, size_t
  * @returns iprt status code.
  * @param   pStream         The stream.
  * @param   pvBuf           Where to get the bits to write from.
- * @param   cbWrite         Number of bytes to write.
+ * @param   cbToWrite       Number of bytes to write.
  * @param   pcbWritten      Where to store the number of bytes actually written.
  *                          If NULL cbWrite bytes are written or an error is returned.
  */
-RTR3DECL(int) RTStrmWriteEx(PRTSTREAM pStream, const void *pvBuf, size_t cbWrite, size_t *pcbWritten);
+RTR3DECL(int) RTStrmWriteEx(PRTSTREAM pStream, const void *pvBuf, size_t cbToWrite, size_t *pcbWritten);
 
 /**
  * Reads from a file stream.
@@ -214,11 +346,11 @@ RTR3DECL(int) RTStrmWriteEx(PRTSTREAM pStream, const void *pvBuf, size_t cbWrite
  * @param   pStream         The stream.
  * @param   pvBuf           Where to put the read bits.
  *                          Must be cbRead bytes or more.
- * @param   cbRead          Number of bytes to read.
+ * @param   cbToRead        Number of bytes to read.
  */
-DECLINLINE(int) RTStrmRead(PRTSTREAM pStream, void *pvBuf, size_t cbRead)
+DECLINLINE(int) RTStrmRead(PRTSTREAM pStream, void *pvBuf, size_t cbToRead)
 {
-    return RTStrmReadEx(pStream, pvBuf, cbRead, NULL);
+    return RTStrmReadEx(pStream, pvBuf, cbToRead, NULL);
 }
 
 /**
@@ -227,11 +359,11 @@ DECLINLINE(int) RTStrmRead(PRTSTREAM pStream, void *pvBuf, size_t cbRead)
  * @returns iprt status code.
  * @param   pStream         The stream.
  * @param   pvBuf           Where to get the bits to write from.
- * @param   cbWrite         Number of bytes to write.
+ * @param   cbToWrite       Number of bytes to write.
  */
-DECLINLINE(int) RTStrmWrite(PRTSTREAM pStream, const void *pvBuf, size_t cbWrite)
+DECLINLINE(int) RTStrmWrite(PRTSTREAM pStream, const void *pvBuf, size_t cbToWrite)
 {
-    return RTStrmWriteEx(pStream, pvBuf, cbWrite, NULL);
+    return RTStrmWriteEx(pStream, pvBuf, cbToWrite, NULL);
 }
 
 /**

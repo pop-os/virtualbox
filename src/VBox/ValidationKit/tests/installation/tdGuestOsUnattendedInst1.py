@@ -8,26 +8,36 @@ VirtualBox Validation Kit - Guest OS unattended installation tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard Python imports.
@@ -69,6 +79,7 @@ class UnattendedVm(vboxtestvms.BaseTestVm):
     kfIdeIrqDelay           = 0x1000;
     kfUbuntuNewAmdBug       = 0x2000;
     kfNoWin81Paravirt       = 0x4000;
+    kfAvoidNetwork          = 0x8000;
     ## @}
 
     ## kfUbuntuAvx2Crash: Extra data that disables AVX2.
@@ -114,6 +125,13 @@ class UnattendedVm(vboxtestvms.BaseTestVm):
         try:    oIUnattended.validationKitIsoPath   = oTestDrv.sVBoxValidationKitIso;
         except: return reporter.errorXcpt();
         oTestDrv.processPendingEvents();
+
+        #
+        # Avoid using network during unattended install (stalls Debian installs).
+        #
+        if self.fInstVmFlags & UnattendedVm.kfAvoidNetwork:
+            try:    oIUnattended.avoidUpdatesOverNetwork = True;
+            except: return reporter.errorXcpt();
 
         #
         # Install GAs?
@@ -242,6 +260,14 @@ class UnattendedVm(vboxtestvms.BaseTestVm):
             if self.sKind in ('WindowsXP','WindowsXP_64',):
                 eNic0AttachType = vboxcon.NetworkAttachmentType_HostOnly;
 
+        #
+        # Use host-only networks instead of host-only adapters for trunk builds on Mac OS.
+        #
+        if     eNic0AttachType   == vboxcon.NetworkAttachmentType_HostOnly \
+           and utils.getHostOs() == 'darwin' \
+           and oTestDrv.fpApiVer >= 7.0:
+            eNic0AttachType = vboxcon.NetworkAttachmentType_HostOnlyNetwork;
+
         return vboxtestvms.BaseTestVm._createVmDoIt(self, oTestDrv, eNic0AttachType, sDvdImage);
 
 
@@ -249,7 +275,6 @@ class UnattendedVm(vboxtestvms.BaseTestVm):
         #
         # Adjust the ram, I/O APIC and stuff.
         #
-
         oSession = oTestDrv.openSession(oVM);
         if oSession is None:
             return None;
@@ -510,6 +535,17 @@ class tdGuestOsInstTest1(vbox.TestDriver):
             #             UnattendedVm.kfNoGAs),
             UnattendedVm(oSet, 'tst-ubuntu-19.04-64',   'Ubuntu_64', '6.0/uaisos/ubuntu-19.04-desktop-amd64.iso',    # >=6GiB
                          UnattendedVm.kfNoGAs),
+            UnattendedVm(oSet, 'tst-debian-9.3-64',     'Debian_64', '6.0/uaisos/debian-9.3.0-amd64-DVD-1.iso',      # >=6GiB?
+                         UnattendedVm.kfAvoidNetwork | UnattendedVm.kfNoGAs),
+            UnattendedVm(oSet, 'tst-debian-9.4-64',     'Debian_64', '6.0/uaisos/debian-9.4.0-amd64-DVD-1.iso',      # >=6GiB?
+                         UnattendedVm.kfAvoidNetwork | UnattendedVm.kfNoGAs),
+            UnattendedVm(oSet, 'tst-debian-10.0-64',     'Debian_64', '6.0/uaisos/debian-10.0.0-amd64-DVD-1.iso',      # >=6GiB?
+                         UnattendedVm.kfAvoidNetwork),
+            #
+            # OS/2.
+            #
+            UnattendedVm(oSet, 'tst-acp2',              'OS2Warp45', '7.0/uaisos/acp2_us_cd2.iso'),                  # ~400MiB
+            ## @todo mcp2 too?
         ]);
         # pylint: enable=line-too-long
         self.oTestVmSet = oSet;
@@ -730,4 +766,3 @@ class tdGuestOsInstTest1(vbox.TestDriver):
 
 if __name__ == '__main__':
     sys.exit(tdGuestOsInstTest1().main(sys.argv))
-

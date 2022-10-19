@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -164,7 +174,7 @@ static DECLCALLBACK(void) drvRawFileDestruct(PPDMDRVINS pDrvIns)
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
     if (pThis->pszLocation)
-        MMR3HeapFree(pThis->pszLocation);
+        PDMDrvHlpMMHeapFree(pDrvIns, pThis->pszLocation);
 
     if (pThis->hOutputFile != NIL_RTFILE)
     {
@@ -189,7 +199,8 @@ static DECLCALLBACK(int) drvRawFileConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
 {
     RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
-    PDRVRAWFILE pThis = PDMINS_2_DATA(pDrvIns, PDRVRAWFILE);
+    PDRVRAWFILE     pThis = PDMINS_2_DATA(pDrvIns, PDRVRAWFILE);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
 
     /*
      * Init the static parts.
@@ -208,10 +219,9 @@ static DECLCALLBACK(int) drvRawFileConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
     /*
      * Read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "Location\0"))
-        AssertFailedReturn(VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES);
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "Location", "");
 
-    int rc = CFGMR3QueryStringAlloc(pCfg, "Location", &pThis->pszLocation);
+    int rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "Location", &pThis->pszLocation);
     if (RT_FAILURE(rc))
         AssertMsgFailedReturn(("Configuration error: query \"Location\" resulted in %Rrc.\n", rc), rc);
 

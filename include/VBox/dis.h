@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_dis_h
@@ -127,7 +137,8 @@ AssertCompile(RT_IS_POWER_OF_TWO(DISPREFIX_REX_FLAGS_R));
 #define DISOPTYPE_REXB_EXTENDS_OPREG       RT_BIT_32(23)  /**< REX.B extends the register field in the opcode byte */
 #define DISOPTYPE_MOD_FIXED_11             RT_BIT_32(24)  /**< modrm.mod is always 11b */
 #define DISOPTYPE_FORCED_32_OP_SIZE_X86    RT_BIT_32(25)  /**< Forced 32 bits operand size; regardless of prefix bytes (only in 16 & 32 bits mode!) */
-#define DISOPTYPE_SSE                      RT_BIT_32(29)  /**< SSE,SSE2,SSE3,AVX,++ instruction. Not implemented yet! */
+#define DISOPTYPE_AVX                      RT_BIT_32(28)  /**< AVX,AVX2,++ instruction. Not implemented yet! */
+#define DISOPTYPE_SSE                      RT_BIT_32(29)  /**< SSE,SSE2,SSE3,SSE4,++ instruction. Not implemented yet! */
 #define DISOPTYPE_MMX                      RT_BIT_32(30)  /**< MMX,MMXExt,3DNow,++ instruction. Not implemented yet! */
 #define DISOPTYPE_FPU                      RT_BIT_32(31)  /**< FPU instruction. Not implemented yet! */
 #define DISOPTYPE_ALL                      UINT32_C(0xffffffff)
@@ -484,14 +495,21 @@ typedef DISOPPARAM *PDISOPPARAM;
 typedef const DISOPPARAM *PCDISOPPARAM;
 
 
+#if (defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)) && defined(DIS_CORE_ONLY)
+# define DISOPCODE_BITFIELD(a_cBits) : a_cBits
+#else
+# define DISOPCODE_BITFIELD(a_cBits)
+#endif
+
 /**
  * Opcode descriptor.
  */
+#if !defined(DIS_CORE_ONLY) || defined(DOXYGEN_RUNNING)
 typedef struct DISOPCODE
 {
-#ifndef DIS_CORE_ONLY
+# define DISOPCODE_FORMAT  0
+    /** Mnemonic and operand formatting. */
     const char  *pszOpcode;
-#endif
     /** Parameter \#1 parser index. */
     uint8_t     idxParse1;
     /** Parameter \#2 parser index. */
@@ -516,6 +534,40 @@ typedef struct DISOPCODE
     /** Operand type flags, DISOPTYPE_XXX. */
     uint32_t    fOpType;
 } DISOPCODE;
+#else
+# pragma pack(1)
+typedef struct DISOPCODE
+{
+#if 1 /*!defined(RT_ARCH_X86) && !defined(RT_ARCH_AMD64) - probably not worth it for ~4K, costs 2-3% speed. */
+    /* 16 bytes (trick is to make sure the bitfields doesn't cross dwords): */
+# define DISOPCODE_FORMAT  16
+    uint32_t    fOpType;
+    uint16_t    uOpcode;
+    uint8_t     idxParse1;
+    uint8_t     idxParse2;
+    uint32_t    fParam1   : 12; /* 1st dword: 12+12+8 = 0x20 (32) */
+    uint32_t    fParam2   : 12;
+    uint32_t    idxParse3 : 8;
+    uint32_t    fParam3   : 12; /* 2nd dword: 12+12+8 = 0x20 (32) */
+    uint32_t    fParam4   : 12;
+    uint32_t    idxParse4 : 8;
+#else /* 15 bytes: */
+# define DISOPCODE_FORMAT  15
+    uint64_t    uOpcode   : 10; /* 1st qword: 10+12+12+12+6+6+6 = 0x40 (64) */
+    uint64_t    idxParse1 : 6;
+    uint64_t    idxParse2 : 6;
+    uint64_t    idxParse3 : 6;
+    uint64_t    fParam1   : 12;
+    uint64_t    fParam2   : 12;
+    uint64_t    fParam3   : 12;
+    uint32_t    fOpType;
+    uint16_t    fParam4;
+    uint8_t     idxParse4;
+#endif
+} DISOPCODE;
+# pragma pack()
+AssertCompile(sizeof(DISOPCODE) == DISOPCODE_FORMAT);
+#endif
 /** Pointer to const opcode. */
 typedef const struct DISOPCODE *PCDISOPCODE;
 
@@ -538,7 +590,7 @@ typedef const struct DISOPCODE *PCDISOPCODE;
  * @param   cbMinRead       The minimum number of bytes to read.
  * @param   cbMaxRead       The maximum number of bytes that may be read.
  */
-typedef DECLCALLBACK(int) FNDISREADBYTES(PDISSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead);
+typedef DECLCALLBACKTYPE(int, FNDISREADBYTES,(PDISSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead));
 /** Pointer to a opcode byte reader. */
 typedef FNDISREADBYTES *PFNDISREADBYTES;
 
@@ -600,7 +652,8 @@ typedef struct DISSTATE
     uint8_t         cbPrefix;
     /** The instruction size. */
     uint8_t         cbInstr;
-    /** VEX presence flag, destination register and size */
+    /** VEX presence flag, destination register and size
+     * @todo r=bird: There is no VEX presence flage here, just ~vvvv and L.  */
     uint8_t         bVexDestReg;
     /** VEX.W flag */
     uint8_t         bVexWFlag;
@@ -669,7 +722,7 @@ DISDECL(int) DISInstrWithPrefetchedBytes(RTUINTPTR uInstrAddr, DISCPUMODE enmCpu
                                          PFNDISREADBYTES pfnReadBytes, void *pvUser,
                                          PDISSTATE pDis, uint32_t *pcbInstr);
 
-DISDECL(int)        DISGetParamSize(PCDISSTATE pDis, PCDISOPPARAM pParam);
+DISDECL(uint8_t)    DISGetParamSize(PCDISSTATE pDis, PCDISOPPARAM pParam);
 DISDECL(DISSELREG)  DISDetectSegReg(PCDISSTATE pDis, PCDISOPPARAM pParam);
 DISDECL(uint8_t)    DISQuerySegPrefixByte(PCDISSTATE pDis);
 
@@ -701,6 +754,11 @@ typedef struct
         uint16_t    val16;
         uint32_t    val32;
         uint64_t    val64;
+
+        int8_t      i8;
+        int16_t     i16;
+        int32_t     i32;
+        int64_t     i64;
 
         struct
         {
@@ -764,7 +822,8 @@ DISDECL(int) DISPtrReg64(PCPUMCTXCORE pCtx, unsigned reg64, uint64_t **ppReg);
  *                      symbol to the specified address is returned.
  * @param   pvUser      The user argument.
  */
-typedef DECLCALLBACK(int) FNDISGETSYMBOL(PCDISSTATE pDis, uint32_t u32Sel, RTUINTPTR uAddress, char *pszBuf, size_t cchBuf, RTINTPTR *poff, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNDISGETSYMBOL,(PCDISSTATE pDis, uint32_t u32Sel, RTUINTPTR uAddress, char *pszBuf, size_t cchBuf,
+                                              RTINTPTR *poff, void *pvUser));
 /** Pointer to a FNDISGETSYMBOL(). */
 typedef FNDISGETSYMBOL *PFNDISGETSYMBOL;
 

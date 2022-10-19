@@ -1,13 +1,23 @@
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  * --------------------------------------------------------------------
  *
  * This code is based on:
@@ -127,7 +137,7 @@ void BIOSCALL int70_function(pusha_regs_t regs, uint16_t ds, uint16_t es, iret_a
             // Handle Periodic Interrupt.
 
             if( read_byte( 0x40, 0xA0 ) != 0 ) {
-                // Wait Interval (Int 15, AH=83) active.
+                // Wait Interval (Int 15, AH=83 or AH=86) active.
                 uint32_t    time;
 
                 time = read_dword( 0x40, 0x9C );  // Time left in microseconds.
@@ -137,7 +147,7 @@ void BIOSCALL int70_function(pusha_regs_t regs, uint16_t ds, uint16_t es, iret_a
 
                     segment = read_word( 0x40, 0x98 );
                     offset  = read_word( 0x40, 0x9A );
-                    write_byte( 0x40, 0xA0, 0 );  // Turn of status byte.
+                    write_byte( 0x40, 0xA0, 0 );  // Turn off status byte.
                     outb_cmos( 0xB, registerB & 0x37 ); // Clear the Periodic Interrupt.
                     write_byte( segment, offset, read_byte(segment, offset) | 0x80 );  // Write to specified flag byte.
                 } else {

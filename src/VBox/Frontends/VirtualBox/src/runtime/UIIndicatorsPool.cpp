@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -38,6 +48,7 @@
 
 /* COM includes: */
 #include "CAudioAdapter.h"
+#include "CAudioSettings.h"
 #include "CGraphicsAdapter.h"
 #include "CRecordingSettings.h"
 #include "CRecordingScreenSettings.h"
@@ -81,7 +92,7 @@ public:
 protected:
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Holds the indicator type. */
     const IndicatorType m_enmType;
@@ -139,7 +150,7 @@ public:
     {}
 
     /** Returns a text for the passed @a enmTextRole. */
-    virtual QString text(QAccessible::Text /* enmTextRole */) const /* override */
+    virtual QString text(QAccessible::Text /* enmTextRole */) const RT_OVERRIDE
     {
         /* Sanity check: */
         AssertPtrReturn(indicator(), 0);
@@ -418,7 +429,8 @@ private:
         QString strFullData;
 
         /* Get audio adapter: */
-        const CAudioAdapter comAdapter = comMachine.GetAudioAdapter();
+        const CAudioSettings comAudioSettings = comMachine.GetAudioSettings();
+        const CAudioAdapter  comAdapter       = comAudioSettings.GetAdapter();
         const bool fAudioEnabled = comAdapter.GetEnabled();
         if (fAudioEnabled)
         {
@@ -631,7 +643,7 @@ private:
             /* Enumerate all the USB devices: */
             const CConsole console = m_pSession->console();
             foreach (const CUSBDevice &usbDevice, console.GetUSBDevices())
-                strFullData += s_strTableRow1.arg(uiCommon().details(usbDevice));
+                strFullData += s_strTableRow1.arg(uiCommon().usbDetails(usbDevice));
             /* Handle 'no-usb-devices' case: */
             if (strFullData.isNull())
                 strFullData = s_strTableRow1
@@ -761,7 +773,7 @@ private:
         }
 
         /* 3D acceleration: */
-        const bool fAcceleration3D = comGraphics.GetAccelerate3DEnabled() && uiCommon().is3DAvailable();
+        const bool fAcceleration3D = comGraphics.GetAccelerate3DEnabled();
         if (fAcceleration3D)
         {
             const QString strAcceleration3D = fAcceleration3D ?
@@ -985,10 +997,12 @@ public:
         , m_iCPULoadPercentage(0)
     {
         /* Assign state-icons: */
+/** @todo  The vtx_amdv_disabled_16px.png icon isn't really approprate anymore (no raw-mode),
+ * might want to get something different for KVMExecutionEngine_Emulated or reuse the
+ * vm_execution_engine_native_api_16px.png one... @bugref{9898} */
         setStateIcon(KVMExecutionEngine_NotSet, UIIconPool::iconSet(":/vtx_amdv_disabled_16px.png"));
-        setStateIcon(KVMExecutionEngine_RawMode, UIIconPool::iconSet(":/vtx_amdv_disabled_16px.png"));
+        setStateIcon(KVMExecutionEngine_Emulated, UIIconPool::iconSet(":/vtx_amdv_disabled_16px.png"));
         setStateIcon(KVMExecutionEngine_HwVirt, UIIconPool::iconSet(":/vtx_amdv_16px.png"));
-        /** @todo New indicator icon, vm_execution_engine_native_api_16px.png, V inside a turtle / tortoise.  @bugref{9044} */
         setStateIcon(KVMExecutionEngine_NativeApi, UIIconPool::iconSet(":/vm_execution_engine_native_api_16px.png"));
 
         /* Configure machine state-change listener: */
@@ -1007,7 +1021,7 @@ public:
 
 protected:
 
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE
     {
         UISessionStateStatusBarIndicator::paintEvent(pEvent);
         QPainter painter(this);
@@ -1078,8 +1092,8 @@ private:
             case KVMExecutionEngine_HwVirt:
                 strExecutionEngine = "VT-x/AMD-V";  /* no translation */
                 break;
-            case KVMExecutionEngine_RawMode:
-                strExecutionEngine = "raw-mode";    /* no translation */
+            case KVMExecutionEngine_Emulated:
+                strExecutionEngine = "IEM";         /* no translation */
                 break;
             case KVMExecutionEngine_NativeApi:
                 strExecutionEngine = "native API";  /* no translation */
@@ -1487,6 +1501,11 @@ void UIIndicatorsPool::updatePool()
 
     /* Acquire status-bar restrictions: */
     m_restrictions = gEDataManager->restrictedStatusBarIndicators(uiCommon().managedVMUuid());
+    /* Make sure 'Recording' is restricted as well if no features supported: */
+    if (   !m_restrictions.contains(IndicatorType_Recording)
+        && !uiCommon().supportedRecordingFeatures())
+        m_restrictions << IndicatorType_Recording;
+
     /* Remove restricted indicators: */
     foreach (const IndicatorType &indicatorType, m_restrictions)
     {

@@ -6,8 +6,9 @@ SPDX-License-Identifier: BSD-2-Clause-Patent
 
 **/
 
-#include "CpuExceptionCommon.h"
 #include <Library/DebugLib.h>
+#include <Library/VmgExitLib.h>
+#include "CpuExceptionCommon.h"
 
 /**
   Internal worker function for common exception handler.
@@ -26,6 +27,23 @@ CommonExceptionHandlerWorker (
   EXCEPTION_HANDLER_CONTEXT      *ExceptionHandlerContext;
   RESERVED_VECTORS_DATA          *ReservedVectors;
   EFI_CPU_INTERRUPT_HANDLER      *ExternalInterruptHandler;
+
+  if (ExceptionType == VC_EXCEPTION) {
+    EFI_STATUS  Status;
+    //
+    // #VC needs to be handled immediately upon enabling exception handling
+    // and therefore can't use the RegisterCpuInterruptHandler() interface.
+    //
+    // Handle the #VC:
+    //   On EFI_SUCCESS - Exception has been handled, return
+    //   On other       - ExceptionType contains (possibly new) exception
+    //                    value
+    //
+    Status = VmgExitHandleVc (&ExceptionType, SystemContext);
+    if (!EFI_ERROR (Status)) {
+      return;
+    }
+  }
 
   ExceptionHandlerContext  = (EXCEPTION_HANDLER_CONTEXT *) (UINTN) (SystemContext.SystemContextIa32);
   ReservedVectors          = ExceptionHandlerData->ReservedVectors;
@@ -68,7 +86,7 @@ CommonExceptionHandlerWorker (
         //
         ArchRestoreExceptionContext (ExceptionType, SystemContext, ExceptionHandlerData);
         //
-        // Rlease spin lock for ApicId
+        // Release spin lock for ApicId
         //
         ReleaseSpinLock (&ReservedVectors[ExceptionType].SpinLock);
         break;
@@ -230,7 +248,7 @@ InitializeCpuExceptionHandlersWorker (
   IdtEntryCount = (IdtDescriptor.Limit + 1) / sizeof (IA32_IDT_GATE_DESCRIPTOR);
   if (IdtEntryCount > CPU_EXCEPTION_NUM) {
     //
-    // CPU exeption library only setup CPU_EXCEPTION_NUM exception handler at most
+    // CPU exception library only setup CPU_EXCEPTION_NUM exception handler at most
     //
     IdtEntryCount = CPU_EXCEPTION_NUM;
   }

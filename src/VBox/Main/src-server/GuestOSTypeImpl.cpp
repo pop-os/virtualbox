@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_GUESTOSTYPE
@@ -31,7 +41,7 @@ GuestOSType::GuestOSType()
     , mCPUCount(1)
     , mGraphicsControllerType(GraphicsControllerType_Null)
     , mVRAMSize(0)
-    , mHDDSize(0), mMonitorCount(0)
+    , mHDDSize(0)
     , mNetworkAdapterType(NetworkAdapterType_Am79C973)
     , mNumSerialEnabled(0)
     , mDVDStorageControllerType(StorageControllerType_PIIX3)
@@ -39,6 +49,7 @@ GuestOSType::GuestOSType()
     , mHDStorageControllerType(StorageControllerType_PIIX3)
     , mHDStorageBusType(StorageBus_IDE)
     , mChipsetType(ChipsetType_PIIX3)
+    , mIommuType(IommuType_None)
     , mAudioControllerType(AudioControllerType_AC97)
     , mAudioCodecType(AudioCodecType_STAC9700)
 {
@@ -104,6 +115,7 @@ HRESULT GuestOSType::init(const Global::OSType &ostype)
     unconst(mHDStorageControllerType)   = ostype.hdStorageControllerType;
     unconst(mHDStorageBusType)          = ostype.hdStorageBusType;
     unconst(mChipsetType)               = ostype.chipsetType;
+    unconst(mIommuType)                 = ostype.iommuType;
     unconst(mAudioControllerType)       = ostype.audioControllerType;
     unconst(mAudioCodecType)            = ostype.audioCodecType;
 
@@ -236,7 +248,7 @@ HRESULT GuestOSType::getRecommended3DAcceleration(BOOL *aRecommended3DAccelerati
 HRESULT GuestOSType::getRecommendedHDD(LONG64 *aHDDSize)
 {
     /* mHDDSize is constant during life time, no need to lock */
-    *aHDDSize = mHDDSize;
+    *aHDDSize = (LONG64)mHDDSize;
 
     return S_OK;
 }
@@ -352,6 +364,15 @@ HRESULT GuestOSType::getRecommendedChipset(ChipsetType_T *aChipsetType)
 }
 
 
+HRESULT GuestOSType::getRecommendedIommuType(IommuType_T *aIommuType)
+{
+    /* IOMMU type is constant during life time, no need to lock */
+    *aIommuType = mIommuType;
+
+    return S_OK;
+}
+
+
 HRESULT GuestOSType::getRecommendedAudioController(AudioControllerType_T *aAudioController)
 {
     *aAudioController = mAudioControllerType;
@@ -411,11 +432,39 @@ HRESULT GuestOSType::getRecommendedX2APIC(BOOL *aRecommendedX2APIC)
 
 HRESULT GuestOSType::getRecommendedCPUCount(ULONG *aRecommendedCPUCount)
 {
-    /* mRecommendedX2APIC is constant during life time, no need to lock */
+    /* mCPUCount is constant during life time, no need to lock */
     *aRecommendedCPUCount = mCPUCount;
 
     return S_OK;
 }
 
+HRESULT GuestOSType::getRecommendedTpmType(TpmType_T *aRecommendedTpmType)
+{
+    /* Value is constant during life time, no need to lock */
+    if (mOSHint & VBOXOSHINT_TPM2)
+        *aRecommendedTpmType = TpmType_v2_0;
+    else if (mOSHint & VBOXOSHINT_TPM)
+        *aRecommendedTpmType = TpmType_v1_2;
+    else
+        *aRecommendedTpmType = TpmType_None;
+
+    return S_OK;
+}
+
+HRESULT GuestOSType::getRecommendedSecureBoot(BOOL *aRecommendedSecureBoot)
+{
+    /* Value is constant during life time, no need to lock */
+    *aRecommendedSecureBoot = !!(mOSHint & VBOXOSHINT_EFI_SECUREBOOT);
+
+    return S_OK;
+}
+
+HRESULT GuestOSType::getRecommendedWDDMGraphics(BOOL *aRecommendedWDDMGraphics)
+{
+    /* Value is constant during life time, no need to lock */
+    *aRecommendedWDDMGraphics = !!(mOSHint & VBOXOSHINT_WDDM_GRAPHICS);
+
+    return S_OK;
+}
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

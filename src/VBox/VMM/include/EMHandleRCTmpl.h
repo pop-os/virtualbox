@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VMM_INCLUDED_SRC_include_EMHandleRCTmpl_h
@@ -90,17 +100,6 @@ int emR3NemHandleRC(PVM pVM, PVMCPU pVCpu, int rc)
          */
         case VINF_PGM_POOL_FLUSH_PENDING:
             rc = VINF_SUCCESS;
-            break;
-
-        /*
-         * Paging mode change.
-         */
-        case VINF_PGM_CHANGE_MODE:
-            CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_CR3 | CPUMCTX_EXTRN_CR4 | CPUMCTX_EXTRN_EFER);
-            rc = PGMChangeMode(pVCpu, pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.cr4, pVCpu->cpum.GstCtx.msrEFER);
-            if (rc == VINF_SUCCESS)
-                rc = VINF_EM_RESCHEDULE;
-            AssertMsg(RT_FAILURE(rc) || (rc >= VINF_EM_FIRST && rc <= VINF_EM_LAST), ("%Rrc\n", rc));
             break;
 #endif /* !EMHANDLERC_WITH_NEM */
 
@@ -237,6 +236,21 @@ int emR3NemHandleRC(PVM pVM, PVMCPU pVCpu, int rc)
         case VERR_VMX_IN_VMX_ROOT_MODE:
         case VERR_SVM_IN_USE:
         case VERR_SVM_UNABLE_TO_START_VM:
+            break;
+#endif
+
+#ifdef EMHANDLERC_WITH_NEM
+        /* Fatal stuff, up a level. */
+        case VERR_NEM_IPE_0:
+        case VERR_NEM_IPE_1:
+        case VERR_NEM_IPE_2:
+        case VERR_NEM_IPE_3:
+        case VERR_NEM_IPE_4:
+        case VERR_NEM_IPE_5:
+        case VERR_NEM_IPE_6:
+        case VERR_NEM_IPE_7:
+        case VERR_NEM_IPE_8:
+        case VERR_NEM_IPE_9:
             break;
 #endif
 

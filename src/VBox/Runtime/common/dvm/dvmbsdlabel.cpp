@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #include <iprt/types.h>
@@ -52,7 +62,6 @@
 /**
  * A BSD disk label partition.
  */
-#pragma pack(1)
 typedef struct BsdLabelPartition
 {
     /** Number of sectors in the partition. */
@@ -68,7 +77,6 @@ typedef struct BsdLabelPartition
     /** Filesystem cylinders per group. */
     uint16_t             cFsCylPerGroup;
 } BsdLabelPartition;
-#pragma pack()
 AssertCompileSize(BsdLabelPartition, 16);
 /** Pointer to a BSD disklabel partition structure. */
 typedef BsdLabelPartition *PBsdLabelPartition;
@@ -76,7 +84,6 @@ typedef BsdLabelPartition *PBsdLabelPartition;
 /**
  * On disk BSD label structure.
  */
-#pragma pack(1)
 typedef struct BsdLabel
 {
     /** Magic identifying the BSD disk label. */
@@ -138,7 +145,6 @@ typedef struct BsdLabel
     /** The partition array. */
     BsdLabelPartition    aPartitions[RTDVM_BSDLBL_MAX_PARTITIONS];
 } BsdLabel;
-#pragma pack()
 AssertCompileSize(BsdLabel, 148 + RTDVM_BSDLBL_MAX_PARTITIONS * 16);
 /** Pointer to a BSD disklabel structure. */
 typedef BsdLabel *PBsdLabel;
@@ -284,7 +290,7 @@ static DECLCALLBACK(int) rtDvmFmtBsdLblProbe(PCRTDVMDISK pDisk, uint32_t *puScor
     if (pDisk->cbDisk >= sizeof(BsdLabel))
     {
         /* Read from the disk and check for the disk label structure. */
-        rc = rtDvmDiskRead(pDisk, RTDVM_BSDLBL_LBA2BYTE(1, pDisk), &DiskLabel, sizeof(BsdLabel));
+        rc = rtDvmDiskReadUnaligned(pDisk, RTDVM_BSDLBL_LBA2BYTE(1, pDisk), &DiskLabel, sizeof(BsdLabel));
         if (   RT_SUCCESS(rc)
             && rtDvmFmtBsdLblDiskLabelDecode(&DiskLabel))
             *puScore = RTDVM_MATCH_SCORE_PERFECT;
@@ -304,7 +310,7 @@ static DECLCALLBACK(int) rtDvmFmtBsdLblOpen(PCRTDVMDISK pDisk, PRTDVMFMT phVolMg
         pThis->cPartitions = 0;
 
         /* Read from the disk and check for the disk label structure. */
-        rc = rtDvmDiskRead(pDisk, RTDVM_BSDLBL_LBA2BYTE(1, pDisk), &pThis->DiskLabel, sizeof(BsdLabel));
+        rc = rtDvmDiskReadUnaligned(pDisk, RTDVM_BSDLBL_LBA2BYTE(1, pDisk), &pThis->DiskLabel, sizeof(BsdLabel));
         if (   RT_SUCCESS(rc)
             && rtDvmFmtBsdLblDiskLabelDecode(&pThis->DiskLabel))
         {
@@ -339,7 +345,7 @@ static DECLCALLBACK(void) rtDvmFmtBsdLblClose(RTDVMFMT hVolMgrFmt)
 
     pThis->pDisk       = NULL;
     pThis->cPartitions = 0;
-    memset(&pThis->DiskLabel, 0, sizeof(BsdLabel));
+    RT_ZERO(pThis->DiskLabel);
     RTMemFree(pThis);
 }
 
@@ -445,6 +451,68 @@ static DECLCALLBACK(int) rtDvmFmtBsdLblQueryNextVolume(RTDVMFMT hVolMgrFmt, RTDV
     return rc;
 }
 
+/** @copydoc RTDVMFMTOPS::pfnQueryTableLocations */
+static DECLCALLBACK(int) rtDvmFmtBsdLblQueryTableLocations(RTDVMFMT hVolMgrFmt, uint32_t fFlags, PRTDVMTABLELOCATION paLocations,
+                                                           size_t cLocations, size_t *pcActual)
+{
+    PRTDVMFMTINTERNAL pThis = hVolMgrFmt;
+
+    /*
+     * The MBR if requested.
+     */
+    int     rc = VINF_SUCCESS;
+    size_t  iLoc = 0;
+    if (fFlags & RTDVMMAPQTABLOC_F_INCLUDE_LEGACY)
+    {
+        if (cLocations > 0)
+        {
+            paLocations[iLoc].off       = 0;
+            paLocations[iLoc].cb        = RTDVM_BSDLBL_LBA2BYTE(1, pThis->pDisk);
+            paLocations[iLoc].cbPadding = 0;
+        }
+        else
+            rc = VERR_BUFFER_OVERFLOW;
+        iLoc++;
+    }
+
+    /*
+     * The BSD lable.
+     */
+    if (cLocations > iLoc)
+    {
+        paLocations[iLoc].off = RTDVM_BSDLBL_LBA2BYTE(1, pThis->pDisk);
+        paLocations[iLoc].cb  = (sizeof(BsdLabel) + pThis->pDisk->cbSector - 1) / pThis->pDisk->cbSector * pThis->pDisk->cbSector;
+
+        uint32_t offFirstSector = pThis->pDisk->cbDisk / pThis->pDisk->cbSector;
+        for (unsigned i = 0; i < pThis->DiskLabel.cPartitions; i++)
+            if (   pThis->DiskLabel.aPartitions[i].cSectors
+                && pThis->DiskLabel.aPartitions[i].offSectorStart < offFirstSector)
+                offFirstSector =  pThis->DiskLabel.aPartitions[i].offSectorStart;
+
+        uint64_t offEnd = paLocations[iLoc].off + paLocations[iLoc].cb;
+        paLocations[iLoc].cbPadding = (uint64_t)offFirstSector * pThis->DiskLabel.cbSector;
+        if (paLocations[iLoc].cbPadding > offEnd)
+            paLocations[iLoc].cbPadding -= offEnd;
+        else
+            AssertFailedStmt(paLocations[iLoc].cbPadding = 0);
+    }
+    else
+        rc = VERR_BUFFER_OVERFLOW;
+    iLoc++;
+
+    /*
+     * Return values.
+     */
+    if (pcActual)
+        *pcActual = iLoc;
+    else if (cLocations != iLoc && RT_SUCCESS(rc))
+    {
+        RT_BZERO(&paLocations[iLoc], (cLocations - iLoc) * sizeof(paLocations[0]));
+        rc = VERR_BUFFER_UNDERFLOW;
+    }
+    return rc;
+}
+
 static DECLCALLBACK(void) rtDvmFmtBsdLblVolumeClose(RTDVMVOLUMEFMT hVolFmt)
 {
     PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
@@ -508,6 +576,66 @@ static DECLCALLBACK(bool) rtDvmFmtBsdLblVolumeIsRangeIntersecting(RTDVMVOLUMEFMT
     return fIntersect;
 }
 
+/** @copydoc RTDVMFMTOPS::pfnVolumeQueryTableLocation */
+static DECLCALLBACK(int) rtDvmFmtBsdLblVolumeQueryTableLocation(RTDVMVOLUMEFMT hVolFmt, uint64_t *poffTable, uint64_t *pcbTable)
+{
+    PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
+    *poffTable = RTDVM_BSDLBL_LBA2BYTE(1, pVol->pVolMgr->pDisk);
+    *pcbTable  = RT_ALIGN_Z(sizeof(BsdLabel), pVol->pVolMgr->pDisk->cbSector);
+    return VINF_SUCCESS;
+}
+
+/** @copydoc RTDVMFMTOPS::pfnVolumeGetIndex */
+static DECLCALLBACK(uint32_t) rtDvmFmtBsdLblVolumeGetIndex(RTDVMVOLUMEFMT hVolFmt, RTDVMVOLIDX enmIndex)
+{
+    PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
+    switch (enmIndex)
+    {
+        case RTDVMVOLIDX_USER_VISIBLE:
+        case RTDVMVOLIDX_ALL:
+        case RTDVMVOLIDX_LINUX:
+            return pVol->idxEntry + 1;
+        case RTDVMVOLIDX_IN_TABLE:
+            return pVol->idxEntry;
+
+        case RTDVMVOLIDX_INVALID:
+        case RTDVMVOLIDX_HOST:
+        case RTDVMVOLIDX_END:
+        case RTDVMVOLIDX_32BIT_HACK:
+            break;
+        /* no default! */
+    }
+    AssertFailed();
+    return UINT32_MAX;
+}
+
+/** @copydoc RTDVMFMTOPS::pfnVolumeQueryProp */
+static DECLCALLBACK(int) rtDvmFmtBsdLblVolumeQueryProp(RTDVMVOLUMEFMT hVolFmt, RTDVMVOLPROP enmProperty,
+                                                       void *pvBuf, size_t cbBuf, size_t *pcbBuf)
+{
+    switch (enmProperty)
+    {
+        case RTDVMVOLPROP_MBR_FIRST_CYLINDER:
+        case RTDVMVOLPROP_MBR_FIRST_HEAD:
+        case RTDVMVOLPROP_MBR_FIRST_SECTOR:
+        case RTDVMVOLPROP_MBR_LAST_CYLINDER:
+        case RTDVMVOLPROP_MBR_LAST_HEAD:
+        case RTDVMVOLPROP_MBR_LAST_SECTOR:
+        case RTDVMVOLPROP_MBR_TYPE:
+        case RTDVMVOLPROP_GPT_TYPE:
+        case RTDVMVOLPROP_GPT_UUID:
+            return VERR_NOT_SUPPORTED;
+
+        case RTDVMVOLPROP_INVALID:
+        case RTDVMVOLPROP_END:
+        case RTDVMVOLPROP_32BIT_HACK:
+            break;
+        /* no default! */
+    }
+    RT_NOREF(hVolFmt, pvBuf, cbBuf, pcbBuf);
+    return VERR_NOT_SUPPORTED;
+}
+
 static DECLCALLBACK(int) rtDvmFmtBsdLblVolumeRead(RTDVMVOLUMEFMT hVolFmt, uint64_t off, void *pvBuf, size_t cbRead)
 {
     PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
@@ -524,7 +652,7 @@ static DECLCALLBACK(int) rtDvmFmtBsdLblVolumeWrite(RTDVMVOLUMEFMT hVolFmt, uint6
     return rtDvmDiskWrite(pVol->pVolMgr->pDisk, pVol->offStart + off, pvBuf, cbWrite);
 }
 
-DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
+DECL_HIDDEN_CONST(const RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
 {
     /* pcszFmt */
     "BsdLabel",
@@ -540,6 +668,8 @@ DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
     rtDvmFmtBsdLblClose,
     /* pfnQueryRangeUse */
     rtDvmFmtBsdLblQueryRangeUse,
+    /* pfnQueryDiskUuid */
+    NULL,
     /* pfnGetValidVolumes */
     rtDvmFmtBsdLblGetValidVolumes,
     /* pfnGetMaxVolumes */
@@ -548,6 +678,8 @@ DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
     rtDvmFmtBsdLblQueryFirstVolume,
     /* pfnQueryNextVolume */
     rtDvmFmtBsdLblQueryNextVolume,
+    /* pfnQueryTableLocations */
+    rtDvmFmtBsdLblQueryTableLocations,
     /* pfnVolumeClose */
     rtDvmFmtBsdLblVolumeClose,
     /* pfnVolumeGetSize */
@@ -562,6 +694,12 @@ DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
     rtDvmFmtBsdLblVolumeQueryRange,
     /* pfnVolumeIsRangeIntersecting */
     rtDvmFmtBsdLblVolumeIsRangeIntersecting,
+    /* pfnVolumeQueryTableLocation */
+    rtDvmFmtBsdLblVolumeQueryTableLocation,
+    /* pfnVolumeGetIndex */
+    rtDvmFmtBsdLblVolumeGetIndex,
+    /* pfnVolumeQueryProp */
+    rtDvmFmtBsdLblVolumeQueryProp,
     /* pfnVolumeRead */
     rtDvmFmtBsdLblVolumeRead,
     /* pfnVolumeWrite */

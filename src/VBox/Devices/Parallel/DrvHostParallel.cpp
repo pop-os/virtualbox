@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -900,7 +910,7 @@ static DECLCALLBACK(void) drvHostParallelDestruct(PPDMDRVINS pDrvIns)
 
     if (pThis->pszDevicePath)
     {
-        MMR3HeapFree(pThis->pszDevicePath);
+        PDMDrvHlpMMHeapFree(pDrvIns, pThis->pszDevicePath);
         pThis->pszDevicePath = NULL;
     }
 #endif /* !VBOX_WITH_WIN_PARPORT_SUP */
@@ -915,8 +925,9 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
 {
     RT_NOREF(fFlags);
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVHOSTPARALLEL    pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTPARALLEL);
+    PCPDMDRVHLPR3       pHlp  = pDrvIns->pHlpR3;
     LogFlowFunc(("iInstance=%d\n", pDrvIns->iInstance));
-    PDRVHOSTPARALLEL pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTPARALLEL);
 
 
     /*
@@ -948,15 +959,13 @@ static DECLCALLBACK(int) drvHostParallelConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
     /*
      * Validate the config.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "DevicePath\0"))
-        return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
-                                N_("Unknown host parallel configuration option, only supports DevicePath"));
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "DevicePath", "");
 
     /*
      * Query configuration.
      */
     /* Device */
-    int rc = CFGMR3QueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
+    int rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "DevicePath", &pThis->pszDevicePath);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: query for \"DevicePath\" string returned %Rra.\n", rc));

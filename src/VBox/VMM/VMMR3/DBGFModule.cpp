@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -122,7 +132,7 @@ typedef struct DBGFMODVTIMG
      *                      Upon successful return the method is expected to
      *                      initialize pDbgOps and pvDbgPriv.
      */
-    DECLCALLBACKMEMBER(int, pfnTryOpen)(PDBGFMOD pMod);
+    DECLCALLBACKMEMBER(int, pfnTryOpen,(PDBGFMOD pMod));
 
     /**
      * Close the interpreter, freeing all associated resources.
@@ -132,7 +142,7 @@ typedef struct DBGFMODVTIMG
      *
      * @param   pMod        Pointer to the module structure.
      */
-    DECLCALLBACKMEMBER(int, pfnClose)(PDBGFMOD pMod);
+    DECLCALLBACKMEMBER(int, pfnClose,(PDBGFMOD pMod));
 
 } DBGFMODVTIMG
 
@@ -169,7 +179,7 @@ typedef struct DBGFMODVTDBG
      *                      Upon successful return the method is expected to
      *                      initialize pDbgOps and pvDbgPriv.
      */
-    DECLCALLBACKMEMBER(int, pfnTryOpen)(PDBGFMOD pMod);
+    DECLCALLBACKMEMBER(int, pfnTryOpen,(PDBGFMOD pMod));
 
     /**
      * Close the interpreter, freeing all associated resources.
@@ -179,7 +189,7 @@ typedef struct DBGFMODVTDBG
      *
      * @param   pMod        Pointer to the module structure.
      */
-    DECLCALLBACKMEMBER(int, pfnClose)(PDBGFMOD pMod);
+    DECLCALLBACKMEMBER(int, pfnClose,(PDBGFMOD pMod));
 
     /**
      * Queries symbol information by symbol name.
@@ -193,7 +203,7 @@ typedef struct DBGFMODVTDBG
      * @param   pszSymbol   The symbol name.
      * @para    pSymbol     Where to store the symbol information.
      */
-    DECLCALLBACKMEMBER(int, pfnSymbolByName)(PDBGFMOD pMod, const char *pszSymbol, PDBGFSYMBOL pSymbol);
+    DECLCALLBACKMEMBER(int, pfnSymbolByName,(PDBGFMOD pMod, const char *pszSymbol, PDBGFSYMBOL pSymbol));
 
     /**
      * Queries symbol information by address.
@@ -214,7 +224,7 @@ typedef struct DBGFMODVTDBG
      *                      and the returned symbol. Optional.
      * @param   pSymbol     Where to store the symbol information.
      */
-    DECLCALLBACKMEMBER(int, pfnSymbolByAddr)(PDBGFMOD pMod, uint32_t iSeg, RTGCUINTPTR off, PRTGCINTPTR poffDisp, PDBGFSYMBOL pSymbol);
+    DECLCALLBACKMEMBER(int, pfnSymbolByAddr,(PDBGFMOD pMod, uint32_t iSeg, RTGCUINTPTR off, PRTGCINTPTR poffDisp, PDBGFSYMBOL pSymbol));
 
     /**
      * Queries line number information by address.
@@ -231,7 +241,7 @@ typedef struct DBGFMODVTDBG
      *                      and the returned line number. Optional.
      * @param   pLine       Where to store the information about the closest line number.
      */
-    DECLCALLBACKMEMBER(int, pfnLineByAddr)(PDBGFMOD pMod, uint32_t iSeg, RTGCUINTPTR off, PRTGCINTPTR poffDisp, PDBGFLINE pLine);
+    DECLCALLBACKMEMBER(int, pfnLineByAddr,(PDBGFMOD pMod, uint32_t iSeg, RTGCUINTPTR off, PRTGCINTPTR poffDisp, PDBGFLINE pLine));
 
     /**
      * Adds a symbol to the module (optional).
@@ -247,7 +257,7 @@ typedef struct DBGFMODVTDBG
      * @param   off         The offset into the segment.
      * @param   cbSymbol    The area covered by the symbol. 0 is fine.
      */
-    DECLCALLBACKMEMBER(int, pfnSymbolAdd)(PDBGFMOD pMod, const char *pszSymbol, uint32_t iSeg, RTGCUINTPTR off, RTUINT cbSymbol);
+    DECLCALLBACKMEMBER(int, pfnSymbolAdd,(PDBGFMOD pMod, const char *pszSymbol, uint32_t iSeg, RTGCUINTPTR off, RTUINT cbSymbol));
 
     /** For catching initialization errors (DBGFMODVTDBG_MAGIC). */
     uint32_t    u32EndMagic;

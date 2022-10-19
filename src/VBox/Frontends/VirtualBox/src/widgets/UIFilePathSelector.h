@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_widgets_UIFilePathSelector_h
@@ -25,6 +35,7 @@
 #include "QIComboBox.h"
 #include "QIWithRetranslateUI.h"
 #include "UILibraryDefs.h"
+#include "UIMediumDefs.h"
 
 /* Forward declarations: */
 class QAction;
@@ -109,6 +120,11 @@ public:
 
     /** Returns the path. */
     QString path() const { return m_strPath; }
+    /** Returns the path which we pass to QFileDialog as initial path. */
+    QString initialPath() const { return m_strInitialPath; }
+
+    /** Returns true if the selected path points to an existing/readable file. */
+    bool isValid() const;
 
     /** Sets overriden widget's @a strToolTip.
       * @note If nothing set it's generated automatically. */
@@ -117,13 +133,16 @@ public:
     void setDefaultPath(const QString &strDefaultPath);
     const QString& defaultPath() const;
 
+    void setRecentMediaListType(UIMediumDeviceType enmMediumType);
+    UIMediumDeviceType recentMediaListType() const;
+
 public slots:
 
     /** Defines the @a strPath and @a fRefreshText after that. */
     void setPath(const QString &strPath, bool fRefreshText = true);
 
-    /** Defines the @a strHomeDir. */
-    void setHomeDir(const QString &strHomeDir) { m_strHomeDir = strHomeDir; }
+    /** Defines the @a strInitialPath. */
+    void setInitialPath(const QString &strInitialPath) { m_strInitialPath = strInitialPath; }
 
 protected:
 
@@ -155,6 +174,8 @@ private slots:
     /** Refreshes combo-box text according to chosen path. */
     void refreshText();
 
+    void sltRecentMediaListUpdated(UIMediumDeviceType enmMediumType);
+
 private:
 
     /** Provokes change to @a strPath and @a fRefreshText after that. */
@@ -177,8 +198,8 @@ private:
 
     /** Holds the path. */
     QString  m_strPath;
-    /** Holds the home dir. */
-    QString  m_strHomeDir;
+    /** Holds the path which we pass to QFileDialog as initial path. */
+    QString  m_strInitialPath;
 
     /** Holds the file-dialog title. */
     QString  m_strFileDialogTitle;
@@ -191,8 +212,9 @@ private:
     QString  m_strNoneText;
     /** Holds the cached tool-tip for empty path. */
     QString  m_strNoneToolTip;
-    /** Holds the cached tool-tip for empty path in focused case. */
-    QString  m_strNoneToolTipFocused;
+
+    /** Holds whether editor has Reset action. */
+    bool     m_fResetEnabled;
 
     /** Holds whether the path is editable. */
     bool     m_fEditable;
@@ -212,6 +234,11 @@ private:
 
     /** Path is set to m_strDefaultPath when it is reset. */
     QString m_strDefaultPath;
+
+    /** Holds the recent list separator position. */
+    int                 m_iRecentListSeparatorPosition;
+    /** Holds whether medium type for recent media list. If it is UIMediumDeviceType_Invalid the recent list is not shown. */
+    UIMediumDeviceType  m_enmRecentMediaListType;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_widgets_UIFilePathSelector_h */

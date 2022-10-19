@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -40,6 +50,10 @@
 
 #ifndef RT_OS_WINDOWS
 # include <signal.h>
+# ifdef RT_OS_DARWIN
+#  include <pthread.h>
+#  define sigprocmask pthread_sigmask /* On xnu sigprocmask works on the process, not the calling thread as elsewhere. */
+# endif
 #endif
 
 #include "VBoxGuestR3LibInternal.h"
@@ -791,8 +805,8 @@ VBGLR3DECL(int)  VbglR3GuestCtrlSessionStartupInfoInitEx(PVBGLR3GUESTCTRLSESSION
 VBGLR3DECL(int) VbglR3GuestCtrlSessionStartupInfoInit(PVBGLR3GUESTCTRLSESSIONSTARTUPINFO pStartupInfo)
 {
     return VbglR3GuestCtrlSessionStartupInfoInitEx(pStartupInfo,
-                                                   GUESTPROCESS_DEFAULT_USER_LEN, GUESTPROCESS_DEFAULT_PASSWORD_LEN,
-                                                   GUESTPROCESS_DEFAULT_DOMAIN_LEN);
+                                                   GUEST_PROC_DEF_USER_LEN, GUEST_PROC_DEF_PASSWORD_LEN,
+                                                   GUEST_PROC_DEF_DOMAIN_LEN);
 }
 
 /**
@@ -1050,6 +1064,37 @@ VBGLR3DECL(int) VbglR3GuestCtrlPathGetUserHome(PVBGLR3GUESTCTRLCMDCTX pCtx)
 }
 
 /**
+ * Retrieves a HOST_MSG_SHUTDOWN message.
+ *
+ * @returns VBox status code.
+ * @param   pCtx                Guest control command context to use.
+ * @param   pfAction            Where to store the action flags on success.
+ */
+VBGLR3DECL(int) VbglR3GuestCtrlGetShutdown(PVBGLR3GUESTCTRLCMDCTX pCtx, uint32_t *pfAction)
+{
+    AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
+    AssertReturn(pCtx->uNumParms == 2, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pfAction, VERR_INVALID_POINTER);
+
+    int rc;
+    do
+    {
+        HGCMMsgShutdown Msg;
+        VBGL_HGCM_HDR_INIT(&Msg.hdr, pCtx->uClientID, vbglR3GuestCtrlGetMsgFunctionNo(pCtx->uClientID), pCtx->uNumParms);
+        VbglHGCMParmUInt32Set(&Msg.context, HOST_MSG_SHUTDOWN);
+        VbglHGCMParmUInt32Set(&Msg.action,  0);
+
+        rc = VbglR3HGCMCall(&Msg.hdr, sizeof(Msg));
+        if (RT_SUCCESS(rc))
+        {
+            Msg.context.GetUInt32(&pCtx->uContextID);
+            Msg.action.GetUInt32(pfAction);
+        }
+    } while (rc == VERR_INTERRUPTED && g_fVbglR3GuestCtrlHavePeekGetCancel);
+    return rc;
+}
+
+/**
  * Initializes a process startup info, extended version.
  *
  * @returns VBox status code.
@@ -1111,11 +1156,11 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcStartupInfoInitEx(PVBGLR3GUESTCTRLPROCSTARTUP
 VBGLR3DECL(int) VbglR3GuestCtrlProcStartupInfoInit(PVBGLR3GUESTCTRLPROCSTARTUPINFO pStartupInfo)
 {
     return VbglR3GuestCtrlProcStartupInfoInitEx(pStartupInfo,
-                                                GUESTPROCESS_DEFAULT_CMD_LEN,
-                                                GUESTPROCESS_DEFAULT_USER_LEN     /* Deprecated, now handled via session creation. */,
-                                                GUESTPROCESS_DEFAULT_PASSWORD_LEN /* Ditto. */,
-                                                GUESTPROCESS_DEFAULT_DOMAIN_LEN   /* Ditto. */,
-                                                GUESTPROCESS_DEFAULT_ARGS_LEN, GUESTPROCESS_DEFAULT_ENV_LEN);
+                                                GUEST_PROC_DEF_CMD_LEN,
+                                                GUEST_PROC_DEF_USER_LEN     /* Deprecated, now handled via session creation. */,
+                                                GUEST_PROC_DEF_PASSWORD_LEN /* Ditto. */,
+                                                GUEST_PROC_DEF_DOMAIN_LEN   /* Ditto. */,
+                                                GUEST_PROC_DEF_ARGS_LEN, GUEST_PROC_DEF_ENV_LEN);
 }
 
 /**
@@ -1245,6 +1290,8 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
 
     do
     {
+        LogRel(("VbglR3GuestCtrlProcGetStart: Retrieving\n"));
+
         HGCMMsgProcExec Msg;
         VBGL_HGCM_HDR_INIT(&Msg.hdr, pCtx->uClientID, vbglR3GuestCtrlGetMsgFunctionNo(pCtx->uClientID), pCtx->uNumParms);
         VbglHGCMParmUInt32Set(&Msg.context, HOST_MSG_EXEC_CMD);
@@ -1272,6 +1319,9 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
         rc = VbglR3HGCMCall(&Msg.hdr, sizeof(Msg));
         if (RT_FAILURE(rc))
         {
+            LogRel(("VbglR3GuestCtrlProcGetStart: 1 - %Rrc (retry %u, cbCmd=%RU32, cbArgs=%RU32, cbEnv=%RU32)\n",
+                    rc, cRetries, pStartupInfo->cbCmd, pStartupInfo->cbArgs, pStartupInfo->cbEnv));
+
             if (   rc == VERR_BUFFER_OVERFLOW
                 && cRetries++ < cMaxRetries)
             {
@@ -1282,11 +1332,14 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
         pStartupInfo->cb##a_Str  = RT_MIN(pStartupInfo->cb##a_Str * cGrowthFactor, a_cbMax);
 
                 /* We can't tell which parameter doesn't fit, so we have to resize all. */
-                GROW_STR(Cmd , GUESTPROCESS_MAX_CMD_LEN);
-                GROW_STR(Args, GUESTPROCESS_MAX_ARGS_LEN);
-                GROW_STR(Env,  GUESTPROCESS_MAX_ENV_LEN);
+                GROW_STR(Cmd , GUEST_PROC_MAX_CMD_LEN);
+                GROW_STR(Args, GUEST_PROC_MAX_ARGS_LEN);
+                GROW_STR(Env,  GUEST_PROC_MAX_ENV_LEN);
 
 #undef GROW_STR
+                LogRel(("VbglR3GuestCtrlProcGetStart: 2 - %Rrc (retry %u, cbCmd=%RU32, cbArgs=%RU32, cbEnv=%RU32)\n",
+                        rc, cRetries, pStartupInfo->cbCmd, pStartupInfo->cbArgs, pStartupInfo->cbEnv));
+                LogRel(("g_fVbglR3GuestCtrlHavePeekGetCancel=%RTbool\n", RT_BOOL(g_fVbglR3GuestCtrlHavePeekGetCancel)));
             }
             else
                 break;
@@ -1316,6 +1369,9 @@ VBGLR3DECL(int) VbglR3GuestCtrlProcGetStart(PVBGLR3GUESTCTRLCMDCTX pCtx, PVBGLR3
     }
     else
         VbglR3GuestCtrlProcStartupInfoFree(pStartupInfo);
+
+    LogRel(("VbglR3GuestCtrlProcGetStart: Returning %Rrc (retry %u, cbCmd=%RU32, cbArgs=%RU32, cbEnv=%RU32)\n",
+            rc, cRetries, pStartupInfo->cbCmd, pStartupInfo->cbArgs, pStartupInfo->cbEnv));
 
     LogFlowFuncLeaveRC(rc);
     return rc;

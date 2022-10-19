@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSerial_h
@@ -23,7 +33,6 @@
 
 /* GUI includes: */
 #include "UISettingsPage.h"
-#include "UIMachineSettingsSerial.gen.h"
 
 /* Forward declarations: */
 class QITabWidget;
@@ -43,35 +52,47 @@ public:
     /** Constructs Serial settings page. */
     UIMachineSettingsSerialPage();
     /** Destructs Serial settings page. */
-    ~UIMachineSettingsSerialPage();
+    virtual ~UIMachineSettingsSerialPage() RT_OVERRIDE;
+
+    /** Returns ports. */
+    QVector<QPair<QString, QString> > ports() const { return m_ports; }
+    /** Returns paths. */
+    QVector<QString> paths() const { return m_paths; }
 
 protected:
 
     /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */;
+    virtual bool changed() const RT_OVERRIDE;
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Performs validation, updates @a messages list if something is wrong. */
-    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
+    virtual bool validate(QList<UIValidationMessage> &messages) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Performs final page polishing. */
-    virtual void polishPage() /* override */;
+    virtual void polishPage() RT_OVERRIDE;
+
+private slots:
+
+    /** Handles port change. */
+    void sltHandlePortChange();
+    /** Handles path change. */
+    void sltHandlePathChange();
 
 private:
 
@@ -80,16 +101,26 @@ private:
     /** Cleanups all. */
     void cleanup();
 
-    /** Saves existing serial data from the cache. */
-    bool saveSerialData();
-    /** Saves existing port data from the cache. */
+    /** Repopulates ports. */
+    void refreshPorts();
+    /** Repopulates paths. */
+    void refreshPaths();
+
+    /** Saves existing data from cache. */
+    bool saveData();
+    /** Saves existing port data from cache. */
     bool savePortData(int iSlot);
 
-    /** Holds the tab-widget instance. */
-    QITabWidget *m_pTabWidget;
+    /** Holds the ports. */
+    QVector<QPair<QString, QString> >  m_ports;
+    /** Holds the paths. */
+    QVector<QString>                   m_paths;
 
     /** Holds the page data cache instance. */
     UISettingsCacheMachineSerial *m_pCache;
+
+    /** Holds the tab-widget instance. */
+    QITabWidget *m_pTabWidget;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSerial_h */

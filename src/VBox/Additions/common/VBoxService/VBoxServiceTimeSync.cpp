@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -209,43 +219,27 @@ static DECLCALLBACK(int) vgsvcTimeSyncPreInit(void)
             || rc == VERR_NOT_FOUND)
             rc = VGSvcReadPropUInt32(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-set-threshold",
                                      &g_TimeSyncSetThreshold, 0, 7*24*60*60*1000 /* a week */);
-        if (   RT_SUCCESS(rc)
-            || rc == VERR_NOT_FOUND)
-        {
-            rc = VGSvcCheckPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-set-start");
-            if (RT_SUCCESS(rc))
-                g_fTimeSyncSetOnStart = true;
-        }
-        if (   RT_SUCCESS(rc)
-            || rc == VERR_NOT_FOUND)
-        {
-            rc = VGSvcCheckPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-no-set-start");
-            if (RT_SUCCESS(rc))
-                g_fTimeSyncSetOnStart = false;
-        }
-        if (   RT_SUCCESS(rc)
-            || rc == VERR_NOT_FOUND)
-        {
-            rc = VGSvcCheckPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-set-on-restore");
-            if (RT_SUCCESS(rc))
-                g_fTimeSyncSetOnRestore = true;
-        }
-        if (   RT_SUCCESS(rc)
-            || rc == VERR_NOT_FOUND)
-        {
-            rc = VGSvcCheckPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-no-set-on-restore");
-            if (RT_SUCCESS(rc))
-                g_fTimeSyncSetOnRestore = false;
-        }
-        if (   RT_SUCCESS(rc)
-            || rc == VERR_NOT_FOUND)
-        {
-            uint32_t uValue;
-            rc = VGSvcReadPropUInt32(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-verbosity",
-                                     &uValue, 0 /*uMin*/, 255 /*uMax*/);
-            if (RT_SUCCESS(rc))
-                g_cTimeSyncVerbosity = uValue;
-        }
+
+        if (VbglR3GuestPropExist(uGuestPropSvcClientID,
+                                 "/VirtualBox/GuestAdd/VBoxService/--timesync-set-start"))
+            g_fTimeSyncSetOnStart = true;
+
+        if (VbglR3GuestPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-no-set-start"))
+            g_fTimeSyncSetOnStart = false;
+
+
+        if (VbglR3GuestPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-set-on-restore"))
+            g_fTimeSyncSetOnRestore = true;
+
+        if (VbglR3GuestPropExist(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-no-set-on-restore"))
+            g_fTimeSyncSetOnRestore = false;
+
+        uint32_t uValue;
+        rc = VGSvcReadPropUInt32(uGuestPropSvcClientID, "/VirtualBox/GuestAdd/VBoxService/--timesync-verbosity",
+                                 &uValue, 0 /*uMin*/, 255 /*uMax*/);
+        if (RT_SUCCESS(rc))
+            g_cTimeSyncVerbosity = uValue;
+
         VbglR3GuestPropDisconnect(uGuestPropSvcClientID);
     }
 

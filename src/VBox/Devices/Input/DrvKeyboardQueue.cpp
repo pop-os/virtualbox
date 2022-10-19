@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -30,8 +40,9 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
+
 /** Keyboard usage page bits to be OR-ed into the code. */
-#define HID_PG_KB_BITS  0x070000
+#define HID_PG_KB_BITS  RT_MAKE_U32(0, USB_HID_KB_PAGE)
 
 
 /*********************************************************************************************************************************
@@ -64,7 +75,7 @@ typedef struct DRVKBDQUEUE
     /** Our keyboard port interface. */
     PDMIKEYBOARDPORT            IPort;
     /** The queue handle. */
-    PPDMQUEUE                   pQueue;
+    PDMQUEUEHANDLE              hQueue;
     /** State of the scancode translation. */
     scan_state_t                XlatState;
     /** Discard input when this flag is set. */
@@ -111,26 +122,37 @@ static const uint8_t aScancode2Hid[] =
     0x00, 0x8a, 0x00, 0x8b, 0x00, 0x89, 0x85, 0x00  /* 78-7F */
 };
 
-/** Lookup table for extended scancodes (arrow keys etc.). */
-static const uint8_t aExtScan2Hid[] =
+/* Keyboard usage page (07h). */
+#define KB(key)     (RT_MAKE_U32(0, USB_HID_KB_PAGE) | (uint16_t)key)
+/* Consumer Control usage page (0Ch). */
+#define CC(key)     (RT_MAKE_U32(0, USB_HID_CC_PAGE) | (uint16_t)key)
+/* Generic Desktop Control usage page (01h). */
+#define DC(key)     (RT_MAKE_U32(0, USB_HID_DC_PAGE) | (uint16_t)key)
+/* Untranslated/unised, shouldn't be encountered. */
+#define XX(key)     0
+
+/** Lookup table for extended scancodes (arrow keys etc.).
+ *  Some of these keys use HID usage pages other than the
+ *  standard (07). */
+static const uint32_t aExtScan2Hid[] =
 {
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 00-07 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 08-1F */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 10-17 */
-    0x00, 0x00, 0x00, 0x00, 0x58, 0xe4, 0x00, 0x00, /* 18-1F */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 20-27 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 28-2F */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x54, 0x00, 0x46, /* 30-37 */
+    XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), /* 00-07 */
+    XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), /* 08-1F */
+    CC(0x0B6), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), /* 10-17 */
+    XX(0x000), CC(0x0B5), XX(0x000), XX(0x000), KB(0x058), KB(0x0e4), XX(0x000), XX(0x000), /* 18-1F */
+    CC(0x0E2), CC(0x192), CC(0x0CD), XX(0x000), CC(0x0B7), XX(0x000), XX(0x000), XX(0x000), /* 20-27 */
+    XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), CC(0x0EA), XX(0x000), /* 28-2F */
+    CC(0x0E9), XX(0x000), CC(0x223), XX(0x000), XX(0x000), KB(0x054), XX(0x000), KB(0x046), /* 30-37 */
     /* Sun-specific keys.  Most of the XT codes are made up  */
-    0xe6, 0x00, 0x00, 0x75, 0x76, 0x77, 0xA3, 0x78, /* 38-3F */
-    0x80, 0x81, 0x82, 0x79, 0x00, 0x00, 0x48, 0x4a, /* 40-47 */
-    0x52, 0x4b, 0x00, 0x50, 0x00, 0x4f, 0x00, 0x4d, /* 48-4F */
-    0x51, 0x4e, 0x49, 0x4c, 0x00, 0x00, 0x00, 0x00, /* 50-57 */
-    0x00, 0x00, 0x00, 0xe3, 0xe7, 0x65, 0x66, 0x00, /* 58-5F */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 60-67 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 68-6F */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 70-77 */
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  /* 78-7F */
+    KB(0x0e6), XX(0x000), XX(0x000), KB(0x075), KB(0x076), KB(0x077), KB(0x0A3), KB(0x078), /* 38-3F */
+    KB(0x080), KB(0x081), KB(0x082), KB(0x079), XX(0x000), XX(0x000), KB(0x048), KB(0x04a), /* 40-47 */
+    KB(0x052), KB(0x04b), XX(0x000), KB(0x050), XX(0x000), KB(0x04f), XX(0x000), KB(0x04d), /* 48-4F */
+    KB(0x051), KB(0x04e), KB(0x049), KB(0x04c), XX(0x000), XX(0x000), XX(0x000), XX(0x000), /* 50-57 */
+    XX(0x000), XX(0x000), XX(0x000), KB(0x0e3), KB(0x0e7), KB(0x065), KB(0x066), DC(0x082), /* 58-5F */
+    XX(0x000), XX(0x000), XX(0x000), DC(0x083), XX(0x000), CC(0x221), CC(0x22A), CC(0x227), /* 60-67 */
+    CC(0x226), CC(0x225), CC(0x224), CC(0x194), CC(0x18A), CC(0x183), XX(0x000), XX(0x000), /* 68-6F */
+    XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), /* 70-77 */
+    XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000), XX(0x000)  /* 78-7F */
 };
 
 /**
@@ -146,12 +168,13 @@ static const uint8_t aExtScan2Hid[] =
 static scan_state_t ScancodeToHidUsage(scan_state_t state, uint8_t scanCode, uint32_t *pUsage)
 {
     uint32_t    keyUp;
+    uint32_t    usagePg;
     uint8_t     usage;
 
     Assert(pUsage);
 
     /* Isolate the scan code and key break flag. */
-    keyUp = (scanCode & 0x80) << 24;
+    keyUp = (scanCode & 0x80) ? PDMIKBDPORT_KEY_UP : 0;
 
     switch (state) {
     case SS_IDLE:
@@ -161,13 +184,15 @@ static scan_state_t ScancodeToHidUsage(scan_state_t state, uint8_t scanCode, uin
             state = SS_EXT1;
         } else {
             usage = aScancode2Hid[scanCode & 0x7F];
+            AssertMsg(usage, ("SS_IDLE: scanCode=%02X\n", scanCode));
             *pUsage = usage | keyUp | HID_PG_KB_BITS;
             /* Remain in SS_IDLE state. */
         }
         break;
     case SS_EXT:
-        usage = aExtScan2Hid[scanCode & 0x7F];
-        *pUsage = usage | keyUp | HID_PG_KB_BITS;
+        usagePg = aExtScan2Hid[scanCode & 0x7F];
+        AssertMsg(usagePg, ("SS_EXT: scanCode=%02X\n", scanCode));
+        *pUsage = usagePg | keyUp;
         state = SS_IDLE;
         break;
     case SS_EXT1:
@@ -228,7 +253,7 @@ static DECLCALLBACK(int) drvKbdQueuePutEventScan(PPDMIKEYBOARDPORT pInterface, u
 
     if (pDrv->XlatState == SS_IDLE)
     {
-        PDRVKBDQUEUEITEM pItem = (PDRVKBDQUEUEITEM)PDMQueueAlloc(pDrv->pQueue);
+        PDRVKBDQUEUEITEM pItem = (PDRVKBDQUEUEITEM)PDMDrvHlpQueueAlloc(pDrv->pDrvIns, pDrv->hQueue);
         if (pItem)
         {
             /*
@@ -236,9 +261,10 @@ static DECLCALLBACK(int) drvKbdQueuePutEventScan(PPDMIKEYBOARDPORT pInterface, u
              * only send break events for Hangul/Hanja keys -- convert a lone
              * key up into a key up/key down sequence.
              */
-            if (idUsage == UINT32_C(0x80000090) || idUsage == UINT32_C(0x80000091))
+            if (   (idUsage == (PDMIKBDPORT_KEY_UP | HID_PG_KB_BITS | 0x90))
+                || (idUsage == (PDMIKBDPORT_KEY_UP | HID_PG_KB_BITS | 0x91)))
             {
-                PDRVKBDQUEUEITEM pItem2 = (PDRVKBDQUEUEITEM)PDMQueueAlloc(pDrv->pQueue);
+                PDRVKBDQUEUEITEM pItem2 = (PDRVKBDQUEUEITEM)PDMDrvHlpQueueAlloc(pDrv->pDrvIns, pDrv->hQueue);
                 /*
                  * NB: If there's no room in the queue, we will drop the faked
                  * key down event. Probably less bad than the alternatives.
@@ -246,13 +272,13 @@ static DECLCALLBACK(int) drvKbdQueuePutEventScan(PPDMIKEYBOARDPORT pInterface, u
                 if (pItem2)
                 {
                     /* Manufacture a key down event. */
-                    pItem2->idUsage = idUsage & ~UINT32_C(0x80000000);
-                    PDMQueueInsert(pDrv->pQueue, &pItem2->Core);
+                    pItem2->idUsage = idUsage & ~PDMIKBDPORT_KEY_UP;
+                    PDMDrvHlpQueueInsert(pDrv->pDrvIns, pDrv->hQueue, &pItem2->Core);
                 }
             }
 
             pItem->idUsage = idUsage;
-            PDMQueueInsert(pDrv->pQueue, &pItem->Core);
+            PDMDrvHlpQueueInsert(pDrv->pDrvIns, pDrv->hQueue, &pItem->Core);
 
             return VINF_SUCCESS;
         }
@@ -260,8 +286,7 @@ static DECLCALLBACK(int) drvKbdQueuePutEventScan(PPDMIKEYBOARDPORT pInterface, u
             AssertMsgFailed(("drvKbdQueuePutEventScan: Queue is full!!!!\n"));
         return VERR_PDM_NO_QUEUE_ITEMS;
     }
-    else
-        return VINF_SUCCESS;
+    return VINF_SUCCESS;
 }
 
 
@@ -278,16 +303,46 @@ static DECLCALLBACK(int) drvKbdQueuePutEventHid(PPDMIKEYBOARDPORT pInterface, ui
     if (pDrv->fInactive)
         return VINF_SUCCESS;
 
-    PDRVKBDQUEUEITEM pItem = (PDRVKBDQUEUEITEM)PDMQueueAlloc(pDrv->pQueue);
+    PDRVKBDQUEUEITEM pItem = (PDRVKBDQUEUEITEM)PDMDrvHlpQueueAlloc(pDrv->pDrvIns, pDrv->hQueue);
     if (pItem)
     {
         pItem->idUsage = idUsage;
-        PDMQueueInsert(pDrv->pQueue, &pItem->Core);
+        PDMDrvHlpQueueInsert(pDrv->pDrvIns, pDrv->hQueue, &pItem->Core);
 
         return VINF_SUCCESS;
     }
-    if (!pDrv->fSuspended)
-        AssertMsgFailed(("drvKbdQueuePutEventHid: Queue is full!!!!\n"));
+    AssertMsg(pDrv->fSuspended, ("drvKbdQueuePutEventHid: Queue is full!!!!\n"));
+    return VERR_PDM_NO_QUEUE_ITEMS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIKEYBOARDPORT,pfnReleaseKeys}
+ *
+ * Because of the event queueing the EMT context requirement is lifted.
+ * @thread  Any thread.
+ */
+static DECLCALLBACK(int) drvKbdQueueReleaseKeys(PPDMIKEYBOARDPORT pInterface)
+{
+    PDRVKBDQUEUE pDrv = IKEYBOARDPORT_2_DRVKBDQUEUE(pInterface);
+
+    /* Ignore any attempt to send events if queue is inactive. */
+    if (pDrv->fInactive)
+        return VINF_SUCCESS;
+
+    PDRVKBDQUEUEITEM pItem = (PDRVKBDQUEUEITEM)PDMDrvHlpQueueAlloc(pDrv->pDrvIns, pDrv->hQueue);
+    if (pItem)
+    {
+        /* Send a special key event that forces all keys to be released.
+         * Goes through the queue so that it would take effect only after
+         * any key events that might already be queued up.
+         */
+        pItem->idUsage = PDMIKBDPORT_RELEASE_KEYS | HID_PG_KB_BITS;
+        PDMDrvHlpQueueInsert(pDrv->pDrvIns, pDrv->hQueue, &pItem->Core);
+
+        return VINF_SUCCESS;
+    }
+    AssertMsg(pDrv->fSuspended, ("drvKbdQueueReleaseKeys: Queue is full!!!!\n"));
     return VERR_PDM_NO_QUEUE_ITEMS;
 }
 
@@ -332,8 +387,7 @@ static DECLCALLBACK(void) drvKbdFlushQueue(PPDMIKEYBOARDCONNECTOR pInterface)
 {
     PDRVKBDQUEUE pDrv = PPDMIKEYBOARDCONNECTOR_2_DRVKBDQUEUE(pInterface);
 
-    AssertPtr(pDrv->pQueue);
-    PDMQueueFlushIfNecessary(pDrv->pQueue);
+    PDMDrvHlpQueueFlushIfNecessary(pDrv->pDrvIns, pDrv->hQueue);
 }
 
 
@@ -352,7 +406,7 @@ static DECLCALLBACK(bool) drvKbdQueueConsumer(PPDMDRVINS pDrvIns, PPDMQUEUEITEMC
     PDRVKBDQUEUE        pThis = PDMINS_2_DATA(pDrvIns, PDRVKBDQUEUE);
     PDRVKBDQUEUEITEM    pItem = (PDRVKBDQUEUEITEM)pItemCore;
     int rc = pThis->pUpPort->pfnPutEventHid(pThis->pUpPort, pItem->idUsage);
-    return RT_SUCCESS(rc);
+    return rc != VERR_TRY_AGAIN;
 }
 
 
@@ -431,19 +485,22 @@ static DECLCALLBACK(void) drvKbdQueuePowerOff(PPDMDRVINS pDrvIns)
  */
 static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDRVKBDQUEUE pDrv = PDMINS_2_DATA(pDrvIns, PDRVKBDQUEUE);
-    LogFlow(("drvKbdQueueConstruct: iInstance=%d\n", pDrvIns->iInstance));
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+    PDRVKBDQUEUE    pDrv = PDMINS_2_DATA(pDrvIns, PDRVKBDQUEUE);
+    PCPDMDRVHLPR3   pHlp = pDrvIns->pHlpR3;
+
+    LogFlow(("drvKbdQueueConstruct: iInstance=%d\n", pDrvIns->iInstance));
+
 
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "QueueSize\0Interval\0"))
-        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+    PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "QueueSize|Interval", "");
 
     /*
      * Init basic data members and interfaces.
      */
+    pDrv->pDrvIns                           = pDrvIns;
     pDrv->fInactive                         = true;
     pDrv->fSuspended                        = false;
     pDrv->XlatState                         = SS_IDLE;
@@ -456,63 +513,45 @@ static DECLCALLBACK(int) drvKbdQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /* IKeyboardPort. */
     pDrv->IPort.pfnPutEventScan             = drvKbdQueuePutEventScan;
     pDrv->IPort.pfnPutEventHid              = drvKbdQueuePutEventHid;
+    pDrv->IPort.pfnReleaseKeys              = drvKbdQueueReleaseKeys;
 
     /*
      * Get the IKeyboardPort interface of the above driver/device.
      */
     pDrv->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIKEYBOARDPORT);
-    if (!pDrv->pUpPort)
-    {
-        AssertMsgFailed(("Configuration error: No keyboard port interface above!\n"));
-        return VERR_PDM_MISSING_INTERFACE_ABOVE;
-    }
+    AssertMsgReturn(pDrv->pUpPort, ("Configuration error: No keyboard port interface above!\n"), VERR_PDM_MISSING_INTERFACE_ABOVE);
 
     /*
      * Attach driver below and query it's connector interface.
      */
     PPDMIBASE pDownBase;
     int rc = PDMDrvHlpAttach(pDrvIns, fFlags, &pDownBase);
-    if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Failed to attach driver below us! rc=%Rra\n", rc));
-        return rc;
-    }
+    AssertMsgRCReturn(rc, ("Failed to attach driver below us! rc=%Rra\n", rc), rc);
+
     pDrv->pDownConnector = PDMIBASE_QUERY_INTERFACE(pDownBase, PDMIKEYBOARDCONNECTOR);
-    if (!pDrv->pDownConnector)
-    {
-        AssertMsgFailed(("Configuration error: No keyboard connector interface below!\n"));
-        return VERR_PDM_MISSING_INTERFACE_BELOW;
-    }
+    AssertMsgReturn(pDrv->pDownConnector, ("Configuration error: No keyboard connector interface below!\n"),
+                    VERR_PDM_MISSING_INTERFACE_BELOW);
 
     /*
      * Create the queue.
      */
     uint32_t cMilliesInterval = 0;
-    rc = CFGMR3QueryU32(pCfg, "Interval", &cMilliesInterval);
+    rc = pHlp->pfnCFGMQueryU32(pCfg, "Interval", &cMilliesInterval);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         cMilliesInterval = 0;
-    else if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Configuration error: 32-bit \"Interval\" -> rc=%Rrc\n", rc));
-        return rc;
-    }
+    else
+        AssertMsgRCReturn(rc, ("Configuration error: 32-bit \"Interval\" -> rc=%Rrc\n", rc), rc);
 
     uint32_t cItems = 0;
-    rc = CFGMR3QueryU32(pCfg, "QueueSize", &cItems);
+    rc = pHlp->pfnCFGMQueryU32(pCfg, "QueueSize", &cItems);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         cItems = 128;
-    else if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Configuration error: 32-bit \"QueueSize\" -> rc=%Rrc\n", rc));
-        return rc;
-    }
+    else
+        AssertMsgRCReturn(rc, ("Configuration error: 32-bit \"QueueSize\" -> rc=%Rrc\n", rc), rc);
 
-    rc = PDMDrvHlpQueueCreate(pDrvIns, sizeof(DRVKBDQUEUEITEM), cItems, cMilliesInterval, drvKbdQueueConsumer, "Keyboard", &pDrv->pQueue);
-    if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Failed to create driver: cItems=%d cMilliesInterval=%d rc=%Rrc\n", cItems, cMilliesInterval, rc));
-        return rc;
-    }
+    rc = PDMDrvHlpQueueCreate(pDrvIns, sizeof(DRVKBDQUEUEITEM), cItems, cMilliesInterval,
+                              drvKbdQueueConsumer, "Keyboard", &pDrv->hQueue);
+    AssertMsgRCReturn(rc, ("Failed to create driver: cItems=%d cMilliesInterval=%d rc=%Rrc\n", cItems, cMilliesInterval, rc), rc);
 
     return VINF_SUCCESS;
 }

@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <string.h>
@@ -194,7 +199,8 @@ static void vlan_sync ( struct net_device *netdev ) {
  * @v tag		VLAN tag
  * @ret netdev		VLAN device, if any
  */
-struct net_device * vlan_find ( struct net_device *trunk, unsigned int tag ) {
+static struct net_device * vlan_find ( struct net_device *trunk,
+				       unsigned int tag ) {
 	struct net_device *netdev;
 	struct vlan_device *vlan;
 
@@ -282,6 +288,23 @@ struct net_protocol vlan_protocol __net_protocol = {
 };
 
 /**
+ * Get the VLAN tag
+ *
+ * @v netdev		Network device
+ * @ret tag		VLAN tag, or 0 if device is not a VLAN device
+ */
+unsigned int vlan_tag ( struct net_device *netdev ) {
+	struct vlan_device *vlan;
+
+	if ( netdev->op == &vlan_operations ) {
+		vlan = netdev->priv;
+		return vlan->tag;
+	} else {
+		return 0;
+	}
+}
+
+/**
  * Check if network device can be used as a VLAN trunk device
  *
  * @v trunk		Trunk network device
@@ -367,6 +390,10 @@ int vlan_create ( struct net_device *trunk, unsigned int tag,
 	snprintf ( netdev->name, sizeof ( netdev->name ), "%s-%d",
 		   trunk->name, vlan->tag );
 
+	/* Mark device as not supporting interrupts, if applicable */
+	if ( ! netdev_irq_supported ( trunk ) )
+		netdev->state |= NETDEV_IRQ_UNSUPPORTED;
+
 	/* Register VLAN device */
 	if ( ( rc = register_netdev ( netdev ) ) != 0 ) {
 		DBGC ( netdev, "VLAN %s could not register: %s\n",
@@ -418,16 +445,6 @@ int vlan_destroy ( struct net_device *netdev ) {
 	netdev_put ( netdev );
 	netdev_put ( trunk );
 
-	return 0;
-}
-
-/**
- * Do nothing
- *
- * @v trunk		Trunk network device
- * @ret rc		Return status code
- */
-static int vlan_probe ( struct net_device *trunk __unused ) {
 	return 0;
 }
 
@@ -487,7 +504,50 @@ static void vlan_remove ( struct net_device *trunk ) {
 /** VLAN driver */
 struct net_driver vlan_driver __net_driver = {
 	.name = "VLAN",
-	.probe = vlan_probe,
 	.notify = vlan_notify,
 	.remove = vlan_remove,
 };
+
+/**
+ * Add VLAN tag-stripped packet to receive queue
+ *
+ * @v netdev		Network device
+ * @v tag		VLAN tag, or zero
+ * @v iobuf		I/O buffer
+ */
+void vlan_netdev_rx ( struct net_device *netdev, unsigned int tag,
+		      struct io_buffer *iobuf ) {
+	struct net_device *vlan;
+
+	/* Identify VLAN device, if applicable */
+	if ( tag ) {
+		if ( ( vlan = vlan_find ( netdev, tag ) ) == NULL ) {
+			netdev_rx_err ( netdev, iobuf, -ENODEV );
+			return;
+		}
+		netdev = vlan;
+	}
+
+	/* Hand off to network device */
+	netdev_rx ( netdev, iobuf );
+}
+
+/**
+ * Discard received VLAN tag-stripped packet
+ *
+ * @v netdev		Network device
+ * @v tag		VLAN tag, or zero
+ * @v iobuf		I/O buffer, or NULL
+ * @v rc		Packet status code
+ */
+void vlan_netdev_rx_err ( struct net_device *netdev, unsigned int tag,
+			  struct io_buffer *iobuf, int rc ) {
+	struct net_device *vlan;
+
+	/* Identify VLAN device, if applicable */
+	if ( tag && ( ( vlan = vlan_find ( netdev, tag ) ) != NULL ) )
+		netdev = vlan;
+
+	/* Hand off to network device */
+	netdev_rx_err ( netdev, iobuf, rc );
+}

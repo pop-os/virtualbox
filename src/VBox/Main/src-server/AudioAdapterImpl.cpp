@@ -4,20 +4,32 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_AUDIOADAPTER
 #include "AudioAdapterImpl.h"
 #include "MachineImpl.h"
+#include "SystemPropertiesImpl.h"
+#include "VirtualBoxImpl.h"
 
 #include <iprt/cpp/utils.h>
 
@@ -59,7 +71,7 @@ void AudioAdapter::FinalRelease()
  *
  *  @param aParent  Handle of the parent object.
  */
-HRESULT AudioAdapter::init(Machine *aParent)
+HRESULT AudioAdapter::init(AudioSettings *aParent)
 {
     LogFlowThisFunc(("aParent=%p\n", aParent));
 
@@ -69,23 +81,17 @@ HRESULT AudioAdapter::init(Machine *aParent)
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    /* Get the default audio driver out of the system properties */
-    ComPtr<IVirtualBox> VBox;
-    HRESULT rc = aParent->COMGETTER(Parent)(VBox.asOutParam());
-    if (FAILED(rc)) return rc;
-    ComPtr<ISystemProperties> sysProps;
-    rc = VBox->COMGETTER(SystemProperties)(sysProps.asOutParam());
-    if (FAILED(rc)) return rc;
-    AudioDriverType_T defaultAudioDriver;
-    rc = sysProps->COMGETTER(DefaultAudioDriver)(&defaultAudioDriver);
-    if (FAILED(rc)) return rc;
-
-    unconst(mParent) = aParent;
+    unconst(mParent)   = aParent;
     /* mPeer is left null */
 
     mData.allocate();
-    mData->driverType = defaultAudioDriver;
-    mData->fEnabledIn = false;
+
+    /* We now always default to the "Default" audio driver, to make it easier
+     * to move VMs around different host OSes.
+     *
+     * This can be changed by the user explicitly, if needed / wanted. */
+    mData->driverType  = AudioDriverType_Default;
+    mData->fEnabledIn  = false;
     mData->fEnabledOut = false;
 
     /* Confirm a successful initialization */
@@ -104,7 +110,7 @@ HRESULT AudioAdapter::init(Machine *aParent)
  *
  *  @note Locks @a aThat object for reading.
  */
-HRESULT AudioAdapter::init(Machine *aParent, AudioAdapter *aThat)
+HRESULT AudioAdapter::init(AudioSettings *aParent, AudioAdapter *aThat)
 {
     LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
@@ -136,7 +142,7 @@ HRESULT AudioAdapter::init(Machine *aParent, AudioAdapter *aThat)
  *
  *  @note Locks @a aThat object for reading.
  */
-HRESULT AudioAdapter::initCopy(Machine *aParent, AudioAdapter *aThat)
+HRESULT AudioAdapter::initCopy(AudioSettings *aParent, AudioAdapter *aThat)
 {
     LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
@@ -165,7 +171,7 @@ HRESULT AudioAdapter::initCopy(Machine *aParent, AudioAdapter *aThat)
  *  Uninitializes the instance and sets the ready flag to FALSE.
  *  Called either from FinalRelease() or by the parent when it gets destroyed.
  */
-void AudioAdapter::uninit()
+void AudioAdapter::uninit(void)
 {
     LogFlowThisFunc(("\n"));
 
@@ -174,10 +180,10 @@ void AudioAdapter::uninit()
     if (autoUninitSpan.uninitDone())
         return;
 
-    mData.free();
-
-    unconst(mPeer) = NULL;
+    unconst(mPeer)   = NULL;
     unconst(mParent) = NULL;
+
+    mData.free();
 }
 
 // IAudioAdapter properties
@@ -194,9 +200,8 @@ HRESULT AudioAdapter::getEnabled(BOOL *aEnabled)
 
 HRESULT AudioAdapter::setEnabled(BOOL aEnabled)
 {
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -204,10 +209,10 @@ HRESULT AudioAdapter::setEnabled(BOOL aEnabled)
     {
         mData.backup();
         mData->fEnabled = RT_BOOL(aEnabled);
-
         alock.release();
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
-        mParent->i_setModified(Machine::IsModified_AudioAdapter);
+
+        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
+        mParent->i_onAdapterChanged(this);
     }
 
     return S_OK;
@@ -224,24 +229,20 @@ HRESULT AudioAdapter::getEnabledIn(BOOL *aEnabled)
 
 HRESULT AudioAdapter::setEnabledIn(BOOL aEnabled)
 {
-    /* the machine needs to be mutable */
-    AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     if (RT_BOOL(aEnabled) != mData->fEnabledIn)
     {
         mData.backup();
         mData->fEnabledIn = RT_BOOL(aEnabled);
 
-        // leave the lock before informing callbacks
         alock.release();
 
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);
-        mParent->i_setModified(Machine::IsModified_AudioAdapter);
-        mlock.release();
-
-        mParent->i_onAudioAdapterChange(this);
+        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
+        mParent->i_onAdapterChanged(this);
     }
 
     return S_OK;
@@ -258,24 +259,20 @@ HRESULT AudioAdapter::getEnabledOut(BOOL *aEnabled)
 
 HRESULT AudioAdapter::setEnabledOut(BOOL aEnabled)
 {
-    /* the machine needs to be mutable */
-    AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     if (RT_BOOL(aEnabled) != mData->fEnabledOut)
     {
         mData.backup();
         mData->fEnabledOut = RT_BOOL(aEnabled);
 
-        // leave the lock before informing callbacks
         alock.release();
 
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);
-        mParent->i_setModified(Machine::IsModified_AudioAdapter);
-        mlock.release();
-
-        mParent->i_onAudioAdapterChange(this);
+        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
+        mParent->i_onAdapterChanged(this);
     }
 
     return S_OK;
@@ -292,10 +289,8 @@ HRESULT AudioAdapter::getAudioDriver(AudioDriverType_T *aAudioDriver)
 
 HRESULT AudioAdapter::setAudioDriver(AudioDriverType_T aAudioDriver)
 {
-
-    /* the machine needs to be mutable */
-    AutoMutableOrSavedStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -307,9 +302,10 @@ HRESULT AudioAdapter::setAudioDriver(AudioDriverType_T aAudioDriver)
         {
             mData.backup();
             mData->driverType = aAudioDriver;
+
             alock.release();
-            AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
-            mParent->i_setModified(Machine::IsModified_AudioAdapter);
+
+            mParent->i_onSettingsChanged(); // mParent is const, needs no locking
         }
         else
         {
@@ -332,13 +328,12 @@ HRESULT AudioAdapter::getAudioController(AudioControllerType_T *aAudioController
 
 HRESULT AudioAdapter::setAudioController(AudioControllerType_T aAudioController)
 {
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     if (mData->controllerType != aAudioController)
     {
@@ -363,20 +358,22 @@ HRESULT AudioAdapter::setAudioController(AudioControllerType_T aAudioController)
             default:
                 AssertMsgFailed(("Wrong audio controller type %d\n", aAudioController));
                 defaultCodec = AudioCodecType_Null; /* Shut up MSC */
-                rc = E_FAIL;
+                hrc = E_FAIL;
         }
-        if (rc == S_OK)
+
+        if (SUCCEEDED(hrc))
         {
             mData.backup();
             mData->controllerType = aAudioController;
-            mData->codecType = defaultCodec;
+            mData->codecType      = defaultCodec;
+
             alock.release();
-            AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
-            mParent->i_setModified(Machine::IsModified_AudioAdapter);
+
+            mParent->i_onSettingsChanged(); // mParent is const, needs no locking
         }
     }
 
-    return rc;
+    return hrc;
 }
 
 HRESULT AudioAdapter::getAudioCodec(AudioCodecType_T *aAudioCodec)
@@ -390,13 +387,12 @@ HRESULT AudioAdapter::getAudioCodec(AudioCodecType_T *aAudioCodec)
 
 HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
 {
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     /*
      * ensure that the codec type matches the audio controller
@@ -407,32 +403,32 @@ HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
         {
             if (   (aAudioCodec != AudioCodecType_STAC9700)
                 && (aAudioCodec != AudioCodecType_AD1980))
-                rc = E_INVALIDARG;
+                hrc = E_INVALIDARG;
             break;
         }
 
         case AudioControllerType_SB16:
         {
             if (aAudioCodec != AudioCodecType_SB16)
-                rc = E_INVALIDARG;
+                hrc = E_INVALIDARG;
             break;
         }
 
         case AudioControllerType_HDA:
         {
             if (aAudioCodec != AudioCodecType_STAC9221)
-                rc = E_INVALIDARG;
+                hrc = E_INVALIDARG;
             break;
         }
 
         default:
             AssertMsgFailed(("Wrong audio controller type %d\n",
                              mData->controllerType));
-            rc = E_FAIL;
+            hrc = E_FAIL;
     }
 
-    if (!SUCCEEDED(rc))
-        return setError(rc,
+    if (!SUCCEEDED(hrc))
+        return setError(hrc,
                         tr("Invalid audio codec type %d"),
                         aAudioCodec);
 
@@ -440,12 +436,13 @@ HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
     {
         mData.backup();
         mData->codecType = aAudioCodec;
+
         alock.release();
-        AutoWriteLock mlock(mParent COMMA_LOCKVAL_SRC_POS);  // mParent is const, needs no locking
-        mParent->i_setModified(Machine::IsModified_AudioAdapter);
+
+        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
     }
 
-    return rc;
+    return hrc;
 }
 
 HRESULT AudioAdapter::getPropertiesList(std::vector<com::Utf8Str>& aProperties)

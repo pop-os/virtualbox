@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -328,6 +338,8 @@ DECLINLINE(bool) vnetR3MergeableRxBuffers(PVNETSTATE pThis)
     return !!(pThis->VPCI.uGuestFeatures & VNET_F_MRG_RXBUF);
 }
 
+#define VNET_R3_CS_ENTER_RETURN_VOID(a_pDevIns, a_pThis) VPCI_R3_CS_ENTER_RETURN_VOID(a_pDevIns, &(a_pThis)->VPCI)
+
 DECLINLINE(int) vnetR3CsEnter(PPDMDEVINS pDevIns, PVNETSTATE pThis, int rcBusy)
 {
     return vpciCsEnter(pDevIns, &pThis->VPCI, rcBusy);
@@ -641,14 +653,13 @@ static void vnetR3TempLinkDown(PPDMDEVINS pDevIns, PVNETSTATE pThis, PVNETSTATEC
 /**
  * @callback_method_impl{FNTMTIMERDEV, Link Up Timer handler.}
  */
-static DECLCALLBACK(void) vnetR3LinkUpTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) vnetR3LinkUpTimer(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     PVNETSTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PVNETSTATE);
     PVNETSTATECC pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PVNETSTATECC);
-    RT_NOREF(pTimer, pvUser);
+    RT_NOREF(hTimer, pvUser);
 
-    int rc = vnetR3CsEnter(pDevIns, pThis, VERR_SEM_BUSY);
-    AssertRCReturnVoid(rc);
+    VNET_R3_CS_ENTER_RETURN_VOID(pDevIns, pThis);
 
     Log(("%s vnetR3LinkUpTimer: connected=%s\n", INSTANCE(pThis), vnetR3IsConnected(pDevIns)?"true":"false"));
     /* Do not bring up the link if the device is not connected. */
@@ -924,10 +935,10 @@ static int vnetR3HandleRxPacket(PPDMDEVINS pDevIns, PVNETSTATE pThis, PVNETSTATE
             default:
                 return VERR_INVALID_PARAMETER;
         }
-        Hdr.Hdr.u16HdrLen     = pGso->cbHdrsTotal;
-        Hdr.Hdr.u16GSOSize    = pGso->cbMaxSeg;
-        Hdr.Hdr.u16CSumStart  = pGso->offHdr2;
-        Hdr.u16NumBufs        = 0;
+        Hdr.Hdr.u16HdrLen    = pGso->cbHdrsTotal;
+        Hdr.Hdr.u16GSOSize   = pGso->cbMaxSeg;
+        Hdr.Hdr.u16CSumStart = pGso->offHdr2;
+        Hdr.u16NumBufs       = 0;
         STAM_REL_COUNTER_INC(&pThis->StatReceiveGSO);
     }
     else
@@ -1229,9 +1240,6 @@ DECLINLINE(PPDMNETWORKGSO) vnetR3SetupGsoCtx(PPDMNETWORKGSO pGso, VNETHDR const 
     pGso->offHdr1     = sizeof(RTNETETHERHDR);
     pGso->cbHdrsTotal = pHdr->u16HdrLen;
     pGso->cbMaxSeg    = pHdr->u16GSOSize;
-    /* Mark GSO frames with zero MSS as PDMNETWORKGSOTYPE_INVALID, so they will be ignored by send. */
-    if (pHdr->u8GSOType != VNETHDR_GSO_NONE && pHdr->u16GSOSize == 0)
-        pGso->u8Type = PDMNETWORKGSOTYPE_INVALID;
     return pGso;
 }
 
@@ -1331,9 +1339,6 @@ static int vnetR3TransmitFrame(PVNETSTATE pThis, PVNETSTATECC pThisCC, PPDMSCATT
                     pGso->cbHdrsTotal = (uint8_t)(pHdr->u16CSumStart + sizeof(RTNETUDP));
                     pGso->cbHdrsSeg   = pHdr->u16CSumStart;
                     break;
-                case PDMNETWORKGSOTYPE_INVALID:
-                    LogFunc(("%s ignoring invalid GSO frame\n", INSTANCE(pThis)));
-                    return VERR_INVALID_PARAMETER;
             }
             /* Update GSO structure embedded into the frame */
             ((PPDMNETWORKGSO)pSgBuf->pvUser)->cbHdrsTotal = pGso->cbHdrsTotal;
@@ -1519,36 +1524,33 @@ static DECLCALLBACK(void) vnetR3QueueTransmit(PPDMDEVINS pDevIns, PVQUEUE pQueue
         PDMDevHlpTimerStop(pDevIns, pThis->hTxTimer);
         Log3(("%s vnetR3QueueTransmit: Got kicked with notification disabled, re-enable notification and flush TX queue\n", INSTANCE(pThis)));
         vnetR3TransmitPendingPackets(pDevIns, pThis, pThisCC, pQueue, false /*fOnWorkerThread*/);
-        if (RT_FAILURE(vnetR3CsEnter(pDevIns, pThis, VERR_SEM_BUSY)))
-            LogRel(("vnetR3QueueTransmit: Failed to enter critical section!/n"));
-        else
-        {
-            vringSetNotification(pDevIns, &pThisCC->pTxQueue->VRing, true);
-            vnetR3CsLeave(pDevIns, pThis);
-        }
+
+        VNET_R3_CS_ENTER_RETURN_VOID(pDevIns, pThis);
+
+        vringSetNotification(pDevIns, &pThisCC->pTxQueue->VRing, true);
+
+        vnetR3CsLeave(pDevIns, pThis);
     }
     else
     {
-        if (RT_FAILURE(vnetR3CsEnter(pDevIns, pThis, VERR_SEM_BUSY)))
-            LogRel(("vnetR3QueueTransmit: Failed to enter critical section!/n"));
-        else
-        {
-            vringSetNotification(pDevIns, &pThisCC->pTxQueue->VRing, false);
-            PDMDevHlpTimerSetMicro(pDevIns, pThis->hTxTimer, VNET_TX_DELAY);
-            pThis->u64NanoTS = RTTimeNanoTS();
-            vnetR3CsLeave(pDevIns, pThis);
-        }
+        VNET_R3_CS_ENTER_RETURN_VOID(pDevIns, pThis);
+
+        vringSetNotification(pDevIns, &pThisCC->pTxQueue->VRing, false);
+        PDMDevHlpTimerSetMicro(pDevIns, pThis->hTxTimer, VNET_TX_DELAY);
+        pThis->u64NanoTS = RTTimeNanoTS();
+
+        vnetR3CsLeave(pDevIns, pThis);
     }
 }
 
 /**
  * @callback_method_impl{FNTMTIMERDEV, Transmit Delay Timer handler.}
  */
-static DECLCALLBACK(void) vnetR3TxTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) vnetR3TxTimer(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     PVNETSTATE      pThis   = PDMDEVINS_2_DATA(pDevIns, PVNETSTATE);
     PVNETSTATECC    pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PVNETSTATECC);
-    RT_NOREF(pTimer, pvUser);
+    RT_NOREF(hTimer, pvUser);
 
     uint32_t u32MicroDiff = (uint32_t)((RTTimeNanoTS() - pThis->u64NanoTS) / 1000);
     if (u32MicroDiff < pThis->u32MinDiff)
@@ -1562,11 +1564,8 @@ static DECLCALLBACK(void) vnetR3TxTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, voi
 
 //    Log3(("%s vnetR3TxTimer: Expired\n", INSTANCE(pThis)));
     vnetR3TransmitPendingPackets(pDevIns, pThis, pThisCC, pThisCC->pTxQueue, false /*fOnWorkerThread*/);
-    if (RT_FAILURE(vnetR3CsEnter(pDevIns, pThis, VERR_SEM_BUSY)))
-    {
-        LogRel(("vnetR3TxTimer: Failed to enter critical section!/n"));
-        return;
-    }
+
+    VNET_R3_CS_ENTER_RETURN_VOID(pDevIns, pThis);
     vringSetNotification(pDevIns, &pThisCC->pTxQueue->VRing, true);
     vnetR3CsLeave(pDevIns, pThis);
 }
@@ -1935,7 +1934,7 @@ static DECLCALLBACK(int) vnetR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     vnetR3SaveConfig(pDevIns, pThis, pSSM);
 
     /* Save the common part */
-    int rc = vpciR3SaveExec(pHlp, &pThis->VPCI, pSSM);
+    int rc = vpciR3SaveExec(pDevIns, pHlp, &pThis->VPCI, pSSM);
     AssertRCReturn(rc, rc);
 
     /* Save device-specific part */
@@ -1985,7 +1984,7 @@ static DECLCALLBACK(int) vnetR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
         && (uPass == 0 || !PDMDevHlpVMTeleportedAndNotFullyResumedYet(pDevIns)))
         LogRel(("%s: The mac address differs: config=%RTmac saved=%RTmac\n", INSTANCE(pThis), &pThis->macConfigured, &macConfigured));
 
-    rc = vpciR3LoadExec(pHlp, &pThis->VPCI, pSSM, uVersion, uPass, VNET_N_QUEUES);
+    rc = vpciR3LoadExec(pDevIns, pHlp, &pThis->VPCI, pSSM, uVersion, uPass, VNET_N_QUEUES);
     AssertRCReturn(rc, rc);
 
     if (uPass == SSM_PASS_FINAL)
@@ -2071,12 +2070,7 @@ static DECLCALLBACK(void) vnetR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
 
     AssertLogRelReturnVoid(iLUN == 0);
 
-    int rc = vnetR3CsEnter(pDevIns, pThis, VERR_SEM_BUSY);
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("vnetR3Detach failed to enter critical section!\n"));
-        return;
-    }
+    VNET_R3_CS_ENTER_RETURN_VOID(pDevIns, pThis);
 
     vnetR3DestroyTxThreadAndEvent(pDevIns, pThis, pThisCC);
 
@@ -2103,11 +2097,7 @@ static DECLCALLBACK(int) vnetR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_
     AssertLogRelReturn(iLUN == 0, VERR_PDM_NO_SUCH_LUN);
 
     int rc = vnetR3CsEnter(pDevIns, pThis, VERR_SEM_BUSY);
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("vnetR3Attach failed to enter critical section!\n"));
-        return rc;
-    }
+    AssertRCReturn(rc, rc);
 
     /*
      * Attach the driver.
@@ -2298,14 +2288,16 @@ static DECLCALLBACK(int) vnetR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     AssertRCReturn(rc, rc);
 
     /* Create Link Up Timer */
-    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetR3LinkUpTimer, NULL, TMTIMER_FLAGS_NO_CRIT_SECT,
-                              "VirtioNet Link Up Timer", &pThisCC->hLinkUpTimer);
+    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetR3LinkUpTimer, NULL,
+                              TMTIMER_FLAGS_NO_CRIT_SECT | TMTIMER_FLAGS_NO_RING0,
+                              "VirtioNet Link Up", &pThisCC->hLinkUpTimer);
     AssertRCReturn(rc, rc);
 
 # ifdef VNET_TX_DELAY
     /* Create Transmit Delay Timer */
-    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetR3TxTimer, pThis, TMTIMER_FLAGS_NO_CRIT_SECT,
-                              "VirtioNet TX Delay Timer", &pThis->hTxTimer);
+    rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, vnetR3TxTimer, pThis,
+                              TMTIMER_FLAGS_NO_CRIT_SECT | TMTIMER_FLAGS_NO_RING0,
+                              "VirtioNet TX Delay", &pThis->hTxTimer);
     AssertRCReturn(rc, rc);
 
     pThis->u32i = pThis->u32AvgDiff = pThis->u32MaxDiff = 0;

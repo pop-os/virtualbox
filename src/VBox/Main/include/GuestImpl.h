@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_GuestImpl_h
@@ -62,7 +72,7 @@ class ATL_NO_VTABLE Guest :
 {
 public:
 
-    DECLARE_EMPTY_CTOR_DTOR (Guest)
+    DECLARE_COMMON_CLASS_METHODS (Guest)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -94,14 +104,19 @@ public:
     ComObjPtr<Console> i_getConsole(void) { return mParent; }
     void i_setAdditionsStatus(VBoxGuestFacilityType a_enmFacility, VBoxGuestFacilityStatus a_enmStatus,
                               uint32_t a_fFlags, PCRTTIMESPEC a_pTimeSpecTS);
-    void i_onUserStateChange(Bstr aUser, Bstr aDomain, VBoxGuestUserState enmState, const uint8_t *puDetails, uint32_t cbDetails);
+    void i_onUserStateChanged(const Utf8Str &aUser, const Utf8Str &aDomain, VBoxGuestUserState enmState,
+                              const uint8_t *puDetails, uint32_t cbDetails);
     void i_setSupportedFeatures(uint32_t aCaps);
     HRESULT i_setStatistic(ULONG aCpuId, GUESTSTATTYPE enmType, ULONG aVal);
     BOOL i_isPageFusionEnabled();
     void i_setCpuCount(uint32_t aCpus) { mCpus = aCpus; }
-    static HRESULT i_setErrorStatic(HRESULT aResultCode, const Utf8Str &aText)
+    static HRESULT i_setErrorStatic(HRESULT aResultCode, const char *aText, ...)
     {
-        return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
+        va_list va;
+        va_start(va, aText);
+        HRESULT hrc = setErrorInternalV(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, va, false, true);
+        va_end(va);
+        return hrc;
     }
     uint32_t    i_getAdditionsRevision(void) { return mData.mAdditionsRevision; }
     uint32_t    i_getAdditionsVersion(void) { return mData.mAdditionsVersionFull; }
@@ -113,9 +128,9 @@ public:
     }
 #ifdef VBOX_WITH_GUEST_CONTROL
     int         i_dispatchToSession(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    int         i_sessionRemove(uint32_t uSessionID);
     int         i_sessionCreate(const GuestSessionStartupInfo &ssInfo, const GuestCredentials &guestCreds,
                                 ComObjPtr<GuestSession> &pGuestSession);
+    int         i_sessionDestroy(uint32_t uSessionID);
     inline bool i_sessionExists(uint32_t uSessionID);
     /** Returns the VBOX_GUESTCTRL_GF_0_XXX mask reported by the guest. */
     uint64_t    i_getGuestControlFeatures0() const { return mData.mfGuestFeatures0; }
@@ -172,6 +187,7 @@ private:
 
      HRESULT findSession(const com::Utf8Str &aSessionName,
                          std::vector<ComPtr<IGuestSession> > &aSessions);
+     HRESULT shutdown(const std::vector<GuestShutdownFlag_T> &aFlags);
      HRESULT updateGuestAdditions(const com::Utf8Str &aSource,
                                   const std::vector<com::Utf8Str> &aArguments,
                                   const std::vector<AdditionsUpdateFlag_T> &aFlags,
@@ -182,7 +198,7 @@ private:
      * @{ */
     void i_updateStats(uint64_t iTick);
     static DECLCALLBACK(int) i_staticEnumStatsCallback(const char *pszName, STAMTYPE enmType, void *pvSample,
-                                                       STAMUNIT enmUnit, STAMVISIBILITY enmVisiblity,
+                                                       STAMUNIT enmUnit, const char *pszUnit, STAMVISIBILITY enmVisiblity,
                                                        const char *pszDesc, void *pvUser);
 
     /** @}  */

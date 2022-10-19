@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -541,8 +551,10 @@ static PRTFSNTFSMFTREC rtFsNtfsVol_NewMftRec(PRTFSNTFSVOL pVol, uint64_t idMft)
             pRec->cRefs        = 1;
             if (RTAvlU64Insert(&pVol->MftRoot, &pRec->TreeNode))
                 return pRec;
-            RTMemFree(pRec);
+            RTMemFree(pRec->pbRec);
         }
+
+        RTMemFree(pRec);
     }
     return NULL;
 }
@@ -2601,6 +2613,7 @@ static const RTVFSFILEOPS g_rtFsNtfsFileOps =
             "NTFS File",
             rtFsNtfsFile_Close,
             rtFsNtfsFile_QueryInfo,
+            NULL,
             RTVFSOBJOPS_VERSION
         },
         RTVFSIOSTREAMOPS_VERSION,
@@ -4397,6 +4410,7 @@ static const RTVFSDIROPS g_rtFsNtfsDirOps =
         "NTFS Dir",
         rtFsNtfsDir_Close,
         rtFsNtfsDir_QueryInfo,
+        NULL,
         RTVFSOBJOPS_VERSION
     },
     RTVFSDIROPS_VERSION,
@@ -4521,7 +4535,7 @@ static int rtFsNtfsVol_QueryClusterStateSlow(PRTFSNTFSVOL pThis, uint64_t iClust
          * Load a cache line.
          */
         Assert(RT_IS_POWER_OF_TWO(pThis->cbBitmapAlloc));
-        uint64_t offLoad = offInBitmap & ~(pThis->cbBitmapAlloc - 1);
+        uint64_t offLoad = offInBitmap & ~(uint64_t)(pThis->cbBitmapAlloc - 1);
         uint32_t cbLoad  = (uint32_t)RT_MIN(cbWholeBitmap - offLoad, pThis->cbBitmapAlloc);
 
         memset(pThis->pvBitmap, 0xff, pThis->cbBitmapAlloc);
@@ -4756,6 +4770,7 @@ static const RTVFSOPS g_rtFsNtfsVolOps =
         /* .pszName = */        "NtfsVol",
         /* .pfnClose = */       rtFsNtfsVol_Close,
         /* .pfnQueryInfo = */   rtFsNtfsVol_QueryInfo,
+        /* .pfnQueryInfoEx = */ NULL,
         /* .uEndMarker = */     RTVFSOBJOPS_VERSION
     },
     /* .uVersion = */           RTVFSOPS_VERSION,

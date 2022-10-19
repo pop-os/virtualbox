@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2021 Oracle Corporation
+ * Copyright (C) 2021-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -355,13 +365,22 @@ public:
         : m_cRefs(1)
         , m_pDrvWas(a_pDrvWas)
     {
-        int rc = RTCritSectInit(&m_CritSect);
-        AssertRCStmt(rc, throw(rc));
+        RT_ZERO(m_CritSect);
     }
 
     virtual ~DrvHostAudioWasMmNotifyClient() RT_NOEXCEPT
     {
-        RTCritSectDelete(&m_CritSect);
+        if (RTCritSectIsInitialized(&m_CritSect))
+            RTCritSectDelete(&m_CritSect);
+    }
+
+    /**
+     * Initializes the critical section.
+     * @note  Must be buildable w/o exceptions enabled, so cannot do this from the
+     *        constructor. */
+    int init(void) RT_NOEXCEPT
+    {
+        return RTCritSectInit(&m_CritSect);
     }
 
     /**
@@ -1599,7 +1618,7 @@ static int drvHostWasEnumerateDevices(PDRVHOSTAUDIOWAS pThis, PPDMAUDIOHOSTENUM 
     int rc = VINF_SUCCESS;
     for (unsigned idxPass = 0; idxPass < 2 && RT_SUCCESS(rc); idxPass++)
     {
-        EDataFlow const enmType = idxPass == 0 ? /*EDataFlow::*/eRender : /*EDataFlow::*/eCapture;
+        EDataFlow const enmType = idxPass == 0 ? EDataFlow::eRender : EDataFlow::eCapture;
 
         /* Get the default device first. */
         IMMDevice *pIDefaultDevice = NULL;
@@ -3088,7 +3107,8 @@ static DECLCALLBACK(void) drvHostAudioWasDestruct(PPDMDRVINS pDrvIns)
 static DECLCALLBACK(int) drvHostAudioWasConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
-    PDRVHOSTAUDIOWAS pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTAUDIOWAS);
+    PDRVHOSTAUDIOWAS    pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTAUDIOWAS);
+    PCPDMDRVHLPR3       pHlp  = pDrvIns->pHlpR3;
     RT_NOREF(fFlags, pCfg);
 
     /*
@@ -3133,7 +3153,7 @@ static DECLCALLBACK(int) drvHostAudioWasConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
     PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, "VmName|VmUuid|InputDeviceID|OutputDeviceID", "");
 
     char szTmp[1024];
-    int rc = CFGMR3QueryStringDef(pCfg, "InputDeviceID", szTmp, sizeof(szTmp), "");
+    int rc = pHlp->pfnCFGMQueryStringDef(pCfg, "InputDeviceID", szTmp, sizeof(szTmp), "");
     AssertMsgRCReturn(rc, ("Confguration error: Failed to read \"InputDeviceID\" as string: rc=%Rrc\n", rc), rc);
     if (szTmp[0])
     {
@@ -3141,7 +3161,7 @@ static DECLCALLBACK(int) drvHostAudioWasConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
         AssertRCReturn(rc, rc);
     }
 
-    rc = CFGMR3QueryStringDef(pCfg, "OutputDeviceID", szTmp, sizeof(szTmp), "");
+    rc = pHlp->pfnCFGMQueryStringDef(pCfg, "OutputDeviceID", szTmp, sizeof(szTmp), "");
     AssertMsgRCReturn(rc, ("Confguration error: Failed to read \"OutputDeviceID\" as string: rc=%Rrc\n", rc), rc);
     if (szTmp[0])
     {
@@ -3188,18 +3208,16 @@ static DECLCALLBACK(int) drvHostAudioWasConstruct(PPDMDRVINS pDrvIns, PCFGMNODE 
      * Failure here isn't considered fatal at this time as we'll just miss
      * default device changes.
      */
-    try
-    {
-        pThis->pNotifyClient = new DrvHostAudioWasMmNotifyClient(pThis);
-    }
-    catch (std::bad_alloc &)
-    {
-        return VERR_NO_MEMORY;
-    }
-    catch (int rcXcpt)
-    {
-        return rcXcpt;
-    }
+#ifdef RT_EXCEPTIONS_ENABLED
+    try { pThis->pNotifyClient = new DrvHostAudioWasMmNotifyClient(pThis); }
+    catch (std::bad_alloc &) { return VERR_NO_MEMORY; }
+#else
+    pThis->pNotifyClient = new DrvHostAudioWasMmNotifyClient(pThis);
+    AssertReturn(pThis->pNotifyClient, VERR_NO_MEMORY);
+#endif
+    rc = pThis->pNotifyClient->init();
+    AssertRCReturn(rc, rc);
+
     hrc = pThis->pIEnumerator->RegisterEndpointNotificationCallback(pThis->pNotifyClient);
     AssertMsg(SUCCEEDED(hrc), ("%Rhrc\n", hrc));
     if (FAILED(hrc))

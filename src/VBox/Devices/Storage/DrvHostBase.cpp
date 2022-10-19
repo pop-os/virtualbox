@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -1224,7 +1234,7 @@ DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns)
 
     if (pThis->pszDevice)
     {
-        MMR3HeapFree(pThis->pszDevice);
+        PDMDrvHlpMMHeapFree(pDrvIns, pThis->pszDevice);
         pThis->pszDevice = NULL;
     }
 
@@ -1268,7 +1278,9 @@ DECLCALLBACK(void) DRVHostBaseDestruct(PPDMDRVINS pDrvIns)
 DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *pszCfgValid, PDMMEDIATYPE enmType)
 {
     int src = VINF_SUCCESS;
-    PDRVHOSTBASE pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTBASE);
+    PDRVHOSTBASE    pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTBASE);
+    PCPDMDRVHLPR3   pHlp  = pDrvIns->pHlpR3;
+
     LogFlow(("%s-%d: DRVHostBaseInit: iInstance=%d\n", pDrvIns->pReg->szName, pDrvIns->iInstance, pDrvIns->iInstance));
 
     /*
@@ -1331,7 +1343,7 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
 
     drvHostBaseInitOs(pThis);
 
-    if (!CFGMR3AreValuesValid(pCfg, pszCfgValid))
+    if (!pHlp->pfnCFGMAreValuesValid(pCfg, pszCfgValid))
     {
         pThis->fAttachFailError = true;
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
@@ -1353,7 +1365,7 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
      * Query configuration.
      */
     /* Device */
-    int rc = CFGMR3QueryStringAlloc(pCfg, "Path", &pThis->pszDevice);
+    int rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "Path", &pThis->pszDevice);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: query for \"Path\" string returned %Rra.\n", rc));
@@ -1362,7 +1374,7 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
 
     /* Mountable */
     uint32_t u32;
-    rc = CFGMR3QueryU32Def(pCfg, "Interval", &u32, 1000);
+    rc = pHlp->pfnCFGMQueryU32Def(pCfg, "Interval", &u32, 1000);
     if (RT_SUCCESS(rc))
         pThis->cMilliesPoller = u32;
     else
@@ -1377,10 +1389,10 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
             pThis->fReadOnlyConfig = false;
     else
     {
-        rc = CFGMR3QueryBoolDef(pCfg, "ReadOnly", &pThis->fReadOnlyConfig,
-                                  enmType == PDMMEDIATYPE_DVD || enmType == PDMMEDIATYPE_CDROM
-                                ? true
-                                : false);
+        rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "ReadOnly", &pThis->fReadOnlyConfig,
+                                         enmType == PDMMEDIATYPE_DVD || enmType == PDMMEDIATYPE_CDROM
+                                       ? true
+                                       : false);
         if (RT_FAILURE(rc))
         {
             AssertMsgFailed(("Configuration error: Query \"ReadOnly\" resulted in %Rrc.\n", rc));
@@ -1389,7 +1401,7 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
     }
 
     /* Locked */
-    rc = CFGMR3QueryBoolDef(pCfg, "Locked", &pThis->fLocked, false);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "Locked", &pThis->fLocked, false);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: Query \"Locked\" resulted in %Rrc.\n", rc));
@@ -1397,7 +1409,7 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
     }
 
     /* BIOS visible */
-    rc = CFGMR3QueryBoolDef(pCfg, "BIOSVisible", &pThis->fBiosVisible, true);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "BIOSVisible", &pThis->fBiosVisible, true);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: Query \"BIOSVisible\" resulted in %Rrc.\n", rc));
@@ -1406,7 +1418,7 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
 
     /* Uuid */
     char *psz;
-    rc = CFGMR3QueryStringAlloc(pCfg, "Uuid", &psz);
+    rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, "Uuid", &psz);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
         RTUuidClear(&pThis->Uuid);
     else if (RT_SUCCESS(rc))
@@ -1415,10 +1427,10 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
         if (RT_FAILURE(rc))
         {
             AssertMsgFailed(("Configuration error: Uuid from string failed on \"%s\", rc=%Rrc.\n", psz, rc));
-            MMR3HeapFree(psz);
+            PDMDrvHlpMMHeapFree(pDrvIns, psz);
             return rc;
         }
-        MMR3HeapFree(psz);
+        PDMDrvHlpMMHeapFree(pDrvIns, psz);
     }
     else
     {
@@ -1428,7 +1440,7 @@ DECLHIDDEN(int) DRVHostBaseInit(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *
 
     /* Define whether attach failure is an error (default) or not. */
     bool fAttachFailError = true;
-    rc = CFGMR3QueryBoolDef(pCfg, "AttachFailError", &fAttachFailError, true);
+    rc = pHlp->pfnCFGMQueryBoolDef(pCfg, "AttachFailError", &fAttachFailError, true);
     pThis->fAttachFailError = fAttachFailError;
 
     /* log config summary */

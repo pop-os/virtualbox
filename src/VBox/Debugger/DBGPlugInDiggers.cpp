@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -21,13 +31,13 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DBGC
 #include <VBox/dbg.h>
-#include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/vmmr3vtable.h>
 #include "DBGPlugIns.h"
 #include <VBox/version.h>
 #include <iprt/errcore.h>
 
 
-DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t uArg)
+DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, PCVMMR3VTABLE pVMM, uintptr_t uArg)
 {
     static PCDBGFOSREG s_aPlugIns[] =
     {
@@ -48,12 +58,12 @@ DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t u
 
             for (unsigned i = 0; i < RT_ELEMENTS(s_aPlugIns); i++)
             {
-                int rc = DBGFR3OSRegister(pUVM, s_aPlugIns[i]);
+                int rc = pVMM->pfnDBGFR3OSRegister(pUVM, s_aPlugIns[i]);
                 if (RT_FAILURE(rc))
                 {
                     AssertRC(rc);
                     while (i-- > 0)
-                        DBGFR3OSDeregister(pUVM, s_aPlugIns[i]);
+                        pVMM->pfnDBGFR3OSDeregister(pUVM, s_aPlugIns[i]);
                     return rc;
                 }
             }
@@ -64,7 +74,7 @@ DECLEXPORT(int) DbgPlugInEntry(DBGFPLUGINOP enmOperation, PUVM pUVM, uintptr_t u
         {
             for (unsigned i = 0; i < RT_ELEMENTS(s_aPlugIns); i++)
             {
-                int rc = DBGFR3OSDeregister(pUVM, s_aPlugIns[i]);
+                int rc = pVMM->pfnDBGFR3OSDeregister(pUVM, s_aPlugIns[i]);
                 AssertRC(rc);
             }
             return VINF_SUCCESS;

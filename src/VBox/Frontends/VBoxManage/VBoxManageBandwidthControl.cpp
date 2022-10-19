@@ -4,18 +4,26 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
-
-#ifndef VBOX_ONLY_DOCS
 
 
 /*********************************************************************************************************************************
@@ -39,6 +47,7 @@
 #include "VBoxManage.h"
 using namespace com;
 
+DECLARE_TRANSLATION_CONTEXT(BWControl);
 
 // funcs
 ///////////////////////////////////////////////////////////////////////////////
@@ -63,7 +72,7 @@ static const char *parseLimit(const char *pcszLimit, int64_t *pLimit)
         case VINF_SUCCESS:
             break;
         case VWRN_NUMBER_TOO_BIG:
-            return "Limit is too big\n";
+            return BWControl::tr("Limit is too big\n");
         case VWRN_TRAILING_CHARS:
             switch (*pszNext)
             {
@@ -73,20 +82,20 @@ static const char *parseLimit(const char *pcszLimit, int64_t *pLimit)
                 case 'g': iMultiplier = 125000000; break;
                 case 'm': iMultiplier = 125000;    break;
                 case 'k': iMultiplier = 125;       break;
-                default:  return "Invalid unit suffix. Valid suffixes are: k, m, g, K, M, G\n";
+                default:  return BWControl::tr("Invalid unit suffix. Valid suffixes are: k, m, g, K, M, G\n");
             }
             break;
         case VWRN_TRAILING_SPACES:
-            return "Trailing spaces in limit!\n";
+            return BWControl::tr("Trailing spaces in limit!\n");
         case VERR_NO_DIGITS:
-            return "No digits in limit specifier\n";
+            return BWControl::tr("No digits in limit specifier\n");
         default:
-            return "Invalid limit specifier\n";
+            return BWControl::tr("Invalid limit specifier\n");
     }
     if (*pLimit < 0)
-        return "Limit cannot be negative\n";
+        return BWControl::tr("Limit cannot be negative\n");
     if (*pLimit > INT64_MAX / iMultiplier)
-        return "Limit is too big\n";
+        return BWControl::tr("Limit is too big\n");
     *pLimit *= iMultiplier;
 
     return NULL;
@@ -100,18 +109,19 @@ static const char *parseLimit(const char *pcszLimit, int64_t *pLimit)
  */
 static RTEXITCODE handleBandwidthControlAdd(HandlerArg *a, ComPtr<IBandwidthControl> &bwCtrl)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     static const RTGETOPTDEF g_aBWCtlAddOptions[] =
         {
             { "--type",   't', RTGETOPT_REQ_STRING },
             { "--limit",  'l', RTGETOPT_REQ_STRING }
         };
 
+    setCurrentSubcommand(HELP_SCOPE_BANDWIDTHCTL_ADD);
 
     Bstr name(a->argv[2]);
     if (name.isEmpty())
     {
-        errorArgument("Bandwidth group name must not be empty!\n");
+        errorArgument(BWControl::tr("Bandwidth group name must not be empty!\n"));
         return RTEXITCODE_FAILURE;
     }
 
@@ -124,7 +134,7 @@ static RTEXITCODE handleBandwidthControlAdd(HandlerArg *a, ComPtr<IBandwidthCont
     RTGetOptInit(&GetState, a->argc, a->argv, g_aBWCtlAddOptions,
                  RT_ELEMENTS(g_aBWCtlAddOptions), 3, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
-    while (   SUCCEEDED(rc)
+    while (   SUCCEEDED(hrc)
            && (c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -134,7 +144,7 @@ static RTEXITCODE handleBandwidthControlAdd(HandlerArg *a, ComPtr<IBandwidthCont
                 if (ValueUnion.psz)
                     pszType = ValueUnion.psz;
                 else
-                    rc = E_FAIL;
+                    hrc = E_FAIL;
                 break;
             }
 
@@ -150,14 +160,14 @@ static RTEXITCODE handleBandwidthControlAdd(HandlerArg *a, ComPtr<IBandwidthCont
                     }
                 }
                 else
-                    rc = E_FAIL;
+                    hrc = E_FAIL;
                 break;
             }
 
             default:
             {
-                errorGetOpt(USAGE_BANDWIDTHCONTROL, c, &ValueUnion);
-                rc = E_FAIL;
+                errorGetOpt(c, &ValueUnion);
+                hrc = E_FAIL;
                 break;
             }
         }
@@ -171,7 +181,7 @@ static RTEXITCODE handleBandwidthControlAdd(HandlerArg *a, ComPtr<IBandwidthCont
         enmType = BandwidthGroupType_Network;
     else
     {
-        errorArgument("Invalid bandwidth group type\n");
+        errorArgument(BWControl::tr("Invalid bandwidth group type\n"));
         return RTEXITCODE_FAILURE;
     }
 
@@ -188,12 +198,13 @@ static RTEXITCODE handleBandwidthControlAdd(HandlerArg *a, ComPtr<IBandwidthCont
  */
 static RTEXITCODE handleBandwidthControlSet(HandlerArg *a, ComPtr<IBandwidthControl> &bwCtrl)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     static const RTGETOPTDEF g_aBWCtlAddOptions[] =
         {
             { "--limit",  'l', RTGETOPT_REQ_STRING }
         };
 
+    setCurrentSubcommand(HELP_SCOPE_BANDWIDTHCTL_SET);
 
     Bstr name(a->argv[2]);
     int64_t cMaxBytesPerSec = INT64_MAX;
@@ -204,7 +215,7 @@ static RTEXITCODE handleBandwidthControlSet(HandlerArg *a, ComPtr<IBandwidthCont
     RTGetOptInit(&GetState, a->argc, a->argv, g_aBWCtlAddOptions,
                  RT_ELEMENTS(g_aBWCtlAddOptions), 3, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
 
-    while (   SUCCEEDED(rc)
+    while (   SUCCEEDED(hrc)
            && (c = RTGetOpt(&GetState, &ValueUnion)))
     {
         switch (c)
@@ -221,14 +232,14 @@ static RTEXITCODE handleBandwidthControlSet(HandlerArg *a, ComPtr<IBandwidthCont
                     }
                 }
                 else
-                    rc = E_FAIL;
+                    hrc = E_FAIL;
                 break;
             }
 
             default:
             {
-                errorGetOpt(USAGE_BANDWIDTHCONTROL, c, &ValueUnion);
-                rc = E_FAIL;
+                errorGetOpt(c, &ValueUnion);
+                hrc = E_FAIL;
                 break;
             }
         }
@@ -239,7 +250,7 @@ static RTEXITCODE handleBandwidthControlSet(HandlerArg *a, ComPtr<IBandwidthCont
     {
         ComPtr<IBandwidthGroup> bwGroup;
         CHECK_ERROR2I_RET(bwCtrl, GetBandwidthGroup(name.raw(), bwGroup.asOutParam()), RTEXITCODE_FAILURE);
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
         {
             CHECK_ERROR2I_RET(bwGroup, COMSETTER(MaxBytesPerSec)((LONG64)cMaxBytesPerSec), RTEXITCODE_FAILURE);
         }
@@ -256,6 +267,8 @@ static RTEXITCODE handleBandwidthControlSet(HandlerArg *a, ComPtr<IBandwidthCont
  */
 static RTEXITCODE handleBandwidthControlRemove(HandlerArg *a, ComPtr<IBandwidthControl> &bwCtrl)
 {
+    setCurrentSubcommand(HELP_SCOPE_BANDWIDTHCTL_REMOVE);
+
     Bstr name(a->argv[2]);
     CHECK_ERROR2I_RET(bwCtrl, DeleteBandwidthGroup(name.raw()), RTEXITCODE_FAILURE);
     return RTEXITCODE_SUCCESS;
@@ -274,6 +287,7 @@ static RTEXITCODE handleBandwidthControlList(HandlerArg *pArgs, ComPtr<IBandwidt
         { "--machinereadable",  'M', RTGETOPT_REQ_NOTHING },
     };
 
+    setCurrentSubcommand(HELP_SCOPE_BANDWIDTHCTL_LIST);
     VMINFO_DETAILS enmDetails = VMINFO_STANDARD;
 
     int c;
@@ -288,7 +302,7 @@ static RTEXITCODE handleBandwidthControlList(HandlerArg *pArgs, ComPtr<IBandwidt
                 enmDetails = VMINFO_MACHINEREADABLE;
                 break;
             default:
-                return errorGetOpt(USAGE_BANDWIDTHCONTROL, c, &ValueUnion);
+                return errorGetOpt(c, &ValueUnion);
         }
     }
 
@@ -306,14 +320,14 @@ static RTEXITCODE handleBandwidthControlList(HandlerArg *pArgs, ComPtr<IBandwidt
  */
 RTEXITCODE handleBandwidthControl(HandlerArg *a)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     ComPtr<IMachine> machine;
     ComPtr<IBandwidthControl> bwCtrl;
 
     if (a->argc < 2)
-        return errorSyntax(USAGE_BANDWIDTHCONTROL, "Too few parameters");
+        return errorSyntax(BWControl::tr("Too few parameters"));
     else if (a->argc > 7)
-        return errorSyntax(USAGE_BANDWIDTHCONTROL, "Too many parameters");
+        return errorSyntax(BWControl::tr("Too many parameters"));
 
     /* try to find the given machine */
     CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
@@ -327,47 +341,44 @@ RTEXITCODE handleBandwidthControl(HandlerArg *a)
 
     /* get the mutable session machine */
     a->session->COMGETTER(Machine)(machine.asOutParam());
-    rc = machine->COMGETTER(BandwidthControl)(bwCtrl.asOutParam());
-    if (FAILED(rc)) goto leave;
+    hrc = machine->COMGETTER(BandwidthControl)(bwCtrl.asOutParam());
+    if (FAILED(hrc)) goto leave; /** @todo r=andy Argh!! */
 
     if (!strcmp(a->argv[1], "add"))
     {
         if (fRunTime)
         {
-            errorArgument("Bandwidth groups cannot be created while the VM is running\n");
+            errorArgument(BWControl::tr("Bandwidth groups cannot be created while the VM is running\n"));
             goto leave;
         }
-        rc = handleBandwidthControlAdd(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
+        hrc = handleBandwidthControlAdd(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
     }
     else if (!strcmp(a->argv[1], "remove"))
     {
         if (fRunTime)
         {
-            errorArgument("Bandwidth groups cannot be deleted while the VM is running\n");
+            errorArgument(BWControl::tr("Bandwidth groups cannot be deleted while the VM is running\n"));
             goto leave;
         }
-        rc = handleBandwidthControlRemove(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
+        hrc = handleBandwidthControlRemove(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
     }
     else if (!strcmp(a->argv[1], "set"))
-        rc = handleBandwidthControlSet(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
+        hrc = handleBandwidthControlSet(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
     else if (!strcmp(a->argv[1], "list"))
-        rc = handleBandwidthControlList(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
+        hrc = handleBandwidthControlList(a, bwCtrl) == RTEXITCODE_SUCCESS ? S_OK : E_FAIL;
     else
     {
-        errorSyntax(USAGE_BANDWIDTHCONTROL, "Invalid parameter '%s'", Utf8Str(a->argv[1]).c_str());
-        rc = E_FAIL;
+        errorSyntax(BWControl::tr("Invalid parameter '%s'"), a->argv[1]);
+        hrc = E_FAIL;
     }
 
     /* commit changes */
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         CHECK_ERROR(machine, SaveSettings());
 
 leave:
     /* it's important to always close sessions */
     a->session->UnlockMachine();
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
-
-#endif /* !VBOX_ONLY_DOCS */
-

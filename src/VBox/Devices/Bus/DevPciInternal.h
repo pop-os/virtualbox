@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_Bus_DevPciInternal_h
@@ -186,16 +196,19 @@ typedef DEVPCIROOT *PDEVPCIROOT;
 /** Converts a pointer to a PCI bus instance to a DEVPCIROOT pointer. */
 #define DEVPCIBUS_2_DEVPCIROOT(pPciBus) RT_FROM_MEMBER(pPciBus, DEVPCIROOT, PciBus)
 
-/** @def PCI_LOCK
+
+/** @def PCI_LOCK_RET
  * Acquires the PDM lock. This is a NOP if locking is disabled. */
+#define PCI_LOCK_RET(pDevIns, rcBusy) \
+    do { \
+        int const rcLock = PDMINS_2_DATA_CC(pDevIns, PDEVPCIBUSCC)->CTX_SUFF(pPciHlp)->pfnLock((pDevIns), rcBusy); \
+        if (rcLock == VINF_SUCCESS) \
+        { /* likely */ } \
+        else \
+            return rcLock; \
+    } while (0)
 /** @def PCI_UNLOCK
  * Releases the PDM lock. This is a NOP if locking is disabled. */
-#define PCI_LOCK(pDevIns, rc) \
-    do { \
-        int rc2 = PDMINS_2_DATA_CC(pDevIns, PDEVPCIBUSCC)->CTX_SUFF(pPciHlp)->pfnLock((pDevIns), rc); \
-        if (rc2 != VINF_SUCCESS) \
-            return rc2; \
-    } while (0)
 #define PCI_UNLOCK(pDevIns) \
     PDMINS_2_DATA_CC(pDevIns, PDEVPCIBUSCC)->CTX_SUFF(pPciHlp)->pfnUnlock(pDevIns)
 
@@ -224,7 +237,7 @@ DECLCALLBACK(VBOXSTRICTRC) devpciR3CommonConfigWrite(PPDMDEVINS pDevIns, PPDMPCI
 DECLHIDDEN(VBOXSTRICTRC)   devpciR3CommonConfigWriteWorker(PPDMDEVINS pDevIns, PDEVPCIBUSCC pBusCC,
                                                            PPDMPCIDEV pPciDev, uint32_t uAddress, unsigned cb, uint32_t u32Value);
 void devpciR3CommonRestoreConfig(PPDMDEVINS pDevIns, PPDMPCIDEV pDev, uint8_t const *pbSrcConfig);
-int  devpciR3CommonRestoreRegions(PSSMHANDLE pSSM, PPDMPCIDEV pPciDev, PPCIIOREGION paIoRegions, bool fNewState);
+int  devpciR3CommonRestoreRegions(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM, PPDMPCIDEV pPciDev, PPCIIOREGION paIoRegions, bool fNewState);
 void devpciR3ResetDevice(PPDMDEVINS pDevIns, PPDMPCIDEV pDev);
 void devpciR3BiosInitSetRegionAddress(PPDMDEVINS pDevIns, PDEVPCIBUS pBus, PPDMPCIDEV pPciDev, int iRegion, uint64_t addr);
 uint32_t devpciR3GetCfg(PPDMPCIDEV pPciDev, int32_t iRegister, int cb);

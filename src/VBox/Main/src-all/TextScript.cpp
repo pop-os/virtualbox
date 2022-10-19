@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -52,7 +62,7 @@ HRESULT BaseTextScript::read(const Utf8Str &rStrFilename)
         RTVfsFileRelease(hVfsFile);
     }
     else
-        hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("Failed to open '%s' (%Rrc)"), rStrFilename.c_str(), vrc);
+        hrc = mpSetError->setErrorVrc(vrc, tr("Failed to open '%s' (%Rrc)"), rStrFilename.c_str(), vrc);
     return hrc;
 }
 
@@ -93,21 +103,20 @@ HRESULT BaseTextScript::readFromHandle(RTVFSFILE hVfsFile, const char *pszFilena
                     return S_OK;
                 }
 
-                hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("'%s' isn't valid UTF-8: %Rrc"), pszFilename, vrc);
+                hrc = mpSetError->setErrorVrc(vrc, tr("'%s' isn't valid UTF-8: %Rrc"), pszFilename, vrc);
             }
             else
-                hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("Error reading '%s': %Rrc"), pszFilename, vrc);
+                hrc = mpSetError->setErrorVrc(vrc, tr("Error reading '%s': %Rrc"), pszFilename, vrc);
             mStrScriptFullContent.setNull();
         }
         else
-            hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("Failed to allocate memory (%'RU64 bytes) for '%s'"),
+            hrc = mpSetError->setErrorVrc(vrc, tr("Failed to allocate memory (%'RU64 bytes) for '%s'", "", cbFile),
                                           cbFile, pszFilename);
     }
     else if (RT_SUCCESS(vrc))
-        hrc = mpSetError->setErrorVrc(VERR_FILE_TOO_BIG,
-                                      mpSetError->tr("'%s' is too big (max 16MB): %'RU64"), pszFilename, cbFile);
+        hrc = mpSetError->setErrorVrc(VERR_FILE_TOO_BIG, tr("'%s' is too big (max 16MB): %'RU64"), pszFilename, cbFile);
     else
-        hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("RTVfsFileQuerySize failed (%Rrc)"), vrc);
+        hrc = mpSetError->setErrorVrc(vrc, tr("RTVfsFileQuerySize failed (%Rrc)"), vrc);
     return hrc;
 }
 
@@ -178,10 +187,10 @@ HRESULT BaseTextScript::save(const Utf8Str &rStrFilename, bool fOverwrite)
             }
             RTFileClose(hFile);
             RTFileDelete(pszFilename);
-            hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("Error writing to '%s' (%Rrc)"), pszFilename, vrc);
+            hrc = mpSetError->setErrorVrc(vrc, tr("Error writing to '%s' (%Rrc)"), pszFilename, vrc);
         }
         else
-            hrc = mpSetError->setErrorVrc(vrc, mpSetError->tr("Error creating/replacing '%s' (%Rrc)"), pszFilename, vrc);
+            hrc = mpSetError->setErrorVrc(vrc, tr("Error creating/replacing '%s' (%Rrc)"), pszFilename, vrc);
     }
     return hrc;
 }
@@ -194,7 +203,7 @@ HRESULT BaseTextScript::save(const Utf8Str &rStrFilename, bool fOverwrite)
 
 HRESULT GeneralTextScript::parse()
 {
-//  AssertReturn(!mfDataParsed, mpSetError->setErrorBoth(E_FAIL, VERR_WRONG_ORDER, "parse called more than once"));
+    AssertReturn(!mfDataParsed, mpSetError->setErrorBoth(E_FAIL, VERR_WRONG_ORDER, tr("parse called more than once")));
 
     /*
      * Split the raw context into an array of lines.
@@ -215,7 +224,7 @@ HRESULT GeneralTextScript::parse()
 
 HRESULT GeneralTextScript::saveToString(Utf8Str &rStrDst)
 {
-    AssertReturn(mfDataParsed, mpSetError->setErrorBoth(E_FAIL, VERR_WRONG_ORDER, "saveToString() called before parse()"));
+    AssertReturn(mfDataParsed, mpSetError->setErrorBoth(E_FAIL, VERR_WRONG_ORDER, tr("saveToString() called before parse()")));
 
     /*
      * Calc the required size first.
@@ -264,7 +273,9 @@ const RTCString &GeneralTextScript::getContentOfLine(size_t idxLine)
 HRESULT GeneralTextScript::setContentOfLine(size_t idxLine, const Utf8Str &rStrNewLine)
 {
     AssertReturn(idxLine < mScriptContentByLines.size(),
-                 mpSetError->setErrorBoth(E_FAIL, VERR_OUT_OF_RANGE, "attempting to set line %zu when there are only %zu lines",
+                 mpSetError->setErrorBoth(E_FAIL, VERR_OUT_OF_RANGE,
+                                          tr("attempting to set line %zu when there are only %zu lines", "",
+                                             mScriptContentByLines.size()),
                                           idxLine, mScriptContentByLines.size()));
     try
     {
@@ -293,7 +304,8 @@ HRESULT GeneralTextScript::findAndReplace(size_t idxLine, const Utf8Str &rStrNee
 {
     AssertReturn(idxLine < mScriptContentByLines.size(),
                  mpSetError->setErrorBoth(E_FAIL, VERR_OUT_OF_RANGE,
-                                          "attempting search&replace in line %zu when there are only %zu lines",
+                                          tr("attempting search&replace in line %zu when there are only %zu lines", "",
+                                             mScriptContentByLines.size()),
                                           idxLine, mScriptContentByLines.size()));
 
     RTCString &rDstString = mScriptContentByLines[idxLine];
@@ -320,7 +332,9 @@ HRESULT GeneralTextScript::findAndReplace(size_t idxLine, const Utf8Str &rStrNee
 HRESULT GeneralTextScript::appendToLine(size_t idxLine, const Utf8Str &rStrToAppend)
 {
     AssertReturn(idxLine < mScriptContentByLines.size(),
-                 mpSetError->setErrorBoth(E_FAIL, VERR_OUT_OF_RANGE, "appending to line %zu when there are only %zu lines",
+                 mpSetError->setErrorBoth(E_FAIL, VERR_OUT_OF_RANGE,
+                                          tr("appending to line %zu when there are only %zu lines", "",
+                                             mScriptContentByLines.size()),
                                           idxLine, mScriptContentByLines.size()));
 
     try
@@ -337,7 +351,9 @@ HRESULT GeneralTextScript::appendToLine(size_t idxLine, const Utf8Str &rStrToApp
 HRESULT GeneralTextScript::prependToLine(size_t idxLine, const Utf8Str &rStrToPrepend)
 {
     AssertReturn(idxLine < mScriptContentByLines.size(),
-                 mpSetError->setErrorBoth(E_FAIL, VERR_OUT_OF_RANGE, "prepending to line %zu when there are only %zu lines",
+                 mpSetError->setErrorBoth(E_FAIL, VERR_OUT_OF_RANGE,
+                                          tr("prepending to line %zu when there are only %zu lines", "",
+                                             mScriptContentByLines.size()),
                                           idxLine, mScriptContentByLines.size()));
 
     RTCString &rDstString = mScriptContentByLines[idxLine];
@@ -356,3 +372,17 @@ HRESULT GeneralTextScript::prependToLine(size_t idxLine, const Utf8Str &rStrToPr
     return S_OK;
 }
 
+HRESULT GeneralTextScript::appendLine(const Utf8Str &rStrLineToAppend)
+{
+    AssertReturn(mfDataParsed, mpSetError->setErrorBoth(E_FAIL, VERR_WRONG_ORDER, tr("appendLine() called before parse()")));
+
+    try
+    {
+        mScriptContentByLines.append(rStrLineToAppend);
+    }
+    catch (std::bad_alloc &)
+    {
+        return E_OUTOFMEMORY;
+    }
+    return S_OK;
+}

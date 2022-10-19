@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_uint128_h
@@ -32,9 +42,7 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/asm.h>
-#ifdef RT_ARCH_AMD64
-# include <iprt/asm-math.h>
-#endif
+#include <iprt/asm-math.h>
 
 RT_C_DECLS_BEGIN
 
@@ -50,7 +58,7 @@ RT_C_DECLS_BEGIN
  * @returns true if they are, false if they aren't.
  * @param   pValue          The input and output value.
  */
-DECLINLINE(bool) RTUInt128IsZero(PRTUINT128U pValue)
+DECLINLINE(bool) RTUInt128IsZero(PCRTUINT128U pValue)
 {
 #if ARCH_BITS >= 64
     return pValue->s.Hi == 0
@@ -306,6 +314,69 @@ DECLINLINE(PRTUINT128U) RTUInt128MulU64ByU64(PRTUINT128U pResult, uint64_t uValu
 
     pResult->s.Hi += (uint64_t)uHiValue1 * uHiValue2;
 #endif
+    return pResult;
+}
+
+
+/**
+ * Multiplies an 128-bit unsigned integer by a 64-bit unsigned integer value,
+ * returning a 256-bit result (top 64 bits are zero).
+ *
+ * @returns pResult
+ * @param   pResult             The result variable.
+ * @param   pValue1             The first value.
+ * @param   uValue2             The second value, 64-bit.
+ */
+#if defined(RT_ARCH_AMD64)
+RTDECL(PRTUINT256U) RTUInt128MulByU64Ex(PRTUINT256U pResult, PCRTUINT128U pValue1, uint64_t uValue2);
+#else
+DECLINLINE(PRTUINT256U) RTUInt128MulByU64Ex(PRTUINT256U pResult, PCRTUINT128U pValue1, uint64_t uValue2)
+{
+    /* multiply the two qwords in pValue1 by uValue2. */
+    uint64_t uTmp = 0;
+    pResult->QWords.qw0 = ASMMult2xU64Ret2xU64(pValue1->s.Lo, uValue2, &uTmp);
+    pResult->QWords.qw1 = ASMMult2xU64Ret2xU64(pValue1->s.Hi, uValue2, &pResult->QWords.qw2);
+    pResult->QWords.qw3 = 0;
+    pResult->QWords.qw1 += uTmp;
+    if (pResult->QWords.qw1 < uTmp)
+        pResult->QWords.qw2++; /* This cannot overflow AFAIK: 0xffff*0xffff = 0xFFFE0001 */
+
+    return pResult;
+}
+#endif
+
+
+/**
+ * Multiplies two 128-bit unsigned integer values, returning a 256-bit result.
+ *
+ * @returns pResult
+ * @param   pResult             The result variable.
+ * @param   pValue1             The first value.
+ * @param   pValue2             The second value.
+ */
+DECLINLINE(PRTUINT256U) RTUInt128MulEx(PRTUINT256U pResult, PCRTUINT128U pValue1, PCRTUINT128U pValue2)
+{
+    RTUInt128MulByU64Ex(pResult, pValue1, pValue2->s.Lo);
+    if (pValue2->s.Hi)
+    {
+        /* Multiply the two qwords in pValue1 by the high part of uValue2. */
+        uint64_t uTmpHi = 0;
+        uint64_t uTmpLo = ASMMult2xU64Ret2xU64(pValue1->s.Lo, pValue2->s.Hi, &uTmpHi);
+        pResult->QWords.qw1 += uTmpLo;
+        if (pResult->QWords.qw1 < uTmpLo)
+            if (++pResult->QWords.qw2 == 0)
+                pResult->QWords.qw3++;  /* (cannot overflow, was == 0) */
+        pResult->QWords.qw2 += uTmpHi;
+        if (pResult->QWords.qw2 < uTmpHi)
+            pResult->QWords.qw3++;      /* (cannot overflow, was <= 1) */
+
+        uTmpLo = ASMMult2xU64Ret2xU64(pValue1->s.Hi, pValue2->s.Hi, &uTmpHi);
+        pResult->QWords.qw2 += uTmpLo;
+        if (pResult->QWords.qw2 < uTmpLo)
+            pResult->QWords.qw3++;      /* (cannot overflow, was <= 2) */
+        pResult->QWords.qw3 += uTmpHi;
+    }
+
     return pResult;
 }
 
@@ -1280,6 +1351,14 @@ DECLINLINE(bool) RTUInt128BitAreAllClear(PRTUINT128U pValue)
 }
 
 
+/**
+ * Number of significant bits in the value.
+ *
+ * This is the same a ASMBitLastSetU64 and ASMBitLastSetU32.
+ *
+ * @returns 0 if zero, 1-base index of the last bit set.
+ * @param   pValue              The value to examine.
+ */
 DECLINLINE(uint32_t) RTUInt128BitCount(PCRTUINT128U pValue)
 {
     uint32_t cBits;

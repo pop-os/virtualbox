@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_drv_scsi   Simple SCSI interface for BIOS access.
@@ -71,91 +81,51 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-//#define DEBUG
-#include <iprt/semaphore.h>
 #include <VBox/vmm/pdmdev.h>
-#include <VBox/vmm/pdmstorageifs.h>
-#include <VBox/scsi.h>
-
-typedef enum VBOXSCSISTATE
-{
-    VBOXSCSISTATE_NO_COMMAND            = 0x00,
-    VBOXSCSISTATE_READ_TXDIR            = 0x01,
-    VBOXSCSISTATE_READ_CDB_SIZE_BUFHI   = 0x02,
-    VBOXSCSISTATE_READ_BUFFER_SIZE_LSB  = 0x03,
-    VBOXSCSISTATE_READ_BUFFER_SIZE_MID  = 0x04,
-    VBOXSCSISTATE_READ_COMMAND          = 0x05,
-    VBOXSCSISTATE_COMMAND_READY         = 0x06
-} VBOXSCSISTATE;
-
-#define VBOXSCSI_TXDIR_FROM_DEVICE 0
-#define VBOXSCSI_TXDIR_TO_DEVICE   1
-
-/** Maximum CDB size the BIOS driver sends. */
-#define VBOXSCSI_CDB_SIZE_MAX     16
-
-typedef struct VBOXSCSI
-{
-    /** The identify register. */
-    uint8_t              regIdentify;
-    /** The target device. */
-    uint8_t              uTargetDevice;
-    /** Transfer direction. */
-    uint8_t              uTxDir;
-    /** The size of the CDB we are issuing. */
-    uint8_t              cbCDB;
-    /** The command to issue. */
-    uint8_t              abCDB[VBOXSCSI_CDB_SIZE_MAX + 4];
-    /** Current position in the array. */
-    uint8_t              iCDB;
-
-#if HC_ARCH_BITS == 64
-    uint32_t             Alignment0;
-#endif
-
-    /** Pointer to the buffer holding the data. */
-    R3PTRTYPE(uint8_t *) pbBuf;
-    /** Size of the buffer in bytes. */
-    uint32_t             cbBuf;
-    /** The number of bytes left to read/write in the
-     *  buffer.  It is decremented when the guest (BIOS) accesses
-     *  the buffer data. */
-    uint32_t             cbBufLeft;
-    /** Current position in the buffer (offBuf if you like). */
-    uint32_t             iBuf;
-    /** The result code of last operation. */
-    int32_t              rcCompletion;
-    /** Flag whether a request is pending. */
-    volatile bool        fBusy;
-    /** The state we are in when fetching a command from the BIOS. */
-    VBOXSCSISTATE        enmState;
-    /** Critical section protecting the device state. */
-    RTCRITSECT           CritSect;
-} VBOXSCSI, *PVBOXSCSI;
-
-#define VBOX_SCSI_BUSY  RT_BIT(0)
-#define VBOX_SCSI_ERROR RT_BIT(1)
+#include <VBox/version.h>
 
 #ifdef IN_RING3
 RT_C_DECLS_BEGIN
-int vboxscsiInitialize(PVBOXSCSI pVBoxSCSI);
-void vboxscsiDestroy(PVBOXSCSI pVBoxSCSI);
-void vboxscsiHwReset(PVBOXSCSI pVBoxSCSI);
-int vboxscsiReadRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint32_t *pu32Value);
-int vboxscsiWriteRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint8_t uVal);
-int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, uint32_t *puLun, uint8_t **ppbCdb, size_t *pcbCdb,
-                         size_t *pcbBuf, uint32_t *puTargetDevice);
-int vboxscsiRequestFinished(PVBOXSCSI pVBoxSCSI, int rcCompletion);
-size_t vboxscsiCopyToBuf(PVBOXSCSI pVBoxSCSI, PRTSGBUF pSgBuf, size_t cbSkip, size_t cbCopy);
-size_t vboxscsiCopyFromBuf(PVBOXSCSI pVBoxSCSI, PRTSGBUF pSgBuf, size_t cbSkip, size_t cbCopy);
-void vboxscsiSetRequestRedo(PVBOXSCSI pVBoxSCSI);
-int vboxscsiWriteString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegister,
-                        uint8_t const *pbSrc, uint32_t *pcTransfers, unsigned cb);
-int vboxscsiReadString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegister,
-                       uint8_t *pbDst, uint32_t *pcTransfers, unsigned cb);
 
-DECLHIDDEN(int) vboxscsiR3LoadExec(PCPDMDEVHLPR3 pHlp, PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM);
-DECLHIDDEN(int) vboxscsiR3SaveExec(PCPDMDEVHLPR3 pHlp, PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM);
+/**
+ * Helper shared by the LsiLogic and BusLogic device emulations to load legacy saved states
+ * before the removal of the VBoxSCSI interface.
+ *
+ * @returns VBox status code.
+ * @param   pHlp                Pointer to the Ring-3 device helper table.
+ * @param   pSSM                The SSM handle to operate on.
+ */
+DECLINLINE(int) vboxscsiR3LoadExecLegacy(PCPDMDEVHLPR3 pHlp, PSSMHANDLE pSSM)
+{
+    pHlp->pfnSSMSkip(pSSM, 4);
+
+    /*
+     * The CDB buffer was increased with r104155 in trunk (backported to 5.0
+     * in r104311) without bumping the SSM state versions which leaves us
+     * with broken saved state restoring for older VirtualBox releases
+     * (up to 5.0.10).
+     */
+    if (   (   pHlp->pfnSSMHandleRevision(pSSM) < 104311
+            && pHlp->pfnSSMHandleVersion(pSSM)  < VBOX_FULL_VERSION_MAKE(5, 0, 12))
+        || (   pHlp->pfnSSMHandleRevision(pSSM) < 104155
+            && pHlp->pfnSSMHandleVersion(pSSM)  >= VBOX_FULL_VERSION_MAKE(5, 0, 51)))
+        pHlp->pfnSSMSkip(pSSM, 12);
+    else
+        pHlp->pfnSSMSkip(pSSM, 20);
+
+    pHlp->pfnSSMSkip(pSSM, 1); /*iCDB*/
+    uint32_t cbBufLeft, iBuf;
+    pHlp->pfnSSMGetU32(pSSM, &cbBufLeft);
+    pHlp->pfnSSMGetU32(pSSM, &iBuf);
+    pHlp->pfnSSMSkip(pSSM, 2); /*fBusy, enmState*/
+
+    if (cbBufLeft + iBuf)
+        pHlp->pfnSSMSkip(pSSM, cbBufLeft + iBuf);
+
+    return VINF_SUCCESS;
+}
+
+
 RT_C_DECLS_END
 #endif /* IN_RING3 */
 

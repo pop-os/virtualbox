@@ -13,10 +13,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 /** @file
  *
@@ -40,7 +45,7 @@ FEATURE ( FEATURE_MISC, "Menu", DHCP_EB_FEATURE_MENU, 1 );
 /** "menu" options */
 struct menu_options {
 	/** Name */
-	const char *name;
+	char *name;
 	/** Delete */
 	int delete;
 };
@@ -56,7 +61,7 @@ static struct option_descriptor menu_opts[] = {
 /** "menu" command descriptor */
 static struct command_descriptor menu_cmd =
 	COMMAND_DESC ( struct menu_options, menu_opts, 0, MAX_ARGUMENTS,
-		       "[--name <name>] [--delete] [<title>]" );
+		       "[<title>]" );
 
 /**
  * The "menu" command
@@ -106,7 +111,7 @@ static int menu_exec ( int argc, char **argv ) {
 /** "item" options */
 struct item_options {
 	/** Menu name */
-	const char *menu;
+	char *menu;
 	/** Shortcut key */
 	unsigned int key;
 	/** Use as default */
@@ -130,8 +135,7 @@ static struct option_descriptor item_opts[] = {
 /** "item" command descriptor */
 static struct command_descriptor item_cmd =
 	COMMAND_DESC ( struct item_options, item_opts, 0, MAX_ARGUMENTS,
-		       "[--menu <menu>] [--key <key>] [--default] "
-		       "[<label>|--gap [<text>]]" );
+		       "[<label> [<text>]]" );
 
 /**
  * The "item" command
@@ -191,11 +195,11 @@ static int item_exec ( int argc, char **argv ) {
 /** "choose" options */
 struct choose_options {
 	/** Menu name */
-	const char *menu;
+	char *menu;
 	/** Timeout */
-	unsigned int timeout;
+	unsigned long timeout;
 	/** Default selection */
-	const char *select;
+	char *select;
 	/** Keep menu */
 	int keep;
 };
@@ -207,16 +211,14 @@ static struct option_descriptor choose_opts[] = {
 	OPTION_DESC ( "default", 'd', required_argument,
 		      struct choose_options, select, parse_string ),
 	OPTION_DESC ( "timeout", 't', required_argument,
-		      struct choose_options, timeout, parse_integer ),
+		      struct choose_options, timeout, parse_timeout ),
 	OPTION_DESC ( "keep", 'k', no_argument,
 		      struct choose_options, keep, parse_flag ),
 };
 
 /** "choose" command descriptor */
 static struct command_descriptor choose_cmd =
-	COMMAND_DESC ( struct choose_options, choose_opts, 1, 1,
-		       "[--menu <menu>] [--default <label>] "
-		       "[--timeout <timeout>] [--keep] <setting>" );
+	COMMAND_DESC ( struct choose_options, choose_opts, 1, 1, "<setting>" );
 
 /**
  * The "choose" command
@@ -227,9 +229,9 @@ static struct command_descriptor choose_cmd =
  */
 static int choose_exec ( int argc, char **argv ) {
 	struct choose_options opts;
+	struct named_setting setting;
 	struct menu *menu;
 	struct menu_item *item;
-	const char *setting;
 	int rc;
 
 	/* Parse options */
@@ -237,7 +239,9 @@ static int choose_exec ( int argc, char **argv ) {
 		goto err_parse_options;
 
 	/* Parse setting name */
-	setting = argv[optind];
+	if ( ( rc = parse_autovivified_setting ( argv[optind],
+						 &setting ) ) != 0 )
+		goto err_parse_setting;
 
 	/* Identify menu */
 	if ( ( rc = parse_menu ( opts.menu, &menu ) ) != 0 )
@@ -247,10 +251,15 @@ static int choose_exec ( int argc, char **argv ) {
 	if ( ( rc = show_menu ( menu, opts.timeout, opts.select, &item ) ) != 0)
 		goto err_show_menu;
 
+	/* Apply default type if necessary */
+	if ( ! setting.setting.type )
+		setting.setting.type = &setting_type_string;
+
 	/* Store setting */
-	if ( ( rc = storef_named_setting ( setting, item->label ) ) != 0 ) {
+	if ( ( rc = storef_setting ( setting.settings, &setting.setting,
+				     item->label ) ) != 0 ) {
 		printf ( "Could not store \"%s\": %s\n",
-			 setting, strerror ( rc ) );
+			 setting.setting.name, strerror ( rc ) );
 		goto err_store;
 	}
 
@@ -263,6 +272,7 @@ static int choose_exec ( int argc, char **argv ) {
 	if ( ! opts.keep )
 		destroy_menu ( menu );
  err_parse_menu:
+ err_parse_setting:
  err_parse_options:
 	return rc;
 }

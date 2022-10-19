@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -159,5 +169,40 @@ VMMR3DECL(VMCPUID) DBGFR3CpuGetCount(PUVM pUVM)
 {
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, 1);
     return pUVM->cCpus;
+}
+
+
+/**
+ * Returns the state of the given CPU as a human readable string.
+ *
+ * @returns Pointer to the human readable CPU state string.
+ * @param   pUVM        The user mode VM handle.
+ * @param   idCpu       The target CPU ID.
+ */
+VMMR3DECL(const char *) DBGFR3CpuGetState(PUVM pUVM, VMCPUID idCpu)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, NULL);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, NULL);
+    AssertReturn(idCpu < pUVM->pVM->cCpus, NULL);
+
+    PVMCPU pVCpu = VMMGetCpuById(pUVM->pVM, idCpu);
+    VMCPUSTATE enmCpuState = (VMCPUSTATE)ASMAtomicReadU32((volatile uint32_t *)&pVCpu->enmState);
+
+    switch (enmCpuState)
+    {
+        case VMCPUSTATE_INVALID:                   return "<INVALID>";
+        case VMCPUSTATE_STOPPED:                   return "Stopped";
+        case VMCPUSTATE_STARTED:                   return "Started";
+        case VMCPUSTATE_STARTED_HM:                return "Started (HM)";
+        case VMCPUSTATE_STARTED_EXEC:              return "Started (Exec)";
+        case VMCPUSTATE_STARTED_EXEC_NEM:          return "Started (Exec NEM)";
+        case VMCPUSTATE_STARTED_EXEC_NEM_WAIT:     return "Started (Exec NEM Wait)";
+        case VMCPUSTATE_STARTED_EXEC_NEM_CANCELED: return "Started (Exec NEM Canceled)";
+        case VMCPUSTATE_STARTED_HALTED:            return "Started (Halted)";
+        case VMCPUSTATE_END:                       return "END";
+        default: break;
+    }
+
+    AssertMsgFailedReturn(("Unknown CPU state %u\n", enmCpuState), "<UNKNOWN>");
 }
 

@@ -16,10 +16,15 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
+ *
+ * You can also choose to distribute this program under the terms of
+ * the Unmodified Binary Distribution Licence (as given in the file
+ * COPYING.UBDL), provided that you have satisfied its requirements.
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -57,8 +62,8 @@ static unsigned long pci_bar ( struct pci_device *pci, unsigned int reg ) {
 	uint32_t high;
 
 	pci_read_config_dword ( pci, reg, &low );
-	if ( ( low & (PCI_BASE_ADDRESS_SPACE|PCI_BASE_ADDRESS_MEM_TYPE_MASK) )
-	     == (PCI_BASE_ADDRESS_SPACE_MEMORY|PCI_BASE_ADDRESS_MEM_TYPE_64) ){
+	if ( ( low & (PCI_BASE_ADDRESS_SPACE_IO|PCI_BASE_ADDRESS_MEM_TYPE_MASK))
+	     == PCI_BASE_ADDRESS_MEM_TYPE_64 ) {
 		pci_read_config_dword ( pci, reg + 4, &high );
 		if ( high ) {
 			if ( sizeof ( unsigned long ) > sizeof ( uint32_t ) ) {
@@ -92,10 +97,10 @@ unsigned long pci_bar_start ( struct pci_device *pci, unsigned int reg ) {
 	unsigned long bar;
 
 	bar = pci_bar ( pci, reg );
-	if ( (bar & PCI_BASE_ADDRESS_SPACE) == PCI_BASE_ADDRESS_SPACE_MEMORY ){
-		return ( bar & PCI_BASE_ADDRESS_MEM_MASK );
+	if ( bar & PCI_BASE_ADDRESS_SPACE_IO ) {
+		return ( bar & ~PCI_BASE_ADDRESS_IO_MASK );
 	} else {
-		return ( bar & PCI_BASE_ADDRESS_IO_MASK );
+		return ( bar & ~PCI_BASE_ADDRESS_MEM_MASK );
 	}
 }
 
@@ -121,11 +126,11 @@ static void pci_read_bases ( struct pci_device *pci ) {
 		if ( bar & PCI_BASE_ADDRESS_SPACE_IO ) {
 			if ( ! pci->ioaddr )
 				pci->ioaddr = 
-					( bar & PCI_BASE_ADDRESS_IO_MASK );
+					( bar & ~PCI_BASE_ADDRESS_IO_MASK );
 		} else {
 			if ( ! pci->membase )
 				pci->membase =
-					( bar & PCI_BASE_ADDRESS_MEM_MASK );
+					( bar & ~PCI_BASE_ADDRESS_MEM_MASK );
 			/* Skip next BAR if 64-bit */
 			if ( bar & PCI_BASE_ADDRESS_MEM_TYPE_64 )
 				reg += 4;
@@ -170,7 +175,19 @@ void adjust_pci_device ( struct pci_device *pci ) {
  * @ret rc		Return status code
  */
 int pci_read_config ( struct pci_device *pci ) {
+	uint32_t busdevfn;
+	uint8_t hdrtype;
 	uint32_t tmp;
+
+	/* Ignore all but the first function on non-multifunction devices */
+	if ( PCI_FUNC ( pci->busdevfn ) != 0 ) {
+		busdevfn = pci->busdevfn;
+		pci->busdevfn = PCI_FIRST_FUNC ( pci->busdevfn );
+		pci_read_config_byte ( pci, PCI_HEADER_TYPE, &hdrtype );
+		pci->busdevfn = busdevfn;
+		if ( ! ( hdrtype & PCI_HEADER_TYPE_MULTI ) )
+			return -ENODEV;
+	}
 
 	/* Check for physical device presence */
 	pci_read_config_dword ( pci, PCI_VENDOR_ID, &tmp );
@@ -186,8 +203,8 @@ int pci_read_config ( struct pci_device *pci ) {
 	pci_read_bases ( pci );
 
 	/* Initialise generic device component */
-	snprintf ( pci->dev.name, sizeof ( pci->dev.name ),
-		   "PCI%02x:%02x.%x", PCI_BUS ( pci->busdevfn ),
+	snprintf ( pci->dev.name, sizeof ( pci->dev.name ), "%04x:%02x:%02x.%x",
+		   PCI_SEG ( pci->busdevfn ), PCI_BUS ( pci->busdevfn ),
 		   PCI_SLOT ( pci->busdevfn ), PCI_FUNC ( pci->busdevfn ) );
 	pci->dev.desc.bus_type = BUS_TYPE_PCI;
 	pci->dev.desc.location = pci->busdevfn;
@@ -203,6 +220,32 @@ int pci_read_config ( struct pci_device *pci ) {
 }
 
 /**
+ * Find next device on PCI bus
+ *
+ * @v pci		PCI device to fill in
+ * @v busdevfn		Starting bus:dev.fn address
+ * @ret busdevfn	Bus:dev.fn address of next PCI device, or negative error
+ */
+int pci_find_next ( struct pci_device *pci, unsigned int busdevfn ) {
+	static unsigned int end;
+	int rc;
+
+	/* Determine number of PCI buses */
+	if ( ! end )
+		end = PCI_BUSDEVFN ( 0, pci_num_bus(), 0, 0 );
+
+	/* Find next PCI device, if any */
+	for ( ; busdevfn < end ; busdevfn++ ) {
+		memset ( pci, 0, sizeof ( *pci ) );
+		pci_init ( pci, busdevfn );
+		if ( ( rc = pci_read_config ( pci ) ) == 0 )
+			return busdevfn;
+	}
+
+	return -ENODEV;
+}
+
+/**
  * Find driver for PCI device
  *
  * @v pci		PCI device
@@ -214,6 +257,8 @@ int pci_find_driver ( struct pci_device *pci ) {
 	unsigned int i;
 
 	for_each_table_entry ( driver, PCI_DRIVERS ) {
+		if ( ( driver->class.class ^ pci->class ) & driver->class.mask )
+			continue;
 		for ( i = 0 ; i < driver->id_count ; i++ ) {
 			id = &driver->ids[i];
 			if ( ( id->vendor != PCI_ANY_ID ) &&
@@ -275,14 +320,10 @@ void pci_remove ( struct pci_device *pci ) {
  */
 static int pcibus_probe ( struct root_device *rootdev ) {
 	struct pci_device *pci = NULL;
-	unsigned int num_bus;
-	unsigned int busdevfn;
-	uint8_t hdrtype = 0;
+	int busdevfn = 0;
 	int rc;
 
-	num_bus = pci_num_bus();
-	for ( busdevfn = 0 ; busdevfn < PCI_BUSDEVFN ( num_bus, 0, 0 ) ;
-	      busdevfn++ ) {
+	for ( busdevfn = 0 ; 1 ; busdevfn++ ) {
 
 		/* Allocate struct pci_device */
 		if ( ! pci )
@@ -291,33 +332,23 @@ static int pcibus_probe ( struct root_device *rootdev ) {
 			rc = -ENOMEM;
 			goto err;
 		}
-		memset ( pci, 0, sizeof ( *pci ) );
-		pci_init ( pci, busdevfn );
-			
-		/* Skip all but the first function on
-		 * non-multifunction cards
-		 */
-		if ( PCI_FUNC ( busdevfn ) == 0 ) {
-			pci_read_config_byte ( pci, PCI_HEADER_TYPE,
-					       &hdrtype );
-		} else if ( ! ( hdrtype & 0x80 ) ) {
-			continue;
-		}
 
-		/* Read device configuration */
-		if ( ( rc = pci_read_config ( pci ) ) != 0 )
-			continue;
+		/* Find next PCI device, if any */
+		busdevfn = pci_find_next ( pci, busdevfn );
+		if ( busdevfn < 0 )
+			break;
 
 		/* Look for a driver */
 		if ( ( rc = pci_find_driver ( pci ) ) != 0 ) {
-			DBGC ( pci, PCI_FMT " (%04x:%04x) has no driver\n",
-			       PCI_ARGS ( pci ), pci->vendor, pci->device );
+			DBGC ( pci, PCI_FMT " (%04x:%04x class %06x) has no "
+			       "driver\n", PCI_ARGS ( pci ), pci->vendor,
+			       pci->device, pci->class );
 			continue;
 		}
 
 		/* Add to device hierarchy */
 		pci->dev.parent = &rootdev->dev;
-		list_add ( &pci->dev.siblings, &rootdev->dev.children);
+		list_add ( &pci->dev.siblings, &rootdev->dev.children );
 
 		/* Look for a driver */
 		if ( ( rc = pci_probe ( pci ) ) == 0 ) {

@@ -3,15 +3,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_testcase_tstDeviceInternal_h
@@ -32,12 +42,35 @@
 
 RT_C_DECLS_BEGIN
 
+#define PDM_MAX_DEVICE_INSTANCE_SIZE      _4M
 
 /** Converts PDM device instance to the device under test structure. */
 #define TSTDEV_PDMDEVINS_2_DUT(a_pDevIns) ((a_pDevIns)->Internal.s.pDut)
 
 /** Forward declaration of internal test device instance data. */
 typedef struct TSTDEVDUTINT *PTSTDEVDUTINT;
+
+
+/** Pointer to a const PDM module descriptor. */
+typedef const struct TSTDEVPDMMOD *PCTSTDEVPDMMOD;
+
+
+/**
+ * PDM device descriptor.
+ */
+typedef struct TSTDEVPDMDEV
+{
+    /** Node for the known device list. */
+    RTLISTNODE                      NdPdmDevs;
+    /** Pointer to the PDM module containing the device. */
+    PCTSTDEVPDMMOD                  pPdmMod;
+    /** Device registration structure. */
+    const struct PDMDEVREGR3        *pReg;
+} TSTDEVPDMDEV;
+/** Pointer to a PDM device descriptor .*/
+typedef TSTDEVPDMDEV *PTSTDEVPDMDEV;
+/** Pointer to a constant PDM device descriptor .*/
+typedef const TSTDEVPDMDEV *PCTSTDEVPDMDEV;
 
 
 /**
@@ -99,6 +132,26 @@ AssertCompile(sizeof(PDMCRITSECTINT) <= (HC_ARCH_BITS == 32 ? 0x80 : 0xc0));
 
 
 /**
+ * SSM handle state.
+ */
+typedef struct SSMHANDLE
+{
+    /** Pointer to the device under test the handle is for. */
+    PTSTDEVDUTINT                   pDut;
+    /** The saved state data buffer. */
+    uint8_t                         *pbSavedState;
+    /** Size of the saved state. */
+    size_t                          cbSavedState;
+    /** Current offset into the data buffer. */
+    uint32_t                        offDataBuffer;
+    /** Current unit version. */
+    uint32_t                        uCurUnitVer;
+    /** Status code. */
+    int                             rc;
+} SSMHANDLE;
+
+
+/**
  * MM Heap allocation.
  */
 typedef struct TSTDEVMMHEAPALLOC
@@ -121,6 +174,47 @@ typedef const TSTDEVMMHEAPALLOC *PCTSTDEVMMHEAPALLOC;
 AssertCompileMemberAlignment(TSTDEVMMHEAPALLOC, abAlloc, HC_ARCH_BITS == 64 ? 16 : 8);
 
 
+/**
+ * The usual device/driver/internal/external stuff.
+ */
+typedef enum
+{
+    /** The usual invalid entry. */
+    PDMTHREADTYPE_INVALID = 0,
+    /** Device type. */
+    PDMTHREADTYPE_DEVICE,
+    /** USB Device type. */
+    PDMTHREADTYPE_USB,
+    /** Driver type. */
+    PDMTHREADTYPE_DRIVER,
+    /** Internal type. */
+    PDMTHREADTYPE_INTERNAL,
+    /** External type. */
+    PDMTHREADTYPE_EXTERNAL,
+    /** The usual 32-bit hack. */
+    PDMTHREADTYPE_32BIT_HACK = 0x7fffffff
+} PDMTHREADTYPE;
+
+
+/**
+ * The internal structure for the thread.
+ */
+typedef struct PDMTHREADINT
+{
+    /** Node for the list of threads. */
+    RTLISTNODE                      NdPdmThrds;
+    /** Pointer to the device under test the allocation was made for. */
+    PTSTDEVDUTINT                   pDut;
+    /** The event semaphore the thread blocks on when not running. */
+    RTSEMEVENTMULTI                 BlockEvent;
+    /** The event semaphore the thread sleeps on while running. */
+    RTSEMEVENTMULTI                 SleepEvent;
+    /** The thread type. */
+    PDMTHREADTYPE                   enmType;
+} PDMTHREADINT;
+
+
+#define PDMTHREADINT_DECLARED
 #define PDMCRITSECTINT_DECLARED
 #define PDMDEVINSINT_DECLARED
 #define PDMPCIDEVINT_DECLARED
@@ -128,6 +222,7 @@ AssertCompileMemberAlignment(TSTDEVMMHEAPALLOC, abAlloc, HC_ARCH_BITS == 64 ? 16
 #define VMM_INCLUDED_SRC_include_VMMInternal_h
 RT_C_DECLS_END
 #include <VBox/vmm/pdmcritsect.h>
+#include <VBox/vmm/pdmthread.h>
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdmpci.h>
 #include <VBox/vmm/pdmdrv.h>
@@ -226,6 +321,53 @@ typedef const RTDEVDUTIOPORT *PCRTDEVDUTIOPORT;
 
 
 /**
+ * Registered MMIO port access handler.
+ */
+typedef struct RTDEVDUTMMIO
+{
+    /** Node for the list of registered handlers. */
+    RTLISTNODE                      NdMmio;
+    /** Start address of the MMIO region when mapped. */
+    RTGCPHYS                        GCPhysStart;
+    /** Size of the MMIO region in bytes. */
+    RTGCPHYS                        cbRegion;
+    /** Opaque user data - R3. */
+    void                            *pvUserR3;
+    /** Write handler - R3. */
+    PFNIOMMMIONEWWRITE              pfnWriteR3;
+    /** Read handler - R3. */
+    PFNIOMMMIONEWREAD               pfnReadR3;
+    /** Fill handler - R3. */
+    PFNIOMMMIONEWFILL               pfnFillR3;
+
+    /** Opaque user data - R0. */
+    void                            *pvUserR0;
+    /** Write handler - R0. */
+    PFNIOMMMIONEWWRITE              pfnWriteR0;
+    /** Read handler - R0. */
+    PFNIOMMMIONEWREAD               pfnReadR0;
+    /** Fill handler - R0. */
+    PFNIOMMMIONEWFILL               pfnFillR0;
+
+#ifdef TSTDEV_SUPPORTS_RC
+    /** Opaque user data - RC. */
+    void                            *pvUserRC;
+    /** Write handler - RC. */
+    PFNIOMMMIONEWWRITE              pfnWriteRC;
+    /** Read handler - RC. */
+    PFNIOMMMIONEWREAD               pfnReadRC;
+    /** Fill handler - RC. */
+    PFNIOMMMIONEWFILL               pfnFillRC;
+#endif
+} RTDEVDUTMMIO;
+/** Pointer to a registered MMIO handler. */
+typedef RTDEVDUTMMIO *PRTDEVDUTMMIO;
+/** Pointer to a const MMIO handler. */
+typedef const RTDEVDUTMMIO *PCRTDEVDUTMMIO;
+
+
+#ifdef IN_RING3
+/**
  * Registered SSM handlers.
  */
 typedef struct TSTDEVDUTSSM
@@ -248,6 +390,7 @@ typedef struct TSTDEVDUTSSM
 typedef TSTDEVDUTSSM *PTSTDEVDUTSSM;
 /** Pointer to a const SSM handler. */
 typedef const TSTDEVDUTSSM *PCTSTDEVDUTSSM;
+#endif
 
 
 /**
@@ -333,8 +476,12 @@ typedef struct TSTDEVDUTINT
 {
     /** Pointer to the test this device is running under. */
     PCTSTDEVTEST                    pTest;
+    /** The PDM device registration record. */
+    PCTSTDEVPDMDEV                  pPdmDev;
     /** Pointer to the PDM device instance. */
-    PPDMDEVINS                      pDevIns;
+    struct PDMDEVINSR3             *pDevIns;
+    /** Pointer to the PDM R0 device instance. */
+    struct PDMDEVINSR0             *pDevInsR0;
     /** CFGM root config node for the device. */
     CFGMNODE                        Cfg;
     /** Current device context. */
@@ -363,11 +510,16 @@ typedef struct TSTDEVDUTINT
     PPDMPCIDEV                      pPciDev;
     /** PCI Region descriptors. */
     TSTDEVDUTPCIREGION              aPciRegions[VBOX_PCI_NUM_REGIONS];
+    /** The status port interface we implement. */
+    PDMIBASE                        IBaseSts;
+    /**  */
 } TSTDEVDUTINT;
 
 
+#ifdef IN_RING3
 extern const PDMDEVHLPR3 g_tstDevPdmDevHlpR3;
-
+#endif
+extern const PDMDEVHLPR0 g_tstDevPdmDevHlpR0;
 
 DECLHIDDEN(int) tstDevPdmLdrGetSymbol(PTSTDEVDUTINT pThis, const char *pszMod, TSTDEVPDMMODTYPE enmModType,
                                       const char *pszSymbol, PFNRT *ppfn);
@@ -392,6 +544,34 @@ DECLINLINE(int) tstDevDutUnlockExcl(PTSTDEVDUTINT pThis)
 {
     return RTCritSectRwLeaveExcl(&pThis->CritSectLists);
 }
+
+DECLHIDDEN(int) tstDevPdmR3ThreadCreateDevice(PTSTDEVDUTINT pDut, PPDMDEVINS pDevIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDEV pfnThread,
+                                              PFNPDMTHREADWAKEUPDEV pfnWakeUp, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);
+DECLHIDDEN(int) tstDevPdmR3ThreadCreateUsb(PTSTDEVDUTINT pDut, PPDMUSBINS pUsbIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADUSB pfnThread,
+                                           PFNPDMTHREADWAKEUPUSB pfnWakeUp, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);
+DECLHIDDEN(int) tstDevPdmR3ThreadCreateDriver(PTSTDEVDUTINT pDut, PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
+                                              PFNPDMTHREADWAKEUPDRV pfnWakeUp, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);
+DECLHIDDEN(int) tstDevPdmR3ThreadCreate(PTSTDEVDUTINT pDut, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADINT pfnThread,
+                                        PFNPDMTHREADWAKEUPINT pfnWakeUp, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);
+DECLHIDDEN(int) tstDevPdmR3ThreadCreateExternal(PTSTDEVDUTINT pDut, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADEXT pfnThread,
+                                                PFNPDMTHREADWAKEUPEXT pfnWakeUp, size_t cbStack, RTTHREADTYPE enmType, const char *pszName);
+DECLHIDDEN(int) tstDevPdmR3ThreadDestroy(PPDMTHREAD pThread, int *pRcThread);
+DECLHIDDEN(int) tstDevPdmR3ThreadDestroyDevice(PTSTDEVDUTINT pDut, PPDMDEVINS pDevIns);
+DECLHIDDEN(int) tstDevPdmR3ThreadDestroyUsb(PTSTDEVDUTINT pDut, PPDMUSBINS pUsbIns);
+DECLHIDDEN(int) tstDevPdmR3ThreadDestroyDriver(PTSTDEVDUTINT pDut, PPDMDRVINS pDrvIns);
+DECLHIDDEN(void) tstDevPdmR3ThreadDestroyAll(PTSTDEVDUTINT pDut);
+DECLHIDDEN(int) tstDevPdmR3ThreadIAmSuspending(PPDMTHREAD pThread);
+DECLHIDDEN(int) tstDevPdmR3ThreadIAmRunning(PPDMTHREAD pThread);
+DECLHIDDEN(int) tstDevPdmR3ThreadSleep(PPDMTHREAD pThread, RTMSINTERVAL cMillies);
+DECLHIDDEN(int) tstDevPdmR3ThreadSuspend(PPDMTHREAD pThread);
+DECLHIDDEN(int) tstDevPdmR3ThreadResume(PPDMTHREAD pThread);
+
+
+DECLHIDDEN(PCTSTDEVPDMDEV) tstDevPdmDeviceFind(const char *pszName, PCPDMDEVREGR0 *ppR0Reg);
+DECLHIDDEN(int) tstDevPdmDeviceR3Construct(PTSTDEVDUTINT pDut);
+
+DECLHIDDEN(int) tstDevPdmDevR0R3Create(const char *pszName, bool fRCEnabled, PTSTDEVDUTINT pDut);
+
 
 RT_C_DECLS_END
 

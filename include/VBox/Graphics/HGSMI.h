@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -95,8 +95,8 @@ typedef struct HGSMIHEAP
  * @param   cbBuffer        Size of command data.
  * @thread  EMT on the host side.
  */
-typedef DECLCALLBACK(int) FNHGSMICHANNELHANDLER(void *pvHandler, uint16_t u16ChannelInfo,
-                                                RT_UNTRUSTED_VOLATILE_HSTGST void *pvBuffer, HGSMISIZE cbBuffer);
+typedef DECLCALLBACKTYPE(int, FNHGSMICHANNELHANDLER,(void *pvHandler, uint16_t u16ChannelInfo,
+                                                     RT_UNTRUSTED_VOLATILE_HSTGST void *pvBuffer, HGSMISIZE cbBuffer));
 /** Pointer to a channel handler callback. */
 typedef FNHGSMICHANNELHANDLER *PFNHGSMICHANNELHANDLER;
 

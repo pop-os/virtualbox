@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_manager_details_UIDetailsModel_h
@@ -70,7 +80,7 @@ public:
       * @param  pParent  Brings the details container to embed into. */
     UIDetailsModel(UIDetails *pParent);
     /** Destructs a details model. */
-    virtual ~UIDetailsModel() /* override */;
+    virtual ~UIDetailsModel() RT_OVERRIDE;
 
     /** Inits model. */
     void init();
@@ -178,7 +188,7 @@ public slots:
 protected:
 
     /** Preprocesses any Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
 
 private slots:
 
@@ -205,12 +215,6 @@ private:
           * @note enmType equal to DetailsElementType_Invalid means load everything. */
         void loadDetailsOptions(DetailsElementType enmType = DetailsElementType_Invalid);
 
-        /** Saves details options. */
-        void saveDetailsOptions();
-        /** Saves details categories. */
-        void saveDetailsCategories();
-        /** Saves settings. */
-        void saveSettings();
         /** Cleanups context-menu. */
         void cleanupContextMenu();
         /** Cleanups root. */
@@ -274,14 +278,14 @@ signals:
 
     /** Notifies listeners about all animations finished.
       * @param  enmType   Brings the type of element item which was animated.
-      * @param  fToggled  Brigns whether elements being toggled to be closed or opened. */
+      * @param  fToggled  Brings whether elements being toggled to be closed or opened. */
     void sigAllAnimationFinished(DetailsElementType enmType, bool fToggled);
 
 public:
 
     /** Constructors details element animation callback passing @a pParent to the base-class.
       * @param  enmType   Brings the type of element item which was animated.
-      * @param  fToggled  Brigns whether elements being toggled to be closed or opened. */
+      * @param  fToggled  Brings whether elements being toggled to be closed or opened. */
     UIDetailsElementAnimationCallback(QObject *pParent, DetailsElementType enmType, bool fToggled);
 
     /** Adds notifier for a certain details @a pItem. */

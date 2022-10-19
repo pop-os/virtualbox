@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -67,6 +77,8 @@ typedef struct DBGFFLOWINT
     uint32_t                cBbs;
     /** Number of branch tables in this control flow graph. */
     uint32_t                cBranchTbls;
+    /** Number of call instructions in this control flow graph. */
+    uint32_t                cCallInsns;
     /** The lowest addres of a basic block. */
     DBGFADDRESS             AddrLowest;
     /** The highest address of a basic block. */
@@ -1147,12 +1159,29 @@ static int dbgfR3FlowBbProcess(PUVM pUVM, VMCPUID idCpu, PDBGFFLOWINT pThis, PDB
             break;
         }
 
-        pFlowBb->fFlags &= ~DBGF_FLOW_BB_F_EMPTY;
-
         rc = dbgfR3DisasInstrStateEx(pUVM, idCpu, &AddrDisasm, fFlags,
                                      &szOutput[0], sizeof(szOutput), &DisState);
         if (RT_SUCCESS(rc))
         {
+            if (   pThis->fFlags & DBGF_FLOW_CREATE_F_CALL_INSN_SEPARATE_BB
+                && DisState.pCurInstr->uOpcode == OP_CALL
+                && !(pFlowBb->fFlags & DBGF_FLOW_BB_F_EMPTY))
+            {
+                /*
+                 * If the basic block is not empty, the basic block is terminated and the successor is added
+                 * which will contain the call instruction.
+                 */
+                pFlowBb->AddrTarget = AddrDisasm;
+                pFlowBb->enmEndType = DBGFFLOWBBENDTYPE_UNCOND;
+                rc = dbgfR3FlowBbSuccessorAdd(pThis, &AddrDisasm,
+                                              (pFlowBb->fFlags & DBGF_FLOW_BB_F_BRANCH_TABLE),
+                                              pFlowBb->pFlowBranchTbl);
+                if (RT_FAILURE(rc))
+                    dbgfR3FlowBbSetError(pFlowBb, rc, "Adding successor blocks failed with %Rrc", rc);
+                break;
+            }
+
+            pFlowBb->fFlags &= ~DBGF_FLOW_BB_F_EMPTY;
             cbDisasmLeft -= DisState.cbInstr;
 
             if (pFlowBb->cInstr == pFlowBb->cInstrMax)
@@ -1191,6 +1220,9 @@ static int dbgfR3FlowBbProcess(PUVM pUVM, VMCPUID idCpu, PDBGFFLOWINT pThis, PDB
                 if (DisState.pCurInstr->fOpType & DISOPTYPE_CONTROLFLOW)
                 {
                     uint16_t uOpc = DisState.pCurInstr->uOpcode;
+
+                    if (uOpc == OP_CALL)
+                        pThis->cCallInsns++;
 
                     if (   uOpc == OP_RETN || uOpc == OP_RETF || uOpc == OP_IRET
                         || uOpc == OP_SYSEXIT || uOpc == OP_SYSRET)
@@ -1262,12 +1294,33 @@ static int dbgfR3FlowBbProcess(PUVM pUVM, VMCPUID idCpu, PDBGFFLOWINT pThis, PDB
                                                               pFlowBb->pFlowBranchTbl);
                         }
                     }
+                    else if (pThis->fFlags & DBGF_FLOW_CREATE_F_CALL_INSN_SEPARATE_BB)
+                    {
+                        pFlowBb->enmEndType = DBGFFLOWBBENDTYPE_UNCOND;
+                        pFlowBb->fFlags    |= DBGF_FLOW_BB_F_CALL_INSN;
+
+                        /* Add new basic block coming after the call instruction. */
+                        rc = dbgfR3FlowBbSuccessorAdd(pThis, &AddrDisasm,
+                                                      (pFlowBb->fFlags & DBGF_FLOW_BB_F_BRANCH_TABLE),
+                                                      pFlowBb->pFlowBranchTbl);
+                        if (   RT_SUCCESS(rc)
+                            && !dbgfR3FlowBranchTargetIsIndirect(&DisState.Param1))
+                        {
+                            /* Resolve the branch target. */
+                            rc = dbgfR3FlowQueryDirectBranchTarget(pUVM, idCpu, &DisState.Param1, &pInstr->AddrInstr, pInstr->cbInstr,
+                                                                   RT_BOOL(DisState.pCurInstr->fOpType & DISOPTYPE_RELATIVE_CONTROLFLOW),
+                                                                   &pFlowBb->AddrTarget);
+                            if (RT_SUCCESS(rc))
+                                pFlowBb->fFlags |= DBGF_FLOW_BB_F_CALL_INSN_TARGET_KNOWN;
+                        }
+                    }
 
                     if (RT_FAILURE(rc))
                         dbgfR3FlowBbSetError(pFlowBb, rc, "Adding successor blocks failed with %Rrc", rc);
 
                     /* Quit disassembling. */
-                    if (   uOpc != OP_CALL
+                    if (   (   uOpc != OP_CALL
+                            || (pThis->fFlags & DBGF_FLOW_CREATE_F_CALL_INSN_SEPARATE_BB))
                         || RT_FAILURE(rc))
                         break;
                 }
@@ -1289,19 +1342,15 @@ static int dbgfR3FlowBbProcess(PUVM pUVM, VMCPUID idCpu, PDBGFFLOWINT pThis, PDB
  * @param   pUVM                The user mode VM handle.
  * @param   idCpu               CPU id for disassembling.
  * @param   pThis               The control flow graph to populate.
- * @param   pAddrStart          The start address to disassemble at.
  * @param   cbDisasmMax         The maximum amount to disassemble.
  * @param   fFlags              Combination of DBGF_DISAS_FLAGS_*.
  */
-static int dbgfR3FlowPopulate(PUVM pUVM, VMCPUID idCpu, PDBGFFLOWINT pThis, PDBGFADDRESS pAddrStart,
-                             uint32_t cbDisasmMax, uint32_t fFlags)
+static int dbgfR3FlowPopulate(PUVM pUVM, VMCPUID idCpu, PDBGFFLOWINT pThis, uint32_t cbDisasmMax, uint32_t fFlags)
 {
     int rc = VINF_SUCCESS;
     PDBGFFLOWBBINT pFlowBb = dbgfR3FlowGetUnpopulatedBb(pThis);
-    DBGFADDRESS AddrEnd = *pAddrStart;
-    DBGFR3AddrAdd(&AddrEnd, cbDisasmMax);
 
-    while (VALID_PTR(pFlowBb))
+    while (pFlowBb != NULL)
     {
         rc = dbgfR3FlowBbProcess(pUVM, idCpu, pThis, pFlowBb, cbDisasmMax, fFlags);
         if (RT_FAILURE(rc))
@@ -1349,6 +1398,7 @@ VMMR3DECL(int) DBGFR3FlowCreate(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddressS
             pThis->cRefsBb     = 0;
             pThis->cBbs        = 0;
             pThis->cBranchTbls = 0;
+            pThis->cCallInsns  = 0;
             pThis->fFlags      = fFlagsFlow;
             RTListInit(&pThis->LstFlowBb);
             RTListInit(&pThis->LstBranchTbl);
@@ -1358,7 +1408,7 @@ VMMR3DECL(int) DBGFR3FlowCreate(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddressS
             if (RT_LIKELY(pFlowBb))
             {
                 dbgfR3FlowLink(pThis, pFlowBb);
-                rc = dbgfR3FlowPopulate(pUVM, idCpu, pThis, pAddressStart, cbDisasmMax, fFlagsDisasm);
+                rc = dbgfR3FlowPopulate(pUVM, idCpu, pThis, cbDisasmMax, fFlagsDisasm);
                 if (RT_SUCCESS(rc))
                 {
                     *phFlow = pThis;
@@ -1537,6 +1587,22 @@ VMMR3DECL(uint32_t) DBGFR3FlowGetBranchTblCount(DBGFFLOW hFlow)
 
 
 /**
+ * Returns the number of call instructions encountered in the given
+ * control flow graph.
+ *
+ * @returns Number of call instructions.
+ * @param   hFlow                The control flow graph handle.
+ */
+VMMR3DECL(uint32_t) DBGFR3FlowGetCallInsnCount(DBGFFLOW hFlow)
+{
+    PDBGFFLOWINT pThis = hFlow;
+    AssertPtrReturn(pThis, 0);
+
+    return pThis->cCallInsns;
+}
+
+
+/**
  * Retains the basic block handle.
  *
  * @returns Current reference count.
@@ -1612,8 +1678,10 @@ VMMR3DECL(PDBGFADDRESS) DBGFR3FlowBbGetEndAddress(DBGFFLOWBB hFlowBb, PDBGFADDRE
  * @param   hFlowBb             The basic block handle.
  * @param   pAddrTarget         Where to store the branch address of the basic block.
  *
- * @note This is only valid for unconditional or conditional branches and will assert
- *       for every other basic block type.
+ * @note This is only valid for unconditional or conditional branches, or for a basic block
+ *       containing only a call instruction when DBGF_FLOW_CREATE_F_CALL_INSN_SEPARATE_BB was given
+ *       during creation and the branch target could be deduced as indicated by the DBGF_FLOW_BB_F_CALL_INSN_TARGET_KNOWN
+ *       flag for the basic block. This method will assert for every other basic block type.
  * @note For indirect unconditional branches using a branch table this will return the start address
  *       of the branch table.
  */
@@ -1624,7 +1692,9 @@ VMMR3DECL(PDBGFADDRESS) DBGFR3FlowBbGetBranchAddress(DBGFFLOWBB hFlowBb, PDBGFAD
     AssertPtrReturn(pAddrTarget, NULL);
     AssertReturn(   pFlowBb->enmEndType == DBGFFLOWBBENDTYPE_UNCOND_JMP
                  || pFlowBb->enmEndType == DBGFFLOWBBENDTYPE_COND
-                 || pFlowBb->enmEndType == DBGFFLOWBBENDTYPE_UNCOND_INDIRECT_JMP,
+                 || pFlowBb->enmEndType == DBGFFLOWBBENDTYPE_UNCOND_INDIRECT_JMP
+                 || (   pFlowBb->enmEndType == DBGFFLOWBBENDTYPE_UNCOND
+                     && (pFlowBb->fFlags & DBGF_FLOW_BB_F_CALL_INSN_TARGET_KNOWN)),
                  NULL);
 
     if (   pFlowBb->enmEndType == DBGFFLOWBBENDTYPE_UNCOND_INDIRECT_JMP

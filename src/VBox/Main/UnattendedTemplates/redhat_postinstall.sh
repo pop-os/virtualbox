@@ -6,15 +6,25 @@
 #
 
 #
-# Copyright (C) 2017-2020 Oracle Corporation
+# Copyright (C) 2017-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 
@@ -29,6 +39,14 @@ MY_EXITCODE=0
 MY_DEBUG="" # "yes"
 GUEST_VERSION=@@VBOX_INSERT_GUEST_OS_VERSION@@
 GUEST_MAJOR_VERSION=@@VBOX_INSERT_GUEST_OS_MAJOR_VERSION@@
+
+@@VBOX_COND_HAS_PROXY@@
+PROXY="@@VBOX_INSERT_PROXY@@"
+export http_proxy="${PROXY}"
+export https_proxy="${PROXY}"
+echo "HTTP proxy is ${http_proxy}" | tee -a "${MY_LOGFILE}"
+echo "HTTPS proxy is ${https_proxy}" | tee -a "${MY_LOGFILE}"
+@@VBOX_COND_END@@
 
 #
 # Do we need to exec using target bash?  If so, we must do that early
@@ -181,7 +199,7 @@ log_command_in_target yum -y install "kernel-headers-$(uname -r)"
 log_command_in_target yum -y install gcc
 log_command_in_target yum -y install binutils
 log_command_in_target yum -y install make
-@@VBOX_COND_GUEST_VERSION[>8.0.0]@@
+@@VBOX_COND[${GUEST_OS_VERSION} vgt 8.0.0]@@
 log_command_in_target yum -y install elfutils-libelf-devel
 @@VBOX_COND_END@@
 log_command_in_target yum -y install dkms
@@ -308,4 +326,3 @@ echo "** Final exit code: ${MY_EXITCODE}" >> "${MY_LOGFILE}"
 echo "******************************************************************************" >> "${MY_LOGFILE}"
 
 exit ${MY_EXITCODE}
-

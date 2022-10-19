@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -29,15 +39,15 @@
 #include "UIMachineLogic.h"
 #include "UIMachineWindow.h"
 #include "UIMachineView.h"
-#include "UIPopupCenter.h"
+#include "UINotificationCenter.h"
 #include "UIExtraDataManager.h"
 #include "UICommon.h"
 #ifdef VBOX_WITH_MASKED_SEAMLESS
 # include "UIMachineWindow.h"
 #endif /* VBOX_WITH_MASKED_SEAMLESS */
-#ifdef VBOX_WITH_VIDEOHWACCEL
-# include "VBoxFBOverlay.h"
-#endif /* VBOX_WITH_VIDEOHWACCEL */
+#ifdef VBOX_WS_X11
+# include "VBoxUtils-x11.h"
+#endif
 
 /* COM includes: */
 #include "CConsole.h"
@@ -57,7 +67,6 @@
 
 #ifdef VBOX_WS_X11
 /* X11 includes: */
-# include <QX11Info>
 # include <X11/Xlib.h>
 # undef Bool // Qt5 vs Xlib gift..
 #endif /* VBOX_WS_X11 */
@@ -185,9 +194,9 @@ public slots:
 protected:
 
     /* QOpenGLWidget methods, which must be reimplemented. */
-    void initializeGL() /* override */;
-    void paintGL() /* override */;
-    void resizeGL(int w, int h) /* override */;
+    void initializeGL() RT_OVERRIDE;
+    void paintGL() RT_OVERRIDE;
+    void resizeGL(int w, int h) RT_OVERRIDE;
 
 private:
 
@@ -424,22 +433,16 @@ public:
     /** Performs frame-buffer rescaling. */
     virtual void performRescale();
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /** Performs Video HW Acceleration command. */
-    virtual void doProcessVHWACommand(QEvent*) {}
     /** Handles viewport resize-event. */
     virtual void viewportResized(QResizeEvent*)
     {
-# ifdef VBOX_GUI_WITH_QTGLFRAMEBUFFER
+#ifdef VBOX_GUI_WITH_QTGLFRAMEBUFFER
         /* Sync GL widget size with the MachineView widget: */
         /** @todo This can be probably done in a more automated way. */
         if (m_pGLWidget && m_pMachineView)
             m_pGLWidget->resize(m_pMachineView->viewport()->size());
-# endif
+#endif
     }
-    /** Handles viewport scroll-event. */
-    virtual void viewportScrolled(int, int) {}
-#endif /* VBOX_WITH_VIDEOHWACCEL */
 
 #ifdef VBOX_GUI_WITH_QTGLFRAMEBUFFER
     bool isGLWidgetSupported()
@@ -451,10 +454,8 @@ public:
 
 protected slots:
 
-    /** Handles guest request to change the mouse pointer shape. */
-    void sltMousePointerShapeChange();
-    /** Handles guest request to change the cursor position. */
-    void sltCursorPositionChange();
+    /** Handles guest requests to change mouse pointer shape or position. */
+    void sltMousePointerShapeOrPositionChange();
 
 protected:
 
@@ -1088,125 +1089,6 @@ void GLWidget::deleteGuestTexture()
 #endif /* VBOX_GUI_WITH_QTGLFRAMEBUFFER */
 
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-/** UIFrameBufferPrivate reimplementation used to maintain VM display video memory
-  *                      for the case when 2D Video Acceleration is enabled. */
-class VBoxOverlayFrameBuffer : public UIFrameBufferPrivate
-{
-    Q_OBJECT;
-
-public:
-
-    VBoxOverlayFrameBuffer()
-    {
-    }
-
-    virtual HRESULT init(UIMachineView *pView)
-    {
-        mpView = pView;
-        UIFrameBufferPrivate::init(mpView);
-        mOverlay.init(mpView->viewport(), mpView, &(mpView->session()), mpView->screenId()),
-        /* sync with frame-buffer */
-        mOverlay.onResizeEventPostprocess (VBoxFBSizeInfo(this), QPoint(mpView->contentsX(), mpView->contentsY()));
-        return S_OK;
-    }
-
-    STDMETHOD(ProcessVHWACommand)(BYTE *pCommand, LONG enmCmd, BOOL fGuestCmd)
-    {
-        UIFrameBufferPrivate::lock();
-        /* Make sure frame-buffer is used: */
-        if (m_fUnused)
-        {
-            LogRel2(("GUI: ProcessVHWACommand: Postponed!\n"));
-            /* Unlock access to frame-buffer: */
-            UIFrameBufferPrivate::unlock();
-            /* tell client to pend ProcessVHWACommand */
-            return E_ACCESSDENIED;
-        }
-
-        int rc = mOverlay.onVHWACommand((struct VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *)pCommand, enmCmd, fGuestCmd != FALSE);
-        UIFrameBufferPrivate::unlock();
-        if (rc == VINF_CALLBACK_RETURN)
-            return S_OK;
-        if (RT_SUCCESS(rc))
-            return S_FALSE;
-        if (rc == VERR_INVALID_STATE)
-            return E_ACCESSDENIED;
-        return E_FAIL;
-    }
-
-    void doProcessVHWACommand (QEvent * pEvent)
-    {
-        mOverlay.onVHWACommandEvent (pEvent);
-    }
-
-    STDMETHOD(NotifyUpdate) (ULONG aX, ULONG aY,
-                             ULONG aW, ULONG aH)
-    {
-        HRESULT hr = S_OK;
-        UIFrameBufferPrivate::lock();
-        /* Make sure frame-buffer is used: */
-        if (m_fUnused)
-        {
-            LogRel3(("GUI: NotifyUpdate: Ignored!\n"));
-            mOverlay.onNotifyUpdateIgnore (aX, aY, aW, aH);
-            /* Unlock access to frame-buffer: */
-            UIFrameBufferPrivate::unlock();
-            /*can we actually ignore the notify update?*/
-            /* Ignore NotifyUpdate: */
-            return E_FAIL;
-        }
-
-        if (!mOverlay.onNotifyUpdate (aX, aY, aW, aH))
-            hr = UIFrameBufferPrivate::NotifyUpdate (aX, aY, aW, aH);
-        UIFrameBufferPrivate::unlock();
-        return hr;
-    }
-
-    void performResize(int iWidth, int iHeight)
-    {
-        UIFrameBufferPrivate::performResize(iWidth, iHeight);
-        mOverlay.onResizeEventPostprocess(VBoxFBSizeInfo(this),
-                QPoint(mpView->contentsX(), mpView->contentsY()));
-    }
-
-    void performRescale()
-    {
-        UIFrameBufferPrivate::performRescale();
-        mOverlay.onResizeEventPostprocess(VBoxFBSizeInfo(this),
-                QPoint(mpView->contentsX(), mpView->contentsY()));
-    }
-
-    void viewportResized (QResizeEvent * re)
-    {
-        mOverlay.onViewportResized (re);
-        UIFrameBufferPrivate::viewportResized (re);
-    }
-
-    void viewportScrolled (int dx, int dy)
-    {
-        mOverlay.onViewportScrolled (QPoint(mpView->contentsX(), mpView->contentsY()));
-        UIFrameBufferPrivate::viewportScrolled (dx, dy);
-    }
-
-    void setView(UIMachineView * pView)
-    {
-        /* lock to ensure we do not collide with the EMT thread passing commands to us */
-        UIFrameBufferPrivate::lock();
-        UIFrameBufferPrivate::setView(pView);
-        mpView = pView;
-        mOverlay.updateAttachment(pView ? pView->viewport() : NULL, pView);
-        UIFrameBufferPrivate::unlock();
-    }
-
-private:
-
-    VBoxQGLOverlay mOverlay;
-    UIMachineView *mpView;
-};
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-
-
 #ifdef VBOX_WITH_XPCOM
 NS_DECL_CLASSINFO(UIFrameBufferPrivate)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(UIFrameBufferPrivate, IFramebuffer)
@@ -1250,7 +1132,7 @@ HRESULT UIFrameBufferPrivate::init(UIMachineView *pMachineView)
 
 #ifdef VBOX_WS_X11
     /* Sync Qt and X11 Server (see xTracker #7547). */
-    XSync(QX11Info::display(), false);
+    XSync(NativeWindowSubsystem::X11GetDisplay(), false);
 #endif
 
     /* Assign display: */
@@ -1305,7 +1187,7 @@ void UIFrameBufferPrivate::setView(UIMachineView *pMachineView)
 
 #ifdef VBOX_WS_X11
     /* Sync Qt and X11 Server (see xTracker #7547). */
-    XSync(QX11Info::display(), false);
+    XSync(NativeWindowSubsystem::X11GetDisplay(), false);
 #endif
 
     /* Connect new handlers: */
@@ -1586,7 +1468,7 @@ STDMETHODIMP UIFrameBufferPrivate::VideoModeSupported(ULONG uWidth, ULONG uHeigh
     /* Make sure result pointer is valid: */
     if (!pfSupported)
     {
-        LogRel3(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Invalid pfSupported pointer!\n",
+        LogRel2(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Invalid pfSupported pointer!\n",
                  (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight));
 
         return E_POINTER;
@@ -1598,7 +1480,7 @@ STDMETHODIMP UIFrameBufferPrivate::VideoModeSupported(ULONG uWidth, ULONG uHeigh
     /* Make sure frame-buffer is used: */
     if (m_fUnused)
     {
-        LogRel3(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Ignored!\n",
+        LogRel2(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Ignored!\n",
                  (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight));
 
         /* Unlock access to frame-buffer: */
@@ -1619,8 +1501,12 @@ STDMETHODIMP UIFrameBufferPrivate::VideoModeSupported(ULONG uWidth, ULONG uHeigh
         && (uHeight > (ULONG)screenSize.height())
         && (uHeight > (ULONG)height()))
         *pfSupported = FALSE;
-    LogRel3(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu, Supported=%s\n",
-             (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight, *pfSupported ? "TRUE" : "FALSE"));
+    if (*pfSupported)
+       LogRel2(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu is supported\n",
+                (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight));
+    else
+       LogRel(("GUI: UIFrameBufferPrivate::IsVideoModeSupported: Mode: BPP=%lu, Size=%lux%lu is NOT supported\n",
+               (unsigned long)uBPP, (unsigned long)uWidth, (unsigned long)uHeight));
 
     /* Unlock access to frame-buffer: */
     unlock();
@@ -1959,12 +1845,11 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
     /* If source-bitmap invalid: */
     if (m_sourceBitmap.isNull())
     {
-        LogRel(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, Using fallback buffer since no source bitmap is provided\n",
-                iWidth, iHeight));
-
         /* Remember new size came from hint: */
         m_iWidth = iWidth;
         m_iHeight = iHeight;
+        LogRel(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, Using fallback buffer since no source bitmap is provided\n",
+                m_iWidth, m_iHeight));
 
         /* And recreate fallback buffer: */
         m_image = QImage(m_iWidth, m_iHeight, QImage::Format_RGB32);
@@ -1973,9 +1858,6 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
     /* If source-bitmap valid: */
     else
     {
-        LogRel2(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, Directly using source bitmap content\n",
-                 iWidth, iHeight));
-
         /* Acquire source-bitmap attributes: */
         BYTE *pAddress = NULL;
         ULONG ulWidth = 0;
@@ -1994,6 +1876,8 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
         /* Remember new actual size: */
         m_iWidth = (int)ulWidth;
         m_iHeight = (int)ulHeight;
+        LogRel2(("GUI: UIFrameBufferPrivate::performResize: Size=%dx%d, Directly using source bitmap content\n",
+                 m_iWidth, m_iHeight));
 
         /* Recreate QImage on the basis of source-bitmap content: */
         m_image = QImage(pAddress, m_iWidth, m_iHeight, ulBytesPerLine, QImage::Format_RGB32);
@@ -2011,10 +1895,9 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
         if (   ulGuestBitsPerPixel != ulBitsPerPixel
             && ulGuestBitsPerPixel != 0
             && m_pMachineView->uisession()->isGuestSupportsGraphics())
-            popupCenter().remindAboutWrongColorDepth(m_pMachineView->machineWindow(),
-                                                     ulGuestBitsPerPixel, ulBitsPerPixel);
+            UINotificationMessage::remindAboutWrongColorDepth(ulGuestBitsPerPixel, ulBitsPerPixel);
         else
-            popupCenter().forgetAboutWrongColorDepth(m_pMachineView->machineWindow());
+            UINotificationMessage::forgetAboutWrongColorDepth();
     }
 
 #ifdef VBOX_GUI_WITH_QTGLFRAMEBUFFER
@@ -2079,33 +1962,7 @@ void UIFrameBufferPrivate::performRescale()
 //           scaleFactor(), scaledSize().width(), scaledSize().height());
 }
 
-void UIFrameBufferPrivate::sltMousePointerShapeChange()
-{
-    /* Do we have view and valid cursor position?
-     * Also, please take into account, we are not currently painting
-     * framebuffer cursor if mouse integration is supported and enabled. */
-    if (   m_pMachineView
-        && !m_pMachineView->uisession()->isHidingHostPointer()
-        && m_pMachineView->uisession()->isValidPointerShapePresent()
-        && m_pMachineView->uisession()->isValidCursorPositionPresent()
-        && (   !m_pMachineView->uisession()->isMouseIntegrated()
-            || !m_pMachineView->uisession()->isMouseSupportsAbsolute()))
-    {
-        /* Call for a viewport update using known shape rectangle: */
-        m_pMachineView->viewport()->update(m_cursorRectangle);
-    }
-    /* Don't forget to clear the rectangle in opposite case: */
-    else if (   m_pMachineView
-             && m_cursorRectangle.isValid())
-    {
-        /* Call for a viewport update: */
-        m_pMachineView->viewport()->update(m_cursorRectangle);
-        /* And erase the rectangle after all: */
-        m_cursorRectangle = QRect();
-    }
-}
-
-void UIFrameBufferPrivate::sltCursorPositionChange()
+void UIFrameBufferPrivate::sltMousePointerShapeOrPositionChange()
 {
     /* Do we have view and valid cursor position?
      * Also, please take into account, we are not currently painting
@@ -2152,10 +2009,8 @@ void UIFrameBufferPrivate::sltCursorPositionChange()
     else if (   m_pMachineView
              && m_cursorRectangle.isValid())
     {
-        /* Call for a viewport update: */
+        /* Call for a cursor area update: */
         m_pMachineView->viewport()->update(m_cursorRectangle);
-        /* And erase the rectangle after all: */
-        m_cursorRectangle = QRect();
     }
 }
 
@@ -2177,9 +2032,9 @@ void UIFrameBufferPrivate::prepareConnections()
 
     /* Attach GUI connections: */
     connect(m_pMachineView->uisession(), &UISession::sigMousePointerShapeChange,
-            this, &UIFrameBufferPrivate::sltMousePointerShapeChange);
+            this, &UIFrameBufferPrivate::sltMousePointerShapeOrPositionChange);
     connect(m_pMachineView->uisession(), &UISession::sigCursorPositionChange,
-            this, &UIFrameBufferPrivate::sltCursorPositionChange);
+            this, &UIFrameBufferPrivate::sltMousePointerShapeOrPositionChange);
 }
 
 void UIFrameBufferPrivate::cleanupConnections()
@@ -2195,8 +2050,10 @@ void UIFrameBufferPrivate::cleanupConnections()
                m_pMachineView, &UIMachineView::sltHandle3DOverlayVisibilityChange);
 
     /* Detach GUI connections: */
+    disconnect(m_pMachineView->uisession(), &UISession::sigMousePointerShapeChange,
+               this, &UIFrameBufferPrivate::sltMousePointerShapeOrPositionChange);
     disconnect(m_pMachineView->uisession(), &UISession::sigCursorPositionChange,
-               this, &UIFrameBufferPrivate::sltCursorPositionChange);
+               this, &UIFrameBufferPrivate::sltMousePointerShapeOrPositionChange);
 }
 
 void UIFrameBufferPrivate::updateCoordinateSystem()
@@ -2314,7 +2171,8 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
     /* Paint cursor if it has valid shape and position.
      * Also, please take into account, we are not currently painting
      * framebuffer cursor if mouse integration is supported and enabled. */
-    if (   !m_pMachineView->uisession()->isHidingHostPointer()
+    if (   !m_cursorRectangle.isNull()
+        && !m_pMachineView->uisession()->isHidingHostPointer()
         && m_pMachineView->uisession()->isValidPointerShapePresent()
         && m_pMachineView->uisession()->isValidCursorPositionPresent()
         && (   !m_pMachineView->uisession()->isMouseIntegrated()
@@ -2423,7 +2281,8 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
     /* Paint cursor if it has valid shape and position.
      * Also, please take into account, we are not currently painting
      * framebuffer cursor if mouse integration is supported and enabled. */
-    if (   !m_pMachineView->uisession()->isHidingHostPointer()
+    if (   !m_cursorRectangle.isNull()
+        && !m_pMachineView->uisession()->isHidingHostPointer()
         && m_pMachineView->uisession()->isValidPointerShapePresent()
         && m_pMachineView->uisession()->isValidCursorPositionPresent()
         && (   !m_pMachineView->uisession()->isMouseIntegrated()
@@ -2504,26 +2363,10 @@ void UIFrameBufferPrivate::drawImageRect(QPainter &painter, const QImage &image,
 }
 
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-UIFrameBuffer::UIFrameBuffer(bool m_fAccelerate2DVideo)
-{
-    if (m_fAccelerate2DVideo)
-    {
-        ComObjPtr<VBoxOverlayFrameBuffer> pFrameBuffer;
-        pFrameBuffer.createObject();
-        m_pFrameBuffer = pFrameBuffer;
-    }
-    else
-    {
-        m_pFrameBuffer.createObject();
-    }
-}
-#else /* !VBOX_WITH_VIDEOHWACCEL */
 UIFrameBuffer::UIFrameBuffer()
 {
     m_pFrameBuffer.createObject();
 }
-#endif /* !VBOX_WITH_VIDEOHWACCEL */
 
 UIFrameBuffer::~UIFrameBuffer()
 {
@@ -2690,21 +2533,9 @@ void UIFrameBuffer::performRescale()
     m_pFrameBuffer->performRescale();
 }
 
-#ifdef VBOX_WITH_VIDEOHWACCEL
-void UIFrameBuffer::doProcessVHWACommand(QEvent *pEvent)
-{
-    m_pFrameBuffer->doProcessVHWACommand(pEvent);
-}
-
 void UIFrameBuffer::viewportResized(QResizeEvent *pEvent)
 {
     m_pFrameBuffer->viewportResized(pEvent);
 }
-
-void UIFrameBuffer::viewportScrolled(int iX, int iY)
-{
-    m_pFrameBuffer->viewportScrolled(iX, iY);
-}
-#endif /* VBOX_WITH_VIDEOHWACCEL */
 
 #include "UIFrameBuffer.moc"

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include "VBoxUtils-darwin.h"
@@ -131,7 +141,7 @@ void darwinSetShowsToolbarButtonImpl(NativeNSWindowRef pWindow, bool fEnabled)
     [pWindow setShowsToolbarButton:fEnabled];
 }
 
-void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, bool fCenter)
+void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, double dDpr)
 {
     /* Get the parent view of the close button. */
     NSView *wv = [[pWindow standardWindowButton:NSWindowCloseButton] superview];
@@ -140,11 +150,10 @@ void darwinLabelWindow(NativeNSWindowRef pWindow, NativeNSImageRef pImage, bool 
         /* We have to calculate the size of the title bar for the center case. */
         NSSize s = [pImage size];
         NSSize s1 = [wv frame].size;
-        NSSize s2 = [[pWindow contentView] frame].size;
         /* Correctly position the label. */
-        NSImageView *iv = [[NSImageView alloc] initWithFrame:NSMakeRect(s1.width - s.width - (fCenter ? 10 : 0),
-                                                                        fCenter ? s2.height + (s1.height - s2.height - s.height) / 2 : s1.height - s.height - 1,
-                                                                        s.width, s.height)];
+        NSImageView *iv = [[NSImageView alloc] initWithFrame:NSMakeRect(s1.width - s.width / dDpr,
+                                                                        s1.height - s.height / dDpr - 1,
+                                                                        s.width / dDpr, s.height / dDpr)];
         /* Configure the NSImageView for auto moving. */
         [iv setImage:pImage];
         [iv setAutoresizesSubviews:true];
@@ -405,6 +414,13 @@ int darwinWindowToolBarHeight(NativeNSWindowRef pWindow)
         toolbarHeight = NSHeight(windowFrame) - NSHeight([[pWindow contentView] frame]) - theight;
 
     return toolbarHeight;
+}
+
+int darwinWindowTitleHeight(NativeNSWindowRef pWindow)
+{
+    NSView *pSuperview = [[pWindow standardWindowButton:NSWindowCloseButton] superview];
+    NSSize sz = [pSuperview frame].size;
+    return sz.height;
 }
 
 bool darwinIsToolbarVisible(NativeNSWindowRef pWindow)
@@ -712,4 +728,3 @@ void *darwinCocoaToCarbonEvent(void *pvCocoaEvent)
     NSEvent *pEvent = (NSEvent*)pvCocoaEvent;
     return (void*)[pEvent eventRef];
 }
-

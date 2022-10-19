@@ -1,19 +1,29 @@
 #! /bin/sh
 # $Id: vboxadd.sh $
 ## @file
-# Linux Additions kernel module init script ($Revision: 154045 $)
+# Linux Additions kernel module init script ($Revision: 153945 $)
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 # X-Start-Before is a Debian Addition which we use when converting to
@@ -39,7 +49,7 @@
 # Testing:
 # * Should fail if the configuration file is missing or missing INSTALL_DIR or
 #   INSTALL_VER entries.
-# * vboxadd user and vboxsf groups should be created if they do not exist - test
+# * vboxadd, vboxsf and vboxdrmipc user groups should be created if they do not exist - test
 #   by removing them before installing.
 # * Shared folders can be mounted and auto-mounts accessible to vboxsf group,
 #   including on recent Fedoras with SELinux.
@@ -729,6 +739,9 @@ Please install them and execute
     create_udev_rule
     test -n "${INSTALL_NO_MODULE_BUILDS}" || create_module_rebuild_script
     shared_folder_setup
+    # Create user group which will have permissive access to DRP IPC server socket.
+    groupadd -r -f vboxdrmipc >/dev/null 2>&1
+
     if  running_vboxguest || running_vboxadd; then
         info "Running kernel modules will not be replaced until the system is restarted"
     fi

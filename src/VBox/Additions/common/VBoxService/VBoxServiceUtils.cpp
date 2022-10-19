@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -33,89 +43,6 @@
 
 
 #ifdef VBOX_WITH_GUEST_PROPS
-
-/**
- * Reads a guest property.
- *
- * @returns VBox status code, fully bitched.
- *
- * @param   u32ClientId         The HGCM client ID for the guest property session.
- * @param   pszPropName         The property name.
- * @param   ppszValue           Where to return the value.  This is always set
- *                              to NULL.  Free it using RTStrFree().  Optional.
- * @param   ppszFlags           Where to return the value flags. Free it
- *                              using RTStrFree().  Optional.
- * @param   puTimestamp         Where to return the timestamp.  This is only set
- *                              on success.  Optional.
- */
-int VGSvcReadProp(uint32_t u32ClientId, const char *pszPropName, char **ppszValue, char **ppszFlags, uint64_t *puTimestamp)
-{
-    AssertPtrReturn(pszPropName, VERR_INVALID_POINTER);
-
-    uint32_t    cbBuf = _1K;
-    void       *pvBuf = NULL;
-    int         rc    = VINF_SUCCESS;  /* MSC can't figure out the loop */
-
-    if (ppszValue)
-        *ppszValue = NULL;
-
-    for (unsigned cTries = 0; cTries < 10; cTries++)
-    {
-        /*
-         * (Re-)Allocate the buffer and try read the property.
-         */
-        RTMemFree(pvBuf);
-        pvBuf = RTMemAlloc(cbBuf);
-        if (!pvBuf)
-        {
-            VGSvcError("Guest Property: Failed to allocate %zu bytes\n", cbBuf);
-            rc = VERR_NO_MEMORY;
-            break;
-        }
-        char    *pszValue;
-        char    *pszFlags;
-        uint64_t uTimestamp;
-        rc = VbglR3GuestPropRead(u32ClientId, pszPropName, pvBuf, cbBuf, &pszValue, &uTimestamp, &pszFlags, NULL);
-        if (RT_FAILURE(rc))
-        {
-            if (rc == VERR_BUFFER_OVERFLOW)
-            {
-                /* try again with a bigger buffer. */
-                cbBuf *= 2;
-                continue;
-            }
-            if (rc == VERR_NOT_FOUND)
-                VGSvcVerbose(2, "Guest Property: %s not found\n", pszPropName);
-            else
-                VGSvcError("Guest Property: Failed to query '%s': %Rrc\n", pszPropName, rc);
-            break;
-        }
-
-        VGSvcVerbose(2, "Guest Property: Read '%s' = '%s', timestamp %RU64n\n", pszPropName, pszValue, uTimestamp);
-        if (ppszValue)
-        {
-            *ppszValue = RTStrDup(pszValue);
-            if (!*ppszValue)
-            {
-                VGSvcError("Guest Property: RTStrDup failed for '%s'\n", pszValue);
-                rc = VERR_NO_MEMORY;
-                break;
-            }
-        }
-
-        if (puTimestamp)
-            *puTimestamp = uTimestamp;
-        if (ppszFlags)
-            *ppszFlags = RTStrDup(pszFlags);
-        break; /* done */
-    }
-
-    if (pvBuf)
-        RTMemFree(pvBuf);
-    return rc;
-}
-
-
 /**
  * Reads a guest property as a 32-bit value.
  *
@@ -129,7 +56,7 @@ int VGSvcReadProp(uint32_t u32ClientId, const char *pszPropName, char **ppszValu
 int VGSvcReadPropUInt32(uint32_t u32ClientId, const char *pszPropName, uint32_t *pu32, uint32_t u32Min, uint32_t u32Max)
 {
     char *pszValue;
-    int rc = VGSvcReadProp(u32ClientId, pszPropName, &pszValue, NULL /* ppszFlags */, NULL /* puTimestamp */);
+    int rc = VbglR3GuestPropReadEx(u32ClientId, pszPropName, &pszValue, NULL /* ppszFlags */, NULL /* puTimestamp */);
     if (RT_SUCCESS(rc))
     {
         char *pszNext;
@@ -142,22 +69,6 @@ int VGSvcReadPropUInt32(uint32_t u32ClientId, const char *pszPropName, uint32_t 
     }
     return rc;
 }
-
-/**
- * Checks if @a pszPropName exists.
- *
- * @returns VBox status code.
- * @retval  VINF_SUCCESS if it exists.
- * @retval  VERR_NOT_FOUND if not found.
- *
- * @param   u32ClientId         The HGCM client ID for the guest property session.
- * @param   pszPropName         The property name.
- */
-int VGSvcCheckPropExist(uint32_t u32ClientId, const char *pszPropName)
-{
-    return VGSvcReadProp(u32ClientId, pszPropName, NULL /*ppszValue*/, NULL /* ppszFlags */, NULL /* puTimestamp */);
-}
-
 
 /**
  * Reads a guest property from the host side.
@@ -182,7 +93,7 @@ int VGSvcReadHostProp(uint32_t u32ClientId, const char *pszPropName, bool fReadO
 
     char *pszValue = NULL;
     char *pszFlags = NULL;
-    int rc = VGSvcReadProp(u32ClientId, pszPropName, &pszValue, &pszFlags, puTimestamp);
+    int rc = VbglR3GuestPropReadEx(u32ClientId, pszPropName, &pszValue, &pszFlags, puTimestamp);
     if (RT_SUCCESS(rc))
     {
         /* Check security bits. */
@@ -265,17 +176,29 @@ int VGSvcWritePropF(uint32_t u32ClientId, const char *pszName, const char *pszVa
  *
  * @returns Success indicator.
  */
-static bool vgsvcUtilGetFileVersionOwn(LPSTR pVerData, PDWORD pdwMajor, PDWORD pdwMinor, PDWORD pdwBuildNumber,
-                                       PDWORD pdwRevisionNumber)
+static bool vgsvcUtilGetFileVersionOwn(LPSTR pVerData, uint32_t *puMajor, uint32_t *puMinor,
+                                       uint32_t *puBuildNumber, uint32_t *puRevisionNumber)
 {
     UINT    cchStrValue = 0;
     LPTSTR  pStrValue   = NULL;
     if (!VerQueryValueA(pVerData, "\\StringFileInfo\\040904b0\\FileVersion", (LPVOID *)&pStrValue, &cchStrValue))
         return false;
 
-    /** @todo r=bird: get rid of this. Avoid sscanf like the plague! */
-    if (sscanf(pStrValue, "%ld.%ld.%ld.%ld", pdwMajor, pdwMinor, pdwBuildNumber, pdwRevisionNumber) != 4)
-        return false;
+    char *pszNext = pStrValue;
+    int rc = RTStrToUInt32Ex(pszNext, &pszNext, 0, puMajor);
+    AssertReturn(rc == VWRN_TRAILING_CHARS, false);
+    AssertReturn(*pszNext == '.', false);
+
+    rc = RTStrToUInt32Ex(pszNext + 1, &pszNext, 0, puMinor);
+    AssertReturn(rc == VWRN_TRAILING_CHARS, false);
+    AssertReturn(*pszNext == '.', false);
+
+    rc = RTStrToUInt32Ex(pszNext + 1, &pszNext, 0, puBuildNumber);
+    AssertReturn(rc == VWRN_TRAILING_CHARS, false);
+    AssertReturn(*pszNext == '.', false);
+
+    rc = RTStrToUInt32Ex(pszNext + 1, &pszNext, 0, puRevisionNumber);
+    AssertReturn(rc == VINF_SUCCESS || rc == VWRN_TRAILING_CHARS /*??*/, false);
 
     return true;
 }
@@ -286,17 +209,17 @@ static bool vgsvcUtilGetFileVersionOwn(LPSTR pVerData, PDWORD pdwMajor, PDWORD p
  *
  * @returns VBox status code.
  * @param   pszFilename         ASCII & ANSI & UTF-8 compliant name.
- * @param   pdwMajor            Where to return the major version number.
- * @param   pdwMinor            Where to return the minor version number.
- * @param   pdwBuildNumber      Where to return the build number.
- * @param   pdwRevisionNumber   Where to return the revision number.
+ * @param   puMajor             Where to return the major version number.
+ * @param   puMinor             Where to return the minor version number.
+ * @param   puBuildNumber       Where to return the build number.
+ * @param   puRevisionNumber    Where to return the revision number.
  */
-static int vgsvcUtilGetFileVersion(const char *pszFilename, PDWORD pdwMajor, PDWORD pdwMinor, PDWORD pdwBuildNumber,
-                                   PDWORD pdwRevisionNumber)
+static int vgsvcUtilGetFileVersion(const char *pszFilename, uint32_t *puMajor, uint32_t *puMinor, uint32_t *puBuildNumber,
+                                   uint32_t *puRevisionNumber)
 {
     int rc;
 
-    *pdwMajor = *pdwMinor = *pdwBuildNumber = *pdwRevisionNumber = 0;
+    *puMajor = *puMinor = *puBuildNumber = *puRevisionNumber = 0;
 
     /*
      * Get the file version info.
@@ -315,7 +238,7 @@ static int vgsvcUtilGetFileVersion(const char *pszFilename, PDWORD pdwMajor, PDW
                  * since this will give us the correct revision number when
                  * it goes beyond the range of an uint16_t / WORD.
                  */
-                if (vgsvcUtilGetFileVersionOwn(pVerData, pdwMajor, pdwMinor, pdwBuildNumber, pdwRevisionNumber))
+                if (vgsvcUtilGetFileVersionOwn(pVerData, puMajor, puMinor, puBuildNumber, puRevisionNumber))
                     rc = VINF_SUCCESS;
                 else
                 {
@@ -324,10 +247,10 @@ static int vgsvcUtilGetFileVersion(const char *pszFilename, PDWORD pdwMajor, PDW
                     VS_FIXEDFILEINFO    *pFileInfo = NULL;
                     if (VerQueryValue(pVerData, "\\", (LPVOID *)&pFileInfo, &cbFileInfoIgnored))
                     {
-                        *pdwMajor          = HIWORD(pFileInfo->dwFileVersionMS);
-                        *pdwMinor          = LOWORD(pFileInfo->dwFileVersionMS);
-                        *pdwBuildNumber    = HIWORD(pFileInfo->dwFileVersionLS);
-                        *pdwRevisionNumber = LOWORD(pFileInfo->dwFileVersionLS);
+                        *puMajor          = HIWORD(pFileInfo->dwFileVersionMS);
+                        *puMinor          = LOWORD(pFileInfo->dwFileVersionMS);
+                        *puBuildNumber    = HIWORD(pFileInfo->dwFileVersionLS);
+                        *puRevisionNumber = LOWORD(pFileInfo->dwFileVersionLS);
                         rc = VINF_SUCCESS;
                     }
                     else
@@ -389,10 +312,10 @@ int VGSvcUtilWinGetFileVersionString(const char *pszPath, const char *pszFilenam
     int rc = RTPathJoin(szFullPath, sizeof(szFullPath), pszPath, pszFilename);
     if (RT_SUCCESS(rc))
     {
-        DWORD dwMajor, dwMinor, dwBuild, dwRev;
-        rc = vgsvcUtilGetFileVersion(szFullPath, &dwMajor, &dwMinor, &dwBuild, &dwRev);
+        uint32_t uMajor, uMinor, uBuild, uRev;
+        rc = vgsvcUtilGetFileVersion(szFullPath, &uMajor, &uMinor, &uBuild, &uRev);
         if (RT_SUCCESS(rc))
-            RTStrPrintf(pszVersion, cbVersion, "%u.%u.%ur%u", dwMajor, dwMinor, dwBuild, dwRev);
+            RTStrPrintf(pszVersion, cbVersion, "%u.%u.%ur%u", uMajor, uMinor, uBuild, uRev);
     }
     return rc;
 }

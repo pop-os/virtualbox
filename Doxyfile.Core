@@ -257,6 +257,7 @@ ALIASES += op4="Operand \#4: "
 ALIASES += oppfx="Req.Prefix: "
 ALIASES += opmaps="Opcode Maps: "
 ALIASES += opcode="Opcode Byte: "
+ALIASES += opcodesub="Opcode Sub-Byte: "
 ALIASES += openc="Encoding: "
 ALIASES += opfltest="EFLAGS Tested: "
 ALIASES += opflmodify="EFLAGS Modified: "
@@ -264,13 +265,16 @@ ALIASES += opflundef="EFLAGS Undefined: "
 ALIASES += opflset="EFLAGS Set: "
 ALIASES += opflclear="EFLAGS Cleared: "
 ALIASES += ophints="Hints, Flags, ++: "
+ALIASES += opdisenum="Disassembler Enum: "
 ALIASES += opmincpu="Minimum CPU: "
 ALIASES += opcpuid="CPUID: "
+ALIASES += opxcpttype="Exception Type: "
 ALIASES += opgroup="@ingroup "
 ALIASES += opunused="Unused Encoding: "
 ALIASES += opinvalid="Invalid Encoding: "
 ALIASES += opinvlstyle="Invalid/Unused Encoding Style: "
 ALIASES += optest="Testcase: "
+ALIASES += opcopytests="Testcase: Same as "
 ALIASES += opstats="IEM Stats:"
 ALIASES += opfunction="IEM Function"
 ALIASES += opdone="-------------------------"
@@ -301,7 +305,6 @@ http://www.virtualbox.org/ticket/\3, \
 http://www.virtualbox.org/ticket/\4"
 
 
-TCL_SUBST              =
 OPTIMIZE_OUTPUT_FOR_C  = YES
 OPTIMIZE_OUTPUT_JAVA   = NO
 OPTIMIZE_FOR_FORTRAN   = NO
@@ -481,7 +484,7 @@ LATEX_OUTPUT           = latex
 LATEX_CMD_NAME         = latex
 MAKEINDEX_CMD_NAME     = makeindex
 COMPACT_LATEX          = NO
-PAPER_TYPE             = a4wide
+PAPER_TYPE             = a4
 EXTRA_PACKAGES         =
 LATEX_HEADER           =
 LATEX_FOOTER           =
@@ -556,6 +559,11 @@ PREDEFINED             =  \
     R3_ARCH_BITS=HC_ARCH_BITS \
     R0_ARCH_BITS=HC_ARCH_BITS \
     RTDECL(type)=type \
+    RTRCDECL(type)=type \
+    RTR0DECL(type)=type \
+    RTR3DECL(type)=type \
+    RTDATADECL(type)=type \
+    RT_DECL_NTAPI(type)=type \
     RT_EXPORT_SYMBOL(name)= \
     \
     RT_SRC_POS=1 \
@@ -565,52 +573,90 @@ PREDEFINED             =  \
     \
     "RT_IPRT_FORMAT_ATTR(a,b)=" \
     "RT_IPRT_FORMAT_ATTR_MAYBE_NULL(a,b)=" \
+    RT_NOTHROW_PROTO= \
+    RT_NOTHROW_DEF= \
     RT_NO_THROW_PROTO= \
-    RTASN1CONTEXTTAG_IMPL_CURSOR_INLINES(a)= 
+    RT_NO_THROW_DEF= \
+    RTASN1CONTEXTTAG_IMPL_CURSOR_INLINES(a)= \
+    \
+    RT_MSC_PREREQ(a)=0 \
+    RT_MSC_PREREQ_EX(a,b)=b
 
 # decl and calling conventions.
 PREDEFINED += \
+    DECL_NOTHROW(a_RetType)=a_RetType \
     "DECLINLINE(type)=inline type" \
-    APICBOTHCBDECL(type)=type \
+    DECL_INLINE_THROW(type)=DECLINLINE(type) \
     DECL_FORCE_INLINE(type)=DECLINLINE(type) \
     DECL_NO_INLINE(type)=type \
+    DECL_NO_RETURN(type)=type \
     DECLCALLBACK(type)=type \
     "DECLCALLBACKTYPE(type,name,args)=type name args" \
+    "DECLCALLBACKTYPE_EX(type,cconv,name,args)=type name args" \
     "DECLCALLBACKPTR(type,name,args)=type (* name) args" \
-    "DECLCALLBACKMEMBER(type,name)=type (* name) " \
+    "DECLCALLBACKPTR_EX(type,cconv,name,args)=type (* name) args" \
+    "DECLCALLBACKMEMBER(type,name,args)=type (* name) args" \
+    "DECLCALLBACKMEMBER_EX(type,cconv,name,args)=type (* name) args" \
     "DECLRCCALLBACKMEMBER(type,name,args)=type (* name) args" \
     "DECLR3CALLBACKMEMBER(type,name,args)=type (* name) args" \
     "DECLR0CALLBACKMEMBER(type,name,args)=type (* name) args" \
     "DECLRGCALLBACKMEMBER(type,name,args)=type (* name) args" \
     DECLEXPORT(type)=type \
+    DECL_EXPORT_NOTHROW(type)=type \
     DECLIMPORT(type)=type \
+    DECL_IMPORT_NOTHROW(type)=type \
     DECLHIDDEN(type)=type \
+    DECL_HIDDEN_NOTHROW(type)=type \
+    DECL_HIDDEN_ONLY(type)=type \
+    DECL_HIDDEN_THROW(type)=type \
+    DECL_HIDDEN_DATA(type)=type \
     DECL_HIDDEN_CONST(type)=type \
+    DECL_HIDDEN_CALLBACK(type)=type \
     DECLASM(type)=type \
     RT_ASM_DECL_PRAGMA_WATCOM(type)=type \
     RT_ASM_DECL_PRAGMA_WATCOM_386(type)=type \
     DECLNORETURN(type)=type \
-    VBOXCALL= \
     RTCALL= \
-    DECLVBGL(type)=type \
+    \
+    VBOXCALL= \
+    APICBOTHCBDECL(type)=type \
+    DBGDECL(type)=type \
     DECLR0VBGL(type)=type \
-    USBLIB_DECL(type)=type \
-    VMMDECL(type)=type \
-    VMMR0DECL(type)=type \
-    VMMR3DECL(type)=type \
-    VMMRCDECL(type)=type \
-    VMMRZDECL(type)=type \
-    VMMR0_INT_DECL(type)=type \
-    VMMR3_INT_DECL(type)=type \
-    VMMRC_INT_DECL(type)=type \
-    VMMRZ_INT_DECL(type)=type \
+    DECLSPEC_HIDDEN= \
+    DECLVBGL(type)=type \
+    DISDECL(type)=type \
     GMMR0DECL(type)=type \
     GMMR3DECL(type)=type \
+    GVMMR0DECL(type)=type \
+    INTNETR0DECL(type)=type \
+    INTNETR3DECL(type)=type \
+    PDMBOTHCBDECL(type)=type \
+    SUPDECL(type)=type \
+    SUPR0DECL(type)=type \
+    SUPR3DECL(type)=type \
+    SUPRCDECL(type)=type \
+    USBLIB_DECL(type)=type \
+    VBGLR3DECL(type)=type \
     VBOX_DND_FN_DECL_LOG(x)=x \
-    DECLSPEC_HIDDEN= \
+    VBOXDDU_DECL(type)=type \
+    VMM_INT_DECL(type)=type \
+    VMMDECL(type)=type \
+    VMMR0_INT_DECL(type)=type \
+    VMMR0DECL(type)=type \
+    VMMR3_INT_DECL(type)=type \
+    VMMR3DECL(type)=type \
+    VMMRC_INT_DECL(type)=type \
+    VMMRCDECL(type)=type \
+    VMMRZ_INT_DECL(type)=type \
+    VMMRZDECL(type)=type \
     VMSVGA3DCOCOA_DECL(type)=type \
     VBOX_LISTENER_DECLARE(a)= \
-    VBOX_WITH_RAW_MODE_NOT_R0
+    VBOX_WITH_RAW_MODE_NOT_R0 \
+    \
+    "PGM_BTH_DECL(type,name)=type pgmBth##name" \
+    "PGM_GST_DECL(type,name)=type pgmGst##name" \
+    "PGM_SHW_DECL(type,name)=type pgmShw##name"
+
 
 # BS3Kit
 PREDEFINED += \
@@ -667,19 +713,19 @@ PREDEFINED += \
 
 # Compile assertion hacks.
 PREDEFINED            += \
-    "AssertCompileNS(expr)" \
-    "AssertCompile(expr)" \
-    "AssertCompileSize(type, size)" \
-    "AssertCompileSizeAlignment(type, align)" \
-    "AssertCompileMemberAlignment(type, member, align)" \
-    "AssertCompileMemberOffset(type, member, off)" \
-    "AssertCompile2MemberOffsets(type, member1, member2)" \
-    "AssertCompileAdjacentMembers(type, member1, member2)" \
-    "AssertCompileMembersAtSameOffset(type1, member1, type2, member2)" \
-    "AssertCompileMemberSize(type, member, size)" \
-    "AssertCompileMemberSizeAlignment(type, member, align)" \
-    "AssertCompileMembersSameSize(type1, member1, type2, member2)" \
-    "AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2)"
+    "AssertCompileNS(expr)=static_assert(expr)" \
+    "AssertCompile(expr)=static_assert(expr)" \
+    "AssertCompileSize(type, size)=static_assert(true)" \
+    "AssertCompileSizeAlignment(type, align)=static_assert(true)" \
+    "AssertCompileMemberAlignment(type, member, align)=static_assert(true)" \
+    "AssertCompileMemberOffset(type, member, off)=static_assert(true)" \
+    "AssertCompile2MemberOffsets(type, member1, member2)=static_assert(true)" \
+    "AssertCompileAdjacentMembers(type, member1, member2)=static_assert(true)" \
+    "AssertCompileMembersAtSameOffset(type1, member1, type2, member2)=static_assert(true)" \
+    "AssertCompileMemberSize(type, member, size)=static_assert(true)" \
+    "AssertCompileMemberSizeAlignment(type, member, align)=static_assert(true)" \
+    "AssertCompileMembersSameSize(type1, member1, type2, member2)=static_assert(true)" \
+    "AssertCompileMembersSameSizeAndOffset(type1, member1, type2, member2)=static_assert(true)"
 
 # COM/XPCOM hacks.
 PREDEFINED            += \
@@ -695,7 +741,9 @@ PREDEFINED            += \
     DECLARE_CLASSFACTORY()= \
     DECLARE_CLASSFACTORY_SINGLETON(a)= \
     "VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(a,b)=" \
-    "DECLARE_EMPTY_CTOR_DTOR(a):=a(); virtual ~a();"
+    "DECLARE_TRANSLATE_METHODS(a)=static const char *tr(const char *aSourceText, const char *aComment = NULL, const int aNum = -1);" \
+    "DECLARE_EMPTY_CTOR_DTOR(a)=a(); virtual ~a();" \
+    "DECLARE_COMMON_CLASS_METHODS(a)=a(); virtual ~a(); static const char *tr(const char *aSourceText, const char *aComment = NULL, const int aNum = -1);"
 
 # COM hacks from From http://www.stack.nl/~dimitri/doxygen/preprocessing.html
 PREDEFINED          += \
@@ -763,6 +811,37 @@ PREDEFINED          += \
     "DECL_NO_RETURN(type)=type" \
     VBOX_WITH_HGCM
 
+PREDEFINED          += \
+    "IEM_DECL_IMPL_DEF(a_RetType, a_Name, a_ArgList)=a_RetType a_Name a_ArgList" \
+    "IEM_DECL_IMPL_TYPE(a_RetType, a_Name, a_ArgList)=a_RetType (a_Name) a_ArgList" \
+    \
+    "FNIEMOP_DEF(a_Name)=int a_Name()" \
+    "FNIEMOP_DEF_1(a_Name, a_Type0, a_Name0)=int a_Name(a_Type0 a_Name0)" \
+    "FNIEMOP_DEF_2(a_Name, a_Type0, a_Name0, a_Type1, a_Name1)=int a_Name(a_Type0 a_Name0, a_Type1 a_Name1)" \
+    "FNIEMOPRM_DEF(a_Name)=int a_Name(uint8_t bRm)" \
+    \
+    "IEM_CIMPL_DEF_0(a_Name)=int a_Name()" \
+    "IEM_CIMPL_TYPE_0(a_Name)=int (a_Name)()" \
+    "IEM_CIMPL_CALL_0(a_pfn)=a_pfn()" \
+    "IEM_CIMPL_DEF_1(a_Name, a_Type0, a_Arg0)=int a_Name(a_Type0 a_Arg0)" \
+    "IEM_CIMPL_TYPE_1(a_Name, a_Type0, a_Arg0)=int (a_Name)(a_Type0 a_Arg0)" \
+    "IEM_CIMPL_CALL_1(a_pfn, a0)=a_pfn(a0)" \
+    "IEM_CIMPL_DEF_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1)=int a_Name(a_Type0 a_Arg0, a_Type1 a_Arg1)" \
+    "IEM_CIMPL_TYPE_2(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1)=int (a_Name)(a_Type0 a_Arg0, a_Type1 a_Arg1)" \
+    "IEM_CIMPL_CALL_2(a_pfn, a0, a1)=a_pfn(a0, a1)" \
+    "IEM_CIMPL_DEF_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2)=int a_Name(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2)" \
+    "IEM_CIMPL_TYPE_3(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2)=int (a_Name)(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2)" \
+    "IEM_CIMPL_CALL_3(a_pfn, a0, a1, a2)=a_pfn(a0, a1, a2)" \
+    "IEM_CIMPL_DEF_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3)=int a_Name(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3)" \
+    "IEM_CIMPL_TYPE_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3)=int (a_Name)(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3)" \
+    "IEM_CIMPL_CALL_4(a_pfn, a0, a1, a2, a3)=a_pfn(a0, a1, a2, a3)" \
+    "IEM_CIMPL_DEF_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4)=int a_Name(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3, a_Type4 a_Arg4)" \
+    "IEM_CIMPL_TYPE_5(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4)=int (a_Name)(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3, a_Type4 a_Arg4)" \
+    "IEM_CIMPL_CALL_5(a_pfn, a0, a1, a2, a3, a4)=a_pfn(a0, a1, a2, a3, a4)" \
+    "IEM_CIMPL_DEF_6(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4, a_Type5, a_Arg5)=int a_Name(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3, a_Type4 a_Arg4, a_Type5 a_Arg5)" \
+    "IEM_CIMPL_TYPE_6(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3, a_Type4, a_Arg4, a_Type5, a_Arg5)=int (a_Name)(a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3, a_Type4 a_Arg4, a_Type5 a_Arg5)" \
+    "IEM_CIMPL_CALL_6(a_pfn, a0, a1, a2, a3, a4, a5)=a_pfn(a0, a1, a2, a3, a4, a5)" \
+
 EXPAND_AS_DEFINED      = \
     ARCH_BITS \
     R3_ARCH_BITS \
@@ -771,6 +850,7 @@ EXPAND_AS_DEFINED      = \
     HC_ARCH_BITS \
     \
     DECLASMTYPE \
+    DECL_INLINE_NOTHROW \
     CTXSUFF \
     OTHERCTXSUFF \
     CTXMID \
@@ -784,39 +864,6 @@ EXPAND_AS_DEFINED      = \
     STDMETHODIMP \
     IFACEMETHODIMP \
     \
-    DBGDECL \
-    DISDECL \
-    GMMR0DECL \
-    GVMMR0DECL \
-    INTNETDECL \
-    INTNETRCDECL \
-    INTNETR0DECL \
-    INTNETR3DECL \
-    PDMBOTHCBDECL \
-    APICBOTHCBDECL \
-    PGM_BTH_DECL \
-    PGM_GST_DECL \
-    PGM_SHW_DECL \
-    REMDECL \
-    REMRCDECL \
-    REMR0DECL \
-    REMR3DECL \
-    RTDECL \
-    RTRCDECL \
-    RTR0DECL \
-    RTR3DECL \
-    RTDATADECL \
-    SUPDECL \
-    SUPR0DECL \
-    SUPR3DECL \
-    VBGLR3DECL \
-    VBOXDDU_DECL \
-    VMMDECL \
-    VMMRCDECL \
-    VMMR0DECL \
-    VMMR3DECL \
-    VMM_INT_DECL \
-    \
     VD_BACKEND_CALLBACK_GET_COMMENT_DEF_NOT_SUPPORTED \
     VD_BACKEND_CALLBACK_SET_COMMENT_DEF_NOT_SUPPORTED \
     VD_BACKEND_CALLBACK_GET_UUID_DEF_NOT_SUPPORTED \
@@ -824,7 +871,10 @@ EXPAND_AS_DEFINED      = \
     \
     IOM_MMIO_STATS_COMMA_DECL \
     IOM_MMIO_STATS_COMMA_ARG \
-    SUP_HARDENED_SUID
+    SUP_HARDENED_SUID \
+    \
+    VTABLE_ENTRY \
+    VTABLE_RESERVED
 
 SKIP_FUNCTION_MACROS   = NO
 #---------------------------------------------------------------------------
@@ -835,12 +885,10 @@ GENERATE_TAGFILE       =
 ALLEXTERNALS           = NO
 EXTERNAL_GROUPS        = YES
 EXTERNAL_PAGES         = YES
-PERL_PATH              = /usr/bin/perl
 #---------------------------------------------------------------------------
 # Configuration options related to the dot tool
 #---------------------------------------------------------------------------
 CLASS_DIAGRAMS         = YES
-MSCGEN_PATH            =
 DIA_PATH               =
 HIDE_UNDOC_RELATIONS   = YES
 HAVE_DOT               = NO

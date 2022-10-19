@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2007-2020 Oracle Corporation
+ * Copyright (C) 2007-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -58,15 +68,15 @@ static VBOXCLIENTSERVICE    g_aServices[] =
 static int vbclInitLogger(char *pszLogFileName)
 {
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
-    int rc = RTLogCreateEx(&g_pLogger, RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG, "all", "VBOXCLIENT_RELEASE_LOG",
+    int rc = RTLogCreateEx(&g_pLogger, "VBOXCLIENT_RELEASE_LOG", RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG, "all",
                            RT_ELEMENTS(s_apszGroups), s_apszGroups, UINT32_MAX /*cMaxEntriesPerGroup*/,
-                           RTLOGDEST_STDOUT,
+                           0 /*cBufDescs*/, NULL /*paBufDescs*/, RTLOGDEST_STDOUT,
                            NULL /*pfnPhase*/,
                            pszLogFileName ? 10 : 0 /*cHistory*/,
                            pszLogFileName ? 100 * _1M : 0 /*cbHistoryFileMax*/,
                            pszLogFileName ? RT_SEC_1DAY : 0 /*cSecsHistoryTimeSlot*/,
+                           NULL /*pOutputIf*/, NULL /*pvOutputIfUser*/,
                            NULL /*pErrInfo*/, "%s", pszLogFileName ? pszLogFileName : "");
-
     AssertRCReturn(rc, rc);
 
     /* Register this logger as the release logger */

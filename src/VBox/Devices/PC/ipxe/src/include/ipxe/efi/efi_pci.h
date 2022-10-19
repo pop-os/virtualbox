@@ -6,41 +6,28 @@
  * EFI driver interface
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
+#include <ipxe/pci.h>
 #include <ipxe/efi/efi.h>
 #include <ipxe/efi/Protocol/PciIo.h>
-#include <ipxe/efi/Protocol/DevicePath.h>
 
-struct efi_driver;
-struct device;
+/* PciRootBridgeIo.h uses LShiftU64(), which isn't defined anywhere else */
+static inline EFIAPI uint64_t LShiftU64 ( UINT64 value, UINTN shift ) {
+	return ( value << shift );
+}
 
 /** An EFI PCI device */
 struct efi_pci_device {
-	/** List of EFI PCI devices */
-	struct list_head list;
-	/** iPXE PCI device */
+	/** PCI device */
 	struct pci_device pci;
-	/** Underlying EFI device */
-	EFI_HANDLE device;
 	/** PCI I/O protocol */
-	EFI_PCI_IO_PROTOCOL *pci_io;
-	/** Device path */
-	EFI_DEVICE_PATH_PROTOCOL *path;
-	/** EFI driver */
-	struct efi_driver *efidrv;
+	EFI_PCI_IO_PROTOCOL *io;
 };
 
-extern struct efi_pci_device * efipci_create ( struct efi_driver *efidrv,
-					       EFI_HANDLE device );
-extern EFI_STATUS efipci_enable ( struct efi_pci_device *efipci );
-extern struct efi_pci_device * efipci_find_efi ( EFI_HANDLE device );
-extern struct efi_pci_device * efipci_find ( struct device *dev );
-extern EFI_STATUS efipci_child_add ( struct efi_pci_device *efipci,
-				     EFI_HANDLE device );
-extern void efipci_child_del ( struct efi_pci_device *efipci,
-			       EFI_HANDLE device );
-extern void efipci_destroy ( struct efi_driver *efidrv,
-			     struct efi_pci_device *efipci );
+extern int efipci_open ( EFI_HANDLE device, UINT32 attributes,
+			 struct efi_pci_device *efipci );
+extern void efipci_close ( EFI_HANDLE device );
+extern int efipci_info ( EFI_HANDLE device, struct efi_pci_device *efipci );
 
 #endif /* _IPXE_EFI_PCI_H */

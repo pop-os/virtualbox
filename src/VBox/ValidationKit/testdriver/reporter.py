@@ -10,26 +10,36 @@ from __future__ import print_function;
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 146365 $"
+__version__ = "$Revision: 153426 $"
 
 
 # Standard Python imports.
@@ -70,7 +80,7 @@ class ReporterLock(object):
         oSelf = threading.current_thread();
 
         # Take the lock.
-        if not self.oLock.acquire():
+        if not self.oLock.acquire():                            # pylint: disable=consider-using-with
             return False;
 
         self.oOwner      = oSelf;
@@ -160,6 +170,14 @@ class ReporterBase(object):
         """Increases the debug level."""
         self.iDebug += 1;
 
+    def getVerbosity(self):
+        """Returns the current verbosity level."""
+        return self.iVerbose;
+
+    def getDebug(self):
+        """Returns the current debug level."""
+        return self.iDebug;
+
     def appendToProcessName(self, sAppend):
         """
         Appends sAppend to the base process name.
@@ -204,7 +222,7 @@ class ReporterBase(object):
     def xmlFlush(self, fRetry = False, fForce = False):
         """Flushes XML output if buffered."""
         _ = fRetry; _ = fForce;
-        return None;
+        return True;
 
     #
     # XML output from child.
@@ -946,6 +964,15 @@ class RemoteReporter(ReporterBase):
                 self._doUploadFile(oSrcFile, sAltName, sDescription, sKind, 'image/png');
             finally:
                 g_oLock.acquire();
+        elif sKind.startswith('screenrecording/'):
+            self.log(0, '*** Uploading "%s" - KIND: "%s" - DESC: "%s" ***'
+                        % (sSrcFilename, sKind, sDescription),  sCaller, sTsPrf);
+            self.xmlFlush();
+            g_oLock.release();
+            try:
+                self._doUploadFile(oSrcFile, sAltName, sDescription, sKind, 'video/webm');
+            finally:
+                g_oLock.acquire();
         elif sKind.startswith('misc/'):
             self.log(0, '*** Uploading "%s" - KIND: "%s" - DESC: "%s" ***'
                         % (sSrcFilename, sKind, sDescription),  sCaller, sTsPrf);
@@ -1240,12 +1267,18 @@ class FileWrapper(object):
         return None;
 
 class FileWrapperTestPipe(object):
-    """ File like class for the test pipe (TXS EXEC and similar). """
+    """
+    File like class for the test pipe (TXS EXEC and similar).
+
+    This is also used to submit XML test result files.
+    """
     def __init__(self):
         self.sPrefix    = '';
         self.fStarted   = False;
         self.fClosed    = False;
         self.sTagBuffer = None;
+        self.cTestDepth = 0;
+        self.acTestErrors = [];
 
     def __del__(self):
         self.close();
@@ -1254,6 +1287,22 @@ class FileWrapperTestPipe(object):
         """ file.close """
         if self.fStarted is True and self.fClosed is False:
             self.fClosed = True;
+
+            # Close open <Test> elements:
+            if self.cTestDepth > 0:
+                sNow = utils.getIsoTimestamp()
+                cErrors = 0;
+                while self.cTestDepth > 0:
+                    self.cTestDepth -= 1;
+                    if self.acTestErrors:
+                        cErrors += self.acTestErrors.pop();
+                    cErrors += 1;
+                    g_oReporter.subXmlWrite(self,
+                                            '\n%s  <Failed timestamp="%s" errors="%s"/>\n%s</Test>\n'
+                                            % ('  ' * self.cTestDepth, sNow, cErrors, '  ' * self.cTestDepth),
+                                            utils.getCallerName());
+
+            # Tell the reporter that the XML input is done.
             try:    g_oReporter.subXmlEnd(self);
             except:
                 try:    traceback.print_exc();
@@ -1286,57 +1335,58 @@ class FileWrapperTestPipe(object):
                         sText = sText.tobytes();
                 except:
                     pass;
-            if not utils.isString(sText) and hasattr(sText, 'decode'):
+            if hasattr(sText, 'decode'):
                 try:    sText = sText.decode('utf-8', 'ignore');
                 except: pass;
 
         try:
+            #
+            # Write the XML to the reporter.
+            #
             g_oReporter.subXmlWrite(self, sText, utils.getCallerName());
+
+            #
             # Parse the supplied text and look for <Failed.../> tags to keep track of the
             # error counter. This is only a very lazy aproach.
-            sText.strip();
+            #
             idxText = 0;
             while sText:
                 if self.sTagBuffer is None:
                     # Look for the start of a tag.
-                    idxStart = sText[idxText:].find('<');
+                    idxStart = sText.find('<', idxText);
                     if idxStart != -1:
-                        # Look for the end of the tag.
-                        idxEnd = sText[idxStart:].find('>');
-
                         # If the end was found inside the current buffer, parse the line,
-                        # else we have to save it for later.
+                        # otherwise we have to save it for later.
+                        idxEnd = sText.find('>', idxStart);
                         if idxEnd != -1:
-                            idxEnd += idxStart + 1;
-                            self._processXmlElement(sText[idxStart:idxEnd]);
+                            self._processXmlElement(sText[idxStart:idxEnd+1]);
                             idxText = idxEnd;
                         else:
                             self.sTagBuffer = sText[idxStart:];
-                            idxText = len(sText);
+                            break;
                     else:
-                        idxText = len(sText);
+                        break;
                 else:
                     # Search for the end of the tag and parse the whole tag.
-                    idxEnd = sText[idxText:].find('>');
+                    assert(idxText == 0);
+                    idxEnd = sText.find('>');
                     if idxEnd != -1:
-                        idxEnd += idxStart + 1;
-                        self._processXmlElement(self.sTagBuffer + sText[idxText:idxEnd]);
+                        self._processXmlElement(self.sTagBuffer + sText[:idxEnd+1]);
                         self.sTagBuffer = None;
                         idxText = idxEnd;
                     else:
                         self.sTagBuffer = self.sTagBuffer + sText[idxText:];
-                        idxText = len(sText);
-
-                sText = sText[idxText:];
-                sText = sText.lstrip();
+                        break;
         except:
             traceback.print_exc();
         return None;
 
     def _processXmlElement(self, sElement):
         """
-        Processes a complete XML tag (so far we only search for the Failed to tag
-        to keep track of the error counter.
+        Processes a complete XML tag.
+
+        We handle the 'Failed' tag to keep track of the error counter.
+        We also track 'Test' tags to make sure we close with all of them properly closed.
         """
         # Make sure we don't parse any space between < and the element name.
         sElement = sElement.strip();
@@ -1344,30 +1394,45 @@ class FileWrapperTestPipe(object):
         # Find the end of the name
         idxEndName = sElement.find(' ');
         if idxEndName == -1:
-            idxEndName = sElement.find('/');
-        if idxEndName == -1:
             idxEndName = sElement.find('>');
+            if idxEndName >= 0:
+                if sElement[idxEndName - 1] == '/':
+                    idxEndName -= 1;
+            else:
+                idxEndName = len(sElement);
+        sElementName = sElement[1:idxEndName];
 
-        if idxEndName != -1:
-            if sElement[1:idxEndName] == 'Failed':
-                g_oLock.acquire();
-                try:
-                    g_oReporter.testIncErrors();
-                finally:
-                    g_oLock.release();
-        else:
-            error('_processXmlElement(%s)' % sElement);
+        # <Failed>:
+        if sElementName == 'Failed':
+            g_oLock.acquire();
+            try:
+                g_oReporter.testIncErrors();
+            finally:
+                g_oLock.release();
+            if self.acTestErrors:
+                self.acTestErrors[-1] += 1; # get errors attrib
+        # <Test>
+        elif sElementName == 'Test':
+            self.cTestDepth += 1;
+            self.acTestErrors.append(0);
+        # </Test>
+        elif sElementName == '/Test':
+            self.cTestDepth -= 1;
+            if self.acTestErrors:
+                cErrors = self.acTestErrors.pop();
+                if self.acTestErrors:
+                    self.acTestErrors[-1] += cErrors;
 
 
 #
 # The public APIs.
 #
 
-def log(sText):
+def log(sText, sCaller = None):
     """Writes the specfied text to the log."""
     g_oLock.acquire();
     try:
-        rc = g_oReporter.log(1, sText, utils.getCallerName(), utils.getTimePrefix());
+        rc = g_oReporter.log(1, sText, sCaller if sCaller else utils.getCallerName(), utils.getTimePrefix());
     except:
         rc = -1;
     finally:
@@ -1381,11 +1446,11 @@ def logXcpt(sText=None, cFrames=1):
     """
     return logXcptWorker(1, False, "", sText, cFrames);
 
-def log2(sText):
+def log2(sText, sCaller = None):
     """Log level 2: Writes the specfied text to the log."""
     g_oLock.acquire();
     try:
-        rc = g_oReporter.log(2, sText, utils.getCallerName(), utils.getTimePrefix());
+        rc = g_oReporter.log(2, sText, sCaller if sCaller else utils.getCallerName(), utils.getTimePrefix());
     except:
         rc = -1;
     finally:
@@ -1399,11 +1464,11 @@ def log2Xcpt(sText=None, cFrames=1):
     """
     return logXcptWorker(2, False, "", sText, cFrames);
 
-def log3(sText):
+def log3(sText, sCaller = None):
     """Log level 3: Writes the specfied text to the log."""
     g_oLock.acquire();
     try:
-        rc = g_oReporter.log(3, sText, utils.getCallerName(), utils.getTimePrefix());
+        rc = g_oReporter.log(3, sText, sCaller if sCaller else utils.getCallerName(), utils.getTimePrefix());
     except:
         rc = -1;
     finally:
@@ -1417,11 +1482,11 @@ def log3Xcpt(sText=None, cFrames=1):
     """
     return logXcptWorker(3, False, "", sText, cFrames);
 
-def log4(sText):
+def log4(sText, sCaller = None):
     """Log level 4: Writes the specfied text to the log."""
     g_oLock.acquire();
     try:
-        rc = g_oReporter.log(4, sText, utils.getCallerName(), utils.getTimePrefix());
+        rc = g_oReporter.log(4, sText, sCaller if sCaller else utils.getCallerName(), utils.getTimePrefix());
     except:
         rc = -1;
     finally:
@@ -1435,11 +1500,11 @@ def log4Xcpt(sText=None, cFrames=1):
     """
     return logXcptWorker(4, False, "", sText, cFrames);
 
-def log5(sText):
+def log5(sText, sCaller = None):
     """Log level 2: Writes the specfied text to the log."""
     g_oLock.acquire();
     try:
-        rc = g_oReporter.log(5, sText, utils.getCallerName(), utils.getTimePrefix());
+        rc = g_oReporter.log(5, sText, sCaller if sCaller else utils.getCallerName(), utils.getTimePrefix());
     except:
         rc = -1;
     finally:
@@ -1453,11 +1518,11 @@ def log5Xcpt(sText=None, cFrames=1):
     """
     return logXcptWorker(5, False, "", sText, cFrames);
 
-def log6(sText):
+def log6(sText, sCaller = None):
     """Log level 6: Writes the specfied text to the log."""
     g_oLock.acquire();
     try:
-        rc = g_oReporter.log(6, sText, utils.getCallerName(), utils.getTimePrefix());
+        rc = g_oReporter.log(6, sText, sCaller if sCaller else utils.getCallerName(), utils.getTimePrefix());
     except:
         rc = -1;
     finally:
@@ -1474,8 +1539,8 @@ def log6Xcpt(sText=None, cFrames=1):
 def maybeErr(fIsError, sText):
     """ Maybe error or maybe normal log entry. """
     if fIsError is True:
-        return error(sText);
-    return log(sText);
+        return error(sText, sCaller = utils.getCallerName());
+    return log(sText, sCaller = utils.getCallerName());
 
 def maybeErrXcpt(fIsError, sText=None, cFrames=1):
     """ Maybe error or maybe normal log exception entry. """
@@ -1486,8 +1551,8 @@ def maybeErrXcpt(fIsError, sText=None, cFrames=1):
 def maybeLog(fIsNotError, sText):
     """ Maybe error or maybe normal log entry. """
     if fIsNotError is not True:
-        return error(sText);
-    return log(sText);
+        return error(sText, sCaller = utils.getCallerName());
+    return log(sText, sCaller = utils.getCallerName());
 
 def maybeLogXcpt(fIsNotError, sText=None, cFrames=1):
     """ Maybe error or maybe normal log exception entry. """
@@ -1495,7 +1560,7 @@ def maybeLogXcpt(fIsNotError, sText=None, cFrames=1):
         return errorXcpt(sText, cFrames);
     return logXcpt(sText, cFrames);
 
-def error(sText):
+def error(sText, sCaller = None):
     """
     Writes the specfied error message to the log.
 
@@ -1507,7 +1572,7 @@ def error(sText):
     g_oLock.acquire();
     try:
         g_oReporter.testIncErrors();
-        g_oReporter.log(0, '** error: %s' % (sText), utils.getCallerName(), utils.getTimePrefix());
+        g_oReporter.log(0, '** error: %s' % (sText), sCaller if sCaller else utils.getCallerName(), utils.getTimePrefix());
     except:
         pass;
     finally:
@@ -1650,6 +1715,14 @@ def incDebug():
     """Increases the debug level."""
     return g_oReporter.incDebug()
 
+def getVerbosity():
+    """Returns the current verbosity level."""
+    return g_oReporter.getVerbosity()
+
+def getDebug():
+    """Returns the current debug level."""
+    return g_oReporter.getDebug()
+
 def appendToProcessName(sAppend):
     """
     Appends sAppend to the base process name.
@@ -1785,6 +1858,7 @@ def testCleanup():
         g_oReporter.xmlFlush(fRetry = False, fForce = True);
     finally:
         g_oLock.release();
+        fRc = False;
     return fRc;
 
 
@@ -1864,6 +1938,7 @@ def checkTestManagerConnection():
         fRc = g_oReporter.xmlFlush(fRetry = False, fForce = True);
     finally:
         g_oLock.release();
+        fRc = False;
     return fRc;
 
 def flushall(fSkipXml = False):

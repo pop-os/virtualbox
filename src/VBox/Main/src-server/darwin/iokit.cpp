@@ -8,15 +8,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -30,20 +40,26 @@
 
 #include <mach/mach.h>
 #include <Carbon/Carbon.h>
+#include <CoreFoundation/CFBase.h>
 #include <IOKit/IOKitLib.h>
+#include <IOKit/IOBSD.h>
 #include <IOKit/storage/IOStorageDeviceCharacteristics.h>
+#include <IOKit/storage/IOBlockStorageDevice.h>
+#include <IOKit/storage/IOMedia.h>
+#include <IOKit/storage/IOCDMedia.h>
 #include <IOKit/scsi/SCSITaskLib.h>
 #include <SystemConfiguration/SystemConfiguration.h>
 #include <mach/mach_error.h>
+#include <sys/param.h>
+#include <paths.h>
 #ifdef VBOX_WITH_USB
 # include <IOKit/usb/IOUSBLib.h>
 # include <IOKit/IOCFPlugIn.h>
-# include <IOKit/storage/IOMedia.h>
 #endif
 
 #include <VBox/log.h>
-#include <VBox/err.h>
 #include <VBox/usblib.h>
+#include <iprt/errcore.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
 #include <iprt/process.h>
@@ -278,7 +294,7 @@ static bool darwinDictGetString(CFDictionaryRef DictRef, CFStringRef KeyStrRef, 
     CFTypeRef ValRef = CFDictionaryGetValue(DictRef, KeyStrRef);
     if (ValRef)
     {
-        if (CFStringGetCString((CFStringRef)ValRef, psz, cch, kCFStringEncodingUTF8))
+        if (CFStringGetCString((CFStringRef)ValRef, psz, (CFIndex)cch, kCFStringEncodingUTF8))
             return true;
     }
     Assert(cch > 0);
@@ -327,7 +343,7 @@ static bool darwinDictGetData(CFDictionaryRef DictRef, CFStringRef KeyStrRef, vo
         CFIndex cbActual = CFDataGetLength((CFDataRef)ValRef);
         if (cbActual >= 0 && cbBuf == (size_t)cbActual)
         {
-            CFDataGetBytes((CFDataRef)ValRef, CFRangeMake(0, cbBuf), (uint8_t *)pvBuf);
+            CFDataGetBytes((CFDataRef)ValRef, CFRangeMake(0, (CFIndex)cbBuf), (uint8_t *)pvBuf);
             return true;
         }
     }
@@ -1034,7 +1050,7 @@ static void darwinDeterminUSBDeviceState(PUSBDEVICE pCur, io_object_t USBDevice,
         if (g_uMajorDarwin >= VBOX_OSX_EL_CAPTIAN_VER)
         {
             io_object_t IOUSBDeviceNew = IO_OBJECT_NULL;
-            io_object_t krc = darwinGetUSBHostDeviceFromLegacyDevice(USBDevice, &IOUSBDeviceNew);
+            kern_return_t krc = darwinGetUSBHostDeviceFromLegacyDevice(USBDevice, &IOUSBDeviceNew);
             if (   krc == KERN_SUCCESS
                 && IOUSBDeviceNew != IO_OBJECT_NULL)
             {
@@ -1271,176 +1287,6 @@ PUSBDEVICE DarwinGetUSBDevices(void)
     return pHead;
 }
 
-
-/**
- * Triggers re-enumeration of a device.
- *
- * @returns VBox status code.
- * @param   pCur    The USBDEVICE structure for the device.
- */
-int DarwinReEnumerateUSBDevice(PCUSBDEVICE pCur)
-{
-    int vrc;
-    const char *pszAddress = pCur->pszAddress;
-    AssertPtrReturn(pszAddress, VERR_INVALID_POINTER);
-    AssertReturn(darwinOpenMasterPort(), VERR_GENERAL_FAILURE);
-
-    /*
-     * This code is a short version of the Open method in USBProxyDevice-darwin.cpp stuff.
-     * Fixes made to this code probably applies there too!
-     */
-
-    CFMutableDictionaryRef RefMatchingDict = IOServiceMatching(kIOUSBDeviceClassName);
-    AssertReturn(RefMatchingDict, VERR_INTERNAL_ERROR_4);
-
-    uint64_t u64SessionId = 0;
-    uint32_t u32LocationId = 0;
-    const char *psz = pszAddress;
-    do
-    {
-        const char chValue = *psz;
-        AssertReleaseReturn(psz[1] == '=', VERR_INTERNAL_ERROR);
-        uint64_t u64Value;
-        int rc = RTStrToUInt64Ex(psz + 2, (char **)&psz, 0, &u64Value);
-        AssertReleaseRCReturn(rc, rc);
-        AssertReleaseReturn(!*psz || *psz == ';', rc);
-        switch (chValue)
-        {
-            case 'l':
-                u32LocationId = (uint32_t)u64Value;
-                break;
-            case 's':
-                u64SessionId = u64Value;
-                break;
-            case 'p':
-            case 'v':
-            {
-#if 0 /* Guess what, this doesn't 'ing work either! */
-                SInt32 i32 = (int16_t)u64Value;
-                CFNumberRef Num = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &i32);
-                AssertBreak(Num);
-                CFDictionarySetValue(RefMatchingDict, chValue == 'p' ? CFSTR(kUSBProductID) : CFSTR(kUSBVendorID), Num);
-                CFRelease(Num);
-#endif
-                break;
-            }
-            default:
-                AssertReleaseMsgFailedReturn(("chValue=%#x\n", chValue), VERR_INTERNAL_ERROR);
-        }
-        if (*psz == ';')
-            psz++;
-    } while (*psz);
-
-    io_iterator_t USBDevices = IO_OBJECT_NULL;
-    IOReturn irc = IOServiceGetMatchingServices(g_MasterPort, RefMatchingDict, &USBDevices);
-    AssertMsgReturn(irc == kIOReturnSuccess, ("irc=%#x\n", irc), VERR_INTERNAL_ERROR_5);
-    RefMatchingDict = NULL; /* the reference is consumed by IOServiceGetMatchingServices. */
-
-    unsigned cMatches = 0;
-    io_object_t USBDevice;
-    while ((USBDevice = IOIteratorNext(USBDevices)) != IO_OBJECT_NULL)
-    {
-        cMatches++;
-        CFMutableDictionaryRef PropsRef = 0;
-        kern_return_t krc = IORegistryEntryCreateCFProperties(USBDevice, &PropsRef, kCFAllocatorDefault, kNilOptions);
-        if (krc == KERN_SUCCESS)
-        {
-            uint64_t u64CurSessionId;
-            uint32_t u32CurLocationId;
-            if (    (    !u64SessionId
-                     || (   darwinDictGetU64(PropsRef, CFSTR("sessionID"), &u64CurSessionId)
-                         && u64CurSessionId == u64SessionId))
-                &&  (   !u32LocationId
-                     || (   darwinDictGetU32(PropsRef, CFSTR(kUSBDevicePropertyLocationID), &u32CurLocationId)
-                         && u32CurLocationId == u32LocationId))
-                )
-            {
-                CFRelease(PropsRef);
-                break;
-            }
-            CFRelease(PropsRef);
-        }
-        IOObjectRelease(USBDevice);
-    }
-    IOObjectRelease(USBDevices);
-    USBDevices = IO_OBJECT_NULL;
-    if (!USBDevice)
-    {
-        LogRel(("USB: Device '%s' not found (%d pid+vid matches)\n", pszAddress, cMatches));
-        IOObjectRelease(USBDevices);
-        return VERR_VUSB_DEVICE_NAME_NOT_FOUND;
-    }
-
-    /*
-     * Create a plugin interface for the device and query its IOUSBDeviceInterface.
-     */
-    SInt32 Score = 0;
-    IOCFPlugInInterface **ppPlugInInterface = NULL;
-    irc = IOCreatePlugInInterfaceForService(USBDevice, kIOUSBDeviceUserClientTypeID,
-                                            kIOCFPlugInInterfaceID, &ppPlugInInterface, &Score);
-    if (irc == kIOReturnSuccess)
-    {
-        IOUSBDeviceInterface245 **ppDevI = NULL;
-        HRESULT hrc = (*ppPlugInInterface)->QueryInterface(ppPlugInInterface,
-                                                           CFUUIDGetUUIDBytes(kIOUSBDeviceInterfaceID245),
-                                                           (LPVOID *)&ppDevI);
-        irc = IODestroyPlugInInterface(ppPlugInInterface); Assert(irc == kIOReturnSuccess);
-        ppPlugInInterface = NULL;
-        if (hrc == S_OK)
-        {
-            /*
-             * Try open the device for exclusive access.
-             */
-            irc = (*ppDevI)->USBDeviceOpenSeize(ppDevI);
-            if (irc == kIOReturnExclusiveAccess)
-            {
-                RTThreadSleep(20);
-                irc = (*ppDevI)->USBDeviceOpenSeize(ppDevI);
-            }
-            if (irc == kIOReturnSuccess)
-            {
-                /*
-                 * Re-enumerate the device and bail out.
-                 */
-                irc = (*ppDevI)->USBDeviceReEnumerate(ppDevI, 0);
-                if (irc == kIOReturnSuccess)
-                    vrc = VINF_SUCCESS;
-                else
-                {
-                    LogRel(("USB: Failed to open device '%s', plug-in creation failed with irc=%#x.\n", pszAddress, irc));
-                    vrc = RTErrConvertFromDarwinIO(irc);
-                }
-
-                (*ppDevI)->USBDeviceClose(ppDevI);
-            }
-            else if (irc == kIOReturnExclusiveAccess)
-            {
-                LogRel(("USB: Device '%s' is being used by another process\n", pszAddress));
-                vrc = VERR_SHARING_VIOLATION;
-            }
-            else
-            {
-                LogRel(("USB: Failed to open device '%s', irc=%#x.\n", pszAddress, irc));
-                vrc = VERR_OPEN_FAILED;
-            }
-        }
-        else
-        {
-            LogRel(("USB: Failed to create plugin interface for device '%s', hrc=%#x.\n", pszAddress, hrc));
-            vrc = VERR_OPEN_FAILED;
-        }
-
-        (*ppDevI)->Release(ppDevI);
-    }
-    else
-    {
-        LogRel(("USB: Failed to open device '%s', plug-in creation failed with irc=%#x.\n", pszAddress, irc));
-        vrc = RTErrConvertFromDarwinIO(irc);
-    }
-
-    return vrc;
-}
-
 #endif /* VBOX_WITH_USB */
 
 
@@ -1569,6 +1415,170 @@ PDARWINDVD DarwinGetDVDDrives(void)
     }
 
     IOObjectRelease(DVDServices);
+
+    return pHead;
+}
+
+
+/**
+ * Enumerate the fixed drives (HDDs, SSD, ++) returning a FIFO of device paths
+ * strings and model strings separated by ':'.
+ *
+ * @returns Pointer to the head.
+ *          The caller is responsible for calling RTMemFree() on each of the nodes.
+ */
+PDARWINFIXEDDRIVE DarwinGetFixedDrives(void)
+{
+    AssertReturn(darwinOpenMasterPort(), NULL);
+
+    /*
+     * Create a matching dictionary for searching drives in the IOKit.
+     *
+     * The idea is to find all the IOMedia objects with "Whole"="True" which identify the disks but
+     * not partitions.
+     */
+    CFMutableDictionaryRef RefMatchingDict = IOServiceMatching("IOMedia");
+    AssertReturn(RefMatchingDict, NULL);
+    CFDictionaryAddValue(RefMatchingDict, CFSTR(kIOMediaWholeKey), kCFBooleanTrue);
+
+    /*
+     * Perform the search and get a collection of IOMedia objects.
+     */
+    io_iterator_t MediaServices = IO_OBJECT_NULL;
+    IOReturn rc = IOServiceGetMatchingServices(g_MasterPort, RefMatchingDict, &MediaServices);
+    AssertMsgReturn(rc == kIOReturnSuccess, ("rc=%d\n", rc), NULL);
+    RefMatchingDict = NULL; /* the reference is consumed by IOServiceGetMatchingServices. */
+
+    /*
+     * Enumerate the matching services.
+     * (This enumeration must be identical to the one performed in DrvHostBase.cpp.)
+     */
+    PDARWINFIXEDDRIVE pHead = NULL;
+    PDARWINFIXEDDRIVE pTail = NULL;
+    unsigned i = 0;
+    io_object_t MediaService;
+    while ((MediaService = IOIteratorNext(MediaServices)) != IO_OBJECT_NULL)
+    {
+        DARWIN_IOKIT_DUMP_OBJ(MediaService);
+
+        /*
+         * Find the IOMedia parents having the IOBlockStorageDevice type and check they have "device-type" = "Generic".
+         * If the IOMedia object hasn't IOBlockStorageDevices with such device-type in parents the one is not general
+         * disk but either CDROM-like device or some another device which has no interest for the function.
+         */
+
+        /*
+         * Just avoid parents enumeration if the IOMedia is IOCDMedia, i.e. CDROM-like disk
+         */
+        if (IOObjectConformsTo(MediaService, kIOCDMediaClass))
+        {
+            IOObjectRelease(MediaService);
+            continue;
+        }
+
+        bool fIsGenericStorage = false;
+        io_registry_entry_t ChildEntry = MediaService;
+        io_registry_entry_t ParentEntry = IO_OBJECT_NULL;
+        kern_return_t krc = KERN_SUCCESS;
+        while (   !fIsGenericStorage
+               && (krc = IORegistryEntryGetParentEntry(ChildEntry, kIOServicePlane, &ParentEntry)) == KERN_SUCCESS)
+        {
+            if (!IOObjectIsEqualTo(ChildEntry, MediaService))
+                IOObjectRelease(ChildEntry);
+
+            DARWIN_IOKIT_DUMP_OBJ(ParentEntry);
+            if (IOObjectConformsTo(ParentEntry, kIOBlockStorageDeviceClass))
+            {
+                CFTypeRef DeviceTypeValueRef = IORegistryEntryCreateCFProperty(ParentEntry,
+                                                                               CFSTR("device-type"),
+                                                                               kCFAllocatorDefault, 0);
+                if (   DeviceTypeValueRef
+                    && CFGetTypeID(DeviceTypeValueRef) == CFStringGetTypeID()
+                    && CFStringCompare((CFStringRef)DeviceTypeValueRef, CFSTR("Generic"),
+                                       kCFCompareCaseInsensitive) == kCFCompareEqualTo)
+                    fIsGenericStorage = true;
+
+                if (DeviceTypeValueRef != NULL)
+                    CFRelease(DeviceTypeValueRef);
+            }
+            ChildEntry = ParentEntry;
+        }
+        if (ChildEntry != IO_OBJECT_NULL && !IOObjectIsEqualTo(ChildEntry, MediaService))
+            IOObjectRelease(ChildEntry);
+
+        if (!fIsGenericStorage)
+        {
+            IOObjectRelease(MediaService);
+            continue;
+        }
+
+        CFTypeRef DeviceName;
+        DeviceName = IORegistryEntryCreateCFProperty(MediaService,
+                                                     CFSTR(kIOBSDNameKey),
+                                                     kCFAllocatorDefault,0);
+        if (DeviceName)
+        {
+            char szDeviceFilePath[MAXPATHLEN];
+            strcpy(szDeviceFilePath, _PATH_DEV);
+            size_t cchPathSize = strlen(szDeviceFilePath);
+            if (CFStringGetCString((CFStringRef)DeviceName,
+                                   &szDeviceFilePath[cchPathSize],
+                                   (CFIndex)(sizeof(szDeviceFilePath) - cchPathSize),
+                                   kCFStringEncodingUTF8))
+            {
+                PDARWINFIXEDDRIVE pDuplicate = pHead;
+                while (pDuplicate && strcmp(szDeviceFilePath, pDuplicate->szName) != 0)
+                    pDuplicate = pDuplicate->pNext;
+                if (pDuplicate == NULL)
+                {
+                    /* Get model for the IOMedia object.
+                     *
+                     * Due to vendor and product property names are different and
+                     * depend on interface and device type, the best way to get a drive
+                     * model is get IORegistry name for the IOMedia object. Usually,
+                     * it takes "<vendor> <product> <revision> Media" form. Noticed,
+                     * such naming are used by only IOMedia objects having
+                     * "Whole" = True and "BSDName" properties set.
+                     */
+                    io_name_t szEntryName = { 0 };
+                    if ((krc = IORegistryEntryGetName(MediaService, szEntryName)) == KERN_SUCCESS)
+                    {
+                        /* remove " Media" from the end of the name */
+                        char *pszMedia = strrchr(szEntryName, ' ');
+                        if (   pszMedia != NULL
+                            && (uintptr_t)pszMedia < (uintptr_t)&szEntryName[sizeof(szEntryName)]
+                            && strcmp(pszMedia, " Media") == 0)
+                        {
+                            *pszMedia = '\0';
+                            RTStrPurgeEncoding(szEntryName);
+                        }
+                    }
+                    /* Create the device path and model name in form "/device/path:model". */
+                    cchPathSize = strlen(szDeviceFilePath);
+                    size_t const cchModelSize = strlen(szEntryName);
+                    size_t const cbExtra = cchPathSize + 1 + cchModelSize + !!cchModelSize;
+                    PDARWINFIXEDDRIVE pNew = (PDARWINFIXEDDRIVE)RTMemAlloc(RT_UOFFSETOF_DYN(DARWINFIXEDDRIVE, szName[cbExtra]));
+                    if (pNew)
+                    {
+                        pNew->pNext = NULL;
+                        memcpy(pNew->szName, szDeviceFilePath, cchPathSize + 1);
+                        pNew->pszModel = NULL;
+                        if (cchModelSize)
+                            pNew->pszModel = (const char *)memcpy(&pNew->szName[cchPathSize + 1], szEntryName, cchModelSize + 1);
+
+                        if (pTail)
+                            pTail = pTail->pNext = pNew;
+                        else
+                            pTail = pHead = pNew;
+                    }
+                }
+            }
+            CFRelease(DeviceName);
+        }
+        IOObjectRelease(MediaService);
+        i++;
+    }
+    IOObjectRelease(MediaServices);
 
     return pHead;
 }
@@ -1717,7 +1727,7 @@ PDARWINETHERNIC DarwinGetEthernetControllers(void)
                         char *psz = strchr(szTmp, '\0');
                         *psz++ = ':';
                         *psz++ = ' ';
-                        size_t cchLeft = sizeof(szTmp) - (psz - &szTmp[0]) - (sizeof(" (Wireless)") - 1);
+                        size_t cchLeft = sizeof(szTmp) - (size_t)(psz - &szTmp[0]) - (sizeof(" (Wireless)") - 1);
                         bool fFound = false;
                         CFIndex i;
 
@@ -1730,12 +1740,12 @@ PDARWINETHERNIC DarwinGetEthernetControllers(void)
                             {
                                 CFStringRef BSDNameRef = SCNetworkInterfaceGetBSDName(IfRef);
                                 if (     BSDNameRef
-                                    &&   CFStringGetCString(BSDNameRef, psz, cchLeft, kCFStringEncodingUTF8)
+                                    &&   CFStringGetCString(BSDNameRef, psz, (CFIndex)cchLeft, kCFStringEncodingUTF8)
                                     &&  !strcmp(psz, szBSDName))
                                 {
                                     CFStringRef ServiceNameRef = SCNetworkServiceGetName(ServiceRef);
                                     if (    ServiceNameRef
-                                        &&  CFStringGetCString(ServiceNameRef, psz, cchLeft, kCFStringEncodingUTF8))
+                                        &&  CFStringGetCString(ServiceNameRef, psz, (CFIndex)cchLeft, kCFStringEncodingUTF8))
                                     {
                                         fFound = true;
                                         break;
@@ -1750,12 +1760,12 @@ PDARWINETHERNIC DarwinGetEthernetControllers(void)
                                 SCNetworkInterfaceRef IfRef = (SCNetworkInterfaceRef)CFArrayGetValueAtIndex(IfsRef, i);
                                 CFStringRef BSDNameRef = SCNetworkInterfaceGetBSDName(IfRef);
                                 if (     BSDNameRef
-                                    &&   CFStringGetCString(BSDNameRef, psz, cchLeft, kCFStringEncodingUTF8)
+                                    &&   CFStringGetCString(BSDNameRef, psz, (CFIndex)cchLeft, kCFStringEncodingUTF8)
                                     &&  !strcmp(psz, szBSDName))
                                 {
                                     CFStringRef DisplayNameRef = SCNetworkInterfaceGetLocalizedDisplayName(IfRef);
                                     if (    DisplayNameRef
-                                        &&  CFStringGetCString(DisplayNameRef, psz, cchLeft, kCFStringEncodingUTF8))
+                                        &&  CFStringGetCString(DisplayNameRef, psz, (CFIndex)cchLeft, kCFStringEncodingUTF8))
                                     {
                                         fFound = true;
                                         break;

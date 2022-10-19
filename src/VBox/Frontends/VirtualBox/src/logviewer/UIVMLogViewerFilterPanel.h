@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_logviewer_UIVMLogViewerFilterPanel_h
@@ -28,6 +38,7 @@
 #include "UIVMLogViewerPanel.h"
 
 /* Forward declarations: */
+class QAbstractButton;
 class QButtonGroup;
 class QComboBox;
 class QFrame;
@@ -46,33 +57,30 @@ class UIVMLogViewerFilterPanel : public UIVMLogViewerPanel
 
 signals:
 
-    /* Notifies listeners that the filter has been applied. @a isOriginalLog is true
-     if filter function returns early for some reason (no filter term etc.) and log page
-     content is set to original log file. @a isOriginalLog is false if content is reduced (filtered)*/
-    void sigFilterApplied(bool isOriginalLog);
+    void sigFilterApplied();
 
 public:
 
     /** Constructs the filter-panel by passing @a pParent to the QWidget base-class constructor.
       * @param  pViewer  Specifies reference to the VM Log-Viewer this filter-panel belongs to. */
     UIVMLogViewerFilterPanel(QWidget *pParent, UIVMLogViewerWidget *pViewer);
-    virtual QString panelName() const /* override */;
+    virtual QString panelName() const RT_OVERRIDE;
 
 public slots:
 
-    /** Applies filter settings and filters the current log-page.
-      * @param  iCurrentIndex  Specifies index of current log-page, but it is actually not used in the method. */
-    void applyFilter(const int iCurrentIndex = 0);
+    /** Applies filter settings and filters the current log-page. */
+    void applyFilter();
 
 protected:
 
-    virtual void prepareWidgets() /* override */;
-    virtual void prepareConnections() /* override */;
+    virtual void prepareWidgets() RT_OVERRIDE;
+    virtual void prepareConnections() RT_OVERRIDE;
 
-    void retranslateUi() /* override */;
+    void retranslateUi() RT_OVERRIDE;
     /** Handles Qt @a pEvent, used for keyboard processing. */
-    bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
-    void showEvent(QShowEvent *pEvent) /* override */;
+    bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
+    void showEvent(QShowEvent *pEvent) RT_OVERRIDE;
+    void hideEvent(QHideEvent *pEvent) RT_OVERRIDE;
 
 private slots:
 
@@ -81,7 +89,7 @@ private slots:
     /** Clear all the filter terms and reset the filtering. */
     void sltClearFilterTerms();
     /** Executes the necessary code to handle filter's boolean operator change ('And', 'Or'). */
-    void sltOperatorButtonChanged(int buttonId);
+    void sltOperatorButtonChanged(QAbstractButton *pButton);
     void sltRemoveFilterTerm(const QString &termString);
 
 private:
@@ -96,6 +104,8 @@ private:
 
     bool applyFilterTermsToString(const QString& string);
     void filter();
+    /** Revert the document to original. */
+    void resetFiltering();
 
     QLabel              *m_pFilterLabel;
     QComboBox           *m_pFilterComboBox;

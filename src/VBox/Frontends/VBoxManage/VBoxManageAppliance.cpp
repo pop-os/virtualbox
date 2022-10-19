@@ -4,24 +4,31 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
-
-#ifndef VBOX_ONLY_DOCS
 
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#ifndef VBOX_ONLY_DOCS
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
@@ -29,23 +36,37 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/VirtualBox.h>
+#include <VBox/log.h>
+#include <VBox/param.h>
+
+#include <VBox/version.h>
 
 #include <list>
 #include <map>
-#endif /* !VBOX_ONLY_DOCS */
 
-#include <iprt/stream.h>
 #include <iprt/getopt.h>
 #include <iprt/ctype.h>
 #include <iprt/path.h>
 #include <iprt/file.h>
 #include <iprt/err.h>
+#include <iprt/zip.h>
+#include <iprt/stream.h>
+#include <iprt/vfs.h>
+#include <iprt/manifest.h>
+#include <iprt/crypto/digest.h>
+#include <iprt/crypto/x509.h>
+#include <iprt/crypto/pkcs7.h>
+#include <iprt/crypto/store.h>
+#include <iprt/crypto/spc.h>
+#include <iprt/crypto/key.h>
+#include <iprt/crypto/pkix.h>
 
-#include <VBox/log.h>
-#include <VBox/param.h>
+
 
 #include "VBoxManage.h"
 using namespace com;
+
+DECLARE_TRANSLATION_CONTEXT(Appliance);
 
 
 // funcs
@@ -150,6 +171,7 @@ static bool isStorageControllerType(VirtualSystemDescriptionType_T avsdType)
         case VirtualSystemDescriptionType_HardDiskControllerSATA:
         case VirtualSystemDescriptionType_HardDiskControllerSCSI:
         case VirtualSystemDescriptionType_HardDiskControllerSAS:
+        case VirtualSystemDescriptionType_HardDiskControllerVirtioSCSI:
             return true;
         default:
             return false;
@@ -198,16 +220,15 @@ static const RTGETOPTDEF g_aImportApplianceOptions[] =
     { "--cloudbucket",          'B', RTGETOPT_REQ_STRING }
 };
 
-enum actionType
+typedef enum APPLIANCETYPE
 {
     NOT_SET, LOCAL, CLOUD
-} actionType;
+} APPLIANCETYPE;
 
 RTEXITCODE handleImportAppliance(HandlerArg *arg)
 {
-    HRESULT rc = S_OK;
-    bool fCloud = false; // the default
-    actionType = NOT_SET;
+    HRESULT hrc = S_OK;
+    APPLIANCETYPE enmApplType = NOT_SET;
     Utf8Str strOvfFilename;
     bool fExecute = true;                  // if true, then we actually do the import
     com::SafeArray<ImportOptions_T> options;
@@ -238,12 +259,14 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                 break;
 
             case 's':   // --vsys
-                if (fCloud == false && actionType == NOT_SET)
-                    actionType = LOCAL;
+                if (enmApplType == NOT_SET)
+                    enmApplType = LOCAL;
 
-                if (actionType != LOCAL)
-                    return errorSyntax(USAGE_EXPORTAPPLIANCE,
-                                       "Option \"%s\" can't be used together with \"--cloud\" argument.",
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" can't be used together with \"--cloud\" option."),
+                                       GetState.pDef->pszLong);
+                if (ValueUnion.u32 == (uint32_t)-1)
+                    return errorSyntax(Appliance::tr("Value of option \"%s\" is out of range."),
                                        GetState.pDef->pszLong);
 
                 ulCurVsys = ValueUnion.u32;
@@ -251,119 +274,141 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                 break;
 
             case 'o':   // --ostype
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType == NOT_SET)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys or --cloud option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["ostype"] = ValueUnion.psz;
                 break;
 
             case 'V':   // --vmname
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType == NOT_SET)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys or --cloud option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["vmname"] = ValueUnion.psz;
                 break;
 
             case 'S':   // --settingsfile
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["settingsfile"] = ValueUnion.psz;
                 break;
 
             case 'p':   // --basefolder
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType == NOT_SET)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys or --cloud option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["basefolder"] = ValueUnion.psz;
                 break;
 
             case 'g':   // --group
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["group"] = ValueUnion.psz;
                 break;
 
             case 'd':   // --description
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType == NOT_SET)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys or --cloud option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["description"] = ValueUnion.psz;
                 break;
 
             case 'L':   // --eula
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["eula"] = ValueUnion.psz;
                 break;
 
             case 'm':   // --memory
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType == NOT_SET)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys or --cloud option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["memory"] = ValueUnion.psz;
                 break;
 
             case 'c':   // --cpus
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType == NOT_SET)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys or --cloud option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["cpus"] = ValueUnion.psz;
                 break;
 
             case 'u':   // --unit
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
+                if (ValueUnion.u32 == (uint32_t)-1)
+                    return errorSyntax(Appliance::tr("Value of option \"%s\" is out of range."),
+                                       GetState.pDef->pszLong);
+
                 ulCurUnit = ValueUnion.u32;
                 break;
 
             case 'x':   // --ignore
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 if (ulCurUnit == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --unit argument.", GetState.pDef->pszLong);
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --unit option."),
+                                       GetState.pDef->pszLong);
                 mapIgnoresMapsPerVsys[ulCurVsys][ulCurUnit] = true;
                 break;
 
             case 'T':   // --scsitype
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 if (ulCurUnit == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --unit argument.", GetState.pDef->pszLong);
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --unit option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys][Utf8StrFmt("scsitype%u", ulCurUnit)] = ValueUnion.psz;
                 break;
 
             case 'C':   // --controller
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 if (ulCurUnit == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --unit argument.", GetState.pDef->pszLong);
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --unit option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys][Utf8StrFmt("controller%u", ulCurUnit)] = ValueUnion.psz;
                 break;
 
             case 'E':   // --port
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys option.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 if (ulCurUnit == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --unit option.", GetState.pDef->pszLong);
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --unit option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys][Utf8StrFmt("port%u", ulCurUnit)] = ValueUnion.psz;
                 break;
 
             case 'D':   // --disk
-                if (actionType == LOCAL && ulCurVsys == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                if (enmApplType != LOCAL)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                       GetState.pDef->pszLong);
                 if (ulCurUnit == (uint32_t)-1)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --unit argument.", GetState.pDef->pszLong);
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --unit option."),
+                                       GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys][Utf8StrFmt("disk%u", ulCurUnit)] = ValueUnion.psz;
                 break;
 
             case 'O':   // --options
                 if (RT_FAILURE(parseImportOptions(ValueUnion.psz, &options)))
-                    return errorArgument("Invalid import options '%s'\n", ValueUnion.psz);
+                    return errorArgument(Appliance::tr("Invalid import options '%s'\n"), ValueUnion.psz);
                 break;
 
                 /*--cloud and --vsys are orthogonal, only one must be presented*/
             case 'j':   // --cloud
-                if (fCloud == false && actionType == NOT_SET)
-                {
-                    fCloud = true;
-                    actionType = CLOUD;
-                }
+                if (enmApplType == NOT_SET)
+                    enmApplType = CLOUD;
 
-                if (actionType != CLOUD)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                       "Option \"%s\" can't be used together with \"--vsys\" argument.",
+                if (enmApplType != CLOUD)
+                    return errorSyntax(Appliance::tr("Option \"%s\" can't be used together with \"--vsys\" option."),
                                        GetState.pDef->pszLong);
 
                 ulCurVsys = 0;
@@ -371,22 +416,22 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
 
                 /* Cloud export settings */
             case 'k':   // --cloudprofile
-                if (actionType != CLOUD)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                if (enmApplType != CLOUD)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                        GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["cloudprofile"] = ValueUnion.psz;
                 break;
 
             case 'l':   // --cloudinstanceid
-                if (actionType != CLOUD)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                if (enmApplType != CLOUD)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                        GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["cloudinstanceid"] = ValueUnion.psz;
                 break;
 
             case 'B':   // --cloudbucket
-                if (actionType != CLOUD)
-                    return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                if (enmApplType != CLOUD)
+                    return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                        GetState.pDef->pszLong);
                 mapArgsMapsPerVsys[ulCurVsys]["cloudbucket"] = ValueUnion.psz;
                 break;
@@ -395,57 +440,51 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                 if (strOvfFilename.isEmpty())
                     strOvfFilename = ValueUnion.psz;
                 else
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "Invalid parameter '%s'", ValueUnion.psz);
+                    return errorSyntax(Appliance::tr("Invalid parameter '%s'"), ValueUnion.psz);
                 break;
 
             default:
                 if (c > 0)
                 {
                     if (RT_C_IS_PRINT(c))
-                        return errorSyntax(USAGE_IMPORTAPPLIANCE, "Invalid option -%c", c);
+                        return errorSyntax(Appliance::tr("Invalid option -%c"), c);
                     else
-                        return errorSyntax(USAGE_IMPORTAPPLIANCE, "Invalid option case %i", c);
+                        return errorSyntax(Appliance::tr("Invalid option case %i"), c);
                 }
                 else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "unknown option: %s\n", ValueUnion.psz);
+                    return errorSyntax(Appliance::tr("unknown option: %s\n"), ValueUnion.psz);
                 else if (ValueUnion.pDef)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
+                    return errorSyntax("%s: %Rrs", ValueUnion.pDef->pszLong, c);
                 else
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE, "error: %Rrs", c);
+                    return errorSyntax(Appliance::tr("error: %Rrs"), c);
         }
     }
 
     /* Last check after parsing all arguments */
-    if (strOvfFilename.isNotEmpty())
-    {
-        if (actionType == NOT_SET)
-        {
-            if (fCloud)
-                actionType = CLOUD;
-            else
-                actionType = LOCAL;
-        }
-    }
-    else
-        return errorSyntax(USAGE_IMPORTAPPLIANCE, "Not enough arguments for \"import\" command.");
+    if (strOvfFilename.isEmpty())
+        return errorSyntax(Appliance::tr("Not enough arguments for \"import\" command."));
+
+    if (enmApplType == NOT_SET)
+        enmApplType = LOCAL;
 
     do
     {
         ComPtr<IAppliance> pAppliance;
         CHECK_ERROR_BREAK(arg->virtualBox, CreateAppliance(pAppliance.asOutParam()));
         //in the case of Cloud, append the instance id here because later it's harder to do
-        if (actionType == CLOUD)
+        if (enmApplType == CLOUD)
         {
             try
             {
                 /* Check presence of cloudprofile and cloudinstanceid in the map.
                  * If there isn't the exception is triggered. It's standard std:map logic.*/
                 ArgsMap a = mapArgsMapsPerVsys[ulCurVsys];
-                a.at("cloudprofile");
-                a.at("cloudinstanceid");
-            } catch (...)
+                (void)a.at("cloudprofile");
+                (void)a.at("cloudinstanceid");
+            }
+            catch (...)
             {
-                return errorSyntax(USAGE_IMPORTAPPLIANCE, "Not enough arguments for import from the Cloud.");
+                return errorSyntax(Appliance::tr("Not enough arguments for import from the Cloud."));
             }
 
             strOvfFilename.append(mapArgsMapsPerVsys[ulCurVsys]["cloudprofile"]);
@@ -467,8 +506,8 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                            progressRead.asOutParam()));
         RTStrFree(pszAbsFilePath);
 
-        rc = showProgress(progressRead);
-        CHECK_PROGRESS_ERROR_RET(progressRead, ("Appliance read failed"), RTEXITCODE_FAILURE);
+        hrc = showProgress(progressRead);
+        CHECK_PROGRESS_ERROR_RET(progressRead, (Appliance::tr("Appliance read failed")), RTEXITCODE_FAILURE);
 
         Bstr path; /* fetch the path, there is stuff like username/password removed if any */
         CHECK_ERROR_BREAK(pAppliance, COMGETTER(Path)(path.asOutParam()));
@@ -476,14 +515,16 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
         size_t cVirtualSystemDescriptions = 0;
         com::SafeIfaceArray<IVirtualSystemDescription> aVirtualSystemDescriptions;
 
-        if (actionType == LOCAL)
+        if (enmApplType == LOCAL)
         {
             // call interpret(); this can yield both warnings and errors, so we need
             // to tinker with the error info a bit
-            RTStrmPrintf(g_pStdErr, "Interpreting %ls...\n", path.raw());
-            rc = pAppliance->Interpret();
-            com::ErrorInfo info0(pAppliance, COM_IIDOF(IAppliance));
+            RTStrmPrintf(g_pStdErr, Appliance::tr("Interpreting %ls...\n"), path.raw());
+            hrc = pAppliance->Interpret();
+            com::ErrorInfoKeeper eik;
 
+            /** @todo r=klaus Eliminate this special way of signalling
+             * warnings which should be part of the ErrorInfo. */
             com::SafeArray<BSTR> aWarnings;
             if (SUCCEEDED(pAppliance->GetWarnings(ComSafeArrayAsOutParam(aWarnings))))
             {
@@ -495,10 +536,10 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                 }
             }
 
-            if (FAILED(rc))     // during interpret, after printing warnings
+            eik.restore();
+            if (FAILED(hrc))     // during interpret, after printing warnings
             {
-                com::GluePrintErrorInfo(info0);
-                com::GluePrintErrorContext("Interpret", __FILE__, __LINE__);
+                com::GlueHandleComError(pAppliance, "Interpret()", hrc, __FILE__, __LINE__);
                 break;
             }
 
@@ -510,7 +551,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                               COMGETTER(Disks)(ComSafeArrayAsOutParam(retDisks)));
             if (retDisks.size() > 0)
             {
-                RTPrintf("Disks:\n");
+                RTPrintf(Appliance::tr("Disks:\n"));
                 for (unsigned i = 0; i < retDisks.size(); i++)
                     RTPrintf("  %ls\n", retDisks[i]);
                 RTPrintf("\n");
@@ -531,12 +572,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
             {
                 uint32_t ulVsys = it->first;
                 if (ulVsys >= cVirtualSystemDescriptions)
-                    return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                       "Invalid index %RI32 with -vsys option; the OVF contains only %zu virtual system(s).",
+                    return errorSyntax(Appliance::tr("Invalid index %RI32 with -vsys option; the OVF contains only %zu virtual system(s).",
+                                                     "", cVirtualSystemDescriptions),
                                        ulVsys, cVirtualSystemDescriptions);
             }
         }
-        else if (actionType == CLOUD)
+        else if (enmApplType == CLOUD)
         {
             /* In the Cloud case the call of interpret() isn't needed because there isn't any OVF XML file.
              * All info is got from the Cloud and VSD is filled inside IAppliance::read(). */
@@ -566,7 +607,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                                  ComSafeArrayAsOutParam(aVBoxValues),
                                                  ComSafeArrayAsOutParam(aExtraConfigValues)));
 
-                RTPrintf("Virtual system %u:\n", i);
+                RTPrintf(Appliance::tr("Virtual system %u:\n"), i);
 
                 // look up the corresponding command line options, if any
                 ArgsMap *pmapArgs = NULL;
@@ -596,12 +637,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "ostype"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: OS type specified with --ostype: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: OS type specified with --ostype: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested OS type: \"%ls\""
-                                        "\n    (change with \"--vsys %u --ostype <type>\"; use \"list ostypes\" to list all possible values)\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested OS type: \"%ls\"\n"
+                                            "    (change with \"--vsys %u --ostype <type>\"; use \"list ostypes\" to list all possible values)\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
@@ -609,37 +650,37 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "vmname"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: VM name specified with --vmname: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: VM name specified with --vmname: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested VM name \"%ls\""
-                                        "\n    (change with \"--vsys %u --vmname <name>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested VM name \"%ls\"\n"
+                                            "    (change with \"--vsys %u --vmname <name>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
                         case VirtualSystemDescriptionType_Product:
-                            RTPrintf("%2u: Product (ignored): %ls\n",
+                            RTPrintf(Appliance::tr("%2u: Product (ignored): %ls\n"),
                                      a, aVBoxValues[a]);
                             break;
 
                         case VirtualSystemDescriptionType_ProductUrl:
-                            RTPrintf("%2u: ProductUrl (ignored): %ls\n",
+                            RTPrintf(Appliance::tr("%2u: ProductUrl (ignored): %ls\n"),
                                      a, aVBoxValues[a]);
                             break;
 
                         case VirtualSystemDescriptionType_Vendor:
-                            RTPrintf("%2u: Vendor (ignored): %ls\n",
+                            RTPrintf(Appliance::tr("%2u: Vendor (ignored): %ls\n"),
                                      a, aVBoxValues[a]);
                             break;
 
                         case VirtualSystemDescriptionType_VendorUrl:
-                            RTPrintf("%2u: VendorUrl (ignored): %ls\n",
+                            RTPrintf(Appliance::tr("%2u: VendorUrl (ignored): %ls\n"),
                                      a, aVBoxValues[a]);
                             break;
 
                         case VirtualSystemDescriptionType_Version:
-                            RTPrintf("%2u: Version (ignored): %ls\n",
+                            RTPrintf(Appliance::tr("%2u: Version (ignored): %ls\n"),
                                      a, aVBoxValues[a]);
                             break;
 
@@ -647,12 +688,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "description"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: Description specified with --description: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: Description specified with --description: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Description \"%ls\""
-                                        "\n    (change with \"--vsys %u --description <desc>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Description \"%ls\"\n"
+                                            "    (change with \"--vsys %u --description <desc>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
@@ -662,25 +703,24 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             {
                                 if (strOverride == "show")
                                 {
-                                    RTPrintf("%2u: End-user license agreement"
-                                             "\n    (accept with \"--vsys %u --eula accept\"):"
-                                             "\n\n%ls\n\n",
+                                    RTPrintf(Appliance::tr("%2u: End-user license agreement\n"
+                                                "    (accept with \"--vsys %u --eula accept\"):\n"
+                                                "\n%ls\n\n"),
                                              a, i, bstrFinalValue.raw());
                                 }
                                 else if (strOverride == "accept")
                                 {
-                                    RTPrintf("%2u: End-user license agreement (accepted)\n",
+                                    RTPrintf(Appliance::tr("%2u: End-user license agreement (accepted)\n"),
                                              a);
                                     --cLicensesInTheWay;
                                 }
                                 else
-                                    return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                       "Argument to --eula must be either \"show\" or \"accept\".");
+                                    return errorSyntax(Appliance::tr("Argument to --eula must be either \"show\" or \"accept\"."));
                             }
                             else
-                                RTPrintf("%2u: End-user license agreement"
-                                        "\n    (display with \"--vsys %u --eula show\";"
-                                        "\n    accept with \"--vsys %u --eula accept\")\n",
+                                RTPrintf(Appliance::tr("%2u: End-user license agreement\n"
+                                            "    (display with \"--vsys %u --eula show\";\n"
+                                            "    accept with \"--vsys %u --eula accept\")\n"),
                                         a, i, i);
                             break;
 
@@ -694,16 +734,15 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                    )
                                 {
                                     bstrFinalValue = strOverride;
-                                    RTPrintf("%2u: No. of CPUs specified with --cpus: %ls\n",
+                                    RTPrintf(Appliance::tr("%2u: No. of CPUs specified with --cpus: %ls\n"),
                                              a, bstrFinalValue.raw());
                                 }
                                 else
-                                    return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                       "Argument to --cpus option must be a number greater than %d and less than %d.",
+                                    return errorSyntax(Appliance::tr("Argument to --cpus option must be a number greater than %d and less than %d."),
                                                        VMM_MIN_CPU_COUNT - 1, VMM_MAX_CPU_COUNT + 1);
                             }
                             else
-                                RTPrintf("%2u: Number of CPUs: %ls\n    (change with \"--vsys %u --cpus <n>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Number of CPUs: %ls\n    (change with \"--vsys %u --cpus <n>\")\n"),
                                          a, bstrFinalValue.raw(), i);
                             break;
 
@@ -715,15 +754,14 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 if (VINF_SUCCESS == strOverride.toInt(ulMemMB))
                                 {
                                     bstrFinalValue = strOverride;
-                                    RTPrintf("%2u: Guest memory specified with --memory: %ls MB\n",
+                                    RTPrintf(Appliance::tr("%2u: Guest memory specified with --memory: %ls MB\n"),
                                              a, bstrFinalValue.raw());
                                 }
                                 else
-                                    return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                       "Argument to --memory option must be a non-negative number.");
+                                    return errorSyntax(Appliance::tr("Argument to --memory option must be a non-negative number."));
                             }
                             else
-                                RTPrintf("%2u: Guest memory: %ls MB\n    (change with \"--vsys %u --memory <MB>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Guest memory: %ls MB\n    (change with \"--vsys %u --memory <MB>\")\n"),
                                          a, bstrFinalValue.raw(), i);
                             break;
                         }
@@ -731,14 +769,14 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_HardDiskControllerIDE:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: IDE controller, type %ls -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: IDE controller, type %ls -- disabled\n"),
                                          a,
                                          aVBoxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: IDE controller, type %ls"
-                                         "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: IDE controller, type %ls\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                          a,
                                          aVBoxValues[a],
                                          i, a);
@@ -747,14 +785,14 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_HardDiskControllerSATA:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: SATA controller, type %ls -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: SATA controller, type %ls -- disabled\n"),
                                          a,
                                          aVBoxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: SATA controller, type %ls"
-                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: SATA controller, type %ls\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                         a,
                                         aVBoxValues[a],
                                         i, a);
@@ -763,14 +801,14 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_HardDiskControllerSAS:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: SAS controller, type %ls -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: SAS controller, type %ls -- disabled\n"),
                                          a,
                                          aVBoxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: SAS controller, type %ls"
-                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: SAS controller, type %ls\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                         a,
                                         aVBoxValues[a],
                                         i, a);
@@ -779,7 +817,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_HardDiskControllerSCSI:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: SCSI controller, type %ls -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: SCSI controller, type %ls -- disabled\n"),
                                          a,
                                          aVBoxValues[a]);
                                 aEnabled[a] = false;
@@ -790,15 +828,15 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 if (findArgValue(strOverride, pmapArgs, strTypeArg))
                                 {
                                     bstrFinalValue = strOverride;
-                                    RTPrintf("%2u: SCSI controller, type set with --unit %u --scsitype: \"%ls\"\n",
+                                    RTPrintf(Appliance::tr("%2u: SCSI controller, type set with --unit %u --scsitype: \"%ls\"\n"),
                                             a,
                                             a,
                                             bstrFinalValue.raw());
                                 }
                                 else
-                                    RTPrintf("%2u: SCSI controller, type %ls"
-                                            "\n    (change with \"--vsys %u --unit %u --scsitype {BusLogic|LsiLogic}\";"
-                                            "\n    disable with \"--vsys %u --unit %u --ignore\")\n",
+                                    RTPrintf(Appliance::tr("%2u: SCSI controller, type %ls\n"
+                                                "    (change with \"--vsys %u --unit %u --scsitype {BusLogic|LsiLogic}\";\n"
+                                                "    disable with \"--vsys %u --unit %u --ignore\")\n"),
                                             a,
                                             aVBoxValues[a],
                                             i, a, i, a);
@@ -808,14 +846,14 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_HardDiskControllerVirtioSCSI:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: VirtioSCSI controller, type %ls -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: VirtioSCSI controller, type %ls -- disabled\n"),
                                          a,
                                          aVBoxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: VirtioSCSI controller, type %ls"
-                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: VirtioSCSI controller, type %ls\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                         a,
                                         aVBoxValues[a],
                                         i, a);
@@ -824,7 +862,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_HardDiskImage:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: Hard disk image: source image=%ls -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: Hard disk image: source image=%ls -- disabled\n"),
                                          a,
                                          aOvfValues[a]);
                                 aEnabled[a] = false;
@@ -839,9 +877,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 if (findArgValue(strOverride, pmapArgs, strTypeArg))
                                 {
                                     if (optionsList.contains(ImportOptions_ImportToVDI))
-                                        return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                           "Option --ImportToVDI can not be used together with "
-                                                           "a manually set target path.");
+                                        return errorSyntax(Appliance::tr("Option --ImportToVDI can not be used together with a manually set target path."));
                                     RTUUID uuid;
                                     /* Check if this is a uuid. If so, don't touch. */
                                     vrc = RTUuidFromStr(&uuid, strOverride.c_str());
@@ -869,14 +905,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 {
                                     vrc = getStorageControllerDetailsFromStr(strOverride, NULL, &uTargetController);
                                     if (RT_FAILURE(vrc))
-                                        return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                           "Invalid controller value: '%s'",
+                                        return errorSyntax(Appliance::tr("Invalid controller value: '%s'"),
                                                            strOverride.c_str());
 
                                     vsdControllerType = retTypes[uTargetController];
                                     if (!isStorageControllerType(vsdControllerType))
-                                        return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                           "Invalid storage controller specified: %u",
+                                        return errorSyntax(Appliance::tr("Invalid storage controller specified: %u"),
                                                            uTargetController);
 
                                     fControllerChanged = true;
@@ -889,8 +923,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 {
                                     vrc = getStorageControllerDetailsFromStr(strOverride, NULL, &uTargetControllerPort);
                                     if (RT_FAILURE(vrc))
-                                        return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                           "Invalid port value: '%s'",
+                                        return errorSyntax(Appliance::tr("Invalid port value: '%s'"),
                                                            strOverride.c_str());
 
                                     fControllerPortChanged = true;
@@ -905,13 +938,13 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 Utf8Str strOrigController(Bstr(aExtraConfigValues[a]).raw());
                                 vrc = getStorageControllerDetailsFromStr(strOrigController, "controller=", &uOrigController);
                                 if (RT_FAILURE(vrc))
-                                    return RTMsgErrorExitFailure("Failed to extract controller value from ExtraConfig: '%s'",
+                                    return RTMsgErrorExitFailure(Appliance::tr("Failed to extract controller value from ExtraConfig: '%s'"),
                                                                  strOrigController.c_str());
 
                                 uint32_t uOrigControllerPort;
                                 vrc = getStorageControllerDetailsFromStr(strOrigController, "channel=", &uOrigControllerPort);
                                 if (RT_FAILURE(vrc))
-                                    return RTMsgErrorExitFailure("Failed to extract channel value from ExtraConfig: '%s'",
+                                    return RTMsgErrorExitFailure(Appliance::tr("Failed to extract channel value from ExtraConfig: '%s'"),
                                                                  strOrigController.c_str());
 
                                 /*
@@ -937,16 +970,14 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
 
                                     if (   uOrigController == uTargetController
                                         && uOrigControllerPort == uTargetControllerPort)
-                                        return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                           "Device already attached to controller %u at this port (%u) location.",
+                                        return errorSyntax(Appliance::tr("Device already attached to controller %u at this port (%u) location."),
                                                            uTargetController,
                                                            uTargetControllerPort);
 
                                     if (vsdControllerType == VirtualSystemDescriptionType_Ignore)
                                         vsdControllerType = retTypes[uOrigController];
                                     if (!isStorageControllerType(vsdControllerType))
-                                        return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                           "Invalid storage controller specified: %u",
+                                        return errorSyntax(Appliance::tr("Invalid storage controller specified: %u"),
                                                            uOrigController);
 
                                     ComPtr<IVirtualBox> pVirtualBox = arg->virtualBox;
@@ -968,15 +999,16 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                         case VirtualSystemDescriptionType_HardDiskControllerSAS:
                                             enmStorageBus = StorageBus_SAS;
                                             break;
+                                        case VirtualSystemDescriptionType_HardDiskControllerVirtioSCSI:
+                                            enmStorageBus = StorageBus_VirtioSCSI;
+                                            break;
                                         default:  // Not reached since vsdControllerType validated above but silence gcc.
                                             break;
                                     }
                                     CHECK_ERROR_RET(systemProperties, GetMaxPortCountForStorageBus(enmStorageBus, &maxPorts),
                                         RTEXITCODE_FAILURE);
                                     if (uTargetControllerPort >= maxPorts)
-                                        return errorSyntax(USAGE_IMPORTAPPLIANCE,
-                                                           "Illegal port value: %u. For %ls controllers the only valid values "
-                                                           "are 0 to %lu (inclusive)",
+                                        return errorSyntax(Appliance::tr("Illegal port value: %u. For %ls controllers the only valid values are 0 to %lu (inclusive)"),
                                                            uTargetControllerPort,
                                                            aVBoxValues[uTargetController],
                                                            maxPorts);
@@ -998,10 +1030,9 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
 
                                 if (fDiskChanged && !fControllerChanged && !fControllerPortChanged)
                                 {
-                                    RTPrintf("%2u: "
-                                             "Hard disk image specified with --disk: source image=%ls, target path=%ls, %s"
-                                             "\n    (change controller with \"--vsys %u --unit %u --controller <index>\";"
-                                             "\n    change controller port with \"--vsys %u --unit %u --port <n>\")\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image specified with --disk: source image=%ls, target path=%ls, %s\n"
+                                             "    (change controller with \"--vsys %u --unit %u --controller <index>\";\n"
+                                             "    change controller port with \"--vsys %u --unit %u --port <n>\")\n"),
                                              a,
                                              aOvfValues[a],
                                              bstrFinalValue.raw(),
@@ -1011,9 +1042,8 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 }
                                 else if (fDiskChanged && fControllerChanged && !fControllerPortChanged)
                                 {
-                                    RTPrintf("%2u: "
-                                             "Hard disk image specified with --disk and --controller: source image=%ls, target path=%ls, %s"
-                                             "\n    (change controller port with \"--vsys %u --unit %u --port <n>\")\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image specified with --disk and --controller: source image=%ls, target path=%ls, %s\n"
+                                             "    (change controller port with \"--vsys %u --unit %u --port <n>\")\n"),
                                              a,
                                              aOvfValues[a],
                                              bstrFinalValue.raw(),
@@ -1022,9 +1052,8 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 }
                                 else if (fDiskChanged && !fControllerChanged && fControllerPortChanged)
                                 {
-                                    RTPrintf("%2u: "
-                                             "Hard disk image specified with --disk and --port: source image=%ls, target path=%ls, %s"
-                                             "\n    (change controller with \"--vsys %u --unit %u --controller <index>\")\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image specified with --disk and --port: source image=%ls, target path=%ls, %s\n"
+                                             "    (change controller with \"--vsys %u --unit %u --controller <index>\")\n"),
                                              a,
                                              aOvfValues[a],
                                              bstrFinalValue.raw(),
@@ -1033,9 +1062,8 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 }
                                 else if (!fDiskChanged && fControllerChanged && fControllerPortChanged)
                                 {
-                                    RTPrintf("%2u: "
-                                             "Hard disk image specified with --controller and --port: source image=%ls, target path=%ls, %s"
-                                             "\n    (change target path with \"--vsys %u --unit %u --disk path\")\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image specified with --controller and --port: source image=%ls, target path=%ls, %s\n"
+                                             "    (change target path with \"--vsys %u --unit %u --disk path\")\n"),
                                              a,
                                              aOvfValues[a],
                                              bstrFinalValue.raw(),
@@ -1044,10 +1072,9 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 }
                                 else if (!fDiskChanged && !fControllerChanged && fControllerPortChanged)
                                 {
-                                    RTPrintf("%2u: "
-                                             "Hard disk image specified with --port: source image=%ls, target path=%ls, %s"
-                                             "\n    (change target path with \"--vsys %u --unit %u --disk path\";"
-                                             "\n    change controller with \"--vsys %u --unit %u --controller <index>\")\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image specified with --port: source image=%ls, target path=%ls, %s\n"
+                                             "    (change target path with \"--vsys %u --unit %u --disk path\";\n"
+                                             "    change controller with \"--vsys %u --unit %u --controller <index>\")\n"),
                                              a,
                                              aOvfValues[a],
                                              bstrFinalValue.raw(),
@@ -1057,10 +1084,9 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 }
                                 else if (!fDiskChanged && fControllerChanged && !fControllerPortChanged)
                                 {
-                                    RTPrintf("%2u: "
-                                             "Hard disk image specified with --controller: source image=%ls, target path=%ls, %s"
-                                             "\n    (change target path with \"--vsys %u --unit %u --disk path\";"
-                                             "\n    change controller port with \"--vsys %u --unit %u --port <n>\")\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image specified with --controller: source image=%ls, target path=%ls, %s\n"
+                                             "    (change target path with \"--vsys %u --unit %u --disk path\";\n"
+                                             "    change controller port with \"--vsys %u --unit %u --port <n>\")\n"),
                                              a,
                                              aOvfValues[a],
                                              bstrFinalValue.raw(),
@@ -1070,9 +1096,7 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                                 }
                                 else if (fDiskChanged && fControllerChanged && fControllerPortChanged)
                                 {
-                                    RTPrintf("%2u: "
-                                             "Hard disk image specified with --disk and --controller and --port: "
-                                             "source image=%ls, target path=%ls, %s\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image specified with --disk and --controller and --port: source image=%ls, target path=%ls, %s\n"),
                                              a,
                                              aOvfValues[a],
                                              bstrFinalValue.raw(),
@@ -1157,11 +1181,11 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
 
                                     bstrFinalValue = strOverride;
 
-                                    RTPrintf("%2u: Hard disk image: source image=%ls, target path=%ls, %s"
-                                            "\n    (change target path with \"--vsys %u --unit %u --disk path\";"
-                                            "\n    change controller with \"--vsys %u --unit %u --controller <index>\";"
-                                            "\n    change controller port with \"--vsys %u --unit %u --port <n>\";"
-                                            "\n    disable with \"--vsys %u --unit %u --ignore\")\n",
+                                    RTPrintf(Appliance::tr("%2u: Hard disk image: source image=%ls, target path=%ls, %s\n"
+                                            "    (change target path with \"--vsys %u --unit %u --disk path\";\n"
+                                            "    change controller with \"--vsys %u --unit %u --controller <index>\";\n"
+                                            "    change controller port with \"--vsys %u --unit %u --port <n>\";\n"
+                                            "    disable with \"--vsys %u --unit %u --ignore\")\n"),
                                             a, aOvfValues[a], bstrFinalValue.raw(), strExtraConfigValue.c_str(),
                                             i, a,
                                             i, a,
@@ -1174,31 +1198,31 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_CDROM:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: CD-ROM -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: CD-ROM -- disabled\n"),
                                          a);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: CD-ROM"
-                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: CD-ROM\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                         a, i, a);
                             break;
 
                         case VirtualSystemDescriptionType_Floppy:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: Floppy -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: Floppy -- disabled\n"),
                                          a);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: Floppy"
-                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: Floppy\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                         a, i, a);
                             break;
 
                         case VirtualSystemDescriptionType_NetworkAdapter:
-                            RTPrintf("%2u: Network adapter: orig %ls, config %ls, extra %ls\n",   /// @todo implement once we have a plan for the back-end
+                            RTPrintf(Appliance::tr("%2u: Network adapter: orig %ls, config %ls, extra %ls\n"),   /// @todo implement once we have a plan for the back-end
                                      a,
                                      aOvfValues[a],
                                      aVBoxValues[a],
@@ -1208,27 +1232,27 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_USBController:
                             if (fIgnoreThis)
                             {
-                                RTPrintf("%2u: USB controller -- disabled\n",
+                                RTPrintf(Appliance::tr("%2u: USB controller -- disabled\n"),
                                          a);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: USB controller"
-                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: USB controller\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                         a, i, a);
                             break;
 
                         case VirtualSystemDescriptionType_SoundCard:
                             if (fIgnoreThis)
                             {
-                               RTPrintf("%2u: Sound card \"%ls\" -- disabled\n",
+                               RTPrintf(Appliance::tr("%2u: Sound card \"%ls\" -- disabled\n"),
                                          a,
                                          aOvfValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
-                                RTPrintf("%2u: Sound card (appliance expects \"%ls\", can change on import)"
-                                        "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
+                                RTPrintf(Appliance::tr("%2u: Sound card (appliance expects \"%ls\", can change on import)\n"
+                                            "    (disable with \"--vsys %u --unit %u --ignore\")\n"),
                                         a,
                                         aOvfValues[a],
                                         i,
@@ -1239,12 +1263,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "settingsfile"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: VM settings file name specified with --settingsfile: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: VM settings file name specified with --settingsfile: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested VM settings file name \"%ls\""
-                                        "\n    (change with \"--vsys %u --settingsfile <filename>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested VM settings file name \"%ls\"\n"
+                                            "    (change with \"--vsys %u --settingsfile <filename>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
@@ -1252,12 +1276,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "basefolder"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: VM base folder specified with --basefolder: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: VM base folder specified with --basefolder: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested VM base folder \"%ls\""
-                                        "\n    (change with \"--vsys %u --basefolder <path>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested VM base folder \"%ls\"\n"
+                                            "    (change with \"--vsys %u --basefolder <path>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
@@ -1265,17 +1289,17 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "group"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: VM group specified with --group: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: VM group specified with --group: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested VM group \"%ls\""
-                                        "\n    (change with \"--vsys %u --group <group>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested VM group \"%ls\"\n"
+                                            "    (change with \"--vsys %u --group <group>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
                         case VirtualSystemDescriptionType_CloudInstanceShape:
-                            RTPrintf("%2u: Suggested cloud shape \"%ls\"\n",
+                            RTPrintf(Appliance::tr("%2u: Suggested cloud shape \"%ls\"\n"),
                                     a, bstrFinalValue.raw());
                             break;
 
@@ -1283,12 +1307,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "cloudbucket"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: Cloud bucket id specified with --cloudbucket: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: Cloud bucket id specified with --cloudbucket: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested cloud bucket id \"%ls\""
-                                        "\n    (change with \"--cloud %u --cloudbucket <id>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested cloud bucket id \"%ls\"\n"
+                                            "    (change with \"--cloud %u --cloudbucket <id>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
@@ -1296,12 +1320,12 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "cloudprofile"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: Cloud profile name specified with --cloudprofile: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: Cloud profile name specified with --cloudprofile: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested cloud profile name \"%ls\""
-                                        "\n    (change with \"--cloud %u --cloudprofile <id>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested cloud profile name \"%ls\"\n"
+                                            "    (change with \"--cloud %u --cloudprofile <id>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
@@ -1309,17 +1333,17 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                             if (findArgValue(strOverride, pmapArgs, "cloudinstanceid"))
                             {
                                 bstrFinalValue = strOverride;
-                                RTPrintf("%2u: Cloud instance id specified with --cloudinstanceid: \"%ls\"\n",
+                                RTPrintf(Appliance::tr("%2u: Cloud instance id specified with --cloudinstanceid: \"%ls\"\n"),
                                         a, bstrFinalValue.raw());
                             }
                             else
-                                RTPrintf("%2u: Suggested cloud instance id \"%ls\""
-                                        "\n    (change with \"--cloud %u --cloudinstanceid <id>\")\n",
+                                RTPrintf(Appliance::tr("%2u: Suggested cloud instance id \"%ls\"\n"
+                                            "    (change with \"--cloud %u --cloudinstanceid <id>\")\n"),
                                         a, bstrFinalValue.raw(), i);
                             break;
 
                         case VirtualSystemDescriptionType_CloudImageId:
-                            RTPrintf("%2u: Suggested cloud base image id \"%ls\"\n",
+                            RTPrintf(Appliance::tr("%2u: Suggested cloud base image id \"%ls\"\n"),
                                     a, bstrFinalValue.raw());
                             break;
                         case VirtualSystemDescriptionType_CloudDomain:
@@ -1342,6 +1366,9 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_CloudPublicSSHKey:
                         case VirtualSystemDescriptionType_BootingFirmware:
                         case VirtualSystemDescriptionType_CloudInitScriptPath:
+                        case VirtualSystemDescriptionType_CloudCompartmentId:
+                        case VirtualSystemDescriptionType_CloudShapeCpus:
+                        case VirtualSystemDescriptionType_CloudShapeMemory:
                             /** @todo  VirtualSystemDescriptionType_Miscellaneous? */
                             break;
 
@@ -1364,9 +1391,10 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
             } // for (unsigned i = 0; i < cVirtualSystemDescriptions; ++i)
 
             if (cLicensesInTheWay == 1)
-                RTMsgError("Cannot import until the license agreement listed above is accepted.");
+                RTMsgError(Appliance::tr("Cannot import until the license agreement listed above is accepted."));
             else if (cLicensesInTheWay > 1)
-                RTMsgError("Cannot import until the %c license agreements listed above are accepted.", cLicensesInTheWay);
+                RTMsgError(Appliance::tr("Cannot import until the %c license agreements listed above are accepted."),
+                           cLicensesInTheWay);
 
             if (!cLicensesInTheWay && fExecute)
             {
@@ -1375,16 +1403,16 @@ RTEXITCODE handleImportAppliance(HandlerArg *arg)
                 CHECK_ERROR_BREAK(pAppliance,
                                   ImportMachines(ComSafeArrayAsInParam(options), progress.asOutParam()));
 
-                rc = showProgress(progress);
-                CHECK_PROGRESS_ERROR_RET(progress, ("Appliance import failed"), RTEXITCODE_FAILURE);
+                hrc = showProgress(progress);
+                CHECK_PROGRESS_ERROR_RET(progress, (Appliance::tr("Appliance import failed")), RTEXITCODE_FAILURE);
 
-                if (SUCCEEDED(rc))
-                    RTPrintf("Successfully imported the appliance.\n");
+                if (SUCCEEDED(hrc))
+                    RTPrintf(Appliance::tr("Successfully imported the appliance.\n"));
             }
         } // end if (aVirtualSystemDescriptions.size() > 0)
     } while (0);
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
 static int parseExportOptions(const char *psz, com::SafeArray<ExportOptions_T> *options)
@@ -1466,13 +1494,12 @@ static const RTGETOPTDEF g_aExportOptions[] =
 
 RTEXITCODE handleExportAppliance(HandlerArg *a)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     Utf8Str strOutputFile;
     Utf8Str strOvfFormat("ovf-1.0"); // the default export version
     bool fManifest = false; // the default
-    bool fCloud = false; // the default
-    actionType = NOT_SET;
+    APPLIANCETYPE enmApplType = NOT_SET;
     bool fExportISOImages = false; // the default
     com::SafeArray<ExportOptions_T> options;
     std::list< ComPtr<IMachine> > llMachines;
@@ -1497,7 +1524,7 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
             {
                 case 'o':   // --output
                     if (strOutputFile.length())
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "You can only specify --output once.");
+                        return errorSyntax(Appliance::tr("You can only specify --output once."));
                     else
                         strOutputFile = ValueUnion.psz;
                     break;
@@ -1527,88 +1554,97 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
                     break;
 
                 case 's':   // --vsys
-                    if (fCloud == false && actionType == NOT_SET)
-                        actionType = LOCAL;
+                    if (enmApplType == NOT_SET)
+                        enmApplType = LOCAL;
 
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE,
-                                           "Option \"%s\" can't be used together with \"--cloud\" argument.",
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" can't be used together with \"--cloud\" option."),
+                                           GetState.pDef->pszLong);
+                    if (ValueUnion.u32 == (uint32_t)-1)
+                        return errorSyntax(Appliance::tr("Value of option \"%s\" is out of range."),
                                            GetState.pDef->pszLong);
 
                     ulCurVsys = ValueUnion.u32;
                     break;
 
                 case 'V':   // --vmname
-                    if (actionType == NOT_SET || ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys or --cloud argument.",
+                    if (enmApplType == NOT_SET)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys or --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["vmname"] = ValueUnion.psz;
                     break;
 
                 case 'p':   // --product
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["product"] = ValueUnion.psz;
                     break;
 
                 case 'P':   // --producturl
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["producturl"] = ValueUnion.psz;
                     break;
 
                 case 'n':   // --vendor
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["vendor"] = ValueUnion.psz;
                     break;
 
                 case 'N':   // --vendorurl
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["vendorurl"] = ValueUnion.psz;
                     break;
 
                 case 'v':   // --version
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["version"] = ValueUnion.psz;
                     break;
 
                 case 'd':   // --description
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["description"] = ValueUnion.psz;
                     break;
 
                 case 'e':   // --eula
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["eula"] = ValueUnion.psz;
                     break;
 
                 case 'E':   // --eulafile
-                    if (actionType != LOCAL)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                    if (enmApplType != LOCAL)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --vsys option."),
+                                           GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["eulafile"] = ValueUnion.psz;
                     break;
 
                 case 'O':   // --options
                     if (RT_FAILURE(parseExportOptions(ValueUnion.psz, &options)))
-                        return errorArgument("Invalid export options '%s'\n", ValueUnion.psz);
+                        return errorArgument(Appliance::tr("Invalid export options '%s'\n"), ValueUnion.psz);
                     break;
 
                     /*--cloud and --vsys are orthogonal, only one must be presented*/
                 case 'C':   // --cloud
-                    if (fCloud == false && actionType == NOT_SET)
-                    {
-                        fCloud = true;
-                        actionType = CLOUD;
-                    }
+                    if (enmApplType == NOT_SET)
+                        enmApplType = CLOUD;
 
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE,
-                                           "Option \"%s\" can't be used together with \"--vsys\" argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" can't be used together with \"--vsys\" option."),
+                                           GetState.pDef->pszLong);
+                    if (ValueUnion.u32 == (uint32_t)-1)
+                        return errorSyntax(Appliance::tr("Value of option \"%s\" is out of range."),
                                            GetState.pDef->pszLong);
 
                     ulCurVsys = ValueUnion.u32;
@@ -1616,92 +1652,92 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
 
                     /* Cloud export settings */
                 case 'S':   // --cloudshape
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudshape"] = ValueUnion.psz;
                     break;
 
                 case 'D':   // --clouddomain
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["clouddomain"] = ValueUnion.psz;
                     break;
 
                 case 'R':   // --clouddisksize
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["clouddisksize"] = ValueUnion.psz;
                     break;
 
                 case 'B':   // --cloudbucket
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudbucket"] = ValueUnion.psz;
                     break;
 
                 case 'Q':   // --cloudocivcn
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudocivcn"] = ValueUnion.psz;
                     break;
 
                 case 'A':   // --cloudpublicip
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudpublicip"] = ValueUnion.psz;
                     break;
 
                 case 'i': /* --cloudprivateip */
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudprivateip"] = ValueUnion.psz;
                     break;
 
                 case 'F':   // --cloudprofile
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudprofile"] = ValueUnion.psz;
                     break;
 
                 case 'T':   // --cloudocisubnet
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudocisubnet"] = ValueUnion.psz;
                     break;
 
                 case 'K':   // --cloudkeepobject
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudkeepobject"] = ValueUnion.psz;
                     break;
 
                 case 'L':   // --cloudlaunchinstance
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudlaunchinstance"] = ValueUnion.psz;
                     break;
 
                 case 'M': /* --cloudlaunchmode */
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudlaunchmode"] = ValueUnion.psz;
                     break;
 
                 case 'I':   // --cloudinitscriptpath
-                    if (actionType != CLOUD)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --cloud argument.",
+                    if (enmApplType != CLOUD)
+                        return errorSyntax(Appliance::tr("Option \"%s\" requires preceding --cloud option."),
                                            GetState.pDef->pszLong);
                     mapArgsMapsPerVsys[ulCurVsys]["cloudinitscriptpath"] = ValueUnion.psz;
                     break;
@@ -1722,41 +1758,34 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
                     if (c > 0)
                     {
                         if (RT_C_IS_GRAPH(c))
-                            return errorSyntax(USAGE_EXPORTAPPLIANCE, "unhandled option: -%c", c);
+                            return errorSyntax(Appliance::tr("unhandled option: -%c"), c);
                         else
-                            return errorSyntax(USAGE_EXPORTAPPLIANCE, "unhandled option: %i", c);
+                            return errorSyntax(Appliance::tr("unhandled option: %i"), c);
                     }
                     else if (c == VERR_GETOPT_UNKNOWN_OPTION)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "unknown option: %s", ValueUnion.psz);
+                        return errorSyntax(Appliance::tr("unknown option: %s"), ValueUnion.psz);
                     else if (ValueUnion.pDef)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
+                        return errorSyntax("%s: %Rrs", ValueUnion.pDef->pszLong, c);
                     else
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "%Rrs", c);
+                        return errorSyntax("%Rrs", c);
             }
 
-            if (FAILED(rc))
+            if (FAILED(hrc))
                 break;
         }
 
-        if (FAILED(rc))
+        if (FAILED(hrc))
             break;
 
         if (llMachines.empty())
-            return errorSyntax(USAGE_EXPORTAPPLIANCE, "At least one machine must be specified with the export command.");
+            return errorSyntax(Appliance::tr("At least one machine must be specified with the export command."));
 
         /* Last check after parsing all arguments */
-        if (strOutputFile.isNotEmpty())
-        {
-            if (actionType == NOT_SET)
-            {
-                if (fCloud)
-                    actionType = CLOUD;
-                else
-                    actionType = LOCAL;
-            }
-        }
-        else
-            return errorSyntax(USAGE_EXPORTAPPLIANCE, "Missing --output argument with export command.");
+        if (strOutputFile.isEmpty())
+            return errorSyntax(Appliance::tr("Missing --output argument with export command."));
+
+        if (enmApplType == NOT_SET)
+            enmApplType = LOCAL;
 
         // match command line arguments with the machines count
         // this is only to sort out invalid indices at this time
@@ -1767,8 +1796,8 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
         {
             uint32_t ulVsys = it->first;
             if (ulVsys >= llMachines.size())
-                return errorSyntax(USAGE_EXPORTAPPLIANCE,
-                                   "Invalid index %RI32 with -vsys option; you specified only %zu virtual system(s).",
+                return errorSyntax(Appliance::tr("Invalid index %RI32 with -vsys option; you specified only %zu virtual system(s).",
+                                                 "", llMachines.size()),
                                    ulVsys, llMachines.size());
         }
 
@@ -1856,7 +1885,7 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
                         }
                         else
                         {
-                            RTMsgError("Cannot read license file \"%s\" which should be included in the virtual system %u.",
+                            RTMsgError(Appliance::tr("Cannot read license file \"%s\" which should be included in the virtual system %u."),
                                        itD->second.c_str(), i);
                             return RTEXITCODE_FAILURE;
                         }
@@ -1901,13 +1930,14 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
                     else if (itD->first == "cloudinitscriptpath")
                         pVSD->AddDescription(VirtualSystemDescriptionType_CloudInitScriptPath,
                                              Bstr(itD->second).raw(), NULL);
+
                 }
             }
 
             VSDList.push_back(pVSD);//store vsd for the possible second stage
         }
 
-        if (FAILED(rc))
+        if (FAILED(hrc))
             break;
 
         /* Query required passwords and supply them to the appliance. */
@@ -1918,14 +1948,15 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
         if (aIdentifiers.size() > 0)
         {
             com::SafeArray<BSTR> aPasswords(aIdentifiers.size());
-            RTPrintf("Enter the passwords for the following identifiers to export the apppliance:\n");
+            RTPrintf(Appliance::tr("Enter the passwords for the following identifiers to export the apppliance:\n"));
             for (unsigned idxId = 0; idxId < aIdentifiers.size(); idxId++)
             {
                 com::Utf8Str strPassword;
                 Bstr bstrPassword;
                 Bstr bstrId = aIdentifiers[idxId];
 
-                RTEXITCODE rcExit = readPasswordFromConsole(&strPassword, "Password ID %s:", Utf8Str(bstrId).c_str());
+                RTEXITCODE rcExit = readPasswordFromConsole(&strPassword, Appliance::tr("Password ID %s:"),
+                                                            Utf8Str(bstrId).c_str());
                 if (rcExit == RTEXITCODE_FAILURE)
                 {
                     RTStrFree(pszAbsFilePath);
@@ -1953,16 +1984,16 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
                                             progress.asOutParam()));
         RTStrFree(pszAbsFilePath);
 
-        rc = showProgress(progress);
-        CHECK_PROGRESS_ERROR_RET(progress, ("Appliance write failed"), RTEXITCODE_FAILURE);
+        hrc = showProgress(progress);
+        CHECK_PROGRESS_ERROR_RET(progress, (Appliance::tr("Appliance write failed")), RTEXITCODE_FAILURE);
 
-        if (SUCCEEDED(rc))
-            RTPrintf("Successfully exported %d machine(s).\n", llMachines.size());
+        if (SUCCEEDED(hrc))
+            RTPrintf(Appliance::tr("Successfully exported %d machine(s).\n", "", llMachines.size()), llMachines.size());
 
         /*
          *  The second stage for the cloud case
          */
-        if (actionType == CLOUD)
+        if (enmApplType == CLOUD)
         {
             /* Launch the exported VM if the appropriate flag had been set on the first stage */
             for (std::list< ComPtr<IVirtualSystemDescription> >::iterator itVSD = VSDList.begin();
@@ -2013,14 +2044,15 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
 
                     ComObjPtr<ICloudClient> oCloudClient;
                     CHECK_ERROR_BREAK(pCloudProfile, CreateCloudClient(oCloudClient.asOutParam()));
-                    RTPrintf("Creating a cloud instance...\n");
+                    RTPrintf(Appliance::tr("Creating a cloud instance...\n"));
 
                     ComPtr<IProgress> progress1;
                     CHECK_ERROR_BREAK(oCloudClient, LaunchVM(pVSD, progress1.asOutParam()));
-                    rc = showProgress(progress1);
-                    CHECK_PROGRESS_ERROR_RET(progress1, ("Creating the cloud instance failed"), RTEXITCODE_FAILURE);
+                    hrc = showProgress(progress1);
+                    CHECK_PROGRESS_ERROR_RET(progress1, (Appliance::tr("Creating the cloud instance failed")),
+                                             RTEXITCODE_FAILURE);
 
-                    if (SUCCEEDED(rc))
+                    if (SUCCEEDED(hrc))
                     {
                         CHECK_ERROR_BREAK(pVSD, GetDescriptionByType(VirtualSystemDescriptionType_CloudInstanceId,
                                                  ComSafeArrayAsOutParam(retTypes),
@@ -2029,7 +2061,7 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
                                                  ComSafeArrayAsOutParam(aVBoxValues),
                                                  ComSafeArrayAsOutParam(aExtraConfigValues)));
 
-                        RTPrintf("A cloud instance with id '%s' (provider '%s') was created\n",
+                        RTPrintf(Appliance::tr("A cloud instance with id '%s' (provider '%s') was created\n"),
                                  Utf8Str(Bstr(aVBoxValues[0]).raw()).c_str(),
                                  Utf8Str(bstrCloudProviderShortName.raw()).c_str());
                         retTypes.setNull(); aRefs.setNull(); aOvfValues.setNull(); aVBoxValues.setNull(); aExtraConfigValues.setNull();
@@ -2039,8 +2071,816 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
         }
     } while (0);
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(hrc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
-#endif /* !VBOX_ONLY_DOCS */
 
+/*********************************************************************************************************************************
+*   signova                                                                                                                      *
+*********************************************************************************************************************************/
+
+/**
+ * Reads the OVA and saves the manifest and signed status.
+ *
+ * @returns VBox status code (fully messaged).
+ * @param   pszOva              The name of the OVA.
+ * @param   iVerbosity          The noise level.
+ * @param   fReSign             Whether it is acceptable to have an existing signature
+ *                              in the OVA or not.
+ * @param   phVfsFssOva         Where to return the OVA file system stream handle.
+ *                              This has been opened for updating and we're positioned
+ *                              at the end of the stream.
+ * @param   pStrManifestName    Where to return the manifest name.
+ * @param   phVfsManifest       Where to return the manifest file handle (copy in mem).
+ * @param   phVfsOldSignature   Where to return the handle to the old signature object.
+ *
+ * @note    Caller must clean up return values on failure too!
+ */
+static int openOvaAndGetManifestAndOldSignature(const char *pszOva, unsigned iVerbosity, bool fReSign,
+                                                PRTVFSFSSTREAM phVfsFssOva, Utf8Str *pStrManifestName,
+                                                PRTVFSFILE phVfsManifest, PRTVFSOBJ phVfsOldSignature)
+{
+    /*
+     * Clear return values.
+     */
+    *phVfsFssOva       = NIL_RTVFSFSSTREAM;
+    pStrManifestName->setNull();
+    *phVfsManifest     = NIL_RTVFSFILE;
+    *phVfsOldSignature = NIL_RTVFSOBJ;
+
+    /*
+     * Open the file as a tar file system stream.
+     */
+    RTVFSFILE hVfsFileOva;
+    int rc = RTVfsFileOpenNormal(pszOva, RTFILE_O_OPEN | RTFILE_O_READWRITE | RTFILE_O_DENY_WRITE, &hVfsFileOva);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorExitFailure(Appliance::tr("Failed to open OVA '%s' for updating: %Rrc"), pszOva, rc);
+
+    RTVFSFSSTREAM hVfsFssOva;
+    rc = RTZipTarFsStreamForFile(hVfsFileOva, RTZIPTARFORMAT_DEFAULT, RTZIPTAR_C_UPDATE, &hVfsFssOva);
+    RTVfsFileRelease(hVfsFileOva);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorExitFailure(Appliance::tr("Failed to open OVA '%s' as a TAR file: %Rrc"), pszOva, rc);
+    *phVfsFssOva = hVfsFssOva;
+
+    /*
+     * Scan the objects in the stream and locate the manifest and any existing cert file.
+     */
+    if (iVerbosity >= 2)
+        RTMsgInfo(Appliance::tr("Scanning OVA '%s' for a manifest and signature..."), pszOva);
+    char *pszSignatureName = NULL;
+    for (;;)
+    {
+        /*
+         * Retrive the next object.
+         */
+        char           *pszName;
+        RTVFSOBJTYPE    enmType;
+        RTVFSOBJ        hVfsObj;
+        rc = RTVfsFsStrmNext(hVfsFssOva, &pszName, &enmType, &hVfsObj);
+        if (RT_FAILURE(rc))
+        {
+            if (rc == VERR_EOF)
+                rc = VINF_SUCCESS;
+            else
+                RTMsgError(Appliance::tr("RTVfsFsStrmNext returned %Rrc"), rc);
+            break;
+        }
+
+        if (iVerbosity > 2)
+            RTMsgInfo("  %s %s\n", RTVfsTypeName(enmType), pszName);
+
+        /*
+         * Should we process this entry?
+         */
+        const char *pszSuffix = RTPathSuffix(pszName);
+        if (   pszSuffix
+            && RTStrICmpAscii(pszSuffix, ".mf") == 0
+            && (enmType == RTVFSOBJTYPE_IO_STREAM || enmType == RTVFSOBJTYPE_FILE))
+        {
+            if (*phVfsManifest != NIL_RTVFSFILE)
+                rc = RTMsgErrorRc(VERR_DUPLICATE, Appliance::tr("OVA contains multiple manifests! first: %s  second: %s"),
+                                  pStrManifestName->c_str(), pszName);
+            else if (pszSignatureName)
+                rc = RTMsgErrorRc(VERR_WRONG_ORDER,
+                                  Appliance::tr("Unsupported OVA file ordering! Signature file ('%s') as succeeded by '%s'."),
+                                  pszSignatureName, pszName);
+            else
+            {
+                if (iVerbosity >= 2)
+                    RTMsgInfo(Appliance::tr("Found manifest file: %s"), pszName);
+                rc = pStrManifestName->assignNoThrow(pszName);
+                if (RT_SUCCESS(rc))
+                {
+                    RTVFSIOSTREAM hVfsIos = RTVfsObjToIoStream(hVfsObj);
+                    Assert(hVfsIos != NIL_RTVFSIOSTREAM);
+                    rc = RTVfsMemorizeIoStreamAsFile(hVfsIos, RTFILE_O_READ, phVfsManifest);
+                    RTVfsIoStrmRelease(hVfsIos);     /* consumes stream handle.  */
+                    if (RT_FAILURE(rc))
+                        rc = RTMsgErrorRc(VERR_DUPLICATE, Appliance::tr("Failed to memorize the manifest: %Rrc"), rc);
+                }
+                else
+                    RTMsgError(Appliance::tr("Out of memory!"));
+            }
+        }
+        else if (   pszSuffix
+                 && RTStrICmpAscii(pszSuffix, ".cert") == 0
+                 && (enmType == RTVFSOBJTYPE_IO_STREAM || enmType == RTVFSOBJTYPE_FILE))
+        {
+            if (*phVfsOldSignature != NIL_RTVFSOBJ)
+                rc = RTMsgErrorRc(VERR_WRONG_ORDER, Appliance::tr("Multiple signature files! (%s)"), pszName);
+            else
+            {
+                if (iVerbosity >= 2)
+                    RTMsgInfo(Appliance::tr("Found existing signature file: %s"), pszName);
+                pszSignatureName   = pszName;
+                *phVfsOldSignature = hVfsObj;
+                pszName = NULL;
+                hVfsObj = NIL_RTVFSOBJ;
+            }
+        }
+        else if (pszSignatureName)
+            rc = RTMsgErrorRc(VERR_WRONG_ORDER,
+                              Appliance::tr("Unsupported OVA file ordering! Signature file ('%s') as succeeded by '%s'."),
+                              pszSignatureName, pszName);
+
+        /*
+         * Release the current object and string.
+         */
+        RTVfsObjRelease(hVfsObj);
+        RTStrFree(pszName);
+        if (RT_FAILURE(rc))
+            break;
+    }
+
+    /*
+     * Complain if no manifest.
+     */
+    if (RT_SUCCESS(rc) && *phVfsManifest == NIL_RTVFSFILE)
+        rc = RTMsgErrorRc(VERR_NOT_FOUND, Appliance::tr("The OVA contains no manifest and cannot be signed!"));
+    else if (RT_SUCCESS(rc) && *phVfsOldSignature != NIL_RTVFSOBJ && !fReSign)
+        rc = RTMsgErrorRc(VERR_ALREADY_EXISTS,
+                          Appliance::tr("The OVA is already signed ('%s')! (Use the --force option to force re-signing it.)"),
+                          pszSignatureName);
+
+    RTStrFree(pszSignatureName);
+    return rc;
+}
+
+
+/**
+ * Continues where openOvaAndGetManifestAndOldSignature() left off and writes
+ * the signature file to the OVA.
+ *
+ * When @a hVfsOldSignature isn't NIL, the old signature it represent will be
+ * replaced.  The open function has already made sure there isn't anything
+ * following the .cert file in that case.
+ */
+static int updateTheOvaSignature(RTVFSFSSTREAM hVfsFssOva, const char *pszOva, const char *pszSignatureName,
+                                 RTVFSFILE hVfsFileSignature, RTVFSOBJ hVfsOldSignature, unsigned iVerbosity)
+{
+    if (iVerbosity > 1)
+        RTMsgInfo(Appliance::tr("Writing '%s' to the OVA..."), pszSignatureName);
+
+    /*
+     * Truncate the file at the old signature, if present.
+     */
+    int rc;
+    if (hVfsOldSignature != NIL_RTVFSOBJ)
+    {
+        rc = RTZipTarFsStreamTruncate(hVfsFssOva, hVfsOldSignature, false /*fAfter*/);
+        if (RT_FAILURE(rc))
+            return RTMsgErrorRc(rc, Appliance::tr("RTZipTarFsStreamTruncate failed on '%s': %Rrc"), pszOva, rc);
+    }
+
+    /*
+     * Append the signature file.  We have to rewind it first or
+     * we'll end up with VERR_EOF, probably not a great idea...
+     */
+    rc = RTVfsFileSeek(hVfsFileSignature, 0, RTFILE_SEEK_BEGIN, NULL);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorRc(rc, Appliance::tr("RTVfsFileSeek(hVfsFileSignature) failed: %Rrc"), rc);
+
+    RTVFSOBJ hVfsObj = RTVfsObjFromFile(hVfsFileSignature);
+    rc = RTVfsFsStrmAdd(hVfsFssOva, pszSignatureName, hVfsObj, 0 /*fFlags*/);
+    RTVfsObjRelease(hVfsObj);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorRc(rc, Appliance::tr("RTVfsFsStrmAdd('%s') failed on '%s': %Rrc"), pszSignatureName, pszOva, rc);
+
+    /*
+     * Terminate the file system stream.
+     */
+    rc = RTVfsFsStrmEnd(hVfsFssOva);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorRc(rc, Appliance::tr("RTVfsFsStrmEnd failed on '%s': %Rrc"), pszOva, rc);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for doCheckPkcs7Signature.
+ */
+static int doCheckPkcs7SignatureWorker(PRTCRPKCS7CONTENTINFO pContentInfo, void const *pvManifest, size_t cbManifest,
+                                       unsigned iVerbosity, const char *pszTag, PRTERRINFOSTATIC pErrInfo)
+{
+    int rc;
+
+    /*
+     * It must be signedData.
+     */
+    if (RTCrPkcs7ContentInfo_IsSignedData(pContentInfo))
+    {
+        PRTCRPKCS7SIGNEDDATA pSignedData = pContentInfo->u.pSignedData;
+
+        /*
+         * Inside the signedData there must be just 'data'.
+         */
+        if (!strcmp(pSignedData->ContentInfo.ContentType.szObjId, RTCR_PKCS7_DATA_OID))
+        {
+            /*
+             * Check that things add up.
+             */
+            rc = RTCrPkcs7SignedData_CheckSanity(pSignedData,
+                                                 RTCRPKCS7SIGNEDDATA_SANITY_F_ONLY_KNOWN_HASH
+                                                 | RTCRPKCS7SIGNEDDATA_SANITY_F_SIGNING_CERT_PRESENT,
+                                                 RTErrInfoInitStatic(pErrInfo), "SD");
+            if (RT_SUCCESS(rc))
+            {
+                if (iVerbosity > 2 && pszTag == NULL)
+                    RTMsgInfo(Appliance::tr("  Successfully decoded the PKCS#7/CMS signature..."));
+
+                /*
+                 * Check that we can verify the signed data, but skip certificate validate as
+                 * we probably don't necessarily have the correct root certs handy here.
+                 */
+                RTTIMESPEC Now;
+                rc = RTCrPkcs7VerifySignedDataWithExternalData(pContentInfo, RTCRPKCS7VERIFY_SD_F_TRUST_ALL_CERTS,
+                                                               NIL_RTCRSTORE /*hAdditionalCerts*/,
+                                                               NIL_RTCRSTORE /*hTrustedCerts*/,
+                                                               RTTimeNow(&Now),
+                                                               NULL /*pfnVerifyCert*/, NULL /*pvUser*/,
+                                                               pvManifest, cbManifest, RTErrInfoInitStatic(pErrInfo));
+                if (RT_SUCCESS(rc))
+                {
+                    if (iVerbosity > 1 && pszTag != NULL)
+                        RTMsgInfo(Appliance::tr("  Successfully verified the PKCS#7/CMS signature"));
+                }
+                else
+                    rc = RTMsgErrorRc(rc, Appliance::tr("Failed to verify the PKCS#7/CMS signature: %Rrc%RTeim"),
+                                      rc, &pErrInfo->Core);
+            }
+            else
+                RTMsgError(Appliance::tr("RTCrPkcs7SignedData_CheckSanity failed on PKCS#7/CMS signature: %Rrc%RTeim"),
+                           rc, &pErrInfo->Core);
+
+        }
+        else
+            rc = RTMsgErrorRc(VERR_WRONG_TYPE, Appliance::tr("PKCS#7/CMS signature inner ContentType isn't 'data' but: %s"),
+                              pSignedData->ContentInfo.ContentType.szObjId);
+    }
+    else
+        rc = RTMsgErrorRc(VERR_WRONG_TYPE, Appliance::tr("PKCS#7/CMD signature is not 'signedData': %s"),
+                          pContentInfo->ContentType.szObjId);
+    return rc;
+}
+
+/**
+ * For testing the decoding side.
+ */
+static int doCheckPkcs7Signature(void const *pvSignature, size_t cbSignature, PCRTCRX509CERTIFICATE pCertificate,
+                                 RTCRSTORE hIntermediateCerts, void const *pvManifest, size_t cbManifest,
+                                 unsigned iVerbosity, PRTERRINFOSTATIC pErrInfo)
+{
+    RT_NOREF(pCertificate, hIntermediateCerts);
+
+    RTASN1CURSORPRIMARY PrimaryCursor;
+    RTAsn1CursorInitPrimary(&PrimaryCursor, pvSignature, (uint32_t)cbSignature, RTErrInfoInitStatic(pErrInfo),
+                            &g_RTAsn1DefaultAllocator, 0, "Signature");
+
+    RTCRPKCS7CONTENTINFO ContentInfo;
+    RT_ZERO(ContentInfo);
+    int rc = RTCrPkcs7ContentInfo_DecodeAsn1(&PrimaryCursor.Cursor, 0, &ContentInfo, "CI");
+    if (RT_SUCCESS(rc))
+    {
+        if (iVerbosity > 5)
+            RTAsn1Dump(&ContentInfo.SeqCore.Asn1Core, 0 /*fFlags*/, 0 /*uLevel*/, RTStrmDumpPrintfV, g_pStdOut);
+
+        rc = doCheckPkcs7SignatureWorker(&ContentInfo, pvManifest, cbManifest, iVerbosity, NULL, pErrInfo);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Clone it and repeat.  This is to catch IPRT paths assuming
+             * that encoded data is always on hand.
+             */
+            RTCRPKCS7CONTENTINFO ContentInfo2;
+            rc = RTCrPkcs7ContentInfo_Clone(&ContentInfo2, &ContentInfo, &g_RTAsn1DefaultAllocator);
+            if (RT_SUCCESS(rc))
+            {
+                rc = doCheckPkcs7SignatureWorker(&ContentInfo2, pvManifest, cbManifest, iVerbosity, "cloned", pErrInfo);
+                RTCrPkcs7ContentInfo_Delete(&ContentInfo2);
+            }
+            else
+                rc = RTMsgErrorRc(rc, Appliance::tr("RTCrPkcs7ContentInfo_Clone failed: %Rrc"), rc);
+        }
+    }
+    else
+        RTMsgError(Appliance::tr("RTCrPkcs7ContentInfo_DecodeAsn1 failed to decode PKCS#7/CMS signature: %Rrc%RTemi"),
+                   rc, &pErrInfo->Core);
+
+    RTCrPkcs7ContentInfo_Delete(&ContentInfo);
+    return rc;
+}
+
+
+/**
+ * Creates a PKCS\#7 signature and appends it to the signature file in PEM
+ * format.
+ */
+static int doAddPkcs7Signature(PCRTCRX509CERTIFICATE pCertificate, RTCRKEY hPrivateKey, RTDIGESTTYPE enmDigestType,
+                               unsigned cIntermediateCerts, const char **papszIntermediateCerts, RTVFSFILE hVfsFileManifest,
+                               unsigned iVerbosity, PRTERRINFOSTATIC pErrInfo, RTVFSFILE hVfsFileSignature)
+{
+    /*
+     * Add a blank line, just for good measure.
+     */
+    int rc = RTVfsFileWrite(hVfsFileSignature, "\n", 1, NULL);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorRc(rc, "RTVfsFileWrite/signature: %Rrc", rc);
+
+    /*
+     * Read the manifest into a single memory block.
+     */
+    uint64_t cbManifest;
+    rc = RTVfsFileQuerySize(hVfsFileManifest, &cbManifest);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorRc(rc, "RTVfsFileQuerySize/manifest: %Rrc", rc);
+    if (cbManifest > _4M)
+        return RTMsgErrorRc(VERR_OUT_OF_RANGE, Appliance::tr("Manifest is too big: %#RX64 bytes, max 4MiB", "", cbManifest),
+                            cbManifest);
+
+    void *pvManifest = RTMemAllocZ(cbManifest + 1);
+    if (!pvManifest)
+        return RTMsgErrorRc(VERR_NO_MEMORY, Appliance::tr("Out of memory!"));
+
+    rc = RTVfsFileReadAt(hVfsFileManifest, 0, pvManifest, (size_t)cbManifest, NULL);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Load intermediate certificates.
+         */
+        RTCRSTORE hIntermediateCerts = NIL_RTCRSTORE;
+        if (cIntermediateCerts)
+        {
+            rc = RTCrStoreCreateInMem(&hIntermediateCerts, cIntermediateCerts);
+            if (RT_SUCCESS(rc))
+            {
+                for (unsigned i = 0; i < cIntermediateCerts; i++)
+                {
+                    const char *pszFile = papszIntermediateCerts[i];
+                    rc = RTCrStoreCertAddFromFile(hIntermediateCerts, 0 /*fFlags*/, pszFile, &pErrInfo->Core);
+                    if (RT_FAILURE(rc))
+                    {
+                        RTMsgError(Appliance::tr("RTCrStoreCertAddFromFile failed on '%s': %Rrc%#RTeim"), pszFile, rc, &pErrInfo->Core);
+                        break;
+                    }
+                }
+            }
+            else
+                RTMsgError(Appliance::tr("RTCrStoreCreateInMem failed: %Rrc"), rc);
+        }
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Do a dry run to determin the size of the signed data.
+             */
+            size_t cbResult = 0;
+            rc = RTCrPkcs7SimpleSignSignedData(RTCRPKCS7SIGN_SD_F_DEATCHED | RTCRPKCS7SIGN_SD_F_NO_SMIME_CAP,
+                                               pCertificate, hPrivateKey, pvManifest, (size_t)cbManifest, enmDigestType,
+                                               hIntermediateCerts, NULL /*pAdditionalAuthenticatedAttribs*/,
+                                               NULL /*pvResult*/, &cbResult, RTErrInfoInitStatic(pErrInfo));
+            if (rc == VERR_BUFFER_OVERFLOW)
+            {
+                /*
+                 * Allocate a buffer of the right size and do the real run.
+                 */
+                void *pvResult = RTMemAllocZ(cbResult);
+                if (pvResult)
+                {
+                    rc = RTCrPkcs7SimpleSignSignedData(RTCRPKCS7SIGN_SD_F_DEATCHED | RTCRPKCS7SIGN_SD_F_NO_SMIME_CAP,
+                                                       pCertificate, hPrivateKey, pvManifest, (size_t)cbManifest, enmDigestType,
+                                                       hIntermediateCerts, NULL /*pAdditionalAuthenticatedAttribs*/,
+                                                       pvResult, &cbResult, RTErrInfoInitStatic(pErrInfo));
+                    if (RT_SUCCESS(rc))
+                    {
+                        /*
+                         * Add it to the signature file in PEM format.
+                         */
+                        rc = (int)RTCrPemWriteBlobToVfsFile(hVfsFileSignature, pvResult, cbResult, "CMS");
+                        if (RT_SUCCESS(rc))
+                        {
+                            if (iVerbosity > 1)
+                                RTMsgInfo(Appliance::tr("Created PKCS#7/CMS signature: %zu bytes, %s.", "", cbResult),
+                                          cbResult, RTCrDigestTypeToName(enmDigestType));
+                            if (enmDigestType == RTDIGESTTYPE_SHA1)
+                                RTMsgWarning(Appliance::tr("Using SHA-1 instead of SHA-3 for the PKCS#7/CMS signature."));
+
+                            /*
+                             * Try decode and verify the signature.
+                             */
+                            rc = doCheckPkcs7Signature(pvResult, cbResult, pCertificate, hIntermediateCerts,
+                                                       pvManifest, (size_t)cbManifest, iVerbosity, pErrInfo);
+                        }
+                        else
+                            RTMsgError(Appliance::tr("RTCrPemWriteBlobToVfsFile failed: %Rrc"), rc);
+                    }
+                    RTMemFree(pvResult);
+                }
+                else
+                    rc = RTMsgErrorRc(VERR_NO_MEMORY, Appliance::tr("Out of memory!"));
+            }
+            else
+                RTMsgError(Appliance::tr("RTCrPkcs7SimpleSignSignedData failed: %Rrc%#RTeim"), rc, &pErrInfo->Core);
+        }
+    }
+    else
+        RTMsgError(Appliance::tr("RTVfsFileReadAt failed: %Rrc"), rc);
+    RTMemFree(pvManifest);
+    return rc;
+}
+
+
+/**
+ * Performs the OVA signing, producing an in-memory cert-file.
+ */
+static int doTheOvaSigning(PRTCRX509CERTIFICATE pCertificate, RTCRKEY hPrivateKey, RTDIGESTTYPE enmDigestType,
+                           const char *pszManifestName, RTVFSFILE hVfsFileManifest,
+                           bool fPkcs7, unsigned cIntermediateCerts, const char **papszIntermediateCerts, unsigned iVerbosity,
+                           PRTERRINFOSTATIC pErrInfo, PRTVFSFILE phVfsFileSignature)
+{
+    /*
+     * Determine the digest types, preferring SHA-256 for the OVA signature
+     * and SHA-512 for the PKCS#7/CMS one.  Try use different hashes for the two.
+     */
+    if (enmDigestType == RTDIGESTTYPE_UNKNOWN)
+    {
+        if (RTCrPkixCanCertHandleDigestType(pCertificate, RTDIGESTTYPE_SHA256, NULL))
+            enmDigestType = RTDIGESTTYPE_SHA256;
+        else
+            enmDigestType = RTDIGESTTYPE_SHA1;
+    }
+
+    /* Try SHA-3 for better diversity, only fall back on SHA1 if the private
+       key doesn't have enough bits (we skip SHA2 as it has the same variants
+       and key size requirements as SHA-3). */
+    RTDIGESTTYPE enmPkcs7DigestType;
+    if (RTCrPkixCanCertHandleDigestType(pCertificate, RTDIGESTTYPE_SHA3_512, NULL))
+        enmPkcs7DigestType = RTDIGESTTYPE_SHA3_512;
+    else if (RTCrPkixCanCertHandleDigestType(pCertificate, RTDIGESTTYPE_SHA3_384, NULL))
+        enmPkcs7DigestType = RTDIGESTTYPE_SHA3_384;
+    else if (RTCrPkixCanCertHandleDigestType(pCertificate, RTDIGESTTYPE_SHA3_256, NULL))
+        enmPkcs7DigestType = RTDIGESTTYPE_SHA3_256;
+    else if (RTCrPkixCanCertHandleDigestType(pCertificate, RTDIGESTTYPE_SHA3_224, NULL))
+        enmPkcs7DigestType = RTDIGESTTYPE_SHA3_224;
+    else
+        enmPkcs7DigestType = RTDIGESTTYPE_SHA1;
+
+    /*
+     * Figure the string name for the .cert file.
+     */
+    const char *pszDigestType;
+    switch (enmDigestType)
+    {
+        case RTDIGESTTYPE_SHA1:         pszDigestType = "SHA1"; break;
+        case RTDIGESTTYPE_SHA256:       pszDigestType = "SHA256"; break;
+        case RTDIGESTTYPE_SHA224:       pszDigestType = "SHA224"; break;
+        case RTDIGESTTYPE_SHA512:       pszDigestType = "SHA512"; break;
+        default:
+            return RTMsgErrorRc(VERR_INVALID_PARAMETER,
+                                Appliance::tr("Unsupported digest type: %s"), RTCrDigestTypeToName(enmDigestType));
+    }
+
+    /*
+     * Digest the manifest file.
+     */
+    RTCRDIGEST hDigest = NIL_RTCRDIGEST;
+    int rc = RTCrDigestCreateByType(&hDigest, enmDigestType);
+    if (RT_FAILURE(rc))
+        return RTMsgErrorRc(rc, Appliance::tr("Failed to create digest for %s: %Rrc"), RTCrDigestTypeToName(enmDigestType), rc);
+
+    rc = RTCrDigestUpdateFromVfsFile(hDigest, hVfsFileManifest, true /*fRewindFile*/);
+    if (RT_SUCCESS(rc))
+        rc = RTCrDigestFinal(hDigest, NULL, 0);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Sign the digest.  Two passes, first to figure the signature size, the
+         * second to do the actual signing.
+         */
+        PCRTASN1OBJID const   pAlgorithm  = &pCertificate->TbsCertificate.SubjectPublicKeyInfo.Algorithm.Algorithm;
+        PCRTASN1DYNTYPE const pAlgoParams = &pCertificate->TbsCertificate.SubjectPublicKeyInfo.Algorithm.Parameters;
+        size_t cbSignature = 0;
+        rc = RTCrPkixPubKeySignDigest(pAlgorithm, hPrivateKey, pAlgoParams, hDigest, 0 /*fFlags*/,
+                                      NULL /*pvSignature*/, &cbSignature, RTErrInfoInitStatic(pErrInfo));
+        if (rc == VERR_BUFFER_OVERFLOW)
+        {
+            void *pvSignature = RTMemAllocZ(cbSignature);
+            if (pvSignature)
+            {
+                rc = RTCrPkixPubKeySignDigest(pAlgorithm, hPrivateKey, pAlgoParams, hDigest, 0,
+                                              pvSignature, &cbSignature, RTErrInfoInitStatic(pErrInfo));
+                if (RT_SUCCESS(rc))
+                {
+                    if (iVerbosity > 1)
+                        RTMsgInfo(Appliance::tr("Created OVA signature: %zu bytes, %s", "", cbSignature), cbSignature,
+                                  RTCrDigestTypeToName(enmDigestType));
+
+                    /*
+                     * Verify the signature using the certificate to make sure we've
+                     * been given the right private key.
+                     */
+                    rc = RTCrPkixPubKeyVerifySignedDigestByCertPubKeyInfo(&pCertificate->TbsCertificate.SubjectPublicKeyInfo,
+                                                                          pvSignature, cbSignature, hDigest,
+                                                                          RTErrInfoInitStatic(pErrInfo));
+                    if (RT_SUCCESS(rc))
+                    {
+                        if (iVerbosity > 2)
+                            RTMsgInfo(Appliance::tr("  Successfully decoded and verified the OVA signature.\n"));
+
+                        /*
+                         * Create the output file.
+                         */
+                        RTVFSFILE hVfsFileSignature;
+                        rc = RTVfsMemFileCreate(NIL_RTVFSIOSTREAM, _8K, &hVfsFileSignature);
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = (int)RTVfsFilePrintf(hVfsFileSignature, "%s(%s) = %#.*Rhxs\n\n",
+                                                      pszDigestType, pszManifestName, cbSignature, pvSignature);
+                            if (RT_SUCCESS(rc))
+                            {
+                                rc = (int)RTCrX509Certificate_WriteToVfsFile(hVfsFileSignature, pCertificate,
+                                                                             RTErrInfoInitStatic(pErrInfo));
+                                if (RT_SUCCESS(rc))
+                                {
+                                    if (fPkcs7)
+                                        rc = doAddPkcs7Signature(pCertificate, hPrivateKey, enmPkcs7DigestType,
+                                                                 cIntermediateCerts, papszIntermediateCerts, hVfsFileManifest,
+                                                                 iVerbosity, pErrInfo, hVfsFileSignature);
+                                    if (RT_SUCCESS(rc))
+                                    {
+                                        /*
+                                         * Success.
+                                         */
+                                        *phVfsFileSignature = hVfsFileSignature;
+                                        hVfsFileSignature = NIL_RTVFSFILE;
+                                    }
+                                }
+                                else
+                                    RTMsgError(Appliance::tr("Failed to write certificate to signature file: %Rrc%#RTeim"),
+                                               rc, &pErrInfo->Core);
+                            }
+                            else
+                                RTMsgError(Appliance::tr("Failed to produce signature file: %Rrc"), rc);
+                            RTVfsFileRelease(hVfsFileSignature);
+                        }
+                        else
+                            RTMsgError(Appliance::tr("RTVfsMemFileCreate failed: %Rrc"), rc);
+                    }
+                    else
+                        RTMsgError(Appliance::tr("Encountered a problem when validating the signature we just created: %Rrc%#RTeim\n"
+                                        "Please make sure the certificate and private key matches."),
+                                   rc, &pErrInfo->Core);
+                }
+                else
+                    RTMsgError(Appliance::tr("2nd RTCrPkixPubKeySignDigest call failed: %Rrc%#RTeim"), rc, pErrInfo->Core);
+                RTMemFree(pvSignature);
+            }
+            else
+                rc = RTMsgErrorRc(VERR_NO_MEMORY, Appliance::tr("Out of memory!"));
+        }
+        else
+            RTMsgError(Appliance::tr("RTCrPkixPubKeySignDigest failed: %Rrc%#RTeim"), rc, pErrInfo->Core);
+    }
+    else
+        RTMsgError(Appliance::tr("Failed to create digest %s: %Rrc"), RTCrDigestTypeToName(enmDigestType), rc);
+    RTCrDigestRelease(hDigest);
+    return rc;
+}
+
+
+/**
+ * Handles the 'ovasign' command.
+ */
+RTEXITCODE handleSignAppliance(HandlerArg *arg)
+{
+    /*
+     * Parse arguments.
+     */
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        { "--certificate",              'c', RTGETOPT_REQ_STRING },
+        { "--private-key",              'k', RTGETOPT_REQ_STRING },
+        { "--private-key-password",     'p', RTGETOPT_REQ_STRING },
+        { "--private-key-password-file",'P', RTGETOPT_REQ_STRING },
+        { "--digest-type",              'd', RTGETOPT_REQ_STRING },
+        { "--pkcs7",                    '7', RTGETOPT_REQ_NOTHING },
+        { "--cms",                      '7', RTGETOPT_REQ_NOTHING },
+        { "--no-pkcs7",                 'n', RTGETOPT_REQ_NOTHING },
+        { "--no-cms",                   'n', RTGETOPT_REQ_NOTHING },
+        { "--intermediate-cert-file",   'i', RTGETOPT_REQ_STRING },
+        { "--force",                    'f', RTGETOPT_REQ_NOTHING },
+        { "--verbose",                  'v', RTGETOPT_REQ_NOTHING },
+        { "--quiet",                    'q', RTGETOPT_REQ_NOTHING },
+        { "--dry-run",                  'D', RTGETOPT_REQ_NOTHING },
+    };
+
+    RTGETOPTSTATE GetState;
+    int rc = RTGetOptInit(&GetState, arg->argc, arg->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0);
+    AssertRCReturn(rc, RTEXITCODE_FAILURE);
+
+    const char     *pszOva              = NULL;
+    const char     *pszCertificate      = NULL;
+    const char     *pszPrivateKey       = NULL;
+    Utf8Str         strPrivateKeyPassword;
+    RTDIGESTTYPE    enmDigestType       = RTDIGESTTYPE_UNKNOWN;
+    bool            fPkcs7              = true;
+    unsigned        cIntermediateCerts  = 0;
+    const char     *apszIntermediateCerts[32];
+    bool            fReSign             = false;
+    unsigned        iVerbosity          = 1;
+    bool            fDryRun             = false;
+
+    int c;
+    RTGETOPTUNION ValueUnion;
+    while ((c = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (c)
+        {
+            case 'c':
+                pszCertificate = ValueUnion.psz;
+                break;
+
+            case 'k':
+                pszPrivateKey = ValueUnion.psz;
+                break;
+
+            case 'p':
+                if (strPrivateKeyPassword.isNotEmpty())
+                    RTMsgWarning(Appliance::tr("Password is given more than once."));
+                strPrivateKeyPassword = ValueUnion.psz;
+                break;
+
+            case 'P':
+            {
+                if (strPrivateKeyPassword.isNotEmpty())
+                    RTMsgWarning(Appliance::tr("Password is given more than once."));
+                RTEXITCODE rcExit = readPasswordFile(ValueUnion.psz, &strPrivateKeyPassword);
+                if (rcExit == RTEXITCODE_SUCCESS)
+                    break;
+                return rcExit;
+            }
+
+            case 'd':
+                if (   RTStrICmp(ValueUnion.psz, "sha1") == 0
+                    || RTStrICmp(ValueUnion.psz, "sha-1") == 0)
+                    enmDigestType = RTDIGESTTYPE_SHA1;
+                else if (   RTStrICmp(ValueUnion.psz, "sha256") == 0
+                         || RTStrICmp(ValueUnion.psz, "sha-256") == 0)
+                    enmDigestType = RTDIGESTTYPE_SHA256;
+                else if (   RTStrICmp(ValueUnion.psz, "sha512") == 0
+                         || RTStrICmp(ValueUnion.psz, "sha-512") == 0)
+                    enmDigestType = RTDIGESTTYPE_SHA512;
+                else
+                    return RTMsgErrorExitFailure(Appliance::tr("Unknown digest type: %s"), ValueUnion.psz);
+                break;
+
+            case '7':
+                fPkcs7 = true;
+                break;
+
+            case 'n':
+                fPkcs7 = false;
+                break;
+
+            case 'i':
+                if (cIntermediateCerts >= RT_ELEMENTS(apszIntermediateCerts))
+                    return RTMsgErrorExitFailure(Appliance::tr("Too many intermediate certificates: max %zu"),
+                                                 RT_ELEMENTS(apszIntermediateCerts));
+                apszIntermediateCerts[cIntermediateCerts++] = ValueUnion.psz;
+                fPkcs7 = true;
+                break;
+
+            case 'f':
+                fReSign = true;
+                break;
+
+            case 'v':
+                iVerbosity++;
+                break;
+
+            case 'q':
+                iVerbosity = 0;
+                break;
+
+            case 'D':
+                fDryRun = true;
+                break;
+
+            case VINF_GETOPT_NOT_OPTION:
+                if (!pszOva)
+                {
+                    pszOva = ValueUnion.psz;
+                    break;
+                }
+                RT_FALL_THRU();
+            default:
+                return errorGetOpt(c, &ValueUnion);
+        }
+    }
+
+    /* Required paramaters: */
+    if (!pszOva || !*pszOva)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, Appliance::tr("No OVA file was specified!"));
+    if (!pszCertificate || !*pszCertificate)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, Appliance::tr("No signing certificate (--certificate=<file>) was specified!"));
+    if (!pszPrivateKey || !*pszPrivateKey)
+        return RTMsgErrorExit(RTEXITCODE_SYNTAX, Appliance::tr("No signing private key (--private-key=<file>) was specified!"));
+
+    /* Check that input files exists before we commence: */
+    if (!RTFileExists(pszOva))
+        return RTMsgErrorExitFailure(Appliance::tr("The specified OVA file was not found: %s"), pszOva);
+    if (!RTFileExists(pszCertificate))
+        return RTMsgErrorExitFailure(Appliance::tr("The specified certificate file was not found: %s"), pszCertificate);
+    if (!RTFileExists(pszPrivateKey))
+        return RTMsgErrorExitFailure(Appliance::tr("The specified private key file was not found: %s"), pszPrivateKey);
+
+    /*
+     * Open the OVA, read the manifest and look for any existing signature.
+     */
+    RTVFSFSSTREAM   hVfsFssOva       = NIL_RTVFSFSSTREAM;
+    RTVFSOBJ        hVfsOldSignature = NIL_RTVFSOBJ;
+    RTVFSFILE       hVfsFileManifest = NIL_RTVFSFILE;
+    Utf8Str         strManifestName;
+    rc = openOvaAndGetManifestAndOldSignature(pszOva, iVerbosity, fReSign,
+                                              &hVfsFssOva, &strManifestName, &hVfsFileManifest, &hVfsOldSignature);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Read the certificate and private key.
+         */
+        RTERRINFOSTATIC     ErrInfo;
+        RTCRX509CERTIFICATE Certificate;
+        rc = RTCrX509Certificate_ReadFromFile(&Certificate, pszCertificate, 0, &g_RTAsn1DefaultAllocator,
+                                              RTErrInfoInitStatic(&ErrInfo));
+        if (RT_FAILURE(rc))
+            return RTMsgErrorExitFailure(Appliance::tr("Error reading certificate from '%s': %Rrc%#RTeim"),
+                                         pszCertificate, rc, &ErrInfo.Core);
+
+        RTCRKEY hPrivateKey = NIL_RTCRKEY;
+        rc = RTCrKeyCreateFromFile(&hPrivateKey, 0 /*fFlags*/, pszPrivateKey, strPrivateKeyPassword.c_str(),
+                                   RTErrInfoInitStatic(&ErrInfo));
+        if (RT_SUCCESS(rc))
+        {
+            if (iVerbosity > 1)
+                RTMsgInfo(Appliance::tr("Successfully read the certificate and private key."));
+
+            /*
+             * Do the signing and create the signature file.
+             */
+            RTVFSFILE hVfsFileSignature = NIL_RTVFSFILE;
+            rc = doTheOvaSigning(&Certificate, hPrivateKey, enmDigestType, strManifestName.c_str(), hVfsFileManifest,
+                                 fPkcs7, cIntermediateCerts, apszIntermediateCerts, iVerbosity, &ErrInfo, &hVfsFileSignature);
+
+            /*
+             * Construct the signature filename:
+             */
+            if (RT_SUCCESS(rc))
+            {
+                Utf8Str strSignatureName;
+                rc = strSignatureName.assignNoThrow(strManifestName);
+                if (RT_SUCCESS(rc))
+                    rc = strSignatureName.stripSuffix().appendNoThrow(".cert");
+                if (RT_SUCCESS(rc) && !fDryRun)
+                {
+                    /*
+                     * Update the OVA.
+                     */
+                    rc = updateTheOvaSignature(hVfsFssOva, pszOva, strSignatureName.c_str(),
+                                               hVfsFileSignature, hVfsOldSignature, iVerbosity);
+                    if (RT_SUCCESS(rc) && iVerbosity > 0)
+                        RTMsgInfo(Appliance::tr("Successfully signed '%s'."), pszOva);
+                }
+            }
+            RTCrKeyRelease(hPrivateKey);
+        }
+        else
+            RTPrintf(Appliance::tr("Error reading the private key from %s: %Rrc%#RTeim"), pszPrivateKey, rc, &ErrInfo.Core);
+        RTCrX509Certificate_Delete(&Certificate);
+    }
+
+    RTVfsObjRelease(hVfsOldSignature);
+    RTVfsFileRelease(hVfsFileManifest);
+    RTVfsFsStrmRelease(hVfsFssOva);
+
+    return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+}

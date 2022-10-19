@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2014-2020 Oracle Corporation
+ * Copyright (C) 2014-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_crypto_digest_h
@@ -65,14 +75,14 @@ typedef struct RTCRDIGESTDESC
     /**
      * Allocates the digest data.
      */
-    DECLCALLBACKMEMBER(void *, pfnNew)(void);
+    DECLCALLBACKMEMBER(void *, pfnNew,(void));
 
     /**
      * Frees the digest data.
      *
      * @param   pvState     The opaque message digest state.
      */
-    DECLCALLBACKMEMBER(void, pfnFree)(void *pvState);
+    DECLCALLBACKMEMBER(void, pfnFree,(void *pvState));
 
     /**
      * Updates the digest with more data.
@@ -81,7 +91,7 @@ typedef struct RTCRDIGESTDESC
      * @param   pvData      The data to add to the digest.
      * @param   cbData      The amount of data to add to the digest.
      */
-    DECLCALLBACKMEMBER(void, pfnUpdate)(void *pvState, const void *pvData, size_t cbData);
+    DECLCALLBACKMEMBER(void, pfnUpdate,(void *pvState, const void *pvData, size_t cbData));
 
     /**
      * Finalizes the digest calculation.
@@ -90,7 +100,7 @@ typedef struct RTCRDIGESTDESC
      * @param   pbHash      Where to store the output digest.  This buffer is at
      *                      least RTCRDIGESTDESC::cbHash bytes large.
      */
-    DECLCALLBACKMEMBER(void, pfnFinal)(void *pvState, uint8_t *pbHash);
+    DECLCALLBACKMEMBER(void, pfnFinal,(void *pvState, uint8_t *pbHash));
 
     /**
      * (Re-)Initializes the digest. Optional.
@@ -102,7 +112,7 @@ typedef struct RTCRDIGESTDESC
      * @param   pvOpaque    Opaque algortihm specific parameter.
      * @param   fReInit     Set if this is a re-init call.
      */
-    DECLCALLBACKMEMBER(int, pfnInit)(void *pvState, void *pvOpaque, bool fReInit);
+    DECLCALLBACKMEMBER(int, pfnInit,(void *pvState, void *pvOpaque, bool fReInit));
 
     /**
      * Deletes the message digest state.
@@ -111,7 +121,7 @@ typedef struct RTCRDIGESTDESC
      *
      * @param   pvState     The opaque message digest state.
      */
-    DECLCALLBACKMEMBER(void, pfnDelete)(void *pvState);
+    DECLCALLBACKMEMBER(void, pfnDelete,(void *pvState));
 
     /**
      * Clones the message digest state.
@@ -122,7 +132,7 @@ typedef struct RTCRDIGESTDESC
      * @param   pvState     The opaque message digest state (destination).
      * @param   pvSrcState  The opaque message digest state to clone (source).
      */
-    DECLCALLBACKMEMBER(int, pfnClone)(void *pvState, void const *pvSrcState);
+    DECLCALLBACKMEMBER(int, pfnClone,(void *pvState, void const *pvSrcState));
 
     /**
      * Gets the hash size.
@@ -134,7 +144,7 @@ typedef struct RTCRDIGESTDESC
      * @returns The hash size.
      * @param   pvState     The opaque message digest state.
      */
-    DECLCALLBACKMEMBER(uint32_t, pfnGetHashSize)(void *pvState);
+    DECLCALLBACKMEMBER(uint32_t, pfnGetHashSize,(void *pvState));
 
     /**
      * Gets the digest type (when enmType is RTDIGESTTYPE_UNKNOWN).
@@ -142,7 +152,7 @@ typedef struct RTCRDIGESTDESC
      * @returns The hash size.
      * @param   pvState     The opaque message digest state.
      */
-    DECLCALLBACKMEMBER(RTDIGESTTYPE, pfnGetDigestType)(void *pvState);
+    DECLCALLBACKMEMBER(RTDIGESTTYPE, pfnGetDigestType,(void *pvState));
 } RTCRDIGESTDESC;
 /** Pointer to const message digest details and vtable. */
 typedef RTCRDIGESTDESC const *PCRTCRDIGESTDESC;

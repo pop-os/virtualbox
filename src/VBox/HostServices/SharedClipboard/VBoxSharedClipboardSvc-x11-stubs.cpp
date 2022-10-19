@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -40,82 +50,63 @@
 /*
  * Initialise the host side of the shared clipboard - called by the hgcm layer.
  */
-int ShClSvcImplInit(VBOXHGCMSVCFNTABLE *pTable)
+int ShClBackendInit(PSHCLBACKEND pBackend, VBOXHGCMSVCFNTABLE *pTable)
 {
     RT_NOREF(pTable);
     LogFlowFunc(("called, returning VINF_SUCCESS\n"));
     return VINF_SUCCESS;
 }
 
-/** Terminate the host side of the shared clipboard - called by the hgcm layer. */
-void ShClSvcImplDestroy(void)
+/*
+ * Terminate the host side of the shared clipboard - called by the hgcm layer.
+ */
+void ShClBackendDestroy(PSHCLBACKEND pBackend)
 {
+    RT_NOREF(pBackend);
     LogFlowFunc(("called, returning\n"));
 }
 
-/**
-  * Enable the shared clipboard - called by the hgcm clipboard subsystem.
-  *
-  * @returns RT status code
-  * @param   pClient            Structure containing context information about the guest system
-  * @param   fHeadless          Whether headless.
-  */
-int ShClSvcImplConnect(PSHCLCLIENT pClient, bool fHeadless)
+int ShClBackendConnect(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, bool fHeadless)
 {
-    RT_NOREF(pClient, fHeadless);
+    RT_NOREF(pBackend, pClient, fHeadless);
     LogFlowFunc(("called, returning VINF_SUCCESS\n"));
     return VINF_SUCCESS;
 }
 
-/**
+/*
  * Synchronise the contents of the host clipboard with the guest, called by the HGCM layer
  * after a save and restore of the guest.
  */
-int ShClSvcImplSync(PSHCLCLIENT pClient)
+int ShClBackendSync(PSHCLBACKEND pBackend, PSHCLCLIENT pClient)
 {
-    RT_NOREF(pClient);
+    RT_NOREF(pBackend, pClient);
     LogFlowFunc(("called, returning VINF_SUCCESS\n"));
     return VINF_SUCCESS;
 }
 
-/**
- * Shut down the shared clipboard subsystem and "disconnect" the guest.
- *
- * @param   pClient         Structure containing context information about the guest system
- */
-int ShClSvcImplDisconnect(PSHCLCLIENT pClient)
+int ShClBackendDisconnect(PSHCLBACKEND pBackend, PSHCLCLIENT pClient)
 {
-    RT_NOREF(pClient);
+    RT_NOREF(pBackend, pClient);
     return VINF_SUCCESS;
 }
 
-/**
- * The guest is taking possession of the shared clipboard.  Called by the HGCM clipboard
- * subsystem.
- *
- * @param pClient               Context data for the guest system.
- * @param fFormats              Clipboard formats the guest is offering.
+/*
+ * The guest is taking possession of the shared clipboard.
+ * Called by the HGCM clipboard subsystem.
  */
-int ShClSvcImplFormatAnnounce(PSHCLCLIENT pClient, SHCLFORMATS fFormats)
+int ShClBackendReportFormats(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, SHCLFORMATS fFormats)
 {
-    RT_NOREF(pClient, fFormats);
+    RT_NOREF(pBackend, pClient, fFormats);
     return VINF_SUCCESS;
 }
 
-/**
+/*
  * Called by the HGCM clipboard subsystem when the guest wants to read the host clipboard.
- *
- * @param pClient       Context information about the guest VM
- * @param pCmdCtx       Command context to use.
- * @param uFormat       Clipboard format to read.
- * @param pvData        Where to return the read clipboard data.
- * @param cbData        Size (in bytes) of buffer where to return the clipboard data.
- * @param pcbActual     Where to store the actual amount of data available.
  */
-int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
+int ShClBackendReadData(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
                         SHCLFORMAT uFormat, void *pvData, uint32_t cbData, uint32_t *pcbActual)
 {
-    RT_NOREF(pClient, pCmdCtx, uFormat, pvData, cbData);
+    RT_NOREF(pBackend, pClient, pCmdCtx, uFormat, pvData, cbData);
 
     /* No data available. */
     *pcbActual = 0;
@@ -123,10 +114,10 @@ int ShClSvcImplReadData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
     return VINF_SUCCESS;
 }
 
-int ShClSvcImplWriteData(PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
+int ShClBackendWriteData(PSHCLBACKEND pBackend, PSHCLCLIENT pClient, PSHCLCLIENTCMDCTX pCmdCtx,
                          SHCLFORMAT uFormat, void *pvData, uint32_t cbData)
 {
-    RT_NOREF(pClient, pCmdCtx, uFormat, pvData, cbData);
+    RT_NOREF(pBackend, pClient, pCmdCtx, uFormat, pvData, cbData);
     return VERR_NOT_IMPLEMENTED;
 }
 

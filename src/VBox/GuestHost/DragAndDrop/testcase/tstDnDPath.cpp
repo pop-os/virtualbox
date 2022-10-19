@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2020 Oracle Corporation
+ * Copyright (C) 2020-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #include <iprt/assert.h>
@@ -27,14 +37,14 @@
 
 static void tstPathRebase(RTTEST hTest)
 {
-    struct
+    static struct
     {
         char const *pszPath;
         char const *pszPathOld;
         char const *pszPathNew;
         int rc;
         char const *pszResult;
-    } aTests[] = {
+    } const s_aTests[] = {
         /* Invalid stuff. */
         { NULL, NULL, NULL, VERR_INVALID_POINTER, NULL },
         { "foo", "old", NULL, VERR_INVALID_POINTER, NULL },
@@ -55,14 +65,17 @@ static void tstPathRebase(RTTEST hTest)
     };
 
     char *pszPath = NULL;
-    for (size_t i = 0; i < RT_ELEMENTS(aTests); i++)
+    for (size_t i = 0; i < RT_ELEMENTS(s_aTests); i++)
     {
-        RTTEST_CHECK_RC(hTest, DnDPathRebase(aTests[i].pszPath, aTests[i].pszPathOld, aTests[i].pszPathNew, &pszPath), aTests[i].rc);
-        if (RT_SUCCESS(aTests[i].rc))
+        RTTestDisableAssertions(hTest);
+        RTTEST_CHECK_RC(hTest, DnDPathRebase(s_aTests[i].pszPath, s_aTests[i].pszPathOld, s_aTests[i].pszPathNew, &pszPath),
+                        s_aTests[i].rc);
+        RTTestRestoreAssertions(hTest);
+        if (RT_SUCCESS(s_aTests[i].rc))
         {
-            if (aTests[i].pszResult)
-                RTTEST_CHECK_MSG(hTest, RTPathCompare(pszPath, aTests[i].pszResult) == 0,
-                                 (hTest, "Test #%zu failed: Got '%s', expected '%s'", i, pszPath, aTests[i].pszResult));
+            if (s_aTests[i].pszResult)
+                RTTEST_CHECK_MSG(hTest, RTPathCompare(pszPath, s_aTests[i].pszResult) == 0,
+                                 (hTest, "Test #%zu failed: Got '%s', expected '%s'", i, pszPath, s_aTests[i].pszResult));
             RTStrFree(pszPath);
             pszPath = NULL;
         }

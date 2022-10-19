@@ -5,24 +5,34 @@
 ;
 
 ;
-; Copyright (C) 2006-2020 Oracle Corporation
+; Copyright (C) 2006-2022 Oracle and/or its affiliates.
 ;
-; This file is part of VirtualBox Open Source Edition (OSE), as
-; available from http://www.virtualbox.org. This file is free software;
-; you can redistribute it and/or modify it under the terms of the GNU
-; General Public License (GPL) as published by the Free Software
-; Foundation, in version 2 as it comes in the "COPYING" file of the
-; VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+; This file is part of VirtualBox base platform packages, as
+; available from https://www.virtualbox.org.
+;
+; This program is free software; you can redistribute it and/or
+; modify it under the terms of the GNU General Public License
+; as published by the Free Software Foundation, in version 3 of the
+; License.
+;
+; This program is distributed in the hope that it will be useful, but
+; WITHOUT ANY WARRANTY; without even the implied warranty of
+; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+; General Public License for more details.
+;
+; You should have received a copy of the GNU General Public License
+; along with this program; if not, see <https://www.gnu.org/licenses>.
 ;
 ; The contents of this file may alternatively be used under the terms
 ; of the Common Development and Distribution License Version 1.0
-; (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-; VirtualBox OSE distribution, in which case the provisions of the
+; (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+; in the VirtualBox distribution, in which case the provisions of the
 ; CDDL are applicable instead of those of the GPL.
 ;
 ; You may elect to license modified versions of this file under the
 ; terms and conditions of either the GPL or the CDDL or both.
+;
+; SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 ;
 
 %define VERR_NO_VM_MEMORY    (-1000)
@@ -51,6 +61,7 @@
 %define VERR_RAW_MODE_NOT_SUPPORTED    (-1023)
 %define VERR_INCONSISTENT_VM_HANDLE    (-1024)
 %define VERR_VM_RESTORED    (-1025)
+%define VERR_NOT_SUP_BY_NEM    (-1026)
 %define VINF_EM_FIRST    1100
 %define VINF_EM_TERMINATE    1100
 %define VINF_EM_DBG_HYPER_STEPPED    1101
@@ -105,6 +116,7 @@
 %define VINF_EM_PENDING_R3_IOPORT_READ    1159
 %define VINF_EM_PENDING_R3_IOPORT_WRITE    1160
 %define VINF_EM_RESUME_R3_HISTORY_EXEC    1161
+%define VINF_EM_EMULATE_SPLIT_LOCK    1162
 %define VERR_DBGF_NOT_ATTACHED    (-1200)
 %define VERR_DBGF_ALREADY_ATTACHED    (-1201)
 %define VWRN_DBGF_ALREADY_HALTED    1202
@@ -127,6 +139,27 @@
 %define VERR_DBGF_STACK_IPE_1    (-1218)
 %define VERR_DBGF_STACK_IPE_2    (-1219)
 %define VERR_DBGF_NO_TRACE_BUFFER    (-1220)
+%define VERR_DBGF_TRACER_IPE_1    (-1221)
+%define VWRN_DBGF_ALREADY_RUNNING    (-1222)
+%define VERR_DBGF_IPE_1    (-1223)
+%define VINF_DBGF_BP_HALT    (1224)
+%define VERR_DBGF_OWNER_BUSY    (-1225)
+%define VERR_DBGF_BP_INT3_ADD_TRIES_REACHED    (-1226)
+%define VERR_DBGF_BP_IPE_1    (-1227)
+%define VERR_DBGF_BP_IPE_2    (-1228)
+%define VERR_DBGF_BP_IPE_3    (-1229)
+%define VERR_DBGF_BP_IPE_4    (-1230)
+%define VERR_DBGF_BP_IPE_5    (-1231)
+%define VERR_DBGF_BP_IPE_6    (-1232)
+%define VERR_DBGF_BP_IPE_7    (-1233)
+%define VERR_DBGF_BP_IPE_8    (-1234)
+%define VERR_DBGF_BP_IPE_9    (-1235)
+%define VERR_DBGF_BP_L1_LOOKUP_FAILED    (-1236)
+%define VERR_DBGF_BP_L2_LOOKUP_FAILED    (-1237)
+%define VERR_DBGF_BP_OWNER_NO_MORE_HANDLES    (-1238)
+%define VINF_DBGF_R3_BP_OWNER_DEFER    1239
+%define VERR_DBGF_BP_OWNER_CALLBACK_WRONG_STATUS    (-1240)
+%define VERR_DBGF_CANCELLED    (-1241)
 %define VWRN_CONTINUE_ANALYSIS    1400
 %define VWRN_CONTINUE_RECOMPILE    VWRN_CONTINUE_ANALYSIS
 %define VWRN_PATM_CONTINUE_SEARCH    VWRN_CONTINUE_ANALYSIS
@@ -183,7 +216,6 @@
 %define VERR_PGM_NO_HYPERVISOR_ADDRESS    (-1619)
 %define VINF_PGM_CACHED_PAGE    1622
 %define VINF_PGM_GCPHYS_ALIASED    1623
-%define VINF_PGM_CHANGE_MODE    1624
 %define VINF_PGM_SYNCPAGE_MODIFIED_PDE    1625
 %define VERR_PGM_GCPHYS_RANGE_CROSSES_BOUNDARY    (-1626)
 %define VERR_PGM_INTERMEDIATE_PAGING_CONFLICT    (-1627)
@@ -246,6 +278,8 @@
 %define VERR_PGM_PHYS_MMIO_EX_IPE    (-1685)
 %define VERR_PGM_MODE_IPE    (-1686)
 %define VERR_PGM_SHW_NONE_IPE    (-1687)
+%define VERR_PGM_PAE_PDPE_RSVD    (-1688)
+%define VERR_PGM_NOT_SUPPORTED_FOR_NEM_MODE    (-1689)
 %define VERR_MM_RAM_CONFLICT    (-1700)
 %define VERR_MM_HYPER_NO_MEMORY    (-1701)
 %define VERR_MM_BAD_TRAP_TYPE_IPE    (-1702)
@@ -380,6 +414,7 @@
 %define VERR_CFGM_NOT_STRING    (-2107)
 %define VERR_CFGM_NOT_BYTES    (-2108)
 %define VERR_CFGM_NOT_ENOUGH_SPACE    (-2109)
+%define VERR_CFGM_NOT_PASSWORD    (-2110)
 %define VERR_CFGM_INVALID_NODE_PATH    (-2160)
 %define VERR_CFGM_NODE_EXISTS    (-2161)
 %define VERR_CFGM_LEAF_EXISTS    (-2162)
@@ -398,6 +433,18 @@
 %define VERR_TM_TSC_ALREADY_TICKING    (-2209)
 %define VERR_TM_TSC_ALREADY_PAUSED    (-2210)
 %define VERR_TM_VIRTUAL_TICKING_IPE    (-2211)
+%define VERR_TM_TOO_MANY_TIMERS    (-2212)
+%define VERR_TM_INVALID_TIMER_QUEUE    (-2213)
+%define VERR_TM_TIMER_QUEUE_CANNOT_GROW    (-2214)
+%define VERR_TM_IPE_1    (-2291)
+%define VERR_TM_IPE_2    (-2292)
+%define VERR_TM_IPE_3    (-2293)
+%define VERR_TM_IPE_4    (-2294)
+%define VERR_TM_IPE_5    (-2295)
+%define VERR_TM_IPE_6    (-2296)
+%define VERR_TM_IPE_7    (-2297)
+%define VERR_TM_IPE_8    (-2298)
+%define VERR_TM_IPE_9    (-2299)
 %define VERR_REM_VIRTUAL_HARDWARE_ERROR    (-2300)
 %define VERR_REM_VIRTUAL_CPU_ERROR    (-2301)
 %define VINF_REM_INTERRUPED_FF    2302
@@ -409,12 +456,11 @@
 %define VERR_TRPM_SHADOW_IDT_WRITE    (-2402)
 %define VERR_TRPM_DONT_PANIC    (-2403)
 %define VERR_TRPM_PANIC    (-2404)
-%define VINF_TRPM_XCPT_DISPATCHED    2405
-%define VERR_TRPM_BAD_TRAP_IN_OP    (-2406)
-%define VERR_TRPM_IPE_1    (-2407)
-%define VERR_TRPM_IPE_2    (-2408)
-%define VERR_TRPM_IPE_3    (-2409)
-%define VERR_TRPM_HM_IPE    (-2410)
+%define VERR_TRPM_BAD_TRAP_IN_OP    (-2405)
+%define VERR_TRPM_IPE_1    (-2406)
+%define VERR_TRPM_IPE_2    (-2407)
+%define VERR_TRPM_IPE_3    (-2408)
+%define VERR_TRPM_HM_IPE    (-2409)
 %define VERR_SELM_SHADOW_GDT_WRITE    (-2500)
 %define VERR_SELM_SHADOW_LDT_WRITE    (-2501)
 %define VERR_SELM_SHADOW_TSS_WRITE    (-2502)
@@ -458,18 +504,20 @@
 %define VERR_IOM_MMIO_IPE_3    (-2636)
 %define VERR_IOM_HM_IPE    (-2637)
 %define VERR_IOM_FF_STATUS_IPE    (-2638)
-%define VINF_VMM_CALL_HOST    2700
+%define VERR_IOM_TOO_MANY_IOPORT_REGISTRATIONS    (-2650)
+%define VERR_IOM_INVALID_IOPORT_HANDLE    (-2651)
+%define VERR_IOM_IOPORTS_ALREADY_MAPPED    (-2652)
+%define VERR_IOM_IOPORTS_NOT_MAPPED    (-2653)
+%define VERR_IOM_TOO_MANY_MMIO_REGISTRATIONS    (-2660)
+%define VERR_IOM_INVALID_MMIO_HANDLE    (-2661)
+%define VERR_IOM_MMIO_REGION_ALREADY_MAPPED    (-2662)
+%define VERR_IOM_MMIO_REGION_NOT_MAPPED    (-2663)
 %define VERR_VMM_RING0_ASSERTION    (-2701)
 %define VERR_VMM_HYPER_CR3_MISMATCH    (-2702)
 %define VERR_VMM_RING3_CALL_DISABLED    (-2703)
 %define VERR_VMM_R0_VERSION_MISMATCH    (-2704)
 %define VERR_VMM_RC_VERSION_MISMATCH    (-2705)
-%define VERR_VMM_SET_JMP_ERROR    (-2706)
-%define VERR_VMM_SET_JMP_STACK_OVERFLOW    (-2707)
-%define VERR_VMM_SET_JMP_ABORTED_RESUME    (-2708)
 %define VERR_VMM_LONG_JMP_ERROR    (-2709)
-%define VERR_VMM_UNKNOWN_RING3_CALL    (-2710)
-%define VERR_VMM_RING3_CALL_NO_RC    (-2711)
 %define VINF_VMM_CALL_TRACER    (2712)
 %define VERR_VMM_SWITCHER_IPE_1    (-2713)
 %define VINF_VMM_UNKNOWN_RING3_CALL    (2714)
@@ -477,6 +525,8 @@
 %define VERR_VMM_WRONG_HM_VMCPU_STATE    (-2716)
 %define VERR_VMM_SMAP_BUT_AC_CLEAR    (-2717)
 %define VERR_VMM_WRONG_NEM_VMCPU_STATE    (-2718)
+%define VERR_VMM_CONTEXT_HOOK_STILL_ENABLED    (-2719)
+%define VERR_VMM_CANNOT_BLOCK    (-2720)
 %define VERR_PDM_NO_SUCH_LUN    (-2800)
 %define VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES    (-2801)
 %define VERR_PDM_MISSING_INTERFACE_ABOVE    (-2802)
@@ -549,7 +599,7 @@
 %define VERR_PDM_TOO_MANY_DRIVER_INSTANCES    (-2868)
 %define VERR_PDM_TOO_MANY_USB_DEVICE_INSTANCES    (-2869)
 %define VERR_PDM_DEVINS_VERSION_MISMATCH    (-2870)
-%define VERR_PDM_DEVHLPR3_VERSION_MISMATCH    (-2871)
+%define VERR_PDM_DEVHLP_VERSION_MISMATCH    (-2871)
 %define VERR_PDM_USBINS_VERSION_MISMATCH    (-2872)
 %define VERR_PDM_USBHLPR3_VERSION_MISMATCH    (-2873)
 %define VERR_PDM_DRVINS_VERSION_MISMATCH    (-2874)
@@ -578,6 +628,13 @@
 %define VERR_PDM_MEDIAEX_IOREQID_NOT_FOUND    (-2897)
 %define VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS    2898
 %define VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE    (-2899)
+%define VINF_PDM_PCI_DO_DEFAULT    (7200)
+%define VERR_PDM_CRITSECT_ABORT_FAILED    (-7201)
+%define VERR_PDM_CRITSECTRW_TOO_MANY_READERS    (-7202)
+%define VERR_PDM_CRITSECTRW_TOO_MANY_WRITERS    (-7203)
+%define VERR_PDM_CRITSECTRW_TOO_MANY_RECURSIONS    (-7204)
+%define VERR_PDM_CRITSECTRW_IPE    (-7205)
+%define VERR_PDM_CRITSECTRW_MISALIGNED    (-7206)
 %define VERR_HGCM_SERVICE_NOT_FOUND    (-2900)
 %define VINF_HGCM_CLIENT_REJECTED    2901
 %define VERR_HGCM_INVALID_CMD_ADDRESS    (-2902)
@@ -586,6 +643,8 @@
 %define VERR_HGCM_INVALID_CLIENT_ID    (-2905)
 %define VINF_HGCM_SAVE_STATE    (2906)
 %define VERR_HGCM_SERVICE_EXISTS    (-2907)
+%define VERR_HGCM_TOO_MANY_CLIENTS    (-2908)
+%define VERR_HGCM_TOO_MANY_CLIENT_CALLS    (-2909)
 %define VERR_NAT_REDIR_GUEST_IP    (-3001)
 %define VERR_NAT_REDIR_SETUP    (-3002)
 %define VERR_HOSTIF_INIT_FAILED    (-3100)
@@ -758,7 +817,6 @@
 %define VERR_SUPLIB_TEXT_NOT_WRITEABLE    (-3776)
 %define VERR_SUPLIB_TEXT_NOT_SEALED    (-3777)
 %define VERR_SUPLIB_UNEXPECTED_INSTRUCTION    (-3778)
-%define VERR_GMM_SEED_ME    (-3800)
 %define VERR_GMM_OUT_OF_MEMORY    (-3801)
 %define VERR_GMM_HIT_GLOBAL_LIMIT    (-3802)
 %define VERR_GMM_HIT_VM_ACCOUNT_LIMIT    (-3803)
@@ -828,6 +886,12 @@
 %define VERR_VMX_VMEXIT_FAILED    (-4034)
 %define VINF_VMX_INTERCEPT_NOT_ACTIVE    4035
 %define VINF_VMX_MODIFIES_BEHAVIOR    4036
+%define VINF_VMX_VMLAUNCH_VMRESUME    4037
+%define VERR_VMX_INVALID_VMCS_LAUNCH_STATE    (-4038)
+%define VERR_VMX_STARTVM_PRECOND_0    (-4039)
+%define VERR_VMX_STARTVM_PRECOND_1    (-4040)
+%define VERR_VMX_STARTVM_PRECOND_2    (-4041)
+%define VERR_VMX_STARTVM_PRECOND_3    (-4042)
 %define VERR_SVM_UNABLE_TO_START_VM    (-4050)
 %define VERR_SVM_ILLEGAL_EFER_MSR    (-4051)
 %define VERR_SVM_NO_SVM    (-4052)
@@ -848,6 +912,10 @@
 %define VINF_SVM_VMEXIT    4067
 %define VINF_SVM_VMRUN    4068
 %define VINF_SVM_INTERCEPT_NOT_ACTIVE    4069
+%define VERR_SVM_VMRUN_PRECOND_0    (-4070)
+%define VERR_SVM_VMRUN_PRECOND_1    (-4071)
+%define VERR_SVM_VMRUN_PRECOND_2    (-4072)
+%define VERR_SVM_VMRUN_PRECOND_3    (-4073)
 %define VERR_HM_SUSPEND_PENDING    (-4100)
 %define VERR_HM_CONFIG_MISMATCH    (-4103)
 %define VERR_HM_ALREADY_ENABLED_IPE    (-4104)
@@ -907,6 +975,7 @@
 %define VERR_PCI_PASSTHROUGH_NO_RAM_PREALLOC    (-5100)
 %define VERR_PCI_PASSTHROUGH_NO_HM    (-5101)
 %define VERR_PCI_PASSTHROUGH_NO_NESTED_PAGING    (-5102)
+%define VINF_PCI_MAPPING_DONE    5150
 %define VERR_GVMM_INSTANCE    (-5200)
 %define VERR_GVMM_HOST_CPU_RANGE    (-5201)
 %define VERR_GVMM_BROKEN_IPRT    (-5202)
@@ -1042,13 +1111,17 @@
 %define VERR_SUP_VP_FILE_MODE_ERROR    (-5674)
 %define VERR_SUP_VP_CREATE_READ_EVT_SEM_FAILED    (-5675)
 %define VERR_SUP_VP_UNDESIRABLE_MODULE    (-5676)
+%define VERR_SUP_DRIVERLESS    (-5699)
+%define VINF_SUP_DRIVERLESS    5699
 %define VERR_EXTPACK_UNSUPPORTED_HOST_UNINSTALL    (-6000)
 %define VERR_EXTPACK_VBOX_VERSION_MISMATCH    (-6001)
 %define VERR_GSTCTL_GUEST_ERROR    (-6200)
 %define VWRN_GSTCTL_OBJECTSTATE_CHANGED    6220
 %define VERR_GSTCTL_PROCESS_WRONG_STATE    (-6221)
-%define VERR_GSTCTL_MAX_OBJECTS_REACHED    (-6222)
-%define VERR_GSTCTL_PROCESS_EXIT_CODE    (-6223)
+%define VERR_GSTCTL_MAX_CID_SESSIONS_REACHED    (-6222)
+%define VERR_GSTCTL_MAX_CID_OBJECTS_REACHED    (-6223)
+%define VERR_GSTCTL_MAX_CID_COUNT_REACHED    (-6224)
+%define VERR_GSTCTL_PROCESS_EXIT_CODE    (-6225)
 %define VERR_GIM_NOT_ENABLED    (-6300)
 %define VERR_GIM_IPE_1    (-6301)
 %define VERR_GIM_IPE_2    (-6302)
@@ -1079,13 +1152,16 @@
 %define VINF_AUDIO_MORE_DATA_AVAILABLE    (6605)
 %define VERR_AUDIO_STREAM_NOT_READY    (-6605)
 %define VERR_AUDIO_STREAM_COULD_NOT_CREATE    (-6606)
+%define VERR_AUDIO_ENUMERATION_FAILED    (-6607)
+%define VERR_AUDIO_STREAM_INIT_IN_PROGRESS    (-6608)
+%define VINF_AUDIO_STREAM_ASYNC_INIT_NEEDED    (6609)
 %define VERR_APIC_INTR_NOT_PENDING    (-6700)
 %define VERR_APIC_INTR_MASKED_BY_TPR    (-6701)
 %define VERR_APIC_INTR_DISCARDED    (-6702)
 %define VERR_NEM_NOT_ENABLED    (-6800)
 %define VERR_NEM_NOT_AVAILABLE    (-6801)
 %define VERR_NEM_INIT_FAILED    (-6802)
-%define VERR_NEM_MISSING_KERNEL_API    (-6803)
+%define VERR_NEM_MISSING_KERNEL_API_1    (-6803)
 %define VERR_NEM_RING3_ONLY    (-6804)
 %define VERR_NEM_VM_CREATE_FAILED    (-6805)
 %define VERR_NEM_MAP_PAGES_FAILED    (-6806)
@@ -1095,6 +1171,12 @@
 %define VERR_NEM_FLUSH_TLB    (-6810)
 %define VINF_NEM_FLUSH_TLB    (6810)
 %define VERR_NEM_SET_TSC    (-6811)
+%define VERR_NEM_MISSING_KERNEL_API_2    (-6812)
+%define VERR_NEM_MISSING_KERNEL_API_3    (-6813)
+%define VERR_NEM_MISSING_KERNEL_API_4    (-6814)
+%define VERR_NEM_MISSING_KERNEL_API_5    (-6815)
+%define VERR_NEM_QUERY_DIRTY_BITMAP_FAILED    (-6816)
+%define VERR_NEM_MISSING_FEATURE    (-6817)
 %define VERR_NEM_IPE_0    (-6890)
 %define VERR_NEM_IPE_1    (-6891)
 %define VERR_NEM_IPE_2    (-6892)
@@ -1114,4 +1196,35 @@
 %define VERR_RECORDING_LIMIT_REACHED    (-6906)
 %define VINF_RECORDING_THROTTLED    (6907)
 %define VERR_RECORDING_THROTTLED    (-6907)
+%define VERR_RECORDING_ENCODING_FAILED    (-6908)
+%define VERR_SHCLPB_MAX_TRANSFERS_REACHED    (-7100)
+%define VERR_SHCLPB_MAX_OBJECTS_REACHED    (-7101)
+%define VERR_SHCLPB_MAX_LISTS_REACHED    (-7102)
+%define VERR_SHCLPB_LIST_HANDLE_INVALID    (-7103)
+%define VERR_SHCLPB_OBJ_HANDLE_INVALID    (-7104)
+%define VERR_SHCLPB_EVENT_ID_NOT_FOUND    (-7105)
+%define VERR_SHCLPB_MAX_EVENTS_REACHED    (-7106)
+%define VERR_SHCLPB_TRANSFER_ID_NOT_FOUND    (-7150)
+%define VERR_IOMMU_DTE_READ_FAILED    (-7300)
+%define VERR_IOMMU_DTE_BAD_OFFSET    (-7301)
+%define VERR_IOMMU_ADDR_TRANSLATION_FAILED    (-7302)
+%define VERR_IOMMU_ADDR_ACCESS_DENIED    (-7303)
+%define VERR_IOMMU_INTR_REMAP_FAILED    (-7304)
+%define VERR_IOMMU_INTR_REMAP_DENIED    (-7305)
+%define VERR_IOMMU_CMD_NOT_SUPPORTED    (-7306)
+%define VERR_IOMMU_CMD_INVALID_FORMAT    (-7307)
+%define VERR_IOMMU_CMD_HW_ERROR    (-7308)
+%define VERR_IOMMU_NOT_PRESENT    (-7309)
+%define VERR_IOMMU_CANNOT_CALL_SELF    (-7310)
+%define VINF_IOMMU_ADDR_TRANSLATION_DISABLED    7311
+%define VERR_IOMMU_IPE_0    (-7390)
+%define VERR_IOMMU_IPE_1    (-7391)
+%define VERR_IOMMU_IPE_2    (-7392)
+%define VERR_IOMMU_IPE_3    (-7393)
+%define VERR_IOMMU_IPE_4    (-7394)
+%define VERR_IOMMU_IPE_5    (-7395)
+%define VERR_IOMMU_IPE_6    (-7396)
+%define VERR_IOMMU_IPE_7    (-7397)
+%define VERR_IOMMU_IPE_8    (-7398)
+%define VERR_IOMMU_IPE_9    (-7399)
 %include "iprt/err.mac"

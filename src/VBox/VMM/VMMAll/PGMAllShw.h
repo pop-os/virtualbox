@@ -4,21 +4,32 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
+#undef SHWUINT
 #undef SHWPT
 #undef PSHWPT
 #undef SHWPTE
@@ -30,6 +41,11 @@
 #undef SHW_PDE_PG_MASK
 #undef SHW_PD_SHIFT
 #undef SHW_PD_MASK
+#undef SHW_PDE_ATOMIC_SET
+#undef SHW_PDE_ATOMIC_SET2
+#undef SHW_PDE_IS_P
+#undef SHW_PDE_IS_A
+#undef SHW_PDE_IS_BIG
 #undef SHW_PTE_PG_MASK
 #undef SHW_PTE_IS_P
 #undef SHW_PTE_IS_RW
@@ -54,6 +70,7 @@
 #undef SHW_PDPE_PG_MASK
 
 #if PGM_SHW_TYPE == PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT
+# define SHWUINT                        uint32_t
 # define SHWPT                          X86PT
 # define PSHWPT                         PX86PT
 # define SHWPTE                         X86PTE
@@ -66,13 +83,18 @@
 # define SHW_PD_SHIFT                   X86_PD_SHIFT
 # define SHW_PD_MASK                    X86_PD_MASK
 # define SHW_TOTAL_PD_ENTRIES           X86_PG_ENTRIES
+# define SHW_PDE_IS_P(Pde)              ( (Pde).u & X86_PDE_P )
+# define SHW_PDE_IS_A(Pde)              ( (Pde).u & X86_PDE_A )
+# define SHW_PDE_IS_BIG(Pde)            ( (Pde).u & X86_PDE_PS  )
+# define SHW_PDE_ATOMIC_SET(Pde, uNew)  do { ASMAtomicWriteU32(&(Pde).u, (uNew)); } while (0)
+# define SHW_PDE_ATOMIC_SET2(Pde, Pde2) do { ASMAtomicWriteU32(&(Pde).u, (Pde2).u); } while (0)
 # define SHW_PTE_PG_MASK                X86_PTE_PG_MASK
-# define SHW_PTE_IS_P(Pte)              ( (Pte).n.u1Present )
-# define SHW_PTE_IS_RW(Pte)             ( (Pte).n.u1Write )
-# define SHW_PTE_IS_US(Pte)             ( (Pte).n.u1User )
-# define SHW_PTE_IS_A(Pte)              ( (Pte).n.u1Accessed )
-# define SHW_PTE_IS_D(Pte)              ( (Pte).n.u1Dirty )
-# define SHW_PTE_IS_P_RW(Pte)           ( (Pte).n.u1Present && (Pte).n.u1Write )
+# define SHW_PTE_IS_P(Pte)              ( (Pte).u & X86_PTE_P )
+# define SHW_PTE_IS_RW(Pte)             ( (Pte).u & X86_PTE_RW )
+# define SHW_PTE_IS_US(Pte)             ( (Pte).u & X86_PTE_US )
+# define SHW_PTE_IS_A(Pte)              ( (Pte).u & X86_PTE_A )
+# define SHW_PTE_IS_D(Pte)              ( (Pte).u & X86_PTE_D )
+# define SHW_PTE_IS_P_RW(Pte)           ( ((Pte).u & (X86_PTE_P | X86_PTE_RW)) == (X86_PTE_P | X86_PTE_RW) )
 # define SHW_PTE_IS_TRACK_DIRTY(Pte)    ( !!((Pte).u & PGM_PTFLAGS_TRACK_DIRTY) )
 # define SHW_PTE_GET_HCPHYS(Pte)        ( (Pte).u & X86_PTE_PG_MASK )
 # define SHW_PTE_LOG64(Pte)             ( (uint64_t)(Pte).u )
@@ -80,12 +102,13 @@
 # define SHW_PTE_SET(Pte, uNew)         do { (Pte).u = (uNew); } while (0)
 # define SHW_PTE_ATOMIC_SET(Pte, uNew)  do { ASMAtomicWriteU32(&(Pte).u, (uNew)); } while (0)
 # define SHW_PTE_ATOMIC_SET2(Pte, Pte2) do { ASMAtomicWriteU32(&(Pte).u, (Pte2).u); } while (0)
-# define SHW_PTE_SET_RO(Pte)            do { (Pte).n.u1Write = 0; } while (0)
-# define SHW_PTE_SET_RW(Pte)            do { (Pte).n.u1Write = 1; } while (0)
+# define SHW_PTE_SET_RO(Pte)            do { (Pte).u &= ~(X86PGUINT)X86_PTE_RW; } while (0)
+# define SHW_PTE_SET_RW(Pte)            do { (Pte).u |= X86_PTE_RW; } while (0)
 # define SHW_PT_SHIFT                   X86_PT_SHIFT
 # define SHW_PT_MASK                    X86_PT_MASK
 
 #elif PGM_SHW_TYPE == PGM_TYPE_EPT
+# define SHWUINT                        uint64_t
 # define SHWPT                          EPTPT
 # define PSHWPT                         PEPTPT
 # define SHWPTE                         EPTPTE
@@ -97,30 +120,36 @@
 # define SHW_PDE_PG_MASK                EPT_PDE_PG_MASK
 # define SHW_PD_SHIFT                   EPT_PD_SHIFT
 # define SHW_PD_MASK                    EPT_PD_MASK
+# define SHW_PDE_IS_P(Pde)              ( (Pde).u & EPT_E_READ /* always set*/ )
+# define SHW_PDE_IS_A(Pde)              ( 1 ) /* We don't use EPT_E_ACCESSED, use with care! */
+# define SHW_PDE_IS_BIG(Pde)            ( (Pde).u & EPT_E_LEAF )
+# define SHW_PDE_ATOMIC_SET(Pde, uNew)  do { ASMAtomicWriteU64(&(Pde).u, (uNew)); } while (0)
+# define SHW_PDE_ATOMIC_SET2(Pde, Pde2) do { ASMAtomicWriteU64(&(Pde).u, (Pde2).u); } while (0)
 # define SHW_PTE_PG_MASK                EPT_PTE_PG_MASK
-# define SHW_PTE_IS_P(Pte)              ( (Pte).n.u1Present )  /* Approximation, works for us. */
-# define SHW_PTE_IS_RW(Pte)             ( (Pte).n.u1Write )
+# define SHW_PTE_IS_P(Pte)              ( (Pte).u & EPT_E_READ ) /* Approximation, works for us. */
+# define SHW_PTE_IS_RW(Pte)             ( (Pte).u & EPT_E_WRITE )
 # define SHW_PTE_IS_US(Pte)             ( true )
 # define SHW_PTE_IS_A(Pte)              ( true )
 # define SHW_PTE_IS_D(Pte)              ( true )
-# define SHW_PTE_IS_P_RW(Pte)           ( (Pte).n.u1Present && (Pte).n.u1Write )
+# define SHW_PTE_IS_P_RW(Pte)           ( ((Pte).u & (EPT_E_READ | EPT_E_WRITE)) == (EPT_E_READ | EPT_E_WRITE) )
 # define SHW_PTE_IS_TRACK_DIRTY(Pte)    ( false )
-# define SHW_PTE_GET_HCPHYS(Pte)        ( (Pte).u & X86_PTE_PG_MASK )
+# define SHW_PTE_GET_HCPHYS(Pte)        ( (Pte).u & EPT_PTE_PG_MASK )
 # define SHW_PTE_LOG64(Pte)             ( (Pte).u )
 # define SHW_PTE_GET_U(Pte)             ( (Pte).u )             /**< Use with care. */
 # define SHW_PTE_SET(Pte, uNew)         do { (Pte).u = (uNew); } while (0)
 # define SHW_PTE_ATOMIC_SET(Pte, uNew)  do { ASMAtomicWriteU64(&(Pte).u, (uNew)); } while (0)
 # define SHW_PTE_ATOMIC_SET2(Pte, Pte2) do { ASMAtomicWriteU64(&(Pte).u, (Pte2).u); } while (0)
-# define SHW_PTE_SET_RO(Pte)            do { (Pte).n.u1Write = 0; } while (0)
-# define SHW_PTE_SET_RW(Pte)            do { (Pte).n.u1Write = 1; } while (0)
+# define SHW_PTE_SET_RO(Pte)            do { (Pte).u &= ~(uint64_t)EPT_E_WRITE; } while (0)
+# define SHW_PTE_SET_RW(Pte)            do { (Pte).u |= EPT_E_WRITE; } while (0)
 # define SHW_PT_SHIFT                   EPT_PT_SHIFT
 # define SHW_PT_MASK                    EPT_PT_MASK
 # define SHW_PDPT_SHIFT                 EPT_PDPT_SHIFT
 # define SHW_PDPT_MASK                  EPT_PDPT_MASK
 # define SHW_PDPE_PG_MASK               EPT_PDPE_PG_MASK
-# define SHW_TOTAL_PD_ENTRIES           (EPT_PG_AMD64_ENTRIES*EPT_PG_AMD64_PDPE_ENTRIES)
+# define SHW_TOTAL_PD_ENTRIES           (EPT_PG_AMD64_ENTRIES * EPT_PG_AMD64_PDPE_ENTRIES)
 
 #else
+# define SHWUINT                        uint64_t
 # define SHWPT                          PGMSHWPTPAE
 # define PSHWPT                         PPGMSHWPTPAE
 # define SHWPTE                         PGMSHWPTEPAE
@@ -132,6 +161,11 @@
 # define SHW_PDE_PG_MASK                X86_PDE_PAE_PG_MASK
 # define SHW_PD_SHIFT                   X86_PD_PAE_SHIFT
 # define SHW_PD_MASK                    X86_PD_PAE_MASK
+# define SHW_PDE_IS_P(Pde)              ( (Pde).u & X86_PDE_P )
+# define SHW_PDE_IS_A(Pde)              ( (Pde).u & X86_PDE_A )
+# define SHW_PDE_IS_BIG(Pde)            ( (Pde).u & X86_PDE_PS )
+# define SHW_PDE_ATOMIC_SET(Pde, uNew)  do { ASMAtomicWriteU64(&(Pde).u, (uNew)); } while (0)
+# define SHW_PDE_ATOMIC_SET2(Pde, Pde2) do { ASMAtomicWriteU64(&(Pde).u, (Pde2).u); } while (0)
 # define SHW_PTE_PG_MASK                X86_PTE_PAE_PG_MASK
 # define SHW_PTE_IS_P(Pte)              PGMSHWPTEPAE_IS_P(Pte)
 # define SHW_PTE_IS_RW(Pte)             PGMSHWPTEPAE_IS_RW(Pte)
@@ -180,7 +214,6 @@
 RT_C_DECLS_BEGIN
 PGM_SHW_DECL(int, GetPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys);
 PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cbPages, uint64_t fFlags, uint64_t fMask, uint32_t fOpFlags);
-PGM_SHW_DECL(int, Enter)(PVMCPUCC pVCpu, bool fIs64BitsPagingMode);
 PGM_SHW_DECL(int, Exit)(PVMCPUCC pVCpu);
 #ifdef IN_RING3
 PGM_SHW_DECL(int, Relocate)(PVMCPUCC pVCpu, RTGCPTR offDelta);
@@ -193,41 +226,50 @@ RT_C_DECLS_END
  *
  * @returns VBox status code.
  * @param   pVCpu                   The cross context virtual CPU structure.
- * @param   fIs64BitsPagingMode     New shadow paging mode is for 64 bits? (only relevant for 64 bits guests on a 32 bits AMD-V nested paging host)
  */
-PGM_SHW_DECL(int, Enter)(PVMCPUCC pVCpu, bool fIs64BitsPagingMode)
+PGM_SHW_DECL(int, Enter)(PVMCPUCC pVCpu)
 {
 #if PGM_TYPE_IS_NESTED_OR_EPT(PGM_SHW_TYPE)
 
-# if PGM_TYPE_IS_NESTED(PGM_SHW_TYPE) && HC_ARCH_BITS == 32
-    /* Must distinguish between 32 and 64 bits guest paging modes as we'll use
-       a different shadow paging root/mode in both cases. */
-    RTGCPHYS     GCPhysCR3 = (fIs64BitsPagingMode) ? RT_BIT_64(63) : RT_BIT_64(62);
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+    RTGCPHYS    GCPhysCR3;
+    PGMPOOLKIND enmKind;
+    if (pVCpu->pgm.s.enmGuestSlatMode != PGMSLAT_EPT)
+    {
+        GCPhysCR3 = RT_BIT_64(63);
+        enmKind   = PGMPOOLKIND_ROOT_NESTED;
+    }
+    else
+    {
+        GCPhysCR3 = pVCpu->pgm.s.uEptPtr & EPT_EPTP_PG_MASK;
+        enmKind   = PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4;
+    }
 # else
-    RTGCPHYS     GCPhysCR3 = RT_BIT_64(63); NOREF(fIs64BitsPagingMode);
+    RTGCPHYS    const GCPhysCR3 = RT_BIT_64(63);
+    PGMPOOLKIND const enmKind   = PGMPOOLKIND_ROOT_NESTED;
 # endif
-    PPGMPOOLPAGE pNewShwPageCR3;
-    PVMCC        pVM       = pVCpu->CTX_SUFF(pVM);
+    PVMCC       const pVM       = pVCpu->CTX_SUFF(pVM);
 
-    Assert((HMIsNestedPagingActive(pVM) || VM_IS_NEM_ENABLED(pVM)) == pVM->pgm.s.fNestedPaging);
+    Assert(HMIsNestedPagingActive(pVM));
     Assert(pVM->pgm.s.fNestedPaging);
     Assert(!pVCpu->pgm.s.pShwPageCR3R3);
 
-    pgmLock(pVM);
+    PGM_LOCK_VOID(pVM);
 
-    int rc = pgmPoolAlloc(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
+    PPGMPOOLPAGE pNewShwPageCR3;
+    int rc = pgmPoolAlloc(pVM, GCPhysCR3, enmKind, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
                           NIL_PGMPOOL_IDX, UINT32_MAX, true /*fLockPage*/,
                           &pNewShwPageCR3);
-    AssertLogRelRCReturnStmt(rc, pgmUnlock(pVM), rc);
+    AssertLogRelRCReturnStmt(rc, PGM_UNLOCK(pVM), rc);
 
-    pVCpu->pgm.s.pShwPageCR3R3 = (R3PTRTYPE(PPGMPOOLPAGE))MMHyperCCToR3(pVM, pNewShwPageCR3);
-    pVCpu->pgm.s.pShwPageCR3R0 = (R0PTRTYPE(PPGMPOOLPAGE))MMHyperCCToR0(pVM, pNewShwPageCR3);
+    pVCpu->pgm.s.pShwPageCR3R3 = pgmPoolConvertPageToR3(pVM->pgm.s.CTX_SUFF(pPool), pNewShwPageCR3);
+    pVCpu->pgm.s.pShwPageCR3R0 = pgmPoolConvertPageToR0(pVM->pgm.s.CTX_SUFF(pPool), pNewShwPageCR3);
 
-    pgmUnlock(pVM);
+    PGM_UNLOCK(pVM);
 
     Log(("Enter nested shadow paging mode: root %RHv phys %RHp\n", pVCpu->pgm.s.pShwPageCR3R3, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3)->Core.Key));
 #else
-    NOREF(pVCpu); NOREF(fIs64BitsPagingMode);
+    NOREF(pVCpu);
 #endif
     return VINF_SUCCESS;
 }
@@ -247,7 +289,12 @@ PGM_SHW_DECL(int, Exit)(PVMCPUCC pVCpu)
     {
         PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
 
-        pgmLock(pVM);
+        PGM_LOCK_VOID(pVM);
+
+# if defined(VBOX_WITH_NESTED_HWVIRT_VMX_EPT) && PGM_SHW_TYPE == PGM_TYPE_EPT
+        if (pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_EPT)
+            pgmPoolUnlockPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3));
+# endif
 
         /* Do *not* unlock this page as we have two of them floating around in the 32-bit host & 64-bit guest case.
          * We currently assert when you try to free one of them; don't bother to really allow this.
@@ -260,7 +307,7 @@ PGM_SHW_DECL(int, Exit)(PVMCPUCC pVCpu)
         pVCpu->pgm.s.pShwPageCR3R3 = 0;
         pVCpu->pgm.s.pShwPageCR3R0 = 0;
 
-        pgmUnlock(pVM);
+        PGM_UNLOCK(pVM);
 
         Log(("Leave nested shadow paging mode\n"));
     }
@@ -292,7 +339,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags,
     return VERR_PGM_SHW_NONE_IPE;
 
 #else  /* PGM_SHW_TYPE != PGM_TYPE_NONE */
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
 
     PGM_LOCK_ASSERT_OWNER(pVM);
 
@@ -304,7 +351,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags,
 
     /* PML4 */
     X86PML4E        Pml4e = pgmShwGetLongModePML4E(pVCpu, GCPtr);
-    if (!Pml4e.n.u1Present)
+    if (!(Pml4e.u & X86_PML4E_P))
         return VERR_PAGE_TABLE_NOT_PRESENT;
 
     /* PDPT */
@@ -314,7 +361,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags,
         return rc;
     const unsigned  iPDPT = (GCPtr >> SHW_PDPT_SHIFT) & SHW_PDPT_MASK;
     X86PDPE         Pdpe = pPDPT->a[iPDPT];
-    if (!Pdpe.n.u1Present)
+    if (!(Pdpe.u & X86_PDPE_P))
         return VERR_PAGE_TABLE_NOT_PRESENT;
 
     /* PD */
@@ -326,38 +373,43 @@ PGM_SHW_DECL(int, GetPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags,
     Pde = pPd->a[iPd];
 
     /* Merge accessed, write, user and no-execute bits into the PDE. */
-    Pde.n.u1Accessed  &= Pml4e.n.u1Accessed & Pdpe.lm.u1Accessed;
-    Pde.n.u1Write     &= Pml4e.n.u1Write & Pdpe.lm.u1Write;
-    Pde.n.u1User      &= Pml4e.n.u1User & Pdpe.lm.u1User;
-    Pde.n.u1NoExecute |= Pml4e.n.u1NoExecute | Pdpe.lm.u1NoExecute;
+    AssertCompile(X86_PML4E_A  == X86_PDPE_A  && X86_PML4E_A  == X86_PDE_A);
+    AssertCompile(X86_PML4E_RW == X86_PDPE_RW && X86_PML4E_RW == X86_PDE_RW);
+    AssertCompile(X86_PML4E_US == X86_PDPE_US && X86_PML4E_US == X86_PDE_US);
+    AssertCompile(X86_PML4E_NX == X86_PDPE_LM_NX && X86_PML4E_NX == X86_PDE_PAE_NX);
+    Pde.u &= (Pml4e.u & Pdpe.u) | ~(X86PGPAEUINT)(X86_PML4E_A | X86_PML4E_RW | X86_PML4E_US);
+    Pde.u |= (Pml4e.u | Pdpe.u) & X86_PML4E_NX;
 
 # elif PGM_SHW_TYPE == PGM_TYPE_PAE || PGM_SHW_TYPE == PGM_TYPE_NESTED_PAE
     X86PDEPAE       Pde = pgmShwGetPaePDE(pVCpu, GCPtr);
 
 # elif PGM_SHW_TYPE == PGM_TYPE_EPT
-    const unsigned  iPd = ((GCPtr >> SHW_PD_SHIFT) & SHW_PD_MASK);
+    Assert(pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_DIRECT);
     PEPTPD          pPDDst;
-    EPTPDE          Pde;
-
     int rc = pgmShwGetEPTPDPtr(pVCpu, GCPtr, NULL, &pPDDst);
-    if (rc != VINF_SUCCESS) /** @todo this function isn't expected to return informational status codes. Check callers / fix. */
+    if (rc == VINF_SUCCESS) /** @todo this function isn't expected to return informational status codes. Check callers / fix. */
+    { /* likely */ }
+    else
     {
         AssertRC(rc);
         return rc;
     }
     Assert(pPDDst);
-    Pde = pPDDst->a[iPd];
+
+    const unsigned  iPd = ((GCPtr >> SHW_PD_SHIFT) & SHW_PD_MASK);
+    EPTPDE Pde = pPDDst->a[iPd];
 
 # elif PGM_SHW_TYPE == PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT
     X86PDE          Pde = pgmShwGet32BitPDE(pVCpu, GCPtr);
+
 # else
 #  error "Misconfigured PGM_SHW_TYPE or something..."
 # endif
-    if (!Pde.n.u1Present)
+    if (!SHW_PDE_IS_P(Pde))
         return VERR_PAGE_TABLE_NOT_PRESENT;
 
     /* Deal with large pages. */
-    if (Pde.b.u1Size)
+    if (SHW_PDE_IS_BIG(Pde))
     {
         /*
          * Store the results.
@@ -387,31 +439,9 @@ PGM_SHW_DECL(int, GetPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags,
      * Get PT entry.
      */
     PSHWPT          pPT;
-    if (!(Pde.u & PGM_PDFLAGS_MAPPING))
-    {
-        int rc2 = PGM_HCPHYS_2_PTR(pVM, pVCpu, Pde.u & SHW_PDE_PG_MASK, &pPT);
-        if (RT_FAILURE(rc2))
-            return rc2;
-    }
-    else /* mapping: */
-    {
-# if  PGM_SHW_TYPE == PGM_TYPE_AMD64 \
-  || PGM_SHW_TYPE == PGM_TYPE_EPT \
-  || defined(PGM_WITHOUT_MAPPINGS)
-        AssertFailed(); /* can't happen */
-        pPT = NULL;     /* shut up MSC */
-# else
-        Assert(pgmMapAreMappingsEnabled(pVM));
-
-        PPGMMAPPING pMap = pgmGetMapping(pVM, (RTGCPTR)GCPtr);
-        AssertMsgReturn(pMap, ("GCPtr=%RGv\n", GCPtr), VERR_PGM_MAPPING_IPE);
-#  if PGM_SHW_TYPE == PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT
-        pPT = pMap->aPTs[(GCPtr - pMap->GCPtr) >> X86_PD_SHIFT].CTX_SUFF(pPT);
-#  else /* PAE */
-        pPT = pMap->aPTs[(GCPtr - pMap->GCPtr) >> X86_PD_SHIFT].CTX_SUFF(paPaePTs);
-#  endif
-# endif
-    }
+    int rc2 = PGM_HCPHYS_2_PTR(pVM, pVCpu, Pde.u & SHW_PDE_PG_MASK, &pPT);
+    if (RT_FAILURE(rc2))
+        return rc2;
     const unsigned  iPt = (GCPtr >> SHW_PT_SHIFT) & SHW_PT_MASK;
     SHWPTE          Pte = pPT->a[iPt];
     if (!SHW_PTE_IS_P(Pte))
@@ -485,7 +515,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint
         X86PDEPAE       Pde;
         /* PML4 */
         X86PML4E        Pml4e = pgmShwGetLongModePML4E(pVCpu, GCPtr);
-        if (!Pml4e.n.u1Present)
+        if (!(Pml4e.u & X86_PML4E_P))
             return VERR_PAGE_TABLE_NOT_PRESENT;
 
         /* PDPT */
@@ -495,7 +525,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint
             return rc;
         const unsigned  iPDPT = (GCPtr >> SHW_PDPT_SHIFT) & SHW_PDPT_MASK;
         X86PDPE         Pdpe = pPDPT->a[iPDPT];
-        if (!Pdpe.n.u1Present)
+        if (!(Pdpe.u & X86_PDPE_P))
             return VERR_PAGE_TABLE_NOT_PRESENT;
 
         /* PD */
@@ -510,6 +540,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint
         X86PDEPAE       Pde = pgmShwGetPaePDE(pVCpu, GCPtr);
 
 # elif PGM_SHW_TYPE == PGM_TYPE_EPT
+        Assert(pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_DIRECT);
         const unsigned  iPd = ((GCPtr >> SHW_PD_SHIFT) & SHW_PD_MASK);
         PEPTPD          pPDDst;
         EPTPDE          Pde;
@@ -526,10 +557,10 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint
 # else /* PGM_TYPE_32BIT || PGM_SHW_TYPE == PGM_TYPE_NESTED_32BIT */
         X86PDE          Pde = pgmShwGet32BitPDE(pVCpu, GCPtr);
 # endif
-        if (!Pde.n.u1Present)
+        if (!SHW_PDE_IS_P(Pde))
             return VERR_PAGE_TABLE_NOT_PRESENT;
 
-        AssertFatal(!Pde.b.u1Size);
+        AssertFatalMsg(!SHW_PDE_IS_BIG(Pde), ("Pde=%#RX64\n", (uint64_t)Pde.u));
 
         /*
          * Map the page table.
@@ -552,7 +583,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint
                 {
                     /** @todo Some CSAM code path might end up here and upset
                      *  the page pool. */
-                    AssertFailed();
+                    AssertMsgFailed(("NewPte=%#RX64 OrgPte=%#RX64 GCPtr=%#RGv\n", SHW_PTE_LOG64(NewPte), SHW_PTE_LOG64(OrgPte), GCPtr));
                 }
                 else if (   SHW_PTE_IS_RW(NewPte)
                          && !SHW_PTE_IS_RW(OrgPte)
@@ -562,20 +593,19 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint
                      *        then use this when PGM_MK_PG_IS_WRITE_FAULT is
                      *        set instead of resolving the guest physical
                      *        address yet again. */
-                    RTGCPHYS GCPhys;
-                    uint64_t fGstPte;
-                    rc = PGMGstGetPage(pVCpu, GCPtr, &fGstPte, &GCPhys);
+                    PGMPTWALK GstWalk;
+                    rc = PGMGstGetPage(pVCpu, GCPtr, &GstWalk);
                     AssertRC(rc);
                     if (RT_SUCCESS(rc))
                     {
-                        Assert((fGstPte & X86_PTE_RW) || !(CPUMGetGuestCR0(pVCpu) & X86_CR0_WP /* allow netware hack */));
-                        PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
+                        Assert((GstWalk.fEffective & X86_PTE_RW) || !(CPUMGetGuestCR0(pVCpu) & X86_CR0_WP /* allow netware hack */));
+                        PPGMPAGE pPage = pgmPhysGetPage(pVM, GstWalk.GCPhys);
                         Assert(pPage);
                         if (pPage)
                         {
-                            rc = pgmPhysPageMakeWritable(pVM, pPage, GCPhys);
+                            rc = pgmPhysPageMakeWritable(pVM, pPage, GstWalk.GCPhys);
                             AssertRCReturn(rc, rc);
-                            Log(("%s: pgmPhysPageMakeWritable on %RGv / %RGp %R[pgmpage]\n", __PRETTY_FUNCTION__, GCPtr, GCPhys, pPage));
+                            Log(("%s: pgmPhysPageMakeWritable on %RGv / %RGp %R[pgmpage]\n", __PRETTY_FUNCTION__, GCPtr, GstWalk.GCPhys, pPage));
                         }
                     }
                 }
@@ -589,10 +619,10 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPUCC pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint
             }
 
             /* next page */
-            cb -= PAGE_SIZE;
+            cb -= HOST_PAGE_SIZE;
             if (!cb)
                 return VINF_SUCCESS;
-            GCPtr += PAGE_SIZE;
+            GCPtr += HOST_PAGE_SIZE;
             iPTE++;
         }
     }

@@ -4,22 +4,32 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_PDM//_CRITSECT
+#define LOG_GROUP LOG_GROUP_PDM_CRITSECT
 #include "PDMInternal.h"
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/vmm/pdmcritsectrw.h>
@@ -32,6 +42,7 @@
 #include <VBox/sup.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/getopt.h>
 #include <iprt/lockvalidator.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>
@@ -42,45 +53,59 @@
 *********************************************************************************************************************************/
 static int pdmR3CritSectDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTINT pCritSect, PPDMCRITSECTINT pPrev, bool fFinal);
 static int pdmR3CritSectRwDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTRWINT pCritSect, PPDMCRITSECTRWINT pPrev, bool fFinal);
+static FNDBGFINFOARGVINT pdmR3CritSectInfo;
+static FNDBGFINFOARGVINT pdmR3CritSectRwInfo;
 
 
 
 /**
- * Register statistics related to the critical sections.
+ * Register statistics and info items related to the critical sections.
  *
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
  */
-int pdmR3CritSectBothInitStats(PVM pVM)
+int pdmR3CritSectBothInitStatsAndInfo(PVM pVM)
 {
-    RT_NOREF_PV(pVM);
-    STAM_REG(pVM, &pVM->pdm.s.StatQueuedCritSectLeaves, STAMTYPE_COUNTER, "/PDM/QueuedCritSectLeaves", STAMUNIT_OCCURENCES,
-             "Number of times a critical section leave request needed to be queued for ring-3 execution.");
+    /*
+     * Statistics.
+     */
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatQueuedCritSectLeaves, STAMTYPE_COUNTER, "/PDM/CritSects/00-QueuedLeaves", STAMUNIT_OCCURENCES,
+                 "Number of times a critical section leave request needed to be queued for ring-3 execution.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatAbortedCritSectEnters, STAMTYPE_COUNTER, "/PDM/CritSects/00-AbortedEnters", STAMUNIT_OCCURENCES,
+                 "Number of times we've successfully aborted a wait in ring-0.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectEntersWhileAborting, STAMTYPE_COUNTER, "/PDM/CritSects/00-EntersWhileAborting", STAMUNIT_OCCURENCES,
+                 "Number of times we've got the critical section ownership while trying to abort a wait due to VERR_INTERRUPTED.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectVerrInterrupted, STAMTYPE_COUNTER, "/PDM/CritSects/00-VERR_INTERRUPTED", STAMUNIT_OCCURENCES,
+                 "Number of VERR_INTERRUPTED returns.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectVerrTimeout, STAMTYPE_COUNTER, "/PDM/CritSects/00-VERR_TIMEOUT", STAMUNIT_OCCURENCES,
+                 "Number of VERR_TIMEOUT returns.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectNonInterruptibleWaits, STAMTYPE_COUNTER, "/PDM/CritSects/00-Non-interruptible-Waits-VINF_SUCCESS",
+                 STAMUNIT_OCCURENCES, "Number of non-interruptible waits for rcBusy=VINF_SUCCESS");
+
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectRwExclVerrInterrupted, STAMTYPE_COUNTER, "/PDM/CritSectsRw/00-Excl-VERR_INTERRUPTED", STAMUNIT_OCCURENCES,
+                 "Number of VERR_INTERRUPTED returns in exclusive mode.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectRwExclVerrTimeout, STAMTYPE_COUNTER, "/PDM/CritSectsRw/00-Excl-VERR_TIMEOUT", STAMUNIT_OCCURENCES,
+                 "Number of VERR_TIMEOUT returns in exclusive mode.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectRwExclNonInterruptibleWaits, STAMTYPE_COUNTER, "/PDM/CritSectsRw/00-Excl-Non-interruptible-Waits-VINF_SUCCESS",
+                 STAMUNIT_OCCURENCES, "Number of non-interruptible waits for rcBusy=VINF_SUCCESS in exclusive mode");
+
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectRwEnterSharedWhileAborting, STAMTYPE_COUNTER, "/PDM/CritSectsRw/00-EnterSharedWhileAborting", STAMUNIT_OCCURENCES,
+                 "Number of times we've got the critical section ownership in shared mode while trying to abort a wait due to VERR_INTERRUPTED or VERR_TIMEOUT.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectRwSharedVerrInterrupted, STAMTYPE_COUNTER, "/PDM/CritSectsRw/00-Shared-VERR_INTERRUPTED", STAMUNIT_OCCURENCES,
+                 "Number of VERR_INTERRUPTED returns in exclusive mode.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectRwSharedVerrTimeout, STAMTYPE_COUNTER, "/PDM/CritSectsRw/00-Shared-VERR_TIMEOUT", STAMUNIT_OCCURENCES,
+                 "Number of VERR_TIMEOUT returns in exclusive mode.");
+    STAM_REL_REG(pVM, &pVM->pdm.s.StatCritSectRwSharedNonInterruptibleWaits, STAMTYPE_COUNTER, "/PDM/CritSectsRw/00-Shared-Non-interruptible-Waits-VINF_SUCCESS",
+                 STAMUNIT_OCCURENCES, "Number of non-interruptible waits for rcBusy=VINF_SUCCESS in exclusive mode");
+
+    /*
+     * Info items.
+     */
+    DBGFR3InfoRegisterInternalArgv(pVM, "critsect", "Show critical section: critsect [-v] [pattern[...]]", pdmR3CritSectInfo, 0);
+    DBGFR3InfoRegisterInternalArgv(pVM, "critsectrw", "Show read/write critical section: critsectrw [-v] [pattern[...]]",
+                                   pdmR3CritSectRwInfo, 0);
+
     return VINF_SUCCESS;
-}
-
-
-/**
- * Relocates all the critical sections.
- *
- * @param   pVM         The cross context VM structure.
- */
-void pdmR3CritSectBothRelocate(PVM pVM)
-{
-    PUVM pUVM = pVM->pUVM;
-    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
-
-    for (PPDMCRITSECTINT pCur = pUVM->pdm.s.pCritSects;
-         pCur;
-         pCur = pCur->pNext)
-        pCur->pVMRC = pVM->pVMRC;
-
-    for (PPDMCRITSECTRWINT pCur = pUVM->pdm.s.pRwCritSects;
-         pCur;
-         pCur = pCur->pNext)
-        pCur->pVMRC = pVM->pVMRC;
-
-    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 }
 
 
@@ -181,27 +206,39 @@ static int pdmR3CritSectInitOne(PVM pVM, PPDMCRITSECTINT pCritSect, void *pvKey,
                 pCritSect->Core.cNestings            = 0;
                 pCritSect->Core.cLockers             = -1;
                 pCritSect->Core.NativeThreadOwner    = NIL_RTNATIVETHREAD;
-                pCritSect->pVMR3                     = pVM;
-                pCritSect->pVMR0                     = pVM->pVMR0ForCall;
-                pCritSect->pVMRC                     = pVM->pVMRC;
                 pCritSect->pvKey                     = pvKey;
                 pCritSect->fAutomaticDefaultCritsect = false;
                 pCritSect->fUsedByTimerOrSimilar     = false;
                 pCritSect->hEventToSignal            = NIL_SUPSEMEVENT;
                 pCritSect->pszName                   = pszName;
+                pCritSect->pSelfR3                   = (PPDMCRITSECT)pCritSect;
 
-                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZLock,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZLock", pCritSect->pszName);
-                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZUnlock,STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZUnlock", pCritSect->pszName);
-                STAMR3RegisterF(pVM, &pCritSect->StatContentionR3,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionR3", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZLock,      STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
+                                STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZLock", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZLockBusy,  STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
+                                STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZLockBusy", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZUnlock,    STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
+                                STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionRZUnlock", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionRZWait,      STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS,
+                                STAMUNIT_TICKS_PER_OCCURENCE, NULL, "/PDM/CritSects/%s/ContentionRZWait", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionR3,          STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS,
+                                STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSects/%s/ContentionR3", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatContentionR3Wait,      STAMTYPE_PROFILE, STAMVISIBILITY_ALWAYS,
+                                STAMUNIT_TICKS_PER_OCCURENCE, NULL, "/PDM/CritSects/%s/ContentionR3Wait", pCritSect->pszName);
 #ifdef VBOX_WITH_STATISTICS
-                STAMR3RegisterF(pVM, &pCritSect->StatLocked,        STAMTYPE_PROFILE_ADV, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_OCCURENCE, NULL, "/PDM/CritSects/%s/Locked", pCritSect->pszName);
+                STAMR3RegisterF(pVM, &pCritSect->StatLocked,            STAMTYPE_PROFILE_ADV, STAMVISIBILITY_ALWAYS,
+                                STAMUNIT_TICKS_PER_OCCURENCE, NULL, "/PDM/CritSects/%s/Locked", pCritSect->pszName);
 #endif
 
+                /*
+                 * Prepend to the list.
+                 */
                 PUVM pUVM = pVM->pUVM;
                 RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
                 pCritSect->pNext = pUVM->pdm.s.pCritSects;
                 pUVM->pdm.s.pCritSects = pCritSect;
                 RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
+                Log(("pdmR3CritSectInitOne: %p %s\n", pCritSect, pszName));
 
                 return VINF_SUCCESS;
             }
@@ -233,6 +270,11 @@ static int pdmR3CritSectRwInitOne(PVM pVM, PPDMCRITSECTRWINT pCritSect, void *pv
 {
     VM_ASSERT_EMT(pVM);
     Assert(pCritSect->Core.u32Magic != RTCRITSECTRW_MAGIC);
+    AssertMsgReturn(((uintptr_t)&pCritSect->Core & 63) == 0, ("&Core=%p, must be 64-byte aligned!\n", &pCritSect->Core),
+                    VERR_PDM_CRITSECTRW_MISALIGNED);
+    AssertMsgReturn(((uintptr_t)&pCritSect->Core.u & (sizeof(pCritSect->Core.u.u128) - 1)) == 0 /* paranoia */,
+                    ("&Core.u=%p, must be 16-byte aligned!\n", &pCritSect->Core.u),
+                    VERR_PDM_CRITSECTRW_MISALIGNED);
 
     /*
      * Allocate the semaphores.
@@ -271,24 +313,23 @@ static int pdmR3CritSectRwInitOne(PVM pVM, PPDMCRITSECTRWINT pCritSect, void *pv
                      */
                     pCritSect->Core.u32Magic             = RTCRITSECTRW_MAGIC;
                     pCritSect->Core.fNeedReset           = false;
-                    pCritSect->Core.u64State             = 0;
-                    pCritSect->Core.hNativeWriter        = NIL_RTNATIVETHREAD;
+                    pCritSect->Core.afPadding[0]         = false;
+                    pCritSect->Core.fFlags               = 0;
+                    pCritSect->Core.u.u128.s.Lo          = 0;
+                    pCritSect->Core.u.u128.s.Hi          = 0;
+                    pCritSect->Core.u.s.hNativeWriter    = NIL_RTNATIVETHREAD;
                     pCritSect->Core.cWriterReads         = 0;
                     pCritSect->Core.cWriteRecursions     = 0;
-#if HC_ARCH_BITS == 32
-                    pCritSect->Core.HCPtrPadding         = NIL_RTHCPTR;
-#endif
-                    pCritSect->pVMR3                     = pVM;
-                    pCritSect->pVMR0                     = pVM->pVMR0ForCall;
-                    pCritSect->pVMRC                     = pVM->pVMRC;
                     pCritSect->pvKey                     = pvKey;
                     pCritSect->pszName                   = pszName;
+                    pCritSect->pSelfR3                   = (PPDMCRITSECTRW)pCritSect;
 
                     STAMR3RegisterF(pVM, &pCritSect->StatContentionRZEnterExcl,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/ContentionRZEnterExcl", pCritSect->pszName);
                     STAMR3RegisterF(pVM, &pCritSect->StatContentionRZLeaveExcl,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/ContentionRZLeaveExcl", pCritSect->pszName);
                     STAMR3RegisterF(pVM, &pCritSect->StatContentionRZEnterShared, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/ContentionRZEnterShared", pCritSect->pszName);
                     STAMR3RegisterF(pVM, &pCritSect->StatContentionRZLeaveShared, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/ContentionRZLeaveShared", pCritSect->pszName);
                     STAMR3RegisterF(pVM, &pCritSect->StatContentionR3EnterExcl,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/ContentionR3EnterExcl", pCritSect->pszName);
+                    STAMR3RegisterF(pVM, &pCritSect->StatContentionR3LeaveExcl,   STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/ContentionR3LeaveExcl", pCritSect->pszName);
                     STAMR3RegisterF(pVM, &pCritSect->StatContentionR3EnterShared, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/ContentionR3EnterShared", pCritSect->pszName);
                     STAMR3RegisterF(pVM, &pCritSect->StatRZEnterExcl,             STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/RZEnterExcl", pCritSect->pszName);
                     STAMR3RegisterF(pVM, &pCritSect->StatRZEnterShared,           STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,          NULL, "/PDM/CritSectsRw/%s/RZEnterShared", pCritSect->pszName);
@@ -298,11 +339,15 @@ static int pdmR3CritSectRwInitOne(PVM pVM, PPDMCRITSECTRWINT pCritSect, void *pv
                     STAMR3RegisterF(pVM, &pCritSect->StatWriteLocked,         STAMTYPE_PROFILE_ADV, STAMVISIBILITY_ALWAYS, STAMUNIT_TICKS_PER_OCCURENCE, NULL, "/PDM/CritSectsRw/%s/WriteLocked", pCritSect->pszName);
 #endif
 
+                    /*
+                     * Prepend to the list.
+                     */
                     PUVM pUVM = pVM->pUVM;
                     RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
                     pCritSect->pNext = pUVM->pdm.s.pRwCritSects;
                     pUVM->pdm.s.pRwCritSects = pCritSect;
                     RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
+                    LogIt(RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP_PDM_CRITSECTRW, ("pdmR3CritSectRwInitOne: %p %s\n", pCritSect, pszName));
 
                     return VINF_SUCCESS;
                 }
@@ -533,9 +578,6 @@ static int pdmR3CritSectDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTINT pCritSect,
     RTLockValidatorRecExclDestroy(&pCritSect->Core.pValidatorRec);
     pCritSect->pNext   = NULL;
     pCritSect->pvKey   = NULL;
-    pCritSect->pVMR3   = NULL;
-    pCritSect->pVMR0   = NIL_RTR0PTR;
-    pCritSect->pVMRC   = NIL_RTRCPTR;
     if (!fFinal)
         STAMR3DeregisterF(pVM->pUVM, "/PDM/CritSects/%s/*", pCritSect->pszName);
     RTStrFree((char *)pCritSect->pszName);
@@ -565,7 +607,7 @@ static int pdmR3CritSectRwDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTRWINT pCritS
     Assert(pCritSect->Core.u32Magic == RTCRITSECTRW_MAGIC);
     //Assert(pCritSect->Core.cNestings == 0);
     //Assert(pCritSect->Core.cLockers == -1);
-    Assert(pCritSect->Core.hNativeWriter == NIL_RTNATIVETHREAD);
+    Assert(pCritSect->Core.u.s.hNativeWriter == NIL_RTNATIVETHREAD);
 
     /*
      * Invalidate the structure and free the semaphores.
@@ -585,8 +627,8 @@ static int pdmR3CritSectRwDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTRWINT pCritS
      * Delete it (parts taken from RTCritSectRwDelete).
      * In case someone is waiting we'll signal the semaphore cLockers + 1 times.
      */
-    pCritSect->Core.fFlags   = 0;
-    pCritSect->Core.u64State = 0;
+    pCritSect->Core.fFlags       = 0;
+    pCritSect->Core.u.s.u64State = 0;
 
     SUPSEMEVENT      hEvtWrite = (SUPSEMEVENT)pCritSect->Core.hEvtWrite;
     pCritSect->Core.hEvtWrite  = NIL_RTSEMEVENT;
@@ -604,9 +646,6 @@ static int pdmR3CritSectRwDeleteOne(PVM pVM, PUVM pUVM, PPDMCRITSECTRWINT pCritS
 
     pCritSect->pNext   = NULL;
     pCritSect->pvKey   = NULL;
-    pCritSect->pVMR3   = NULL;
-    pCritSect->pVMR0   = NIL_RTR0PTR;
-    pCritSect->pVMRC   = NIL_RTRCPTR;
     if (!fFinal)
         STAMR3DeregisterF(pVM->pUVM, "/PDM/CritSectsRw/%s/*", pCritSect->pszName);
     RTStrFree((char *)pCritSect->pszName);
@@ -730,9 +769,10 @@ int pdmR3CritSectBothDeleteDriver(PVM pVM, PPDMDRVINS pDrvIns)
  * Deletes the critical section.
  *
  * @returns VBox status code.
- * @param   pCritSect           The PDM critical section to destroy.
+ * @param   pVM         The cross context VM structure.
+ * @param   pCritSect   The PDM critical section to destroy.
  */
-VMMR3DECL(int) PDMR3CritSectDelete(PPDMCRITSECT pCritSect)
+VMMR3DECL(int) PDMR3CritSectDelete(PVM pVM, PPDMCRITSECT pCritSect)
 {
     if (!RTCritSectIsInitialized(&pCritSect->s.Core))
         return VINF_SUCCESS;
@@ -740,7 +780,6 @@ VMMR3DECL(int) PDMR3CritSectDelete(PPDMCRITSECT pCritSect)
     /*
      * Find and unlink it.
      */
-    PVM             pVM   = pCritSect->s.pVMR3;
     PUVM            pUVM  = pVM->pUVM;
     AssertReleaseReturn(pVM, VERR_PDM_CRITSECT_IPE);
     PPDMCRITSECTINT pPrev = NULL;
@@ -769,9 +808,10 @@ VMMR3DECL(int) PDMR3CritSectDelete(PPDMCRITSECT pCritSect)
  * Deletes the read/write critical section.
  *
  * @returns VBox status code.
+ * @param   pVM                 The cross context VM structure.
  * @param   pCritSect           The PDM read/write critical section to destroy.
  */
-VMMR3DECL(int) PDMR3CritSectRwDelete(PPDMCRITSECTRW pCritSect)
+VMMR3DECL(int) PDMR3CritSectRwDelete(PVM pVM, PPDMCRITSECTRW pCritSect)
 {
     if (!PDMCritSectRwIsInitialized(pCritSect))
         return VINF_SUCCESS;
@@ -779,7 +819,6 @@ VMMR3DECL(int) PDMR3CritSectRwDelete(PPDMCRITSECTRW pCritSect)
     /*
      * Find and unlink it.
      */
-    PVM                 pVM   = pCritSect->s.pVMR3;
     PUVM                pUVM  = pVM->pUVM;
     AssertReleaseReturn(pVM, VERR_PDM_CRITSECT_IPE);
     PPDMCRITSECTRWINT   pPrev = NULL;
@@ -866,7 +905,7 @@ VMMR3DECL(bool) PDMR3CritSectYield(PVM pVM, PPDMCRITSECT pCritSect)
 #ifdef PDMCRITSECT_STRICT
     RTLOCKVALSRCPOS const SrcPos = pCritSect->s.Core.pValidatorRec->SrcPos;
 #endif
-    PDMCritSectLeave(pCritSect);
+    PDMCritSectLeave(pVM, pCritSect);
 
     /*
      * If we're lucky, then one of the waiters has entered the lock already.
@@ -888,12 +927,12 @@ VMMR3DECL(bool) PDMR3CritSectYield(PVM pVM, PPDMCRITSECT pCritSect)
     }
 
 #ifdef PDMCRITSECT_STRICT
-    int rc = PDMCritSectEnterDebug(pCritSect, VERR_IGNORED,
+    int rc = PDMCritSectEnterDebug(pVM, pCritSect, VERR_IGNORED,
                                    SrcPos.uId, SrcPos.pszFile, SrcPos.uLine, SrcPos.pszFunction);
 #else
-    int rc = PDMCritSectEnter(pCritSect, VERR_IGNORED);
+    int rc = PDMCritSectEnter(pVM, pCritSect, VERR_IGNORED);
 #endif
-    AssertLogRelRC(rc);
+    PDM_CRITSECT_RELEASE_ASSERT_RC(pVM, pCritSect, rc);
     return true;
 }
 
@@ -1003,8 +1042,8 @@ VMMR3DECL(uint32_t) PDMR3CritSectCountOwned(PVM pVM, char *pszNames, size_t cbNa
          pCur;
          pCur = pCur->pNext)
     {
-        if (   pCur->Core.hNativeWriter == hNativeThread
-            || PDMCritSectRwIsReadOwner((PPDMCRITSECTRW)pCur, false /*fWannaHear*/) )
+        if (   pCur->Core.u.s.hNativeWriter == hNativeThread
+            || PDMCritSectRwIsReadOwner(pVM, (PPDMCRITSECTRW)pCur, false /*fWannaHear*/) )
         {
             cCritSects++;
             pdmR3CritSectAppendNameToList(pCur->pszName, &pszNames, &cchLeft, cCritSects == 1);
@@ -1035,7 +1074,7 @@ VMMR3_INT_DECL(void) PDMR3CritSectLeaveAll(PVM pVM)
     {
         while (     pCur->Core.NativeThreadOwner == hNativeSelf
                &&   pCur->Core.cNestings > 0)
-            PDMCritSectLeave((PPDMCRITSECT)pCur);
+            PDMCritSectLeave(pVM, (PPDMCRITSECT)pCur);
     }
     RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 }
@@ -1058,27 +1097,246 @@ VMMR3DECL(PPDMCRITSECT)             PDMR3CritSectGetNop(PVM pVM)
 
 
 /**
- * Gets the ring-0 address of the NOP critical section.
- *
- * @returns The ring-0 address of the NOP critical section.
- * @param   pVM                 The cross context VM structure.
+ * Display matching critical sections.
  */
-VMMR3DECL(R0PTRTYPE(PPDMCRITSECT))  PDMR3CritSectGetNopR0(PVM pVM)
+static void pdmR3CritSectInfoWorker(PUVM pUVM, const char *pszPatterns, PCDBGFINFOHLP pHlp, unsigned cVerbosity)
 {
-    VM_ASSERT_VALID_EXT_RETURN(pVM, NIL_RTR0PTR);
-    return MMHyperR3ToR0(pVM, &pVM->pdm.s.NopCritSect);
+    size_t const cchPatterns = pszPatterns ? strlen(pszPatterns) : 0;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+
+    for (PPDMCRITSECTINT pCritSect = pUVM->pdm.s.pCritSects; pCritSect; pCritSect = pCritSect->pNext)
+        if (   !pszPatterns
+            || RTStrSimplePatternMultiMatch(pszPatterns, cchPatterns, pCritSect->pszName, RTSTR_MAX, NULL))
+        {
+            uint32_t fFlags = pCritSect->Core.fFlags;
+            pHlp->pfnPrintf(pHlp, "%p: '%s'%s%s%s%s%s\n", pCritSect, pCritSect->pszName,
+                            pCritSect->fAutomaticDefaultCritsect ? " default" : "",
+                            pCritSect->fUsedByTimerOrSimilar ? " used-by-timer-or-similar" : "",
+                            fFlags & RTCRITSECT_FLAGS_NO_NESTING ? " no-testing" : "",
+                            fFlags & RTCRITSECT_FLAGS_NO_LOCK_VAL ? " no-lock-val" : "",
+                            fFlags & RTCRITSECT_FLAGS_NOP ? " nop" : "");
+
+
+            /*
+             * Get the volatile data:
+             */
+            RTNATIVETHREAD hOwner;
+            int32_t        cLockers;
+            int32_t        cNestings;
+            uint32_t       uMagic;
+            for (uint32_t iTry = 0; iTry < 16; iTry++)
+            {
+                hOwner    = pCritSect->Core.NativeThreadOwner;
+                cLockers  = pCritSect->Core.cLockers;
+                cNestings = pCritSect->Core.cNestings;
+                fFlags    = pCritSect->Core.fFlags;
+                uMagic    = pCritSect->Core.u32Magic;
+                if (   hOwner    == pCritSect->Core.NativeThreadOwner
+                    && cLockers  == pCritSect->Core.cLockers
+                    && cNestings == pCritSect->Core.cNestings
+                    && fFlags    == pCritSect->Core.fFlags
+                    && uMagic    == pCritSect->Core.u32Magic)
+                    break;
+            }
+
+            /*
+             * Check and resolve the magic to a string, print if not RTCRITSECT_MAGIC.
+             */
+            const char *pszMagic;
+            switch (uMagic)
+            {
+                case RTCRITSECT_MAGIC:                  pszMagic = NULL; break;
+                case ~RTCRITSECT_MAGIC:                 pszMagic = " deleted"; break;
+                case PDMCRITSECT_MAGIC_CORRUPTED:       pszMagic = " PDMCRITSECT_MAGIC_CORRUPTED!"; break;
+                case PDMCRITSECT_MAGIC_FAILED_ABORT:    pszMagic = " PDMCRITSECT_MAGIC_FAILED_ABORT!"; break;
+                default:                                pszMagic = " !unknown!"; break;
+            }
+            if (pszMagic || cVerbosity > 1)
+                pHlp->pfnPrintf(pHlp, "  uMagic=%#x%s\n", uMagic, pszMagic ? pszMagic : "");
+
+            /*
+             * If locked, print details
+             */
+            if (cLockers != -1 || cNestings > 1 || cNestings < 0 || hOwner != NIL_RTNATIVETHREAD || cVerbosity > 1)
+            {
+                /* Translate the owner to a name if we have one and can. */
+                const char *pszOwner = NULL;
+                if (hOwner != NIL_RTNATIVETHREAD)
+                {
+                    RTTHREAD hOwnerThread = RTThreadFromNative(hOwner); /* Note! Does not return a reference (crazy). */
+                    if (hOwnerThread != NIL_RTTHREAD)
+                        pszOwner = RTThreadGetName(hOwnerThread);
+                }
+                else
+                    pszOwner = "<no-owner>";
+
+                pHlp->pfnPrintf(pHlp, "  cLockers=%d cNestings=%d hOwner=%p %s%s\n", cLockers, cNestings, hOwner,
+                                pszOwner ? pszOwner : "???", fFlags & PDMCRITSECT_FLAGS_PENDING_UNLOCK ? " pending-unlock" : "");
+            }
+        }
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
 }
 
 
 /**
- * Gets the raw-mode context address of the NOP critical section.
- *
- * @returns The raw-mode context address of the NOP critical section.
- * @param   pVM                 The cross context VM structure.
+ * Display matching read/write critical sections.
  */
-VMMR3DECL(RCPTRTYPE(PPDMCRITSECT))  PDMR3CritSectGetNopRC(PVM pVM)
+static void pdmR3CritSectInfoRwWorker(PUVM pUVM, const char *pszPatterns, PCDBGFINFOHLP pHlp, unsigned cVerbosity)
 {
-    VM_ASSERT_VALID_EXT_RETURN(pVM, NIL_RTRCPTR);
-    return MMHyperR3ToRC(pVM, &pVM->pdm.s.NopCritSect);
+    size_t const cchPatterns = pszPatterns ? strlen(pszPatterns) : 0;
+    RTCritSectEnter(&pUVM->pdm.s.ListCritSect);
+
+    for (PPDMCRITSECTRWINT pCritSect = pUVM->pdm.s.pRwCritSects; pCritSect; pCritSect = pCritSect->pNext)
+        if (   !pszPatterns
+            || RTStrSimplePatternMultiMatch(pszPatterns, cchPatterns, pCritSect->pszName, RTSTR_MAX, NULL))
+        {
+            uint16_t const fFlags = pCritSect->Core.fFlags;
+            pHlp->pfnPrintf(pHlp, "%p: '%s'%s%s%s\n", pCritSect, pCritSect->pszName,
+                            fFlags & RTCRITSECT_FLAGS_NO_NESTING ? " no-testing" : "",
+                            fFlags & RTCRITSECT_FLAGS_NO_LOCK_VAL ? " no-lock-val" : "",
+                            fFlags & RTCRITSECT_FLAGS_NOP ? " nop" : "");
+
+            /*
+             * Get the volatile data:
+             */
+            RTNATIVETHREAD  hOwner;
+            uint64_t        u64State;
+            uint32_t        cWriterReads;
+            uint32_t        cWriteRecursions;
+            bool            fNeedReset;
+            uint32_t        uMagic;
+            unsigned        cTries = 16;
+            do
+            {
+                u64State         = pCritSect->Core.u.s.u64State;
+                hOwner           = pCritSect->Core.u.s.hNativeWriter;
+                cWriterReads     = pCritSect->Core.cWriterReads;
+                cWriteRecursions = pCritSect->Core.cWriteRecursions;
+                fNeedReset       = pCritSect->Core.fNeedReset;
+                uMagic           = pCritSect->Core.u32Magic;
+            } while (   cTries-- > 0
+                     && (   u64State         != pCritSect->Core.u.s.u64State
+                         || hOwner           != pCritSect->Core.u.s.hNativeWriter
+                         || cWriterReads     != pCritSect->Core.cWriterReads
+                         || cWriteRecursions != pCritSect->Core.cWriteRecursions
+                         || fNeedReset       != pCritSect->Core.fNeedReset
+                         || uMagic           != pCritSect->Core.u32Magic));
+
+            /*
+             * Check and resolve the magic to a string, print if not RTCRITSECT_MAGIC.
+             */
+            const char *pszMagic;
+            switch (uMagic)
+            {
+                case RTCRITSECTRW_MAGIC:            pszMagic = NULL; break;
+                case ~RTCRITSECTRW_MAGIC:           pszMagic = " deleted"; break;
+                case PDMCRITSECTRW_MAGIC_CORRUPT:   pszMagic = " PDMCRITSECTRW_MAGIC_CORRUPT!"; break;
+                default:                            pszMagic = " !unknown!"; break;
+            }
+            if (pszMagic || cVerbosity > 1)
+                pHlp->pfnPrintf(pHlp, "  uMagic=%#x%s\n", uMagic, pszMagic ? pszMagic : "");
+
+            /*
+             * If locked, print details
+             */
+            if ((u64State & ~RTCSRW_DIR_MASK) || hOwner != NIL_RTNATIVETHREAD || cVerbosity > 1)
+            {
+                /* Translate the owner to a name if we have one and can. */
+                const char *pszOwner = NULL;
+                if (hOwner != NIL_RTNATIVETHREAD)
+                {
+                    RTTHREAD hOwnerThread = RTThreadFromNative(hOwner); /* Note! Does not return a reference (crazy). */
+                    if (hOwnerThread != NIL_RTTHREAD)
+                        pszOwner = RTThreadGetName(hOwnerThread);
+                }
+                else
+                    pszOwner = "<no-owner>";
+
+                pHlp->pfnPrintf(pHlp, "  u64State=%#RX64 %s cReads=%u cWrites=%u cWaitingReads=%u\n",
+                                u64State, (u64State & RTCSRW_DIR_MASK) == RTCSRW_DIR_WRITE ? "writing" : "reading",
+                                (unsigned)((u64State & RTCSRW_CNT_RD_MASK) >> RTCSRW_CNT_RD_SHIFT),
+                                (unsigned)((u64State & RTCSRW_CNT_WR_MASK) >> RTCSRW_CNT_RD_SHIFT),
+                                (unsigned)((u64State & RTCSRW_WAIT_CNT_RD_MASK) >> RTCSRW_WAIT_CNT_RD_SHIFT));
+                if (hOwner != NIL_RTNATIVETHREAD || cVerbosity > 2)
+                    pHlp->pfnPrintf(pHlp, "  cNestings=%u cReadNestings=%u hWriter=%p %s\n",
+                                    cWriteRecursions, cWriterReads, hOwner, pszOwner ? pszOwner : "???");
+            }
+        }
+    RTCritSectLeave(&pUVM->pdm.s.ListCritSect);
+}
+
+
+/**
+ * Common worker for critsect and critsectrw info items.
+ */
+static void pdmR3CritSectInfoCommon(PVM pVM, PCDBGFINFOHLP pHlp, int cArgs, char **papszArgs, bool fReadWrite)
+{
+    PUVM pUVM = pVM->pUVM;
+
+    /*
+     * Process arguments.
+     */
+    static const RTGETOPTDEF s_aOptions[] =
+    {
+        {   "--verbose", 'v', RTGETOPT_REQ_NOTHING },
+    };
+    RTGETOPTSTATE State;
+    int rc = RTGetOptInit(&State, cArgs, papszArgs, s_aOptions, RT_ELEMENTS(s_aOptions), 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
+    AssertRC(rc);
+
+    unsigned cVerbosity = 1;
+    unsigned cProcessed = 0;
+
+    RTGETOPTUNION ValueUnion;
+    while ((rc = RTGetOpt(&State, &ValueUnion)) != 0)
+    {
+        switch (rc)
+        {
+            case 'v':
+                cVerbosity++;
+                break;
+
+            case VINF_GETOPT_NOT_OPTION:
+                if (!fReadWrite)
+                    pdmR3CritSectInfoWorker(pUVM, ValueUnion.psz, pHlp, cVerbosity);
+                else
+                    pdmR3CritSectInfoRwWorker(pUVM, ValueUnion.psz, pHlp, cVerbosity);
+                cProcessed++;
+                break;
+
+            default:
+                pHlp->pfnGetOptError(pHlp, rc, &ValueUnion, &State);
+                return;
+        }
+    }
+
+    /*
+     * If we did nothing above, dump all.
+     */
+    if (!cProcessed)
+    {
+        if (!fReadWrite)
+            pdmR3CritSectInfoWorker(pUVM, NULL, pHlp, cVerbosity);
+        else
+            pdmR3CritSectInfoRwWorker(pUVM, NULL, pHlp, cVerbosity);
+    }
+}
+
+
+/**
+ * @callback_method_impl{FNDBGFINFOARGVINT, critsect}
+ */
+static DECLCALLBACK(void) pdmR3CritSectInfo(PVM pVM, PCDBGFINFOHLP pHlp, int cArgs, char **papszArgs)
+{
+    return pdmR3CritSectInfoCommon(pVM, pHlp, cArgs, papszArgs, false);
+}
+
+
+/**
+ * @callback_method_impl{FNDBGFINFOARGVINT, critsectrw}
+ */
+static DECLCALLBACK(void) pdmR3CritSectRwInfo(PVM pVM, PCDBGFINFOHLP pHlp, int cArgs, char **papszArgs)
+{
+    return pdmR3CritSectInfoCommon(pVM, pHlp, cArgs, papszArgs, true);
 }
 

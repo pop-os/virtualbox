@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2016-2020 Oracle Corporation
+ * Copyright (C) 2016-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -21,28 +31,30 @@
 #include <QSplitter>
 
 /* GUI includes: */
+#include "QITabWidget.h"
 #include "QITreeWidget.h"
+#include "QIToolBar.h"
 #include "UIActionPool.h"
+#include "UICommon.h"
+#include "UIConverter.h"
 #include "UIErrorString.h"
 #include "UIExtraDataManager.h"
 #include "UIIconPool.h"
 #include "UIFileManager.h"
-#include "UIFileManagerSessionPanel.h"
 #include "UIFileManagerOptionsPanel.h"
 #include "UIFileManagerLogPanel.h"
 #include "UIFileManagerOperationsPanel.h"
 #include "UIFileManagerGuestTable.h"
 #include "UIFileManagerHostTable.h"
 #include "UIGuestControlInterface.h"
-#include "UIToolBar.h"
-#include "UICommon.h"
+#include "UIVirtualMachineItem.h"
 
 /* COM includes: */
+#include "CConsole.h"
 #include "CFsObjInfo.h"
 #include "CGuestDirectory.h"
 #include "CGuestFsObjInfo.h"
 #include "CGuestSession.h"
-#include "CGuestSessionStateChangedEvent.h"
 
 
 /*********************************************************************************************************************************
@@ -110,44 +122,47 @@ UIFileOperationsList::UIFileOperationsList(QWidget *pParent)
 *********************************************************************************************************************************/
 
 UIFileManager::UIFileManager(EmbedTo enmEmbedding, UIActionPool *pActionPool,
-                                                     const CGuest &comGuest, QWidget *pParent, bool fShowToolbar /* = true */)
+                             const CMachine &comMachine, QWidget *pParent, bool fShowToolbar)
     : QIWithRetranslateUI<QWidget>(pParent)
-    , m_comGuest(comGuest)
     , m_pMainLayout(0)
     , m_pVerticalSplitter(0)
+    , m_pFileTableSplitter(0)
     , m_pToolBar(0)
     , m_pVerticalToolBar(0)
-    , m_pGuestFileTable(0)
     , m_pHostFileTable(0)
+    , m_pGuestTablesContainer(0)
     , m_enmEmbedding(enmEmbedding)
     , m_pActionPool(pActionPool)
     , m_fShowToolbar(fShowToolbar)
     , m_pOptionsPanel(0)
     , m_pLogPanel(0)
-    , m_pSessionPanel(0)
     , m_pOperationsPanel(0)
+    , m_fCommitDataSignalReceived(false)
 {
     loadOptions();
-    prepareGuestListener();
     prepareObjects();
     prepareConnections();
     retranslateUi();
     restorePanelVisibility();
     UIFileManagerOptions::create();
+    uiCommon().setHelpKeyword(this, "guestadd-gc-file-manager");
+
+    if (!comMachine.isNull())
+        setMachines( QVector<QUuid>() << comMachine.GetId());
 }
 
 UIFileManager::~UIFileManager()
 {
-    if (m_comGuest.isOk() && m_pQtGuestListener && m_comGuestListener.isOk())
-        cleanupListener(m_pQtGuestListener, m_comGuestListener, m_comGuest.GetEventSource());
-    if (m_comGuestSession.isOk() && m_pQtSessionListener && m_comSessionListener.isOk())
-        cleanupListener(m_pQtSessionListener, m_comSessionListener, m_comGuestSession.GetEventSource());
-
-    if (m_comGuestSession.isOk())
-        m_comGuestSession.Close();
-
-    saveOptions();
     UIFileManagerOptions::destroy();
+    if (m_pGuestTablesContainer)
+    {
+        for (int i = 0; i < m_pGuestTablesContainer->count(); ++i)
+        {
+            UIFileManagerGuestTable *pTable = qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->widget(i));
+            if (pTable)
+                pTable->disconnect();
+        }
+    }
 }
 
 QMenu *UIFileManager::menu() const
@@ -159,18 +174,6 @@ QMenu *UIFileManager::menu() const
 
 void UIFileManager::retranslateUi()
 {
-}
-
-void UIFileManager::prepareGuestListener()
-{
-    if (m_comGuest.isOk())
-    {
-        QVector<KVBoxEventType> eventTypes;
-        eventTypes << KVBoxEventType_OnGuestSessionRegistered;
-
-        prepareListener(m_pQtGuestListener, m_comGuestListener,
-                        m_comGuest.GetEventSource(), eventTypes);
-    }
 }
 
 void UIFileManager::prepareObjects()
@@ -190,120 +193,79 @@ void UIFileManager::prepareObjects()
 
     if (m_fShowToolbar)
         prepareToolBar();
-    /* Two widgets are inserted into this splitter. Upper pWidget widget is a container with file tables and all the panels
-       except the log panel and lower widget is the log panel: */
-    m_pVerticalSplitter = new QSplitter;
-    if (!m_pVerticalSplitter)
-        return;
-
-    m_pMainLayout->addWidget(m_pVerticalSplitter);
-    m_pVerticalSplitter->setOrientation(Qt::Vertical);
-    m_pVerticalSplitter->setHandleWidth(4);
-
-    QHBoxLayout *pFileTableContainerLayout = new QHBoxLayout;
-    pFileTableContainerLayout->setContentsMargins(0, 0, 0, 0);
-#ifdef VBOX_WS_MAC
-    pFileTableContainerLayout->setSpacing(10);
-#else
-    pFileTableContainerLayout->setSpacing(qApp->style()->pixelMetric(QStyle::PM_LayoutVerticalSpacing) / 2);
-#endif
 
     QWidget *pTopWidget = new QWidget;
     QVBoxLayout *pTopLayout = new QVBoxLayout;
     pTopLayout->setSpacing(0);
     pTopLayout->setContentsMargins(0, 0, 0, 0);
-
     pTopWidget->setLayout(pTopLayout);
 
-    if (pFileTableContainerLayout)
+    m_pFileTableSplitter = new QSplitter;
+
+    if (m_pFileTableSplitter)
     {
-        pFileTableContainerLayout->setSpacing(0);
-        pFileTableContainerLayout->setContentsMargins(0, 0, 0, 0);
-        m_pGuestFileTable = new UIFileManagerGuestTable(m_pActionPool);
-        m_pGuestFileTable->setEnabled(false);
+        m_pFileTableSplitter->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
+        m_pFileTableSplitter->setContentsMargins(0, 0, 0, 0);
+
+        /* This widget hosts host file table and vertical toolbar. */
+        QWidget *pHostTableAndVerticalToolbarWidget = new QWidget;
+        QHBoxLayout *pHostTableAndVerticalToolbarLayout = new QHBoxLayout(pHostTableAndVerticalToolbarWidget);
+        pHostTableAndVerticalToolbarLayout->setSpacing(0);
+        pHostTableAndVerticalToolbarLayout->setContentsMargins(0, 0, 0, 0);
 
         m_pHostFileTable = new UIFileManagerHostTable(m_pActionPool);
         if (m_pHostFileTable)
+            pHostTableAndVerticalToolbarLayout->addWidget(m_pHostFileTable);
+
+        m_pFileTableSplitter->addWidget(pHostTableAndVerticalToolbarWidget);
+        prepareVerticalToolBar(pHostTableAndVerticalToolbarLayout);
+
+        m_pGuestTablesContainer = new QITabWidget;
+        if (m_pGuestTablesContainer)
         {
-            connect(m_pHostFileTable, &UIFileManagerHostTable::sigLogOutput,
-                    this, &UIFileManager::sltReceieveLogOutput);
-            connect(m_pHostFileTable, &UIFileManagerHostTable::sigDeleteConfirmationOptionChanged,
-                    this, &UIFileManager::sltHandleOptionsUpdated);
-            pFileTableContainerLayout->addWidget(m_pHostFileTable);
+            m_pGuestTablesContainer->setTabPosition(QTabWidget::East);
+            m_pGuestTablesContainer->setTabBarAutoHide(true);
+            m_pFileTableSplitter->addWidget(m_pGuestTablesContainer);
         }
-        prepareVerticalToolBar(pFileTableContainerLayout);
-        if (m_pGuestFileTable)
-        {
-            connect(m_pGuestFileTable, &UIFileManagerGuestTable::sigLogOutput,
-                    this, &UIFileManager::sltReceieveLogOutput);
-            connect(m_pGuestFileTable, &UIFileManagerGuestTable::sigNewFileOperation,
-                    this, &UIFileManager::sltReceieveNewFileOperation);
-            connect(m_pGuestFileTable, &UIFileManagerGuestTable::sigDeleteConfirmationOptionChanged,
-                    this, &UIFileManager::sltHandleOptionsUpdated);
-            pFileTableContainerLayout->addWidget(m_pGuestFileTable);
-        }
+        m_pFileTableSplitter->setStretchFactor(0, 1);
+        m_pFileTableSplitter->setStretchFactor(1, 1);
     }
 
-    pTopLayout->addLayout(pFileTableContainerLayout);
-    m_pSessionPanel = new UIFileManagerSessionPanel;
-    if (m_pSessionPanel)
+    pTopLayout->addWidget(m_pFileTableSplitter);
+    for (int i = 0; i < m_pFileTableSplitter->count(); ++i)
+        m_pFileTableSplitter->setCollapsible(i, false);
+
+    /* Create options and session panels and insert them into pTopLayout: */
+    prepareOptionsAndSessionPanels(pTopLayout);
+
+    /** Vertical splitter has 3 widgets. Log panel as bottom most one, operations panel on top of it,
+     * and pTopWidget which contains everthing else: */
+    m_pVerticalSplitter = new QSplitter;
+    if (m_pVerticalSplitter)
     {
-        m_pSessionPanel->hide();
-        m_panelActionMap.insert(m_pSessionPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Session));
-        pTopLayout->addWidget(m_pSessionPanel);
+        m_pMainLayout->addWidget(m_pVerticalSplitter);
+        m_pVerticalSplitter->setOrientation(Qt::Vertical);
+        m_pVerticalSplitter->setHandleWidth(4);
+
+        m_pVerticalSplitter->addWidget(pTopWidget);
+        /* Prepare operations and log panels and insert them into splitter: */
+        prepareOperationsAndLogPanels(m_pVerticalSplitter);
+
+        for (int i = 0; i < m_pVerticalSplitter->count(); ++i)
+            m_pVerticalSplitter->setCollapsible(i, false);
+        m_pVerticalSplitter->setStretchFactor(0, 3);
+        m_pVerticalSplitter->setStretchFactor(1, 1);
+        m_pVerticalSplitter->setStretchFactor(2, 1);
     }
-
-    m_pOptionsPanel =
-        new UIFileManagerOptionsPanel(0 /*parent */, UIFileManagerOptions::instance());
-    if (m_pOptionsPanel)
-    {
-        m_pOptionsPanel->hide();
-        m_panelActionMap.insert(m_pOptionsPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Options));
-        connect(m_pOptionsPanel, &UIFileManagerOptionsPanel::sigOptionsChanged,
-                this, &UIFileManager::sltHandleOptionsUpdated);
-        pTopLayout->addWidget(m_pOptionsPanel);
-    }
-
-    m_pVerticalSplitter->addWidget(pTopWidget);
-
-    m_pOperationsPanel =
-        new UIFileManagerOperationsPanel;
-    if (m_pOperationsPanel)
-    {
-        m_pOperationsPanel->hide();
-        connect(m_pOperationsPanel, &UIFileManagerOperationsPanel::sigFileOperationComplete,
-                this, &UIFileManager::sltFileOperationComplete);
-        connect(m_pOperationsPanel, &UIFileManagerOperationsPanel::sigFileOperationFail,
-                this, &UIFileManager::sltReceieveLogOutput);
-        m_panelActionMap.insert(m_pOperationsPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Operations));
-    }
-
-    m_pLogPanel = new UIFileManagerLogPanel;
-    if (m_pLogPanel)
-    {
-        m_pLogPanel->hide();
-        m_panelActionMap.insert(m_pLogPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Log));
-    }
-
-    m_pVerticalSplitter->addWidget(pTopWidget);
-    m_pVerticalSplitter->addWidget(m_pOperationsPanel);
-    m_pVerticalSplitter->addWidget(m_pLogPanel);
-    m_pVerticalSplitter->setCollapsible(m_pVerticalSplitter->indexOf(pTopWidget), false);
-    m_pVerticalSplitter->setCollapsible(m_pVerticalSplitter->indexOf(m_pOperationsPanel), false);
-    m_pVerticalSplitter->setCollapsible(m_pVerticalSplitter->indexOf(m_pLogPanel), false);
-    m_pVerticalSplitter->setStretchFactor(0, 3);
-    m_pVerticalSplitter->setStretchFactor(1, 1);
-    m_pVerticalSplitter->setStretchFactor(2, 1);
 }
 
 void UIFileManager::prepareVerticalToolBar(QHBoxLayout *layout)
 {
-    m_pVerticalToolBar = new UIToolBar;
-    if (!m_pVerticalToolBar)
+    m_pVerticalToolBar = new QIToolBar;
+    if (!m_pVerticalToolBar && !m_pActionPool)
         return;
 
     m_pVerticalToolBar->setOrientation(Qt::Vertical);
-    m_pVerticalToolBar->setEnabled(false);
 
     /* Add to dummy QWidget to toolbar to center the action icons vertically: */
     QWidget *topSpacerWidget = new QWidget(this);
@@ -314,38 +276,49 @@ void UIFileManager::prepareVerticalToolBar(QHBoxLayout *layout)
     bottomSpacerWidget->setVisible(true);
 
     m_pVerticalToolBar->addWidget(topSpacerWidget);
-    m_pVerticalToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost));
-    m_pVerticalToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest));
-    m_pVerticalToolBar->addWidget(bottomSpacerWidget);
+    if (m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost))
+    {
+        m_pVerticalToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost));
+        m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost)->setEnabled(false);
+    }
+    if (m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest))
+    {
+        m_pVerticalToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest));
+        m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest)->setEnabled(false);
+    }
 
-    connect(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost), &QAction::triggered,
-            this, &UIFileManager::sltCopyGuestToHost);
-    connect(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest), &QAction::triggered,
-             this, &UIFileManager::sltCopyHostToGuest);
+    m_pVerticalToolBar->addWidget(bottomSpacerWidget);
 
     layout ->addWidget(m_pVerticalToolBar);
 }
 
 void UIFileManager::prepareConnections()
 {
-    if (m_pQtGuestListener)
+    if (m_pActionPool)
     {
-        connect(m_pQtGuestListener->getWrapped(), &UIMainEventListener::sigGuestSessionUnregistered,
-                this, &UIFileManager::sltGuestSessionUnregistered);
-    }
-    if (m_pSessionPanel)
-    {
-        connect(m_pSessionPanel, &UIFileManagerSessionPanel::sigCreateSession,
-                this, &UIFileManager::sltCreateSession);
-        connect(m_pSessionPanel, &UIFileManagerSessionPanel::sigCloseSession,
-                this, &UIFileManager::sltCloseSession);
-        connect(m_pSessionPanel, &UIFileManagerSessionPanel::sigHidePanel,
-                this, &UIFileManager::sltHandleHidePanel);
+        if (m_pActionPool->action(UIActionIndex_M_FileManager_T_Options))
+            connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Options), &QAction::toggled,
+                    this, &UIFileManager::sltPanelActionToggled);
+        if (m_pActionPool->action(UIActionIndex_M_FileManager_T_Log))
+            connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Log), &QAction::toggled,
+                    this, &UIFileManager::sltPanelActionToggled);
+        if (m_pActionPool->action(UIActionIndex_M_FileManager_T_Operations))
+            connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Operations), &QAction::toggled,
+                    this, &UIFileManager::sltPanelActionToggled);
+        if (m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost))
+            connect(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost), &QAction::triggered,
+                    this, &UIFileManager::sltCopyGuestToHost);
+        if (m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest))
+            connect(m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest), &QAction::triggered,
+                    this, &UIFileManager::sltCopyHostToGuest);
     }
     if (m_pOptionsPanel)
+    {
         connect(m_pOptionsPanel, &UIFileManagerOptionsPanel::sigHidePanel,
                 this, &UIFileManager::sltHandleHidePanel);
-
+        connect(m_pOptionsPanel, &UIFileManagerOptionsPanel::sigOptionsChanged,
+                this, &UIFileManager::sltHandleOptionsUpdated);
+    }
     if (m_pLogPanel)
         connect(m_pLogPanel, &UIFileManagerLogPanel::sigHidePanel,
                 this, &UIFileManager::sltHandleHidePanel);
@@ -353,12 +326,27 @@ void UIFileManager::prepareConnections()
     if (m_pOperationsPanel)
         connect(m_pOperationsPanel, &UIFileManagerOperationsPanel::sigHidePanel,
                 this, &UIFileManager::sltHandleHidePanel);
+    if (m_pHostFileTable)
+    {
+        connect(m_pHostFileTable, &UIFileManagerHostTable::sigLogOutput,
+                this, &UIFileManager::sltReceieveLogOutput);
+        connect(m_pHostFileTable, &UIFileManagerHostTable::sigDeleteConfirmationOptionChanged,
+                this, &UIFileManager::sltHandleOptionsUpdated);
+        connect(m_pHostFileTable, &UIFileManagerGuestTable::sigSelectionChanged,
+                this, &UIFileManager::sltFileTableSelectionChanged);
+    }
+    if (m_pGuestTablesContainer)
+        connect(m_pGuestTablesContainer, &QITabWidget::currentChanged, this,
+                &UIFileManager::sltCurrentTabChanged);
+
+    connect(&uiCommon(), &UICommon::sigAskToCommitData,
+            this, &UIFileManager::sltCommitDataSignalReceived);
 }
 
 void UIFileManager::prepareToolBar()
 {
     /* Create toolbar: */
-    m_pToolBar = new UIToolBar(parentWidget());
+    m_pToolBar = new QIToolBar(parentWidget());
     if (m_pToolBar)
     {
         /* Configure toolbar: */
@@ -366,19 +354,9 @@ void UIFileManager::prepareToolBar()
         m_pToolBar->setIconSize(QSize(iIconMetric, iIconMetric));
         m_pToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
 
-        m_pToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_T_Session));
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_T_Options));
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_T_Operations));
         m_pToolBar->addAction(m_pActionPool->action(UIActionIndex_M_FileManager_T_Log));
-
-        connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Options), &QAction::toggled,
-                this, &UIFileManager::sltPanelActionToggled);
-        connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Log), &QAction::toggled,
-                this, &UIFileManager::sltPanelActionToggled);
-        connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Session), &QAction::toggled,
-                this, &UIFileManager::sltPanelActionToggled);
-        connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Operations), &QAction::toggled,
-                this, &UIFileManager::sltPanelActionToggled);
 
 #ifdef VBOX_WS_MAC
         /* Check whether we are embedded into a stack: */
@@ -394,80 +372,9 @@ void UIFileManager::prepareToolBar()
     }
 }
 
-
-void UIFileManager::sltGuestSessionUnregistered(CGuestSession guestSession)
+void UIFileManager::sltReceieveLogOutput(QString strOutput, const QString &strMachineName, FileManagerLogType eLogType)
 {
-    if (guestSession.isNull())
-        return;
-    if (guestSession == m_comGuestSession && !m_comGuestSession.isNull())
-    {
-        m_comGuestSession.detach();
-        postSessionClosed();
-    }
-}
-
-void UIFileManager::sltCreateSession(QString strUserName, QString strPassword)
-{
-    if (!UIGuestControlInterface::isGuestAdditionsAvailable(m_comGuest))
-    {
-        appendLog("Could not find Guest Additions", FileManagerLogType_Error);
-        postSessionClosed();
-        if (m_pSessionPanel)
-            m_pSessionPanel->markForError(true);
-        return;
-    }
-    if (strUserName.isEmpty())
-    {
-        appendLog("No user name is given", FileManagerLogType_Error);
-        if (m_pSessionPanel)
-            m_pSessionPanel->markForError(true);
-        return;
-    }
-    if (m_pSessionPanel)
-        m_pSessionPanel->markForError(!createSession(strUserName, strPassword));
-}
-
-void UIFileManager::sltCloseSession()
-{
-    if (!m_comGuestSession.isOk())
-    {
-        appendLog("Guest session is not valid", FileManagerLogType_Error);
-        postSessionClosed();
-        return;
-    }
-    if (m_pGuestFileTable)
-        m_pGuestFileTable->reset();
-
-    if (m_comGuestSession.isOk() && m_pQtSessionListener && m_comSessionListener.isOk())
-        cleanupListener(m_pQtSessionListener, m_comSessionListener, m_comGuestSession.GetEventSource());
-
-    m_comGuestSession.Close();
-    appendLog("Guest session is closed", FileManagerLogType_Info);
-    postSessionClosed();
-}
-
-void UIFileManager::sltGuestSessionStateChanged(const CGuestSessionStateChangedEvent &cEvent)
-{
-    if (cEvent.isOk() /*&& m_comGuestSession.isOk()*/)
-    {
-        CVirtualBoxErrorInfo cErrorInfo = cEvent.GetError();
-        if (cErrorInfo.isOk())
-            appendLog(cErrorInfo.GetText(), FileManagerLogType_Error);
-    }
-    if (m_comGuestSession.GetStatus() == KGuestSessionStatus_Started)
-    {
-        initFileTable();
-        postSessionCreated();
-    }
-    else
-    {
-        appendLog("Session status has changed", FileManagerLogType_Info);
-    }
-}
-
-void UIFileManager::sltReceieveLogOutput(QString strOutput, FileManagerLogType eLogType)
-{
-    appendLog(strOutput, eLogType);
+    appendLog(strOutput, strMachineName, eLogType);
 }
 
 void UIFileManager::sltCopyGuestToHost()
@@ -501,33 +408,40 @@ void UIFileManager::sltPanelActionToggled(bool fChecked)
         hidePanel(pPanel);
 }
 
-void UIFileManager::sltReceieveNewFileOperation(const CProgress &comProgress)
+void UIFileManager::sltReceieveNewFileOperation(const CProgress &comProgress, const QString &strTableName)
 {
     if (m_pOperationsPanel)
-        m_pOperationsPanel->addNewProgress(comProgress);
+        m_pOperationsPanel->addNewProgress(comProgress, strTableName);
 }
 
 void UIFileManager::sltFileOperationComplete(QUuid progressId)
 {
     Q_UNUSED(progressId);
-    if (!m_pGuestFileTable || !m_pHostFileTable)
-        return;
-
-    m_pHostFileTable->refresh();
-    m_pGuestFileTable->refresh();
+    if (m_pHostFileTable)
+        m_pHostFileTable->refresh();
+    /// @todo we need to refresh only the table from which the completed file operation has originated
+    for (int i = 0; i < m_pGuestTablesContainer->count(); ++i)
+    {
+        UIFileManagerGuestTable *pTable = qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->widget(i));
+        if (pTable)
+            pTable->refresh();
+    }
 }
 
 void UIFileManager::sltHandleOptionsUpdated()
 {
     if (m_pOptionsPanel)
-    {
         m_pOptionsPanel->update();
-    }
 
-    if (m_pGuestFileTable)
-        m_pGuestFileTable->optionsUpdated();
+    for (int i = 0; i < m_pGuestTablesContainer->count(); ++i)
+    {
+        UIFileManagerGuestTable *pTable = qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->widget(i));
+        if (pTable)
+            pTable->optionsUpdated();
+    }
     if (m_pHostFileTable)
         m_pHostFileTable->optionsUpdated();
+    saveOptions();
 }
 
 void UIFileManager::sltHandleHidePanel(UIDialogPanel *pPanel)
@@ -535,140 +449,150 @@ void UIFileManager::sltHandleHidePanel(UIDialogPanel *pPanel)
     hidePanel(pPanel);
 }
 
+void UIFileManager::sltCommitDataSignalReceived()
+{
+    m_fCommitDataSignalReceived = true;
+}
+
+void UIFileManager::sltFileTableSelectionChanged(bool fHasSelection)
+{
+    /* If we dont have a guest session running that actions should stay disabled: */
+    if (!currentGuestTable() || !currentGuestTable()->isGuestSessionRunning())
+    {
+        m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest)->setEnabled(false);
+        m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost)->setEnabled(false);
+        return;
+    }
+
+    /* Enable/disable vertical toolbar actions: */
+    UIFileManagerGuestTable *pGuestTable = qobject_cast<UIFileManagerGuestTable*>(sender());
+
+    /* If the signal is coming from a guest table which is not the current one just dont do anything: */
+    if (pGuestTable && pGuestTable != currentGuestTable())
+        return;
+
+    if (pGuestTable)
+    {
+        if (m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost))
+            m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost)->setEnabled(fHasSelection);
+        return;
+    }
+
+    if (sender() == m_pHostFileTable && m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest))
+        m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest)->setEnabled(fHasSelection);
+}
+
+void UIFileManager::sltCurrentTabChanged(int iIndex)
+{
+    Q_UNUSED(iIndex);
+    setVerticalToolBarActionsEnabled();
+
+    /* Mark the current guest table: */
+    UIFileManagerGuestTable *pCurrentGuestTable = currentGuestTable();
+    if (!pCurrentGuestTable)
+        return;
+    for (int i = 0; i < m_pGuestTablesContainer->count(); ++i)
+    {
+        UIFileManagerGuestTable *pTable = qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->widget(i));
+        if (!pTable)
+            continue;
+        pTable->setIsCurrent(pTable == pCurrentGuestTable);
+    }
+    /* Disable host file table if guest session is not running: */
+    if (m_pHostFileTable)
+        m_pHostFileTable->setEnabled(pCurrentGuestTable->isGuestSessionRunning());
+    /* Disable/enable file table submenus of the menu: */
+    UIMenu *pGuestSubmenu = m_pActionPool->action(UIActionIndex_M_FileManager_M_GuestSubmenu)->menu();
+    if (pGuestSubmenu)
+        pGuestSubmenu->setEnabled(pCurrentGuestTable->isGuestSessionRunning());
+    UIMenu *pHostSubmenu = m_pActionPool->action(UIActionIndex_M_FileManager_M_HostSubmenu)->menu();
+    if (pHostSubmenu)
+        pHostSubmenu->setEnabled(pCurrentGuestTable->isGuestSessionRunning());
+}
+
+void UIFileManager::sltGuestFileTableStateChanged(bool fIsRunning)
+{
+    if (m_pHostFileTable)
+        m_pHostFileTable->setEnabled(fIsRunning);
+}
+
+void UIFileManager::setVerticalToolBarActionsEnabled()
+{
+    if (!m_pGuestTablesContainer)
+        return;
+    UIFileManagerGuestTable *pTable = currentGuestTable();
+    if (!pTable)
+        return;
+
+    bool fRunning = pTable->isGuestSessionRunning();
+    if (m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost))
+        m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToHost)->setEnabled(fRunning && pTable->hasSelection());
+
+    if (m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest))
+    {
+        bool fHostHasSelection = m_pHostFileTable ? m_pHostFileTable->hasSelection() : false;
+        m_pActionPool->action(UIActionIndex_M_FileManager_S_CopyToGuest)->setEnabled(fRunning && fHostHasSelection);
+    }
+}
+
 void UIFileManager::copyToHost()
 {
-    if (!m_pGuestFileTable || !m_pHostFileTable)
-        return;
-    QString hostDestinationPath = m_pHostFileTable->currentDirectoryPath();
-    m_pGuestFileTable->copyGuestToHost(hostDestinationPath);
-    m_pHostFileTable->refresh();
+    if (m_pGuestTablesContainer && m_pHostFileTable)
+    {
+        UIFileManagerGuestTable *pGuestFileTable = currentGuestTable();
+        if (pGuestFileTable)
+            pGuestFileTable->copyGuestToHost(m_pHostFileTable->currentDirectoryPath());
+    }
 }
 
 void UIFileManager::copyToGuest()
 {
-    if (!m_pGuestFileTable || !m_pHostFileTable)
-        return;
-    QStringList hostSourcePathList = m_pHostFileTable->selectedItemPathList();
-    m_pGuestFileTable->copyHostToGuest(hostSourcePathList);
-    m_pGuestFileTable->refresh();
-}
-
-void UIFileManager::initFileTable()
-{
-    if (!m_comGuestSession.isOk() || m_comGuestSession.GetStatus() != KGuestSessionStatus_Started)
-        return;
-    if (!m_pGuestFileTable)
-        return;
-    m_pGuestFileTable->initGuestFileTable(m_comGuestSession);
-}
-
-void UIFileManager::postSessionCreated()
-{
-    if (m_pSessionPanel)
-        m_pSessionPanel->switchSessionCloseMode();
-    if (m_pGuestFileTable)
-        m_pGuestFileTable->setEnabled(true);
-    if (m_pVerticalToolBar)
-        m_pVerticalToolBar->setEnabled(true);
-}
-
-void UIFileManager::postSessionClosed()
-{
-    if (m_pSessionPanel)
-        m_pSessionPanel->switchSessionCreateMode();
-    if (m_pGuestFileTable)
-        m_pGuestFileTable->setEnabled(false);
-    if (m_pVerticalToolBar)
-        m_pVerticalToolBar->setEnabled(false);
-}
-
-bool UIFileManager::createSession(const QString& strUserName, const QString& strPassword,
-                                              const QString& strDomain /* not used currently */)
-{
-    if (!m_comGuest.isOk())
-        return false;
-    m_comGuestSession = m_comGuest.CreateSession(strUserName, strPassword,
-                                                               strDomain, "File Manager Session");
-
-    if (!m_comGuestSession.isOk())
+    if (m_pGuestTablesContainer && m_pHostFileTable)
     {
-        appendLog(UIErrorString::formatErrorInfo(m_comGuestSession), FileManagerLogType_Error);
-        return false;
-    }
-    appendLog("Guest session has been created", FileManagerLogType_Info);
-    if (m_pSessionPanel)
-        m_pSessionPanel->switchSessionCloseMode();
-
-    /* Prepare session listener */
-    QVector<KVBoxEventType> eventTypes;
-    eventTypes << KVBoxEventType_OnGuestSessionStateChanged;
-    //<< KVBoxEventType_OnGuestProcessRegistered;
-    prepareListener(m_pQtSessionListener, m_comSessionListener,
-                    m_comGuestSession.GetEventSource(), eventTypes);
-
-    /* Connect to session listener */
-    qRegisterMetaType<CGuestSessionStateChangedEvent>();
-
-
-    connect(m_pQtSessionListener->getWrapped(), &UIMainEventListener::sigGuestSessionStatedChanged,
-            this, &UIFileManager::sltGuestSessionStateChanged);
-     /* Wait session to start. For some reason we cannot get GuestSessionStatusChanged event
-        consistently. So we wait: */
-    appendLog("Waiting the session to start", FileManagerLogType_Info);
-    const ULONG waitTimeout = 2000;
-    KGuestSessionWaitResult waitResult = m_comGuestSession.WaitFor(KGuestSessionWaitForFlag_Start, waitTimeout);
-    if (waitResult != KGuestSessionWaitResult_Start)
-    {
-        appendLog("The session did not start", FileManagerLogType_Error);
-        sltCloseSession();
-        return false;
-    }
-    return true;
-}
-
-void UIFileManager::prepareListener(ComObjPtr<UIMainEventListenerImpl> &QtListener,
-                                                CEventListener &comEventListener,
-                                                CEventSource comEventSource, QVector<KVBoxEventType>& eventTypes)
-{
-    if (!comEventSource.isOk())
-        return;
-    /* Create event listener instance: */
-    QtListener.createObject();
-    QtListener->init(new UIMainEventListener, this);
-    comEventListener = CEventListener(QtListener);
-
-    /* Register event listener for CProgress event source: */
-    comEventSource.RegisterListener(comEventListener, eventTypes,
-        gEDataManager->eventHandlingType() == EventHandlingType_Active ? TRUE : FALSE);
-
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
-    {
-        /* Register event sources in their listeners as well: */
-        QtListener->getWrapped()->registerSource(comEventSource, comEventListener);
+        UIFileManagerGuestTable *pGuestFileTable = currentGuestTable();
+        if (pGuestFileTable)
+            pGuestFileTable->copyHostToGuest(m_pHostFileTable->selectedItemPathList());
     }
 }
 
-void UIFileManager::cleanupListener(ComObjPtr<UIMainEventListenerImpl> &QtListener,
-                                                CEventListener &comEventListener,
-                                                CEventSource comEventSource)
+void UIFileManager::prepareOptionsAndSessionPanels(QVBoxLayout *pLayout)
 {
-    if (!comEventSource.isOk())
+    if (!pLayout)
         return;
-    /* If event listener registered as passive one: */
-    if (gEDataManager->eventHandlingType() == EventHandlingType_Passive)
+
+    m_pOptionsPanel = new UIFileManagerOptionsPanel(0 /*parent */, UIFileManagerOptions::instance());
+    if (m_pOptionsPanel)
     {
-        /* Unregister everything: */
-        QtListener->getWrapped()->unregisterSources();
+        m_pOptionsPanel->hide();
+        m_panelActionMap.insert(m_pOptionsPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Options));
+        pLayout->addWidget(m_pOptionsPanel);
     }
-
-    /* Make sure VBoxSVC is available: */
-    if (!uiCommon().isVBoxSVCAvailable())
-        return;
-
-    /* Unregister event listener for CProgress event source: */
-    comEventSource.UnregisterListener(comEventListener);
 }
+
+void UIFileManager::prepareOperationsAndLogPanels(QSplitter *pSplitter)
+{
+    if (!pSplitter)
+        return;
+    m_pOperationsPanel = new UIFileManagerOperationsPanel;
+    if (m_pOperationsPanel)
+    {
+        m_pOperationsPanel->hide();
+        connect(m_pOperationsPanel, &UIFileManagerOperationsPanel::sigFileOperationComplete,
+                this, &UIFileManager::sltFileOperationComplete);
+        connect(m_pOperationsPanel, &UIFileManagerOperationsPanel::sigFileOperationFail,
+                this, &UIFileManager::sltReceieveLogOutput);
+        m_panelActionMap.insert(m_pOperationsPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Operations));
+    }
+    pSplitter->addWidget(m_pOperationsPanel);
+    m_pLogPanel = new UIFileManagerLogPanel;
+    if (m_pLogPanel)
+    {
+        m_pLogPanel->hide();
+        m_panelActionMap.insert(m_pLogPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Log));
+    }
+    pSplitter->addWidget(m_pLogPanel);
+}
+
 
 template<typename T>
 QStringList UIFileManager::getFsObjInfoStringList(const T &fsObjectInfo) const
@@ -682,11 +606,8 @@ QStringList UIFileManager::getFsObjInfoStringList(const T &fsObjectInfo) const
 
 void UIFileManager::saveOptions()
 {
-    /* Save a list of currently visible panels: */
-    QStringList strNameList;
-    foreach(UIDialogPanel* pPanel, m_visiblePanelsList)
-        strNameList.append(pPanel->panelName());
-    gEDataManager->setFileManagerVisiblePanels(strNameList);
+    if (m_fCommitDataSignalReceived)
+        return;
     /* Save the options: */
     UIFileManagerOptions *pOptions = UIFileManagerOptions::instance();
     if (pOptions)
@@ -722,9 +643,6 @@ void UIFileManager::restorePanelVisibility()
             }
         }
     }
-    /* Make sure Session panel is visible: */
-    if (m_pSessionPanel && !m_pSessionPanel->isVisible())
-        showPanel(m_pSessionPanel);
 }
 
 void UIFileManager::loadOptions()
@@ -742,6 +660,8 @@ void UIFileManager::loadOptions()
 
 void UIFileManager::hidePanel(UIDialogPanel* panel)
 {
+    if (!m_pActionPool)
+        return;
     if (panel && panel->isVisible())
         panel->setVisible(false);
     QMap<UIDialogPanel*, QAction*>::iterator iterator = m_panelActionMap.find(panel);
@@ -752,6 +672,7 @@ void UIFileManager::hidePanel(UIDialogPanel* panel)
     }
     m_visiblePanelsList.removeAll(panel);
     manageEscapeShortCut();
+    savePanelVisibility();
 }
 
 void UIFileManager::showPanel(UIDialogPanel* panel)
@@ -767,6 +688,7 @@ void UIFileManager::showPanel(UIDialogPanel* panel)
     if (!m_visiblePanelsList.contains(panel))
         m_visiblePanelsList.push_back(panel);
     manageEscapeShortCut();
+    savePanelVisibility();
 }
 
 void UIFileManager::manageEscapeShortCut()
@@ -782,17 +704,141 @@ void UIFileManager::manageEscapeShortCut()
     /* Just loop thru the visible panel list and set the esc key to the
        panel which made visible latest */
     for (int i = 0; i < m_visiblePanelsList.size() - 1; ++i)
-    {
         m_visiblePanelsList[i]->setCloseButtonShortCut(QKeySequence());
-    }
+
     m_visiblePanelsList.back()->setCloseButtonShortCut(QKeySequence(Qt::Key_Escape));
 }
 
-void UIFileManager::appendLog(const QString &strLog, FileManagerLogType eLogType)
+void UIFileManager::appendLog(const QString &strLog, const QString &strMachineName, FileManagerLogType eLogType)
 {
     if (!m_pLogPanel)
         return;
-    m_pLogPanel->appendLog(strLog, eLogType);
+    m_pLogPanel->appendLog(strLog, strMachineName, eLogType);
 }
 
+void UIFileManager::savePanelVisibility()
+{
+    if (m_fCommitDataSignalReceived)
+        return;
+    /* Save a list of currently visible panels: */
+    QStringList strNameList;
+    foreach(UIDialogPanel* pPanel, m_visiblePanelsList)
+        strNameList.append(pPanel->panelName());
+    gEDataManager->setFileManagerVisiblePanels(strNameList);
+}
+
+void UIFileManager::setSelectedVMListItems(const QList<UIVirtualMachineItem*> &items)
+{
+    AssertReturnVoid(m_pGuestTablesContainer);
+    QVector<QUuid> selectedMachines;
+
+    foreach (const UIVirtualMachineItem *item, items)
+    {
+        if (!item)
+            continue;
+        selectedMachines << item->id();
+    }
+    QUuid lastSelection = selectedMachines.isEmpty() ? QUuid() : selectedMachines.last();
+    /** Iterate through the current tabs and add any machine id for which we have a running guest session to the
+      * list of machine ids we want to have a tab for: */
+    for (int i = 0; i < m_pGuestTablesContainer->count(); ++i)
+    {
+        UIFileManagerGuestTable *pTable = qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->widget(i));
+        if (!pTable || !pTable->isGuestSessionRunning())
+            continue;
+        if (!selectedMachines.contains(pTable->machineId()))
+            selectedMachines << pTable->machineId();
+    }
+
+    setMachines(selectedMachines, lastSelection);
+}
+
+void UIFileManager::setMachines(const QVector<QUuid> &machineIds, const QUuid &lastSelectedMachineId /* = QUuid() */)
+{
+    AssertReturnVoid(m_pGuestTablesContainer);
+
+    /* List of machines that are newly added to selected machine list: */
+    QVector<QUuid> newSelections;
+    QVector<QUuid> unselectedMachines(m_machineIds);
+
+    foreach (const QUuid &id, machineIds)
+    {
+        unselectedMachines.removeAll(id);
+        if (!m_machineIds.contains(id))
+            newSelections << id;
+    }
+    m_machineIds = machineIds;
+
+    addTabs(newSelections);
+    removeTabs(unselectedMachines);
+    if (!lastSelectedMachineId.isNull())
+    {
+        int iIndexToSelect = -1;
+        for (int i = 0; i < m_pGuestTablesContainer->count() && iIndexToSelect == -1; ++i)
+        {
+            UIFileManagerGuestTable *pTable = qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->widget(i));
+            if (!pTable)
+                continue;
+            if (lastSelectedMachineId == pTable->machineId())
+                iIndexToSelect = i;
+        }
+        if (iIndexToSelect != -1)
+            m_pGuestTablesContainer->setCurrentIndex(iIndexToSelect);
+    }
+}
+
+void UIFileManager::removeTabs(const QVector<QUuid> &machineIdsToRemove)
+{
+    if (!m_pGuestTablesContainer)
+        return;
+    QVector<UIFileManagerGuestTable*> removeList;
+
+    for (int i = m_pGuestTablesContainer->count() - 1; i >= 0; --i)
+    {
+        UIFileManagerGuestTable *pTable = qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->widget(i));
+        if (!pTable)
+            continue;
+        if (machineIdsToRemove.contains(pTable->machineId()))
+        {
+            removeList << pTable;
+            m_pGuestTablesContainer->removeTab(i);
+        }
+    }
+    qDeleteAll(removeList.begin(), removeList.end());
+}
+
+void UIFileManager::addTabs(const QVector<QUuid> &machineIdsToAdd)
+{
+    if (!m_pGuestTablesContainer)
+        return;
+
+    foreach (const QUuid &id, machineIdsToAdd)
+    {
+        CMachine comMachine = uiCommon().virtualBox().FindMachine(id.toString());
+        if (comMachine.isNull())
+            continue;
+        UIFileManagerGuestTable *pGuestFileTable = new UIFileManagerGuestTable(m_pActionPool, comMachine, m_pGuestTablesContainer);
+        m_pGuestTablesContainer->addTab(pGuestFileTable, comMachine.GetName());
+        if (pGuestFileTable)
+        {
+            connect(pGuestFileTable, &UIFileManagerGuestTable::sigLogOutput,
+                    this, &UIFileManager::sltReceieveLogOutput);
+            connect(pGuestFileTable, &UIFileManagerGuestTable::sigSelectionChanged,
+                    this, &UIFileManager::sltFileTableSelectionChanged);
+            connect(pGuestFileTable, &UIFileManagerGuestTable::sigNewFileOperation,
+                    this, &UIFileManager::sltReceieveNewFileOperation);
+            connect(pGuestFileTable, &UIFileManagerGuestTable::sigDeleteConfirmationOptionChanged,
+                    this, &UIFileManager::sltHandleOptionsUpdated);
+            connect(pGuestFileTable, &UIFileManagerGuestTable::sigStateChanged,
+                    this, &UIFileManager::sltGuestFileTableStateChanged);
+        }
+    }
+}
+
+UIFileManagerGuestTable *UIFileManager::currentGuestTable()
+{
+    if (!m_pGuestTablesContainer)
+        return 0;
+    return qobject_cast<UIFileManagerGuestTable*>(m_pGuestTablesContainer->currentWidget());
+}
 #include "UIFileManager.moc"

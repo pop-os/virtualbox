@@ -23,17 +23,27 @@ from __future__ import print_function
 
 __copyright__ = \
 """
-Copyright (C) 2009-2020 Oracle Corporation
+Copyright (C) 2009-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
+
+SPDX-License-Identifier: GPL-3.0-only
 """
-__version__ = "$Revision: 148572 $"
+__version__ = "$Revision: 153224 $"
 
 
 import gc
@@ -334,13 +344,14 @@ def guestExec(ctx, machine, console, cmds):
     exec(cmds)
 
 def printMouseEvent(_ctx, mev):
-    print("Mouse : mode=%d x=%d y=%d z=%d w=%d buttons=%x" % (mev.mode, mev.x, mev.y, mev.z, mev.w, mev.buttons))
+    print("Mouse: mode=%d x=%d y=%d z=%d w=%d buttons=%x" % (mev.mode, mev.x, mev.y, mev.z, mev.w, mev.buttons))
 
 def printKbdEvent(ctx, kev):
     print("Kbd: ", ctx['global'].getArray(kev, 'scancodes'))
 
 def printMultiTouchEvent(ctx, mtev):
-    print("MultiTouch : contacts=%d time=%d" % (mtev.contactCount, mtev.scanTime))
+    print("MultiTouch: %s contacts=%d time=%d" \
+        % ("touchscreen" if mtev.isTouchScreen else "touchpad", mtev.contactCount, mtev.scanTime))
     xPositions = ctx['global'].getArray(mtev, 'xPositions')
     yPositions = ctx['global'].getArray(mtev, 'yPositions')
     contactIds = ctx['global'].getArray(mtev, 'contactIds')
@@ -364,7 +375,11 @@ def monitorSource(ctx, eventSource, active, dur):
         elif  evtype == ctx['global'].constants.VBoxEventType_OnGuestPropertyChanged:
             gpcev = ctx['global'].queryInterface(event, 'IGuestPropertyChangedEvent')
             if gpcev:
-                print("guest property change: name=%s value=%s" % (gpcev.name, gpcev.value))
+                if gpcev.fWasDeleted is True:
+                    print("property %s was deleted" % (gpcev.name))
+                else:
+                    print("guest property change: name=%s value=%s flags='%s'" %
+                          (gpcev.name, gpcev.value, gpcev.flags))
         elif  evtype == ctx['global'].constants.VBoxEventType_OnMousePointerShapeChanged:
             psev = ctx['global'].queryInterface(event, 'IMousePointerShapeChangedEvent')
             if psev:
@@ -1656,8 +1671,6 @@ def getAdapterType(ctx, natype):
         return "e1000"
     elif (natype == ctx['global'].constants.NetworkAdapterType_Virtio):
         return "virtio"
-    elif (natype == ctx['global'].constants.NetworkAdapterType_Virtio_1_0):
-        return "virtio_1.0"
     elif (natype == ctx['global'].constants.NetworkAdapterType_Null):
         return None
     else:

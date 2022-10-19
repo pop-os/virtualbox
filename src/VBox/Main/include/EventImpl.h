@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_EventImpl_h
@@ -26,11 +36,11 @@
 #include "VetoEventWrap.h"
 
 
-class ATL_NO_VTABLE VBoxEvent :
-    public EventWrap
+class ATL_NO_VTABLE VBoxEvent
+    : public EventWrap
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(VBoxEvent)
+    DECLARE_COMMON_CLASS_METHODS(VBoxEvent)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -54,11 +64,11 @@ private:
 };
 
 
-class ATL_NO_VTABLE VBoxVetoEvent :
-    public VetoEventWrap
+class ATL_NO_VTABLE VBoxVetoEvent
+    : public VetoEventWrap
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(VBoxVetoEvent)
+    DECLARE_COMMON_CLASS_METHODS(VBoxVetoEvent)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -93,7 +103,7 @@ class ATL_NO_VTABLE EventSource :
     public EventSourceWrap
 {
 public:
-    DECLARE_EMPTY_CTOR_DTOR(EventSource)
+    DECLARE_COMMON_CLASS_METHODS(EventSource)
 
     HRESULT FinalConstruct();
     void FinalRelease();
@@ -122,7 +132,7 @@ private:
 
 
     struct Data;
-    Data* m;
+    Data *m;
 
     friend class ListenerRecord;
 };
@@ -133,22 +143,18 @@ public:
     VBoxEventDesc() : mEvent(0), mEventSource(0)
     {}
 
+    VBoxEventDesc(IEvent *aEvent, IEventSource *aSource)
+        : mEvent(aEvent), mEventSource(aSource)
+    {}
+
     ~VBoxEventDesc()
     {}
 
-    /**
-     * This function to be used with some care, as arguments order must match
-     * attribute declaration order event class and its superclasses up to
-     * IEvent. If unsure, consult implementation in generated VBoxEvents.cpp.
-     */
-    HRESULT init(IEventSource* aSource, VBoxEventType_T aType, ...);
-
-    /**
-    * Function similar to the above, but assumes that init() for this type
-    * already called once, so no need to allocate memory, and only reinit
-    * fields. Assumes event is subtype of IReusableEvent, asserts otherwise.
-    */
-    HRESULT reinit(VBoxEventType_T aType, ...);
+    void init(IEvent *aEvent, IEventSource *aSource)
+    {
+        mEvent       = aEvent;
+        mEventSource = aSource;
+    }
 
     void uninit()
     {
@@ -166,8 +172,8 @@ public:
         if (mEventSource && mEvent)
         {
             BOOL fDelivered = FALSE;
-            int rc = mEventSource->FireEvent(mEvent, aTimeout, &fDelivered);
-            AssertRCReturn(rc, FALSE);
+            HRESULT hrc = mEventSource->FireEvent(mEvent, aTimeout, &fDelivered);
+            AssertComRCReturn(hrc, FALSE);
             return fDelivered;
         }
         return FALSE;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2018-2020 Oracle Corporation
+ * Copyright (C) 2018-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -26,6 +36,10 @@
 #include <VBox/vmm/vmcc.h>
 #include <VBox/vmm/pdmapi.h>
 #include <iprt/errcore.h>
+
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h> /* ASMCpuId_EAX */
+#endif
 
 
 /*********************************************************************************************************************************
@@ -142,6 +156,14 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Invvpid_Type1InvalidVpid         , "Type1InvalidVpid"          ),
     VMXV_DIAG_DESC(kVmxVDiag_Invvpid_Type3InvalidVpid         , "Type3InvalidVpid"          ),
     VMXV_DIAG_DESC(kVmxVDiag_Invvpid_VmxRoot                  , "VmxRoot"                   ),
+    /* INVEPT. */
+    VMXV_DIAG_DESC(kVmxVDiag_Invept_Cpl                       , "Cpl"                       ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invept_DescRsvd                  , "DescRsvd"                  ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invept_EptpInvalid               , "EptpInvalid"               ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invept_LongModeCS                , "LongModeCS"                ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invept_RealOrV86Mode             , "RealOrV86Mode"             ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invept_TypeInvalid               , "TypeInvalid"               ),
+    VMXV_DIAG_DESC(kVmxVDiag_Invept_VmxRoot                   , "VmxRoot"                   ),
     /* VMLAUNCH/VMRESUME. */
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_AddrApicAccess           , "AddrApicAccess"            ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_AddrApicAccessEqVirtApic , "AddrApicAccessEqVirtApic"  ),
@@ -168,6 +190,10 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_EntryIntInfoErrCodeVec   , "EntryIntInfoErrCodeVec"    ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_EntryIntInfoTypeVecRsvd  , "EntryIntInfoTypeVecRsvd"   ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_EntryXcptErrCodeRsvd     , "EntryXcptErrCodeRsvd"      ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_EptpAccessDirty          , "EptpAccessDirty"           ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_EptpPageWalkLength       , "EptpPageWalkLength"        ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_EptpMemType              , "EptpMemType"               ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_EptpRsvd                 , "EptpRsvd"                  ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_ExitCtlsAllowed1         , "ExitCtlsAllowed1"          ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_ExitCtlsDisallowed0      , "ExitCtlsDisallowed0"       ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestActStateHlt         , "GuestActStateHlt"          ),
@@ -200,11 +226,7 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPae                 , "GuestPae"                  ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPatMsr              , "GuestPatMsr"               ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPcide               , "GuestPcide"                ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPdpteCr3ReadPhys    , "GuestPdpteCr3ReadPhys"     ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPdpte0Rsvd          , "GuestPdpte0Rsvd"           ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPdpte1Rsvd          , "GuestPdpte1Rsvd"           ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPdpte2Rsvd          , "GuestPdpte2Rsvd"           ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPdpte3Rsvd          , "GuestPdpte3Rsvd"           ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPdpte               , "GuestPdpteRsvd"            ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPndDbgXcptBsNoTf    , "GuestPndDbgXcptBsNoTf"     ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPndDbgXcptBsTf      , "GuestPndDbgXcptBsTf"       ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_GuestPndDbgXcptRsvd      , "GuestPndDbgXcptRsvd"       ),
@@ -357,11 +379,7 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_VmwriteBitmapPtrReadPhys , "VmwriteBitmapPtrReadPhys"  ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_VmxRoot                  , "VmxRoot"                   ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_Vpid                     , "Vpid"                      ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_HostPdpteCr3ReadPhys      , "HostPdpteCr3ReadPhys"      ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_HostPdpte0Rsvd            , "HostPdpte0Rsvd"            ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_HostPdpte1Rsvd            , "HostPdpte1Rsvd"            ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_HostPdpte2Rsvd            , "HostPdpte2Rsvd"            ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_HostPdpte3Rsvd            , "HostPdpte3Rsvd"            ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmexit_HostPdpte                 , "HostPdpte"                 ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrLoad                   , "MsrLoad"                   ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrLoadCount              , "MsrLoadCount"              ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmexit_MsrLoadPtrReadPhys        , "MsrLoadPtrReadPhys"        ),
@@ -544,6 +562,7 @@ static bool hmVmxIsStackSelectorOk(PCCPUMSELREG pSel)
 }
 
 
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 /**
  * Checks if the CPU is subject to the "VMX-Preemption Timer Does Not Count Down at
  * the Rate Specified" erratum.
@@ -582,10 +601,12 @@ VMM_INT_DECL(bool) HMIsSubjectToVmxPreemptTimerErratum(void)
         || u == 0x000106A5 /* 321333.pdf - AAM126 - D0 - Xeon Processor 3500 Series Specification */
                            /* 321324.pdf - AAK139 - D0 - Xeon Processor 5500 Series Specification */
                            /* 320836.pdf - AAJ124 - D0 - Core i7-900 Desktop Processor Extreme Edition Series and Intel Core i7-900 Desktop Processor Series */
+        || u == 0x000306A8 /* ?????????? - ?????? - ?? - Xeon E3-1220 v2 */
         )
         return true;
     return false;
 }
+#endif
 
 
 /**
@@ -604,13 +625,14 @@ VMM_INT_DECL(bool) HMIsSubjectToVmxPreemptTimerErratum(void)
 VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCtx)
 {
     Assert(HMIsEnabled(pVM));
-    Assert(   ( pVM->hm.s.vmx.fUnrestrictedGuest && !pVM->hm.s.vmx.pRealModeTSS)
-           || (!pVM->hm.s.vmx.fUnrestrictedGuest && pVM->hm.s.vmx.pRealModeTSS));
+    bool const fUnrestrictedGuest = CTX_EXPR(pVM->hm.s.vmx.fUnrestrictedGuestCfg, pVM->hmr0.s.vmx.fUnrestrictedGuest, RT_NOTHING);
+    Assert(   ( fUnrestrictedGuest && !pVM->hm.s.vmx.pRealModeTSS)
+           || (!fUnrestrictedGuest && pVM->hm.s.vmx.pRealModeTSS));
 
     pVCpu->hm.s.fActive = false;
 
-    bool const fSupportsRealMode = pVM->hm.s.vmx.fUnrestrictedGuest || PDMVmmDevHeapIsEnabled(pVM);
-    if (!pVM->hm.s.vmx.fUnrestrictedGuest)
+    bool const fSupportsRealMode = fUnrestrictedGuest || PDMVmmDevHeapIsEnabled(pVM);
+    if (!fUnrestrictedGuest)
     {
         /*
          * The VMM device heap is a requirement for emulating real mode or protected mode without paging with the unrestricted
@@ -666,7 +688,7 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCt
                  * handle the CPU state right after a switch from real to protected mode
                  * (all sorts of RPL & DPL assumptions).
                  */
-                PCVMXVMCSINFO pVmcsInfo = hmGetVmxActiveVmcsInfo(pVCpu);
+                PCVMXVMCSINFOSHARED pVmcsInfo = hmGetVmxActiveVmcsInfoShared(pVCpu);
                 if (pVmcsInfo->fWasInRealMode)
                 {
                     if (!CPUMIsGuestInV86ModeEx(pCtx))
@@ -729,8 +751,10 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCt
         {
             if (!CPUMIsGuestInLongModeEx(pCtx))
             {
-                if (   !pVM->hm.s.fNestedPaging        /* Requires a fake PD for real *and* protected mode without paging - stored in the VMM device heap */
-                    ||  CPUMIsGuestInRealModeEx(pCtx)) /* Requires a fake TSS for real mode - stored in the VMM device heap */
+                if (/* Requires a fake PD for real *and* protected mode without paging - stored in the VMM device heap: */
+                       !CTX_EXPR(pVM->hm.s.fNestedPagingCfg, pVM->hmr0.s.fNestedPaging, RT_NOTHING)
+                    /* Requires a fake TSS for real mode - stored in the VMM device heap: */
+                    || CPUMIsGuestInRealModeEx(pCtx))
                     return false;
 
                 /* Too early for VT-x; Solaris guests will fail with a guru meditation otherwise; same for XP. */
@@ -763,10 +787,8 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCt
 
     if (pVM->hm.s.vmx.fEnabled)
     {
-        uint32_t uCr0Mask;
-
         /* If bit N is set in cr0_fixed0, then it must be set in the guest's cr0. */
-        uCr0Mask = (uint32_t)pVM->hm.s.vmx.Msrs.u64Cr0Fixed0;
+        uint32_t uCr0Mask = (uint32_t)CTX_EXPR(pVM->hm.s.ForR3.vmx.Msrs.u64Cr0Fixed0, g_HmMsrs.u.vmx.u64Cr0Fixed0, RT_NOTHING);
 
         /* We ignore the NE bit here on purpose; see HMR0.cpp for details. */
         uCr0Mask &= ~X86_CR0_NE;
@@ -785,18 +807,18 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCt
             return false;
 
         /* If bit N is cleared in cr0_fixed1, then it must be zero in the guest's cr0. */
-        uCr0Mask = (uint32_t)~pVM->hm.s.vmx.Msrs.u64Cr0Fixed1;
+        uCr0Mask = (uint32_t)~CTX_EXPR(pVM->hm.s.ForR3.vmx.Msrs.u64Cr0Fixed1, g_HmMsrs.u.vmx.u64Cr0Fixed1, RT_NOTHING);
         if ((pCtx->cr0 & uCr0Mask) != 0)
             return false;
 
         /* If bit N is set in cr4_fixed0, then it must be set in the guest's cr4. */
-        uCr0Mask  = (uint32_t)pVM->hm.s.vmx.Msrs.u64Cr4Fixed0;
+        uCr0Mask  = (uint32_t)CTX_EXPR(pVM->hm.s.ForR3.vmx.Msrs.u64Cr4Fixed0, g_HmMsrs.u.vmx.u64Cr4Fixed0, RT_NOTHING);
         uCr0Mask &= ~X86_CR4_VMXE;
         if ((pCtx->cr4 & uCr0Mask) != uCr0Mask)
             return false;
 
         /* If bit N is cleared in cr4_fixed1, then it must be zero in the guest's cr4. */
-        uCr0Mask = (uint32_t)~pVM->hm.s.vmx.Msrs.u64Cr4Fixed1;
+        uCr0Mask = (uint32_t)~CTX_EXPR(pVM->hm.s.ForR3.vmx.Msrs.u64Cr4Fixed1, g_HmMsrs.u.vmx.u64Cr4Fixed1, RT_NOTHING);
         if ((pCtx->cr4 & uCr0Mask) != 0)
             return false;
 
@@ -810,6 +832,10 @@ VMM_INT_DECL(bool) HMCanExecuteVmxGuest(PVMCC pVM, PVMCPUCC pVCpu, PCCPUMCTX pCt
 
 /**
  * Dumps the virtual VMCS state to the release log.
+ *
+ * This is a purely a convenience function to output to the release log because
+ * cpumR3InfoVmxVmcs dumps only to the debug console and isn't always easy to use in
+ * case of a crash.
  *
  * @param   pVCpu   The cross context virtual CPU structure.
  */
@@ -838,8 +864,8 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
                 (a_pszPrefix), (a_SegName), (a_pVmcs)->u64Guest##a_Seg##Base.u, (a_pVmcs)->u32Guest##a_Seg##Limit)); \
     } while (0)
 
-    PCCPUMCTX  pCtx  = &pVCpu->cpum.GstCtx;
-    PCVMXVVMCS pVmcs = pVCpu->cpum.GstCtx.hwvirt.vmx.CTX_SUFF(pVmcs);
+    PCCPUMCTX  const pCtx  = &pVCpu->cpum.GstCtx;
+    PCVMXVVMCS const pVmcs = &pVCpu->cpum.GstCtx.hwvirt.vmx.Vmcs;
     if (!pVmcs)
     {
         LogRel(("Virtual VMCS not allocated\n"));
@@ -923,19 +949,20 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
         LogRel(("  %sAPIC-access addr           = %#RX64\n",   pszPrefix, pVmcs->u64AddrApicAccess.u));
         LogRel(("  %sPosted-intr desc addr      = %#RX64\n",   pszPrefix, pVmcs->u64AddrPostedIntDesc.u));
         LogRel(("  %sVM-functions control       = %#RX64\n",   pszPrefix, pVmcs->u64VmFuncCtls.u));
-        LogRel(("  %sEPTP ptr                   = %#RX64\n",   pszPrefix, pVmcs->u64EptpPtr.u));
-        LogRel(("  %sEOI-exit bitmap 0 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap0.u));
-        LogRel(("  %sEOI-exit bitmap 1 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap1.u));
-        LogRel(("  %sEOI-exit bitmap 2 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap2.u));
-        LogRel(("  %sEOI-exit bitmap 3 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap3.u));
+        LogRel(("  %sEPTP ptr                   = %#RX64\n",   pszPrefix, pVmcs->u64EptPtr.u));
+        LogRel(("  %sEOI-exit bitmap 0          = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap0.u));
+        LogRel(("  %sEOI-exit bitmap 1          = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap1.u));
+        LogRel(("  %sEOI-exit bitmap 2          = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap2.u));
+        LogRel(("  %sEOI-exit bitmap 3          = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap3.u));
         LogRel(("  %sEPTP-list addr             = %#RX64\n",   pszPrefix, pVmcs->u64AddrEptpList.u));
         LogRel(("  %sVMREAD-bitmap addr         = %#RX64\n",   pszPrefix, pVmcs->u64AddrVmreadBitmap.u));
         LogRel(("  %sVMWRITE-bitmap addr        = %#RX64\n",   pszPrefix, pVmcs->u64AddrVmwriteBitmap.u));
         LogRel(("  %sVirt-Xcpt info addr        = %#RX64\n",   pszPrefix, pVmcs->u64AddrXcptVeInfo.u));
-        LogRel(("  %sXSS-bitmap                 = %#RX64\n",   pszPrefix, pVmcs->u64XssBitmap.u));
-        LogRel(("  %sENCLS-exiting bitmap       = %#RX64\n",   pszPrefix, pVmcs->u64EnclsBitmap.u));
-        LogRel(("  %sSPPT pointer               = %#RX64\n",   pszPrefix, pVmcs->u64SpptPtr.u));
+        LogRel(("  %sXSS-exiting bitmap         = %#RX64\n",   pszPrefix, pVmcs->u64XssExitBitmap.u));
+        LogRel(("  %sENCLS-exiting bitmap       = %#RX64\n",   pszPrefix, pVmcs->u64EnclsExitBitmap.u));
+        LogRel(("  %sSPP table pointer          = %#RX64\n",   pszPrefix, pVmcs->u64SppTablePtr.u));
         LogRel(("  %sTSC multiplier             = %#RX64\n",   pszPrefix, pVmcs->u64TscMultiplier.u));
+        LogRel(("  %sENCLV-exiting bitmap       = %#RX64\n",   pszPrefix, pVmcs->u64EnclvExitBitmap.u));
 
         /* Natural width. */
         LogRel(("  %sCR0 guest/host mask        = %#RX64\n",   pszPrefix, pVmcs->u64Cr0Mask.u));
@@ -1102,9 +1129,13 @@ VMM_INT_DECL(void) HMDumpHwvirtVmxState(PVMCPU pVCpu)
  * @thread  EMT.
  * @remarks This function may be called with preemption or interrupts disabled!
  */
-VMM_INT_DECL(PVMXVMCSINFO) hmGetVmxActiveVmcsInfo(PVMCPU pVCpu)
+VMM_INT_DECL(PVMXVMCSINFOSHARED) hmGetVmxActiveVmcsInfoShared(PVMCPUCC pVCpu)
 {
-    if (!pVCpu->hm.s.vmx.fSwitchedToNstGstVmcs)
+#ifdef IN_RING0
+    if (!pVCpu->hmr0.s.vmx.fSwitchedToNstGstVmcs)
+#else
+    if (!pVCpu->hm.s.vmx.fSwitchedToNstGstVmcsCopyForRing3)
+#endif
         return &pVCpu->hm.s.vmx.VmcsInfo;
     return &pVCpu->hm.s.vmx.VmcsInfoNstGst;
 }

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -21,6 +31,7 @@
 #include <QPainterPathStroker>
 
 /* GUI include */
+#include "UIDesktopWidgetWatchdog.h"
 #include "UIImageTools.h"
 
 /* External includes: */
@@ -200,8 +211,13 @@ void UIImageTools::blurImageVertical(const QImage &source, QImage &destination, 
     }
 }
 
-static QImage betaLabelImage(const QSize &size)
+static QImage betaLabelImage(QSize size, QWidget *pHint)
 {
+    /* Calculate device pixel ratio: */
+    const double dDpr = pHint ? gpDesktop->devicePixelRatio(pHint) : gpDesktop->devicePixelRatio(-1);
+    if (dDpr > 1.0)
+        size *= dDpr;
+
     /* Beta label: */
     QColor bgc(246, 179, 0);
     QImage i(size, QImage::Format_ARGB32);
@@ -223,6 +239,8 @@ static QImage betaLabelImage(const QSize &size)
 
     /* The text: */
     QFont f = p.font();
+    if (dDpr > 1.0)
+        f.setPointSize(f.pointSize() * dDpr);
     f.setBold(true);
     QPainterPath tp;
     tp.addText(0, 0, f, "BETA");
@@ -253,11 +271,13 @@ static QImage betaLabelImage(const QSize &size)
     lg.setColorAt(1, QColor(Qt::transparent));
     p1.fillRect(0, 0, size.width(), size.height(), lg);
     p1.end();
+    if (dDpr > 1.0)
+        i1.setDevicePixelRatio(dDpr);
 
     return i1;
 }
 
-QPixmap UIImageTools::betaLabel(const QSize &size /* = QSize(80, 16) */)
+QPixmap UIImageTools::betaLabel(const QSize &size /* = QSize(80, 16) */, QWidget *pHint /* = 0 */)
 {
-    return QPixmap::fromImage(betaLabelImage(size));
+    return QPixmap::fromImage(betaLabelImage(size, pHint));
 }

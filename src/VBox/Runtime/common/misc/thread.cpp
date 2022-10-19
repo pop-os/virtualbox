@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -86,7 +96,7 @@ static PAVLPVNODECORE           g_ThreadTree;
 /** The number of threads in the tree (for ring-0 termination kludge). */
 static uint32_t volatile        g_cThreadInTree;
 /** Counters for each thread type. */
-DECLHIDDEN(uint32_t volatile)   g_acRTThreadTypeStats[RTTHREADTYPE_END];
+DECL_HIDDEN_DATA(uint32_t volatile) g_acRTThreadTypeStats[RTTHREADTYPE_END];
 
 
 /*********************************************************************************************************************************
@@ -303,9 +313,9 @@ RTDECL(int) RTThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *psz
     int      rc;
     RTTHREAD Thread;
 
-    AssertReturn(!(fFlags & RTTHREADFLAGS_WAITABLE), VERR_INVALID_PARAMETER);
-    AssertReturn(!pszName || VALID_PTR(pszName), VERR_INVALID_POINTER);
-    AssertReturn(!pThread || VALID_PTR(pThread), VERR_INVALID_POINTER);
+    AssertReturn(!(fFlags & RTTHREADFLAGS_WAITABLE), VERR_INVALID_FLAGS);
+    AssertPtrNullReturn(pszName, VERR_INVALID_POINTER);
+    AssertPtrNullReturn(pThread, VERR_INVALID_POINTER);
 
     rc = VINF_SUCCESS;
     Thread = RTThreadSelf();
@@ -324,8 +334,11 @@ RTDECL(int) RTThreadAdopt(RTTHREADTYPE enmType, unsigned fFlags, const char *psz
         /* try adopt it */
         rc = rtThreadAdopt(enmType, fFlags, 0, pszName);
         Thread = RTThreadSelf();
-        Log(("RTThreadAdopt: %RTthrd %RTnthrd '%s' enmType=%d fFlags=%#x rc=%Rrc\n",
-             Thread, RTThreadNativeSelf(), pszName, enmType, fFlags, rc));
+
+        /* Don't too early during init, as rtLogLock may end up here and cause endless recursion. */
+        if (rc != VERR_FAILED_TO_SET_SELF_TLS)
+            Log(("RTThreadAdopt: %RTthrd %RTnthrd '%s' enmType=%d fFlags=%#x rc=%Rrc\n",
+                 Thread, RTThreadNativeSelf(), pszName, enmType, fFlags, rc));
     }
     else
         Log(("RTThreadAdopt: %RTthrd %RTnthrd '%s' enmType=%d fFlags=%#x - already adopted!\n",
@@ -393,6 +406,10 @@ PRTTHREADINT rtThreadAlloc(RTTHREADTYPE enmType, unsigned fFlags, uint32_t fIntF
 #endif
 #ifdef RT_WITH_ICONV_CACHE
         rtStrIconvCacheInit(pThread);
+#endif
+#if defined(IPRT_NO_CRT) && defined(IN_RING3)
+        pThread->NoCrt.enmAllocType = RTNOCRTTHREADDATA::kAllocType_Embedded;
+        RTListInit(&pThread->NoCrt.ListEntry);
 #endif
         rc = RTSemEventMultiCreate(&pThread->EventUser);
         if (RT_SUCCESS(rc))
@@ -464,6 +481,13 @@ DECLHIDDEN(void) rtThreadInsert(PRTTHREADINT pThread, RTNATIVETHREAD NativeThrea
                 {
                     ASMAtomicIncU32(&g_cThreadInTree);
                     ASMAtomicIncU32(&g_acRTThreadTypeStats[pThread->enmType]);
+
+#if defined(IPRT_NO_CRT) && defined(IN_RING3)
+                    RTTLS const iTlsPerThread = g_iTlsRtNoCrtPerThread;
+                    if (   iTlsPerThread != NIL_RTTLS
+                        && RTTlsGet(iTlsPerThread) == NULL)
+                        RTTlsSet(iTlsPerThread, &pThread->NoCrt);
+#endif
                 }
 
                 AssertReleaseMsg(fRc, ("Lock problem? %p (%RTnthrd) %s\n", pThread, NativeThread, pThread->szName));
@@ -551,8 +575,8 @@ DECLHIDDEN(PRTTHREADINT) rtThreadGetByNative(RTNATIVETHREAD NativeThread)
  */
 DECLHIDDEN(PRTTHREADINT) rtThreadGet(RTTHREAD Thread)
 {
-    if (    Thread != NIL_RTTHREAD
-        &&  VALID_PTR(Thread))
+    if (   Thread != NIL_RTTHREAD
+        && RT_VALID_PTR(Thread))
     {
         PRTTHREADINT pThread = (PRTTHREADINT)Thread;
         if (    pThread->u32Magic == RTTHREADINT_MAGIC
@@ -686,6 +710,14 @@ DECLHIDDEN(void) rtThreadTerminate(PRTTHREADINT pThread, int rc)
      * key clashes in the AVL tree and release our reference to ourself.
      */
     rtThreadRemove(pThread);
+
+#if defined(IPRT_NO_CRT) && defined(IN_RING3)
+    RTTLS const iTlsPerThread = g_iTlsRtNoCrtPerThread;
+    if (   iTlsPerThread != NIL_RTTLS
+        && RTTlsGet(iTlsPerThread) == &pThread->NoCrt)
+        RTTlsSet(iTlsPerThread, &g_RtNoCrtPerThreadDummy);
+#endif
+
     rtThreadRelease(pThread);
 }
 
@@ -700,7 +732,7 @@ DECLHIDDEN(void) rtThreadTerminate(PRTTHREADINT pThread, int rc)
  * @param   NativeThread    The native thread id.
  * @param   pszThreadName   The name of the thread (purely a dummy for backtrace).
  */
-DECLCALLBACK(DECLHIDDEN(int)) rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName)
+DECL_HIDDEN_CALLBACK(int) rtThreadMain(PRTTHREADINT pThread, RTNATIVETHREAD NativeThread, const char *pszThreadName)
 {
     int rc;
     NOREF(pszThreadName);
@@ -769,26 +801,12 @@ RTDECL(int) RTThreadCreate(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUse
     /*
      * Validate input.
      */
-    if (!VALID_PTR(pThread) && pThread)
-    {
-        Assert(VALID_PTR(pThread));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (!VALID_PTR(pfnThread))
-    {
-        Assert(VALID_PTR(pfnThread));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (!pszName || !*pszName || strlen(pszName) >= RTTHREAD_NAME_LEN)
-    {
-        AssertMsgFailed(("pszName=%s (max len is %d because of logging)\n", pszName, RTTHREAD_NAME_LEN - 1));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (fFlags & ~RTTHREADFLAGS_MASK)
-    {
-        AssertMsgFailed(("fFlags=%#x\n", fFlags));
-        return VERR_INVALID_PARAMETER;
-    }
+    AssertPtrNullReturn(pThread, VERR_INVALID_POINTER);
+    AssertPtrReturn(pfnThread, VERR_INVALID_POINTER);
+    AssertMsgReturn(pszName && *pszName != '\0' && strlen(pszName) < RTTHREAD_NAME_LEN,
+                    ("pszName=%s (max len is %d because of logging)\n", pszName, RTTHREAD_NAME_LEN - 1),
+                    VERR_INVALID_PARAMETER);
+    AssertMsgReturn(!(fFlags & ~RTTHREADFLAGS_MASK), ("fFlags=%#x\n", fFlags), VERR_INVALID_FLAGS);
 
     /*
      * Allocate thread argument.
@@ -929,9 +947,9 @@ RTDECL(const char *) RTThreadSelfName(void)
         PRTTHREADINT pThread = rtThreadGet(Thread);
         if (pThread)
         {
-            const char *szName = pThread->szName;
+            const char *pszName = pThread->szName;
             rtThreadRelease(pThread);
-            return szName;
+            return pszName;
         }
     }
     return NULL;
@@ -1011,12 +1029,15 @@ RT_EXPORT_SYMBOL(RTThreadSetName);
  */
 RTDECL(bool) RTThreadIsMain(RTTHREAD hThread)
 {
-    PRTTHREADINT pThread = rtThreadGet(hThread);
-    if (pThread)
+    if (hThread != NIL_RTTHREAD)
     {
-        bool fRc = !!(pThread->fIntFlags & RTTHREADINT_FLAGS_MAIN);
-        rtThreadRelease(pThread);
-        return fRc;
+        PRTTHREADINT pThread = rtThreadGet(hThread);
+        if (pThread)
+        {
+            bool fRc = !!(pThread->fIntFlags & RTTHREADINT_FLAGS_MAIN);
+            rtThreadRelease(pThread);
+            return fRc;
+        }
     }
     return false;
 }

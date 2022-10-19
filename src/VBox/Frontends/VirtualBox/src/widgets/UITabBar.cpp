@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -98,24 +108,28 @@ public:
 protected:
 
     /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    virtual bool event(QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    virtual void paintEvent(QPaintEvent *pEvent) RT_OVERRIDE;
 
     /** Handles mouse-press @a pEvent. */
-    virtual void mousePressEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mousePressEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-release @a pEvent. */
-    virtual void mouseReleaseEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mouseReleaseEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-move @a pEvent. */
-    virtual void mouseMoveEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mouseMoveEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-enter @a pEvent. */
-    virtual void enterEvent(QEvent *pEvent) /* override */;
+#ifdef VBOX_IS_QT6_OR_LATER
+    virtual void enterEvent(QEnterEvent *pEvent) RT_OVERRIDE;
+#else
+    virtual void enterEvent(QEvent *pEvent) RT_OVERRIDE;
+#endif
     /** Handles mouse-leave @a pEvent. */
-    virtual void leaveEvent(QEvent *pEvent) /* override */;
+    virtual void leaveEvent(QEvent *pEvent) RT_OVERRIDE;
 
 private slots:
 
@@ -246,7 +260,7 @@ void UITabBarItem::paintEvent(QPaintEvent * /* pEvent */)
     QPainter painter(this);
 
     /* Prepare palette colors: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
     const QColor color0 = m_fCurrent
                         ? pal.color(QPalette::Shadow).darker(110)
                         : pal.color(QPalette::Window).lighter(105);
@@ -367,7 +381,7 @@ void UITabBarItem::paintEvent(QPaintEvent * /* pEvent */)
     QPainter painter(this);
 
     /* Prepare palette colors: */
-    const QPalette pal = palette();
+    const QPalette pal = QApplication::palette();
     const QColor color0 = m_fCurrent ? pal.color(QPalette::Base)
                         : m_fHovered ? pal.color(QPalette::Base).darker(102)
                         :              pal.color(QPalette::Button).darker(102);
@@ -574,7 +588,11 @@ void UITabBarItem::mouseMoveEvent(QMouseEvent *pEvent)
     pDrag->exec();
 }
 
+#ifdef VBOX_IS_QT6_OR_LATER
+void UITabBarItem::enterEvent(QEnterEvent *pEvent)
+#else
 void UITabBarItem::enterEvent(QEvent *pEvent)
+#endif
 {
     /* Make sure button isn't hovered: */
     if (m_fHovered)
@@ -593,7 +611,20 @@ void UITabBarItem::leaveEvent(QEvent *pEvent)
 {
     /* Make sure button is hovered: */
     if (!m_fHovered)
+    {
+#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: Code duplication of enterEvent; split out in separate method (complete wast of time to cook up a QEnterEvent here). */
+# ifdef VBOX_WS_MAC
+        m_pLayoutStacked->setCurrentWidget(m_pButtonClose);
+# endif
+        m_fHovered = true;
+        /* And call for repaint: */
+        update();
+        RT_NOREF(pEvent);
+        return;
+#else
         return QWidget::enterEvent(pEvent);
+#endif
+    }
 
     /* Invert hovered state: */
 #ifdef VBOX_WS_MAC
@@ -780,7 +811,7 @@ bool UITabBar::removeTab(const QUuid &uuid)
         }
     }
     /* Flush wiped out items: */
-    m_aItems.removeAll(0);
+    m_aItems.removeAll((UITabBarItem *)0);
 
     /* If we had removed current item: */
     if (fMoveCurrent)
@@ -936,7 +967,7 @@ void UITabBar::dropEvent(QDropEvent *pEvent)
     /* Determine ID of token-item: */
     const QUuid tokenUuid = m_pItemToken->uuid();
     /* Determine ID of dropped-item: */
-    const QUuid droppedUuid = pMimeData->data(UITabBarItem::MimeType);
+    const QUuid droppedUuid(pMimeData->data(UITabBarItem::MimeType));
 
     /* Make sure these uuids are different: */
     if (droppedUuid == tokenUuid)

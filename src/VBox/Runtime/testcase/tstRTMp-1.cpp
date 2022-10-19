@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -218,33 +228,40 @@ int main(int argc, char **argv)
     else
         RTTestIFailed("RTMpGetPresentSet -> %p, expected %p\n", pSet, &Set);
 
-
-    /* Find an online cpu for the next test. */
+    /*
+     * Quick test of RTMpGetDescription on the first and last online CPUs.
+     */
     RTCPUID idCpuOnline;
     for (idCpuOnline = 0; idCpuOnline < RTCPUSET_MAX_CPUS; idCpuOnline++)
         if (RTMpIsCpuOnline(idCpuOnline))
             break;
-
-    /*
-     * Quick test of RTMpGetDescription.
-     */
-    char szBuf[64];
-    int rc = RTMpGetDescription(idCpuOnline, &szBuf[0], sizeof(szBuf));
-    if (RT_SUCCESS(rc))
+    RTCPUID aidCpuIds[2] = { idCpuOnline, idCpuOnline };
+    for (idCpuOnline++; idCpuOnline < RTCPUSET_MAX_CPUS; idCpuOnline++)
+        if (RTMpIsCpuOnline(idCpuOnline))
+            aidCpuIds[1] = idCpuOnline;
+    for (size_t i = 0; i < RT_ELEMENTS(aidCpuIds); i++)
     {
-        RTTestIPrintf(RTTESTLVL_ALWAYS, "RTMpGetDescription -> '%s'\n", szBuf);
+        idCpuOnline = aidCpuIds[i];
+        char szBuf[64];
+        int rc = RTMpGetDescription(idCpuOnline, &szBuf[0], sizeof(szBuf));
+        if (RT_SUCCESS(rc))
+        {
+            RTTestIPrintf(RTTESTLVL_ALWAYS, "RTMpGetDescription(%d,,) -> '%s'\n", idCpuOnline, szBuf);
 
-        size_t cch = strlen(szBuf);
-        rc = RTMpGetDescription(idCpuOnline, &szBuf[0], cch);
-        if (rc != VERR_BUFFER_OVERFLOW)
-            RTTestIFailed("RTMpGetDescription -> %Rrc, expected VERR_BUFFER_OVERFLOW\n", rc);
+            size_t cch = strlen(szBuf);
+            rc = RTMpGetDescription(idCpuOnline, &szBuf[0], cch);
+            if (rc != VERR_BUFFER_OVERFLOW)
+                RTTestIFailed("RTMpGetDescription(%d,,) -> %Rrc, expected VERR_BUFFER_OVERFLOW\n", idCpuOnline, rc);
 
-        rc = RTMpGetDescription(idCpuOnline, &szBuf[0], cch + 1);
-        if (RT_FAILURE(rc))
-            RTTestIFailed("RTMpGetDescription -> %Rrc, expected VINF_SUCCESS\n", rc);
+            rc = RTMpGetDescription(idCpuOnline, &szBuf[0], cch + 1);
+            if (RT_FAILURE(rc))
+                RTTestIFailed("RTMpGetDescription(%d,,) -> %Rrc, expected VINF_SUCCESS\n", idCpuOnline, rc);
+        }
+        else
+            RTTestIFailed("RTMpGetDescription(%d,,) -> %Rrc\n", idCpuOnline, rc);
     }
-    else
-        RTTestIFailed("RTMpGetDescription -> %Rrc\n", rc);
+
+    /* */
 
     return RTTestSummaryAndDestroy(hTest);
 }

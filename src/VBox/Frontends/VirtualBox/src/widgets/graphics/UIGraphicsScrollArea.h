@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2019-2020 Oracle Corporation
+ * Copyright (C) 2019-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_widgets_graphics_UIGraphicsScrollArea_h
@@ -42,13 +52,17 @@ public:
     UIGraphicsScrollArea(Qt::Orientation enmOrientation, QIGraphicsWidget *pParent = 0);
 
     /** Returns minimum size-hint. */
-    virtual QSizeF minimumSizeHint() const /* override */;
+    virtual QSizeF minimumSizeHint() const RT_OVERRIDE;
 
     /** Defines scroll-area @a pViewport. */
     void setViewport(QIGraphicsWidget *pViewport);
     /** Returns scroll-area viewport. */
     QIGraphicsWidget *viewport() const;
 
+    /** Returns scrolling location value in pixels. */
+    int scrollingValue() const;
+    /** Defines scrolling location @a iValue in pixels. */
+    void setScrollingValue(int iValue);
     /** Performs scrolling by @a iDelta pixels. */
     void scrollBy(int iDelta);
 
@@ -58,10 +72,10 @@ public:
 protected:
 
     /** Preprocesses any Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) RT_OVERRIDE;
 
     /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) /* override */;
+    virtual void resizeEvent(QGraphicsSceneResizeEvent *pEvent) RT_OVERRIDE;
 
 private slots:
 

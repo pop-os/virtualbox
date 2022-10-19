@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -31,20 +41,25 @@
 #include <iprt/win/windows.h>
 #include <iprt/win/setupapi.h>
 #include <newdev.h>
+
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <VBox/err.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
+#include <iprt/stream.h>
 #include <iprt/string.h>
-#include <VBox/err.h>
-#include <stdio.h>
 #include <VBox/usblib.h>
 #include <VBox/VBoxDrvCfg-win.h>
 
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
 /** Handle to the open device. */
 static HANDLE   g_hUSBMonitor = INVALID_HANDLE_VALUE;
 /** Flags whether or not we started the service. */
 static bool     g_fStartedService = false;
+
 
 /**
  * Attempts to start the service, creating it if necessary.
@@ -72,14 +87,14 @@ int usbMonStartService(void)
  */
 int usbMonStopService(void)
 {
-    printf("usbMonStopService\n");
+    RTPrintf("usbMonStopService\n");
+
     /*
      * Assume it didn't exist, so we'll create the service.
      */
     int rc = -1;
     SC_HANDLE   hSMgr = OpenSCManager(NULL, NULL, SERVICE_STOP | SERVICE_QUERY_STATUS);
-    DWORD LastError = GetLastError(); NOREF(LastError);
-    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", LastError));
+    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", GetLastError()));
     if (hSMgr)
     {
         SC_HANDLE hService = OpenServiceW(hSMgr, USBMON_SERVICE_NAME_W, SERVICE_STOP | SERVICE_QUERY_STATUS);
@@ -106,23 +121,18 @@ int usbMonStopService(void)
                    AssertMsgFailed(("Failed to stop service. status=%d\n", Status.dwCurrentState));
             }
             else
-            {
-                DWORD LastError = GetLastError(); NOREF(LastError);
-                AssertMsgFailed(("ControlService failed with LastError=%Rwa. status=%d\n", LastError, Status.dwCurrentState));
-            }
+                AssertMsgFailed(("ControlService failed with LastError=%Rwa. status=%d\n", GetLastError(), Status.dwCurrentState));
             CloseServiceHandle(hService);
         }
         else if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST)
             rc = 0;
         else
-        {
-            DWORD LastError = GetLastError(); NOREF(LastError);
-            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", LastError));
-        }
+            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", GetLastError()));
         CloseServiceHandle(hSMgr);
     }
     return rc;
 }
+
 /**
  * Release specified USB device to the host.
  *
@@ -136,7 +146,7 @@ int usbMonReleaseDevice(USHORT usVendorId, USHORT usProductId, USHORT usRevision
     USBSUP_RELEASE release;
     DWORD          cbReturned = 0;
 
-    printf("usbLibReleaseDevice %x %x %x\n", usVendorId, usProductId, usRevision);
+    RTPrintf("usbLibReleaseDevice %x %x %x\n", usVendorId, usProductId, usRevision);
 
     release.usVendorId  = usVendorId;
     release.usProductId = usProductId;
@@ -169,7 +179,7 @@ int usbMonInsertFilter(USHORT usVendorId, USHORT usProductId, USHORT usRevision,
 
     Assert(g_hUSBMonitor);
 
-    printf("usblibInsertFilter %04X %04X %04X\n", usVendorId, usProductId, usRevision);
+    RTPrintf("usblibInsertFilter %04X %04X %04X\n", usVendorId, usProductId, usRevision);
 
     USBFilterInit(&filter, USBFILTERTYPE_CAPTURE);
     USBFilterSetNumExact(&filter, USBFILTERIDX_VENDOR_ID, usVendorId, true);
@@ -217,7 +227,7 @@ int usbMonRemoveFilter (void *aID)
 
     Assert(g_hUSBMonitor);
 
-    printf("usblibRemoveFilter %p\n", aID);
+    RTPrintf("usblibRemoveFilter %p\n", aID);
 
     uId = (uintptr_t)aID;
     if (!DeviceIoControl(g_hUSBMonitor, SUPUSBFLT_IOCTL_REMOVE_FILTER, &uId, sizeof(uId),  NULL, 0,&cbReturned, NULL))
@@ -239,7 +249,7 @@ int usbMonitorInit()
     USBSUP_VERSION version = {0};
     DWORD          cbReturned;
 
-    printf("usbproxy: usbLibInit\n");
+    RTPrintf("usbproxy: usbLibInit\n");
 
     g_hUSBMonitor = CreateFile (USBMON_DEVICE_NAME,
                                GENERIC_READ | GENERIC_WRITE,
@@ -264,7 +274,7 @@ int usbMonitorInit()
         if (g_hUSBMonitor == INVALID_HANDLE_VALUE)
         {
             /* AssertFailed(); */
-            printf("usbproxy: Unable to open filter driver!! (rc=%d)\n", GetLastError());
+            RTPrintf("usbproxy: Unable to open filter driver!! (rc=%lu)\n", GetLastError());
             rc = VERR_FILE_NOT_FOUND;
             goto failure;
         }
@@ -276,7 +286,7 @@ int usbMonitorInit()
     cbReturned = 0;
     if (!DeviceIoControl(g_hUSBMonitor, SUPUSBFLT_IOCTL_GET_VERSION, NULL, 0,&version, sizeof(version),  &cbReturned, NULL))
     {
-        printf("usbproxy: Unable to query filter version!! (rc=%d)\n", GetLastError());
+        RTPrintf("usbproxy: Unable to query filter version!! (rc=%lu)\n", GetLastError());
         rc = VERR_VERSION_MISMATCH;
         goto failure;
     }
@@ -287,7 +297,7 @@ int usbMonitorInit()
 #endif
         )
     {
-        printf("usbproxy: Filter driver version mismatch!!\n");
+        RTPrintf("usbproxy: Filter driver version mismatch!!\n");
         rc = VERR_VERSION_MISMATCH;
         goto failure;
     }
@@ -339,7 +349,7 @@ int __cdecl main(int argc, char **argv)
     int c;
     RT_NOREF2(argc, argv);
 
-    printf("USB test\n");
+    RTPrintf("USB test\n");
 
     rc = usbMonitorInit();
     AssertRC(rc);
@@ -350,17 +360,17 @@ int __cdecl main(int argc, char **argv)
     usbMonInsertFilter(0x0A16, 0x2499, 0x0100, &pId2);
     usbMonInsertFilter(0x80EE, 0x0030, 0x0110, &pId3);
 
-    printf("Waiting to capture devices... enter 'r' to run filters\n");
-    c = getchar();
+    RTPrintf("Waiting to capture devices... enter 'r' to run filters\n");
+    c = RTStrmGetCh(g_pStdIn);
     if (c == 'r')
     {
         usbMonRunFilters();
-        printf("Waiting to capture devices...\n");
-        getchar();  /* eat the '\n' */
-        getchar();  /* wait for more input */
+        RTPrintf("Waiting to capture devices...\n");
+        RTStrmGetCh(g_pStdIn);  /* eat the '\n' */
+        RTStrmGetCh(g_pStdIn);  /* wait for more input */
     }
 
-    printf("Releasing device\n");
+    RTPrintf("Releasing device\n");
     usbMonReleaseDevice(0xA16, 0x2499, 0x100);
 
     usbMonRemoveFilter(pId1);
@@ -371,3 +381,4 @@ int __cdecl main(int argc, char **argv)
 
     return 0;
 }
+

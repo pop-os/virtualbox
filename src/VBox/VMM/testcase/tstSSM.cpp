@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -56,7 +66,7 @@
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
-const uint8_t   gabPage[PAGE_SIZE] = {0};
+const uint8_t   gabPage[GUEST_PAGE_SIZE] = {0};
 const char      gachMem1[] = "sdfg\1asdfa\177hjkl;sdfghjkl;dfghjkl;dfghjkl;\0\0asdf;kjasdf;lkjasd;flkjasd;lfkjasd\0;lfk";
 #ifdef TSTSSM_BIG_CONFIG
 uint8_t         gabBigMem[_1M];
@@ -89,8 +99,8 @@ void initBigMem(void)
     }
 
     /* add some zero pages */
-    memset(&gabBigMem[sizeof(gabBigMem) / 4],     0, PAGE_SIZE * 4);
-    memset(&gabBigMem[sizeof(gabBigMem) / 4 * 3], 0, PAGE_SIZE * 4);
+    memset(&gabBigMem[sizeof(gabBigMem) / 4],     0, GUEST_PAGE_SIZE * 4);
+    memset(&gabBigMem[sizeof(gabBigMem) / 4 * 3], 0, GUEST_PAGE_SIZE * 4);
 #endif
 }
 
@@ -432,16 +442,16 @@ DECLCALLBACK(int) Item03Save(PVM pVM, PSSMHANDLE pSSM)
     const uint8_t *pu8Org = &gabBigMem[0];
     while (cb > 0)
     {
-        rc = SSMR3PutMem(pSSM, pu8Org, PAGE_SIZE);
+        rc = SSMR3PutMem(pSSM, pu8Org, GUEST_PAGE_SIZE);
         if (RT_FAILURE(rc))
         {
-            RTPrintf("Item03: PutMem(,%p,%#x) -> %Rrc\n", pu8Org, PAGE_SIZE, rc);
+            RTPrintf("Item03: PutMem(,%p,%#x) -> %Rrc\n", pu8Org, GUEST_PAGE_SIZE, rc);
             return rc;
         }
 
         /* next */
-        cb -= PAGE_SIZE;
-        pu8Org += PAGE_SIZE;
+        cb -= GUEST_PAGE_SIZE;
+        pu8Org += GUEST_PAGE_SIZE;
         if (pu8Org >= &gabBigMem[sizeof(gabBigMem)])
             pu8Org = &gabBigMem[0];
     }
@@ -491,22 +501,22 @@ DECLCALLBACK(int) Item03Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     const uint8_t *pu8Org = &gabBigMem[0];
     while (cb > 0)
     {
-        char achPage[PAGE_SIZE];
-        rc = SSMR3GetMem(pSSM, &achPage[0], PAGE_SIZE);
+        char achPage[GUEST_PAGE_SIZE];
+        rc = SSMR3GetMem(pSSM, &achPage[0], GUEST_PAGE_SIZE);
         if (RT_FAILURE(rc))
         {
-            RTPrintf("Item03: SSMR3GetMem(,,%#x) -> %Rrc offset %#x\n", PAGE_SIZE, rc, TSTSSM_ITEM_SIZE - cb);
+            RTPrintf("Item03: SSMR3GetMem(,,%#x) -> %Rrc offset %#x\n", GUEST_PAGE_SIZE, rc, TSTSSM_ITEM_SIZE - cb);
             return rc;
         }
-        if (memcmp(achPage, pu8Org, PAGE_SIZE))
+        if (memcmp(achPage, pu8Org, GUEST_PAGE_SIZE))
         {
             RTPrintf("Item03: compare failed. mem offset=%#x\n", TSTSSM_ITEM_SIZE - cb);
             return VERR_GENERAL_FAILURE;
         }
 
         /* next */
-        cb -= PAGE_SIZE;
-        pu8Org += PAGE_SIZE;
+        cb -= GUEST_PAGE_SIZE;
+        pu8Org += GUEST_PAGE_SIZE;
         if (pu8Org >= &gabBigMem[sizeof(gabBigMem)])
             pu8Org = &gabBigMem[0];
     }
@@ -543,15 +553,15 @@ DECLCALLBACK(int) Item04Save(PVM pVM, PSSMHANDLE pSSM)
      */
     while (cb > 0)
     {
-        rc = SSMR3PutMem(pSSM, gabPage, PAGE_SIZE);
+        rc = SSMR3PutMem(pSSM, gabPage, GUEST_PAGE_SIZE);
         if (RT_FAILURE(rc))
         {
-            RTPrintf("Item04: PutMem(,%p,%#x) -> %Rrc\n", gabPage, PAGE_SIZE, rc);
+            RTPrintf("Item04: PutMem(,%p,%#x) -> %Rrc\n", gabPage, GUEST_PAGE_SIZE, rc);
             return rc;
         }
 
         /* next */
-        cb -= PAGE_SIZE;
+        cb -= GUEST_PAGE_SIZE;
     }
 
     uint64_t u64Elapsed = RTTimeNanoTS() - u64Start;
@@ -598,21 +608,21 @@ DECLCALLBACK(int) Item04Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
      */
     while (cb > 0)
     {
-        char achPage[PAGE_SIZE];
-        rc = SSMR3GetMem(pSSM, &achPage[0], PAGE_SIZE);
+        char achPage[GUEST_PAGE_SIZE];
+        rc = SSMR3GetMem(pSSM, &achPage[0], GUEST_PAGE_SIZE);
         if (RT_FAILURE(rc))
         {
-            RTPrintf("Item04: SSMR3GetMem(,,%#x) -> %Rrc offset %#x\n", PAGE_SIZE, rc, 512*_1M - cb);
+            RTPrintf("Item04: SSMR3GetMem(,,%#x) -> %Rrc offset %#x\n", GUEST_PAGE_SIZE, rc, 512*_1M - cb);
             return rc;
         }
-        if (memcmp(achPage, gabPage, PAGE_SIZE))
+        if (memcmp(achPage, gabPage, GUEST_PAGE_SIZE))
         {
             RTPrintf("Item04: compare failed. mem offset=%#x\n", 512*_1M - cb);
             return VERR_GENERAL_FAILURE;
         }
 
         /* next */
-        cb -= PAGE_SIZE;
+        cb -= GUEST_PAGE_SIZE;
     }
 
     return 0;
@@ -695,6 +705,7 @@ static int createFakeVM(PVM *ppVM)
  */
 static void destroyFakeVM(PVM pVM)
 {
+    SSMR3Term(pVM);
     STAMR3TermUVM(pVM->pUVM);
     MMR3TermUVM(pVM->pUVM);
 }
@@ -804,7 +815,7 @@ int main(int argc, char **argv)
      * Validate it.
      */
     u64Start = RTTimeNanoTS();
-    rc = SSMR3ValidateFile(pszFilename, false /* fChecksumIt*/ );
+    rc = SSMR3ValidateFile(pszFilename, NULL /*pStreamOps*/, NULL /*pvStreamOps*/, false /* fChecksumIt*/ );
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3ValidateFile #1 -> %Rrc\n", rc);
@@ -814,7 +825,7 @@ int main(int argc, char **argv)
     RTPrintf("tstSSM: Validated without checksumming in %'RI64 ns\n", u64Elapsed);
 
     u64Start = RTTimeNanoTS();
-    rc = SSMR3ValidateFile(pszFilename, true /* fChecksumIt */);
+    rc = SSMR3ValidateFile(pszFilename, NULL /*pStreamOps*/, NULL /*pvStreamOps*/, true /* fChecksumIt */);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3ValidateFile #1 -> %Rrc\n", rc);
@@ -828,7 +839,7 @@ int main(int argc, char **argv)
      */
     u64Start = RTTimeNanoTS();
     PSSMHANDLE pSSM;
-    rc = SSMR3Open(pszFilename, 0, &pSSM);
+    rc = SSMR3Open(pszFilename, NULL /*pStreamOps*/, NULL /*pvStreamOps*/, 0, &pSSM);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Open #1 -> %Rrc\n", rc);

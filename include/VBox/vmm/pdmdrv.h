@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef VBOX_INCLUDED_vmm_pdmdrv_h
@@ -74,7 +84,7 @@ typedef RCPTRTYPE(struct PDMDRVHLPRC const *) PCPDMDRVHLPRC;
  *                      times, it can be accessed via pDrvIns->pCfg.
  * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
  */
-typedef DECLCALLBACK(int)   FNPDMDRVCONSTRUCT(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
+typedef DECLCALLBACKTYPE(int, FNPDMDRVCONSTRUCT,(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags));
 /** Pointer to a FNPDMDRVCONSTRUCT() function. */
 typedef FNPDMDRVCONSTRUCT *PFNPDMDRVCONSTRUCT;
 
@@ -86,7 +96,7 @@ typedef FNPDMDRVCONSTRUCT *PFNPDMDRVCONSTRUCT;
  *
  * @param   pDrvIns     The driver instance data.
  */
-typedef DECLCALLBACK(void)   FNPDMDRVDESTRUCT(PPDMDRVINS pDrvIns);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVDESTRUCT,(PPDMDRVINS pDrvIns));
 /** Pointer to a FNPDMDRVDESTRUCT() function. */
 typedef FNPDMDRVDESTRUCT *PFNPDMDRVDESTRUCT;
 
@@ -106,7 +116,7 @@ typedef FNPDMDRVDESTRUCT *PFNPDMDRVDESTRUCT;
  *
  * @remark  A relocation CANNOT fail.
  */
-typedef DECLCALLBACK(void) FNPDMDRVRELOCATE(PPDMDRVINS pDrvIns, RTGCINTPTR offDelta);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVRELOCATE,(PPDMDRVINS pDrvIns, RTGCINTPTR offDelta));
 /** Pointer to a FNPDMDRVRELOCATE() function. */
 typedef FNPDMDRVRELOCATE *PFNPDMDRVRELOCATE;
 
@@ -126,9 +136,9 @@ typedef FNPDMDRVRELOCATE *PFNPDMDRVRELOCATE;
  * @param   cbOut       Size of output data.
  * @param   pcbOut      Where to store the actual size of the output data.
  */
-typedef DECLCALLBACK(int) FNPDMDRVIOCTL(PPDMDRVINS pDrvIns, uint32_t uFunction,
-                                        void *pvIn, uint32_t cbIn,
-                                        void *pvOut, uint32_t cbOut, uint32_t *pcbOut);
+typedef DECLCALLBACKTYPE(int, FNPDMDRVIOCTL,(PPDMDRVINS pDrvIns, uint32_t uFunction,
+                                             void *pvIn, uint32_t cbIn,
+                                             void *pvOut, uint32_t cbOut, uint32_t *pcbOut));
 /** Pointer to a FNPDMDRVIOCTL() function. */
 typedef FNPDMDRVIOCTL *PFNPDMDRVIOCTL;
 
@@ -137,7 +147,7 @@ typedef FNPDMDRVIOCTL *PFNPDMDRVIOCTL;
  *
  * @param   pDrvIns     The driver instance data.
  */
-typedef DECLCALLBACK(void)   FNPDMDRVPOWERON(PPDMDRVINS pDrvIns);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVPOWERON,(PPDMDRVINS pDrvIns));
 /** Pointer to a FNPDMDRVPOWERON() function. */
 typedef FNPDMDRVPOWERON *PFNPDMDRVPOWERON;
 
@@ -147,7 +157,7 @@ typedef FNPDMDRVPOWERON *PFNPDMDRVPOWERON;
  * @returns VBox status.
  * @param   pDrvIns     The driver instance data.
  */
-typedef DECLCALLBACK(void)  FNPDMDRVRESET(PPDMDRVINS pDrvIns);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVRESET,(PPDMDRVINS pDrvIns));
 /** Pointer to a FNPDMDRVRESET() function. */
 typedef FNPDMDRVRESET *PFNPDMDRVRESET;
 
@@ -157,7 +167,7 @@ typedef FNPDMDRVRESET *PFNPDMDRVRESET;
  * @returns VBox status.
  * @param   pDrvIns     The driver instance data.
  */
-typedef DECLCALLBACK(void)  FNPDMDRVSUSPEND(PPDMDRVINS pDrvIns);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVSUSPEND,(PPDMDRVINS pDrvIns));
 /** Pointer to a FNPDMDRVSUSPEND() function. */
 typedef FNPDMDRVSUSPEND *PFNPDMDRVSUSPEND;
 
@@ -167,7 +177,7 @@ typedef FNPDMDRVSUSPEND *PFNPDMDRVSUSPEND;
  * @returns VBox status.
  * @param   pDrvIns     The driver instance data.
  */
-typedef DECLCALLBACK(void)  FNPDMDRVRESUME(PPDMDRVINS pDrvIns);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVRESUME,(PPDMDRVINS pDrvIns));
 /** Pointer to a FNPDMDRVRESUME() function. */
 typedef FNPDMDRVRESUME *PFNPDMDRVRESUME;
 
@@ -180,7 +190,7 @@ typedef FNPDMDRVRESUME *PFNPDMDRVRESUME;
  *
  * @param   pDrvIns     The driver instance data.
  */
-typedef DECLCALLBACK(void)   FNPDMDRVPOWEROFF(PPDMDRVINS pDrvIns);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVPOWEROFF,(PPDMDRVINS pDrvIns));
 /** Pointer to a FNPDMDRVPOWEROFF() function. */
 typedef FNPDMDRVPOWEROFF *PFNPDMDRVPOWEROFF;
 
@@ -197,7 +207,7 @@ typedef FNPDMDRVPOWEROFF *PFNPDMDRVPOWEROFF;
  * @param   pDrvIns     The driver instance.
  * @param   fFlags      Flags, combination of the PDM_TACH_FLAGS_* \#defines.
  */
-typedef DECLCALLBACK(int)  FNPDMDRVATTACH(PPDMDRVINS pDrvIns, uint32_t fFlags);
+typedef DECLCALLBACKTYPE(int, FNPDMDRVATTACH,(PPDMDRVINS pDrvIns, uint32_t fFlags));
 /** Pointer to a FNPDMDRVATTACH() function. */
 typedef FNPDMDRVATTACH *PFNPDMDRVATTACH;
 
@@ -212,7 +222,7 @@ typedef FNPDMDRVATTACH *PFNPDMDRVATTACH;
  * @param   pDrvIns     The driver instance.
  * @param   fFlags      PDM_TACH_FLAGS_NOT_HOT_PLUG or 0.
  */
-typedef DECLCALLBACK(void)  FNPDMDRVDETACH(PPDMDRVINS pDrvIns, uint32_t fFlags);
+typedef DECLCALLBACKTYPE(void, FNPDMDRVDETACH,(PPDMDRVINS pDrvIns, uint32_t fFlags));
 /** Pointer to a FNPDMDRVDETACH() function. */
 typedef FNPDMDRVDETACH *PFNPDMDRVDETACH;
 
@@ -486,8 +496,8 @@ typedef struct PDMDRVINS
 #define PDMDRV_VALIDATE_CONFIG_RETURN(pDrvIns, pszValidValues, pszValidNodes) \
     do \
     { \
-        int rcValCfg = CFGMR3ValidateConfig((pDrvIns)->pCfg, "/", pszValidValues, pszValidNodes, \
-                                            (pDrvIns)->pReg->szName, (pDrvIns)->iInstance); \
+        int rcValCfg = pDrvIns->pHlpR3->pfnCFGMValidateConfig((pDrvIns)->pCfg, "/", pszValidValues, pszValidNodes, \
+                                                              (pDrvIns)->pReg->szName, (pDrvIns)->iInstance); \
         if (RT_SUCCESS(rcValCfg)) \
         { /* likely */ } else return rcValCfg; \
     } while (0)
@@ -571,58 +581,6 @@ typedef struct PDMDRVHLPRC
     uint32_t                    u32Version;
 
     /**
-     * Set the VM error message
-     *
-     * @returns rc.
-     * @param   pDrvIns         Driver instance.
-     * @param   rc              VBox status code.
-     * @param   SRC_POS         Use RT_SRC_POS.
-     * @param   pszFormat       Error message format string.
-     * @param   ...             Error message arguments.
-     */
-    DECLRCCALLBACKMEMBER(int, pfnVMSetError,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL,
-                                             const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7));
-
-    /**
-     * Set the VM error message
-     *
-     * @returns rc.
-     * @param   pDrvIns         Driver instance.
-     * @param   rc              VBox status code.
-     * @param   SRC_POS         Use RT_SRC_POS.
-     * @param   pszFormat       Error message format string.
-     * @param   va              Error message arguments.
-     */
-    DECLRCCALLBACKMEMBER(int, pfnVMSetErrorV,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL,
-                                              const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(6, 0));
-
-    /**
-     * Set the VM runtime error message
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns         Driver instance.
-     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
-     * @param   pszErrorId      Error ID string.
-     * @param   pszFormat       Error message format string.
-     * @param   ...             Error message arguments.
-     */
-    DECLRCCALLBACKMEMBER(int, pfnVMSetRuntimeError,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
-                                                    const char *pszFormat, ...)  RT_IPRT_FORMAT_ATTR(4, 5));
-
-    /**
-     * Set the VM runtime error message
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns         Driver instance.
-     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
-     * @param   pszErrorId      Error ID string.
-     * @param   pszFormat       Error message format string.
-     * @param   va              Error message arguments.
-     */
-    DECLRCCALLBACKMEMBER(int, pfnVMSetRuntimeErrorV,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
-                                                     const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(4, 0));
-
-    /**
      * Assert that the current thread is the emulation thread.
      *
      * @returns True if correct.
@@ -646,11 +604,34 @@ typedef struct PDMDRVHLPRC
      */
     DECLRCCALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
 
+    /** @name Exported PDM Critical Section Functions
+     * @{ */
+    DECLRCCALLBACKMEMBER(int,      pfnCritSectEnter,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy));
+    DECLRCCALLBACKMEMBER(int,      pfnCritSectEnterDebug,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL));
+    DECLRCCALLBACKMEMBER(int,      pfnCritSectTryEnter,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    DECLRCCALLBACKMEMBER(int,      pfnCritSectTryEnterDebug,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL));
+    DECLRCCALLBACKMEMBER(int,      pfnCritSectLeave,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    DECLRCCALLBACKMEMBER(bool,     pfnCritSectIsOwner,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLRCCALLBACKMEMBER(bool,     pfnCritSectIsInitialized,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLRCCALLBACKMEMBER(bool,     pfnCritSectHasWaiters,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLRCCALLBACKMEMBER(uint32_t, pfnCritSectGetRecursion,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    /** @} */
+
+    /**
+     * Obtains bandwidth in a bandwidth group.
+     *
+     * @returns True if bandwidth was allocated, false if not.
+     * @param   pDrvIns         The driver instance.
+     * @param   pFilter         Pointer to the filter that allocates bandwidth.
+     * @param   cbTransfer      Number of bytes to allocate.
+     */
+    DECLRCCALLBACKMEMBER(bool, pfnNetShaperAllocateBandwidth,(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter, size_t cbTransfer));
+
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPRC;
 /** Current PDMDRVHLPRC version number. */
-#define PDM_DRVHLPRC_VERSION                    PDM_VERSION_MAKE(0xf0f9, 3, 0)
+#define PDM_DRVHLPRC_VERSION                    PDM_VERSION_MAKE(0xf0f9, 6, 0)
 
 
 /**
@@ -660,58 +641,6 @@ typedef struct PDMDRVHLPR0
 {
     /** Structure version. PDM_DRVHLPR0_VERSION defines the current version. */
     uint32_t                    u32Version;
-
-    /**
-     * Set the VM error message
-     *
-     * @returns rc.
-     * @param   pDrvIns         Driver instance.
-     * @param   rc              VBox status code.
-     * @param   SRC_POS         Use RT_SRC_POS.
-     * @param   pszFormat       Error message format string.
-     * @param   ...             Error message arguments.
-     */
-    DECLR0CALLBACKMEMBER(int, pfnVMSetError,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL,
-                                             const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7));
-
-    /**
-     * Set the VM error message
-     *
-     * @returns rc.
-     * @param   pDrvIns         Driver instance.
-     * @param   rc              VBox status code.
-     * @param   SRC_POS         Use RT_SRC_POS.
-     * @param   pszFormat       Error message format string.
-     * @param   va              Error message arguments.
-     */
-    DECLR0CALLBACKMEMBER(int, pfnVMSetErrorV,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL,
-                                              const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(6, 0));
-
-    /**
-     * Set the VM runtime error message
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns         Driver instance.
-     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
-     * @param   pszErrorId      Error ID string.
-     * @param   pszFormat       Error message format string.
-     * @param   ...             Error message arguments.
-     */
-    DECLR0CALLBACKMEMBER(int, pfnVMSetRuntimeError,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
-                                                    const char *pszFormat, ...)  RT_IPRT_FORMAT_ATTR(4, 5));
-
-    /**
-     * Set the VM runtime error message
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns         Driver instance.
-     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
-     * @param   pszErrorId      Error ID string.
-     * @param   pszFormat       Error message format string.
-     * @param   va              Error message arguments.
-     */
-    DECLR0CALLBACKMEMBER(int, pfnVMSetRuntimeErrorV,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
-                                                     const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(4, 0));
 
     /**
      * Assert that the current thread is the emulation thread.
@@ -737,11 +666,35 @@ typedef struct PDMDRVHLPR0
      */
     DECLR0CALLBACKMEMBER(bool, pfnAssertOther,(PPDMDRVINS pDrvIns, const char *pszFile, unsigned iLine, const char *pszFunction));
 
+    /** @name Exported PDM Critical Section Functions
+     * @{ */
+    DECLR0CALLBACKMEMBER(int,      pfnCritSectEnter,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy));
+    DECLR0CALLBACKMEMBER(int,      pfnCritSectEnterDebug,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL));
+    DECLR0CALLBACKMEMBER(int,      pfnCritSectTryEnter,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    DECLR0CALLBACKMEMBER(int,      pfnCritSectTryEnterDebug,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL));
+    DECLR0CALLBACKMEMBER(int,      pfnCritSectLeave,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    DECLR0CALLBACKMEMBER(bool,     pfnCritSectIsOwner,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR0CALLBACKMEMBER(bool,     pfnCritSectIsInitialized,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR0CALLBACKMEMBER(bool,     pfnCritSectHasWaiters,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR0CALLBACKMEMBER(uint32_t, pfnCritSectGetRecursion,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR0CALLBACKMEMBER(int,      pfnCritSectScheduleExitEvent,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, SUPSEMEVENT hEventToSignal));
+    /** @} */
+
+    /**
+     * Obtains bandwidth in a bandwidth group.
+     *
+     * @returns True if bandwidth was allocated, false if not.
+     * @param   pDrvIns         The driver instance.
+     * @param   pFilter         Pointer to the filter that allocates bandwidth.
+     * @param   cbTransfer      Number of bytes to allocate.
+     */
+    DECLR0CALLBACKMEMBER(bool, pfnNetShaperAllocateBandwidth,(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter, size_t cbTransfer));
+
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR0;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR0_VERSION                    PDM_VERSION_MAKE(0xf0f8, 3, 0)
+#define PDM_DRVHLPR0_VERSION                    PDM_VERSION_MAKE(0xf0f8, 6, 0)
 
 
 #ifdef IN_RING3
@@ -830,36 +783,10 @@ typedef struct PDMDRVHLPR3
      * @param   rc              VBox status code.
      * @param   SRC_POS         Use RT_SRC_POS.
      * @param   pszFormat       Error message format string.
-     * @param   ...             Error message arguments.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnVMSetError,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL,
-                                             const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7));
-
-    /**
-     * Set the VM error message
-     *
-     * @returns rc.
-     * @param   pDrvIns         Driver instance.
-     * @param   rc              VBox status code.
-     * @param   SRC_POS         Use RT_SRC_POS.
-     * @param   pszFormat       Error message format string.
      * @param   va              Error message arguments.
      */
     DECLR3CALLBACKMEMBER(int, pfnVMSetErrorV,(PPDMDRVINS pDrvIns, int rc, RT_SRC_POS_DECL,
                                               const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(6, 0));
-
-    /**
-     * Set the VM runtime error message
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns         Driver instance.
-     * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
-     * @param   pszErrorId      Error ID string.
-     * @param   pszFormat       Error message format string.
-     * @param   ...             Error message arguments.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnVMSetRuntimeError,(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
-                                                    const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(4, 5));
 
     /**
      * Set the VM runtime error message
@@ -902,6 +829,8 @@ typedef struct PDMDRVHLPR3
      */
     DECLR3CALLBACKMEMBER(PSUPDRVSESSION, pfnGetSupDrvSession,(PPDMDRVINS pDrvIns));
 
+    /** @name Exported PDM Queue Functions
+     * @{ */
     /**
      * Create a queue.
      *
@@ -914,11 +843,16 @@ typedef struct PDMDRVHLPR3
      * @param   pfnCallback         The consumer function.
      * @param   pszName             The queue base name. The instance number will be
      *                              appended automatically.
-     * @param   ppQueue             Where to store the queue handle on success.
+     * @param   phQueue             Where to store the queue handle on success.
      * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnQueueCreate,(PPDMDRVINS pDrvIns, uint32_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
-                                              PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue));
+                                              PFNPDMQUEUEDRV pfnCallback, const char *pszName, PDMQUEUEHANDLE *phQueue));
+
+    DECLR3CALLBACKMEMBER(PPDMQUEUEITEMCORE, pfnQueueAlloc,(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue));
+    DECLR3CALLBACKMEMBER(int, pfnQueueInsert,(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue, PPDMQUEUEITEMCORE pItem));
+    DECLR3CALLBACKMEMBER(bool, pfnQueueFlushIfNecessary,(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue));
+    /** @} */
 
     /**
      * Query the virtual timer frequency.
@@ -951,8 +885,21 @@ typedef struct PDMDRVHLPR3
      *                          until the timer is fully destroyed (i.e. a bit after TMTimerDestroy()).
      * @param   phTimer         Where to store the timer handle on success.
      * @thread  EMT
+     *
+     * @todo    Need to add a bunch of timer helpers for this to be useful again.
+     *          Will do when required.
      */
-    DECLR3CALLBACKMEMBER(int, pfnTMTimerCreate,(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer));
+    DECLR3CALLBACKMEMBER(int, pfnTimerCreate,(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser,
+                                              uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer));
+
+    /**
+     * Destroys a timer.
+     *
+     * @returns VBox status.
+     * @param   pDrvIns         Driver instance.
+     * @param   hTimer          The timer handle to destroy.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnTimerDestroy,(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer));
 
     /**
      * Register a save state data unit.
@@ -990,6 +937,165 @@ typedef struct PDMDRVHLPR3
      *                          This must together with the name be unique.
      */
     DECLR3CALLBACKMEMBER(int, pfnSSMDeregister,(PPDMDRVINS pDrvIns, const char *pszName, uint32_t uInstance));
+
+    /** @name Exported SSM Functions
+     * @{ */
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutStruct,(PSSMHANDLE pSSM, const void *pvStruct, PCSSMFIELD paFields));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutStructEx,(PSSMHANDLE pSSM, const void *pvStruct, size_t cbStruct, uint32_t fFlags, PCSSMFIELD paFields, void *pvUser));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutBool,(PSSMHANDLE pSSM, bool fBool));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU8,(PSSMHANDLE pSSM, uint8_t u8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS8,(PSSMHANDLE pSSM, int8_t i8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU16,(PSSMHANDLE pSSM, uint16_t u16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS16,(PSSMHANDLE pSSM, int16_t i16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU32,(PSSMHANDLE pSSM, uint32_t u32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS32,(PSSMHANDLE pSSM, int32_t i32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU64,(PSSMHANDLE pSSM, uint64_t u64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS64,(PSSMHANDLE pSSM, int64_t i64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutU128,(PSSMHANDLE pSSM, uint128_t u128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutS128,(PSSMHANDLE pSSM, int128_t i128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutUInt,(PSSMHANDLE pSSM, RTUINT u));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutSInt,(PSSMHANDLE pSSM, RTINT i));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCUInt,(PSSMHANDLE pSSM, RTGCUINT u));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCUIntReg,(PSSMHANDLE pSSM, RTGCUINTREG u));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPhys32,(PSSMHANDLE pSSM, RTGCPHYS32 GCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPhys64,(PSSMHANDLE pSSM, RTGCPHYS64 GCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPhys,(PSSMHANDLE pSSM, RTGCPHYS GCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCPtr,(PSSMHANDLE pSSM, RTGCPTR GCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutGCUIntPtr,(PSSMHANDLE pSSM, RTGCUINTPTR GCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutRCPtr,(PSSMHANDLE pSSM, RTRCPTR RCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutIOPort,(PSSMHANDLE pSSM, RTIOPORT IOPort));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutSel,(PSSMHANDLE pSSM, RTSEL Sel));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutMem,(PSSMHANDLE pSSM, const void *pv, size_t cb));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMPutStrZ,(PSSMHANDLE pSSM, const char *psz));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStruct,(PSSMHANDLE pSSM, void *pvStruct, PCSSMFIELD paFields));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStructEx,(PSSMHANDLE pSSM, void *pvStruct, size_t cbStruct, uint32_t fFlags, PCSSMFIELD paFields, void *pvUser));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetBool,(PSSMHANDLE pSSM, bool *pfBool));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetBoolV,(PSSMHANDLE pSSM, bool volatile *pfBool));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU8,(PSSMHANDLE pSSM, uint8_t *pu8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU8V,(PSSMHANDLE pSSM, uint8_t volatile *pu8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS8,(PSSMHANDLE pSSM, int8_t *pi8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS8V,(PSSMHANDLE pSSM, int8_t volatile *pi8));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU16,(PSSMHANDLE pSSM, uint16_t *pu16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU16V,(PSSMHANDLE pSSM, uint16_t volatile *pu16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS16,(PSSMHANDLE pSSM, int16_t *pi16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS16V,(PSSMHANDLE pSSM, int16_t volatile *pi16));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU32,(PSSMHANDLE pSSM, uint32_t *pu32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU32V,(PSSMHANDLE pSSM, uint32_t volatile *pu32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS32,(PSSMHANDLE pSSM, int32_t *pi32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS32V,(PSSMHANDLE pSSM, int32_t volatile *pi32));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU64,(PSSMHANDLE pSSM, uint64_t *pu64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU64V,(PSSMHANDLE pSSM, uint64_t volatile *pu64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS64,(PSSMHANDLE pSSM, int64_t *pi64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS64V,(PSSMHANDLE pSSM, int64_t volatile *pi64));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU128,(PSSMHANDLE pSSM, uint128_t *pu128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetU128V,(PSSMHANDLE pSSM, uint128_t volatile *pu128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS128,(PSSMHANDLE pSSM, int128_t *pi128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetS128V,(PSSMHANDLE pSSM, int128_t  volatile *pi128));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys32,(PSSMHANDLE pSSM, PRTGCPHYS32 pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys32V,(PSSMHANDLE pSSM, RTGCPHYS32 volatile *pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys64,(PSSMHANDLE pSSM, PRTGCPHYS64 pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys64V,(PSSMHANDLE pSSM, RTGCPHYS64 volatile *pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhys,(PSSMHANDLE pSSM, PRTGCPHYS pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPhysV,(PSSMHANDLE pSSM, RTGCPHYS volatile *pGCPhys));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetUInt,(PSSMHANDLE pSSM, PRTUINT pu));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetSInt,(PSSMHANDLE pSSM, PRTINT pi));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCUInt,(PSSMHANDLE pSSM, PRTGCUINT pu));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCUIntReg,(PSSMHANDLE pSSM, PRTGCUINTREG pu));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCPtr,(PSSMHANDLE pSSM, PRTGCPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetGCUIntPtr,(PSSMHANDLE pSSM, PRTGCUINTPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetRCPtr,(PSSMHANDLE pSSM, PRTRCPTR pRCPtr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetIOPort,(PSSMHANDLE pSSM, PRTIOPORT pIOPort));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetSel,(PSSMHANDLE pSSM, PRTSEL pSel));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetMem,(PSSMHANDLE pSSM, void *pv, size_t cb));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStrZ,(PSSMHANDLE pSSM, char *psz, size_t cbMax));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMGetStrZEx,(PSSMHANDLE pSSM, char *psz, size_t cbMax, size_t *pcbStr));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSkip,(PSSMHANDLE pSSM, size_t cb));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSkipToEndOfUnit,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetLoadError,(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(6, 7));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetLoadErrorV,(PSSMHANDLE pSSM, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(6, 0));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetCfgError,(PSSMHANDLE pSSM, RT_SRC_POS_DECL, const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(5, 6));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMSetCfgErrorV,(PSSMHANDLE pSSM, RT_SRC_POS_DECL, const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(5, 0));
+    DECLR3CALLBACKMEMBER(int,      pfnSSMHandleGetStatus,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(SSMAFTER, pfnSSMHandleGetAfter,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(bool,     pfnSSMHandleIsLiveSave,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleMaxDowntime,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleHostBits,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleRevision,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnSSMHandleVersion,(PSSMHANDLE pSSM));
+    DECLR3CALLBACKMEMBER(const char *, pfnSSMHandleHostOSAndArch,(PSSMHANDLE pSSM));
+    /** @} */
+
+    /** @name Exported CFGM Functions.
+     * @{ */
+    DECLR3CALLBACKMEMBER(bool,      pfnCFGMExists,(           PCFGMNODE pNode, const char *pszName));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryType,(        PCFGMNODE pNode, const char *pszName, PCFGMVALUETYPE penmType));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQuerySize,(        PCFGMNODE pNode, const char *pszName, size_t *pcb));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryInteger,(     PCFGMNODE pNode, const char *pszName, uint64_t *pu64));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryIntegerDef,(  PCFGMNODE pNode, const char *pszName, uint64_t *pu64, uint64_t u64Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryString,(      PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryStringDef,(   PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString, const char *pszDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryPassword,(    PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryPasswordDef,( PCFGMNODE pNode, const char *pszName, char *pszString, size_t cchString, const char *pszDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryBytes,(       PCFGMNODE pNode, const char *pszName, void *pvData, size_t cbData));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU64,(         PCFGMNODE pNode, const char *pszName, uint64_t *pu64));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU64Def,(      PCFGMNODE pNode, const char *pszName, uint64_t *pu64, uint64_t u64Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS64,(         PCFGMNODE pNode, const char *pszName, int64_t *pi64));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS64Def,(      PCFGMNODE pNode, const char *pszName, int64_t *pi64, int64_t i64Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU32,(         PCFGMNODE pNode, const char *pszName, uint32_t *pu32));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU32Def,(      PCFGMNODE pNode, const char *pszName, uint32_t *pu32, uint32_t u32Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS32,(         PCFGMNODE pNode, const char *pszName, int32_t *pi32));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS32Def,(      PCFGMNODE pNode, const char *pszName, int32_t *pi32, int32_t i32Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU16,(         PCFGMNODE pNode, const char *pszName, uint16_t *pu16));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU16Def,(      PCFGMNODE pNode, const char *pszName, uint16_t *pu16, uint16_t u16Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS16,(         PCFGMNODE pNode, const char *pszName, int16_t *pi16));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS16Def,(      PCFGMNODE pNode, const char *pszName, int16_t *pi16, int16_t i16Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU8,(          PCFGMNODE pNode, const char *pszName, uint8_t *pu8));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryU8Def,(       PCFGMNODE pNode, const char *pszName, uint8_t *pu8, uint8_t u8Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS8,(          PCFGMNODE pNode, const char *pszName, int8_t *pi8));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryS8Def,(       PCFGMNODE pNode, const char *pszName, int8_t *pi8, int8_t i8Def));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryBool,(        PCFGMNODE pNode, const char *pszName, bool *pf));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryBoolDef,(     PCFGMNODE pNode, const char *pszName, bool *pf, bool fDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryPort,(        PCFGMNODE pNode, const char *pszName, PRTIOPORT pPort));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryPortDef,(     PCFGMNODE pNode, const char *pszName, PRTIOPORT pPort, RTIOPORT PortDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryUInt,(        PCFGMNODE pNode, const char *pszName, unsigned int *pu));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryUIntDef,(     PCFGMNODE pNode, const char *pszName, unsigned int *pu, unsigned int uDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQuerySInt,(        PCFGMNODE pNode, const char *pszName, signed int *pi));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQuerySIntDef,(     PCFGMNODE pNode, const char *pszName, signed int *pi, signed int iDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtr,(       PCFGMNODE pNode, const char *pszName, PRTGCPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrDef,(    PCFGMNODE pNode, const char *pszName, PRTGCPTR pGCPtr, RTGCPTR GCPtrDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrU,(      PCFGMNODE pNode, const char *pszName, PRTGCUINTPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrUDef,(   PCFGMNODE pNode, const char *pszName, PRTGCUINTPTR pGCPtr, RTGCUINTPTR GCPtrDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrS,(      PCFGMNODE pNode, const char *pszName, PRTGCINTPTR pGCPtr));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryGCPtrSDef,(   PCFGMNODE pNode, const char *pszName, PRTGCINTPTR pGCPtr, RTGCINTPTR GCPtrDef));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryStringAlloc,( PCFGMNODE pNode, const char *pszName, char **ppszString));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMQueryStringAllocDef,(PCFGMNODE pNode, const char *pszName, char **ppszString, const char *pszDef));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetParent,(PCFGMNODE pNode));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetChild,(PCFGMNODE pNode, const char *pszPath));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetChildF,(PCFGMNODE pNode, const char *pszPathFormat, ...) RT_IPRT_FORMAT_ATTR(2, 3));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetChildFV,(PCFGMNODE pNode, const char *pszPathFormat, va_list Args) RT_IPRT_FORMAT_ATTR(3, 0));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetFirstChild,(PCFGMNODE pNode));
+    DECLR3CALLBACKMEMBER(PCFGMNODE, pfnCFGMGetNextChild,(PCFGMNODE pCur));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMGetName,(PCFGMNODE pCur, char *pszName, size_t cchName));
+    DECLR3CALLBACKMEMBER(size_t,    pfnCFGMGetNameLen,(PCFGMNODE pCur));
+    DECLR3CALLBACKMEMBER(bool,      pfnCFGMAreChildrenValid,(PCFGMNODE pNode, const char *pszzValid));
+    DECLR3CALLBACKMEMBER(PCFGMLEAF, pfnCFGMGetFirstValue,(PCFGMNODE pCur));
+    DECLR3CALLBACKMEMBER(PCFGMLEAF, pfnCFGMGetNextValue,(PCFGMLEAF pCur));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMGetValueName,(PCFGMLEAF pCur, char *pszName, size_t cchName));
+    DECLR3CALLBACKMEMBER(size_t,    pfnCFGMGetValueNameLen,(PCFGMLEAF pCur));
+    DECLR3CALLBACKMEMBER(CFGMVALUETYPE, pfnCFGMGetValueType,(PCFGMLEAF pCur));
+    DECLR3CALLBACKMEMBER(bool,      pfnCFGMAreValuesValid,(PCFGMNODE pNode, const char *pszzValid));
+    DECLR3CALLBACKMEMBER(int,       pfnCFGMValidateConfig,(PCFGMNODE pNode, const char *pszNode,
+                                                           const char *pszValidValues, const char *pszValidNodes,
+                                                           const char *pszWho, uint32_t uInstance));
+    /** @} */
+
+    /**
+     * Free memory allocated with pfnMMHeapAlloc() and pfnMMHeapAllocZ().
+     *
+     * @param   pDrvIns             Driver instance.
+     * @param   pv                  Pointer to the memory to free.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnMMHeapFree,(PPDMDRVINS pDrvIns, void *pv));
 
     /**
      * Register an info handler with DBGF.
@@ -1168,6 +1274,16 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnThreadCreate,(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, void *pvUser, PFNPDMTHREADDRV pfnThread,
                                                PFNPDMTHREADWAKEUPDRV pfnWakeup, size_t cbStack, RTTHREADTYPE enmType, const char *pszName));
 
+    /** @name Exported PDM Thread Functions
+     * @{ */
+    DECLR3CALLBACKMEMBER(int, pfnThreadDestroy,(PPDMTHREAD pThread, int *pRcThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadIAmSuspending,(PPDMTHREAD pThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadIAmRunning,(PPDMTHREAD pThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadSleep,(PPDMTHREAD pThread, RTMSINTERVAL cMillies));
+    DECLR3CALLBACKMEMBER(int, pfnThreadSuspend,(PPDMTHREAD pThread));
+    DECLR3CALLBACKMEMBER(int, pfnThreadResume,(PPDMTHREAD pThread));
+    /** @} */
+
     /**
      * Creates an async completion template for a driver instance.
      *
@@ -1184,24 +1300,57 @@ typedef struct PDMDRVHLPR3
                                                                 PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
                                                                 const char *pszDesc));
 
+    /** @name Exported PDM Async Completion Functions
+     * @{ */
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionTemplateDestroy,(PPDMASYNCCOMPLETIONTEMPLATE pTemplate));
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionEpCreateForFile,(PPPDMASYNCCOMPLETIONENDPOINT ppEndpoint,
+                                                                 const char *pszFilename, uint32_t fFlags,
+                                                                 PPDMASYNCCOMPLETIONTEMPLATE pTemplate));
+    DECLR3CALLBACKMEMBER(void, pfnAsyncCompletionEpClose,(PPDMASYNCCOMPLETIONENDPOINT pEndpoint));
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionEpGetSize,(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t *pcbSize));
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionEpSetSize,(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t cbSize));
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionEpSetBwMgr,(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, const char *pszBwMgr));
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionEpFlush,(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, void *pvUser, PPPDMASYNCCOMPLETIONTASK ppTask));
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionEpRead,(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
+                                                        PCRTSGSEG paSegments, unsigned cSegments,
+                                                        size_t cbRead, void *pvUser,
+                                                        PPPDMASYNCCOMPLETIONTASK ppTask));
+    DECLR3CALLBACKMEMBER(int, pfnAsyncCompletionEpWrite,(PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
+                                                         PCRTSGSEG paSegments, unsigned cSegments,
+                                                         size_t cbWrite, void *pvUser,
+                                                         PPPDMASYNCCOMPLETIONTASK ppTask));
+    /** @} */
+
+
     /**
-     * Attaches network filter driver to a bandwidth group.
+     * Attaches a network filter driver to a named bandwidth group.
      *
      * @returns VBox status code.
+     * @retval  VERR_ALREADY_INITIALIZED if already attached to a group.
      * @param   pDrvIns         The driver instance.
-     * @param   pcszBwGroup     Name of the bandwidth group to attach to.
+     * @param   pszBwGroup      Name of the bandwidth group to attach to.
      * @param   pFilter         Pointer to the filter we attach.
      */
     DECLR3CALLBACKMEMBER(int, pfnNetShaperAttach,(PPDMDRVINS pDrvIns, const char *pszBwGroup, PPDMNSFILTER pFilter));
 
     /**
-     * Detaches network filter driver to a bandwidth group.
+     * Detaches a network filter driver from its current bandwidth group (if any).
      *
      * @returns VBox status code.
      * @param   pDrvIns         The driver instance.
      * @param   pFilter         Pointer to the filter we attach.
      */
     DECLR3CALLBACKMEMBER(int, pfnNetShaperDetach,(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter));
+
+    /**
+     * Obtains bandwidth in a bandwidth group.
+     *
+     * @returns True if bandwidth was allocated, false if not.
+     * @param   pDrvIns         The driver instance.
+     * @param   pFilter         Pointer to the filter that allocates bandwidth.
+     * @param   cbTransfer      Number of bytes to allocate.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnNetShaperAllocateBandwidth,(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter, size_t cbTransfer));
 
     /**
      * Resolves the symbol for a raw-mode context interface.
@@ -1259,6 +1408,22 @@ typedef struct PDMDRVHLPR3
      */
     DECLR3CALLBACKMEMBER(int, pfnCritSectInit,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszName));
 
+    /** @name Exported PDM Critical Section Functions
+     * @{ */
+    DECLR3CALLBACKMEMBER(bool,     pfnCritSectYield,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(int,      pfnCritSectEnter,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy));
+    DECLR3CALLBACKMEMBER(int,      pfnCritSectEnterDebug,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL));
+    DECLR3CALLBACKMEMBER(int,      pfnCritSectTryEnter,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(int,      pfnCritSectTryEnterDebug,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL));
+    DECLR3CALLBACKMEMBER(int,      pfnCritSectLeave,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(bool,     pfnCritSectIsOwner,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(bool,     pfnCritSectIsInitialized,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(bool,     pfnCritSectHasWaiters,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnCritSectGetRecursion,(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect));
+    DECLR3CALLBACKMEMBER(int,      pfnCritSectScheduleExitEvent,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, SUPSEMEVENT hEventToSignal));
+    DECLR3CALLBACKMEMBER(int,      pfnCritSectDelete,(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect));
+    /** @} */
+
     /**
      * Call the ring-0 request handler routine of the driver.
      *
@@ -1297,6 +1462,20 @@ typedef struct PDMDRVHLPR3
                                                   PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
                                                   PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                                   const char *pcszId));
+
+    /** @name Exported PDM Block Cache Functions
+     * @{ */
+    DECLR3CALLBACKMEMBER(void,     pfnBlkCacheRelease,(PPDMBLKCACHE pBlkCache));
+    DECLR3CALLBACKMEMBER(int,      pfnBlkCacheClear,(PPDMBLKCACHE pBlkCache));
+    DECLR3CALLBACKMEMBER(int,      pfnBlkCacheSuspend,(PPDMBLKCACHE pBlkCache));
+    DECLR3CALLBACKMEMBER(int,      pfnBlkCacheResume,(PPDMBLKCACHE pBlkCache));
+    DECLR3CALLBACKMEMBER(void,     pfnBlkCacheIoXferComplete,(PPDMBLKCACHE pBlkCache, PPDMBLKCACHEIOXFER hIoXfer, int rcIoXfer));
+    DECLR3CALLBACKMEMBER(int,      pfnBlkCacheRead,(PPDMBLKCACHE pBlkCache, uint64_t off, PCRTSGBUF pSgBuf, size_t cbRead, void *pvUser));
+    DECLR3CALLBACKMEMBER(int,      pfnBlkCacheWrite,(PPDMBLKCACHE pBlkCache, uint64_t off, PCRTSGBUF pSgBuf, size_t cbRead, void *pvUser));
+    DECLR3CALLBACKMEMBER(int,      pfnBlkCacheFlush,(PPDMBLKCACHE pBlkCache, void *pvUser));
+    DECLR3CALLBACKMEMBER(int,      pfnBlkCacheDiscard,(PPDMBLKCACHE pBlkCache, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
+    /** @} */
+
     /**
      * Gets the reason for the most recent VM suspend.
      *
@@ -1331,14 +1510,17 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnSTAMDeregisterByPrefix,(PPDMDRVINS pDrvIns, const char *pszPrefix));
 
     /**
-     * Destroys a timer.
+     * Queries a generic object from the VMM user.
      *
-     * @returns VBox status.
-     * @param   pDrvIns         Driver instance.
-     * @param   hTimer          The timer handle to destroy.
+     * @returns Pointer to the object if found, NULL if not.
+     * @param   pDrvIns     The driver instance.
+     * @param   pUuid       The UUID of what's being queried.  The UUIDs and
+     *                      the usage conventions are defined by the user.
      */
-    DECLR3CALLBACKMEMBER(int, pfnTimerDestroy,(PPDMDRVINS pDrvIns, TMTIMERHANDLE hTimer));
+    DECLR3CALLBACKMEMBER(void *, pfnQueryGenericUserObject,(PPDMDRVINS pDrvIns, PCRTUUID pUuid));
 
+    DECLR3CALLBACKMEMBER(void, pfnReserved0,(PPDMDRVINS pDrvIns));
+    DECLR3CALLBACKMEMBER(void, pfnReserved1,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved2,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved3,(PPDMDRVINS pDrvIns));
     DECLR3CALLBACKMEMBER(void, pfnReserved4,(PPDMDRVINS pDrvIns));
@@ -1352,13 +1534,19 @@ typedef struct PDMDRVHLPR3
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR3;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 5, 2)
-
-#endif /* IN_RING3 */
+#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 16, 0)
 
 
 /**
- * @copydoc PDMDRVHLPR3::pfnVMSetError
+ * Set the VM error message
+ *
+ * @returns rc.
+ * @param   pDrvIns         Driver instance.
+ * @param   rc              VBox status code.
+ * @param   SRC_POS         Use RT_SRC_POS.
+ * @param   pszFormat       Error message format string.
+ * @param   ...             Error message arguments.
+ * @sa      PDMDRV_SET_ERROR, PDMDrvHlpVMSetErrorV, VMSetError
  */
 DECLINLINE(int)  RT_IPRT_FORMAT_ATTR(6, 7) PDMDrvHlpVMSetError(PPDMDRVINS pDrvIns, const int rc, RT_SRC_POS_DECL,
                                                                const char *pszFormat, ...)
@@ -1387,7 +1575,16 @@ DECLINLINE(int)  RT_IPRT_FORMAT_ATTR(6, 0) PDMDrvHlpVMSetErrorV(PPDMDRVINS pDrvI
 
 
 /**
- * @copydoc PDMDRVHLPR3::pfnVMSetRuntimeError
+ * Set the VM runtime error message
+ *
+ * @returns VBox status code.
+ * @param   pDrvIns         Driver instance.
+ * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
+ * @param   pszErrorId      Error ID string.
+ * @param   pszFormat       Error message format string.
+ * @param   ...             Error message arguments.
+ * @sa      PDMDRV_SET_RUNTIME_ERROR, PDMDrvHlpVMSetRuntimeErrorV,
+ *          VMSetRuntimeError
  */
 DECLINLINE(int)  RT_IPRT_FORMAT_ATTR(4, 5) PDMDrvHlpVMSetRuntimeError(PPDMDRVINS pDrvIns, uint32_t fFlags, const char *pszErrorId,
                                                                       const char *pszFormat, ...)
@@ -1415,7 +1612,7 @@ DECLINLINE(int)  RT_IPRT_FORMAT_ATTR(4, 0) PDMDrvHlpVMSetRuntimeErrorV(PPDMDRVIN
     return pDrvIns->CTX_SUFF(pHlp)->pfnVMSetRuntimeErrorV(pDrvIns, fFlags, pszErrorId, pszFormat, va);
 }
 
-
+#endif /* IN_RING3 */
 
 /** @def PDMDRV_ASSERT_EMT
  * Assert that the current thread is the emulation thread.
@@ -1509,9 +1706,33 @@ DECLINLINE(PSUPDRVSESSION) PDMDrvHlpGetSupDrvSession(PPDMDRVINS pDrvIns)
  * @copydoc PDMDRVHLPR3::pfnQueueCreate
  */
 DECLINLINE(int) PDMDrvHlpQueueCreate(PPDMDRVINS pDrvIns, uint32_t cbItem, uint32_t cItems, uint32_t cMilliesInterval,
-                                        PFNPDMQUEUEDRV pfnCallback, const char *pszName, PPDMQUEUE *ppQueue)
+                                        PFNPDMQUEUEDRV pfnCallback, const char *pszName, PDMQUEUEHANDLE *phQueue)
 {
-    return pDrvIns->pHlpR3->pfnQueueCreate(pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, ppQueue);
+    return pDrvIns->pHlpR3->pfnQueueCreate(pDrvIns, cbItem, cItems, cMilliesInterval, pfnCallback, pszName, phQueue);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnQueueAlloc
+ */
+DECLINLINE(PPDMQUEUEITEMCORE) PDMDrvHlpQueueAlloc(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnQueueAlloc(pDrvIns, hQueue);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnQueueInsert
+ */
+DECLINLINE(int) PDMDrvHlpQueueInsert(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue, PPDMQUEUEITEMCORE pItem)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnQueueInsert(pDrvIns, hQueue, pItem);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnQueueFlushIfNecessary
+ */
+DECLINLINE(bool) PDMDrvHlpQueueFlushIfNecessary(PPDMDRVINS pDrvIns, PDMQUEUEHANDLE hQueue)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnQueueFlushIfNecessary(pDrvIns, hQueue);
 }
 
 /**
@@ -1531,11 +1752,13 @@ DECLINLINE(uint64_t) PDMDrvHlpTMGetVirtualTime(PPDMDRVINS pDrvIns)
 }
 
 /**
- * @copydoc PDMDRVHLPR3::pfnTMTimerCreate
+ * @copydoc PDMDRVHLPR3::pfnTimerCreate
  */
-DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser, uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
+DECLINLINE(int) PDMDrvHlpTMTimerCreate(PPDMDRVINS pDrvIns, TMCLOCK enmClock, PFNTMTIMERDRV pfnCallback, void *pvUser,
+                                       uint32_t fFlags, const char *pszDesc, PTMTIMERHANDLE phTimer)
+
 {
-    return pDrvIns->pHlpR3->pfnTMTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, phTimer);
+    return pDrvIns->pHlpR3->pfnTimerCreate(pDrvIns, enmClock, pfnCallback, pvUser, fFlags, pszDesc, phTimer);
 }
 
 /**
@@ -1603,6 +1826,14 @@ DECLINLINE(int) PDMDrvHlpSSMRegisterLoadDone(PPDMDRVINS pDrvIns, PFNSSMDRVLOADDO
                                               NULL /*pfnLivePrep*/, NULL /*pfnLiveExec*/, NULL /*pfnLiveVote*/,
                                               NULL /*pfnSavePrep*/, NULL /*pfnSaveExec*/, NULL /*pfnSaveDone*/,
                                               NULL /*pfnLoadPrep*/, NULL /*pfnLoadExec*/, pfnLoadDone);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnMMHeapFree
+ */
+DECLINLINE(void) PDMDrvHlpMMHeapFree(PPDMDRVINS pDrvIns, void *pv)
+{
+    pDrvIns->pHlpR3->pfnMMHeapFree(pDrvIns, pv);
 }
 
 /**
@@ -1801,6 +2032,60 @@ DECLINLINE(int) PDMDrvHlpThreadCreate(PPDMDRVINS pDrvIns, PPPDMTHREAD ppThread, 
     return pDrvIns->pHlpR3->pfnThreadCreate(pDrvIns, ppThread, pvUser, pfnThread, pfnWakeup, cbStack, enmType, pszName);
 }
 
+/**
+ * @copydoc PDMR3ThreadDestroy
+ * @param   pDrvIns     The driver instance.
+ */
+DECLINLINE(int) PDMDrvHlpThreadDestroy(PPDMDRVINS pDrvIns, PPDMTHREAD pThread, int *pRcThread)
+{
+    return pDrvIns->pHlpR3->pfnThreadDestroy(pThread, pRcThread);
+}
+
+/**
+ * @copydoc PDMR3ThreadIAmSuspending
+ * @param   pDrvIns     The driver instance.
+ */
+DECLINLINE(int) PDMDrvHlpThreadIAmSuspending(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    return pDrvIns->pHlpR3->pfnThreadIAmSuspending(pThread);
+}
+
+/**
+ * @copydoc PDMR3ThreadIAmRunning
+ * @param   pDrvIns     The driver instance.
+ */
+DECLINLINE(int) PDMDrvHlpThreadIAmRunning(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    return pDrvIns->pHlpR3->pfnThreadIAmRunning(pThread);
+}
+
+/**
+ * @copydoc PDMR3ThreadSleep
+ * @param   pDrvIns     The driver instance.
+ */
+DECLINLINE(int) PDMDrvHlpThreadSleep(PPDMDRVINS pDrvIns, PPDMTHREAD pThread, RTMSINTERVAL cMillies)
+{
+    return pDrvIns->pHlpR3->pfnThreadSleep(pThread, cMillies);
+}
+
+/**
+ * @copydoc PDMR3ThreadSuspend
+ * @param   pDrvIns     The driver instance.
+ */
+DECLINLINE(int) PDMDrvHlpThreadSuspend(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    return pDrvIns->pHlpR3->pfnThreadSuspend(pThread);
+}
+
+/**
+ * @copydoc PDMR3ThreadResume
+ * @param   pDrvIns     The driver instance.
+ */
+DECLINLINE(int) PDMDrvHlpThreadResume(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    return pDrvIns->pHlpR3->pfnThreadResume(pThread);
+}
+
 # ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 /**
  * @copydoc PDMDRVHLPR3::pfnAsyncCompletionTemplateCreate
@@ -1810,9 +2095,94 @@ DECLINLINE(int) PDMDrvHlpAsyncCompletionTemplateCreate(PPDMDRVINS pDrvIns, PPPDM
 {
     return pDrvIns->pHlpR3->pfnAsyncCompletionTemplateCreate(pDrvIns, ppTemplate, pfnCompleted, pvTemplateUser, pszDesc);
 }
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionTemplateDestroy
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionTemplateDestroy(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONTEMPLATE pTemplate)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionTemplateDestroy(pTemplate);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpCreateForFile
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionEpCreateForFile(PPDMDRVINS pDrvIns, PPPDMASYNCCOMPLETIONENDPOINT ppEndpoint,
+                                                        const char *pszFilename, uint32_t fFlags,
+                                                        PPDMASYNCCOMPLETIONTEMPLATE pTemplate)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionEpCreateForFile(ppEndpoint, pszFilename, fFlags, pTemplate);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpClose
+ */
+DECLINLINE(void) PDMDrvHlpAsyncCompletionEpClose(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
+{
+    pDrvIns->pHlpR3->pfnAsyncCompletionEpClose(pEndpoint);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpGetSize
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionEpGetSize(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t *pcbSize)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionEpGetSize(pEndpoint, pcbSize);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpSetSize
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionEpSetSize(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONENDPOINT pEndpoint, uint64_t cbSize)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionEpSetSize(pEndpoint, cbSize);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpSetBwMgr
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionEpSetBwMgr(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONENDPOINT pEndpoint, const char *pszBwMgr)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionEpSetBwMgr(pEndpoint, pszBwMgr);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpFlush
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionEpFlush(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONENDPOINT pEndpoint, void *pvUser,
+                                                PPPDMASYNCCOMPLETIONTASK ppTask)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionEpFlush(pEndpoint, pvUser, ppTask);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpRead
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionEpRead(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
+                                               PCRTSGSEG paSegments, unsigned cSegments,
+                                               size_t cbRead, void *pvUser,
+                                               PPPDMASYNCCOMPLETIONTASK ppTask)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionEpRead(pEndpoint, off, paSegments, cSegments, cbRead, pvUser, ppTask);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnAsyncCompletionEpWrite
+ */
+DECLINLINE(int) PDMDrvHlpAsyncCompletionEpWrite(PPDMDRVINS pDrvIns, PPDMASYNCCOMPLETIONENDPOINT pEndpoint, RTFOFF off,
+                                                PCRTSGSEG paSegments, unsigned cSegments,
+                                                size_t cbWrite, void *pvUser,
+                                                PPPDMASYNCCOMPLETIONTASK ppTask)
+{
+    return pDrvIns->pHlpR3->pfnAsyncCompletionEpWrite(pEndpoint, off, paSegments, cSegments, cbWrite, pvUser, ppTask);
+}
 # endif
 
-# ifdef VBOX_WITH_NETSHAPER
+#endif /* IN_RING3 */
+
+#ifdef VBOX_WITH_NETSHAPER
+# ifdef IN_RING3
+
 /**
  * @copydoc PDMDRVHLPR3::pfnNetShaperAttach
  */
@@ -1828,14 +2198,130 @@ DECLINLINE(int) PDMDrvHlpNetShaperDetach(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilte
 {
     return pDrvIns->pHlpR3->pfnNetShaperDetach(pDrvIns, pFilter);
 }
-# endif
 
+# endif /* IN_RING3 */
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnNetShaperAllocateBandwidth
+ */
+DECLINLINE(bool) PDMDrvHlpNetShaperAllocateBandwidth(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter, size_t cbTransfer)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnNetShaperAllocateBandwidth(pDrvIns, pFilter, cbTransfer);
+}
+
+#endif /* VBOX_WITH_NETSHAPER*/
+
+#ifdef IN_RING3
 /**
  * @copydoc PDMDRVHLPR3::pfnCritSectInit
  */
 DECLINLINE(int) PDMDrvHlpCritSectInit(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RT_SRC_POS_DECL, const char *pszName)
 {
     return pDrvIns->pHlpR3->pfnCritSectInit(pDrvIns, pCritSect, RT_SRC_POS_ARGS, pszName);
+}
+#endif /* IN_RING3 */
+
+/**
+ * @see PDMCritSectEnter
+ */
+DECLINLINE(int) PDMDrvHlpCritSectEnter(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectEnter(pDrvIns, pCritSect, rcBusy);
+}
+
+/**
+ * @see PDMCritSectEnterDebug
+ */
+DECLINLINE(int) PDMDrvHlpCritSectEnterDebug(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, int rcBusy, RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectEnterDebug(pDrvIns, pCritSect, rcBusy, uId, RT_SRC_POS_ARGS);
+}
+
+/**
+ * @see PDMCritSectTryEnter
+ */
+DECLINLINE(int)      PDMDrvHlpCritSectTryEnter(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectTryEnter(pDrvIns, pCritSect);
+}
+
+/**
+ * @see PDMCritSectTryEnterDebug
+ */
+DECLINLINE(int)      PDMDrvHlpCritSectTryEnterDebug(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectTryEnterDebug(pDrvIns, pCritSect, uId, RT_SRC_POS_ARGS);
+}
+
+/**
+ * @see PDMCritSectLeave
+ */
+DECLINLINE(int)      PDMDrvHlpCritSectLeave(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectLeave(pDrvIns, pCritSect);
+}
+
+/**
+ * @see PDMCritSectIsOwner
+ */
+DECLINLINE(bool)     PDMDrvHlpCritSectIsOwner(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectIsOwner(pDrvIns, pCritSect);
+}
+
+/**
+ * @see PDMCritSectIsInitialized
+ */
+DECLINLINE(bool)     PDMDrvHlpCritSectIsInitialized(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectIsInitialized(pDrvIns, pCritSect);
+}
+
+/**
+ * @see PDMCritSectHasWaiters
+ */
+DECLINLINE(bool)     PDMDrvHlpCritSectHasWaiters(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectHasWaiters(pDrvIns, pCritSect);
+}
+
+/**
+ * @see PDMCritSectGetRecursion
+ */
+DECLINLINE(uint32_t) PDMDrvHlpCritSectGetRecursion(PPDMDRVINS pDrvIns, PCPDMCRITSECT pCritSect)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectGetRecursion(pDrvIns, pCritSect);
+}
+
+#if defined(IN_RING3) || defined(IN_RING0)
+/**
+ * @see PDMHCCritSectScheduleExitEvent
+ */
+DECLINLINE(int) PDMDrvHlpCritSectScheduleExitEvent(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect, SUPSEMEVENT hEventToSignal)
+{
+    return pDrvIns->CTX_SUFF(pHlp)->pfnCritSectScheduleExitEvent(pDrvIns, pCritSect, hEventToSignal);
+}
+#endif
+
+/* Strict build: Remap the two enter calls to the debug versions. */
+#ifdef VBOX_STRICT
+# ifdef IPRT_INCLUDED_asm_h
+#  define PDMDrvHlpCritSectEnter(pDrvIns, pCritSect, rcBusy) PDMDrvHlpCritSectEnterDebug((pDrvIns), (pCritSect), (rcBusy), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+#  define PDMDrvHlpCritSectTryEnter(pDrvIns, pCritSect)      PDMDrvHlpCritSectTryEnterDebug((pDrvIns), (pCritSect), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
+# else
+#  define PDMDrvHlpCritSectEnter(pDrvIns, pCritSect, rcBusy) PDMDrvHlpCritSectEnterDebug((pDrvIns), (pCritSect), (rcBusy), 0, RT_SRC_POS)
+#  define PDMDrvHlpCritSectTryEnter(pDrvIns, pCritSect)      PDMDrvHlpCritSectTryEnterDebug((pDrvIns), (pCritSect), 0, RT_SRC_POS)
+# endif
+#endif
+
+#if defined(IN_RING3) || defined(DOXYGEN_RUNNING)
+
+/**
+ * @see PDMR3CritSectDelete
+ */
+DECLINLINE(int) PDMDrvHlpCritSectDelete(PPDMDRVINS pDrvIns, PPDMCRITSECT pCritSect)
+{
+    return pDrvIns->pHlpR3->pfnCritSectDelete(pDrvIns, pCritSect);
 }
 
 /**
@@ -1859,6 +2345,82 @@ DECLINLINE(int) PDMDrvHlpBlkCacheRetain(PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkC
 }
 
 /**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheRelease
+ */
+DECLINLINE(void) PDMDrvHlpBlkCacheRelease(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache)
+{
+    pDrvIns->pHlpR3->pfnBlkCacheRelease(pBlkCache);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheClear
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheClear(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheClear(pBlkCache);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheSuspend
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheSuspend(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheSuspend(pBlkCache);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheResume
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheResume(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheResume(pBlkCache);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheIoXferComplete
+ */
+DECLINLINE(void) PDMDrvHlpBlkCacheIoXferComplete(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache,
+                                                 PPDMBLKCACHEIOXFER hIoXfer, int rcIoXfer)
+{
+    pDrvIns->pHlpR3->pfnBlkCacheIoXferComplete(pBlkCache, hIoXfer, rcIoXfer);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheRead
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheRead(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache, uint64_t off,
+                                      PCRTSGBUF pSgBuf, size_t cbRead, void *pvUser)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheRead(pBlkCache, off, pSgBuf, cbRead, pvUser);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheWrite
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheWrite(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache, uint64_t off,
+                                      PCRTSGBUF pSgBuf, size_t cbRead, void *pvUser)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheWrite(pBlkCache, off, pSgBuf, cbRead, pvUser);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheFlush
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheFlush(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache, void *pvUser)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheFlush(pBlkCache, pvUser);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnBlkCacheDiscard
+ */
+DECLINLINE(int) PDMDrvHlpBlkCacheDiscard(PPDMDRVINS pDrvIns, PPDMBLKCACHE pBlkCache, PCRTRANGE paRanges,
+                                         unsigned cRanges, void *pvUser)
+{
+    return pDrvIns->pHlpR3->pfnBlkCacheDiscard(pBlkCache, paRanges, cRanges, pvUser);
+}
+
+/**
  * @copydoc PDMDRVHLPR3::pfnVMGetSuspendReason
  */
 DECLINLINE(VMSUSPENDREASON) PDMDrvHlpVMGetSuspendReason(PPDMDRVINS pDrvIns)
@@ -1872,6 +2434,14 @@ DECLINLINE(VMSUSPENDREASON) PDMDrvHlpVMGetSuspendReason(PPDMDRVINS pDrvIns)
 DECLINLINE(VMRESUMEREASON) PDMDrvHlpVMGetResumeReason(PPDMDRVINS pDrvIns)
 {
     return pDrvIns->pHlpR3->pfnVMGetResumeReason(pDrvIns);
+}
+
+/**
+ * @copydoc PDMDRVHLPR3::pfnQueryGenericUserObject
+ */
+DECLINLINE(void *) PDMDrvHlpQueryGenericUserObject(PPDMDRVINS pDrvIns, PCRTUUID pUuid)
+{
+    return pDrvIns->pHlpR3->pfnQueryGenericUserObject(pDrvIns, pUuid);
 }
 
 
@@ -1914,7 +2484,7 @@ typedef struct PDMDRVREGCB
  * @param   pCallbacks      Pointer to the callback table.
  * @param   u32Version      VBox version number.
  */
-typedef DECLCALLBACK(int) FNPDMVBOXDRIVERSREGISTER(PCPDMDRVREGCB pCallbacks, uint32_t u32Version);
+typedef DECLCALLBACKTYPE(int, FNPDMVBOXDRIVERSREGISTER,(PCPDMDRVREGCB pCallbacks, uint32_t u32Version));
 
 VMMR3DECL(int) PDMR3DrvStaticRegistration(PVM pVM, FNPDMVBOXDRIVERSREGISTER pfnCallback);
 

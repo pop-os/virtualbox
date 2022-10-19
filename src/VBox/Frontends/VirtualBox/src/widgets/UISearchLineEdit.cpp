@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes */
@@ -29,8 +39,8 @@ UISearchLineEdit::UISearchLineEdit(QWidget *pParent /* = 0 */)
     , m_fMark(true)
     , m_unmarkColor(palette().color(QPalette::Base))
     , m_markColor(QColor(m_unmarkColor.red(),
-                         0.5 * m_unmarkColor.green(),
-                         0.5 * m_unmarkColor.blue()))
+                         0.7 * m_unmarkColor.green(),
+                         0.7 * m_unmarkColor.blue()))
 {
 }
 
@@ -48,8 +58,13 @@ void UISearchLineEdit::paintEvent(QPaintEvent *pEvent)
     QPainter painter(this);
     QFont pfont = font();
     QString strText = QString("%1/%2").arg(QString::number(m_iScrollToIndex + 1)).arg(QString::number(m_iMatchCount));
+#if QT_VERSION >= QT_VERSION_CHECK(5, 11, 0)
+    QSize textSize(QApplication::fontMetrics().horizontalAdvance(strText),
+                   QApplication::fontMetrics().height());
+#else
     QSize textSize(QApplication::fontMetrics().width(strText),
                    QApplication::fontMetrics().height());
+#endif
 
     /* Dont draw anything if we dont have enough space: */
     if (textSize.width() > 0.5 * width())
@@ -57,7 +72,7 @@ void UISearchLineEdit::paintEvent(QPaintEvent *pEvent)
     int iTopMargin = (height() - textSize.height()) / 2;
     int iRightMargin = iTopMargin;
 
-    QColor fontColor(Qt::darkGray);
+    QColor fontColor(Qt::black);
     painter.setPen(fontColor);
     painter.setFont(pfont);
 
@@ -74,7 +89,7 @@ void UISearchLineEdit::setMatchCount(int iMatchCount)
     repaint();
 }
 
-void UISearchLineEdit::setScroolToIndex(int iScrollToIndex)
+void UISearchLineEdit::setScrollToIndex(int iScrollToIndex)
 {
     if (m_iScrollToIndex == iScrollToIndex)
         return;
@@ -92,7 +107,7 @@ void UISearchLineEdit::reset()
 
 void UISearchLineEdit::colorBackground(bool fWarning)
 {
-    QPalette mPalette = palette();
+    QPalette mPalette = QApplication::palette();
     /** Make sure we reset color. */
     if (!fWarning || !m_fMark)
     {

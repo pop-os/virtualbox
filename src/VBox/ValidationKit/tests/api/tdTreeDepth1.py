@@ -8,31 +8,42 @@ VirtualBox Validation Kit - Medium and Snapshot Tree Depth Test #1
 
 __copyright__ = \
 """
-Copyright (C) 2010-2020 Oracle Corporation
+Copyright (C) 2010-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
 
 The contents of this file may alternatively be used under the terms
 of the Common Development and Distribution License Version 1.0
-(CDDL) only, as it comes in the "COPYING.CDDL" file of the
-VirtualBox OSE distribution, in which case the provisions of the
+(CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+in the VirtualBox distribution, in which case the provisions of the
 CDDL are applicable instead of those of the GPL.
 
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
+
+SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 135976 $"
+__version__ = "$Revision: 153224 $"
 
 
 # Standard Python imports.
 import os
 import sys
+import random
 
 # Only the main script needs to modify the path.
 try:    __file__
@@ -72,13 +83,16 @@ class SubTstDrvTreeDepth1(base.SubTestDriverBase):
         reporter.testStart('mediumTreeDepth')
 
         try:
+            oVBox = self.oTstDrv.oVBoxMgr.getVirtualBox()
             oVM = self.oTstDrv.createTestVM('test-medium', 1, None, 4)
             assert oVM is not None
 
-            # create chain with 300 disk images (medium tree depth limit)
+            # create chain with up to 64 disk images (medium tree depth limit)
             fRc = True
             oSession = self.oTstDrv.openSession(oVM)
-            for i in range(1, 301):
+            cImages = random.randrange(1, 64);
+            reporter.log('Creating chain with %d disk images' % (cImages))
+            for i in range(1, cImages + 1):
                 sHddPath = os.path.join(self.oTstDrv.sScratchPath, 'Test' + str(i) + '.vdi')
                 if i == 1:
                     oHd = oSession.createBaseHd(sHddPath, cb=1024*1024)
@@ -92,16 +106,53 @@ class SubTstDrvTreeDepth1(base.SubTestDriverBase):
             fRc = fRc and oSession.attachHd(sHddPath, sController='SATA Controller', fImmutable=False, fForceResource=False)
             fRc = fRc and oSession.saveSettings()
             fRc = oSession.close() and fRc
+            ## @todo r=klaus: count known hard disk images, should be cImages
 
-            # unregister and re-register to test loading of settings
+            # unregister, making sure the images are closed
             sSettingsFile = oVM.settingsFilePath
-            reporter.log('unregistering VM')
-            oVM.unregister(vboxcon.CleanupMode_DetachAllReturnNone)
-            oVBox = self.oTstDrv.oVBoxMgr.getVirtualBox()
-            reporter.log('opening VM %s, testing config reading' % (sSettingsFile))
-            oVM = oVBox.openMachine(sSettingsFile)
+            fDetachAll = random.choice([False, True])
+            if fDetachAll:
+                reporter.log('unregistering VM, DetachAll style')
+            else:
+                reporter.log('unregistering VM, UnregisterOnly style')
+            self.oTstDrv.forgetTestMachine(oVM)
+            if fDetachAll:
+                aoHDs = oVM.unregister(vboxcon.CleanupMode_DetachAllReturnHardDisksOnly)
+                for oHD in aoHDs:
+                    oHD.close()
+                aoHDs = None
+            else:
+                oVM.unregister(vboxcon.CleanupMode_UnregisterOnly)
+            oVM = None
 
-            assert fRc is True
+            # If there is no base image (expected) then there are no leftover
+            # child images either. Can be changed later once the todos above
+            # and below are resolved.
+            cBaseImages = len(self.oTstDrv.oVBoxMgr.getArray(oVBox, 'hardDisks'))
+            reporter.log('API reports %i base images' % (cBaseImages))
+            fRc = fRc and cBaseImages == 0
+            if cBaseImages != 0:
+                reporter.error('Got %d initial base images, expected %d' % (cBaseImages, 0));
+
+            # re-register to test loading of settings
+            reporter.log('opening VM %s, testing config reading' % (sSettingsFile))
+            if self.oTstDrv.fpApiVer >= 7.0:
+                # Needs a password parameter since 7.0.
+                oVM = oVBox.openMachine(sSettingsFile, "")
+            else:
+                oVM = oVBox.openMachine(sSettingsFile)
+            ## @todo r=klaus: count known hard disk images, should be cImages
+
+            reporter.log('unregistering VM')
+            oVM.unregister(vboxcon.CleanupMode_UnregisterOnly)
+            oVM = None
+
+            cBaseImages = len(self.oTstDrv.oVBoxMgr.getArray(oVBox, 'hardDisks'))
+            reporter.log('API reports %i base images' % (cBaseImages))
+            fRc = fRc and cBaseImages == 0
+            if cBaseImages != 0:
+                reporter.error('Got %d base images after unregistering, expected %d' % (cBaseImages, 0));
+
         except:
             reporter.errorXcpt()
 
@@ -114,6 +165,7 @@ class SubTstDrvTreeDepth1(base.SubTestDriverBase):
         reporter.testStart('snapshotTreeDepth')
 
         try:
+            oVBox = self.oTstDrv.oVBoxMgr.getVirtualBox()
             oVM = self.oTstDrv.createTestVM('test-snap', 1, None, 4)
             assert oVM is not None
 
@@ -124,20 +176,65 @@ class SubTstDrvTreeDepth1(base.SubTestDriverBase):
             fRc = fRc and oSession.createAndAttachHd(sHddPath, cb=1024*1024, sController='SATA Controller', fImmutable=False)
             fRc = fRc and oSession.saveSettings()
 
-            # take 250 snapshots (snapshot tree depth limit)
-            for i in range(1, 251):
+            # take up to 200 snapshots (255 is the snapshot tree depth limit)
+            cSnapshots = random.randrange(1, 200); ## @todo r=andy BUGBUG When specifying 254 here, it fails with object 251.
+            reporter.log('Taking %d snapshots' % (cSnapshots))
+            for i in range(1, cSnapshots + 1):
                 fRc = fRc and oSession.takeSnapshot('Snapshot ' + str(i))
             fRc = oSession.close() and fRc
+            oSession = None
+            reporter.log('API reports %i snapshots' % (oVM.snapshotCount))
+            fRc = fRc and oVM.snapshotCount == cSnapshots
+            if oVM.snapshotCount != cSnapshots:
+                reporter.error('Got %d initial snapshots, expected %d' % (oVM.snapshotCount, cSnapshots));
 
-            # unregister and re-register to test loading of settings
+            # unregister, making sure the images are closed
             sSettingsFile = oVM.settingsFilePath
-            reporter.log('unregistering VM')
-            oVM.unregister(vboxcon.CleanupMode_DetachAllReturnNone)
-            oVBox = self.oTstDrv.oVBoxMgr.getVirtualBox()
-            reporter.log('opening VM %s, testing config reading' % (sSettingsFile))
-            oVM = oVBox.openMachine(sSettingsFile)
+            fDetachAll = random.choice([False, True])
+            if fDetachAll:
+                reporter.log('unregistering VM, DetachAll style')
+            else:
+                reporter.log('unregistering VM, UnregisterOnly style')
+            self.oTstDrv.forgetTestMachine(oVM)
+            if fDetachAll:
+                aoHDs = oVM.unregister(vboxcon.CleanupMode_DetachAllReturnHardDisksOnly)
+                for oHD in aoHDs:
+                    oHD.close()
+                aoHDs = None
+            else:
+                oVM.unregister(vboxcon.CleanupMode_UnregisterOnly)
+            oVM = None
 
-            assert fRc is True
+            # If there is no base image (expected) then there are no leftover
+            # child images either. Can be changed later once the todos above
+            # and below are resolved.
+            cBaseImages = len(self.oTstDrv.oVBoxMgr.getArray(oVBox, 'hardDisks'))
+            reporter.log('API reports %i base images' % (cBaseImages))
+            fRc = fRc and cBaseImages == 0
+            if cBaseImages != 0:
+                reporter.error('Got %d initial base images, expected %d' % (cBaseImages, 0));
+
+            # re-register to test loading of settings
+            reporter.log('opening VM %s, testing config reading' % (sSettingsFile))
+            if self.oTstDrv.fpApiVer >= 7.0:
+                # Needs a password parameter since 7.0.
+                oVM = oVBox.openMachine(sSettingsFile, "")
+            else:
+                oVM = oVBox.openMachine(sSettingsFile)
+            reporter.log('API reports %i snapshots' % (oVM.snapshotCount))
+            fRc = fRc and oVM.snapshotCount == cSnapshots
+            if oVM.snapshotCount != cSnapshots:
+                reporter.error('Got %d snapshots after re-registering, expected %d' % (oVM.snapshotCount, cSnapshots));
+
+            reporter.log('unregistering VM')
+            oVM.unregister(vboxcon.CleanupMode_UnregisterOnly)
+            oVM = None
+
+            cBaseImages = len(self.oTstDrv.oVBoxMgr.getArray(oVBox, 'hardDisks'))
+            reporter.log('API reports %i base images' % (cBaseImages))
+            fRc = fRc and cBaseImages == 0
+            if cBaseImages != 0:
+                reporter.error('Got %d base images after unregistering, expected %d' % (cBaseImages, 0));
         except:
             reporter.errorXcpt()
 
@@ -148,4 +245,3 @@ if __name__ == '__main__':
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     from tdApi1 import tdApi1;      # pylint: disable=relative-import
     sys.exit(tdApi1([SubTstDrvTreeDepth1]).main(sys.argv))
-

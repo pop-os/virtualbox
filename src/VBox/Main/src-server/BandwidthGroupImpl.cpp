@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #define LOG_GROUP LOG_GROUP_MAIN_BANDWIDTHGROUP
@@ -65,7 +75,7 @@ HRESULT BandwidthGroup::init(BandwidthControl *aParent,
     if (   (aType <= BandwidthGroupType_Null)
         || (aType >  BandwidthGroupType_Network))
         return setError(E_INVALIDARG,
-                        tr("Invalid bandwidth group type type"));
+                        tr("Invalid bandwidth group type"));
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -80,7 +90,7 @@ HRESULT BandwidthGroup::init(BandwidthControl *aParent,
     m->bd->mData.strName = aName;
     m->bd->mData.enmType = aType;
     m->bd->cReferences = 0;
-    m->bd->mData.cMaxBytesPerSec = aMaxBytesPerSec;
+    m->bd->mData.cMaxBytesPerSec = (uint64_t)aMaxBytesPerSec;
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -228,7 +238,7 @@ HRESULT BandwidthGroup::getMaxBytesPerSec(LONG64 *aMaxBytesPerSec)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aMaxBytesPerSec = m->bd->mData.cMaxBytesPerSec;
+    *aMaxBytesPerSec = (LONG64)m->bd->mData.cMaxBytesPerSec;
 
     return S_OK;
 }
@@ -242,7 +252,7 @@ HRESULT BandwidthGroup::setMaxBytesPerSec(LONG64 aMaxBytesPerSec)
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->mData.cMaxBytesPerSec = aMaxBytesPerSec;
+    m->bd->mData.cMaxBytesPerSec = (uint64_t)aMaxBytesPerSec;
 
     /* inform direct session if any. */
     ComObjPtr<Machine> pMachine = m->pParent->i_getMachine();

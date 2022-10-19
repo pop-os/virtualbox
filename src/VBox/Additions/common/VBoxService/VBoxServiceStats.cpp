@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /** @page pg_vgsvc_vmstats VBoxService - VM Statistics
@@ -67,7 +77,7 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
-typedef struct _VBOXSTATSCONTEXT
+typedef struct VBOXSTATSCONTEXT
 {
     RTMSINTERVAL    cMsStatInterval;
 
@@ -77,10 +87,11 @@ typedef struct _VBOXSTATSCONTEXT
     uint64_t        au64LastCpuLoad_Nice[VMM_MAX_CPU_COUNT];
 
 #ifdef RT_OS_WINDOWS
-    NTSTATUS (WINAPI *pfnNtQuerySystemInformation)(SYSTEM_INFORMATION_CLASS SystemInformationClass, PVOID SystemInformation,
-                                                   ULONG SystemInformationLength, PULONG ReturnLength);
-    void     (WINAPI *pfnGlobalMemoryStatusEx)(LPMEMORYSTATUSEX lpBuffer);
-    BOOL     (WINAPI *pfnGetPerformanceInfo)(PPERFORMANCE_INFORMATION pPerformanceInformation, DWORD cb);
+    DECLCALLBACKMEMBER_EX(NTSTATUS, WINAPI, pfnNtQuerySystemInformation,(SYSTEM_INFORMATION_CLASS SystemInformationClass,
+                                                                         PVOID SystemInformation, ULONG SystemInformationLength,
+                                                                         PULONG ReturnLength));
+    DECLCALLBACKMEMBER_EX(void,     WINAPI, pfnGlobalMemoryStatusEx,(LPMEMORYSTATUSEX lpBuffer));
+    DECLCALLBACKMEMBER_EX(BOOL,     WINAPI, pfnGetPerformanceInfo,(PPERFORMANCE_INFORMATION pPerformanceInformation, DWORD cb));
 #endif
 } VBOXSTATSCONTEXT;
 
@@ -533,12 +544,12 @@ static void vgsvcVMStatsReport(void)
                                    | VBOX_GUEST_STAT_PHYS_MEM_AVAIL
                                    | VBOX_GUEST_STAT_MEM_SYSTEM_CACHE
                                    | VBOX_GUEST_STAT_PAGE_FILE_SIZE;
-#ifdef VBOX_WITH_MEMBALLOON
+# ifdef VBOX_WITH_MEMBALLOON
         req.guestStats.u32PhysMemBalloon  = VGSvcBalloonQueryPages(_4K);
         req.guestStats.u32StatCaps       |= VBOX_GUEST_STAT_PHYS_MEM_BALLOON;
-#else
+# else
         req.guestStats.u32PhysMemBalloon  = 0;
-#endif
+# endif
 
         /*
          * CPU statistics.

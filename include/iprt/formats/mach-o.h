@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2011-2020 Oracle Corporation
+ * Copyright (C) 2011-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_formats_mach_o_h
@@ -38,6 +48,8 @@
 /* cputype */
 #define CPU_ARCH_MASK               INT32_C(0xff000000)
 #define CPU_ARCH_ABI64              INT32_C(0x01000000)
+#define CPU_ARCH_ABI64_32           INT32_C(0x02000000) /**< LP32 on 64-bit hardware */
+
 #define CPU_TYPE_ANY                INT32_C(-1)
 #define CPU_TYPE_VAX                INT32_C(1)
 #define CPU_TYPE_MC680x0            INT32_C(6)
@@ -46,6 +58,10 @@
 #define CPU_TYPE_X86_64             (CPU_TYPE_X86 | CPU_ARCH_ABI64)
 #define CPU_TYPE_MC98000            INT32_C(10)
 #define CPU_TYPE_HPPA               INT32_C(11)
+#define CPU_TYPE_ARM                INT32_C(12)
+#define CPU_TYPE_ARM32              CPU_TYPE_ARM
+#define CPU_TYPE_ARM64              (CPU_TYPE_ARM | CPU_ARCH_ABI64)
+#define CPU_TYPE_ARM64_32           (CPU_TYPE_ARM | CPU_ARCH_ABI64_32)
 #define CPU_TYPE_MC88000            INT32_C(13)
 #define CPU_TYPE_SPARC              INT32_C(14)
 #define CPU_TYPE_I860               INT32_C(15)
@@ -123,6 +139,30 @@
 #define CPU_SUBTYPE_HPPA_ALL        INT32_C(0)
 #define CPU_SUBTYPE_HPPA_7100       INT32_C(0)
 #define CPU_SUBTYPE_HPPA_7100LC     INT32_C(1)
+
+#define CPU_SUBTYPE_ARM_ALL         INT32_C(0)
+#define CPU_SUBTYPE_ARM_V4T         INT32_C(5)
+#define CPU_SUBTYPE_ARM_V6          INT32_C(6)
+#define CPU_SUBTYPE_ARM_V5TEJ       INT32_C(7)
+#define CPU_SUBTYPE_ARM_XSCALE      INT32_C(8)
+#define CPU_SUBTYPE_ARM_V7          INT32_C(9)
+#define CPU_SUBTYPE_ARM_V7F         INT32_C(10)
+#define CPU_SUBTYPE_ARM_V7S         INT32_C(11)
+#define CPU_SUBTYPE_ARM_V7K         INT32_C(12)
+#define CPU_SUBTYPE_ARM_V8          INT32_C(13)
+#define CPU_SUBTYPE_ARM_V6M         INT32_C(14)
+#define CPU_SUBTYPE_ARM_V7M         INT32_C(15)
+#define CPU_SUBTYPE_ARM_V7EM        INT32_C(16)
+#define CPU_SUBTYPE_ARM_V8M         INT32_C(17)
+
+#define CPU_SUBTYPE_ARM64_ALL       INT32_C(0)
+#define CPU_SUBTYPE_ARM64_V8        INT32_C(1)
+#define CPU_SUBTYPE_ARM64E          INT32_C(2)
+#define CPU_SUBTYPE_ARM64_PTR_AUTH_MASK         UINT32_C(0x0f000000)
+#define CPU_SUBTYPE_ARM64_PTR_AUTH_VERSION(a)   ( ((a) & CPU_SUBTYPE_ARM64_PTR_AUTH_MASK) >> 24 )
+
+#define CPU_SUBTYPE_ARM64_32_ALL    INT32_C(0)
+#define CPU_SUBTYPE_ARM64_32_V8     INT32_C(1)
 
 #define CPU_SUBTYPE_MC88000_ALL     INT32_C(0)
 #define CPU_SUBTYPE_MC88100         INT32_C(1)
@@ -365,6 +405,7 @@ typedef struct segment_command_64
 #define SG_FVMLIB           UINT32_C(0x00000002)
 #define SG_NORELOC          UINT32_C(0x00000004)
 #define SG_PROTECTED_VERSION_1 UINT32_C(0x00000008)
+#define SG_READ_ONLY        UINT32_C(0x00000010) /**< Make it read-only after applying fixups. @since 10.14 */
 
 /* maxprot/initprot */
 #ifndef VM_PROT_NONE

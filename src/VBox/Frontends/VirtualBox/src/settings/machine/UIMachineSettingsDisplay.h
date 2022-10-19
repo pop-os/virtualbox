@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2008-2020 Oracle Corporation
+ * Copyright (C) 2008-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsDisplay_h
@@ -23,19 +33,26 @@
 
 /* GUI includes: */
 #include "UISettingsPage.h"
-#include "UIMachineSettingsDisplay.gen.h"
 
 /* COM includes: */
 #include "CGuestOSType.h"
 
 /* Forward declarations: */
-class UIActionPool;
+class QITabWidget;
+class UIGraphicsControllerEditor;
+#ifdef VBOX_WITH_3D_ACCELERATION
+class UIDisplayScreenFeaturesEditor;
+#endif
+class UIMonitorCountEditor;
+class UIRecordingSettingsEditor;
+class UIScaleFactorEditor;
+class UIVideoMemoryEditor;
+class UIVRDESettingsEditor;
 struct UIDataSettingsMachineDisplay;
 typedef UISettingsCache<UIDataSettingsMachineDisplay> UISettingsCacheMachineDisplay;
 
 /** Machine settings: Display page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsDisplay : public UISettingsPageMachine,
-                                                      public Ui::UIMachineSettingsDisplay
+class SHARED_LIBRARY_STUFF UIMachineSettingsDisplay : public UISettingsPageMachine
 {
     Q_OBJECT;
 
@@ -44,7 +61,7 @@ public:
     /** Constructs Display settings page. */
     UIMachineSettingsDisplay();
     /** Destructs Display settings page. */
-    ~UIMachineSettingsDisplay();
+    virtual ~UIMachineSettingsDisplay() RT_OVERRIDE;
 
     /** Defines @a comGuestOSType. */
     void setGuestOSType(CGuestOSType comGuestOSType);
@@ -52,10 +69,6 @@ public:
 #ifdef VBOX_WITH_3D_ACCELERATION
     /** Returns whether 3D Acceleration is enabled. */
     bool isAcceleration3DSelected() const;
-#endif
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /** Returns whether 2D Video Acceleration is enabled. */
-    bool isAcceleration2DVideoSelected() const;
 #endif
 
     /** Returns recommended graphics controller type. */
@@ -66,73 +79,51 @@ public:
 protected:
 
     /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */;
+    virtual bool changed() const RT_OVERRIDE;
 
-    /** Loads data into the cache from corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void loadToCacheFrom(QVariant &data) /* override */;
-    /** Loads data into corresponding widgets from the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void getFromCache() /* override */;
+    /** Loads settings from external object(s) packed inside @a data to cache.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void loadToCacheFrom(QVariant &data) RT_OVERRIDE;
+    /** Loads data from cache to corresponding widgets.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void getFromCache() RT_OVERRIDE;
 
-    /** Saves data from corresponding widgets to the cache,
-      * this task SHOULD be performed in the GUI thread only. */
-    virtual void putToCache() /* override */;
-    /** Saves data from the cache to corresponding external object(s),
-      * this task COULD be performed in other than the GUI thread. */
-    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
+    /** Saves data from corresponding widgets to cache.
+      * @note  This task WILL be performed in the GUI thread only, all widget interactions here! */
+    virtual void putToCache() RT_OVERRIDE;
+    /** Saves settings from cache to external object(s) packed inside @a data.
+      * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
+    virtual void saveFromCacheTo(QVariant &data) RT_OVERRIDE;
 
     /** Performs validation, updates @a messages list if something is wrong. */
-    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
+    virtual bool validate(QList<UIValidationMessage> &messages) RT_OVERRIDE;
 
     /** Defines TAB order for passed @a pWidget. */
-    virtual void setOrderAfter(QWidget *pWidget) /* override */;
+    virtual void setOrderAfter(QWidget *pWidget) RT_OVERRIDE;
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi() RT_OVERRIDE;
 
     /** Performs final page polishing. */
-    virtual void polishPage() /* override */;
+    virtual void polishPage() RT_OVERRIDE;
 
 private slots:
 
-    /** Handles Guest Screen count slider change. */
-    void sltHandleGuestScreenCountSliderChange();
-    /** Handles Guest Screen count editor change. */
-    void sltHandleGuestScreenCountEditorChange();
+    /** Handles monitor count change. */
+    void sltHandleMonitorCountChange();
     /** Handles Graphics Controller combo change. */
     void sltHandleGraphicsControllerComboChange();
 #ifdef VBOX_WITH_3D_ACCELERATION
-    /** Handles 3D Acceleration check-box change. */
-    void sltHandle3DAccelerationCheckboxChange();
+    /** Handles 3D Acceleration feature state change. */
+    void sltHandle3DAccelerationFeatureStateChange();
 #endif
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /** Handles 2D Video Acceleration check-box change. */
-    void sltHandle2DVideoAccelerationCheckboxChange();
-#endif
-
-    /** Handles recording toggle. */
-    void sltHandleRecordingCheckboxToggle();
-    /** Handles recording frame size change. */
-    void sltHandleRecordingVideoFrameSizeComboboxChange();
-    /** Handles recording frame width change. */
-    void sltHandleRecordingVideoFrameWidthEditorChange();
-    /** Handles recording frame height change. */
-    void sltHandleRecordingVideoFrameHeightEditorChange();
-    /** Handles recording frame rate slider change. */
-    void sltHandleRecordingVideoFrameRateSliderChange();
-    /** Handles recording frame rate editor change. */
-    void sltHandleRecordingVideoFrameRateEditorChange();
-    /** Handles recording quality slider change. */
-    void sltHandleRecordingVideoQualitySliderChange();
-    /** Handles recording bit-rate editor change. */
-    void sltHandleRecordingVideoBitRateEditorChange();
-    void sltHandleRecordingComboBoxChange();
 
 private:
 
     /** Prepares all. */
     void prepare();
+    /** Prepares widgets. */
+    void prepareWidgets();
     /** Prepares 'Screen' tab. */
     void prepareTabScreen();
     /** Prepares 'Remote Display' tab. */
@@ -147,28 +138,16 @@ private:
     /** Returns whether the VRAM requirements are important. */
     bool shouldWeWarnAboutLowVRAM();
 
-    /** Searches for corresponding frame size preset. */
-    void lookForCorrespondingFrameSizePreset();
     /** Updates guest-screen count. */
     void updateGuestScreenCount();
-    /** Updates recording file size hint. */
-    void updateRecordingFileSizeHint();
-    /** Searches for the @a data field in corresponding @a pComboBox. */
-    static void lookForCorrespondingPreset(QComboBox *pComboBox, const QVariant &data);
-    /** Calculates recording video bit-rate for passed @a iFrameWidth, @a iFrameHeight, @a iFrameRate and @a iQuality. */
-    static int calculateBitRate(int iFrameWidth, int iFrameHeight, int iFrameRate, int iQuality);
-    /** Calculates recording video quality for passed @a iFrameWidth, @a iFrameHeight, @a iFrameRate and @a iBitRate. */
-    static int calculateQuality(int iFrameWidth, int iFrameHeight, int iFrameRate, int iBitRate);
-    /** Saves existing display data from the cache. */
-    bool saveDisplayData();
-    /** Saves existing 'Screen' data from the cache. */
+    /** Saves existing data from cache. */
+    bool saveData();
+    /** Saves existing 'Screen' data from cache. */
     bool saveScreenData();
-    /** Saves existing 'Remote Display' data from the cache. */
+    /** Saves existing 'Remote Display' data from cache. */
     bool saveRemoteDisplayData();
-    /** Saves existing 'Recording' data from the cache. */
+    /** Saves existing 'Recording' data from cache. */
     bool saveRecordingData();
-    /** Decide which of the recording related widgets are to be disabled/enabled. */
-    void enableDisableRecordingWidgets();
 
     /** Holds the guest OS type ID. */
     CGuestOSType  m_comGuestOSType;
@@ -176,15 +155,42 @@ private:
     /** Holds whether the guest OS supports WDDM. */
     bool          m_fWddmModeSupported;
 #endif
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /** Holds whether the guest OS supports 2D Video Acceleration. */
-    bool          m_f2DVideoAccelerationSupported;
-#endif
     /** Holds recommended graphics controller type. */
     KGraphicsControllerType  m_enmGraphicsControllerTypeRecommended;
 
     /** Holds the page data cache instance. */
     UISettingsCacheMachineDisplay *m_pCache;
+
+    /** @name Widgets
+     * @{ */
+        /** Holds the tab-widget instance. */
+        QITabWidget *m_pTabWidget;
+
+        /** Holds the 'Screen' tab instance. */
+        QWidget                              *m_pTabScreen;
+        /** Holds the video memory size editor instance. */
+        UIVideoMemoryEditor                  *m_pEditorVideoMemorySize;
+        /** Holds the monitor count spinbox instance. */
+        UIMonitorCountEditor                 *m_pEditorMonitorCount;
+        /** Holds the scale factor editor instance. */
+        UIScaleFactorEditor                  *m_pEditorScaleFactor;
+        /** Holds the graphics controller editor instance. */
+        UIGraphicsControllerEditor           *m_pEditorGraphicsController;
+#ifdef VBOX_WITH_3D_ACCELERATION
+        /** Holds the display screen features editor instance. */
+        UIDisplayScreenFeaturesEditor        *m_pEditorDisplayScreenFeatures;
+#endif
+
+        /** Holds the 'Remote Display' tab instance. */
+        QWidget              *m_pTabRemoteDisplay;
+        /** Holds the VRDE settings editor instance. */
+        UIVRDESettingsEditor *m_pEditorVRDESettings;
+
+        /** Holds the 'Recording' tab instance. */
+        QWidget                   *m_pTabRecording;
+        /** Holds the Recording settings editor instance. */
+        UIRecordingSettingsEditor *m_pEditorRecordingSettings;
+   /** @} */
 };
 
 #endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsDisplay_h */

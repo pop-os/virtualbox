@@ -1,22 +1,32 @@
 #!/usr/bin/python
 
 """
-Copyright (C) 2009-2021 Oracle Corporation
+Copyright (C) 2009-2022 Oracle and/or its affiliates.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+This file is part of VirtualBox base platform packages, as
+available from https://www.virtualbox.org.
+
+This program is free software; you can redistribute it and/or
+modify it under the terms of the GNU General Public License
+as published by the Free Software Foundation, in version 3 of the
+License.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program; if not, see <https://www.gnu.org/licenses>.
+
+SPDX-License-Identifier: GPL-3.0-only
 """
 
 from __future__ import print_function
 import os,sys
 from distutils.version import StrictVersion
 
-versions = ["2.6", "2.7", "3.1", "3.2", "3.2m", "3.3", "3.3m", "3.4", "3.4m", "3.5", "3.5m", "3.6", "3.6m", "3.7", "3.7m", "3.8", "3.8m", "3.9", "3.9m", "3.10", "3.10m" ]
+versions = ["2.6", "2.7", "3.1", "3.2", "3.2m", "3.3", "3.3m", "3.4", "3.4m", "3.5", "3.5m", "3.6", "3.6m", "3.7", "3.7m", "3.8", "3.8m", "3.9", "3.9m", "3.10", "3.10m", "3.11", "3.11m" ]
 prefixes = ["/usr", "/usr/local", "/opt", "/opt/local"]
 known = {}
 

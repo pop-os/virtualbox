@@ -3,15 +3,25 @@
  */
 
 /*
- * Copyright (C) 2017-2020 Oracle Corporation
+ * Copyright (C) 2017-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef VBOX_INCLUDED_SRC_testcase_tstDevicePlugin_h
@@ -21,6 +31,9 @@
 #endif
 
 #include <VBox/types.h>
+
+#include "tstDeviceCfg.h"
+
 
 /** Device under test handle. */
 typedef struct TSTDEVDUTINT *TSTDEVDUT;
@@ -34,20 +47,18 @@ typedef struct TSTDEVTESTCASEREG
     char                szName[16];
     /** Testcase description. */
     const char          *pszDesc;
-    /** The device name the testcase handles. */
-    char                szDevName[16];
     /** Flags for this testcase. */
     uint32_t            fFlags;
-    /** CFGM configuration for the device to be instantiated. */
-    PCTSTDEVCFGITEM     paDevCfg;
 
     /**
      * Testcase entry point.
      *
      * @returns VBox status code.
      * @param   hDut      Handle of the device under test.
+     * @param   paCfg     Pointer to the testcase config.
+     * @param   cCfgItems Number of config items.
      */
-    DECLR3CALLBACKMEMBER(int, pfnTestEntry, (TSTDEVDUT hDut));
+    DECLR3CALLBACKMEMBER(int, pfnTestEntry, (TSTDEVDUT hDut, PCTSTDEVCFGITEM paCfg, uint32_t cCfgItems));
 } TSTDEVTESTCASEREG;
 /** Pointer to a testcase registration structure. */
 typedef TSTDEVTESTCASEREG *PTSTDEVTESTCASEREG;
@@ -82,7 +93,7 @@ typedef TSTDEVPLUGINREGISTER *PTSTDEVPLUGINREGISTER;
  * @param   pvUser             Opaque user data passed in the register callbacks.
  * @param   pRegisterCallbacks Pointer to the register callbacks structure.
  */
-typedef DECLCALLBACK(int) FNTSTDEVPLUGINLOAD(void *pvUser, PTSTDEVPLUGINREGISTER pRegisterCallbacks);
+typedef DECLCALLBACKTYPE(int, FNTSTDEVPLUGINLOAD,(void *pvUser, PTSTDEVPLUGINREGISTER pRegisterCallbacks));
 typedef FNTSTDEVPLUGINLOAD *PFNTSTDEVPLUGINLOAD;
 #define TSTDEV_PLUGIN_LOAD_NAME "TSTDevPluginLoad"
 

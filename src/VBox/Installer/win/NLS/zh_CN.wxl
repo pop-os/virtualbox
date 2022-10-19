@@ -1,20 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
-<WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="65001" Culture="zh_CN">
 
 <!--
-Language Definition Include for VirtualBox WiX script.
+    Language Definition Include for VirtualBox WiX script.
+-->
+<!--
+    Copyright (C) 2011-2022 Oracle and/or its affiliates.
 
-Copyright (C) 2011-2020 Oracle Corporation
+    This file is part of VirtualBox base platform packages, as
+    available from https://www.virtualbox.org.
 
-This file is part of VirtualBox Open Source Edition (OSE), as
-available from http://www.virtualbox.org. This file is free software;
-you can redistribute it and/or modify it under the terms of the GNU
-General Public License (GPL) as published by the Free Software
-Foundation, in version 2 as it comes in the "COPYING" file of the
-VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This program is free software; you can redistribute it and/or
+    modify it under the terms of the GNU General Public License
+    as published by the Free Software Foundation, in version 3 of the
+    License.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program; if not, see <https://www.gnu.org/licenses>.
+
+    SPDX-License-Identifier: GPL-3.0-only
 -->
 
+<WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="65001" Culture="zh_CN">
 <String Id="LANG">2052</String>
 <String Id="LangName">简体中文</String>
 
@@ -58,6 +69,7 @@ hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 <!---->
 
 <String Id="NeedAdmin">需要系统管理员权限安装 （或卸载）[ProductName]！此安装程序现在将中止。</String>
+<String Id="NeedMSCRT">[ProductName] needs the Microsoft Visual C++ 2019 Redistributable Package being installed first. Please install and restart the installation of [ProductName].</String>
 <String Id="WrongOS">此应用程序只能运行在 Windows XP 或以上。</String>
 <String Id="Only32Bit">此应用程序只能运行在 32 位 Windows 系统。 请安装 [ProductName] 的 64 位版本！</String>
 <String Id="Only64Bit">此应用程序只能运行在 64 位 Windows 系统。 请安装 [ProductName] 的 32 位版本！</String>
@@ -144,6 +156,14 @@ This is default for newer versions of Windows (Vista and newer).</String>
 <String Id="WarnDisconNetIfacesDlg_Title2">网络界面</String>
 <String Id="WarnDisconNetIfacesDlg_Desc">安装 [ProductName] 网络功能将重置网络连接并暂时中断网络连接。</String>
 <String Id="WarnDisconNetIfacesDlg_Question">立即安装吗？</String>
+
+<!---->
+
+<String Id="WarnPythonDlg_Title">Missing Dependencies</String>
+<String Id="WarnPythonDlg_Title2">Python Core / win32api</String>
+<String Id="WarnPythonDlg_Desc">Installing the [ProductName] Python bindings requires the Python Core package and the win32api bindings to be installed first.</String>
+<String Id="WarnPythonDlg_Desc2">When continuing the installation of the [ProductName] Python bindings now, those need to be set up manually later. Refer to the [ProductName] SDK manual for more information.</String>
+<String Id="WarnPythonDlg_Question">Proceed with installation now?</String>
 
 <!---->
 

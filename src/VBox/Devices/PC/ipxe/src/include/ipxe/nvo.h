@@ -7,7 +7,7 @@
  *
  */
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <ipxe/dhcpopts.h>
@@ -42,6 +42,11 @@ struct nvo_block {
 	struct dhcp_options dhcpopts;
 };
 
+/** Name of non-volatile options settings block */
+#define NVO_SETTINGS_NAME "nvo"
+
+extern int nvo_applies ( struct settings *settings,
+			 const struct setting *setting );
 extern void nvo_init ( struct nvo_block *nvo, struct nvs_device *nvs,
 		       size_t address, size_t len,
 		       int ( * resize ) ( struct nvo_block *nvo, size_t len ),

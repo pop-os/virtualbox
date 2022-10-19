@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2013-2020 Oracle Corporation
+ * Copyright (C) 2013-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -22,7 +32,7 @@
 #include "UICommon.h"
 #include "UIErrorString.h"
 #include "UIMediumEnumerator.h"
-#include "UIMessageCenter.h"
+#include "UINotificationCenter.h"
 #include "UITask.h"
 #include "UIThreadPool.h"
 #include "UIVirtualBoxEventHandler.h"
@@ -78,7 +88,7 @@ public:
 private:
 
     /** Contains medium-enumeration task body. */
-    virtual void run() /* override */
+    virtual void run() RT_OVERRIDE
     {
         /* Enumerate under a proper lock: */
         m_mutex.lock();
@@ -123,6 +133,13 @@ UIMediumEnumerator::UIMediumEnumerator()
     /* Prepare global thread-pool listener: */
     connect(uiCommon().threadPool(), &UIThreadPool::sigTaskComplete,
             this, &UIMediumEnumerator::sltHandleMediumEnumerationTaskComplete);
+
+    /* We should make sure media map contains at least NULL medium object: */
+    addNullMediumToMap(m_media);
+    /* Notify listener about initial enumeration started/finished instantly: */
+    LogRel(("GUI: UIMediumEnumerator: Initial medium-enumeration finished!\n"));
+    emit sigMediumEnumerationStarted();
+    emit sigMediumEnumerationFinished();
 }
 
 QList<QUuid> UIMediumEnumerator::mediumIDs() const
@@ -149,7 +166,8 @@ void UIMediumEnumerator::createMedium(const UIMedium &guiMedium)
     /* Do not create UIMedium(s) with incorrect ID: */
     AssertReturnVoid(!uMediumID.isNull());
     /* Make sure UIMedium doesn't exist already: */
-    AssertReturnVoid(!m_media.contains(uMediumID));
+    if (m_media.contains(uMediumID))
+        return;
 
     /* Insert UIMedium: */
     m_media[uMediumID] = guiMedium;
@@ -181,7 +199,7 @@ void UIMediumEnumerator::enumerateMedia(const CMediumVector &comMedia /* = CMedi
     }
 
     /* UICommon is cleaning up, abort immediately: */
-    if (UICommon::isCleaningUp())
+    if (uiCommon().isCleaningUp())
         return;
 
     if (comMedia.isEmpty())
@@ -487,7 +505,7 @@ void UIMediumEnumerator::addMediaToMap(const CMediumVector &inputMedia, UIMedium
     foreach (const CMedium &comMedium, inputMedia)
     {
         /* If UICommon is cleaning up, abort immediately: */
-        if (UICommon::isCleaningUp())
+        if (uiCommon().isCleaningUp())
             break;
 
         /* Insert UIMedium to the passed media map.

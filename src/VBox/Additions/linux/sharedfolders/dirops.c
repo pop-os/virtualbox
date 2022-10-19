@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -829,7 +829,7 @@ static int vbsf_create_worker(struct inode *parent, struct dentry *dentry, umode
             pReq->Create.CreateParms.CreateFlags             = fCreateFlags;
             pReq->Create.CreateParms.Info.Attr.fMode         = (S_ISDIR(mode) ? RTFS_TYPE_DIRECTORY : RTFS_TYPE_FILE)
                                                              | sf_access_permissions_to_vbox(mode);
-            pReq->Create.CreateParms.Info.Attr.enmAdditional = RTFSOBJATTRADD_NOTHING;
+            pReq->Create.CreateParms.Info.Attr.enmAdditional = SHFLFSOBJATTRADD_NOTHING;
 
             SFLOGFLOW(("%s calling VbglR0SfHostReqCreate(%s, %#x)\n", pszPrefix, path->String.ach, pReq->Create.CreateParms.CreateFlags));
             rc = VbglR0SfHostReqCreate(pSuperInfo->map.root, &pReq->Create);

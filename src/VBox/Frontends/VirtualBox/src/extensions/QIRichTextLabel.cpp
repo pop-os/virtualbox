@@ -4,18 +4,29 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
+#include <QAccessibleWidget>
 #include <QtMath>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -23,12 +34,79 @@
 /* GUI includes: */
 #include "QIRichTextLabel.h"
 
+/* Other VBox includes: */
+#include "iprt/assert.h"
+
+/* Forward declarations: */
+class QIRichTextLabel;
+
+
+/** QAccessibleObject extension used as an accessibility interface for QIRichTextLabel. */
+class UIAccessibilityInterfaceForQIRichTextLabel : public QAccessibleWidget
+{
+public:
+
+    /** Returns an accessibility interface for passed @a strClassname and @a pObject. */
+    static QAccessibleInterface *pFactory(const QString &strClassname, QObject *pObject)
+    {
+        /* Creating QIRichTextLabel accessibility interface: */
+        if (pObject && strClassname == QLatin1String("QIRichTextLabel"))
+            return new UIAccessibilityInterfaceForQIRichTextLabel(qobject_cast<QWidget*>(pObject));
+
+        /* Null by default: */
+        return 0;
+    }
+
+    /** Constructs an accessibility interface passing @a pWidget to the base-class. */
+    UIAccessibilityInterfaceForQIRichTextLabel(QWidget *pWidget)
+        : QAccessibleWidget(pWidget, QAccessible::StaticText)
+    {}
+
+    /** Returns a text for the passed @a enmTextRole. */
+    virtual QString text(QAccessible::Text enmTextRole) const RT_OVERRIDE;
+
+private:
+
+    /** Returns corresponding QIRichTextLabel. */
+    QIRichTextLabel *label() const;
+};
+
+
+/*********************************************************************************************************************************
+*   Class UIAccessibilityInterfaceForQIRichTextLabel implementation.                                                             *
+*********************************************************************************************************************************/
+
+QString UIAccessibilityInterfaceForQIRichTextLabel::text(QAccessible::Text enmTextRole) const
+{
+    /* Make sure label still alive: */
+    AssertPtrReturn(label(), QString());
+
+    /* Return the description: */
+    if (enmTextRole == QAccessible::Description)
+        return label()->plainText();
+
+    /* Null-string by default: */
+    return QString();
+}
+
+QIRichTextLabel *UIAccessibilityInterfaceForQIRichTextLabel::label() const
+{
+    return qobject_cast<QIRichTextLabel*>(widget());
+}
+
+
+/*********************************************************************************************************************************
+*   Class QIRichTextLabel implementation.                                                                                        *
+*********************************************************************************************************************************/
 
 QIRichTextLabel::QIRichTextLabel(QWidget *pParent)
     : QWidget(pParent)
     , m_pTextBrowser()
     , m_iMinimumTextWidth(0)
 {
+    /* Install QIRichTextLabel accessibility interface factory: */
+    QAccessible::installFactory(UIAccessibilityInterfaceForQIRichTextLabel::pFactory);
+
     /* Configure self: */
     setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
 
@@ -37,7 +115,7 @@ QIRichTextLabel::QIRichTextLabel(QWidget *pParent)
     if (pMainLayout)
     {
         /* Configure layout: */
-        pMainLayout->setMargin(0);
+        pMainLayout->setContentsMargins(0, 0, 0, 0);
 
         /* Create text-browser: */
         m_pTextBrowser = new QTextBrowser;
@@ -58,6 +136,9 @@ QIRichTextLabel::QIRichTextLabel(QWidget *pParent)
             pal.setColor(QPalette::Inactive, QPalette::Text, pal.color(QPalette::Inactive, QPalette::WindowText));
             pal.setColor(QPalette::Disabled, QPalette::Text, pal.color(QPalette::Disabled, QPalette::WindowText));
             m_pTextBrowser->viewport()->setPalette(pal);
+
+            /* Setup connections finally: */
+            connect(m_pTextBrowser, &QTextBrowser::anchorClicked, this, &QIRichTextLabel::sigLinkClicked);
         }
 
         /* Add into layout: */
@@ -70,9 +151,19 @@ QString QIRichTextLabel::text() const
     return m_pTextBrowser->toHtml();
 }
 
+QString QIRichTextLabel::plainText() const
+{
+    return m_pTextBrowser->toPlainText();
+}
+
 void QIRichTextLabel::registerImage(const QImage &image, const QString &strName)
 {
     m_pTextBrowser->document()->addResource(QTextDocument::ImageResource, QUrl(strName), QVariant(image));
+}
+
+void QIRichTextLabel::registerPixmap(const QPixmap &pixmap, const QString &strName)
+{
+    m_pTextBrowser->document()->addResource(QTextDocument::ImageResource, QUrl(strName), QVariant(pixmap));
 }
 
 QTextOption::WrapMode QIRichTextLabel::wordWrapMode() const
@@ -89,6 +180,21 @@ void QIRichTextLabel::installEventFilter(QObject *pFilterObj)
 {
     QWidget::installEventFilter(pFilterObj);
     m_pTextBrowser->installEventFilter(pFilterObj);
+}
+
+QFont QIRichTextLabel::browserFont() const
+{
+    return m_pTextBrowser->font();
+}
+
+void QIRichTextLabel::setBrowserFont(const QFont &newFont)
+{
+    m_pTextBrowser->setFont(newFont);
+}
+
+int QIRichTextLabel::minimumTextWidth() const
+{
+    return m_iMinimumTextWidth;
 }
 
 void QIRichTextLabel::setMinimumTextWidth(int iMinimumTextWidth)

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QITreeView_h
@@ -137,25 +147,25 @@ protected:
       * @param  pPainter  Brings the painter to draw branches.
       * @param  rect      Brings the rectangle embedding branches.
       * @param  index     Brings the index of the item for which branches will be painted. */
-    virtual void drawBranches(QPainter *pPainter, const QRect &rect, const QModelIndex &index) const /* override */;
+    virtual void drawBranches(QPainter *pPainter, const QRect &rect, const QModelIndex &index) const RT_OVERRIDE;
 
     /** Handles mouse move @a pEvent. */
-    virtual void mouseMoveEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mouseMoveEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse press @a pEvent. */
-    virtual void mousePressEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mousePressEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse release @a pEvent. */
-    virtual void mouseReleaseEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mouseReleaseEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse double-click @a pEvent. */
-    virtual void mouseDoubleClickEvent(QMouseEvent *pEvent) /* override */;
+    virtual void mouseDoubleClickEvent(QMouseEvent *pEvent) RT_OVERRIDE;
 
     /** Handles mouse drag enter @a pEvent. */
-    virtual void dragEnterEvent(QDragEnterEvent *pEvent) /* override */;
+    virtual void dragEnterEvent(QDragEnterEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse drag move @a pEvent. */
-    virtual void dragMoveEvent(QDragMoveEvent *pEvent) /* override */;
+    virtual void dragMoveEvent(QDragMoveEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse drag leave @a pEvent. */
-    virtual void dragLeaveEvent(QDragLeaveEvent *pEvent) /* override */;
+    virtual void dragLeaveEvent(QDragLeaveEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse drop @a pEvent. */
-    virtual void dropEvent(QDropEvent *pEvent) /* override */;
+    virtual void dropEvent(QDropEvent *pEvent) RT_OVERRIDE;
 
 private:
 

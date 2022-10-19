@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -216,7 +216,8 @@ static void bmsR3UpdateDownstreamStatus(PBMSSTATE pThis, PBMSSTATER3 pThisCC)
 {
     PPDMIMOUSECONNECTOR pDrv = pThisCC->Mouse.pDrv;
     bool fEnabled = !!pThis->mouse_enabled;
-    pDrv->pfnReportModes(pDrv, fEnabled, false, false);
+    if (pDrv)   /* pDrv may be NULL if no mouse interface attached. */
+        pDrv->pfnReportModes(pDrv, fEnabled, false, false, false);
 }
 
 /**
@@ -236,12 +237,13 @@ static void bmsR3MouseEvent(PBMSSTATE pThis, int dx, int dy, int dz, int dw, int
 /**
  * @callback_method_impl{FNTMTIMERDEV}
  */
-static DECLCALLBACK(void) bmsR3TimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) bmsR3TimerCallback(PPDMDEVINS pDevIns, TMTIMERHANDLE hTimer, void *pvUser)
 {
     PBMSSTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PBMSSTATE);
-    PBMSSTATER3 pThisCC = PDMDEVINS_2_DATA(pDevIns, PBMSSTATER3);
+    PBMSSTATER3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PBMSSTATER3);
     uint8_t     irq_bit;
-    RT_NOREF(pvUser, pTimer);
+    RT_NOREF(pvUser);
+    Assert(hTimer == pThis->hMouseTimer);
 
     /* Toggle the IRQ line if interrupts are enabled. */
     irq_bit = BMS_IRQ_BIT(pThis->irq);
@@ -282,7 +284,7 @@ static DECLCALLBACK(void) bmsR3TimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer
     }
 
     /* Re-arm the timer. */
-    PDMDevHlpTimerSetMillies(pDevIns, pThis->hMouseTimer, pThis->cTimerPeriodMs);
+    PDMDevHlpTimerSetMillies(pDevIns, hTimer, pThis->cTimerPeriodMs);
 }
 
 # endif /* IN_RING3 */
@@ -518,7 +520,7 @@ static DECLCALLBACK(int) bmsR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSMHandle
 static DECLCALLBACK(void) bmsR3Reset(PPDMDEVINS pDevIns)
 {
     PBMSSTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PBMSSTATE);
-    PBMSSTATER3 pThisCC = PDMDEVINS_2_DATA(pDevIns, PBMSSTATER3);
+    PBMSSTATER3 pThisCC = PDMDEVINS_2_DATA_CC(pDevIns, PBMSSTATER3);
 
     /* Reinitialize the timer. */
     pThis->cTimerPeriodMs = BMS_IRQ_PERIOD_MS / 2;
@@ -572,7 +574,7 @@ static DECLCALLBACK(int) bmsR3MousePort_PutEvent(PPDMIMOUSEPORT pInterface, int3
     PPDMDEVINS  pDevIns = pThisCC->pDevIns;
     PBMSSTATE   pThis   = PDMDEVINS_2_DATA(pDevIns, PBMSSTATE);
     int rc = PDMDevHlpCritSectEnter(pDevIns, pDevIns->CTX_SUFF(pCritSectRo), VERR_SEM_BUSY);
-    AssertReleaseRC(rc);
+    PDM_CRITSECT_RELEASE_ASSERT_RC_DEV(pDevIns, pDevIns->CTX_SUFF(pCritSectRo), rc);
 
     bmsR3MouseEvent(pThis, dx, dy, dz, dw, fButtons);
 
@@ -631,7 +633,7 @@ static DECLCALLBACK(int) bmsR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t
             }
             else if (rc == VERR_PDM_NO_ATTACHED_DRIVER)
             {
-                Log(("%s/%d: warning: no driver attached to LUN #0!\n", pDevIns->pReg->szName, pDevIns->iInstance));
+                LogRel(("%s/%d: Warning: no driver attached to LUN #0!\n", pDevIns->pReg->szName, pDevIns->iInstance));
                 rc = VINF_SUCCESS;
             }
             else
@@ -709,13 +711,14 @@ static DECLCALLBACK(int) bmsR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
     pThisCC->Mouse.IBase.pfnQueryInterface      = bmsR3Base_QueryMouseInterface;
     pThisCC->Mouse.IPort.pfnPutEvent            = bmsR3MousePort_PutEvent;
     pThisCC->Mouse.IPort.pfnPutEventAbs         = bmsR3MousePort_PutEventAbs;
-    pThisCC->Mouse.IPort.pfnPutEventMultiTouch  = bmsR3MousePort_PutEventMultiTouch;
+    pThisCC->Mouse.IPort.pfnPutEventTouchScreen = bmsR3MousePort_PutEventMultiTouch;
+    pThisCC->Mouse.IPort.pfnPutEventTouchPad    = bmsR3MousePort_PutEventMultiTouch;
 
     /*
      * Create the interrupt timer.
      */
     rc = PDMDevHlpTimerCreate(pDevIns, TMCLOCK_VIRTUAL, bmsR3TimerCallback, pThis,
-                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT, "Bus Mouse Timer", &pThis->hMouseTimer);
+                              TMTIMER_FLAGS_DEFAULT_CRIT_SECT | TMTIMER_FLAGS_NO_RING0, "Bus Mouse", &pThis->hMouseTimer);
     AssertRCReturn(rc, rc);
 
     /*

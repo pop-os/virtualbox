@@ -4,24 +4,34 @@
 #
 
 #
-# Copyright (C) 2006-2020 Oracle Corporation
+# Copyright (C) 2006-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
 #
 # The contents of this file may alternatively be used under the terms
 # of the Common Development and Distribution License Version 1.0
-# (CDDL) only, as it comes in the "COPYING.CDDL" file of the
-# VirtualBox OSE distribution, in which case the provisions of the
+# (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+# in the VirtualBox distribution, in which case the provisions of the
 # CDDL are applicable instead of those of the GPL.
 #
 # You may elect to license modified versions of this file under the
 # terms and conditions of either the GPL or the CDDL or both.
+#
+# SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 #
 
 SUB_DEPTH = ../../../..
@@ -77,6 +87,9 @@ if !defined(VBOX_ONLY_DOCS)
   bldRTSignTool_INCS      := ../include
   bldRTSignTool_SOURCES   := RTSignTool.cpp
   bldRTSignTool_DEFS      := IPRT_IN_BUILD_TOOL
+  bldRTSignTool_LDFLAGS.darwin := \
+	-framework CoreFoundation \
+	-framework Security
   bldRTSignTool_LIBS.win  := Crypt32.lib NCrypt.lib
   ifndef VBOX_WITH_BLD_RTSIGNTOOL_SIGNING
    bldRTSignTool_DEFS     += IPRT_SIGNTOOL_NO_SIGNING
@@ -84,32 +97,19 @@ if !defined(VBOX_ONLY_DOCS)
    bldRTSignTool_SDKS     += VBOX_OPENSSL_BLDPROG
    bldRTSignTool_DEFS     += IPRT_WITH_OPENSSL
    bldRTSignTool_SOURCES  += \
-       ../common/string/RTStrICmpAscii.cpp \
-	../common/checksum/alt-sha3.cpp \
-       ../common/crypto/store-inmem.cpp \
-       ../common/crypto/store-cert-add-basic.cpp \
-       ../common/crypto/rsa-core.cpp \
-       ../common/crypto/rsa-asn1-decoder.cpp \
-       ../common/crypto/rsa-init.cpp \
-       ../common/crypto/rsa-sanity.cpp \
-       ../common/crypto/RTCrStoreCertAddFromJavaKeyStore.cpp \
-       ../common/crypto/pkix-signature-core.cpp \
        ../common/crypto/pkix-signature-builtin.cpp \
-       ../common/crypto/pkix-signature-rsa.cpp \
-       \
        ../common/crypto/store.cpp \
        ../common/crypto/digest-builtin.cpp \
 	../common/crypto/iprt-openssl.cpp\
        ../common/crypto/key.cpp \
        ../common/crypto/key-file.cpp \
 	../common/crypto/key-openssl.cpp \
-	../common/crypto/pkcs7-core.cpp \
 	../common/crypto/pkcs7-sign.cpp \
 	../common/crypto/RTCrRandBytes-openssl.cpp
    if1of ($(KBUILD_HOST), darwin win)
     bldRTSignTool_SOURCES += ../r3/$(KBUILD_HOST)/RTCrStoreCreateSnapshotById-$(KBUILD_HOST).cpp
    else
-    bldRTSignTool_SOURCES += ../genericc/RTCrStoreCreateSnapshotById-generic.cpp
+    bldRTSignTool_SOURCES += ../generic/RTCrStoreCreateSnapshotById-generic.cpp
    endif
   endif
  endif
@@ -171,10 +171,10 @@ if !defined(VBOX_ONLY_BUILD)
  RTLdrFlt_TEMPLATE = VBoxR3Tool
  RTLdrFlt_SOURCES = RTLdrFlt.cpp
 
- # RTFTPServer implements a simple FTP server.
- PROGRAMS += RTFTPServer
- RTFTPServer_TEMPLATE = VBoxR3Tool
- RTFTPServer_SOURCES = RTFTPServer.cpp
+ # RTFtpServer implements a simple FTP server.
+ PROGRAMS += RTFtpServer
+ RTFtpServer_TEMPLATE = VBoxR3Tool
+ RTFtpServer_SOURCES = RTFtpServer.cpp
 
  # RTGzip - our gzip clone (for testing the gzip/gunzip streaming code)
  PROGRAMS += RTGzip
@@ -187,6 +187,14 @@ if !defined(VBOX_ONLY_BUILD)
   PROGRAMS += RTHttp
   RTHttp_TEMPLATE = VBoxR3Tool
   RTHttp_SOURCES = RTHttp.cpp
+ endif
+
+ # RTHttpServer implements a simple HTTP server.
+ PROGRAMS += RTHttpServer
+ RTHttpServer_TEMPLATE = VBoxR3Tool
+ RTHttpServer_SOURCES = RTHttpServer.cpp
+ ifdef IPRT_HTTP_WITH_WEBDAV
+  RTHttpServer_DEFS   += IPRT_HTTP_WITH_WEBDAV
  endif
 
  # RTLdrCheckImports - import checker.
@@ -259,6 +267,11 @@ if !defined(VBOX_ONLY_BUILD)
  PROGRAMS += RTEfiFatExtract
  RTEfiFatExtract_TEMPLATE = VBoxR3Tool
  RTEfiFatExtract_SOURCES = RTEfiFatExtract.cpp
+
+ # RTEfiSigDb - EFI signature database management tool.
+ PROGRAMS += RTEfiSigDb
+ RTEfiSigDb_TEMPLATE = VBoxR3Tool
+ RTEfiSigDb_SOURCES = RTEfiSigDb.cpp
 
  if1of ($(KBUILD_TARGET), darwin linux solaris win)
   # RTKrnlModInfo - our lsmod/kextstat clone (for testing the RTKrnlMod code).

@@ -6,15 +6,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -46,6 +56,7 @@ void GluePrintErrorInfo(const com::ErrorInfo &info)
 
     try
     {
+        HRESULT rc = S_OK;
         Utf8Str str;
         RTCList<Utf8Str> comp;
 
@@ -54,9 +65,10 @@ void GluePrintErrorInfo(const com::ErrorInfo &info)
             str = Utf8StrFmt("%ls\n",
                              bstrDetailsText.raw());
         if (haveResultCode)
-            comp.append(Utf8StrFmt("code %Rhrc (0x%RX32)",
-                                   info.getResultCode(),
-                                   info.getResultCode()));
+        {
+            rc = info.getResultCode();
+            comp.append(Utf8StrFmt("code %Rhrc (0x%RX32)", rc, rc));
+        }
         if (haveComponent)
             comp.append(Utf8StrFmt("component %ls",
                                    info.getComponent().raw()));
@@ -77,8 +89,16 @@ void GluePrintErrorInfo(const com::ErrorInfo &info)
         }
 
         // print and log
-        RTMsgError("%s", str.c_str());
-        Log(("ERROR: %s", str.c_str()));
+        if (FAILED(rc))
+        {
+            RTMsgError("%s", str.c_str());
+            Log(("ERROR: %s", str.c_str()));
+        }
+        else
+        {
+            RTMsgWarning("%s", str.c_str());
+            Log(("WARNING: %s", str.c_str()));
+        }
     }
     catch (std::bad_alloc &)
     {
@@ -87,21 +107,37 @@ void GluePrintErrorInfo(const com::ErrorInfo &info)
     }
 }
 
-void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t ulLine)
+void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t ulLine, bool fWarning /* = false */)
 {
     // pcszSourceFile comes from __FILE__ macro, which always contains the full path,
     // which we don't want to see printed:
     // print and log
     const char *pszFilenameOnly = RTPathFilename(pcszSourceFile);
-    RTMsgError("Context: \"%s\" at line %d of file %s\n", pcszContext, ulLine, pszFilenameOnly);
-    Log(("Context: \"%s\" at line %d of file %s\n", pcszContext, ulLine, pszFilenameOnly));
+    if (!fWarning)
+    {
+        RTMsgError("Context: \"%s\" at line %d of file %s\n", pcszContext, ulLine, pszFilenameOnly);
+        Log(("ERROR: Context: \"%s\" at line %d of file %s\n", pcszContext, ulLine, pszFilenameOnly));
+    }
+    else
+    {
+        RTMsgWarning("Context: \"%s\" at line %d of file %s\n", pcszContext, ulLine, pszFilenameOnly);
+        Log(("WARNING: Context: \"%s\" at line %d of file %s\n", pcszContext, ulLine, pszFilenameOnly));
+    }
 }
 
 void GluePrintRCMessage(HRESULT rc)
 {
     // print and log
-    RTMsgError("Code %Rhra (extended info not available)\n", rc);
-    Log(("ERROR: Code %Rhra (extended info not available)\n", rc));
+    if (FAILED(rc))
+    {
+        RTMsgError("Code %Rhra (extended info not available)\n", rc);
+        Log(("ERROR: Code %Rhra (extended info not available)\n", rc));
+    }
+    else
+    {
+        RTMsgWarning("Code %Rhra (extended info not available)\n", rc);
+        Log(("WARNING: Code %Rhra (extended info not available)\n", rc));
+    }
 }
 
 static void glueHandleComErrorInternal(com::ErrorInfo &info,
@@ -116,6 +152,12 @@ static void glueHandleComErrorInternal(com::ErrorInfo &info,
         do
         {
             GluePrintErrorInfo(*pInfo);
+
+            /* Use rc for figuring out if there were just warnings. */
+            HRESULT rc2 = pInfo->getResultCode();
+            if (   (SUCCEEDED_WARNING(rc) && FAILED(rc2))
+                || (SUCCEEDED(rc) && (FAILED(rc2) || SUCCEEDED_WARNING(rc2))))
+                rc = rc2;
 
             pInfo = pInfo->getNext();
             /* If there is more than one error, separate them visually. */
@@ -134,7 +176,8 @@ static void glueHandleComErrorInternal(com::ErrorInfo &info,
     else
         GluePrintRCMessage(rc);
 
-    GluePrintErrorContext(pcszContext, pcszSourceFile, ulLine);
+    if (pcszContext != NULL || pcszSourceFile != NULL)
+        GluePrintErrorContext(pcszContext, pcszSourceFile, ulLine, SUCCEEDED_WARNING(rc));
 }
 
 void GlueHandleComError(ComPtr<IUnknown> iface,
@@ -153,6 +196,11 @@ void GlueHandleComError(ComPtr<IUnknown> iface,
                                pcszSourceFile,
                                ulLine);
 
+}
+
+void GlueHandleComErrorNoCtx(ComPtr<IUnknown> iface, HRESULT rc)
+{
+    GlueHandleComError(iface, NULL, rc, NULL, 0);
 }
 
 void GlueHandleComErrorProgress(ComPtr<IProgress> progress,

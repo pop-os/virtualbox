@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 
@@ -1125,7 +1135,7 @@ static int drvHostDSoundEnumerateDevices(PPDMAUDIOHOSTENUM pDevEnm)
         int rc = VINF_SUCCESS;
         for (unsigned idxPass = 0; idxPass < 2 && RT_SUCCESS(rc); idxPass++)
         {
-            EDataFlow const enmType = idxPass == 0 ? /*EDataFlow::*/eRender : /*EDataFlow::*/eCapture;
+            EDataFlow const enmType = idxPass == 0 ? EDataFlow::eRender : EDataFlow::eCapture;
 
             /* Get the default device first. */
             IMMDevice *pDefaultDevice = NULL;
@@ -2248,7 +2258,7 @@ static int dsoundGetFreeOut(PDRVHOSTDSOUND pThis, PDSOUNDSTREAM pStreamDS, DWORD
             if (pStreamDS->Out.cbWritten == 0)
                 cbFree = pStreamDS->cbBufSize;
 
-            LogRel3(("DSound: offPlayCursor=%RU32, offWriteCursor=%RU32, offWritePos=%RU32 -> cbFree=%RI32\n",
+            LogRel4(("DSound: offPlayCursor=%RU32, offWriteCursor=%RU32, offWritePos=%RU32 -> cbFree=%RI32\n",
                      offPlayCursor, offWriteCursor, pStreamDS->Out.offWritePos, cbFree));
 
             *pdwFree = cbFree;
@@ -2609,19 +2619,6 @@ static DECLCALLBACK(int) drvHostDSoundHA_StreamCapture(PPDMIHOSTAUDIO pInterface
                      drvHostDSoundStreamStatusString(pStreamDS) ));
     }
 
-#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH
-    if (cbRead)
-    {
-        RTFILE hFile;
-        int rc2 = RTFileOpen(&hFile, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "dsoundCapture.pcm",
-                             RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
-        if (RT_SUCCESS(rc2))
-        {
-            RTFileWrite(hFile, (uint8_t *)pvBuf - cbRead, cbRead, NULL);
-            RTFileClose(hFile);
-        }
-    }
-#endif
     return VINF_SUCCESS;
 }
 
@@ -2677,12 +2674,13 @@ static DECLCALLBACK(void) drvHostDSoundDestruct(PPDMDRVINS pDrvIns)
 }
 
 
-static LPCGUID dsoundConfigQueryGUID(PCFGMNODE pCfg, const char *pszName, RTUUID *pUuid)
+static LPCGUID dsoundConfigQueryGUID(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, const char *pszName, RTUUID *pUuid)
 {
+    PCPDMDRVHLPR3 pHlp = pDrvIns->pHlpR3;
     LPCGUID pGuid = NULL;
 
     char *pszGuid = NULL;
-    int rc = CFGMR3QueryStringAlloc(pCfg, pszName, &pszGuid);
+    int rc = pHlp->pfnCFGMQueryStringAlloc(pCfg, pszName, &pszGuid);
     if (RT_SUCCESS(rc))
     {
         rc = RTUuidFromStr(pUuid, pszGuid);
@@ -2700,8 +2698,8 @@ static LPCGUID dsoundConfigQueryGUID(PCFGMNODE pCfg, const char *pszName, RTUUID
 
 static void dsoundConfigInit(PDRVHOSTDSOUND pThis, PCFGMNODE pCfg)
 {
-    pThis->Cfg.pGuidPlay    = dsoundConfigQueryGUID(pCfg, "DeviceGuidOut", &pThis->Cfg.uuidPlay);
-    pThis->Cfg.pGuidCapture = dsoundConfigQueryGUID(pCfg, "DeviceGuidIn",  &pThis->Cfg.uuidCapture);
+    pThis->Cfg.pGuidPlay    = dsoundConfigQueryGUID(pThis->pDrvIns, pCfg, "DeviceGuidOut", &pThis->Cfg.uuidPlay);
+    pThis->Cfg.pGuidCapture = dsoundConfigQueryGUID(pThis->pDrvIns, pCfg, "DeviceGuidIn",  &pThis->Cfg.uuidCapture);
 
     DSLOG(("DSound: Configuration: DeviceGuidOut {%RTuuid}, DeviceGuidIn {%RTuuid}\n",
            &pThis->Cfg.uuidPlay,
@@ -2784,16 +2782,23 @@ static DECLCALLBACK(int) drvHostDSoundConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
 # else
         PPDMIHOSTAUDIOPORT pIHostAudioPort = NULL;
 # endif
+#ifdef RT_EXCEPTIONS_ENABLED
         try
+#endif
         {
             pThis->m_pNotificationClient = new DrvHostAudioDSoundMMNotifClient(pIHostAudioPort,
                                                                                pThis->Cfg.pGuidCapture == NULL,
                                                                                pThis->Cfg.pGuidPlay == NULL);
         }
+#ifdef RT_EXCEPTIONS_ENABLED
         catch (std::bad_alloc &)
         {
             return VERR_NO_MEMORY;
         }
+#else
+        AssertReturn(pThis->m_pNotificationClient, VERR_NO_MEMORY);
+#endif
+
         hrc = pThis->m_pNotificationClient->Initialize();
         if (SUCCEEDED(hrc))
         {

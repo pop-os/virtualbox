@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef MAIN_INCLUDED_RecordingUtils_h
@@ -20,6 +30,8 @@
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
+
+#include "RecordingInternals.h"
 
 
 /**
@@ -192,9 +204,14 @@ private:
     uint8_t *mBuf;
 };
 
-int RecordingUtilsRGBToYUV(uint32_t uPixelFormat,
+int RecordingUtilsRGBToYUV(RECORDINGPIXELFMT enmPixelFormat,
                            uint8_t *paDst, uint32_t uDstWidth, uint32_t uDstHeight,
                            uint8_t *paSrc, uint32_t uSrcWidth, uint32_t uSrcHeight);
+
+#ifdef DEBUG
+int RecordingUtilsDbgDumpFrameEx(const uint8_t *pu8RGBBuf, size_t cbRGBBuf, const char *pszPath, const char *pszPrefx, uint16_t uWidth, uint32_t uHeight, uint8_t uBPP);
+int RecordingUtilsDbgDumpFrame(const PRECORDINGFRAME pFrame);
+#endif
 
 #endif /* !MAIN_INCLUDED_RecordingUtils_h */
 

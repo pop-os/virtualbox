@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_extensions_QIManagerDialog_h
@@ -37,7 +47,7 @@ class QPushButton;
 class QIDialogButtonBox;
 class QIManagerDialog;
 #ifdef VBOX_WS_MAC
-class UIToolBar;
+class QIToolBar;
 #endif
 
 
@@ -56,6 +66,7 @@ enum ButtonType
     ButtonType_Reset   = RT_BIT(0),
     ButtonType_Apply   = RT_BIT(1),
     ButtonType_Close   = RT_BIT(2),
+    ButtonType_Help    = RT_BIT(3)
 };
 
 
@@ -91,11 +102,11 @@ class SHARED_LIBRARY_STUFF QIManagerDialog : public QIWithRestorableGeometry<QMa
 
 signals:
 
-    /** Notifies listeners about dialog change. */
-    void sigChange();
-
     /** Notifies listeners about dialog should be closed. */
     void sigClose();
+    /** Notifies listeners about help requested.
+      * @param  strHelpKeyword  Brings the tag to find related section in the manual. */
+    void sigHelpRequested(const QString &strHelpKeyword);
 
 protected:
 
@@ -103,59 +114,38 @@ protected:
       * @param  pCenterWidget  Brings the widget reference to center according to. */
     QIManagerDialog(QWidget *pCenterWidget);
 
-    /** @name Prepare/cleanup cascade.
+    /** @name Virtual prepare/cleanup cascade.
       * @{ */
-        /** Prepares all.
-          * @note Normally you don't need to reimplement it. */
-        void prepare();
         /** Configures all.
           * @note Injected into prepare(), reimplement to configure all there. */
         virtual void configure() {}
-        /** Prepares central-widget.
-          * @note Injected into prepare(), normally you don't need to reimplement it. */
-        void prepareCentralWidget();
         /** Configures central-widget.
           * @note Injected into prepareCentralWidget(), reimplement to configure central-widget there. */
         virtual void configureCentralWidget() {}
-        /** Prepares button-box.
-          * @note Injected into prepareCentralWidget(), normally you don't need to reimplement it. */
-        void prepareButtonBox();
         /** Configures button-box.
           * @note Injected into prepareButtonBox(), reimplement to configure button-box there. */
         virtual void configureButtonBox() {}
-        /** Prepares menu-bar.
-          * @note Injected into prepare(), normally you don't need to reimplement it. */
-        void prepareMenuBar();
-#ifdef VBOX_WS_MAC
-        /** Prepares toolbar.
-          * @note Injected into prepare(), normally you don't need to reimplement it. */
-        void prepareToolBar();
-#endif
         /** Performs final preparations.
           * @note Injected into prepare(), reimplement to postprocess all there. */
         virtual void finalize() {}
-        /** Loads dialog setting such as geometry from extradata. */
+        /** Loads dialog setting from extradata. */
         virtual void loadSettings() {}
 
         /** Saves dialog setting into extradata. */
-        virtual void saveSettings() const {}
-        /** Cleanup menu-bar.
-          * @note Injected into cleanup(), normally you don't need to reimplement it. */
-        void cleanupMenuBar();
-        /** Cleanups all.
-          * @note Normally you don't need to reimplement it. */
-        void cleanup();
+        virtual void saveSettings() {}
     /** @} */
 
     /** @name Widget stuff.
       * @{ */
         /** Defines the @a pWidget instance. */
         void setWidget(QWidget *pWidget) { m_pWidget = pWidget; }
-        /** Defines the @a pWidgetMenu instance. */
-        void setWidgetMenu(QMenu *pWidgetMenu) { m_pWidgetMenu = pWidgetMenu; }
+        /** Defines the reference to widget menu, replacing current one. */
+        void setWidgetMenu(QMenu *pWidgetMenu) { m_widgetMenus = QList<QMenu*>() << pWidgetMenu; }
+        /** Defines the list of references to widget menus, replacing current one. */
+        void setWidgetMenus(QList<QMenu*> widgetMenus) { m_widgetMenus = widgetMenus; }
 #ifdef VBOX_WS_MAC
         /** Defines the @a pWidgetToolbar instance. */
-        void setWidgetToolbar(UIToolBar *pWidgetToolbar) { m_pWidgetToolbar = pWidgetToolbar; }
+        void setWidgetToolbar(QIToolBar *pWidgetToolbar) { m_pWidgetToolbar = pWidgetToolbar; }
 #endif
 
         /** Returns the widget. */
@@ -171,10 +161,39 @@ protected:
     /** @name Event-handling stuff.
       * @{ */
         /** Handles close @a pEvent. */
-        void closeEvent(QCloseEvent *pEvent);
+        virtual void closeEvent(QCloseEvent *pEvent) RT_OVERRIDE;
+
+        /** Returns whether the manager had emitted command to be closed. */
+        bool closeEmitted() const { return m_fCloseEmitted; }
     /** @} */
 
+private slots:
+
+    /** Handles help request. */
+    void sltHandleHelpRequested();
+
 private:
+
+    /** @name Private prepare/cleanup cascade.
+      * @{ */
+        /** Prepares all. */
+        void prepare();
+        /** Prepares central-widget. */
+        void prepareCentralWidget();
+        /** Prepares button-box. */
+        void prepareButtonBox();
+        /** Prepares menu-bar. */
+        void prepareMenuBar();
+#ifdef VBOX_WS_MAC
+        /** Prepares toolbar. */
+        void prepareToolBar();
+#endif
+
+        /** Cleanup menu-bar. */
+        void cleanupMenuBar();
+        /** Cleanups all. */
+        void cleanup();
+    /** @} */
 
     /** @name General stuff.
       * @{ */
@@ -190,11 +209,12 @@ private:
         /** Holds the widget instance. */
         QWidget *m_pWidget;
 
-        /** Holds the widget menu instance. */
-        QMenu     *m_pWidgetMenu;
+        /** Holds a list of widget menu references. */
+        QList<QMenu*> m_widgetMenus;
+
 #ifdef VBOX_WS_MAC
         /** Holds the widget toolbar instance. */
-        UIToolBar *m_pWidgetToolbar;
+        QIToolBar *m_pWidgetToolbar;
 #endif
     /** @} */
 

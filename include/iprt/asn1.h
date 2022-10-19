@@ -3,24 +3,34 @@
  */
 
 /*
- * Copyright (C) 2006-2020 Oracle Corporation
+ * Copyright (C) 2006-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 #ifndef IPRT_INCLUDED_asn1_h
@@ -68,8 +78,8 @@ typedef struct RTASN1ALLOCATORVTABLE
      * @param   pAllocation     Pointer to the allocation info structure.
      * @param   pv              Pointer to the memory that shall be freed. Not NULL.
      */
-    DECLCALLBACKMEMBER(void, pfnFree)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ALLOCATION pAllocation,
-                                      void *pv);
+    DECLCALLBACKMEMBER(void, pfnFree,(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ALLOCATION pAllocation,
+                                      void *pv));
     /**
      * Allocates a chunk of memory, all initialized to zero.
      *
@@ -81,8 +91,8 @@ typedef struct RTASN1ALLOCATORVTABLE
      *                          number of bytes allocated shall be stored in
      *                          pInfo->cbAllocated on success.
      */
-    DECLCALLBACKMEMBER(int, pfnAlloc)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ALLOCATION pAllocation,
-                                      void **ppv, size_t cb);
+    DECLCALLBACKMEMBER(int, pfnAlloc,(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ALLOCATION pAllocation,
+                                      void **ppv, size_t cb));
     /**
      * Reallocates a memory allocation.
      *
@@ -103,8 +113,8 @@ typedef struct RTASN1ALLOCATORVTABLE
      *                          of bytes allocated shall be stored in
      *                          pInfo->cbAllocated on success.
      */
-    DECLCALLBACKMEMBER(int, pfnRealloc)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ALLOCATION pAllocation,
-                                        void *pvOld, void **ppvNew, size_t cbNew);
+    DECLCALLBACKMEMBER(int, pfnRealloc,(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ALLOCATION pAllocation,
+                                        void *pvOld, void **ppvNew, size_t cbNew));
 
     /**
      * Frees an array allocation (the array an all instances in it).
@@ -114,8 +124,8 @@ typedef struct RTASN1ALLOCATORVTABLE
      * @param   pAllocation     Pointer to the allocation info structure.
      * @param   papvArray       Pointer to the pointer array to be freed.  Not NULL.
      */
-    DECLCALLBACKMEMBER(void, pfnFreeArray)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
-                                           void **papvArray);
+    DECLCALLBACKMEMBER(void, pfnFreeArray,(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
+                                           void **papvArray));
     /**
      * Grows the array to at least @a cMinEntries.
      *
@@ -130,8 +140,8 @@ typedef struct RTASN1ALLOCATORVTABLE
      *                          instantiated entries) that must be available
      *                          on successful return.
      */
-    DECLCALLBACKMEMBER(int, pfnGrowArray)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
-                                          void ***ppapvArray, uint32_t cMinEntries);
+    DECLCALLBACKMEMBER(int, pfnGrowArray,(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
+                                          void ***ppapvArray, uint32_t cMinEntries));
     /**
      * Shrinks the array (depends on allocator policy).
      *
@@ -146,8 +156,8 @@ typedef struct RTASN1ALLOCATORVTABLE
      * @param   cNew            The new entry count.
      * @param   cCurrent        The new entry count.
      */
-    DECLCALLBACKMEMBER(void, pfnShrinkArray)(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
-                                             void ***ppapvArray, uint32_t cNew, uint32_t cCurrent);
+    DECLCALLBACKMEMBER(void, pfnShrinkArray,(struct RTASN1ALLOCATORVTABLE const *pThis, PRTASN1ARRAYALLOCATION pAllocation,
+                                             void ***ppapvArray, uint32_t cNew, uint32_t cCurrent));
 } RTASN1ALLOCATORVTABLE;
 /** Pointer to an ASN.1 allocator vtable. */
 typedef RTASN1ALLOCATORVTABLE *PRTASN1ALLOCATORVTABLE;
@@ -306,7 +316,8 @@ RTDECL(void) RTAsn1ContentFree(struct RTASN1CORE *pAsn1Core);
  * @param   uDepth              The current depth.
  * @param   pvUser              Callback user parameter.
  */
-typedef DECLCALLBACK(int) FNRTASN1ENUMCALLBACK(struct RTASN1CORE *pAsn1Core, const char *pszName, uint32_t uDepth, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNRTASN1ENUMCALLBACK,(struct RTASN1CORE *pAsn1Core, const char *pszName, uint32_t uDepth,
+                                                    void *pvUser));
 /** Pointer to an ASN.1 object enumeration callback. */
 typedef FNRTASN1ENUMCALLBACK *PFNRTASN1ENUMCALLBACK;
 
@@ -314,12 +325,12 @@ typedef FNRTASN1ENUMCALLBACK *PFNRTASN1ENUMCALLBACK;
  * ASN.1 object encoding writer callback.
  *
  * @returns IPRT status code.
- * @param   pbBuf               Pointer to the bytes to output.
+ * @param   pvBuf               Pointer to the bytes to output.
  * @param   cbToWrite           The number of bytes to write.
  * @param   pvUser              Callback user parameter.
  * @param   pErrInfo            Where to store extended error info. Optional.
  */
-typedef DECLCALLBACK(int) FNRTASN1ENCODEWRITER(const void *pvBuf, size_t cbToWrite, void *pvUser, PRTERRINFO pErrInfo);
+typedef DECLCALLBACKTYPE(int, FNRTASN1ENCODEWRITER,(const void *pvBuf, size_t cbToWrite, void *pvUser, PRTERRINFO pErrInfo));
 /** Pointer to an ASN.1 encoding writer callback. */
 typedef FNRTASN1ENCODEWRITER *PFNRTASN1ENCODEWRITER;
 
@@ -336,7 +347,7 @@ typedef FNRTASN1ENCODEWRITER *PFNRTASN1ENCODEWRITER;
  *
  * @param   pThisCore       Pointer to the ASN.1 core to destroy.
  */
-typedef DECLCALLBACK(void) FNRTASN1COREVTDTOR(PRTASN1CORE pThisCore);
+typedef DECLCALLBACKTYPE(void, FNRTASN1COREVTDTOR,(PRTASN1CORE pThisCore));
 /** Pointer to a FNRTASN1COREVTDTOR method. */
 typedef FNRTASN1COREVTDTOR *PFNRTASN1COREVTDTOR;
 
@@ -349,8 +360,8 @@ typedef FNRTASN1COREVTDTOR *PFNRTASN1COREVTDTOR;
  * @param   uDepth          The depth of this object. Children are at +1.
  * @param   pvUser          Callback user argument.
  */
-typedef DECLCALLBACK(int) FNRTASN1COREVTENUM(PRTASN1CORE pThisCore, PFNRTASN1ENUMCALLBACK pfnCallback,
-                                             uint32_t uDepth, void *pvUser);
+typedef DECLCALLBACKTYPE(int, FNRTASN1COREVTENUM,(PRTASN1CORE pThisCore, PFNRTASN1ENUMCALLBACK pfnCallback,
+                                                  uint32_t uDepth, void *pvUser));
 /** Pointer to a FNRTASN1COREVTENUM method. */
 typedef FNRTASN1COREVTENUM *PFNRTASN1COREVTENUM;
 
@@ -363,7 +374,8 @@ typedef FNRTASN1COREVTENUM *PFNRTASN1COREVTENUM;
  * @param   pSrcCore        The object to clone.
  * @param   pAllocator      The allocator to use.
  */
-typedef DECLCALLBACK(int) FNRTASN1COREVTCLONE(PRTASN1CORE pThisCore, PCRTASN1CORE pSrcCore, PCRTASN1ALLOCATORVTABLE pAllocator);
+typedef DECLCALLBACKTYPE(int, FNRTASN1COREVTCLONE,(PRTASN1CORE pThisCore, PCRTASN1CORE pSrcCore,
+                                                   PCRTASN1ALLOCATORVTABLE pAllocator));
 /** Pointer to a FNRTASN1COREVTCLONE method. */
 typedef FNRTASN1COREVTCLONE *PFNRTASN1COREVTCLONE;
 
@@ -376,7 +388,7 @@ typedef FNRTASN1COREVTCLONE *PFNRTASN1COREVTCLONE;
  * @param   pLeftCore       Pointer to the ASN.1 core of the left side object.
  * @param   pRightCore      Pointer to the ASN.1 core of the right side object.
  */
-typedef DECLCALLBACK(int) FNRTASN1COREVTCOMPARE(PCRTASN1CORE pLeftCore, PCRTASN1CORE pRightCore);
+typedef DECLCALLBACKTYPE(int, FNRTASN1COREVTCOMPARE,(PCRTASN1CORE pLeftCore, PCRTASN1CORE pRightCore));
 /** Pointer to a FNRTASN1COREVTCOMPARE method. */
 typedef FNRTASN1COREVTCOMPARE *PFNRTASN1COREVTCOMPARE;
 
@@ -389,8 +401,8 @@ typedef FNRTASN1COREVTCOMPARE *PFNRTASN1COREVTCOMPARE;
  * @param   pErrInfo        Where to return additional error details. Optional.
  * @param   pszErrorTag     Tag for the additional error details.
  */
-typedef DECLCALLBACK(int) FNRTASN1COREVTCHECKSANITY(PCRTASN1CORE pThisCore, uint32_t fFlags,
-                                                    PRTERRINFO pErrInfo, const char *pszErrorTag);
+typedef DECLCALLBACKTYPE(int, FNRTASN1COREVTCHECKSANITY,(PCRTASN1CORE pThisCore, uint32_t fFlags,
+                                                         PRTERRINFO pErrInfo, const char *pszErrorTag));
 /** Pointer to a FNRTASN1COREVTCHECKSANITY method. */
 typedef FNRTASN1COREVTCHECKSANITY *PFNRTASN1COREVTCHECKSANITY;
 
@@ -406,7 +418,7 @@ typedef FNRTASN1COREVTCHECKSANITY *PFNRTASN1COREVTCHECKSANITY;
  * @param   fFlags          Encoding flags, RTASN1ENCODE_F_XXX.
  * @param   pErrInfo        Where to return extra error information. Optional.
  */
-typedef DECLCALLBACK(int) FNRTASN1COREVTENCODEPREP(PRTASN1CORE pThisCore, uint32_t fFlags, PRTERRINFO pErrInfo);
+typedef DECLCALLBACKTYPE(int, FNRTASN1COREVTENCODEPREP,(PRTASN1CORE pThisCore, uint32_t fFlags, PRTERRINFO pErrInfo));
 /** Pointer to a FNRTASN1COREVTENCODEWRITE method. */
 typedef FNRTASN1COREVTENCODEPREP *PFNRTASN1COREVTENCODEPREP;
 
@@ -423,8 +435,8 @@ typedef FNRTASN1COREVTENCODEPREP *PFNRTASN1COREVTENCODEPREP;
  * @param   pvUser          The user context for the writer function.
  * @param   pErrInfo        Where to return extra error information. Optional.
  */
-typedef DECLCALLBACK(int) FNRTASN1COREVTENCODEWRITE(PRTASN1CORE pThisCore, uint32_t fFlags, PFNRTASN1ENCODEWRITER pfnWriter,
-                                                    void *pvUser, PRTERRINFO pErrInfo);
+typedef DECLCALLBACKTYPE(int, FNRTASN1COREVTENCODEWRITE,(PRTASN1CORE pThisCore, uint32_t fFlags, PFNRTASN1ENCODEWRITER pfnWriter,
+                                                         void *pvUser, PRTERRINFO pErrInfo));
 /** Pointer to a FNRTASN1COREVTENCODEWRITE method. */
 typedef FNRTASN1COREVTENCODEWRITE *PFNRTASN1COREVTENCODEWRITE;
 /** @} */
@@ -770,7 +782,7 @@ RTDECL(int) RTAsn1SeqOfCore_Clone(PRTASN1SEQOFCORE pThis, PCRTASN1COREVTABLE pVt
         uint32_t uPos = pThis->cItems; \
         int rc = RT_CONCAT(a_ImplExtNm,_InsertEx)(pThis, uPos, NULL /*pToClone*/, pThis->Allocation.pAllocator, &uPos); \
         if (RT_SUCCESS(rc)) \
-            return uPos; \
+            return (int32_t)uPos; \
         return rc; \
     } \
     RTASN1TYPE_STANDARD_PROTOTYPES(a_ThisType, a_DeclMacro, a_ImplExtNm, a_CoreMember.Asn1Core)

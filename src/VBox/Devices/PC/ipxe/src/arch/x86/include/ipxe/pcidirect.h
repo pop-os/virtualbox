@@ -1,7 +1,7 @@
 #ifndef _PCIDIRECT_H
 #define _PCIDIRECT_H
 
-FILE_LICENCE ( GPL2_OR_LATER );
+FILE_LICENCE ( GPL2_OR_LATER_OR_UBDL );
 
 #include <stdint.h>
 #include <ipxe/io.h>
@@ -136,6 +136,19 @@ PCIAPI_INLINE ( direct, pci_write_config_dword ) ( struct pci_device *pci,
 	pcidirect_prepare ( pci, where );
 	outl ( value, PCIDIRECT_CONFIG_DATA );
 	return 0;
+}
+
+/**
+ * Map PCI bus address as an I/O address
+ *
+ * @v bus_addr		PCI bus address
+ * @v len		Length of region
+ * @ret io_addr		I/O address, or NULL on error
+ */
+static inline __always_inline void *
+PCIAPI_INLINE ( direct, pci_ioremap ) ( struct pci_device *pci __unused,
+					unsigned long bus_addr, size_t len ) {
+	return ioremap ( bus_addr, len );
 }
 
 #endif /* _PCIDIRECT_H */

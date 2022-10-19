@@ -152,7 +152,7 @@ class Ucs2Codec(codecs.Codec):
 
 TheUcs2Codec = Ucs2Codec()
 def Ucs2Search(name):
-    if name == 'ucs-2':
+    if name in ['ucs-2', 'ucs_2']:
         return codecs.CodecInfo(
             name=name,
             encode=TheUcs2Codec.encode,
@@ -371,13 +371,12 @@ class UniFileClassObject(object):
     # Pre-process before parse .uni file
     #
     def PreProcess(self, File):
-        if not os.path.exists(File.Path) or not os.path.isfile(File.Path):
-            EdkLogger.error("Unicode File Parser", FILE_NOT_FOUND, ExtraData=File.Path)
-
         try:
             FileIn = UniFileClassObject.OpenUniFile(LongFilePath(File.Path))
         except UnicodeError as X:
             EdkLogger.error("build", FILE_READ_FAILURE, "File read failure: %s" % str(X), ExtraData=File.Path);
+        except OSError:
+            EdkLogger.error("Unicode File Parser", FILE_NOT_FOUND, ExtraData=File.Path)
         except:
             EdkLogger.error("build", FILE_OPEN_FAILURE, ExtraData=File.Path);
 

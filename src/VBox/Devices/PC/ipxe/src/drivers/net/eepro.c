@@ -27,17 +27,18 @@ has 34 pins, the top row of 2 are not used.
 /*
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2, or (at
- * your option) any later version.
- */
-
-/*
- * Oracle GPL Disclaimer: For the avoidance of doubt, except that if any license choice
- * other than GPL or LGPL is available it will apply instead, Oracle elects to use only
- * the General Public License version 2 (GPLv2) at this time for any software where
- * a choice of GPL license versions is made available with the language indicating
- * that GPLv2 or any later version may be used, or where a choice of which version
- * of the GPL is applied is otherwise unspecified.
+ * published by the Free Software Foundation; either version 2 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA
+ * 02110-1301, USA.
  */
 
 FILE_LICENCE ( GPL2_OR_LATER );
@@ -600,9 +601,9 @@ static int eepro_probe ( struct nic *nic, struct isa_device *isa ) {
 		l_eepro = 0;
 		name = "Intel 82595-based LAN card";
 	}
-	station_addr.saddr[0] = swap16(station_addr.saddr[0]);
-	station_addr.saddr[1] = swap16(station_addr.saddr[1]);
-	station_addr.saddr[2] = swap16(station_addr.saddr[2]);
+	station_addr.saddr[0] = bswap_16(station_addr.saddr[0]);
+	station_addr.saddr[1] = bswap_16(station_addr.saddr[1]);
+	station_addr.saddr[2] = bswap_16(station_addr.saddr[2]);
 	for (i = 0; i < ETH_ALEN; i++) {
 		nic->node_addr[i] = station_addr.caddr[i];
 	}

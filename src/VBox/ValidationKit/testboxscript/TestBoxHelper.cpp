@@ -4,24 +4,34 @@
  */
 
 /*
- * Copyright (C) 2012-2020 Oracle Corporation
+ * Copyright (C) 2012-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
  *
  * The contents of this file may alternatively be used under the terms
  * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
+ * (CDDL), a copy of it is provided in the "COPYING.CDDL" file included
+ * in the VirtualBox distribution, in which case the provisions of the
  * CDDL are applicable instead of those of the GPL.
  *
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
  */
 
 
@@ -145,7 +155,8 @@ static RTEXITCODE doOneFreeSpaceWipe(const char *pszFilename, void const *pvFill
                         uint64_t const nsNow = RTTimeNanoTS();
                         uint64_t cNsInterval = nsNow - nsStat;
                         uint64_t cbInterval  = cbWritten - cbStatWritten;
-                        uint64_t cbIntervalPerSec = cbInterval ? (uint64_t)(cbInterval / (cNsInterval / (double)RT_NS_1SEC)) : 0;
+                        uint64_t cbIntervalPerSec = !cbInterval ? 0
+                                                  : (uint64_t)((double)cbInterval / ((double)cNsInterval / (double)RT_NS_1SEC));
 
                         RTPrintf("%s: %'9RTfoff MiB out of %'9RTfoff are free after writing %'9RU64 MiB (%'5RU64 MiB/s)\n",
                                  pszFilename, cbFree / _1M, cbTotal  / _1M, cbWritten  / _1M, cbIntervalPerSec / _1M);
@@ -172,7 +183,7 @@ static RTEXITCODE doOneFreeSpaceWipe(const char *pszFilename, void const *pvFill
 
             /* Issue a summary statements. */
             uint64_t cNsElapsed = RTTimeNanoTS() - nsStart;
-            uint64_t cbPerSec   = cbWritten ? (uint64_t)(cbWritten / (cNsElapsed / (double)RT_NS_1SEC)) : 0;
+            uint64_t cbPerSec   = cbWritten ? (uint64_t)((double)cbWritten / ((double)cNsElapsed / (double)RT_NS_1SEC)) : 0;
             RTPrintf("%s: Wrote %'RU64 MiB in %'RU64 s, avg %'RU64 MiB/s.\n",
                      pszFilename, cbWritten / _1M, cNsElapsed / RT_NS_1SEC, cbPerSec / _1M);
         }
@@ -465,7 +476,7 @@ static HWVIRTTYPE isHwVirtSupported(void)
 
     /* VT-x */
     ASMCpuId(0x00000000, &uEax, &uEbx, &uEcx, &uEdx);
-    if (ASMIsValidStdRange(uEax))
+    if (RTX86IsValidStdRange(uEax))
     {
         ASMCpuId(0x00000001, &uEax, &uEbx, &uEcx, &uEdx);
         if (uEcx & X86_CPUID_FEATURE_ECX_VMX)
@@ -474,7 +485,7 @@ static HWVIRTTYPE isHwVirtSupported(void)
 
     /* AMD-V */
     ASMCpuId(0x80000000, &uEax, &uEbx, &uEcx, &uEdx);
-    if (ASMIsValidExtRange(uEax))
+    if (RTX86IsValidExtRange(uEax))
     {
         ASMCpuId(0x80000001, &uEax, &uEbx, &uEcx, &uEdx);
         if (uEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
@@ -507,7 +518,7 @@ static RTEXITCODE handlerCpuNestedPaging(int argc, char **argv)
     {
         uint32_t uEax, uEbx, uEcx, uEdx;
         ASMCpuId(0x80000000, &uEax, &uEbx, &uEcx, &uEdx);
-        if (ASMIsValidExtRange(uEax) && uEax >= 0x8000000a)
+        if (RTX86IsValidExtRange(uEax) && uEax >= 0x8000000a)
         {
             ASMCpuId(0x8000000a, &uEax, &uEbx, &uEcx, &uEdx);
             if (uEdx & RT_BIT(0) /* AMD_CPUID_SVM_FEATURE_EDX_NESTED_PAGING */)
@@ -606,7 +617,7 @@ static RTEXITCODE handlerCpuLongMode(int argc, char **argv)
         /* On darwin, we just ask the kernel via sysctl. Rules are a bit different here. */
         int     f64bitCapable = 0;
         size_t  cbParameter   = sizeof(f64bitCapable);
-        int rc = sysctlbyname("hw.cpu64bit_capable", &f64bitCapable, &cbParameter, NULL, NULL);
+        int rc = sysctlbyname("hw.cpu64bit_capable", &f64bitCapable, &cbParameter, NULL, 0);
         if (rc != -1)
             fSupported = f64bitCapable != 0;
         else
@@ -615,7 +626,7 @@ static RTEXITCODE handlerCpuLongMode(int argc, char **argv)
             /* PAE and HwVirt are required */
             uint32_t uEax, uEbx, uEcx, uEdx;
             ASMCpuId(0x00000000, &uEax, &uEbx, &uEcx, &uEdx);
-            if (ASMIsValidStdRange(uEax))
+            if (RTX86IsValidStdRange(uEax))
             {
                 ASMCpuId(0x00000001, &uEax, &uEbx, &uEcx, &uEdx);
                 if (uEdx & X86_CPUID_FEATURE_EDX_PAE)
@@ -623,7 +634,7 @@ static RTEXITCODE handlerCpuLongMode(int argc, char **argv)
                     /* AMD will usually advertise long mode in 32-bit mode. Intel OTOH,
                        won't necessarily do so. */
                     ASMCpuId(0x80000000, &uEax, &uEbx, &uEcx, &uEdx);
-                    if (ASMIsValidExtRange(uEax))
+                    if (RTX86IsValidExtRange(uEax))
                     {
                         ASMCpuId(0x80000001, &uEax, &uEbx, &uEcx, &uEdx);
                         if (uEdx & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE)
@@ -650,12 +661,12 @@ static RTEXITCODE handlerCpuRevision(int argc, char **argv)
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
     uint32_t uEax, uEbx, uEcx, uEdx;
     ASMCpuId(0, &uEax, &uEbx, &uEcx, &uEdx);
-    if (ASMIsValidStdRange(uEax) && uEax >= 1)
+    if (RTX86IsValidStdRange(uEax) && uEax >= 1)
     {
         uint32_t uEax1 = ASMCpuId_EAX(1);
-        uint32_t uVersion = (ASMGetCpuFamily(uEax1) << 24)
-                          | (ASMGetCpuModel(uEax1, ASMIsIntelCpuEx(uEbx, uEcx, uEdx)) << 8)
-                          | ASMGetCpuStepping(uEax1);
+        uint32_t uVersion = (RTX86GetCpuFamily(uEax1) << 24)
+                          | (RTX86GetCpuModel(uEax1, RTX86IsIntelCpu(uEbx, uEcx, uEdx)) << 8)
+                          | RTX86GetCpuStepping(uEax1);
         int cch = RTPrintf("%#x\n", uVersion);
         return cch > 0 ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
     }

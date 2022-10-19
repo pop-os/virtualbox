@@ -6,15 +6,25 @@
 #
 
 #
-# Copyright (C) 2009-2020 Oracle Corporation
+# Copyright (C) 2009-2022 Oracle and/or its affiliates.
 #
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+# This file is part of VirtualBox base platform packages, as
+# available from https://www.virtualbox.org.
+#
+# This program is free software; you can redistribute it and/or
+# modify it under the terms of the GNU General Public License
+# as published by the Free Software Foundation, in version 3 of the
+# License.
+#
+# This program is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, see <https://www.gnu.org/licenses>.
+#
+# SPDX-License-Identifier: GPL-3.0-only
 #
 
 infoprint()
@@ -31,20 +41,6 @@ abort_error()
 {
     errorprint "Please close all VirtualBox processes and re-run this installer."
     exit 1
-}
-
-checkdep_svr4()
-{
-    if test -z "$1"; then
-        errorprint "Missing argument to checkdep_svr4"
-        return 1
-    fi
-    $BIN_PKGINFO $BASEDIR_OPT "$1" >/dev/null 2>&1
-    if test "$?" -eq 0; then
-        return 0
-    fi
-    PKG_MISSING_SVR4="$PKG_MISSING_SVR4 $1"
-    return 1
 }
 
 checkdep_ips()
@@ -149,8 +145,6 @@ if test "x$currentzone" != "xglobal"; then
 fi
 
 PKG_MISSING_IPS=""
-PKG_MISSING_SVR4=""
-BIN_PKGINFO=/usr/bin/pkginfo
 BIN_PKG=/usr/bin/pkg
 BIN_SVCS=/usr/bin/svcs
 BIN_SVCADM=/usr/sbin/svcadm
@@ -161,34 +155,36 @@ find_mandatory_bins
 infoprint "Checking package dependencies..."
 
 if test -x "$BIN_PKG"; then
-    checkdep_ips_either "runtime/python-26" "runtime/python-27"
-    checkdep_ips_either "system/library/iconv/utf-8" "system/library/iconv/iconv-core"
-    checkdep_ips_either "system/library/gcc/gcc-c++-runtime" "system/library/gcc-45-runtime"
-    checkdep_ips_either "system/library/gcc/gcc-c-runtime" "system/library/gcc-45-runtime"
+    checkdep_ips "system/library/iconv/iconv-core"
+    checkdep_ips "x11/library/libice"
+    checkdep_ips "x11/library/libsm"
+    checkdep_ips "x11/library/libx11"
+    checkdep_ips "x11/library/libxcb"
+    checkdep_ips "x11/library/libxext"
+    checkdep_ips "x11/library/libxfixes"
+    checkdep_ips "x11/library/libxkbcommon"
+    checkdep_ips "x11/library/libxrender"
+    checkdep_ips "x11/library/mesa"
+    checkdep_ips "x11/library/toolkit/libxt"
+    checkdep_ips "x11/library/xcb-util"
+    checkdep_ips_either "runtime/python-26" "runtime/python-27" "runtime/python-35" "runtime/python-36" "runtime/python-37" "runtime/python-38" "runtime/python-39"
+    checkdep_ips_either "system/library/gcc/gcc-c++-runtime" "system/library/gcc/gcc-c++-runtime-9"
+    checkdep_ips_either "system/library/gcc/gcc-c-runtime" "system/library/gcc/gcc-c-runtime-9"
 else
-    PKG_MISSING_IPS="runtime/python-26 system/library/iconv/utf-8 system/library/gcc/gcc-c++-runtime system/library/gcc/gcc-c-runtime"
-fi
-if test -x "$BIN_PKGINFO"; then
-    checkdep_svr4 "SUNWPython"
-    checkdep_svr4 "SUNWPython-devel"
-    checkdep_svr4 "SUNWuiu8"
-else
-    PKG_MISSING_SVR4="SUNWPython SUNWPython-devel SUNWuiu8"
+    PKG_MISSING_IPS="runtime/python-37 system/library/iconv/iconv-core system/library/gcc/gcc-c++-runtime-9 system/library/gcc/gcc-c-runtime-9"
 fi
 
-if test "x$PKG_MISSING_IPS" != "x" && test "x$PKG_MISSING_SVR4" != "x"; then
-    if test ! -x "$BIN_PKG" && test ! -x "$BIN_PKGINFO"; then
-        errorprint "Missing or non-executable binaries: pkg ($BIN_PKG) and pkginfo ($BIN_PKGINFO)."
+if test "x$PKG_MISSING_IPS" != "x"; then
+    if test ! -x "$BIN_PKG"; then
+        errorprint "Missing or non-executable binary: pkg ($BIN_PKG)."
         errorprint "Cannot check for dependencies."
         errorprint ""
         errorprint "Please install one of the required packaging system."
         exit 1
     fi
-    errorprint "Missing packages: "
-    errorprint "IPS : $PKG_MISSING_IPS"
-    errorprint "SVr4: $PKG_MISSING_SVR4"
+    errorprint "Missing packages: $PKG_MISSING_IPS"
     errorprint ""
-    errorprint "Please install either the IPS or SVr4 packages before installing VirtualBox."
+    errorprint "Please install these packages before installing VirtualBox."
     exit 1
 else
     infoprint "Done."

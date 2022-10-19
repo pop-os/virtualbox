@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2010-2020 Oracle Corporation
+ * Copyright (C) 2010-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 #ifndef FEQT_INCLUDED_SRC_runtime_UIMachineView_h
@@ -24,9 +34,11 @@
 /* Qt includes: */
 #include <QAbstractScrollArea>
 #include <QEventLoop>
+#include <QPointer>
 
 /* GUI includes: */
 #include "UIExtraDataDefs.h"
+#include "UIFrameBuffer.h"
 #include "UIMachineDefs.h"
 #ifdef VBOX_WITH_DRAG_AND_DROP
 # include "UIDnDHandler.h"
@@ -51,7 +63,6 @@ class UIActionPool;
 class UISession;
 class UIMachineLogic;
 class UIMachineWindow;
-class UIFrameBuffer;
 class UINativeEventFilter;
 class CConsole;
 class CDisplay;
@@ -77,13 +88,7 @@ signals:
 public:
 
     /* Factory function to create machine-view: */
-    static UIMachineView* create(  UIMachineWindow *pMachineWindow
-                                 , ulong uScreenId
-                                 , UIVisualStateType visualStateType
-#ifdef VBOX_WITH_VIDEOHWACCEL
-                                 , bool bAccelerate2DVideo
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-    );
+    static UIMachineView* create(UIMachineWindow *pMachineWindow, ulong uScreenId, UIVisualStateType visualStateType);
     /* Factory function to destroy required machine-view: */
     static void destroy(UIMachineView *pMachineView);
 
@@ -112,8 +117,24 @@ public:
 
 protected slots:
 
-    /* Slot to perform guest resize: */
-    void sltPerformGuestResize(const QSize &aSize = QSize());
+    /* Performs guest-screen resize to a size specified.
+     * @param  toSize  Brings the size guest-screen needs to be resized to.
+     * @note   If toSize isn't valid or sane one, it will be replaced with actual
+     *         size of centralWidget() containing this machine-view currently.
+     * @note   Also, take into acount that since this method is also called to
+     *         resize to centralWidget() size, the size passed is expected to be
+     *         tranformed to internal coordinate system and thus to be restored to
+     *         guest coordinate system (absolute one) before passing to guest. */
+    void sltPerformGuestResize(const QSize &toSize = QSize());
+
+    /** Handles guest-screen toggle request.
+      * @param  iScreen   Brings the number of screen being referred.
+      * @param  fEnabled  Brings whether this screen should be enabled. */
+    void sltHandleActionTriggerViewScreenToggle(int iScreen, bool fEnabled);
+    /** Handles guest-screen resize request.
+      * @param  iScreen  Brings the number of screen being referred.
+      * @param  size     Brings the size of screen to be applied. */
+    void sltHandleActionTriggerViewScreenResize(int iScreen, const QSize &size);
 
     /* Handler: Frame-buffer NotifyChange stuff: */
     virtual void sltHandleNotifyChange(int iWidth, int iHeight);
@@ -141,15 +162,13 @@ protected slots:
     /** Handles guest request to change the mouse pointer shape. */
     void sltMousePointerShapeChange();
 
+    /** Detaches COM. */
+    void sltDetachCOM();
+
 protected:
 
     /* Machine-view constructor: */
-    UIMachineView(  UIMachineWindow *pMachineWindow
-                  , ulong uScreenId
-#ifdef VBOX_WITH_VIDEOHWACCEL
-                  , bool bAccelerate2DVideo
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-    );
+    UIMachineView(UIMachineWindow *pMachineWindow, ulong uScreenId);
     /* Machine-view destructor: */
     virtual ~UIMachineView() {}
 
@@ -159,6 +178,9 @@ protected:
     virtual void prepareViewport();
     virtual void prepareFrameBuffer();
     virtual void prepareCommon();
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    virtual void prepareDnd();
+#endif
     virtual void prepareFilters();
     virtual void prepareConnections();
     virtual void prepareConsoleConnections();
@@ -167,6 +189,9 @@ protected:
     //virtual void cleanupConsoleConnections() {}
     //virtual void cleanupConnections() {}
     //virtual void cleanupFilters() {}
+#ifdef VBOX_WITH_DRAG_AND_DROP
+    virtual void cleanupDnd();
+#endif
     //virtual void cleanupCommon() {}
     virtual void cleanupFrameBuffer();
     //virtual void cleanupViewport();
@@ -350,19 +375,23 @@ protected:
     /* Protected members: */
     UIMachineWindow *m_pMachineWindow;
     ulong m_uScreenId;
-    UIFrameBuffer *m_pFrameBuffer;
+    QPointer<UIFrameBuffer> m_pFrameBuffer;
     KMachineState m_previousState;
     /** HACK: when switching out of fullscreen or seamless we wish to override
      * the default size hint to avoid short resizes back to fullscreen size.
      * Not explicitly initialised (i.e. invalid by default). */
     QSize m_sizeHintOverride;
 
+    /** Last size hint sent as a part of guest auto-resize feature.
+      * @note Useful to avoid spamming CDisplay with same hint before
+      *       frame-buffer finally resized to requested size. */
+    QSize  m_lastSizeHint;
+
     /** Holds current host-screen number. */
     int m_iHostScreenNumber;
 
-    /** The policy for calculating the maximum guest resolution which we wish
-     * to handle. */
-    MaxGuestResolutionPolicy m_maxGuestSizePolicy;
+    /** Holds the maximum guest screen size policy. */
+    MaximumGuestScreenSizePolicy m_enmMaximumGuestScreenSizePolicy;
     /** The maximum guest size for fixed size policy. */
     QSize m_fixedMaxGuestSize;
     /** Maximum guest resolution which we wish to handle.  Must be accessed
@@ -375,10 +404,6 @@ protected:
      */
     /** @todo This should be private. */
     volatile uint64_t m_u64MaxGuestSize;
-
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    bool m_fAccelerate2DVideo : 1;
-#endif /* VBOX_WITH_VIDEOHWACCEL */
 
     /** Holds the pause-pixmap. */
     QPixmap m_pausePixmap;

@@ -4,15 +4,25 @@
  */
 
 /*
- * Copyright (C) 2009-2020 Oracle Corporation
+ * Copyright (C) 2009-2022 Oracle and/or its affiliates.
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * This file is part of VirtualBox base platform packages, as
+ * available from https://www.virtualbox.org.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation, in version 3 of the
+ * License.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <https://www.gnu.org/licenses>.
+ *
+ * SPDX-License-Identifier: GPL-3.0-only
  */
 
 /* Qt includes: */
@@ -22,6 +32,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QRegExp>
 #include <QSpinBox>
 #include <QTextEdit>
 #include <QVBoxLayout>
@@ -65,21 +76,21 @@ public:
     /** Appends the passed @a pChildItem to the item's list of children. */
     void appendChild(UIApplianceModelItem *pChildItem);
     /** Returns the child specified by the @a iIndex. */
-    virtual UIApplianceModelItem *childItem(int iIndex) const /* override */;
+    virtual UIApplianceModelItem *childItem(int iIndex) const RT_OVERRIDE;
 
     /** Returns the row of the item in the parent. */
     int row() const;
 
     /** Returns the number of children. */
-    virtual int childCount() const /* override */;
+    virtual int childCount() const RT_OVERRIDE;
     /** Returns the number of columns. */
     int columnCount() const { return 3; }
 
     /** Returns the item text. */
-    virtual QString text() const /* override */;
+    virtual QString text() const RT_OVERRIDE;
 
     /** Returns the item flags for the given @a iColumn. */
-    virtual Qt::ItemFlags itemFlags(int /* iColumn */) const { return 0; }
+    virtual Qt::ItemFlags itemFlags(int /* iColumn */) const { return Qt::ItemFlags(); }
 
     /** Defines the @a iRole data for the item at @a iColumn to @a value. */
     virtual bool setData(int /* iColumn */, const QVariant & /* value */, int /* iRole */) { return false; }
@@ -126,10 +137,10 @@ public:
     UIVirtualSystemItem(int iNumber, CVirtualSystemDescription comDescription, UIApplianceModelItem *pParentItem);
 
     /** Returns the data stored under the given @a iRole for the item referred to by the @a iColumn. */
-    virtual QVariant data(int iColumn, int iRole) const /* override */;
+    virtual QVariant data(int iColumn, int iRole) const RT_OVERRIDE;
 
     /** Cache currently stored values, such as @a finalStates, @a finalValues and @a finalExtraValues. */
-    virtual void putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues) /* override */;
+    virtual void putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues) RT_OVERRIDE;
 
 private:
 
@@ -169,28 +180,28 @@ public:
                           UIApplianceModelItem *pParentItem);
 
     /** Returns the item flags for the given @a iColumn. */
-    virtual Qt::ItemFlags itemFlags(int iColumn) const /* override */;
+    virtual Qt::ItemFlags itemFlags(int iColumn) const RT_OVERRIDE;
 
     /** Defines the @a iRole data for the item at @a iColumn to @a value. */
-    virtual bool setData(int iColumn, const QVariant &value, int iRole) /* override */;
+    virtual bool setData(int iColumn, const QVariant &value, int iRole) RT_OVERRIDE;
     /** Returns the data stored under the given @a iRole for the item referred to by the @a iColumn. */
-    virtual QVariant data(int iColumn, int iRole) const /* override */;
+    virtual QVariant data(int iColumn, int iRole) const RT_OVERRIDE;
 
     /** Returns the widget used to edit the item specified by @a idx for editing.
       * @param  pParent      Brings the parent to be assigned for newly created editor.
       * @param  styleOption  Bring the style option set for the newly created editor. */
-    virtual QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+    virtual QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const RT_OVERRIDE;
 
     /** Defines the contents of the given @a pEditor to the data for the item at the given @a idx. */
-    virtual bool setEditorData(QWidget *pEditor, const QModelIndex &idx) const /* override */;
+    virtual bool setEditorData(QWidget *pEditor, const QModelIndex &idx) const RT_OVERRIDE;
     /** Defines the data for the item at the given @a idx in the @a pModel to the contents of the given @a pEditor. */
-    virtual bool setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) /* override */;
+    virtual bool setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) RT_OVERRIDE;
 
     /** Restores the default values. */
-    virtual void restoreDefaults() /* override */;
+    virtual void restoreDefaults() RT_OVERRIDE;
 
     /** Cache currently stored values, such as @a finalStates, @a finalValues and @a finalExtraValues. */
-    virtual void putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues) /* override */;
+    virtual void putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues) RT_OVERRIDE;
 
     KVirtualSystemDescriptionType  systemDescriptionType() const;
 
@@ -314,6 +325,7 @@ void UIVirtualSystemItem::putBack(QVector<BOOL> &finalStates, QVector<QString> &
 {
     /* Resize the vectors */
     unsigned long iCount = m_comDescription.GetCount();
+    AssertReturnVoid(iCount > 0);
     finalStates.resize(iCount);
     finalValues.resize(iCount);
     finalExtraValues.resize(iCount);
@@ -351,7 +363,7 @@ UIVirtualHardwareItem::UIVirtualHardwareItem(UIApplianceModel *pParent,
 
 Qt::ItemFlags UIVirtualHardwareItem::itemFlags(int iColumn) const
 {
-    Qt::ItemFlags enmFlags = 0;
+    Qt::ItemFlags enmFlags = Qt::ItemFlags();
     if (iColumn == ApplianceViewSection_ConfigValue)
     {
         /* Some items are checkable */
@@ -664,7 +676,7 @@ QVariant UIVirtualHardwareItem::data(int iColumn, int iRole) const
                     case KVirtualSystemDescriptionType_NetworkAdapter:         value = UIIconPool::iconSet(":/nw_16px.png"); break;
                     case KVirtualSystemDescriptionType_USBController:          value = UIIconPool::iconSet(":/usb_16px.png"); break;
                     case KVirtualSystemDescriptionType_SoundCard:              value = UIIconPool::iconSet(":/sound_16px.png"); break;
-                    case KVirtualSystemDescriptionType_BaseFolder:             value = uiCommon().icon(QFileIconProvider::Folder); break;
+                    case KVirtualSystemDescriptionType_BaseFolder:             value = generalIconPool().defaultSystemIcon(QFileIconProvider::Folder); break;
                     case KVirtualSystemDescriptionType_PrimaryGroup:           value = UIIconPool::iconSet(":/vm_group_name_16px.png"); break;
                     case KVirtualSystemDescriptionType_CloudProfileName:
                     case KVirtualSystemDescriptionType_CloudInstanceShape:
@@ -680,7 +692,7 @@ QVariant UIVirtualHardwareItem::data(int iColumn, int iRole) const
                 }
             }
             else if (iColumn == ApplianceViewSection_ConfigValue && m_enmVSDType == KVirtualSystemDescriptionType_OS)
-                value = uiCommon().vmGuestOSTypeIcon(m_strConfigValue);
+                value = generalIconPool().guestOSTypeIcon(m_strConfigValue);
             break;
         }
         case Qt::FontRole:
@@ -1419,7 +1431,7 @@ int UIApplianceModel::columnCount(const QModelIndex &parentIdx /* = QModelIndex(
 Qt::ItemFlags UIApplianceModel::flags(const QModelIndex &idx) const
 {
     if (!idx.isValid())
-        return 0;
+        return Qt::ItemFlags();
 
     UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(idx.internalPointer());
 
@@ -1560,8 +1572,8 @@ QVariant UIApplianceModel::getHint(KVirtualSystemDescriptionType enmType) const
 *   Class UIApplianceDelegate implementation.                                                                                    *
 *********************************************************************************************************************************/
 
-UIApplianceDelegate::UIApplianceDelegate(QAbstractProxyModel *pProxy, QObject *pParent /* = 0 */)
-    : QItemDelegate(pParent)
+UIApplianceDelegate::UIApplianceDelegate(QAbstractProxyModel *pProxy)
+    : QItemDelegate(pProxy)
     , m_pProxy(pProxy)
 {
 }
@@ -1708,7 +1720,7 @@ bool UIApplianceSortProxyModel::filterAcceptsRow(int iSourceRow, const QModelInd
     /* By default enable all, we will explicitly filter out below */
     if (srcParenIdx.isValid())
     {
-        QModelIndex i = srcParenIdx.child(iSourceRow, 0);
+        QModelIndex i = index(iSourceRow, 0, srcParenIdx);
         if (i.isValid())
         {
             UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(i.internalPointer());
@@ -1767,7 +1779,6 @@ int UIApplianceEditorWidget::m_maxGuestCPUCount = -1;
 
 UIApplianceEditorWidget::UIApplianceEditorWidget(QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QWidget>(pParent)
-    , m_pAppliance(0)
     , m_pModel(0)
 {
     /* Make sure all static content is properly initialized */
@@ -1852,6 +1863,21 @@ UIApplianceEditorWidget::UIApplianceEditorWidget(QWidget *pParent /* = 0 */)
     retranslateUi();
 }
 
+void UIApplianceEditorWidget::clear()
+{
+    /* Wipe model: */
+    delete m_pModel;
+    m_pModel = 0;
+
+    /* And appliance: */
+    m_comAppliance = CAppliance();
+}
+
+void UIApplianceEditorWidget::setAppliance(const CAppliance &comAppliance)
+{
+    m_comAppliance = comAppliance;
+}
+
 void UIApplianceEditorWidget::setVsdHints(const AbstractVSDParameterList &hints)
 {
     /* Save here as well: */
@@ -1860,6 +1886,13 @@ void UIApplianceEditorWidget::setVsdHints(const AbstractVSDParameterList &hints)
     /* Make sure model exists, it's being created in sub-classes: */
     if (m_pModel)
         m_pModel->setVsdHints(m_listVsdHints);
+}
+
+void UIApplianceEditorWidget::setVirtualSystemBaseFolder(const QString &strPath)
+{
+    /* Make sure model exists, it's being created in sub-classes: */
+    if (m_pModel)
+        m_pModel->setVirtualSystemBaseFolder(strPath);
 }
 
 void UIApplianceEditorWidget::restoreDefaults()
@@ -1891,13 +1924,6 @@ void UIApplianceEditorWidget::initSystemSettings()
         m_minGuestCPUCount   = sp.GetMinGuestCPUCount();
         m_maxGuestCPUCount   = sp.GetMaxGuestCPUCount();
     }
-}
-
-void UIApplianceEditorWidget::setVirtualSystemBaseFolder(const QString& path)
-{
-    if (!m_pModel)
-        return;
-    m_pModel->setVirtualSystemBaseFolder(path);
 }
 
 
