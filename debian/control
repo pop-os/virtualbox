@@ -118,6 +118,7 @@ Conflicts: virtualbox-2.0,
            virtualbox-5.2,
            virtualbox-6.0,
            virtualbox-6.1,
+           virtualbox-7.0,
 Description: x86 virtualization solution - base binaries
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
