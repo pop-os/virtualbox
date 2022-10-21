@@ -1,3 +1,17 @@
+virtualbox (7.0.0-dfsg-1) UNRELEASED; urgency=medium
+
+  * Bump copyright years
+  * New upstream version 7.0.0-dfsg
+  * Refresh patches, drop latex patch: upstream
+  * Conflict with virtualbox-7.0
+  * Switch to qt6
+  * License is now GPL-3
+  * add new libs
+  * Add patch to fix build, but also disable VBOX_WITH_HOST_SHIPPING_AUDIO_TEST= VBOX_WITH_VALIDATIONKIT=
+  * Drop new embedded libs from tarball
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Oct 2022 19:12:48 +0200
+
 virtualbox (6.1.40-dfsg-1) unstable; urgency=medium
 
   * Drop NAME also from source dkms files.
