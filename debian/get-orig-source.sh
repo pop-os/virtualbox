@@ -44,8 +44,11 @@ rm -fr ${ORIG_TARBALL_DIR}/src/libs/libpng*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/openssl*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxml2*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxslt*
-rm -fr ${ORIG_TARBALL_DIR}/src/libs/zlib*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/liblzf*
+rm -fr ${ORIG_TARBALL_DIR}/src/libs/libogg*
+rm -fr ${ORIG_TARBALL_DIR}/src/libs/libtpms*
+rm -fr ${ORIG_TARBALL_DIR}/src/libs/libvorbis*
+rm -fr ${ORIG_TARBALL_DIR}/src/libs/zlib*
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/linux/selinux-fedora
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/3D/mesa/mesa-*
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11include
