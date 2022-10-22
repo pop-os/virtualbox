@@ -342,6 +342,23 @@ void UISettingsDialog::polishEvent(QShowEvent *pEvent)
     QIWithRetranslateUI<QIMainDialog>::polishEvent(pEvent);
 }
 
+void UISettingsDialog::closeEvent(QCloseEvent *pEvent)
+{
+    /* Check whether there are unsaved settings
+     * which will be lost in such case: */
+    if (   !isSettingsChanged()
+        || msgCenter().confirmSettingsDiscarding())
+    {
+        /* Call to base-class: */
+        QIWithRetranslateUI<QIMainDialog>::closeEvent(pEvent);
+    }
+    else
+    {
+        /* Otherwise ignore this: */
+        pEvent->ignore();
+    }
+}
+
 void UISettingsDialog::loadData(QVariant &data)
 {
     /* Mark serialization started: */
@@ -525,6 +542,18 @@ void UISettingsDialog::revalidate()
 
     /* Lock/unlock settings-page OK button according global validity status: */
     m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(m_fValid);
+}
+
+bool UISettingsDialog::isSettingsChanged()
+{
+    bool fIsSettingsChanged = false;
+    foreach (UISettingsPage *pPage, m_pSelector->settingPages())
+    {
+        pPage->putToCache();
+        if (!fIsSettingsChanged && pPage->changed())
+            fIsSettingsChanged = true;
+    }
+    return fIsSettingsChanged;
 }
 
 void UISettingsDialog::sltHandleValidityChange(UIPageValidator *pValidator)
@@ -791,7 +820,7 @@ void UISettingsDialog::prepareWidgets()
                 m_pButtonBox->setStandardButtons(QDialogButtonBox::Ok | QDialogButtonBox::Cancel |
                                                  QDialogButtonBox::NoButton);
 #endif
-                connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &UISettingsDialog::reject);
+                connect(m_pButtonBox, &QIDialogButtonBox::rejected, this, &UISettingsDialog::close);
                 connect(m_pButtonBox, &QIDialogButtonBox::accepted, this, &UISettingsDialog::accept);
 #ifndef VBOX_WS_MAC
                 connect(m_pButtonBox->button(QDialogButtonBox::Help), &QAbstractButton::pressed,

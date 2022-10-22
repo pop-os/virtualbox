@@ -38,7 +38,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154084 $"
 
 # Standard python imports
 import sys;
@@ -262,7 +262,11 @@ COPY (SELECT * FROM TestBoxStrTab WHERE idStr IN (
     def _doLoad(self, oDb):
         """ Does the loading of the dumped data into the database. """
 
-        oZipFile = zipfile.ZipFile(self.oConfig.sFilename, 'r');
+        try:
+            oZipFile = zipfile.ZipFile(self.oConfig.sFilename, 'r');
+        except:
+            print('error: Dump file "%s" cannot be opened! Use "-f <file>" to specify a file.' % (self.oConfig.sFilename,));
+            return 1;
 
         asTablesInLoadOrder = [
             'Users',
@@ -279,6 +283,7 @@ COPY (SELECT * FROM TestBoxStrTab WHERE idStr IN (
             'TestGroups',
             'TestGroupMembers',
             'SchedGroups',
+            'TestBoxStrTab',
             'TestBoxes',
             'SchedGroupMembers',
             'TestBoxesInSchedGroups',
@@ -308,7 +313,7 @@ COPY (SELECT * FROM TestBoxStrTab WHERE idStr IN (
             if cRows > cMaxRows:
                 print('error: Table %s has %u rows which is more than %u - refusing to delete and load.'
                       % (sTable, cRows, cMaxRows,));
-                print('info:  Please drop and recreate the database before loading!')
+                print('info:  Please drop and recreate the database before loading!');
                 return 1;
 
         print('Dropping default table content...\n');
@@ -385,4 +390,3 @@ COPY (SELECT * FROM TestBoxStrTab WHERE idStr IN (
 
 if __name__ == '__main__':
     sys.exit(PartialDbDump().main());
-

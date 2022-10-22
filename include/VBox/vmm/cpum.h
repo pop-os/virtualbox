@@ -1127,6 +1127,8 @@ typedef struct CPUMFEATURES
     uint32_t        fRdSeed : 1;
     /** Support PCLMULQDQ instruction. */
     uint32_t        fPclMul : 1;
+    /** Supports AES-NI (six AESxxx instructions). */
+    uint32_t        fAesNi : 1;
 
     /** Supports AMD 3DNow instructions. */
     uint32_t        f3DNow : 1;
@@ -1187,7 +1189,7 @@ typedef struct CPUMFEATURES
 
     /** Alignment padding / reserved for future use (96 bits total, plus 12 bytes
      *  prior to the bit fields -> total of 24 bytes) */
-    uint32_t        fPadding0 : 31;
+    uint32_t        fPadding0 : 30;
 
 
     /** @name SVM
@@ -1514,9 +1516,12 @@ typedef CPUMDBENTRY const *PCCPUMDBENTRY;
 #ifndef VBOX_FOR_DTRACE_LIB
 
 #if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
-VMMDECL(int)                CPUMCpuIdCollectLeavesX86(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves);
-VMMDECL(CPUMCPUVENDOR)      CPUMCpuIdDetectX86VendorEx(uint32_t uEAX, uint32_t uEBX, uint32_t uECX, uint32_t uEDX);
+VMMDECL(int)            CPUMCpuIdCollectLeavesX86(PCPUMCPUIDLEAF *ppaLeaves, uint32_t *pcLeaves);
+VMMDECL(CPUMCPUVENDOR)  CPUMCpuIdDetectX86VendorEx(uint32_t uEAX, uint32_t uEBX, uint32_t uECX, uint32_t uEDX);
 #endif
+
+VMM_INT_DECL(bool)      CPUMAssertGuestRFlagsCookie(PVM pVM, PVMCPU pVCpu);
+
 
 /** @name Guest Register Getters.
  * @{ */
@@ -1682,6 +1687,16 @@ VMM_INT_DECL(uint64_t)  CPUMGetGuestVmxApicAccessPageAddr(PCVMCPUCC pVCpu);
 #define CPUM_ASSERT_NOT_EXTRN(a_pVCpu, a_fNotExtrn) \
     AssertMsg(!((a_pVCpu)->cpum.GstCtx.fExtrn & (a_fNotExtrn)), \
               ("%#RX64; a_fNotExtrn=%#RX64\n", (a_pVCpu)->cpum.GstCtx.fExtrn, (a_fNotExtrn)))
+
+/** @def CPUMCTX_ASSERT_NOT_EXTRN
+ * Macro for asserting that @a a_fNotExtrn are present in @a a_pCtx.
+ *
+ * @param   a_pCtx          The CPU context of the calling EMT.
+ * @param   a_fNotExtrn     Mask of CPUMCTX_EXTRN_XXX bits to check.
+ */
+#define CPUMCTX_ASSERT_NOT_EXTRN(a_pCtx, a_fNotExtrn) \
+    AssertMsg(!((a_pCtx)->fExtrn & (a_fNotExtrn)), \
+              ("%#RX64; a_fNotExtrn=%#RX64\n", (a_pCtx)->fExtrn, (a_fNotExtrn)))
 
 /** @def CPUM_IMPORT_EXTRN_RET
  * Macro for making sure the state specified by @a fExtrnImport is present,
@@ -1906,6 +1921,355 @@ DECLINLINE(void) CPUMSetGuestGif(PCPUMCTX pCtx, bool fGif)
 }
 
 /**
+ * Checks if we're in an "interrupt shadow", i.e. after a STI, POP SS or MOV SS.
+ *
+ * This also inhibit NMIs, except perhaps for nested guests.
+ *
+ * @returns true if interrupts are inhibited by interrupt shadow, false if not.
+ * @param   pCtx    Current guest CPU context.
+ * @note    Requires pCtx->rip to be up to date.
+ * @note    Does not clear fInhibit when CPUMCTX::uRipInhibitInt differs
+ *          from CPUMCTX::rip.
+ */
+DECLINLINE(bool) CPUMIsInInterruptShadow(PCCPUMCTX pCtx)
+{
+    if (!(pCtx->fInhibit & CPUMCTX_INHIBIT_SHADOW))
+        return false;
+
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    return pCtx->uRipInhibitInt == pCtx->rip;
+}
+
+/**
+ * Checks if we're in an "interrupt shadow", i.e. after a STI, POP SS or MOV SS,
+ * updating the state if stale.
+ *
+ * This also inhibit NMIs, except perhaps for nested guests.
+ *
+ * @retval  true if interrupts are inhibited by interrupt shadow.
+ * @retval  false if not.
+ * @param   pCtx    Current guest CPU context.
+ * @note    Requires pCtx->rip to be up to date.
+ */
+DECLINLINE(bool) CPUMIsInInterruptShadowWithUpdate(PCPUMCTX pCtx)
+{
+    if (!(pCtx->fInhibit & CPUMCTX_INHIBIT_SHADOW))
+        return false;
+
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    if (pCtx->uRipInhibitInt == pCtx->rip)
+        return true;
+
+    pCtx->fInhibit &= (uint8_t)~CPUMCTX_INHIBIT_SHADOW;
+    return false;
+}
+
+/**
+ * Checks if we're in an "interrupt shadow" due to a POP SS or MOV SS
+ * instruction.
+ *
+ * This also inhibit NMIs, except perhaps for nested guests.
+ *
+ * @retval  true if interrupts are inhibited due to POP/MOV SS.
+ * @retval  false if not.
+ * @param   pCtx    Current guest CPU context.
+ * @note    Requires pCtx->rip to be up to date.
+ * @note    Does not clear fInhibit when CPUMCTX::uRipInhibitInt differs
+ *          from CPUMCTX::rip.
+ * @note    Both CPUMIsInInterruptShadowAfterSti() and this function may return
+ *          true depending on the execution engine being used.
+ */
+DECLINLINE(bool) CPUMIsInInterruptShadowAfterSs(PCCPUMCTX pCtx)
+{
+    if (!(pCtx->fInhibit & CPUMCTX_INHIBIT_SHADOW_SS))
+        return false;
+
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    return pCtx->uRipInhibitInt == pCtx->rip;
+}
+
+/**
+ * Checks if we're in an "interrupt shadow" due to an STI instruction.
+ *
+ * This also inhibit NMIs, except perhaps for nested guests.
+ *
+ * @retval  true if interrupts are inhibited due to STI.
+ * @retval  false if not.
+ * @param   pCtx    Current guest CPU context.
+ * @note    Requires pCtx->rip to be up to date.
+ * @note    Does not clear fInhibit when CPUMCTX::uRipInhibitInt differs
+ *          from CPUMCTX::rip.
+ * @note    Both CPUMIsInInterruptShadowAfterSs() and this function may return
+ *          true depending on the execution engine being used.
+ */
+DECLINLINE(bool) CPUMIsInInterruptShadowAfterSti(PCCPUMCTX pCtx)
+{
+    if (!(pCtx->fInhibit & CPUMCTX_INHIBIT_SHADOW_STI))
+        return false;
+
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    return pCtx->uRipInhibitInt == pCtx->rip;
+}
+
+/**
+ * Sets the "interrupt shadow" flag, after a STI, POP SS or MOV SS instruction.
+ *
+ * @param   pCtx    Current guest CPU context.
+ * @note    Requires pCtx->rip to be up to date.
+ */
+DECLINLINE(void) CPUMSetInInterruptShadow(PCPUMCTX pCtx)
+{
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    pCtx->fInhibit |= CPUMCTX_INHIBIT_SHADOW;
+    pCtx->uRipInhibitInt = pCtx->rip;
+}
+
+/**
+ * Sets the "interrupt shadow" flag, after a STI, POP SS or MOV SS instruction,
+ * extended version.
+ *
+ * @param   pCtx    Current guest CPU context.
+ * @param   rip     The RIP for which it is inhibited.
+ */
+DECLINLINE(void) CPUMSetInInterruptShadowEx(PCPUMCTX pCtx, uint64_t rip)
+{
+    pCtx->fInhibit |= CPUMCTX_INHIBIT_SHADOW;
+    pCtx->uRipInhibitInt = rip;
+}
+
+/**
+ * Sets the "interrupt shadow" flag after a POP SS or MOV SS instruction.
+ *
+ * @param   pCtx    Current guest CPU context.
+ * @note    Requires pCtx->rip to be up to date.
+ */
+DECLINLINE(void) CPUMSetInInterruptShadowSs(PCPUMCTX pCtx)
+{
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    pCtx->fInhibit |= CPUMCTX_INHIBIT_SHADOW_SS;
+    pCtx->uRipInhibitInt = pCtx->rip;
+}
+
+/**
+ * Sets the "interrupt shadow" flag after an STI instruction.
+ *
+ * @param   pCtx    Current guest CPU context.
+ * @note    Requires pCtx->rip to be up to date.
+ */
+DECLINLINE(void) CPUMSetInInterruptShadowSti(PCPUMCTX pCtx)
+{
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    pCtx->fInhibit |= CPUMCTX_INHIBIT_SHADOW_STI;
+    pCtx->uRipInhibitInt = pCtx->rip;
+}
+
+/**
+ * Clears the "interrupt shadow" flag.
+ *
+ * @param   pCtx    Current guest CPU context.
+ */
+DECLINLINE(void) CPUMClearInterruptShadow(PCPUMCTX pCtx)
+{
+    pCtx->fInhibit &= (uint8_t)~CPUMCTX_INHIBIT_SHADOW;
+}
+
+/**
+ * Update the "interrupt shadow" flag.
+ *
+ * @param   pCtx        Current guest CPU context.
+ * @param   fInhibited  The new state.
+ * @note    Requires pCtx->rip to be up to date.
+ */
+DECLINLINE(void) CPUMUpdateInterruptShadow(PCPUMCTX pCtx, bool fInhibited)
+{
+    CPUMCTX_ASSERT_NOT_EXTRN(pCtx, CPUMCTX_EXTRN_RIP);
+    if (!fInhibited)
+        pCtx->fInhibit &= (uint8_t)~CPUMCTX_INHIBIT_SHADOW;
+    else
+    {
+        pCtx->fInhibit |= CPUMCTX_INHIBIT_SHADOW;
+        pCtx->uRipInhibitInt = pCtx->rip;
+    }
+}
+
+/**
+ * Update the "interrupt shadow" flag, extended version.
+ *
+ * @returns fInhibited.
+ * @param   pCtx        Current guest CPU context.
+ * @param   fInhibited  The new state.
+ * @param   rip         The RIP for which it is inhibited.
+ */
+DECLINLINE(bool) CPUMUpdateInterruptShadowEx(PCPUMCTX pCtx, bool fInhibited, uint64_t rip)
+{
+    if (!fInhibited)
+        pCtx->fInhibit &= (uint8_t)~CPUMCTX_INHIBIT_SHADOW;
+    else
+    {
+        pCtx->fInhibit |= CPUMCTX_INHIBIT_SHADOW;
+        pCtx->uRipInhibitInt = rip;
+    }
+    return fInhibited;
+}
+
+/**
+ * Update the two "interrupt shadow" flags separately, extended version.
+ *
+ * @param   pCtx            Current guest CPU context.
+ * @param   fInhibitedBySs  The new state for the MOV SS & POP SS aspect.
+ * @param   fInhibitedBySti The new state for the STI aspect.
+ * @param   rip             The RIP for which it is inhibited.
+ */
+DECLINLINE(void) CPUMUpdateInterruptShadowSsStiEx(PCPUMCTX pCtx, bool fInhibitedBySs, bool fInhibitedBySti, uint64_t rip)
+{
+    if (!(fInhibitedBySs | fInhibitedBySti))
+        pCtx->fInhibit &= (uint8_t)~CPUMCTX_INHIBIT_SHADOW;
+    else
+    {
+        pCtx->fInhibit |= (fInhibitedBySs  ? (uint8_t)CPUMCTX_INHIBIT_SHADOW_SS  : (uint8_t)0)
+                       |  (fInhibitedBySti ? (uint8_t)CPUMCTX_INHIBIT_SHADOW_STI : (uint8_t)0);
+        pCtx->uRipInhibitInt = rip;
+    }
+}
+
+/* VMX forward declarations used by extended function versions: */
+DECLINLINE(bool) CPUMIsGuestInVmxNonRootMode(PCCPUMCTX pCtx);
+DECLINLINE(bool) CPUMIsGuestVmxPinCtlsSet(PCCPUMCTX pCtx, uint32_t uPinCtls);
+DECLINLINE(bool) CPUMIsGuestVmxVirtNmiBlocking(PCCPUMCTX pCtx);
+DECLINLINE(void) CPUMSetGuestVmxVirtNmiBlocking(PCPUMCTX pCtx, bool fBlocking);
+
+/**
+ * Checks whether interrupts, include NMIs, are inhibited by pending NMI
+ * delivery.
+ *
+ * This only checks the inhibit mask.
+ *
+ * @retval  true if interrupts are inhibited by NMI handling.
+ * @retval  false if interrupts are not inhibited by NMI handling.
+ * @param   pCtx        Current guest CPU context.
+ */
+DECLINLINE(bool) CPUMAreInterruptsInhibitedByNmi(PCCPUMCTX pCtx)
+{
+    return (pCtx->fInhibit & CPUMCTX_INHIBIT_NMI) != 0;
+}
+
+/**
+ * Extended version of CPUMAreInterruptsInhibitedByNmi() that takes VMX non-root
+ * mode into account when check whether interrupts are inhibited by NMI.
+ *
+ * @retval  true if interrupts are inhibited by NMI handling.
+ * @retval  false if interrupts are not inhibited by NMI handling.
+ * @param   pCtx        Current guest CPU context.
+ */
+DECLINLINE(bool) CPUMAreInterruptsInhibitedByNmiEx(PCCPUMCTX pCtx)
+{
+    /* See CPUMUpdateInterruptInhibitingByNmiEx for comments. */
+    if (   !CPUMIsGuestInVmxNonRootMode(pCtx)
+        || !CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_VIRT_NMI))
+        return CPUMAreInterruptsInhibitedByNmi(pCtx);
+    return CPUMIsGuestVmxVirtNmiBlocking(pCtx);
+}
+
+/**
+ * Marks interrupts, include NMIs, as inhibited by pending NMI delivery.
+ *
+ * @param   pCtx        Current guest CPU context.
+ */
+DECLINLINE(void) CPUMSetInterruptInhibitingByNmi(PCPUMCTX pCtx)
+{
+    pCtx->fInhibit |= CPUMCTX_INHIBIT_NMI;
+}
+
+/**
+ * Extended version of CPUMSetInterruptInhibitingByNmi() that takes VMX non-root
+ * mode into account when marking interrupts as inhibited by NMI.
+ *
+ * @param   pCtx        Current guest CPU context.
+ */
+DECLINLINE(void) CPUMSetInterruptInhibitingByNmiEx(PCPUMCTX pCtx)
+{
+    /* See CPUMUpdateInterruptInhibitingByNmiEx for comments. */
+    if (   !CPUMIsGuestInVmxNonRootMode(pCtx)
+        || !CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_VIRT_NMI))
+        CPUMSetInterruptInhibitingByNmi(pCtx);
+    else
+        CPUMSetGuestVmxVirtNmiBlocking(pCtx, true);
+}
+
+/**
+ * Marks interrupts, include NMIs, as no longer inhibited by pending NMI
+ * delivery.
+ *
+ * @param   pCtx        Current guest CPU context.
+ */
+DECLINLINE(void) CPUMClearInterruptInhibitingByNmi(PCPUMCTX pCtx)
+{
+    pCtx->fInhibit &= (uint8_t)~CPUMCTX_INHIBIT_NMI;
+}
+
+/**
+ * Extended version of CPUMClearInterruptInhibitingByNmi() that takes VMX
+ * non-root mode into account when doing the updating.
+ *
+ * @param   pCtx        Current guest CPU context.
+ */
+DECLINLINE(void) CPUMClearInterruptInhibitingByNmiEx(PCPUMCTX pCtx)
+{
+    /* See CPUMUpdateInterruptInhibitingByNmiEx for comments. */
+    if (   !CPUMIsGuestInVmxNonRootMode(pCtx)
+        || !CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_VIRT_NMI))
+        CPUMClearInterruptInhibitingByNmi(pCtx);
+    else
+        CPUMSetGuestVmxVirtNmiBlocking(pCtx, false);
+}
+
+/**
+ * Update whether interrupts, include NMIs, are inhibited by pending NMI
+ * delivery.
+ *
+ * @param   pCtx        Current guest CPU context.
+ * @param   fInhibited  The new state.
+ */
+DECLINLINE(void) CPUMUpdateInterruptInhibitingByNmi(PCPUMCTX pCtx, bool fInhibited)
+{
+    if (!fInhibited)
+        pCtx->fInhibit &= (uint8_t)~CPUMCTX_INHIBIT_NMI;
+    else
+        pCtx->fInhibit |= CPUMCTX_INHIBIT_NMI;
+}
+
+/**
+ * Extended version of CPUMUpdateInterruptInhibitingByNmi() that takes VMX
+ * non-root mode into account when doing the updating.
+ *
+ * @param   pCtx        Current guest CPU context.
+ * @param   fInhibited  The new state.
+ */
+DECLINLINE(void) CPUMUpdateInterruptInhibitingByNmiEx(PCPUMCTX pCtx, bool fInhibited)
+{
+    /*
+     * Set the state of guest-NMI blocking in any of the following cases:
+     *   - We're not executing a nested-guest.
+     *   - We're executing an SVM nested-guest[1].
+     *   - We're executing a VMX nested-guest without virtual-NMIs enabled.
+     *
+     * [1] -- SVM does not support virtual-NMIs or virtual-NMI blocking.
+     *        SVM hypervisors must track NMI blocking themselves by intercepting
+     *        the IRET instruction after injection of an NMI.
+     */
+    if (   !CPUMIsGuestInVmxNonRootMode(pCtx)
+        || !CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_VIRT_NMI))
+        CPUMUpdateInterruptInhibitingByNmi(pCtx, fInhibited);
+    /*
+     * Set the state of virtual-NMI blocking, if we are executing a
+     * VMX nested-guest with virtual-NMIs enabled.
+     */
+    else
+        CPUMSetGuestVmxVirtNmiBlocking(pCtx, fInhibited);
+}
+
+
+/**
  * Checks if we are executing inside an SVM nested hardware-virtualized guest.
  *
  * @returns @c true if in SVM nested-guest mode, @c false otherwise.
@@ -1956,7 +2320,41 @@ DECLINLINE(bool) CPUMIsGuestInVmxNonRootMode(PCCPUMCTX pCtx)
  */
 DECLINLINE(bool) CPUMIsGuestInNestedHwvirtMode(PCCPUMCTX pCtx)
 {
+#if 0
     return CPUMIsGuestInVmxNonRootMode(pCtx) || CPUMIsGuestInSvmNestedHwVirtMode(pCtx);
+#else
+    if (pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_NONE)
+        return false;
+    if (pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_VMX)
+    {
+        Assert(!pCtx->hwvirt.vmx.fInVmxNonRootMode || pCtx->hwvirt.vmx.fInVmxRootMode);
+        return pCtx->hwvirt.vmx.fInVmxNonRootMode;
+    }
+    Assert(pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_SVM);
+    return RT_BOOL(pCtx->hwvirt.svm.Vmcb.ctrl.u64InterceptCtrl & SVM_CTRL_INTERCEPT_VMRUN);
+#endif
+}
+
+/**
+ * Checks if we are executing inside an SVM or VMX nested hardware-virtualized
+ * guest.
+ *
+ * @retval  CPUMHWVIRT_NONE if not in SVM or VMX non-root mode.
+ * @retval  CPUMHWVIRT_VMX if in VMX non-root mode.
+ * @retval  CPUMHWVIRT_SVM if in SVM non-root mode.
+ * @param   pCtx    Current CPU context.
+ */
+DECLINLINE(CPUMHWVIRT) CPUMGetGuestInNestedHwvirtMode(PCCPUMCTX pCtx)
+{
+    if (pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_NONE)
+        return CPUMHWVIRT_NONE;
+    if (pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_VMX)
+    {
+        Assert(!pCtx->hwvirt.vmx.fInVmxNonRootMode || pCtx->hwvirt.vmx.fInVmxRootMode);
+        return pCtx->hwvirt.vmx.fInVmxNonRootMode ? CPUMHWVIRT_VMX : CPUMHWVIRT_NONE;
+    }
+    Assert(pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_SVM);
+    return pCtx->hwvirt.svm.Vmcb.ctrl.u64InterceptCtrl & SVM_CTRL_INTERCEPT_VMRUN ? CPUMHWVIRT_SVM : CPUMHWVIRT_NONE;
 }
 
 /**
@@ -2357,7 +2755,7 @@ DECLINLINE(bool) CPUMIsGuestVmxEptPagingEnabledEx(PCCPUMCTX pCtx)
  */
 DECLINLINE(void) CPUMSetGuestVmxVmSucceed(PCPUMCTX pCtx)
 {
-    pCtx->eflags.u32 &= ~(X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
+    pCtx->eflags.uBoth &= ~(X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
 }
 
 /**
@@ -2367,8 +2765,8 @@ DECLINLINE(void) CPUMSetGuestVmxVmSucceed(PCPUMCTX pCtx)
  */
 DECLINLINE(void) CPUMSetGuestVmxVmFailInvalid(PCPUMCTX pCtx)
 {
-    pCtx->eflags.u32 &= ~(X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
-    pCtx->eflags.u32 |= X86_EFL_CF;
+    pCtx->eflags.uBoth &= ~(X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
+    pCtx->eflags.uBoth |= X86_EFL_CF;
 }
 
 /**
@@ -2379,8 +2777,8 @@ DECLINLINE(void) CPUMSetGuestVmxVmFailInvalid(PCPUMCTX pCtx)
  */
 DECLINLINE(void) CPUMSetGuestVmxVmFailValid(PCPUMCTX pCtx, VMXINSTRERR enmInsErr)
 {
-    pCtx->eflags.u32 &= ~(X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
-    pCtx->eflags.u32 |= X86_EFL_ZF;
+    pCtx->eflags.uBoth &= ~(X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF);
+    pCtx->eflags.uBoth |= X86_EFL_ZF;
     pCtx->hwvirt.vmx.Vmcs.u32RoVmInstrError = enmInsErr;
 }
 
@@ -2663,7 +3061,6 @@ VMMDECL(PCPUMCTX)       CPUMQueryGuestCtxPtr(PVMCPU pVCpu);
 #ifdef VBOX_INCLUDED_vmm_cpumctx_h
 VMM_INT_DECL(PCPUMCTXMSRS) CPUMQueryGuestCtxMsrsPtr(PVMCPU pVCpu);
 #endif
-VMMDECL(PCCPUMCTXCORE)  CPUMGetGuestCtxCore(PVMCPU pVCpu);
 
 /** @name Changed flags.
  * These flags are used to keep track of which important register that
@@ -2730,7 +3127,7 @@ typedef enum CPUMINTERRUPTIBILITY
     CPUMINTERRUPTIBILITY_UNRESTRAINED,
     CPUMINTERRUPTIBILITY_VIRT_INT_DISABLED,
     CPUMINTERRUPTIBILITY_INT_DISABLED,
-    CPUMINTERRUPTIBILITY_INT_INHIBITED,
+    CPUMINTERRUPTIBILITY_INT_INHIBITED, /**< @todo rename as it inhibits NMIs too. */
     CPUMINTERRUPTIBILITY_NMI_INHIBIT,
     CPUMINTERRUPTIBILITY_GLOBAL_INHIBIT,
     CPUMINTERRUPTIBILITY_END,
@@ -2738,8 +3135,6 @@ typedef enum CPUMINTERRUPTIBILITY
 } CPUMINTERRUPTIBILITY;
 
 VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu);
-VMM_INT_DECL(bool)                 CPUMIsGuestNmiBlocking(PCVMCPU pVCpu);
-VMM_INT_DECL(void)                 CPUMSetGuestNmiBlocking(PVMCPU pVCpu, bool fBlock);
 
 /** @name Typical scalable bus frequency values.
  * @{ */

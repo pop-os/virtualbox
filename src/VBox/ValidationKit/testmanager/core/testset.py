@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154102 $"
 
 
 # Standard python imports.
@@ -720,7 +720,32 @@ class TestSetLogic(ModelLogicBase):
             aoRet.append(TestSetData().initFromDbRow(aoRow));
         return aoRet;
 
-    def isTestBoxExecutingToRapidly(self, idTestBox): ## s/To/Too/
+    def fetchByAge(self, tsNow = None, cHoursBack = 24):
+        """
+        Returns a list of TestSetData objects of a given time period (default is 24 hours).
+
+        Returns None if no testsets stored,
+        Returns an empty list if no testsets found with given criteria.
+        """
+        if tsNow is None:
+            tsNow = self._oDb.getCurrentTimestamp();
+
+        if self._oDb.getRowCount() == 0:
+            return None;
+
+        self._oDb.execute('(SELECT *\n'
+                    ' FROM   TestSets\n'
+                    ' WHERE  tsDone           <= %s\n'
+                    '    AND tsDone            > (%s - interval \'%s hours\')\n'
+                    ')\n'
+                    , ( tsNow, tsNow, cHoursBack, ));
+
+        aoRet = [];
+        for aoRow in self._oDb.fetchAll():
+            aoRet.append(TestSetData().initFromDbRow(aoRow));
+        return aoRet;
+
+    def isTestBoxExecutingTooRapidly(self, idTestBox): ## s/To/Too/
         """
         Checks whether the specified test box is executing tests too rapidly.
 
@@ -842,4 +867,3 @@ class TestSetDataTestCase(ModelDataBaseTestCase):
 if __name__ == '__main__':
     unittest.main();
     # not reached.
-

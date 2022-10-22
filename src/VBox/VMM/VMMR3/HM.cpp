@@ -798,7 +798,6 @@ static int hmR3InitFinalizeR3(PVM pVM)
             HM_REG_STAT(a_pVar, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, a_szNmFmt, a_szDesc)
 
 #ifdef VBOX_WITH_STATISTICS
-
         HM_REG_PROFILE(&pHmCpu->StatPoke,                   "/PROF/CPU%u/HM/Poke", "Profiling of RTMpPokeCpu.");
         HM_REG_PROFILE(&pHmCpu->StatSpinPoke,               "/PROF/CPU%u/HM/PokeWait", "Profiling of poke wait.");
         HM_REG_PROFILE(&pHmCpu->StatSpinPokeFailed,         "/PROF/CPU%u/HM/PokeWaitFailed", "Profiling of poke wait when RTMpPokeCpu fails.");
@@ -820,6 +819,8 @@ static int hmR3InitFinalizeR3(PVM pVM)
 #endif
 # define HM_REG_COUNTER(a, b, desc) HM_REG_STAT(a, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, b, desc)
 
+        HM_REG_COUNTER(&pHmCpu->StatImportGuestStateFallback, "/HM/CPU%u/ImportGuestStateFallback", "Times vmxHCImportGuestState took the fallback code path.");
+        HM_REG_COUNTER(&pHmCpu->StatReadToTransientFallback,  "/HM/CPU%u/ReadToTransientFallback",  "Times vmxHCReadToTransient took the fallback code path.");
 #ifdef VBOX_WITH_STATISTICS
         HM_REG_COUNTER(&pHmCpu->StatExitAll,                "/HM/CPU%u/Exit/All", "Total exits (excludes nested-guest and debug loops exits).");
         HM_REG_COUNTER(&pHmCpu->StatDebugExitAll,           "/HM/CPU%u/Exit/DebugAll", "Total debug-loop exits.");
@@ -1107,6 +1108,20 @@ static void hmR3DisableRawMode(PVM pVM)
 static int hmR3InitFinalizeR0(PVM pVM)
 {
     int rc;
+
+    /*
+     * Since HM is in charge of large pages, if large pages isn't supported on Intel CPUs,
+     * we must disable it here. Doing it here rather than in hmR3InitFinalizeR0Intel covers
+     * the case of informing PGM even when NEM is the execution engine.
+     */
+    if (   pVM->hm.s.fLargePages
+        && pVM->hm.s.vmx.fSupported
+        && !(pVM->hm.s.ForR3.vmx.Msrs.u64EptVpidCaps & MSR_IA32_VMX_EPT_VPID_CAP_PDE_2M))
+    {
+        pVM->hm.s.fLargePages = false;
+        PGMSetLargePageUsage(pVM, false);
+        LogRel(("HM: Disabled large page support as the CPU doesn't allow EPT PDEs to map 2MB pages\n"));
+    }
 
     if (!HMIsEnabled(pVM))
         return VINF_SUCCESS;
@@ -2258,7 +2273,7 @@ static DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, voi
     DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "hmR3ReplaceTprInstr");
     DISCPUSTATE     Dis;
     uint32_t        cbOp;
-    int rc = EMInterpretDisasCurrent(pVM, pVCpu, &Dis, &cbOp);
+    int rc = EMInterpretDisasCurrent(pVCpu, &Dis, &cbOp);
     AssertRC(rc);
     if (    rc == VINF_SUCCESS
         &&  Dis.pCurInstr->uOpcode == OP_MOV
@@ -2311,7 +2326,7 @@ static DECLCALLBACK(VBOXSTRICTRC) hmR3ReplaceTprInstr(PVM pVM, PVMCPU pVCpu, voi
             uint64_t const uSavedRip  = pCtx->rip;
 
             pCtx->rip += cbOp;
-            rc = EMInterpretDisasCurrent(pVM, pVCpu, &Dis, &cbOp);
+            rc = EMInterpretDisasCurrent(pVCpu, &Dis, &cbOp);
             DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "Following read");
             pCtx->rip = uSavedRip;
 
@@ -2434,7 +2449,7 @@ static DECLCALLBACK(VBOXSTRICTRC) hmR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, void 
      */
     DISCPUSTATE     Dis;
     uint32_t        cbOp;
-    int rc = EMInterpretDisasCurrent(pVM, pVCpu, &Dis, &cbOp);
+    int rc = EMInterpretDisasCurrent(pVCpu, &Dis, &cbOp);
     AssertRC(rc);
     if (    rc == VINF_SUCCESS
         &&  Dis.pCurInstr->uOpcode == OP_MOV

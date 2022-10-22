@@ -45,7 +45,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154145 $"
 
 
 # Standard python imports
@@ -350,7 +350,7 @@ class VirtualTestSheriff(object): # pylint: disable=too-few-public-methods
 
         if self.oConfig.sLogFile:
             self.oLogFile = open(self.oConfig.sLogFile, "a");   # pylint: disable=consider-using-with
-            self.oLogFile.write('VirtualTestSheriff: $Revision: 153224 $ \n');
+            self.oLogFile.write('VirtualTestSheriff: $Revision: 154145 $ \n');
 
 
     def eprint(self, sText):
@@ -652,6 +652,7 @@ class VirtualTestSheriff(object): # pylint: disable=too-few-public-methods
     ktReason_Host_InvalidPackage                       = ( 'Host',              'ERROR_INSTALL_PACKAGE_INVALID' );
     ktReason_Host_InstallSourceAbsent                  = ( 'Host',              'ERROR_INSTALL_SOURCE_ABSENT' );
     ktReason_Host_NotSignedWithBuildCert               = ( 'Host',              'Not signed with build cert' );
+    ktReason_Host_DiskFull                             = ( 'Host',              'Host disk full' );
     ktReason_Host_DoubleFreeHeap                       = ( 'Host',              'Double free or corruption' );
     ktReason_Host_LeftoverService                      = ( 'Host',              'Leftover service' );
     ktReason_Host_win32com_gen_py                      = ( 'Host',              'win32com.gen_py' );
@@ -756,7 +757,7 @@ class VirtualTestSheriff(object): # pylint: disable=too-few-public-methods
         for idTestResult, tReason in dReasonForResultId.items():
             oFailureReason = self.getFailureReason(tReason);
             if oFailureReason is not None:
-                sComment = 'Set by $Revision: 153224 $' # Handy for reverting later.
+                sComment = 'Set by $Revision: 154145 $' # Handy for reverting later.
                 if idTestResult in dCommentForResultId:
                     sComment += ': ' + dCommentForResultId[idTestResult];
 
@@ -1105,6 +1106,8 @@ class VirtualTestSheriff(object): # pylint: disable=too-few-public-methods
     ## This we search a VM log  for to figure out why something went bust.
     katSimpleVmLogReasons = [
         # ( Whether to stop on hit, reason tuple, needle text. )
+        # Note: Works for ATA and VD drivers.
+        ( False, ktReason_Host_DiskFull,                            '_DISKFULL' ),
     ];
 
     ## Things we search a VBoxHardening.log file for to figure out why something went bust.

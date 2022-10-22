@@ -102,6 +102,8 @@ protected:
     virtual void retranslateUi() RT_OVERRIDE;
     /** Handles first show @a pEvent. */
     virtual void polishEvent(QShowEvent *pEvent) RT_OVERRIDE;
+    /** Handles close @a pEvent. */
+    virtual void closeEvent(QCloseEvent *pEvent) RT_OVERRIDE;
 
     /** Returns the serialize process instance. */
     UISettingsSerializer *serializeProcess() const { return m_pSerializeProcess; }
@@ -152,6 +154,9 @@ protected:
     void revalidate(UIPageValidator *pValidator);
     /** Validates data correctness. */
     void revalidate();
+
+    /** Returns whether settings were changed. */
+    bool isSettingsChanged();
 
     /** Holds the page selector instance. */
     UISettingsSelector *m_pSelector;

@@ -86,74 +86,6 @@ endstruc
 ;; @}
 
 
-;;
-; Registers frame.
-; This is used internally in TRPM, VMMSwitcher_GuestToHost_GuestCtx
-; and other places.
-struc CPUMCTXCORE
-    .eax                resq    1
-    .ecx                resq    1
-    .edx                resq    1
-    .ebx                resq    1
-    .esp                resq    1
-    .ebp                resq    1
-    .esi                resq    1
-    .edi                resq    1
-    .r8                 resq    1
-    .r9                 resq    1
-    .r10                resq    1
-    .r11                resq    1
-    .r12                resq    1
-    .r13                resq    1
-    .r14                resq    1
-    .r15                resq    1
-    .es.Sel             resw    1
-    .es.PaddingSel      resw    1
-    .es.ValidSel        resw    1
-    .es.fFlags          resw    1
-    .es.u64Base         resq    1
-    .es.u32Limit        resd    1
-    .es.Attr            resd    1
-    .cs.Sel             resw    1
-    .cs.PaddingSel      resw    1
-    .cs.ValidSel        resw    1
-    .cs.fFlags          resw    1
-    .cs.u64Base         resq    1
-    .cs.u32Limit        resd    1
-    .cs.Attr            resd    1
-    .ss.Sel             resw    1
-    .ss.PaddingSel      resw    1
-    .ss.ValidSel        resw    1
-    .ss.fFlags          resw    1
-    .ss.u64Base         resq    1
-    .ss.u32Limit        resd    1
-    .ss.Attr            resd    1
-    .ds.Sel             resw    1
-    .ds.PaddingSel      resw    1
-    .ds.ValidSel        resw    1
-    .ds.fFlags          resw    1
-    .ds.u64Base         resq    1
-    .ds.u32Limit        resd    1
-    .ds.Attr            resd    1
-    .fs.Sel             resw    1
-    .fs.PaddingSel      resw    1
-    .fs.ValidSel        resw    1
-    .fs.fFlags          resw    1
-    .fs.u64Base         resq    1
-    .fs.u32Limit        resd    1
-    .fs.Attr            resd    1
-    .gs.Sel             resw    1
-    .gs.PaddingSel      resw    1
-    .gs.ValidSel        resw    1
-    .gs.fFlags          resw    1
-    .gs.u64Base         resq    1
-    .gs.u32Limit        resd    1
-    .gs.Attr            resd    1
-    .eip                resq    1
-    .eflags             resq    1
-endstruc
-
-
 %define XSTATE_SIZE             8192
 
 ;; Note! Updates here must be reflected in CPUMInternal.mac too!
@@ -216,21 +148,6 @@ struc CPUMCTX
     .gs.u64Base         resq    1
     .gs.u32Limit        resd    1
     .gs.Attr            resd    1
-    .eip                resq    1
-    .eflags             resq    1
-    .cr0                resq    1
-    .cr2                resq    1
-    .cr3                resq    1
-    .cr4                resq    1
-    .dr                 resq    8
-    .gdtrPadding        resw    3
-    .gdtr               resw    0
-    .gdtr.cbGdt         resw    1
-    .gdtr.pGdt          resq    1
-    .idtrPadding        resw    3
-    .idtr               resw    0
-    .idtr.cbIdt         resw    1
-    .idtr.pIdt          resq    1
     .ldtr.Sel           resw    1
     .ldtr.PaddingSel    resw    1
     .ldtr.ValidSel      resw    1
@@ -245,6 +162,24 @@ struc CPUMCTX
     .tr.u64Base         resq    1
     .tr.u32Limit        resd    1
     .tr.Attr            resd    1
+    .eip                resq    1
+    .eflags             resq    1
+    .fInhibit           resb    1
+    alignb 8
+    .uRipInhibitInt     resq    1
+    .cr0                resq    1
+    .cr2                resq    1
+    .cr3                resq    1
+    .cr4                resq    1
+    .dr                 resq    8
+    .gdtrPadding        resw    3
+    .gdtr               resw    0
+    .gdtr.cbGdt         resw    1
+    .gdtr.pGdt          resq    1
+    .idtrPadding        resw    3
+    .idtr               resw    0
+    .idtr.cbIdt         resw    1
+    .idtr.pIdt          resq    1
     .SysEnter.cs        resb    8
     .SysEnter.eip       resb    8
     .SysEnter.esp       resb    8
@@ -255,7 +190,6 @@ struc CPUMCTX
     .msrCSTAR           resb    8
     .msrSFMASK          resb    8
     .msrKERNELGSBASE    resb    8
-    .uMsrPadding0       resb    8
 
     alignb 8
     .fExtrn             resq    1
@@ -299,7 +233,6 @@ struc CPUMCTX
     .hwvirt.vmx.aExitMsrLoadArea        resb        0x2000
     .hwvirt.vmx.abMsrBitmap             resb        0x1000
     .hwvirt.vmx.abIoBitmap              resb        0x1000+0x1000
-    .hwvirt.vmx.abVirtApicPage          resb        0x1000
     alignb 8
     .hwvirt.vmx.GCPhysVmxon             resq        1
     .hwvirt.vmx.GCPhysVmcs              resq        1
@@ -323,8 +256,8 @@ struc CPUMCTX
     alignb 8
     .hwvirt.enmHwvirt                   resd        1
     .hwvirt.fGif                        resb        1
-    alignb 8
-    .hwvirt.fLocalForcedActions         resd        1
+    alignb 4
+    .hwvirt.fSavedInhibit               resd        1
     alignb 64
 endstruc
 

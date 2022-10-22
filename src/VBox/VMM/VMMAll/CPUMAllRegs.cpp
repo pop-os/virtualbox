@@ -187,14 +187,22 @@ VMMDECL(RTGCUINTREG) CPUMGetHyperDR7(PVMCPU pVCpu)
 
 
 /**
- * Gets the pointer to the internal CPUMCTXCORE structure.
- * This is only for reading in order to save a few calls.
+ * Checks that the special cookie stored in unused reserved RFLAGS bits
  *
+ * @retval  true if cookie is ok.
+ * @retval  false if cookie is not ok.
+ * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  */
-VMMDECL(PCCPUMCTXCORE) CPUMGetGuestCtxCore(PVMCPU pVCpu)
+VMM_INT_DECL(bool) CPUMAssertGuestRFlagsCookie(PVM pVM, PVMCPU pVCpu)
 {
-    return CPUMCTX2CORE(&pVCpu->cpum.s.Guest);
+    AssertLogRelMsgReturn(      (pVCpu->cpum.s.Guest.rflags.uBoth & ~(uint64_t)(X86_EFL_LIVE_MASK | X86_EFL_RA1_MASK))
+                             == pVM->cpum.s.fReservedRFlagsCookie
+                          && (pVCpu->cpum.s.Guest.rflags.uBoth & X86_EFL_RA1_MASK) == X86_EFL_RA1_MASK,
+                          ("rflags=%#RX64 vs fReservedRFlagsCookie=%#RX64\n",
+                           pVCpu->cpum.s.Guest.rflags.uBoth, pVM->cpum.s.fReservedRFlagsCookie),
+                          false);
+    return true;
 }
 
 
@@ -336,7 +344,7 @@ VMMDECL(int) CPUMSetGuestCR4(PVMCPU pVCpu, uint64_t cr4)
 
 VMMDECL(int) CPUMSetGuestEFlags(PVMCPU pVCpu, uint32_t eflags)
 {
-    pVCpu->cpum.s.Guest.eflags.u32 = eflags;
+    pVCpu->cpum.s.Guest.eflags.u = eflags;
     pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_RFLAGS;
     return VINF_SUCCESS;
 }
@@ -670,7 +678,7 @@ VMMDECL(uint32_t) CPUMGetGuestEBP(PCVMCPU pVCpu)
 VMMDECL(uint32_t) CPUMGetGuestEFlags(PCVMCPU pVCpu)
 {
     CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RFLAGS);
-    return pVCpu->cpum.s.Guest.eflags.u32;
+    return pVCpu->cpum.s.Guest.eflags.u;
 }
 
 
@@ -1890,17 +1898,16 @@ VMMDECL(uint32_t) CPUMGetGuestMxCsrMask(PVM pVM)
  */
 VMM_INT_DECL(bool) CPUMIsGuestPhysIntrEnabled(PVMCPU pVCpu)
 {
-    if (!CPUMIsGuestInNestedHwvirtMode(&pVCpu->cpum.s.Guest))
+    switch (CPUMGetGuestInNestedHwvirtMode(&pVCpu->cpum.s.Guest))
     {
-        uint32_t const fEFlags = pVCpu->cpum.s.Guest.eflags.u;
-        return RT_BOOL(fEFlags & X86_EFL_IF);
+        case CPUMHWVIRT_NONE:
+        default:
+            return pVCpu->cpum.s.Guest.eflags.Bits.u1IF;
+        case CPUMHWVIRT_VMX:
+            return CPUMIsGuestVmxPhysIntrEnabled(&pVCpu->cpum.s.Guest);
+        case CPUMHWVIRT_SVM:
+            return CPUMIsGuestSvmPhysIntrEnabled(pVCpu, &pVCpu->cpum.s.Guest);
     }
-
-    if (CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest))
-        return CPUMIsGuestVmxPhysIntrEnabled(&pVCpu->cpum.s.Guest);
-
-    Assert(CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.s.Guest));
-    return CPUMIsGuestSvmPhysIntrEnabled(pVCpu, &pVCpu->cpum.s.Guest);
 }
 
 
@@ -1943,15 +1950,22 @@ VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu)
          * it directly here. If and how EFLAGS are used depends on the context (nested-guest
          * or raw-mode). Hence we use the function below which handles the details.
          */
-        if (    CPUMIsGuestPhysIntrEnabled(pVCpu)
-            && !VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_BLOCK_NMIS | VMCPU_FF_INHIBIT_INTERRUPTS))
+        if (   pVCpu->cpum.s.Guest.fInhibit == 0
+            || (   !(pVCpu->cpum.s.Guest.fInhibit & CPUMCTX_INHIBIT_NMI)
+                && pVCpu->cpum.s.Guest.uRipInhibitInt != pVCpu->cpum.s.Guest.rip))
         {
-            if (   !CPUMIsGuestInNestedHwvirtMode(&pVCpu->cpum.s.Guest)
-                ||  CPUMIsGuestVirtIntrEnabled(pVCpu))
-                return CPUMINTERRUPTIBILITY_UNRESTRAINED;
+            /** @todo OPT: this next call should be inlined! */
+            if (CPUMIsGuestPhysIntrEnabled(pVCpu))
+            {
+                /** @todo OPT: type this out as it repeats tests. */
+                if (   !CPUMIsGuestInNestedHwvirtMode(&pVCpu->cpum.s.Guest)
+                    || CPUMIsGuestVirtIntrEnabled(pVCpu))
+                    return CPUMINTERRUPTIBILITY_UNRESTRAINED;
 
-            /* Physical interrupts are enabled, but nested-guest virtual interrupts are disabled. */
-            return CPUMINTERRUPTIBILITY_VIRT_INT_DISABLED;
+                /* Physical interrupts are enabled, but nested-guest virtual interrupts are disabled. */
+                return CPUMINTERRUPTIBILITY_VIRT_INT_DISABLED;
+            }
+            return CPUMINTERRUPTIBILITY_INT_DISABLED;
         }
 
         /*
@@ -1962,13 +1976,15 @@ VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu)
          *
          * See Intel spec. 25.4.1 "Event Blocking".
          */
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-            return CPUMINTERRUPTIBILITY_NMI_INHIBIT;
-
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+        /** @todo r=bird: The above comment mixes up VMX root-mode and non-root. Section
+         *        25.4.1 is only applicable to VMX non-root mode.  In root mode /
+         *        non-VMX mode, I have not see any evidence in the intel manuals that
+         *        NMIs are not blocked when in an interrupt shadow. Section "6.7
+         *        NONMASKABLE INTERRUPT (NMI)" in SDM 3A seems pretty clear to me.
+         */
+        if (!(pVCpu->cpum.s.Guest.fInhibit & CPUMCTX_INHIBIT_NMI))
             return CPUMINTERRUPTIBILITY_INT_INHIBITED;
-
-        return CPUMINTERRUPTIBILITY_INT_DISABLED;
+        return CPUMINTERRUPTIBILITY_NMI_INHIBIT;
     }
     return CPUMINTERRUPTIBILITY_GLOBAL_INHIBIT;
 #else
@@ -2002,82 +2018,6 @@ VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu)
         return CPUMINTERRUPTIBILITY_GLOBAL_INHIBIT;
     }
 #endif
-}
-
-
-/**
- * Gets whether the guest (or nested-guest) is currently blocking delivery of NMIs.
- *
- * @returns @c true if NMIs are blocked, @c false otherwise.
- * @param   pVCpu       The cross context virtual CPU structure.
- */
-VMM_INT_DECL(bool) CPUMIsGuestNmiBlocking(PCVMCPU pVCpu)
-{
-    /*
-     * Return the state of guest-NMI blocking in any of the following cases:
-     *   - We're not executing a nested-guest.
-     *   - We're executing an SVM nested-guest[1].
-     *   - We're executing a VMX nested-guest without virtual-NMIs enabled.
-     *
-     * [1] -- SVM does not support virtual-NMIs or virtual-NMI blocking.
-     *        SVM hypervisors must track NMI blocking themselves by intercepting
-     *        the IRET instruction after injection of an NMI.
-     */
-    PCCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
-    if (   !CPUMIsGuestInNestedHwvirtMode(pCtx)
-        ||  CPUMIsGuestInSvmNestedHwVirtMode(pCtx)
-        || !CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_VIRT_NMI))
-        return VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-
-    /*
-     * Return the state of virtual-NMI blocking, if we are executing a
-     * VMX nested-guest with virtual-NMIs enabled.
-     */
-    return CPUMIsGuestVmxVirtNmiBlocking(pCtx);
-}
-
-
-/**
- * Sets blocking delivery of NMIs to the guest.
- *
- * @param   pVCpu   The cross context virtual CPU structure.
- * @param   fBlock  Whether NMIs are blocked or not.
- */
-VMM_INT_DECL(void) CPUMSetGuestNmiBlocking(PVMCPU pVCpu, bool fBlock)
-{
-    /*
-     * Set the state of guest-NMI blocking in any of the following cases:
-     *   - We're not executing a nested-guest.
-     *   - We're executing an SVM nested-guest[1].
-     *   - We're executing a VMX nested-guest without virtual-NMIs enabled.
-     *
-     * [1] -- SVM does not support virtual-NMIs or virtual-NMI blocking.
-     *        SVM hypervisors must track NMI blocking themselves by intercepting
-     *        the IRET instruction after injection of an NMI.
-     */
-    PCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
-    if (   !CPUMIsGuestInNestedHwvirtMode(pCtx)
-        ||  CPUMIsGuestInSvmNestedHwVirtMode(pCtx)
-        || !CPUMIsGuestVmxPinCtlsSet(pCtx, VMX_PIN_CTLS_VIRT_NMI))
-    {
-        if (fBlock)
-        {
-            if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-                VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-        }
-        else
-        {
-            if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
-        }
-        return;
-    }
-
-    /*
-     * Set the state of virtual-NMI blocking, if we are executing a
-     * VMX nested-guest with virtual-NMIs enabled.
-     */
-    return CPUMSetGuestVmxVirtNmiBlocking(pCtx, fBlock);
 }
 
 
@@ -2166,7 +2106,7 @@ VMM_INT_DECL(void) CPUMSvmVmExitRestoreHostState(PVMCPUCC pVCpu, PCPUMCTX pCtx)
     CPUMSetGuestCR0(pVCpu, pHostState->uCr0 | X86_CR0_PE);
     pCtx->cr3        = pHostState->uCr3;
     CPUMSetGuestCR4(pVCpu, pHostState->uCr4);
-    pCtx->rflags     = pHostState->rflags;
+    pCtx->rflags.u   = pHostState->rflags.u;
     pCtx->rflags.Bits.u1VM = 0;
     pCtx->rip        = pHostState->uRip;
     pCtx->rsp        = pHostState->uRsp;
@@ -2202,7 +2142,7 @@ VMM_INT_DECL(void) CPUMSvmVmRunSaveHostState(PCPUMCTX pCtx, uint8_t cbInstr)
     pHostState->uCr0     = pCtx->cr0;
     pHostState->uCr3     = pCtx->cr3;
     pHostState->uCr4     = pCtx->cr4;
-    pHostState->rflags   = pCtx->rflags;
+    pHostState->rflags.u = pCtx->rflags.u;
     pHostState->uRip     = pCtx->rip + cbInstr;
     pHostState->uRsp     = pCtx->rsp;
     pHostState->uRax     = pCtx->rax;

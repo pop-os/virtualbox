@@ -45,7 +45,7 @@ FNIEMOP_DEF_1(iemOpCommonMmx_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U64, pfnU64)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * MMX, MMX.
          */
         /** @todo testcase: REX.B / REX.R and MMX register indexing. Ignored? */
         /** @todo testcase: REX.B / REX.R and segment register indexing. Ignored? */
@@ -68,7 +68,7 @@ FNIEMOP_DEF_1(iemOpCommonMmx_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U64, pfnU64)
     else
     {
         /*
-         * Register, memory.
+         * MMX, [mem64].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(uint64_t *,                  pDst,       0);
@@ -108,7 +108,7 @@ FNIEMOP_DEF_1(iemOpCommonMmxOpt_FullFull_To_Full, PFNIEMAIMPLMEDIAOPTF2U64, pfnU
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * MMX, MMX.
          */
         /** @todo testcase: REX.B / REX.R and MMX register indexing. Ignored? */
         /** @todo testcase: REX.B / REX.R and segment register indexing. Ignored? */
@@ -131,7 +131,7 @@ FNIEMOP_DEF_1(iemOpCommonMmxOpt_FullFull_To_Full, PFNIEMAIMPLMEDIAOPTF2U64, pfnU
     else
     {
         /*
-         * Register, memory.
+         * MMX, [mem64].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(uint64_t *,                  pDst,       0);
@@ -169,7 +169,7 @@ FNIEMOP_DEF_1(iemOpCommonMmxSse_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U64, pfnU64)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * MMX, MMX.
          */
         /** @todo testcase: REX.B / REX.R and MMX register indexing. Ignored? */
         /** @todo testcase: REX.B / REX.R and segment register indexing. Ignored? */
@@ -192,7 +192,7 @@ FNIEMOP_DEF_1(iemOpCommonMmxSse_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U64, pfnU64)
     else
     {
         /*
-         * Register, memory.
+         * MMX, [mem64].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(uint64_t *,                  pDst,       0);
@@ -233,7 +233,7 @@ FNIEMOP_DEF_1(iemOpCommonMmxSseOpt_FullFull_To_Full, PFNIEMAIMPLMEDIAOPTF2U64, p
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * MMX, MMX.
          */
         /** @todo testcase: REX.B / REX.R and MMX register indexing. Ignored? */
         /** @todo testcase: REX.B / REX.R and segment register indexing. Ignored? */
@@ -256,7 +256,7 @@ FNIEMOP_DEF_1(iemOpCommonMmxSseOpt_FullFull_To_Full, PFNIEMAIMPLMEDIAOPTF2U64, p
     else
     {
         /*
-         * Register, memory.
+         * MMX, [mem64].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(uint64_t *,                  pDst,       0);
@@ -294,7 +294,7 @@ FNIEMOP_DEF_2(iemOpCommonMmx_FullFull_To_Full_Ex, PFNIEMAIMPLMEDIAF2U64, pfnU64,
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * MMX, MMX.
          */
         /** @todo testcase: REX.B / REX.R and MMX register indexing. Ignored? */
         /** @todo testcase: REX.B / REX.R and segment register indexing. Ignored? */
@@ -317,7 +317,7 @@ FNIEMOP_DEF_2(iemOpCommonMmx_FullFull_To_Full_Ex, PFNIEMAIMPLMEDIAF2U64, pfnU64,
     else
     {
         /*
-         * Register, memory.
+         * MMX, [mem64].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(uint64_t *,                  pDst,       0);
@@ -359,7 +359,7 @@ FNIEMOP_DEF_1(iemOpCommonSse_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U128, pfnU128)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -376,7 +376,7 @@ FNIEMOP_DEF_1(iemOpCommonSse_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U128, pfnU128)
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(PRTUINT128U,                 pDst,       0);
@@ -415,7 +415,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U128, pfnU128)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -432,7 +432,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2_FullFull_To_Full, PFNIEMAIMPLMEDIAF2U128, pfnU128)
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(PRTUINT128U,                 pDst,       0);
@@ -474,7 +474,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2Opt_FullFull_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pf
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -491,7 +491,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2Opt_FullFull_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pf
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(PRTUINT128U,                 pDst,       0);
@@ -528,7 +528,7 @@ FNIEMOP_DEF_1(iemOpCommonMmx_LowLow_To_Full, FNIEMAIMPLMEDIAOPTF2U64, pfnU64)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * MMX, MMX.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -549,7 +549,7 @@ FNIEMOP_DEF_1(iemOpCommonMmx_LowLow_To_Full, FNIEMAIMPLMEDIAOPTF2U64, pfnU64)
     else
     {
         /*
-         * Register, memory.
+         * MMX, [mem32].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(uint64_t *,                  puDst,       0);
@@ -591,7 +591,7 @@ FNIEMOP_DEF_1(iemOpCommonSse_LowLow_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU128)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -608,7 +608,7 @@ FNIEMOP_DEF_1(iemOpCommonSse_LowLow_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU128)
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(PRTUINT128U,             puDst,       0);
@@ -652,7 +652,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2_LowLow_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU128
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -669,7 +669,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2_LowLow_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU128
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(PRTUINT128U,             puDst,       0);
@@ -711,7 +711,7 @@ FNIEMOP_DEF_1(iemOpCommonMmx_HighHigh_To_Full, PFNIEMAIMPLMEDIAOPTF2U64, pfnU64)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * MMX, MMX.
          */
         /** @todo testcase: REX.B / REX.R and MMX register indexing. Ignored? */
         /** @todo testcase: REX.B / REX.R and segment register indexing. Ignored? */
@@ -734,7 +734,7 @@ FNIEMOP_DEF_1(iemOpCommonMmx_HighHigh_To_Full, PFNIEMAIMPLMEDIAOPTF2U64, pfnU64)
     else
     {
         /*
-         * Register, memory.
+         * MMX, [mem64].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(uint64_t *,                  puDst,       0);
@@ -776,7 +776,7 @@ FNIEMOP_DEF_1(iemOpCommonSse_HighHigh_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU12
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -793,7 +793,7 @@ FNIEMOP_DEF_1(iemOpCommonSse_HighHigh_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU12
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(PRTUINT128U,                 puDst,       0);
@@ -837,7 +837,7 @@ FNIEMOP_DEF_1(iemOpCommonSseFp_FullFull_To_Full, PFNIEMAIMPLFPSSEF2U128, pfnU128
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM128, XMM128.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(3, 1);
@@ -859,7 +859,7 @@ FNIEMOP_DEF_1(iemOpCommonSseFp_FullFull_To_Full, PFNIEMAIMPLFPSSEF2U128, pfnU128
     else
     {
         /*
-         * Register, memory.
+         * XMM128, [mem128].
          */
         IEM_MC_BEGIN(3, 2);
         IEM_MC_LOCAL(IEMSSERESULT,          SseRes);
@@ -902,7 +902,7 @@ FNIEMOP_DEF_1(iemOpCommonSseFp_FullR32_To_Full, PFNIEMAIMPLFPSSEF2U128R32, pfnU1
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM128, XMM32.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(3, 1);
@@ -924,7 +924,7 @@ FNIEMOP_DEF_1(iemOpCommonSseFp_FullR32_To_Full, PFNIEMAIMPLFPSSEF2U128R32, pfnU1
     else
     {
         /*
-         * Register, memory.
+         * XMM128, [mem32].
          */
         IEM_MC_BEGIN(3, 2);
         IEM_MC_LOCAL(IEMSSERESULT,          SseRes);
@@ -967,7 +967,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2Fp_FullFull_To_Full, PFNIEMAIMPLFPSSEF2U128, pfnU12
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM128, XMM128.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(3, 1);
@@ -989,7 +989,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2Fp_FullFull_To_Full, PFNIEMAIMPLFPSSEF2U128, pfnU12
     else
     {
         /*
-         * Register, memory.
+         * XMM128, [mem128].
          */
         IEM_MC_BEGIN(3, 2);
         IEM_MC_LOCAL(IEMSSERESULT,          SseRes);
@@ -1032,7 +1032,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2Fp_FullR64_To_Full, PFNIEMAIMPLFPSSEF2U128R64, pfnU
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(3, 1);
@@ -1054,7 +1054,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2Fp_FullR64_To_Full, PFNIEMAIMPLFPSSEF2U128R64, pfnU
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem64].
          */
         IEM_MC_BEGIN(3, 2);
         IEM_MC_LOCAL(IEMSSERESULT,          SseRes);
@@ -1097,7 +1097,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2_HighHigh_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU1
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(2, 0);
@@ -1114,7 +1114,7 @@ FNIEMOP_DEF_1(iemOpCommonSse2_HighHigh_To_Full, PFNIEMAIMPLMEDIAOPTF2U128, pfnU1
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(2, 2);
         IEM_MC_ARG(PRTUINT128U,                 puDst,       0);
@@ -1158,7 +1158,7 @@ FNIEMOP_DEF_1(iemOpCommonSse3Fp_FullFull_To_Full, PFNIEMAIMPLFPSSEF2U128, pfnU12
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM.
          */
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
         IEM_MC_BEGIN(3, 1);
@@ -1180,7 +1180,7 @@ FNIEMOP_DEF_1(iemOpCommonSse3Fp_FullFull_To_Full, PFNIEMAIMPLFPSSEF2U128, pfnU12
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128].
          */
         IEM_MC_BEGIN(3, 2);
         IEM_MC_LOCAL(IEMSSERESULT,          SseRes);
@@ -4355,7 +4355,7 @@ FNIEMOP_DEF(iemOp_cvttss2si_Gy_Wss)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -4384,7 +4384,7 @@ FNIEMOP_DEF(iemOp_cvttss2si_Gy_Wss)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -4481,7 +4481,7 @@ FNIEMOP_DEF(iemOp_cvttsd2si_Gy_Wsd)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -4510,7 +4510,7 @@ FNIEMOP_DEF(iemOp_cvttsd2si_Gy_Wsd)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -4747,7 +4747,7 @@ FNIEMOP_DEF(iemOp_cvtss2si_Gy_Wss)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -4776,7 +4776,7 @@ FNIEMOP_DEF(iemOp_cvtss2si_Gy_Wss)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -4873,7 +4873,7 @@ FNIEMOP_DEF(iemOp_cvtsd2si_Gy_Wsd)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -4902,7 +4902,7 @@ FNIEMOP_DEF(iemOp_cvtsd2si_Gy_Wsd)
             IEM_MC_IF_MXCSR_XCPT_PENDING()
                 IEM_MC_RAISE_SSE_AVX_SIMD_FP_OR_UD_XCPT();
             IEM_MC_ELSE()
-                IEM_MC_STORE_GREG_I32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
+                IEM_MC_STORE_GREG_U32(IEM_GET_MODRM_REG(pVCpu, bRm), i32Dst);
             IEM_MC_ENDIF();
 
             IEM_MC_ADVANCE_RIP();
@@ -10330,7 +10330,11 @@ FNIEMOP_DEF(iemOp_cmpxchg_Ev_Gv)
 
                 IEM_MC_MEM_COMMIT_AND_UNMAP(pu32Dst, IEM_ACCESS_DATA_RW);
                 IEM_MC_COMMIT_EFLAGS(EFlags);
-                IEM_MC_STORE_GREG_U32(X86_GREG_xAX, u32Eax);
+
+                IEM_MC_IF_EFL_BIT_NOT_SET(X86_EFL_ZF)
+                    IEM_MC_STORE_GREG_U32(X86_GREG_xAX, u32Eax);
+                IEM_MC_ENDIF();
+
                 IEM_MC_ADVANCE_RIP();
                 IEM_MC_END();
                 return VINF_SUCCESS;
@@ -11844,7 +11848,7 @@ FNIEMOP_DEF(iemOp_pinsrw_Pq_RyMw_Ib)
         /*
          * Register, memory.
          */
-        IEM_MC_BEGIN(3, 2);
+        IEM_MC_BEGIN(3, 1);
         IEM_MC_ARG(uint64_t *,    pu64Dst,               0);
         IEM_MC_ARG(uint16_t,      u16Src,                1);
         IEM_MC_LOCAL(RTGCPTR,            GCPtrEffSrc);
@@ -11926,12 +11930,12 @@ FNIEMOP_DEF(iemOp_pinsrw_Vdq_RyMw_Ib)
 /** Opcode      0x0f 0xc5 - pextrw Gd, Nq, Ib */
 FNIEMOP_DEF(iemOp_pextrw_Gd_Nq_Ib)
 {
-    /*IEMOP_MNEMONIC3(RMI_REG, PEXTRW, pinsrw, Gd, Nq, Ib, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, 0);*/ /** @todo */
+    /*IEMOP_MNEMONIC3(RMI_REG, PEXTRW, pextrw, Gd, Nq, Ib, DISOPTYPE_HARMLESS | DISOPTYPE_SSE, 0);*/ /** @todo */
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * Greg32, MMX, imm8.
          */
         uint8_t bEvil; IEM_OPCODE_GET_NEXT_U8(&bEvil);
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
@@ -11964,7 +11968,7 @@ FNIEMOP_DEF(iemOp_pextrw_Gd_Udq_Ib)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * Greg32, XMM, imm8.
          */
         uint8_t bEvil; IEM_OPCODE_GET_NEXT_U8(&bEvil);
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
@@ -12000,7 +12004,7 @@ FNIEMOP_DEF(iemOp_shufps_Vps_Wps_Ib)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM, imm8.
          */
         uint8_t bEvil; IEM_OPCODE_GET_NEXT_U8(&bEvil);
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
@@ -12019,7 +12023,7 @@ FNIEMOP_DEF(iemOp_shufps_Vps_Wps_Ib)
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128], imm8.
          */
         IEM_MC_BEGIN(3, 2);
         IEM_MC_ARG(PRTUINT128U,                 pDst,       0);
@@ -12053,7 +12057,7 @@ FNIEMOP_DEF(iemOp_shufpd_Vpd_Wpd_Ib)
     if (IEM_IS_MODRM_REG_MODE(bRm))
     {
         /*
-         * Register, register.
+         * XMM, XMM, imm8.
          */
         uint8_t bEvil; IEM_OPCODE_GET_NEXT_U8(&bEvil);
         IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
@@ -12072,7 +12076,7 @@ FNIEMOP_DEF(iemOp_shufpd_Vpd_Wpd_Ib)
     else
     {
         /*
-         * Register, memory.
+         * XMM, [mem128], imm8.
          */
         IEM_MC_BEGIN(3, 2);
         IEM_MC_ARG(PRTUINT128U,                 pDst,       0);
@@ -12137,7 +12141,6 @@ FNIEMOP_DEF_1(iemOp_Grp9_cmpxchg8b_Mq, uint8_t, bRm)
     IEM_MC_MEM_COMMIT_AND_UNMAP(pu64MemDst, IEM_ACCESS_DATA_RW);
     IEM_MC_COMMIT_EFLAGS(EFlags);
     IEM_MC_IF_EFL_BIT_NOT_SET(X86_EFL_ZF)
-        /** @todo Testcase: Check effect of cmpxchg8b on bits 63:32 in rax and rdx. */
         IEM_MC_STORE_GREG_U32(X86_GREG_xAX, u64EaxEdx.s.Lo);
         IEM_MC_STORE_GREG_U32(X86_GREG_xDX, u64EaxEdx.s.Hi);
     IEM_MC_ENDIF();
@@ -12394,8 +12397,8 @@ FNIEMOP_DEF_1(iemOpCommonBswapGReg, uint8_t, iReg)
             IEM_MC_BEGIN(1, 0);
             IEM_MC_ARG(uint32_t *,  pu32Dst, 0);
             IEM_MC_REF_GREG_U32(pu32Dst, iReg);
-            IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(pu32Dst);
             IEM_MC_CALL_VOID_AIMPL_1(iemAImpl_bswap_u32, pu32Dst);
+            IEM_MC_CLEAR_HIGH_GREG_U64_BY_REF(pu32Dst);
             IEM_MC_ADVANCE_RIP();
             IEM_MC_END();
             return VINF_SUCCESS;
@@ -12438,7 +12441,7 @@ FNIEMOP_DEF(iemOp_bswap_rCX_r9)
 /** Opcode 0x0f 0xca. */
 FNIEMOP_DEF(iemOp_bswap_rDX_r10)
 {
-    IEMOP_MNEMONIC(bswap_rDX_r9, "bswap rDX/r9");
+    IEMOP_MNEMONIC(bswap_rDX_r9, "bswap rDX/r10");
     IEMOP_HLP_MIN_486();
     return FNIEMOP_CALL_1(iemOpCommonBswapGReg, X86_GREG_xDX | pVCpu->iem.s.uRexB);
 }
@@ -12447,7 +12450,7 @@ FNIEMOP_DEF(iemOp_bswap_rDX_r10)
 /** Opcode 0x0f 0xcb. */
 FNIEMOP_DEF(iemOp_bswap_rBX_r11)
 {
-    IEMOP_MNEMONIC(bswap_rBX_r9, "bswap rBX/r9");
+    IEMOP_MNEMONIC(bswap_rBX_r9, "bswap rBX/r11");
     IEMOP_HLP_MIN_486();
     return FNIEMOP_CALL_1(iemOpCommonBswapGReg, X86_GREG_xBX | pVCpu->iem.s.uRexB);
 }
@@ -12779,7 +12782,7 @@ FNIEMOP_DEF(iemOp_pmovmskb_Gd_Nq)
         IEM_MC_PREPARE_FPU_USAGE();
         IEM_MC_FPU_TO_MMX_MODE();
 
-        IEM_MC_REF_GREG_U64(puDst,          IEM_GET_MODRM_REG_8(bRm));
+        IEM_MC_REF_GREG_U64(puDst,          IEM_GET_MODRM_REG(pVCpu, bRm));
         IEM_MC_REF_MREG_U64_CONST(puSrc,    IEM_GET_MODRM_RM_8(bRm));
         IEM_MC_CALL_VOID_AIMPL_2(iemAImpl_pmovmskb_u64, puDst, puSrc);
 

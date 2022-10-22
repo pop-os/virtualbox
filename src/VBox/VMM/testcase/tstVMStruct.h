@@ -160,7 +160,7 @@
     GEN_CHECK_OFF(CPUMCTX, hwvirt.vmx.Msrs);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.enmHwvirt);
     GEN_CHECK_OFF(CPUMCTX, hwvirt.fGif);
-    GEN_CHECK_OFF(CPUMCTX, hwvirt.fLocalForcedActions);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.fSavedInhibit);
     /** @todo NSTVMX: add rest of hwvirt fields when code is more
      *        finalized. */
     GEN_CHECK_OFF(CPUMCTX, XState);
@@ -225,7 +225,6 @@
 #endif
 
     GEN_CHECK_SIZE(CPUMCTXMSRS);
-    GEN_CHECK_SIZE(CPUMCTXCORE);
 
 #ifndef VBOX_FOR_DTRACE_LIB
     GEN_CHECK_SIZE(STAMRATIOU32);
@@ -656,7 +655,6 @@
     GEN_CHECK_OFF(PGMCPU, apGstPaePDsR0);
     GEN_CHECK_OFF(PGMCPU, apGstPaePDsRC);
     GEN_CHECK_OFF(PGMCPU, aGCPhysGstPaePDs);
-    GEN_CHECK_OFF(PGMCPU, aGCPhysGstPaePDsMonitored);
     GEN_CHECK_OFF(PGMCPU, pShwPageCR3R3);
     GEN_CHECK_OFF(PGMCPU, pShwPageCR3R0);
     GEN_CHECK_OFF(PGMCPU, pShwPageCR3RC);

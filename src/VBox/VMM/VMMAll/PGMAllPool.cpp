@@ -763,14 +763,14 @@ DECLINLINE(bool) pgmRZPoolMonitorIsForking(PPGMPOOL pPool, PDISCPUSTATE pDis, un
  * @returns false if we consider it to still be a paging page.
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pRegFrame   Trap register frame.
+ * @param   pCtx        Pointer to the register context for the CPU.
  * @param   pDis        The disassembly info for the faulting instruction.
  * @param   pvFault     The fault address.
  * @param   pPage       The pool page being accessed.
  *
  * @remark  The REP prefix check is left to the caller because of STOSD/W.
  */
-DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pDis, RTGCPTR pvFault,
+DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, RTGCPTR pvFault,
                                           PPGMPOOLPAGE pPage)
 {
     /* Locked (CR3, PDPTR*4) should not be reusable.  Considering them as
@@ -783,14 +783,14 @@ DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCOR
 
     /** @todo could make this general, faulting close to rsp should be a safe reuse heuristic. */
     if (   HMHasPendingIrq(pVM)
-        && pRegFrame->rsp - pvFault < 32)
+        && pCtx->rsp - pvFault < 32)
     {
         /* Fault caused by stack writes while trying to inject an interrupt event. */
-        Log(("pgmRZPoolMonitorIsReused: reused %RGv for interrupt stack (rsp=%RGv).\n", pvFault, pRegFrame->rsp));
+        Log(("pgmRZPoolMonitorIsReused: reused %RGv for interrupt stack (rsp=%RGv).\n", pvFault, pCtx->rsp));
         return true;
     }
 
-    LogFlow(("Reused instr %RGv %d at %RGv param1.fUse=%llx param1.reg=%d\n", pRegFrame->rip, pDis->pCurInstr->uOpcode, pvFault, pDis->Param1.fUse,  pDis->Param1.Base.idxGenReg));
+    LogFlow(("Reused instr %RGv %d at %RGv param1.fUse=%llx param1.reg=%d\n", pCtx->rip, pDis->pCurInstr->uOpcode, pvFault, pDis->Param1.fUse,  pDis->Param1.Base.idxGenReg));
 
     /* Non-supervisor mode write means it's used for something else. */
     if (CPUMGetGuestCPL(pVCpu) == 3)
@@ -823,7 +823,7 @@ DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCOR
         case OP_MOVSWD:
         case OP_STOSWD:
             if (    pDis->fPrefix == (DISPREFIX_REP|DISPREFIX_REX)
-                &&  pRegFrame->rcx >= 0x40
+                &&  pCtx->rcx >= 0x40
                )
             {
                 Assert(pDis->uCpuMode == DISCPUMODE_64BIT);
@@ -880,13 +880,12 @@ DECLINLINE(bool) pgmRZPoolMonitorIsReused(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCOR
  * @param   pPool       The pool.
  * @param   pPage       The pool page (head).
  * @param   pDis        The disassembly of the write instruction.
- * @param   pRegFrame   The trap register frame.
+ * @param   pCtx        Pointer to the register context for the CPU.
  * @param   GCPhysFault The fault address as guest physical address.
- * @param   pvFault     The fault address.
  * @todo VBOXSTRICTRC
  */
 static int pgmRZPoolAccessPfHandlerFlush(PVMCC pVM, PVMCPUCC pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
-                                         PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
+                                         PCPUMCTX pCtx, RTGCPHYS GCPhysFault)
 {
     NOREF(pVM); NOREF(GCPhysFault);
 
@@ -900,7 +899,7 @@ static int pgmRZPoolAccessPfHandlerFlush(PVMCC pVM, PVMCPUCC pVCpu, PPGMPOOL pPo
      * Must do this in raw mode (!); XP boot will fail otherwise.
      */
     int rc = VINF_SUCCESS;
-    VBOXSTRICTRC rc2 = EMInterpretInstructionDisasState(pVCpu, pDis, pRegFrame, pvFault, EMCODETYPE_ALL);
+    VBOXSTRICTRC rc2 = EMInterpretInstructionDisasState(pVCpu, pDis, pCtx->rip);
     if (rc2 == VINF_SUCCESS)
     { /* do nothing */ }
     else if (rc2 == VINF_EM_RESCHEDULE)
@@ -933,18 +932,18 @@ static int pgmRZPoolAccessPfHandlerFlush(PVMCC pVM, PVMCPUCC pVCpu, PPGMPOOL pPo
  * @param   pPool       The pool.
  * @param   pPage       The pool page (head).
  * @param   pDis        The disassembly of the write instruction.
- * @param   pRegFrame   The trap register frame.
+ * @param   pCtx        Pointer to the register context for the CPU.
  * @param   GCPhysFault The fault address as guest physical address.
  * @param   pvFault     The fault address.
  */
 DECLINLINE(int) pgmRZPoolAccessPfHandlerSTOSD(PVMCC pVM, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
-                                              PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
+                                              PCPUMCTX pCtx, RTGCPHYS GCPhysFault, RTGCPTR pvFault)
 {
     unsigned uIncrement = pDis->Param1.cb;
     NOREF(pVM);
 
     Assert(pDis->uCpuMode == DISCPUMODE_32BIT || pDis->uCpuMode == DISCPUMODE_64BIT);
-    Assert(pRegFrame->rcx <= 0x20);
+    Assert(pCtx->rcx <= 0x20);
 
 # ifdef VBOX_STRICT
     if (pDis->uOpMode == DISCPUMODE_32BIT)
@@ -970,16 +969,16 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSTOSD(PVMCC pVM, PPGMPOOL pPool, PPGMPOO
      */
     PVMCPUCC    pVCpu = VMMGetCpu(pPool->CTX_SUFF(pVM));
     RTGCUINTPTR pu32 = (RTGCUINTPTR)pvFault;
-    while (pRegFrame->rcx)
+    while (pCtx->rcx)
     {
         pgmPoolMonitorChainChanging(pVCpu, pPool, pPage, GCPhysFault, NULL, uIncrement);
-        PGMPhysSimpleWriteGCPhys(pVM, GCPhysFault, &pRegFrame->rax, uIncrement);
+        PGMPhysSimpleWriteGCPhys(pVM, GCPhysFault, &pCtx->rax, uIncrement);
         pu32           += uIncrement;
         GCPhysFault    += uIncrement;
-        pRegFrame->rdi += uIncrement;
-        pRegFrame->rcx--;
+        pCtx->rdi += uIncrement;
+        pCtx->rcx--;
     }
-    pRegFrame->rip += pDis->cbInstr;
+    pCtx->rip += pDis->cbInstr;
 
     LogFlow(("pgmRZPoolAccessPfHandlerSTOSD: returns\n"));
     return VINF_SUCCESS;
@@ -995,13 +994,12 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSTOSD(PVMCC pVM, PPGMPOOL pPool, PPGMPOO
  * @param   pPool       The pool.
  * @param   pPage       The pool page (head).
  * @param   pDis        The disassembly of the write instruction.
- * @param   pRegFrame   The trap register frame.
+ * @param   pCtx        Pointer to the register context for the CPU.
  * @param   GCPhysFault The fault address as guest physical address.
- * @param   pvFault     The fault address.
  * @param   pfReused    Reused state (in/out)
  */
 DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVMCC pVM, PVMCPUCC pVCpu, PPGMPOOL pPool, PPGMPOOLPAGE pPage, PDISCPUSTATE pDis,
-                                               PCPUMCTXCORE pRegFrame, RTGCPHYS GCPhysFault, RTGCPTR pvFault, bool *pfReused)
+                                               PCPUMCTX pCtx, RTGCPHYS GCPhysFault, bool *pfReused)
 {
     Log3(("pgmRZPoolAccessPfHandlerSimple\n"));
     NOREF(pVM);
@@ -1015,7 +1013,7 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVMCC pVM, PVMCPUCC pVCpu, PPGMPO
         pgmPoolMonitorModifiedInsert(pPool, pPage);
 
     /*
-     * Clear all the pages. ASSUMES that pvFault is readable.
+     * Clear all the pages.
      */
     uint32_t cbWrite = DISGetParamSize(pDis, &pDis->Param1);
     if (cbWrite <= 8)
@@ -1035,13 +1033,13 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVMCC pVM, PVMCPUCC pVCpu, PPGMPO
     /*
      * Interpret the instruction.
      */
-    VBOXSTRICTRC rc = EMInterpretInstructionDisasState(pVCpu, pDis, pRegFrame, pvFault, EMCODETYPE_ALL);
+    VBOXSTRICTRC rc = EMInterpretInstructionDisasState(pVCpu, pDis, pCtx->rip);
     if (RT_SUCCESS(rc))
         AssertMsg(rc == VINF_SUCCESS, ("%Rrc\n", VBOXSTRICTRC_VAL(rc))); /* ASSUMES no complicated stuff here. */
     else if (rc == VERR_EM_INTERPRETER)
     {
         LogFlow(("pgmRZPoolAccessPfHandlerSimple: Interpretation failed for %04x:%RGv - opcode=%d\n",
-                  pRegFrame->cs.Sel, (RTGCPTR)pRegFrame->rip, pDis->pCurInstr->uOpcode));
+                 pCtx->cs.Sel, (RTGCPTR)pCtx->rip, pDis->pCurInstr->uOpcode));
         rc = VINF_EM_RAW_EMULATE_INSTR;
         STAM_COUNTER_INC(&pPool->CTX_MID_Z(StatMonitorPf,EmulateInstr));
     }
@@ -1087,7 +1085,7 @@ DECLINLINE(int) pgmRZPoolAccessPfHandlerSimple(PVMCC pVM, PVMCPUCC pVCpu, PPGMPO
  *
  * @remarks The @a uUser argument is the index of the PGMPOOLPAGE.
  */
-DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame,
+DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErrorCode, PCPUMCTX pCtx,
                                                     RTGCPTR pvFault, RTGCPHYS GCPhysFault, uint64_t uUser)
 {
     STAM_PROFILE_START(&pVM->pgm.s.CTX_SUFF(pPool)->StatMonitorRZ, a);
@@ -1152,7 +1150,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
      * Disassemble the faulting instruction.
      */
     PDISCPUSTATE pDis = &pVCpu->pgm.s.DisState;
-    int rc = EMInterpretDisasCurrent(pVM, pVCpu, pDis, NULL);
+    int rc = EMInterpretDisasCurrent(pVCpu, pDis, NULL);
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
     {
         AssertMsg(rc == VERR_PAGE_NOT_PRESENT || rc == VERR_PAGE_TABLE_NOT_PRESENT, ("Unexpected rc %d\n", rc));
@@ -1184,8 +1182,8 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
      * (Only applies when started from offset 0)
      */
     pVCpu->pgm.s.cPoolAccessHandler++;
-    if (    pPage->GCPtrLastAccessHandlerRip >= pRegFrame->rip - 0x40      /* observed loops in Windows 7 x64 */
-        &&  pPage->GCPtrLastAccessHandlerRip <  pRegFrame->rip + 0x40
+    if (    pPage->GCPtrLastAccessHandlerRip >= pCtx->rip - 0x40      /* observed loops in Windows 7 x64 */
+        &&  pPage->GCPtrLastAccessHandlerRip <  pCtx->rip + 0x40
         &&  pvFault == (pPage->GCPtrLastAccessHandlerFault + pDis->Param1.cb)
         &&  pVCpu->pgm.s.cPoolAccessHandler == pPage->cLastAccessHandler + 1)
     {
@@ -1212,7 +1210,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
     if (    (   pPage->cModifications < cMaxModifications   /** @todo \#define */ /** @todo need to check that it's not mapping EIP. */ /** @todo adjust this! */
              || pgmPoolIsPageLocked(pPage)
             )
-        &&  !(fReused = pgmRZPoolMonitorIsReused(pVM, pVCpu, pRegFrame, pDis, pvFault, pPage))
+        &&  !(fReused = pgmRZPoolMonitorIsReused(pVM, pVCpu, pCtx, pDis, pvFault, pPage))
         &&  !pgmRZPoolMonitorIsForking(pPool, pDis, GCPhysFault & PAGE_OFFSET_MASK))
     {
         /*
@@ -1220,7 +1218,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
          */
         if (!(pDis->fPrefix & (DISPREFIX_REP | DISPREFIX_REPNE)))
         {
-            rc = pgmRZPoolAccessPfHandlerSimple(pVM, pVCpu, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault, &fReused);
+            rc = pgmRZPoolAccessPfHandlerSimple(pVM, pVCpu, pPool, pPage, pDis, pCtx, GCPhysFault, &fReused);
             if (fReused)
                 goto flushPage;
 
@@ -1234,7 +1232,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
             {
                 pPage->GCPtrLastAccessHandlerFault = pvFault;
                 pPage->cLastAccessHandler          = pVCpu->pgm.s.cPoolAccessHandler;
-                pPage->GCPtrLastAccessHandlerRip   = pRegFrame->rip;
+                pPage->GCPtrLastAccessHandlerRip   = pCtx->rip;
                 /* Make sure we don't kick out a page too quickly. */
                 if (pPage->cModifications > 8)
                     pPage->cModifications = 2;
@@ -1260,7 +1258,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
          * We have to deal with these or we'll kill the cache and performance.
          */
         if (    pDis->pCurInstr->uOpcode == OP_STOSWD
-            &&  !pRegFrame->eflags.Bits.u1DF
+            &&  !pCtx->eflags.Bits.u1DF
             &&  pDis->uOpMode == pDis->uCpuMode
             &&  pDis->uAddrMode == pDis->uCpuMode)
         {
@@ -1268,22 +1266,22 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
 
             if (    pDis->uCpuMode == DISCPUMODE_32BIT
                 &&  pDis->fPrefix == DISPREFIX_REP
-                &&  pRegFrame->ecx <= 0x20
-                &&  pRegFrame->ecx * 4 <= GUEST_PAGE_SIZE - ((uintptr_t)pvFault & GUEST_PAGE_OFFSET_MASK)
+                &&  pCtx->ecx <= 0x20
+                &&  pCtx->ecx * 4 <= GUEST_PAGE_SIZE - ((uintptr_t)pvFault & GUEST_PAGE_OFFSET_MASK)
                 &&  !((uintptr_t)pvFault & 3)
-                &&  (pRegFrame->eax == 0 || pRegFrame->eax == 0x80) /* the two values observed. */
+                &&  (pCtx->eax == 0 || pCtx->eax == 0x80) /* the two values observed. */
                 )
             {
                 fValidStosd = true;
-                pRegFrame->rcx &= 0xffffffff;   /* paranoia */
+                pCtx->rcx &= 0xffffffff;   /* paranoia */
             }
             else
             if (    pDis->uCpuMode == DISCPUMODE_64BIT
                 &&  pDis->fPrefix == (DISPREFIX_REP | DISPREFIX_REX)
-                &&  pRegFrame->rcx <= 0x20
-                &&  pRegFrame->rcx * 8 <= GUEST_PAGE_SIZE - ((uintptr_t)pvFault & GUEST_PAGE_OFFSET_MASK)
+                &&  pCtx->rcx <= 0x20
+                &&  pCtx->rcx * 8 <= GUEST_PAGE_SIZE - ((uintptr_t)pvFault & GUEST_PAGE_OFFSET_MASK)
                 &&  !((uintptr_t)pvFault & 7)
-                &&  (pRegFrame->rax == 0 || pRegFrame->rax == 0x80) /* the two values observed. */
+                &&  (pCtx->rax == 0 || pCtx->rax == 0x80) /* the two values observed. */
                 )
             {
                 fValidStosd = true;
@@ -1291,7 +1289,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
 
             if (fValidStosd)
             {
-                rc = pgmRZPoolAccessPfHandlerSTOSD(pVM, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault);
+                rc = pgmRZPoolAccessPfHandlerSTOSD(pVM, pPool, pPage, pDis, pCtx, GCPhysFault, pvFault);
                 STAM_PROFILE_STOP_EX(&pVM->pgm.s.CTX_SUFF(pPool)->StatMonitorPfRZ, &pPool->StatMonitorPfRZRepStosd, a);
                 PGM_UNLOCK(pVM);
                 return rc;
@@ -1301,7 +1299,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
         /* REP prefix, don't bother. */
         STAM_COUNTER_INC(&pPool->StatMonitorPfRZRepPrefix);
         Log4(("pgmRZPoolAccessPfHandler: eax=%#x ecx=%#x edi=%#x esi=%#x rip=%RGv opcode=%d prefix=%#x\n",
-              pRegFrame->eax, pRegFrame->ecx, pRegFrame->edi, pRegFrame->esi, (RTGCPTR)pRegFrame->rip, pDis->pCurInstr->uOpcode, pDis->fPrefix));
+              pCtx->eax, pCtx->ecx, pCtx->edi, pCtx->esi, (RTGCPTR)pCtx->rip, pDis->pCurInstr->uOpcode, pDis->fPrefix));
         fNotReusedNotForking = true;
     }
 
@@ -1313,7 +1311,7 @@ DECLCALLBACK(VBOXSTRICTRC) pgmRZPoolAccessPfHandler(PVMCC pVM, PVMCPUCC pVCpu, R
         &&  !fForcedFlush
         &&  (pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_PAE_PT || pPage->enmKind == PGMPOOLKIND_PAE_PT_FOR_32BIT_PT)
         &&  (   fNotReusedNotForking
-             || (   !pgmRZPoolMonitorIsReused(pVM, pVCpu, pRegFrame, pDis, pvFault, pPage)
+             || (   !pgmRZPoolMonitorIsReused(pVM, pVCpu, pCtx, pDis, pvFault, pPage)
                  && !pgmRZPoolMonitorIsForking(pPool, pDis, GCPhysFault & PAGE_OFFSET_MASK))
             )
        )
@@ -1390,13 +1388,13 @@ flushPage:
      * interpret then. This may be a bit risky, in which case
      * the reuse detection must be fixed.
      */
-    rc = pgmRZPoolAccessPfHandlerFlush(pVM, pVCpu, pPool, pPage, pDis, pRegFrame, GCPhysFault, pvFault);
+    rc = pgmRZPoolAccessPfHandlerFlush(pVM, pVCpu, pPool, pPage, pDis, pCtx, GCPhysFault);
     if (    rc == VINF_EM_RAW_EMULATE_INSTR
         &&  fReused)
     {
         Assert(!PGMPOOL_PAGE_IS_NESTED(pPage)); /* temporary, remove later. */
         /* Make sure that the current instruction still has shadow page backing, otherwise we'll end up in a loop. */
-        if (PGMShwGetPage(pVCpu, pRegFrame->rip, NULL, NULL) == VINF_SUCCESS)
+        if (PGMShwGetPage(pVCpu, pCtx->rip, NULL, NULL) == VINF_SUCCESS)
             rc = VINF_SUCCESS;  /* safe to restart the instruction. */
     }
     STAM_PROFILE_STOP_EX(&pVM->pgm.s.CTX_SUFF(pPool)->StatMonitorPfRZ, &pPool->StatMonitorPfRZFlushPage, a);
@@ -2321,6 +2319,7 @@ static bool pgmPoolCacheReusedByKind(PGMPOOLKIND enmKind1, PGMPOOLKIND enmKind2)
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
         case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
         case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
         case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
             return PGMPOOL_PAGE_IS_KIND_NESTED(enmKind2);
@@ -2574,6 +2573,7 @@ static PPGMPOOLPAGE pgmPoolMonitorGetPageByGCPhys(PPGMPOOL pPool, PPGMPOOLPAGE p
                 case PGMPOOLKIND_32BIT_PD_PHYS:
                 case PGMPOOLKIND_PAE_PDPT_FOR_32BIT:
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+                case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
                 case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
 #endif
                     break;
@@ -2648,6 +2648,7 @@ static int pgmPoolMonitorInsert(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
             break;
 
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
         case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
             /* Nothing to monitor here. */
             return VINF_SUCCESS;
@@ -2756,6 +2757,7 @@ static int pgmPoolMonitorFlush(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
         case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
             break;
 
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
         case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
             /* Nothing to monitor here. */
             Assert(!pPage->fMonitored);
@@ -3510,6 +3512,9 @@ static bool pgmPoolTrackFlushGCPhysPTInt(PVM pVM, PCPGMPAGE pPhysPage, bool fFlu
 #ifdef PGM_WITH_LARGE_PAGES
         /* Large page case only. */
         case PGMPOOLKIND_EPT_PD_FOR_PHYS:
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:    /* X86_PDE4M_PS is same as leaf bit in EPT; be careful! */
+#endif
         {
             Assert(pVM->pgm.s.fNestedPaging);
 
@@ -4013,6 +4018,7 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
 
 # ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
         case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
         case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
         case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
         case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
@@ -4057,6 +4063,7 @@ static void pgmPoolTrackClearPageUser(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PCPGMP
         case PGMPOOLKIND_EPT_PD_FOR_PHYS:
 # ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
         case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
         case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
         case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
         case PGMPOOLKIND_EPT_PML4_FOR_EPT_PML4:
@@ -4674,8 +4681,8 @@ DECLINLINE(void) pgmPoolTrackDerefPTEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPT
     }
 }
 
-
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+
 /**
  * Clears references to shadowed pages in a SLAT EPT page table.
  *
@@ -4700,6 +4707,73 @@ DECLINLINE(void) pgmPoolTrackDerefNestedPTEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage
         }
     }
 }
+
+
+/**
+ * Clear references to guest physical memory in a SLAT 2MB EPT page table.
+ *
+ * @param   pPool   The pool.
+ * @param   pPage   The page.
+ * @param   pShwPT  The shadow page table (mapping of the page).
+ */
+DECLINLINE(void) pgmPoolTrackDerefNestedPTEPT2MB(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPTPT pShwPT)
+{
+    Assert(pPage->fA20Enabled);
+    RTGCPHYS GCPhys = pPage->GCPhys + PAGE_SIZE * pPage->iFirstPresent;
+    for (unsigned i = pPage->iFirstPresent; i < RT_ELEMENTS(pShwPT->a); i++, GCPhys += PAGE_SIZE)
+    {
+        X86PGPAEUINT const uShwPte = pShwPT->a[i].u;
+        Assert((uShwPte & UINT64_C(0xfff0000000000f80)) == 0); /* Access, Dirty, UserX (not supported) and ignored bits 7, 11. */
+        if (uShwPte & EPT_PRESENT_MASK)
+        {
+            Log7Func(("Shw=%RX64 GstPte=%RX64\n", uShwPte, GCPhys));
+            pgmPoolTracDerefGCPhys(pPool, pPage, uShwPte & EPT_PTE_PG_MASK, GCPhys, i);
+            if (!pPage->cPresent)
+                break;
+        }
+    }
+}
+
+
+/**
+ * Clear references to shadowed pages in a SLAT EPT page directory.
+ *
+ * @param   pPool   The pool.
+ * @param   pPage   The page.
+ * @param   pShwPD  The shadow page directory (mapping of the page).
+ * @param   pGstPD  The guest page directory.
+ */
+DECLINLINE(void) pgmPoolTrackDerefNestedPDEpt(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPTPD pShwPD, PCEPTPD pGstPD)
+{
+    for (unsigned i = 0; i < RT_ELEMENTS(pShwPD->a); i++)
+    {
+        X86PGPAEUINT const uPde = pShwPD->a[i].u;
+#ifdef PGM_WITH_LARGE_PAGES
+        AssertMsg((uPde & UINT64_C(0xfff0000000000f00)) == 0, ("uPde=%RX64\n", uPde));
+#else
+        AssertMsg((uPde & UINT64_C(0xfff0000000000f80)) == 0, ("uPde=%RX64\n", uPde));
+#endif
+        if (uPde & EPT_PRESENT_MASK)
+        {
+#ifdef PGM_WITH_LARGE_PAGES
+            if (uPde & EPT_E_LEAF)
+            {
+                Log4(("pgmPoolTrackDerefPDEPT: i=%d pde=%RX64 GCPhys=%RX64\n", i, uPde & EPT_PDE2M_PG_MASK, pPage->GCPhys));
+                pgmPoolTracDerefGCPhys(pPool, pPage, uPde & EPT_PDE2M_PG_MASK, pGstPD->a[i].u & EPT_PDE2M_PG_MASK, i);
+            }
+            else
+#endif
+            {
+                PPGMPOOLPAGE pSubPage = (PPGMPOOLPAGE)RTAvloHCPhysGet(&pPool->HCPhysTree, uPde & EPT_PDE_PG_MASK);
+                if (pSubPage)
+                    pgmPoolTrackFreeUser(pPool, pSubPage, pPage->idx, i);
+                else
+                    AssertFatalMsgFailed(("%RX64\n", pShwPD->a[i].u & EPT_PDE_PG_MASK));
+            }
+        }
+    }
+}
+
 #endif /* VBOX_WITH_NESTED_HWVIRT_VMX_EPT */
 
 
@@ -4867,7 +4941,6 @@ DECLINLINE(void) pgmPoolTrackDerefPDEPT(PPGMPOOL pPool, PPGMPOOLPAGE pPage, PEPT
             {
                 Log4(("pgmPoolTrackDerefPDEPT: i=%d pde=%RX64 GCPhys=%RX64\n",
                       i, uPde & EPT_PDE2M_PG_MASK, pPage->GCPhys));
-                Assert(!PGMPOOL_PAGE_IS_NESTED(pPage)); /* We don't support large guest EPT yet. */
                 pgmPoolTracDerefGCPhys(pPool, pPage, uPde & EPT_PDE2M_PG_MASK,
                                        pPage->GCPhys + i * 2 * _1M /* pPage->GCPhys = base address of the memory described by the PD */,
                                        i);
@@ -5028,18 +5101,23 @@ static void pgmPoolTrackDeref(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
         case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
         {
-            STAM_PROFILE_START(&pPool->StatTrackDerefGCPhys, g);
             void *pvGst;
             int const rc = PGM_GCPHYS_2_PTR(pVM, pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
             pgmPoolTrackDerefNestedPTEPT(pPool, pPage, (PEPTPT)pvShw, (PCEPTPT)pvGst);
-            PGM_DYNMAP_UNUSED_HINT_VM(pVM, pvGst);
-            STAM_PROFILE_STOP(&pPool->StatTrackDerefGCPhys, g);
             break;
         }
 
-        case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
-            pgmPoolTrackDerefPDEPT(pPool, pPage, (PEPTPD)pvShw);
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
+            pgmPoolTrackDerefNestedPTEPT2MB(pPool, pPage, (PEPTPT)pvShw);
             break;
+
+        case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
+        {
+            void *pvGst;
+            int const rc = PGM_GCPHYS_2_PTR(pVM, pPage->GCPhys, &pvGst); AssertReleaseRC(rc);
+            pgmPoolTrackDerefNestedPDEpt(pPool, pPage, (PEPTPD)pvShw, (PCEPTPD)pvGst);
+            break;
+        }
 
         case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:
             pgmPoolTrackDerefPDPTEPT(pPool, pPage, (PEPTPDPT)pvShw);
@@ -5805,6 +5883,8 @@ static const char *pgmPoolPoolKindToStr(uint8_t enmKind)
             return "PGMPOOLKIND_ROOT_NESTED";
         case PGMPOOLKIND_EPT_PT_FOR_EPT_PT:
             return "PGMPOOLKIND_EPT_PT_FOR_EPT_PT";
+        case PGMPOOLKIND_EPT_PT_FOR_EPT_2MB:
+            return "PGMPOOLKIND_EPT_PT_FOR_EPT_2MB";
         case PGMPOOLKIND_EPT_PD_FOR_EPT_PD:
             return "PGMPOOLKIND_EPT_PD_FOR_EPT_PD";
         case PGMPOOLKIND_EPT_PDPT_FOR_EPT_PDPT:

@@ -288,15 +288,12 @@ typedef uint8_t IEMMODE;
 #endif
 
 VMMDECL(VBOXSTRICTRC)       IEMExecOne(PVMCPUCC pVCpu);
-VMMDECL(VBOXSTRICTRC)       IEMExecOneEx(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten);
-VMMDECL(VBOXSTRICTRC)       IEMExecOneWithPrefetchedByPC(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
+VMMDECL(VBOXSTRICTRC)       IEMExecOneEx(PVMCPUCC pVCpu, uint32_t *pcbWritten);
+VMMDECL(VBOXSTRICTRC)       IEMExecOneWithPrefetchedByPC(PVMCPUCC pVCpu, uint64_t OpcodeBytesPC,
                                                          const void *pvOpcodeBytes, size_t cbOpcodeBytes);
-VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassEx(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, uint32_t *pcbWritten);
-VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPC(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
+VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassEx(PVMCPUCC pVCpu, uint32_t *pcbWritten);
+VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPC(PVMCPUCC pVCpu, uint64_t OpcodeBytesPC,
                                                                const void *pvOpcodeBytes, size_t cbOpcodeBytes);
-VMMDECL(VBOXSTRICTRC)       IEMExecOneBypassWithPrefetchedByPCWritten(PVMCPUCC pVCpu, PCPUMCTXCORE pCtxCore, uint64_t OpcodeBytesPC,
-                                                                      const void *pvOpcodeBytes, size_t cbOpcodeBytes,
-                                                                      uint32_t *pcbWritten);
 VMMDECL(VBOXSTRICTRC)       IEMExecOneIgnoreLock(PVMCPUCC pVCpu);
 VMMDECL(VBOXSTRICTRC)       IEMExecLots(PVMCPUCC pVCpu, uint32_t cMaxInstructions, uint32_t cPollRate, uint32_t *pcInstructions);
 /** Statistics returned by IEMExecForExits. */
@@ -337,6 +334,8 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedOut(PVMCPUCC pVCpu, uint8_t cbInstr, u
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedIn(PVMCPUCC pVCpu, uint8_t cbInstr, uint16_t u16Port, bool fImm, uint8_t cbReg);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovCRxWrite(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t iCrReg, uint8_t iGReg);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovCRxRead(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t iGReg, uint8_t iCrReg);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovDRxWrite(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t iDrReg, uint8_t iGReg);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovDRxRead(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t iGReg, uint8_t iDrReg);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedClts(PVMCPUCC pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedLmsw(PVMCPUCC pVCpu, uint8_t cbInstr, uint16_t uValue, RTGCPTR GCPtrEffDst);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedXsetbv(PVMCPUCC pVCpu, uint8_t cbInstr);

@@ -2060,34 +2060,40 @@ FNIEMOP_DEF(iemOp_movsxd_Gv_Ev)
     IEMOP_MNEMONIC(movsxd_Gv_Ev, "movsxd Gv,Ev");
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
 
-    if (IEM_IS_MODRM_REG_MODE(bRm))
+    if (pVCpu->iem.s.fPrefixes & IEM_OP_PRF_SIZE_REX_W)
     {
-        /*
-         * Register to register.
-         */
-        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-        IEM_MC_BEGIN(0, 1);
-        IEM_MC_LOCAL(uint64_t, u64Value);
-        IEM_MC_FETCH_GREG_U32_SX_U64(u64Value, IEM_GET_MODRM_RM(pVCpu, bRm));
-        IEM_MC_STORE_GREG_U64(IEM_GET_MODRM_REG(pVCpu, bRm), u64Value);
-        IEM_MC_ADVANCE_RIP();
-        IEM_MC_END();
+        if (IEM_IS_MODRM_REG_MODE(bRm))
+        {
+            /*
+             * Register to register.
+             */
+            IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+            IEM_MC_BEGIN(0, 1);
+            IEM_MC_LOCAL(uint64_t, u64Value);
+            IEM_MC_FETCH_GREG_U32_SX_U64(u64Value, IEM_GET_MODRM_RM(pVCpu, bRm));
+            IEM_MC_STORE_GREG_U64(IEM_GET_MODRM_REG(pVCpu, bRm), u64Value);
+            IEM_MC_ADVANCE_RIP();
+            IEM_MC_END();
+        }
+        else
+        {
+            /*
+             * We're loading a register from memory.
+             */
+            IEM_MC_BEGIN(0, 2);
+            IEM_MC_LOCAL(uint64_t, u64Value);
+            IEM_MC_LOCAL(RTGCPTR, GCPtrEffDst);
+            IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffDst, bRm, 0);
+            IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+            IEM_MC_FETCH_MEM_U32_SX_U64(u64Value, pVCpu->iem.s.iEffSeg, GCPtrEffDst);
+            IEM_MC_STORE_GREG_U64(IEM_GET_MODRM_REG(pVCpu, bRm), u64Value);
+            IEM_MC_ADVANCE_RIP();
+            IEM_MC_END();
+        }
     }
     else
-    {
-        /*
-         * We're loading a register from memory.
-         */
-        IEM_MC_BEGIN(0, 2);
-        IEM_MC_LOCAL(uint64_t, u64Value);
-        IEM_MC_LOCAL(RTGCPTR, GCPtrEffDst);
-        IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffDst, bRm, 0);
-        IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
-        IEM_MC_FETCH_MEM_U32_SX_U64(u64Value, pVCpu->iem.s.iEffSeg, GCPtrEffDst);
-        IEM_MC_STORE_GREG_U64(IEM_GET_MODRM_REG(pVCpu, bRm), u64Value);
-        IEM_MC_ADVANCE_RIP();
-        IEM_MC_END();
-    }
+        AssertFailedReturn(VERR_IEM_INSTR_NOT_IMPLEMENTED);
+
     return VINF_SUCCESS;
 }
 
@@ -8365,12 +8371,12 @@ FNIEMOP_DEF_1(iemOp_fcmovu_stN,  uint8_t, bRm)
 
 
 /**
- * Common worker for FPU instructions working on ST0 and STn, only affecting
+ * Common worker for FPU instructions working on ST0 and ST1, only affecting
  * flags, and popping twice when done.
  *
  * @param   pfnAImpl    Pointer to the instruction implementation (assembly).
  */
-FNIEMOP_DEF_1(iemOpHlpFpuNoStore_st0_stN_pop_pop, PFNIEMAIMPLFPUR80FSW, pfnAImpl)
+FNIEMOP_DEF_1(iemOpHlpFpuNoStore_st0_st1_pop_pop, PFNIEMAIMPLFPUR80FSW, pfnAImpl)
 {
     IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
 
@@ -8400,8 +8406,8 @@ FNIEMOP_DEF_1(iemOpHlpFpuNoStore_st0_stN_pop_pop, PFNIEMAIMPLFPUR80FSW, pfnAImpl
 /** Opcode 0xda 0xe9. */
 FNIEMOP_DEF(iemOp_fucompp)
 {
-    IEMOP_MNEMONIC(fucompp_st0_stN, "fucompp st0,stN");
-    return FNIEMOP_CALL_1(iemOpHlpFpuNoStore_st0_stN_pop_pop, iemAImpl_fucom_r80_by_r80);
+    IEMOP_MNEMONIC(fucompp, "fucompp");
+    return FNIEMOP_CALL_1(iemOpHlpFpuNoStore_st0_st1_pop_pop, iemAImpl_fucom_r80_by_r80);
 }
 
 
@@ -9680,8 +9686,8 @@ FNIEMOP_DEF_1(iemOp_fmulp_stN_st0, uint8_t, bRm)
 /** Opcode 0xde 0xd9. */
 FNIEMOP_DEF(iemOp_fcompp)
 {
-    IEMOP_MNEMONIC(fcompp_st0_stN, "fcompp st0,stN");
-    return FNIEMOP_CALL_1(iemOpHlpFpuNoStore_st0_stN_pop_pop, iemAImpl_fcom_r80_by_r80);
+    IEMOP_MNEMONIC(fcompp, "fcompp");
+    return FNIEMOP_CALL_1(iemOpHlpFpuNoStore_st0_st1_pop_pop, iemAImpl_fcom_r80_by_r80);
 }
 
 

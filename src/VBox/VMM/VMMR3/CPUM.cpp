@@ -144,6 +144,7 @@
 #include <iprt/cpuset.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
+#include <iprt/rand.h>
 #include <iprt/string.h>
 
 
@@ -157,6 +158,11 @@
  * It is only relevant for raw-mode.
  */
 #define CPUM_CHANGED_HIDDEN_SEL_REGS_INVALID    RT_BIT(12)
+
+
+/** For saved state only: Block injection of non-maskable interrupts to the guest.
+ * @note This flag was moved to CPUMCTX::fInhibit in v7.0.2. */
+#define CPUM_OLD_VMCPU_FF_BLOCK_NMIS            RT_BIT_64(25)
 
 
 /*********************************************************************************************************************************
@@ -1113,8 +1119,6 @@ static void cpumR3InitVmxHwVirtState(PVM pVM)
         AssertCompile(sizeof(pCtx->hwvirt.vmx.abMsrBitmap) == VMX_V_MSR_BITMAP_SIZE);
         AssertCompile(sizeof(pCtx->hwvirt.vmx.abIoBitmap) == (VMX_V_IO_BITMAP_A_PAGES + VMX_V_IO_BITMAP_B_PAGES) * X86_PAGE_SIZE);
         AssertCompile(sizeof(pCtx->hwvirt.vmx.abIoBitmap) == VMX_V_IO_BITMAP_A_SIZE + VMX_V_IO_BITMAP_B_SIZE);
-        AssertCompile(sizeof(pCtx->hwvirt.vmx.abVirtApicPage) == VMX_V_VIRT_APIC_PAGES * X86_PAGE_SIZE);
-        AssertCompile(sizeof(pCtx->hwvirt.vmx.abVirtApicPage) == VMX_V_VIRT_APIC_SIZE);
 
         /* Initialize non-zero values. */
         pCtx->hwvirt.vmx.GCPhysVmxon       = NIL_RTGCPHYS;
@@ -1143,7 +1147,6 @@ DECLINLINE(void) cpumR3ResetVmxHwVirtState(PVMCPU pVCpu)
     RT_ZERO(pCtx->hwvirt.vmx.aExitMsrLoadArea);
     RT_ZERO(pCtx->hwvirt.vmx.abMsrBitmap);
     RT_ZERO(pCtx->hwvirt.vmx.abIoBitmap);
-    RT_ZERO(pCtx->hwvirt.vmx.abVirtApicPage);
 
     pCtx->hwvirt.vmx.GCPhysVmxon       = NIL_RTGCPHYS;
     pCtx->hwvirt.vmx.GCPhysShadowVmcs  = NIL_RTGCPHYS;
@@ -1324,14 +1327,6 @@ static void cpumR3InitVmxGuestMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PCCPUMFEATUR
 
     Assert(!fIsNstGstHwExecAllowed || pHostVmxMsrs);
     Assert(pGuestFeatures->fVmx);
-
-    /*
-     * We don't support the following MSRs yet:
-     *   - True Pin-based VM-execution controls.
-     *   - True Processor-based VM-execution controls.
-     *   - True VM-entry VM-execution controls.
-     *   - True VM-exit VM-execution controls.
-     */
 
     /* Basic information. */
     uint8_t const fTrueVmxMsrs = 1;
@@ -1566,7 +1561,6 @@ static void cpumR3InitVmxGuestMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PCCPUMFEATUR
         uint8_t const  fMemTypeUc        = RT_BF_GET(uHostMsr, VMX_BF_EPT_VPID_CAP_MEMTYPE_UC);
         uint8_t const  fMemTypeWb        = RT_BF_GET(uHostMsr, VMX_BF_EPT_VPID_CAP_MEMTYPE_WB);
         uint8_t const  f2MPage           = RT_BF_GET(uHostMsr, VMX_BF_EPT_VPID_CAP_PDE_2M);
-        uint8_t const  f1GPage           = RT_BF_GET(uHostMsr, VMX_BF_EPT_VPID_CAP_PDPTE_1G);
         uint8_t const  fInvept           = RT_BF_GET(uHostMsr, VMX_BF_EPT_VPID_CAP_INVEPT);
         /** @todo Nested VMX: Support accessed/dirty bits, see @bugref{10092#c25}. */
         /* uint8_t const  fAccessDirty      = RT_BF_GET(uHostMsr, VMX_BF_EPT_VPID_CAP_ACCESS_DIRTY); */
@@ -1581,7 +1575,7 @@ static void cpumR3InitVmxGuestMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PCCPUMFEATUR
                                       | RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_MEMTYPE_UC,                        fMemTypeUc)
                                       | RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_MEMTYPE_WB,                        fMemTypeWb)
                                       | RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_PDE_2M,                            f2MPage)
-                                      | RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_PDPTE_1G,                          f1GPage)
+                                    //| RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_PDPTE_1G,                          0)
                                       | RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_INVEPT,                            fInvept)
                                     //| RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_ACCESS_DIRTY,                      0)
                                     //| RT_BF_MAKE(VMX_BF_EPT_VPID_CAP_ADVEXITINFO_EPT_VIOLATION,         0)
@@ -1739,14 +1733,34 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     Assert(pGuestVmxMsrs);
 
     /*
-     * While it would be nice to check this earlier while initializing fNestedVmxEpt
-     * but we would not have enumearted host features then, so do it at least now.
+     * While it would be nice to check this earlier while initializing
+     * fNestedVmxEpt but we would not have enumearted host features then, so do
+     * it at least now.
      */
-    if (   !pVM->cpum.s.HostFeatures.fNoExecute
-        && pVM->cpum.s.fNestedVmxEpt)
+    /** @todo r=bird: Why don't we just ditch the fNestedVmxEpt and
+     *        fNestedVmxUnrestrictedGuest state members and read the CFGM stuff
+     *        here?  Neither of them have any purpose beyond keeping the two value
+     *        read in cpumR3CpuIdReadConfig for use here.  They aren't even
+     *        necessarily correct after the feature merging has taken place.  */
+    if (pVM->cpum.s.fNestedVmxEpt)
     {
-        LogRel(("CPUM: Warning! EPT not exposed to the guest since NX isn't available on the host.\n"));
-        pVM->cpum.s.fNestedVmxEpt               = false;
+        const char *pszWhy = NULL;
+        if (!VM_IS_HM_ENABLED(pVM) && !VM_IS_EXEC_ENGINE_IEM(pVM))
+            pszWhy = "execution engine is neither HM nor IEM";
+        else if (VM_IS_HM_ENABLED(pVM) && !HMIsNestedPagingActive(pVM))
+            pszWhy = "nested paging is not enabled for the VM or it is not supported by the host";
+        else if (VM_IS_HM_ENABLED(pVM) && !pVM->cpum.s.HostFeatures.fNoExecute)
+            pszWhy = "NX is not available on the host";
+        if (pszWhy)
+        {
+            LogRel(("CPUM: Warning! EPT not exposed to the guest because %s.\n", pszWhy));
+            pVM->cpum.s.fNestedVmxEpt = false;
+        }
+    }
+    if (    pVM->cpum.s.fNestedVmxUnrestrictedGuest
+        && !pVM->cpum.s.fNestedVmxEpt)
+    {
+        LogRel(("CPUM: Warning! Can't expose \"Unrestricted Guest\" to the guest when EPT is not exposed!\n"));
         pVM->cpum.s.fNestedVmxUnrestrictedGuest = false;
     }
 
@@ -2191,6 +2205,11 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
         return rc;
 
     /*
+     * Generate the RFLAGS cookie.
+     */
+    pVM->cpum.s.fReservedRFlagsCookie = RTRandU64() & ~(CPUMX86EFLAGS_HW_MASK_64 | CPUMX86EFLAGS_INT_MASK_64);
+
+    /*
      * Init the VMX/SVM state.
      *
      * This must be done after initializing CPUID/MSR features as we access the
@@ -2206,7 +2225,11 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
     else
         Assert(pVM->apCpusR3[0]->cpum.s.Guest.hwvirt.enmHwvirt == CPUMHWVIRT_NONE);
 
+    /*
+     * Initialize the general guest CPU state.
+     */
     CPUMR3Reset(pVM);
+
     return VINF_SUCCESS;
 }
 
@@ -2289,7 +2312,9 @@ VMMR3DECL(void) CPUMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
     pCtx->cr0                       = X86_CR0_CD | X86_CR0_NW | X86_CR0_ET;  //0x60000010
     pCtx->eip                       = 0x0000fff0;
     pCtx->edx                       = 0x00000600;   /* P6 processor */
-    pCtx->eflags.Bits.u1Reserved0   = 1;
+
+    Assert((pVM->cpum.s.fReservedRFlagsCookie & (X86_EFL_LIVE_MASK | X86_EFL_RAZ_LO_MASK | X86_EFL_RA1_MASK)) == 0);
+    pCtx->rflags.uBoth              = pVM->cpum.s.fReservedRFlagsCookie | X86_EFL_RA1_MASK;
 
     pCtx->cs.Sel                    = 0xf000;
     pCtx->cs.ValidSel               = 0xf000;
@@ -2481,12 +2506,17 @@ static DECLCALLBACK(int) cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
     RT_ZERO(DummyHyperCtx);
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
-        PVMCPU pVCpu = pVM->apCpusR3[idCpu];
+        PVMCPU const   pVCpu   = pVM->apCpusR3[idCpu];
+        PCPUMCTX const pGstCtx = &pVCpu->cpum.s.Guest;
 
+        /** @todo ditch this the next time we change the saved state. */
         SSMR3PutStructEx(pSSM, &DummyHyperCtx,           sizeof(DummyHyperCtx),           0, g_aCpumCtxFields, NULL);
 
-        PCPUMCTX pGstCtx = &pVCpu->cpum.s.Guest;
+        uint64_t const fSavedRFlags = pGstCtx->rflags.uBoth;
+        pGstCtx->rflags.uBoth &= CPUMX86EFLAGS_HW_MASK_64; /* Temporarily clear the non-hardware bits in RFLAGS while saving. */
         SSMR3PutStructEx(pSSM, pGstCtx,                  sizeof(*pGstCtx),                0, g_aCpumCtxFields, NULL);
+        pGstCtx->rflags.uBoth  = fSavedRFlags;
+
         SSMR3PutStructEx(pSSM, &pGstCtx->XState.x87,     sizeof(pGstCtx->XState.x87),     0, g_aCpumX87Fields, NULL);
         if (pGstCtx->fXStateMask != 0)
             SSMR3PutStructEx(pSSM, &pGstCtx->XState.Hdr, sizeof(pGstCtx->XState.Hdr),     0, g_aCpumXSaveHdrFields, NULL);
@@ -2532,7 +2562,8 @@ static DECLCALLBACK(int) cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
             SSMR3PutMem(pSSM,   &pGstCtx->hwvirt.svm.Vmcb,           sizeof(pGstCtx->hwvirt.svm.Vmcb));
             SSMR3PutMem(pSSM,   &pGstCtx->hwvirt.svm.abMsrBitmap[0], sizeof(pGstCtx->hwvirt.svm.abMsrBitmap));
             SSMR3PutMem(pSSM,   &pGstCtx->hwvirt.svm.abIoBitmap[0],  sizeof(pGstCtx->hwvirt.svm.abIoBitmap));
-            SSMR3PutU32(pSSM,    pGstCtx->hwvirt.fLocalForcedActions);
+            /* This is saved in the old VMCPUM_FF format.  Change if more flags are added. */
+            SSMR3PutU32(pSSM,    pGstCtx->hwvirt.fSavedInhibit & CPUMCTX_INHIBIT_NMI ? CPUM_OLD_VMCPU_FF_BLOCK_NMIS : 0);
             SSMR3PutBool(pSSM,   pGstCtx->hwvirt.fGif);
         }
         if (pVM->cpum.s.GuestFeatures.fVmx)
@@ -2818,7 +2849,13 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
                         SSMR3GetMem(pSSM,      &pGstCtx->hwvirt.svm.Vmcb,           sizeof(pGstCtx->hwvirt.svm.Vmcb));
                         SSMR3GetMem(pSSM,      &pGstCtx->hwvirt.svm.abMsrBitmap[0], sizeof(pGstCtx->hwvirt.svm.abMsrBitmap));
                         SSMR3GetMem(pSSM,      &pGstCtx->hwvirt.svm.abIoBitmap[0],  sizeof(pGstCtx->hwvirt.svm.abIoBitmap));
-                        SSMR3GetU32(pSSM,      &pGstCtx->hwvirt.fLocalForcedActions);
+
+                        uint32_t fSavedLocalFFs = 0;
+                        rc = SSMR3GetU32(pSSM,      &fSavedLocalFFs);
+                        AssertRCReturn(rc, rc);
+                        Assert(fSavedLocalFFs == 0 || fSavedLocalFFs == CPUM_OLD_VMCPU_FF_BLOCK_NMIS);
+                        pGstCtx->hwvirt.fSavedInhibit = fSavedLocalFFs & CPUM_OLD_VMCPU_FF_BLOCK_NMIS ? CPUMCTX_INHIBIT_NMI : 0;
+
                         SSMR3GetBool(pSSM,     &pGstCtx->hwvirt.fGif);
                     }
                 }
@@ -2900,6 +2937,9 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
                 rc = SSMR3Skip(pSSM, 62 * sizeof(uint64_t));
             }
             AssertRCReturn(rc, rc);
+
+            /* Deal with the reusing of reserved RFLAGS bits. */
+            pGstCtx->rflags.uBoth |= pVM->cpum.s.fReservedRFlagsCookie;
 
             /* REM and other may have cleared must-be-one fields in DR6 and
                DR7, fix these. */
@@ -3068,7 +3108,7 @@ VMMDECL(bool) CPUMR3IsStateRestorePending(PVM pVM)
  * Formats the EFLAGS value into mnemonics.
  *
  * @param   pszEFlags   Where to write the mnemonics. (Assumes sufficient buffer space.)
- * @param   efl         The EFLAGS value.
+ * @param   efl         The EFLAGS value with fInhibit in bits 31:24.
  */
 static void cpumR3InfoFormatFlags(char *pszEFlags, uint32_t efl)
 {
@@ -3095,6 +3135,9 @@ static void cpumR3InfoFormatFlags(char *pszEFlags, uint32_t efl)
         { "ac", "na", X86_EFL_AF },
         { "po", "pe", X86_EFL_PF },
         { "cy", "nc", X86_EFL_CF },
+        { "inh-ss",  NULL, (uint32_t)CPUMCTX_INHIBIT_SHADOW_SS  << 24 },
+        { "inh-sti", NULL, (uint32_t)CPUMCTX_INHIBIT_SHADOW_STI << 24 },
+        { "inh-nmi", NULL, (uint32_t)CPUMCTX_INHIBIT_NMI        << 24 },
     };
     char *psz = pszEFlags;
     for (unsigned i = 0; i < RT_ELEMENTS(s_aFlags); i++)
@@ -3116,22 +3159,20 @@ static void cpumR3InfoFormatFlags(char *pszEFlags, uint32_t efl)
  *
  * @param   pVM         The cross context VM structure.
  * @param   pCtx        The context to format.
- * @param   pCtxCore    The context core to format.
  * @param   pHlp        Output functions.
  * @param   enmType     The dump type.
  * @param   pszPrefix   Register name prefix.
  */
-static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGFINFOHLP pHlp, CPUMDUMPTYPE enmType,
-                          const char *pszPrefix)
+static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCDBGFINFOHLP pHlp, CPUMDUMPTYPE enmType, const char *pszPrefix)
 {
     NOREF(pVM);
 
     /*
      * Format the EFLAGS.
      */
-    uint32_t efl = pCtxCore->eflags.u32;
+    uint32_t efl = pCtx->eflags.u;
     char szEFlags[80];
-    cpumR3InfoFormatFlags(&szEFlags[0], efl);
+    cpumR3InfoFormatFlags(&szEFlags[0], efl | ((uint32_t)pCtx->fInhibit << 24));
 
     /*
      * Format the registers.
@@ -3147,21 +3188,21 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
                     "%sr14=%016RX64 %sr15=%016RX64\n"
                     "%srip=%016RX64 %srsp=%016RX64 %srbp=%016RX64 %siopl=%d %*s\n"
                     "%scs=%04x %sss=%04x %sds=%04x %ses=%04x %sfs=%04x %sgs=%04x                %seflags=%08x\n",
-                    pszPrefix, pCtxCore->rax, pszPrefix, pCtxCore->rbx, pszPrefix, pCtxCore->rcx, pszPrefix, pCtxCore->rdx, pszPrefix, pCtxCore->rsi, pszPrefix, pCtxCore->rdi,
-                    pszPrefix, pCtxCore->r8, pszPrefix, pCtxCore->r9, pszPrefix, pCtxCore->r10, pszPrefix, pCtxCore->r11, pszPrefix, pCtxCore->r12, pszPrefix, pCtxCore->r13,
-                    pszPrefix, pCtxCore->r14, pszPrefix, pCtxCore->r15,
-                    pszPrefix, pCtxCore->rip, pszPrefix, pCtxCore->rsp, pszPrefix, pCtxCore->rbp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
-                    pszPrefix, pCtxCore->cs.Sel, pszPrefix, pCtxCore->ss.Sel, pszPrefix, pCtxCore->ds.Sel, pszPrefix, pCtxCore->es.Sel,
-                    pszPrefix, pCtxCore->fs.Sel, pszPrefix, pCtxCore->gs.Sel, pszPrefix, efl);
+                    pszPrefix, pCtx->rax, pszPrefix, pCtx->rbx, pszPrefix, pCtx->rcx, pszPrefix, pCtx->rdx, pszPrefix, pCtx->rsi, pszPrefix, pCtx->rdi,
+                    pszPrefix, pCtx->r8, pszPrefix, pCtx->r9, pszPrefix, pCtx->r10, pszPrefix, pCtx->r11, pszPrefix, pCtx->r12, pszPrefix, pCtx->r13,
+                    pszPrefix, pCtx->r14, pszPrefix, pCtx->r15,
+                    pszPrefix, pCtx->rip, pszPrefix, pCtx->rsp, pszPrefix, pCtx->rbp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
+                    pszPrefix, pCtx->cs.Sel, pszPrefix, pCtx->ss.Sel, pszPrefix, pCtx->ds.Sel, pszPrefix, pCtx->es.Sel,
+                    pszPrefix, pCtx->fs.Sel, pszPrefix, pCtx->gs.Sel, pszPrefix, efl);
             else
                 pHlp->pfnPrintf(pHlp,
                     "%seax=%08x %sebx=%08x %secx=%08x %sedx=%08x %sesi=%08x %sedi=%08x\n"
                     "%seip=%08x %sesp=%08x %sebp=%08x %siopl=%d %*s\n"
                     "%scs=%04x %sss=%04x %sds=%04x %ses=%04x %sfs=%04x %sgs=%04x                %seflags=%08x\n",
-                    pszPrefix, pCtxCore->eax, pszPrefix, pCtxCore->ebx, pszPrefix, pCtxCore->ecx, pszPrefix, pCtxCore->edx, pszPrefix, pCtxCore->esi, pszPrefix, pCtxCore->edi,
-                    pszPrefix, pCtxCore->eip, pszPrefix, pCtxCore->esp, pszPrefix, pCtxCore->ebp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
-                    pszPrefix, pCtxCore->cs.Sel, pszPrefix, pCtxCore->ss.Sel, pszPrefix, pCtxCore->ds.Sel, pszPrefix, pCtxCore->es.Sel,
-                    pszPrefix, pCtxCore->fs.Sel, pszPrefix, pCtxCore->gs.Sel, pszPrefix, efl);
+                    pszPrefix, pCtx->eax, pszPrefix, pCtx->ebx, pszPrefix, pCtx->ecx, pszPrefix, pCtx->edx, pszPrefix, pCtx->esi, pszPrefix, pCtx->edi,
+                    pszPrefix, pCtx->eip, pszPrefix, pCtx->esp, pszPrefix, pCtx->ebp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
+                    pszPrefix, pCtx->cs.Sel, pszPrefix, pCtx->ss.Sel, pszPrefix, pCtx->ds.Sel, pszPrefix, pCtx->es.Sel,
+                    pszPrefix, pCtx->fs.Sel, pszPrefix, pCtx->gs.Sel, pszPrefix, efl);
             break;
 
         case CPUMDUMPTYPE_DEFAULT:
@@ -3175,12 +3216,12 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
                     "%scs=%04x %sss=%04x %sds=%04x %ses=%04x %sfs=%04x %sgs=%04x %str=%04x      %seflags=%08x\n"
                     "%scr0=%08RX64 %scr2=%08RX64 %scr3=%08RX64 %scr4=%08RX64 %sgdtr=%016RX64:%04x %sldtr=%04x\n"
                     ,
-                    pszPrefix, pCtxCore->rax, pszPrefix, pCtxCore->rbx, pszPrefix, pCtxCore->rcx, pszPrefix, pCtxCore->rdx, pszPrefix, pCtxCore->rsi, pszPrefix, pCtxCore->rdi,
-                    pszPrefix, pCtxCore->r8, pszPrefix, pCtxCore->r9, pszPrefix, pCtxCore->r10, pszPrefix, pCtxCore->r11, pszPrefix, pCtxCore->r12, pszPrefix, pCtxCore->r13,
-                    pszPrefix, pCtxCore->r14, pszPrefix, pCtxCore->r15,
-                    pszPrefix, pCtxCore->rip, pszPrefix, pCtxCore->rsp, pszPrefix, pCtxCore->rbp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
-                    pszPrefix, pCtxCore->cs.Sel, pszPrefix, pCtxCore->ss.Sel, pszPrefix, pCtxCore->ds.Sel, pszPrefix, pCtxCore->es.Sel,
-                    pszPrefix, pCtxCore->fs.Sel, pszPrefix, pCtxCore->gs.Sel, pszPrefix, pCtx->tr.Sel, pszPrefix, efl,
+                    pszPrefix, pCtx->rax, pszPrefix, pCtx->rbx, pszPrefix, pCtx->rcx, pszPrefix, pCtx->rdx, pszPrefix, pCtx->rsi, pszPrefix, pCtx->rdi,
+                    pszPrefix, pCtx->r8, pszPrefix, pCtx->r9, pszPrefix, pCtx->r10, pszPrefix, pCtx->r11, pszPrefix, pCtx->r12, pszPrefix, pCtx->r13,
+                    pszPrefix, pCtx->r14, pszPrefix, pCtx->r15,
+                    pszPrefix, pCtx->rip, pszPrefix, pCtx->rsp, pszPrefix, pCtx->rbp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
+                    pszPrefix, pCtx->cs.Sel, pszPrefix, pCtx->ss.Sel, pszPrefix, pCtx->ds.Sel, pszPrefix, pCtx->es.Sel,
+                    pszPrefix, pCtx->fs.Sel, pszPrefix, pCtx->gs.Sel, pszPrefix, pCtx->tr.Sel, pszPrefix, efl,
                     pszPrefix, pCtx->cr0, pszPrefix, pCtx->cr2, pszPrefix, pCtx->cr3, pszPrefix, pCtx->cr4,
                     pszPrefix, pCtx->gdtr.pGdt, pCtx->gdtr.cbGdt, pszPrefix, pCtx->ldtr.Sel);
             else
@@ -3190,10 +3231,10 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
                     "%scs=%04x %sss=%04x %sds=%04x %ses=%04x %sfs=%04x %sgs=%04x %str=%04x      %seflags=%08x\n"
                     "%scr0=%08RX64 %scr2=%08RX64 %scr3=%08RX64 %scr4=%08RX64 %sgdtr=%08RX64:%04x %sldtr=%04x\n"
                     ,
-                    pszPrefix, pCtxCore->eax, pszPrefix, pCtxCore->ebx, pszPrefix, pCtxCore->ecx, pszPrefix, pCtxCore->edx, pszPrefix, pCtxCore->esi, pszPrefix, pCtxCore->edi,
-                    pszPrefix, pCtxCore->eip, pszPrefix, pCtxCore->esp, pszPrefix, pCtxCore->ebp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
-                    pszPrefix, pCtxCore->cs.Sel, pszPrefix, pCtxCore->ss.Sel, pszPrefix, pCtxCore->ds.Sel, pszPrefix, pCtxCore->es.Sel,
-                    pszPrefix, pCtxCore->fs.Sel, pszPrefix, pCtxCore->gs.Sel, pszPrefix, pCtx->tr.Sel, pszPrefix, efl,
+                    pszPrefix, pCtx->eax, pszPrefix, pCtx->ebx, pszPrefix, pCtx->ecx, pszPrefix, pCtx->edx, pszPrefix, pCtx->esi, pszPrefix, pCtx->edi,
+                    pszPrefix, pCtx->eip, pszPrefix, pCtx->esp, pszPrefix, pCtx->ebp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
+                    pszPrefix, pCtx->cs.Sel, pszPrefix, pCtx->ss.Sel, pszPrefix, pCtx->ds.Sel, pszPrefix, pCtx->es.Sel,
+                    pszPrefix, pCtx->fs.Sel, pszPrefix, pCtx->gs.Sel, pszPrefix, pCtx->tr.Sel, pszPrefix, efl,
                     pszPrefix, pCtx->cr0, pszPrefix, pCtx->cr2, pszPrefix, pCtx->cr3, pszPrefix, pCtx->cr4,
                     pszPrefix, pCtx->gdtr.pGdt, pCtx->gdtr.cbGdt, pszPrefix, pCtx->ldtr.Sel);
             break;
@@ -3220,16 +3261,16 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
                     "%str  ={%04x base=%08RX64 limit=%08x flags=%08x}\n"
                     "%sSysEnter={cs=%04llx eip=%016RX64 esp=%016RX64}\n"
                     ,
-                    pszPrefix, pCtxCore->rax, pszPrefix, pCtxCore->rbx, pszPrefix, pCtxCore->rcx, pszPrefix, pCtxCore->rdx, pszPrefix, pCtxCore->rsi, pszPrefix, pCtxCore->rdi,
-                    pszPrefix, pCtxCore->r8, pszPrefix, pCtxCore->r9, pszPrefix, pCtxCore->r10, pszPrefix, pCtxCore->r11, pszPrefix, pCtxCore->r12, pszPrefix, pCtxCore->r13,
-                    pszPrefix, pCtxCore->r14, pszPrefix, pCtxCore->r15,
-                    pszPrefix, pCtxCore->rip, pszPrefix, pCtxCore->rsp, pszPrefix, pCtxCore->rbp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
-                    pszPrefix, pCtxCore->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u,
-                    pszPrefix, pCtxCore->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u,
-                    pszPrefix, pCtxCore->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u,
-                    pszPrefix, pCtxCore->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u,
-                    pszPrefix, pCtxCore->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u,
-                    pszPrefix, pCtxCore->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u,
+                    pszPrefix, pCtx->rax, pszPrefix, pCtx->rbx, pszPrefix, pCtx->rcx, pszPrefix, pCtx->rdx, pszPrefix, pCtx->rsi, pszPrefix, pCtx->rdi,
+                    pszPrefix, pCtx->r8, pszPrefix, pCtx->r9, pszPrefix, pCtx->r10, pszPrefix, pCtx->r11, pszPrefix, pCtx->r12, pszPrefix, pCtx->r13,
+                    pszPrefix, pCtx->r14, pszPrefix, pCtx->r15,
+                    pszPrefix, pCtx->rip, pszPrefix, pCtx->rsp, pszPrefix, pCtx->rbp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
+                    pszPrefix, pCtx->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u,
+                    pszPrefix, pCtx->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u,
+                    pszPrefix, pCtx->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u,
+                    pszPrefix, pCtx->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u,
+                    pszPrefix, pCtx->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u,
+                    pszPrefix, pCtx->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u,
                     pszPrefix, pCtx->cr0,  pszPrefix, pCtx->cr2, pszPrefix, pCtx->cr3,  pszPrefix, pCtx->cr4,
                     pszPrefix, pCtx->dr[0],  pszPrefix, pCtx->dr[1], pszPrefix, pCtx->dr[2],  pszPrefix, pCtx->dr[3],
                     pszPrefix, pCtx->dr[4],  pszPrefix, pCtx->dr[5], pszPrefix, pCtx->dr[6],  pszPrefix, pCtx->dr[7],
@@ -3252,14 +3293,14 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCCPUMCTXCORE pCtxCore, PCDBGF
                     "%str  ={%04x base=%08RX64 limit=%08x flags=%08x}\n"
                     "%sSysEnter={cs=%04llx eip=%08llx esp=%08llx}\n"
                     ,
-                    pszPrefix, pCtxCore->eax, pszPrefix, pCtxCore->ebx, pszPrefix, pCtxCore->ecx, pszPrefix, pCtxCore->edx, pszPrefix, pCtxCore->esi, pszPrefix, pCtxCore->edi,
-                    pszPrefix, pCtxCore->eip, pszPrefix, pCtxCore->esp, pszPrefix, pCtxCore->ebp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
-                    pszPrefix, pCtxCore->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u, pszPrefix, pCtx->dr[0],  pszPrefix, pCtx->dr[1],
-                    pszPrefix, pCtxCore->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u, pszPrefix, pCtx->dr[2],  pszPrefix, pCtx->dr[3],
-                    pszPrefix, pCtxCore->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u, pszPrefix, pCtx->dr[4],  pszPrefix, pCtx->dr[5],
-                    pszPrefix, pCtxCore->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u, pszPrefix, pCtx->dr[6],  pszPrefix, pCtx->dr[7],
-                    pszPrefix, pCtxCore->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u, pszPrefix, pCtx->cr0,  pszPrefix, pCtx->cr2,
-                    pszPrefix, pCtxCore->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u, pszPrefix, pCtx->cr3,  pszPrefix, pCtx->cr4,
+                    pszPrefix, pCtx->eax, pszPrefix, pCtx->ebx, pszPrefix, pCtx->ecx, pszPrefix, pCtx->edx, pszPrefix, pCtx->esi, pszPrefix, pCtx->edi,
+                    pszPrefix, pCtx->eip, pszPrefix, pCtx->esp, pszPrefix, pCtx->ebp, pszPrefix, X86_EFL_GET_IOPL(efl), *pszPrefix ? 33 : 31, szEFlags,
+                    pszPrefix, pCtx->cs.Sel, pCtx->cs.u64Base, pCtx->cs.u32Limit, pCtx->cs.Attr.u, pszPrefix, pCtx->dr[0],  pszPrefix, pCtx->dr[1],
+                    pszPrefix, pCtx->ds.Sel, pCtx->ds.u64Base, pCtx->ds.u32Limit, pCtx->ds.Attr.u, pszPrefix, pCtx->dr[2],  pszPrefix, pCtx->dr[3],
+                    pszPrefix, pCtx->es.Sel, pCtx->es.u64Base, pCtx->es.u32Limit, pCtx->es.Attr.u, pszPrefix, pCtx->dr[4],  pszPrefix, pCtx->dr[5],
+                    pszPrefix, pCtx->fs.Sel, pCtx->fs.u64Base, pCtx->fs.u32Limit, pCtx->fs.Attr.u, pszPrefix, pCtx->dr[6],  pszPrefix, pCtx->dr[7],
+                    pszPrefix, pCtx->gs.Sel, pCtx->gs.u64Base, pCtx->gs.u32Limit, pCtx->gs.Attr.u, pszPrefix, pCtx->cr0,  pszPrefix, pCtx->cr2,
+                    pszPrefix, pCtx->ss.Sel, pCtx->ss.u64Base, pCtx->ss.u32Limit, pCtx->ss.Attr.u, pszPrefix, pCtx->cr3,  pszPrefix, pCtx->cr4,
                     pszPrefix, pCtx->gdtr.pGdt, pCtx->gdtr.cbGdt, pszPrefix, pCtx->idtr.pIdt, pCtx->idtr.cbIdt, pszPrefix, efl,
                     pszPrefix, pCtx->ldtr.Sel, pCtx->ldtr.u64Base, pCtx->ldtr.u32Limit, pCtx->ldtr.Attr.u,
                     pszPrefix, pCtx->tr.Sel, pCtx->tr.u64Base, pCtx->tr.u32Limit, pCtx->tr.Attr.u,
@@ -3516,7 +3557,7 @@ static DECLCALLBACK(void) cpumR3InfoGuest(PVM pVM, PCDBGFINFOHLP pHlp, const cha
     pHlp->pfnPrintf(pHlp, "Guest CPUM (VCPU %d) state: %s\n", pVCpu->idCpu, pszComment);
 
     PCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
-    cpumR3InfoOne(pVM, pCtx, CPUMCTX2CORE(pCtx), pHlp, enmType, "");
+    cpumR3InfoOne(pVM, pCtx, pHlp, enmType, "");
 }
 
 
@@ -3991,7 +4032,7 @@ static DECLCALLBACK(void) cpumR3InfoGuestHwvirt(PVM pVM, PCDBGFINFOHLP pHlp, con
     bool const fVmx = pVM->cpum.s.GuestFeatures.fVmx;
 
     pHlp->pfnPrintf(pHlp, "VCPU[%u] hardware virtualization state:\n", pVCpu->idCpu);
-    pHlp->pfnPrintf(pHlp, "fLocalForcedActions          = %#RX32\n",  pCtx->hwvirt.fLocalForcedActions);
+    pHlp->pfnPrintf(pHlp, "fSavedInhibit                = %#RX32\n",  pCtx->hwvirt.fSavedInhibit);
     pHlp->pfnPrintf(pHlp, "In nested-guest hwvirt mode  = %RTbool\n", CPUMIsGuestInNestedHwvirtMode(pCtx));
 
     if (fSvm)
