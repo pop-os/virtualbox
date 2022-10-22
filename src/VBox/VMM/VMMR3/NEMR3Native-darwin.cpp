@@ -467,7 +467,8 @@ static const struct
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
-static void vmxHCImportGuestIntrState(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo);
+DECLINLINE(void) vmxHCImportGuestIntrState(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo);
+
 
 /**
  * Converts a HV return code to a VBox status code.
@@ -501,16 +502,36 @@ DECLINLINE(int) nemR3DarwinHvSts2Rc(hv_return_t hrc)
  * @param   pVM                 The cross context VM structure.
  * @param   GCPhys              The guest physical address to start unmapping at.
  * @param   cb                  The size of the range to unmap in bytes.
+ * @param   pu2State            Where to store the new state of the unmappd page, optional.
  */
-DECLINLINE(int) nemR3DarwinUnmap(PVM pVM, RTGCPHYS GCPhys, size_t cb)
+DECLINLINE(int) nemR3DarwinUnmap(PVM pVM, RTGCPHYS GCPhys, size_t cb, uint8_t *pu2State)
 {
+    if (*pu2State <= NEM_DARWIN_PAGE_STATE_UNMAPPED)
+    {
+        Log5(("nemR3DarwinUnmap: %RGp == unmapped\n", GCPhys));
+        *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
+        return VINF_SUCCESS;
+    }
+
     LogFlowFunc(("Unmapping %RGp LB %zu\n", GCPhys, cb));
     hv_return_t hrc;
     if (pVM->nem.s.fCreatedAsid)
-        hrc = hv_vm_unmap_space(pVM->nem.s.uVmAsid, GCPhys, cb);
+        hrc = hv_vm_unmap_space(pVM->nem.s.uVmAsid, GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, cb);
     else
         hrc = hv_vm_unmap(GCPhys, cb);
-    return nemR3DarwinHvSts2Rc(hrc);
+    if (RT_LIKELY(hrc == HV_SUCCESS))
+    {
+        STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
+        if (pu2State)
+            *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
+        Log5(("nemR3DarwinUnmap: %RGp => unmapped\n", GCPhys));
+        return VINF_SUCCESS;
+    }
+
+    STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
+    LogRel(("nemR3DarwinUnmap(%RGp): failed! hrc=%#x\n",
+            GCPhys, hrc));
+    return VERR_NEM_IPE_6;
 }
 
 
@@ -524,10 +545,13 @@ DECLINLINE(int) nemR3DarwinUnmap(PVM pVM, RTGCPHYS GCPhys, size_t cb)
  * @param   pvRam               The R3 pointer of the memory to back the range with.
  * @param   cb                  The size of the range, page aligned.
  * @param   fPageProt           The page protection flags to use for this range, combination of NEM_PAGE_PROT_XXX
+ * @param   pu2State            Where to store the state for the new page, optional.
  */
-DECLINLINE(int) nemR3DarwinMap(PVM pVM, RTGCPHYS GCPhys, void *pvRam, size_t cb, uint32_t fPageProt)
+DECLINLINE(int) nemR3DarwinMap(PVM pVM, RTGCPHYS GCPhys, const void *pvRam, size_t cb, uint32_t fPageProt, uint8_t *pu2State)
 {
     LogFlowFunc(("Mapping %RGp LB %zu fProt=%#x\n", GCPhys, cb, fPageProt));
+
+    Assert(fPageProt != NEM_PAGE_PROT_NONE);
 
     hv_memory_flags_t fHvMemProt = 0;
     if (fPageProt & NEM_PAGE_PROT_READ)
@@ -542,9 +566,17 @@ DECLINLINE(int) nemR3DarwinMap(PVM pVM, RTGCPHYS GCPhys, void *pvRam, size_t cb,
         hrc = hv_vm_map_space(pVM->nem.s.uVmAsid, pvRam, GCPhys, cb, fHvMemProt);
     else
         hrc = hv_vm_map(pvRam, GCPhys, cb, fHvMemProt);
+    if (hrc == HV_SUCCESS)
+    {
+        if (pu2State)
+            *pu2State =   (fPageProt & NEM_PAGE_PROT_WRITE)
+                        ? NEM_DARWIN_PAGE_STATE_WRITABLE
+                        : NEM_DARWIN_PAGE_STATE_READABLE;
+        return VINF_SUCCESS;
+    }
+
     return nemR3DarwinHvSts2Rc(hrc);
 }
-
 
 #if 0 /* unused */
 DECLINLINE(int) nemR3DarwinProtectPage(PVM pVM, RTGCPHYS GCPhys, size_t cb, uint32_t fPageProt)
@@ -557,6 +589,7 @@ DECLINLINE(int) nemR3DarwinProtectPage(PVM pVM, RTGCPHYS GCPhys, size_t cb, uint
     if (fPageProt & NEM_PAGE_PROT_EXECUTE)
         fHvMemProt |= HV_MEMORY_EXEC;
 
+    hv_return_t hrc;
     if (pVM->nem.s.fCreatedAsid)
         hrc = hv_vm_protect_space(pVM->nem.s.uVmAsid, GCPhys, cb, fHvMemProt);
     else
@@ -565,7 +598,6 @@ DECLINLINE(int) nemR3DarwinProtectPage(PVM pVM, RTGCPHYS GCPhys, size_t cb, uint
     return nemR3DarwinHvSts2Rc(hrc);
 }
 #endif
-
 
 DECLINLINE(int) nemR3NativeGCPhys2R3PtrReadOnly(PVM pVM, RTGCPHYS GCPhys, const void **ppv)
 {
@@ -584,114 +616,6 @@ DECLINLINE(int) nemR3NativeGCPhys2R3PtrWriteable(PVM pVM, RTGCPHYS GCPhys, void 
     if (RT_SUCCESS(rc))
         PGMPhysReleasePageMappingLock(pVM, &Lock);
     return rc;
-}
-
-
-/**
- * Worker that maps pages into Hyper-V.
- *
- * This is used by the PGM physical page notifications as well as the memory
- * access VMEXIT handlers.
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   pVCpu           The cross context virtual CPU structure of the
- *                          calling EMT.
- * @param   GCPhysSrc       The source page address.
- * @param   GCPhysDst       The hyper-V destination page.  This may differ from
- *                          GCPhysSrc when A20 is disabled.
- * @param   fPageProt       NEM_PAGE_PROT_XXX.
- * @param   pu2State        Our page state (input/output).
- * @param   fBackingChanged Set if the page backing is being changed.
- * @thread  EMT(pVCpu)
- */
-NEM_TMPL_STATIC int nemHCNativeSetPhysPage(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhysSrc, RTGCPHYS GCPhysDst,
-                                           uint32_t fPageProt, uint8_t *pu2State, bool fBackingChanged)
-{
-    /*
-     * Looks like we need to unmap a page before we can change the backing
-     * or even modify the protection.  This is going to be *REALLY* efficient.
-     * PGM lends us two bits to keep track of the state here.
-     */
-    RT_NOREF(pVCpu);
-    uint8_t const u2OldState = *pu2State;
-    uint8_t const u2NewState = fPageProt & NEM_PAGE_PROT_WRITE ? NEM_DARWIN_PAGE_STATE_WRITABLE
-                             : fPageProt & NEM_PAGE_PROT_READ  ? NEM_DARWIN_PAGE_STATE_READABLE : NEM_DARWIN_PAGE_STATE_UNMAPPED;
-    if (   fBackingChanged
-        || u2NewState != u2OldState)
-    {
-        if (u2OldState > NEM_DARWIN_PAGE_STATE_UNMAPPED)
-        {
-            int rc = nemR3DarwinUnmap(pVM, GCPhysDst, X86_PAGE_SIZE);
-            if (RT_SUCCESS(rc))
-            {
-                *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
-                if (u2NewState == NEM_DARWIN_PAGE_STATE_UNMAPPED)
-                {
-                    Log5(("NEM GPA unmapped/set: %RGp (was %s)\n", GCPhysDst, g_apszPageStates[u2OldState]));
-                    return VINF_SUCCESS;
-                }
-            }
-            else
-            {
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
-                LogRel(("nemHCNativeSetPhysPage/unmap: GCPhysDst=%RGp rc=%Rrc\n", GCPhysDst, rc));
-                return VERR_NEM_INIT_FAILED;
-            }
-        }
-    }
-
-    /*
-     * Writeable mapping?
-     */
-    if (fPageProt & NEM_PAGE_PROT_WRITE)
-    {
-        void *pvPage;
-        int rc = nemR3NativeGCPhys2R3PtrWriteable(pVM, GCPhysSrc, &pvPage);
-        if (RT_SUCCESS(rc))
-        {
-            rc = nemR3DarwinMap(pVM, GCPhysDst, pvPage, X86_PAGE_SIZE, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE);
-            if (RT_SUCCESS(rc))
-            {
-                *pu2State = NEM_DARWIN_PAGE_STATE_WRITABLE;
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPage);
-                Log5(("NEM GPA mapped/set: %RGp %s (was %s)\n", GCPhysDst, g_apszPageStates[u2NewState], g_apszPageStates[u2OldState]));
-                return VINF_SUCCESS;
-            }
-            STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
-            LogRel(("nemHCNativeSetPhysPage/writable: GCPhysDst=%RGp rc=%Rrc\n", GCPhysDst));
-            return VERR_NEM_INIT_FAILED;
-        }
-        LogRel(("nemHCNativeSetPhysPage/writable: GCPhysSrc=%RGp rc=%Rrc\n", GCPhysSrc, rc));
-        return rc;
-    }
-
-    if (fPageProt & NEM_PAGE_PROT_READ)
-    {
-        const void *pvPage;
-        int rc = nemR3NativeGCPhys2R3PtrReadOnly(pVM, GCPhysSrc, &pvPage);
-        if (RT_SUCCESS(rc))
-        {
-            rc = nemR3DarwinMap(pVM, GCPhysDst, (void *)pvPage, X86_PAGE_SIZE, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE);
-            if (RT_SUCCESS(rc))
-            {
-                *pu2State = NEM_DARWIN_PAGE_STATE_READABLE;
-                STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPage);
-                Log5(("NEM GPA mapped/set: %RGp %s (was %s)\n", GCPhysDst, g_apszPageStates[u2NewState], g_apszPageStates[u2OldState]));
-                return VINF_SUCCESS;
-            }
-            STAM_REL_COUNTER_INC(&pVM->nem.s.StatMapPageFailed);
-            LogRel(("nemHCNativeSetPhysPage/readonly: GCPhysDst=%RGp rc=%Rrc\n", GCPhysDst, rc));
-            return VERR_NEM_INIT_FAILED;
-        }
-        LogRel(("nemHCNativeSetPhysPage/readonly: GCPhysSrc=%RGp rc=%Rrc\n", GCPhysSrc, rc));
-        return rc;
-    }
-
-    /* We already unmapped it above. */
-    *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
-    return VINF_SUCCESS;
 }
 
 
@@ -927,7 +851,11 @@ static int nemR3DarwinCopyStateFromHv(PVMCC pVM, PVMCPUCC pVCpu, uint64_t fWhat)
     if (fWhat & CPUMCTX_EXTRN_RIP)
         READ_GREG(HV_X86_RIP, pVCpu->cpum.GstCtx.rip);
     if (fWhat & CPUMCTX_EXTRN_RFLAGS)
-        READ_GREG(HV_X86_RFLAGS, pVCpu->cpum.GstCtx.rflags.u);
+    {
+        uint64_t fRFlagsTmp = 0;
+        READ_GREG(HV_X86_RFLAGS, fRFlagsTmp);
+        pVCpu->cpum.GstCtx.rflags.u = fRFlagsTmp;
+    }
 
     /* Segments */
 #define READ_SEG(a_SReg, a_enmName) \
@@ -1225,8 +1153,8 @@ static int nemR3DarwinCopyStateFromHv(PVMCC pVM, PVMCPUCC pVCpu, uint64_t fWhat)
 
 
 /**
- * State to pass between nemHCWinHandleMemoryAccess / nemR3WinWHvHandleMemoryAccess
- * and nemHCWinHandleMemoryAccessPageCheckerCallback.
+ * State to pass between vmxHCExitEptViolation
+ * and nemR3DarwinHandleMemoryAccessPageCheckerCallback.
  */
 typedef struct NEMHCDARWINHMACPCCSTATE
 {
@@ -1240,12 +1168,14 @@ typedef struct NEMHCDARWINHMACPCCSTATE
 
 /**
  * @callback_method_impl{FNPGMPHYSNEMCHECKPAGE,
- *      Worker for nemR3WinHandleMemoryAccess; pvUser points to a
+ *      Worker for vmxHCExitEptViolation; pvUser points to a
  *      NEMHCDARWINHMACPCCSTATE structure. }
  */
 static DECLCALLBACK(int)
 nemR3DarwinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGCPHYS GCPhys, PPGMPHYSNEMPAGEINFO pInfo, void *pvUser)
 {
+    RT_NOREF(pVCpu);
+
     NEMHCDARWINHMACPCCSTATE *pState = (NEMHCDARWINHMACPCCSTATE *)pvUser;
     pState->fDidSomething = false;
     pState->fCanResume    = false;
@@ -1256,11 +1186,11 @@ nemR3DarwinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGC
      * Consolidate current page state with actual page protection and access type.
      * We don't really consider downgrades here, as they shouldn't happen.
      */
-    int rc;
     switch (u2State)
     {
         case NEM_DARWIN_PAGE_STATE_UNMAPPED:
         case NEM_DARWIN_PAGE_STATE_NOT_SET:
+        {
             if (pInfo->fNemProt == NEM_PAGE_PROT_NONE)
             {
                 Log4(("nemR3DarwinHandleMemoryAccessPageCheckerCallback: %RGp - #1\n", GCPhys));
@@ -1275,21 +1205,31 @@ nemR3DarwinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGC
                 return VINF_SUCCESS;
             }
 
-            /* Map the page. */
-            rc = nemHCNativeSetPhysPage(pVM,
-                                        pVCpu,
-                                        GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK,
-                                        GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK,
-                                        pInfo->fNemProt,
-                                        &u2State,
-                                        true /*fBackingState*/);
+            int rc = VINF_SUCCESS;
+            if (pInfo->fNemProt & NEM_PAGE_PROT_WRITE)
+            {
+                void *pvPage;
+                rc = nemR3NativeGCPhys2R3PtrWriteable(pVM, GCPhys, &pvPage);
+                if (RT_SUCCESS(rc))
+                    rc = nemR3DarwinMap(pVM, GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, pvPage, X86_PAGE_SIZE, pInfo->fNemProt, &u2State);
+            }
+            else if (pInfo->fNemProt & NEM_PAGE_PROT_READ)
+            {
+                const void *pvPage;
+                rc = nemR3NativeGCPhys2R3PtrReadOnly(pVM, GCPhys, &pvPage);
+                if (RT_SUCCESS(rc))
+                    rc = nemR3DarwinMap(pVM, GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, pvPage, X86_PAGE_SIZE, pInfo->fNemProt, &u2State);
+            }
+            else /* Only EXECUTE doesn't work. */
+                AssertReleaseFailed();
+
             pInfo->u2NemState = u2State;
             Log4(("nemR3DarwinHandleMemoryAccessPageCheckerCallback: %RGp - synced => %s + %Rrc\n",
                   GCPhys, g_apszPageStates[u2State], rc));
             pState->fDidSomething = true;
             pState->fCanResume    = true;
             return rc;
-
+        }
         case NEM_DARWIN_PAGE_STATE_READABLE:
             if (   !(pInfo->fNemProt & NEM_PAGE_PROT_WRITE)
                 && (pInfo->fNemProt & (NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE)))
@@ -1303,38 +1243,29 @@ nemR3DarwinHandleMemoryAccessPageCheckerCallback(PVMCC pVM, PVMCPUCC pVCpu, RTGC
         case NEM_DARWIN_PAGE_STATE_WRITABLE:
             if (pInfo->fNemProt & NEM_PAGE_PROT_WRITE)
             {
-                /* We get spurious EPT exit violations when everything is fine (#3a case) but can resume without issues here... */
                 pState->fCanResume = true;
                 if (pInfo->u2OldNemState == NEM_DARWIN_PAGE_STATE_WRITABLE)
-                    Log4(("nemR3DarwinHandleMemoryAccessPageCheckerCallback: %RGp - #3a\n", GCPhys));
-                else
-                    Log4(("nemR3DarwinHandleMemoryAccessPageCheckerCallback: %RGp - #3b (%s -> %s)\n",
-                          GCPhys, g_apszPageStates[pInfo->u2OldNemState], g_apszPageStates[u2State]));
+                    Log4(("nemR3DarwinHandleMemoryAccessPageCheckerCallback: Spurious EPT fault\n", GCPhys));
                 return VINF_SUCCESS;
             }
-
             break;
 
         default:
             AssertLogRelMsgFailedReturn(("u2State=%#x\n", u2State), VERR_NEM_IPE_4);
     }
 
-    /*
-     * Unmap and restart the instruction.
-     * If this fails, which it does every so often, just unmap everything for now.
-     */
-    rc = nemR3DarwinUnmap(pVM, GCPhys, X86_PAGE_SIZE);
+    /* Unmap and restart the instruction. */
+    int rc = nemR3DarwinUnmap(pVM, GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, X86_PAGE_SIZE, &u2State);
     if (RT_SUCCESS(rc))
     {
+        pInfo->u2NemState     = u2State;
         pState->fDidSomething = true;
         pState->fCanResume    = true;
-        pInfo->u2NemState = NEM_DARWIN_PAGE_STATE_UNMAPPED;
-        STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
         Log5(("NEM GPA unmapped/exit: %RGp (was %s)\n", GCPhys, g_apszPageStates[u2State]));
         return VINF_SUCCESS;
     }
-    STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
-    LogRel(("nemR3DarwinHandleMemoryAccessPageCheckerCallback/unmap: GCPhysDst=%RGp %s rc=%Rrc\n",
+
+    LogRel(("nemR3DarwinHandleMemoryAccessPageCheckerCallback/unmap: GCPhys=%RGp %s rc=%Rrc\n",
             GCPhys, g_apszPageStates[u2State], rc));
     return VERR_NEM_UNMAP_PAGES_FAILED;
 }
@@ -1515,7 +1446,7 @@ static int nemR3DarwinExportDebugState(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
         }
         else
         {
-            pVCpu->cpum.GstCtx.eflags.u32 |= X86_EFL_TF;
+            pVCpu->cpum.GstCtx.eflags.u |= X86_EFL_TF;
             pVCpu->nem.s.fCtxChanged |= HM_CHANGED_GUEST_RFLAGS;
             pVCpu->nem.s.fClearTrapFlag = true;
             fSteppingDB = true;
@@ -1996,6 +1927,10 @@ DECLINLINE(int) nemR3DarwinHandleExitCommon(PVM pVM, PVMCPU pVCpu, PVMXTRANSIENT
 
     /** @todo Only copy the state on demand (the R0 VT-x code saves some stuff unconditionally and the VMX template assumes that
      * when handling exits). */
+    /*
+     * Note! What is being fetched here must match the default value for the
+     *       a_fDonePostExit parameter of vmxHCImportGuestState exactly!
+     */
     rc = nemR3DarwinCopyStateFromHv(pVM, pVCpu, CPUMCTX_EXTRN_ALL);
     AssertRCReturn(rc, rc);
 
@@ -2816,18 +2751,23 @@ static int nemR3DarwinStatisticsRegister(PVM pVM, VMCPUID idCpu, PNEMCPU pNemCpu
            NEM_REG_STAT(a_pVar, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, a_szNmFmt, a_szDesc)
 #define NEM_REG_COUNTER(a, b, desc) NEM_REG_STAT(a, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, b, desc)
 
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR0Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR0", "CR0 read.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR2Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR2", "CR2 read.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR3Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR3", "CR3 read.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR4Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR4", "CR4 read.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR8Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR8", "CR8 read.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR0Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR0", "CR0 write.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR2Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR2", "CR2 write.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR3Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR3", "CR3 write.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR4Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR4", "CR4 write.");
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitCR8Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR8", "CR8 write.");
+    PVMXSTATISTICS const pVmxStats = pNemCpu->pVmxStats;
 
-    NEM_REG_COUNTER(&pNemCpu->pVmxStats->StatExitAll, "/NEM/CPU%u/Exit/All",         "Total exits (including nested-guest exits).");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR0Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR0", "CR0 read.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR2Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR2", "CR2 read.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR3Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR3", "CR3 read.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR4Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR4", "CR4 read.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR8Read,  "/NEM/CPU%u/Exit/Instr/CR-Read/CR8", "CR8 read.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR0Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR0", "CR0 write.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR2Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR2", "CR2 write.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR3Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR3", "CR3 write.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR4Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR4", "CR4 write.");
+    NEM_REG_COUNTER(&pVmxStats->StatExitCR8Write, "/NEM/CPU%u/Exit/Instr/CR-Write/CR8", "CR8 write.");
+
+    NEM_REG_COUNTER(&pVmxStats->StatExitAll,      "/NEM/CPU%u/Exit/All", "Total exits (including nested-guest exits).");
+
+    NEM_REG_COUNTER(&pVmxStats->StatImportGuestStateFallback, "/NEM/CPU%u/ImportGuestStateFallback", "Times vmxHCImportGuestState took the fallback code path.");
+    NEM_REG_COUNTER(&pVmxStats->StatReadToTransientFallback,  "/NEM/CPU%u/ReadToTransientFallback",  "Times vmxHCReadToTransient took the fallback code path.");
 
 #ifdef VBOX_WITH_STATISTICS
     NEM_REG_PROFILE(&pNemCpu->StatProfGstStateImport, "/NEM/CPU%u/ImportGuestState", "Profiling of importing guest state from hardware after VM-exit.");
@@ -2838,7 +2778,7 @@ static int nemR3DarwinStatisticsRegister(PVM pVM, VMCPUID idCpu, PNEMCPU pNemCpu
         const char *pszExitName = HMGetVmxExitName(j);
         if (pszExitName)
         {
-            int rc = STAMR3RegisterF(pVM, &pNemCpu->pVmxStats->aStatExitReason[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED,
+            int rc = STAMR3RegisterF(pVM, &pVmxStats->aStatExitReason[j], STAMTYPE_COUNTER, STAMVISIBILITY_USED,
                                      STAMUNIT_OCCURENCES, pszExitName, "/NEM/CPU%u/Exit/Reason/%02x", idCpu, j);
             AssertRCReturn(rc, rc);
         }
@@ -3707,7 +3647,7 @@ static VBOXSTRICTRC nemR3DarwinRunGuestDebug(PVM pVM, PVMCPU pVCpu)
              */
             if (fStepping)
             {
-                int rc = vmxHCImportGuestState(pVCpu, VmxTransient.pVmcsInfo, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP);
+                int rc = vmxHCImportGuestStateEx(pVCpu, VmxTransient.pVmcsInfo, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP);
                 AssertRC(rc);
                 if (   pVCpu->cpum.GstCtx.rip    != DbgState.uRipStart
                     || pVCpu->cpum.GstCtx.cs.Sel != DbgState.uCsStart)
@@ -3731,7 +3671,7 @@ static VBOXSTRICTRC nemR3DarwinRunGuestDebug(PVM pVM, PVMCPU pVCpu)
      */
     if (pVCpu->nem.s.fClearTrapFlag)
     {
-        int rc = vmxHCImportGuestState(pVCpu, VmxTransient.pVmcsInfo, CPUMCTX_EXTRN_RFLAGS);
+        int rc = vmxHCImportGuestStateEx(pVCpu, VmxTransient.pVmcsInfo, CPUMCTX_EXTRN_RFLAGS);
         AssertRC(rc);
         pVCpu->nem.s.fClearTrapFlag = false;
         pVCpu->cpum.GstCtx.eflags.Bits.u1TF = 0;
@@ -3748,7 +3688,7 @@ static VBOXSTRICTRC nemR3DarwinRunGuestDebug(PVM pVM, PVMCPU pVCpu)
 
 VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
 {
-    LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 <=\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags));
+    LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 <=\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.u));
 #ifdef LOG_ENABLED
     if (LogIs3Enabled())
         nemR3DarwinLogState(pVM, pVCpu);
@@ -3837,7 +3777,7 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
     }
 
     LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 => %Rrc\n",
-             pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags, VBOXSTRICTRC_VAL(rcStrict) ));
+             pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.u, VBOXSTRICTRC_VAL(rcStrict) ));
     return rcStrict;
 }
 
@@ -3898,10 +3838,8 @@ VMMR3_INT_DECL(int) NEMR3NotifyPhysRamRegister(PVM pVM, RTGCPHYS GCPhys, RTGCPHY
 #if defined(VBOX_WITH_PGM_NEM_MODE)
     if (pvR3)
     {
-        int rc = nemR3DarwinMap(pVM, GCPhys, pvR3, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE);
-        if (RT_SUCCESS(rc))
-            *pu2State = NEM_DARWIN_PAGE_STATE_WRITABLE;
-        else
+        int rc = nemR3DarwinMap(pVM, GCPhys, pvR3, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE, pu2State);
+        if (RT_FAILURE(rc))
         {
             LogRel(("NEMR3NotifyPhysRamRegister: GCPhys=%RGp LB %RGp pvR3=%p rc=%Rrc\n", GCPhys, cb, pvR3, rc));
             return VERR_NEM_MAP_PAGES_FAILED;
@@ -3936,7 +3874,7 @@ VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExMapEarly(PVM pVM, RTGCPHYS GCPhys, RTGC
      */
     if (fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_REPLACE)
     {
-        int rc = nemR3DarwinUnmap(pVM, GCPhys, cb);
+        int rc = nemR3DarwinUnmap(pVM, GCPhys, cb, pu2State);
         if (RT_SUCCESS(rc))
         { /* likely */ }
         else if (pvMmio2)
@@ -3956,10 +3894,8 @@ VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExMapEarly(PVM pVM, RTGCPHYS GCPhys, RTGC
     if (pvMmio2)
     {
         Assert(fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2);
-        int rc = nemR3DarwinMap(pVM, GCPhys, pvMmio2, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE);
-        if (RT_SUCCESS(rc))
-            *pu2State = NEM_DARWIN_PAGE_STATE_WRITABLE;
-        else
+        int rc = nemR3DarwinMap(pVM, GCPhys, pvMmio2, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE, pu2State);
+        if (RT_FAILURE(rc))
         {
             LogRel(("NEMR3NotifyPhysMmioExMapEarly: GCPhys=%RGp LB %RGp fFlags=%#x pvMmio2=%p: Map -> rc=%Rrc\n",
                     GCPhys, cb, fFlags, pvMmio2, rc));
@@ -3967,10 +3903,7 @@ VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExMapEarly(PVM pVM, RTGCPHYS GCPhys, RTGC
         }
     }
     else
-    {
         Assert(!(fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2));
-        *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
-    }
 
 #else
     RT_NOREF(pVM, GCPhys, cb, pvRam, pvMmio2);
@@ -4005,7 +3938,7 @@ VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHY
      *        we may have more stuff to unmap even in case of pure MMIO... */
     if (fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_MMIO2)
     {
-        rc = nemR3DarwinUnmap(pVM, GCPhys, cb);
+        rc = nemR3DarwinUnmap(pVM, GCPhys, cb, pu2State);
         if (RT_FAILURE(rc))
         {
             LogRel2(("NEMR3NotifyPhysMmioExUnmap: GCPhys=%RGp LB %RGp fFlags=%#x: Unmap -> rc=%Rrc\n",
@@ -4014,13 +3947,16 @@ VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHY
         }
     }
 
+    /* Ensure the page is masked as unmapped if relevant. */
+    Assert(!pu2State || *pu2State == NEM_DARWIN_PAGE_STATE_UNMAPPED);
+
     /*
      * Restore the RAM we replaced.
      */
     if (fFlags & NEM_NOTIFY_PHYS_MMIO_EX_F_REPLACE)
     {
         AssertPtr(pvRam);
-        rc = nemR3DarwinMap(pVM, GCPhys, pvRam, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE);
+        rc = nemR3DarwinMap(pVM, GCPhys, pvRam, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE, pu2State);
         if (RT_SUCCESS(rc))
         { /* likely */ }
         else
@@ -4028,12 +3964,7 @@ VMMR3_INT_DECL(int) NEMR3NotifyPhysMmioExUnmap(PVM pVM, RTGCPHYS GCPhys, RTGCPHY
             LogRel(("NEMR3NotifyPhysMmioExUnmap: GCPhys=%RGp LB %RGp pvMmio2=%p rc=%Rrc\n", GCPhys, cb, pvMmio2, rc));
             rc = VERR_NEM_MAP_PAGES_FAILED;
         }
-        if (pu2State)
-            *pu2State = NEM_DARWIN_PAGE_STATE_WRITABLE;
     }
-    /* Mark the pages as unmapped if relevant. */
-    else if (pu2State)
-        *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
 
     RT_NOREF(pvMmio2);
 #else
@@ -4079,16 +4010,14 @@ VMMR3_INT_DECL(int)  NEMR3NotifyPhysRomRegisterLate(PVM pVM, RTGCPHYS GCPhys, RT
      * (Re-)map readonly.
      */
     AssertPtrReturn(pvPages, VERR_INVALID_POINTER);
-    int rc = nemR3DarwinMap(pVM, GCPhys, pvPages, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE);
-    if (RT_SUCCESS(rc))
-        *pu2State = NEM_DARWIN_PAGE_STATE_READABLE;
-    else
+    int rc = nemR3DarwinMap(pVM, GCPhys, pvPages, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE, pu2State);
+    if (RT_FAILURE(rc))
     {
         LogRel(("nemR3NativeNotifyPhysRomRegisterLate: GCPhys=%RGp LB %RGp pvPages=%p fFlags=%#x rc=%Rrc\n",
                 GCPhys, cb, pvPages, fFlags, rc));
         return VERR_NEM_MAP_PAGES_FAILED;
     }
-    RT_NOREF(pVM, fFlags, puNemRange);
+    RT_NOREF(fFlags, puNemRange);
     return VINF_SUCCESS;
 #else
     RT_NOREF(pVM, GCPhys, cb, pvPages, fFlags, puNemRange);
@@ -4109,42 +4038,15 @@ VMM_INT_DECL(void) NEMHCNotifyHandlerPhysicalDeregister(PVMCC pVM, PGMPHYSHANDLE
 #if defined(VBOX_WITH_PGM_NEM_MODE)
     if (pvMemR3)
     {
-        int rc = nemR3DarwinMap(pVM, GCPhys, pvMemR3, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE);
-        if (RT_SUCCESS(rc))
-            *pu2State = NEM_DARWIN_PAGE_STATE_WRITABLE;
-        else
-            AssertLogRelMsgFailed(("NEMHCNotifyHandlerPhysicalDeregister: nemR3DarwinMap(,%p,%RGp,%RGp,) -> %Rrc\n",
-                                   pvMemR3, GCPhys, cb, rc));
+        int rc = nemR3DarwinMap(pVM, GCPhys, pvMemR3, cb, NEM_PAGE_PROT_READ | NEM_PAGE_PROT_WRITE | NEM_PAGE_PROT_EXECUTE, pu2State);
+        AssertLogRelMsgRC(rc, ("NEMHCNotifyHandlerPhysicalDeregister: nemR3DarwinMap(,%p,%RGp,%RGp,) -> %Rrc\n",
+                          pvMemR3, GCPhys, cb, rc));
     }
     RT_NOREF(enmKind);
 #else
     RT_NOREF(pVM, enmKind, GCPhys, cb, pvMemR3);
     AssertFailed();
 #endif
-}
-
-
-static int nemHCJustUnmapPage(PVMCC pVM, RTGCPHYS GCPhysDst, uint8_t *pu2State)
-{
-    if (*pu2State <= NEM_DARWIN_PAGE_STATE_UNMAPPED)
-    {
-        Log5(("nemHCJustUnmapPage: %RGp == unmapped\n", GCPhysDst));
-        *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
-        return VINF_SUCCESS;
-    }
-
-    int rc = nemR3DarwinUnmap(pVM, GCPhysDst & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, X86_PAGE_SIZE);
-    if (RT_SUCCESS(rc))
-    {
-        STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPage);
-        *pu2State = NEM_DARWIN_PAGE_STATE_UNMAPPED;
-        Log5(("nemHCJustUnmapPage: %RGp => unmapped\n", GCPhysDst));
-        return VINF_SUCCESS;
-    }
-    STAM_REL_COUNTER_INC(&pVM->nem.s.StatUnmapPageFailed);
-    LogRel(("nemHCJustUnmapPage(%RGp): failed! rc=%Rrc\n",
-            GCPhysDst, rc));
-    return VERR_NEM_IPE_6;
 }
 
 
@@ -4178,7 +4080,7 @@ int nemHCNativeNotifyPhysPageAllocated(PVMCC pVM, RTGCPHYS GCPhys, RTHCPHYS HCPh
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));
     RT_NOREF(HCPhys, fPageProt, enmType);
 
-    return nemHCJustUnmapPage(pVM, GCPhys, pu2State);
+    return nemR3DarwinUnmap(pVM, GCPhys, X86_PAGE_SIZE, pu2State);
 }
 
 
@@ -4189,7 +4091,7 @@ VMM_INT_DECL(void) NEMHCNotifyPhysPageProtChanged(PVMCC pVM, RTGCPHYS GCPhys, RT
           GCPhys, HCPhys, fPageProt, enmType, *pu2State));
     RT_NOREF(HCPhys, pvR3, fPageProt, enmType)
 
-    nemHCJustUnmapPage(pVM, GCPhys, pu2State);
+    nemR3DarwinUnmap(pVM, GCPhys, X86_PAGE_SIZE, pu2State);
 }
 
 
@@ -4200,7 +4102,7 @@ VMM_INT_DECL(void) NEMHCNotifyPhysPageChanged(PVMCC pVM, RTGCPHYS GCPhys, RTHCPH
           GCPhys, HCPhysPrev, HCPhysNew, fPageProt, enmType, *pu2State));
     RT_NOREF(HCPhysPrev, HCPhysNew, pvNewR3, fPageProt, enmType);
 
-    nemHCJustUnmapPage(pVM, GCPhys, pu2State);
+    nemR3DarwinUnmap(pVM, GCPhys, X86_PAGE_SIZE, pu2State);
 }
 
 

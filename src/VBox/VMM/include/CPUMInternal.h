@@ -55,25 +55,6 @@ typedef uint64_t STAMCOUNTER;
  * @{
  */
 
-/** Flags and types for CPUM fault handlers
- * @{ */
-/** Type: Load DS */
-#define CPUM_HANDLER_DS                 1
-/** Type: Load ES */
-#define CPUM_HANDLER_ES                 2
-/** Type: Load FS */
-#define CPUM_HANDLER_FS                 3
-/** Type: Load GS */
-#define CPUM_HANDLER_GS                 4
-/** Type: IRET */
-#define CPUM_HANDLER_IRET               5
-/** Type mask. */
-#define CPUM_HANDLER_TYPEMASK           0xff
-/** If set EBP points to the CPUMCTXCORE that's being used. */
-#define CPUM_HANDLER_CTXCORE_IN_EBP     RT_BIT(31)
-/** @} */
-
-
 /** Use flags (CPUM::fUseFlags).
  * (Don't forget to sync this with CPUMInternal.mac !)
  * @note Was part of saved state (6.1 and earlier).
@@ -400,8 +381,12 @@ typedef struct CPUM
     bool                    fNestedVmxUnrestrictedGuest;
     uint8_t                 abPadding1[1];
 
+    /** Random value we store in the reserved RFLAGS bits we don't use ourselves so
+     *  we can detect corruption. */
+    uint64_t                fReservedRFlagsCookie;
+
     /** Align to 64-byte boundary. */
-    uint8_t                 abPadding2[20+4];
+    uint8_t                 abPadding2[16];
 
     /** Host CPU feature information.
      * Externaly visible via the VM structure, aligned on 64-byte boundrary. */

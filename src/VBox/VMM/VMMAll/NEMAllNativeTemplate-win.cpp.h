@@ -367,21 +367,17 @@ NEM_TMPL_STATIC int nemHCWinCopyStateToHyperV(PVMCC pVM, PVMCPUCC pVCpu)
         ==          (CPUMCTX_EXTRN_INHIBIT_INT | CPUMCTX_EXTRN_INHIBIT_NMI) )
     {
         ADD_REG64(WHvRegisterInterruptState, 0);
-        if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-            && EMGetInhibitInterruptsPC(pVCpu) == pVCpu->cpum.GstCtx.rip)
+        if (CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx))
             aValues[iReg - 1].InterruptState.InterruptShadow = 1;
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-            aValues[iReg - 1].InterruptState.NmiMasked = 1;
+        aValues[iReg - 1].InterruptState.NmiMasked = CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx);
     }
     else if (fWhat & CPUMCTX_EXTRN_INHIBIT_INT)
     {
         if (   pVCpu->nem.s.fLastInterruptShadow
-            || (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                && EMGetInhibitInterruptsPC(pVCpu) == pVCpu->cpum.GstCtx.rip))
+            || CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx))
         {
             ADD_REG64(WHvRegisterInterruptState, 0);
-            if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                && EMGetInhibitInterruptsPC(pVCpu) == pVCpu->cpum.GstCtx.rip)
+            if (CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx))
                 aValues[iReg - 1].InterruptState.InterruptShadow = 1;
             /** @todo Retrieve NMI state, currently assuming it's zero. (yes this may happen on I/O) */
             //if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
@@ -990,21 +986,12 @@ NEM_TMPL_STATIC int nemHCWinCopyStateFromHyperV(PVMCC pVM, PVMCPUCC pVCpu, uint6
         Assert(aenmNames[iReg + 1] == WHvX64RegisterRip);
 
         if (!(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_INHIBIT_INT))
-        {
-            pVCpu->nem.s.fLastInterruptShadow = aValues[iReg].InterruptState.InterruptShadow;
-            if (aValues[iReg].InterruptState.InterruptShadow)
-                EMSetInhibitInterruptsPC(pVCpu, aValues[iReg + 1].Reg64);
-            else
-                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-        }
+            pVCpu->nem.s.fLastInterruptShadow = CPUMUpdateInterruptShadowEx(&pVCpu->cpum.GstCtx,
+                                                                            aValues[iReg].InterruptState.InterruptShadow,
+                                                                            aValues[iReg + 1].Reg64);
 
         if (!(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_INHIBIT_NMI))
-        {
-            if (aValues[iReg].InterruptState.NmiMasked)
-                VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-            else
-                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
-        }
+            CPUMUpdateInterruptInhibitingByNmi(&pVCpu->cpum.GstCtx, aValues[iReg].InterruptState.NmiMasked);
 
         fWhat |= CPUMCTX_EXTRN_INHIBIT_INT | CPUMCTX_EXTRN_INHIBIT_NMI;
         iReg += 2;
@@ -1278,12 +1265,7 @@ DECLINLINE(void) nemR3WinAdvanceGuestRipAndClearRF(PVMCPUCC pVCpu, WHV_VP_EXIT_C
     Assert(pExitCtx->InstructionLength >= cbMinInstr); RT_NOREF_PV(cbMinInstr);
     pVCpu->cpum.GstCtx.rip += pExitCtx->InstructionLength;
     pVCpu->cpum.GstCtx.rflags.Bits.u1RF = 0;
-
-    /* Update interrupt inhibition. */
-    if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-    { /* likely */ }
-    else if (pVCpu->cpum.GstCtx.rip != EMGetInhibitInterruptsPC(pVCpu))
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+    CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
 }
 
 
@@ -1470,21 +1452,13 @@ DECLINLINE(void) nemR3WinCopyStateFromX64Header(PVMCPUCC pVCpu, WHV_VP_EXIT_CONT
 {
     Assert(   (pVCpu->cpum.GstCtx.fExtrn & (CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_INHIBIT_INT))
            ==                              (CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_INHIBIT_INT));
+
     NEM_WIN_COPY_BACK_SEG(pVCpu->cpum.GstCtx.cs, pExitCtx->Cs);
     pVCpu->cpum.GstCtx.rip      = pExitCtx->Rip;
     pVCpu->cpum.GstCtx.rflags.u = pExitCtx->Rflags;
-
-    pVCpu->nem.s.fLastInterruptShadow = pExitCtx->ExecutionState.InterruptShadow;
-    if (!pExitCtx->ExecutionState.InterruptShadow)
-    {
-        if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-        { /* likely */ }
-        else
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-    }
-    else
-        EMSetInhibitInterruptsPC(pVCpu, pExitCtx->Rip);
-
+    pVCpu->nem.s.fLastInterruptShadow = CPUMUpdateInterruptShadowEx(&pVCpu->cpum.GstCtx,
+                                                                    pExitCtx->ExecutionState.InterruptShadow,
+                                                                    pExitCtx->Rip);
     APICSetTpr(pVCpu, pExitCtx->Cr8 << 4);
 
     pVCpu->cpum.GstCtx.fExtrn &= ~(CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_INHIBIT_INT | CPUMCTX_EXTRN_APIC_TPR);
@@ -1569,8 +1543,7 @@ nemR3WinHandleExitMemory(PVMCC pVM, PVMCPUCC pVCpu, WHV_RUN_VP_EXIT_CONTEXT cons
         //if (pMsg->InstructionByteCount > 0)
         //    Log4(("InstructionByteCount=%#x %.16Rhxs\n", pMsg->InstructionByteCount, pMsg->InstructionBytes));
         if (pExit->MemoryAccess.InstructionByteCount > 0)
-            rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pExit->VpContext.Rip,
-                                                    pExit->MemoryAccess.InstructionBytes, pExit->MemoryAccess.InstructionByteCount);
+            rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, pExit->VpContext.Rip, pExit->MemoryAccess.InstructionBytes, pExit->MemoryAccess.InstructionByteCount);
         else
             rcStrict = IEMExecOne(pVCpu);
         /** @todo do we need to do anything wrt debugging here?   */
@@ -2080,11 +2053,8 @@ DECLINLINE(void) nemHcWinAdvanceRip(PVMCPUCC pVCpu, uint32_t cb)
 {
     PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
     pCtx->rip += cb;
-
-    /* Update interrupt shadow. */
-    if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-        && pCtx->rip != EMGetInhibitInterruptsPC(pVCpu))
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+    /** @todo Why not clear RF too? */
+    CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
 }
 
 
@@ -2202,7 +2172,7 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExitException(PVMCC pVM, PVMCPUCC pVC
             if (nemHcWinIsInterestingUndefinedOpcode(pExit->VpException.InstructionByteCount, pExit->VpException.InstructionBytes,
                                                      pExit->VpContext.ExecutionState.EferLma && pExit->VpContext.Cs.Long ))
             {
-                rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pExit->VpContext.Rip,
+                rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, pExit->VpContext.Rip,
                                                         pExit->VpException.InstructionBytes,
                                                         pExit->VpException.InstructionByteCount);
                 Log4(("XcptExit/%u: %04x:%08RX64/%s: #UD -> emulated -> %Rrc\n",
@@ -2231,7 +2201,7 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemR3WinHandleExitException(PVMCC pVM, PVMCPUCC pVC
                                         pExit->VpException.InstructionByteCount))
             {
 #if 1 /** @todo Need to emulate instruction or we get a triple fault when trying to inject the \#GP... */
-                rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), pExit->VpContext.Rip,
+                rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, pExit->VpContext.Rip,
                                                         pExit->VpException.InstructionBytes,
                                                         pExit->VpException.InstructionByteCount);
                 Log4(("XcptExit/%u: %04x:%08RX64/%s: #GP -> emulated -> %Rrc\n",
@@ -2449,16 +2419,14 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinHandleInterruptFF(PVMCC pVM, PVMCPUCC pVCpu
         if (rcStrict != VINF_SUCCESS)
             return rcStrict;
     }
-    bool const fInhibitInterrupts = VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                                 && EMGetInhibitInterruptsPC(pVCpu) == pVCpu->cpum.GstCtx.rip;
 
     /*
      * NMI? Try deliver it first.
      */
     if (fPendingNmi)
     {
-        if (   !fInhibitInterrupts
-            && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+        if (   !CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx)
+            && !CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx))
         {
             VBOXSTRICTRC rcStrict = nemHCWinImportStateIfNeededStrict(pVCpu, NEM_WIN_CPUMCTX_EXTRN_MASK_FOR_IEM_XCPT, "NMI");
             if (rcStrict == VINF_SUCCESS)
@@ -2478,7 +2446,8 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinHandleInterruptFF(PVMCC pVM, PVMCPUCC pVCpu
      */
     if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
     {
-        if (   !fInhibitInterrupts
+        /** @todo check NMI inhibiting here too! */
+        if (   !CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx)
             && pVCpu->cpum.GstCtx.rflags.Bits.u1IF)
         {
             AssertCompile(NEM_WIN_CPUMCTX_EXTRN_MASK_FOR_IEM_XCPT & CPUMCTX_EXTRN_APIC_TPR);
@@ -2489,7 +2458,7 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinHandleInterruptFF(PVMCC pVM, PVMCPUCC pVCpu
                 int rc = PDMGetInterrupt(pVCpu, &bInterrupt);
                 if (RT_SUCCESS(rc))
                 {
-                    Log8(("Injecting interrupt %#x on %u: %04x:%08RX64 efl=%#x\n", bInterrupt, pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.eflags));
+                    Log8(("Injecting interrupt %#x on %u: %04x:%08RX64 efl=%#x\n", bInterrupt, pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.eflags.u));
                     rcStrict = IEMInjectTrap(pVCpu, bInterrupt, TRPM_HARDWARE_INT, 0, 0, 0);
                     Log8(("Injected interrupt %#x on %u (%d)\n", bInterrupt, pVCpu->idCpu, VBOXSTRICTRC_VAL(rcStrict) ));
                 }
@@ -2538,7 +2507,7 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinHandleInterruptFF(PVMCC pVM, PVMCPUCC pVCpu
  */
 NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinRunGC(PVMCC pVM, PVMCPUCC pVCpu)
 {
-    LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 <=\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags));
+    LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 <=\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.u));
 #ifdef LOG_ENABLED
     if (LogIs3Enabled())
         nemHCWinLogState(pVM, pVCpu);
@@ -2746,8 +2715,8 @@ NEM_TMPL_STATIC VBOXSTRICTRC nemHCWinRunGC(PVMCC pVM, PVMCPUCC pVCpu)
         pVCpu->cpum.GstCtx.fExtrn = 0;
     }
 
-    LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 => %Rrc\n",
-             pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags, VBOXSTRICTRC_VAL(rcStrict) ));
+    LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 => %Rrc\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel,
+             pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.u, VBOXSTRICTRC_VAL(rcStrict) ));
     return rcStrict;
 }
 

@@ -95,6 +95,15 @@
         if (pVCpu->cpum.GstCtx.cr0 & X86_CR0_TS) \
             return iemRaiseDeviceNotAvailable(pVCpu); \
     } while (0)
+#define IEM_MC_MAYBE_RAISE_AESNI_RELATED_XCPT() \
+    do { \
+        if (   (pVCpu->cpum.GstCtx.cr0 & X86_CR0_EM) \
+            || !(pVCpu->cpum.GstCtx.cr4 & X86_CR4_OSFXSR) \
+            || !IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fAesNi) \
+            return iemRaiseUndefinedOpcode(pVCpu); \
+        if (pVCpu->cpum.GstCtx.cr0 & X86_CR0_TS) \
+            return iemRaiseDeviceNotAvailable(pVCpu); \
+    } while (0)
 #define IEM_MC_MAYBE_RAISE_SSE42_RELATED_XCPT() \
     do { \
         if (   (pVCpu->cpum.GstCtx.cr0 & X86_CR0_EM) \
@@ -293,7 +302,6 @@
 #define IEM_MC_STORE_GREG_U8(a_iGReg, a_u8Value)        *iemGRegRefU8( pVCpu, (a_iGReg)) = (a_u8Value)
 #define IEM_MC_STORE_GREG_U16(a_iGReg, a_u16Value)      *iemGRegRefU16(pVCpu, (a_iGReg)) = (a_u16Value)
 #define IEM_MC_STORE_GREG_U32(a_iGReg, a_u32Value)      *iemGRegRefU64(pVCpu, (a_iGReg)) = (uint32_t)(a_u32Value) /* clear high bits. */
-#define IEM_MC_STORE_GREG_I32(a_iGReg, a_i32Value)      *iemGRegRefI64(pVCpu, (a_iGReg)) = (int64_t)(a_i32Value) /* Sign extension. */
 #define IEM_MC_STORE_GREG_U64(a_iGReg, a_u64Value)      *iemGRegRefU64(pVCpu, (a_iGReg)) = (a_u64Value)
 #define IEM_MC_STORE_GREG_I64(a_iGReg, a_i64Value)      *iemGRegRefI64(pVCpu, (a_iGReg)) = (a_i64Value)
 #define IEM_MC_STORE_GREG_U8_CONST                      IEM_MC_STORE_GREG_U8
@@ -325,8 +333,9 @@
 #define IEM_MC_REF_GREG_U64(a_pu64Dst, a_iGReg)         (a_pu64Dst) = iemGRegRefU64(pVCpu, (a_iGReg))
 #define IEM_MC_REF_GREG_I64(a_pi64Dst, a_iGReg)         (a_pi64Dst) = (int64_t *)iemGRegRefU64(pVCpu, (a_iGReg))
 #define IEM_MC_REF_GREG_I64_CONST(a_pi64Dst, a_iGReg)   (a_pi64Dst) = (int64_t const *)iemGRegRefU64(pVCpu, (a_iGReg))
-/** @note Not for IOPL or IF testing or modification. */
-#define IEM_MC_REF_EFLAGS(a_pEFlags)                    (a_pEFlags) = &pVCpu->cpum.GstCtx.eflags.u
+/** @note Not for IOPL or IF testing or modification.
+ * @note Must preserve any undefined bits, see CPUMX86EFLAGS! */
+#define IEM_MC_REF_EFLAGS(a_pEFlags)                    (a_pEFlags) = &pVCpu->cpum.GstCtx.eflags.uBoth
 #define IEM_MC_REF_MXCSR(a_pfMxcsr)                     (a_pfMxcsr) = &pVCpu->cpum.GstCtx.XState.x87.MXCSR
 
 #define IEM_MC_ADD_GREG_U8(a_iGReg, a_u8Value)          *iemGRegRefU8( pVCpu, (a_iGReg)) += (a_u8Value)

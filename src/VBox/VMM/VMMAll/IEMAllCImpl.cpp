@@ -2897,7 +2897,7 @@ IEM_CIMPL_DEF_2(iemCImpl_int, uint8_t, u8Int, IEMINT, enmInt)
         { /* likely: No vbox debugger breakpoints */ }
         else
         {
-            VBOXSTRICTRC rcStrict = DBGFTrap03Handler(pVM, pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx));
+            VBOXSTRICTRC rcStrict = DBGFTrap03Handler(pVM, pVCpu, &pVCpu->cpum.GstCtx);
             Log(("iemCImpl_int: DBGFTrap03Handler -> %Rrc\n", VBOXSTRICTRC_VAL(rcStrict) ));
             if (rcStrict != VINF_EM_RAW_GUEST_TRAP)
                 return iemSetPassUpStatus(pVCpu, rcStrict);
@@ -3863,7 +3863,7 @@ IEM_CIMPL_DEF_1(iemCImpl_iret_64bit, IEMMODE, enmEffOpSize)
  */
 IEM_CIMPL_DEF_1(iemCImpl_iret, IEMMODE, enmEffOpSize)
 {
-    bool fBlockingNmi = VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
+    bool fBlockingNmi = CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx);
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
     if (IEM_VMX_IS_NON_ROOT_MODE(pVCpu))
@@ -3912,7 +3912,7 @@ IEM_CIMPL_DEF_1(iemCImpl_iret, IEMMODE, enmEffOpSize)
      * See Intel spec. 6.7.1 "Handling Multiple NMIs".
      */
     if (fBlockingNmi)
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
+        CPUMClearInterruptInhibitingByNmi(&pVCpu->cpum.GstCtx);
 
     /*
      * Call a mode specific worker.
@@ -4702,11 +4702,8 @@ IEM_CIMPL_DEF_2(iemCImpl_LoadSReg, uint8_t, iSegReg, uint16_t, uSel)
 IEM_CIMPL_DEF_2(iemCImpl_load_SReg, uint8_t, iSegReg, uint16_t, uSel)
 {
     VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_2(iemCImpl_LoadSReg, iSegReg, uSel);
-    if (rcStrict == VINF_SUCCESS)
-    {
-        if (iSegReg == X86_SREG_SS)
-            EMSetInhibitInterruptsPC(pVCpu, pVCpu->cpum.GstCtx.rip);
-    }
+    if (iSegReg == X86_SREG_SS && rcStrict == VINF_SUCCESS)
+        CPUMSetInInterruptShadowSs(&pVCpu->cpum.GstCtx);
     return rcStrict;
 }
 
@@ -4764,7 +4761,7 @@ IEM_CIMPL_DEF_2(iemCImpl_pop_Sreg, uint8_t, iSegReg, IEMMODE, enmEffOpSize)
     {
         pVCpu->cpum.GstCtx.rsp = TmpRsp.u;
         if (iSegReg == X86_SREG_SS)
-            EMSetInhibitInterruptsPC(pVCpu, pVCpu->cpum.GstCtx.rip);
+            CPUMSetInInterruptShadowSs(&pVCpu->cpum.GstCtx);
     }
     return rcStrict;
 }
@@ -6429,7 +6426,7 @@ IEM_CIMPL_DEF_2(iemCImpl_mov_Rd_Dd, uint8_t, iGReg, uint8_t, iDrReg)
             drX |=X86_DR7_RA1_MASK;
             drX &= ~X86_DR7_RAZ_MASK;
             break;
-        IEM_NOT_REACHED_DEFAULT_CASE_RET(); /* call checks */
+        IEM_NOT_REACHED_DEFAULT_CASE_RET(); /* caller checks */
     }
 
     /** @todo SVM nested-guest intercept for DR8-DR15? */
@@ -6441,7 +6438,7 @@ IEM_CIMPL_DEF_2(iemCImpl_mov_Rd_Dd, uint8_t, iGReg, uint8_t, iDrReg)
         Log(("mov r%u,dr%u: Guest intercept -> #VMEXIT\n", iGReg, iDrReg));
         IEM_SVM_UPDATE_NRIP(pVCpu);
         IEM_SVM_VMEXIT_RET(pVCpu, SVM_EXIT_READ_DR0 + (iDrReg & 0xf),
-                              IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSvmDecodeAssists ? (iGReg & 7) : 0, 0 /* uExitInfo2 */);
+                           IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fSvmDecodeAssists ? (iGReg & 7) : 0, 0 /* uExitInfo2 */);
     }
 
     if (pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT)
@@ -7514,7 +7511,7 @@ IEM_CIMPL_DEF_0(iemCImpl_sti)
     IEMMISC_SET_EFL(pVCpu, fEfl);
     iemRegAddToRipAndClearRF(pVCpu, cbInstr);
     if (!(fEflOld & X86_EFL_IF) && (fEfl & X86_EFL_IF))
-        EMSetInhibitInterruptsPC(pVCpu, pVCpu->cpum.GstCtx.rip);
+        CPUMSetInInterruptShadowSti(&pVCpu->cpum.GstCtx);
     Log2(("STI: %#x -> %#x\n", fEflOld, fEfl));
     return VINF_SUCCESS;
 }
@@ -8026,7 +8023,7 @@ IEM_CIMPL_DEF_0(iemCImpl_aaa)
         if (   pVCpu->cpum.GstCtx.eflags.Bits.u1AF
             || (pVCpu->cpum.GstCtx.ax & 0xf) >= 10)
         {
-            iemAImpl_add_u16(&pVCpu->cpum.GstCtx.ax, 0x106, &pVCpu->cpum.GstCtx.eflags.u32);
+            iemAImpl_add_u16(&pVCpu->cpum.GstCtx.ax, 0x106, &pVCpu->cpum.GstCtx.eflags.uBoth);
             pVCpu->cpum.GstCtx.eflags.Bits.u1AF = 1;
             pVCpu->cpum.GstCtx.eflags.Bits.u1CF = 1;
         }
@@ -8071,7 +8068,7 @@ IEM_CIMPL_DEF_0(iemCImpl_aas)
         if (   pVCpu->cpum.GstCtx.eflags.Bits.u1AF
             || (pVCpu->cpum.GstCtx.ax & 0xf) >= 10)
         {
-            iemAImpl_sub_u16(&pVCpu->cpum.GstCtx.ax, 0x106, &pVCpu->cpum.GstCtx.eflags.u32);
+            iemAImpl_sub_u16(&pVCpu->cpum.GstCtx.ax, 0x106, &pVCpu->cpum.GstCtx.eflags.uBoth);
             pVCpu->cpum.GstCtx.eflags.Bits.u1AF = 1;
             pVCpu->cpum.GstCtx.eflags.Bits.u1CF = 1;
         }
@@ -9129,7 +9126,7 @@ IEM_CIMPL_DEF_2(iemCImpl_ldmxcsr, uint8_t, iEffSeg, RTGCPTR, GCPtrEff)
                     iemRegAddToRipAndClearRF(pVCpu, cbInstr);
                     return VINF_SUCCESS;
                 }
-                Log(("lddmxcsr: New MXCSR=%#RX32 & ~MASK=%#RX32 = %#RX32 -> #GP(0)\n",
+                Log(("ldmxcsr: New MXCSR=%#RX32 & ~MASK=%#RX32 = %#RX32 -> #GP(0)\n",
                      fNewMxCsr, fMxCsrMask, fNewMxCsr & ~fMxCsrMask));
                 return iemRaiseGeneralProtectionFault0(pVCpu);
             }

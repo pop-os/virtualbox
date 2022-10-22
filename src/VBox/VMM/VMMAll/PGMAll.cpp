@@ -974,14 +974,14 @@ DECLINLINE(RTGCPHYS) pgmGetGuestMaskedCr3(PVMCPUCC pVCpu, uint64_t uCr3)
  * @returns VBox status code (appropriate for trap handling and GC return).
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   uErr        The trap error code.
- * @param   pRegFrame   Trap register frame.
+ * @param   pCtx        Pointer to the register context for the CPU.
  * @param   pvFault     The fault address.
  */
-VMMDECL(int) PGMTrap0eHandler(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
+VMMDECL(int) PGMTrap0eHandler(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTX pCtx, RTGCPTR pvFault)
 {
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
 
-    Log(("PGMTrap0eHandler: uErr=%RGx pvFault=%RGv eip=%04x:%RGv cr3=%RGp\n", uErr, pvFault, pRegFrame->cs.Sel, (RTGCPTR)pRegFrame->rip, (RTGCPHYS)CPUMGetGuestCR3(pVCpu)));
+    Log(("PGMTrap0eHandler: uErr=%RGx pvFault=%RGv eip=%04x:%RGv cr3=%RGp\n", uErr, pvFault, pCtx->cs.Sel, (RTGCPTR)pCtx->rip, (RTGCPHYS)CPUMGetGuestCR3(pVCpu)));
     STAM_PROFILE_START(&pVCpu->pgm.s.Stats.StatRZTrap0e, a);
     STAM_STATS({ pVCpu->pgmr0.s.pStatTrap0eAttributionR0 = NULL; } );
 
@@ -1033,7 +1033,7 @@ VMMDECL(int) PGMTrap0eHandler(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFr
     AssertReturn(idxBth < RT_ELEMENTS(g_aPgmBothModeData), VERR_PGM_MODE_IPE);
     AssertReturn(g_aPgmBothModeData[idxBth].pfnTrap0eHandler, VERR_PGM_MODE_IPE);
     bool fLockTaken = false;
-    int rc = g_aPgmBothModeData[idxBth].pfnTrap0eHandler(pVCpu, uErr, pRegFrame, pvFault, &fLockTaken);
+    int rc = g_aPgmBothModeData[idxBth].pfnTrap0eHandler(pVCpu, uErr, pCtx, pvFault, &fLockTaken);
     if (fLockTaken)
     {
         PGM_LOCK_ASSERT_OWNER(pVM);
@@ -1055,7 +1055,7 @@ VMMDECL(int) PGMTrap0eHandler(PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFr
             ||  rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT   /* seen with SMP */
             ||  rc == VERR_PAGE_MAP_LEVEL4_NOT_PRESENT)     /* precaution */
         {
-            Log(("WARNING: Unexpected VERR_PAGE_TABLE_NOT_PRESENT (%d) for page fault at %RGv error code %x (rip=%RGv)\n", rc, pvFault, uErr, pRegFrame->rip));
+            Log(("WARNING: Unexpected VERR_PAGE_TABLE_NOT_PRESENT (%d) for page fault at %RGv error code %x (rip=%RGv)\n", rc, pvFault, uErr, pCtx->rip));
             /* Some kind of inconsistency in the SMP case; it's safe to just execute the instruction again; not sure about single VCPU VMs though. */
             rc = VINF_SUCCESS;
         }
@@ -1151,15 +1151,13 @@ VMMDECL(int) PGMInvalidatePage(PVMCPUCC pVCpu, RTGCPTR GCPtrPage)
  * Executes an instruction using the interpreter.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pRegFrame   Register frame.
  * @param   pvFault     Fault address.
  */
-VMMDECL(VBOXSTRICTRC) PGMInterpretInstruction(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
+VMMDECL(VBOXSTRICTRC) PGMInterpretInstruction(PVMCPUCC pVCpu, RTGCPTR pvFault)
 {
-    NOREF(pVM);
-    VBOXSTRICTRC rc = EMInterpretInstruction(pVCpu, pRegFrame, pvFault);
+    RT_NOREF(pvFault);
+    VBOXSTRICTRC rc = EMInterpretInstruction(pVCpu);
     if (rc == VERR_EM_INTERPRETER)
         rc = VINF_EM_RAW_EMULATE_INSTR;
     if (rc != VINF_SUCCESS)
@@ -2728,7 +2726,7 @@ VMMDECL(int) PGMUpdateCR3(PVMCPUCC pVCpu, uint64_t cr3)
     RTGCPHYS const GCPhysOldCR3 = pVCpu->pgm.s.GCPhysCR3;
     RTGCPHYS       GCPhysCR3    = pgmGetGuestMaskedCr3(pVCpu, cr3);
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
-    if (CPUMIsGuestVmxEptPagingEnabled(pVCpu))
+    if (pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_EPT)
     {
         RTGCPHYS GCPhysOut;
         int const rc = pgmGstSlatTranslateCr3(pVCpu, GCPhysCR3, &GCPhysOut);
@@ -2835,7 +2833,7 @@ VMMDECL(int) PGMSyncCR3(PVMCPUCC pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4
         RTGCPHYS const GCPhysOldCR3 = pVCpu->pgm.s.GCPhysCR3;
         RTGCPHYS       GCPhysCR3    = pgmGetGuestMaskedCr3(pVCpu, cr3);
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
-        if (CPUMIsGuestVmxEptPagingEnabled(pVCpu))
+        if (pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_EPT)
         {
             RTGCPHYS GCPhysOut;
             int rc2 = pgmGstSlatTranslateCr3(pVCpu, GCPhysCR3, &GCPhysOut);
@@ -2949,10 +2947,42 @@ VMM_INT_DECL(int) PGMGstMapPaePdpes(PVMCPUCC pVCpu, PCX86PDPE paPaePdpes)
         {
             PVMCC   pVM = pVCpu->CTX_SUFF(pVM);
             RTHCPTR HCPtr;
-            RTGCPHYS const GCPhys = PGM_A20_APPLY(pVCpu, PaePdpe.u & X86_PDPE_PG_MASK);
+
+            RTGCPHYS GCPhys;
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+            if (pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_EPT)
+            {
+                PGMPTWALK      Walk;
+                PGMPTWALKGST   GstWalk;
+                RTGCPHYS const GCPhysNested = PaePdpe.u & X86_PDPE_PG_MASK;
+                int const rc = pgmGstSlatWalkPhys(pVCpu, PGMSLAT_EPT, GCPhysNested, &Walk, &GstWalk);
+                if (RT_SUCCESS(rc))
+                    GCPhys = Walk.GCPhys;
+                else
+                {
+                    /*
+                     * Second-level address translation of the PAE PDPE has failed but we must -NOT-
+                     * abort and return a failure now. This is because we're called from a Mov CRx
+                     * instruction (or similar operation). Let's just pretend success but flag that
+                     * we need to map this PDPE lazily later.
+                     *
+                     * See Intel spec. 25.3 "Changes to instruction behavior in VMX non-root operation".
+                     * See Intel spec. 28.3.1 "EPT Overview".
+                     */
+                    pVCpu->pgm.s.apGstPaePDsR3[i]    = 0;
+                    pVCpu->pgm.s.apGstPaePDsR0[i]    = 0;
+                    pVCpu->pgm.s.aGCPhysGstPaePDs[i] = NIL_RTGCPHYS;
+                    continue;
+                }
+            }
+            else
+#endif
+            {
+                GCPhys = PGM_A20_APPLY(pVCpu, PaePdpe.u & X86_PDPE_PG_MASK);
+            }
 
             PGM_LOCK_VOID(pVM);
-            PPGMPAGE    pPage  = pgmPhysGetPage(pVM, GCPhys);
+            PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
             AssertReturnStmt(pPage, PGM_UNLOCK(pVM), VERR_PGM_INVALID_PDPE_ADDR);
             int const rc = pgmPhysGCPhys2CCPtrInternalDepr(pVM, pPage, GCPhys, (void **)&HCPtr);
             PGM_UNLOCK(pVM);
@@ -2974,11 +3004,6 @@ VMM_INT_DECL(int) PGMGstMapPaePdpes(PVMCPUCC pVCpu, PCX86PDPE paPaePdpes)
         pVCpu->pgm.s.apGstPaePDsR0[i]    = 0;
         pVCpu->pgm.s.aGCPhysGstPaePDs[i] = NIL_RTGCPHYS;
     }
-
-    /*
-     * Update CPUM with the PAE PDPEs.
-     */
-    CPUMSetGuestPaePdpes(pVCpu, paPaePdpes);
     return VINF_SUCCESS;
 }
 
@@ -3003,7 +3028,7 @@ VMM_INT_DECL(int) PGMGstMapPaePdpesAtCr3(PVMCPUCC pVCpu, uint64_t cr3)
     PGM_A20_APPLY_TO_VAR(pVCpu, GCPhysCR3);
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
-    if (CPUMIsGuestVmxEptPagingEnabled(pVCpu))
+    if (pVCpu->pgm.s.enmGuestSlatMode == PGMSLAT_EPT)
     {
         RTGCPHYS GCPhysOut;
         int const rc = pgmGstSlatTranslateCr3(pVCpu, GCPhysCR3, &GCPhysOut);
@@ -3011,7 +3036,7 @@ VMM_INT_DECL(int) PGMGstMapPaePdpesAtCr3(PVMCPUCC pVCpu, uint64_t cr3)
             GCPhysCR3 = GCPhysOut;
         else
         {
-            AssertMsgFailed(("Failed to load CR3 at %#RX64. rc=%Rrc\n", GCPhysCR3, rc));
+            Log(("Failed to load CR3 at %#RX64. rc=%Rrc\n", GCPhysCR3, rc));
             return rc;
         }
     }
@@ -3043,8 +3068,9 @@ VMM_INT_DECL(int) PGMGstMapPaePdpesAtCr3(PVMCPUCC pVCpu, uint64_t cr3)
 #endif
 
             /*
-             * Map the PDPEs and update CPUM.
+             * Update CPUM and map the 4 PAE PDPEs.
              */
+            CPUMSetGuestPaePdpes(pVCpu, &aPaePdpes[0]);
             rc = PGMGstMapPaePdpes(pVCpu, &aPaePdpes[0]);
             if (RT_SUCCESS(rc))
             {

@@ -2412,7 +2412,7 @@ static int hmR0SvmExportGuestState(PVMCPUCC pVCpu, PCSVMTRANSIENT pSvmTransient)
 
     pVmcb->guest.u64RIP    = pCtx->rip;
     pVmcb->guest.u64RSP    = pCtx->rsp;
-    pVmcb->guest.u64RFlags = pCtx->eflags.u32;
+    pVmcb->guest.u64RFlags = pCtx->eflags.u;
     pVmcb->guest.u64RAX    = pCtx->rax;
 
     bool const fIsNestedGuest = pSvmTransient->fIsNestedGuest;
@@ -2691,19 +2691,14 @@ static void hmR0SvmImportGuestState(PVMCPUCC pVCpu, uint64_t fWhat)
 #endif
 
         if (fWhat & CPUMCTX_EXTRN_INHIBIT_INT)
-        {
-            if (pVmcbCtrl->IntShadow.n.u1IntShadow)
-                EMSetInhibitInterruptsPC(pVCpu, pVmcbGuest->u64RIP);
-            else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-        }
+            CPUMUpdateInterruptShadowEx(pCtx, pVmcbCtrl->IntShadow.n.u1IntShadow, pVmcbGuest->u64RIP);
 
         if (fWhat & CPUMCTX_EXTRN_RIP)
             pCtx->rip = pVmcbGuest->u64RIP;
 
         if (fWhat & CPUMCTX_EXTRN_RFLAGS)
         {
-            pCtx->eflags.u32 = pVmcbGuest->u64RFlags;
+            pCtx->eflags.u = pVmcbGuest->u64RFlags;
             if (pVCpu->hmr0.s.fClearTrapFlag)
             {
                 pVCpu->hmr0.s.fClearTrapFlag = false;
@@ -3503,41 +3498,6 @@ static void hmR0SvmPendingEventToTrpmTrap(PVMCPUCC pVCpu)
 
 
 /**
- * Checks if the guest (or nested-guest) has an interrupt shadow active right
- * now.
- *
- * @returns @c true if the interrupt shadow is active, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure.
- *
- * @remarks No-long-jump zone!!!
- * @remarks Has side-effects with VMCPU_FF_INHIBIT_INTERRUPTS force-flag.
- */
-static bool hmR0SvmIsIntrShadowActive(PVMCPUCC pVCpu)
-{
-    /*
-     * Instructions like STI and MOV SS inhibit interrupts till the next instruction
-     * completes. Check if we should inhibit interrupts or clear any existing
-     * interrupt inhibition.
-     */
-    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-    {
-        if (pVCpu->cpum.GstCtx.rip != EMGetInhibitInterruptsPC(pVCpu))
-        {
-            /*
-             * We can clear the inhibit force flag as even if we go back to the recompiler
-             * without executing guest code in AMD-V, the flag's condition to be cleared is
-             * met and thus the cleared state is correct.
-             */
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-            return false;
-        }
-        return true;
-    }
-    return false;
-}
-
-
-/**
  * Sets the virtual interrupt intercept control in the VMCB.
  *
  * @param   pVCpu   The cross context virtual CPU structure.
@@ -3611,8 +3571,8 @@ static VBOXSTRICTRC hmR0SvmEvaluatePendingEvent(PVMCPUCC pVCpu, PCSVMTRANSIENT p
     Assert(pVmcb);
 
     bool const fGif        = CPUMGetGuestGif(pCtx);
-    bool const fIntShadow  = hmR0SvmIsIntrShadowActive(pVCpu);
-    bool const fBlockNmi   = VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
+    bool const fIntShadow  = CPUMIsInInterruptShadowWithUpdate(pCtx);
+    bool const fBlockNmi   = CPUMAreInterruptsInhibitedByNmi(pCtx);
 
     Log4Func(("fGif=%RTbool fBlockNmi=%RTbool fIntShadow=%RTbool fIntPending=%RTbool fNmiPending=%RTbool\n",
               fGif, fBlockNmi, fIntShadow, VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC),
@@ -3670,7 +3630,7 @@ static VBOXSTRICTRC hmR0SvmEvaluatePendingEvent(PVMCPUCC pVCpu, PCSVMTRANSIENT p
     else if (   VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
              && !pVCpu->hm.s.fSingleInstruction)
     {
-        bool const fBlockInt = !pSvmTransient->fIsNestedGuest ? !(pCtx->eflags.u32 & X86_EFL_IF)
+        bool const fBlockInt = !pSvmTransient->fIsNestedGuest ? !(pCtx->eflags.u & X86_EFL_IF)
                                                               : CPUMIsGuestSvmPhysIntrEnabled(pVCpu, pCtx);
         if (    fGif
             && !fBlockInt
@@ -3733,7 +3693,7 @@ static void hmR0SvmInjectPendingEvent(PVMCPUCC pVCpu, PSVMVMCB pVmcb)
     Assert(!TRPMHasTrap(pVCpu));
     Assert(!VMMRZCallRing3IsEnabled(pVCpu));
 
-    bool const fIntShadow = hmR0SvmIsIntrShadowActive(pVCpu);
+    bool const fIntShadow = CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx);
 #ifdef VBOX_STRICT
     PCCPUMCTX  pCtx       = &pVCpu->cpum.GstCtx;
     bool const fGif       = CPUMGetGuestGif(pCtx);
@@ -3747,7 +3707,7 @@ static void hmR0SvmInjectPendingEvent(PVMCPUCC pVCpu, PSVMVMCB pVmcb)
         if (CPUMIsGuestInSvmNestedHwVirtMode(pCtx))
             fAllowInt = CPUMIsGuestSvmPhysIntrEnabled(pVCpu, pCtx) || CPUMIsGuestSvmVirtIntrEnabled(pVCpu, pCtx);
         else
-            fAllowInt = RT_BOOL(pCtx->eflags.u32 & X86_EFL_IF);
+            fAllowInt = RT_BOOL(pCtx->eflags.u & X86_EFL_IF);
     }
 #endif
 
@@ -3781,12 +3741,9 @@ static void hmR0SvmInjectPendingEvent(PVMCPUCC pVCpu, PSVMVMCB pVmcb)
          * which will set the VMCS field after actually delivering the NMI which we read on
          * VM-exit to determine the state.
          */
-        if (    Event.n.u3Type   == SVM_EVENT_NMI
-            &&  Event.n.u8Vector == X86_XCPT_NMI
-            && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-        {
-            VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-        }
+        if (   Event.n.u3Type   == SVM_EVENT_NMI
+            && Event.n.u8Vector == X86_XCPT_NMI)
+            CPUMSetInterruptInhibitingByNmi(&pVCpu->cpum.GstCtx);
 
         /*
          * Inject it (update VMCB for injection by the hardware).
@@ -3808,7 +3765,7 @@ static void hmR0SvmInjectPendingEvent(PVMCPUCC pVCpu, PSVMVMCB pVmcb)
      * hardware-assisted SVM. In which case, we would not have any events pending (above)
      * but we still need to intercept IRET in order to eventually clear NMI inhibition.
      */
-    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+    if (CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx))
         hmR0SvmSetCtrlIntercept(pVmcb, SVM_CTRL_INTERCEPT_IRET);
 
     /*
@@ -6710,7 +6667,7 @@ static int hmR0SvmCheckExitDueToEventDelivery(PVMCPUCC pVCpu, PSVMTRANSIENT pSvm
 
                     /* If we are re-injecting an NMI, clear NMI blocking. */
                     if (pVmcb->ctrl.ExitIntInfo.n.u3Type == SVM_EVENT_NMI)
-                        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
+                        CPUMClearInterruptInhibitingByNmi(&pVCpu->cpum.GstCtx);
 
                     /* Determine a vectoring #PF condition, see comment in hmR0SvmExitXcptPF(). */
                     if (fRaiseInfo & (IEMXCPTRAISEINFO_EXT_INT_PF | IEMXCPTRAISEINFO_NMI_PF))
@@ -6801,13 +6758,9 @@ static int hmR0SvmCheckExitDueToEventDelivery(PVMCPUCC pVCpu, PSVMTRANSIENT pSvm
  */
 DECLINLINE(void) hmR0SvmAdvanceRip(PVMCPUCC pVCpu, uint32_t cb)
 {
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    pCtx->rip += cb;
-
-    /* Update interrupt shadow. */
-    if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-        && pCtx->rip != EMGetInhibitInterruptsPC(pVCpu))
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+    pVCpu->cpum.GstCtx.rip += cb;
+    CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
+    /** @todo clear RF. */
 }
 
 
@@ -7460,7 +7413,7 @@ static VBOXSTRICTRC hmR0SvmExitWriteMsr(PVMCPUCC pVCpu, PSVMVMCB pVmcb, PSVMTRAN
         else
         {
             PDISCPUSTATE pDis = &pVCpu->hmr0.s.svm.DisState;
-            int rc = EMInterpretDisasCurrent(pVCpu->CTX_SUFF(pVM), pVCpu, pDis, &cbInstr);
+            int rc = EMInterpretDisasCurrent(pVCpu, pDis, &cbInstr);
             if (   rc == VINF_SUCCESS
                 && pDis->pCurInstr->uOpcode == OP_WRMSR)
                 Assert(cbInstr > 0);
@@ -7616,7 +7569,7 @@ HMSVM_EXIT_DECL hmR0SvmExitReadDRx(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
      * Interpret the read/writing of DRx.
      */
     /** @todo Decode assist.  */
-    VBOXSTRICTRC rc = EMInterpretInstruction(pVCpu, CPUMCTX2CORE(pCtx), 0 /* pvFault */);
+    VBOXSTRICTRC rc = EMInterpretInstruction(pVCpu);
     Log5(("hmR0SvmExitReadDRx: Emulated DRx access: rc=%Rrc\n", VBOXSTRICTRC_VAL(rc)));
     if (RT_LIKELY(rc == VINF_SUCCESS))
     {
@@ -7995,8 +7948,7 @@ HMSVM_EXIT_DECL hmR0SvmExitNestedPF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         if (!pExitRec)
         {
 
-            rcStrict = PGMR0Trap0eHandlerNPMisconfig(pVM, pVCpu, enmNestedPagingMode, CPUMCTX2CORE(pCtx), GCPhysFaultAddr,
-                                                     u32ErrCode);
+            rcStrict = PGMR0Trap0eHandlerNPMisconfig(pVM, pVCpu, enmNestedPagingMode, pCtx, GCPhysFaultAddr, u32ErrCode);
 
             /*
              * If we succeed, resume guest execution.
@@ -8041,7 +7993,7 @@ HMSVM_EXIT_DECL hmR0SvmExitNestedPF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
      * Nested page-fault.
      */
     TRPMAssertXcptPF(pVCpu, GCPhysFaultAddr, u32ErrCode);
-    int rc = PGMR0Trap0eHandlerNestedPaging(pVM, pVCpu, enmNestedPagingMode, u32ErrCode, CPUMCTX2CORE(pCtx), GCPhysFaultAddr);
+    int rc = PGMR0Trap0eHandlerNestedPaging(pVM, pVCpu, enmNestedPagingMode, u32ErrCode, pCtx, GCPhysFaultAddr);
     TRPMResetTrap(pVCpu);
 
     Log4Func(("#NPF: PGMR0Trap0eHandlerNestedPaging returns %Rrc CS:RIP=%04x:%RX64\n", rc, pCtx->cs.Sel, pCtx->rip));
@@ -8161,7 +8113,7 @@ HMSVM_EXIT_DECL hmR0SvmExitVmmCall(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         else
         {
             PDISCPUSTATE pDis = &pVCpu->hmr0.s.svm.DisState;
-            int rc = EMInterpretDisasCurrent(pVCpu->CTX_SUFF(pVM), pVCpu, pDis, &cbInstr);
+            int rc = EMInterpretDisasCurrent(pVCpu, pDis, &cbInstr);
             if (   rc == VINF_SUCCESS
                 && pDis->pCurInstr->uOpcode == OP_VMMCALL)
                 Assert(cbInstr > 0);
@@ -8205,7 +8157,7 @@ HMSVM_EXIT_DECL hmR0SvmExitPause(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     else
     {
         PDISCPUSTATE pDis = &pVCpu->hmr0.s.svm.DisState;
-        int rc = EMInterpretDisasCurrent(pVCpu->CTX_SUFF(pVM), pVCpu, pDis, &cbInstr);
+        int rc = EMInterpretDisasCurrent(pVCpu, pDis, &cbInstr);
         if (   rc == VINF_SUCCESS
             && pDis->pCurInstr->uOpcode == OP_PAUSE)
             Assert(cbInstr > 0);
@@ -8339,7 +8291,7 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptPF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     }
 
     TRPMAssertXcptPF(pVCpu, uFaultAddress, uErrCode);
-    int rc = PGMTrap0eHandler(pVCpu, uErrCode, CPUMCTX2CORE(pCtx), (RTGCPTR)uFaultAddress);
+    int rc = PGMTrap0eHandler(pVCpu, uErrCode, pCtx, (RTGCPTR)uFaultAddress);
 
     Log4Func(("#PF: rc=%Rrc\n", rc));
 
@@ -8510,7 +8462,7 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptUD(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
                 HMSVM_CPUMCTX_IMPORT_STATE(pVCpu, IEM_CPUMCTX_EXTRN_MUST_MASK
                                                 | CPUMCTX_EXTRN_SREG_MASK /* without ES+DS+GS the app will #GP later - go figure */);
                 Log6(("hmR0SvmExitXcptUD: sysenter/sysexit: %.*Rhxs at %#llx CPL=%u\n", cbInstr, abInstr, GCPtrInstr, uCpl));
-                rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), GCPtrInstr, abInstr, cbInstr);
+                rcStrict = IEMExecOneWithPrefetchedByPC(pVCpu, GCPtrInstr, abInstr, cbInstr);
                 Log6(("hmR0SvmExitXcptUD: sysenter/sysexit: rcStrict=%Rrc %04x:%08RX64 %08RX64 %04x:%08RX64\n",
                      VBOXSTRICTRC_VAL(rcStrict), pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.rflags.u,
                      pVCpu->cpum.GstCtx.ss.Sel, pVCpu->cpum.GstCtx.rsp));
@@ -8558,10 +8510,9 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptMF(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
 
     if (!(pCtx->cr0 & X86_CR0_NE))
     {
-        PVMCC     pVM  = pVCpu->CTX_SUFF(pVM);
         PDISSTATE pDis = &pVCpu->hmr0.s.svm.DisState;
         unsigned  cbInstr;
-        int rc = EMInterpretDisasCurrent(pVM, pVCpu, pDis, &cbInstr);
+        int rc = EMInterpretDisasCurrent(pVCpu, pDis, &cbInstr);
         if (RT_SUCCESS(rc))
         {
             /* Convert a #MF into a FERR -> IRQ 13. See @bugref{6117}. */
@@ -8603,10 +8554,9 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptDB(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
      * breakpoint). However, for both cases DR6 and DR7 are updated to what the exception
      * handler expects. See AMD spec. 15.12.2 "#DB (Debug)".
      */
-    PVMCC      pVM   = pVCpu->CTX_SUFF(pVM);
+    PVMCC    pVM   = pVCpu->CTX_SUFF(pVM);
     PSVMVMCB pVmcb = pVCpu->hmr0.s.svm.pVmcb;
-    PCPUMCTX pCtx  = &pVCpu->cpum.GstCtx;
-    int rc = DBGFTrap01Handler(pVM, pVCpu, CPUMCTX2CORE(pCtx), pVmcb->guest.u64DR6, pVCpu->hm.s.fSingleInstruction);
+    int rc = DBGFTrap01Handler(pVM, pVCpu, &pVCpu->cpum.GstCtx, pVmcb->guest.u64DR6, pVCpu->hm.s.fSingleInstruction);
     if (rc == VINF_EM_RAW_GUEST_TRAP)
     {
         Log5(("hmR0SvmExitXcptDB: DR6=%#RX64 -> guest trap\n", pVmcb->guest.u64DR6));
@@ -8669,8 +8619,7 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptBP(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
     HMSVM_CHECK_EXIT_DUE_TO_EVENT_DELIVERY(pVCpu, pSvmTransient);
     STAM_COUNTER_INC(&pVCpu->hm.s.StatExitGuestBP);
 
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    VBOXSTRICTRC rc = DBGFTrap03Handler(pVCpu->CTX_SUFF(pVM), pVCpu, CPUMCTX2CORE(pCtx));
+    VBOXSTRICTRC rc = DBGFTrap03Handler(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.GstCtx);
     if (rc == VINF_EM_RAW_GUEST_TRAP)
     {
         SVMEVENT Event;
@@ -9162,7 +9111,7 @@ HMSVM_EXIT_DECL hmR0SvmExitVmrun(PVMCPUCC pVCpu, PSVMTRANSIENT pSvmTransient)
         /* We use IEMExecOneBypassEx() here as it supresses attempt to continue emulating any
            instruction(s) when interrupt inhibition is set as part of emulating the VMRUN
            instruction itself, see @bugref{7243#c126} */
-        rcStrict = IEMExecOneBypassEx(pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx), NULL /* pcbWritten */);
+        rcStrict = IEMExecOneBypassEx(pVCpu, NULL /* pcbWritten */);
     }
     STAM_PROFILE_ADV_STOP(&pVCpu->hm.s.StatExitVmentry, z);
 

@@ -137,9 +137,6 @@ typedef DECLCALLBACKTYPE(int, FNEMULATELOCKPARAM3,(void *pvParam1, uint64_t val2
 typedef FNEMULATELOCKPARAM3 *PFNEMULATELOCKPARAM3;
 /** @}  */
 
-VMMDECL(void)                   EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC);
-VMMDECL(RTGCUINTPTR)            EMGetInhibitInterruptsPC(PVMCPU pVCpu);
-VMMDECL(bool)                   EMIsInhibitInterruptsActive(PVMCPU pVCpu);
 VMMDECL(void)                   EMSetHypercallInstructionsEnabled(PVMCPU pVCpu, bool fEnabled);
 VMMDECL(bool)                   EMAreHypercallInstructionsEnabled(PVMCPU pVCpu);
 VMM_INT_DECL(bool)              EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx);
@@ -270,16 +267,11 @@ VMM_INT_DECL(VBOXSTRICTRC)      EMHistoryExec(PVMCPUCC pVCpu, PCEMEXITREC pExitR
 
 /** @name Deprecated interpretation related APIs (use IEM).
  * @{ */
-VMM_INT_DECL(int)               EMInterpretDisasCurrent(PVMCC pVM, PVMCPUCC pVCpu, PDISCPUSTATE pCpu, unsigned *pcbInstr);
-VMM_INT_DECL(int)               EMInterpretDisasOneEx(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
+VMM_INT_DECL(int)               EMInterpretDisasCurrent(PVMCPUCC pVCpu, PDISCPUSTATE pCpu, unsigned *pcbInstr);
+VMM_INT_DECL(int)               EMInterpretDisasOneEx(PVMCPUCC pVCpu, RTGCUINTPTR GCPtrInstr,
                                                       PDISCPUSTATE pDISState, unsigned *pcbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstruction(PVMCPUCC pVCpu, PCPUMCTXCORE pCoreCtx, RTGCPTR pvFault);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstructionEx(PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstructionDisasState(PVMCPUCC pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pCoreCtx,
-                                                                 RTGCPTR pvFault, EMCODETYPE enmCodeType);
-VMM_INT_DECL(int)               EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(int)               EMInterpretDRxWrite(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen);
-VMM_INT_DECL(int)               EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx);
+VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstruction(PVMCPUCC pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstructionDisasState(PVMCPUCC pVCpu, PDISCPUSTATE pDis, uint64_t rip);
 /** @} */
 
 

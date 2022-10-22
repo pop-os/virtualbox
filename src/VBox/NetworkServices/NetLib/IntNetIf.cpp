@@ -1,10 +1,10 @@
 /* $Id: IntNetIf.cpp $ */
 /** @file
- * IntNetIf - Convenience class implementing an IntNet connection.
+ * IntNetIfCtx - Abstract API implementing an IntNet connection using the R0 support driver or some R3 IPC variant.
  */
 
 /*
- * Copyright (C) 2009-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2022 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -25,503 +25,526 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#include "IntNetIf.h"
 
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+# if defined(RT_OS_DARWIN)
+#  include <xpc/xpc.h> /* This needs to be here because it drags PVM in and cdefs.h needs to undefine it... */
+# else
+#  error "R3 internal networking not implemented for this platform yet!"
+# endif
+#endif
+
+#include <iprt/cdefs.h>
 #include <iprt/path.h>
+#include <iprt/semaphore.h>
 
+#include <VBox/err.h>
+#include <VBox/sup.h>
 #include <VBox/intnetinline.h>
 #include <VBox/vmm/pdmnetinline.h>
 
-#define CALL_VMMR0(op, req) \
-    (SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, (op), 0, &(req).Hdr))
+#include "IntNetIf.h"
 
 
-
-IntNetIf::IntNetIf()
-  : m_pSession(NIL_RTR0PTR),
-    m_hIf(INTNET_HANDLE_INVALID),
-    m_pIfBuf(NULL),
-    m_pfnInput(NULL),
-    m_pvUser(NULL),
-    m_pfnInputGSO(NULL),
-    m_pvUserGSO(NULL)
-{
-    return;
-}
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 
 
-IntNetIf::~IntNetIf()
-{
-    uninit();
-}
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
-
-
-/*
- * SUPDrv and VMM initialization and finalization.
- */
-
-int
-IntNetIf::r3Init()
-{
-    AssertReturn(m_pSession == NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-
-    int rc = SUPR3Init(&m_pSession);
-    return rc;
-}
-
-
-void
-IntNetIf::r3Fini()
-{
-    if (m_pSession == NIL_RTR0PTR)
-        return;
-
-    SUPR3Term();
-    m_pSession = NIL_RTR0PTR;
-}
-
-
-int
-IntNetIf::vmmInit()
-{
-    char szPathVMMR0[RTPATH_MAX];
-    int rc;
-
-    rc = RTPathExecDir(szPathVMMR0, sizeof(szPathVMMR0));
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = RTPathAppend(szPathVMMR0, sizeof(szPathVMMR0), "VMMR0.r0");
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = SUPR3LoadVMM(szPathVMMR0, /* :pErrInfo */ NULL);
-    return rc;
-}
-
-
-
-/*
- * Wrappers for VMM ioctl requests and low-level intnet operations.
- */
 
 /**
- * Open the specified internal network.
- * Perform VMMR0_DO_INTNET_OPEN.
+ * Internal network interface context instance data.
+ */
+typedef struct INTNETIFCTXINT
+{
+    /** The support driver session handle. */
+    PSUPDRVSESSION                  pSupDrvSession;
+    /** Interface handle. */
+    INTNETIFHANDLE                  hIf;
+    /** The internal network buffer. */
+    PINTNETBUF                      pBuf;
+#if defined (VBOX_WITH_INTNET_SERVICE_IN_R3)
+    /** Flag whether this interface is using the internal network switch in userspace path. */
+    bool                            fIntNetR3Svc;
+    /** Receive event semaphore. */
+    RTSEMEVENT                      hEvtRecv;
+# if defined(RT_OS_DARWIN)
+    /** XPC connection handle to the R3 internal network switch service. */
+    xpc_connection_t                hXpcCon;
+    /** Size of the communication buffer in bytes. */
+    size_t                          cbBuf;
+# endif
+#endif
+} INTNETIFCTXINT;
+/** Pointer to the internal network interface context instance data. */
+typedef INTNETIFCTXINT *PINTNETIFCTXINT;
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+
+/**
+ * Calls the internal networking switch service living in either R0 or in another R3 process.
  *
- * @param strNetwork    The name of the network.
- * @param enmTrunkType  The trunk type.
- * @param strTrunk      The trunk name, its meaning is specific to the type.
- * @return              iprt status code.
+ * @returns VBox status code.
+ * @param   pThis           The internal network driver instance data.
+ * @param   uOperation      The operation to execute.
+ * @param   pReqHdr         Pointer to the request header.
  */
-int
-IntNetIf::ifOpen(const RTCString &strNetwork,
-                 INTNETTRUNKTYPE enmTrunkType,
-                 const RTCString &strTrunk)
+static int intnetR3IfCallSvc(PINTNETIFCTXINT pThis, uint32_t uOperation, PSUPVMMR0REQHDR pReqHdr)
 {
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf == INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+    if (pThis->fIntNetR3Svc)
+    {
+# if defined(RT_OS_DARWIN)
+        size_t cbReq = pReqHdr->cbReq;
+        xpc_object_t hObj = xpc_dictionary_create(NULL, NULL, 0);
+        xpc_dictionary_set_uint64(hObj, "req-id", uOperation);
+        xpc_dictionary_set_data(hObj, "req", pReqHdr, pReqHdr->cbReq);
+        xpc_object_t hObjReply = xpc_connection_send_message_with_reply_sync(pThis->hXpcCon, hObj);
+        int rc = (int)xpc_dictionary_get_int64(hObjReply, "rc");
 
-    INTNETOPENREQ OpenReq;
-    RT_ZERO(OpenReq);
+        size_t cbReply = 0;
+        const void *pvData = xpc_dictionary_get_data(hObjReply, "reply", &cbReply);
+        AssertRelease(cbReply == cbReq);
+        memcpy(pReqHdr, pvData, cbReq);
+        xpc_release(hObjReply);
 
-    OpenReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    OpenReq.Hdr.cbReq = sizeof(OpenReq);
-    OpenReq.pSession = m_pSession;
-
-    int rc = RTStrCopy(OpenReq.szNetwork, sizeof(OpenReq.szNetwork), strNetwork.c_str());
-    AssertRCReturn(rc, rc);
-
-    rc = RTStrCopy(OpenReq.szTrunk, sizeof(OpenReq.szTrunk), strTrunk.c_str());
-    AssertRCReturn(rc, rc);
-
-    if (enmTrunkType != kIntNetTrunkType_Invalid)
-        OpenReq.enmTrunkType = enmTrunkType;
+        return rc;
+# endif
+    }
     else
-        OpenReq.enmTrunkType = kIntNetTrunkType_WhateverNone;
-
-    OpenReq.fFlags = 0;
-    OpenReq.cbSend = _128K;
-    OpenReq.cbRecv = _256K;
-
-    OpenReq.hIf = INTNET_HANDLE_INVALID;
-
-    rc = CALL_VMMR0(VMMR0_DO_INTNET_OPEN, OpenReq);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    m_hIf = OpenReq.hIf;
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-
-    return VINF_SUCCESS;
+#else
+        RT_NOREF(pThis);
+#endif
+        return SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, uOperation, 0, pReqHdr);
 }
 
 
+#if defined(RT_OS_DARWIN) && defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
 /**
- * Set promiscuous mode on the interface.
+ * Calls the internal networking switch service living in either R0 or in another R3 process.
+ *
+ * @returns VBox status code.
+ * @param   pThis           The internal network driver instance data.
+ * @param   uOperation      The operation to execute.
+ * @param   pReqHdr         Pointer to the request header.
  */
-int
-IntNetIf::ifSetPromiscuous(bool fPromiscuous)
+static int intnetR3IfCallSvcAsync(PINTNETIFCTXINT pThis, uint32_t uOperation, PSUPVMMR0REQHDR pReqHdr)
 {
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-
-    INTNETIFSETPROMISCUOUSMODEREQ SetPromiscuousModeReq;
-    int rc;
-
-    SetPromiscuousModeReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    SetPromiscuousModeReq.Hdr.cbReq = sizeof(SetPromiscuousModeReq);
-    SetPromiscuousModeReq.pSession = m_pSession;
-    SetPromiscuousModeReq.hIf = m_hIf;
-
-    SetPromiscuousModeReq.fPromiscuous = fPromiscuous;
-
-    rc = CALL_VMMR0(VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE, SetPromiscuousModeReq);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    return VINF_SUCCESS;
+    if (pThis->fIntNetR3Svc)
+    {
+        xpc_object_t hObj = xpc_dictionary_create(NULL, NULL, 0);
+        xpc_dictionary_set_uint64(hObj, "req-id", uOperation);
+        xpc_dictionary_set_data(hObj, "req", pReqHdr, pReqHdr->cbReq);
+        xpc_connection_send_message(pThis->hXpcCon, hObj);
+        return VINF_SUCCESS;
+    }
+    else
+        return SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, uOperation, 0, pReqHdr);
 }
+#endif
 
 
 /**
- * Obtain R3 send/receive ring buffers for the internal network.
- * Performs VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS.
- * @return iprt status code.
+ * Map the ring buffer pointer into this process R3 address space.
+ *
+ * @returns VBox status code.
+ * @param   pThis           The internal network driver instance data.
  */
-int
-IntNetIf::ifGetBuf()
+static int intnetR3IfMapBufferPointers(PINTNETIFCTXINT pThis)
 {
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-    AssertReturn(m_pIfBuf == NULL, VERR_GENERAL_FAILURE);
+    int rc = VINF_SUCCESS;
 
     INTNETIFGETBUFFERPTRSREQ GetBufferPtrsReq;
-    int rc;
-
     GetBufferPtrsReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    GetBufferPtrsReq.Hdr.cbReq = sizeof(GetBufferPtrsReq);
-    GetBufferPtrsReq.pSession = m_pSession;
-    GetBufferPtrsReq.hIf = m_hIf;
+    GetBufferPtrsReq.Hdr.cbReq    = sizeof(GetBufferPtrsReq);
+    GetBufferPtrsReq.pSession     = pThis->pSupDrvSession;
+    GetBufferPtrsReq.hIf          = pThis->hIf;
+    GetBufferPtrsReq.pRing3Buf    = NULL;
+    GetBufferPtrsReq.pRing0Buf    = NIL_RTR0PTR;
 
-    GetBufferPtrsReq.pRing0Buf = NIL_RTR0PTR;
-    GetBufferPtrsReq.pRing3Buf = NULL;
-
-    rc = CALL_VMMR0(VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS, GetBufferPtrsReq);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    m_pIfBuf = GetBufferPtrsReq.pRing3Buf;
-    AssertReturn(m_pIfBuf != NULL, VERR_GENERAL_FAILURE);
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Activate the network interface.
- * Performs VMMR0_DO_INTNET_IF_SET_ACTIVE.
- * @return iprt status code.
- */
-int
-IntNetIf::ifActivate()
-{
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-    AssertReturn(m_pIfBuf != NULL, VERR_GENERAL_FAILURE);
-
-    INTNETIFSETACTIVEREQ ActiveReq;
-    int rc;
-
-    ActiveReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    ActiveReq.Hdr.cbReq = sizeof(ActiveReq);
-    ActiveReq.pSession = m_pSession;
-    ActiveReq.hIf = m_hIf;
-
-    ActiveReq.fActive = 1;
-
-    rc = CALL_VMMR0(VMMR0_DO_INTNET_IF_SET_ACTIVE, ActiveReq);
-    return rc;
-}
-
-
-/**
- * Wait for input frame(s) to become available in the receive ring
- * buffer.  Performs VMMR0_DO_INTNET_IF_WAIT.
- *
- * @param cMillies      Timeout, defaults to RT_INDEFINITE_WAIT.
- * @return              iprt status code.
- */
-int
-IntNetIf::ifWait(uint32_t cMillies)
-{
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-
-    INTNETIFWAITREQ WaitReq;
-    int rc;
-
-    WaitReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    WaitReq.Hdr.cbReq = sizeof(WaitReq);
-    WaitReq.pSession = m_pSession;
-    WaitReq.hIf = m_hIf;
-
-    WaitReq.cMillies = cMillies;
-
-    rc = CALL_VMMR0(VMMR0_DO_INTNET_IF_WAIT, WaitReq);
-    return rc;
-}
-
-
-/**
- * Abort pending ifWait(), prevent any further attempts to wait.
- */
-int
-IntNetIf::ifAbort()
-{
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-
-    INTNETIFABORTWAITREQ AbortReq;
-    int rc;
-
-    AbortReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    AbortReq.Hdr.cbReq = sizeof(AbortReq);
-    AbortReq.pSession = m_pSession;
-    AbortReq.hIf = m_hIf;
-
-    AbortReq.fNoMoreWaits = true;
-
-    rc = CALL_VMMR0(VMMR0_DO_INTNET_IF_ABORT_WAIT, AbortReq);
-    return rc;
-}
-
-
-/**
- * Process input available in the receive ring buffer.
- * Feeds input frames to the user callback.
- * @return iprt status code.
- */
-int
-IntNetIf::ifProcessInput()
-{
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-    AssertReturn(m_pIfBuf != NULL, VERR_GENERAL_FAILURE);
-    AssertReturn(m_pfnInput != NULL, VERR_GENERAL_FAILURE);
-
-    PCINTNETHDR pHdr = IntNetRingGetNextFrameToRead(&m_pIfBuf->Recv);
-    while (pHdr)
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+    if (pThis->fIntNetR3Svc)
     {
-        const uint8_t u8Type = pHdr->u8Type;
-        void *pvSegFrame;
-        uint32_t cbSegFrame;
-
-        if (u8Type == INTNETHDR_TYPE_FRAME)
+#if defined(RT_OS_DARWIN)
+        xpc_object_t hObj = xpc_dictionary_create(NULL, NULL, 0);
+        xpc_dictionary_set_uint64(hObj, "req-id", VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS);
+        xpc_dictionary_set_data(hObj, "req", &GetBufferPtrsReq, sizeof(GetBufferPtrsReq));
+        xpc_object_t hObjReply = xpc_connection_send_message_with_reply_sync(pThis->hXpcCon, hObj);
+        rc = (int)xpc_dictionary_get_int64(hObjReply, "rc");
+        if (RT_SUCCESS(rc))
         {
-            pvSegFrame = IntNetHdrGetFramePtr(pHdr, m_pIfBuf);
-            cbSegFrame = pHdr->cbFrame;
-
-            /* pass the frame to the user callback */
-            (*m_pfnInput)(m_pvUser, pvSegFrame, cbSegFrame);
+            /* Get the shared memory object. */
+            xpc_object_t hObjShMem = xpc_dictionary_get_value(hObjReply, "buf-ptr");
+            size_t cbMem = xpc_shmem_map(hObjShMem, (void **)&pThis->pBuf);
+            if (!cbMem)
+                rc = VERR_NO_MEMORY;
+            else
+                pThis->cbBuf = cbMem;
         }
-        else if (u8Type == INTNETHDR_TYPE_GSO)
+        xpc_release(hObjReply);
+#endif
+    }
+    else
+#endif
+    {
+        rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS, 0 /*u64Arg*/, &GetBufferPtrsReq.Hdr);
+        if (RT_SUCCESS(rc))
         {
-            size_t cbGso = pHdr->cbFrame;
-            size_t cbFrame = cbGso - sizeof(PDMNETWORKGSO);
-
-            PCPDMNETWORKGSO pcGso = IntNetHdrGetGsoContext(pHdr, m_pIfBuf);
-            if (PDMNetGsoIsValid(pcGso, cbGso, cbFrame))
-            {
-                if (m_pfnInputGSO != NULL)
-                {
-                    /* pass the frame to the user GSO input callback if set */
-                    (*m_pfnInputGSO)(m_pvUserGSO, pcGso, (uint32_t)cbFrame);
-                }
-                else
-                {
-                    const uint32_t cSegs = PDMNetGsoCalcSegmentCount(pcGso, cbFrame);
-                    for (uint32_t i = 0; i < cSegs; ++i)
-                    {
-                        uint8_t abHdrScratch[256];
-                        pvSegFrame = PDMNetGsoCarveSegmentQD(pcGso, (uint8_t *)(pcGso + 1), cbFrame,
-                                                             abHdrScratch,
-                                                             i, cSegs,
-                                                             &cbSegFrame);
-
-                        /* pass carved frames to the user input callback */
-                        (*m_pfnInput)(m_pvUser, pvSegFrame, (uint32_t)cbSegFrame);
-                    }
-                }
-            }
+            AssertRelease(RT_VALID_PTR(GetBufferPtrsReq.pRing3Buf));
+            pThis->pBuf = GetBufferPtrsReq.pRing3Buf;
         }
-
-        /* advance to the next input frame */
-        IntNetRingSkipFrame(&m_pIfBuf->Recv);
-        pHdr = IntNetRingGetNextFrameToRead(&m_pIfBuf->Recv);
     }
 
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Flush output frames from the send ring buffer to the network.
- * Performs VMMR0_DO_INTNET_IF_SEND.
- */
-int
-IntNetIf::ifFlush()
-{
-    AssertReturn(m_pSession != NIL_RTR0PTR, VERR_GENERAL_FAILURE);
-    AssertReturn(m_hIf != INTNET_HANDLE_INVALID, VERR_GENERAL_FAILURE);
-
-    INTNETIFSENDREQ SendReq;
-    int rc;
-
-    SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    SendReq.Hdr.cbReq = sizeof(SendReq);
-    SendReq.pSession = m_pSession;
-    SendReq.hIf = m_hIf;
-
-    rc = CALL_VMMR0(VMMR0_DO_INTNET_IF_SEND, SendReq);
     return rc;
 }
 
 
-/**
- * Close the connection to the network.
- * Performs VMMR0_DO_INTNET_IF_CLOSE.
- */
-int
-IntNetIf::ifClose()
+static void intnetR3IfClose(PINTNETIFCTXINT pThis)
 {
-    if (m_hIf == INTNET_HANDLE_INVALID)
-        return VINF_SUCCESS;
+    if (pThis->hIf != INTNET_HANDLE_INVALID)
+    {
+        INTNETIFCLOSEREQ CloseReq;
+        CloseReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+        CloseReq.Hdr.cbReq    = sizeof(CloseReq);
+        CloseReq.pSession     = pThis->pSupDrvSession;
+        CloseReq.hIf          = pThis->hIf;
 
-    INTNETIFCLOSEREQ CloseReq;
+        pThis->hIf = INTNET_HANDLE_INVALID;
+        int rc = intnetR3IfCallSvc(pThis, VMMR0_DO_INTNET_IF_CLOSE, &CloseReq.Hdr);
+        AssertRC(rc);
+    }
+}
 
-    CloseReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-    CloseReq.Hdr.cbReq = sizeof(CloseReq);
-    CloseReq.pSession = m_pSession;
-    CloseReq.hIf = m_hIf;
 
-    m_hIf = INTNET_HANDLE_INVALID;
-    m_pIfBuf = NULL;
+DECLHIDDEN(int) IntNetR3IfCreate(PINTNETIFCTX phIfCtx, const char *pszNetwork)
+{
+    return IntNetR3IfCreateEx(phIfCtx, pszNetwork, kIntNetTrunkType_WhateverNone, "",
+                              _128K /*cbSend*/, _256K /*cbRecv*/, 0 /*fFlags*/);
+}
 
-    CALL_VMMR0(VMMR0_DO_INTNET_IF_CLOSE, CloseReq);
+
+DECLHIDDEN(int) IntNetR3IfCreateEx(PINTNETIFCTX phIfCtx, const char *pszNetwork, INTNETTRUNKTYPE enmTrunkType,
+                                   const char *pszTrunk, uint32_t cbSend, uint32_t cbRecv, uint32_t fFlags)
+{
+    AssertPtrReturn(phIfCtx, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszNetwork, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszTrunk, VERR_INVALID_POINTER);
+
+    PSUPDRVSESSION pSession = NIL_RTR0PTR;
+    int rc = SUPR3Init(&pSession);
+    if (RT_SUCCESS(rc))
+    {
+        PINTNETIFCTXINT pThis = (PINTNETIFCTXINT)RTMemAllocZ(sizeof(*pThis));
+        if (RT_LIKELY(pThis))
+        {
+            pThis->pSupDrvSession = pSession;
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+            pThis->hEvtRecv       = NIL_RTSEMEVENT;
+#endif
+
+            /* Driverless operation needs support for running the internal network switch using IPC. */
+            if (SUPR3IsDriverless())
+            {
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+# if defined(RT_OS_DARWIN)
+                xpc_connection_t hXpcCon = xpc_connection_create(INTNET_R3_SVC_NAME, NULL);
+                xpc_connection_set_event_handler(hXpcCon, ^(xpc_object_t hObj) {
+                    if (xpc_get_type(hObj) == XPC_TYPE_ERROR)
+                    {
+                        /** @todo Error handling - reconnecting. */
+                    }
+                    else
+                    {
+                        /* Out of band messages should only come when there is something to receive. */
+                        RTSemEventSignal(pThis->hEvtRecv);
+                    }
+                });
+
+                xpc_connection_resume(hXpcCon);
+                pThis->hXpcCon      = hXpcCon;
+# endif
+                pThis->fIntNetR3Svc = true;
+                rc = RTSemEventCreate(&pThis->hEvtRecv);
+#else
+                rc = VERR_SUP_DRIVERLESS;
+#endif
+            }
+            else
+            {
+                /* Need to load VMMR0.r0 containing the network switching code. */
+                char szPathVMMR0[RTPATH_MAX];
+
+                rc = RTPathExecDir(szPathVMMR0, sizeof(szPathVMMR0));
+                if (RT_SUCCESS(rc))
+                {
+                    rc = RTPathAppend(szPathVMMR0, sizeof(szPathVMMR0), "VMMR0.r0");
+                    if (RT_SUCCESS(rc))
+                        rc = SUPR3LoadVMM(szPathVMMR0, /* :pErrInfo */ NULL);
+                }
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                /* Open the interface. */
+                INTNETOPENREQ OpenReq;
+                RT_ZERO(OpenReq);
+
+                OpenReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+                OpenReq.Hdr.cbReq    = sizeof(OpenReq);
+                OpenReq.pSession     = pThis->pSupDrvSession;
+                OpenReq.enmTrunkType = enmTrunkType;
+                OpenReq.fFlags       = fFlags;
+                OpenReq.cbSend       = cbSend;
+                OpenReq.cbRecv       = cbRecv;
+                OpenReq.hIf          = INTNET_HANDLE_INVALID;
+
+                rc = RTStrCopy(OpenReq.szNetwork, sizeof(OpenReq.szNetwork), pszNetwork);
+                if (RT_SUCCESS(rc))
+                    rc = RTStrCopy(OpenReq.szTrunk, sizeof(OpenReq.szTrunk), pszTrunk);
+                if (RT_SUCCESS(rc))
+                {
+                    rc = intnetR3IfCallSvc(pThis, VMMR0_DO_INTNET_OPEN, &OpenReq.Hdr);
+                    if (RT_SUCCESS(rc))
+                    {
+                        pThis->hIf = OpenReq.hIf;
+
+                        rc = intnetR3IfMapBufferPointers(pThis);
+                        if (RT_SUCCESS(rc))
+                        {
+                            *phIfCtx = pThis;
+                            return VINF_SUCCESS;
+                        }
+                    }
+
+                    intnetR3IfClose(pThis);
+                }
+            }
+
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+            if (pThis->fIntNetR3Svc)
+            {
+# if defined(RT_OS_DARWIN)
+                if (pThis->hXpcCon)
+                    xpc_connection_cancel(pThis->hXpcCon);
+                pThis->hXpcCon = NULL;
+# endif
+
+                if (pThis->hEvtRecv != NIL_RTSEMEVENT)
+                    RTSemEventDestroy(pThis->hEvtRecv);
+            }
+#endif
+
+            RTMemFree(pThis);
+        }
+
+        SUPR3Term();
+    }
+
+    return rc;
+}
+
+
+DECLHIDDEN(int) IntNetR3IfDestroy(INTNETIFCTX hIfCtx)
+{
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+
+    intnetR3IfClose(pThis);
+
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+    if (pThis->fIntNetR3Svc)
+    {
+# if defined(RT_OS_DARWIN)
+        /* Unmap the shared buffer. */
+        munmap(pThis->pBuf, pThis->cbBuf);
+        xpc_connection_cancel(pThis->hXpcCon);
+        pThis->hXpcCon      = NULL;
+# endif
+        RTSemEventDestroy(pThis->hEvtRecv);
+        pThis->fIntNetR3Svc = false;
+    }
+#endif
+
+    RTMemFree(pThis);
     return VINF_SUCCESS;
 }
 
 
-
-/*
- * Public high-level user interface.
- */
-
-/**
- * Connect to the specified internal network.
- *
- * @param strNetwork    The name of the network.
- * @param enmTrunkType  The trunk type.  Defaults to kIntNetTrunkType_WhateverNone.
- * @param strTrunk      The trunk name, its meaning is specific to the type.
- *                      Defaults to an empty string.
- * @return              iprt status code.
- */
-int
-IntNetIf::init(const RTCString &strNetwork,
-               INTNETTRUNKTYPE enmTrunkType,
-               const RTCString &strTrunk)
+DECLHIDDEN(int) IntNetR3IfQueryBufferPtr(INTNETIFCTX hIfCtx, PINTNETBUF *ppIfBuf)
 {
-    int rc;
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertPtrReturn(ppIfBuf, VERR_INVALID_POINTER);
 
-    rc = r3Init();
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = vmmInit();
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = ifOpen(strNetwork, enmTrunkType, strTrunk);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = ifGetBuf();
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rc = ifActivate();
-    if (RT_FAILURE(rc))
-        return rc;
-
+    *ppIfBuf = pThis->pBuf;
     return VINF_SUCCESS;
 }
 
 
-void
-IntNetIf::uninit()
+DECLHIDDEN(int) IntNetR3IfSetActive(INTNETIFCTX hIfCtx, bool fActive)
 {
-    ifClose();
-    r3Fini();
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+
+    INTNETIFSETACTIVEREQ Req;
+    Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    Req.Hdr.cbReq    = sizeof(Req);
+    Req.pSession     = pThis->pSupDrvSession;
+    Req.hIf          = pThis->hIf;
+    Req.fActive      = fActive;
+    return intnetR3IfCallSvc(pThis, VMMR0_DO_INTNET_IF_SET_ACTIVE, &Req.Hdr);
 }
 
 
-/**
- * Set the user input callback function.
- *
- * @param pfnInput      User input callback.
- * @param pvUser        The user specified argument to the callback.
- * @return              iprt status code.
- */
-int
-IntNetIf::setInputCallback(PFNINPUT pfnInput, void *pvUser)
+DECLHIDDEN(int) IntNetR3IfSetPromiscuous(INTNETIFCTX hIfCtx, bool fPromiscuous)
 {
-    AssertReturn(pfnInput != NULL, VERR_INVALID_STATE);
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
 
-    m_pfnInput = pfnInput;
-    m_pvUser = pvUser;
-    return VINF_SUCCESS;
+    INTNETIFSETPROMISCUOUSMODEREQ Req;
+    Req.Hdr.u32Magic    = SUPVMMR0REQHDR_MAGIC;
+    Req.Hdr.cbReq       = sizeof(Req);
+    Req.pSession        = pThis->pSupDrvSession;
+    Req.hIf             = pThis->hIf;
+    Req.fPromiscuous    = fPromiscuous;
+    return intnetR3IfCallSvc(pThis, VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE, &Req.Hdr);
 }
 
 
-/**
- * Set the user GSO input callback function.
- *
- * @param pfnInputGSO   User input callback.
- * @param pvUserGSO     The user specified argument to the callback.
- * @return              iprt status code.
- */
-int
-IntNetIf::setInputGSOCallback(PFNINPUTGSO pfnInputGSO, void *pvUserGSO)
+DECLHIDDEN(int) IntNetR3IfSend(INTNETIFCTX hIfCtx)
 {
-    AssertReturn(pfnInputGSO != NULL, VERR_INVALID_STATE);
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
 
-    m_pfnInputGSO = pfnInputGSO;
-    m_pvUserGSO = pvUserGSO;
-    return VINF_SUCCESS;
+    INTNETIFSENDREQ Req;
+    Req.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    Req.Hdr.cbReq    = sizeof(Req);
+    Req.pSession     = pThis->pSupDrvSession;
+    Req.hIf          = pThis->hIf;
+    return intnetR3IfCallSvc(pThis, VMMR0_DO_INTNET_IF_SEND, &Req.Hdr);
 }
 
 
-/**
- * Process incoming packets forever.
- *
- * User call this method on its receive thread.  The packets are
- * passed to the user inpiut callbacks.  If the GSO input callback is
- * not registered, a GSO input frame is carved into normal frames and
- * those frames are passed to the normal input callback.
- */
-int
-IntNetIf::ifPump()
+DECLHIDDEN(int) IntNetR3IfWait(INTNETIFCTX hIfCtx, uint32_t cMillies)
 {
-    AssertReturn(m_pfnInput != NULL, VERR_GENERAL_FAILURE);
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+
+    int rc = VINF_SUCCESS;
+    INTNETIFWAITREQ WaitReq;
+    WaitReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    WaitReq.Hdr.cbReq    = sizeof(WaitReq);
+    WaitReq.pSession     = pThis->pSupDrvSession;
+    WaitReq.hIf          = pThis->hIf;
+    WaitReq.cMillies     = cMillies;
+#if defined(VBOX_WITH_INTNET_SERVICE_IN_R3)
+    if (pThis->fIntNetR3Svc)
+    {
+        /* Send an asynchronous message. */
+        rc = intnetR3IfCallSvcAsync(pThis, VMMR0_DO_INTNET_IF_WAIT, &WaitReq.Hdr);
+        if (RT_SUCCESS(rc))
+        {
+            /* Wait on the receive semaphore. */
+            rc = RTSemEventWait(pThis->hEvtRecv, cMillies);
+        }
+    }
+    else
+#endif
+        rc = intnetR3IfCallSvc(pThis, VMMR0_DO_INTNET_IF_WAIT, &WaitReq.Hdr);
+
+    return rc;
+}
+
+
+DECLHIDDEN(int) IntNetR3IfWaitAbort(INTNETIFCTX hIfCtx)
+{
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+
+    INTNETIFABORTWAITREQ AbortWaitReq;
+    AbortWaitReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    AbortWaitReq.Hdr.cbReq    = sizeof(AbortWaitReq);
+    AbortWaitReq.pSession     = pThis->pSupDrvSession;
+    AbortWaitReq.hIf          = pThis->hIf;
+    AbortWaitReq.fNoMoreWaits = true;
+    return intnetR3IfCallSvc(pThis, VMMR0_DO_INTNET_IF_ABORT_WAIT, &AbortWaitReq.Hdr);
+}
+
+
+DECLHIDDEN(int) IntNetR3IfPumpPkts(INTNETIFCTX hIfCtx, PFNINPUT pfnInput, void *pvUser,
+                                      PFNINPUTGSO pfnInputGso, void *pvUserGso)
+{
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
+    AssertPtrReturn(pfnInput, VERR_INVALID_POINTER);
 
     int rc;
     for (;;)
     {
-        rc = ifWait();
+        rc = IntNetR3IfWait(hIfCtx, RT_INDEFINITE_WAIT);
         if (RT_SUCCESS(rc) || rc == VERR_INTERRUPTED || rc == VERR_TIMEOUT)
-            ifProcessInput();
+        {
+            PCINTNETHDR pHdr = IntNetRingGetNextFrameToRead(&pThis->pBuf->Recv);
+            while (pHdr)
+            {
+                const uint8_t u8Type = pHdr->u8Type;
+                void *pvSegFrame;
+                uint32_t cbSegFrame;
+
+                if (u8Type == INTNETHDR_TYPE_FRAME)
+                {
+                    pvSegFrame = IntNetHdrGetFramePtr(pHdr, pThis->pBuf);
+                    cbSegFrame = pHdr->cbFrame;
+
+                    /* pass the frame to the user callback */
+                    pfnInput(pvUser, pvSegFrame, cbSegFrame);
+                }
+                else if (u8Type == INTNETHDR_TYPE_GSO)
+                {
+                    size_t cbGso = pHdr->cbFrame;
+                    size_t cbFrame = cbGso - sizeof(PDMNETWORKGSO);
+
+                    PCPDMNETWORKGSO pcGso = IntNetHdrGetGsoContext(pHdr, pThis->pBuf);
+                    if (PDMNetGsoIsValid(pcGso, cbGso, cbFrame))
+                    {
+                        if (pfnInputGso != NULL)
+                        {
+                            /* pass the frame to the user GSO input callback if set */
+                            pfnInputGso(pvUserGso, pcGso, (uint32_t)cbFrame);
+                        }
+                        else
+                        {
+                            const uint32_t cSegs = PDMNetGsoCalcSegmentCount(pcGso, cbFrame);
+                            for (uint32_t i = 0; i < cSegs; ++i)
+                            {
+                                uint8_t abHdrScratch[256];
+                                pvSegFrame = PDMNetGsoCarveSegmentQD(pcGso, (uint8_t *)(pcGso + 1), cbFrame,
+                                                                     abHdrScratch,
+                                                                     i, cSegs,
+                                                                     &cbSegFrame);
+
+                                /* pass carved frames to the user input callback */
+                                pfnInput(pvUser, pvSegFrame, (uint32_t)cbSegFrame);
+                            }
+                        }
+                    }
+                }
+
+                /* advance to the next input frame */
+                IntNetRingSkipFrame(&pThis->pBuf->Recv);
+                pHdr = IntNetRingGetNextFrameToRead(&pThis->pBuf->Recv);
+            }
+        }
         else
             break;
     }
@@ -529,24 +552,20 @@ IntNetIf::ifPump()
 }
 
 
-int
-IntNetIf::getOutputFrame(IntNetIf::Frame &rFrame, size_t cbFrame)
+DECLHIDDEN(int) IntNetR3IfQueryOutputFrame(INTNETIFCTX hIfCtx, uint32_t cbFrame, PINTNETFRAME pFrame)
 {
-    int rc;
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
 
-    rc = IntNetRingAllocateFrame(&m_pIfBuf->Send, (uint32_t)cbFrame,
-                                 &rFrame.pHdr, &rFrame.pvFrame);
-    return rc;
+    return IntNetRingAllocateFrame(&pThis->pBuf->Send, cbFrame, &pFrame->pHdr, &pFrame->pvFrame);
 }
 
 
-int
-IntNetIf::ifOutput(IntNetIf::Frame &rFrame)
+DECLHIDDEN(int) IntNetR3IfOutputFrameCommit(INTNETIFCTX hIfCtx, PCINTNETFRAME pFrame)
 {
-    int rc;
+    PINTNETIFCTXINT pThis = hIfCtx;
+    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
 
-    IntNetRingCommitFrame(&m_pIfBuf->Send, rFrame.pHdr);
-
-    rc = ifFlush();
-    return rc;
+    IntNetRingCommitFrame(&pThis->pBuf->Send, pFrame->pHdr);
+    return IntNetR3IfSend(hIfCtx);
 }

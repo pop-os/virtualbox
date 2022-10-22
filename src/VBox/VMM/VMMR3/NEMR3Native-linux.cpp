@@ -1475,15 +1475,11 @@ static int nemHCLnxImportState(PVMCPUCC pVCpu, uint64_t fWhat, PCPUMCTX pCtx, st
         if (pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_RIP)
             pVCpu->cpum.GstCtx.rip = pRun->s.regs.regs.rip;
 
-        if (KvmEvents.interrupt.shadow)
-            EMSetInhibitInterruptsPC(pVCpu, pVCpu->cpum.GstCtx.rip);
-        else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-
-        if (KvmEvents.nmi.masked)
-            VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-        else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
+        CPUMUpdateInterruptShadowSsStiEx(&pVCpu->cpum.GstCtx,
+                                         RT_BOOL(KvmEvents.interrupt.shadow & KVM_X86_SHADOW_INT_MOV_SS),
+                                         RT_BOOL(KvmEvents.interrupt.shadow & KVM_X86_SHADOW_INT_STI),
+                                         pVCpu->cpum.GstCtx.rip);
+        CPUMUpdateInterruptInhibitingByNmi(&pVCpu->cpum.GstCtx, KvmEvents.nmi.masked != 0);
 
         if (KvmEvents.interrupt.injected)
         {
@@ -1868,17 +1864,14 @@ static int nemHCLnxExportState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, struct kvm_
         struct kvm_vcpu_events KvmEvents = {0};
 
         KvmEvents.flags = KVM_VCPUEVENT_VALID_SHADOW;
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-        {
-            if (pRun->s.regs.regs.rip == EMGetInhibitInterruptsPC(pVCpu))
-                KvmEvents.interrupt.shadow = KVM_X86_SHADOW_INT_MOV_SS | KVM_X86_SHADOW_INT_STI;
-            else
-                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-        }
+        if (!CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx))
+        { /* probably likely */ }
+        else
+            KvmEvents.interrupt.shadow = (CPUMIsInInterruptShadowAfterSs()  ? KVM_X86_SHADOW_INT_MOV_SS : 0)
+                                       | (CPUMIsInInterruptShadowAfterSti() ? KVM_X86_SHADOW_INT_STI    : 0);
 
         /* No flag - this is updated unconditionally. */
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-            KvmEvents.nmi.masked = 1;
+        KvmEvents.nmi.masked = CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx);
 
         if (TRPMHasTrap(pVCpu))
         {
@@ -2058,28 +2051,19 @@ static VBOXSTRICTRC nemHCLnxHandleInterruptFF(PVM pVM, PVMCPU pVCpu, struct kvm_
 
     KvmEvents.flags |= KVM_VCPUEVENT_VALID_SHADOW;
     if (!(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_INHIBIT_INT))
-    {
-        if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-            KvmEvents.interrupt.shadow = 0;
-        else if (EMGetInhibitInterruptsPC(pVCpu) == pRun->s.regs.regs.rip)
-            KvmEvents.interrupt.shadow = KVM_X86_SHADOW_INT_MOV_SS | KVM_X86_SHADOW_INT_STI;
-        else
-        {
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-            KvmEvents.interrupt.shadow = 0;
-        }
-    }
-    else if (KvmEvents.interrupt.shadow)
-        EMSetInhibitInterruptsPC(pVCpu, pRun->s.regs.regs.rip);
-    else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+        KvmEvents.interrupt.shadow = !CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx) ? 0
+                                   :   (CPUMIsInInterruptShadowAfterSs()  ? KVM_X86_SHADOW_INT_MOV_SS : 0)
+                                     | (CPUMIsInInterruptShadowAfterSti() ? KVM_X86_SHADOW_INT_STI    : 0);
+    else
+        CPUMUpdateInterruptShadowSsStiEx(&pVCpu->cpum.GstCtx,
+                                         RT_BOOL(KvmEvents.interrupt.shadow & KVM_X86_SHADOW_INT_MOV_SS),
+                                         RT_BOOL(KvmEvents.interrupt.shadow & KVM_X86_SHADOW_INT_MOV_STI),
+                                         pRun->s.regs.regs.rip);
 
     if (!(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_INHIBIT_NMI))
-        KvmEvents.nmi.masked = VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS) ? 1 : 0;
-    else if (KvmEvents.nmi.masked)
-        VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
-    else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
+        KvmEvents.nmi.masked = CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx);
+    else
+        CPUMUpdateInterruptInhibitingByNmi(&pVCpu->cpum.GstCtx, KvmEvents.nmi.masked != 0);
 
     /* KVM will own the INT + NMI inhibit state soon: */
     pVCpu->cpum.GstCtx.fExtrn = (pVCpu->cpum.GstCtx.fExtrn & ~CPUMCTX_EXTRN_KEEPER_MASK)
@@ -2131,7 +2115,7 @@ static VBOXSTRICTRC nemHCLnxHandleInterruptFF(PVM pVM, PVMCPU pVCpu, struct kvm_
                     KvmEvents.interrupt.injected = true;
 #endif
                     Log8(("Queuing interrupt %#x on %u: %04x:%08RX64 efl=%#x\n", bInterrupt, pVCpu->idCpu,
-                          pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.eflags));
+                          pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.eflags.u));
                 }
                 else if (rc == VERR_APIC_INTR_MASKED_BY_TPR) /** @todo this isn't extremely efficient if we get a lot of exits... */
                     Log8(("VERR_APIC_INTR_MASKED_BY_TPR\n")); /* We'll get a TRP exit - no interrupt window needed. */
@@ -2841,7 +2825,7 @@ VBOXSTRICTRC nemR3NativeRunGC(PVM pVM, PVMCPU pVCpu)
     }
 
     LogFlow(("NEM/%u: %04x:%08RX64 efl=%#08RX64 => %Rrc\n", pVCpu->idCpu, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip,
-             pVCpu->cpum.GstCtx.rflags, VBOXSTRICTRC_VAL(rcStrict) ));
+             pVCpu->cpum.GstCtx.rflags.u, VBOXSTRICTRC_VAL(rcStrict) ));
     return rcStrict;
 }
 

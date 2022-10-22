@@ -109,17 +109,6 @@ int main()
                      (int)RT_ALIGN_Z(sizeof(p->member.s), (align))); \
     } while (0)
 
-#define CHECK_CPUMCTXCORE(member) \
-    do { \
-        unsigned off1 = RT_OFFSETOF(CPUMCTX, member) - RT_OFFSETOF(CPUMCTX, rax); \
-        unsigned off2 = RT_OFFSETOF(CPUMCTXCORE, member); \
-        if (off1 != off2) \
-        { \
-            RTPrintf("error! CPUMCTX/CORE:: %s! (%#x vs %#x (ctx))\n", #member, off1, off2); \
-            rc++; \
-        } \
-    } while (0)
-
 #define CHECK_PADDING_UVM(align, member) \
     do \
     { \
@@ -271,7 +260,6 @@ int main()
     CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.aExitMsrLoadArea, 4096);
     CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abMsrBitmap, 4096);
     CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abIoBitmap, 4096);
-    CHECK_MEMBER_ALIGNMENT(VMCPU, cpum.s.Guest.hwvirt.vmx.abVirtApicPage, 4096);
 
     PVM pVM = NULL; NOREF(pVM);
 
@@ -284,30 +272,6 @@ int main()
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, gdtr.pGdt, 8);
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, SysEnter, 8);
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, hwvirt, 8);
-    CHECK_CPUMCTXCORE(rax);
-    CHECK_CPUMCTXCORE(rcx);
-    CHECK_CPUMCTXCORE(rdx);
-    CHECK_CPUMCTXCORE(rbx);
-    CHECK_CPUMCTXCORE(rsp);
-    CHECK_CPUMCTXCORE(rbp);
-    CHECK_CPUMCTXCORE(rsi);
-    CHECK_CPUMCTXCORE(rdi);
-    CHECK_CPUMCTXCORE(r8);
-    CHECK_CPUMCTXCORE(r9);
-    CHECK_CPUMCTXCORE(r10);
-    CHECK_CPUMCTXCORE(r11);
-    CHECK_CPUMCTXCORE(r12);
-    CHECK_CPUMCTXCORE(r13);
-    CHECK_CPUMCTXCORE(r14);
-    CHECK_CPUMCTXCORE(r15);
-    CHECK_CPUMCTXCORE(es);
-    CHECK_CPUMCTXCORE(ss);
-    CHECK_CPUMCTXCORE(cs);
-    CHECK_CPUMCTXCORE(ds);
-    CHECK_CPUMCTXCORE(fs);
-    CHECK_CPUMCTXCORE(gs);
-    CHECK_CPUMCTXCORE(rip);
-    CHECK_CPUMCTXCORE(rflags);
 
 #if HC_ARCH_BITS == 32
     /* CPUMHOSTCTX - lss pair */

@@ -38,6 +38,8 @@
 # error "At least one of the VMX_VMCS_READ_16, VMX_VMCS_READ_32, VMX_VMCS_READ_64 or VMX_VMCS_READ_64 is missing"
 #endif
 
+/** Enables condensing of VMREAD instructions, see vmxHCReadToTransient(). */
+#define HMVMX_WITH_CONDENSED_VMREADS
 
 /** Use the function table. */
 #define HMVMX_USE_FUNCTION_TABLE
@@ -208,7 +210,7 @@ DECLINLINE(VBOXSTRICTRC)           vmxHCHandleExit(PVMCPUCC pVCpu, PVMXTRANSIENT
 DECLINLINE(VBOXSTRICTRC)           vmxHCHandleExitNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient);
 #endif
 
-static int vmxHCImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_t fWhat);
+static int vmxHCImportGuestStateEx(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_t fWhat);
 
 /** @name VM-exit handler prototypes.
  * @{
@@ -564,49 +566,6 @@ static const uint32_t g_aVmcsFields[] =
     VMX_VMCS_HOST_INTR_SSP_TABLE_ADDR
 };
 #endif /* VBOX_WITH_NESTED_HWVIRT_VMX */
-
-#ifdef VBOX_STRICT
-static const uint32_t g_aVmcsSegBase[] =
-{
-    VMX_VMCS_GUEST_ES_BASE,
-    VMX_VMCS_GUEST_CS_BASE,
-    VMX_VMCS_GUEST_SS_BASE,
-    VMX_VMCS_GUEST_DS_BASE,
-    VMX_VMCS_GUEST_FS_BASE,
-    VMX_VMCS_GUEST_GS_BASE
-};
-static const uint32_t g_aVmcsSegSel[] =
-{
-    VMX_VMCS16_GUEST_ES_SEL,
-    VMX_VMCS16_GUEST_CS_SEL,
-    VMX_VMCS16_GUEST_SS_SEL,
-    VMX_VMCS16_GUEST_DS_SEL,
-    VMX_VMCS16_GUEST_FS_SEL,
-    VMX_VMCS16_GUEST_GS_SEL
-};
-static const uint32_t g_aVmcsSegLimit[] =
-{
-    VMX_VMCS32_GUEST_ES_LIMIT,
-    VMX_VMCS32_GUEST_CS_LIMIT,
-    VMX_VMCS32_GUEST_SS_LIMIT,
-    VMX_VMCS32_GUEST_DS_LIMIT,
-    VMX_VMCS32_GUEST_FS_LIMIT,
-    VMX_VMCS32_GUEST_GS_LIMIT
-};
-static const uint32_t g_aVmcsSegAttr[] =
-{
-    VMX_VMCS32_GUEST_ES_ACCESS_RIGHTS,
-    VMX_VMCS32_GUEST_CS_ACCESS_RIGHTS,
-    VMX_VMCS32_GUEST_SS_ACCESS_RIGHTS,
-    VMX_VMCS32_GUEST_DS_ACCESS_RIGHTS,
-    VMX_VMCS32_GUEST_FS_ACCESS_RIGHTS,
-    VMX_VMCS32_GUEST_GS_ACCESS_RIGHTS
-};
-AssertCompile(RT_ELEMENTS(g_aVmcsSegSel)   == X86_SREG_COUNT);
-AssertCompile(RT_ELEMENTS(g_aVmcsSegLimit) == X86_SREG_COUNT);
-AssertCompile(RT_ELEMENTS(g_aVmcsSegBase)  == X86_SREG_COUNT);
-AssertCompile(RT_ELEMENTS(g_aVmcsSegAttr)  == X86_SREG_COUNT);
-#endif /* VBOX_STRICT */
 
 #ifdef HMVMX_USE_FUNCTION_TABLE
 /**
@@ -1163,183 +1122,193 @@ DECLINLINE(void) vmxHCReadEntryInstrLenVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTr
 
 #endif /* VBOX_STRICT */
 
+
 /**
- * Reads the VM-exit interruption-information field from the VMCS into the VMX
- * transient structure.
+ * Reads VMCS fields into the VMXTRANSIENT structure, slow path version.
  *
+ * Don't call directly unless the it's likely that some or all of the fields
+ * given in @a a_fReadMask have already been read.
+ *
+ * @tparam  a_fReadMask     The fields to read.
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pVmxTransient   The VMX-transient structure.
  */
-DECLINLINE(void) vmxHCReadExitIntInfoVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
+template<uint32_t const a_fReadMask>
+static void vmxHCReadToTransientSlow(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_EXIT_INTERRUPTION_INFO))
+    AssertCompile((a_fReadMask & ~(  HMVMX_READ_EXIT_QUALIFICATION
+                                   | HMVMX_READ_EXIT_INSTR_LEN
+                                   | HMVMX_READ_EXIT_INSTR_INFO
+                                   | HMVMX_READ_IDT_VECTORING_INFO
+                                   | HMVMX_READ_IDT_VECTORING_ERROR_CODE
+                                   | HMVMX_READ_EXIT_INTERRUPTION_INFO
+                                   | HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                                   | HMVMX_READ_GUEST_LINEAR_ADDR
+                                   | HMVMX_READ_GUEST_PHYSICAL_ADDR
+                                   | HMVMX_READ_GUEST_PENDING_DBG_XCPTS
+                                   )) == 0);
+
+    if ((pVmxTransient->fVmcsFieldsRead & a_fReadMask) != a_fReadMask)
     {
-        int rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INTERRUPTION_INFO, &pVmxTransient->uExitIntInfo);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_EXIT_INTERRUPTION_INFO;
+        uint32_t const fVmcsFieldsRead = pVmxTransient->fVmcsFieldsRead;
+
+        if (   (a_fReadMask      & HMVMX_READ_EXIT_QUALIFICATION)
+            && !(fVmcsFieldsRead & HMVMX_READ_EXIT_QUALIFICATION))
+        {
+            int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_RO_EXIT_QUALIFICATION,          &pVmxTransient->uExitQual);
+            AssertRC(rc);
+        }
+        if (    (a_fReadMask     & HMVMX_READ_EXIT_INSTR_LEN)
+            && !(fVmcsFieldsRead & HMVMX_READ_EXIT_INSTR_LEN))
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INSTR_LENGTH,         &pVmxTransient->cbExitInstr);
+            AssertRC(rc);
+        }
+        if (   (a_fReadMask      & HMVMX_READ_EXIT_INSTR_INFO)
+            && !(fVmcsFieldsRead & HMVMX_READ_EXIT_INSTR_INFO))
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INSTR_INFO,           &pVmxTransient->ExitInstrInfo.u);
+            AssertRC(rc);
+        }
+        if (   (a_fReadMask      & HMVMX_READ_IDT_VECTORING_INFO)
+            && !(fVmcsFieldsRead & HMVMX_READ_IDT_VECTORING_INFO))
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_IDT_VECTORING_INFO,        &pVmxTransient->uIdtVectoringInfo);
+            AssertRC(rc);
+        }
+        if (   (a_fReadMask      & HMVMX_READ_IDT_VECTORING_ERROR_CODE)
+            && !(fVmcsFieldsRead & HMVMX_READ_IDT_VECTORING_ERROR_CODE))
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_IDT_VECTORING_ERROR_CODE,  &pVmxTransient->uIdtVectoringErrorCode);
+            AssertRC(rc);
+        }
+        if (   (a_fReadMask      & HMVMX_READ_EXIT_INTERRUPTION_INFO)
+            && !(fVmcsFieldsRead & HMVMX_READ_EXIT_INTERRUPTION_INFO))
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INTERRUPTION_INFO,    &pVmxTransient->uExitIntInfo);
+            AssertRC(rc);
+        }
+        if (    (a_fReadMask     & HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE)
+            && !(fVmcsFieldsRead & HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE))
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INTERRUPTION_ERROR_CODE, &pVmxTransient->uExitIntErrorCode);
+            AssertRC(rc);
+        }
+        if (   (a_fReadMask      & HMVMX_READ_GUEST_LINEAR_ADDR)
+            && !(fVmcsFieldsRead & HMVMX_READ_GUEST_LINEAR_ADDR))
+        {
+            int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_RO_GUEST_LINEAR_ADDR,           &pVmxTransient->uGuestLinearAddr);
+            AssertRC(rc);
+        }
+        if (   (a_fReadMask      & HMVMX_READ_GUEST_PHYSICAL_ADDR)
+            && !(fVmcsFieldsRead & HMVMX_READ_GUEST_PHYSICAL_ADDR))
+        {
+            int const rc = VMX_VMCS_READ_64(pVCpu, VMX_VMCS64_RO_GUEST_PHYS_ADDR_FULL,      &pVmxTransient->uGuestPhysicalAddr);
+            AssertRC(rc);
+        }
+        if (   (a_fReadMask      & HMVMX_READ_GUEST_PENDING_DBG_XCPTS)
+            && !(fVmcsFieldsRead & HMVMX_READ_GUEST_PENDING_DBG_XCPTS))
+        {
+            int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS,      &pVmxTransient->uGuestPendingDbgXcpts);
+            AssertRC(rc);
+        }
+
+        pVmxTransient->fVmcsFieldsRead |= a_fReadMask;
     }
 }
 
 
 /**
- * Reads the VM-exit interruption error code from the VMCS into the VMX
- * transient structure.
+ * Reads VMCS fields into the VMXTRANSIENT structure.
  *
+ * This optimizes for the case where none of @a a_fReadMask has been read yet,
+ * generating an optimized read sequences w/o any conditionals between in
+ * non-strict builds.
+ *
+ * @tparam  a_fReadMask     The fields to read.  One or more of the
+ *                          HMVMX_READ_XXX fields ORed together.
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pVmxTransient   The VMX-transient structure.
  */
-DECLINLINE(void) vmxHCReadExitIntErrorCodeVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
+template<uint32_t const a_fReadMask>
+DECLINLINE(void) vmxHCReadToTransient(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE))
+    AssertCompile((a_fReadMask & ~(  HMVMX_READ_EXIT_QUALIFICATION
+                                   | HMVMX_READ_EXIT_INSTR_LEN
+                                   | HMVMX_READ_EXIT_INSTR_INFO
+                                   | HMVMX_READ_IDT_VECTORING_INFO
+                                   | HMVMX_READ_IDT_VECTORING_ERROR_CODE
+                                   | HMVMX_READ_EXIT_INTERRUPTION_INFO
+                                   | HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                                   | HMVMX_READ_GUEST_LINEAR_ADDR
+                                   | HMVMX_READ_GUEST_PHYSICAL_ADDR
+                                   | HMVMX_READ_GUEST_PENDING_DBG_XCPTS
+                                   )) == 0);
+
+    if (RT_LIKELY(!(pVmxTransient->fVmcsFieldsRead & a_fReadMask)))
     {
-        int rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INTERRUPTION_ERROR_CODE, &pVmxTransient->uExitIntErrorCode);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE;
+        if (a_fReadMask & HMVMX_READ_EXIT_QUALIFICATION)
+        {
+            int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_RO_EXIT_QUALIFICATION,          &pVmxTransient->uExitQual);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_EXIT_INSTR_LEN)
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INSTR_LENGTH,         &pVmxTransient->cbExitInstr);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_EXIT_INSTR_INFO)
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INSTR_INFO,           &pVmxTransient->ExitInstrInfo.u);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_IDT_VECTORING_INFO)
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_IDT_VECTORING_INFO,        &pVmxTransient->uIdtVectoringInfo);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_IDT_VECTORING_ERROR_CODE)
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_IDT_VECTORING_ERROR_CODE,  &pVmxTransient->uIdtVectoringErrorCode);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_EXIT_INTERRUPTION_INFO)
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INTERRUPTION_INFO,    &pVmxTransient->uExitIntInfo);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE)
+        {
+            int const rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INTERRUPTION_ERROR_CODE, &pVmxTransient->uExitIntErrorCode);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_GUEST_LINEAR_ADDR)
+        {
+            int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_RO_GUEST_LINEAR_ADDR,           &pVmxTransient->uGuestLinearAddr);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_GUEST_PHYSICAL_ADDR)
+        {
+            int const rc = VMX_VMCS_READ_64(pVCpu, VMX_VMCS64_RO_GUEST_PHYS_ADDR_FULL,      &pVmxTransient->uGuestPhysicalAddr);
+            AssertRC(rc);
+        }
+        if (a_fReadMask & HMVMX_READ_GUEST_PENDING_DBG_XCPTS)
+        {
+            int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS,      &pVmxTransient->uGuestPendingDbgXcpts);
+            AssertRC(rc);
+        }
+
+        pVmxTransient->fVmcsFieldsRead |= a_fReadMask;
+    }
+    else
+    {
+        STAM_REL_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatReadToTransientFallback);
+        Log11Func(("a_fReadMask=%#x fVmcsFieldsRead=%#x => %#x - Taking inefficient code path!\n",
+                   a_fReadMask, pVmxTransient->fVmcsFieldsRead, a_fReadMask & pVmxTransient->fVmcsFieldsRead));
+        vmxHCReadToTransientSlow<a_fReadMask>(pVCpu, pVmxTransient);
     }
 }
 
-
-/**
- * Reads the VM-exit instruction length field from the VMCS into the VMX
- * transient structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- */
-DECLINLINE(void) vmxHCReadExitInstrLenVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_EXIT_INSTR_LEN))
-    {
-        int rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INSTR_LENGTH, &pVmxTransient->cbExitInstr);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_EXIT_INSTR_LEN;
-    }
-}
-
-
-/**
- * Reads the VM-exit instruction-information field from the VMCS into
- * the VMX transient structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- */
-DECLINLINE(void) vmxHCReadExitInstrInfoVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_EXIT_INSTR_INFO))
-    {
-        int rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_EXIT_INSTR_INFO, &pVmxTransient->ExitInstrInfo.u);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_EXIT_INSTR_INFO;
-    }
-}
-
-
-/**
- * Reads the Exit Qualification from the VMCS into the VMX transient structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- */
-DECLINLINE(void) vmxHCReadExitQualVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_EXIT_QUALIFICATION))
-    {
-        int rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_RO_EXIT_QUALIFICATION, &pVmxTransient->uExitQual);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_EXIT_QUALIFICATION;
-    }
-}
-
-
-/**
- * Reads the Guest-linear address from the VMCS into the VMX transient structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- */
-DECLINLINE(void) vmxHCReadGuestLinearAddrVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_GUEST_LINEAR_ADDR))
-    {
-        int rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_RO_GUEST_LINEAR_ADDR, &pVmxTransient->uGuestLinearAddr);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_GUEST_LINEAR_ADDR;
-    }
-}
-
-
-/**
- * Reads the Guest-physical address from the VMCS into the VMX transient structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- */
-DECLINLINE(void) vmxHCReadGuestPhysicalAddrVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_GUEST_PHYSICAL_ADDR))
-    {
-        int rc = VMX_VMCS_READ_64(pVCpu, VMX_VMCS64_RO_GUEST_PHYS_ADDR_FULL, &pVmxTransient->uGuestPhysicalAddr);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_GUEST_PHYSICAL_ADDR;
-    }
-}
-
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-/**
- * Reads the Guest pending-debug exceptions from the VMCS into the VMX transient
- * structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- */
-DECLINLINE(void) vmxHCReadGuestPendingDbgXctps(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_GUEST_PENDING_DBG_XCPTS))
-    {
-        int rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS, &pVmxTransient->uGuestPendingDbgXcpts);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_GUEST_PENDING_DBG_XCPTS;
-    }
-}
-#endif
-
-/**
- * Reads the IDT-vectoring information field from the VMCS into the VMX
- * transient structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- *
- * @remarks No-long-jump zone!!!
- */
-DECLINLINE(void) vmxHCReadIdtVectoringInfoVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_IDT_VECTORING_INFO))
-    {
-        int rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_IDT_VECTORING_INFO, &pVmxTransient->uIdtVectoringInfo);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_IDT_VECTORING_INFO;
-    }
-}
-
-
-/**
- * Reads the IDT-vectoring error code from the VMCS into the VMX
- * transient structure.
- *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pVmxTransient   The VMX-transient structure.
- */
-DECLINLINE(void) vmxHCReadIdtVectoringErrorCodeVmcs(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
-{
-    if (!(pVmxTransient->fVmcsFieldsRead & HMVMX_READ_IDT_VECTORING_ERROR_CODE))
-    {
-        int rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_RO_IDT_VECTORING_ERROR_CODE, &pVmxTransient->uIdtVectoringErrorCode);
-        AssertRC(rc);
-        pVmxTransient->fVmcsFieldsRead |= HMVMX_READ_IDT_VECTORING_ERROR_CODE;
-    }
-}
 
 #ifdef HMVMX_ALWAYS_SAVE_RO_GUEST_STATE
 /**
@@ -1728,54 +1697,42 @@ static void vmxHCExportGuestApicTpr(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTransient
  */
 static uint32_t vmxHCGetGuestIntrStateAndUpdateFFs(PVMCPUCC pVCpu)
 {
+    uint32_t fIntrState;
+
     /*
      * Check if we should inhibit interrupt delivery due to instructions like STI and MOV SS.
      */
-    uint32_t fIntrState = 0;
-    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+    if (!CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx))
+        fIntrState = 0;
+    else
     {
-        /* If inhibition is active, RIP and RFLAGS should've been imported from the VMCS already. */
-        HMVMX_CPUMCTX_ASSERT(pVCpu, CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS);
+        /* If inhibition is active, RIP should've been imported from the VMCS already. */
+        HMVMX_CPUMCTX_ASSERT(pVCpu, CPUMCTX_EXTRN_RIP);
 
-        PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-        if (pCtx->rip == EMGetInhibitInterruptsPC(pVCpu))
+        if (CPUMIsInInterruptShadowAfterSs(&pVCpu->cpum.GstCtx))
+            fIntrState = VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS;
+        else
         {
-            if (pCtx->eflags.Bits.u1IF)
-                fIntrState = VMX_VMCS_GUEST_INT_STATE_BLOCK_STI;
-            else
-                fIntrState = VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS;
-        }
-        else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-        {
-            /*
-             * We can clear the inhibit force flag as even if we go back to the recompiler
-             * without executing guest code in VT-x, the flag's condition to be cleared is
-             * met and thus the cleared state is correct.
-             */
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+            fIntrState = VMX_VMCS_GUEST_INT_STATE_BLOCK_STI;
+
+            /* Block-by-STI must not be set when interrupts are disabled. */
+            AssertStmt(pVCpu->cpum.GstCtx.eflags.Bits.u1IF, fIntrState = VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS);
         }
     }
 
     /*
      * Check if we should inhibit NMI delivery.
      */
-    if (CPUMIsGuestNmiBlocking(pVCpu))
+    if (!CPUMAreInterruptsInhibitedByNmiEx(&pVCpu->cpum.GstCtx))
+    { /* likely */ }
+    else
         fIntrState |= VMX_VMCS_GUEST_INT_STATE_BLOCK_NMI;
 
     /*
      * Validate.
      */
-#ifdef VBOX_STRICT
     /* We don't support block-by-SMI yet.*/
     Assert(!(fIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_SMI));
-
-    /* Block-by-STI must not be set when interrupts are disabled. */
-    if (fIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_STI)
-    {
-        HMVMX_CPUMCTX_ASSERT(pVCpu, CPUMCTX_EXTRN_RFLAGS);
-        Assert(pVCpu->cpum.GstCtx.eflags.u & X86_EFL_IF);
-    }
-#endif
 
     return fIntrState;
 }
@@ -1842,12 +1799,13 @@ static void vmxHCExportGuestRflags(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTransient)
     {
         HMVMX_CPUMCTX_ASSERT(pVCpu, CPUMCTX_EXTRN_RFLAGS);
 
-        /* Intel spec. 2.3.1 "System Flags and Fields in IA-32e Mode" claims the upper 32-bits of RFLAGS are reserved (MBZ).
-           Let us assert it as such and use 32-bit VMWRITE. */
-        Assert(!RT_HI_U32(pVCpu->cpum.GstCtx.rflags.u64));
-        X86EFLAGS fEFlags = pVCpu->cpum.GstCtx.eflags;
-        Assert(fEFlags.u32 & X86_EFL_RA1_MASK);
-        Assert(!(fEFlags.u32 & ~(X86_EFL_1 | X86_EFL_LIVE_MASK)));
+        /* Intel spec. 2.3.1 "System Flags and Fields in IA-32e Mode" claims the upper 32-bits
+           of RFLAGS are reserved (MBZ).  We use bits 63:24 for internal purposes, so no need
+           to assert this, the CPUMX86EFLAGS/CPUMX86RFLAGS union masks these off for us.
+           Use 32-bit VMWRITE. */
+        uint32_t fEFlags = pVCpu->cpum.GstCtx.eflags.u;
+        Assert((fEFlags & X86_EFL_RA1_MASK) == X86_EFL_RA1_MASK);
+        AssertMsg(!(fEFlags & ~(X86_EFL_LIVE_MASK | X86_EFL_RA1_MASK)), ("%#x\n", fEFlags));
 
 #ifndef IN_NEM_DARWIN
         /*
@@ -1861,19 +1819,19 @@ static void vmxHCExportGuestRflags(PVMCPUCC pVCpu, PCVMXTRANSIENT pVmxTransient)
             Assert(pVCpu->CTX_SUFF(pVM)->hm.s.vmx.pRealModeTSS);
             Assert(PDMVmmDevHeapIsEnabled(pVCpu->CTX_SUFF(pVM)));
             Assert(!pVmxTransient->fIsNestedGuest);
-            pVmcsInfo->RealMode.Eflags.u32 = fEFlags.u32;    /* Save the original eflags of the real-mode guest. */
-            fEFlags.Bits.u1VM   = 1;                         /* Set the Virtual 8086 mode bit. */
-            fEFlags.Bits.u2IOPL = 0;                         /* Change IOPL to 0, otherwise certain instructions won't fault. */
+            pVmcsInfo->RealMode.Eflags.u32 = fEFlags;        /* Save the original eflags of the real-mode guest. */
+            fEFlags |= X86_EFL_VM;                           /* Set the Virtual 8086 mode bit. */
+            fEFlags &= ~X86_EFL_IOPL;                        /* Change IOPL to 0, otherwise certain instructions won't fault. */
         }
 #else
         RT_NOREF(pVmxTransient);
 #endif
 
-        int rc = VMX_VMCS_WRITE_NW(pVCpu, VMX_VMCS_GUEST_RFLAGS, fEFlags.u32);
+        int rc = VMX_VMCS_WRITE_NW(pVCpu, VMX_VMCS_GUEST_RFLAGS, fEFlags);
         AssertRC(rc);
 
         ASMAtomicUoAndU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, ~HM_CHANGED_GUEST_RFLAGS);
-        Log4Func(("eflags=%#RX32\n", fEFlags.u32));
+        Log4Func(("eflags=%#RX32\n", fEFlags));
     }
 }
 
@@ -2494,7 +2452,7 @@ static void vmxHCValidateSegmentRegs(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo)
      */
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
     PCCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_CR0);
+    vmxHCImportGuestStateEx(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_CR0);
     if (   !VM_IS_VMX_UNRESTRICTED_GUEST(pVM)
         && (   !CPUMIsGuestInRealModeEx(pCtx)
             && !CPUMIsGuestInV86ModeEx(pCtx)))
@@ -2705,10 +2663,6 @@ static int vmxHCExportGuestSegReg(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo, uint3
     /*
      * Commit it to the VMCS.
      */
-    Assert((uint32_t)VMX_VMCS16_GUEST_SEG_SEL(iSegReg)           == g_aVmcsSegSel[iSegReg]);
-    Assert((uint32_t)VMX_VMCS32_GUEST_SEG_LIMIT(iSegReg)         == g_aVmcsSegLimit[iSegReg]);
-    Assert((uint32_t)VMX_VMCS32_GUEST_SEG_ACCESS_RIGHTS(iSegReg) == g_aVmcsSegAttr[iSegReg]);
-    Assert((uint32_t)VMX_VMCS_GUEST_SEG_BASE(iSegReg)            == g_aVmcsSegBase[iSegReg]);
     int rc = VMX_VMCS_WRITE_32(pVCpu, VMX_VMCS16_GUEST_SEG_SEL(iSegReg),           pSelReg->Sel);      AssertRC(rc);
     rc     = VMX_VMCS_WRITE_32(pVCpu, VMX_VMCS32_GUEST_SEG_LIMIT(iSegReg),         pSelReg->u32Limit); AssertRC(rc);
     rc     = VMX_VMCS_WRITE_NW(pVCpu, VMX_VMCS_GUEST_SEG_BASE(iSegReg),            pSelReg->u64Base);  AssertRC(rc);
@@ -3227,33 +3181,42 @@ static void vmxHCFixUnusableSegRegAttr(PVMCPUCC pVCpu, PCPUMSELREG pSelReg, cons
  * context.
  *
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   iSegReg     The segment register number (X86_SREG_XXX).
+ * @tparam  a_iSegReg   The segment register number (X86_SREG_XXX).
  *
  * @remarks Called with interrupts and/or preemption disabled.
  */
-static void vmxHCImportGuestSegReg(PVMCPUCC pVCpu, uint32_t iSegReg)
+template<uint32_t const a_iSegReg>
+DECLINLINE(void) vmxHCImportGuestSegReg(PVMCPUCC pVCpu)
 {
-    Assert(iSegReg < X86_SREG_COUNT);
-    Assert((uint32_t)VMX_VMCS16_GUEST_SEG_SEL(iSegReg)           == g_aVmcsSegSel[iSegReg]);
-    Assert((uint32_t)VMX_VMCS32_GUEST_SEG_LIMIT(iSegReg)         == g_aVmcsSegLimit[iSegReg]);
-    Assert((uint32_t)VMX_VMCS32_GUEST_SEG_ACCESS_RIGHTS(iSegReg) == g_aVmcsSegAttr[iSegReg]);
-    Assert((uint32_t)VMX_VMCS_GUEST_SEG_BASE(iSegReg)            == g_aVmcsSegBase[iSegReg]);
+    AssertCompile(a_iSegReg < X86_SREG_COUNT);
+    /* Check that the macros we depend upon here and in the export parenter function works: */
+#define MY_SEG_VMCS_FIELD(a_FieldPrefix, a_FieldSuff) \
+        (  a_iSegReg == X86_SREG_ES ? a_FieldPrefix ## ES ## a_FieldSuff \
+         : a_iSegReg == X86_SREG_CS ? a_FieldPrefix ## CS ## a_FieldSuff \
+         : a_iSegReg == X86_SREG_SS ? a_FieldPrefix ## SS ## a_FieldSuff \
+         : a_iSegReg == X86_SREG_DS ? a_FieldPrefix ## DS ## a_FieldSuff \
+         : a_iSegReg == X86_SREG_FS ? a_FieldPrefix ## FS ## a_FieldSuff \
+         : a_iSegReg == X86_SREG_GS ? a_FieldPrefix ## GS ## a_FieldSuff : 0)
+    AssertCompile(VMX_VMCS_GUEST_SEG_BASE(a_iSegReg)             == MY_SEG_VMCS_FIELD(VMX_VMCS_GUEST_,_BASE));
+    AssertCompile(VMX_VMCS16_GUEST_SEG_SEL(a_iSegReg)            == MY_SEG_VMCS_FIELD(VMX_VMCS16_GUEST_,_SEL));
+    AssertCompile(VMX_VMCS32_GUEST_SEG_LIMIT(a_iSegReg)          == MY_SEG_VMCS_FIELD(VMX_VMCS32_GUEST_,_LIMIT));
+    AssertCompile(VMX_VMCS32_GUEST_SEG_ACCESS_RIGHTS(a_iSegReg)  == MY_SEG_VMCS_FIELD(VMX_VMCS32_GUEST_,_ACCESS_RIGHTS));
 
-    PCPUMSELREG pSelReg = &pVCpu->cpum.GstCtx.aSRegs[iSegReg];
+    PCPUMSELREG pSelReg = &pVCpu->cpum.GstCtx.aSRegs[a_iSegReg];
 
     uint16_t u16Sel;
-    int rc = VMX_VMCS_READ_16(pVCpu, VMX_VMCS16_GUEST_SEG_SEL(iSegReg), &u16Sel);   AssertRC(rc);
+    int rc = VMX_VMCS_READ_16(pVCpu, VMX_VMCS16_GUEST_SEG_SEL(a_iSegReg), &u16Sel);   AssertRC(rc);
     pSelReg->Sel      = u16Sel;
     pSelReg->ValidSel = u16Sel;
 
-    rc     = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_SEG_LIMIT(iSegReg), &pSelReg->u32Limit); AssertRC(rc);
-    rc     = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_SEG_BASE(iSegReg), &pSelReg->u64Base);     AssertRC(rc);
+    rc     = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_SEG_LIMIT(a_iSegReg), &pSelReg->u32Limit); AssertRC(rc);
+    rc     = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_SEG_BASE(a_iSegReg), &pSelReg->u64Base);     AssertRC(rc);
 
     uint32_t u32Attr;
-    rc     = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_SEG_ACCESS_RIGHTS(iSegReg), &u32Attr);   AssertRC(rc);
+    rc     = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_SEG_ACCESS_RIGHTS(a_iSegReg), &u32Attr);   AssertRC(rc);
     pSelReg->Attr.u   = u32Attr;
     if (u32Attr & X86DESCATTR_UNUSABLE)
-        vmxHCFixUnusableSegRegAttr(pVCpu, pSelReg, "ES\0CS\0SS\0DS\0FS\0GS" + iSegReg * 3);
+        vmxHCFixUnusableSegRegAttr(pVCpu, pSelReg, "ES\0CS\0SS\0DS\0FS\0GS" + a_iSegReg * 3);
 
     pSelReg->fFlags   = CPUMSELREG_FLAGS_VALID;
 }
@@ -3266,7 +3229,7 @@ static void vmxHCImportGuestSegReg(PVMCPUCC pVCpu, uint32_t iSegReg)
  *
  * @remarks Called with interrupts and/or preemption disabled.
  */
-static void vmxHCImportGuestLdtr(PVMCPUCC pVCpu)
+DECLINLINE(void) vmxHCImportGuestLdtr(PVMCPUCC pVCpu)
 {
     uint16_t u16Sel;
     uint64_t u64Base;
@@ -3294,7 +3257,7 @@ static void vmxHCImportGuestLdtr(PVMCPUCC pVCpu)
  *
  * @remarks Called with interrupts and/or preemption disabled.
  */
-static void vmxHCImportGuestTr(PVMCPUCC pVCpu)
+DECLINLINE(void) vmxHCImportGuestTr(PVMCPUCC pVCpu)
 {
     uint16_t u16Sel;
     uint64_t u64Base;
@@ -3316,6 +3279,27 @@ static void vmxHCImportGuestTr(PVMCPUCC pVCpu)
 
 
 /**
+ * Core: Imports the guest RIP from the VMCS back into the guest-CPU context.
+ *
+ * @returns The RIP value.
+ * @param   pVCpu               The cross context virtual CPU structure.
+ *
+ * @remarks Called with interrupts and/or preemption disabled, should not assert!
+ * @remarks Do -not- call this function directly!
+ */
+DECL_FORCE_INLINE(uint64_t) vmxHCImportGuestCoreRip(PVMCPUCC pVCpu)
+{
+    uint64_t u64Val;
+    int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_RIP, &u64Val);
+    AssertRC(rc);
+
+    pVCpu->cpum.GstCtx.rip = u64Val;
+
+    return u64Val;
+}
+
+
+/**
  * Imports the guest RIP from the VMCS back into the guest-CPU context.
  *
  * @param   pVCpu   The cross context virtual CPU structure.
@@ -3324,19 +3308,47 @@ static void vmxHCImportGuestTr(PVMCPUCC pVCpu)
  * @remarks Do -not- call this function directly, use vmxHCImportGuestState()
  *          instead!!!
  */
-static void vmxHCImportGuestRip(PVMCPUCC pVCpu)
+DECLINLINE(void) vmxHCImportGuestRip(PVMCPUCC pVCpu)
 {
-    uint64_t u64Val;
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    if (pCtx->fExtrn & CPUMCTX_EXTRN_RIP)
+    if (pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_RIP)
     {
-        int rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_RIP, &u64Val);
-        AssertRC(rc);
-
-        pCtx->rip = u64Val;
-        EMHistoryUpdatePC(pVCpu, pCtx->rip, false);
-        pCtx->fExtrn &= ~CPUMCTX_EXTRN_RIP;
+        EMHistoryUpdatePC(pVCpu, vmxHCImportGuestCoreRip(pVCpu), false);
+        pVCpu->cpum.GstCtx.fExtrn &= ~CPUMCTX_EXTRN_RIP;
     }
+}
+
+
+/**
+ * Core: Imports the guest RFLAGS from the VMCS back into the guest-CPU context.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pVmcsInfo   The VMCS info. object.
+ *
+ * @remarks Called with interrupts and/or preemption disabled, should not assert!
+ * @remarks Do -not- call this function directly!
+ */
+DECL_FORCE_INLINE(void) vmxHCImportGuestCoreRFlags(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo)
+{
+    uint64_t fRFlags;
+    int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_RFLAGS, &fRFlags);
+    AssertRC(rc);
+
+    Assert((fRFlags & X86_EFL_RA1_MASK) == X86_EFL_RA1_MASK);
+    Assert((fRFlags & ~(uint64_t)(X86_EFL_1 | X86_EFL_LIVE_MASK)) == 0);
+
+    pVCpu->cpum.GstCtx.rflags.u = fRFlags;
+#ifndef IN_NEM_DARWIN
+    PCVMXVMCSINFOSHARED pVmcsInfoShared = pVmcsInfo->pShared;
+    if (!pVmcsInfoShared->RealMode.fRealOnV86Active)
+    { /* mostly likely */ }
+    else
+    {
+        pVCpu->cpum.GstCtx.eflags.Bits.u1VM   = 0;
+        pVCpu->cpum.GstCtx.eflags.Bits.u2IOPL = pVmcsInfoShared->RealMode.Eflags.Bits.u2IOPL;
+    }
+#else
+    RT_NOREF(pVmcsInfo);
+#endif
 }
 
 
@@ -3350,34 +3362,43 @@ static void vmxHCImportGuestRip(PVMCPUCC pVCpu)
  * @remarks Do -not- call this function directly, use vmxHCImportGuestState()
  *          instead!!!
  */
-static void vmxHCImportGuestRFlags(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo)
+DECLINLINE(void) vmxHCImportGuestRFlags(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo)
 {
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    if (pCtx->fExtrn & CPUMCTX_EXTRN_RFLAGS)
+    if (pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_RFLAGS)
     {
-        uint64_t u64Val;
-        int rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_RFLAGS, &u64Val);
-        AssertRC(rc);
-
-        pCtx->rflags.u64 = u64Val;
-#ifndef IN_NEM_DARWIN
-        PCVMXVMCSINFOSHARED pVmcsInfoShared = pVmcsInfo->pShared;
-        if (pVmcsInfoShared->RealMode.fRealOnV86Active)
-        {
-            pCtx->eflags.Bits.u1VM   = 0;
-            pCtx->eflags.Bits.u2IOPL = pVmcsInfoShared->RealMode.Eflags.Bits.u2IOPL;
-        }
-#else
-        RT_NOREF(pVmcsInfo);
-#endif
-        pCtx->fExtrn &= ~CPUMCTX_EXTRN_RFLAGS;
+        vmxHCImportGuestCoreRFlags(pVCpu, pVmcsInfo);
+        pVCpu->cpum.GstCtx.fExtrn &= ~CPUMCTX_EXTRN_RFLAGS;
     }
+}
+
+
+/**
+ * Worker for vmxHCImportGuestIntrState that handles the case where any of the
+ * relevant VMX_VMCS32_GUEST_INT_STATE bits are set.
+ */
+DECL_NO_INLINE(static,void) vmxHCImportGuestIntrStateSlow(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo, uint32_t fGstIntState)
+{
+    /*
+     * We must import RIP here to set our EM interrupt-inhibited state.
+     * We also import RFLAGS as our code that evaluates pending interrupts
+     * before VM-entry requires it.
+     */
+    vmxHCImportGuestRip(pVCpu);
+    vmxHCImportGuestRFlags(pVCpu, pVmcsInfo);
+
+    CPUMUpdateInterruptShadowSsStiEx(&pVCpu->cpum.GstCtx,
+                                     RT_BOOL(fGstIntState & VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS),
+                                     RT_BOOL(fGstIntState & VMX_VMCS_GUEST_INT_STATE_BLOCK_STI),
+                                     pVCpu->cpum.GstCtx.rip);
+    CPUMUpdateInterruptInhibitingByNmiEx(&pVCpu->cpum.GstCtx, RT_BOOL(fGstIntState & VMX_VMCS_GUEST_INT_STATE_BLOCK_NMI));
 }
 
 
 /**
  * Imports the guest interruptibility-state from the VMCS back into the guest-CPU
  * context.
+ *
+ * @note    May import RIP and RFLAGS if interrupt or NMI are blocked.
  *
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pVmcsInfo   The VMCS info. object.
@@ -3387,34 +3408,17 @@ static void vmxHCImportGuestRFlags(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo)
  * @remarks Do -not- call this function directly, use vmxHCImportGuestState()
  *          instead!!!
  */
-static void vmxHCImportGuestIntrState(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo)
+DECLINLINE(void) vmxHCImportGuestIntrState(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo)
 {
     uint32_t u32Val;
     int rc = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_INT_STATE, &u32Val);    AssertRC(rc);
     if (!u32Val)
     {
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-        CPUMSetGuestNmiBlocking(pVCpu, false);
+        CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
+        CPUMClearInterruptInhibitingByNmiEx(&pVCpu->cpum.GstCtx);
     }
     else
-    {
-        /*
-         * We must import RIP here to set our EM interrupt-inhibited state.
-         * We also import RFLAGS as our code that evaluates pending interrupts
-         * before VM-entry requires it.
-         */
-        vmxHCImportGuestRip(pVCpu);
-        vmxHCImportGuestRFlags(pVCpu, pVmcsInfo);
-
-        if (u32Val & (VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS | VMX_VMCS_GUEST_INT_STATE_BLOCK_STI))
-            EMSetInhibitInterruptsPC(pVCpu, pVCpu->cpum.GstCtx.rip);
-        else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-
-        bool const fNmiBlocking = RT_BOOL(u32Val & VMX_VMCS_GUEST_INT_STATE_BLOCK_NMI);
-        CPUMSetGuestNmiBlocking(pVCpu, fNmiBlocking);
-    }
+        vmxHCImportGuestIntrStateSlow(pVCpu, pVmcsInfo, u32Val);
 }
 
 
@@ -3426,7 +3430,7 @@ static void vmxHCImportGuestIntrState(PVMCPUCC pVCpu, PCVMXVMCSINFO pVmcsInfo)
  * @param   pVmcsInfo   The VMCS info. object.
  * @param   fWhat       What to import, CPUMCTX_EXTRN_XXX.
  */
-static int vmxHCImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_t fWhat)
+static int vmxHCImportGuestStateEx(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_t fWhat)
 {
     int      rc   = VINF_SUCCESS;
     PVMCC    pVM  = pVCpu->CTX_SUFF(pVM);
@@ -3442,10 +3446,10 @@ static int vmxHCImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_
      *
      * Update: This is very likely a compiler optimization bug, see @bugref{9180}.
      */
-# ifdef RT_OS_WINDOWS
+#ifdef RT_OS_WINDOWS
     if (pVM == 0 || pVM == (void *)(uintptr_t)-1)
         return VERR_HM_IPE_1;
-# endif
+#endif
 
     STAM_PROFILE_ADV_START(&VCPU_2_VMXSTATS(pVCpu).StatImportGuestState, x);
 
@@ -3468,6 +3472,7 @@ static int vmxHCImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_
             if (fWhat & CPUMCTX_EXTRN_RFLAGS)
                 vmxHCImportGuestRFlags(pVCpu, pVmcsInfo);
 
+            /* Note! vmxHCImportGuestIntrState may also include RIP and RFLAGS and update fExtrn. */
             if (fWhat & (CPUMCTX_EXTRN_INHIBIT_INT | CPUMCTX_EXTRN_INHIBIT_NMI))
                 vmxHCImportGuestIntrState(pVCpu, pVmcsInfo);
 
@@ -3487,39 +3492,39 @@ static int vmxHCImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_
 #endif
                 if (fWhat & CPUMCTX_EXTRN_CS)
                 {
-                    vmxHCImportGuestSegReg(pVCpu, X86_SREG_CS);
-                    vmxHCImportGuestRip(pVCpu);
+                    vmxHCImportGuestSegReg<X86_SREG_CS>(pVCpu);
+                    vmxHCImportGuestRip(pVCpu); /** @todo WTF? */
                     if (fRealOnV86Active)
                         pCtx->cs.Attr.u = pVmcsInfoShared->RealMode.AttrCS.u;
                     EMHistoryUpdatePC(pVCpu, pCtx->cs.u64Base + pCtx->rip, true /* fFlattened */);
                 }
                 if (fWhat & CPUMCTX_EXTRN_SS)
                 {
-                    vmxHCImportGuestSegReg(pVCpu, X86_SREG_SS);
+                    vmxHCImportGuestSegReg<X86_SREG_SS>(pVCpu);
                     if (fRealOnV86Active)
                         pCtx->ss.Attr.u = pVmcsInfoShared->RealMode.AttrSS.u;
                 }
                 if (fWhat & CPUMCTX_EXTRN_DS)
                 {
-                    vmxHCImportGuestSegReg(pVCpu, X86_SREG_DS);
+                    vmxHCImportGuestSegReg<X86_SREG_DS>(pVCpu);
                     if (fRealOnV86Active)
                         pCtx->ds.Attr.u = pVmcsInfoShared->RealMode.AttrDS.u;
                 }
                 if (fWhat & CPUMCTX_EXTRN_ES)
                 {
-                    vmxHCImportGuestSegReg(pVCpu, X86_SREG_ES);
+                    vmxHCImportGuestSegReg<X86_SREG_ES>(pVCpu);
                     if (fRealOnV86Active)
                         pCtx->es.Attr.u = pVmcsInfoShared->RealMode.AttrES.u;
                 }
                 if (fWhat & CPUMCTX_EXTRN_FS)
                 {
-                    vmxHCImportGuestSegReg(pVCpu, X86_SREG_FS);
+                    vmxHCImportGuestSegReg<X86_SREG_FS>(pVCpu);
                     if (fRealOnV86Active)
                         pCtx->fs.Attr.u = pVmcsInfoShared->RealMode.AttrFS.u;
                 }
                 if (fWhat & CPUMCTX_EXTRN_GS)
                 {
-                    vmxHCImportGuestSegReg(pVCpu, X86_SREG_GS);
+                    vmxHCImportGuestSegReg<X86_SREG_GS>(pVCpu);
                     if (fRealOnV86Active)
                         pCtx->gs.Attr.u = pVmcsInfoShared->RealMode.AttrGS.u;
                 }
@@ -3833,6 +3838,487 @@ static int vmxHCImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint64_
         Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3));
     }
 
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Internal state fetcher, inner version where we fetch all of a_fWhat.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   pVmcsInfo   The VMCS info. object.
+ * @param   fEFlags     Saved EFLAGS for restoring the interrupt flag. Ignored
+ *                      in NEM/darwin context.
+ * @tparam  a_fWhat     What to import, zero or more bits from
+ *                      HMVMX_CPUMCTX_EXTRN_ALL.
+ */
+template<uint64_t const a_fWhat>
+static int vmxHCImportGuestStateInner(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint32_t fEFlags)
+{
+    Assert(a_fWhat != 0); /* No AssertCompile as the assertion probably kicks in before the compiler (clang) discards it. */
+    AssertCompile(!(a_fWhat & ~HMVMX_CPUMCTX_EXTRN_ALL));
+    Assert(   (pVCpu->cpum.GstCtx.fExtrn & a_fWhat) == a_fWhat
+           || (pVCpu->cpum.GstCtx.fExtrn & a_fWhat) == (a_fWhat & ~(CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS)));
+
+    STAM_PROFILE_ADV_STOP(&VCPU_2_VMXSTATS(pVCpu).StatImportGuestState, x);
+
+    PVMCC const pVM  = pVCpu->CTX_SUFF(pVM);
+
+    /* RIP and RFLAGS may have been imported already by the post exit code
+       together with the CPUMCTX_EXTRN_INHIBIT_INT/NMI state, so this part
+       of the code is skipping this part of the code. */
+    if (   (a_fWhat & (CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS))
+        && pVCpu->cpum.GstCtx.fExtrn & (CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS))
+    {
+        if (a_fWhat & CPUMCTX_EXTRN_RFLAGS)
+            vmxHCImportGuestCoreRFlags(pVCpu, pVmcsInfo);
+
+        if (a_fWhat & CPUMCTX_EXTRN_RIP)
+        {
+            if (!(a_fWhat & CPUMCTX_EXTRN_CS))
+                EMHistoryUpdatePC(pVCpu, vmxHCImportGuestCoreRip(pVCpu), false);
+            else
+                vmxHCImportGuestCoreRip(pVCpu);
+        }
+    }
+
+    /* Note! vmxHCImportGuestIntrState may also include RIP and RFLAGS and update fExtrn. */
+    if (a_fWhat & (CPUMCTX_EXTRN_INHIBIT_INT | CPUMCTX_EXTRN_INHIBIT_NMI))
+        vmxHCImportGuestIntrState(pVCpu, pVmcsInfo);
+
+    if (a_fWhat & (CPUMCTX_EXTRN_SREG_MASK | CPUMCTX_EXTRN_TR))
+    {
+        if (a_fWhat & CPUMCTX_EXTRN_CS)
+        {
+            vmxHCImportGuestSegReg<X86_SREG_CS>(pVCpu);
+            /** @todo try get rid of this carp, it smells and is probably never ever
+             *        used: */
+            if (   !(a_fWhat & CPUMCTX_EXTRN_RIP)
+                && (pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_RIP))
+            {
+                vmxHCImportGuestCoreRip(pVCpu);
+                pVCpu->cpum.GstCtx.fExtrn &= ~CPUMCTX_EXTRN_RIP;
+            }
+            EMHistoryUpdatePC(pVCpu, pVCpu->cpum.GstCtx.cs.u64Base + pVCpu->cpum.GstCtx.rip, true /* fFlattened */);
+        }
+        if (a_fWhat & CPUMCTX_EXTRN_SS)
+            vmxHCImportGuestSegReg<X86_SREG_SS>(pVCpu);
+        if (a_fWhat & CPUMCTX_EXTRN_DS)
+            vmxHCImportGuestSegReg<X86_SREG_DS>(pVCpu);
+        if (a_fWhat & CPUMCTX_EXTRN_ES)
+            vmxHCImportGuestSegReg<X86_SREG_ES>(pVCpu);
+        if (a_fWhat & CPUMCTX_EXTRN_FS)
+            vmxHCImportGuestSegReg<X86_SREG_FS>(pVCpu);
+        if (a_fWhat & CPUMCTX_EXTRN_GS)
+            vmxHCImportGuestSegReg<X86_SREG_GS>(pVCpu);
+
+        /* Guest TR.
+           Real-mode emulation using virtual-8086 mode has the fake TSS
+           (pRealModeTSS) in TR, don't need to import that one. */
+#ifndef IN_NEM_DARWIN
+        PVMXVMCSINFOSHARED const pVmcsInfoShared  = pVmcsInfo->pShared;
+        bool const               fRealOnV86Active = pVmcsInfoShared->RealMode.fRealOnV86Active;
+        if ((a_fWhat & CPUMCTX_EXTRN_TR) && !fRealOnV86Active)
+#else
+        if (a_fWhat & CPUMCTX_EXTRN_TR)
+#endif
+            vmxHCImportGuestTr(pVCpu);
+
+#ifndef IN_NEM_DARWIN /* NEM/Darwin: HV supports only unrestricted guest execution. */
+        if (fRealOnV86Active)
+        {
+            if (a_fWhat & CPUMCTX_EXTRN_CS)
+                pVCpu->cpum.GstCtx.cs.Attr.u = pVmcsInfoShared->RealMode.AttrCS.u;
+            if (a_fWhat & CPUMCTX_EXTRN_SS)
+                pVCpu->cpum.GstCtx.ss.Attr.u = pVmcsInfoShared->RealMode.AttrSS.u;
+            if (a_fWhat & CPUMCTX_EXTRN_DS)
+                pVCpu->cpum.GstCtx.ds.Attr.u = pVmcsInfoShared->RealMode.AttrDS.u;
+            if (a_fWhat & CPUMCTX_EXTRN_ES)
+                pVCpu->cpum.GstCtx.es.Attr.u = pVmcsInfoShared->RealMode.AttrES.u;
+            if (a_fWhat & CPUMCTX_EXTRN_FS)
+                pVCpu->cpum.GstCtx.fs.Attr.u = pVmcsInfoShared->RealMode.AttrFS.u;
+            if (a_fWhat & CPUMCTX_EXTRN_GS)
+                pVCpu->cpum.GstCtx.gs.Attr.u = pVmcsInfoShared->RealMode.AttrGS.u;
+        }
+#endif
+    }
+
+    if (a_fWhat & CPUMCTX_EXTRN_RSP)
+    {
+        int const rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_RSP, &pVCpu->cpum.GstCtx.rsp);
+        AssertRC(rc);
+    }
+
+    if (a_fWhat & CPUMCTX_EXTRN_LDTR)
+        vmxHCImportGuestLdtr(pVCpu);
+
+    if (a_fWhat & CPUMCTX_EXTRN_GDTR)
+    {
+        int const rc1 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_GDTR_BASE,    &pVCpu->cpum.GstCtx.gdtr.pGdt); AssertRC(rc1);
+        uint32_t u32Val;
+        int const rc2 = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_GDTR_LIMIT, &u32Val); AssertRC(rc2);
+        pVCpu->cpum.GstCtx.gdtr.cbGdt = (uint16_t)u32Val;
+    }
+
+    /* Guest IDTR. */
+    if (a_fWhat & CPUMCTX_EXTRN_IDTR)
+    {
+        int const rc1 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_IDTR_BASE,    &pVCpu->cpum.GstCtx.idtr.pIdt); AssertRC(rc1);
+        uint32_t u32Val;
+        int const rc2 = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_IDTR_LIMIT, &u32Val); AssertRC(rc2);
+        pVCpu->cpum.GstCtx.idtr.cbIdt = (uint64_t)u32Val;
+    }
+
+    if (a_fWhat & CPUMCTX_EXTRN_DR7)
+    {
+#ifndef IN_NEM_DARWIN
+        if (!pVCpu->hmr0.s.fUsingHyperDR7)
+#endif
+        {
+            int rc = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_DR7, &pVCpu->cpum.GstCtx.dr[7]);
+            AssertRC(rc);
+        }
+    }
+
+    if (a_fWhat & CPUMCTX_EXTRN_SYSENTER_MSRS)
+    {
+        int const rc1 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_SYSENTER_EIP,  &pVCpu->cpum.GstCtx.SysEnter.eip); AssertRC(rc1);
+        int const rc2 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_SYSENTER_ESP,  &pVCpu->cpum.GstCtx.SysEnter.esp); AssertRC(rc2);
+        uint32_t u32Val;
+        int const rc3 = VMX_VMCS_READ_32(pVCpu, VMX_VMCS32_GUEST_SYSENTER_CS, &u32Val); AssertRC(rc3);
+        pVCpu->cpum.GstCtx.SysEnter.cs = u32Val;
+    }
+
+#ifndef IN_NEM_DARWIN
+    if (a_fWhat & CPUMCTX_EXTRN_KERNEL_GS_BASE)
+    {
+        if (   (pVCpu->hmr0.s.vmx.fLazyMsrs & VMX_LAZY_MSRS_LOADED_GUEST)
+            && pVM->hmr0.s.fAllow64BitGuests)
+            pVCpu->cpum.GstCtx.msrKERNELGSBASE = ASMRdMsr(MSR_K8_KERNEL_GS_BASE);
+    }
+
+    if (a_fWhat & CPUMCTX_EXTRN_SYSCALL_MSRS)
+    {
+        if (   (pVCpu->hmr0.s.vmx.fLazyMsrs & VMX_LAZY_MSRS_LOADED_GUEST)
+            && pVM->hmr0.s.fAllow64BitGuests)
+        {
+            pVCpu->cpum.GstCtx.msrLSTAR  = ASMRdMsr(MSR_K8_LSTAR);
+            pVCpu->cpum.GstCtx.msrSTAR   = ASMRdMsr(MSR_K6_STAR);
+            pVCpu->cpum.GstCtx.msrSFMASK = ASMRdMsr(MSR_K8_SF_MASK);
+        }
+    }
+
+    if (a_fWhat & (CPUMCTX_EXTRN_TSC_AUX | CPUMCTX_EXTRN_OTHER_MSRS))
+    {
+        PVMXVMCSINFOSHARED pVmcsInfoShared = pVmcsInfo->pShared;
+        PCVMXAUTOMSR       pMsrs           = (PCVMXAUTOMSR)pVmcsInfo->pvGuestMsrStore;
+        uint32_t const     cMsrs           = pVmcsInfo->cExitMsrStore;
+        Assert(pMsrs);
+        Assert(cMsrs <= VMX_MISC_MAX_MSRS(g_HmMsrs.u.vmx.u64Misc));
+        Assert(sizeof(*pMsrs) * cMsrs <= X86_PAGE_4K_SIZE);
+        for (uint32_t i = 0; i < cMsrs; i++)
+        {
+            uint32_t const idMsr = pMsrs[i].u32Msr;
+            switch (idMsr)
+            {
+                case MSR_K8_TSC_AUX:        CPUMSetGuestTscAux(pVCpu, pMsrs[i].u64Value);     break;
+                case MSR_IA32_SPEC_CTRL:    CPUMSetGuestSpecCtrl(pVCpu, pMsrs[i].u64Value);   break;
+                case MSR_K6_EFER:           /* Can't be changed without causing a VM-exit */  break;
+                default:
+                {
+                    uint32_t idxLbrMsr;
+                    if (VM_IS_VMX_LBR(pVM))
+                    {
+                        if (hmR0VmxIsLbrBranchFromMsr(pVM, idMsr, &idxLbrMsr))
+                        {
+                            Assert(idxLbrMsr < RT_ELEMENTS(pVmcsInfoShared->au64LbrFromIpMsr));
+                            pVmcsInfoShared->au64LbrFromIpMsr[idxLbrMsr] = pMsrs[i].u64Value;
+                            break;
+                        }
+                        if (hmR0VmxIsLbrBranchToMsr(pVM, idMsr, &idxLbrMsr))
+                        {
+                            Assert(idxLbrMsr < RT_ELEMENTS(pVmcsInfoShared->au64LbrFromIpMsr));
+                            pVmcsInfoShared->au64LbrToIpMsr[idxLbrMsr] = pMsrs[i].u64Value;
+                            break;
+                        }
+                        if (idMsr == pVM->hmr0.s.vmx.idLbrTosMsr)
+                        {
+                            pVmcsInfoShared->u64LbrTosMsr = pMsrs[i].u64Value;
+                            break;
+                        }
+                    }
+                    pVCpu->cpum.GstCtx.fExtrn = 0;
+                    VCPU_2_VMXSTATE(pVCpu).u32HMError = pMsrs->u32Msr;
+                    ASMSetFlags(fEFlags);
+                    AssertMsgFailed(("Unexpected MSR in auto-load/store area. idMsr=%#RX32 cMsrs=%u\n", idMsr, cMsrs));
+                    return VERR_HM_UNEXPECTED_LD_ST_MSR;
+                }
+            }
+        }
+    }
+#endif
+
+    if (a_fWhat & CPUMCTX_EXTRN_CR0)
+    {
+        uint64_t u64Cr0;
+        uint64_t u64Shadow;
+        int const rc1 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_CR0,            &u64Cr0);    AssertRC(rc1);
+        int const rc2 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_CTRL_CR0_READ_SHADOW, &u64Shadow); AssertRC(rc2);
+#ifndef VBOX_WITH_NESTED_HWVIRT_VMX
+        u64Cr0 = (u64Cr0    & ~pVmcsInfo->u64Cr0Mask)
+               | (u64Shadow &  pVmcsInfo->u64Cr0Mask);
+#else
+        if (!CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx))
+            u64Cr0 = (u64Cr0    & ~pVmcsInfo->u64Cr0Mask)
+                   | (u64Shadow &  pVmcsInfo->u64Cr0Mask);
+        else
+        {
+            /*
+             * We've merged the guest and nested-guest's CR0 guest/host mask while executing
+             * the nested-guest using hardware-assisted VMX. Accordingly we need to
+             * re-construct CR0. See @bugref{9180#c95} for details.
+             */
+            PCVMXVMCSINFO const pVmcsInfoGst = &pVCpu->hmr0.s.vmx.VmcsInfo;
+            PVMXVVMCS const     pVmcsNstGst  = &pVCpu->cpum.GstCtx.hwvirt.vmx.Vmcs;
+            u64Cr0 = (u64Cr0                     & ~pVmcsInfo->u64Cr0Mask)
+                   | (pVmcsNstGst->u64GuestCr0.u &  pVmcsNstGst->u64Cr0Mask.u)
+                   | (u64Shadow                  & (pVmcsInfoGst->u64Cr0Mask & ~pVmcsNstGst->u64Cr0Mask.u));
+        }
+#endif
+#ifndef IN_NEM_DARWIN
+        VMMRZCallRing3Disable(pVCpu);   /* May call into PGM which has Log statements. */
+#endif
+        CPUMSetGuestCR0(pVCpu, u64Cr0);
+#ifndef IN_NEM_DARWIN
+        VMMRZCallRing3Enable(pVCpu);
+#endif
+    }
+
+    if (a_fWhat & CPUMCTX_EXTRN_CR4)
+    {
+        uint64_t u64Cr4;
+        uint64_t u64Shadow;
+        int rc1 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_CR4,            &u64Cr4);    AssertRC(rc1);
+        int rc2 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_CTRL_CR4_READ_SHADOW, &u64Shadow); AssertRC(rc2);
+#ifndef VBOX_WITH_NESTED_HWVIRT_VMX
+        u64Cr4 = (u64Cr4    & ~pVmcsInfo->u64Cr4Mask)
+               | (u64Shadow &  pVmcsInfo->u64Cr4Mask);
+#else
+        if (!CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx))
+            u64Cr4 = (u64Cr4    & ~pVmcsInfo->u64Cr4Mask)
+                   | (u64Shadow &  pVmcsInfo->u64Cr4Mask);
+        else
+        {
+            /*
+             * We've merged the guest and nested-guest's CR4 guest/host mask while executing
+             * the nested-guest using hardware-assisted VMX. Accordingly we need to
+             * re-construct CR4. See @bugref{9180#c95} for details.
+             */
+            PCVMXVMCSINFO const pVmcsInfoGst = &pVCpu->hmr0.s.vmx.VmcsInfo;
+            PVMXVVMCS const     pVmcsNstGst  = &pVCpu->cpum.GstCtx.hwvirt.vmx.Vmcs;
+            u64Cr4 = (u64Cr4                     & ~pVmcsInfo->u64Cr4Mask)
+                   | (pVmcsNstGst->u64GuestCr4.u &  pVmcsNstGst->u64Cr4Mask.u)
+                   | (u64Shadow                  & (pVmcsInfoGst->u64Cr4Mask & ~pVmcsNstGst->u64Cr4Mask.u));
+        }
+#endif
+        pVCpu->cpum.GstCtx.cr4 = u64Cr4;
+    }
+
+    if (a_fWhat & CPUMCTX_EXTRN_CR3)
+    {
+        /* CR0.PG bit changes are always intercepted, so it's up to date. */
+        if (   VM_IS_VMX_UNRESTRICTED_GUEST(pVM)
+            || (   VM_IS_VMX_NESTED_PAGING(pVM)
+                && CPUMIsGuestPagingEnabledEx(&pVCpu->cpum.GstCtx)))
+        {
+            uint64_t u64Cr3;
+            int const rc0 = VMX_VMCS_READ_NW(pVCpu, VMX_VMCS_GUEST_CR3, &u64Cr3);  AssertRC(rc0);
+            if (pVCpu->cpum.GstCtx.cr3 != u64Cr3)
+            {
+                pVCpu->cpum.GstCtx.cr3 = u64Cr3;
+                VMCPU_FF_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3);
+            }
+
+            /*
+             * If the guest is in PAE mode, sync back the PDPE's into the guest state.
+             * CR4.PAE, CR0.PG, EFER MSR changes are always intercepted, so they're up to date.
+             */
+            if (CPUMIsGuestInPAEModeEx(&pVCpu->cpum.GstCtx))
+            {
+                X86PDPE aPaePdpes[4];
+                int const rc1 = VMX_VMCS_READ_64(pVCpu, VMX_VMCS64_GUEST_PDPTE0_FULL, &aPaePdpes[0].u); AssertRC(rc1);
+                int const rc2 = VMX_VMCS_READ_64(pVCpu, VMX_VMCS64_GUEST_PDPTE1_FULL, &aPaePdpes[1].u); AssertRC(rc2);
+                int const rc3 = VMX_VMCS_READ_64(pVCpu, VMX_VMCS64_GUEST_PDPTE2_FULL, &aPaePdpes[2].u); AssertRC(rc3);
+                int const rc4 = VMX_VMCS_READ_64(pVCpu, VMX_VMCS64_GUEST_PDPTE3_FULL, &aPaePdpes[3].u); AssertRC(rc4);
+                if (memcmp(&aPaePdpes[0], &pVCpu->cpum.GstCtx.aPaePdpes[0], sizeof(aPaePdpes)))
+                {
+                    memcpy(&pVCpu->cpum.GstCtx.aPaePdpes[0], &aPaePdpes[0], sizeof(aPaePdpes));
+                    /* PGM now updates PAE PDPTEs while updating CR3. */
+                    VMCPU_FF_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3);
+                }
+            }
+        }
+    }
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+    if (a_fWhat & CPUMCTX_EXTRN_HWVIRT)
+    {
+        if (   (pVmcsInfo->u32ProcCtls2 & VMX_PROC_CTLS2_VMCS_SHADOWING)
+            && !CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx))
+        {
+            Assert(CPUMIsGuestInVmxRootMode(&pVCpu->cpum.GstCtx));
+            int const rc = vmxHCCopyShadowToNstGstVmcs(pVCpu, pVmcsInfo);
+            AssertRCReturn(rc, rc);
+        }
+    }
+#endif
+
+    /* Update fExtrn. */
+    pVCpu->cpum.GstCtx.fExtrn &= ~a_fWhat;
+
+    /* If everything has been imported, clear the HM keeper bit. */
+    if (!(pVCpu->cpum.GstCtx.fExtrn & HMVMX_CPUMCTX_EXTRN_ALL))
+    {
+#ifndef IN_NEM_DARWIN
+        pVCpu->cpum.GstCtx.fExtrn &= ~CPUMCTX_EXTRN_KEEPER_HM;
+#else
+        pVCpu->cpum.GstCtx.fExtrn &= ~CPUMCTX_EXTRN_KEEPER_NEM;
+#endif
+        Assert(!pVCpu->cpum.GstCtx.fExtrn);
+    }
+
+    STAM_PROFILE_ADV_STOP(&VCPU_2_VMXSTATS(pVCpu).StatImportGuestState, x);
+
+    /*
+     * Honor any pending CR3 updates.
+     *
+     * Consider this scenario: VM-exit -> VMMRZCallRing3Enable() -> do stuff that causes a longjmp -> VMXR0CallRing3Callback()
+     * -> VMMRZCallRing3Disable() -> vmxHCImportGuestState() -> Sets VMCPU_FF_HM_UPDATE_CR3 pending -> return from the longjmp
+     * -> continue with VM-exit handling -> vmxHCImportGuestState() and here we are.
+     *
+     * The reason for such complicated handling is because VM-exits that call into PGM expect CR3 to be up-to-date and thus
+     * if any CR3-saves -before- the VM-exit (longjmp) postponed the CR3 update via the force-flag, any VM-exit handler that
+     * calls into PGM when it re-saves CR3 will end up here and we call PGMUpdateCR3(). This is why the code below should
+     * -NOT- check if CPUMCTX_EXTRN_CR3 is set!
+     *
+     * The longjmp exit path can't check these CR3 force-flags and call code that takes a lock again. We cover for it here.
+     *
+     * The force-flag is checked first as it's cheaper for potential superfluous calls to this function.
+     */
+#ifndef IN_NEM_DARWIN
+    if (!(a_fWhat & CPUMCTX_EXTRN_CR3)
+        ? RT_LIKELY(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3) || !VMMRZCallRing3IsEnabled(pVCpu))
+        :           !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3) || !VMMRZCallRing3IsEnabled(pVCpu) )
+        return VINF_SUCCESS;
+    ASMSetFlags(fEFlags);
+#else
+    if (!(a_fWhat & CPUMCTX_EXTRN_CR3)
+        ? RT_LIKELY(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3))
+        :           !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3) )
+        return VINF_SUCCESS;
+    RT_NOREF_PV(fEFlags);
+#endif
+
+    Assert(!(ASMAtomicUoReadU64(&pVCpu->cpum.GstCtx.fExtrn) & CPUMCTX_EXTRN_CR3));
+    PGMUpdateCR3(pVCpu, CPUMGetGuestCR3(pVCpu));
+    Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3));
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Internal state fetcher.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu           The cross context virtual CPU structure.
+ * @param   pVmcsInfo       The VMCS info. object.
+ * @param   pszCaller       For logging.
+ * @tparam  a_fWhat         What needs to be imported, CPUMCTX_EXTRN_XXX.
+ * @tparam  a_fDoneLocal    What's ASSUMED to have been retrieved locally
+ *                          already.  This is ORed together with @a a_fWhat when
+ *                          calculating what needs fetching (just for safety).
+ * @tparam  a_fDonePostExit What's ASSUMED to been been retrieved by
+ *                          hmR0VmxPostRunGuest()/nemR3DarwinHandleExitCommon()
+ *                          already.  This is ORed together with @a a_fWhat when
+ *                          calculating what needs fetching (just for safety).
+ */
+template<uint64_t const a_fWhat,
+    uint64_t const a_fDoneLocal = 0,
+    uint64_t const a_fDonePostExit = 0
+#ifndef IN_NEM_DARWIN
+                                   | CPUMCTX_EXTRN_INHIBIT_INT
+                                   | CPUMCTX_EXTRN_INHIBIT_NMI
+# if defined(HMVMX_ALWAYS_SYNC_FULL_GUEST_STATE) || defined(HMVMX_ALWAYS_SAVE_FULL_GUEST_STATE)
+                                   | HMVMX_CPUMCTX_EXTRN_ALL
+# elif defined(HMVMX_ALWAYS_SAVE_GUEST_RFLAGS)
+                                   | CPUMCTX_EXTRN_RFLAGS
+# endif
+#else  /* IN_NEM_DARWIN */
+                                   | CPUMCTX_EXTRN_ALL /** @todo optimize */
+#endif /* IN_NEM_DARWIN */
+>
+DECLINLINE(int) vmxHCImportGuestState(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, const char *pszCaller)
+{
+    RT_NOREF_PV(pszCaller);
+    if ((a_fWhat | a_fDoneLocal | a_fDonePostExit) & HMVMX_CPUMCTX_EXTRN_ALL)
+    {
+#ifndef IN_NEM_DARWIN
+        /*
+         * We disable interrupts to make the updating of the state and in particular
+         * the fExtrn modification atomic wrt to preemption hooks.
+         */
+        RTCCUINTREG const fEFlags   = ASMIntDisableFlags();
+#else
+        RTCCUINTREG const fEFlags   = 0;
+#endif
+
+        /*
+         * We combine all three parameters and take the (probably) inlined optimized
+         * code path for the new things specified in a_fWhat.
+         *
+         * As a tweak to deal with exits that have INHIBIT_INT/NMI active, causing
+         * vmxHCImportGuestIntrState to automatically fetch both RIP & RFLAGS, we
+         * also take the streamlined path when both of these are cleared in fExtrn
+         * already. vmxHCImportGuestStateInner checks fExtrn before fetching.  This
+         * helps with MWAIT and HLT exits that always inhibit IRQs on many platforms.
+         */
+        uint64_t const    fWhatToDo = pVCpu->cpum.GstCtx.fExtrn
+                                    & ((a_fWhat | a_fDoneLocal | a_fDonePostExit) & HMVMX_CPUMCTX_EXTRN_ALL);
+        if (RT_LIKELY(   (   fWhatToDo ==   (a_fWhat & HMVMX_CPUMCTX_EXTRN_ALL & ~(a_fDoneLocal | a_fDonePostExit))
+                          || fWhatToDo == (  a_fWhat & HMVMX_CPUMCTX_EXTRN_ALL & ~(a_fDoneLocal | a_fDonePostExit)
+                                           & ~(CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS)) /* fetch with INHIBIT_INT/NMI */))
+            && (a_fWhat & HMVMX_CPUMCTX_EXTRN_ALL & ~(a_fDoneLocal | a_fDonePostExit)) != 0 /* just in case */)
+        {
+            int const rc = vmxHCImportGuestStateInner<  a_fWhat
+                                                      & HMVMX_CPUMCTX_EXTRN_ALL
+                                                      & ~(a_fDoneLocal | a_fDonePostExit)>(pVCpu, pVmcsInfo, fEFlags);
+#ifndef IN_NEM_DARWIN
+            ASMSetFlags(fEFlags);
+#endif
+            return rc;
+        }
+
+#ifndef IN_NEM_DARWIN
+        ASMSetFlags(fEFlags);
+#endif
+
+        /*
+         * We shouldn't normally get here, but it may happen when executing
+         * in the debug run-loops.  Typically, everything should already have
+         * been fetched then.  Otherwise call the fallback state import function.
+         */
+        if (fWhatToDo == 0)
+        { /* hope the cause was the debug loop or something similar */ }
+        else
+        {
+            STAM_REL_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatImportGuestStateFallback);
+            Log11Func(("a_fWhat=%#RX64/%#RX64/%#RX64 fExtrn=%#RX64 => %#RX64 - Taking inefficient code path from %s!\n",
+                       a_fWhat & HMVMX_CPUMCTX_EXTRN_ALL, a_fDoneLocal & HMVMX_CPUMCTX_EXTRN_ALL,
+                       a_fDonePostExit & HMVMX_CPUMCTX_EXTRN_ALL, pVCpu->cpum.GstCtx.fExtrn, fWhatToDo, pszCaller));
+            return vmxHCImportGuestStateEx(pVCpu, pVmcsInfo, a_fWhat | a_fDoneLocal | a_fDonePostExit);
+        }
+    }
     return VINF_SUCCESS;
 }
 
@@ -4259,8 +4745,8 @@ static VBOXSTRICTRC vmxHCInjectEventVmcs(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo,
             Assert(!CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx));
 
             /* We require RIP, RSP, RFLAGS, CS, IDTR, import them. */
-            int rc2 = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_SREG_MASK | CPUMCTX_EXTRN_TABLE_MASK
-                                                              | CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_RFLAGS);
+            int rc2 = vmxHCImportGuestStateEx(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_SREG_MASK | CPUMCTX_EXTRN_TABLE_MASK
+                                                                | CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_RFLAGS);
             AssertRCReturn(rc2, rc2);
 
             /* Check if the interrupt handler is present in the IVT (real-mode IDT). IDT limit is (4N - 1). */
@@ -4316,7 +4802,7 @@ static VBOXSTRICTRC vmxHCInjectEventVmcs(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo,
 
             /* Construct the stack frame for the interrupt/exception handler. */
             VBOXSTRICTRC rcStrict;
-            rcStrict = hmR0VmxRealModeGuestStackPush(pVCpu, pCtx->eflags.u32);
+            rcStrict = hmR0VmxRealModeGuestStackPush(pVCpu, pCtx->eflags.u);
             if (rcStrict == VINF_SUCCESS)
             {
                 rcStrict = hmR0VmxRealModeGuestStackPush(pVCpu, pCtx->cs.Sel);
@@ -4327,7 +4813,7 @@ static VBOXSTRICTRC vmxHCInjectEventVmcs(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo,
             /* Clear the required eflag bits and jump to the interrupt/exception handler. */
             if (rcStrict == VINF_SUCCESS)
             {
-                pCtx->eflags.u32 &= ~(X86_EFL_IF | X86_EFL_TF | X86_EFL_RF | X86_EFL_AC);
+                pCtx->eflags.u   &= ~(X86_EFL_IF | X86_EFL_TF | X86_EFL_RF | X86_EFL_AC);
                 pCtx->rip         = IdtEntry.offSel;
                 pCtx->cs.Sel      = IdtEntry.uSel;
                 pCtx->cs.ValidSel = IdtEntry.uSel;
@@ -4436,7 +4922,7 @@ static VBOXSTRICTRC vmxHCEvaluatePendingEvent(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcs
      * An event that's already pending has already performed all necessary checks.
      */
     if (   !VCPU_2_VMXSTATE(pVCpu).Event.fPending
-        && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+        && !CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx))
     {
         /** @todo SMI. SMIs take priority over NMIs. */
 
@@ -4456,7 +4942,7 @@ static VBOXSTRICTRC vmxHCEvaluatePendingEvent(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcs
              * receive an NMI while the guest-interruptibility state bit depends on whether
              * the nested-hypervisor is using virtual-NMIs.
              */
-            if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+            if (!CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx))
             {
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
                 if (   fIsNestedGuest
@@ -4470,7 +4956,7 @@ static VBOXSTRICTRC vmxHCEvaluatePendingEvent(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcs
                 /* We've injected the NMI, bail. */
                 return VINF_SUCCESS;
             }
-            else if (!fIsNestedGuest)
+            if (!fIsNestedGuest)
                 vmxHCSetNmiWindowExitVmcs(pVCpu, pVmcsInfo);
         }
 
@@ -4483,7 +4969,7 @@ static VBOXSTRICTRC vmxHCEvaluatePendingEvent(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcs
             && !VCPU_2_VMXSTATE(pVCpu).fSingleInstruction)
         {
             Assert(!DBGFIsStepping(pVCpu));
-            int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_RFLAGS);
+            int rc = vmxHCImportGuestStateEx(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_RFLAGS);
             AssertRC(rc);
 
             /*
@@ -4621,7 +5107,7 @@ static VBOXSTRICTRC vmxHCInjectPendingEvent(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsIn
 #ifdef VBOX_STRICT
         if (uIntType == VMX_ENTRY_INT_INFO_TYPE_EXT_INT)
         {
-            Assert(pVCpu->cpum.GstCtx.eflags.u32 & X86_EFL_IF);
+            Assert(pVCpu->cpum.GstCtx.eflags.u & X86_EFL_IF);
             Assert(!(fIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_STI));
             Assert(!(fIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS));
         }
@@ -4666,8 +5152,9 @@ static VBOXSTRICTRC vmxHCInjectPendingEvent(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsIn
              * to do both since we clear the BS bit from the VMCS while exiting to ring-3.
              */
             Assert(!DBGFIsStepping(pVCpu));
-            uint8_t const fTrapFlag = !!(pVCpu->cpum.GstCtx.eflags.u32 & X86_EFL_TF);
-            int rc = VMX_VMCS_WRITE_NW(pVCpu, VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS, fTrapFlag << VMX_BF_VMCS_PENDING_DBG_XCPT_BS_SHIFT);
+            uint8_t const fTrapFlag = !!(pVCpu->cpum.GstCtx.eflags.u & X86_EFL_TF);
+            int rc = VMX_VMCS_WRITE_NW(pVCpu, VMX_VMCS_GUEST_PENDING_DEBUG_XCPTS,
+                                       fTrapFlag << VMX_BF_VMCS_PENDING_DBG_XCPT_BS_SHIFT);
             AssertRC(rc);
         }
         else
@@ -5294,7 +5781,7 @@ DECLINLINE(VBOXSTRICTRC) vmxHCHandleExit(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTrans
 # define VMEXIT_CALL_RET(a_fSave, a_CallExpr) \
        do { \
             if (a_fSave != 0) \
-                vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL); \
+                vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__); \
             VBOXSTRICTRC rcStrict = a_CallExpr; \
             if (a_fSave != 0) \
                 ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_ALL_GUEST); \
@@ -5672,11 +6159,8 @@ DECLINLINE(void) vmxHCAdvanceGuestRipBy(PVMCPUCC pVCpu, uint32_t cbInstr)
     /* Advance the RIP. */
     pVCpu->cpum.GstCtx.rip += cbInstr;
     ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_GUEST_RIP);
-
-    /* Update interrupt inhibition. */
-    if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-        && pVCpu->cpum.GstCtx.rip != EMGetInhibitInterruptsPC(pVCpu))
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+    CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
+    /** @todo clear RF? */
 }
 
 
@@ -5691,8 +6175,9 @@ DECLINLINE(void) vmxHCAdvanceGuestRipBy(PVMCPUCC pVCpu, uint32_t cbInstr)
  */
 static int vmxHCAdvanceGuestRip(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS);
+    vmxHCReadToTransientSlow<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    /** @todo consider template here after checking callers.   */
+    int rc = vmxHCImportGuestStateEx(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS);
     AssertRCReturn(rc, rc);
 
     vmxHCAdvanceGuestRipBy(pVCpu, pVmxTransient->cbExitInstr);
@@ -5799,10 +6284,8 @@ static VBOXSTRICTRC vmxHCCheckExitDueToEventDelivery(PVMCPUCC pVCpu, PVMXTRANSIE
         if (   uIdtVectorType == VMX_IDT_VECTORING_INFO_TYPE_NMI
             && enmRaise == IEMXCPTRAISE_PREV_EVENT
             && (pVmcsInfo->u32PinCtls & VMX_PIN_CTLS_VIRT_NMI)
-            && CPUMIsGuestNmiBlocking(pVCpu))
-        {
-            CPUMSetGuestNmiBlocking(pVCpu, false);
-        }
+            && CPUMAreInterruptsInhibitedByNmiEx(&pVCpu->cpum.GstCtx))
+            CPUMClearInterruptInhibitingByNmiEx(&pVCpu->cpum.GstCtx);
 
         switch (enmRaise)
         {
@@ -5884,7 +6367,7 @@ static VBOXSTRICTRC vmxHCCheckExitDueToEventDelivery(PVMCPUCC pVCpu, PVMXTRANSIE
         }
     }
     else if (   (pVmcsInfo->u32PinCtls & VMX_PIN_CTLS_VIRT_NMI)
-             && !CPUMIsGuestNmiBlocking(pVCpu))
+             && !CPUMAreInterruptsInhibitedByNmiEx(&pVCpu->cpum.GstCtx))
     {
         if (    VMX_EXIT_INT_INFO_IS_VALID(uExitIntInfo)
              && VMX_EXIT_INT_INFO_VECTOR(uExitIntInfo) != X86_XCPT_DF
@@ -5897,7 +6380,7 @@ static VBOXSTRICTRC vmxHCCheckExitDueToEventDelivery(PVMCPUCC pVCpu, PVMXTRANSIE
              *
              * See Intel spec. 31.7.1.2 "Resuming Guest Software After Handling An Exception".
              */
-            CPUMSetGuestNmiBlocking(pVCpu, true);
+            CPUMSetInterruptInhibitingByNmiEx(&pVCpu->cpum.GstCtx);
             Log4Func(("Set NMI blocking. uExitReason=%u\n", pVmxTransient->uExitReason));
         }
         else if (   pVmxTransient->uExitReason == VMX_EXIT_EPT_VIOLATION
@@ -5914,7 +6397,7 @@ static VBOXSTRICTRC vmxHCCheckExitDueToEventDelivery(PVMCPUCC pVCpu, PVMXTRANSIE
              */
             if (VMX_EXIT_QUAL_EPT_IS_NMI_UNBLOCK_IRET(pVmxTransient->uExitQual))
             {
-                CPUMSetGuestNmiBlocking(pVCpu, true);
+                CPUMSetInterruptInhibitingByNmiEx(&pVCpu->cpum.GstCtx);
                 Log4Func(("Set NMI blocking. uExitReason=%u\n", pVmxTransient->uExitReason));
             }
         }
@@ -6187,7 +6670,7 @@ static VBOXSTRICTRC vmxHCDecodeMemOperand(PVMCPUCC pVCpu, uint32_t uExitInstrInf
  */
 static VBOXSTRICTRC vmxHCExitLmsw(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint8_t cbInstr, uint16_t uMsw, RTGCPTR GCPtrEffDst)
 {
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedLmsw(pVCpu, cbInstr, uMsw, GCPtrEffDst);
@@ -6212,7 +6695,7 @@ static VBOXSTRICTRC vmxHCExitLmsw(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint8_
  */
 static VBOXSTRICTRC vmxHCExitClts(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, uint8_t cbInstr)
 {
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedClts(pVCpu, cbInstr);
@@ -6240,7 +6723,7 @@ static VBOXSTRICTRC vmxHCExitMovFromCrX(PVMCPUCC pVCpu, PVMXVMCSINFO pVmcsInfo, 
     Assert(iCrReg < 16);
     Assert(iGReg < RT_ELEMENTS(pVCpu->cpum.GstCtx.aGRegs));
 
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedMovCRxRead(pVCpu, cbInstr, iGReg, iCrReg);
@@ -6337,7 +6820,7 @@ static VBOXSTRICTRC vmxHCExitMovToCrX(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t i
 static VBOXSTRICTRC vmxHCExitXcptPF(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
 
 #ifndef IN_NEM_DARWIN
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
@@ -6376,15 +6859,14 @@ static VBOXSTRICTRC vmxHCExitXcptPF(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
         return VINF_EM_RAW_INJECT_TRPM_EVENT;
     }
 
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
-    Log4Func(("#PF: cs:rip=%#04x:%08RX64 err_code=%#RX32 exit_qual=%#RX64 cr3=%#RX64\n", pCtx->cs.Sel, pCtx->rip,
-              pVmxTransient->uExitIntErrorCode, pVmxTransient->uExitQual, pCtx->cr3));
+    Log4Func(("#PF: cs:rip=%#04x:%08RX64 err_code=%#RX32 exit_qual=%#RX64 cr3=%#RX64\n", pVCpu->cpum.GstCtx.cs.Sel,
+              pVCpu->cpum.GstCtx.rip, pVmxTransient->uExitIntErrorCode, pVmxTransient->uExitQual, pVCpu->cpum.GstCtx.cr3));
 
     TRPMAssertXcptPF(pVCpu, pVmxTransient->uExitQual, (RTGCUINT)pVmxTransient->uExitIntErrorCode);
-    rc = PGMTrap0eHandler(pVCpu, pVmxTransient->uExitIntErrorCode, CPUMCTX2CORE(pCtx), (RTGCPTR)pVmxTransient->uExitQual);
+    rc = PGMTrap0eHandler(pVCpu, pVmxTransient->uExitIntErrorCode, &pVCpu->cpum.GstCtx, (RTGCPTR)pVmxTransient->uExitQual);
 
     Log4Func(("#PF: rc=%Rrc\n", rc));
     if (rc == VINF_SUCCESS)
@@ -6439,7 +6921,7 @@ static VBOXSTRICTRC vmxHCExitXcptMF(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS(pVCpu, pVmxTransient);
     STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatExitGuestMF);
 
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_CR0);
+    int rc = vmxHCImportGuestState<CPUMCTX_EXTRN_CR0>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     if (!(pVCpu->cpum.GstCtx.cr0 & X86_CR0_NE))
@@ -6471,12 +6953,12 @@ static VBOXSTRICTRC vmxHCExitXcptBP(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS(pVCpu, pVmxTransient);
     STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatExitGuestBP);
 
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict;
     if (!pVmxTransient->fIsNestedGuest)
-        rcStrict = DBGFTrap03Handler(pVCpu->CTX_SUFF(pVM), pVCpu, CPUMCTX2CORE(&pVCpu->cpum.GstCtx));
+        rcStrict = DBGFTrap03Handler(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.GstCtx);
     else
         rcStrict = VINF_EM_RAW_GUEST_TRAP;
 
@@ -6505,8 +6987,8 @@ static VBOXSTRICTRC vmxHCExitXcptAC(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
      * Detect #ACs caused by host having enabled split-lock detection.
      * Emulate such instructions.
      */
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo,
-                                     CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_SS | CPUMCTX_EXTRN_CS);
+#define VMX_HC_EXIT_XCPT_AC_INITIAL_REGS    (CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_SS | CPUMCTX_EXTRN_CS)
+    int rc = vmxHCImportGuestState<VMX_HC_EXIT_XCPT_AC_INITIAL_REGS>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
     /** @todo detect split lock in cpu feature?   */
     if (   /* 1. If 486-style alignment checks aren't enabled, then this must be a split-lock exception */
@@ -6530,16 +7012,19 @@ static VBOXSTRICTRC vmxHCExitXcptAC(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
             if (pVM->cCpus == 1)
             {
 #if 0 /** @todo r=bird: This is potentially wrong.  Might have to just do a whole state sync above and mark everything changed to be safe... */
-                rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+                rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK,
+                                           VMX_HC_EXIT_XCPT_AC_INITIAL_REGS>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
 #else
-                rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+                rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL,
+                                           VMX_HC_EXIT_XCPT_AC_INITIAL_REGS>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
 #endif
                 AssertRCReturn(rc, rc);
             }
         }
         else
         {
-            rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+            rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL,
+                                       VMX_HC_EXIT_XCPT_AC_INITIAL_REGS>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
             AssertRCReturn(rc, rc);
 
             VBOXVMM_XCPT_DF(pVCpu, &pVCpu->cpum.GstCtx);
@@ -6612,7 +7097,7 @@ static VBOXSTRICTRC vmxHCExitXcptDB(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     /*
      * Get the DR6-like values from the Exit qualification and pass it to DBGF for processing.
      */
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
 
     /* Refer Intel spec. Table 27-1. "Exit Qualifications for debug exceptions" for the format. */
     uint64_t const uDR6 = X86_DR6_INIT_VAL
@@ -6620,10 +7105,9 @@ static VBOXSTRICTRC vmxHCExitXcptDB(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
                                                        | X86_DR6_BD | X86_DR6_BS));
 
     int rc;
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
     if (!pVmxTransient->fIsNestedGuest)
     {
-        rc = DBGFTrap01Handler(pVCpu->CTX_SUFF(pVM), pVCpu, CPUMCTX2CORE(pCtx), uDR6, VCPU_2_VMXSTATE(pVCpu).fSingleInstruction);
+        rc = DBGFTrap01Handler(pVCpu->CTX_SUFF(pVM), pVCpu, &pVCpu->cpum.GstCtx, uDR6, VCPU_2_VMXSTATE(pVCpu).fSingleInstruction);
 
         /*
          * Prevents stepping twice over the same instruction when the guest is stepping using
@@ -6651,10 +7135,10 @@ static VBOXSTRICTRC vmxHCExitXcptDB(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
         VMMRZCallRing3Disable(pVCpu);
         HM_DISABLE_PREEMPT(pVCpu);
 
-        pCtx->dr[6] &= ~X86_DR6_B_MASK;
-        pCtx->dr[6] |= uDR6;
+        pVCpu->cpum.GstCtx.dr[6] &= ~X86_DR6_B_MASK;
+        pVCpu->cpum.GstCtx.dr[6] |= uDR6;
         if (CPUMIsGuestDebugStateActive(pVCpu))
-            ASMSetDR6(pCtx->dr[6]);
+            ASMSetDR6(pVCpu->cpum.GstCtx.dr[6]);
 
         HM_RESTORE_PREEMPT();
         VMMRZCallRing3Enable(pVCpu);
@@ -6662,17 +7146,17 @@ static VBOXSTRICTRC vmxHCExitXcptDB(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
         /** @todo */
 #endif
 
-        rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_DR7);
+        rc = vmxHCImportGuestState<CPUMCTX_EXTRN_DR7>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
         AssertRCReturn(rc, rc);
 
         /* X86_DR7_GD will be cleared if DRx accesses should be trapped inside the guest. */
-        pCtx->dr[7] &= ~(uint64_t)X86_DR7_GD;
+        pVCpu->cpum.GstCtx.dr[7] &= ~(uint64_t)X86_DR7_GD;
 
         /* Paranoia. */
-        pCtx->dr[7] &= ~(uint64_t)X86_DR7_RAZ_MASK;
-        pCtx->dr[7] |= X86_DR7_RA1_MASK;
+        pVCpu->cpum.GstCtx.dr[7] &= ~(uint64_t)X86_DR7_RAZ_MASK;
+        pVCpu->cpum.GstCtx.dr[7] |= X86_DR7_RA1_MASK;
 
-        rc = VMX_VMCS_WRITE_NW(pVCpu, VMX_VMCS_GUEST_DR7, pCtx->dr[7]);
+        rc = VMX_VMCS_WRITE_NW(pVCpu, VMX_VMCS_GUEST_DR7, pVCpu->cpum.GstCtx.dr[7]);
         AssertRC(rc);
 
         /*
@@ -6687,7 +7171,7 @@ static VBOXSTRICTRC vmxHCExitXcptDB(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
          * Intel 386, see Intel spec. 24.8.3 "VM-Entry Controls for Event Injection".
          */
         vmxHCSetPendingEvent(pVCpu, VMX_ENTRY_INT_INFO_FROM_EXIT_INT_INFO(pVmxTransient->uExitIntInfo),
-                               pVmxTransient->cbExitInstr, pVmxTransient->uExitIntErrorCode, 0 /* GCPtrFaultAddress */);
+                             pVmxTransient->cbExitInstr, pVmxTransient->uExitIntErrorCode, 0 /* GCPtrFaultAddress */);
         return VINF_SUCCESS;
     }
 
@@ -6800,7 +7284,7 @@ static VBOXSTRICTRC vmxHCExitXcptGP(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
          * If the guest is not in real-mode or we have unrestricted guest execution support, or if we are
          * executing a nested-guest, reflect #GP to the guest or nested-guest.
          */
-        int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+        int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmcsInfo, __FUNCTION__);
         AssertRCReturn(rc, rc);
         Log4Func(("Gst: cs:rip=%#04x:%08RX64 ErrorCode=%#x cr0=%#RX64 cpl=%u tr=%#04x\n", pCtx->cs.Sel, pCtx->rip,
                   pVmxTransient->uExitIntErrorCode, pCtx->cr0, CPUMGetGuestCPL(pVCpu), pCtx->tr.Sel));
@@ -6820,7 +7304,7 @@ static VBOXSTRICTRC vmxHCExitXcptGP(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     Assert(!pVCpu->CTX_SUFF(pVM)->hmr0.s.vmx.fUnrestrictedGuest);
     Assert(!pVmxTransient->fIsNestedGuest);
 
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecOne(pVCpu);
@@ -6867,7 +7351,7 @@ static VBOXSTRICTRC vmxHCExitXcptDE(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS(pVCpu, pVmxTransient);
     STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatExitGuestDE);
 
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_TYPE;
@@ -6928,7 +7412,7 @@ static VBOXSTRICTRC vmxHCExitXcptOthers(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransi
     uint8_t const uVector = VMX_EXIT_INT_INFO_VECTOR(pVmxTransient->uExitIntInfo);
 
 #ifdef HMVMX_ALWAYS_TRAP_ALL_XCPTS
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP);
+    int rc = vmxHCImportGuestState<CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
     Log4Func(("Reinjecting Xcpt. uVector=%#x cs:rip=%#04x:%08RX64\n", uVector, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip));
 #endif
@@ -7060,7 +7544,7 @@ HMVMX_EXIT_DECL vmxHCExitXcptOrNmi(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
     STAM_PROFILE_ADV_START(&VCPU_2_VMXSTATS(pVCpu).StatExitXcptNmi, y3);
 
-    vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INTERRUPTION_INFO>(pVCpu, pVmxTransient);
 
     uint32_t const uExitIntType = VMX_EXIT_INT_INFO_TYPE(pVmxTransient->uExitIntInfo);
     uint8_t const  uVector      = VMX_EXIT_INT_INFO_VECTOR(pVmxTransient->uExitIntInfo);
@@ -7106,11 +7590,10 @@ HMVMX_EXIT_DECL vmxHCExitXcptOrNmi(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
         case VMX_EXIT_INT_INFO_TYPE_HW_XCPT:
         {
             NOREF(uVector);
-            vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
-            vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-            vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-            vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
-
+            vmxHCReadToTransient<  HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                                 | HMVMX_READ_EXIT_INSTR_LEN
+                                 | HMVMX_READ_IDT_VECTORING_INFO
+                                 | HMVMX_READ_IDT_VECTORING_ERROR_CODE>(pVCpu, pVmxTransient);
             rcStrict = vmxHCExitXcpt(pVCpu, pVmxTransient);
             break;
         }
@@ -7160,7 +7643,7 @@ HMVMX_EXIT_NSRC_DECL vmxHCExitNmiWindow(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransi
         HMVMX_UNEXPECTED_EXIT_RET(pVCpu, pVmxTransient->uExitReason);
     }
 
-    Assert(!CPUMIsGuestNmiBlocking(pVCpu));
+    Assert(!CPUMAreInterruptsInhibitedByNmiEx(&pVCpu->cpum.GstCtx));
 
     /*
      * If block-by-STI is set when we get this VM-exit, it means the CPU doesn't block NMIs following STI.
@@ -7172,8 +7655,7 @@ HMVMX_EXIT_NSRC_DECL vmxHCExitNmiWindow(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransi
     Assert(!(fIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS));
     if (fIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_STI)
     {
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-            VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+        CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
 
         fIntrState &= ~VMX_VMCS_GUEST_INT_STATE_BLOCK_STI;
         rc = VMX_VMCS_WRITE_32(pVCpu, VMX_VMCS32_GUEST_INT_STATE, fIntrState);
@@ -7219,9 +7701,8 @@ HMVMX_EXIT_DECL vmxHCExitCpuid(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
      * Get the state we need and update the exit history entry.
      */
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict;
@@ -7247,7 +7728,8 @@ HMVMX_EXIT_DECL vmxHCExitCpuid(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
         /*
          * Frequent exit or something needing probing.  Get state and call EMHistoryExec.
          */
-        int rc2 = vmxHCImportGuestState(pVCpu, pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+        int rc2 = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL,
+                                        IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
         AssertRCReturn(rc2, rc2);
 
         Log4(("CpuIdExit/%u: %04x:%08RX64: %#x/%#x -> EMHistoryExec\n",
@@ -7272,7 +7754,7 @@ HMVMX_EXIT_DECL vmxHCExitGetsec(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_CR4);
+    int rc = vmxHCImportGuestState<CPUMCTX_EXTRN_CR4>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     if (pVCpu->cpum.GstCtx.cr4 & X86_CR4_SMXE)
@@ -7291,8 +7773,8 @@ HMVMX_EXIT_DECL vmxHCExitRdtsc(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedRdtsc(pVCpu, pVmxTransient->cbExitInstr);
@@ -7321,8 +7803,8 @@ HMVMX_EXIT_DECL vmxHCExitRdtscp(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK | CPUMCTX_EXTRN_TSC_AUX);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK | CPUMCTX_EXTRN_TSC_AUX>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedRdtscp(pVCpu, pVmxTransient->cbExitInstr);
@@ -7351,23 +7833,19 @@ HMVMX_EXIT_DECL vmxHCExitRdpmc(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_CR4    | CPUMCTX_EXTRN_CR0
-                                                     | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_SS);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_CR4>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    rc = EMInterpretRdpmc(pVCpu->CTX_SUFF(pVM), pVCpu, CPUMCTX2CORE(pCtx));
-    if (RT_LIKELY(rc == VINF_SUCCESS))
+    VBOXSTRICTRC rcStrict = IEMExecDecodedRdpmc(pVCpu, pVmxTransient->cbExitInstr);
+    if (RT_LIKELY(rcStrict == VINF_SUCCESS))
+        ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_GUEST_RIP | HM_CHANGED_GUEST_RFLAGS);
+    else if (rcStrict == VINF_IEM_RAISED_XCPT)
     {
-        rc = vmxHCAdvanceGuestRip(pVCpu, pVmxTransient);
-        Assert(pVmxTransient->cbExitInstr == 2);
+        ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+        rcStrict = VINF_SUCCESS;
     }
-    else
-    {
-        AssertMsgFailed(("vmxHCExitRdpmc: EMInterpretRdpmc failed with %Rrc\n", rc));
-        rc = VERR_EM_INTERPRETER;
-    }
-    return rc;
+    return rcStrict;
 }
 
 
@@ -7382,8 +7860,12 @@ HMVMX_EXIT_DECL vmxHCExitVmcall(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     if (EMAreHypercallInstructionsEnabled(pVCpu))
     {
         PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-        int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CR0
-                                                         | CPUMCTX_EXTRN_SS  | CPUMCTX_EXTRN_CS     | CPUMCTX_EXTRN_EFER);
+        int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RIP
+                                       | CPUMCTX_EXTRN_RFLAGS
+                                       | CPUMCTX_EXTRN_CR0
+                                       | CPUMCTX_EXTRN_SS
+                                       | CPUMCTX_EXTRN_CS
+                                       | CPUMCTX_EXTRN_EFER>(pVCpu, pVmcsInfo, __FUNCTION__);
         AssertRCReturn(rc, rc);
 
         /* Perform the hypercall. */
@@ -7426,9 +7908,9 @@ HMVMX_EXIT_DECL vmxHCExitInvlpg(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 #endif
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedInvlpg(pVCpu, pVmxTransient->cbExitInstr, pVmxTransient->uExitQual);
@@ -7455,8 +7937,8 @@ HMVMX_EXIT_DECL vmxHCExitMonitor(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK | CPUMCTX_EXTRN_DS);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK | CPUMCTX_EXTRN_DS>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedMonitor(pVCpu, pVmxTransient->cbExitInstr);
@@ -7480,8 +7962,8 @@ HMVMX_EXIT_DECL vmxHCExitMwait(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedMwait(pVCpu, pVmxTransient->cbExitInstr);
@@ -7570,8 +8052,8 @@ HMVMX_EXIT_DECL vmxHCExitXsetbv(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK | CPUMCTX_EXTRN_CR4);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK | CPUMCTX_EXTRN_CR4>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedXsetbv(pVCpu, pVmxTransient->cbExitInstr);
@@ -7603,9 +8085,9 @@ HMVMX_EXIT_DECL vmxHCExitInvpcid(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 #if 1
     return VERR_EM_INTERPRETER;
 #else
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
     int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
                                                                     | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
     AssertRCReturn(rc, rc);
@@ -7642,7 +8124,7 @@ HMVMX_EXIT_DECL vmxHCExitInvpcid(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 HMVMX_EXIT_NSRC_DECL vmxHCExitErrInvalidGuestState(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    int rc = vmxHCImportGuestStateEx(pVCpu, pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
     AssertRCReturn(rc, rc);
 
     rc = vmxHCCheckCachedVmcsCtls(pVCpu, pVmcsInfo, pVmxTransient->fIsNestedGuest);
@@ -7655,9 +8137,9 @@ HMVMX_EXIT_NSRC_DECL vmxHCExitErrInvalidGuestState(PVMCPUCC pVCpu, PVMXTRANSIENT
 #ifdef VBOX_STRICT
     uint32_t fIntrState;
     uint64_t u64Val;
-    vmxHCReadEntryIntInfoVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
     vmxHCReadEntryXcptErrorCodeVmcs(pVCpu, pVmxTransient);
-    vmxHCReadEntryInstrLenVmcs(pVCpu, pVmxTransient);
 
     Log4(("uInvalidReason                             %u\n",     uInvalidReason));
     Log4(("VMX_VMCS32_CTRL_ENTRY_INTERRUPTION_INFO    %#RX32\n", pVmxTransient->uEntryIntInfo));
@@ -7785,22 +8267,33 @@ HMVMX_EXIT_DECL vmxHCExitRdmsr(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+
     /** @todo Optimize this: We currently drag in the whole MSR state
      * (CPUMCTX_EXTRN_ALL_MSRS) here.  We should optimize this to only get
      * MSRs required.  That would require changes to IEM and possibly CPUM too.
      * (Should probably do it lazy fashion from CPUMAllMsrs.cpp). */
     PVMXVMCSINFO   pVmcsInfo = pVmxTransient->pVmcsInfo;
     uint32_t const idMsr     = pVCpu->cpum.GstCtx.ecx;
-    uint64_t       fImport   = IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS;
+    int            rc;
     switch (idMsr)
     {
-        case MSR_K8_FS_BASE: fImport |= CPUMCTX_EXTRN_FS; break;
-        case MSR_K8_GS_BASE: fImport |= CPUMCTX_EXTRN_GS; break;
+        default:
+            rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS>(pVCpu, pVmcsInfo,
+                                                                                                            __FUNCTION__);
+            AssertRCReturn(rc, rc);
+            break;
+        case MSR_K8_FS_BASE:
+            rc = vmxHCImportGuestState<  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS
+                                       | CPUMCTX_EXTRN_FS>(pVCpu, pVmcsInfo, __FUNCTION__);
+            AssertRCReturn(rc, rc);
+            break;
+        case MSR_K8_GS_BASE:
+            rc = vmxHCImportGuestState<  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS
+                                       | CPUMCTX_EXTRN_GS>(pVCpu, pVmcsInfo, __FUNCTION__);
+            AssertRCReturn(rc, rc);
+            break;
     }
-
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, fImport);
-    AssertRCReturn(rc, rc);
 
     Log4Func(("ecx=%#RX32\n", idMsr));
 
@@ -7851,12 +8344,7 @@ HMVMX_EXIT_DECL vmxHCExitWrmsr(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    /** @todo Optimize this: We currently drag in the whole MSR state
-     * (CPUMCTX_EXTRN_ALL_MSRS) here.  We should optimize this to only get
-     * MSRs required.  That would require changes to IEM and possibly CPUM too.
-     * (Should probably do it lazy fashion from CPUMAllMsrs.cpp). */
-    uint32_t const idMsr    = pVCpu->cpum.GstCtx.ecx;
-    uint64_t       fImport  = IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS;
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
 
     /*
      * The FS and GS base MSRs are not part of the above all-MSRs mask.
@@ -7864,17 +8352,32 @@ HMVMX_EXIT_DECL vmxHCExitWrmsr(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
      * loading guest-state we would also load the entire segment register including limit
      * and attributes and thus we need to load them here.
      */
+    /** @todo Optimize this: We currently drag in the whole MSR state
+     * (CPUMCTX_EXTRN_ALL_MSRS) here.  We should optimize this to only get
+     * MSRs required.  That would require changes to IEM and possibly CPUM too.
+     * (Should probably do it lazy fashion from CPUMAllMsrs.cpp). */
+    PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
+    uint32_t const idMsr   = pVCpu->cpum.GstCtx.ecx;
+    int            rc;
     switch (idMsr)
     {
-        case MSR_K8_FS_BASE: fImport |= CPUMCTX_EXTRN_FS; break;
-        case MSR_K8_GS_BASE: fImport |= CPUMCTX_EXTRN_GS; break;
+        default:
+            rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS>(pVCpu, pVmcsInfo,
+                                                                                                            __FUNCTION__);
+            AssertRCReturn(rc, rc);
+            break;
+
+        case MSR_K8_FS_BASE:
+            rc = vmxHCImportGuestState<  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS
+                                       | CPUMCTX_EXTRN_FS>(pVCpu, pVmcsInfo, __FUNCTION__);
+            AssertRCReturn(rc, rc);
+            break;
+        case MSR_K8_GS_BASE:
+            rc = vmxHCImportGuestState<  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK | CPUMCTX_EXTRN_ALL_MSRS
+                                       | CPUMCTX_EXTRN_GS>(pVCpu, pVmcsInfo, __FUNCTION__);
+            AssertRCReturn(rc, rc);
+            break;
     }
-
-    PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, fImport);
-    AssertRCReturn(rc, rc);
-
     Log4Func(("ecx=%#RX32 edx:eax=%#RX32:%#RX32\n", idMsr, pVCpu->cpum.GstCtx.edx, pVCpu->cpum.GstCtx.eax));
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedWrmsr(pVCpu, pVmxTransient->cbExitInstr);
@@ -8044,8 +8547,8 @@ HMVMX_EXIT_DECL vmxHCExitMovCRx(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     STAM_PROFILE_ADV_START(&VCPU_2_VMXSTATS(pVCpu).StatExitMovCRx, y2);
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
 
     VBOXSTRICTRC rcStrict;
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
@@ -8064,7 +8567,7 @@ HMVMX_EXIT_DECL vmxHCExitMovCRx(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
              * since IEM_CPUMCTX_EXTRN_MUST_MASK (used below) includes CR3 which will import
              * PAE PDPTEs as well.
              */
-            int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+            int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
             AssertRCReturn(rc, rc);
 
             HMVMX_CPUMCTX_ASSERT(pVCpu, CPUMCTX_EXTRN_CR0);
@@ -8183,7 +8686,7 @@ HMVMX_EXIT_DECL vmxHCExitMovCRx(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
             bool const     fMemOperand = VMX_EXIT_QUAL_CRX_LMSW_OP_MEM(uExitQual);
             if (fMemOperand)
             {
-                vmxHCReadGuestLinearAddrVmcs(pVCpu, pVmxTransient);
+                vmxHCReadToTransient<HMVMX_READ_GUEST_LINEAR_ADDR>(pVCpu, pVmxTransient);
                 GCPtrEffDst = pVmxTransient->uGuestLinearAddr;
             }
             else
@@ -8220,11 +8723,11 @@ HMVMX_EXIT_DECL vmxHCExitIoInstr(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 
     PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK | CPUMCTX_EXTRN_SREG_MASK
-                                                     | CPUMCTX_EXTRN_EFER);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+#define VMX_HC_EXIT_IO_INSTR_INITIAL_REGS   (IEM_CPUMCTX_EXTRN_MUST_MASK | CPUMCTX_EXTRN_SREG_MASK | CPUMCTX_EXTRN_EFER)
     /* EFER MSR also required for longmode checks in EMInterpretDisasCurrent(), but it's always up-to-date. */
+    int rc = vmxHCImportGuestState<VMX_HC_EXIT_IO_INSTR_INITIAL_REGS>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     /* Refer Intel spec. 27-5. "Exit Qualifications for I/O Instructions" for the format. */
@@ -8274,7 +8777,7 @@ HMVMX_EXIT_DECL vmxHCExitIoInstr(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
             bool const fInsOutsInfo = RT_BF_GET(g_HmMsrs.u.vmx.u64Basic, VMX_BF_BASIC_VMCS_INS_OUTS);
             if (fInsOutsInfo)
             {
-                vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
+                vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_INFO>(pVCpu, pVmxTransient);
                 AssertReturn(pVmxTransient->ExitInstrInfo.StrIo.u3AddrSize <= 2, VERR_VMX_IPE_3);
                 AssertCompile(IEMMODE_16BIT == 0 && IEMMODE_32BIT == 1 && IEMMODE_64BIT == 2);
                 IEMMODE const enmAddrMode = (IEMMODE)pVmxTransient->ExitInstrInfo.StrIo.u3AddrSize;
@@ -8357,8 +8860,13 @@ HMVMX_EXIT_DECL vmxHCExitIoInstr(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
              * and take appropriate action.
              * Note that the I/O breakpoint type is undefined if CR4.DE is 0.
              */
-            rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_DR7);
+#if 1
+            AssertCompile(VMX_HC_EXIT_IO_INSTR_INITIAL_REGS & CPUMCTX_EXTRN_DR7);
+#else
+            AssertCompile(!(VMX_HC_EXIT_IO_INSTR_INITIAL_REGS & CPUMCTX_EXTRN_DR7));
+            rc = vmxHCImportGuestState<CPUMCTX_EXTRN_DR7>(pVCpu, pVmcsInfo);
             AssertRCReturn(rc, rc);
+#endif
 
             /** @todo Optimize away the DBGFBpIsHwIoArmed call by having DBGF tell the
              *  execution engines about whether hyper BPs and such are pending. */
@@ -8432,7 +8940,8 @@ HMVMX_EXIT_DECL vmxHCExitIoInstr(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
         /*
          * Frequent exit or something needing probing.  Get state and call EMHistoryExec.
          */
-        int rc2 = vmxHCImportGuestState(pVCpu, pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+        int rc2 = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL,
+                                        VMX_HC_EXIT_IO_INSTR_INITIAL_REGS>(pVCpu, pVmcsInfo, __FUNCTION__);
         AssertRCReturn(rc2, rc2);
         STAM_COUNTER_INC(!fIOString ? fIOWrite ? &VCPU_2_VMXSTATS(pVCpu).StatExitIOWrite : &VCPU_2_VMXSTATS(pVCpu).StatExitIORead
                          : fIOWrite ? &VCPU_2_VMXSTATS(pVCpu).StatExitIOStringWrite : &VCPU_2_VMXSTATS(pVCpu).StatExitIOStringRead);
@@ -8461,16 +8970,16 @@ HMVMX_EXIT_DECL vmxHCExitTaskSwitch(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     /* Check if this task-switch occurred while delivery an event through the guest IDT. */
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
     if (VMX_EXIT_QUAL_TASK_SWITCH_TYPE(pVmxTransient->uExitQual) == VMX_EXIT_QUAL_TASK_SWITCH_TYPE_IDT)
     {
-        vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_IDT_VECTORING_INFO>(pVCpu, pVmxTransient);
         if (VMX_IDT_VECTORING_INFO_IS_VALID(pVmxTransient->uIdtVectoringInfo))
         {
             uint32_t uErrCode;
             if (VMX_IDT_VECTORING_INFO_IS_ERROR_CODE_VALID(pVmxTransient->uIdtVectoringInfo))
             {
-                vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
+                vmxHCReadToTransient<HMVMX_READ_IDT_VECTORING_ERROR_CODE>(pVCpu, pVmxTransient);
                 uErrCode = pVmxTransient->uIdtVectoringErrorCode;
             }
             else
@@ -8482,10 +8991,10 @@ HMVMX_EXIT_DECL vmxHCExitTaskSwitch(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
             else
                 GCPtrFaultAddress = 0;
 
-            vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
 
             vmxHCSetPendingEvent(pVCpu, VMX_ENTRY_INT_INFO_FROM_EXIT_IDT_INFO(pVmxTransient->uIdtVectoringInfo),
-                                   pVmxTransient->cbExitInstr, uErrCode, GCPtrFaultAddress);
+                                 pVmxTransient->cbExitInstr, uErrCode, GCPtrFaultAddress);
 
             Log4Func(("Pending event. uIntType=%#x uVector=%#x\n", VMX_IDT_VECTORING_INFO_TYPE(pVmxTransient->uIdtVectoringInfo),
                       VMX_IDT_VECTORING_INFO_VECTOR(pVmxTransient->uIdtVectoringInfo)));
@@ -8523,11 +9032,12 @@ HMVMX_EXIT_DECL vmxHCExitApicAccess(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
     STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatExitApicAccess);
 
-    vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN
+                         | HMVMX_READ_EXIT_INTERRUPTION_INFO
+                         | HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                         | HMVMX_READ_IDT_VECTORING_INFO
+                         | HMVMX_READ_IDT_VECTORING_ERROR_CODE>(pVCpu, pVmxTransient);
 
     /*
      * If this VM-exit occurred while delivering an event through the guest IDT, handle it accordingly.
@@ -8550,8 +9060,7 @@ HMVMX_EXIT_DECL vmxHCExitApicAccess(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 
     /* IOMMIOPhysHandler() below may call into IEM, save the necessary state. */
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     /* See Intel spec. 27-6 "Exit Qualifications for APIC-access VM-exits from Linear Accesses & Guest-Phyiscal Addresses" */
@@ -8655,7 +9164,7 @@ HMVMX_EXIT_DECL vmxHCExitMovDRx(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 #endif
 
 #ifdef VBOX_WITH_STATISTICS
-            vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
             if (VMX_EXIT_QUAL_DRX_DIRECTION(pVmxTransient->uExitQual) == VMX_EXIT_QUAL_DRX_DIRECTION_WRITE)
                 STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatExitDRxWrite);
             else
@@ -8667,42 +9176,70 @@ HMVMX_EXIT_DECL vmxHCExitMovDRx(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     }
 
     /*
-     * EMInterpretDRx[Write|Read]() calls CPUMIsGuestIn64BitCode() which requires EFER MSR, CS.
-     * The EFER MSR is always up-to-date.
-     * Update the segment registers and DR7 from the CPU.
+     * Import state.  We must have DR7 loaded here as it's always consulted,
+     * both for reading and writing.  The other debug registers are never
+     * exported as such.
      */
-    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_SREG_MASK | CPUMCTX_EXTRN_DR7);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK
+                                   | CPUMCTX_EXTRN_GPRS_MASK
+                                   | CPUMCTX_EXTRN_DR7>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
-    Log4Func(("cs:rip=%#04x:%08RX64\n", pCtx->cs.Sel, pCtx->rip));
+    Log4Func(("cs:rip=%#04x:%08RX64\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip));
 
-    PVMCC pVM = pVCpu->CTX_SUFF(pVM);
+    uint8_t const iGReg  = VMX_EXIT_QUAL_DRX_GENREG(pVmxTransient->uExitQual);
+    uint8_t const iDrReg = VMX_EXIT_QUAL_DRX_REGISTER(pVmxTransient->uExitQual);
+
+    VBOXSTRICTRC  rcStrict;
     if (VMX_EXIT_QUAL_DRX_DIRECTION(pVmxTransient->uExitQual) == VMX_EXIT_QUAL_DRX_DIRECTION_WRITE)
     {
-        rc = EMInterpretDRxWrite(pVM, pVCpu, CPUMCTX2CORE(pCtx),
-                                 VMX_EXIT_QUAL_DRX_REGISTER(pVmxTransient->uExitQual),
-                                 VMX_EXIT_QUAL_DRX_GENREG(pVmxTransient->uExitQual));
-        if (RT_SUCCESS(rc))
-            ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_GUEST_DR7);
+        /*
+         * Write DRx register.
+         */
+        rcStrict = IEMExecDecodedMovDRxWrite(pVCpu, pVmxTransient->cbExitInstr, iDrReg, iGReg);
+        AssertMsg(   rcStrict == VINF_SUCCESS
+                  || rcStrict == VINF_IEM_RAISED_XCPT, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+
+        if (rcStrict == VINF_SUCCESS)
+            /** @todo r=bird: Not sure why we always flag DR7 as modified here, but I've
+             * kept it for now to avoid breaking something non-obvious. */
+            ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_GUEST_RIP | HM_CHANGED_GUEST_RFLAGS
+                                                                | HM_CHANGED_GUEST_DR7);
+        else if (rcStrict == VINF_IEM_RAISED_XCPT)
+        {
+            ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+            rcStrict = VINF_SUCCESS;
+        }
+
         STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatExitDRxWrite);
     }
     else
     {
-        rc = EMInterpretDRxRead(pVM, pVCpu, CPUMCTX2CORE(pCtx),
-                                VMX_EXIT_QUAL_DRX_GENREG(pVmxTransient->uExitQual),
-                                VMX_EXIT_QUAL_DRX_REGISTER(pVmxTransient->uExitQual));
+        /*
+         * Read DRx register into a general purpose register.
+         */
+        rcStrict = IEMExecDecodedMovDRxRead(pVCpu, pVmxTransient->cbExitInstr, iGReg, iDrReg);
+        AssertMsg(   rcStrict == VINF_SUCCESS
+                  || rcStrict == VINF_IEM_RAISED_XCPT, ("%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+
+        if (rcStrict == VINF_SUCCESS)
+        {
+            if (iGReg == X86_GREG_xSP)
+                ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_GUEST_RIP | HM_CHANGED_GUEST_RFLAGS
+                                                                    | HM_CHANGED_GUEST_RSP);
+            else
+                ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_GUEST_RIP | HM_CHANGED_GUEST_RFLAGS);
+        }
+        else if (rcStrict == VINF_IEM_RAISED_XCPT)
+        {
+            ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_RAISED_XCPT_MASK);
+            rcStrict = VINF_SUCCESS;
+        }
+
         STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatExitDRxRead);
     }
 
-    Assert(rc == VINF_SUCCESS || rc == VERR_EM_INTERPRETER);
-    if (RT_SUCCESS(rc))
-    {
-        int rc2 = vmxHCAdvanceGuestRip(pVCpu, pVmxTransient);
-        AssertRCReturn(rc2, rc2);
-        return VINF_SUCCESS;
-    }
-    return rc;
+    return rcStrict;
 }
 
 
@@ -8717,11 +9254,12 @@ HMVMX_EXIT_DECL vmxHCExitEptMisconfig(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
 #ifndef IN_NEM_DARWIN
     Assert(pVCpu->CTX_SUFF(pVM)->hmr0.s.fNestedPaging);
 
-    vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_INSTR_LEN
+                         | HMVMX_READ_EXIT_INTERRUPTION_INFO
+                         | HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                         | HMVMX_READ_IDT_VECTORING_INFO
+                         | HMVMX_READ_IDT_VECTORING_ERROR_CODE
+                         | HMVMX_READ_GUEST_PHYSICAL_ADDR>(pVCpu, pVmxTransient);
 
     /*
      * If this VM-exit occurred while delivering an event through the guest IDT, handle it accordingly.
@@ -8739,11 +9277,11 @@ HMVMX_EXIT_DECL vmxHCExitEptMisconfig(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
         else
         {
             STAM_COUNTER_INC(&VCPU_2_VMXSTATS(pVCpu).StatInjectInterpret);
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX
             /** @todo NSTVMX: Think about how this should be handled. */
             if (pVmxTransient->fIsNestedGuest)
                 return VERR_VMX_IPE_3;
-#endif
+# endif
             return VINF_EM_RAW_INJECT_TRPM_EVENT;
         }
     }
@@ -8757,8 +9295,7 @@ HMVMX_EXIT_DECL vmxHCExitEptMisconfig(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
      * Get sufficient state and update the exit history entry.
      */
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadGuestPhysicalAddrVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     RTGCPHYS const GCPhys = pVmxTransient->uGuestPhysicalAddr;
@@ -8775,7 +9312,6 @@ HMVMX_EXIT_DECL vmxHCExitEptMisconfig(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
          * weird case. See @bugref{6043}.
          */
         PVMCC    pVM  = pVCpu->CTX_SUFF(pVM);
-        PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
 /** @todo bird: We can probably just go straight to IOM here and assume that
  *        it's MMIO, then fall back on PGM if that hunch didn't work out so
  *        well.  However, we need to address that aliasing workarounds that
@@ -8785,8 +9321,8 @@ HMVMX_EXIT_DECL vmxHCExitEptMisconfig(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
  *        less locklessly inside IOM.  Need to consider the lookup table
  *        updating and use a bit more carefully first (or do all updates via
  *        rendezvous) */
-        rcStrict = PGMR0Trap0eHandlerNPMisconfig(pVM, pVCpu, PGMMODE_EPT, CPUMCTX2CORE(pCtx), GCPhys, UINT32_MAX);
-        Log4Func(("At %#RGp RIP=%#RX64 rc=%Rrc\n", GCPhys, pCtx->rip, VBOXSTRICTRC_VAL(rcStrict)));
+        rcStrict = PGMR0Trap0eHandlerNPMisconfig(pVM, pVCpu, PGMMODE_EPT, &pVCpu->cpum.GstCtx, GCPhys, UINT32_MAX);
+        Log4Func(("At %#RGp RIP=%#RX64 rc=%Rrc\n", GCPhys, pVCpu->cpum.GstCtx.rip, VBOXSTRICTRC_VAL(rcStrict)));
         if (   rcStrict == VINF_SUCCESS
             || rcStrict == VERR_PAGE_TABLE_NOT_PRESENT
             || rcStrict == VERR_PAGE_NOT_PRESENT)
@@ -8830,12 +9366,13 @@ HMVMX_EXIT_DECL vmxHCExitEptViolation(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
 #ifndef IN_NEM_DARWIN
     Assert(pVCpu->CTX_SUFF(pVM)->hmr0.s.fNestedPaging);
 
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN
+                         | HMVMX_READ_EXIT_INTERRUPTION_INFO
+                         | HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                         | HMVMX_READ_IDT_VECTORING_INFO
+                         | HMVMX_READ_IDT_VECTORING_ERROR_CODE
+                         | HMVMX_READ_GUEST_PHYSICAL_ADDR>(pVCpu, pVmxTransient);
 
     /*
      * If this VM-exit occurred while delivering an event through the guest IDT, handle it accordingly.
@@ -8857,8 +9394,7 @@ HMVMX_EXIT_DECL vmxHCExitEptViolation(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
     }
 
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
-    vmxHCReadGuestPhysicalAddrVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+    int rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     RTGCPHYS const GCPhys    = pVmxTransient->uGuestPhysicalAddr;
@@ -8882,7 +9418,7 @@ HMVMX_EXIT_DECL vmxHCExitEptViolation(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
      * Handle the pagefault trap for the nested shadow table.
      */
     TRPMAssertXcptPF(pVCpu, GCPhys, uErrorCode);
-    rcStrict = PGMR0Trap0eHandlerNestedPaging(pVM, pVCpu, PGMMODE_EPT, uErrorCode, CPUMCTX2CORE(pCtx), GCPhys);
+    rcStrict = PGMR0Trap0eHandlerNestedPaging(pVM, pVCpu, PGMMODE_EPT, uErrorCode, pCtx, GCPhys);
     TRPMResetTrap(pVCpu);
 
     /* Same case as PGMR0Trap0eHandlerNPMisconfig(). See comment above, @bugref{6043}. */
@@ -8895,19 +9431,24 @@ HMVMX_EXIT_DECL vmxHCExitEptViolation(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
         ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_GUEST_RIP | HM_CHANGED_GUEST_RSP | HM_CHANGED_GUEST_RFLAGS);
         return VINF_SUCCESS;
     }
-#else
+    Log4Func(("EPT return to ring-3 rcStrict=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+    return rcStrict;
+
+#else /* IN_NEM_DARWIN */
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     uint64_t const uHostTsc = ASMReadTSC(); RT_NOREF(uHostTsc);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadGuestPhysicalAddrVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_GUEST_PHYSICAL_ADDR>(pVCpu, pVmxTransient);
     vmxHCImportGuestRip(pVCpu);
-    vmxHCImportGuestSegReg(pVCpu, X86_SREG_CS);
+    vmxHCImportGuestSegReg<X86_SREG_CS>(pVCpu);
 
     /*
      * Ask PGM for information about the given GCPhys.  We need to check if we're
      * out of sync first.
      */
-    NEMHCDARWINHMACPCCSTATE State = { RT_BOOL(pVmxTransient->uExitQual & VMX_EXIT_QUAL_EPT_ACCESS_WRITE), false, false };
+    NEMHCDARWINHMACPCCSTATE State = { RT_BOOL(pVmxTransient->uExitQual & VMX_EXIT_QUAL_EPT_ACCESS_WRITE),
+                                      false,
+                                      false };
     PGMPHYSNEMPAGEINFO      Info;
     int rc = PGMPhysNemPageInfoChecker(pVM, pVCpu, pVmxTransient->uGuestPhysicalAddr, State.fWriteAccess, &Info,
                                        nemR3DarwinHandleMemoryAccessPageCheckerCallback, &State);
@@ -8949,7 +9490,7 @@ HMVMX_EXIT_DECL vmxHCExitEptViolation(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
                                             : EMEXIT_MAKE_FT(EMEXIT_F_KIND_EM, EMEXITTYPE_MMIO_READ),
                                             pVCpu->cpum.GstCtx.cs.u64Base + pVCpu->cpum.GstCtx.rip, uHostTsc);
 
-    rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     VBOXSTRICTRC rcStrict;
@@ -8965,10 +9506,10 @@ HMVMX_EXIT_DECL vmxHCExitEptViolation(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
     }
 
     ASMAtomicUoOrU64(&VCPU_2_VMXSTATE(pVCpu).fCtxChanged, HM_CHANGED_ALL_GUEST);
-#endif
 
-    Log4Func(("EPT return to ring-3 rcStrict2=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+    Log4Func(("EPT return rcStrict=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
     return rcStrict;
+#endif /* IN_NEM_DARWIN */
 }
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
@@ -8980,17 +9521,18 @@ HMVMX_EXIT_DECL vmxHCExitVmclear(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | CPUMCTX_EXTRN_HWVIRT
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | CPUMCTX_EXTRN_HWVIRT
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_READ, &ExitInfo.GCPtrEffAddr);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedVmclear(pVCpu, &ExitInfo);
@@ -9014,8 +9556,8 @@ HMVMX_EXIT_DECL vmxHCExitVmlaunch(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 
     /* Import the entire VMCS state for now as we would be switching VMCS on successful VMLAUNCH,
        otherwise we could import just IEM_CPUMCTX_EXTRN_VMX_VMENTRY_MASK. */
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
@@ -9041,17 +9583,18 @@ HMVMX_EXIT_DECL vmxHCExitVmptrld(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | CPUMCTX_EXTRN_HWVIRT
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | CPUMCTX_EXTRN_HWVIRT
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_READ, &ExitInfo.GCPtrEffAddr);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedVmptrld(pVCpu, &ExitInfo);
@@ -9073,17 +9616,18 @@ HMVMX_EXIT_DECL vmxHCExitVmptrst(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | CPUMCTX_EXTRN_HWVIRT
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | CPUMCTX_EXTRN_HWVIRT
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_WRITE, &ExitInfo.GCPtrEffAddr);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedVmptrst(pVCpu, &ExitInfo);
@@ -9110,17 +9654,18 @@ HMVMX_EXIT_DECL vmxHCExitVmread(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
      * thus might not need to import the shadow VMCS state, it's safer just in case
      * code elsewhere dares look at unsynced VMCS fields.
      */
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | CPUMCTX_EXTRN_HWVIRT
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | CPUMCTX_EXTRN_HWVIRT
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     if (!ExitInfo.InstrInfo.VmreadVmwrite.fIsRegOperand)
         HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_WRITE, &ExitInfo.GCPtrEffAddr);
 
@@ -9166,8 +9711,8 @@ HMVMX_EXIT_DECL vmxHCExitVmresume(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 
     /* Import the entire VMCS state for now as we would be switching VMCS on successful VMRESUME,
        otherwise we could import just IEM_CPUMCTX_EXTRN_VMX_VMENTRY_MASK. */
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
@@ -9198,17 +9743,18 @@ HMVMX_EXIT_DECL vmxHCExitVmwrite(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
      * gets invoked when IEM's VMWRITE instruction emulation modifies the current VMCS and it
      * flags re-loading the entire shadow VMCS, we should save the entire shadow VMCS here.
      */
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | CPUMCTX_EXTRN_HWVIRT
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | CPUMCTX_EXTRN_HWVIRT
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     if (!ExitInfo.InstrInfo.VmreadVmwrite.fIsRegOperand)
         HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_READ, &ExitInfo.GCPtrEffAddr);
 
@@ -9231,10 +9777,10 @@ HMVMX_EXIT_DECL vmxHCExitVmxoff(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_CR4
-                                                                    | CPUMCTX_EXTRN_HWVIRT
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_CR4
+                                   | CPUMCTX_EXTRN_HWVIRT
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_NO_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
@@ -9258,17 +9804,18 @@ HMVMX_EXIT_DECL vmxHCExitVmxon(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | CPUMCTX_EXTRN_HWVIRT
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | CPUMCTX_EXTRN_HWVIRT
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_READ, &ExitInfo.GCPtrEffAddr);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedVmxon(pVCpu, &ExitInfo);
@@ -9290,16 +9837,17 @@ HMVMX_EXIT_DECL vmxHCExitInvvpid(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_READ, &ExitInfo.GCPtrEffAddr);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedInvvpid(pVCpu, &ExitInfo);
@@ -9322,16 +9870,17 @@ HMVMX_EXIT_DECL vmxHCExitInvept(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 {
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SREG_MASK
-                                                                    | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_INFO
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+    int rc = vmxHCImportGuestState<  CPUMCTX_EXTRN_RSP
+                                   | CPUMCTX_EXTRN_SREG_MASK
+                                   | IEM_CPUMCTX_EXTRN_EXEC_DECODED_MEM_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
     AssertRCReturn(rc, rc);
 
     HMVMX_CHECK_EXIT_DUE_TO_VMX_INSTR(pVCpu, pVmxTransient->uExitReason);
 
-    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     HMVMX_DECODE_MEM_OPERAND(pVCpu, ExitInfo.InstrInfo.u, ExitInfo.u64Qual, VMXMEMACCESS_READ, &ExitInfo.GCPtrEffAddr);
 
     VBOXSTRICTRC rcStrict = IEMExecDecodedInvept(pVCpu, &ExitInfo);
@@ -9365,7 +9914,7 @@ HMVMX_EXIT_DECL vmxHCExitXcptOrNmiNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTrans
 {
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INTERRUPTION_INFO>(pVCpu, pVmxTransient);
 
     uint64_t const uExitIntInfo = pVmxTransient->uExitIntInfo;
     uint32_t const uExitIntType = VMX_EXIT_INT_INFO_TYPE(uExitIntInfo);
@@ -9392,18 +9941,16 @@ HMVMX_EXIT_DECL vmxHCExitXcptOrNmiNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTrans
         case VMX_EXIT_INT_INFO_TYPE_PRIV_SW_XCPT:
         case VMX_EXIT_INT_INFO_TYPE_HW_XCPT:
         {
-            vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
-            vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-            vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-            vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<  HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                                 | HMVMX_READ_EXIT_INSTR_LEN
+                                 | HMVMX_READ_IDT_VECTORING_INFO
+                                 | HMVMX_READ_IDT_VECTORING_ERROR_CODE>(pVCpu, pVmxTransient);
 
             PCCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-            bool const fIntercept = CPUMIsGuestVmxXcptInterceptSet(pCtx, VMX_EXIT_INT_INFO_VECTOR(uExitIntInfo),
-                                                                   pVmxTransient->uExitIntErrorCode);
-            if (fIntercept)
+            if (CPUMIsGuestVmxXcptInterceptSet(pCtx, VMX_EXIT_INT_INFO_VECTOR(uExitIntInfo), pVmxTransient->uExitIntErrorCode))
             {
                 /* Exit qualification is required for debug and page-fault exceptions. */
-                vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+                vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
 
                 /*
                  * For VM-exits due to software exceptions (those generated by INT3 or INTO) and privileged
@@ -9411,13 +9958,13 @@ HMVMX_EXIT_DECL vmxHCExitXcptOrNmiNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTrans
                  * length. However, if delivery of a software interrupt, software exception or privileged
                  * software exception causes a VM-exit, that too provides the VM-exit instruction length.
                  */
-                VMXVEXITINFO const      ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+                VMXVEXITINFO const      ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
                 VMXVEXITEVENTINFO const ExitEventInfo = VMXVEXITEVENTINFO_INIT(pVmxTransient->uExitIntInfo,
                                                                                pVmxTransient->uExitIntErrorCode,
                                                                                pVmxTransient->uIdtVectoringInfo,
                                                                                pVmxTransient->uIdtVectoringErrorCode);
 #ifdef DEBUG_ramshankar
-                vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+                vmxHCImportGuestStateEx(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
                 Log4Func(("exit_int_info=%#RX32 err_code=%#RX32 exit_qual=%#RX64\n",
                           pVmxTransient->uExitIntInfo, pVmxTransient->uExitIntErrorCode, pVmxTransient->uExitQual));
                 if (VMX_IDT_VECTORING_INFO_IS_VALID(pVmxTransient->uIdtVectoringInfo))
@@ -9498,12 +10045,12 @@ HMVMX_EXIT_DECL vmxHCExitTaskSwitchNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTran
 {
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN
+                         | HMVMX_READ_IDT_VECTORING_INFO
+                         | HMVMX_READ_IDT_VECTORING_ERROR_CODE>(pVCpu, pVmxTransient);
 
-    VMXVEXITINFO const      ExitInfo      = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO const      ExitInfo      = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
     VMXVEXITEVENTINFO const ExitEventInfo = VMXVEXITEVENTINFO_INIT_ONLY_IDT(pVmxTransient->uIdtVectoringInfo,
                                                                             pVmxTransient->uIdtVectoringErrorCode);
     return IEMExecVmxVmexitTaskSwitch(pVCpu, &ExitInfo, &ExitEventInfo);
@@ -9519,7 +10066,7 @@ HMVMX_EXIT_DECL vmxHCExitHltNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_HLT_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitHlt(pVCpu, pVmxTransient);
@@ -9535,10 +10082,9 @@ HMVMX_EXIT_DECL vmxHCExitInvlpgNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_INVLPG_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-        vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-
-        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+        vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                             | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
         return IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return vmxHCExitInvlpg(pVCpu, pVmxTransient);
@@ -9554,7 +10100,7 @@ HMVMX_EXIT_DECL vmxHCExitRdpmcNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_RDPMC_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitRdpmc(pVCpu, pVmxTransient);
@@ -9572,7 +10118,7 @@ HMVMX_EXIT_DECL vmxHCExitVmreadVmwriteNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxT
     Assert(   pVmxTransient->uExitReason == VMX_EXIT_VMREAD
            || pVmxTransient->uExitReason == VMX_EXIT_VMWRITE);
 
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_INFO>(pVCpu, pVmxTransient);
 
     uint8_t const iGReg = pVmxTransient->ExitInstrInfo.VmreadVmwrite.iReg2;
     Assert(iGReg < RT_ELEMENTS(pVCpu->cpum.GstCtx.aGRegs));
@@ -9584,10 +10130,9 @@ HMVMX_EXIT_DECL vmxHCExitVmreadVmwriteNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxT
 
     if (CPUMIsGuestVmxVmreadVmwriteInterceptSet(pVCpu, pVmxTransient->uExitReason, u64VmcsField))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-        vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-
-        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+        vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                             | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
         return IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
 
@@ -9606,7 +10151,7 @@ HMVMX_EXIT_DECL vmxHCExitRdtscNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_RDTSC_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
 
@@ -9622,8 +10167,8 @@ HMVMX_EXIT_DECL vmxHCExitMovCRxNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
 {
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
 
     VBOXSTRICTRC rcStrict;
     uint32_t const uAccessType = VMX_EXIT_QUAL_CRX_ACCESS(pVmxTransient->uExitQual);
@@ -9658,12 +10203,12 @@ HMVMX_EXIT_DECL vmxHCExitMovCRxNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
             }
             if (fIntercept)
             {
-                VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+                VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
                 rcStrict = IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
             }
             else
             {
-                int const rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, IEM_CPUMCTX_EXTRN_MUST_MASK);
+                int const rc = vmxHCImportGuestState<IEM_CPUMCTX_EXTRN_MUST_MASK>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
                 AssertRCReturn(rc, rc);
                 rcStrict = vmxHCExitMovToCrX(pVCpu, pVmxTransient->cbExitInstr, iGReg, iCrReg);
             }
@@ -9687,7 +10232,7 @@ HMVMX_EXIT_DECL vmxHCExitMovCRxNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
                 uint32_t const uIntercept = s_auCrXReadIntercepts[iCrReg];
                 if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, uIntercept))
                 {
-                    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+                    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
                     rcStrict = IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
                 }
                 else
@@ -9712,7 +10257,7 @@ HMVMX_EXIT_DECL vmxHCExitMovCRxNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
             if (   (uGstHostMask & X86_CR0_TS)
                 && (uReadShadow  & X86_CR0_TS))
             {
-                VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+                VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
                 rcStrict = IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
             }
             else
@@ -9727,7 +10272,7 @@ HMVMX_EXIT_DECL vmxHCExitMovCRxNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
             bool const     fMemOperand = VMX_EXIT_QUAL_CRX_LMSW_OP_MEM(pVmxTransient->uExitQual);
             if (fMemOperand)
             {
-                vmxHCReadGuestLinearAddrVmcs(pVCpu, pVmxTransient);
+                vmxHCReadToTransient<HMVMX_READ_GUEST_LINEAR_ADDR>(pVCpu, pVmxTransient);
                 GCPtrEffDst = pVmxTransient->uGuestLinearAddr;
             }
             else
@@ -9735,7 +10280,7 @@ HMVMX_EXIT_DECL vmxHCExitMovCRxNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
 
             if (CPUMIsGuestVmxLmswInterceptSet(&pVCpu->cpum.GstCtx, uNewMsw))
             {
-                VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+                VMXVEXITINFO ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
                 ExitInfo.u64GuestLinearAddr = GCPtrEffDst;
                 rcStrict = IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
             }
@@ -9770,10 +10315,9 @@ HMVMX_EXIT_DECL vmxHCExitMovDRxNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_MOV_DR_EXIT))
     {
-        vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-
-        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+        vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                             | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
         return IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return vmxHCExitMovDRx(pVCpu, pVmxTransient);
@@ -9788,7 +10332,7 @@ HMVMX_EXIT_DECL vmxHCExitIoInstrNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
 {
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
 
     uint32_t const uIOPort = VMX_EXIT_QUAL_IO_PORT(pVmxTransient->uExitQual);
     uint8_t  const uIOSize = VMX_EXIT_QUAL_IO_SIZE(pVmxTransient->uExitQual);
@@ -9808,7 +10352,7 @@ HMVMX_EXIT_DECL vmxHCExitIoInstrNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
          *   - Optionally provides VM-exit instruction info (depends on CPU feature).
          */
         PVMCC pVM = pVCpu->CTX_SUFF(pVM);
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
 
         /* Make sure we don't use stale/uninitialized VMX-transient info. below. */
         pVmxTransient->ExitInstrInfo.u  = 0;
@@ -9818,15 +10362,15 @@ HMVMX_EXIT_DECL vmxHCExitIoInstrNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
         bool const fIOString       = VMX_EXIT_QUAL_IO_IS_STRING(pVmxTransient->uExitQual);
         if (fIOString)
         {
-            vmxHCReadGuestLinearAddrVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_GUEST_LINEAR_ADDR>(pVCpu, pVmxTransient);
             if (fVmxInsOutsInfo)
             {
                 Assert(RT_BF_GET(g_HmMsrs.u.vmx.u64Basic, VMX_BF_BASIC_VMCS_INS_OUTS)); /* Paranoia. */
-                vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
+                vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_INFO>(pVCpu, pVmxTransient);
             }
         }
 
-        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_AND_LIN_ADDR_FROM_TRANSIENT(pVmxTransient);
+        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_AND_LIN_ADDR_FROM_TRANSIENT(pVmxTransient);
         return IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return vmxHCExitIoInstr(pVCpu, pVmxTransient);
@@ -9848,7 +10392,7 @@ HMVMX_EXIT_DECL vmxHCExitRdmsrNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient
 
     if (fMsrpm & VMXMSRPM_EXIT_RD)
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitRdmsr(pVCpu, pVmxTransient);
@@ -9870,7 +10414,7 @@ HMVMX_EXIT_DECL vmxHCExitWrmsrNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient
 
     if (fMsrpm & VMXMSRPM_EXIT_WR)
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitWrmsr(pVCpu, pVmxTransient);
@@ -9886,7 +10430,7 @@ HMVMX_EXIT_DECL vmxHCExitMwaitNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_MWAIT_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitMwait(pVCpu, pVmxTransient);
@@ -9902,8 +10446,8 @@ HMVMX_EXIT_DECL vmxHCExitMtfNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient)
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     /** @todo NSTVMX: Should consider debugging nested-guests using VM debugger. */
-    vmxHCReadGuestPendingDbgXctps(pVCpu, pVmxTransient);
-    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_DBG_XCPTS_FROM_TRANSIENT(pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_GUEST_PENDING_DBG_XCPTS>(pVCpu, pVmxTransient);
+    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_DBG_XCPTS_FROM_TRANSIENT(pVmxTransient);
     return IEMExecVmxVmexitTrapLike(pVCpu, &ExitInfo);
 }
 
@@ -9917,7 +10461,7 @@ HMVMX_EXIT_DECL vmxHCExitMonitorNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_MONITOR_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitMonitor(pVCpu, pVmxTransient);
@@ -9939,7 +10483,7 @@ HMVMX_EXIT_DECL vmxHCExitPauseNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient
     if (   CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_PAUSE_EXIT)
         || CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_PAUSE_LOOP_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitPause(pVCpu, pVmxTransient);
@@ -9956,8 +10500,8 @@ HMVMX_EXIT_NSRC_DECL vmxHCExitTprBelowThresholdNested(PVMCPUCC pVCpu, PVMXTRANSI
 
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_USE_TPR_SHADOW))
     {
-        vmxHCReadGuestPendingDbgXctps(pVCpu, pVmxTransient);
-        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_DBG_XCPTS_FROM_TRANSIENT(pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_GUEST_PENDING_DBG_XCPTS>(pVCpu, pVmxTransient);
+        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_DBG_XCPTS_FROM_TRANSIENT(pVmxTransient);
         return IEMExecVmxVmexitTrapLike(pVCpu, &ExitInfo);
     }
     return vmxHCExitTprBelowThreshold(pVCpu, pVmxTransient);
@@ -9972,17 +10516,17 @@ HMVMX_EXIT_DECL vmxHCExitApicAccessNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTran
 {
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-    vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN
+                         | HMVMX_READ_IDT_VECTORING_INFO
+                         | HMVMX_READ_IDT_VECTORING_ERROR_CODE>(pVCpu, pVmxTransient);
 
     Assert(CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_VIRT_APIC_ACCESS));
 
     Log4Func(("at offset %#x type=%u\n", VMX_EXIT_QUAL_APIC_ACCESS_OFFSET(pVmxTransient->uExitQual),
               VMX_EXIT_QUAL_APIC_ACCESS_TYPE(pVmxTransient->uExitQual)));
 
-    VMXVEXITINFO const      ExitInfo      = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
+    VMXVEXITINFO const      ExitInfo      = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_FROM_TRANSIENT(pVmxTransient);
     VMXVEXITEVENTINFO const ExitEventInfo = VMXVEXITEVENTINFO_INIT_ONLY_IDT(pVmxTransient->uIdtVectoringInfo,
                                                                             pVmxTransient->uIdtVectoringErrorCode);
     return IEMExecVmxVmexitApicAccess(pVCpu, &ExitInfo, &ExitEventInfo);
@@ -9998,7 +10542,7 @@ HMVMX_EXIT_DECL vmxHCExitApicWriteNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTrans
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     Assert(CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_APIC_REG_VIRT));
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
     return IEMExecVmxVmexit(pVCpu, pVmxTransient->uExitReason, pVmxTransient->uExitQual);
 }
 
@@ -10012,7 +10556,7 @@ HMVMX_EXIT_DECL vmxHCExitVirtEoiNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
     HMVMX_VALIDATE_NESTED_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
 
     Assert(CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_VIRT_INT_DELIVERY));
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
     return IEMExecVmxVmexit(pVCpu, pVmxTransient->uExitReason, pVmxTransient->uExitQual);
 }
 
@@ -10027,7 +10571,7 @@ HMVMX_EXIT_DECL vmxHCExitRdtscpNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransien
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_RDTSC_EXIT))
     {
         Assert(CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_RDTSCP));
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitRdtscp(pVCpu, pVmxTransient);
@@ -10043,7 +10587,7 @@ HMVMX_EXIT_NSRC_DECL vmxHCExitWbinvdNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTra
 
     if (CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_WBINVD_EXIT))
     {
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
         return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
     }
     return vmxHCExitWbinvd(pVCpu, pVmxTransient);
@@ -10060,11 +10604,10 @@ HMVMX_EXIT_DECL vmxHCExitInvpcidNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransie
     if (CPUMIsGuestVmxProcCtlsSet(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS_INVLPG_EXIT))
     {
         Assert(CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_INVPCID));
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-        vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-        vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-
-        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+        vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                             | HMVMX_READ_EXIT_INSTR_INFO
+                             | HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
+        VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
         return IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return vmxHCExitInvpcid(pVCpu, pVmxTransient);
@@ -10115,7 +10658,7 @@ HMVMX_EXIT_DECL vmxHCExitInstrNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTransient
     }
 #endif
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
+    vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_LEN>(pVCpu, pVmxTransient);
     return IEMExecVmxVmexitInstr(pVCpu, pVmxTransient->uExitReason, pVmxTransient->cbExitInstr);
 }
 
@@ -10165,11 +10708,10 @@ HMVMX_EXIT_DECL vmxHCExitInstrWithInfoNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxT
     }
 # endif
 
-    vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-    vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
-
-    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
+    vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                         | HMVMX_READ_EXIT_INSTR_LEN
+                         | HMVMX_READ_EXIT_INSTR_INFO>(pVCpu, pVmxTransient);
+    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_FROM_TRANSIENT(pVmxTransient);
     return IEMExecVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
 }
 
@@ -10184,23 +10726,18 @@ HMVMX_EXIT_DECL vmxHCExitEptViolationNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTr
     HMVMX_VALIDATE_EXIT_HANDLER_PARAMS(pVCpu, pVmxTransient);
     Assert(pVCpu->CTX_SUFF(pVM)->hmr0.s.fNestedPaging);
 
-//#  define DSL_IRQ_FIX_1
-#  define DSL_IRQ_FIX_2
-
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
     if (CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_EPT))
     {
-        int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+        vmxHCReadToTransient<  HMVMX_READ_EXIT_QUALIFICATION
+                             | HMVMX_READ_EXIT_INSTR_LEN
+                             | HMVMX_READ_EXIT_INTERRUPTION_INFO
+                             | HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE
+                             | HMVMX_READ_IDT_VECTORING_INFO
+                             | HMVMX_READ_IDT_VECTORING_ERROR_CODE
+                             | HMVMX_READ_GUEST_PHYSICAL_ADDR>(pVCpu, pVmxTransient);
+        int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmcsInfo, __FUNCTION__);
         AssertRCReturn(rc, rc);
-
-        vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-        vmxHCReadGuestPhysicalAddrVmcs(pVCpu, pVmxTransient);
-#  ifdef DSL_IRQ_FIX_2
-        vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
-        vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-        vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-        vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
 
         /*
          * If it's our VMEXIT, we're responsible for re-injecting any event which delivery
@@ -10216,9 +10753,6 @@ HMVMX_EXIT_DECL vmxHCExitEptViolationNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTr
             return rcStrict;
         }
         bool const fClearEventOnForward = VCPU_2_VMXSTATE(pVCpu).Event.fPending; /* paranoia. should not inject events below.  */
-#  else
-        VBOXSTRICTRC rcStrict;
-#  endif
 
         RTGCPHYS const GCPhysNestedFault = pVmxTransient->uGuestPhysicalAddr;
         uint64_t const uExitQual         = pVmxTransient->uExitQual;
@@ -10227,7 +10761,7 @@ HMVMX_EXIT_DECL vmxHCExitEptViolationNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTr
         bool const fIsLinearAddrValid = RT_BOOL(uExitQual & VMX_EXIT_QUAL_EPT_LINEAR_ADDR_VALID);
         if (fIsLinearAddrValid)
         {
-            vmxHCReadGuestLinearAddrVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_GUEST_LINEAR_ADDR>(pVCpu, pVmxTransient);
             GCPtrNestedFault = pVmxTransient->uGuestLinearAddr;
         }
         else
@@ -10241,56 +10775,26 @@ HMVMX_EXIT_DECL vmxHCExitEptViolationNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTr
 
         PGMPTWALK Walk;
         PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
-        rcStrict = PGMR0NestedTrap0eHandlerNestedPaging(pVCpu, PGMMODE_EPT, uErr, CPUMCTX2CORE(pCtx),
-                                                        GCPhysNestedFault, fIsLinearAddrValid, GCPtrNestedFault,
-                                                        &Walk);
+        rcStrict = PGMR0NestedTrap0eHandlerNestedPaging(pVCpu, PGMMODE_EPT, uErr, pCtx, GCPhysNestedFault,
+                                                        fIsLinearAddrValid, GCPtrNestedFault, &Walk);
         Log7Func(("PGM (uExitQual=%#RX64, %RGp, %RGv) -> %Rrc (fFailed=%d)\n",
                   uExitQual, GCPhysNestedFault, GCPtrNestedFault, VBOXSTRICTRC_VAL(rcStrict), Walk.fFailed));
         if (RT_SUCCESS(rcStrict))
-        {
-#  ifdef DSL_IRQ_FIX_1
-            /*
-             * If it's our VMEXIT, we're responsible for re-injecting any event which delivery
-             * might have triggered this VMEXIT.  If we forward the problem to the inner VMM,
-             * it's its problem to deal with that issue.  This means that it's troublesome to
-             * call vmxHCCheckExitDueToEventDelivery before PGMR0NestedTrap0eHandlerNestedPaging
-             * have decided who's VMEXIT it is. Unfortunately, we're a bit of a pickle then if
-             * we end up with an informational status here, as we _must_ _not_ drop events either.
-             */
-            /** @todo need better solution for this.  Better solution should probably be
-             *        applied to other exits too...   */
-            if (rcStrict == VINF_SUCCESS)
-            {
-                vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
-                vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
-                vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-                vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-                vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
-
-                vmxHCCheckExitDueToEventDelivery(pVCpu, pVmxTransient);
-            }
-#  endif
             return rcStrict;
-        }
 
-        vmxHCReadExitInstrLenVmcs(pVCpu, pVmxTransient);
-        vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-        vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
-#  ifdef DSL_IRQ_FIX_2
         if (fClearEventOnForward)
             VCPU_2_VMXSTATE(pVCpu).Event.fPending = false;
-#  endif
 
         VMXVEXITEVENTINFO const ExitEventInfo = VMXVEXITEVENTINFO_INIT_ONLY_IDT(pVmxTransient->uIdtVectoringInfo,
                                                                                 pVmxTransient->uIdtVectoringErrorCode);
         if (Walk.fFailed & PGM_WALKFAIL_EPT_VIOLATION)
         {
             VMXVEXITINFO const ExitInfo
-                = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN_AND_GST_ADDRESSES(VMX_EXIT_EPT_VIOLATION,
-                                                                                   pVmxTransient->uExitQual,
-                                                                                   pVmxTransient->cbExitInstr,
-                                                                                   pVmxTransient->uGuestLinearAddr,
-                                                                                   pVmxTransient->uGuestPhysicalAddr);
+                = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN_AND_GST_ADDRESSES(VMX_EXIT_EPT_VIOLATION,
+                                                                              pVmxTransient->uExitQual,
+                                                                              pVmxTransient->cbExitInstr,
+                                                                              pVmxTransient->uGuestLinearAddr,
+                                                                              pVmxTransient->uGuestPhysicalAddr);
             return IEMExecVmxVmexitEptViolation(pVCpu, &ExitInfo, &ExitEventInfo);
         }
 
@@ -10314,15 +10818,14 @@ HMVMX_EXIT_DECL vmxHCExitEptMisconfigNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTr
     PVMXVMCSINFO pVmcsInfo = pVmxTransient->pVmcsInfo;
     if (CPUMIsGuestVmxProcCtls2Set(&pVCpu->cpum.GstCtx, VMX_PROC_CTLS2_EPT))
     {
-        int rc = vmxHCImportGuestState(pVCpu, pVmcsInfo, CPUMCTX_EXTRN_ALL);
+        vmxHCReadToTransient<HMVMX_READ_GUEST_PHYSICAL_ADDR>(pVCpu, pVmxTransient);
+        int rc = vmxHCImportGuestState<CPUMCTX_EXTRN_ALL>(pVCpu, pVmcsInfo, __FUNCTION__);
         AssertRCReturn(rc, rc);
-
-        vmxHCReadGuestPhysicalAddrVmcs(pVCpu, pVmxTransient);
 
         PGMPTWALK Walk;
         PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
         RTGCPHYS const GCPhysNestedFault = pVmxTransient->uGuestPhysicalAddr;
-        VBOXSTRICTRC rcStrict = PGMR0NestedTrap0eHandlerNestedPaging(pVCpu, PGMMODE_EPT, X86_TRAP_PF_RSVD, CPUMCTX2CORE(pCtx),
+        VBOXSTRICTRC rcStrict = PGMR0NestedTrap0eHandlerNestedPaging(pVCpu, PGMMODE_EPT, X86_TRAP_PF_RSVD, pCtx,
                                                                      GCPhysNestedFault, false /* fIsLinearAddrValid */,
                                                                      0 /* GCPtrNestedFault */, &Walk);
         if (RT_SUCCESS(rcStrict))
@@ -10332,8 +10835,8 @@ HMVMX_EXIT_DECL vmxHCExitEptMisconfigNested(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxTr
         }
 
         AssertMsg(Walk.fFailed & PGM_WALKFAIL_EPT_MISCONFIG, ("GCPhysNestedFault=%#RGp\n", GCPhysNestedFault));
-        vmxHCReadIdtVectoringInfoVmcs(pVCpu, pVmxTransient);
-        vmxHCReadIdtVectoringErrorCodeVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<  HMVMX_READ_IDT_VECTORING_INFO
+                             | HMVMX_READ_IDT_VECTORING_ERROR_CODE>(pVCpu, pVmxTransient);
 
         VMXVEXITEVENTINFO const ExitEventInfo = VMXVEXITEVENTINFO_INIT_ONLY_IDT(pVmxTransient->uIdtVectoringInfo,
                                                                                 pVmxTransient->uIdtVectoringErrorCode);
@@ -10718,8 +11221,8 @@ static void vmxHCPreRunGuestDebugStateUpdate(PVMCPUCC pVCpu, PVMXTRANSIENT pVmxT
     if (   IS_EITHER_ENABLED(pVM, INSTR_CRX_READ)
         || IS_EITHER_ENABLED(pVM, INSTR_CRX_WRITE))
     {
-        int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_CR4
-                                                                        | CPUMCTX_EXTRN_APIC_TPR);
+        int rc = vmxHCImportGuestStateEx(pVCpu, pVmxTransient->pVmcsInfo,
+                                         CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_CR4 | CPUMCTX_EXTRN_APIC_TPR);
         AssertRC(rc);
 
 #if 0 /** @todo fix me */
@@ -10919,7 +11422,7 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
                     {
                         if (VMX_EXIT_INT_INFO_IS_ERROR_CODE_VALID(pVmxTransient->uExitIntInfo))
                         {
-                            vmxHCReadExitIntErrorCodeVmcs(pVCpu, pVmxTransient);
+                            vmxHCReadToTransient<HMVMX_READ_EXIT_INTERRUPTION_ERROR_CODE>(pVCpu, pVmxTransient);
                             uEventArg = pVmxTransient->uExitIntErrorCode;
                         }
                         enmEvent1 = (DBGFEVENTTYPE)(DBGFEVENT_XCPT_FIRST + idxVector);
@@ -10989,7 +11492,7 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
         case VMX_EXIT_VMXOFF:           SET_BOTH(VMX_VMXOFF); break;
         case VMX_EXIT_VMXON:            SET_BOTH(VMX_VMXON); break;
         case VMX_EXIT_MOV_CRX:
-            vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
             if (VMX_EXIT_QUAL_CRX_ACCESS(pVmxTransient->uExitQual) == VMX_EXIT_QUAL_CRX_ACCESS_READ)
                 SET_BOTH(CRX_READ);
             else
@@ -10997,7 +11500,7 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
             uEventArg = VMX_EXIT_QUAL_CRX_REGISTER(pVmxTransient->uExitQual);
             break;
         case VMX_EXIT_MOV_DRX:
-            vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
             if (   VMX_EXIT_QUAL_DRX_DIRECTION(pVmxTransient->uExitQual)
                 == VMX_EXIT_QUAL_DRX_DIRECTION_READ)
                 SET_BOTH(DRX_READ);
@@ -11011,7 +11514,7 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
         case VMX_EXIT_MONITOR:          SET_BOTH(MONITOR); break;
         case VMX_EXIT_PAUSE:            SET_BOTH(PAUSE); break;
         case VMX_EXIT_GDTR_IDTR_ACCESS:
-            vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_INFO>(pVCpu, pVmxTransient);
             switch (RT_BF_GET(pVmxTransient->ExitInstrInfo.u, VMX_BF_XDTR_INSINFO_INSTR_ID))
             {
                 case VMX_XDTR_INSINFO_II_SGDT: SET_BOTH(SGDT); break;
@@ -11022,7 +11525,7 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
             break;
 
         case VMX_EXIT_LDTR_TR_ACCESS:
-            vmxHCReadExitInstrInfoVmcs(pVCpu, pVmxTransient);
+            vmxHCReadToTransient<HMVMX_READ_EXIT_INSTR_INFO>(pVCpu, pVmxTransient);
             switch (RT_BF_GET(pVmxTransient->ExitInstrInfo.u, VMX_BF_YYTR_INSINFO_INSTR_ID))
             {
                 case VMX_YYTR_INSINFO_II_SLDT: SET_BOTH(SLDT); break;
@@ -11080,8 +11583,8 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
      */
     if (fDtrace1 || fDtrace2)
     {
-        vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-        vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
+        vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
         PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
         switch (enmEvent1)
         {
@@ -11227,7 +11730,7 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
     if (   enmEvent1 != DBGFEVENT_END
         && DBGF_IS_EVENT_ENABLED(pVM, enmEvent1))
     {
-        vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP);
+        vmxHCImportGuestState<CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
         VBOXSTRICTRC rcStrict = DBGFEventGenericWithArgs(pVM, pVCpu, enmEvent1, DBGFEVENTCTX_HM, 1, uEventArg);
         if (rcStrict != VINF_SUCCESS)
             return rcStrict;
@@ -11235,7 +11738,7 @@ static VBOXSTRICTRC vmxHCHandleExitDtraceEvents(PVMCPUCC pVCpu, PVMXTRANSIENT pV
     else if (   enmEvent2 != DBGFEVENT_END
              && DBGF_IS_EVENT_ENABLED(pVM, enmEvent2))
     {
-        vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP);
+        vmxHCImportGuestState<CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
         VBOXSTRICTRC rcStrict = DBGFEventGenericWithArgs(pVM, pVCpu, enmEvent2, DBGFEVENTCTX_HM, 1, uEventArg);
         if (rcStrict != VINF_SUCCESS)
             return rcStrict;
@@ -11267,8 +11770,8 @@ DECLINLINE(VBOXSTRICTRC) vmxHCRunDebugHandleExit(PVMCPUCC pVCpu, PVMXTRANSIENT p
     { /* more likely */ }
     else
     {
-        vmxHCReadExitQualVmcs(pVCpu, pVmxTransient);
-        int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, HMVMX_CPUMCTX_EXTRN_ALL);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_QUALIFICATION>(pVCpu, pVmxTransient);
+        int rc = vmxHCImportGuestState<HMVMX_CPUMCTX_EXTRN_ALL>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
         AssertRC(rc);
         VBOXVMM_R0_HMVMX_VMEXIT(pVCpu, &pVCpu->cpum.GstCtx, pVmxTransient->uExitReason, pVmxTransient->uExitQual);
     }
@@ -11281,7 +11784,7 @@ DECLINLINE(VBOXSTRICTRC) vmxHCRunDebugHandleExit(PVMCPUCC pVCpu, PVMXTRANSIENT p
     { /* normally likely */ }
     else
     {
-        vmxHCReadExitIntInfoVmcs(pVCpu, pVmxTransient);
+        vmxHCReadToTransient<HMVMX_READ_EXIT_INTERRUPTION_INFO>(pVCpu, pVmxTransient);
         uint32_t const uIntType = VMX_EXIT_INT_INFO_TYPE(pVmxTransient->uExitIntInfo);
         if (uIntType == VMX_EXIT_INT_INFO_TYPE_NMI)
             return hmR0VmxExitHostNmi(pVCpu, pVmxTransient->pVmcsInfo);
@@ -11352,7 +11855,7 @@ DECLINLINE(VBOXSTRICTRC) vmxHCRunDebugHandleExit(PVMCPUCC pVCpu, PVMXTRANSIENT p
             case VMX_EXIT_XSAVES:
             case VMX_EXIT_XRSTORS:
             {
-                int rc = vmxHCImportGuestState(pVCpu, pVmxTransient->pVmcsInfo, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP);
+                int rc = vmxHCImportGuestState<CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_RIP>(pVCpu, pVmxTransient->pVmcsInfo, __FUNCTION__);
                 AssertRCReturn(rc, rc);
                 if (   pVCpu->cpum.GstCtx.rip    != pDbgState->uRipStart
                     || pVCpu->cpum.GstCtx.cs.Sel != pDbgState->uCsStart)

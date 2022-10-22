@@ -695,6 +695,9 @@ DECLINLINE(uint8_t) iemVmxGetEventType(uint32_t uVector, uint32_t fFlags)
  *
  * @returns @c true if PAE paging mode is used, @c false otherwise.
  * @param   pVmcs       Pointer to the virtual VMCS.
+ *
+ * @warning Only use this prior to switching the guest-CPU state with the
+ *          nested-guest CPU state!
  */
 DECL_FORCE_INLINE(bool) iemVmxVmcsIsGuestPaePagingEnabled(PCVMXVVMCS pVmcs)
 {
@@ -1184,7 +1187,7 @@ static void iemVmxVmexitSaveGuestControlRegsMsrs(PVMCPUCC pVCpu) RT_NOEXCEPT
 static void iemVmxVmentrySaveNmiBlockingFF(PVMCPUCC pVCpu) RT_NOEXCEPT
 {
     /* We shouldn't be called multiple times during VM-entry. */
-    Assert(pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions == 0);
+    Assert(pVCpu->cpum.GstCtx.hwvirt.fSavedInhibit == 0);
 
     /* MTF should not be set outside VMX non-root mode. */
     Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_MTF));
@@ -1217,7 +1220,7 @@ static void iemVmxVmentrySaveNmiBlockingFF(PVMCPUCC pVCpu) RT_NOEXCEPT
      * we will be able to generate interrupts that may cause VM-exits for
      * the nested-guest.
      */
-    pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions = pVCpu->fLocalForcedActions & VMCPU_FF_BLOCK_NMIS;
+    pVCpu->cpum.GstCtx.hwvirt.fSavedInhibit = pVCpu->cpum.GstCtx.fInhibit & CPUMCTX_INHIBIT_NMI;
 }
 
 
@@ -1228,11 +1231,11 @@ static void iemVmxVmentrySaveNmiBlockingFF(PVMCPUCC pVCpu) RT_NOEXCEPT
  */
 static void iemVmxVmexitRestoreNmiBlockingFF(PVMCPUCC pVCpu) RT_NOEXCEPT
 {
-    if (pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions)
-    {
-        VMCPU_FF_SET_MASK(pVCpu, pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions);
-        pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions = 0;
-    }
+    /** @todo r=bird: why aren't we clearing the nested guest flags first here?
+     *        If there is some other code doing that already, it would be great
+     *        to point to it here... */
+    pVCpu->cpum.GstCtx.fInhibit |= pVCpu->cpum.GstCtx.hwvirt.fSavedInhibit;
+    pVCpu->cpum.GstCtx.hwvirt.fSavedInhibit = 0;
 }
 
 
@@ -1462,20 +1465,22 @@ static void iemVmxVmexitSaveGuestNonRegState(PVMCPUCC pVCpu, uint32_t uExitReaso
     }
     else
     {
-        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+        if (CPUMAreInterruptsInhibitedByNmi(&pVCpu->cpum.GstCtx))
             pVmcs->u32GuestIntrState |= VMX_VMCS_GUEST_INT_STATE_BLOCK_NMI;
     }
 
     /* Blocking-by-STI. */
-    if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-        && pVCpu->cpum.GstCtx.rip == EMGetInhibitInterruptsPC(pVCpu))
+    if (!CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx))
+    { /* probable */}
+    else
     {
         /** @todo NSTVMX: We can't distinguish between blocking-by-MovSS and blocking-by-STI
          *        currently. */
-        pVmcs->u32GuestIntrState |= VMX_VMCS_GUEST_INT_STATE_BLOCK_STI;
+        if (pVCpu->cpum.GstCtx.rip == pVCpu->cpum.GstCtx.uRipInhibitInt)
+            pVmcs->u32GuestIntrState |= VMX_VMCS_GUEST_INT_STATE_BLOCK_STI; /** @todo r=bird: Why the STI one? MOVSS seems to block more and the one to use. */
 
         /* Clear inhibition unconditionally since we've ensured it isn't set prior to executing VMLAUNCH/VMRESUME. */
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+        CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
     }
     /* Nothing to do for SMI/enclave. We don't support enclaves or SMM yet. */
 
@@ -1506,41 +1511,36 @@ static void iemVmxVmexitSaveGuestNonRegState(PVMCPUCC pVCpu, uint32_t uExitReaso
         pVmcs->u32PreemptTimer = iemVmxCalcPreemptTimer(pVCpu);
 
     /*
-     * PAE PDPTEs.
-     *
-     * If EPT is enabled and PAE paging was used at the time of the VM-exit,
-     * the PDPTEs are saved from the VMCS. Otherwise they're undefined but
-     * we zero them for consistency.
+     * Save the guest PAE PDPTEs.
      */
-    if (pVmcs->u32ProcCtls2 & VMX_PROC_CTLS2_EPT)
+    if (   !CPUMIsGuestInPAEModeEx(&pVCpu->cpum.GstCtx)
+        || !(pVmcs->u32ProcCtls2 & VMX_PROC_CTLS2_EPT))
     {
-        if (   !(pVmcs->u32EntryCtls & VMX_ENTRY_CTLS_IA32E_MODE_GUEST)
-            &&  (pVCpu->cpum.GstCtx.cr4 & X86_CR4_PAE)
-            &&  (pVCpu->cpum.GstCtx.cr0 & X86_CR0_PG))
-        {
-            pVmcs->u64GuestPdpte0.u = pVCpu->cpum.GstCtx.aPaePdpes[0].u;
-            pVmcs->u64GuestPdpte1.u = pVCpu->cpum.GstCtx.aPaePdpes[1].u;
-            pVmcs->u64GuestPdpte2.u = pVCpu->cpum.GstCtx.aPaePdpes[2].u;
-            pVmcs->u64GuestPdpte3.u = pVCpu->cpum.GstCtx.aPaePdpes[3].u;
-        }
-        else
-        {
-            pVmcs->u64GuestPdpte0.u = 0;
-            pVmcs->u64GuestPdpte1.u = 0;
-            pVmcs->u64GuestPdpte2.u = 0;
-            pVmcs->u64GuestPdpte3.u = 0;
-        }
-
-        /* Clear PGM's copy of the EPT pointer for added safety. */
-        PGMSetGuestEptPtr(pVCpu, 0 /* uEptPtr */);
-    }
-    else
-    {
+        /*
+         * Without EPT or when the nested-guest is not using PAE paging, the values saved
+         * in the VMCS during VM-exit are undefined. We zero them here for consistency.
+         */
         pVmcs->u64GuestPdpte0.u = 0;
         pVmcs->u64GuestPdpte1.u = 0;
         pVmcs->u64GuestPdpte2.u = 0;
         pVmcs->u64GuestPdpte3.u = 0;
     }
+    else
+    {
+        /*
+         * With EPT and when the nested-guest is using PAE paging, we update the PDPTEs from
+         * the nested-guest CPU context. Both IEM (Mov CRx) and hardware-assisted execution
+         * of the nested-guest is expected to have updated them.
+         */
+        pVmcs->u64GuestPdpte0.u = pVCpu->cpum.GstCtx.aPaePdpes[0].u;
+        pVmcs->u64GuestPdpte1.u = pVCpu->cpum.GstCtx.aPaePdpes[1].u;
+        pVmcs->u64GuestPdpte2.u = pVCpu->cpum.GstCtx.aPaePdpes[2].u;
+        pVmcs->u64GuestPdpte3.u = pVCpu->cpum.GstCtx.aPaePdpes[3].u;
+    }
+
+    /* Clear PGM's copy of the EPT pointer for added safety. */
+    if (pVmcs->u32ProcCtls2 & VMX_PROC_CTLS2_EPT)
+        PGMSetGuestEptPtr(pVCpu, 0 /* uEptPtr */);
 }
 
 
@@ -2466,7 +2466,7 @@ VBOXSTRICTRC iemVmxVmexit(PVMCPUCC pVCpu, uint32_t uExitReason, uint64_t u64Exit
 
     Log2(("vmexit: reason=%u qual=%#RX64 cs:rip=%04x:%08RX64 cr0=%#RX64 cr3=%#RX64 cr4=%#RX64 eflags=%#RX32\n", uExitReason,
           pVmcs->u64RoExitQual.u, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.cr0,
-          pVCpu->cpum.GstCtx.cr3, pVCpu->cpum.GstCtx.cr4, pVCpu->cpum.GstCtx.eflags.u32));
+          pVCpu->cpum.GstCtx.cr3, pVCpu->cpum.GstCtx.cr4, pVCpu->cpum.GstCtx.eflags.u));
 
     /*
      * Update the IDT-vectoring information fields if the VM-exit is triggered during delivery of an event.
@@ -2565,7 +2565,7 @@ VBOXSTRICTRC iemVmxVmexit(PVMCPUCC pVCpu, uint32_t uExitReason, uint64_t u64Exit
             return iemVmxAbort(pVCpu, VMXABORT_SAVE_GUEST_MSRS);
 
         /* Clear any saved NMI-blocking state so we don't assert on next VM-entry (if it was in effect on the previous one). */
-        pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions &= ~VMCPU_FF_BLOCK_NMIS;
+        pVCpu->cpum.GstCtx.hwvirt.fSavedInhibit &= ~CPUMCTX_INHIBIT_NMI;
     }
     else
     {
@@ -2861,7 +2861,7 @@ VBOXSTRICTRC iemVmxVmexitInstrNeedsInfo(PVMCPUCC pVCpu, uint32_t uExitReason, VM
     RTGCPTR            GCPtrDisp;
     uint32_t const     uInstrInfo = iemVmxGetExitInstrInfo(pVCpu, uExitReason, uInstrId, &GCPtrDisp);
 
-    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO(uExitReason, GCPtrDisp, uInstrInfo, cbInstr);
+    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO(uExitReason, GCPtrDisp, uInstrInfo, cbInstr);
     return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
 }
 
@@ -2876,7 +2876,7 @@ VBOXSTRICTRC iemVmxVmexitInstrNeedsInfo(PVMCPUCC pVCpu, uint32_t uExitReason, VM
  */
 VBOXSTRICTRC iemVmxVmexitInstrInvlpg(PVMCPUCC pVCpu, RTGCPTR GCPtrPage, uint8_t cbInstr) RT_NOEXCEPT
 {
-    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_INVLPG, GCPtrPage, cbInstr);
+    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_INVLPG, GCPtrPage, cbInstr);
     Assert(IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fLongMode || !RT_HI_U32(ExitInfo.u64Qual));
     return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
 }
@@ -2907,13 +2907,12 @@ VBOXSTRICTRC iemVmxVmexitInstrLmsw(PVMCPUCC pVCpu, uint32_t uGuestCr0, uint16_t 
         Log2(("lmsw: Guest intercept -> VM-exit\n"));
         bool const fMemOperand = RT_BOOL(GCPtrEffDst != NIL_RTGCPTR);
         VMXVEXITINFO ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER,  0) /* CR0 */
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_LMSW_OP,   fMemOperand)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_LMSW_DATA, uNewMsw)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
-                                                                          VMX_EXIT_QUAL_CRX_ACCESS_LMSW),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
+                                                          RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER,  0) /* CR0 */
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_LMSW_OP,   fMemOperand)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_LMSW_DATA, uNewMsw)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,  VMX_EXIT_QUAL_CRX_ACCESS_LMSW),
+                                                        cbInstr);
         if (fMemOperand)
         {
             Assert(IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fLongMode || !RT_HI_U32(GCPtrEffDst));
@@ -2965,11 +2964,11 @@ VBOXSTRICTRC iemVmxVmexitInstrClts(PVMCPUCC pVCpu, uint8_t cbInstr) RT_NOEXCEPT
         {
             Log2(("clts: Guest intercept -> VM-exit\n"));
             VMXVEXITINFO const ExitInfo
-                = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
-                                                                   RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 0) /* CR0 */
-                                                                 | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
-                                                                              VMX_EXIT_QUAL_CRX_ACCESS_CLTS),
-                                                                 cbInstr);
+                = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
+                                                              RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 0) /* CR0 */
+                                                            | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
+                                                                         VMX_EXIT_QUAL_CRX_ACCESS_CLTS),
+                                                            cbInstr);
             return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
         }
         return VINF_VMX_MODIFIES_BEHAVIOR;
@@ -3009,12 +3008,11 @@ VBOXSTRICTRC iemVmxVmexitInstrMovToCr0Cr4(PVMCPUCC pVCpu, uint8_t iCrReg, uint64
     {
         Log2(("mov_Cr_Rd: (CR%u) Guest intercept -> VM-exit\n", iCrReg));
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, iCrReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
-                                                                          VMX_EXIT_QUAL_CRX_ACCESS_WRITE),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
+                                                          RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, iCrReg)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS, VMX_EXIT_QUAL_CRX_ACCESS_WRITE),
+                                                        cbInstr);
         return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
 
@@ -3065,12 +3063,11 @@ VBOXSTRICTRC iemVmxVmexitInstrMovFromCr3(PVMCPUCC pVCpu, uint8_t iGReg, uint8_t 
     {
         Log2(("mov_Rd_Cr: (CR3) Guest intercept -> VM-exit\n"));
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 3) /* CR3 */
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
-                                                                          VMX_EXIT_QUAL_CRX_ACCESS_READ),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
+                                                          RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 3) /* CR3 */
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS, VMX_EXIT_QUAL_CRX_ACCESS_READ),
+                                                        cbInstr);
         return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return VINF_VMX_INTERCEPT_NOT_ACTIVE;
@@ -3101,12 +3098,12 @@ VBOXSTRICTRC iemVmxVmexitInstrMovToCr3(PVMCPUCC pVCpu, uint64_t uNewCr3, uint8_t
     {
         Log2(("mov_Cr_Rd: (CR3) Guest intercept -> VM-exit\n"));
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 3) /* CR3 */
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
-                                                                          VMX_EXIT_QUAL_CRX_ACCESS_WRITE),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
+                                                           RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 3) /* CR3 */
+                                                         | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
+                                                         | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
+                                                                      VMX_EXIT_QUAL_CRX_ACCESS_WRITE),
+                                                         cbInstr);
         return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return VINF_VMX_INTERCEPT_NOT_ACTIVE;
@@ -3133,12 +3130,11 @@ VBOXSTRICTRC iemVmxVmexitInstrMovFromCr8(PVMCPUCC pVCpu, uint8_t iGReg, uint8_t 
     {
         Log2(("mov_Rd_Cr: (CR8) Guest intercept -> VM-exit\n"));
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 8) /* CR8 */
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
-                                                                          VMX_EXIT_QUAL_CRX_ACCESS_READ),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
+                                                          RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 8) /* CR8 */
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS, VMX_EXIT_QUAL_CRX_ACCESS_READ),
+                                                        cbInstr);
         return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return VINF_VMX_INTERCEPT_NOT_ACTIVE;
@@ -3166,12 +3162,11 @@ VBOXSTRICTRC iemVmxVmexitInstrMovToCr8(PVMCPUCC pVCpu, uint8_t iGReg, uint8_t cb
     {
         Log2(("mov_Cr_Rd: (CR8) Guest intercept -> VM-exit\n"));
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 8) /* CR8 */
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS,
-                                                                          VMX_EXIT_QUAL_CRX_ACCESS_WRITE),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_CRX,
+                                                          RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_REGISTER, 8) /* CR8 */
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_GENREG,   iGReg)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_CRX_ACCESS, VMX_EXIT_QUAL_CRX_ACCESS_WRITE),
+                                                        cbInstr);
         return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return VINF_VMX_INTERCEPT_NOT_ACTIVE;
@@ -3201,14 +3196,14 @@ VBOXSTRICTRC iemVmxVmexitInstrMovDrX(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint8_
     if (pVCpu->cpum.GstCtx.hwvirt.vmx.Vmcs.u32ProcCtls & VMX_PROC_CTLS_MOV_DR_EXIT)
     {
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MOV_DRX,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_DRX_REGISTER,  iDrReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_DRX_GENREG,    iGReg)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_DRX_DIRECTION,
-                                                                          uInstrId == VMXINSTRID_MOV_TO_DRX
-                                                                          ? VMX_EXIT_QUAL_DRX_DIRECTION_WRITE
-                                                                          : VMX_EXIT_QUAL_DRX_DIRECTION_READ),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MOV_DRX,
+                                                          RT_BF_MAKE(VMX_BF_EXIT_QUAL_DRX_REGISTER,  iDrReg)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_DRX_GENREG,    iGReg)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_DRX_DIRECTION,
+                                                                     uInstrId == VMXINSTRID_MOV_TO_DRX
+                                                                     ? VMX_EXIT_QUAL_DRX_DIRECTION_WRITE
+                                                                     : VMX_EXIT_QUAL_DRX_DIRECTION_READ),
+                                                        cbInstr);
             return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
 
@@ -3238,15 +3233,15 @@ VBOXSTRICTRC iemVmxVmexitInstrIo(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint16_t u
     if (CPUMIsGuestVmxIoInterceptSet(pVCpu, u16Port, cbAccess))
     {
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_IO_INSTR,
-                                                               RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_WIDTH,     cbAccess - 1)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_ENCODING,  fImm)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_PORT,      u16Port)
-                                                             | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_DIRECTION,
-                                                                          uInstrId == VMXINSTRID_IO_IN
-                                                                          ? VMX_EXIT_QUAL_IO_DIRECTION_IN
-                                                                          : VMX_EXIT_QUAL_IO_DIRECTION_OUT),
-                                                             cbInstr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_IO_INSTR,
+                                                          RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_WIDTH,     cbAccess - 1)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_ENCODING,  fImm)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_PORT,      u16Port)
+                                                        | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_DIRECTION,
+                                                                     uInstrId == VMXINSTRID_IO_IN
+                                                                     ? VMX_EXIT_QUAL_IO_DIRECTION_IN
+                                                                     : VMX_EXIT_QUAL_IO_DIRECTION_OUT),
+                                                        cbInstr);
         return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
     return VINF_VMX_INTERCEPT_NOT_ACTIVE;
@@ -3309,18 +3304,18 @@ VBOXSTRICTRC iemVmxVmexitInstrStrIo(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint16_
             uGuestLinearAddr = 0;
 
         VMXVEXITINFO const ExitInfo
-            = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_INFO_AND_LIN_ADDR(VMX_EXIT_IO_INSTR,
-                                                                             RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_WIDTH,   cbAccess - 1)
-                                                                           | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_DIRECTION, uDirection)
-                                                                           | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_IS_STRING, 1)
-                                                                           | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_IS_REP,    fRep)
-                                                                           | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_ENCODING,
-                                                                                        VMX_EXIT_QUAL_IO_ENCODING_DX)
-                                                                           | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_PORT,      u16Port),
-                                                                           IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fVmxInsOutInfo
-                                                                           ? ExitInstrInfo.u : 0,
-                                                                           cbInstr,
-                                                                           uGuestLinearAddr);
+            = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_INFO_AND_LIN_ADDR(VMX_EXIT_IO_INSTR,
+                                                                        RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_WIDTH,   cbAccess - 1)
+                                                                      | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_DIRECTION, uDirection)
+                                                                      | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_IS_STRING, 1)
+                                                                      | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_IS_REP,    fRep)
+                                                                      | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_ENCODING,
+                                                                                   VMX_EXIT_QUAL_IO_ENCODING_DX)
+                                                                      | RT_BF_MAKE(VMX_BF_EXIT_QUAL_IO_PORT,      u16Port),
+                                                                      IEM_GET_GUEST_CPU_FEATURES(pVCpu)->fVmxInsOutInfo
+                                                                      ? ExitInstrInfo.u : 0,
+                                                                      cbInstr,
+                                                                      uGuestLinearAddr);
         return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
 
@@ -3338,7 +3333,7 @@ VBOXSTRICTRC iemVmxVmexitInstrStrIo(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint16_
  */
 VBOXSTRICTRC iemVmxVmexitInstrMwait(PVMCPUCC pVCpu, bool fMonitorHwArmed, uint8_t cbInstr) RT_NOEXCEPT
 {
-    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_MWAIT, fMonitorHwArmed, cbInstr);
+    VMXVEXITINFO const ExitInfo = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_MWAIT, fMonitorHwArmed, cbInstr);
     return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
 }
 
@@ -5977,7 +5972,7 @@ static int iemVmxVmentryCheckGuestPdptes(PVMCPUCC pVCpu, const char *pszInstr) R
     const char * const pszFailure = "VM-exit";
 
     /*
-     * When EPT is used, we only validate the PAE PDPTEs provided in the VMCS.
+     * When EPT is used, we need to validate the PAE PDPTEs provided in the VMCS.
      * Otherwise, we load any PAE PDPTEs referenced by CR3 at a later point.
      */
     if (   iemVmxVmcsIsGuestPaePagingEnabled(pVmcs)
@@ -5991,8 +5986,7 @@ static int iemVmxVmentryCheckGuestPdptes(PVMCPUCC pVCpu, const char *pszInstr) R
         aPaePdptes[3].u = pVmcs->u64GuestPdpte3.u;
 
         /* Check validity of the PDPTEs. */
-        bool const fValid = PGMGstArePaePdpesValid(pVCpu, &aPaePdptes[0]);
-        if (fValid)
+        if (PGMGstArePaePdpesValid(pVCpu, &aPaePdptes[0]))
         { /* likely */ }
         else
         {
@@ -7003,9 +6997,9 @@ static int iemVmxVmentryLoadGuestNonRegState(PVMCPUCC pVCpu, const char *pszInst
     bool const fEntryVectoring = VMXIsVmentryVectoring(pVmcs->u32EntryIntInfo, NULL /* puEntryIntInfoType */);
     if (   !fEntryVectoring
         && (pVmcs->u32GuestIntrState & (VMX_VMCS_GUEST_INT_STATE_BLOCK_STI | VMX_VMCS_GUEST_INT_STATE_BLOCK_MOVSS)))
-        EMSetInhibitInterruptsPC(pVCpu, pVmcs->u64GuestRip.u);
+        CPUMSetInInterruptShadowEx(&pVCpu->cpum.GstCtx, pVmcs->u64GuestRip.u);
     else
-        Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
+        Assert(!CPUMIsInInterruptShadow(&pVCpu->cpum.GstCtx));
 
     /* NMI blocking. */
     if (pVmcs->u32GuestIntrState & VMX_VMCS_GUEST_INT_STATE_BLOCK_NMI)
@@ -7015,8 +7009,7 @@ static int iemVmxVmentryLoadGuestNonRegState(PVMCPUCC pVCpu, const char *pszInst
         else
         {
             pVCpu->cpum.GstCtx.hwvirt.vmx.fVirtNmiBlocking = false;
-            if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
-                VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
+            CPUMSetInterruptInhibitingByNmi(&pVCpu->cpum.GstCtx);
         }
     }
     else
@@ -7036,37 +7029,42 @@ static int iemVmxVmentryLoadGuestNonRegState(PVMCPUCC pVCpu, const char *pszInst
     /*
      * Load the guest's PAE PDPTEs.
      */
-    if (iemVmxVmcsIsGuestPaePagingEnabled(pVmcs))
+    if (!iemVmxVmcsIsGuestPaePagingEnabled(pVmcs))
     {
-        if (pVmcs->u32ProcCtls2 & VMX_PROC_CTLS2_EPT)
-        {
-            /*
-             * With EPT, we've already validated these while checking the guest state.
-             * Just load them directly from the VMCS here.
-             */
-            X86PDPE aPaePdptes[X86_PG_PAE_PDPE_ENTRIES];
-            aPaePdptes[0].u = pVmcs->u64GuestPdpte0.u;
-            aPaePdptes[1].u = pVmcs->u64GuestPdpte1.u;
-            aPaePdptes[2].u = pVmcs->u64GuestPdpte2.u;
-            aPaePdptes[3].u = pVmcs->u64GuestPdpte3.u;
-            AssertCompile(RT_ELEMENTS(aPaePdptes) == RT_ELEMENTS(pVCpu->cpum.GstCtx.aPaePdpes));
-            for (unsigned i = 0; i < RT_ELEMENTS(pVCpu->cpum.GstCtx.aPaePdpes); i++)
-                pVCpu->cpum.GstCtx.aPaePdpes[i].u = aPaePdptes[i].u;
-        }
+        /*
+         * When PAE paging is not used we clear the PAE PDPTEs for safety
+         * in case we might be switching from a PAE host to a non-PAE guest.
+         */
+        pVCpu->cpum.GstCtx.aPaePdpes[0].u = 0;
+        pVCpu->cpum.GstCtx.aPaePdpes[1].u = 0;
+        pVCpu->cpum.GstCtx.aPaePdpes[2].u = 0;
+        pVCpu->cpum.GstCtx.aPaePdpes[3].u = 0;
+    }
+    else if (pVmcs->u32ProcCtls2 & VMX_PROC_CTLS2_EPT)
+    {
+        /*
+         * With EPT and the nested-guest using PAE paging, we've already validated the PAE PDPTEs
+         * while checking the guest state. We can load them into the nested-guest CPU state now.
+         * They'll later be used while mapping CR3 and the PAE PDPTEs.
+         */
+        pVCpu->cpum.GstCtx.aPaePdpes[0].u = pVmcs->u64GuestPdpte0.u;
+        pVCpu->cpum.GstCtx.aPaePdpes[1].u = pVmcs->u64GuestPdpte1.u;
+        pVCpu->cpum.GstCtx.aPaePdpes[2].u = pVmcs->u64GuestPdpte2.u;
+        pVCpu->cpum.GstCtx.aPaePdpes[3].u = pVmcs->u64GuestPdpte3.u;
+    }
+    else
+    {
+        /*
+         * Without EPT and the nested-guest using PAE paging, we must load the PAE PDPTEs
+         * referenced by CR3. This involves loading (and mapping) CR3 and validating them now.
+         */
+        int const rc = PGMGstMapPaePdpesAtCr3(pVCpu, pVmcs->u64GuestCr3.u);
+        if (RT_SUCCESS(rc))
+        { /* likely */ }
         else
         {
-            /*
-             * Without EPT, we must load the PAE PDPTEs referenced by CR3.
-             * This involves loading (and mapping) CR3 and validating them now.
-             */
-            int const rc = PGMGstMapPaePdpesAtCr3(pVCpu, pVmcs->u64GuestCr3.u);
-            if (RT_SUCCESS(rc))
-            { /* likely */ }
-            else
-            {
-                iemVmxVmcsSetExitQual(pVCpu, VMX_ENTRY_FAIL_QUAL_PDPTE);
-                IEM_VMX_VMENTRY_FAILED_RET(pVCpu, pszInstr, pszFailure, kVmxVDiag_Vmentry_GuestPdpte);
-            }
+            iemVmxVmcsSetExitQual(pVCpu, VMX_ENTRY_FAIL_QUAL_PDPTE);
+            IEM_VMX_VMENTRY_FAILED_RET(pVCpu, pszInstr, pszFailure, kVmxVDiag_Vmentry_GuestPdpte);
         }
     }
 
@@ -7731,8 +7729,7 @@ static VBOXSTRICTRC iemVmxVmlaunchVmresume(PVMCPUCC pVCpu, uint8_t cbInstr, VMXI
 
     /** @todo Distinguish block-by-MovSS from block-by-STI. Currently we
      *        use block-by-STI here which is not quite correct. */
-    if (   !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-        ||  pVCpu->cpum.GstCtx.rip != EMGetInhibitInterruptsPC(pVCpu))
+    if (!CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx))
     { /* likely */ }
     else
     {
@@ -9884,11 +9881,11 @@ DECLCALLBACK(VBOXSTRICTRC) iemVmxApicAccessPageHandler(PVMCC pVM, PVMCPUCC pVCpu
  * @callback_method_impl{FNPGMRZPHYSPFHANDLER,
  *      \#PF access handler callback for guest VMX APIC-access page.}
  */
-DECLCALLBACK(VBOXSTRICTRC) iemVmxApicAccessPagePfHandler(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTXCORE pRegFrame,
+DECLCALLBACK(VBOXSTRICTRC) iemVmxApicAccessPagePfHandler(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINT uErr, PCPUMCTX pCtx,
                                                          RTGCPTR pvFault, RTGCPHYS GCPhysFault, uint64_t uUser)
 
 {
-    RT_NOREF3(pVM, pRegFrame, uUser);
+    RT_NOREF3(pVM, pCtx, uUser);
 
     /*
      * Handle the VMX APIC-access page only when the guest is in VMX non-root mode.
@@ -9981,10 +9978,10 @@ DECLCALLBACK(VBOXSTRICTRC) iemVmxApicAccessPagePfHandler(PVMCC pVM, PVMCPUCC pVC
              */
             LogFlowFunc(("Raising APIC-access VM-exit from #PF handler at offset %#x\n", offAccess));
             VMXVEXITINFO const ExitInfo
-                = VMXVEXITINFO_INIT_WITH_QUALIFIER_AND_INSTR_LEN(VMX_EXIT_APIC_ACCESS,
-                                                                   RT_BF_MAKE(VMX_BF_EXIT_QUAL_APIC_ACCESS_OFFSET, offAccess)
-                                                                 | RT_BF_MAKE(VMX_BF_EXIT_QUAL_APIC_ACCESS_TYPE,   enmAccess),
-                                                                 HmExitAux.Vmx.cbInstr);
+                = VMXVEXITINFO_INIT_WITH_QUAL_AND_INSTR_LEN(VMX_EXIT_APIC_ACCESS,
+                                                              RT_BF_MAKE(VMX_BF_EXIT_QUAL_APIC_ACCESS_OFFSET, offAccess)
+                                                            | RT_BF_MAKE(VMX_BF_EXIT_QUAL_APIC_ACCESS_TYPE,   enmAccess),
+                                                            HmExitAux.Vmx.cbInstr);
             VMXVEXITEVENTINFO const ExitEventInfo = VMXVEXITEVENTINFO_INIT_ONLY_IDT(HmExitAux.Vmx.uIdtVectoringInfo,
                                                                                     HmExitAux.Vmx.uIdtVectoringErrCode);
             VBOXSTRICTRC const      rcStrict      = iemVmxVmexitApicAccessWithInfo(pVCpu, &ExitInfo, &ExitEventInfo);
@@ -10002,6 +9999,11 @@ DECLCALLBACK(VBOXSTRICTRC) iemVmxApicAccessPagePfHandler(PVMCC pVM, PVMCPUCC pVC
         return VINF_EM_RAW_EMULATE_INSTR;
     }
 
+    /** @todo This isn't ideal but works for now as nested-hypervisors generally play
+     *        nice because the spec states that this page should be modified only when
+     *        no CPU refers to it VMX non-root mode. Nonetheless, we could use an atomic
+     *        reference counter to ensure the aforementioned condition before
+     *        de-registering the page.  */
     LogFunc(("Accessed outside VMX non-root mode, deregistering page handler for %#RGp\n", GCPhysPage));
     int const rc = PGMHandlerPhysicalDeregister(pVM, GCPhysPage);
     if (RT_FAILURE(rc))

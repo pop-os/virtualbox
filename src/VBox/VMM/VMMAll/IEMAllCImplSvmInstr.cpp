@@ -214,7 +214,7 @@ VBOXSTRICTRC iemSvmVmexit(PVMCPUCC pVCpu, uint64_t uExitCode, uint64_t uExitInfo
             pVmcbMemState->u64CR2          = pVCpu->cpum.GstCtx.cr2;
             pVmcbMemState->u64CR0          = pVCpu->cpum.GstCtx.cr0;
             /** @todo Nested paging. */
-            pVmcbMemState->u64RFlags       = pVCpu->cpum.GstCtx.rflags.u64;
+            pVmcbMemState->u64RFlags       = pVCpu->cpum.GstCtx.rflags.u;
             pVmcbMemState->u64RIP          = pVCpu->cpum.GstCtx.rip;
             pVmcbMemState->u64RSP          = pVCpu->cpum.GstCtx.rsp;
             pVmcbMemState->u64RAX          = pVCpu->cpum.GstCtx.rax;
@@ -244,15 +244,14 @@ VBOXSTRICTRC iemSvmVmexit(PVMCPUCC pVCpu, uint64_t uExitCode, uint64_t uExitInfo
 
             pVmcbMemCtrl->IntCtrl.n.u8VTPR = pVmcbCtrl->IntCtrl.n.u8VTPR;           /* V_TPR. */
 
-            if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)              /* Interrupt shadow. */
-                && EMGetInhibitInterruptsPC(pVCpu) == pVCpu->cpum.GstCtx.rip)
+            if (!CPUMIsInInterruptShadowWithUpdate(&pVCpu->cpum.GstCtx))            /* Interrupt shadow. */
+                pVmcbMemCtrl->IntShadow.n.u1IntShadow = 0;
+            else
             {
                 pVmcbMemCtrl->IntShadow.n.u1IntShadow = 1;
-                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
                 LogFlow(("iemSvmVmexit: Interrupt shadow till %#RX64\n", pVCpu->cpum.GstCtx.rip));
+                CPUMClearInterruptShadow(&pVCpu->cpum.GstCtx);
             }
-            else
-                pVmcbMemCtrl->IntShadow.n.u1IntShadow = 0;
 
             /*
              * Save nRIP, instruction length and byte fields.
@@ -322,13 +321,9 @@ VBOXSTRICTRC iemSvmVmexit(PVMCPUCC pVCpu, uint64_t uExitCode, uint64_t uExitInfo
         Assert(!CPUMIsGuestInSvmNestedHwVirtMode(IEM_GET_CTX(pVCpu)));
 
         /*
-         * Restore the subset of force-flags that were preserved.
+         * Restore the subset of the inhibit flags that were preserved.
          */
-        if (pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions)
-        {
-            VMCPU_FF_SET_MASK(pVCpu, pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions);
-            pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions = 0;
-        }
+        pVCpu->cpum.GstCtx.fInhibit |= pVCpu->cpum.GstCtx.hwvirt.fSavedInhibit;
 
         if (rcStrict == VINF_SUCCESS)
         {
@@ -733,8 +728,8 @@ static VBOXSTRICTRC iemSvmVmrun(PVMCPUCC pVCpu, uint8_t cbInstr, RTGCPHYS GCPhys
          * VMRUN has implicit GIF (Global Interrupt Flag) handling, we don't need to
          * preserve VMCPU_FF_INHIBIT_INTERRUPTS.
          */
-        pVCpu->cpum.GstCtx.hwvirt.fLocalForcedActions = pVCpu->fLocalForcedActions & VMCPU_FF_BLOCK_NMIS;
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
+        pVCpu->cpum.GstCtx.hwvirt.fSavedInhibit = pVCpu->cpum.GstCtx.fInhibit & CPUMCTX_INHIBIT_NMI;
+        pVCpu->cpum.GstCtx.fInhibit            &=                              ~CPUMCTX_INHIBIT_NMI;
 
         /*
          * Pause filter.
@@ -753,7 +748,7 @@ static VBOXSTRICTRC iemSvmVmrun(PVMCPUCC pVCpu, uint8_t cbInstr, RTGCPHYS GCPhys
         {
             LogFlow(("iemSvmVmrun: setting interrupt shadow. inhibit PC=%#RX64\n", pVmcbNstGst->u64RIP));
             /** @todo will this cause trouble if the nested-guest is 64-bit but the guest is 32-bit? */
-            EMSetInhibitInterruptsPC(pVCpu, pVmcbNstGst->u64RIP);
+            CPUMSetInInterruptShadowEx(&pVCpu->cpum.GstCtx, pVmcbNstGst->u64RIP);
         }
 
         /*
@@ -799,7 +794,7 @@ static VBOXSTRICTRC iemSvmVmrun(PVMCPUCC pVCpu, uint8_t cbInstr, RTGCPHYS GCPhys
         pVCpu->cpum.GstCtx.cr2        = pVmcbNstGst->u64CR2;
         pVCpu->cpum.GstCtx.dr[6]      = pVmcbNstGst->u64DR6;
         pVCpu->cpum.GstCtx.dr[7]      = pVmcbNstGst->u64DR7;
-        pVCpu->cpum.GstCtx.rflags.u64 = pVmcbNstGst->u64RFlags;
+        pVCpu->cpum.GstCtx.rflags.u   = pVmcbNstGst->u64RFlags;
         pVCpu->cpum.GstCtx.rax        = pVmcbNstGst->u64RAX;
         pVCpu->cpum.GstCtx.rsp        = pVmcbNstGst->u64RSP;
         pVCpu->cpum.GstCtx.rip        = pVmcbNstGst->u64RIP;
@@ -917,7 +912,7 @@ static VBOXSTRICTRC iemSvmVmrun(PVMCPUCC pVCpu, uint8_t cbInstr, RTGCPHYS GCPhys
         else
             LogFlow(("iemSvmVmrun: Entering nested-guest: %04x:%08RX64 cr0=%#RX64 cr3=%#RX64 cr4=%#RX64 efer=%#RX64 efl=%#x\n",
                      pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.rip, pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.cr3,
-                     pVCpu->cpum.GstCtx.cr4, pVCpu->cpum.GstCtx.msrEFER, pVCpu->cpum.GstCtx.rflags.u64));
+                     pVCpu->cpum.GstCtx.cr4, pVCpu->cpum.GstCtx.msrEFER, pVCpu->cpum.GstCtx.eflags.u));
 
         LogFlow(("iemSvmVmrun: returns %d\n", VBOXSTRICTRC_VAL(rcStrict)));
 

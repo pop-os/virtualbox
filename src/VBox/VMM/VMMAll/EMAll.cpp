@@ -80,55 +80,6 @@ VMM_INT_DECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState)
 
 
 /**
- * Sets the PC for which interrupts should be inhibited.
- *
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   PC          The PC.
- */
-VMMDECL(void) EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC)
-{
-    pVCpu->em.s.GCPtrInhibitInterrupts = PC;
-    VMCPU_FF_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-}
-
-
-/**
- * Gets the PC for which interrupts should be inhibited.
- *
- * There are a few instructions which inhibits or delays interrupts
- * for the instruction following them. These instructions are:
- *      - STI
- *      - MOV SS, r/m16
- *      - POP SS
- *
- * @returns The PC for which interrupts should be inhibited.
- * @param   pVCpu       The cross context virtual CPU structure.
- *
- */
-VMMDECL(RTGCUINTPTR) EMGetInhibitInterruptsPC(PVMCPU pVCpu)
-{
-    return pVCpu->em.s.GCPtrInhibitInterrupts;
-}
-
-
-/**
- * Checks if interrupt inhibiting is enabled for the current instruction.
- *
- * @returns true if interrupts are inhibited, false if not.
- * @param   pVCpu       The cross context virtual CPU structure.
- */
-VMMDECL(bool) EMIsInhibitInterruptsActive(PVMCPU pVCpu)
-{
-    if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
-        return false;
-    if (pVCpu->em.s.GCPtrInhibitInterrupts == CPUMGetGuestRIP(pVCpu))
-        return true;
-    VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-    return false;
-}
-
-
-/**
  * Enables / disable hypercall instructions.
  *
  * This interface is used by GIM to tell the execution monitors whether the
@@ -949,29 +900,26 @@ static DECLCALLBACK(int) emReadBytes(PDISCPUSTATE pDis, uint8_t offInstr, uint8_
  * @returns VBox status code, see SELMToFlatEx and EMInterpretDisasOneEx for
  *          details.
  *
- * @param   pVM             The cross context VM structure.
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   pDis            Where to return the parsed instruction info.
  * @param   pcbInstr        Where to return the instruction size. (optional)
  */
-VMM_INT_DECL(int) EMInterpretDisasCurrent(PVMCC pVM, PVMCPUCC pVCpu, PDISCPUSTATE pDis, unsigned *pcbInstr)
+VMM_INT_DECL(int) EMInterpretDisasCurrent(PVMCPUCC pVCpu, PDISCPUSTATE pDis, unsigned *pcbInstr)
 {
-    PCPUMCTXCORE pCtxCore = CPUMCTX2CORE(CPUMQueryGuestCtxPtr(pVCpu));
-    RTGCPTR GCPtrInstr;
+    PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
+    RTGCPTR  GCPtrInstr;
 #if 0
-    int rc = SELMToFlatEx(pVCpu, DISSELREG_CS, pCtxCore, pCtxCore->rip, 0, &GCPtrInstr);
+    int rc = SELMToFlatEx(pVCpu, DISSELREG_CS, pCtx, pCtx->rip, 0, &GCPtrInstr);
 #else
 /** @todo Get the CPU mode as well while we're at it! */
-    int rc = SELMValidateAndConvertCSAddr(pVCpu, pCtxCore->eflags, pCtxCore->ss.Sel, pCtxCore->cs.Sel, &pCtxCore->cs,
-                                          pCtxCore->rip, &GCPtrInstr);
+    int rc = SELMValidateAndConvertCSAddr(pVCpu, pCtx->eflags.u, pCtx->ss.Sel, pCtx->cs.Sel, &pCtx->cs, pCtx->rip, &GCPtrInstr);
 #endif
-    if (RT_FAILURE(rc))
-    {
-        Log(("EMInterpretDisasOne: Failed to convert %RTsel:%RGv (cpl=%d) - rc=%Rrc !!\n",
-             pCtxCore->cs.Sel, (RTGCPTR)pCtxCore->rip, pCtxCore->ss.Sel & X86_SEL_RPL, rc));
-        return rc;
-    }
-    return EMInterpretDisasOneEx(pVM, pVCpu, (RTGCUINTPTR)GCPtrInstr, pCtxCore, pDis, pcbInstr);
+    if (RT_SUCCESS(rc))
+        return EMInterpretDisasOneEx(pVCpu, (RTGCUINTPTR)GCPtrInstr, pDis, pcbInstr);
+
+    Log(("EMInterpretDisasOne: Failed to convert %RTsel:%RGv (cpl=%d) - rc=%Rrc !!\n",
+         pCtx->cs.Sel, (RTGCPTR)pCtx->rip, pCtx->ss.Sel & X86_SEL_RPL, rc));
+    return rc;
 }
 
 
@@ -982,18 +930,13 @@ VMM_INT_DECL(int) EMInterpretDisasCurrent(PVMCC pVM, PVMCPUCC pVCpu, PDISCPUSTAT
  *
  * @returns VBox status code.
  *
- * @param   pVM             The cross context VM structure.
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   GCPtrInstr      The flat address of the instruction.
- * @param   pCtxCore        The context core (used to determine the cpu mode).
  * @param   pDis            Where to return the parsed instruction info.
  * @param   pcbInstr        Where to return the instruction size. (optional)
  */
-VMM_INT_DECL(int) EMInterpretDisasOneEx(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
-                                        PDISCPUSTATE pDis, unsigned *pcbInstr)
+VMM_INT_DECL(int) EMInterpretDisasOneEx(PVMCPUCC pVCpu, RTGCUINTPTR GCPtrInstr, PDISCPUSTATE pDis, unsigned *pcbInstr)
 {
-    NOREF(pVM);
-    Assert(pCtxCore == CPUMGetGuestCtxCore(pVCpu)); NOREF(pCtxCore);
     DISCPUMODE enmCpuMode = CPUMGetGuestDisMode(pVCpu);
     /** @todo Deal with too long instruction (=> \#GP), opcode read errors (=>
      *        \#PF, \#GP, \#??), undefined opcodes (=> \#UD), and such. */
@@ -1014,61 +957,21 @@ VMM_INT_DECL(int) EMInterpretDisasOneEx(PVMCC pVM, PVMCPUCC pVCpu, RTGCUINTPTR G
  * @retval  VERR_*                  Fatal errors.
  *
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pRegFrame   The register frame.
- *                      Updates the EIP if an instruction was executed successfully.
- * @param   pvFault     The fault address (CR2).
  *
- * @remark  Invalid opcode exceptions have a higher priority than GP (see Intel
- *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
- *          to worry about e.g. invalid modrm combinations (!)
+ * @remark  Invalid opcode exceptions have a higher priority than \#GP (see
+ *          Intel Architecture System Developers Manual, Vol 3, 5.5) so we don't
+ *          need to worry about e.g. invalid modrm combinations (!)
  */
-VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstruction(PVMCPUCC pVCpu)
 {
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    LogFlow(("EMInterpretInstruction %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
-    NOREF(pvFault);
+    LogFlow(("EMInterpretInstruction %RGv\n", (RTGCPTR)CPUMGetGuestRIP(pVCpu)));
 
-    VBOXSTRICTRC rc = IEMExecOneBypassEx(pVCpu, pRegFrame, NULL);
+    VBOXSTRICTRC rc = IEMExecOneBypassEx(pVCpu, NULL /*pcbWritten*/);
     if (RT_UNLIKELY(   rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED
                     || rc == VERR_IEM_INSTR_NOT_IMPLEMENTED))
         rc = VERR_EM_INTERPRETER;
     if (rc != VINF_SUCCESS)
         Log(("EMInterpretInstruction: returns %Rrc\n", VBOXSTRICTRC_VAL(rc)));
-
-    return rc;
-}
-
-
-/**
- * Interprets the current instruction.
- *
- * @returns VBox status code.
- * @retval  VINF_*                  Scheduling instructions.
- * @retval  VERR_EM_INTERPRETER     Something we can't cope with.
- * @retval  VERR_*                  Fatal errors.
- *
- * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
- * @param   pRegFrame   The register frame.
- *                      Updates the EIP if an instruction was executed successfully.
- * @param   pvFault     The fault address (CR2).
- * @param   pcbWritten  Size of the write (if applicable).
- *
- * @remark  Invalid opcode exceptions have a higher priority than GP (see Intel
- *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
- *          to worry about e.g. invalid modrm combinations (!)
- */
-VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten)
-{
-    LogFlow(("EMInterpretInstructionEx %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    NOREF(pvFault);
-
-    VBOXSTRICTRC rc = IEMExecOneBypassEx(pVCpu, pRegFrame, pcbWritten);
-    if (RT_UNLIKELY(   rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED
-                    || rc == VERR_IEM_INSTR_NOT_IMPLEMENTED))
-        rc = VERR_EM_INTERPRETER;
-    if (rc != VINF_SUCCESS)
-        Log(("EMInterpretInstructionEx: returns %Rrc\n", VBOXSTRICTRC_VAL(rc)));
 
     return rc;
 }
@@ -1089,9 +992,7 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPUCC pVCpu, PCPUMCTXCORE
  * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
  * @param   pDis        The disassembler cpu state for the instruction to be
  *                      interpreted.
- * @param   pRegFrame   The register frame. IP/EIP/RIP *IS* changed!
- * @param   pvFault     The fault address (CR2).
- * @param   enmCodeType Code type (user/supervisor)
+ * @param   rip         The instruction pointer value.
  *
  * @remark  Invalid opcode exceptions have a higher priority than GP (see Intel
  *          Architecture System Developers Manual, Vol 3, 5.5) so we don't need
@@ -1100,14 +1001,11 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionEx(PVMCPUCC pVCpu, PCPUMCTXCORE
  * @todo    At this time we do NOT check if the instruction overwrites vital information.
  *          Make sure this can't happen!! (will add some assertions/checks later)
  */
-VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPUCC pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pRegFrame,
-                                                            RTGCPTR pvFault, EMCODETYPE enmCodeType)
+VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPUCC pVCpu, PDISCPUSTATE pDis, uint64_t rip)
 {
-    LogFlow(("EMInterpretInstructionDisasState %RGv fault %RGv\n", (RTGCPTR)pRegFrame->rip, pvFault));
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    NOREF(pDis); NOREF(pvFault); NOREF(enmCodeType);
+    LogFlow(("EMInterpretInstructionDisasState %RGv\n", (RTGCPTR)rip));
 
-    VBOXSTRICTRC rc = IEMExecOneBypassWithPrefetchedByPC(pVCpu, pRegFrame, pRegFrame->rip, pDis->abInstr, pDis->cbCachedInstr);
+    VBOXSTRICTRC rc = IEMExecOneBypassWithPrefetchedByPC(pVCpu, rip, pDis->abInstr, pDis->cbCachedInstr);
     if (RT_UNLIKELY(   rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED
                     || rc == VERR_IEM_INSTR_NOT_IMPLEMENTED))
         rc = VERR_EM_INTERPRETER;
@@ -1116,133 +1014,5 @@ VMM_INT_DECL(VBOXSTRICTRC) EMInterpretInstructionDisasState(PVMCPUCC pVCpu, PDIS
         Log(("EMInterpretInstructionDisasState: returns %Rrc\n", VBOXSTRICTRC_VAL(rc)));
 
     return rc;
-}
-
-
-
-
-/*
- *
- * Old interpreter primitives used by HM, move/eliminate later.
- * Old interpreter primitives used by HM, move/eliminate later.
- * Old interpreter primitives used by HM, move/eliminate later.
- * Old interpreter primitives used by HM, move/eliminate later.
- * Old interpreter primitives used by HM, move/eliminate later.
- *
- */
-
-
-/**
- * Interpret RDPMC.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pRegFrame   The register frame.
- *
- */
-VMM_INT_DECL(int) EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
-{
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    uint32_t uCR4 = CPUMGetGuestCR4(pVCpu);
-
-    /* If X86_CR4_PCE is not set, then CPL must be zero. */
-    if (    !(uCR4 & X86_CR4_PCE)
-        &&  CPUMGetGuestCPL(pVCpu) != 0)
-    {
-        Assert(CPUMGetGuestCR0(pVCpu) & X86_CR0_PE);
-        return VERR_EM_INTERPRETER; /* genuine #GP */
-    }
-
-    /* Just return zero here; rather tricky to properly emulate this, especially as the specs are a mess. */
-    pRegFrame->rax = 0;
-    pRegFrame->rdx = 0;
-    /** @todo We should trigger a \#GP here if the CPU doesn't support the index in
-     *        ecx but see @bugref{3472}! */
-
-    NOREF(pVM);
-    return VINF_SUCCESS;
-}
-
-
-/* VT-x only: */
-
-/**
- * Interpret DRx write.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pRegFrame   The register frame.
- * @param   DestRegDrx  DRx register index (USE_REG_DR*)
- * @param   SrcRegGen   General purpose register index (USE_REG_E**))
- *
- */
-VMM_INT_DECL(int) EMInterpretDRxWrite(PVMCC pVM, PVMCPUCC pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen)
-{
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    uint64_t uNewDrX;
-    int      rc;
-    NOREF(pVM);
-
-    if (CPUMIsGuestIn64BitCode(pVCpu))
-        rc = DISFetchReg64(pRegFrame, SrcRegGen, &uNewDrX);
-    else
-    {
-        uint32_t val32;
-        rc = DISFetchReg32(pRegFrame, SrcRegGen, &val32);
-        uNewDrX = val32;
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        if (DestRegDrx == 6)
-        {
-            uNewDrX |= X86_DR6_RA1_MASK;
-            uNewDrX &= ~X86_DR6_RAZ_MASK;
-        }
-        else if (DestRegDrx == 7)
-        {
-            uNewDrX |= X86_DR7_RA1_MASK;
-            uNewDrX &= ~X86_DR7_RAZ_MASK;
-        }
-
-        /** @todo we don't fail if illegal bits are set/cleared for e.g. dr7 */
-        rc = CPUMSetGuestDRx(pVCpu, DestRegDrx, uNewDrX);
-        if (RT_SUCCESS(rc))
-            return rc;
-        AssertMsgFailed(("CPUMSetGuestDRx %d failed\n", DestRegDrx));
-    }
-    return VERR_EM_INTERPRETER;
-}
-
-
-/**
- * Interpret DRx read.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   pRegFrame   The register frame.
- * @param   DestRegGen  General purpose register index (USE_REG_E**))
- * @param   SrcRegDrx   DRx register index (USE_REG_DR*)
- */
-VMM_INT_DECL(int) EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx)
-{
-    uint64_t val64;
-    Assert(pRegFrame == CPUMGetGuestCtxCore(pVCpu));
-    NOREF(pVM);
-
-    int rc = CPUMGetGuestDRx(pVCpu, SrcRegDrx, &val64);
-    AssertMsgRCReturn(rc, ("CPUMGetGuestDRx %d failed\n", SrcRegDrx), VERR_EM_INTERPRETER);
-    if (CPUMIsGuestIn64BitCode(pVCpu))
-        rc = DISWriteReg64(pRegFrame, DestRegGen, val64);
-    else
-        rc = DISWriteReg32(pRegFrame, DestRegGen, (uint32_t)val64);
-
-    if (RT_SUCCESS(rc))
-        return VINF_SUCCESS;
-
-    return VERR_EM_INTERPRETER;
 }
 
