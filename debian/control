@@ -15,6 +15,7 @@ Build-Depends: bzip2,
                dpkg-dev (>= 1.15.6~),
                g++-multilib,
                genisoimage,
+               glslang-tools,
                gsoap,
                acpica-tools,
                kbuild (>= 1:0.1.9998svn3098~),
@@ -74,7 +75,7 @@ Build-Depends: bzip2,
                yasm,
                zlib1g-dev
 X-Python-Version: >= 2.5
-Standards-Version: 4.6.0
+Standards-Version: 4.6.1
 Rules-Requires-Root: binary-targets
 Homepage: https://www.virtualbox.org
 Vcs-Browser: https://salsa.debian.org/pkg-virtualbox-team/virtualbox
