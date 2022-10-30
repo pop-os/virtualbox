@@ -1,0 +1,202 @@
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+
+Last-Update: 2022-10-30
+
+Index: virtualbox/Config.kmk
+===================================================================
+--- virtualbox.orig/Config.kmk
++++ virtualbox/Config.kmk
+@@ -725,7 +725,7 @@
+ VBOX_WITH_TPM = 1
+ # Enable libtpms, required for the in process TPM emulation.
+ if1of ($(KBUILD_TARGET), linux darwin win solaris)
+- VBOX_WITH_LIBTPMS = 1
++ VBOX_WITH_TPMS = 1
+ endif
+ ## @}
+ 
+@@ -4936,7 +4936,7 @@
+ # by auto-generated stub code (lazy loading)
+ endif
+ 
+-ifdef VBOX_WITH_LIBTPMS
++ifdef VBOX_WITH_TPMS
+  SDK_VBOX_TPMS                 := libtpms for dll linking.
+  SDK_VBOX_TPMS_DEFAULT_INCS    := $(PATH_ROOT)/src/libs/libtpms-0.9.0/include
+  SDK_VBOX_TPMS_INCS            ?= $(SDK_VBOX_TPMS_DEFAULT_INCS)
+Index: virtualbox/configure
+===================================================================
+--- virtualbox.orig/configure
++++ virtualbox/configure
+@@ -109,12 +109,14 @@
+ WITH_DOCS=1
+ WITH_LIBVPX=1
+ WITH_LIBOPUS=1
+-WITH_LIBTPMS=1
++WITH_TPMS=1
++WITH_LIBVORBIS=0
++WITH_LIBOGG=0
+ BUILD_LIBXML2=
+ BUILD_LIBCURL=
+ BUILD_LIBSSL=
+ BUILD_LIBVPX=
+-BUILD_LIBTPMS=
++BUILD_TPMS=
+ PASSIVE_MESA=0
+ CC="gcc"
+ CC32=""
+@@ -1808,14 +1810,14 @@
+ #
+ check_libtpms()
+ {
+-  if [ -z "$BUILD_LIBTPMS" ]; then
++  if [ -z "$BUILD_TPMS" ]; then
+     test_header libtpms
+     if which_wrapper pkg-config > /dev/null; then
+       libtpms_ver=`pkg-config libtpms --modversion 2>> $LOG`
+       if [ $? -eq 0 ]; then
+         FLGTPMS=`pkg-config libtpms --cflags`
+         INCTPMS=`strip_I "$FLGTPMS"`
+-        LIBTPMS=`pkg-config libtpms --libs`
++        TPMS=`pkg-config libtpms --libs`
+       fi
+       cat > $ODIR.tmp_src.cc << EOF
+ #include <cstdio>
+@@ -1827,10 +1829,10 @@
+ }
+ EOF
+       [ -n "$INCTPMS" ] && I_INCTPMS=`prefix_I "$INCTPMS"`
+-      if test_compile "$LIBTPMS $I_INCTPMS" libtpms libtpms nofatal; then
++      if test_compile "$TPMS $I_INCTPMS" libtpms libtpms nofatal; then
+         if test_execute; then
+           cnf_append "SDK_VBOX_TPMS_INCS" "$INCTPMS"
+-          cnf_append "SDK_VBOX_TPMS_LIBS" "`strip_l "$LIBTPMS"`"
++          cnf_append "SDK_VBOX_TPMS_LIBS" "`strip_l "$TPMS"`"
+         fi
+       else
+         echo "not found -- building libtpms from in-tree code."
+@@ -1841,6 +1843,78 @@
+ 
+ 
+ #
++# Check for libvorbis
++#
++check_libvorbis()
++{
++  test_header libvorbis
++  if which_wrapper pkg-config > /dev/null; then
++    libvorbis_ver=`pkg-config vorbis --modversion 2>> $LOG`
++    if [ $? -eq 0 ]; then
++      FLGVRB=`pkg-config vorbis --cflags`
++      INCVRB=`strip_I "$FLGVRB"`
++      LIBVRB=`pkg-config vorbis --libs`
++    fi
++    cat > $ODIR.tmp_src.cc << EOF
++#include <cstdio>
++#include <vorbis/vorbisenc.h>
++extern "C" int main(void)
++{
++  vorbis_info v;
++  vorbis_info_init(&v);
++  printf("found, OK.\n");
++}
++EOF
++    [ -n "$INCVRB" ] && I_INCVRB=`prefix_I "$INCVRB"`
++    if test_compile "$LIBVRB $I_INCVRB" vorbis vorbis nofatal; then
++      if test_execute; then
++        cnf_append "SDK_VBOX_VORBIS_INCS" "$INCVRB"
++        cnf_append "SDK_VBOX_VORBIS_LIBS" "`strip_l "$LIBVRB"`"
++      fi
++    else
++      echo "not found -- building libvorbis from in-tree code."
++    fi
++  fi
++}
++
++
++#
++# Check for libogg
++#
++check_libogg()
++{
++  test_header libogg
++  if which_wrapper pkg-config > /dev/null; then
++    libogg_ver=`pkg-config ogg --modversion 2>> $LOG`
++    if [ $? -eq 0 ]; then
++      FLGOGG=`pkg-config ogg --cflags`
++      INCOGG=`strip_I "$FLGOGG"`
++      LIBOGG=`pkg-config ogg --libs`
++    fi
++    cat > $ODIR.tmp_src.cc << EOF
++#include <cstdio>
++#include <ogg/ogg.h>
++extern "C" int main(void)
++{
++  oggpack_buffer o;
++  oggpack_get_buffer(&o);
++  printf("found, OK.\n");
++}
++EOF
++    [ -n "$INCOGG" ] && I_INCVRB=`prefix_I "$INCOGG"`
++    if test_compile "$LIBOGG $I_INCOGG" ogg ogg nofatal; then
++      if test_execute; then
++        cnf_append "SDK_VBOX_OGG_INCS" "$INCOGG"
++        cnf_append "SDK_VBOX_OGG_LIBS" "`strip_l "$LIBOGG"`"
++      fi
++    else
++      echo "not found -- building libogg from in-tree code."
++    fi
++  fi
++}
++
++
++#
+ # Check whether static libstdc++ is installed. This library is required
+ # for the Linux guest additions.
+ #
+@@ -2431,7 +2505,9 @@
+ [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
+ [ $WITH_LIBVPX  -eq 1 ] && echo "  --disable-libvpx         don't use libvpx for video capturing"
+ [ $WITH_LIBOPUS -eq 1 ] && echo "  --disable-libopus        don't use libopus for audio capturing"
+-[ $WITH_LIBTPMS -eq 1 ] && echo "  --disable-libtpms        don't use libtpms for TPM emulation"
++[ $WITH_TPMS -eq 1 ] && echo "  --disable-libtpms        don't use libtpms for TPM emulation"
++[ $WITH_LIBVORBIS -eq 0 ] && echo "  --enable-libvorbis        enable system libvorbis"
++[ $WITH_LIBOGG -eq 0 ] && echo "  --enable-libogg        enable system libogg"
+ [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
+ cat << EOF
+   --disable-udptunnel      disable UDP tunnel networking
+@@ -2681,7 +2757,13 @@
+       WITH_LIBOPUS=0
+       ;;
+     --disable-libtpms)
+-      WITH_LIBTPMS=0
++      WITH_TPMS=0
++      ;;
++    --enable-libvorbis)
++      WITH_LIBVORBIS=1
++      ;;
++    --enable-libogg)
++      WITH_LIBOGG=1
+       ;;
+     --disable-sdl)
+       WITH_SDL=0
+@@ -2870,7 +2952,7 @@
+ [ $WITH_HARDENING -eq 0 ] && cnf_append "VBOX_WITHOUT_HARDENING" "1"
+ [ $WITH_HARDENING -eq 2 ] && cnf_append "VBOX_WITH_HARDENING" "2"
+ [ $WITH_VMMRAW    -eq 0 ] && cnf_append "VBOX_WITH_RAW_MODE" ""
+-[ $WITH_LIBTPMS   -eq 0 ] && cnf_append "VBOX_WITH_LIBTPMS" ""
++[ $WITH_TPMS   -eq 0 ] && cnf_append "VBOX_WITH_TPMS" ""
+ if [ $WITH_LIBVPX -eq 0 ]; then
+   cnf_append "VBOX_WITH_LIBVPX" ""
+   cnf_append "VBOX_WITH_RECORDING" ""
+@@ -2903,7 +2985,9 @@
+   check_curl
+   [ $WITH_LIBVPX -eq 1 ] && check_vpx
+   [ $WITH_LIBOPUS -eq 1 ] && check_libopus
+-  [ $WITH_LIBTPMS -eq 1 ] && check_libtpms
++  [ $WITH_TPMS -eq 1 ] && check_libtpms
++  check_libvorbis
++  check_libogg
+   [ "$OS" != "darwin"  ] && check_png
+   [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
+   if [ $WITH_SDL -eq 1 ]; then
