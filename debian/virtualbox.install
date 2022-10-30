@@ -18,7 +18,6 @@ out/bin/VBoxSDL /usr/lib/virtualbox
 out/bin/VBoxSVC /usr/lib/virtualbox
 out/bin/VBoxSysInfo.sh /usr/lib/virtualbox
 out/bin/VBoxTestOGL /usr/lib/virtualbox
-out/bin/VBoxTunctl /usr/lib/virtualbox
 out/bin/VBoxVMM* /usr/lib/virtualbox
 out/bin/VBoxVolInfo /usr/lib/virtualbox
 out/bin/VBoxXPCOM* /usr/lib/virtualbox
@@ -37,6 +36,3 @@ out/bin/sdk/bindings/xpcom/python /usr/lib/virtualbox/sdk/bindings/xpcom
 out/bin/VBoxCreateUSBNode.sh /lib/udev
 out/bin/VBoxSysInfo.sh /usr/share/virtualbox
 out/bin/UnattendedTemplates /usr/share/virtualbox
-
-out/bin/rdesktop-vrdp /usr/bin
-out/bin/rdesktop-vrdp-keymaps /usr/share/virtualbox
