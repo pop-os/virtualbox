@@ -4,9 +4,12 @@
 VBoxClient \- x86 virtualization solution
 .SH SYNOPSIS
 .B VBoxClient
-\fI\,--clipboard|--draganddrop|--checkhostversion|--seamless|check3d|--vmsvga|--vmsvga-x11\/\fR[\fI\,-d|--nodaemon\/\fR]
+\fI\,--clipboard|--draganddrop|--checkhostversion|--seamless|--vmsvga|--vmsvga-session\/\fR
 .SH DESCRIPTION
-Starts the VirtualBox DRM/X Window System guest services.
+Oracle VM VirtualBox VBoxClient
+Copyright \(co 2005\-2022 Oracle and/or its affiliates
+.PP
+[\-d|\-\-nodaemon]
 .SH OPTIONS
 .TP
 \fB\-\-clipboard\fR
@@ -18,17 +21,18 @@ starts the drag and drop service
 \fB\-\-checkhostversion\fR
 starts the host version notifier service
 .TP
-\fB\-\-check3d\fR
-tests whether 3D pass\-through is enabled
-.TP
 \fB\-\-seamless\fR
 starts the seamless windows service
 .TP
 \fB\-\-vmsvga\fR
-starts VMSVGA dynamic resizing for DRM
+starts VMSVGA dynamic resizing for X11/Wayland guests
 .TP
-\fB\-\-vmsvga\-x11\fR
-starts VMSVGA dynamic resizing for X11
+\fB\-\-vmsvga\-session\fR
+starts Desktop Environment specific screen assistant for X11/Wayland guests
+(VMSVGA graphics adapter only)
+.TP
+\fB\-\-display\fR
+starts VMSVGA dynamic resizing for legacy guests
 .TP
 \fB\-f\fR, \fB\-\-foreground\fR
 run in the foreground (no daemonizing)
@@ -38,6 +42,11 @@ continues running as a system service
 .TP
 \fB\-h\fR, \fB\-\-help\fR
 shows this help text
+.HP
+\fB\-l\fR, \fB\-\-logfile\fR <path> enables logging to a file
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+increases logging verbosity level
 .TP
 \fB\-V\fR, \fB\-\-version\fR
 shows version information
