@@ -1,16 +1,23 @@
-virtualbox (7.0.0-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (7.0.2-dfsg-1) experimental; urgency=medium
 
   * Bump copyright years
-  * New upstream version 7.0.0-dfsg
   * Refresh patches, drop latex patch: upstream
   * Conflict with virtualbox-7.0
-  * Switch to qt6
   * License is now GPL-3
   * add new libs
   * Add patch to fix build, but also disable VBOX_WITH_HOST_SHIPPING_AUDIO_TEST= VBOX_WITH_VALIDATIONKIT=
   * Drop new embedded libs from tarball
+  * New upstream version 7.0.2-dfsg
+  * Bump std-version to 4.6.1
+  * Add VBOXSDL back, default changed from new upstream release
+  * Drop Vboxtunctl and rdesktop-vrdp from build, removed upstream
+  * Update manpages for new release
+  * Refresh patches
+  * Add new patch to use system libraries for tpms, vorbis, ogg
+  * Drop wiki outdated page
+  * Enable new system libraries
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 21 Oct 2022 19:12:48 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sun, 30 Oct 2022 15:34:16 +0100
 
 virtualbox (6.1.40-dfsg-1) unstable; urgency=medium
 
