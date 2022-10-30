@@ -52,7 +52,9 @@ endif
 	    --disable-kmods \
 	    --enable-webservice \
 	    --enable-vde \
-	    --enable-vnc
+	    --enable-vnc \
+	    --enable-libvorbis \
+	    --enable-libogg
 
 override_dh_python3:
 	dh_python3 --no-ext-rename
