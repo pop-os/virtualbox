@@ -1,3 +1,9 @@
+virtualbox (7.0.2-dfsg-2) experimental; urgency=medium
+
+  * Fix qt5 tools dependency
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 31 Oct 2022 08:12:58 +0100
+
 virtualbox (7.0.2-dfsg-1) experimental; urgency=medium
 
   * Bump copyright years
