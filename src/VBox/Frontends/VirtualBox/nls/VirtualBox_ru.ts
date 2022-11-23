@@ -352,11 +352,11 @@
     </message>
     <message>
         <source>Enable &amp;VT-x/AMD-V</source>
-        <translation>Вк&amp;лючить VT-x/AMD-V</translation>
+        <translation type="vanished">Вк&amp;лючить VT-x/AMD-V</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the host CPU&apos;s hardware virtualization extensions such as Intel VT-x and AMD-V.</source>
-        <translation>Если стоит галочка, виртуальная машина будет пытаться задействовать расширенные функции аппаратной виртуализации процессора основного ПК, такие как Intel VT-x или AMD-V.</translation>
+        <translation type="vanished">Если стоит галочка, виртуальная машина будет пытаться задействовать расширенные функции аппаратной виртуализации процессора основного ПК, такие как Intel VT-x или AMD-V.</translation>
     </message>
     <message>
         <source>Enable Nested Pa&amp;ging</source>
@@ -938,7 +938,7 @@
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>&amp;Закрыть</translation>
+        <translation type="vanished">&amp;Закрыть</translation>
     </message>
     <message>
         <source>Show &amp;Log...</source>
@@ -3154,6 +3154,10 @@
     <message>
         <source>Display the log viewer window</source>
         <translation>Открыть диалог просмотра логов</translation>
+    </message>
+    <message>
+        <source>&amp;Stop</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6263,6 +6267,39 @@
         <source>Bridged Adapter</source>
         <translation>Сетевой мост</translation>
     </message>
+    <message>
+        <source>None</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>v1.2</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>v2.0</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SWTPM</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TPM Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secure Boot</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -6779,6 +6816,21 @@
         <source>Visual State</source>
         <comment>details (user interface)</comment>
         <translation>Визуальный режим</translation>
+    </message>
+    <message>
+        <source>TPM Type</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secure Boot</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (system/secure boot)</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8944,6 +8996,25 @@ p, li { white-space: pre-wrap; }
         <source>Source</source>
         <comment>summary</comment>
         <translation type="obsolete">Носитель</translation>
+    </message>
+</context>
+<context>
+    <name>UIFontScaleEditor</name>
+    <message>
+        <source>F&amp;ont Scaling:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the scaling factor for the font size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimum possible scale factor.</source>
+        <translation type="unfinished">Минимально возможный коэффициент масштабирования.</translation>
+    </message>
+    <message>
+        <source>Maximum possible scale factor.</source>
+        <translation type="unfinished">Минимально возможный коэффициент масштабирования.</translation>
     </message>
 </context>
 <context>
@@ -13852,7 +13923,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The virtual machine operating system hint is set to a 64-bit type. 64-bit guest systems require hardware virtualization, so this will be enabled automatically if you confirm the changes.</source>
-        <translation>Для этой машины выбран 64х-битный тип гостевой ОС. В связи с тем, что такие ОС требуют средств аппаратной виртуализации (VT-x/AMD-V), эти функции будут включены автоматически.</translation>
+        <translation type="vanished">Для этой машины выбран 64х-битный тип гостевой ОС. В связи с тем, что такие ОС требуют средств аппаратной виртуализации (VT-x/AMD-V), эти функции будут включены автоматически.</translation>
     </message>
     <message>
         <source>Enc&amp;ryption</source>
@@ -15873,7 +15944,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
-        <translation>Данная машина настроена на использование более одного виртуального процессора, для работы которых требуется функция аппаратной виртуализации (с вкладки &quot;Ускорение&quot; страницы настроек &quot;Система&quot;), отключенная в данный момент. Она будет включена автоматически при сохранении настроек.</translation>
+        <translation type="vanished">Данная машина настроена на использование более одного виртуального процессора, для работы которых требуется функция аппаратной виртуализации (с вкладки &quot;Ускорение&quot; страницы настроек &quot;Система&quot;), отключенная в данный момент. Она будет включена автоматически при сохранении настроек.</translation>
     </message>
     <message>
         <source>Please consider lowering the number of CPUs assigned to the virtual machine rather than setting the processor execution cap.</source>
@@ -15897,7 +15968,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
-        <translation>Данная машина настроена на использование вложенной аппаратной виртуализации, что в свою очередь требует средств аппаратной виртуализации, которые будет включены автоматически при сохранении настроек.</translation>
+        <translation type="vanished">Данная машина настроена на использование вложенной аппаратной виртуализации, что в свою очередь требует средств аппаратной виртуализации, которые будет включены автоматически при сохранении настроек.</translation>
     </message>
     <message>
         <source>The nested paging is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
@@ -15905,7 +15976,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed for nested paging support. It will be enabled automatically if you confirm your changes.</source>
-        <translation>Данная машина настроена на использование функции Nested Paging, что в свою очередь требует средств аппаратной виртуализации, которые будет включены автоматически при сохранении настроек.</translation>
+        <translation type="vanished">Данная машина настроена на использование функции Nested Paging, что в свою очередь требует средств аппаратной виртуализации, которые будет включены автоматически при сохранении настроек.</translation>
     </message>
 </context>
 <context>
@@ -16053,7 +16124,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>USB 2.0/3.0 is currently enabled for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0/3.0 to be able to start the machine.</source>
-        <translation>Эта машина настроена на эмуляцию USB 2.0/3.0, для чего требуюется установить &lt;b&gt;%1&lt;/b&gt;. Если необходимо, установите данный плагин, предварительно скачав его с сайта VirtualBox или отключите USB 2.0/3.0 для возможности запуска машины.</translation>
+        <translation type="vanished">Эта машина настроена на эмуляцию USB 2.0/3.0, для чего требуюется установить &lt;b&gt;%1&lt;/b&gt;. Если необходимо, установите данный плагин, предварительно скачав его с сайта VirtualBox или отключите USB 2.0/3.0 для возможности запуска машины.</translation>
     </message>
     <message>
         <source>When chosen, enables the virtual USB OHCI controller of this machine. The USB OHCI controller provides USB 1.0 support.</source>
@@ -20078,6 +20149,22 @@ p, li { white-space: pre-wrap; }
         <source>Failed to find snapshot with name=&lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Не удалось найти снимок с именем=&lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;The machine settings were changed.&lt;/p&gt;&lt;p&gt;Would you like to discard the changed settings or to keep editing them?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Discard changes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep editing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you going to restore default secure boot keys.&lt;/p&gt;&lt;p&gt;If you proceed your current keys will be rewritten. You may not be able to boot affected VM anymore.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -20209,11 +20296,31 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Hardware Clock in &amp;UTC Time</source>
-        <translation>Часы в системе &amp;UTC</translation>
+        <translation type="vanished">Часы в системе &amp;UTC</translation>
     </message>
     <message>
         <source>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
         <translation>Если галочка стоит, часы Вашего хоста отобразят время по шкале всемирного координированного времени (UTC), иначе будет отображено локальное время хоста. Unix-подобные системы обычно придерживаются системы UTC.</translation>
+    </message>
+    <message>
+        <source>Enable Hardware Clock in &amp;UTC Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Secure Boot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, the secure boot emulation will be enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Reset Keys to Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resets secure boot keys to default.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -23038,7 +23145,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>%1 (%2 ago)</source>
         <comment>date time (how long ago)</comment>
-        <translation>%1 (%2 назад)</translation>
+        <translation type="vanished">%1 (%2 назад)</translation>
     </message>
     <message>
         <source>%1 since %2</source>
@@ -24017,6 +24124,17 @@ p, li { white-space: pre-wrap; }
     </message>
 </context>
 <context>
+    <name>UITpmEditor</name>
+    <message>
+        <source>&amp;TPM:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the TPM type to be emulated in this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UITranslator</name>
     <message numerus="yes">
         <source>%n year(s)</source>
@@ -24100,6 +24218,54 @@ p, li { white-space: pre-wrap; }
         <source>User-defined</source>
         <comment>serial port</comment>
         <translation>Пользовательский</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>

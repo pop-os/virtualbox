@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153533 $"
+__version__ = "$Revision: 154575 $"
 
 # pylint: disable=unnecessary-semicolon
 
@@ -891,6 +891,7 @@ class TestDriver(base.TestDriver):                                              
         self.sLogSvcFlags       = 'time';
         self.sLogSvcDest        = '';
         self.sSelfLogFile       = None;
+        self.sSessionLogFile    = None;
         self.sVBoxSvcLogFile    = None;
         self.oVBoxSvcProcess    = None;
         self.sVBoxSvcPidFile    = None;
@@ -1128,6 +1129,10 @@ class TestDriver(base.TestDriver):                                              
         else:
             os.environ['VBOX_LOG_DEST'] = 'nodeny file=%s' % (self.sVBoxSvcLogFile,);
         os.environ['VBOXSVC_RELEASE_LOG_FLAGS'] = 'time append';
+
+        reporter.log2('VBoxSVC environment:');
+        for sKey, sVal in sorted(os.environ.items()):
+            reporter.log2('%s=%s' % (sKey, sVal));
 
         # Always leave a pid file behind so we can kill it during cleanup-before.
         self.sVBoxSvcPidFile = '%s/VBoxSVC.pid' % (self.sScratchPath,);
@@ -1370,6 +1375,10 @@ class TestDriver(base.TestDriver):                                              
         else:
             os.environ['VBOX_LOG_DEST'] = 'nodeny file=%s' % (self.sSelfLogFile,);
         os.environ['VBOX_RELEASE_LOG_FLAGS'] = 'time append';
+
+        reporter.log2('Self environment:');
+        for sKey, sVal in sorted(os.environ.items()):
+            reporter.log2('%s=%s' % (sKey, sVal));
 
         # Hack the sys.path + environment so the vboxapi can be found.
         sys.path.insert(0, self.oBuild.sInstallPath);
@@ -2035,6 +2044,10 @@ class TestDriver(base.TestDriver):                                              
             if self.sSelfLogFile is not None  and  os.path.isfile(self.sSelfLogFile):
                 reporter.addLogFile(self.sSelfLogFile, 'log/debug/client', 'Debug log file for the test driver');
                 self.sSelfLogFile = None;
+
+            if self.sSessionLogFile is not None  and  os.path.isfile(self.sSessionLogFile):
+                reporter.addLogFile(self.sSessionLogFile, 'log/debug/session', 'Debug log file for the VM session');
+                self.sSessionLogFile = None;
 
             sVBoxSvcRelLog = os.path.join(self.sScratchPath, 'VBoxUserHome', 'VBoxSVC.log');
             if os.path.isfile(sVBoxSvcRelLog):
@@ -3092,13 +3105,13 @@ class TestDriver(base.TestDriver):                                              
         self.processPendingEvents();
 
         # Construct the environment.
-        sLogFile = '%s/VM-%s.log' % (self.sScratchPath, sUuid);
-        try:    os.remove(sLogFile);
+        self.sSessionLogFile = '%s/VM-%s.log' % (self.sScratchPath, sUuid);
+        try:    os.remove(self.sSessionLogFile);
         except: pass;
         if self.sLogSessionDest:
             sLogDest = self.sLogSessionDest;
         else:
-            sLogDest = 'file=%s' % (sLogFile,);
+            sLogDest = 'file=%s' % (self.sSessionLogFile,);
         asEnvFinal = [
             'VBOX_LOG=%s' % (self.sLogSessionGroups,),
             'VBOX_LOG_FLAGS=%s' % (self.sLogSessionFlags,),
@@ -3109,6 +3122,8 @@ class TestDriver(base.TestDriver):                                              
             asEnvFinal.append('VBOX_GUI_DBG_ENABLED=1');
         if asEnv is not None and asEnv:
             asEnvFinal += asEnv;
+
+        reporter.log2('Session environment:\n%s' % (asEnvFinal,));
 
         # Shortcuts for local testing.
         oProgress = oWrapped = None;
@@ -3176,7 +3191,7 @@ class TestDriver(base.TestDriver):                                              
                 # VM failed to power up, still collect VBox.log, need to wrap the session object
                 # in order to use the helper for adding the log files to the report.
                 from testdriver.vboxwrappers import SessionWrapper;
-                oTmp = SessionWrapper(oSession, oVM, self.oVBox, self.oVBoxMgr, self, True, sName, sLogFile);
+                oTmp = SessionWrapper(oSession, oVM, self.oVBox, self.oVBoxMgr, self, True, sName, self.sSessionLogFile);
                 oTmp.addLogsToReport();
 
                 # Try to collect a stack trace of the process for further investigation of any startup hangs.
@@ -3205,7 +3220,7 @@ class TestDriver(base.TestDriver):                                              
         # Wrap up the session object and push on to the list before returning it.
         if oWrapped is None:
             from testdriver.vboxwrappers import SessionWrapper;
-            oWrapped = SessionWrapper(oSession, oVM, self.oVBox, self.oVBoxMgr, self, True, sName, sLogFile);
+            oWrapped = SessionWrapper(oSession, oVM, self.oVBox, self.oVBoxMgr, self, True, sName, self.sSessionLogFile);
 
         oWrapped.registerEventHandlerForTask();
         self.aoRemoteSessions.append(oWrapped);

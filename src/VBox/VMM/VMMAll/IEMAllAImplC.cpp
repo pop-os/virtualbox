@@ -6199,7 +6199,12 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_fptan_r80_r80,(PCX86FXSTATE pFpuState, PIEMFPUR
     uint16_t const fFcw = pFpuState->FCW;
     uint16_t fFsw       = (pFpuState->FSW & (X86_FSW_C0 | /*X86_FSW_C2 |*/ X86_FSW_C3)) | (6 << X86_FSW_TOP_SHIFT);
 
-    if (RTFLOAT80U_IS_NORMAL(pr80Val))
+    if (RTFLOAT80U_IS_ZERO(pr80Val))
+    {
+        pFpuResTwo->r80Result1 = *pr80Val;
+        pFpuResTwo->r80Result2 = g_ar80One[0];
+    }
+    else if (RTFLOAT80U_IS_NORMAL(pr80Val))
     {
         if (pr80Val->s.uExponent >= RTFLOAT80U_EXP_BIAS + 63)
         {
@@ -6228,7 +6233,7 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_fptan_r80_r80,(PCX86FXSTATE pFpuState, PIEMFPUR
     {
         fFsw |= X86_FSW_IE;
         if (!(fFcw & X86_FCW_IM))
-            fFsw |= X86_FSW_ES | X86_FSW_B;
+            fFsw |= X86_FSW_ES | X86_FSW_B | (7 << X86_FSW_TOP_SHIFT);
     }
 
     pFpuResTwo->FSW = fFsw;
@@ -6282,7 +6287,6 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_fsin_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT
             if (pr80Val->s.uExponent <= RTFLOAT80U_EXP_BIAS - 63)
             {
                 pFpuRes->r80Result = *pr80Val;
-
             }
             else
             {
@@ -6308,20 +6312,44 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_fsin_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT
     }
     else if (RTFLOAT80U_IS_DENORMAL(pr80Val))
     {
-        pFpuRes->r80Result = *pr80Val;
         fFsw |= X86_FSW_DE;
 
         if (fFcw & X86_FCW_DM)
         {
+            if (fFcw & X86_FCW_UM)
+            {
+                pFpuRes->r80Result = *pr80Val;
+            }
+            else
+            {
+                /* Underflow signalling as described at 7.4 section of 1985 IEEE 754*/
+                uint64_t uMantissa = pr80Val->s.uMantissa;
+                uint32_t uExponent = ASMBitLastSetU64(uMantissa);
+
+                uExponent = 64 - uExponent;
+                uMantissa <<= uExponent;
+                uExponent = RTFLOAT128U_EXP_BIAS_ADJUST - uExponent + 1;
+
+                pFpuRes->r80Result.s.fSign = pr80Val->s.fSign;
+                pFpuRes->r80Result.s.uMantissa = uMantissa;
+                pFpuRes->r80Result.s.uExponent = uExponent;
+            }
+
             fFsw |= X86_FSW_UE | X86_FSW_PE;
 
-            if (!(fFcw & X86_FCW_UM) || !(fFcw & X86_FCW_PM))
+            if ((fFcw & X86_FCW_UM) && (fFcw & X86_FCW_PM))
+            {
+                /* All the exceptions are masked. */
+            }
+            else
             {
                 fFsw |= X86_FSW_ES | X86_FSW_B;
             }
         }
         else
         {
+            pFpuRes->r80Result = *pr80Val;
+
             fFsw |= X86_FSW_ES | X86_FSW_B;
         }
     }
@@ -6599,16 +6627,33 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_fsincos_r80_r80,(PCX86FXSTATE pFpuState, PIEMFP
 
         if (fFcw & X86_FCW_DM)
         {
-            pFpuResTwo->r80Result1 = *pr80Val;
             pFpuResTwo->r80Result2 = g_ar80One[0];
+
+            if (fFcw & X86_FCW_UM)
+            {
+                pFpuResTwo->r80Result1 = *pr80Val;
+            }
+            else
+            {
+                /* Underflow signalling as described at 7.4 section of 1985 IEEE 754*/
+                uint64_t uMantissa = pr80Val->s.uMantissa;
+                uint32_t uExponent = ASMBitLastSetU64(uMantissa);
+
+                uExponent = 64 - uExponent;
+                uMantissa <<= uExponent;
+                uExponent = RTFLOAT128U_EXP_BIAS_ADJUST - uExponent + 1;
+
+                pFpuResTwo->r80Result1.s.fSign = pr80Val->s.fSign;
+                pFpuResTwo->r80Result1.s.uMantissa = uMantissa;
+                pFpuResTwo->r80Result1.s.uExponent = uExponent;
+            }
 
             fFsw &= ~X86_FSW_TOP_MASK | (6 << X86_FSW_TOP_SHIFT);
             fFsw |= X86_FSW_UE | X86_FSW_PE;
 
-            if (fFcw & X86_FCW_PM)
+            if ((fFcw & X86_FCW_UM) && (fFcw & X86_FCW_PM))
             {
-                if (!(fFcw & X86_FCW_UM))
-                    fFsw |= X86_FSW_ES | X86_FSW_B;
+                /* All the exceptions are masked. */
             }
             else
             {
@@ -7540,19 +7585,11 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_fyl2xp1_r80_by_r80_amd,(PCX86FXSTATE pFpuState,
 *   MMX, SSE & AVX                                                                                                               *
 *********************************************************************************************************************************/
 
-/*
- * MOVSLDUP / VMOVSLDUP
- */
-IEM_DECL_IMPL_DEF(void, iemAImpl_movsldup,(PRTUINT128U puDst, PCRTUINT128U puSrc))
-{
-    puDst->au32[0] = puSrc->au32[0];
-    puDst->au32[1] = puSrc->au32[0];
-    puDst->au32[2] = puSrc->au32[2];
-    puDst->au32[3] = puSrc->au32[2];
-}
-
 #ifdef IEM_WITH_VEX
 
+/*
+ * VMOVSLDUP
+ */
 IEM_DECL_IMPL_DEF(void, iemAImpl_vmovsldup_256_rr,(PX86XSAVEAREA pXState, uint8_t iYRegDst, uint8_t iYRegSrc))
 {
     pXState->x87.aXMM[iYRegDst].au32[0] = pXState->x87.aXMM[iYRegSrc].au32[0];
@@ -7581,19 +7618,11 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_vmovsldup_256_rm,(PX86XSAVEAREA pXState, uint8_
 #endif /* IEM_WITH_VEX */
 
 
-/*
- * MOVSHDUP / VMOVSHDUP
- */
-IEM_DECL_IMPL_DEF(void, iemAImpl_movshdup,(PRTUINT128U puDst, PCRTUINT128U puSrc))
-{
-    puDst->au32[0] = puSrc->au32[1];
-    puDst->au32[1] = puSrc->au32[1];
-    puDst->au32[2] = puSrc->au32[3];
-    puDst->au32[3] = puSrc->au32[3];
-}
-
 #ifdef IEM_WITH_VEX
 
+/*
+ * VMOVSHDUP
+ */
 IEM_DECL_IMPL_DEF(void, iemAImpl_vmovshdup_256_rr,(PX86XSAVEAREA pXState, uint8_t iYRegDst, uint8_t iYRegSrc))
 {
     pXState->x87.aXMM[iYRegDst].au32[0] = pXState->x87.aXMM[iYRegSrc].au32[1];
@@ -7622,17 +7651,11 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_vmovshdup_256_rm,(PX86XSAVEAREA pXState, uint8_
 #endif /* IEM_WITH_VEX */
 
 
-/*
- * MOVDDUP / VMOVDDUP
- */
-IEM_DECL_IMPL_DEF(void, iemAImpl_movddup,(PRTUINT128U puDst, uint64_t uSrc))
-{
-    puDst->au64[0] = uSrc;
-    puDst->au64[1] = uSrc;
-}
-
 #ifdef IEM_WITH_VEX
 
+/*
+ * VMOVDDUP
+ */
 IEM_DECL_IMPL_DEF(void, iemAImpl_vmovddup_256_rr,(PX86XSAVEAREA pXState, uint8_t iYRegDst, uint8_t iYRegSrc))
 {
     pXState->x87.aXMM[iYRegDst].au64[0] = pXState->x87.aXMM[iYRegSrc].au64[0];
@@ -17215,3 +17238,52 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_cvttps2pi_u128,(uint32_t *pfMxcsr, uint64_t *pu
     *pfMxcsr = fMxcsrOut;
 }
 #endif
+
+/**
+ * RDRAND
+ */
+IEM_DECL_IMPL_DEF(void, iemAImpl_rdrand_u16_fallback,(uint16_t *puDst, uint32_t *pEFlags))
+{
+    *puDst = 0;
+    *pEFlags &= ~X86_EFL_STATUS_BITS;
+    *pEFlags |= X86_EFL_CF;
+}
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_rdrand_u32_fallback,(uint32_t *puDst, uint32_t *pEFlags))
+{
+    *puDst = 0;
+    *pEFlags &= ~X86_EFL_STATUS_BITS;
+    *pEFlags |= X86_EFL_CF;
+}
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_rdrand_u64_fallback,(uint64_t *puDst, uint32_t *pEFlags))
+{
+    *puDst = 0;
+    *pEFlags &= ~X86_EFL_STATUS_BITS;
+    *pEFlags |= X86_EFL_CF;
+}
+
+/**
+ * RDSEED
+ */
+IEM_DECL_IMPL_DEF(void, iemAImpl_rdseed_u16_fallback,(uint16_t *puDst, uint32_t *pEFlags))
+{
+    *puDst = 0;
+    *pEFlags &= ~X86_EFL_STATUS_BITS;
+    *pEFlags |= X86_EFL_CF;
+}
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_rdseed_u32_fallback,(uint32_t *puDst, uint32_t *pEFlags))
+{
+    *puDst = 0;
+    *pEFlags &= ~X86_EFL_STATUS_BITS;
+    *pEFlags |= X86_EFL_CF;
+}
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_rdseed_u64_fallback,(uint64_t *puDst, uint32_t *pEFlags))
+{
+    *puDst = 0;
+    *pEFlags &= ~X86_EFL_STATUS_BITS;
+    *pEFlags |= X86_EFL_CF;
+}
+

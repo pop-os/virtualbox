@@ -220,6 +220,7 @@ UIVMLogViewerWidget::UIVMLogViewerWidget(EmbedTo enmEmbedding,
     , m_pCornerButton(0)
     , m_pMachineSelectionMenu(0)
     , m_fCommitDataSignalReceived(false)
+    , m_pPreviousLogPage(0)
 {
     /* Prepare VM Log-Viewer: */
     prepare();
@@ -483,14 +484,14 @@ void UIVMLogViewerWidget::sltSave()
     }
 }
 
-void UIVMLogViewerWidget::sltDeleteBookmark(int index)
+void UIVMLogViewerWidget::sltDeleteBookmarkByIndex(int index)
 {
     UIVMLogPage* pLogPage = currentLogPage();
     if (!pLogPage)
         return;
-    pLogPage->deleteBookmark(index);
+    pLogPage->deleteBookmarkByIndex(index);
     if (m_pBookmarksPanel)
-        m_pBookmarksPanel->updateBookmarkList(pLogPage->bookmarkVector());
+        m_pBookmarksPanel->updateBookmarkList(pLogPage->bookmarkList());
 }
 
 void UIVMLogViewerWidget::sltDeleteAllBookmarks()
@@ -501,14 +502,14 @@ void UIVMLogViewerWidget::sltDeleteAllBookmarks()
     pLogPage->deleteAllBookmarks();
 
     if (m_pBookmarksPanel)
-        m_pBookmarksPanel->updateBookmarkList(pLogPage->bookmarkVector());
+        m_pBookmarksPanel->updateBookmarkList(pLogPage->bookmarkList());
 }
 
 void UIVMLogViewerWidget::sltUpdateBookmarkPanel()
 {
     if (!currentLogPage() || !m_pBookmarksPanel)
         return;
-    m_pBookmarksPanel->updateBookmarkList(currentLogPage()->bookmarkVector());
+    m_pBookmarksPanel->updateBookmarkList(currentLogPage()->bookmarkList());
 }
 
 void UIVMLogViewerWidget::gotoBookmark(int bookmarkIndex)
@@ -555,6 +556,10 @@ void UIVMLogViewerWidget::sltHandleSearchUpdated()
 void UIVMLogViewerWidget::sltCurrentTabChanged(int tabIndex)
 {
     Q_UNUSED(tabIndex);
+
+    if (m_pPreviousLogPage)
+        m_pPreviousLogPage->saveScrollBarPosition();
+
     if (labelTabHandler())
         return;
     /* Dont refresh the search here as it is refreshed by the filtering mechanism
@@ -564,7 +569,11 @@ void UIVMLogViewerWidget::sltCurrentTabChanged(int tabIndex)
 
     /* We keep a separate QVector<LogBookmark> for each log page: */
     if (m_pBookmarksPanel && currentLogPage())
-        m_pBookmarksPanel->updateBookmarkList(currentLogPage()->bookmarkVector());
+        m_pBookmarksPanel->updateBookmarkList(currentLogPage()->bookmarkList());
+
+    m_pPreviousLogPage = currentLogPage();
+    if (m_pPreviousLogPage)
+        m_pPreviousLogPage->restoreScrollBarPosition();
 }
 
 void UIVMLogViewerWidget::sltFilterApplied()
@@ -815,8 +824,8 @@ void UIVMLogViewerWidget::prepareWidgets()
         {
             /* Configure panel: */
             m_pBookmarksPanel->hide();
-            connect(m_pBookmarksPanel, &UIVMLogViewerBookmarksPanel::sigDeleteBookmark,
-                    this, &UIVMLogViewerWidget::sltDeleteBookmark);
+            connect(m_pBookmarksPanel, &UIVMLogViewerBookmarksPanel::sigDeleteBookmarkByIndex,
+                    this, &UIVMLogViewerWidget::sltDeleteBookmarkByIndex);
             connect(m_pBookmarksPanel, &UIVMLogViewerBookmarksPanel::sigDeleteAllBookmarks,
                     this, &UIVMLogViewerWidget::sltDeleteAllBookmarks);
             connect(m_pBookmarksPanel, &UIVMLogViewerBookmarksPanel::sigBookmarkSelected,
@@ -1080,6 +1089,7 @@ void UIVMLogViewerWidget::createLogViewerPages(const QVector<QUuid> &machineList
         QUuid uMachineId = comMachine.GetId();
         QString strMachineName = comMachine.GetName();
 
+        /* Add a label tab with machine name on it. Used only in manager UI: */
         if (uiCommon().uiType() == UICommon::UIType_SelectorUI)
             m_pTabWidget->addTab(new UILabelTab(this, uMachineId, strMachineName), strMachineName);
 

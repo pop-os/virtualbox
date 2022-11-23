@@ -33,6 +33,7 @@
 
 #include "GuestSessionWrap.h"
 #include "EventImpl.h"
+#include "ProgressImpl.h"
 
 #include "GuestCtrlImplPrivate.h"
 #include "GuestSessionImpl.h"
@@ -62,26 +63,22 @@ struct GuestSessionFsSourceSpec
     Utf8Str     strSource;
     /** Filter to use. Currently not implemented and thus ignored. */
     Utf8Str     strFilter;
-    /** The object type of this source. */
+    /** The root object type of this source (directory, file). */
     FsObjType_T enmType;
     /** The path style to use. */
     PathStyle_T enmPathStyle;
     /** Whether to do a dry run (e.g. not really touching anything) or not. */
     bool        fDryRun;
+    /** Directory copy flags. */
+    DirectoryCopyFlag_T fDirCopyFlags;
+    /** File copy flags. */
+    FileCopyFlag_T      fFileCopyFlags;
     /** Union to keep type-specific data. Must be a POD type (zero'ing). */
     union
     {
-        /** Directory-specific data. */
-        struct
-        {
-            /** Directory copy flags. */
-            DirectoryCopyFlag_T fCopyFlags;
-        } Dir;
         /** File-specific data. */
         struct
         {
-            /** File copy flags. */
-            FileCopyFlag_T      fCopyFlags;
             /** Source file offset to start copying from. */
             size_t              offStart;
             /** Host file handle to use for reading from / writing to.
@@ -126,6 +123,10 @@ public:
     int Init(const Utf8Str &strSrcRootAbs, const Utf8Str &strDstRootAbs, const GuestSessionFsSourceSpec &SourceSpec);
     void Destroy(void);
 
+#ifdef DEBUG
+    void DumpToLog(void);
+#endif
+
     int AddEntryFromGuest(const Utf8Str &strFile, const GuestFsObjData &fsObjData);
     int AddDirFromGuest(const Utf8Str &strPath, const Utf8Str &strSubDir = "");
 
@@ -138,11 +139,13 @@ public:
     const GuestSessionTask  &mTask;
     /** File system filter / options to use for this task. */
     GuestSessionFsSourceSpec mSourceSpec;
-    /** The source' root path.
+    /** The source' root path. Always in the source's path style!
+     *
      *  For a single file list this is the full (absolute) path to a file,
      *  for a directory list this is the source root directory. */
     Utf8Str                 mSrcRootAbs;
-    /** The destinations's root path.
+    /** The destinations's root path. Always in the destination's path style!
+     *
      *  For a single file list this is the full (absolute) path to a file,
      *  for a directory list this is the destination root directory. */
     Utf8Str                 mDstRootAbs;
@@ -181,12 +184,32 @@ public:
     void handler()
     {
         int vrc = Run();
-        NOREF(vrc);
-        /** @todo
-         *
-         * r=bird: what was your idea WRT to Run status code and async tasks?
-         *
-         */
+        if (RT_FAILURE(vrc)) /* Could be VERR_INTERRUPTED if the user manually canceled the task. */
+        {
+            /* Make sure to let users know if there is a buggy task which failed but didn't set the progress object
+             * to a failed state, and if not canceled manually by the user. */
+            BOOL fCanceled;
+            if (SUCCEEDED(mProgress->COMGETTER(Canceled(&fCanceled))))
+            {
+                if (!fCanceled)
+                {
+                    BOOL fCompleted;
+                    if (SUCCEEDED(mProgress->COMGETTER(Completed(&fCompleted))))
+                    {
+                        if (!fCompleted)
+                            setProgressErrorMsg(E_UNEXPECTED,
+                                                Utf8StrFmt(tr("Task '%s' failed with %Rrc, but progress is still pending. Please report this bug!\n"),
+                                                           mDesc.c_str(), vrc));
+                    }
+                    else
+                        AssertReleaseMsgFailed(("Guest Control: Unable to retrieve progress completion status for task '%s' (task result is %Rrc)\n",
+                                                mDesc.c_str(), vrc));
+                }
+            }
+            else
+                AssertReleaseMsgFailed(("Guest Control: Unable to retrieve progress cancellation status for task '%s' (task result is %Rrc)\n",
+                                        mDesc.c_str(), vrc));
+        }
     }
 
     // unused: int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
@@ -212,9 +235,9 @@ protected:
     /** @name Directory handling primitives.
      * @{ */
     int directoryCreateOnGuest(const com::Utf8Str &strPath,
-                               DirectoryCreateFlag_T enmDirectoryCreateFlags, uint32_t fMode,
+                               uint32_t fMode, DirectoryCreateFlag_T enmDirectoryCreateFlags,
                                bool fFollowSymlinks, bool fCanExist);
-    int directoryCreateOnHost(const com::Utf8Str &strPath, uint32_t fCreate, uint32_t fMode, bool fCanExist);
+    int directoryCreateOnHost(const com::Utf8Str &strPath, uint32_t fMode, uint32_t fCreate, bool fCanExist);
     /** @}  */
 
     /** @name File handling primitives.
@@ -255,10 +278,8 @@ protected:
     /** Progress object for getting updated when running
      *  asynchronously. Optional. */
     ComObjPtr<Progress>     mProgress;
-    /** The guest's path style (depending on the guest OS type set). */
-    uint32_t                mfPathStyle;
-    /** The guest's path style as string representation (depending on the guest OS type set). */
-    Utf8Str                 mPathStyle;
+    /** The guest's path style as char representation (depending on the guest OS type set). */
+    Utf8Str                 mstrGuestPathStyle;
 };
 
 /**
@@ -398,6 +419,7 @@ protected:
     int addProcessArguments(ProcessArguments &aArgumentsDest, const ProcessArguments &aArgumentsSource);
     int copyFileToGuest(GuestSession *pSession, RTVFS hVfsIso, Utf8Str const &strFileSource, const Utf8Str &strFileDest, bool fOptional);
     int runFileOnGuest(GuestSession *pSession, GuestProcessStartupInfo &procInfo);
+    int waitForGuestSession(ComObjPtr<Guest> pGuest);
 
     /** Files to handle. */
     std::vector<ISOFile>        mFiles;

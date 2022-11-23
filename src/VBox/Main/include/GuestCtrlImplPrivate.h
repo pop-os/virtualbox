@@ -823,6 +823,7 @@ struct GuestFsObjData
     /** @name Helper functions to extract the data from a certin VBoxService tool's guest stream block.
      * @{ */
     int FromLs(const GuestProcessStreamBlock &strmBlk, bool fLong);
+    int FromRm(const GuestProcessStreamBlock &strmBlk);
     int FromStat(const GuestProcessStreamBlock &strmBlk);
     int FromMkTemp(const GuestProcessStreamBlock &strmBlk);
     /** @}  */
@@ -1290,6 +1291,8 @@ public:
 public:
 
     static FsObjType_T fileModeToFsObjType(RTFMODE fMode);
+    static const char *fsObjTypeToStr(FsObjType_T enmType);
+    static const char *pathStyleToStr(PathStyle_T enmPathStyle);
     static Utf8Str getErrorAsString(const Utf8Str &strAction, const GuestErrorInfo& guestErrorInfo);
     static Utf8Str getErrorAsString(const GuestErrorInfo &guestErrorInfo);
 
@@ -1383,6 +1386,37 @@ protected:
      *  for guest files this is the internal file ID. */
     uint32_t                 mObjectID;
     /** @} */
+};
+
+/** Returns the path separator based on \a a_enmPathStyle as a C-string. */
+#define PATH_STYLE_SEP_STR(a_enmPathStyle) a_enmPathStyle == PathStyle_DOS ? "\\" : "/"
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+# define PATH_STYLE_NATIVE               PathStyle_DOS
+#else
+# define PATH_STYLE_NATIVE               PathStyle_UNIX
+#endif
+
+/**
+ * Class for handling guest / host path functions.
+ */
+class GuestPath
+{
+private:
+
+    /**
+     * Default constructor.
+     *
+     * Not directly instantiable (yet).
+     */
+    GuestPath(void) { }
+
+public:
+
+    /** @name Static helper functions.
+     * @{ */
+    static int BuildDestinationPath(const Utf8Str &strSrcPath, PathStyle_T enmSrcPathStyle, Utf8Str &strDstPath, PathStyle_T enmDstPathStyle);
+    static int Translate(Utf8Str &strPath, PathStyle_T enmSrcPathStyle, PathStyle_T enmDstPathStyle, bool fForce = false);
+    /** @}  */
 };
 #endif /* !MAIN_INCLUDED_GuestCtrlImplPrivate_h */
 

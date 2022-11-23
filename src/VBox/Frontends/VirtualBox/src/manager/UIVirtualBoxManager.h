@@ -40,6 +40,7 @@
 #include "QIWithRetranslateUI.h"
 #include "UICommon.h"
 #include "UIExtraDataDefs.h"
+#include "UISettingsDialog.h"
 
 /* Forward declarations: */
 class QMenu;
@@ -130,6 +131,9 @@ private slots:
         /** Handles request to update actions. */
         void sltHandleUpdateActionAppearanceRequest() { updateActionsAppearance(); }
 
+        /** Handles request to commit data. */
+        void sltHandleCommitData();
+
         /** Handles signal about medium-enumeration finished. */
         void sltHandleMediumEnumerationFinish();
 
@@ -194,6 +198,8 @@ private slots:
 
         /** Handles call to open Preferences dialog. */
         void sltOpenPreferencesDialog();
+        /** Handles call to close Preferences dialog. */
+        void sltClosePreferencesDialog();
 
         /** Handles call to exit application. */
         void sltPerformExit();
@@ -211,15 +217,17 @@ private slots:
         /** Handles call to disband group. */
         void sltDisbandGroup();
 
-        /** Handles call to open Machine Settings dialog.
+        /** Handles call to open Settings dialog.
           * @param strCategory can bring the settings category to start from.
           * @param strControl  can bring the widget of the page to focus.
           * @param uID       can bring the ID of machine to manage. */
-        void sltOpenMachineSettingsDialog(QString strCategory = QString(),
-                                          QString strControl = QString(),
-                                          const QUuid &uID = QUuid());
-        /** Handles call to open Machine Settings dialog the default way. */
-        void sltOpenMachineSettingsDialogDefault() { sltOpenMachineSettingsDialog(); }
+        void sltOpenSettingsDialog(QString strCategory = QString(),
+                                   QString strControl = QString(),
+                                   const QUuid &uID = QUuid());
+        /** Handles call to open Settings dialog the default way. */
+        void sltOpenSettingsDialogDefault() { sltOpenSettingsDialog(); }
+        /** Handles call to close Settings dialog. */
+        void sltCloseSettingsDialog();
 
         /** Handles call to open Clone Machine wizard. */
         void sltOpenCloneMachineWizard();
@@ -460,6 +468,8 @@ private:
         static bool isAtLeastOneItemStarted(const QList<UIVirtualMachineItem*> &items);
         /** Returns whether at least one of passed @a items is running. */
         static bool isAtLeastOneItemRunning(const QList<UIVirtualMachineItem*> &items);
+        /** Returns whether at least one of passed @a items is detachable. */
+        static bool isAtLeastOneItemDetachable(const QList<UIVirtualMachineItem*> &items);
 
 #ifdef VBOX_WS_X11
         /** Tries to guess default X11 terminal emulator.
@@ -485,8 +495,11 @@ private:
     /** Holds the map of various global managers. */
     QMap<UIToolType, QIManagerDialog*>  m_managers;
 
+    /** Holds the map of various settings dialogs. */
+    QMap<UISettingsDialog::DialogType, UISettingsDialog*>  m_settings;
+
     /** Holds the instance of UIVMLogViewerDialog. */
-    QIManagerDialog   *m_pLogViewerDialog;
+    QIManagerDialog *m_pLogViewerDialog;
 
     /** Holds the central-widget instance. */
     UIVirtualBoxManagerWidget *m_pWidget;

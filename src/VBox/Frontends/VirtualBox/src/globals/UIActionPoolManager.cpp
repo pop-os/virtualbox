@@ -1214,6 +1214,34 @@ protected:
     }
 };
 
+/** Simple action extension, used as 'Perform Detach' action class. */
+class UIActionSimpleManagerCommonPerformDetach : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs action passing @a pParent to the base-class. */
+    UIActionSimpleManagerCommonPerformDetach(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/vm_create_shortcut_16px.png", ":/vm_create_shortcut_disabled_16px.png")
+    {}
+
+protected:
+
+    /** Returns shortcut extra-data ID. */
+    virtual QString shortcutExtraDataID() const RT_OVERRIDE
+    {
+        return QString("DetachUIVM");
+    }
+
+    /** Handles translation event. */
+    virtual void retranslateUi() RT_OVERRIDE
+    {
+        setName(QApplication::translate("UIActionPool", "&Detach GUI"));
+        setStatusTip(QApplication::translate("UIActionPool", "Detach the GUI from headless VM"));
+    }
+};
+
 /** Simple menu action extension, used as 'Perform Discard' action class. */
 class UIActionSimpleManagerCommonPerformDiscard : public UIActionSimple
 {
@@ -1624,15 +1652,15 @@ protected:
 };
 
 
-/** Menu action extension, used as 'Close' menu class. */
-class UIActionMenuManagerClose : public UIActionMenu
+/** Menu action extension, used as 'Stop' menu class. */
+class UIActionMenuManagerStop : public UIActionMenu
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs action passing @a pParent to the base-class. */
-    UIActionMenuManagerClose(UIActionPool *pParent)
+    UIActionMenuManagerStop(UIActionPool *pParent)
         : UIActionMenu(pParent, ":/exit_16px.png")
     {}
 
@@ -1641,47 +1669,19 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() RT_OVERRIDE
     {
-        setName(QApplication::translate("UIActionPool", "&Close"));
-    }
-};
-
-/** Simple action extension, used as 'Perform Detach' action class. */
-class UIActionSimpleManagerClosePerformDetach : public UIActionSimple
-{
-    Q_OBJECT;
-
-public:
-
-    /** Constructs action passing @a pParent to the base-class. */
-    UIActionSimpleManagerClosePerformDetach(UIActionPool *pParent)
-        : UIActionSimple(pParent, ":/vm_create_shortcut_16px.png", ":/vm_create_shortcut_disabled_16px.png")
-    {}
-
-protected:
-
-    /** Returns shortcut extra-data ID. */
-    virtual QString shortcutExtraDataID() const RT_OVERRIDE
-    {
-        return QString("DetachUIVM");
-    }
-
-    /** Handles translation event. */
-    virtual void retranslateUi() RT_OVERRIDE
-    {
-        setName(QApplication::translate("UIActionPool", "&Detach GUI"));
-        setStatusTip(QApplication::translate("UIActionPool", "Detach the GUI from headless VM"));
+        setName(QApplication::translate("UIActionPool", "&Stop"));
     }
 };
 
 /** Simple action extension, used as 'Perform Save' action class. */
-class UIActionSimpleManagerClosePerformSave : public UIActionSimple
+class UIActionSimpleManagerStopPerformSave : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs action passing @a pParent to the base-class. */
-    UIActionSimpleManagerClosePerformSave(UIActionPool *pParent)
+    UIActionSimpleManagerStopPerformSave(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/vm_save_state_16px.png", ":/vm_save_state_disabled_16px.png")
     {}
 
@@ -1702,14 +1702,14 @@ protected:
 };
 
 /** Simple action extension, used as 'Perform Terminate' action class. */
-class UIActionSimpleManagerClosePerformTerminate : public UIActionSimple
+class UIActionSimpleManagerStopPerformTerminate : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs action passing @a pParent to the base-class. */
-    UIActionSimpleManagerClosePerformTerminate(UIActionPool *pParent)
+    UIActionSimpleManagerStopPerformTerminate(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/vm_discard_16px.png", ":/vm_discard_disabled_16px.png")
     {}
 
@@ -1732,14 +1732,14 @@ protected:
 };
 
 /** Simple action extension, used as 'Perform Shutdown' action class. */
-class UIActionSimpleManagerClosePerformShutdown : public UIActionSimple
+class UIActionSimpleManagerStopPerformShutdown : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs action passing @a pParent to the base-class. */
-    UIActionSimpleManagerClosePerformShutdown(UIActionPool *pParent)
+    UIActionSimpleManagerStopPerformShutdown(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/vm_shutdown_16px.png", ":/vm_shutdown_disabled_16px.png")
     {}
 
@@ -1760,14 +1760,14 @@ protected:
 };
 
 /** Simple action extension, used as 'Perform PowerOff' action class. */
-class UIActionSimpleManagerClosePerformPowerOff : public UIActionSimple
+class UIActionSimpleManagerStopPerformPowerOff : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs action passing @a pParent to the base-class. */
-    UIActionSimpleManagerClosePerformPowerOff(UIActionPool *pParent)
+    UIActionSimpleManagerStopPerformPowerOff(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/vm_poweroff_16px.png", ":/vm_poweroff_disabled_16px.png")
     {}
 
@@ -3644,16 +3644,16 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_Group_M_StartOrShow_S_StartDetachable] = new UIActionSimpleManagerCommonPerformStartDetachable(this);
     m_pool[UIActionIndexMN_M_Group_T_Pause] = new UIActionToggleManagerCommonPauseAndResume(this);
     m_pool[UIActionIndexMN_M_Group_S_Reset] = new UIActionSimpleManagerCommonPerformReset(this);
+    m_pool[UIActionIndexMN_M_Group_S_Detach] = new UIActionSimpleManagerCommonPerformDetach(this);
     m_pool[UIActionIndexMN_M_Group_M_Console] = new UIActionMenuManagerConsole(this);
     m_pool[UIActionIndexMN_M_Group_M_Console_S_CreateConnection] = new UIActionSimpleManagerConsolePerformCreateConnection(this);
     m_pool[UIActionIndexMN_M_Group_M_Console_S_DeleteConnection] = new UIActionSimpleManagerConsolePerformDeleteConnection(this);
     m_pool[UIActionIndexMN_M_Group_M_Console_S_ConfigureApplications] = new UIActionSimpleManagerConsolePerformConfigureApplications(this);
-    m_pool[UIActionIndexMN_M_Group_M_Close] = new UIActionMenuManagerClose(this);
-    m_pool[UIActionIndexMN_M_Group_M_Close_S_Detach] = new UIActionSimpleManagerClosePerformDetach(this);
-    m_pool[UIActionIndexMN_M_Group_M_Close_S_SaveState] = new UIActionSimpleManagerClosePerformSave(this);
-    m_pool[UIActionIndexMN_M_Group_M_Close_S_Terminate] = new UIActionSimpleManagerClosePerformTerminate(this);
-    m_pool[UIActionIndexMN_M_Group_M_Close_S_Shutdown] = new UIActionSimpleManagerClosePerformShutdown(this);
-    m_pool[UIActionIndexMN_M_Group_M_Close_S_PowerOff] = new UIActionSimpleManagerClosePerformPowerOff(this);
+    m_pool[UIActionIndexMN_M_Group_M_Stop] = new UIActionMenuManagerStop(this);
+    m_pool[UIActionIndexMN_M_Group_M_Stop_S_SaveState] = new UIActionSimpleManagerStopPerformSave(this);
+    m_pool[UIActionIndexMN_M_Group_M_Stop_S_Terminate] = new UIActionSimpleManagerStopPerformTerminate(this);
+    m_pool[UIActionIndexMN_M_Group_M_Stop_S_Shutdown] = new UIActionSimpleManagerStopPerformShutdown(this);
+    m_pool[UIActionIndexMN_M_Group_M_Stop_S_PowerOff] = new UIActionSimpleManagerStopPerformPowerOff(this);
     m_pool[UIActionIndexMN_M_Group_M_Tools] = new UIActionMenuManagerToolsMachine(this);
     m_pool[UIActionIndexMN_M_Group_M_Tools_T_Details] = new UIActionToggleManagerToolsMachineShowDetails(this);
     m_pool[UIActionIndexMN_M_Group_M_Tools_T_Snapshots] = new UIActionToggleManagerToolsMachineShowSnapshots(this);
@@ -3686,6 +3686,7 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_Machine_M_StartOrShow_S_StartDetachable] = new UIActionSimpleManagerCommonPerformStartDetachable(this);
     m_pool[UIActionIndexMN_M_Machine_T_Pause] = new UIActionToggleManagerCommonPauseAndResume(this);
     m_pool[UIActionIndexMN_M_Machine_S_Reset] = new UIActionSimpleManagerCommonPerformReset(this);
+    m_pool[UIActionIndexMN_M_Machine_S_Detach] = new UIActionSimpleManagerCommonPerformDetach(this);
     m_pool[UIActionIndexMN_M_Machine_M_Console] = new UIActionMenuManagerConsole(this);
     m_pool[UIActionIndexMN_M_Machine_M_Console_S_CreateConnection] = new UIActionSimpleManagerConsolePerformCreateConnection(this);
     m_pool[UIActionIndexMN_M_Machine_M_Console_S_DeleteConnection] = new UIActionSimpleManagerConsolePerformDeleteConnection(this);
@@ -3695,12 +3696,11 @@ void UIActionPoolManager::preparePool()
     m_pool[UIActionIndexMN_M_Machine_M_Console_S_CopyCommandVNCWindows] = new UIActionSimpleManagerConsolePerformCopyCommand(this, false, false);
     m_pool[UIActionIndexMN_M_Machine_M_Console_S_ConfigureApplications] = new UIActionSimpleManagerConsolePerformConfigureApplications(this);
     m_pool[UIActionIndexMN_M_Machine_M_Console_S_ShowLog] = new UIActionSimpleManagerConsolePerformShowLog(this);
-    m_pool[UIActionIndexMN_M_Machine_M_Close] = new UIActionMenuManagerClose(this);
-    m_pool[UIActionIndexMN_M_Machine_M_Close_S_Detach] = new UIActionSimpleManagerClosePerformDetach(this);
-    m_pool[UIActionIndexMN_M_Machine_M_Close_S_SaveState] = new UIActionSimpleManagerClosePerformSave(this);
-    m_pool[UIActionIndexMN_M_Machine_M_Close_S_Terminate] = new UIActionSimpleManagerClosePerformTerminate(this);
-    m_pool[UIActionIndexMN_M_Machine_M_Close_S_Shutdown] = new UIActionSimpleManagerClosePerformShutdown(this);
-    m_pool[UIActionIndexMN_M_Machine_M_Close_S_PowerOff] = new UIActionSimpleManagerClosePerformPowerOff(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Stop] = new UIActionMenuManagerStop(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Stop_S_SaveState] = new UIActionSimpleManagerStopPerformSave(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Stop_S_Terminate] = new UIActionSimpleManagerStopPerformTerminate(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Stop_S_Shutdown] = new UIActionSimpleManagerStopPerformShutdown(this);
+    m_pool[UIActionIndexMN_M_Machine_M_Stop_S_PowerOff] = new UIActionSimpleManagerStopPerformPowerOff(this);
     m_pool[UIActionIndexMN_M_Machine_M_Tools] = new UIActionMenuManagerToolsMachine(this);
     m_pool[UIActionIndexMN_M_Machine_M_Tools_T_Details] = new UIActionToggleManagerToolsMachineShowDetails(this);
     m_pool[UIActionIndexMN_M_Machine_M_Tools_T_Snapshots] = new UIActionToggleManagerToolsMachineShowSnapshots(this);
@@ -3812,8 +3812,8 @@ void UIActionPoolManager::preparePool()
     m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_StartOrShow].ptfm = &UIActionPoolManager::updateMenuMachineStartOrShow;
     m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_Console].ptfm =       &UIActionPoolManager::updateMenuGroupConsole;
     m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_Console].ptfm =     &UIActionPoolManager::updateMenuMachineConsole;
-    m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_Close].ptfm =         &UIActionPoolManager::updateMenuGroupClose;
-    m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_Close].ptfm =       &UIActionPoolManager::updateMenuMachineClose;
+    m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_Stop].ptfm =          &UIActionPoolManager::updateMenuGroupClose;
+    m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_Stop].ptfm =        &UIActionPoolManager::updateMenuMachineClose;
     m_menuUpdateHandlers[UIActionIndexMN_M_Group_M_Tools].ptfm =         &UIActionPoolManager::updateMenuGroupTools;
     m_menuUpdateHandlers[UIActionIndexMN_M_Machine_M_Tools].ptfm =       &UIActionPoolManager::updateMenuMachineTools;
     m_menuUpdateHandlers[UIActionIndexMN_M_ExtensionWindow].ptfm =       &UIActionPoolManager::updateMenuExtensionWindow;
@@ -3958,6 +3958,7 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Group_M_StartOrShow)
                     << action(UIActionIndexMN_M_Group_T_Pause)
                     << action(UIActionIndexMN_M_Group_S_Reset)
+                    // << action(UIActionIndexMN_M_Group_S_Detach)
                     << action(UIActionIndexMN_M_Group_S_Discard)
                     << action(UIActionIndexMN_M_Group_S_ShowLogDialog)
                     << action(UIActionIndexMN_M_Group_S_Refresh)
@@ -3970,11 +3971,10 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Group_M_Console_S_CreateConnection)
                     << action(UIActionIndexMN_M_Group_M_Console_S_DeleteConnection)
                     << action(UIActionIndexMN_M_Group_M_Console_S_ConfigureApplications)
-                    // << action(UIActionIndexMN_M_Group_M_Close_S_Detach)
-                    << action(UIActionIndexMN_M_Group_M_Close_S_SaveState)
-                    << action(UIActionIndexMN_M_Group_M_Close_S_Terminate)
-                    << action(UIActionIndexMN_M_Group_M_Close_S_Shutdown)
-                    << action(UIActionIndexMN_M_Group_M_Close_S_PowerOff)
+                    << action(UIActionIndexMN_M_Group_M_Stop_S_SaveState)
+                    << action(UIActionIndexMN_M_Group_M_Stop_S_Terminate)
+                    << action(UIActionIndexMN_M_Group_M_Stop_S_Shutdown)
+                    << action(UIActionIndexMN_M_Group_M_Stop_S_PowerOff)
                     << action(UIActionIndexMN_M_Group_M_Tools_T_Details)
                     << action(UIActionIndexMN_M_Group_M_Tools_T_Snapshots)
                     << action(UIActionIndexMN_M_Group_M_Tools_T_Logs)
@@ -3994,6 +3994,7 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Machine_M_StartOrShow)
                     << action(UIActionIndexMN_M_Machine_T_Pause)
                     << action(UIActionIndexMN_M_Machine_S_Reset)
+                    // << action(UIActionIndexMN_M_Machine_S_Detach)
                     << action(UIActionIndexMN_M_Machine_S_Discard)
                     << action(UIActionIndexMN_M_Machine_S_ShowLogDialog)
                     << action(UIActionIndexMN_M_Machine_S_Refresh)
@@ -4012,11 +4013,10 @@ void UIActionPoolManager::setShortcutsVisible(int iIndex, bool fVisible)
                     << action(UIActionIndexMN_M_Machine_M_Console_S_CopyCommandVNCWindows)
                     << action(UIActionIndexMN_M_Machine_M_Console_S_ConfigureApplications)
                     << action(UIActionIndexMN_M_Machine_M_Console_S_ShowLog)
-                    // << action(UIActionIndexMN_M_Machine_M_Close_S_Detach)
-                    << action(UIActionIndexMN_M_Machine_M_Close_S_SaveState)
-                    << action(UIActionIndexMN_M_Machine_M_Close_S_Terminate)
-                    << action(UIActionIndexMN_M_Machine_M_Close_S_Shutdown)
-                    << action(UIActionIndexMN_M_Machine_M_Close_S_PowerOff)
+                    << action(UIActionIndexMN_M_Machine_M_Stop_S_SaveState)
+                    << action(UIActionIndexMN_M_Machine_M_Stop_S_Terminate)
+                    << action(UIActionIndexMN_M_Machine_M_Stop_S_Shutdown)
+                    << action(UIActionIndexMN_M_Machine_M_Stop_S_PowerOff)
                     << action(UIActionIndexMN_M_Machine_M_Tools_T_Details)
                     << action(UIActionIndexMN_M_Machine_M_Tools_T_Snapshots)
                     << action(UIActionIndexMN_M_Machine_M_Tools_T_Logs)
@@ -4281,7 +4281,7 @@ void UIActionPoolManager::updateMenuMachineConsole()
 void UIActionPoolManager::updateMenuGroupClose()
 {
     /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndexMN_M_Group_M_Close)->menu();
+    UIMenu *pMenu = action(UIActionIndexMN_M_Group_M_Stop)->menu();
     AssertPtrReturnVoid(pMenu);
     /* Clear contents: */
     pMenu->clear();
@@ -4291,7 +4291,7 @@ void UIActionPoolManager::updateMenuGroupClose()
     // On macOS you can't leave menu empty and still have it in
     // the menu-bar, you have to leave there at least something.
     // Remaining stuff will be appended from UIVirtualBoxManager.
-    pMenu->addAction(action(UIActionIndexMN_M_Group_M_Close_S_PowerOff));
+    pMenu->addAction(action(UIActionIndexMN_M_Group_M_Stop_S_PowerOff));
 #endif
 
     /* This menu always remains invalid.. */
@@ -4300,7 +4300,7 @@ void UIActionPoolManager::updateMenuGroupClose()
 void UIActionPoolManager::updateMenuMachineClose()
 {
     /* Get corresponding menu: */
-    UIMenu *pMenu = action(UIActionIndexMN_M_Machine_M_Close)->menu();
+    UIMenu *pMenu = action(UIActionIndexMN_M_Machine_M_Stop)->menu();
     AssertPtrReturnVoid(pMenu);
     /* Clear contents: */
     pMenu->clear();
@@ -4310,7 +4310,7 @@ void UIActionPoolManager::updateMenuMachineClose()
     // On macOS you can't leave menu empty and still have it in
     // the menu-bar, you have to leave there at least something.
     // Remaining stuff will be appended from UIVirtualBoxManager.
-    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_Close_S_PowerOff));
+    pMenu->addAction(action(UIActionIndexMN_M_Machine_M_Stop_S_PowerOff));
 #endif
 
     /* This menu always remains invalid.. */

@@ -33,7 +33,6 @@
 /* GUI includes: */
 #include "UICommon.h"
 #include "UIMessageCenter.h"
-#include "UIPopupCenter.h"
 #include "UISession.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicSeamless.h"
@@ -112,18 +111,6 @@ int UIMachineLogicSeamless::hostScreenForGuestScreen(int iScreenId) const
 bool UIMachineLogicSeamless::hasHostScreenForGuestScreen(int iScreenId) const
 {
     return m_pScreenLayout->hasHostScreenForGuestScreen(iScreenId);
-}
-
-void UIMachineLogicSeamless::notifyAbout3DOverlayVisibilityChange(bool)
-{
-    /* If active machine-window is defined now: */
-    if (activeMachineWindow())
-    {
-        /* Reinstall corresponding popup-stack and make sure it has proper type: */
-        popupCenter().hidePopupStack(activeMachineWindow());
-        popupCenter().setPopupStackType(activeMachineWindow(), UIPopupStackType_Separate);
-        popupCenter().showPopupStack(activeMachineWindow());
-    }
 }
 
 void UIMachineLogicSeamless::sltCheckForRequestedVisualStateType()

@@ -41,7 +41,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154577 $"
 
 # pylint: disable=anomalous-backslash-in-string
 
@@ -374,6 +374,9 @@ g_kdIemForms = {     # sEncoding,   [ sWhere1, ... ]         opcodesub      ),
     'MR':           ( 'ModR/M',     [ 'rm', 'reg' ],         '',            ),
     'MR_REG':       ( 'ModR/M',     [ 'rm', 'reg' ],         '11 mr/reg',   ),
     'MR_MEM':       ( 'ModR/M',     [ 'rm', 'reg' ],         '!11 mr/reg',  ),
+    'MRI':          ( 'ModR/M',     [ 'rm', 'reg', 'imm' ],  '',            ),
+    'MRI_REG':      ( 'ModR/M',     [ 'rm', 'reg', 'imm' ],  '11 mr/reg',   ),
+    'MRI_MEM':      ( 'ModR/M',     [ 'rm', 'reg', 'imm' ],  '!11 mr/reg',  ),
     'M':            ( 'ModR/M',     [ 'rm', ],               '',            ),
     'M_REG':        ( 'ModR/M',     [ 'rm', ],               '',            ),
     'M_MEM':        ( 'ModR/M',     [ 'rm', ],               '',            ),

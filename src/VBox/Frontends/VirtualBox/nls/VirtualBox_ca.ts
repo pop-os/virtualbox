@@ -197,11 +197,11 @@
     </message>
     <message>
         <source>Enable &amp;VT-x/AMD-V</source>
-        <translation type="unfinished">Activa &amp;VT-x/AMD-V</translation>
+        <translation type="obsolete">Activa &amp;VT-x/AMD-V</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the host CPU&apos;s hardware virtualization extensions such as Intel VT-x and AMD-V.</source>
-        <translation type="unfinished">Quan estigui marcat, l&apos;aplicació tractarà de fer ús del processador de l&apos;amfitrió per a habilitar extensions com ara Intel VT-x i AMD-V.</translation>
+        <translation type="obsolete">Quan estigui marcat, l&apos;aplicació tractarà de fer ús del processador de l&apos;amfitrió per a habilitar extensions com ara Intel VT-x i AMD-V.</translation>
     </message>
     <message>
         <source>Enable Nested Pa&amp;ging</source>
@@ -854,7 +854,7 @@
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation>Tan&amp;ca</translation>
+        <translation type="vanished">Tan&amp;ca</translation>
     </message>
     <message>
         <source>&amp;Detach GUI</source>
@@ -2242,6 +2242,10 @@
     </message>
     <message>
         <source>Display the log viewer window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Stop</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5085,6 +5089,39 @@
         <source>Bridged Adapter</source>
         <translation type="unfinished">Adaptador pont</translation>
     </message>
+    <message>
+        <source>None</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished">Cap</translation>
+    </message>
+    <message>
+        <source>v1.2</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>v2.0</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished">Amfitrió</translation>
+    </message>
+    <message>
+        <source>SWTPM</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TPM Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secure Boot</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -5562,6 +5599,21 @@
     <message>
         <source>Visual State</source>
         <comment>details (user interface)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TPM Type</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secure Boot</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (system/secure boot)</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -6689,6 +6741,25 @@
     <message>
         <source>Holds the file path.</source>
         <translation type="vanished">Conté el camí al fitxer.</translation>
+    </message>
+</context>
+<context>
+    <name>UIFontScaleEditor</name>
+    <message>
+        <source>F&amp;ont Scaling:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the scaling factor for the font size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimum possible scale factor.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maximum possible scale factor.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8787,7 +8858,7 @@
     </message>
     <message>
         <source>The virtual machine operating system hint is set to a 64-bit type. 64-bit guest systems require hardware virtualization, so this will be enabled automatically if you confirm the changes.</source>
-        <translation>La recomanació del sistema operatiu de la màquina virtual és de tipus 64-bit. Els sistemes client de 64-bit requereixen la virtualització per maquinari i per tant això s&apos;activarà automàticament si confirmeu els canvis.</translation>
+        <translation type="vanished">La recomanació del sistema operatiu de la màquina virtual és de tipus 64-bit. Els sistemes client de 64-bit requereixen la virtualització per maquinari i per tant això s&apos;activarà automàticament si confirmeu els canvis.</translation>
     </message>
     <message>
         <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
@@ -9688,7 +9759,7 @@
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
-        <translation>La virtualització de maquinari no s&apos;ha habilitat a la secció Acceleració de la pàgina sistema. Això és necessari per suportar més d&apos;un processador virtual. Es farà automàticament si confirmeu els canvis.</translation>
+        <translation type="vanished">La virtualització de maquinari no s&apos;ha habilitat a la secció Acceleració de la pàgina sistema. Això és necessari per suportar més d&apos;un processador virtual. Es farà automàticament si confirmeu els canvis.</translation>
     </message>
     <message>
         <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
@@ -9730,7 +9801,7 @@
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
-        <translation>La virtualització del maquinari no està activada actualment a la secció d&apos;acceleració de la pàgina del sistema. Això és necessari per suportar la virtualització del maquinari imbricada. S&apos;activarà automàticament si confirmeu els canvis.</translation>
+        <translation type="vanished">La virtualització del maquinari no està activada actualment a la secció d&apos;acceleració de la pàgina del sistema. Això és necessari per suportar la virtualització del maquinari imbricada. S&apos;activarà automàticament si confirmeu els canvis.</translation>
     </message>
     <message>
         <source>The nested paging is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
@@ -9738,7 +9809,7 @@
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed for nested paging support. It will be enabled automatically if you confirm your changes.</source>
-        <translation>La virtualització del maquinari no està activada actualment a la secció d&apos;acceleració de la pàgina del sistema. Això és necessari per suportar la paginació imbricada. S&apos;activarà automàticament si confirmeu els canvis.</translation>
+        <translation type="vanished">La virtualització del maquinari no està activada actualment a la secció d&apos;acceleració de la pàgina del sistema. Això és necessari per suportar la paginació imbricada. S&apos;activarà automàticament si confirmeu els canvis.</translation>
     </message>
 </context>
 <context>
@@ -9781,7 +9852,7 @@
     </message>
     <message>
         <source>USB 2.0/3.0 is currently enabled for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0/3.0 to be able to start the machine.</source>
-        <translation>S&apos;ha habilitat USB 2.0/3.0 per a aquesta màquina virtual. Així i tot, això requereix que &lt;i&gt;%1&lt;/1&gt; estigui instal·lat. Instal·leu el paquet d&apos;extensió des del lloc web de baixades del VirtualBox o inhabiliteu USB 2.0/3.0 per a poder iniciar la màquina.</translation>
+        <translation type="vanished">S&apos;ha habilitat USB 2.0/3.0 per a aquesta màquina virtual. Així i tot, això requereix que &lt;i&gt;%1&lt;/1&gt; estigui instal·lat. Instal·leu el paquet d&apos;extensió des del lloc web de baixades del VirtualBox o inhabiliteu USB 2.0/3.0 per a poder iniciar la màquina.</translation>
     </message>
     <message>
         <source>Add Empty Filter</source>
@@ -12638,6 +12709,22 @@
         <source>Failed to find snapshot with name=&lt;b&gt;%1&lt;/b&gt;.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&lt;p&gt;The machine settings were changed.&lt;/p&gt;&lt;p&gt;Would you like to discard the changed settings or to keep editing them?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Discard changes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep editing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you going to restore default secure boot keys.&lt;/p&gt;&lt;p&gt;If you proceed your current keys will be rewritten. You may not be able to boot affected VM anymore.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniToolBar</name>
@@ -12724,11 +12811,31 @@
     </message>
     <message>
         <source>Hardware Clock in &amp;UTC Time</source>
-        <translation type="unfinished">Rellotge de maquinari en hora &amp;UTC</translation>
+        <translation type="obsolete">Rellotge de maquinari en hora &amp;UTC</translation>
     </message>
     <message>
         <source>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
         <translation type="unfinished">Quan estigui actiu, el dispositiu RTC informarà de l&apos;hora en UTC, altrament en hora local (amfitrió). En Unix s&apos;espera normalment l&apos;hora del maquinari en UTC.</translation>
+    </message>
+    <message>
+        <source>Enable Hardware Clock in &amp;UTC Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Secure Boot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, the secure boot emulation will be enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Reset Keys to Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resets secure boot keys to default.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14692,7 +14799,7 @@
     <message>
         <source>%1 (%2 ago)</source>
         <comment>date time (how long ago)</comment>
-        <translation>%1 (fa %2)</translation>
+        <translation type="vanished">%1 (fa %2)</translation>
     </message>
     <message>
         <source>%1 since %2</source>
@@ -15523,6 +15630,17 @@
     </message>
 </context>
 <context>
+    <name>UITpmEditor</name>
+    <message>
+        <source>&amp;TPM:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the TPM type to be emulated in this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UITranslator</name>
     <message numerus="yes">
         <source>%n year(s)</source>
@@ -15600,6 +15718,48 @@
         <source>User-defined</source>
         <comment>serial port</comment>
         <translation type="unfinished">Definit per l&apos;usuari</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>

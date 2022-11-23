@@ -296,11 +296,11 @@
     </message>
     <message>
         <source>Enable &amp;VT-x/AMD-V</source>
-        <translation type="unfinished">បើក VT-x/AMD-V</translation>
+        <translation type="obsolete">បើក VT-x/AMD-V</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will try to make use of the host CPU&apos;s hardware virtualization extensions such as Intel VT-x and AMD-V.</source>
-        <translation type="unfinished">នៅ​ពេលបាន​គូស​ធីក ម៉ាស៊ីននិម្មិត​នឹង​ព្យាយាម​ប្រាកដថា​ ការ​ប្រើ​ប្រាស់​ផ្នែកបន្ថែម​និម្មិត​ផ្នែក​រឹង​របស់​ស៊ីភីយូ ដូ​ចជា Intel VT-x និង AMD-V&#xa0;។</translation>
+        <translation type="obsolete">នៅ​ពេលបាន​គូស​ធីក ម៉ាស៊ីននិម្មិត​នឹង​ព្យាយាម​ប្រាកដថា​ ការ​ប្រើ​ប្រាស់​ផ្នែកបន្ថែម​និម្មិត​ផ្នែក​រឹង​របស់​ស៊ីភីយូ ដូ​ចជា Intel VT-x និង AMD-V&#xa0;។</translation>
     </message>
     <message>
         <source>Enable Nested Pa&amp;ging</source>
@@ -644,7 +644,7 @@
     </message>
     <message>
         <source>&amp;Close</source>
-        <translation type="unfinished">បិទ</translation>
+        <translation type="obsolete">បិទ</translation>
     </message>
     <message>
         <source>Show &amp;Log...</source>
@@ -2445,6 +2445,10 @@
     </message>
     <message>
         <source>Display the log viewer window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Stop</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -5088,6 +5092,39 @@
         <source>Bridged Adapter</source>
         <translation type="unfinished">អាដាប់​​ទ័រ​​ប្រ៊ីដ្យ​​</translation>
     </message>
+    <message>
+        <source>None</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished">គ្មាន</translation>
+    </message>
+    <message>
+        <source>v1.2</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>v2.0</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Host</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>SWTPM</source>
+        <comment>TpmType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TPM Type</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secure Boot</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UICustomFileSystemModel</name>
@@ -5575,6 +5612,21 @@
     <message>
         <source>Visual State</source>
         <comment>details (user interface)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TPM Type</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Secure Boot</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details (system/secure boot)</comment>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -7288,6 +7340,25 @@ p, li { white-space: pre-wrap; }
         <source>Source</source>
         <comment>summary</comment>
         <translation type="obsolete">ប្រភព</translation>
+    </message>
+</context>
+<context>
+    <name>UIFontScaleEditor</name>
+    <message>
+        <source>F&amp;ont Scaling:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the scaling factor for the font size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimum possible scale factor.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Maximum possible scale factor.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9999,10 +10070,6 @@ p, li { white-space: pre-wrap; }
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The virtual machine operating system hint is set to a 64-bit type. 64-bit guest systems require hardware virtualization, so this will be enabled automatically if you confirm the changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10916,10 +10983,6 @@ network adapter name</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10932,15 +10995,7 @@ network adapter name</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The nested paging is not currently enabled in the Acceleration section of the System page. This is needed to support nested hardware virtualization. It will be enabled automatically if you confirm your changes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed for nested paging support. It will be enabled automatically if you confirm your changes.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -11066,10 +11121,6 @@ network adapter name</comment>
         <source>&lt;nobr&gt;State: %1&lt;/nobr&gt;</source>
         <comment>USB filter tooltip</comment>
         <translation type="obsolete">&lt;nobr&gt;ស្ថានភាព&#xa0;៖ %1&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>USB 2.0/3.0 is currently enabled for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0/3.0 to be able to start the machine.</source>
-        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -14179,6 +14230,22 @@ medium</comment>
         <source>Failed to find snapshot with name=&lt;b&gt;%1&lt;/b&gt;.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&lt;p&gt;The machine settings were changed.&lt;/p&gt;&lt;p&gt;Would you like to discard the changed settings or to keep editing them?&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Discard changes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep editing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you going to restore default secure boot keys.&lt;/p&gt;&lt;p&gt;If you proceed your current keys will be rewritten. You may not be able to boot affected VM anymore.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMiniProcessWidgetAdditions</name>
@@ -14286,11 +14353,27 @@ medium</comment>
         <translation type="unfinished">​នៅ​ពេល​​ដែលបាន​គូស​ធីក​ ម៉ាស៊ីន​ភ្ញៀវ​នឹង​គាំ​ទ្រ Extended Firmware Interface (EFI) ដែល​ត្រូវ​បាន​ទាម​ទារ​ដើម្បី​ចាប់ផ្ដើម​ប្រ​ព័ន្ធ​ប្រតិបត្តិ​​ការ​​ម៉ាស៊ីន​ភ្ញៀវពិត​ប្រាកដ&#xa0;។​ ប្រ​ព័ន្ធ​ប្រតិបត្តិ​ការ​​ដែល​មិនមែន​ ​EFI ​​នឹង​មិនអាច​ទៅ​ចាប់ផ្តើម​​បាន​ទេ ​​ប្រ​សិន​បើ​ជម្រើស​ត្រូវ​បាន​ធ្វើ​ឲ្យ​សកម្ម​&#xa0;។</translation>
     </message>
     <message>
-        <source>Hardware Clock in &amp;UTC Time</source>
+        <source>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
+        <source>Enable Hardware Clock in &amp;UTC Time</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enable &amp;Secure Boot</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, the secure boot emulation will be enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Reset Keys to Default</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resets secure boot keys to default.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -16641,11 +16724,6 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <translation type="unfinished">ស្ថានភាព​បច្ចុប្បន្ន​គឺ​ដូច​គ្នា​នឹង​ស្ថានភាព​ដែល​បាន​ទុក​នៅ​ក្នុង​រូបថត​បច្ចុប្បន្ន</translation>
     </message>
     <message>
-        <source>%1 (%2 ago)</source>
-        <comment>date time (how long ago)</comment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1 since %2</source>
         <comment>Current State (time or date + time)</comment>
         <translation type="unfinished">%1 តាំង​ពី %2</translation>
@@ -17495,6 +17573,17 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
 </context>
 <context>
+    <name>UITpmEditor</name>
+    <message>
+        <source>&amp;TPM:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the TPM type to be emulated in this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UITranslator</name>
     <message numerus="yes">
         <source>%n year(s)</source>
@@ -17572,6 +17661,48 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
         <source>User-defined</source>
         <comment>serial port</comment>
         <translation type="unfinished">កំណត់​ដោយ​អ្នកប្រើ</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n year(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n month(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n day(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n hour(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n minute(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n second(s) ago</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>

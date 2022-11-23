@@ -202,6 +202,7 @@ UIVMLogViewerTextEdit::UIVMLogViewerTextEdit(QWidget* parent /* = 0 */)
     , m_bShowLineNumbers(true)
     , m_bWrapLines(true)
     , m_bHasContextMenu(false)
+    , m_iVerticalScrollBarValue(0)
 {
     configure();
     prepare();
@@ -248,6 +249,27 @@ void UIVMLogViewerTextEdit::setCurrentFont(QFont font)
     setFont(font);
     if (m_pLineNumberArea)
         m_pLineNumberArea->setFont(font);
+}
+
+void UIVMLogViewerTextEdit::saveScrollBarPosition()
+{
+    if (verticalScrollBar())
+        m_iVerticalScrollBarValue = verticalScrollBar()->value();
+}
+
+void UIVMLogViewerTextEdit::restoreScrollBarPosition()
+{
+    QScrollBar *pBar = verticalScrollBar();
+    if (pBar && pBar->maximum() >= m_iVerticalScrollBarValue && pBar->minimum() <= m_iVerticalScrollBarValue)
+        pBar->setValue(m_iVerticalScrollBarValue);
+}
+
+void UIVMLogViewerTextEdit::setCursorPosition(int iPosition)
+{
+    QTextCursor cursor = textCursor();
+    cursor.setPosition(iPosition);
+    setTextCursor(cursor);
+    centerCursor();
 }
 
 int UIVMLogViewerTextEdit::lineNumberAreaWidth()
@@ -333,8 +355,8 @@ void UIVMLogViewerTextEdit::contextMenuEvent(QContextMenuEvent *pEvent)
     if (pAction)
     {
         pAction->setCheckable(true);
-        QPair<int, QString> menuBookmark = bookmarkForPos(pEvent->pos());
-        pAction->setChecked(m_bookmarkLineSet.contains(menuBookmark.first));
+        UIVMLogBookmark menuBookmark = bookmarkForPos(pEvent->pos());
+        pAction->setChecked(m_bookmarkLineSet.contains(menuBookmark.m_iLineNumber));
         if (pAction->isChecked())
             pAction->setIcon(UIIconPool::iconSet(":/log_viewer_bookmark_on_16px.png"));
         else
@@ -461,11 +483,11 @@ int  UIVMLogViewerTextEdit::lineNumberForPos(const QPoint &position)
     return block.blockNumber() + 1;
 }
 
-
-QPair<int, QString> UIVMLogViewerTextEdit::bookmarkForPos(const QPoint &position)
+UIVMLogBookmark UIVMLogViewerTextEdit::bookmarkForPos(const QPoint &position)
 {
-    QTextBlock block = cursorForPosition(position).block();
-    return QPair<int, QString>(lineNumberForPos(position), block.text());
+    QTextCursor cursor = cursorForPosition(position);
+    QTextBlock block = cursor.block();
+    return UIVMLogBookmark(block.blockNumber() + 1, cursor.position(), block.text());
 }
 
 void UIVMLogViewerTextEdit::setMouseCursorLine(int lineNumber)
@@ -473,14 +495,12 @@ void UIVMLogViewerTextEdit::setMouseCursorLine(int lineNumber)
     m_mouseCursorLine = lineNumber;
 }
 
-void UIVMLogViewerTextEdit::toggleBookmark(const QPair<int, QString>& bookmark)
+void UIVMLogViewerTextEdit::toggleBookmark(const UIVMLogBookmark& bookmark)
 {
     if (m_bShownTextIsFiltered)
         return;
 
-    int lineNumber = bookmark.first;
-
-    if (m_bookmarkLineSet.contains(lineNumber))
+    if (m_bookmarkLineSet.contains(bookmark.m_iLineNumber))
         emit sigDeleteBookmark(bookmark);
     else
         emit sigAddBookmark(bookmark);

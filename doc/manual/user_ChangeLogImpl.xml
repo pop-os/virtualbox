@@ -71,6 +71,113 @@ Rules for adding a changelog entry to make them look more uniform:
 
   <sect1>
 
+    <title>Version 7.0.4 (2022-11-18)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+       <para>VMM: Added nested paging support for nested virtualization (Intel hosts only)</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Fixed rare guru meditations with certain guests on macOS 10.15 (Catalina) (bug #21237)</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Fixed possible VM process crash on Windows hosts when Hyper-V is used with certain guests (bug #21174)</para>
+      </listitem>
+
+      <listitem>
+       <para>VMM: Fixed Windows XP guest hang or BSOD on AMD CPUs under certain circumstances (bug #21256)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Various bugfixes for the Guest Control file manager</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Added more informative file operations in the Guest Control file manager</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Added an option to the global settings (the display page) to resize user interface font</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed a regression in new vm wizard. Selected virtual disks are no longer deleted when the wizard
+          is cancelled (bug #21244)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Added a new menu item to the devices menu to optionally upgrade the guest additions.</para>
+      </listitem>
+
+      <listitem>
+        <para>VirtioSCSI: Fixed recognition of the virtio SCSI controller by the EFI firmware (bug #21200)</para>
+      </listitem>
+
+      <listitem>
+        <para>VirtioSCSI: Fixed hang when shutting down the VM if the virtio SCSI controller is used (bug #21144)</para>
+      </listitem>
+
+      <listitem>
+        <para>virtio-net: Workaround a bug in the virtio-net driver included in FreeBSD version up to 12.3
+          which renders the device non functional (bug #21201)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: Fixed I/O errors with the VirtioSCSI controller when the host I/O cache is enabled (bug #19717)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: Fixed regression when 'createmedium disk --variant RawDisk' command resulted
+          in invalid .vmdk file (bug #21125)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: Restored input pointing device behavior in multi-monitor
+          VM configuration (bug #21137)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: Fixed progress indication during automatic Linux
+          Guest Additions installation</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: Fixed path handling issues (bug #21095)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: Fixed VM process crash on macOS with 3D enabled (bug #21232)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Host and Guest: General improvements in startup scripts</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced initial support for
+          RHEL 8.7 and 9.2 kernels (bug #21272, #21258)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Introduced initial support for SLES 15.4 kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: Fixed kernel modules rebuild behavior on
+          system shutdown</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+
     <title>Version 7.0.2 (2022-10-20)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

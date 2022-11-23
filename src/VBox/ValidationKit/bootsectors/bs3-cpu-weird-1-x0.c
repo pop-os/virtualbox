@@ -40,6 +40,7 @@
 *********************************************************************************************************************************/
 #define BS3_USE_X0_TEXT_SEG
 #include <bs3kit.h>
+#include <bs3-cmn-memory.h>
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
 
@@ -527,5 +528,559 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuWeird1_DbgInhibitRingXfer)(uint8_t bM
     }
 
     return 0;
+}
+
+
+/*********************************************************************************************************************************
+*   IP / EIP  Wrapping                                                                                                           *
+*********************************************************************************************************************************/
+#define PROTO_ALL(a_Template) \
+    FNBS3FAR a_Template ## _c16, a_Template ## _c16_EndProc, \
+             a_Template ## _c32, a_Template ## _c32_EndProc, \
+             a_Template ## _c64, a_Template ## _c64_EndProc
+PROTO_ALL(bs3CpuWeird1_PcWrapBenign1);
+PROTO_ALL(bs3CpuWeird1_PcWrapBenign2);
+PROTO_ALL(bs3CpuWeird1_PcWrapCpuId);
+PROTO_ALL(bs3CpuWeird1_PcWrapIn80);
+PROTO_ALL(bs3CpuWeird1_PcWrapOut80);
+PROTO_ALL(bs3CpuWeird1_PcWrapSmsw);
+PROTO_ALL(bs3CpuWeird1_PcWrapRdCr0);
+PROTO_ALL(bs3CpuWeird1_PcWrapRdDr0);
+PROTO_ALL(bs3CpuWeird1_PcWrapWrDr0);
+#undef PROTO_ALL
+
+typedef enum { kPcWrapSetup_None, kPcWrapSetup_ZeroRax } PCWRAPSETUP;
+
+/**
+ * Compares pc wraparound result.
+ */
+static uint8_t bs3CpuWeird1_ComparePcWrap(PCBS3TRAPFRAME pTrapCtx, PCBS3TRAPFRAME pTrapExpect)
+{
+    uint16_t const cErrorsBefore = Bs3TestSubErrorCount();
+    CHECK_MEMBER("bXcpt",       "%#04x",    pTrapCtx->bXcpt,        pTrapExpect->bXcpt);
+    CHECK_MEMBER("bErrCd",      "%#06RX64", pTrapCtx->uErrCd,       pTrapExpect->uErrCd);
+    Bs3TestCheckRegCtxEx(&pTrapCtx->Ctx, &pTrapExpect->Ctx, 0 /*cbPcAdjust*/, 0 /*cbSpAdjust*/, 0 /*fExtraEfl*/,
+                         g_pszTestMode, g_usBs3TestStep);
+    if (Bs3TestSubErrorCount() != cErrorsBefore)
+    {
+        Bs3TrapPrintFrame(pTrapCtx);
+        Bs3TestPrintf("CS=%04RX16 SS:ESP=%04RX16:%08RX64 EFL=%RX64 cbIret=%#x\n",
+                      pTrapCtx->uHandlerCs, pTrapCtx->uHandlerSs, pTrapCtx->uHandlerRsp,
+                      pTrapCtx->fHandlerRfl, pTrapCtx->cbIretFrame);
+#if 0
+        Bs3TestPrintf("Halting in ComparePcWrap: bXcpt=%#x\n", pTrapCtx->bXcpt);
+        ASMHalt();
+#endif
+        return 1;
+    }
+    return 0;
+}
+
+
+static uint8_t bs3CpuWeird1_PcWrapping_Worker16(uint8_t bMode, RTSEL SelCode, uint8_t BS3_FAR *pbHead,
+                                                uint8_t BS3_FAR *pbTail, uint8_t BS3_FAR *pbAfter,
+                                                void const BS3_FAR *pvTemplate, size_t cbTemplate, PCWRAPSETUP enmSetup)
+{
+    BS3TRAPFRAME            TrapCtx;
+    BS3TRAPFRAME            TrapExpect;
+    BS3REGCTX               Ctx;
+    uint8_t                 bXcpt;
+
+    /* make sure they're allocated  */
+    Bs3MemZero(&Ctx, sizeof(Ctx));
+    Bs3MemZero(&TrapCtx, sizeof(TrapCtx));
+    Bs3MemZero(&TrapExpect, sizeof(TrapExpect));
+
+    /*
+     * Create the expected result by first placing the code template
+     * at the start of the buffer and giving it a quick run.
+     *
+     * I cannot think of any instruction always causing #GP(0) right now, so
+     * we generate a ud2 and modify it instead.
+     */
+    Bs3MemCpy(pbHead, pvTemplate, cbTemplate);
+    if ((g_uBs3CpuDetected & BS3CPU_TYPE_MASK) <= BS3CPU_80286)
+    {
+        pbHead[cbTemplate] = 0xcc;      /* int3 */
+        bXcpt = X86_XCPT_BP;
+    }
+    else
+    {
+        pbHead[cbTemplate]     = 0x0f;  /* ud2 */
+        pbHead[cbTemplate + 1] = 0x0b;
+        bXcpt = X86_XCPT_UD;
+    }
+
+    Bs3RegCtxSaveEx(&Ctx, bMode, 1024);
+
+    Ctx.cs    = SelCode;
+    Ctx.rip.u = 0;
+    switch (enmSetup)
+    {
+        case kPcWrapSetup_None:
+            break;
+        case kPcWrapSetup_ZeroRax:
+            Ctx.rax.u = 0;
+            break;
+    }
+
+    /* V8086: Set IOPL to 3. */
+    if (BS3_MODE_IS_V86(bMode))
+        Ctx.rflags.u32 |= X86_EFL_IOPL;
+
+    Bs3TrapSetJmpAndRestore(&Ctx, &TrapExpect);
+    if (TrapExpect.bXcpt != bXcpt)
+    {
+
+        Bs3TestFailedF("%u: Setup: bXcpt is %#x, expected %#x!\n", g_usBs3TestStep, TrapExpect.bXcpt, bXcpt);
+        Bs3TrapPrintFrame(&TrapExpect);
+        return 1;
+    }
+
+    /*
+     * Adjust the contexts for the real test.
+     */
+    Ctx.cs    = SelCode;
+    Ctx.rip.u = (uint32_t)_64K - cbTemplate;
+
+    if ((g_uBs3CpuDetected & BS3CPU_TYPE_MASK) <= BS3CPU_80286)
+        TrapExpect.Ctx.rip.u = 1;
+    else
+    {
+        if (BS3_MODE_IS_16BIT_SYS(bMode))
+            TrapExpect.Ctx.rip.u = 0;
+        else
+            TrapExpect.Ctx.rip.u = UINT32_C(0x10000);
+        TrapExpect.bXcpt  = X86_XCPT_GP;
+        TrapExpect.uErrCd = 0;
+    }
+
+    /*
+     * Prepare the buffer for 16-bit wrap around.
+     */
+    Bs3MemSet(pbHead, 0xcc, 64);        /* int3 */
+    if (bXcpt == X86_XCPT_UD)
+    {
+        pbHead[0] = 0x0f;               /* ud2 */
+        pbHead[1] = 0x0b;
+    }
+    Bs3MemCpy(&pbTail[_4K - cbTemplate], pvTemplate, cbTemplate);
+    Bs3MemSet(pbAfter, 0xf1, 64);       /* icebp / int1 */
+
+    /*
+     * Do a test run.
+     */
+    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+    if (!bs3CpuWeird1_ComparePcWrap(&TrapCtx, &TrapExpect))
+    {
+#if 0 /* needs more work */
+        /*
+         * Slide the instruction template across the boundrary byte-by-byte and
+         * check that it triggers #GP on the initial instruction on 386+.
+         */
+        unsigned cbTail;
+        unsigned cbHead;
+        g_usBs3TestStep++;
+        for (cbTail = cbTemplate - 1, cbHead = 1; cbTail > 0; cbTail--, cbHead++, g_usBs3TestStep++)
+        {
+            pbTail[X86_PAGE_SIZE - cbTail - 1] = 0xcc;
+            Bs3MemCpy(&pbTail[X86_PAGE_SIZE - cbTail], pvTemplate, cbTail);
+            Bs3MemCpy(pbHead, &((uint8_t const *)pvTemplate)[cbTail], cbHead);
+            if (bXcpt == X86_XCPT_BP)
+                pbHead[cbHead]     = 0xcc; /* int3 */
+            else
+            {
+                pbHead[cbHead]     = 0x0f; /* ud2 */
+                pbHead[cbHead + 1] = 0x0b;
+            }
+
+            Ctx.rip.u = (uint32_t)_64K - cbTail;
+            if ((g_uBs3CpuDetected & BS3CPU_TYPE_MASK) <= BS3CPU_80286)
+                TrapExpect.Ctx.rip.u = cbHead + 1;
+            else
+            {
+                TrapExpect.Ctx.rip.u = Ctx.rip.u;
+            }
+
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            if (bs3CpuWeird1_ComparePcWrap(&TrapCtx, &TrapExpect))
+                return 1;
+        }
+#endif
+    }
+    return 0;
+}
+
+
+static uint8_t bs3CpuWeird1_PcWrapping_Worker32(uint8_t bMode, RTSEL SelCode, uint8_t BS3_FAR *pbPage1,
+                                                uint8_t BS3_FAR *pbPage2, uint32_t uFlatPage2,
+                                                void const BS3_FAR *pvTemplate, size_t cbTemplate, PCWRAPSETUP enmSetup)
+{
+    BS3TRAPFRAME            TrapCtx;
+    BS3TRAPFRAME            TrapExpect;
+    BS3REGCTX               Ctx;
+    unsigned                cbPage1;
+    unsigned                cbPage2;
+
+    /* make sure they're allocated  */
+    Bs3MemZero(&Ctx, sizeof(Ctx));
+    Bs3MemZero(&TrapCtx, sizeof(TrapCtx));
+    Bs3MemZero(&TrapExpect, sizeof(TrapExpect));
+
+    //Bs3TestPrintf("SelCode=%#x pbPage1=%p pbPage2=%p uFlatPage2=%RX32 pvTemplate=%p cbTemplate\n",
+    //              SelCode, pbPage1, pbPage2, uFlatPage2, pvTemplate, cbTemplate);
+
+    /*
+     * Create the expected result by first placing the code template
+     * at the start of the buffer and giving it a quick run.
+     */
+    Bs3MemSet(pbPage1, 0xcc, _4K);
+    Bs3MemSet(pbPage2, 0xcc, _4K);
+    Bs3MemCpy(&pbPage1[_4K - cbTemplate], pvTemplate, cbTemplate);
+    pbPage2[0] = 0x0f;      /* ud2 */
+    pbPage2[1] = 0x0b;
+
+    Bs3RegCtxSaveEx(&Ctx, bMode, 1024);
+
+    Ctx.cs    = BS3_SEL_R0_CS32;
+    Ctx.rip.u = uFlatPage2 - cbTemplate;
+    switch (enmSetup)
+    {
+        case kPcWrapSetup_None:
+            break;
+        case kPcWrapSetup_ZeroRax:
+            Ctx.rax.u = 0;
+            break;
+    }
+
+    Bs3TrapSetJmpAndRestore(&Ctx, &TrapExpect);
+    if (TrapExpect.bXcpt != X86_XCPT_UD)
+    {
+
+        Bs3TestFailedF("%u: Setup: bXcpt is %#x, expected %#x!\n", g_usBs3TestStep, TrapExpect.bXcpt, X86_XCPT_UD);
+        Bs3TrapPrintFrame(&TrapExpect);
+        return 1;
+    }
+
+    /*
+     * The real test uses the special CS selector.
+     */
+    Ctx.cs            = SelCode;
+    TrapExpect.Ctx.cs = SelCode;
+
+    /*
+     * Unlike 16-bit mode, the instruction may cross the wraparound boundary,
+     * so we test by advancing the template across byte-by-byte.
+     */
+    for (cbPage1 = cbTemplate, cbPage2 = 0; cbPage1 > 0; cbPage1--, cbPage2++, g_usBs3TestStep++)
+    {
+        pbPage1[X86_PAGE_SIZE - cbPage1 - 1] = 0xcc;
+        Bs3MemCpy(&pbPage1[X86_PAGE_SIZE - cbPage1], pvTemplate, cbPage1);
+        Bs3MemCpy(pbPage2, &((uint8_t const *)pvTemplate)[cbPage1], cbPage2);
+        pbPage2[cbPage2]     = 0x0f;    /* ud2 */
+        pbPage2[cbPage2 + 1] = 0x0b;
+
+        Ctx.rip.u = UINT32_MAX - cbPage1 + 1;
+        TrapExpect.Ctx.rip.u = cbPage2;
+
+        Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+        if (bs3CpuWeird1_ComparePcWrap(&TrapCtx, &TrapExpect))
+            return 1;
+    }
+    return 0;
+}
+
+
+static uint8_t bs3CpuWeird1_PcWrapping_Worker64(uint8_t bMode, uint8_t BS3_FAR *pbBuf, uint32_t uFlatBuf,
+                                                void const BS3_FAR *pvTemplate, size_t cbTemplate, PCWRAPSETUP enmSetup)
+{
+    uint8_t BS3_FAR * const pbPage1 = pbBuf;                 /* mapped at 0, 4G and 8G */
+    uint8_t BS3_FAR * const pbPage2 = &pbBuf[X86_PAGE_SIZE]; /* mapped at -4K, 4G-4K and 8G-4K. */
+    BS3TRAPFRAME            TrapCtx;
+    BS3TRAPFRAME            TrapExpect;
+    BS3REGCTX               Ctx;
+    unsigned                cbStart;
+    unsigned                cbEnd;
+
+    /* make sure they're allocated  */
+    Bs3MemZero(&Ctx, sizeof(Ctx));
+    Bs3MemZero(&TrapCtx, sizeof(TrapCtx));
+    Bs3MemZero(&TrapExpect, sizeof(TrapExpect));
+
+    /*
+     * Create the expected result by first placing the code template
+     * at the start of the buffer and giving it a quick run.
+     */
+    Bs3MemCpy(pbPage1, pvTemplate, cbTemplate);
+    pbPage1[cbTemplate]     = 0x0f; /* ud2 */
+    pbPage1[cbTemplate + 1] = 0x0b;
+
+    Bs3RegCtxSaveEx(&Ctx, bMode, 1024);
+
+    Ctx.rip.u = uFlatBuf;
+    switch (enmSetup)
+    {
+        case kPcWrapSetup_None:
+            break;
+        case kPcWrapSetup_ZeroRax:
+            Ctx.rax.u = 0;
+            break;
+    }
+
+    Bs3TrapSetJmpAndRestore(&Ctx, &TrapExpect);
+    if (TrapExpect.bXcpt != X86_XCPT_UD)
+    {
+
+        Bs3TestFailedF("%u: Setup: bXcpt is %#x, expected %#x!\n", g_usBs3TestStep, TrapExpect.bXcpt, X86_XCPT_UD);
+        Bs3TrapPrintFrame(&TrapExpect);
+        return 1;
+    }
+
+    /*
+     * Unlike 16-bit mode, the instruction may cross the wraparound boundary,
+     * so we test by advancing the template across byte-by-byte.
+     *
+     * Page #1 is mapped at address zero and Page #2 as the last one.
+     */
+    Bs3MemSet(pbBuf, 0xf1, X86_PAGE_SIZE * 2);
+    for (cbStart = cbTemplate, cbEnd = 0; cbStart > 0; cbStart--, cbEnd++)
+    {
+        pbPage2[X86_PAGE_SIZE - cbStart - 1] = 0xf1;
+        Bs3MemCpy(&pbPage2[X86_PAGE_SIZE - cbStart], pvTemplate, cbStart);
+        Bs3MemCpy(pbPage1, &((uint8_t const *)pvTemplate)[cbStart], cbEnd);
+        pbPage1[cbEnd]     = 0x0f;    /* ud2 */
+        pbPage1[cbEnd + 1] = 0x0b;
+
+        Ctx.rip.u            = UINT64_MAX - cbStart + 1;
+        TrapExpect.Ctx.rip.u = cbEnd;
+
+        Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+        if (bs3CpuWeird1_ComparePcWrap(&TrapCtx, &TrapExpect))
+            return 1;
+        g_usBs3TestStep++;
+
+        /* Also check that crossing 4G isn't buggered up in our code by
+           32-bit and 16-bit mode support.*/
+        Ctx.rip.u            = _4G - cbStart;
+        TrapExpect.Ctx.rip.u = _4G + cbEnd;
+        Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+        if (bs3CpuWeird1_ComparePcWrap(&TrapCtx, &TrapExpect))
+            return 1;
+        g_usBs3TestStep++;
+
+        Ctx.rip.u            = _4G*2 - cbStart;
+        TrapExpect.Ctx.rip.u = _4G*2 + cbEnd;
+        Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+        if (bs3CpuWeird1_ComparePcWrap(&TrapCtx, &TrapExpect))
+            return 1;
+        g_usBs3TestStep += 2;
+    }
+    return 0;
+}
+
+
+
+BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuWeird1_PcWrapping)(uint8_t bMode)
+{
+    uint8_t bRet = 1;
+    size_t  i;
+
+    bs3CpuWeird1_SetGlobals(bMode);
+
+    if (BS3_MODE_IS_16BIT_CODE(bMode))
+    {
+        /*
+         * For 16-bit testing, we need a 68 KB buffer.
+         *
+         * This is a little annoying to work with from 16-bit bit, so we use
+         * separate pointers to each interesting bit of it.
+         */
+        /** @todo add api for doing this, so we don't need to include bs3-cmn-memory.h. */
+        uint8_t BS3_FAR *pbBuf = (uint8_t BS3_FAR *)Bs3SlabAllocEx(&g_Bs3Mem4KLow.Core, 17 /*cPages*/, 0 /*fFlags*/);
+        if (pbBuf != NULL)
+        {
+            uint32_t const   uFlatBuf = Bs3SelPtrToFlat(pbBuf);
+            uint8_t BS3_FAR *pbTail   = Bs3XptrFlatToCurrent(uFlatBuf + 0x0f000);
+            uint8_t BS3_FAR *pbAfter  = Bs3XptrFlatToCurrent(uFlatBuf + UINT32_C(0x10000));
+            RTSEL            SelCode;
+            uint32_t         off;
+            static struct { FPFNBS3FAR pfnStart, pfnEnd;  PCWRAPSETUP enmSetup; unsigned fNoV86 : 1; }
+            const s_aTemplates16[] =
+            {
+#define ENTRY16(a_Template, a_enmSetup, a_fNoV86)     { a_Template ## _c16, a_Template ## _c16_EndProc, a_enmSetup, a_fNoV86 }
+                ENTRY16(bs3CpuWeird1_PcWrapBenign1, kPcWrapSetup_None,    0),
+                ENTRY16(bs3CpuWeird1_PcWrapBenign2, kPcWrapSetup_None,    0),
+                ENTRY16(bs3CpuWeird1_PcWrapCpuId,   kPcWrapSetup_ZeroRax, 0),
+                ENTRY16(bs3CpuWeird1_PcWrapIn80,    kPcWrapSetup_None,    0),
+                ENTRY16(bs3CpuWeird1_PcWrapOut80,   kPcWrapSetup_None,    0),
+                ENTRY16(bs3CpuWeird1_PcWrapSmsw,    kPcWrapSetup_None,    0),
+                ENTRY16(bs3CpuWeird1_PcWrapRdCr0,   kPcWrapSetup_None,    1),
+                ENTRY16(bs3CpuWeird1_PcWrapRdDr0,   kPcWrapSetup_None,    1),
+                ENTRY16(bs3CpuWeird1_PcWrapWrDr0,   kPcWrapSetup_ZeroRax, 1),
+#undef ENTRY16
+            };
+
+            /* Fill the buffer with int1 instructions: */
+            for (off = 0; off < UINT32_C(0x11000); off += _4K)
+            {
+                uint8_t BS3_FAR *pbPage = Bs3XptrFlatToCurrent(uFlatBuf + off);
+                Bs3MemSet(pbPage, 0xf1, _4K);
+            }
+
+            /* Setup the CS for it. */
+            SelCode = (uint16_t)(uFlatBuf >> 4);
+            if (!BS3_MODE_IS_RM_OR_V86(bMode))
+            {
+                Bs3SelSetup16BitCode(&Bs3GdteSpare00, uFlatBuf, 0);
+                SelCode = BS3_SEL_SPARE_00;
+            }
+
+            /* Allow IN and OUT to port 80h from V8086 mode. */
+            if (BS3_MODE_IS_V86(bMode))
+            {
+                Bs3RegSetTr(BS3_SEL_TSS32_IOBP_IRB);
+                ASMBitClear(Bs3SharedIobp, 0x80);
+            }
+
+            for (i = 0; i < RT_ELEMENTS(s_aTemplates16); i++)
+            {
+                if (!s_aTemplates16[i].fNoV86 || !BS3_MODE_IS_V86(bMode))
+                    bs3CpuWeird1_PcWrapping_Worker16(bMode, SelCode, pbBuf, pbTail, pbAfter, s_aTemplates16[i].pfnStart,
+                                                     (uintptr_t)s_aTemplates16[i].pfnEnd - (uintptr_t)s_aTemplates16[i].pfnStart,
+                                                     s_aTemplates16[i].enmSetup);
+                g_usBs3TestStep = i * 256;
+            }
+
+            if (BS3_MODE_IS_V86(bMode))
+                ASMBitSet(Bs3SharedIobp, 0x80);
+
+            Bs3SlabFree(&g_Bs3Mem4KLow.Core, uFlatBuf, 17);
+
+            bRet = 0;
+        }
+        else
+            Bs3TestFailed("Failed to allocate 17 pages (68KB)");
+    }
+    else
+    {
+        /*
+         * For 32-bit and 64-bit mode we just need two pages.
+         */
+        size_t const     cbBuf = X86_PAGE_SIZE * 2;
+        uint8_t BS3_FAR *pbBuf = (uint8_t BS3_FAR *)Bs3MemAlloc(BS3MEMKIND_TILED, cbBuf);
+        if (pbBuf)
+        {
+            uint32_t const uFlatBuf = Bs3SelPtrToFlat(pbBuf);
+            Bs3MemSet(pbBuf, 0xf1, cbBuf);
+
+            /*
+             * For 32-bit we set up a CS that starts with the 2nd page and
+             * ends with the first.
+             */
+            if (BS3_MODE_IS_32BIT_CODE(bMode))
+            {
+                static struct { FPFNBS3FAR pfnStart, pfnEnd; PCWRAPSETUP enmSetup; } const s_aTemplates32[] =
+                {
+#define ENTRY32(a_Template, a_enmSetup)  { a_Template ## _c32, a_Template ## _c32_EndProc, a_enmSetup }
+                    ENTRY32(bs3CpuWeird1_PcWrapBenign1, kPcWrapSetup_None),
+                    ENTRY32(bs3CpuWeird1_PcWrapBenign2, kPcWrapSetup_None),
+                    ENTRY32(bs3CpuWeird1_PcWrapCpuId,   kPcWrapSetup_ZeroRax),
+                    ENTRY32(bs3CpuWeird1_PcWrapIn80,    kPcWrapSetup_None),
+                    ENTRY32(bs3CpuWeird1_PcWrapOut80,   kPcWrapSetup_None),
+                    ENTRY32(bs3CpuWeird1_PcWrapSmsw,    kPcWrapSetup_None),
+                    ENTRY32(bs3CpuWeird1_PcWrapRdCr0,   kPcWrapSetup_None),
+                    ENTRY32(bs3CpuWeird1_PcWrapRdDr0,   kPcWrapSetup_None),
+                    ENTRY32(bs3CpuWeird1_PcWrapWrDr0,   kPcWrapSetup_ZeroRax),
+#undef ENTRY32
+                };
+
+                Bs3SelSetup32BitCode(&Bs3GdteSpare00, uFlatBuf + X86_PAGE_SIZE, UINT32_MAX, 0);
+
+                for (i = 0; i < RT_ELEMENTS(s_aTemplates32); i++)
+                {
+                    //Bs3TestPrintf("pfnStart=%p pfnEnd=%p\n", s_aTemplates32[i].pfnStart, s_aTemplates32[i].pfnEnd);
+                    bs3CpuWeird1_PcWrapping_Worker32(bMode, BS3_SEL_SPARE_00, pbBuf, &pbBuf[X86_PAGE_SIZE],
+                                                     uFlatBuf + X86_PAGE_SIZE, Bs3SelLnkPtrToCurPtr(s_aTemplates32[i].pfnStart),
+                                                     (uintptr_t)s_aTemplates32[i].pfnEnd - (uintptr_t)s_aTemplates32[i].pfnStart,
+                                                     s_aTemplates32[i].enmSetup);
+                    g_usBs3TestStep = i * 256;
+                }
+
+                bRet = 0;
+            }
+            /*
+             * For 64-bit we have to alias the two buffer pages to the first and
+             * last page in the address space. To test that the 32-bit 4G rollover
+             * isn't incorrectly applied to LM64, we repeat this mappingfor the 4G
+             * and 8G boundaries too.
+             *
+             * This ASSUMES there is nothing important in page 0 when in LM64.
+             */
+            else
+            {
+                static const struct { uint64_t uDst; uint16_t off; } s_aMappings[] =
+                {
+                    { UINT64_MAX - X86_PAGE_SIZE + 1, X86_PAGE_SIZE * 1 },
+                    { UINT64_C(0),                    X86_PAGE_SIZE * 0 },
+#if 1 /* technically not required as we just repeat the same 4G address space in long mode: */
+                    { _4G - X86_PAGE_SIZE,            X86_PAGE_SIZE * 1 },
+                    { _4G,                            X86_PAGE_SIZE * 0 },
+                    { _4G*2 - X86_PAGE_SIZE,          X86_PAGE_SIZE * 1 },
+                    { _4G*2,                          X86_PAGE_SIZE * 0 },
+#endif
+                };
+                int      rc = VINF_SUCCESS;
+                unsigned iMap;
+                BS3_ASSERT(bMode == BS3_MODE_LM64);
+                for (iMap = 0; iMap < RT_ELEMENTS(s_aMappings) && RT_SUCCESS(rc); iMap++)
+                {
+                    rc = Bs3PagingAlias(s_aMappings[iMap].uDst, uFlatBuf + s_aMappings[iMap].off, X86_PAGE_SIZE,
+                                        X86_PTE_P | X86_PTE_A | X86_PTE_D | X86_PTE_RW);
+                    if (RT_FAILURE(rc))
+                        Bs3TestFailedF("Bs3PagingAlias(%#RX64,...) failed: %d", s_aMappings[iMap].uDst, rc);
+                }
+
+                if (RT_SUCCESS(rc))
+                {
+                    static struct { FPFNBS3FAR pfnStart, pfnEnd; PCWRAPSETUP enmSetup; } const s_aTemplates64[] =
+                    {
+#define ENTRY64(a_Template, a_enmSetup) { a_Template ## _c64, a_Template ## _c64_EndProc, a_enmSetup }
+                        ENTRY64(bs3CpuWeird1_PcWrapBenign1, kPcWrapSetup_None),
+                        ENTRY64(bs3CpuWeird1_PcWrapBenign2, kPcWrapSetup_None),
+                        ENTRY64(bs3CpuWeird1_PcWrapCpuId,   kPcWrapSetup_ZeroRax),
+                        ENTRY64(bs3CpuWeird1_PcWrapIn80,    kPcWrapSetup_None),
+                        ENTRY64(bs3CpuWeird1_PcWrapOut80,   kPcWrapSetup_None),
+                        ENTRY64(bs3CpuWeird1_PcWrapSmsw,    kPcWrapSetup_None),
+                        ENTRY64(bs3CpuWeird1_PcWrapRdCr0,   kPcWrapSetup_None),
+                        ENTRY64(bs3CpuWeird1_PcWrapRdDr0,   kPcWrapSetup_None),
+                        ENTRY64(bs3CpuWeird1_PcWrapWrDr0,   kPcWrapSetup_ZeroRax),
+#undef ENTRY64
+                    };
+
+                    for (i = 0; i < RT_ELEMENTS(s_aTemplates64); i++)
+                    {
+                        bs3CpuWeird1_PcWrapping_Worker64(bMode, pbBuf, uFlatBuf,
+                                                         Bs3SelLnkPtrToCurPtr(s_aTemplates64[i].pfnStart),
+                                                            (uintptr_t)s_aTemplates64[i].pfnEnd
+                                                          - (uintptr_t)s_aTemplates64[i].pfnStart,
+                                                         s_aTemplates64[i].enmSetup);
+                        g_usBs3TestStep = i * 256;
+                    }
+
+                    bRet = 0;
+
+                    Bs3PagingUnalias(UINT64_C(0), X86_PAGE_SIZE);
+                }
+
+                while (iMap-- > 0)
+                    Bs3PagingUnalias(s_aMappings[iMap].uDst, X86_PAGE_SIZE);
+            }
+            Bs3MemFree(pbBuf, cbBuf);
+        }
+        else
+            Bs3TestFailed("Failed to allocate 2-3 pages for tests.");
+    }
+
+    return bRet;
 }
 

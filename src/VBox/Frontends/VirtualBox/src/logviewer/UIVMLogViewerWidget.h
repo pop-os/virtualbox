@@ -118,7 +118,7 @@ private slots:
     /** @name Bookmark related slots
      * @{ */
     /** Deletes the bookmark with @p index from the current logs bookmark list. */
-        void sltDeleteBookmark(int index);
+        void sltDeleteBookmarkByIndex(int index);
         /** Receives delete all signal from the bookmark panel and notifies UIVMLogPage. */
         void sltDeleteAllBookmarks();
         /** Manages bookmark panel update when bookmark vector is updated. */
@@ -203,7 +203,7 @@ private:
     void removeAllLogPages();
     void markLabelTabs();
 
-    /** Resets document (of the curent tab) and scrollbar highligthing */
+    /** Resets document (of the current tab) and scrollbar highligthing */
     void resetHighlighthing();
     void hidePanel(UIDialogPanel* panel);
     void showPanel(UIDialogPanel* panel);
@@ -262,6 +262,7 @@ private:
     /** All extra data saves are done dynamically (as an option changes etc.). The this flag is true
       * we should not try to save anything to extra data anymore. */
     bool m_fCommitDataSignalReceived;
+    QPointer<UIVMLogPage> m_pPreviousLogPage;
 
     friend class UIVMLogViewerFilterPanel;
     friend class UIVMLogViewerPanel;

@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154599 $"
 
 # Standard Python imports.
 import errno
@@ -70,10 +70,10 @@ if sys.version_info[0] >= 3:
     long = int      # pylint: disable=redefined-builtin,invalid-name
     xrange = range; # pylint: disable=redefined-builtin,invalid-name
 
-def limitString(sString, cLimit = 32):
+def limitString(sString, cLimit = 128):
     """
     Returns a string with ellipsis ("...") when exceeding the specified limit.
-    Useful for toning down logging. By default strings will be shortened at 32 characters.
+    Useful for toning down logging. By default strings will be shortened at 128 characters.
     """
     if not isinstance(sString, str):
         sString = str(sString);
@@ -132,6 +132,7 @@ class tdTestGuestCtrlBase(object):
     """
     def __init__(self, oCreds = None):
         self.oGuest    = None;      ##< IGuest.
+        self.oTestVm   = None;
         self.oCreds    = oCreds     ##< type: tdCtxCreds
         self.timeoutMS = 30 * 1000; ##< 30s timeout
         self.oGuestSession = None;  ##< IGuestSession reference or None.
@@ -143,13 +144,14 @@ class tdTestGuestCtrlBase(object):
         _ = oTxsSession;
 
         try:
-            self.oGuest = oSession.o.console.guest;
+            self.oGuest  = oSession.o.console.guest;
+            self.oTestVm = oTestVm;
         except:
             reporter.errorXcpt();
 
         if self.oCreds is None:
             self.oCreds = tdCtxCreds();
-        self.oCreds.applyDefaultsIfNotSet(oTestVm);
+        self.oCreds.applyDefaultsIfNotSet(self.oTestVm);
 
         return True;
 
@@ -216,6 +218,14 @@ class tdTestGuestCtrlBase(object):
                                           % (waitResult,));
                         return (False, None);
                     reporter.log('Session "%s" successfully started' % (sName,));
+
+                    #
+                    # Make sure that the test VM configuration and Guest Control use the same path separator style for the guest.
+                    #
+                    sGstSep = '\\' if self.oGuestSession.pathStyle is vboxcon.PathStyle_DOS else '/';
+                    if self.oTestVm.pathSep() != sGstSep:
+                        reporter.error('Configured test VM uses a different path style (%s) than Guest Control (%s)' \
+                                       % (self.oTestVm.pathSep(), sGstSep));
                     break;
                 except:
                     # Just log, don't assume an error here (will be done in the main loop then).
@@ -1732,7 +1742,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             reporter.log('cchMaxPath=%s (cchHst=%s, cchGst=%s)' % (cchMaxPath, cchHst, cchGst,));
         self.oTestFiles = vboxtestfileset.TestFileSet(oTestVm,
                                                       self.oTstDrv.getGuestTempDir(oTestVm), 'addgst-1',
-                                                      cchMaxPath = cchMaxPath, asCompatibleWith = [ oTestVm.getGuestOs() ]);
+                                                      # Make sure that we use a lowest common denominator across all supported
+                                                      # platforms, to make testing the randomly generated file paths work
+                                                      # reliably.
+                                                      cchMaxPath = cchMaxPath, asCompatibleWith = [ ('cross') ]);
         return self.oTestFiles.upload(oTxsSession, self.oTstDrv);
 
 
@@ -1782,7 +1795,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             try:
                 oFile = open(sDst, 'rb');                       # pylint: disable=consider-using-with
             except:
-                return reporter.errorXcpt('open(%s) failed during verfication' % (sDst,));
+                # Don't report expected non-existing paths / files as an error.
+                return reporter.maybeErrXcpt(fExpected, 'open(%s) failed during verfication (file / path not found)' % (sDst,));
             fEqual = oTest.oSrc.equalFile(oFile);
             oFile.close();
             if not fEqual:
@@ -4844,8 +4858,11 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         ]);
         if self.oTstDrv.fpApiVer > 5.2: # Copying files into directories via Main is supported only 6.0 and later.
             atTests.extend([
-                [ tdTestCopyToFile(sSrc = sBigFileHst,   sDst = sScratchGst), tdTestResultSuccess() ],
-                [ tdTestCopyToFile(sSrc = sBigFileHst,   sDst = sScratchGst), tdTestResultSuccess() ],            # Overwrite
+                # Should succeed, as the file isn't there yet on the destination.
+                [ tdTestCopyToFile(sSrc = sBigFileHst,   sDst = sScratchGst + oTestVm.pathSep()), tdTestResultSuccess() ],
+                # Overwrite the existing file.
+                [ tdTestCopyToFile(sSrc = sBigFileHst,   sDst = sScratchGst + oTestVm.pathSep()), tdTestResultSuccess() ],
+                # Same file, but with a different name on the destination.
                 [ tdTestCopyToFile(sSrc = sEmptyFileHst, sDst = oTestVm.pathJoin(sScratchGst, os.path.split(sBigFileHst)[1])),
                   tdTestResultSuccess() ],                                                                  # Overwrite
             ]);
@@ -4864,41 +4881,49 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         #
         if self.oTstDrv.fpApiVer > 5.2: # Copying directories via Main is supported only in versions > 5.2.
             atTests.extend([
-                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir1Gst,
-                                  afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]),  tdTestResultSuccess() ],
-                # Try again.
-                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir1Gst,
-                                  afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]),  tdTestResultSuccess() ],
-                # Should fail, as destination directory already exists.
+                # Without a trailing slash added to the destination this should fail,
+                # as the destination directory already exists.
                 [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir1Gst),   tdTestResultFailure() ],
-                # Try again with trailing slash, should yield the same result:
-                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir2Gst + oTestVm.pathSep(),
+                # Same existing host directory, but this time with DirectoryCopyFlag_CopyIntoExisting set.
+                # This should copy the contents of oEmptyDirGst to sScratchDstDir1Gst (empty, but anyway).
+                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir1Gst,
                                   afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]),  tdTestResultSuccess() ],
                 # Try again.
-                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir2Gst + oTestVm.pathSep(),
+                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir1Gst,
                                   afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]),  tdTestResultSuccess() ],
-                # Should fail, as destination directory already exists.
+                # With a trailing slash added to the destination, copy the empty guest directory
+                # (should end up as sScratchDstDir2Gst/empty):
+                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir2Gst + oTestVm.pathSep()),
+                  tdTestResultSuccess() ],
+                # Repeat -- this time it should fail, as the destination directory already exists (and
+                # DirectoryCopyFlag_CopyIntoExisting is not specified):
                 [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir2Gst + oTestVm.pathSep()),
                   tdTestResultFailure() ],
+                # Add the DirectoryCopyFlag_CopyIntoExisting flag being set and it should work (again).
+                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = sScratchDstDir2Gst + oTestVm.pathSep(),
+                                  afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
                 # Copy with a different destination name just for the heck of it:
-                # disabled at the moment, causes test failures due to the non-existing target
-                #[ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = oTestVm.pathJoin(sScratchDstDir1Gst, 'empty2')),
-                #  tdTestResultSuccess() ],
+                [ tdTestCopyToDir(sSrc = sScratchEmptyDirHst, sDst = oTestVm.pathJoin(sScratchDstDir2Gst, 'empty2')),
+                  tdTestResultSuccess() ],
             ]);
             atTests.extend([
                 # Now the same using a directory with files in it:
                 [ tdTestCopyToDir(sSrc = sScratchNonEmptyDirHst, sDst = sScratchDstDir3Gst,
-                                  afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]),   tdTestResultSuccess() ],
+                                  afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
                 # Again.
                 [ tdTestCopyToDir(sSrc = sScratchNonEmptyDirHst, sDst = sScratchDstDir3Gst,
-                                  afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]),   tdTestResultSuccess() ],
-                # Should fail, as directory is existing already.
-                [ tdTestCopyToDir(sSrc = sScratchNonEmptyDirHst, sDst = sScratchDstDir3Gst), tdTestResultFailure() ],
+                                  afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
             ]);
             atTests.extend([
                 # Copy the entire test tree:
-                [ tdTestCopyToDir(sSrc = sScratchTreeDirHst, sDst = sScratchDstDir4Gst,
-                                  afFlags = [vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
+                [ tdTestCopyToDir(sSrc = sScratchTreeDirHst, sDst = sScratchDstDir4Gst + oTestVm.pathSep()),
+                  tdTestResultSuccess() ],
+                # Again, should fail this time.
+                [ tdTestCopyToDir(sSrc = sScratchTreeDirHst, sDst = sScratchDstDir4Gst + oTestVm.pathSep()),
+                  tdTestResultFailure() ],
+                # Works again, as DirectoryCopyFlag_CopyIntoExisting is specified.
+                [ tdTestCopyToDir(sSrc = sScratchTreeDirHst, sDst = sScratchDstDir4Gst + oTestVm.pathSep(),
+                                  afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
             ]);
 
         fRc = True;
@@ -4940,8 +4965,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         sScratchDstDir1Hst      = os.path.join(sScratchHst, "dstdir1");
         sScratchDstDir2Hst      = os.path.join(sScratchHst, "dstdir2");
         sScratchDstDir3Hst      = os.path.join(sScratchHst, "dstdir3");
+        sScratchDstDir4Hst      = os.path.join(sScratchHst, "dstdir4");
         oExistingFileGst        = self.oTestFiles.chooseRandomFile();
         oNonEmptyDirGst         = self.oTestFiles.chooseRandomDirFromTree(fNonEmpty = True);
+        oTreeDirGst             = self.oTestFiles.oTreeDir;
         oEmptyDirGst            = self.oTestFiles.oEmptyDir;
 
         if oTestVm.isWindows() or oTestVm.isOS2():
@@ -4964,7 +4991,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
         reporter.log2('Creating host sub dirs ...');
 
-        for sSubDir in (sScratchDstDir1Hst, sScratchDstDir2Hst, sScratchDstDir3Hst):
+        for sSubDir in (sScratchDstDir1Hst, sScratchDstDir2Hst, sScratchDstDir3Hst, sScratchDstDir4Hst):
             try:
                 os.mkdir(sSubDir);
             except:
@@ -5031,51 +5058,70 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         # Single file copying.
         #
         atTests.extend([
-            [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = os.path.join(sScratchHst, 'copyfile1')),
-              tdTestResultSuccess() ],
-            [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = os.path.join(sScratchHst, 'copyfile1')), # Overwrite it
-              tdTestResultSuccess() ],
-            [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = os.path.join(sScratchHst, 'copyfile2')),
-              tdTestResultSuccess() ],
+            # Should succeed, as the file isn't there yet on the destination.
+            [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = os.path.join(sScratchHst, 'copyfile1')), tdTestResultSuccess() ],
+            # Overwrite the existing file.
+            [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = os.path.join(sScratchHst, 'copyfile1')), tdTestResultSuccess() ],
+            # Same file, but with a different name on the destination.
+            [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = os.path.join(sScratchHst, 'copyfile2')), tdTestResultSuccess() ],
         ]);
-        if self.oTstDrv.fpApiVer > 5.2:
+
+        if self.oTstDrv.fpApiVer > 5.2: # Copying files into directories via Main is supported only 6.0 and later.
             # Copy into a directory.
             atTests.extend([
-                [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = sScratchHst), tdTestResultSuccess() ],
+                # This should fail, as sScratchHst exists and is a directory.
+                [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = sScratchHst), tdTestResultFailure() ],
+                # Same existing host directory, but this time with a trailing slash.
+                # This should succeed, as the file isn't there yet on the destination.
+                [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = sScratchHst + os.path.sep), tdTestResultSuccess() ],
+                # Overwrite the existing file.
                 [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = sScratchHst + os.path.sep), tdTestResultSuccess() ],
             ]);
 
-            #
-            # Directory tree copying:
-            #
+        #
+        # Directory handling.
+        #
+        if self.oTstDrv.fpApiVer > 5.2: # Copying directories via Main is supported only in versions > 5.2.
             atTests.extend([
-                # Copy the empty guest directory (should end up as sScratchHst/empty):
-                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir1Hst), tdTestResultSuccess() ],
+                # Without a trailing slash added to the destination this should fail,
+                # as the destination directory already exist.
+                [ tdTestCopyFromDir(sSrc = oEmptyDirGst.sPath, sDst = sScratchDstDir1Hst), tdTestResultFailure() ],
+                # Same existing host directory, but this time with DirectoryCopyFlag_CopyIntoExisting set.
+                # This should copy the contents of oEmptyDirGst to sScratchDstDir1Hst (empty, but anyway).
+                [ tdTestCopyFromDir(sSrc = oEmptyDirGst.sPath, sDst = sScratchDstDir1Hst,
+                                    afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
+                # Try again.
+                [ tdTestCopyFromDir(sSrc = oEmptyDirGst.sPath, sDst = sScratchDstDir1Hst,
+                                    afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
+                # With a trailing slash added to the destination, copy the empty guest directory
+                # (should end up as sScratchHst/empty):
+                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir2Hst + os.path.sep), tdTestResultSuccess() ],
                 # Repeat -- this time it should fail, as the destination directory already exists (and
                 # DirectoryCopyFlag_CopyIntoExisting is not specified):
-                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir1Hst), tdTestResultFailure() ],
-                # Add the DirectoryCopyFlag_CopyIntoExisting flag being set and it should work.
-                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir1Hst,
-                                    afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
-                # Try again with trailing slash, should yield the same result:
-                [ tdTestRemoveHostDir(os.path.join(sScratchDstDir1Hst, 'empty')), tdTestResult() ],
-                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir1Hst + os.path.sep),
-                  tdTestResultSuccess() ],
-                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir1Hst + os.path.sep),
-                  tdTestResultFailure() ],
-                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir1Hst + os.path.sep,
+                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir2Hst + os.path.sep), tdTestResultFailure() ],
+                # Add the DirectoryCopyFlag_CopyIntoExisting flag being set and it should work (again).
+                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = sScratchDstDir2Hst + os.path.sep,
                                     afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
                 # Copy with a different destination name just for the heck of it:
-                [ tdTestCopyFromDir(oSrc = oEmptyDirGst, sDst = os.path.join(sScratchHst, 'empty2'), fIntoDst = True),
-                  tdTestResultFailure() ],
-        ## bird 2021-12-15: These seems to be failing a lot, so I've temporarily disabled them.  Please debug and re-enable.
-        ##        # Now the same using a directory with files in it:
-        ##        [ tdTestCopyFromDir(oSrc = oNonEmptyDirGst, sDst = sScratchDstDir2Hst), tdTestResultSuccess() ],
-        ##        [ tdTestCopyFromDir(oSrc = oNonEmptyDirGst, sDst = sScratchDstDir2Hst), tdTestResultFailure() ],
-        ##        [ tdTestCopyFromDir(oSrc = oNonEmptyDirGst, sDst = sScratchDstDir2Hst,
-        ##                            afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
-        ##        # Copy the entire test tree:
-        ##        [ tdTestCopyFromDir(sSrc = self.oTestFiles.oTreeDir.sPath, sDst = sScratchDstDir3Hst), tdTestResultSuccess() ],
+                [ tdTestCopyFromDir(sSrc = oEmptyDirGst.sPath, sDst = os.path.join(sScratchDstDir2Hst, 'empty2'),
+                                    fIntoDst = True),
+                  tdTestResultSuccess() ],
+            ]);
+            atTests.extend([
+                # Now the same using a directory with files in it:
+                [ tdTestCopyFromDir(oSrc = oNonEmptyDirGst, sDst = sScratchDstDir3Hst + os.path.sep), tdTestResultSuccess() ],
+                # Again.
+                [ tdTestCopyFromDir(oSrc = oNonEmptyDirGst, sDst = sScratchDstDir3Hst, fIntoDst = True,
+                                    afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
+            ]);
+            atTests.extend([
+                # Copy the entire test tree:
+                [ tdTestCopyFromDir(oSrc = oTreeDirGst, sDst = sScratchDstDir4Hst + os.path.sep), tdTestResultSuccess() ],
+                # Again, should fail this time.
+                [ tdTestCopyFromDir(oSrc = oTreeDirGst, sDst = sScratchDstDir4Hst + os.path.sep), tdTestResultFailure() ],
+                # Works again, as DirectoryCopyFlag_CopyIntoExisting is specified.
+                [ tdTestCopyFromDir(oSrc = oTreeDirGst, sDst = sScratchDstDir4Hst + os.path.sep,
+                                    afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
             ]);
 
         reporter.log2('Executing tests ...');

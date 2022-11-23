@@ -36,6 +36,7 @@
 
 /* Forward declarations: */
 class UIDisplayFeaturesEditor;
+class UIFontScaleEditor;
 class UIMaximumGuestScreenSizeEditor;
 class UIScaleFactorEditor;
 struct UIDataSettingsGlobalDisplay;
@@ -54,6 +55,9 @@ public:
     virtual ~UIGlobalSettingsDisplay() RT_OVERRIDE;
 
 protected:
+
+    /** Returns whether the page content was changed. */
+    virtual bool changed() const RT_OVERRIDE;
 
     /** Loads settings from external object(s) packed inside @a data to cache.
       * @note  This task WILL be performed in other than the GUI thread, no widget interactions! */
@@ -95,6 +99,8 @@ private:
         UIScaleFactorEditor            *m_pEditorScaleFactor;
         /** Holds the global display features editor instance. */
         UIDisplayFeaturesEditor        *m_pEditorGlobalDisplayFeatures;
+        /** Holds the font scale editor instance. */
+        UIFontScaleEditor              *m_pFontScaleEditor;
     /** @} */
 };
 

@@ -149,6 +149,7 @@ enum OPCODES
     OP_IRET,
     OP_AAM,
     OP_AAD,
+    OP_SALC,
     OP_XLAT,
     OP_ESCF0,
     OP_ESCF1,
@@ -582,12 +583,14 @@ enum OPCODES
     OP_PALIGNR,
     OP_PEXTRB,
     OP_PEXTRD,
+    OP_PEXTRQ,
     OP_EXTRACTPS,
     OP_INSERTF128,
     OP_EXTRACTF128,
     OP_CVTPS2PH,
     OP_PINSRB,
     OP_PINSRD,
+    OP_PINSRQ,
     OP_INSERTPS,
     OP_INSERTI128,
     OP_EXTRACTI128,
@@ -604,6 +607,7 @@ enum OPCODES
     OP_RORX,
     OP_RDRAND,
     OP_RDSEED,
+    OP_MOVBE,
     OP_VEX3B,
     OP_VEX2B,
 /** @} */
@@ -1000,6 +1004,7 @@ enum OPCODES
     OP_VPEXTRB,
     OP_VPEXTRD,
     OP_VPEXTRW,
+    OP_VPEXTRQ,
     OP_VPHADDD,
     OP_VPHADDSW,
     OP_VPHADDW,
@@ -1010,6 +1015,7 @@ enum OPCODES
     OP_VPINSRB,
     OP_VPINSRD,
     OP_VPINSRW,
+    OP_VPINSRQ,
     OP_VPMADDUBSW,
     OP_VPMADDWD,
     OP_VPMASKMOVD,
@@ -1118,7 +1124,9 @@ enum OPCODES
     OP_END_OF_OPCODES
 };
 AssertCompile(OP_LOCK == 7);
+#if 0
 AssertCompile(OP_END_OF_OPCODES < 1024 /* see 15 byte DISOPCODE variant */);
+#endif
 /** @} */
 
 

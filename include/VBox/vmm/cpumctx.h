@@ -230,16 +230,38 @@ AssertCompileSize(CPUMHWVIRT, 4);
 /** Number of EFLAGS bits we put aside for the hardware EFLAGS, with the bits
  * above this we use for storing internal state not visible to the guest.
  *
- * The initial plan was to use 24 or 22 here and keep bits that needs clearing
- * on instruction boundrary in the top of the first 32 bits, allowing us to use
- * a AND with a 32-bit immediate for clearing both RF and the interrupt shadow
- * bits.  However, when using anything less than 32, there is a significant code
- * size increase: VMMR0.ro is 2475709 bytes with 32 bits, 2482069 bytes with 24
- * bits, and 2482261 bytes with 22 bits.
+ * Using a value less than 32 here means some code bloat when loading and
+ * fetching the hardware EFLAGS value.  Comparing VMMR0.r0 text size when
+ * compiling release build using gcc 11.3.1 on linux:
+ *      - 32 bits: 2475709 bytes
+ *      - 24 bits: 2482069 bytes; +6360 bytes.
+ *      - 22 bits: 2482261 bytes; +6552 bytes.
+ * Same for windows (virtual size of .text):
+ *      - 32 bits: 1498502 bytes
+ *      - 24 bits: 1502278 bytes; +3776 bytes.
+ *      - 22 bits: 1502198 bytes; +3696 bytes.
  *
- * So, for now we're best off setting this to 32.
+ * In addition we pass pointer the 32-bit EFLAGS to a number of IEM assembly
+ * functions, so it would be safer to not store anything in the lower 32 bits.
+ * OTOH, we'd sooner discover buggy assembly code by doing so, as we've had one
+ * example of accidental EFLAGS trashing by these functions already.
+ *
+ * It would be more efficient for IEM to store the interrupt shadow bit (and
+ * anything else that needs to be cleared at the same time) in the 30:22 bit
+ * range, because that would allow using a simple AND imm32 instruction on x86
+ * and a MOVN imm16,16 instruction to load the constant on ARM64 (assuming the
+ * other flag needing clearing is RF (bit 16)).  Putting it in the 63:32 range
+ * means we that on x86 we'll either use a memory variant of AND or require a
+ * separate load instruction for the immediate, whereas on ARM we'll need more
+ * instructions to construct the immediate value.
+ *
+ * Comparing the instruction exit thruput via the bs2-test-1 testcase, there
+ * seems to be little difference between 32 and 24 here (best results out of 9
+ * runs on Linux/VT-x).  So, unless the results are really wrong and there is
+ * clear drop in thruput, it would on the whole make the most sense to use 24
+ * here.
  */
-#define CPUMX86EFLAGS_HW_BITS       32
+#define CPUMX86EFLAGS_HW_BITS       24
 /** Mask for the hardware EFLAGS bits, 64-bit version. */
 #define CPUMX86EFLAGS_HW_MASK_64    (RT_BIT_64(CPUMX86EFLAGS_HW_BITS) - UINT64_C(1))
 /** Mask for the hardware EFLAGS bits, 32-bit version. */
@@ -251,10 +273,14 @@ AssertCompileSize(CPUMHWVIRT, 4);
 # error "Misconfigured CPUMX86EFLAGS_HW_BITS value!"
 #endif
 
-/** Mask of internal flags kept with EFLAGS, 64-bit version.   */
-#define CPUMX86EFLAGS_INT_MASK_64   UINT64_C(0x0000000000000000)
-/** Mask of internal flags kept with EFLAGS, 32-bit version.   */
-#define CPUMX86EFLAGS_INT_MASK_32   UINT64_C(0x0000000000000000)
+/** Mask of internal flags kept with EFLAGS, 64-bit version.
+ * The first 3 available bits are taken by CPUMCTX_INHIBIT_SHADOW_SS,
+ * CPUMCTX_INHIBIT_SHADOW_STI and CPUMCTX_INHIBIT_NMI.  The next 4 bits are
+ * taken by CPUMCTX_DBG_HIT_DRX_MASK.
+ */
+#define CPUMX86EFLAGS_INT_MASK_64   UINT64_C(0x000000007f000000)
+/** Mask of internal flags kept with EFLAGS, 32-bit version. */
+#define CPUMX86EFLAGS_INT_MASK_32           UINT32_C(0x7f000000)
 
 
 /**
@@ -391,10 +417,10 @@ typedef struct CPUMCTX
         CPUMX86RFLAGS   rflags;
     } CPUM_UNION_NM(rflags);
 
-    /** Interrupt & exception inhibiting (CPUMCTX_INHIBIT_XXX). */
-    uint8_t             fInhibit;
-    uint8_t             abPadding[7];
-    /** The RIP value fInhibit is/was valid for. */
+    /** 0x150 - Externalized state tracker, CPUMCTX_EXTRN_XXX. */
+    uint64_t            fExtrn;
+
+    /** The RIP value an interrupt shadow is/was valid for. */
     uint64_t            uRipInhibitInt;
 
     /** @name Control registers.
@@ -440,14 +466,7 @@ typedef struct CPUMCTX
     uint64_t            msrKERNELGSBASE;    /**< swapgs exchange value. */
     /** @} */
 
-    /** 0x230 - Externalized state tracker, CPUMCTX_EXTRN_XXX.
-     * @todo Move up after uRipInhibitInt after fInhibit moves into RFLAGS.
-     *       That will put this in the same cacheline as RIP, RFLAGS and CR0
-     *       which are typically always imported and exported again during an
-     *       VM exit. */
-    uint64_t            fExtrn;
-
-    uint64_t            u64Unused;
+    uint64_t            au64Unused[2];
 
     /** 0x240 - PAE PDPTEs. */
     X86PDPE             aPaePdpes[4];
@@ -651,7 +670,7 @@ AssertCompileMemberOffset(CPUMCTX,                                      ldtr, 0x
 AssertCompileMemberOffset(CPUMCTX,                                        tr, 0x0128);
 AssertCompileMemberOffset(CPUMCTX,                                       rip, 0x0140);
 AssertCompileMemberOffset(CPUMCTX,                                    rflags, 0x0148);
-AssertCompileMemberOffset(CPUMCTX,                                  fInhibit, 0x0150);
+AssertCompileMemberOffset(CPUMCTX,                                    fExtrn, 0x0150);
 AssertCompileMemberOffset(CPUMCTX,                            uRipInhibitInt, 0x0158);
 AssertCompileMemberOffset(CPUMCTX,                                       cr0, 0x0160);
 AssertCompileMemberOffset(CPUMCTX,                                       cr2, 0x0168);
@@ -993,12 +1012,12 @@ AssertCompile(CPUMCTX_EXTRN_SREG_FROM_IDX(X86_SREG_GS) == CPUMCTX_EXTRN_GS);
  * It is implementation specific whether a sequence of two or more of these
  * instructions will have any effect on the instruction following the last one
  * of them. */
-#define CPUMCTX_INHIBIT_SHADOW_SS   UINT8_C(0x01)
+#define CPUMCTX_INHIBIT_SHADOW_SS       RT_BIT_32(0 + CPUMX86EFLAGS_HW_BITS)
 /** Interrupt shadow following STI.
  * Same as CPUMCTX_INHIBIT_SHADOW_SS but without blocking any debug exceptions. */
-#define CPUMCTX_INHIBIT_SHADOW_STI  UINT8_C(0x02)
+#define CPUMCTX_INHIBIT_SHADOW_STI      RT_BIT_32(1 + CPUMX86EFLAGS_HW_BITS)
 /** Mask combining STI and SS shadowing. */
-#define CPUMCTX_INHIBIT_SHADOW      (CPUMCTX_INHIBIT_SHADOW_SS | CPUMCTX_INHIBIT_SHADOW_STI)
+#define CPUMCTX_INHIBIT_SHADOW          (CPUMCTX_INHIBIT_SHADOW_SS | CPUMCTX_INHIBIT_SHADOW_STI)
 
 /** Interrupts blocked by NMI delivery.  This condition is cleared by IRET.
  *
@@ -1006,9 +1025,38 @@ AssertCompile(CPUMCTX_EXTRN_SREG_FROM_IDX(X86_SREG_GS) == CPUMCTX_EXTRN_GS);
  * "The processor also invokes certain hardware conditions to ensure that no
  * other interrupts, including NMI interrupts, are received until the NMI
  * handler has completed executing."  This flag indicates that these
- * conditions are currently active.  */
-#define CPUMCTX_INHIBIT_NMI         UINT8_C(0x04)
+ * conditions are currently active.
+ *
+ * @todo this does not really need to be in the lower 32-bits of EFLAGS.
+ */
+#define CPUMCTX_INHIBIT_NMI             RT_BIT_32(2 + CPUMX86EFLAGS_HW_BITS)
+
+/** Mask containing all the interrupt inhibit bits. */
+#define CPUMCTX_INHIBIT_ALL_MASK        (CPUMCTX_INHIBIT_SHADOW_SS | CPUMCTX_INHIBIT_SHADOW_STI | CPUMCTX_INHIBIT_NMI)
+AssertCompile(CPUMCTX_INHIBIT_ALL_MASK < UINT32_MAX);
 /** @} */
+
+/** @name CPUMCTX_DBG_XXX - Pending debug events.
+ * @{ */
+/** Hit guest DR0 breakpoint. */
+#define CPUMCTX_DBG_HIT_DR0             RT_BIT_32(CPUMCTX_DBG_HIT_DR0_BIT)
+#define CPUMCTX_DBG_HIT_DR0_BIT         (3 + CPUMX86EFLAGS_HW_BITS)
+/** Hit guest DR1 breakpoint. */
+#define CPUMCTX_DBG_HIT_DR1             RT_BIT_32(CPUMCTX_DBG_HIT_DR1_BIT)
+#define CPUMCTX_DBG_HIT_DR1_BIT         (4 + CPUMX86EFLAGS_HW_BITS)
+/** Hit guest DR2 breakpoint. */
+#define CPUMCTX_DBG_HIT_DR2             RT_BIT_32(CPUMCTX_DBG_HIT_DR2_BIT)
+#define CPUMCTX_DBG_HIT_DR2_BIT         (5 + CPUMX86EFLAGS_HW_BITS)
+/** Hit guest DR3 breakpoint. */
+#define CPUMCTX_DBG_HIT_DR3             RT_BIT_32(CPUMCTX_DBG_HIT_DR3_BIT)
+#define CPUMCTX_DBG_HIT_DR3_BIT         (6 + CPUMX86EFLAGS_HW_BITS)
+/** Shift for the CPUMCTX_DBG_HIT_DRx bits. */
+#define CPUMCTX_DBG_HIT_DRX_SHIFT       CPUMCTX_DBG_HIT_DR0_BIT
+/** Mask of all guest pending DR0-DR3 breakpoint indicators. */
+#define CPUMCTX_DBG_HIT_DRX_MASK       (CPUMCTX_DBG_HIT_DR0 | CPUMCTX_DBG_HIT_DR1 | CPUMCTX_DBG_HIT_DR2 | CPUMCTX_DBG_HIT_DR3)
+AssertCompile(CPUMCTX_DBG_HIT_DRX_MASK < UINT32_MAX);
+/** @}  */
+
 
 
 /**

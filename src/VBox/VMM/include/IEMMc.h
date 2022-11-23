@@ -41,8 +41,6 @@
  */
 #define IEM_MC_BEGIN(a_cArgs, a_cLocals)                {
 #define IEM_MC_END()                                    }
-#define IEM_MC_PAUSE()                                  do {} while (0)
-#define IEM_MC_CONTINUE()                               do {} while (0)
 
 /** Internal macro. */
 #define IEM_MC_RETURN_ON_FAILURE(a_Expr) \
@@ -54,13 +52,26 @@
     } while (0)
 
 
-#define IEM_MC_ADVANCE_RIP()                            iemRegUpdateRipAndClearRF(pVCpu)
-#define IEM_MC_REL_JMP_S8(a_i8)                         IEM_MC_RETURN_ON_FAILURE(iemRegRipRelativeJumpS8(pVCpu, a_i8))
-#define IEM_MC_REL_JMP_S16(a_i16)                       IEM_MC_RETURN_ON_FAILURE(iemRegRipRelativeJumpS16(pVCpu, a_i16))
-#define IEM_MC_REL_JMP_S32(a_i32)                       IEM_MC_RETURN_ON_FAILURE(iemRegRipRelativeJumpS32(pVCpu, a_i32))
-#define IEM_MC_SET_RIP_U16(a_u16NewIP)                  IEM_MC_RETURN_ON_FAILURE(iemRegRipJump((pVCpu), (a_u16NewIP)))
-#define IEM_MC_SET_RIP_U32(a_u32NewIP)                  IEM_MC_RETURN_ON_FAILURE(iemRegRipJump((pVCpu), (a_u32NewIP)))
-#define IEM_MC_SET_RIP_U64(a_u64NewIP)                  IEM_MC_RETURN_ON_FAILURE(iemRegRipJump((pVCpu), (a_u64NewIP)))
+/** Advances RIP, finishes the instruction and returns.
+ * This may include raising debug exceptions and such. */
+#define IEM_MC_ADVANCE_RIP_AND_FINISH()                 return iemRegAddToRipAndFinishingClearingRF(pVCpu, IEM_GET_INSTR_LEN(pVCpu))
+/** Sets RIP (may trigger \#GP), finishes the instruction and returns. */
+#define IEM_MC_REL_JMP_S8_AND_FINISH(a_i8) \
+    return iemRegRipRelativeJumpS8AndFinishClearingRF(pVCpu, IEM_GET_INSTR_LEN(pVCpu), (a_i8), pVCpu->iem.s.enmEffOpSize)
+/** Sets RIP (may trigger \#GP), finishes the instruction and returns.
+ * @note only usable in 16-bit op size mode.  */
+#define IEM_MC_REL_JMP_S16_AND_FINISH(a_i16) \
+    return iemRegRipRelativeJumpS16AndFinishClearingRF(pVCpu, IEM_GET_INSTR_LEN(pVCpu), (a_i16))
+/** Sets RIP (may trigger \#GP), finishes the instruction and returns. */
+#define IEM_MC_REL_JMP_S32_AND_FINISH(a_i32) \
+    return iemRegRipRelativeJumpS32AndFinishClearingRF(pVCpu, IEM_GET_INSTR_LEN(pVCpu), (a_i32), pVCpu->iem.s.enmEffOpSize)
+/** Sets RIP (may trigger \#GP), finishes the instruction and returns. */
+#define IEM_MC_SET_RIP_U16_AND_FINISH(a_u16NewIP)       return iemRegRipJumpU16AndFinishClearningRF((pVCpu), (a_u16NewIP))
+/** Sets RIP (may trigger \#GP), finishes the instruction and returns. */
+#define IEM_MC_SET_RIP_U32_AND_FINISH(a_u32NewIP)       return iemRegRipJumpU32AndFinishClearningRF((pVCpu), (a_u32NewIP))
+/** Sets RIP (may trigger \#GP), finishes the instruction and returns. */
+#define IEM_MC_SET_RIP_U64_AND_FINISH(a_u64NewIP)       return iemRegRipJumpU64AndFinishClearningRF((pVCpu), (a_u64NewIP))
+
 #define IEM_MC_RAISE_DIVIDE_ERROR()                     return iemRaiseDivideError(pVCpu)
 #define IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE()       \
     do { \
@@ -412,6 +423,9 @@
     } while (0)
 #define IEM_MC_OR_GREG_U64(a_iGReg, a_u64Value)         *iemGRegRefU64(pVCpu, (a_iGReg)) |= (a_u64Value)
 
+#define IEM_MC_BSWAP_LOCAL_U16(a_u16Local)              (a_u16Local) = RT_BSWAP_U16((a_u16Local));
+#define IEM_MC_BSWAP_LOCAL_U32(a_u32Local)              (a_u32Local) = RT_BSWAP_U32((a_u32Local));
+#define IEM_MC_BSWAP_LOCAL_U64(a_u64Local)              (a_u64Local) = RT_BSWAP_U64((a_u64Local));
 
 /** @note Not for IOPL or IF modification. */
 #define IEM_MC_SET_EFL_BIT(a_fBit)                      do { pVCpu->cpum.GstCtx.eflags.u |= (a_fBit); } while (0)
@@ -467,12 +481,14 @@
     do { (a_XmmValue).au64[0] = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[0]; \
          (a_XmmValue).au64[1] = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[1]; \
     } while (0)
-#define IEM_MC_FETCH_XREG_U64(a_u64Value, a_iXReg) \
-    do { (a_u64Value) = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[0]; } while (0)
-#define IEM_MC_FETCH_XREG_U32(a_u32Value, a_iXReg) \
-    do { (a_u32Value) = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au32[0]; } while (0)
-#define IEM_MC_FETCH_XREG_HI_U64(a_u64Value, a_iXReg) \
-    do { (a_u64Value) = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[1]; } while (0)
+#define IEM_MC_FETCH_XREG_U64(a_u64Value, a_iXReg, a_iQWord) \
+    do { (a_u64Value) = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[(a_iQWord)]; } while (0)
+#define IEM_MC_FETCH_XREG_U32(a_u32Value, a_iXReg, a_iDWord) \
+    do { (a_u32Value) = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au32[(a_iDWord)]; } while (0)
+#define IEM_MC_FETCH_XREG_U16(a_u16Value, a_iXReg, a_iWord) \
+    do { (a_u16Value) = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au16[(a_iWord)]; } while (0)
+#define IEM_MC_FETCH_XREG_U8( a_u8Value,  a_iXReg, a_iByte) \
+    do { (a_u8Value)  = pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au16[(a_iByte)]; } while (0)
 #define IEM_MC_STORE_XREG_U128(a_iXReg, a_u128Value) \
     do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[0] = (a_u128Value).au64[0]; \
          pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[1] = (a_u128Value).au64[1]; \
@@ -485,14 +501,16 @@
     do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au32[(a_iDword)] = (a_XmmValue).au32[(a_iDword)]; } while (0)
 #define IEM_MC_STORE_XREG_XMM_U64(a_iXReg, a_iQword, a_XmmValue) \
     do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[(a_iQword)] = (a_XmmValue).au64[(a_iQword)]; } while (0)
-#define IEM_MC_STORE_XREG_U64(a_iXReg, a_u64Value) \
-    do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[0] = (a_u64Value); } while (0)
+#define IEM_MC_STORE_XREG_U64(a_iXReg, a_iQword, a_u64Value) \
+    do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[(a_iQword)] = (a_u64Value); } while (0)
 #define IEM_MC_STORE_XREG_U64_ZX_U128(a_iXReg, a_u64Value) \
     do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[0] = (a_u64Value); \
          pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au64[1] = 0; \
     } while (0)
-#define IEM_MC_STORE_XREG_U32(a_iXReg, a_u32Value) \
-    do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au32[0] = (a_u32Value); } while (0)
+#define IEM_MC_STORE_XREG_U32(a_iXReg, a_iDword, a_u32Value) \
+    do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au32[(a_iDword)] = (a_u32Value); } while (0)
+#define IEM_MC_STORE_XREG_U32_U128(a_iXReg, a_iDwDst, a_u128Value, a_iDwSrc) \
+    do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].au32[(a_iDwDst)] = (a_u128Value).au32[(a_iDwSrc)]; } while (0)
 #define IEM_MC_STORE_XREG_R32(a_iXReg, a_r32Value) \
     do { pVCpu->cpum.GstCtx.XState.x87.aXMM[(a_iXReg)].ar32[0] = (a_r32Value); } while (0)
 #define IEM_MC_STORE_XREG_R64(a_iXReg, a_r64Value) \

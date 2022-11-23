@@ -206,6 +206,7 @@ const char *UIExtraDataDefs::GUI_GuruMeditationHandler = "GUI/GuruMeditationHand
 const char *UIExtraDataDefs::GUI_HidLedsSync = "GUI/HidLedsSync";
 const char *UIExtraDataDefs::GUI_ScaleFactor = "GUI/ScaleFactor";
 const char *UIExtraDataDefs::GUI_Scaling_Optimization = "GUI/Scaling/Optimization";
+const char *UIExtraDataDefs::GUI_FontScaleFactor = "GUI/FontScaleFactor";
 
 /* Virtual Machine: Session Information Dialog: */
 const char *UIExtraDataDefs::GUI_SessionInformationDialogGeometry = "GUI/SessionInformationDialogGeometry";
@@ -265,6 +266,9 @@ const char *UIExtraDataDefs::GUI_VMActivityOverview_HiddenColumns = "GUI/VMActiv
 const char *UIExtraDataDefs::GUI_VMActivityOverview_ShowAllMachines = "GUI/VMActivityOverviewShowAllMachines";
 
 const char *UIExtraDataDefs::GUI_MediumSelector_DialogGeometry = "GUI/MediumSelector/DialogGeometry";
+
+const int UIExtraDataDefs::iFontScaleMin = 20;
+const int UIExtraDataDefs::iFontScaleMax = 200;
 
 /* Obsolete keys: */
 QMultiMap<QString, QString> UIExtraDataDefs::prepareObsoleteKeysMap()

@@ -176,7 +176,14 @@ DECLINLINE(uint16_t) virtioCoreR3CountPendingBufs(uint16_t uRingIdx, uint16_t uS
 DECLINLINE(void) virtioReadDesc(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIRTQUEUE pVirtq,
                                 uint32_t idxDesc, PVIRTQ_DESC_T pDesc)
 {
-    AssertMsg(IS_DRIVER_OK(pVirtio), ("Called with guest driver not ready\n"));
+    /*
+     * Shut up assertion for legacy virtio-net driver in FreeBSD up to 12.3 (see virtioCoreR3VirtqUsedBufPut()
+     * for more information).
+     */
+    AssertMsg(   IS_DRIVER_OK(pVirtio)
+              || (   pVirtio->fLegacyDriver
+                  && pVirtq->GCPhysVirtqDesc),
+              ("Called with guest driver not ready\n"));
     uint16_t const cVirtqItems = RT_MAX(pVirtq->uQueueSize, 1); /* Make sure to avoid div-by-zero. */
 
     virtioCoreGCPhysRead(pVirtio, pDevIns,
@@ -847,9 +854,9 @@ int virtioCoreR3VirtqAvailBufGet(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16
 #ifndef VIRTIO_VBUF_ON_STACK
     PVIRTQBUF pVirtqBuf = (PVIRTQBUF)RTMemAllocZ(sizeof(VIRTQBUF_T));
     AssertReturn(pVirtqBuf, VERR_NO_MEMORY);
+#endif /* !VIRTIO_VBUF_ON_STACK */
     pVirtqBuf->u32Magic  = VIRTQBUF_MAGIC;
     pVirtqBuf->cRefs     = 1;
-#endif /* !VIRTIO_VBUF_ON_STACK */
     pVirtqBuf->uHeadIdx  = uHeadIdx;
     pVirtqBuf->uVirtq    = uVirtq;
 #ifndef VIRTIO_VBUF_ON_STACK
@@ -994,7 +1001,17 @@ int virtioCoreR3VirtqUsedBufPut(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, uint16_
     Assert(pVirtqBuf->u32Magic == VIRTQBUF_MAGIC);
     Assert(pVirtqBuf->cRefs > 0);
 
-    AssertMsgReturn(IS_DRIVER_OK(pVirtio), ("Guest driver not in ready state.\n"), VERR_INVALID_STATE);
+    /*
+     * Workaround for a bug in FreeBSD's virtio-net driver up until 12.3 which supports only the legacy style devive.
+     * When the device is re-initialized from the driver it violates the spec and posts commands to the control queue
+     * before setting the DRIVER_OK flag, breaking the following check and rendering the device non-functional.
+     * The queues are properly set up at this stage however so no real harm is done and we can safely continue here,
+     * for the legacy device only of course after making sure the queue is properly set up.
+     */
+    AssertMsgReturn(   IS_DRIVER_OK(pVirtio)
+                    || (   pVirtio->fLegacyDriver
+                        && pVirtq->GCPhysVirtqDesc),
+                    ("Guest driver not in ready state.\n"), VERR_INVALID_STATE);
 
     Log6Func(("    Copying device data to %s, [desc:%u → used ring:%u]\n",
               VIRTQNAME(pVirtio, uVirtq), pVirtqBuf->uHeadIdx, pVirtq->uUsedIdxShadow));
@@ -2463,7 +2480,7 @@ int virtioCoreR3Init(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIRTIOCORECC pVir
         /* Non-transitional devices SHOULD have a PCI Revision ID of 1 or higher. */
         PDMPciDevSetRevisionId(pPciDev,     DEVICE_PCI_REVISION_ID_VIRTIO_V1);
 
-    PDMPciDevSetSubSystemId(pPciDev,        DEVICE_PCI_NETWORK_SUBSYSTEM);
+    PDMPciDevSetSubSystemId(pPciDev,        pPciParams->uSubsystemId);
     PDMPciDevSetSubSystemVendorId(pPciDev,  DEVICE_PCI_VENDOR_ID_VIRTIO);
     PDMPciDevSetClassBase(pPciDev,          pPciParams->uClassBase);
     PDMPciDevSetClassSub(pPciDev,           pPciParams->uClassSub);
