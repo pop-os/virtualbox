@@ -1,3 +1,14 @@
+virtualbox (7.0.4-dfsg-1) unstable; urgency=medium
+
+  * Upload to sid
+  * New upstream version 7.0.4-dfsg
+  * Drop opus, not needed anymore
+  * Patch refresh, drop two patches now upstream:
+    - fix-build.patch
+    - system-libs.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 23 Nov 2022 10:12:38 +0100
+
 virtualbox (7.0.2-dfsg-2) experimental; urgency=medium
 
   * Fix qt5 tools dependency
