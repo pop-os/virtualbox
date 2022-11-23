@@ -31,6 +31,7 @@
 /* GUI includes: */
 #include "UIDesktopWidgetWatchdog.h"
 #include "UIExtraDataManager.h"
+#include "UIFontScaleEditor.h"
 #include "UIDisplayFeaturesEditor.h"
 #include "UIGlobalSettingsDisplay.h"
 #include "UIMaximumGuestScreenSizeEditor.h"
@@ -54,6 +55,7 @@ struct UIDataSettingsGlobalDisplay
                && (m_scaleFactors == other.m_scaleFactors)
                && (m_fActivateHoveredMachineWindow == other.m_fActivateHoveredMachineWindow)
                && (m_fDisableHostScreenSaver == other.m_fDisableHostScreenSaver)
+               && (m_iFontScalingFactor == other.m_iFontScalingFactor)
                   ;
     }
 
@@ -70,6 +72,8 @@ struct UIDataSettingsGlobalDisplay
     bool                           m_fActivateHoveredMachineWindow;
     /** Holds whether we should disable host sceen saver on a vm is running. */
     bool                           m_fDisableHostScreenSaver;
+    /** Holds font scaling factor. */
+    int                            m_iFontScalingFactor;
 };
 
 
@@ -82,6 +86,7 @@ UIGlobalSettingsDisplay::UIGlobalSettingsDisplay()
     , m_pEditorMaximumGuestScreenSize(0)
     , m_pEditorScaleFactor(0)
     , m_pEditorGlobalDisplayFeatures(0)
+    , m_pFontScaleEditor(0)
 {
     prepare();
 }
@@ -89,6 +94,11 @@ UIGlobalSettingsDisplay::UIGlobalSettingsDisplay()
 UIGlobalSettingsDisplay::~UIGlobalSettingsDisplay()
 {
     cleanup();
+}
+
+bool UIGlobalSettingsDisplay::changed() const
+{
+    return m_pCache ? m_pCache->wasChanged() : false;
 }
 
 void UIGlobalSettingsDisplay::loadToCacheFrom(QVariant &data)
@@ -112,6 +122,7 @@ void UIGlobalSettingsDisplay::loadToCacheFrom(QVariant &data)
 #if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
     oldData.m_fDisableHostScreenSaver = gEDataManager->disableHostScreenSaver();
 #endif
+    oldData.m_iFontScalingFactor = gEDataManager->fontScaleFactor();
     m_pCache->cacheInitialData(oldData);
 
     /* Upload properties to data: */
@@ -138,6 +149,8 @@ void UIGlobalSettingsDisplay::getFromCache()
         m_pEditorGlobalDisplayFeatures->setActivateOnMouseHover(oldData.m_fActivateHoveredMachineWindow);
         m_pEditorGlobalDisplayFeatures->setDisableHostScreenSaver(oldData.m_fDisableHostScreenSaver);
     }
+    if (m_pFontScaleEditor)
+        m_pFontScaleEditor->setFontScaleFactor(oldData.m_iFontScalingFactor);
 }
 
 void UIGlobalSettingsDisplay::putToCache()
@@ -159,6 +172,8 @@ void UIGlobalSettingsDisplay::putToCache()
         newData.m_fActivateHoveredMachineWindow = m_pEditorGlobalDisplayFeatures->activateOnMouseHover();
         newData.m_fDisableHostScreenSaver = m_pEditorGlobalDisplayFeatures->disableHostScreenSaver();
     }
+    if (m_pFontScaleEditor)
+        newData.m_iFontScalingFactor = m_pFontScaleEditor->fontScaleFactor();
     m_pCache->cacheCurrentData(newData);
 }
 
@@ -181,9 +196,11 @@ void UIGlobalSettingsDisplay::retranslateUi()
     iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorMaximumGuestScreenSize->minimumLabelHorizontalHint());
     iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorScaleFactor->minimumLabelHorizontalHint());
     iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pEditorGlobalDisplayFeatures->minimumLabelHorizontalHint());
+    iMinimumLayoutHint = qMax(iMinimumLayoutHint, m_pFontScaleEditor->minimumLabelHorizontalHint());
     m_pEditorMaximumGuestScreenSize->setMinimumLayoutIndent(iMinimumLayoutHint);
     m_pEditorScaleFactor->setMinimumLayoutIndent(iMinimumLayoutHint);
     m_pEditorGlobalDisplayFeatures->setMinimumLayoutIndent(iMinimumLayoutHint);
+    m_pFontScaleEditor->setMinimumLayoutIndent(iMinimumLayoutHint);
 }
 
 void UIGlobalSettingsDisplay::prepare()
@@ -219,6 +236,11 @@ void UIGlobalSettingsDisplay::prepareWidgets()
         m_pEditorGlobalDisplayFeatures = new UIDisplayFeaturesEditor(this);
         if (m_pEditorGlobalDisplayFeatures)
             pLayout->addWidget(m_pEditorGlobalDisplayFeatures);
+
+        /* Prepare 'font scale' editor: */
+        m_pFontScaleEditor = new UIFontScaleEditor(this);
+        if (m_pFontScaleEditor)
+            pLayout->addWidget(m_pFontScaleEditor);
 
         /* Add stretch to the end: */
         pLayout->addStretch();
@@ -268,6 +290,10 @@ bool UIGlobalSettingsDisplay::saveData()
             && newData.m_fDisableHostScreenSaver != oldData.m_fDisableHostScreenSaver)
             /* fSuccess = */ gEDataManager->setDisableHostScreenSaver(newData.m_fDisableHostScreenSaver);
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+        /* Save font scale factor: */
+        if (   fSuccess
+            && newData.m_iFontScalingFactor != oldData.m_iFontScalingFactor)
+            /* fSuccess = */ gEDataManager->setFontScaleFactor(newData.m_iFontScalingFactor);
     }
     /* Return result: */
     return fSuccess;

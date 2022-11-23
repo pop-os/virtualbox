@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-unregistervm" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
+    <pubdate>$Date: 2022-11-01 11:38:05 +0100 (Tue, 01 Nov 2022) $</pubdate>
     <title>VBoxManage unregistervm</title>
   </refentryinfo>
 

@@ -670,6 +670,10 @@ void UIFileManagerGuestTable::copyHostToGuest(const QStringList &hostSourcePathL
     QVector<QString> aFilters;
     QVector<QString> aFlags;
     QString strDestinationPath = strDestination;
+
+    /* Remove empty source paths. Typically happens when up directory is selected: */
+    sourcePaths.removeAll(QString());
+
     if (strDestinationPath.isEmpty())
         strDestinationPath = currentDirectoryPath();
 
@@ -678,13 +682,13 @@ void UIFileManagerGuestTable::copyHostToGuest(const QStringList &hostSourcePathL
         emit sigLogOutput("No destination for copy operation", m_strTableName, FileManagerLogType_Error);
         return;
     }
-    if (hostSourcePathList.empty())
+    if (sourcePaths.empty())
     {
         emit sigLogOutput("No source for copy operation", m_strTableName, FileManagerLogType_Error);
         return;
     }
     QString strDirectoryFlags("CopyIntoExisting,Recursive,FollowLinks");
-    QString strFileFlags;
+    QString strFileFlags("FollowLinks");
     foreach (const QString &strSource, sourcePaths)
     {
         KFsObjType enmFileType = UIFileManagerHostTable::fileType(strSource);
@@ -693,9 +697,18 @@ void UIFileManagerGuestTable::copyHostToGuest(const QStringList &hostSourcePathL
         /* If the source is an directory, make sure to add the appropriate flag to make copying work
          * into existing directories on the guest. This otherwise would fail (default): */
         else if (enmFileType == KFsObjType_Directory)
+        {
+            /* Make sure that if the source is a directory, that we append a trailing delimiter to it,
+             * so that it gets copied *into* the destination directory as a whole, and not just it's contents. */
+            strDestinationPath = UIPathOperations::addTrailingDelimiters(strDestinationPath);
             aFlags << strDirectoryFlags;
+        }
         else
+        {
+            /* Ditto goes for source files, as the destination always is a directory path. */
+            strDestinationPath = UIPathOperations::addTrailingDelimiters(strDestinationPath);
             aFlags << strFileFlags;
+        }
     }
 
     CProgress progress = m_comGuestSession.CopyToGuest(sourcePaths, aFilters, aFlags, strDestinationPath);
@@ -732,6 +745,9 @@ void UIFileManagerGuestTable::copyGuestToHost(const QString& hostDestinationPath
     QVector<QString> aFilters;
     QVector<QString> aFlags;
 
+    /* Remove empty source paths. Typically happens when up directory is selected: */
+    sourcePaths.removeAll(QString());
+
     if (hostDestinationPath.isEmpty())
     {
         emit sigLogOutput("No destination for copy operation", m_strTableName, FileManagerLogType_Error);
@@ -743,6 +759,7 @@ void UIFileManagerGuestTable::copyGuestToHost(const QString& hostDestinationPath
         return;
     }
 
+    QString strDestinationPath = hostDestinationPath;
     QString strDirectoryFlags("CopyIntoExisting,Recursive,FollowLinks");
     QString strFileFlags;
     foreach (const QString &strSource, sourcePaths)
@@ -759,12 +776,22 @@ void UIFileManagerGuestTable::copyGuestToHost(const QString& hostDestinationPath
         }
 
         if (fileType(fileInfo) == KFsObjType_Directory)
+        {
+            /* Make sure that if the source is a directory, that we append a trailing delimiter to the destination,
+             * so that the source directory gets copied *into* the destination directory as a whole, and not
+             * just it's contents. */
+            strDestinationPath = UIPathOperations::addTrailingDelimiters(strDestinationPath);
             aFlags << strDirectoryFlags;
+        }
         else
+        {
+            /* Ditto goes for source files, as the destination always is a directory path. */
+            strDestinationPath = UIPathOperations::addTrailingDelimiters(strDestinationPath);
             aFlags << strFileFlags;
+        }
     }
 
-    CProgress progress = m_comGuestSession.CopyFromGuest(sourcePaths, aFilters, aFlags, hostDestinationPath);
+    CProgress progress = m_comGuestSession.CopyFromGuest(sourcePaths, aFilters, aFlags, strDestinationPath);
     if (!checkGuestSession())
         return;
     emit sigNewFileOperation(progress, m_strTableName);

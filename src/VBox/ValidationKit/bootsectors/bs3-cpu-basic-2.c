@@ -54,6 +54,8 @@ FNBS3TESTDOMODE             bs3CpuBasic2_sgdt_f16;
 FNBS3TESTDOMODE             bs3CpuBasic2_lidt_f16;
 FNBS3TESTDOMODE             bs3CpuBasic2_lgdt_f16;
 FNBS3TESTDOMODE             bs3CpuBasic2_iret_f16;
+FNBS3TESTDOMODE             bs3CpuBasic2_jmp_call_f16;
+FNBS3TESTDOMODE             bs3CpuBasic2_far_jmp_call_f16;
 
 BS3_DECL_CALLBACK(void)     bs3CpuBasic2_Do32BitTests_pe32();
 
@@ -64,14 +66,20 @@ BS3_DECL_CALLBACK(void)     bs3CpuBasic2_Do32BitTests_pe32();
 static const BS3TESTMODEENTRY g_aModeTest[] =
 {
     BS3TESTMODEENTRY_MODE("tss / gate / esp", bs3CpuBasic2_TssGateEsp),
-    //BS3TESTMODEENTRY_MODE("raise xcpt #1", bs3CpuBasic2_RaiseXcpt1), // !long mode is broken!
+    BS3TESTMODEENTRY_MODE("raise xcpt #1", bs3CpuBasic2_RaiseXcpt1),
 };
 
 static const BS3TESTMODEBYONEENTRY g_aModeByOneTests[] =
 {
+#if 0
     { "#ac",  bs3CpuBasic2_RaiseXcpt11_f16, 0 },
+#endif
 #if 1
-    { "iret", bs3CpuBasic2_iret_f16, 0 },
+    //{ "iret", bs3CpuBasic2_iret_f16, 0 },
+    //{ "jmp+call jb / jv / ind",  bs3CpuBasic2_jmp_call_f16, 0 },
+    { "far jmp+call",  bs3CpuBasic2_far_jmp_call_f16, 0 },
+#endif
+#if 0
     { "sidt", bs3CpuBasic2_sidt_f16, 0 },
     { "sgdt", bs3CpuBasic2_sgdt_f16, 0 },
     { "lidt", bs3CpuBasic2_lidt_f16, 0 },
@@ -90,9 +98,11 @@ BS3_DECL(void) Main_rm()
      * Do tests driven from 16-bit code.
      */
     NOREF(g_aModeTest); NOREF(g_aModeByOneTests); /* for when commenting out bits */
+#if 0
     Bs3TestDoModes_rm(g_aModeTest, RT_ELEMENTS(g_aModeTest));
+#endif
     Bs3TestDoModesByOne_rm(g_aModeByOneTests, RT_ELEMENTS(g_aModeByOneTests), 0);
-#if 1
+#if 0
 
     /*
      * Do tests driven from 32-bit code (bs3-cpu-basic-2-32.c32 via assembly).

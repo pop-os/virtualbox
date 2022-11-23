@@ -527,7 +527,7 @@ HRESULT GuestSession::getProcesses(std::vector<ComPtr<IGuestProcess> > &aProcess
 
 HRESULT GuestSession::getPathStyle(PathStyle_T *aPathStyle)
 {
-    *aPathStyle = i_getPathStyle();
+    *aPathStyle = i_getGuestPathStyle();
     return S_OK;
 }
 
@@ -765,6 +765,14 @@ HRESULT GuestSession::i_copyFromGuest(const GuestSessionFsSourceSet &SourceSet,
     if (RT_UNLIKELY((strDestination.c_str()) == NULL || *(strDestination.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No destination specified"));
 
+    GuestSessionFsSourceSet::const_iterator itSrc = SourceSet.begin();
+    while (itSrc != SourceSet.end())
+    {
+        LogRel2(("Guest Control: Copying '%s' from guest to '%s' on the host (type: %s, filter: %s)\n",
+                 itSrc->strSource.c_str(), strDestination.c_str(), GuestBase::fsObjTypeToStr(itSrc->enmType), itSrc->strFilter.c_str()));
+        ++itSrc;
+    }
+
     /* Create a task and return the progress obejct for it. */
     GuestSessionTaskCopyFrom *pTask = NULL;
     try
@@ -824,6 +832,14 @@ HRESULT GuestSession::i_copyToGuest(const GuestSessionFsSourceSet &SourceSet,
 
     LogFlowThisFuncEnter();
 
+    GuestSessionFsSourceSet::const_iterator itSrc = SourceSet.begin();
+    while (itSrc != SourceSet.end())
+    {
+        LogRel2(("Guest Control: Copying '%s' from host to '%s' on the guest (type: %s, filter: %s)\n",
+                 itSrc->strSource.c_str(), strDestination.c_str(), GuestBase::fsObjTypeToStr(itSrc->enmType), itSrc->strFilter.c_str()));
+        ++itSrc;
+    }
+
     /* Create a task and return the progress object for it. */
     GuestSessionTaskCopyTo *pTask = NULL;
     try
@@ -870,9 +886,10 @@ HRESULT GuestSession::i_copyToGuest(const GuestSessionFsSourceSet &SourceSet,
  *
  * @return COM status, error set on failure
  * @param  strFlags             String to extract flags from.
+ * @param  fStrict              Whether to set an error when an unknown / invalid flag is detected.
  * @param  pfFlags              Where to store the extracted (and validated) flags.
  */
-HRESULT GuestSession::i_directoryCopyFlagFromStr(const com::Utf8Str &strFlags, DirectoryCopyFlag_T *pfFlags)
+HRESULT GuestSession::i_directoryCopyFlagFromStr(const com::Utf8Str &strFlags, bool fStrict, DirectoryCopyFlag_T *pfFlags)
 {
     unsigned fFlags = DirectoryCopyFlag_None;
 
@@ -901,7 +918,7 @@ HRESULT GuestSession::i_directoryCopyFlagFromStr(const com::Utf8Str &strFlags, D
                     fFlags |= (unsigned)DirectoryCopyFlag_Recursive;
                 else if (MATCH_KEYWORD("FollowLinks"))
                     fFlags |= (unsigned)DirectoryCopyFlag_FollowLinks;
-                else
+                else if (fStrict)
                     return setError(E_INVALIDARG, tr("Invalid directory copy flag: %.*s"), (int)cchKeyword, pszNext);
 #undef MATCH_KEYWORD
             }
@@ -1210,7 +1227,7 @@ int GuestSession::i_fsCreateTemp(const Utf8Str &strTemplate, const Utf8Str &strP
             {
                 vrcGuest = vrc;
                 if (prcGuest)
-                    *prcGuest = vrc;
+                    *prcGuest = vrcGuest;
                 vrc = VERR_GSTCTL_GUEST_ERROR;
             }
         }
@@ -1441,9 +1458,10 @@ int GuestSession::i_dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTR
  *
  * @return COM status, error set on failure
  * @param  strFlags             String to extract flags from.
+ * @param  fStrict              Whether to set an error when an unknown / invalid flag is detected.
  * @param  pfFlags              Where to store the extracted (and validated) flags.
  */
-HRESULT GuestSession::i_fileCopyFlagFromStr(const com::Utf8Str &strFlags, FileCopyFlag_T *pfFlags)
+HRESULT GuestSession::i_fileCopyFlagFromStr(const com::Utf8Str &strFlags, bool fStrict, FileCopyFlag_T *pfFlags)
 {
     unsigned fFlags = (unsigned)FileCopyFlag_None;
 
@@ -1472,7 +1490,7 @@ HRESULT GuestSession::i_fileCopyFlagFromStr(const com::Utf8Str &strFlags, FileCo
                     fFlags |= (unsigned)FileCopyFlag_FollowLinks;
                 else if (MATCH_KEYWORD("Update"))
                     fFlags |= (unsigned)FileCopyFlag_Update;
-                else
+                else if (fStrict)
                     return setError(E_INVALIDARG, tr("Invalid file copy flag: %.*s"), (int)cchKeyword, pszNext);
 #undef MATCH_KEYWORD
             }
@@ -1567,8 +1585,6 @@ int GuestSession::i_fileRemove(const Utf8Str &strPath, int *prcGuest)
 {
     LogFlowThisFunc(("strPath=%s\n", strPath.c_str()));
 
-    int vrc = VINF_SUCCESS;
-
     GuestProcessStartupInfo procInfo;
     GuestProcessStream      streamOut;
 
@@ -1584,13 +1600,33 @@ int GuestSession::i_fileRemove(const Utf8Str &strPath, int *prcGuest)
     }
     catch (std::bad_alloc &)
     {
-        vrc = VERR_NO_MEMORY;
+        return VERR_NO_MEMORY;
     }
 
-    if (RT_SUCCESS(vrc))
-        vrc = GuestProcessTool::run(this, procInfo, prcGuest);
+    int vrcGuest = VERR_IPE_UNINITIALIZED_STATUS;
+    GuestCtrlStreamObjects stdOut;
+    int vrc = GuestProcessTool::runEx(this, procInfo, &stdOut, 1 /* cStrmOutObjects */, &vrcGuest);
+    if (GuestProcess::i_isGuestError(vrc))
+    {
+        if (!stdOut.empty())
+        {
+            GuestFsObjData objData;
+            vrc = objData.FromRm(stdOut.at(0));
+            if (RT_FAILURE(vrc))
+            {
+                vrcGuest = vrc;
+                if (prcGuest)
+                    *prcGuest = vrcGuest;
+                vrc = VERR_GSTCTL_GUEST_ERROR;
+            }
+        }
+        else
+            vrc = VERR_BROKEN_PIPE;
+    }
+    else if (prcGuest)
+        *prcGuest = vrcGuest;
 
-    LogFlowFuncLeaveRC(vrc);
+    LogFlowThisFunc(("Returning vrc=%Rrc, vrcGuest=%Rrc\n", vrc, vrcGuest));
     return vrc;
 }
 
@@ -1817,7 +1853,7 @@ int GuestSession::i_fsQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks, Gu
             {
                 vrcGuest = vrc;
                 if (prcGuest)
-                    *prcGuest = vrc;
+                    *prcGuest = vrcGuest;
                 vrc = VERR_GSTCTL_GUEST_ERROR;
             }
         }
@@ -2126,7 +2162,7 @@ int GuestSession::i_onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXG
  *
  * @returns Separation style used on the guest.
  */
-PathStyle_T GuestSession::i_getPathStyle(void)
+PathStyle_T GuestSession::i_getGuestPathStyle(void)
 {
     PathStyle_T enmPathStyle;
 
@@ -2148,6 +2184,21 @@ PathStyle_T GuestSession::i_getPathStyle(void)
     }
 
     return enmPathStyle;
+}
+
+/**
+ * Returns the path separation style used on the host.
+ *
+ * @returns Separation style used on the host.
+ */
+/* static */
+PathStyle_T GuestSession::i_getHostPathStyle(void)
+{
+#if RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS
+    return PathStyle_DOS;
+#else
+    return PathStyle_UNIX;
+#endif
 }
 
 /**
@@ -3429,11 +3480,12 @@ HRESULT GuestSession::fileCopyFromGuest(const com::Utf8Str &aSource, const com::
     GuestSessionFsSourceSet SourceSet;
 
     GuestSessionFsSourceSpec source;
-    source.strSource            = aSource;
-    source.enmType              = FsObjType_File;
-    source.enmPathStyle         = i_getPathStyle();
-    source.fDryRun              = false; /** @todo Implement support for a dry run. */
-    source.Type.File.fCopyFlags = (FileCopyFlag_T)fFlags;
+    source.strSource      = aSource;
+    source.enmType        = FsObjType_File;
+    source.enmPathStyle   = i_getGuestPathStyle();
+    source.fDryRun        = false; /** @todo Implement support for a dry run. */
+    source.fDirCopyFlags  = DirectoryCopyFlag_None;
+    source.fFileCopyFlags = (FileCopyFlag_T)fFlags;
 
     SourceSet.push_back(source);
 
@@ -3457,11 +3509,12 @@ HRESULT GuestSession::fileCopyToGuest(const com::Utf8Str &aSource, const com::Ut
     GuestSessionFsSourceSet SourceSet;
 
     GuestSessionFsSourceSpec source;
-    source.strSource            = aSource;
-    source.enmType              = FsObjType_File;
-    source.enmPathStyle         = i_getPathStyle();
-    source.fDryRun              = false; /** @todo Implement support for a dry run. */
-    source.Type.File.fCopyFlags = (FileCopyFlag_T)fFlags;
+    source.strSource      = aSource;
+    source.enmType        = FsObjType_File;
+    source.enmPathStyle   = GuestSession::i_getHostPathStyle();
+    source.fDryRun        = false; /** @todo Implement support for a dry run. */
+    source.fDirCopyFlags  = DirectoryCopyFlag_None;
+    source.fFileCopyFlags = (FileCopyFlag_T)fFlags;
 
     SourceSet.push_back(source);
 
@@ -3523,20 +3576,13 @@ HRESULT GuestSession::copyFromGuest(const std::vector<com::Utf8Str> &aSources, c
         source.strSource    = *itSource;
         source.strFilter    = strFilter;
         source.enmType      = objData.mType;
-        source.enmPathStyle = i_getPathStyle();
+        source.enmPathStyle = i_getGuestPathStyle();
         source.fDryRun      = false; /** @todo Implement support for a dry run. */
 
-        HRESULT hrc;
-        if (source.enmType == FsObjType_Directory)
-        {
-            hrc = GuestSession::i_directoryCopyFlagFromStr(strFlags, &source.Type.Dir.fCopyFlags);
-        }
-        else if (source.enmType == FsObjType_File)
-            hrc = GuestSession::i_fileCopyFlagFromStr(strFlags, &source.Type.File.fCopyFlags);
-        else
-            return setError(E_INVALIDARG, tr("Source type %#x invalid / not supported"), source.enmType);
-        if (FAILED(hrc))
-            return hrc;
+        /* Check both flag groups here, as copying a directory also could mean to explicitly
+         * *not* replacing any existing files (or just copy files which are newer, for instance). */
+        GuestSession::i_directoryCopyFlagFromStr(strFlags, false /* fStrict */, &source.fDirCopyFlags);
+        GuestSession::i_fileCopyFlagFromStr(strFlags, false /* fStrict */, &source.fFileCopyFlags);
 
         SourceSet.push_back(source);
 
@@ -3593,18 +3639,11 @@ HRESULT GuestSession::copyToGuest(const std::vector<com::Utf8Str> &aSources, con
         source.strSource    = *itSource;
         source.strFilter    = strFilter;
         source.enmType      = GuestBase::fileModeToFsObjType(objInfo.Attr.fMode);
-        source.enmPathStyle = i_getPathStyle();
+        source.enmPathStyle = GuestSession::i_getHostPathStyle();
         source.fDryRun      = false; /** @todo Implement support for a dry run. */
 
-        HRESULT hrc;
-        if (source.enmType == FsObjType_Directory)
-            hrc = GuestSession::i_directoryCopyFlagFromStr(strFlags, &source.Type.Dir.fCopyFlags);
-        else if (source.enmType == FsObjType_File)
-            hrc = GuestSession::i_fileCopyFlagFromStr(strFlags, &source.Type.File.fCopyFlags);
-        else
-            return setError(E_INVALIDARG, tr("Source type %#x invalid / not supported"), source.enmType);
-        if (FAILED(hrc))
-            return hrc;
+        GuestSession::i_directoryCopyFlagFromStr(strFlags, false /* fStrict */, &source.fDirCopyFlags);
+        GuestSession::i_fileCopyFlagFromStr(strFlags, false /* fStrict */, &source.fFileCopyFlags);
 
         SourceSet.push_back(source);
 
@@ -3647,11 +3686,12 @@ HRESULT GuestSession::directoryCopyFromGuest(const com::Utf8Str &aSource, const 
     GuestSessionFsSourceSet SourceSet;
 
     GuestSessionFsSourceSpec source;
-    source.strSource            = aSource;
-    source.enmType              = FsObjType_Directory;
-    source.enmPathStyle         = i_getPathStyle();
-    source.fDryRun              = false; /** @todo Implement support for a dry run. */
-    source.Type.Dir.fCopyFlags  = (DirectoryCopyFlag_T)fFlags;
+    source.strSource      = aSource;
+    source.enmType        = FsObjType_Directory;
+    source.enmPathStyle   = i_getGuestPathStyle();
+    source.fDryRun        = false; /** @todo Implement support for a dry run. */
+    source.fDirCopyFlags  = (DirectoryCopyFlag_T)fFlags;
+    source.fFileCopyFlags = FileCopyFlag_None; /* Overwrite existing files. */
 
     SourceSet.push_back(source);
 
@@ -3676,11 +3716,12 @@ HRESULT GuestSession::directoryCopyToGuest(const com::Utf8Str &aSource, const co
     GuestSessionFsSourceSet SourceSet;
 
     GuestSessionFsSourceSpec source;
-    source.strSource           = aSource;
-    source.enmType             = FsObjType_Directory;
-    source.enmPathStyle        = i_getPathStyle();
-    source.fDryRun             = false; /** @todo Implement support for a dry run. */
-    source.Type.Dir.fCopyFlags = (DirectoryCopyFlag_T)fFlags;
+    source.strSource      = aSource;
+    source.enmType        = FsObjType_Directory;
+    source.enmPathStyle   = GuestSession::i_getHostPathStyle();
+    source.fDryRun        = false; /** @todo Implement support for a dry run. */
+    source.fDirCopyFlags  = (DirectoryCopyFlag_T)fFlags;
+    source.fFileCopyFlags = FileCopyFlag_None; /* Overwrite existing files. */
 
     SourceSet.push_back(source);
 

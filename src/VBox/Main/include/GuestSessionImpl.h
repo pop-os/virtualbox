@@ -291,7 +291,7 @@ public:
     HRESULT                 i_copyToGuest(const GuestSessionFsSourceSet &SourceSet, const com::Utf8Str &strDestination,
                                           ComPtr<IProgress> &pProgress);
     int                     i_closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc);
-    HRESULT                 i_directoryCopyFlagFromStr(const com::Utf8Str &strFlags, DirectoryCopyFlag_T *pfFlags);
+    HRESULT                 i_directoryCopyFlagFromStr(const com::Utf8Str &strFlags, bool fStrict, DirectoryCopyFlag_T *pfFlags);
     bool                    i_directoryExists(const Utf8Str &strPath);
     inline bool             i_directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir);
     int                     i_directoryUnregister(GuestDirectory *pDirectory);
@@ -302,7 +302,7 @@ public:
     int                     i_directoryQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
     int                     i_dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
     int                     i_dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    HRESULT                 i_fileCopyFlagFromStr(const com::Utf8Str &strFlags, FileCopyFlag_T *pfFlags);
+    HRESULT                 i_fileCopyFlagFromStr(const com::Utf8Str &strFlags, bool fStrict, FileCopyFlag_T *pfFlags);
     inline bool             i_fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFile);
     int                     i_fileUnregister(GuestFile *pFile);
     int                     i_fileRemove(const Utf8Str &strPath, int *pGuestRc);
@@ -325,7 +325,8 @@ public:
     bool                    i_isTerminated(void) const;
     int                     i_onRemove(void);
     int                     i_onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
-    PathStyle_T             i_getPathStyle(void);
+    PathStyle_T             i_getGuestPathStyle(void);
+    static PathStyle_T      i_getHostPathStyle(void);
     int                     i_startSession(int *pGuestRc);
     int                     i_startSessionAsync(void);
     Guest                  *i_getParent(void) { return mParent; }

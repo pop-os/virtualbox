@@ -46,6 +46,7 @@
 # include <iprt/file.h>
 #endif
 #include <iprt/fs.h>
+#include <iprt/path.h>
 #include <iprt/rand.h>
 #include <iprt/time.h>
 #include <VBox/AssertGuest.h>
@@ -245,6 +246,25 @@ int GuestFsObjData::FromLs(const GuestProcessStreamBlock &strmBlk, bool fLong)
 }
 
 /**
+ * Parses stream block output data which came from the 'rm' (vbox_rm)
+ * VBoxService toolbox command. The result will be stored in this object.
+ *
+ * @returns VBox status code.
+ * @param   strmBlk             Stream block output data to parse.
+ */
+int GuestFsObjData::FromRm(const GuestProcessStreamBlock &strmBlk)
+{
+#ifdef DEBUG
+    strmBlk.DumpToLog();
+#endif
+    /* Object name. */
+    mName = strmBlk.GetString("fname");
+
+    /* Return the stream block's rc. */
+    return strmBlk.GetRc();
+}
+
+/**
  * Parses stream block output data which came from the 'stat' (vbox_stat)
  * VBoxService toolbox command. The result will be stored in this object.
  *
@@ -403,6 +423,7 @@ size_t GuestProcessStreamBlock::GetCount(void) const
  * Gets the return code (name = "rc") of this stream block.
  *
  * @return  VBox status code.
+ * @retval  VERR_NOT_FOUND if the return code string ("rc") was not found.
  */
 int GuestProcessStreamBlock::GetRc(void) const
 {
@@ -411,6 +432,7 @@ int GuestProcessStreamBlock::GetRc(void) const
     {
         return RTStrToInt16(pszValue);
     }
+    /** @todo We probably should have a dedicated error for that, VERR_GSTCTL_GUEST_TOOLBOX_whatever. */
     return VERR_NOT_FOUND;
 }
 
@@ -1396,6 +1418,46 @@ FsObjType_T GuestBase::fileModeToFsObjType(RTFMODE fMode)
     return FsObjType_Unknown;
 }
 
+/**
+ * Converts a FsObjType_T to a human-readable string.
+ *
+ * @returns Human-readable string of FsObjType_T.
+ * @param   enmType             FsObjType_T to convert.
+ */
+/* static */
+const char *GuestBase::fsObjTypeToStr(FsObjType_T enmType)
+{
+    switch (enmType)
+    {
+        case FsObjType_Directory: return "directory";
+        case FsObjType_Symlink:   return "symbolic link";
+        case FsObjType_File:      return "file";
+        default:                  break;
+    }
+
+    return "unknown";
+}
+
+/**
+ * Converts a PathStyle_T to a human-readable string.
+ *
+ * @returns Human-readable string of PathStyle_T.
+ * @param   enmPathStyle        PathStyle_T to convert.
+ */
+/* static */
+const char *GuestBase::pathStyleToStr(PathStyle_T enmPathStyle)
+{
+    switch (enmPathStyle)
+    {
+        case PathStyle_DOS:     return "DOS";
+        case PathStyle_UNIX:    return "UNIX";
+        case PathStyle_Unknown: return "Unknown";
+        default:                break;
+    }
+
+    return "<invalid>";
+}
+
 GuestObject::GuestObject(void)
     : mSession(NULL),
       mObjectID(0)
@@ -1660,5 +1722,179 @@ int GuestWaitEvent::SignalExternal(IEvent *pEvent)
         mEvent = pEvent;
 
     return RTSemEventSignal(mEventSem);
+}
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// GuestPath
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Builds a (final) destination path from a given source + destination path.
+ *
+ * This does not utilize any file system access whatsoever. Used for guest and host paths.
+ *
+ * @returns VBox status code.
+ * @param   strSrcPath          Source path to build destination path for.
+ * @param   enmSrcPathStyle     Path style the source path is in.
+ * @param   strDstPath          Destination path to use for building the (final) destination path.
+ * @param   enmDstPathStyle     Path style the destination path is in.
+ *
+ * @note    See rules within the function.
+ */
+/* static */
+int GuestPath::BuildDestinationPath(const Utf8Str &strSrcPath, PathStyle_T enmSrcPathStyle,
+                                    Utf8Str &strDstPath, PathStyle_T enmDstPathStyle)
+{
+    /*
+     * Rules:
+     *
+     * #    source       dest             final dest                        remarks
+     *
+     * 1    /src/path1/  /dst/path2/      /dst/path2/<contents of path1>    Just copies contents of <contents of path1>, not the path1 itself.
+     * 2    /src/path1   /dst/path2/      /dst/path2/path1                  Copies path1 into path2.
+     * 3    /src/path1   /dst/path2       /dst/path2                        Overwrites stuff from path2 with stuff from path1.
+     * 4    Dotdot ("..") directories are forbidden for security reasons.
+     */
+    const char *pszSrcName = RTPathFilenameEx(strSrcPath.c_str(),
+                                                enmSrcPathStyle == PathStyle_DOS
+                                              ? RTPATH_STR_F_STYLE_DOS : RTPATH_STR_F_STYLE_UNIX);
+
+    const char *pszDstName = RTPathFilenameEx(strDstPath.c_str(),
+                                                enmDstPathStyle == PathStyle_DOS
+                                              ? RTPATH_STR_F_STYLE_DOS : RTPATH_STR_F_STYLE_UNIX);
+
+    if (   (!pszSrcName && !pszDstName)  /* #1 */
+        || ( pszSrcName &&  pszDstName)) /* #3 */
+    {
+        /* Note: Must have DirectoryFlag_CopyIntoExisting + FileFlag_NoReplace *not* set. */
+    }
+    else if (pszSrcName && !pszDstName) /* #2 */
+    {
+        if (!strDstPath.endsWith(PATH_STYLE_SEP_STR(enmDstPathStyle)))
+            strDstPath += PATH_STYLE_SEP_STR(enmDstPathStyle);
+        strDstPath += pszSrcName;
+    }
+
+    /* Translate the built destination path to a path compatible with the destination. */
+    int vrc = GuestPath::Translate(strDstPath, enmSrcPathStyle, enmDstPathStyle);
+    if (RT_SUCCESS(vrc))
+    {
+        union
+        {
+            RTPATHPARSED    Parsed;
+            RTPATHSPLIT     Split;
+            uint8_t         ab[4096];
+        } u;
+        vrc = RTPathParse(strDstPath.c_str(), &u.Parsed, sizeof(u),  enmDstPathStyle == PathStyle_DOS
+                                                                   ? RTPATH_STR_F_STYLE_DOS : RTPATH_STR_F_STYLE_UNIX);
+        if (RT_SUCCESS(vrc))
+        {
+            if (u.Parsed.fProps & RTPATH_PROP_DOTDOT_REFS) /* #4 */
+                vrc = VERR_INVALID_PARAMETER;
+        }
+    }
+
+    LogRel2(("Guest Control: Building destination path for '%s' (%s) -> '%s' (%s): %Rrc\n",
+             strSrcPath.c_str(), GuestBase::pathStyleToStr(enmSrcPathStyle),
+             strDstPath.c_str(), GuestBase::pathStyleToStr(enmDstPathStyle), vrc));
+
+    return vrc;
+}
+
+/**
+ * Translates a path from a specific path style into another.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NOT_SUPPORTED if a conversion is not supported.
+ * @retval  VERR_NOT_IMPLEMENTED if path style conversion is not implemented yet.
+ * @param   strPath             Path to translate. Will contain the translated path on success. UTF-8 only.
+ * @param   enmSrcPathStyle     Source path style \a strPath is expected in.
+ * @param   enmDstPathStyle     Destination path style to convert to.
+ * @param   fForce              Whether to force the translation to the destination path style or not.
+ *
+ * @note    This does NOT remove any trailing slashes and/or perform file system lookups!
+ */
+/* static */
+int GuestPath::Translate(Utf8Str &strPath, PathStyle_T enmSrcPathStyle, PathStyle_T enmDstPathStyle, bool fForce /* = false */)
+{
+    if (strPath.isEmpty())
+        return VINF_SUCCESS;
+
+    AssertReturn(RTStrIsValidEncoding(strPath.c_str()), VERR_INVALID_PARAMETER);
+
+    int vrc = VINF_SUCCESS;
+
+    Utf8Str strTranslated;
+
+    if (   (   enmSrcPathStyle == PathStyle_DOS
+            && enmDstPathStyle == PathStyle_UNIX)
+        || (fForce && enmDstPathStyle == PathStyle_UNIX))
+    {
+        strTranslated = strPath;
+        RTPathChangeToUnixSlashes(strTranslated.mutableRaw(), true /* fForce */);
+    }
+    else if (  (   enmSrcPathStyle == PathStyle_UNIX
+                && enmDstPathStyle == PathStyle_DOS)
+            || (fForce && enmDstPathStyle == PathStyle_DOS))
+
+    {
+        strTranslated = strPath;
+        RTPathChangeToDosSlashes(strTranslated.mutableRaw(), true /* fForce */);
+    }
+
+    if (   strTranslated.isEmpty() /* Not forced. */
+        && enmSrcPathStyle == enmDstPathStyle)
+    {
+        strTranslated = strPath;
+    }
+
+    if (RT_FAILURE(vrc))
+    {
+        LogRel(("Guest Control: Translating path '%s' (%s) -> '%s' (%s) failed, vrc=%Rrc\n",
+                strPath.c_str(), GuestBase::pathStyleToStr(enmSrcPathStyle),
+                strTranslated.c_str(), GuestBase::pathStyleToStr(enmDstPathStyle), vrc));
+        return vrc;
+    }
+
+    /* Cleanup. */
+    const char  *psz = strTranslated.mutableRaw();
+    size_t const cch = strTranslated.length();
+    size_t       off = 0;
+    while (off < cch)
+    {
+        if (off + 1 > cch)
+            break;
+        /* Remove double back slashes (DOS only). */
+        if (   enmDstPathStyle == PathStyle_DOS
+            && psz[off]     == '\\'
+            && psz[off + 1] == '\\')
+        {
+            strTranslated.erase(off + 1, 1);
+            off++;
+        }
+        /* Remove double forward slashes (UNIX only). */
+        if (   enmDstPathStyle == PathStyle_UNIX
+            && psz[off]     == '/'
+            && psz[off + 1] == '/')
+        {
+            strTranslated.erase(off + 1, 1);
+            off++;
+        }
+        off++;
+    }
+
+    /* Note: Do not trim() paths here, as technically it's possible to create paths with trailing spaces. */
+
+    strTranslated.jolt();
+
+    LogRel2(("Guest Control: Translating '%s' (%s) -> '%s' (%s): %Rrc\n",
+             strPath.c_str(), GuestBase::pathStyleToStr(enmSrcPathStyle),
+             strTranslated.c_str(), GuestBase::pathStyleToStr(enmDstPathStyle), vrc));
+
+    if (RT_SUCCESS(vrc))
+        strPath = strTranslated;
+
+    return vrc;
 }
 

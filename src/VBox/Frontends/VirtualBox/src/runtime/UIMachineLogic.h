@@ -32,8 +32,9 @@
 #endif
 
 /* GUI includes: */
+#include "QIWithRetranslateUI.h"
 #include "UIExtraDataDefs.h"
-#include <QIWithRetranslateUI.h>
+#include "UISettingsDialog.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -83,9 +84,6 @@ signals:
 
     /** Notifies about frame-buffer resize. */
     void sigFrameBufferResize();
-
-    /** Notifies listeners about 3D overlay visibility change. */
-    void sigNotifyAbout3DOverlayVisibilityChange(bool fVisible);
 
 public:
 
@@ -143,7 +141,7 @@ public:
     virtual void sendMachineWindowsSizeHints();
 
     /* Wrapper to open Machine settings / Network page: */
-    void openNetworkSettingsDialog() { sltOpenNetworkSettingsDialog(); }
+    void openNetworkSettingsDialog() { sltOpenSettingsDialogNetwork(); }
 
 #ifdef VBOX_WS_MAC
     void updateDockIcon();
@@ -151,9 +149,6 @@ public:
     UIMachineView* dockPreviewView() const;
     virtual void updateDock();
 #endif /* VBOX_WS_MAC */
-
-    /* API: 3D overlay visibility stuff: */
-    virtual void notifyAbout3DOverlayVisibilityChange(bool fVisible);
 
     /** Returns whether VM should perform HID LEDs synchronization. */
     bool isHidLedsSyncEnabled() const { return m_fIsHidLedsSyncEnabled; }
@@ -206,7 +201,7 @@ protected:
 
     /* Protected getters/setters: */
     bool isMachineWindowsCreated() const { return m_fIsWindowsCreated; }
-    void setMachineWindowsCreated(bool fIsWindowsCreated);
+    void setMachineWindowsCreated(bool fIsWindowsCreated) { m_fIsWindowsCreated = fIsWindowsCreated; }
 
     /* Protected members: */
     void setKeyboardHandler(UIKeyboardHandler *pKeyboardHandler);
@@ -220,7 +215,7 @@ protected:
 #endif /* VBOX_WS_MAC */
 
     /* Prepare helpers: */
-    virtual void prepareRequiredFeatures();
+    virtual void prepareRequiredFeatures() {}
     virtual void prepareSessionConnections();
     virtual void prepareActionGroups();
     virtual void prepareActionConnections();
@@ -260,37 +255,30 @@ private slots:
     /** Handle menu prepare. */
     void sltHandleMenuPrepare(int iIndex, QMenu *pMenu);
 
+    /* "Application" menu functionality: */
+    void sltOpenPreferencesDialog(const QString &strCategory = QString(), const QString &strControl = QString());
+    void sltOpenPreferencesDialogDefault() { sltOpenPreferencesDialog(); }
+    void sltClosePreferencesDialog();
+    void sltClose();
+
     /* "Machine" menu functionality: */
-    void sltShowKeyboardSettings();
-    void sltShowSoftKeyboard();
-    void sltCloseSoftKeyboard(bool fAsync = false);
-    void sltCloseSoftKeyboardDefault() { sltCloseSoftKeyboard(true); }
-    void sltToggleMouseIntegration(bool fEnabled);
-    void sltTypeCAD();
-#ifdef VBOX_WS_X11
-    void sltTypeCABS();
-#endif /* VBOX_WS_X11 */
-    void sltTypeCtrlBreak();
-    void sltTypeInsert();
-    void sltTypePrintScreen();
-    void sltTypeAltPrintScreen();
-    void sltTypeHostKeyComboPressRelease(bool fToggleSequence);
+    void sltOpenSettingsDialog(const QString &strCategory = QString(), const QString &strControl = QString());
+    void sltOpenSettingsDialogDefault() { sltOpenSettingsDialog(); }
+    void sltCloseSettingsDialog();
     void sltTakeSnapshot();
     void sltShowInformationDialog();
-    void sltCloseVMInformationDialog(bool fAsync = false);
-    void sltCloseVMInformationDialogDefault() { sltCloseVMInformationDialog(true); }
+    void sltCloseInformationDialog(bool fAsync = false);
+    void sltCloseInformationDialogDefault() { sltCloseInformationDialog(true); }
     void sltShowFileManagerDialog();
     void sltCloseFileManagerDialog();
     void sltShowLogDialog();
-    /** Handles close signal from the log viewer dialog. */
-    void sltCloseLogViewerWindow();
-    void sltReset();
+    void sltCloseLogDialog();
     void sltPause(bool fOn);
+    void sltReset();
     void sltDetach();
     void sltSaveState();
     void sltShutdown();
     void sltPowerOff();
-    void sltClose();
 
     /* "View" menu functionality: */
     void sltMinimizeActiveMachineWindow();
@@ -301,16 +289,30 @@ private slots:
     void sltToggleRecording(bool fEnabled);
     void sltToggleVRDE(bool fEnabled);
 
+    /* "Input" menu functionality: */
+    void sltShowKeyboardSettings();
+    void sltShowSoftKeyboard();
+    void sltCloseSoftKeyboard(bool fAsync = false);
+    void sltCloseSoftKeyboardDefault() { sltCloseSoftKeyboard(true); }
+    void sltTypeCAD();
+#ifdef VBOX_WS_X11
+    void sltTypeCABS();
+#endif /* VBOX_WS_X11 */
+    void sltTypeCtrlBreak();
+    void sltTypeInsert();
+    void sltTypePrintScreen();
+    void sltTypeAltPrintScreen();
+    void sltTypeHostKeyComboPressRelease(bool fToggleSequence);
+    void sltToggleMouseIntegration(bool fEnabled);
+
     /* "Device" menu functionality: */
-    void sltOpenVMSettingsDialogDefault();
-    void sltOpenVMSettingsDialog(const QString &strCategory = QString(), const QString &strControl = QString());
-    void sltOpenStorageSettingsDialog();
+    void sltOpenSettingsDialogStorage();
+    void sltMountStorageMedium();
     void sltToggleAudioOutput(bool fEnabled);
     void sltToggleAudioInput(bool fEnabled);
-    void sltOpenNetworkSettingsDialog();
-    void sltOpenUSBDevicesSettingsDialog();
-    void sltOpenSharedFoldersSettingsDialog();
-    void sltMountStorageMedium();
+    void sltOpenSettingsDialogNetwork();
+    void sltOpenSettingsDialogUSBDevices();
+    void sltOpenSettingsDialogSharedFolders();
     void sltAttachUSBDevice();
     void sltAttachWebCamDevice();
     void sltChangeSharedClipboardType(QAction *pAction);
@@ -349,9 +351,6 @@ private slots:
     /* Handle disabling/enabling host screen saver. */
     void sltDisableHostScreenSaverStateChanged(bool fDisabled);
 
-    /** Show Global Preferences. */
-    void sltShowGlobalPreferences();
-
     /** Handles request for visual state change. */
     void sltHandleVisualStateChange();
 
@@ -380,9 +379,6 @@ private:
     /** Update 'Window' menu routine. */
     void updateMenuWindow(QMenu *pMenu);
 #endif /* VBOX_WS_MAC */
-
-    /** Show Global Preferences on the page defined by @a strCategory and tab defined by @a strControl. */
-    void showGlobalPreferences(const QString &strCategory = QString(), const QString &strControl = QString());
 
     /** Asks user for the disks encryption passwords. */
     void askUserForTheDiskEncryptionPasswords();
@@ -446,6 +442,9 @@ private:
 
     /** Holds whether VM should perform HID LEDs synchronization. */
     bool m_fIsHidLedsSyncEnabled;
+
+    /** Holds the map of settings dialogs. */
+    QMap<UISettingsDialog::DialogType, UISettingsDialog*>  m_settings;
 
     /** Holds the log viewer dialog instance. */
     QIManagerDialog       *m_pLogViewerDialog;

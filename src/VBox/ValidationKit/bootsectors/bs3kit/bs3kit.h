@@ -1943,6 +1943,14 @@ BS3_CMN_PROTO_FARSTUB(4, uint32_t, Bs3SelRealModeDataToFlat,(uint32_t uFar1616))
 BS3_CMN_PROTO_FARSTUB(4, void BS3_FAR *, Bs3SelLnkPtrToCurPtr,(void BS3_FAR *pvLnkPtr));
 
 /**
+ * Converts a link-time pointer to a flat address.
+ *
+ * @returns 32-bit flag address.
+ * @param   pvLnkPtr    The pointer the linker produced.
+ */
+BS3_CMN_PROTO_FARSTUB(4, uint32_t, Bs3SelLnkPtrToFlat,(void BS3_FAR *pvLnkPtr));
+
+/**
  * Gets a flat address from a working poitner.
  *
  * @returns flat address (32-bit or 64-bit).
@@ -1973,6 +1981,18 @@ BS3_CMN_PROTO_STUB(void, Bs3SelSetup16BitData,(X86DESC BS3_FAR *pDesc, uint32_t 
  * @param   bDpl        The descriptor privilege level.
  */
 BS3_CMN_PROTO_STUB(void, Bs3SelSetup16BitCode,(X86DESC BS3_FAR *pDesc, uint32_t uBaseAddr, uint8_t bDpl));
+
+/**
+ * Sets up a 32-bit execute-read selector with a user specified limit.
+ *
+ * @param   pDesc       Pointer to the descriptor table entry.
+ * @param   uBaseAddr   The base address of the descriptor.
+ * @param   uLimit      The limit. (This is included here and not in the 16-bit
+ *                      functions because we're more likely to want to set it
+ *                      than for 16-bit selectors.)
+ * @param   bDpl        The descriptor privilege level.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3SelSetup32BitCode,(X86DESC BS3_FAR *pDesc, uint32_t uBaseAddr, uint32_t uLimit, uint8_t bDpl));
 
 
 /**
@@ -4106,7 +4126,7 @@ BS3_DECL(void) Bs3InitAll_rm(void);
 BS3_DECL_FAR(void) Bs3InitMemory_rm_far(void);
 
 /**
- * Initialized the X0TEXT16 and X1TEXT16 GDT entries.
+ * Initializes the X0TEXT16 and X1TEXT16 GDT entries.
  */
 BS3_DECL_FAR(void) Bs3InitGdt_rm_far(void);
 

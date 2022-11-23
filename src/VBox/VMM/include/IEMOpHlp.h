@@ -366,6 +366,15 @@ void iemOpStubMsg2(PVMCPUCC pVCpu) RT_NOEXCEPT;
             iemRecalEffOpSize64Default(pVCpu); \
     } while (0)
 
+/** The instruction defaults to 64-bit operand size if 64-bit mode and intel
+ *  CPUs ignore the operand size prefix complete (e.g. relative jumps). */
+#define IEMOP_HLP_DEFAULT_64BIT_OP_SIZE_AND_INTEL_IGNORES_OP_SIZE_PREFIX() \
+    do \
+    { \
+        if (pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT) \
+            iemRecalEffOpSize64DefaultAndIntelIgnoresOpSizePrefix(pVCpu); \
+    } while (0)
+
 /** The instruction has 64-bit operand size if 64-bit mode. */
 #define IEMOP_HLP_64BIT_OP_SIZE() \
     do \
@@ -584,7 +593,7 @@ void iemOpStubMsg2(PVMCPUCC pVCpu) RT_NOEXCEPT;
 VBOXSTRICTRC    iemOpHlpCalcRmEffAddr(PVMCPUCC pVCpu, uint8_t bRm, uint8_t cbImm, PRTGCPTR pGCPtrEff) RT_NOEXCEPT;
 VBOXSTRICTRC    iemOpHlpCalcRmEffAddrEx(PVMCPUCC pVCpu, uint8_t bRm, uint8_t cbImm, PRTGCPTR pGCPtrEff, int8_t offRsp) RT_NOEXCEPT;
 #ifdef IEM_WITH_SETJMP
-RTGCPTR         iemOpHlpCalcRmEffAddrJmp(PVMCPUCC pVCpu, uint8_t bRm, uint8_t cbImm) RT_NOEXCEPT;
+RTGCPTR         iemOpHlpCalcRmEffAddrJmp(PVMCPUCC pVCpu, uint8_t bRm, uint8_t cbImm) IEM_NOEXCEPT_MAY_LONGJMP;
 #endif
 
 /** @}  */

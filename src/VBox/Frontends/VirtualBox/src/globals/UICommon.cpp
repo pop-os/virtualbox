@@ -62,6 +62,7 @@
 #include "UICommon.h"
 #include "UIConverter.h"
 #include "UIDesktopWidgetWatchdog.h"
+#include "UIExtraDataDefs.h"
 #include "UIExtraDataManager.h"
 #include "UIFDCreationDialog.h"
 #include "UIIconPool.h"
@@ -320,6 +321,8 @@ void UICommon::prepare()
 
     connect(gEDataManager, &UIExtraDataManager::sigLanguageChange,
             this, &UICommon::sltGUILanguageChange);
+    connect(gEDataManager, &UIExtraDataManager::sigFontScaleFactorChanged,
+            this, &UICommon::sltHandleFontScaleFactorChanged);
 
     qApp->installEventFilter(this);
 
@@ -729,6 +732,11 @@ void UICommon::prepare()
                The guest caches ISOs aggressively and files sizes may change. */
     m_recentMediaExcludeList << "ad-hoc.viso";
 #endif
+
+
+    iOriginalFontPixelSize = qApp->font().pixelSize();
+    iOriginalFontPointSize = qApp->font().pointSize();
+    sltHandleFontScaleFactorChanged(gEDataManager->fontScaleFactor());
 }
 
 void UICommon::cleanup()
@@ -805,9 +813,6 @@ void UICommon::cleanup()
     delete m_pThreadPoolCloud;
     m_pThreadPoolCloud = 0;
 
-    /* Cleanup general icon-pool: */
-    UIIconPoolGeneral::destroy();
-
     /* Ensure CGuestOSType objects are no longer used: */
     m_guestOSFamilyIDs.clear();
     m_guestOSTypes.clear();
@@ -834,6 +839,9 @@ void UICommon::cleanup()
 
     /* Notify listener it can close UI now: */
     emit sigAskToCloseUI();
+
+    /* Cleanup general icon-pool: */
+    UIIconPoolGeneral::destroy();
 
     /* Destroy popup-center: */
     UIPopupCenter::destroy();
@@ -2707,6 +2715,18 @@ bool UICommon::eventFilter(QObject *pObject, QEvent *pEvent)
 
     /* Call to base-class: */
     return QObject::eventFilter(pObject, pEvent);
+}
+
+
+void UICommon::sltHandleFontScaleFactorChanged(int iFontScaleFactor)
+{
+    QFont appFont = qApp->font();
+
+    if (iOriginalFontPixelSize != -1)
+        appFont.setPixelSize(iFontScaleFactor / 100.f * iOriginalFontPixelSize);
+    else
+        appFont.setPointSize(iFontScaleFactor / 100.f * iOriginalFontPointSize);
+    qApp->setFont(appFont);
 }
 
 void UICommon::retranslateUi()

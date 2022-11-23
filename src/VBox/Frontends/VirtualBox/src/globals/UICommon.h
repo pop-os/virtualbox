@@ -587,6 +587,9 @@ protected slots:
         void sltHandleVBoxSVCAvailabilityChange(bool fAvailable);
     /** @} */
 
+    /* Handle font scale factor change. */
+    void sltHandleFontScaleFactorChanged(int iFontScaleFactor);
+
 private:
 
     /** Construcs global VirtualBox object of passed @a enmType. */
@@ -778,6 +781,11 @@ private:
         ATL::CComModule  _Module;
     /** @} */
 #endif
+    /** @name Font scaling related variables.
+     * @{ */
+       int iOriginalFontPixelSize;
+       int iOriginalFontPointSize;
+    /** @} */
 
     /** Allows for shortcut access. */
     friend UICommon &uiCommon();

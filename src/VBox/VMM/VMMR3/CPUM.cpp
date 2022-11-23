@@ -161,7 +161,7 @@
 
 
 /** For saved state only: Block injection of non-maskable interrupts to the guest.
- * @note This flag was moved to CPUMCTX::fInhibit in v7.0.2. */
+ * @note This flag was moved to CPUMCTX::eflags.uBoth in v7.0.4. */
 #define CPUM_OLD_VMCPU_FF_BLOCK_NMIS            RT_BIT_64(25)
 
 
@@ -385,6 +385,7 @@ static const SSMFIELD g_aVmxHwvirtVmcs[] =
     SSMFIELD_ENTRY(       VMXVVMCS, u16Vpid),
     SSMFIELD_ENTRY(       VMXVVMCS, u16PostIntNotifyVector),
     SSMFIELD_ENTRY(       VMXVVMCS, u16EptpIndex),
+    SSMFIELD_ENTRY_VER(   VMXVVMCS, u16HlatPrefixSize,           CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_3),
     SSMFIELD_ENTRY_IGNORE(VMXVVMCS, au16Reserved0),
 
     SSMFIELD_ENTRY(       VMXVVMCS, u32PinCtls),
@@ -435,6 +436,9 @@ static const SSMFIELD g_aVmxHwvirtVmcs[] =
     SSMFIELD_ENTRY(       VMXVVMCS, u64TscMultiplier),
     SSMFIELD_ENTRY_VER(   VMXVVMCS, u64ProcCtls3,                CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_2),
     SSMFIELD_ENTRY_VER(   VMXVVMCS, u64EnclvExitBitmap,          CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_2),
+    SSMFIELD_ENTRY_VER(   VMXVVMCS, u64PconfigExitBitmap,        CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_3),
+    SSMFIELD_ENTRY_VER(   VMXVVMCS, u64HlatPtr,                  CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_3),
+    SSMFIELD_ENTRY_VER(   VMXVVMCS, u64ExitCtls2,                CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_3),
     SSMFIELD_ENTRY_IGNORE(VMXVVMCS, au64Reserved0),
 
     SSMFIELD_ENTRY(       VMXVVMCS, u64Cr0Mask),
@@ -1273,6 +1277,7 @@ DECLCALLBACK(void) cpumR3InfoVmxFeatures(PVM pVM, PCDBGFINFOHLP pHlp, const char
         VMXFEATDUMP("ExitSaveEferMsr - Save IA32_EFER MSR on VM-exit        ", fVmxExitSaveEferMsr);
         VMXFEATDUMP("ExitLoadEferMsr - Load IA32_EFER MSR on VM-exit        ", fVmxExitLoadEferMsr);
         VMXFEATDUMP("SavePreemptTimer - Save VMX-preemption timer           ", fVmxSavePreemptTimer);
+        VMXFEATDUMP("SecondaryExitCtls - Secondary VM-exit controls         ", fVmxSecondaryExitCtls);
 
         /* Miscellaneous data. */
         VMXFEATDUMP("ExitSaveEferLma - Save IA32_EFER.LMA on VM-exit        ", fVmxExitSaveEferLma);
@@ -1452,7 +1457,8 @@ static void cpumR3InitVmxGuestMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PCCPUMFEATUR
                                  | (pGuestFeatures->fVmxExitLoadPatMsr    << VMX_BF_EXIT_CTLS_LOAD_PAT_MSR_SHIFT        )
                                  | (pGuestFeatures->fVmxExitSaveEferMsr   << VMX_BF_EXIT_CTLS_SAVE_EFER_MSR_SHIFT       )
                                  | (pGuestFeatures->fVmxExitLoadEferMsr   << VMX_BF_EXIT_CTLS_LOAD_EFER_MSR_SHIFT       )
-                                 | (pGuestFeatures->fVmxSavePreemptTimer  << VMX_BF_EXIT_CTLS_SAVE_PREEMPT_TIMER_SHIFT  );
+                                 | (pGuestFeatures->fVmxSavePreemptTimer  << VMX_BF_EXIT_CTLS_SAVE_PREEMPT_TIMER_SHIFT  )
+                                 | (pGuestFeatures->fVmxSecondaryExitCtls << VMX_BF_EXIT_CTLS_USE_SECONDARY_CTLS_SHIFT  );
         /* Set the default1 class bits. See Intel spec. A.4 "VM-exit Controls". */
         uint32_t const fAllowed0 = VMX_EXIT_CTLS_DEFAULT1;
         uint32_t const fAllowed1 = fFeatures | VMX_EXIT_CTLS_DEFAULT1;
@@ -1680,10 +1686,11 @@ static bool cpumR3AreVmxCpuFeaturesCompatible(PVM pVM, PCCPUMFEATURES pBase, PCC
                                              | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxExitSaveEferMsr    ,  1) \
                                              | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxExitLoadEferMsr    ,  2) \
                                              | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxSavePreemptTimer   ,  3) \
-                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxExitSaveEferLma    ,  4) \
-                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxPt                 ,  5) \
-                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxVmwriteAll         ,  6) \
-                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxEntryInjectSoftInt ,  7))
+                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxSecondaryExitCtls  ,  4) \
+                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxExitSaveEferLma    ,  5) \
+                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxPt                 ,  6) \
+                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxVmwriteAll         ,  7) \
+                                             | CPUM_VMX_FEAT_SHIFT(a_pFeat, fVmxEntryInjectSoftInt ,  8))
 
     /* Check first set of feature bits. */
     {
@@ -1722,27 +1729,57 @@ static bool cpumR3AreVmxCpuFeaturesCompatible(PVM pVM, PCCPUMFEATURES pBase, PCC
  * Initializes VMX guest features and MSRs.
  *
  * @param   pVM             The cross context VM structure.
+ * @param   pCpumCfg        The CPUM CFGM configuration node.
  * @param   pHostVmxMsrs    The host VMX MSRs. Pass NULL when fully emulating VMX
  *                          and no hardware-assisted nested-guest execution is
  *                          possible for this VM.
  * @param   pGuestVmxMsrs   Where to store the initialized guest VMX MSRs.
  */
-void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS pGuestVmxMsrs)
+void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCFGMNODE pCpumCfg, PCVMXMSRS pHostVmxMsrs, PVMXMSRS pGuestVmxMsrs)
 {
     Assert(pVM);
+    Assert(pCpumCfg);
     Assert(pGuestVmxMsrs);
 
     /*
-     * While it would be nice to check this earlier while initializing
-     * fNestedVmxEpt but we would not have enumearted host features then, so do
-     * it at least now.
+     * Query VMX features from CFGM.
      */
-    /** @todo r=bird: Why don't we just ditch the fNestedVmxEpt and
-     *        fNestedVmxUnrestrictedGuest state members and read the CFGM stuff
-     *        here?  Neither of them have any purpose beyond keeping the two value
-     *        read in cpumR3CpuIdReadConfig for use here.  They aren't even
-     *        necessarily correct after the feature merging has taken place.  */
-    if (pVM->cpum.s.fNestedVmxEpt)
+    bool fVmxPreemptTimer;
+    bool fVmxEpt;
+    bool fVmxUnrestrictedGuest;
+    {
+        /** @cfgm{/CPUM/NestedVmxPreemptTimer, bool, true}
+         * Whether to expose the VMX-preemption timer feature to the guest (if also
+         * supported by the host hardware). When disabled will prevent exposing the
+         * VMX-preemption timer feature to the guest even if the host supports it.
+         *
+         * @todo Currently disabled, see @bugref{9180#c108}.
+         */
+        int rc = CFGMR3QueryBoolDef(pCpumCfg, "NestedVmxPreemptTimer", &fVmxPreemptTimer, false);
+        AssertLogRelRCReturnVoid(rc);
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+        /** @cfgm{/CPUM/NestedVmxEpt, bool, true}
+         * Whether to expose the EPT feature to the guest. The default is true.
+         * When disabled will automatically prevent exposing features that rely
+         * on it.  This is dependent upon nested paging being enabled for the VM.
+         */
+        rc = CFGMR3QueryBoolDef(pCpumCfg, "NestedVmxEpt", &fVmxEpt, true);
+        AssertLogRelRCReturnVoid(rc);
+
+        /** @cfgm{/CPUM/NestedVmxUnrestrictedGuest, bool, true}
+         * Whether to expose the Unrestricted Guest feature to the guest. The
+         * default is the same a /CPUM/Nested/VmxEpt. When disabled will
+         * automatically prevent exposing features that rely on it.
+         */
+        rc = CFGMR3QueryBoolDef(pCpumCfg, "NestedVmxUnrestrictedGuest", &fVmxUnrestrictedGuest, fVmxEpt);
+        AssertLogRelRCReturnVoid(rc);
+#else
+        fVmxEpt = fVmxUnrestrictedGuest = false;
+#endif
+    }
+
+    if (fVmxEpt)
     {
         const char *pszWhy = NULL;
         if (!VM_IS_HM_ENABLED(pVM) && !VM_IS_EXEC_ENGINE_IEM(pVM))
@@ -1753,15 +1790,14 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
             pszWhy = "NX is not available on the host";
         if (pszWhy)
         {
-            LogRel(("CPUM: Warning! EPT not exposed to the guest because %s.\n", pszWhy));
-            pVM->cpum.s.fNestedVmxEpt = false;
+            LogRel(("CPUM: Warning! EPT not exposed to the guest because %s\n", pszWhy));
+            fVmxEpt = false;
         }
     }
-    if (    pVM->cpum.s.fNestedVmxUnrestrictedGuest
-        && !pVM->cpum.s.fNestedVmxEpt)
+    else if (fVmxUnrestrictedGuest)
     {
         LogRel(("CPUM: Warning! Can't expose \"Unrestricted Guest\" to the guest when EPT is not exposed!\n"));
-        pVM->cpum.s.fNestedVmxUnrestrictedGuest = false;
+        fVmxUnrestrictedGuest = false;
     }
 
     /*
@@ -1777,7 +1813,7 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     EmuFeat.fVmxExtIntExit            = 1;
     EmuFeat.fVmxNmiExit               = 1;
     EmuFeat.fVmxVirtNmi               = 1;
-    EmuFeat.fVmxPreemptTimer          = pVM->cpum.s.fNestedVmxPreemptTimer;
+    EmuFeat.fVmxPreemptTimer          = fVmxPreemptTimer;
     EmuFeat.fVmxPostedInt             = 0;
     EmuFeat.fVmxIntWindowExit         = 1;
     EmuFeat.fVmxTscOffsetting         = 1;
@@ -1792,7 +1828,7 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     EmuFeat.fVmxCr8LoadExit           = 1;
     EmuFeat.fVmxCr8StoreExit          = 1;
     EmuFeat.fVmxUseTprShadow          = 1;
-    EmuFeat.fVmxNmiWindowExit         = 0;
+    EmuFeat.fVmxNmiWindowExit         = 1;
     EmuFeat.fVmxMovDRxExit            = 1;
     EmuFeat.fVmxUncondIoExit          = 1;
     EmuFeat.fVmxUseIoBitmaps          = 1;
@@ -1802,16 +1838,16 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     EmuFeat.fVmxPauseExit             = 1;
     EmuFeat.fVmxSecondaryExecCtls     = 1;
     EmuFeat.fVmxVirtApicAccess        = 1;
-    EmuFeat.fVmxEpt                   = pVM->cpum.s.fNestedVmxEpt;
+    EmuFeat.fVmxEpt                   = fVmxEpt;
     EmuFeat.fVmxDescTableExit         = 1;
     EmuFeat.fVmxRdtscp                = 1;
     EmuFeat.fVmxVirtX2ApicMode        = 0;
-    EmuFeat.fVmxVpid                  = 0;  /** @todo Consider enabling this when EPT works. */
+    EmuFeat.fVmxVpid                  = 1;
     EmuFeat.fVmxWbinvdExit            = 1;
-    EmuFeat.fVmxUnrestrictedGuest     = pVM->cpum.s.fNestedVmxUnrestrictedGuest;
+    EmuFeat.fVmxUnrestrictedGuest     = fVmxUnrestrictedGuest;
     EmuFeat.fVmxApicRegVirt           = 0;
     EmuFeat.fVmxVirtIntDelivery       = 0;
-    EmuFeat.fVmxPauseLoopExit         = 0;
+    EmuFeat.fVmxPauseLoopExit         = 1;
     EmuFeat.fVmxRdrandExit            = 0;
     EmuFeat.fVmxInvpcid               = 1;
     EmuFeat.fVmxVmFunc                = 0;
@@ -1831,15 +1867,16 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     EmuFeat.fVmxEntryLoadDebugCtls    = 1;
     EmuFeat.fVmxIa32eModeGuest        = 1;
     EmuFeat.fVmxEntryLoadEferMsr      = 1;
-    EmuFeat.fVmxEntryLoadPatMsr       = 0;
+    EmuFeat.fVmxEntryLoadPatMsr       = 1;
     EmuFeat.fVmxExitSaveDebugCtls     = 1;
     EmuFeat.fVmxHostAddrSpaceSize     = 1;
     EmuFeat.fVmxExitAckExtInt         = 1;
     EmuFeat.fVmxExitSavePatMsr        = 0;
-    EmuFeat.fVmxExitLoadPatMsr        = 0;
+    EmuFeat.fVmxExitLoadPatMsr        = 1;
     EmuFeat.fVmxExitSaveEferMsr       = 1;
     EmuFeat.fVmxExitLoadEferMsr       = 1;
     EmuFeat.fVmxSavePreemptTimer      = 0;  /* Cannot be enabled if VMX-preemption timer is disabled. */
+    EmuFeat.fVmxSecondaryExitCtls     = 0;
     EmuFeat.fVmxExitSaveEferLma       = 1;  /* Cannot be disabled if unrestricted guest is enabled. */
     EmuFeat.fVmxPt                    = 0;
     EmuFeat.fVmxVmwriteAll            = 0;  /** @todo NSTVMX: enable this when nested VMCS shadowing is enabled. */
@@ -1921,6 +1958,7 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     pGuestFeat->fVmxExitSaveEferMsr       = (pBaseFeat->fVmxExitSaveEferMsr       & EmuFeat.fVmxExitSaveEferMsr      );
     pGuestFeat->fVmxExitLoadEferMsr       = (pBaseFeat->fVmxExitLoadEferMsr       & EmuFeat.fVmxExitLoadEferMsr      );
     pGuestFeat->fVmxSavePreemptTimer      = (pBaseFeat->fVmxSavePreemptTimer      & EmuFeat.fVmxSavePreemptTimer     );
+    pGuestFeat->fVmxSecondaryExitCtls     = (pBaseFeat->fVmxSecondaryExitCtls     & EmuFeat.fVmxSecondaryExitCtls    );
     pGuestFeat->fVmxExitSaveEferLma       = (pBaseFeat->fVmxExitSaveEferLma       & EmuFeat.fVmxExitSaveEferLma      );
     pGuestFeat->fVmxPt                    = (pBaseFeat->fVmxPt                    & EmuFeat.fVmxPt                   );
     pGuestFeat->fVmxVmwriteAll            = (pBaseFeat->fVmxVmwriteAll            & EmuFeat.fVmxVmwriteAll           );
@@ -1931,7 +1969,7 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     if (   pGuestFeat->fVmxPreemptTimer
         && HMIsSubjectToVmxPreemptTimerErratum())
     {
-        LogRel(("CPUM: Warning! VMX-preemption timer not exposed to guest due to host CPU erratum.\n"));
+        LogRel(("CPUM: Warning! VMX-preemption timer not exposed to guest due to host CPU erratum\n"));
         pGuestFeat->fVmxPreemptTimer     = 0;
         pGuestFeat->fVmxSavePreemptTimer = 0;
     }
@@ -2019,6 +2057,7 @@ static int cpumR3GetHostHwvirtMsrs(PCPUMMSRS pMsrs)
         LogRel(("CPUM: Querying hardware-virtualization capability succeeded but did not find VT-x or AMD-V\n"));
         return VERR_INTERNAL_ERROR_5;
     }
+
     LogRel(("CPUM: No hardware-virtualization capability detected\n"));
     return VINF_SUCCESS;
 }
@@ -2610,6 +2649,7 @@ static DECLCALLBACK(int) cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
             SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.u64VmFunc);
             SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.u64EptVpidCaps);
             SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.u64ProcCtls3);
+            SSMR3PutU64(pSSM,      pGstCtx->hwvirt.vmx.Msrs.u64ExitCtls2);
         }
         SSMR3PutU32(pSSM, pVCpu->cpum.s.fUseFlags);
         SSMR3PutU32(pSSM, pVCpu->cpum.s.fChanged);
@@ -2643,7 +2683,8 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
     /*
      * Validate version.
      */
-    if (    uVersion != CPUM_SAVED_STATE_VERSION_PAE_PDPES
+    if (    uVersion != CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_3
+        &&  uVersion != CPUM_SAVED_STATE_VERSION_PAE_PDPES
         &&  uVersion != CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_2
         &&  uVersion != CPUM_SAVED_STATE_VERSION_HWVIRT_VMX
         &&  uVersion != CPUM_SAVED_STATE_VERSION_HWVIRT_SVM
@@ -2907,6 +2948,8 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
                         SSMR3GetU64(pSSM,      &pGstCtx->hwvirt.vmx.Msrs.u64EptVpidCaps);
                         if (uVersion >= CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_2)
                             SSMR3GetU64(pSSM,  &pGstCtx->hwvirt.vmx.Msrs.u64ProcCtls3);
+                        if (uVersion >= CPUM_SAVED_STATE_VERSION_HWVIRT_VMX_3)
+                            SSMR3GetU64(pSSM,  &pGstCtx->hwvirt.vmx.Msrs.u64ExitCtls2);
                     }
                 }
             }
@@ -3108,7 +3151,8 @@ VMMDECL(bool) CPUMR3IsStateRestorePending(PVM pVM)
  * Formats the EFLAGS value into mnemonics.
  *
  * @param   pszEFlags   Where to write the mnemonics. (Assumes sufficient buffer space.)
- * @param   efl         The EFLAGS value with fInhibit in bits 31:24.
+ * @param   efl         The EFLAGS value with both guest hardware and VBox
+ *                      internal bits included.
  */
 static void cpumR3InfoFormatFlags(char *pszEFlags, uint32_t efl)
 {
@@ -3135,9 +3179,9 @@ static void cpumR3InfoFormatFlags(char *pszEFlags, uint32_t efl)
         { "ac", "na", X86_EFL_AF },
         { "po", "pe", X86_EFL_PF },
         { "cy", "nc", X86_EFL_CF },
-        { "inh-ss",  NULL, (uint32_t)CPUMCTX_INHIBIT_SHADOW_SS  << 24 },
-        { "inh-sti", NULL, (uint32_t)CPUMCTX_INHIBIT_SHADOW_STI << 24 },
-        { "inh-nmi", NULL, (uint32_t)CPUMCTX_INHIBIT_NMI        << 24 },
+        { "inh-ss",  NULL, CPUMCTX_INHIBIT_SHADOW_SS },
+        { "inh-sti", NULL, CPUMCTX_INHIBIT_SHADOW_STI },
+        { "inh-nmi", NULL, CPUMCTX_INHIBIT_NMI },
     };
     char *psz = pszEFlags;
     for (unsigned i = 0; i < RT_ELEMENTS(s_aFlags); i++)
@@ -3170,13 +3214,13 @@ static void cpumR3InfoOne(PVM pVM, PCPUMCTX pCtx, PCDBGFINFOHLP pHlp, CPUMDUMPTY
     /*
      * Format the EFLAGS.
      */
-    uint32_t efl = pCtx->eflags.u;
     char szEFlags[80];
-    cpumR3InfoFormatFlags(&szEFlags[0], efl | ((uint32_t)pCtx->fInhibit << 24));
+    cpumR3InfoFormatFlags(&szEFlags[0], pCtx->eflags.uBoth);
 
     /*
      * Format the registers.
      */
+    uint32_t const efl = pCtx->eflags.u;
     switch (enmType)
     {
         case CPUMDUMPTYPE_TERSE:
@@ -3775,6 +3819,7 @@ static void cpumR3InfoVmxVmcs(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs
         pHlp->pfnPrintf(pHlp, "  %sVPID                       = %#RX16\n",   pszPrefix, pVmcs->u16Vpid);
         pHlp->pfnPrintf(pHlp, "  %sPosted intr notify vector  = %#RX16\n",   pszPrefix, pVmcs->u16PostIntNotifyVector);
         pHlp->pfnPrintf(pHlp, "  %sEPTP index                 = %#RX16\n",   pszPrefix, pVmcs->u16EptpIndex);
+        pHlp->pfnPrintf(pHlp, "  %sHLAT prefix size           = %#RX16\n",   pszPrefix, pVmcs->u16HlatPrefixSize);
 
         /* 32-bit. */
         pHlp->pfnPrintf(pHlp, "  %sPin ctls                   = %#RX32\n",   pszPrefix, pVmcs->u32PinCtls);
@@ -3834,6 +3879,9 @@ static void cpumR3InfoVmxVmcs(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs
         pHlp->pfnPrintf(pHlp, "  %sTSC multiplier             = %#RX64\n",   pszPrefix, pVmcs->u64TscMultiplier.u);
         pHlp->pfnPrintf(pHlp, "  %sTertiary processor ctls    = %#RX64\n",   pszPrefix, pVmcs->u64ProcCtls3.u);
         pHlp->pfnPrintf(pHlp, "  %sENCLV-exiting bitmap       = %#RX64\n",   pszPrefix, pVmcs->u64EnclvExitBitmap.u);
+        pHlp->pfnPrintf(pHlp, "  %sPCONFIG-exiting bitmap     = %#RX64\n",   pszPrefix, pVmcs->u64PconfigExitBitmap.u);
+        pHlp->pfnPrintf(pHlp, "  %sHLAT ptr                   = %#RX64\n",   pszPrefix, pVmcs->u64HlatPtr.u);
+        pHlp->pfnPrintf(pHlp, "  %sSecondary VM-exit controls = %#RX64\n",   pszPrefix, pVmcs->u64ExitCtls2.u);
 
         /* Natural width. */
         pHlp->pfnPrintf(pHlp, "  %sCR0 guest/host mask        = %#RX64\n",   pszPrefix, pVmcs->u64Cr0Mask.u);
@@ -3938,7 +3986,6 @@ static void cpumR3InfoVmxVmcs(PVMCPU pVCpu, PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs
         pHlp->pfnPrintf(pHlp, "  %sS_CET                      = %#RX64\n",   pszPrefix, pVmcs->u64HostSCetMsr.u);
         pHlp->pfnPrintf(pHlp, "  %sSSP                        = %#RX64\n",   pszPrefix, pVmcs->u64HostSsp.u);
         pHlp->pfnPrintf(pHlp, "  %sINTERRUPT_SSP_TABLE_ADDR   = %#RX64\n",   pszPrefix, pVmcs->u64HostIntrSspTableAddrMsr.u);
-
     }
 
     /* Read-only fields. */

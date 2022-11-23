@@ -509,7 +509,9 @@ ifeq ($(KBUILD_TARGET_ARCH),amd64)
   endif
  endif
  # Enables guest EPT support for VMX nested hardware virtualization.
- #VBOX_WITH_NESTED_HWVIRT_VMX_EPT = 1
+ ifn1of ($(KBUILD_TARGET), darwin)
+  VBOX_WITH_NESTED_HWVIRT_VMX_EPT = 1
+ endif
  if defined(VBOX_WITH_NESTED_HWVIRT_VMX_EPT) && !defined(VBOX_WITH_NESTED_HWVIRT_VMX)
   $(error VBOX_WITH_NESTED_HWVIRT_VMX_EPT requires VBOX_WITH_NESTED_HWVIRT_VMX)
  endif
@@ -4834,7 +4836,7 @@ endif
 
 # openssl
 SDK_VBOX_OPENSSL                        := OpenSSL - Only for VBoxRT and/or statically linked programs.
-SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS      := $(PATH_OUT)/obj/crypto-3.0.3-headers/include
+SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS      := $(PATH_OUT)/obj/crypto-3.0.7-headers/include
 SDK_VBOX_OPENSSL_INCS                   ?= $(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
 SDK_VBOX_OPENSSL_ORDERDEPS              ?= $(crypto-headers_1_TARGET)
 if  !defined(VBOX_ONLY_SDK) \
@@ -4848,7 +4850,7 @@ SDK_VBOX_OPENSSL_LIBS                   ?= \
 	$(PATH_STAGE_LIB)/VBox-libcrypto$(VBOX_SUFF_LIB)
 
 SDK_VBOX_OPENSSL-x86                    := OpenSSL/x86 - Only for VBoxRT and/or statically linked programs.
-SDK_VBOX_OPENSSL-x86_VBOX_DEFAULT_INCS  := $(PATH_OUT)/obj/crypto-3.0.3-headers/include
+SDK_VBOX_OPENSSL-x86_VBOX_DEFAULT_INCS  := $(PATH_OUT)/obj/crypto-3.0.7-headers/include
 SDK_VBOX_OPENSSL-x86_INCS               ?= $(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)
 SDK_VBOX_OPENSSL-x86_ORDERDEPS          ?= $(crypto-headers_1_TARGET)
 if ("$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)")
@@ -8339,7 +8341,7 @@ TEMPLATE_VBoxBldProg_LIBS                = network iconv
 TEMPLATE_VBoxBldProg_LIBPATH            += \
 	/boot/common/lib
  else if1of ($(KBUILD_HOST), freebsd openbsd)
-TEMPLATE_VBoxBldProg_TOOL                = GXX3
+TEMPLATE_VBoxBldProg_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBoxBldProg_LIBS                = pthread
 TEMPLATE_VBoxBldProg_INCS               += \
 	/usr/include \
@@ -9131,7 +9133,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 154183 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 154372 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)

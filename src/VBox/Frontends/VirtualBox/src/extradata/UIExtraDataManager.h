@@ -120,6 +120,9 @@ signals:
     /** Notifies about the scaling optimization type change. */
     void sigScalingOptimizationTypeChange(const QUuid &uMachineID);
 
+    /** Notifies about font scale factor. */
+    void sigFontScaleFactorChanged(int iFontScaleFactor);
+
 #ifdef VBOX_WS_MAC
     /** Notifies about the HiDPI optimization type change. */
     void sigHiDPIOptimizationTypeChange(const QUuid &uMachineID);
@@ -283,6 +286,9 @@ public:
         bool disableHostScreenSaver();
         /* Sets whether host screen saver is disabled when a vm is running. */
         void setDisableHostScreenSaver(bool fActivate);
+        /* Set global font scale factor as percentage. 100% is for no scaling. */
+        void setFontScaleFactor(int iFontScaleFactor);
+        int  fontScaleFactor();
     /** @} */
 
     /** @name Settings: Keyboard

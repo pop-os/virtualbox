@@ -2609,6 +2609,23 @@ QString UIExtraDataManager::hostKeyCombination()
     return strHostCombo;
 }
 
+void UIExtraDataManager::setFontScaleFactor(int iFontScaleFactor)
+{
+    if (iFontScaleFactor < UIExtraDataDefs::iFontScaleMin || iFontScaleFactor > UIExtraDataDefs::iFontScaleMax)
+        return;
+    setExtraDataString(GUI_FontScaleFactor, QString::number(iFontScaleFactor));
+}
+
+int UIExtraDataManager::fontScaleFactor()
+{
+    QString strFontScaleFactor = extraDataString(GUI_FontScaleFactor);
+    bool fConversion = false;
+    int iScaleFactor = strFontScaleFactor.toInt(&fConversion);
+    if (!fConversion || iScaleFactor < UIExtraDataDefs::iFontScaleMin || iScaleFactor > UIExtraDataDefs::iFontScaleMax)
+        return 100;
+    return iScaleFactor;
+}
+
 void UIExtraDataManager::setHostKeyCombination(const QString &strHostCombo)
 {
     /* Do not save anything if it's absolutely wrong or invalid: */
@@ -4825,6 +4842,9 @@ void UIExtraDataManager::sltExtraDataChange(const QUuid &uMachineID, const QStri
                 if (enmType != DetailsElementType_Invalid)
                     emit sigDetailsOptionsChange(enmType);
             }
+            /* Font scaling factor has changed: */
+            else if (strKey == GUI_FontScaleFactor)
+                emit sigFontScaleFactorChanged(fontScaleFactor());
         }
     }
     /* Machine extra-data 'change' event: */

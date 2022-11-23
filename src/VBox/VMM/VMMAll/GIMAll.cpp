@@ -448,21 +448,25 @@ VMM_INT_DECL(VBOXSTRICTRC) GIMWriteMsr(PVMCPUCC pVCpu, uint32_t idMsr, PCCPUMMSR
  * Queries the opcode bytes for a native hypercall.
  *
  * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pvBuf       The destination buffer.
- * @param   cbBuf       The size of the buffer.
- * @param   pcbWritten  Where to return the number of bytes written.  This is
- *                      reliably updated only on successful return.  Optional.
- * @param   puDisOpcode Where to return the disassembler opcode.  Optional.
+ * @param   pVM             The cross context VM structure.
+ * @param   pvBuf           The destination buffer.
+ * @param   cbBuf           The size of the buffer.
+ * @param   pcbWritten      Where to return the number of bytes written.  This is
+ *                          reliably updated only on successful return.  Optional.
+ * @param   puDisOpcode     Where to return the disassembler opcode.  Optional.
  */
 VMM_INT_DECL(int) GIMQueryHypercallOpcodeBytes(PVM pVM, void *pvBuf, size_t cbBuf, size_t *pcbWritten, uint16_t *puDisOpcode)
 {
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
 
-    CPUMCPUVENDOR  enmHostCpu = CPUMGetHostCpuVendor(pVM);
+#if defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
+    CPUMCPUVENDOR  enmCpuVendor = CPUMGetHostCpuVendor(pVM);
+#else
+    CPUMCPUVENDOR  enmCpuVendor = CPUMGetGuestCpuVendor(pVM); /* Use what is presented to the guest. */
+#endif
     uint8_t const *pbSrc;
     size_t         cbSrc;
-    switch (enmHostCpu)
+    switch (enmCpuVendor)
     {
         case CPUMCPUVENDOR_AMD:
         case CPUMCPUVENDOR_HYGON:
@@ -488,7 +492,7 @@ VMM_INT_DECL(int) GIMQueryHypercallOpcodeBytes(PVM pVM, void *pvBuf, size_t cbBu
         }
 
         default:
-            AssertMsgFailedReturn(("%d\n", enmHostCpu), VERR_UNSUPPORTED_CPU);
+            AssertMsgFailedReturn(("%d\n", enmCpuVendor), VERR_UNSUPPORTED_CPU);
     }
     if (RT_LIKELY(cbBuf >= cbSrc))
     {

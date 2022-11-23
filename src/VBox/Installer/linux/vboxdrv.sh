@@ -395,7 +395,7 @@ module_signed()
     [ -n "$printf_tool"     ] || return
 
     # Make sure openssl can handle hash algorithm.
-    sig_hashalgo=$(modinfo -F sig_hashalgo vboxdrv 2>/dev/null)
+    sig_hashalgo=$(modinfo -F sig_hashalgo "$mod" 2>/dev/null)
     [ "$(module_sig_hash_supported $sig_hashalgo)" = "1" ] || return
 
     # Generate file names for temporary stuff.
@@ -634,18 +634,18 @@ cleanup()
     for i in /lib/modules/*; do
         # Check whether we are only cleaning up for uninstalled kernels.
         test -n "${only_old}" && test -e "${i}/kernel/drivers" && continue
-        # We could just do "rm -f", but we only want to try deleting folders if
-        # we are sure they were ours, i.e. they had our modules in beforehand.
-        if    test -e "${i}/misc/vboxdrv.ko" \
-           || test -e "${i}/misc/vboxnetadp.ko" \
-           || test -e "${i}/misc/vboxnetflt.ko" \
-           || test -e "${i}/misc/vboxpci.ko"; then
-            rm -f "${i}/misc/vboxdrv.ko" "${i}/misc/vboxnetadp.ko" \
-                  "${i}/misc/vboxnetflt.ko" "${i}/misc/vboxpci.ko"
-            version=`expr "${i}" : "/lib/modules/\(.*\)"`
-            depmod -a "${version}"
-            sync
-        fi
+
+        unset do_update
+        for j in $MODULE_LIST; do
+            for mod_ext in ko ko.gz ko.xz ko.zst; do
+                test -f "${i}/misc/${j}.${mod_ext}" && do_update=1 && rm -f "${i}/misc/${j}.${mod_ext}"
+            done
+        done
+
+        # Trigger depmod(8) only in case if directory content was modified
+        # and save a bit of run time.
+        test -n "$do_update" && depmod -a "$(basename "$i")" && sync
+
         # Remove the kernel version folder if it was empty except for us.
         test   "`echo ${i}/misc/* ${i}/misc/.?* ${i}/* ${i}/.?*`" \
              = "${i}/misc/* ${i}/misc/.. ${i}/misc ${i}/.." &&
@@ -661,7 +661,7 @@ setup()
 
     # Detect if kernel was built with clang.
     unset LLVM
-    vbox_cc_is_clang=$(kernel_get_config_opt "CONFIG_MODULE_SIG_HASH")
+    vbox_cc_is_clang=$(kernel_get_config_opt "CONFIG_CC_IS_CLANG")
     if test "${vbox_cc_is_clang}" = "y"; then
         log "Using clang compiler."
         export LLVM=1
@@ -734,8 +734,8 @@ does not provide tools for automatic generation of keys needed for
 modules signing. Please consider to generate and enroll them manually:
 
     sudo mkdir -p /var/lib/shim-signed/mok
-    sudo openssl req -nodes -new -x509 -newkey rsa:2048 -outform DER -keyout $DEB_PRIV_KEY -out $DEB_PUB_KEY
-    sudo sudo mokutil --import $DEB_PUB_KEY
+    sudo openssl req -nodes -new -x509 -newkey rsa:2048 -outform DER -addext \"extendedKeyUsage=codeSigning\" -keyout $DEB_PRIV_KEY -out $DEB_PUB_KEY
+    sudo mokutil --import $DEB_PUB_KEY
     sudo reboot
 
 Restart \"rcvboxdrv setup\" after system is rebooted

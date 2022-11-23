@@ -81,11 +81,8 @@
 UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent,
                                                const QString &strCategory /* = QString() */,
                                                const QString &strControl /* = QString() */)
-    : UISettingsDialog(pParent)
-    , m_strCategory(strCategory)
-    , m_strControl(strControl)
+    : UISettingsDialog(pParent, strCategory, strControl)
 {
-    /* Prepare: */
     prepare();
 }
 
@@ -131,7 +128,7 @@ void UISettingsDialogGlobal::retranslateUi()
     setWindowTitle(title());
 }
 
-void UISettingsDialogGlobal::loadOwnData()
+void UISettingsDialogGlobal::load()
 {
     /* Get host & properties: */
     CHost comHost = uiCommon().host();
@@ -145,7 +142,7 @@ void UISettingsDialogGlobal::loadOwnData()
     UISettingsDialog::loadData(varData);
 }
 
-void UISettingsDialogGlobal::saveOwnData()
+void UISettingsDialogGlobal::save()
 {
     /* Get host & properties: */
     CHost comHost = uiCommon().host();
@@ -290,39 +287,8 @@ void UISettingsDialogGlobal::prepare()
     /* Apply language settings: */
     retranslateUi();
 
-    /* Setup settings window: */
-    if (!m_strCategory.isNull())
-    {
-        m_pSelector->selectByLink(m_strCategory);
-        /* Search for a widget with the given name: */
-        if (!m_strControl.isNull())
-        {
-            if (QWidget *pWidget = m_pStack->findChild<QWidget*>(m_strControl))
-            {
-                QList<QWidget*> parents;
-                QWidget *pParentWidget = pWidget;
-                while ((pParentWidget = pParentWidget->parentWidget()) != 0)
-                {
-                    if (QTabWidget *pTabWidget = qobject_cast<QTabWidget*>(pParentWidget))
-                    {
-                        // WORKAROUND:
-                        // The tab contents widget is two steps down
-                        // (QTabWidget -> QStackedWidget -> QWidget).
-                        QWidget *pTabPage = parents[parents.count() - 1];
-                        if (pTabPage)
-                            pTabPage = parents[parents.count() - 2];
-                        if (pTabPage)
-                            pTabWidget->setCurrentWidget(pTabPage);
-                    }
-                    parents.append(pParentWidget);
-                }
-                pWidget->setFocus();
-            }
-        }
-    }
-    /* First item as default: */
-    else
-        m_pSelector->selectById(GlobalSettingsPageType_General);
+    /* Choose page/tab finally: */
+    choosePageAndTab();
 }
 
 bool UISettingsDialogGlobal::isPageAvailable(int) const
@@ -336,16 +302,44 @@ bool UISettingsDialogGlobal::isPageAvailable(int) const
 *   Class UISettingsDialogMachine implementation.                                                                                *
 *********************************************************************************************************************************/
 
-UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QUuid &uMachineId,
-                                                 const QString &strCategory, const QString &strControl, UIActionPool *pActionPool)
-    : UISettingsDialog(pParent)
+UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent,
+                                                 const QUuid &uMachineId,
+                                                 UIActionPool *pActionPool,
+                                                 const QString &strCategory /* = QString() */,
+                                                 const QString &strControl /* = QString() */)
+    : UISettingsDialog(pParent, strCategory, strControl)
     , m_uMachineId(uMachineId)
-    , m_strCategory(strCategory)
-    , m_strControl(strControl)
     , m_pActionPool(pActionPool)
 {
-    /* Prepare: */
     prepare();
+}
+
+void UISettingsDialogMachine::setNewMachineId(const QUuid &uMachineId,
+                                              const QString &strCategory /* = QString() */,
+                                              const QString &strControl /* = QString() */)
+{
+    /* Cache new machine stuff: */
+    m_uMachineId = uMachineId;
+    m_strCategory = strCategory;
+    m_strControl = strControl;
+
+    /* Get corresponding machine (required to determine dialog type and page availability): */
+    m_machine = uiCommon().virtualBox().FindMachine(m_uMachineId.toString());
+    AssertReturnVoid(!m_machine.isNull());
+    m_enmSessionState = m_machine.GetSessionState();
+    m_enmMachineState = m_machine.GetState();
+
+    /* Calculate initial configuration access level: */
+    setConfigurationAccessLevel(::configurationAccessLevel(m_enmSessionState, m_enmMachineState));
+
+    /* Apply language settings: */
+    retranslateUi();
+
+    /* Choose page/tab: */
+    choosePageAndTab(true /* keep previous by default */);
+
+    /* Load finally: */
+    load();
 }
 
 void UISettingsDialogMachine::retranslateUi()
@@ -405,7 +399,7 @@ void UISettingsDialogMachine::retranslateUi()
     setWindowTitle(title());
 }
 
-void UISettingsDialogMachine::loadOwnData()
+void UISettingsDialogMachine::load()
 {
     /* Check that session is NOT created: */
     if (!m_session.isNull())
@@ -431,7 +425,7 @@ void UISettingsDialogMachine::loadOwnData()
     UISettingsDialog::loadData(varData);
 }
 
-void UISettingsDialogMachine::saveOwnData()
+void UISettingsDialogMachine::save()
 {
     /* Check that session is NOT created: */
     if (!m_session.isNull())
@@ -461,19 +455,12 @@ void UISettingsDialogMachine::saveOwnData()
     /* If machine is OK => perform final operations: */
     if (m_machine.isOk())
     {
-        UIMachineSettingsGeneral *pGeneralPage =
-            qobject_cast<UIMachineSettingsGeneral*>(m_pSelector->idToPage(MachineSettingsPageType_General));
         UIMachineSettingsSystem *pSystemPage =
             qobject_cast<UIMachineSettingsSystem*>(m_pSelector->idToPage(MachineSettingsPageType_System));
 #ifdef VBOX_WITH_3D_ACCELERATION
         UIMachineSettingsDisplay *pDisplayPage =
             qobject_cast<UIMachineSettingsDisplay*>(m_pSelector->idToPage(MachineSettingsPageType_Display));
 #endif /* VBOX_WITH_3D_ACCELERATION */
-
-        /* Guest OS type & VT-x/AMD-V option correlation auto-fix: */
-        if (pGeneralPage && pSystemPage &&
-            pGeneralPage->is64BitOSTypeSelected() && !pSystemPage->isHWVirtExEnabled())
-            m_machine.SetHWVirtExProperty(KHWVirtExPropertyType_Enabled, true);
 
 #ifdef VBOX_WITH_3D_ACCELERATION
         /* Adjust graphics controller type if necessary: */
@@ -537,15 +524,9 @@ void UISettingsDialogMachine::recorrelate(UISettingsPage *pSettingsPage)
         {
             /* Make changes on 'system' page influent 'general' and 'storage' page: */
             UIMachineSettingsSystem *pSystemPage = qobject_cast<UIMachineSettingsSystem*>(pSettingsPage);
-            UIMachineSettingsGeneral *pGeneralPage = qobject_cast<UIMachineSettingsGeneral*>(m_pSelector->idToPage(MachineSettingsPageType_General));
             UIMachineSettingsStorage *pStoragePage = qobject_cast<UIMachineSettingsStorage*>(m_pSelector->idToPage(MachineSettingsPageType_Storage));
-            if (pSystemPage)
-            {
-                if (pGeneralPage)
-                    pGeneralPage->setHWVirtExEnabled(pSystemPage->isHWVirtExEnabled());
-                if (pStoragePage)
-                    pStoragePage->setChipsetType(pSystemPage->chipsetType());
-            }
+            if (pSystemPage && pStoragePage)
+                pStoragePage->setChipsetType(pSystemPage->chipsetType());
             break;
         }
         /* USB page correlations: */
@@ -655,7 +636,7 @@ void UISettingsDialogMachine::sltMachineDataChanged(const QUuid &uMachineId)
         return;
 
     /* Reload data: */
-    loadOwnData();
+    load();
 }
 
 void UISettingsDialogMachine::prepare()
@@ -802,39 +783,8 @@ void UISettingsDialogMachine::prepare()
     /* Apply language settings: */
     retranslateUi();
 
-    /* Setup settings window: */
-    if (!m_strCategory.isNull())
-    {
-        m_pSelector->selectByLink(m_strCategory);
-        /* Search for a widget with the given name: */
-        if (!m_strControl.isNull())
-        {
-            if (QWidget *pWidget = m_pStack->findChild<QWidget*>(m_strControl))
-            {
-                QList<QWidget*> parents;
-                QWidget *pParentWidget = pWidget;
-                while ((pParentWidget = pParentWidget->parentWidget()) != 0)
-                {
-                    if (QTabWidget *pTabWidget = qobject_cast<QTabWidget*>(pParentWidget))
-                    {
-                        // WORKAROUND:
-                        // The tab contents widget is two steps down
-                        // (QTabWidget -> QStackedWidget -> QWidget).
-                        QWidget *pTabPage = parents[parents.count() - 1];
-                        if (pTabPage)
-                            pTabPage = parents[parents.count() - 2];
-                        if (pTabPage)
-                            pTabWidget->setCurrentWidget(pTabPage);
-                    }
-                    parents.append(pParentWidget);
-                }
-                pWidget->setFocus();
-            }
-        }
-    }
-    /* First item as default: */
-    else
-        m_pSelector->selectById(MachineSettingsPageType_General);
+    /* Choose page/tab finally: */
+    choosePageAndTab();
 }
 
 bool UISettingsDialogMachine::isPageAvailable(int iPageId) const
