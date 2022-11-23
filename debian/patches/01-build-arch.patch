@@ -3,7 +3,7 @@ Author: Michael Meskes <meskes@debian.org>
 
 --- a/configure
 +++ b/configure
-@@ -378,7 +378,7 @@ test_execute_path()
+@@ -379,7 +379,7 @@ test_execute_path()
  check_environment()
  {
    test_header environment
