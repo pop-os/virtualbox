@@ -1,3 +1,10 @@
+virtualbox (7.0.4-dfsg-2) unstable; urgency=medium
+
+  * debian/patches/changeset_97677.patch:
+    - Fix build failure with openjdk 17 with upstream patch.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 25 Nov 2022 08:56:54 +0100
+
 virtualbox (7.0.4-dfsg-1) unstable; urgency=medium
 
   * Upload to sid
