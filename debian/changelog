@@ -1,3 +1,10 @@
+virtualbox (7.0.4-dfsg-3) unstable; urgency=medium
+
+  * debian/patches/diff-trunk-from-97685-to-97687.patch:
+    - Add new patch to fix another failure due to java 17
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 25 Nov 2022 21:34:52 +0100
+
 virtualbox (7.0.4-dfsg-2) unstable; urgency=medium
 
   * debian/patches/changeset_97677.patch:
