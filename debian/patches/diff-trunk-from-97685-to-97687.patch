@@ -1,0 +1,57 @@
+Description: Fix other failures with openjdk 17
+Origin: https://www.virtualbox.org/changeset?reponame=vbox&new=97687%40trunk&old=97685%40trunk&format=diff
+Index: virtualbox/src/VBox/Main/glue/glue-java.xsl
+===================================================================
+--- virtualbox.orig/src/VBox/Main/glue/glue-java.xsl
++++ virtualbox/src/VBox/Main/glue/glue-java.xsl
+@@ -290,11 +290,14 @@
+     <xsl:when test="$tagname = 'tt'">
+       <xsl:text>&lt;code</xsl:text>
+     </xsl:when>
++    <xsl:when test="$tagname = 'h3'">
++      <xsl:text>&lt;h2</xsl:text>
++    </xsl:when>
+     <xsl:otherwise>
+       <xsl:value-of select="concat('&lt;', $tagname)"/>
+     </xsl:otherwise>
+   </xsl:choose>
+-  <xsl:if test="$tagname = 'table'"> <!-- javadoc 8 fudge -->
++  <xsl:if test="$tagname = 'table' and boolean($G_vboxFakeTableSummary)">
+     <xsl:text> summary=""</xsl:text>
+   </xsl:if>
+   <xsl:text>&gt;</xsl:text>
+@@ -303,6 +306,9 @@
+     <xsl:when test="$tagname = 'tt'">
+       <xsl:text>&lt;/code&gt;</xsl:text>
+     </xsl:when>
++    <xsl:when test="$tagname = 'h3'">
++      <xsl:text>&lt;/h2&gt;</xsl:text>
++    </xsl:when>
+     <xsl:otherwise>
+       <xsl:value-of select="concat('&lt;/', $tagname, '&gt;')"/>
+     </xsl:otherwise>
+@@ -486,7 +492,11 @@
+ <xsl:template match="desc" mode="results">
+   <xsl:if test="result">
+     <xsl:text>&#10;Expected result codes:&#10;</xsl:text>
+-    <xsl:text>&lt;table summary=""&gt;&#10;</xsl:text>
++    <xsl:text>&lt;table</xsl:text>
++    <xsl:if test="boolean($G_vboxFakeTableSummary)">
++      <xsl:text> summary=""</xsl:text>
++    </xsl:if>
++    <xsl:text>&gt;&#10;</xsl:text>
+     <xsl:for-each select="result">
+       <xsl:text>&lt;tr&gt;</xsl:text>
+       <xsl:choose>
+Index: virtualbox/src/VBox/Main/webservice/Makefile.kmk
+===================================================================
+--- virtualbox.orig/src/VBox/Main/webservice/Makefile.kmk
++++ virtualbox/src/VBox/Main/webservice/Makefile.kmk
+@@ -504,6 +504,7 @@
+               --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
+               --stringparam G_vboxGlueStyle jaxws              \
+               --stringparam G_vboxDirPrefix org/virtualbox$(VBOX_API_SUFFIX)/ \
++              --stringparam G_vboxFakeTableSummary $(if-expr $(VBOX_JAVA_VERSION) >= 10800 && $(VBOX_JAVA_VERSION) < 110000,1,"") \
+               -o $(VBOX_JWS_GEN_RAWSRC) $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
+ 	$(QUIET)$(MKDIR) -p $(VBOX_JWS_GEN)/java/org/virtualbox$(VBOX_API_SUFFIX)
+ 	$(QUIET)$(VBOX_FILESPLIT) $(VBOX_JWS_GEN_RAWSRC) $(VBOX_JWS_GEN)/java

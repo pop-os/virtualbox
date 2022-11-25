@@ -15,3 +15,4 @@
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
 changeset_97677.patch
+diff-trunk-from-97685-to-97687.patch

@@ -1,5 +1,5 @@
-## Description: Fix build with openjdk 17
-## Origin: https://www.virtualbox.org/changeset/97677/vbox?format=diff
+Description: Fix build with openjdk 17
+Origin: https://www.virtualbox.org/changeset/97677/vbox?format=diff
 Index: virtualbox/src/VBox/Main/glue/glue-java.xsl
 ===================================================================
 --- virtualbox.orig/src/VBox/Main/glue/glue-java.xsl
