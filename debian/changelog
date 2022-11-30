@@ -1,3 +1,9 @@
+virtualbox (7.0.4-dfsg-4) unstable; urgency=medium
+
+  * Add nother patch to finally make javadoc compile
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 30 Nov 2022 09:27:41 +0100
+
 virtualbox (7.0.4-dfsg-3) unstable; urgency=medium
 
   * debian/patches/diff-trunk-from-97685-to-97687.patch:
