@@ -40,7 +40,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153229 $"
+__version__ = "$Revision: 154728 $"
 
 # Standard python imports.
 import os;
@@ -649,7 +649,7 @@ class Bs3CpuGenerated1Generator(object):
                 oOut = sys.stdout;
             else:
                 try:
-                    oOut = open(sOutFile, 'w');                 # pylint: disable=consider-using-with
+                    oOut = open(sOutFile, 'w');                 # pylint: disable=consider-using-with,unspecified-encoding
                 except Exception as oXcpt:
                     print('error! Failed open "%s" for writing: %s' % (sOutFile, oXcpt,));
                     return 1;

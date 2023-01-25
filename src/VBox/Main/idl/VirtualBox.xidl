@@ -323,39 +323,35 @@
 
       The standard COM result codes that may originate from our methods include:
 
-      <table>
-      <tr><td>E_INVALIDARG</td>
-      <td>
-        Returned when the value of the method's argument is not within the range
-        of valid values. This should not be confused with situations when the
-        value is within the range but simply doesn't suit the current object
-        state and there is a possibility that it will be accepted later (in such
-        cases VirtualBox-specific codes are returned, for example,
-        <link to="VBOX_E_OBJECT_NOT_FOUND"/>).
-      </td>
-      </tr>
-      <tr><td>E_POINTER</td>
-      <td>
-        Returned if a memory pointer for the output argument is invalid (for
-        example, @c null). When pointers representing input arguments (such
-        as strings) are invalid, E_INVALIDARG is returned.
-      </td>
-      </tr>
-      <tr><td>E_ACCESSDENIED</td>
-      <td>
-        Returned when the called object is not ready. Since the lifetime of a
-        public COM object cannot be fully controlled by the implementation,
-        VirtualBox maintains the readiness state for all objects it creates and
-        returns this code in response to any method call on the object that was
-        deactivated by VirtualBox and is not functioning any more.
-      </td>
-      </tr>
-      <tr><td>E_OUTOFMEMORY</td>
-      <td>
-        Returned when a memory allocation operation fails.
-      </td>
-      </tr>
-      </table>
+      <dl>
+        <dt><tt>E_INVALIDARG</tt></dt>
+        <dd>
+          Returned when the value of the method's argument is not within the range
+          of valid values. This should not be confused with situations when the
+          value is within the range but simply doesn't suit the current object
+          state and there is a possibility that it will be accepted later (in such
+          cases VirtualBox-specific codes are returned, for example,
+          <link to="VBOX_E_OBJECT_NOT_FOUND"/>).
+        </dd>
+        <dt><tt>E_POINTER</tt></dt>
+        <dd>
+          Returned if a memory pointer for the output argument is invalid (for
+          example, @c null). When pointers representing input arguments (such
+          as strings) are invalid, E_INVALIDARG is returned.
+        </dd>
+        <dt><tt>E_ACCESSDENIED</tt></dt>
+        <dd>
+          Returned when the called object is not ready. Since the lifetime of a
+          public COM object cannot be fully controlled by the implementation,
+          VirtualBox maintains the readiness state for all objects it creates and
+          returns this code in response to any method call on the object that was
+          deactivated by VirtualBox and is not functioning any more.
+        </dd>
+        <dt><tt>E_OUTOFMEMORY</tt></dt>
+        <dd>
+          Returned when a memory allocation operation fails.
+        </dd>
+      </dl>
     </desc>
   </descGroup>
 
@@ -458,6 +454,12 @@
   <result name="VBOX_E_TIMEOUT" value="0x80BB0010">
     <desc>
       The operation ran into an explicitly requested timeout.
+    </desc>
+  </result>
+
+  <result name="VBOX_E_DND_ERROR" value="0x80BB0011">
+    <desc>
+      A drag and drop error has occurred.
     </desc>
   </result>
 
@@ -6520,17 +6522,20 @@
     >
     <desc>Cleanup mode, used with <link to="IMachine::unregister" />.
     </desc>
-    <const name="UnregisterOnly"                  value="1">
+    <const name="UnregisterOnly"                          value="1">
       <desc>Unregister only the machine, but neither delete snapshots nor detach media.</desc>
     </const>
-    <const name="DetachAllReturnNone"             value="2">
+    <const name="DetachAllReturnNone"                     value="2">
       <desc>Delete all snapshots and detach all media but return none; this will keep all media registered.</desc>
     </const>
-    <const name="DetachAllReturnHardDisksOnly"    value="3">
+    <const name="DetachAllReturnHardDisksOnly"            value="3">
       <desc>Delete all snapshots, detach all media and return hard disks for closing, but not removable media.</desc>
     </const>
-    <const name="Full"                            value="4">
+    <const name="Full"                                    value="4">
       <desc>Delete all snapshots, detach all media and return all media for closing.</desc>
+    </const>
+    <const name="DetachAllReturnHardDisksAndVMRemovable"  value="5">
+      <desc>Delete all snapshots, detach all media and return hard disks and removable locating in the folder of the machine to be deleted and referenced only to this machine, for closing.</desc>
     </const>
   </enum>
 
@@ -14942,30 +14947,18 @@
 
           The following flags are available:
 
-          <table>
-            <tr>
-              <td>CopyIntoExisting</td>
-              <td>Allow copying into an existing destination directory.</td>
-            </tr>
-          </table>
-
-          <table>
-            <tr>
-              <td>NoReplace</td>
-              <td>Do not replace any existing destination files on
-                the destination.</td>
-            </tr>
-            <tr>
-              <td>FollowLinks</td>
-              <td>Follows (and handles) (symbolic) links.</td>
-            </tr>
-            <tr>
-              <td>Update</td>
-              <td>Only copy when the source file is newer than the destination
-                file or when the destination file is missing.</td>
-            </tr>
-          </table>
-
+          <dl>
+            <dt><tt>CopyIntoExisting</tt></dt>
+            <dd>Allow copying into an existing destination directory.</dd>
+            <dt><tt>NoReplace</tt></dt>
+            <dd>Do not replace any existing destination files on
+              the destination.</dd>
+            <dt><tt>FollowLinks</tt></dt>
+            <dd>Follows (and handles) (symbolic) links.</dd>
+            <dt><tt>Update</tt></dt>
+            <dd>Only copy when the source file is newer than the destination
+              file or when the destination file is missing.</dd>
+          </dl>
         </desc>
       </param>
       <param name="destination" type="wstring" dir="in">
@@ -14997,29 +14990,18 @@
 
           The following flags are available:
 
-          <table>
-            <tr>
-              <td>CopyIntoExisting</td>
-              <td>Allow copying into an existing destination directory.</td>
-            </tr>
-          </table>
-
-          <table>
-            <tr>
-              <td>NoReplace</td>
-              <td>Do not replace any existing destination files on
-                the destination.</td>
-            </tr>
-            <tr>
-              <td>FollowLinks</td>
-              <td>Follows (and handles) (symbolic) links.</td>
-            </tr>
-            <tr>
-              <td>Update</td>
-              <td>Only copy when the source file is newer than the destination
-                file or when the destination file is missing.</td>
-            </tr>
-          </table>
+          <dl>
+            <dt><tt>CopyIntoExisting</tt></dt>
+            <dd>Allow copying into an existing destination directory.</dd>
+            <dt><tt>NoReplace</tt></dt>
+            <dd>Do not replace any existing destination files on
+              the destination.</dd>
+            <dt><tt>FollowLinks</tt></dt>
+            <dd>Follows (and handles) (symbolic) links.</dd>
+            <dt><tt>Update</tt></dt>
+            <dd>Only copy when the source file is newer than the destination
+              file or when the destination file is missing.</dd>
+          </dl>
 
         </desc>
       </param>
@@ -18149,7 +18131,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     uuid="ad47ad09-787b-44ab-b343-a082a3f2dfb1"
     wsmap="managed"
     rest="managed"
-    reservedMethods="8" reservedAttributes="12"
+    reservedMethods="7" reservedAttributes="12"
     >
     <desc>
       The IMedium interface represents virtual storage for a machine's
@@ -19510,6 +19492,40 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
+    <method name="resizeAndCloneTo">
+      <rest request="post" path="/mediums/{mediumid}/actions/"/>
+
+      <desc>
+        This is a helper function that combines the functionality of
+        <link to="IMedium::cloneTo"/> and <link to="IMedium::resize"/>. The target medium will take the
+        contents of the calling medium.
+        <result name="E_NOTIMPL">
+          The specified cloning variant is not supported at the moment.
+        </result>
+
+        <note>
+          Method will be moved to appropriate location at the next major API release.
+        </note>
+      </desc>
+
+      <param name="target" type="IMedium" dir="in">
+        <desc>Target medium.</desc>
+      </param>
+      <param name="logicalSize" type="long long" dir="in">
+        <desc>New nominal capacity of the medium in bytes.</desc>
+      </param>
+      <param name="variant" type="MediumVariant" safearray="yes" dir="in">
+        <desc>Exact image variant which should be created (as a combination of
+          <link to="MediumVariant" /> flags).</desc>
+      </param>
+      <param name="parent" type="IMedium" dir="in">
+        <desc>Parent of the cloned medium.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
   </interface>
 
 
@@ -20356,12 +20372,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <desc>
           The current state of mouse buttons. Every bit represents
           a mouse button as follows:
-          <table>
-            <tr><td>Bit 0 (<tt>0x01</tt>)</td><td>left mouse button</td></tr>
-            <tr><td>Bit 1 (<tt>0x02</tt>)</td><td>right mouse button</td></tr>
-            <tr><td>Bit 2 (<tt>0x04</tt>)</td><td>middle mouse button</td></tr>
-          </table>
-          A value of <tt>1</tt> means the corresponding button is pressed.
+          <dl>
+            <dt>Bit 0 (<tt>0x01</tt>)</dt><dd>left mouse button</dd>
+            <dt>Bit 1 (<tt>0x02</tt>)</dt><dd>right mouse button</dd>
+            <dt>Bit 2 (<tt>0x04</tt>)</dt><dd>middle mouse button</dd>
+          </dl>
+          A value of @c 1 means the corresponding button is pressed.
           otherwise it is released.
         </desc>
       </param>
@@ -20421,11 +20437,11 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         <desc>
           The current state of mouse buttons. Every bit represents
           a mouse button as follows:
-          <table>
-            <tr><td>Bit 0 (<tt>0x01</tt>)</td><td>left mouse button</td></tr>
-            <tr><td>Bit 1 (<tt>0x02</tt>)</td><td>right mouse button</td></tr>
-            <tr><td>Bit 2 (<tt>0x04</tt>)</td><td>middle mouse button</td></tr>
-          </table>
+          <dl>
+            <dt>Bit 0 (<tt>0x01</tt>)</dt><dd>left mouse button</dd>
+            <dt>Bit 1 (<tt>0x02</tt>)</dt><dd>right mouse button</dd>
+            <dt>Bit 2 (<tt>0x04</tt>)</dt><dd>middle mouse button</dd>
+          </dl>
           A value of @c 1 means the corresponding button is pressed.
           otherwise it is released.
         </desc>

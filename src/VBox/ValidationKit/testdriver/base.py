@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154842 $"
 
 
 # Standard Python imports.
@@ -81,7 +81,7 @@ def exeSuff():
     """
     Returns the executable suffix.
     """
-    if os.name == 'nt' or os.name == 'os2':
+    if os.name in ('nt', 'os2'):
         return '.exe';
     return '';
 
@@ -483,7 +483,7 @@ class TdTaskBase(object):
         if not fOld:
             reporter.log2('signalTaskLocked(%s)' % (self,));
         self.fSignalled = True;
-        self.oCv.notifyAll()
+        self.oCv.notifyAll(); # pylint: disable=deprecated-method
         if self.oOwner is not None:
             self.oOwner.notifyAboutReadyTask(self);
         return fOld;
@@ -714,6 +714,28 @@ class Process(TdTaskBase):
         """
         self.sKindCrashReport = sKindCrashReport;
         self.sKindCrashDump   = sKindCrashDump;
+
+        sCorePath = None;
+        sOs       = utils.getHostOs();
+        if sOs == 'solaris':
+            if sKindCrashDump is not None: # Enable.
+                sCorePath = getDirEnv('TESTBOX_PATH_SCRATCH', sAlternative = '/var/cores', fTryCreate = False);
+                (iExitCode, _, sErr) = utils.processOutputUnchecked([ 'coreadm', '-e', 'global', '-e', 'global-setid', \
+                                                                      '-e', 'process', '-e', 'proc-setid', \
+                                                                      '-g', os.path.join(sCorePath, '%f.%p.core')]);
+            else: # Disable.
+                (iExitCode, _, sErr) = utils.processOutputUnchecked([ 'coreadm', \
+                                                                      '-d', 'global', '-d', 'global-setid', \
+                                                                      '-d', 'process', '-d', 'proc-setid' ]);
+            if iExitCode != 0: # Don't report an actual error, just log this.
+                reporter.log('%s coreadm failed: %s' % ('Enabling' if sKindCrashDump else 'Disabling', sErr));
+
+        if sKindCrashDump is not None:
+            if sCorePath is not None:
+                reporter.log('Crash dumps enabled -- path is "%s"' % (sCorePath,));
+        else:
+            reporter.log('Crash dumps disabled');
+
         return True;
 
     def isRunning(self):
@@ -1411,7 +1433,7 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
         elif asArgs[iArg] in self.asNormalActions:
             self.asActions.append(asArgs[iArg])
         elif asArgs[iArg] in self.asSpecialActions:
-            if self.asActions != []:
+            if self.asActions:
                 raise InvalidOption('selected special action "%s" already' % (self.asActions[0], ));
             self.asActions = [ asArgs[iArg] ];
             # extact <destination>
@@ -1685,7 +1707,7 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
                     if iNext == iArg:
                         raise InvalidOption('unknown option: %s' % (asArgs[iArg]))
                 iArg = iNext;
-        except QuietInvalidOption as oXcpt:
+        except QuietInvalidOption:
             return rtexitcode.RTEXITCODE_SYNTAX;
         except InvalidOption as oXcpt:
             reporter.error(oXcpt.str());
@@ -1698,7 +1720,7 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
         if not self.completeOptions():
             return rtexitcode.RTEXITCODE_SYNTAX;
 
-        if self.asActions == []:
+        if not self.asActions:
             reporter.error('no action was specified');
             reporter.error('valid actions: %s' % (self.asNormalActions + self.asSpecialActions + ['all']));
             return rtexitcode.RTEXITCODE_SYNTAX;
@@ -1770,7 +1792,7 @@ class TestDriverBase(object): # pylint: disable=too-many-instance-attributes
 
             self.pidFileRemove(os.getpid());
 
-        if asActions != [] and fRc is True:
+        if asActions and fRc is True:
             reporter.error('unhandled actions: %s' % (asActions,));
             fRc = False;
 

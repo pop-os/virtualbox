@@ -60,24 +60,6 @@ public:
     virtual ~UIDnDHandler(void);
 
     /**
-     * Current operation mode.
-     * Note: The operation mode is independent of the machine's overall
-     *       drag and drop mode.
-     */
-    typedef enum DNDOPMODE
-    {
-        /** Unknown mode. */
-        DNDMODE_UNKNOWN     = 0,
-        /** Host to guest. */
-        DNDMODE_HOSTTOGUEST = 1,
-        /** Guest to host. */
-        DNDMODE_GUESTTOHOST = 2,
-        /** @todo Implement guest to guest. */
-        /** The usual 32-bit type blow up. */
-        DNDMODE_32BIT_HACK = 0x7fffffff
-    } DNDOPMODE;
-
-    /**
      * Drag and drop data set from the source.
      */
     typedef struct UIDnDDataSource
@@ -91,6 +73,7 @@ public:
 
     } UIDnDDataSource;
 
+    int                        init(void);
     void                       reset(void);
 
     /* Frontend -> Target. */
@@ -140,7 +123,12 @@ protected:
 
     int                        dragStartInternal(const QStringList &lstFormats, Qt::DropAction defAction, Qt::DropActions actions);
     int                        retrieveDataInternal(Qt::DropAction dropAction, const QString &strMIMEType, QVector<uint8_t> &vecData);
-    void                       setOpMode(DNDOPMODE enmMode);
+
+protected:
+
+#ifdef RT_OS_WINDOWS
+    static int                 getProcessIntegrityLevel(DWORD *pdwIntegrityLevel);
+#endif
 
 protected:
 
@@ -152,15 +140,9 @@ protected:
     CDnDSource        m_dndSource;
     /** Drag and drop target instance. */
     CDnDTarget        m_dndTarget;
-    /** Current operation mode, indicating the transfer direction.
-     *  Note: This is independent of the current drag and drop
-     *        mode being set for this VM! */
-    DNDOPMODE         m_enmOpMode;
     /** Current data from the source (if any).
      *  At the momenet we only support one source at a time. */
     UIDnDDataSource   m_dataSource;
-    /** Flag indicating if a drag operation is pending currently. */
-    bool              m_fIsPending;
     /** Flag indicating whether data has been retrieved from
      *  the guest already or not. */
     bool              m_fDataRetrieved;
@@ -169,12 +151,16 @@ protected:
     /** Data received from the guest. */
     QVector<uint8_t>  m_vecData;
 
-#ifndef RT_OS_WINDOWS
+#ifdef RT_OS_WINDOWS
+    /** Process integrity level we're running with. Needed for UIPI detection + logging.
+     *  Set to 0 if not set yet or unavailable. */
+    DWORD             m_dwIntegrityLevel;
+#else /* !RT_OS_WINDOWS */
     /** Pointer to MIMEData instance used for handling
      *  own MIME times on non-Windows host OSes. */
     UIDnDMIMEData    *m_pMIMEData;
     friend class UIDnDMIMEData;
-#endif
+#endif /* RT_OS_WINDOWS */
 };
 #endif /* !FEQT_INCLUDED_SRC_runtime_UIDnDHandler_h */
 

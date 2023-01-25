@@ -1144,8 +1144,10 @@ endif
 
 # Continue to support Vista w/o any service pack, at least for now.
 VBOX_WITH_VISTA_NO_SP = 1
-# Enable image verification on darwin @bugref{9232}.
-VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION = 1
+ifdef VBOX_WITH_VBOXDRV
+ # Enable image verification on darwin @bugref{9232}.
+ VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION = 1
+endif
 ## @}
 
 
@@ -1669,6 +1671,45 @@ ifdef VBOX_USE_KSUBMIT
 endif
 
 #
+# Requested permissions to the host OS (only the entitlements
+# crap on darwin for now).
+#
+ifeq ($(KBUILD_TARGET),darwin)
+ #
+ # The first two entitlements are required to get everything working
+ # on Catalina which we want to keep supported for now.
+ #
+ VBOX_DARWIN_ENTITLEMENTS_LIST := \
+ 	com.apple.security.cs.allow-unsigned-executable-memory \
+ 	com.apple.security.cs.disable-executable-page-protection \
+ 	com.apple.security.device.audio-input \
+ 	com.apple.security.device.camera \
+ 	com.apple.security.device.usb
+
+ #
+ # The hypervisor entitlement is required in adhoc signing mode
+ # to get access to the Hypervisor framework. For release signing
+ # the entitlement is included in our developer certificate.
+ #
+ # The device-access and networking entitlemnents are reserved for
+ # only specific vendors and are only available in release mode signing
+ # (binaries signed with these entitlements in adhoc mode will just crash
+ # with a code signing error).
+ #
+ ifeq ($(VBOX_SIGNING_MODE),adhoc)
+  VBOX_DARWIN_ENTITLEMENTS_LIST += \
+  	com.apple.security.hypervisor
+ else
+  VBOX_DARWIN_ENTITLEMENTS_LIST += \
+  	com.apple.vm.device-access \
+  	com.apple.vm.networking
+ endif
+
+ # Where the dynamic generated entitlements can be found.
+ VBOX_DARWIN_ENTITLEMENTS_FILE := $(PATH_OUT)/Entitlements.plist
+endif
+
+#
 # Image and object format config.
 #
 if1of ($(KBUILD_TARGET), freebsd haiku linux netbsd openbsd solaris)
@@ -1883,7 +1924,8 @@ endif
 # Temporary measure while kBuild / tools updates their define quoting.
 ifdef KMK_WITH_QUOTING
  if   ("$(VBOX_VCC_TOOL_STEM)" >= "VCC140" && "$(KBUILD_TARGET)" == "win") \
-   || ("$(KBUILD_TARGET)" != "darwin" && "$(KBUILD_TARGET)" != "win" && "$(KMK_REVISION)" >= 3566)
+   || ("$(KBUILD_TARGET)" != "darwin" && "$(KBUILD_TARGET)" != "win" && "$(KMK_REVISION)" >= 3566) \
+   || ("$(KBUILD_TARGET)" == "darwin" &&                                "$(KMK_REVISION)" >= 3579)
   VBOX_WITH_AUTOMATIC_DEFS_QUOTING := 1
  endif
 endif
@@ -2000,9 +2042,9 @@ ifdef VBOX_PATH_SHARED_LIBS
 endif
 ifdef VBOX_PATH_APP_DOCS
  ifdef VBOX_WITH_AUTOMATIC_DEFS_QUOTING
- CDEFS += RTPATH_APP_DOCS="$(VBOX_PATH_APP_DOCS)"
+  CDEFS += RTPATH_APP_DOCS="$(VBOX_PATH_APP_DOCS)"
  else
- CDEFS += RTPATH_APP_DOCS=\"$(VBOX_PATH_APP_DOCS)\"
+  CDEFS += RTPATH_APP_DOCS=\"$(VBOX_PATH_APP_DOCS)\"
  endif
 endif
 if1of ($(KBUILD_TARGET), os2) # The gcc here is too old to grok #pragma once, instead it complains.
@@ -2315,6 +2357,7 @@ VBOX_PYLINT_FLAGS = $(if-expr $(VBOX_PYLINT_VERSION) >= 10500,--reports=n,--repo
        $(if-expr $(VBOX_PYLINT_VERSION) >= 20000,--disable=useless-object-inheritance --disable=useless-return,) \
        $(if-expr $(VBOX_PYLINT_VERSION) >= 20400,--disable=import-outside-toplevel,) \
        $(if-expr $(VBOX_PYLINT_VERSION) >= 20900,--disable=super-with-arguments --disable=raise-missing-from,) \
+       $(if-expr $(VBOX_PYLINT_VERSION) >= 21200,--disable=consider-using-f-string --disable=unnecessary-semicolon --disable=redundant-u-string-prefix) \
 	--disable=unnecessary-semicolon,invalid-encoded-data,global-statement,bare-except,broad-except,multiple-statements,no-self-use,fixme \
 	--disable=I0011 \
 	--ignored-classes=testdriver.vboxcon \
@@ -3291,6 +3334,8 @@ endif
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-cast-function-type         ?= $(call VBOX_GCC_CHECK_CC,-Wno-cast-function-type,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-deprecated-declarations    ?= $(call VBOX_GCC_CHECK_CC,-Wno-deprecated-declarations,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-implicit-fallthrough       ?= $(call VBOX_GCC_CHECK_CC,-Wno-implicit-fallthrough,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-inline                     ?= $(call VBOX_GCC_CHECK_CXX,-Wno-inline,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-unknown-pragmas            ?= $(call VBOX_GCC_CHECK_CXX,-Wno-unknown-pragmas,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-stack-protector   ?= $(call VBOX_GCC_CHECK_CC,-fno-stack-protector,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_fno-dwarf2-cfi-asm    ?= $(call VBOX_GCC_CHECK_CC,-fno-dwarf2-cfi-asm,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_m64                   ?= $(call VBOX_GCC_CHECK_CC,-m64,)'
@@ -3500,8 +3545,13 @@ if   $(KBUILD_TARGET) == "linux" \
  VBOX_GCC_WARN_PEDANTIC += $(VBOX_GCC_WARN_MASOCHISTIC)
 endif
 
-VBOX_GCC_PEDANTIC_CXX ?= -pedantic $(VBOX_GCC_WARN_PEDANTIC) $(VBOX_GCC_Wno-return-type-c-linkage) $(VBOX_GCC_Wno-overloaded-virtual) $(VBOX_GCC_Wno-undefined-var-template)
-VBOX_GCC_PEDANTIC_C   ?= -pedantic $(VBOX_GCC_WARN_PEDANTIC) -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations -Werror-implicit-function-declaration
+ifdef VBOX_GCC_Wno-variadic-macros # Don't use -pedantic unless -Wno-variadic-macros also works. Too noisy.
+ VBOX_GCC_PEDANTIC_OPTION ?= -pedantic
+else
+ VBOX_GCC_PEDANTIC_OPTION ?=
+endif
+VBOX_GCC_PEDANTIC_CXX ?= $(VBOX_GCC_PEDANTIC_OPTION) $(VBOX_GCC_WARN_PEDANTIC) $(VBOX_GCC_Wno-return-type-c-linkage) $(VBOX_GCC_Wno-overloaded-virtual) $(VBOX_GCC_Wno-undefined-var-template)
+VBOX_GCC_PEDANTIC_C   ?= $(VBOX_GCC_PEDANTIC_OPTION) $(VBOX_GCC_WARN_PEDANTIC) -Wmissing-prototypes -Wstrict-prototypes -Wmissing-declarations -Werror-implicit-function-declaration
 
 # Avoid freaking out when using flexible arrays in C++ code (ldrPE.cpp, ++).
 if ($(VBOX_GCC_VERSION_CXX) < 60100 || $(VBOX_GCC_VERSION_CXX) >= 70000) && "$(VBOX_GCC_Wno-array_bounds)" != ""
@@ -3968,11 +4018,19 @@ endif
 #  - The 'release' mode is tailored for creating builds that are give to other
 #    people, like the ones the build servers create.  As much as possible is
 #    signed and timestamped.
+#  - The 'adhoc' mode is specific to building on macOS and is similar to 'test'
+#    mode but doesn't require any certificates but a host set up for development work.
+#    Binaries are signed in adhoc mode and include required entitlements as appropriate
+#    (something we would only do in the 'packing' target). This seem to be the only working
+#    way with newer versions of macOS (tested with Ventura) with 'test' not working anymore.
 #
 ifdef VBOX_SIGNING_MODE
  VBOX_SIGNING_MODE := $(strip $(VBOX_SIGNING_MODE))
- ifn1of ($(VBOX_SIGNING_MODE), test release)
-  $(error VBOX_SIGNING_MODE must be either 'test' or 'release'. The value '$(VBOX_SIGNING_MODE)' is not recognized.)
+ ifn1of ($(VBOX_SIGNING_MODE), test release adhoc)
+  $(error VBOX_SIGNING_MODE must be either 'test', 'release' or 'adhoc'. The value '$(VBOX_SIGNING_MODE)' is not recognized.)
+ endif
+ if "$(VBOX_SIGNING_MODE)" == "adhoc" && "$(KBUILD_TARGET)" != "darwin"
+  $(error 'adhoc' signing mode is only available on macOS)
  endif
  VBOX_RETRY    ?= $(ASH) $(KBUILD_DEVTOOLS)/bin/retry.sh
  # temporary solution for a $(dir ...) equivalent which assumes that it gets a single path, possibly with spaces.
@@ -4295,6 +4353,33 @@ ifdef VBOX_SIGNING_MODE
   VBOX_LEGACY_TS_CA_FILE = $(VBOX_PATH_SRC_CERTIFICATES)/Timestamp-VBoxLegacyWinCA.crt
 
  else ifeq ($(KBUILD_HOST),darwin)
+
+  ## Sign a VM process binary with the given entitlements
+  # @param 1  The file to sign.
+  # @param 2  Identifier, optional.
+  ifeq ($(VBOX_SIGNING_MODE),adhoc)
+  if $(intersects darwin all 1,$(VBOX_WITH_CORP_CODE_SIGNING))
+   ## @todo cannot handle $(2), the identifier.
+   VBOX_SIGN_IMAGE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB) \
+	$(call VBOX_CCS_SIGN_CMD,binary,$(1),,$(subst --entitlements=,-entitlement_file_path ,$(3)) \
+		$(if $(VBOX_WITH_MACOS_HARDENED_RUNTIME),-hardened_runtime))
+  else
+   VBOX_SIGN_IMAGE_FN = $(call MSG_TOOL,SIGNTOOL,,$(1),$(2))$(NLTAB)$(VBOX_CODESIGN) \
+	--verbose=9 \
+	--force \
+	$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 14,--digest-algorithm sha256,) \
+	$(if $(VBOX_WITH_MACOS_HARDENED_RUNTIME),$(if-expr $(KBUILD_HOST_VERSION_MAJOR) <= 16,--options 0x10000,--options runtime)) \
+	--file-list - \
+	$(if-expr defined(VBOX_TSA_URL),--timestamp="$(VBOX_TSA_URL)") \
+	$(VBOX_CERTIFICATE_SUBJECT_NAME_ARGS) \
+	--entitlements="$(VBOX_DARWIN_ENTITLEMENTS_FILE)" \
+	"$(1)" \
+	$(if $(2),--identifier "$(2)",)
+  endif
+  else
+    VBOX_SIGN_IMAGE_FN =
+  endif
+
   #
   # Darwin code signing.
   #
@@ -4308,6 +4393,14 @@ ifdef VBOX_SIGNING_MODE
    VBOX_CERTIFICATE_SUBJECT_NAME ?= $(error You need to set VBOX_CERTIFICATE_SUBJECT_NAME in LocalConfig.kmk.)
    VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= --sign "$(VBOX_CERTIFICATE_SUBJECT_NAME)"
    VBOX_TSA_URL ?= none
+  else ifeq ($(VBOX_SIGNING_MODE), adhoc)
+   ifdef VBOX_CERTIFICATE_SUBJECT_NAME
+    $(error VBOX_CERTIFICATE_SUBJECT_NAME must not be set in 'adhoc' signing mode)
+   endif
+   VBOX_CERTIFICATE_SUBJECT_NAME = -
+   VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= --sign "$(VBOX_CERTIFICATE_SUBJECT_NAME)"
+   VBOX_TSA_URL ?= none
+   VBOX_SIGN_IMAGE_CMDS           ?= $(if $(eq $(tool_do),LINK_LIBRARY),,$(call VBOX_SIGN_IMAGE_FN,$(out),,2))
   else
    VBOX_CERTIFICATE_SUBJECT_NAME ?= Developer ID Application: Oracle America, Inc.
    VBOX_CERTIFICATE_SUBJECT_NAME_ARGS ?= --sign "$(VBOX_CERTIFICATE_SUBJECT_NAME)"
@@ -4962,7 +5055,7 @@ SDK_VBOX_LIBXML2_DEFS.win      ?= WIN32 _WINDOWS _MBCS HAVE_WIN32_THREADS HAVE_C
 # zlib
 SDK_VBOX_ZLIB                  := zlib for dll linking.
 if1of ($(KBUILD_TARGET), os2 solaris win)
- SDK_VBOX_ZLIB_INCS            ?= $(PATH_ROOT)/src/libs/zlib-1.2.12
+ SDK_VBOX_ZLIB_INCS            ?= $(PATH_ROOT)/src/libs/zlib-1.2.13
  SDK_VBOX_ZLIB_LIBS            ?= $(PATH_STAGE_LIB)/VBox-zlib$(VBOX_SUFF_LIB)
 else
  SDK_VBOX_ZLIB_INCS            ?=
@@ -5724,9 +5817,8 @@ TEMPLATE_VBOXR0DRV_CFLAGS.x86          = -m32 -mno-sse -mno-mmx -mno-sse2 -mno-3
 TEMPLATE_VBOXR0DRV_CFLAGS.amd64        = -m64 -mno-sse -mno-mmx -mno-sse2 -mno-3dnow $(VBOX_GCC_msave-args) \
 	-mno-red-zone -mcmodel=kernel $(if-expr defined(VBOX_GCC_USING_SOLARIS_AS),-Wa$(COMMA)-xmodel=kernel,) \
 	-fno-reorder-blocks -fno-asynchronous-unwind-tables -funit-at-a-time
-TEMPLATE_VBOXR0DRV_CXXFLAGS           = -Wpointer-arith -Winline \
-	-Wshadow -Wuninitialized -Wunused-function -Wunused-label -Wunused-value -Wunused-variable \
-	-Wformat \
+TEMPLATE_VBOXR0DRV_CXXFLAGS           = -Wpointer-arith \
+	-Wshadow -Wuninitialized -Wunused-function -Wunused-label -Wunused-value -Wunused-variable -Wformat \
 	-O2 -nodefaultlibs -fno-omit-frame-pointer -fno-strict-aliasing -fno-common -fno-exceptions -fno-rtti
 TEMPLATE_VBOXR0DRV_CXXFLAGS.x86       = $(TEMPLATE_VBOXR0DRV_CFLAGS.x86)
 TEMPLATE_VBOXR0DRV_CXXFLAGS.amd64     = $(TEMPLATE_VBOXR0DRV_CFLAGS.amd64)
@@ -6189,6 +6281,7 @@ TEMPLATE_VBOXR3EXE_OBJCFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_OBJCFLAGS)
 TEMPLATE_VBOXR3EXE_OBJCXXFLAGS.darwin  = $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS)
 TEMPLATE_VBOXR3EXE_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_LDFLAGS) -Wl,-headerpad_max_install_names
 TEMPLATE_VBOXR3EXE_LDFLAGS.darwin.x86  = -read_only_relocs suppress
+TEMPLATE_VBOXR3EXE_POST_CMDS.darwin    = $(VBOX_SIGN_IMAGE_CMDS)
   ifdef VBOX_WITH_DTRACE_R3
    TEMPLATE_VBOXR3EXE_CXXFLAGS := $(filter-out -pedantic,$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) -fdollars-in-identifiers # annoying gcc option precedence.
   endif
@@ -6225,6 +6318,9 @@ TEMPLATE_VBOXR3EXE_LIBPATH            += \
  else ifeq ($(KBUILD_TARGET),solaris)
 TEMPLATE_VBOXR3EXE_TOOL                = GXX3PLAIN
 TEMPLATE_VBOXR3EXE_DEFS               += LIBICONV_PLUG _REENTRANT # Avoid the GNU libiconv, for now at least.
+  if $(VBOX_GCC_VERSION_CC) < 30500
+TEMPLATE_VBOXR3EXE_CFLAGS             += -std=gnu99
+  endif
 TEMPLATE_VBOXR3EXE_LIBS                = rt socket
  else
 $(warning Warning: VBOX Build: Target $(KBUILD_TARGET) is not officially supported!)
@@ -7331,6 +7427,7 @@ TEMPLATE_VBOXMAINEXE_OBJCXXFLAGS        += $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS)
 TEMPLATE_VBOXMAINEXE_LDFLAGS.darwin     += -bind_at_load
 TEMPLATE_VBOXMAINEXE_LDFLAGS            += $(VBOX_DARWIN_DEF_SDK_LDFLAGS) -framework Carbon -Wl,-headerpad_max_install_names
 TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME)
+TEMPLATE_VBOXMAINEXE_POST_CMDS.darwin    = $(VBOX_SIGN_IMAGE_CMDS)
  else ifeq ($(KBUILD_TARGET),haiku)
 TEMPLATE_VBOXMAINEXE_TOOL                = GXX3
 TEMPLATE_VBOXMAINEXE_LIBS                = $(LIB_RUNTIME) network stdc++ supc++
@@ -7997,6 +8094,7 @@ ifdef VBOX_WITH_QTGUI
    TEMPLATE_VBOXQTGUIEXE_LDFLAGS.darwin     += $(VBOX_DARWIN_DEF_SDK_LDFLAGS) -bind_at_load -Wl,-headerpad_max_install_names
    TEMPLATE_VBOXQTGUIEXE_LIBS +=
    TEMPLATE_VBOXQTGUIEXE_LIBPATH +=
+   TEMPLATE_VBOXQTGUIEXE_POST_CMDS.darwin    = $(VBOX_SIGN_IMAGE_CMDS)
   else
    TEMPLATE_VBOXQTGUIEXE_INCS += \
 	$(VBOX_XCURSOR_INCS)
@@ -8505,7 +8603,6 @@ TEMPLATE_VBOXGUESTR3EXE_DEFS     := \
 	IN_RT_STATIC \
 	$(VBOX_GC_ARCH_BITS_DEFS) \
 	RT_NEED_NEW_AND_DELETE
-TEMPLATE_VBOXGUESTR3EXE_DEFS.linux := $(TEMPLATE_$(TEMPLATE_VBOXGUESTR3EXE_EXTENDS)_DEFS.linux) LOG_USE_C99 RT_WITHOUT_EXEC_ALLOC
 ifeq ($(KBUILD_TARGET),linux) # As few libs as possible on linux.
  TEMPLATE_VBOXGUESTR3EXE_LIBS     = pthread rt m dl
 else if1of ($(KBUILD_TARGET), darwin freebsd openbsd)
@@ -9110,11 +9207,29 @@ $(VBOX_LICENSE_VER_KMK): $(VBOX_BRAND_LICENSE_HTML)
 endif
 
 
+ifeq ($(KBUILD_TARGET),darwin)
+$(VBOX_DARWIN_ENTITLEMENTS_FILE):
+	$(call MSG_GENERATE,,$@)
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(RM) -f $@ $@.tmp
+	$(QUIET)$(APPEND) $@.tmp '<?xml version="1.0" encoding="UTF-8"?>'
+	$(QUIET)$(APPEND) $@.tmp '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">'
+	$(QUIET)$(APPEND) $@.tmp '<plist version="1.0">'
+	$(QUIET)$(APPEND) $@.tmp '<dict>'
+	$(QUIET)$(APPEND) -n $@.tmp $(foreach entitlement,$(VBOX_DARWIN_ENTITLEMENTS_LIST), '	<key>$(entitlement)</key><true/>')
+	$(QUIET)$(APPEND) $@.tmp '</dict>'
+	$(QUIET)$(APPEND) $@.tmp '</plist>'
+	$(QUIET)$(MV) -f $@.tmp $@
+endif
+
 ifndef VBOX_NOINC_MISC
 # Force building of the version header file as the first thing anywhere in
 # the tree. This eliminates the need for manual dependencies on it.
 ## @todo there gotta be a better way of doing this.
 Makefile.kmk: | $(VBOX_VERSION_HEADER) $(VBOX_VERSION_MK) $(VBOX_PRODUCT_HEADER) $(VBOX_PACKAGE_HEADER)
+ ifeq ($(KBUILD_TARGET),darwin)
+Makefile.kmk: | $(VBOX_DARWIN_ENTITLEMENTS_FILE)
+ endif
 endif
 
 
@@ -9133,7 +9248,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 154372 $  )
+ VBOX_SVN_REV_CONFIG_FALLBACK := $(patsubst %:,,  $Rev: 155117 $  )
  VBOX_SVN_REV_FALLBACK := $(if-expr $(VBOX_SVN_REV_CONFIG_FALLBACK) > $(VBOX_SVN_REV_VERSION_FALLBACK),$(VBOX_SVN_REV_CONFIG_FALLBACK),$(VBOX_SVN_REV_VERSION_FALLBACK))
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)

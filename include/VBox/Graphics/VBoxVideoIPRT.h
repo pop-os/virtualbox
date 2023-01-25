@@ -40,7 +40,7 @@
 # pragma once
 #endif
 
-#ifndef RT_OS_OS2
+#if !defined(RT_OS_OS2) || !defined(__IBMC__) /* IBM VACpp 3.08 doesn't properly eliminate unused inline functions */
 # include <iprt/asm.h>
 # include <iprt/string.h>
 #endif
@@ -52,7 +52,7 @@
 #include <iprt/stdint.h>
 #include <iprt/types.h>
 
-#if !defined VBOX_XPDM_MINIPORT && !defined RT_OS_OS2 && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
+#if !defined(VBOX_XPDM_MINIPORT) && !defined(RT_OS_OS2) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
 # include <iprt/asm-amd64-x86.h>
 #endif
 

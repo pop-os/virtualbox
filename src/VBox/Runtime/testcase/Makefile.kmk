@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -103,6 +103,7 @@ ifndef VBOX_ONLY_VALIDATIONKIT
  	tstRTHeapSimple \
  	tstRTInlineAsm \
  	tstIprtList \
+ 	tstIprtMiniList \
  	tstIprtMiniString \
  	tstLdr \
  	tstLdrLoad \
@@ -211,8 +212,10 @@ ifndef VBOX_ONLY_VALIDATIONKIT
   PROGRAMS += \
   	tstNoCrt-1
   if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), win.amd64) ## Build and test x86 too!
-   PROGRAMS += \
-   	tstRTNoCrt-2
+   PROGRAMS += tstRTNoCrt-2
+  endif
+  if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), win.x86 win.amd64)
+   PROGRAMS += tstRTNoCrt-3 tstRTNoCrt-3r tstRTNoCrt-4
   endif
  endif
 
@@ -313,31 +316,32 @@ tstRTCritSectW32_DEFS = TRY_WIN32_CRIT
 tstRTCrPkix-1_TEMPLATE      = VBOXR3TSTEXE
 tstRTCrPkix-1_SOURCES       = tstRTCrPkix-1.cpp
 
-tstRTCrX509-1_TEMPLATE      = VBOXR3TSTEXE
-tstRTCrX509-1_SOURCES       = tstRTCrX509-1.cpp
-tstRTCrX509-1_INCS          = $(tstRTCrX509-1_0_OUTDIR)
-tstRTCrX509-1_CLEAN         = $(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h
-tstRTCrX509-1_INTERMEDIATES = $(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h
-tstRTCrX509-1_VBOX_FILES := \
-	Pem_md4=$(PATH_SUB_CURRENT)/tstRTCrX509-md4.pem \
-	Pem_md5=$(PATH_SUB_CURRENT)/tstRTCrX509-md5.pem \
-	Pem_sha1=$(PATH_SUB_CURRENT)/tstRTCrX509-sha1.pem \
-	Pem_sha224=$(PATH_SUB_CURRENT)/tstRTCrX509-sha224.pem \
-	Pem_sha256=$(PATH_SUB_CURRENT)/tstRTCrX509-sha256.pem \
-	Pem_sha384=$(PATH_SUB_CURRENT)/tstRTCrX509-sha384.pem \
-	Pem_sha512=$(PATH_SUB_CURRENT)/tstRTCrX509-sha512.pem \
-	Pem_cert1=$(PATH_SUB_CURRENT)/tstRTCrX509-cert1.pem \
-       \
-	Der_md4=$(PATH_SUB_CURRENT)/tstRTCrX509-md4-cert.der \
-	Der_md5=$(PATH_SUB_CURRENT)/tstRTCrX509-md5-cert.der \
-	Der_sha1=$(PATH_SUB_CURRENT)/tstRTCrX509-sha1-cert.der \
-	Der_sha224=$(PATH_SUB_CURRENT)/tstRTCrX509-sha224-cert.der \
-	Der_sha256=$(PATH_SUB_CURRENT)/tstRTCrX509-sha256-cert.der \
-	Der_sha384=$(PATH_SUB_CURRENT)/tstRTCrX509-sha384-cert.der \
-	Der_sha512=$(PATH_SUB_CURRENT)/tstRTCrX509-sha512-cert.der \
-	Der_cert1=$(PATH_SUB_CURRENT)/tstRTCrX509-cert1.der \
-       $(NO_SUCH_VARIABLE)
-$$(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h: \
+ifndef VBOX_ONLY_VALIDATIONKIT
+ tstRTCrX509-1_TEMPLATE      = VBOXR3TSTEXE
+ tstRTCrX509-1_SOURCES       = tstRTCrX509-1.cpp
+ tstRTCrX509-1_INCS          = $(tstRTCrX509-1_0_OUTDIR)
+ tstRTCrX509-1_CLEAN         = $(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h
+ tstRTCrX509-1_INTERMEDIATES = $(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h
+ tstRTCrX509-1_VBOX_FILES := \
+ 	Pem_md4=$(PATH_SUB_CURRENT)/tstRTCrX509-md4.pem \
+ 	Pem_md5=$(PATH_SUB_CURRENT)/tstRTCrX509-md5.pem \
+ 	Pem_sha1=$(PATH_SUB_CURRENT)/tstRTCrX509-sha1.pem \
+ 	Pem_sha224=$(PATH_SUB_CURRENT)/tstRTCrX509-sha224.pem \
+ 	Pem_sha256=$(PATH_SUB_CURRENT)/tstRTCrX509-sha256.pem \
+ 	Pem_sha384=$(PATH_SUB_CURRENT)/tstRTCrX509-sha384.pem \
+ 	Pem_sha512=$(PATH_SUB_CURRENT)/tstRTCrX509-sha512.pem \
+ 	Pem_cert1=$(PATH_SUB_CURRENT)/tstRTCrX509-cert1.pem \
+ 	\
+ 	Der_md4=$(PATH_SUB_CURRENT)/tstRTCrX509-md4-cert.der \
+ 	Der_md5=$(PATH_SUB_CURRENT)/tstRTCrX509-md5-cert.der \
+ 	Der_sha1=$(PATH_SUB_CURRENT)/tstRTCrX509-sha1-cert.der \
+ 	Der_sha224=$(PATH_SUB_CURRENT)/tstRTCrX509-sha224-cert.der \
+ 	Der_sha256=$(PATH_SUB_CURRENT)/tstRTCrX509-sha256-cert.der \
+ 	Der_sha384=$(PATH_SUB_CURRENT)/tstRTCrX509-sha384-cert.der \
+ 	Der_sha512=$(PATH_SUB_CURRENT)/tstRTCrX509-sha512-cert.der \
+ 	Der_cert1=$(PATH_SUB_CURRENT)/tstRTCrX509-cert1.der \
+ 	$(NO_SUCH_VARIABLE)
+ $$(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h: \
 		$(foreach file,$(tstRTCrX509-1_VBOX_FILES),$(lastword  $(subst =,$(SP) ,$(file)))) \
 		$(VBOX_BIN2C) \
 		| $$(dir $$@)
@@ -347,6 +351,7 @@ $$(tstRTCrX509-1_0_OUTDIR)/tstRTCrX509-1.h: \
 		"$(firstword $(subst =,$(SP) ,$(file)))" \
 		"$(lastword  $(subst =,$(SP) ,$(file)))" \
 		"$@")
+endif # !VBOX_ONLY_VALIDATIONKIT
 
 
 tstRTCType_TEMPLATE = VBOXR3TSTEXE
@@ -456,6 +461,9 @@ tstRTInlineAsmPIC3_DEFS = PIC
 tstIprtList_TEMPLATE = VBOXR3TSTEXE
 tstIprtList_SOURCES = tstIprtList.cpp
 
+tstIprtMiniList_TEMPLATE = VBOXR3TSTEXE
+tstIprtMiniList_SOURCES = tstIprtMiniList.cpp
+
 tstIprtMiniString_TEMPLATE = VBOXR3TSTEXE
 tstIprtMiniString_SOURCES = tstIprtMiniString.cpp
 
@@ -541,15 +549,17 @@ tstRTLocalIpc_SOURCES = tstRTLocalIpc.cpp
 tstRTLockValidator_TEMPLATE = VBOXR3TSTEXE
 tstRTLockValidator_SOURCES = tstRTLockValidator.cpp
 
-tstLog_TEMPLATE      = VBOXR3TSTEXE
-tstLog_SOURCES       = tstLog.cpp
-tstLog_INCS          = $(tstLog_0_OUTDIR)
-tstLog_INTERMEDIATES = $(tstLog_0_OUTDIR)/tstLogGroups.h
-tstLog_CLEAN         = $(tstLog_0_OUTDIR)/tstLogGroups.h
-$$(tstLog_0_OUTDIR)/tstLogGroups.h: $(PATH_ROOT)/include/VBox/log.h
+ifndef VBOX_ONLY_VALIDATIONKIT
+ tstLog_TEMPLATE      = VBOXR3TSTEXE
+ tstLog_SOURCES       = tstLog.cpp
+ tstLog_INCS          = $(tstLog_0_OUTDIR)
+ tstLog_INTERMEDIATES = $(tstLog_0_OUTDIR)/tstLogGroups.h
+ tstLog_CLEAN         = $(tstLog_0_OUTDIR)/tstLogGroups.h
+ $$(tstLog_0_OUTDIR)/tstLogGroups.h: $(PATH_ROOT)/include/VBox/log.h
 	$(call MSG_GENERATE,,$@,$<)
 	$(QUIET)$(RM) -f -- "$@"
 	$(QUIET)$(SED) -n -e 's/^ *LOG_GROUP_\([A-Z0-9_]*\),.*$(DOLLAR)/{ LOG_GROUP_\1, "\1" },/p' --output "$@" "$<"
+endif # !VBOX_ONLY_VALIDATIONKIT
 
 tstRTMemEf_TEMPLATE = VBOXR3TSTEXE
 tstRTMemEf_SOURCES = tstRTMemEf.cpp
@@ -708,6 +718,23 @@ tstRTNoCrt-2_SOURCES += \
 	../common/math/trunc.asm \
 	../common/math/truncf.asm
 endif
+
+#
+# For testing no-CRT exception handling we need to use the static build,
+# assuming ofc that VBOX_WITH_NOCRT_STATIC is in effect.
+#
+TEMPLATE_VBoxR3TstExeStatic         := Testcase for the static (no-CRT) libraries.
+TEMPLATE_VBoxR3TstExeStatic_EXTENDS := VBoxR3Static
+TEMPLATE_VBoxR3TstExeStatic_INST     = $(INST_TESTCASE)
+
+tstRTNoCrt-3_TEMPLATE := VBoxR3TstExeStatic
+tstRTNoCrt-3_SOURCES  := tstRTNoCrt-3.cpp
+
+tstRTNoCrt-3r_TEMPLATE := VBOXR3TSTEXE
+tstRTNoCrt-3r_SOURCES  := tstRTNoCrt-3.cpp
+
+tstRTNoCrt-4_TEMPLATE := VBOXR3TSTEXE
+tstRTNoCrt-4_SOURCES  := tstRTNoCrt-4.cpp
 
 tstRTNtPath-1_TEMPLATE = VBOXR3TSTEXE
 tstRTNtPath-1_SOURCES = tstRTNtPath-1.cpp

@@ -578,7 +578,7 @@ void UIScreenshotViewer::prepare()
     adjustWindowSize();
 
     /* Center according requested widget: */
-    UIDesktopWidgetWatchdog::centerWidget(this, parentWidget(), false);
+    gpDesktop->centerWidget(this, parentWidget(), false);
 }
 
 void UIScreenshotViewer::adjustWindowSize()

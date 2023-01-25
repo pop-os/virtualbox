@@ -39,7 +39,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153912 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard Python imports.
@@ -223,7 +223,7 @@ def getHostOsVersion():
         sDist = '';
         try:
             # try /etc/lsb-release first to distinguish between Debian and Ubuntu
-            with open('/etc/lsb-release') as oFile:
+            with open('/etc/lsb-release') as oFile: # pylint: disable=unspecified-encoding
                 for sLine in oFile:
                     oMatch = re.search(r'(?:DISTRIB_DESCRIPTION\s*=)\s*"*(.*)"', sLine);
                     if oMatch is not None:
@@ -244,7 +244,7 @@ def getHostOsVersion():
             for sFile, sPrefix in asFiles:
                 if os.path.isfile(sFile):
                     try:
-                        with open(sFile) as oFile:
+                        with open(sFile) as oFile: # pylint: disable=unspecified-encoding
                             sLine = oFile.readline();
                     except:
                         continue;
@@ -257,7 +257,7 @@ def getHostOsVersion():
         sVersion = platform.version();
         if os.path.isfile('/etc/release'):
             try:
-                with open('/etc/release') as oFile:
+                with open('/etc/release') as oFile: # pylint: disable=unspecified-encoding
                     sLast = oFile.readlines()[-1];
                 sLast = sLast.strip();
                 if sLast:
@@ -386,7 +386,7 @@ def openNoInherit(sFile, sMode = 'r'):
     # Python 3.4 and later automatically creates non-inherit handles. See PEP-0446.
     uPythonVer = (sys.version_info[0] << 16) | (sys.version_info[1] & 0xffff);
     if uPythonVer >= ((3 << 16) | 4):
-        oFile = open(sFile, sMode);                             # pylint: disable=consider-using-with
+        oFile = open(sFile, sMode);                             # pylint: disable=consider-using-with,unspecified-encoding
     else:
         try:
             from fcntl import FD_CLOEXEC, F_GETFD, F_SETFD, fcntl; # pylint: disable=import-error
@@ -396,14 +396,14 @@ def openNoInherit(sFile, sMode = 'r'):
                 if uPythonVer < (3 << 16):
                     offComma = sMode.find(',');
                     if offComma < 0:
-                        return open(sFile, sMode + 'N');        # pylint: disable=consider-using-with
-                    return open(sFile,                          # pylint: disable=consider-using-with,bad-open-mode
+                        return open(sFile, sMode + 'N');        # pylint: disable=consider-using-with,unspecified-encoding
+                    return open(sFile,                          # pylint: disable=consider-using-with,unspecified-encoding,bad-open-mode
                                 sMode[:offComma] + 'N' + sMode[offComma:]);
 
             # Just in case.
-            return open(sFile, sMode);                          # pylint: disable=consider-using-with
+            return open(sFile, sMode);                          # pylint: disable=consider-using-with,unspecified-encoding
 
-        oFile = open(sFile, sMode);                             # pylint: disable=consider-using-with
+        oFile = open(sFile, sMode);                             # pylint: disable=consider-using-with,unspecified-encoding
         #try:
         fcntl(oFile, F_SETFD, fcntl(oFile, F_GETFD) | FD_CLOEXEC);
         #except:
@@ -463,7 +463,7 @@ def openNoDenyDeleteNoInherit(sFile, sMode = 'r'):
         # Tell python to use this handle.
         oFile = os.fdopen(fdFile, sMode);
     else:
-        oFile = open(sFile, sMode);                                     # pylint: disable=consider-using-with
+        oFile = open(sFile, sMode);                                     # pylint: disable=consider-using-with,unspecified-encoding
 
         # Python 3.4 and later automatically creates non-inherit handles. See PEP-0446.
         uPythonVer = (sys.version_info[0] << 16) | (sys.version_info[1] & 0xffff);
@@ -492,7 +492,7 @@ def readFile(sFile, sMode = 'rb'):
     """
     Reads the entire file.
     """
-    with open(sFile, sMode) as oFile:
+    with open(sFile, sMode) as oFile: # pylint: disable=unspecified-encoding
         sRet = oFile.read();
     return sRet;
 
@@ -1019,7 +1019,7 @@ def processExists(uPid):
         except pywintypes.error as oXcpt:                                   # pylint: disable=no-member
             if oXcpt.winerror == winerror.ERROR_ACCESS_DENIED:
                 fRc = True;
-        except Exception as oXcpt:
+        except:
             pass;
         else:
             hProcess.Close();
@@ -1380,7 +1380,7 @@ def processCollectCrashInfo(uPid, fnLog, fnCrashFile):
                 # The pid can be found at the end of the first line.
                 sFull = os.path.join(sDir, sEntry);
                 try:
-                    with open(sFull, 'r') as oFile:
+                    with open(sFull, 'r') as oFile: # pylint: disable=unspecified-encoding
                         sFirstLine = oFile.readline();
                 except:
                     continue;
@@ -1430,7 +1430,41 @@ def processCollectCrashInfo(uPid, fnLog, fnCrashFile):
                     sFull = os.path.join(sDir, sEntry);
                     fnLog('Found crash dump for %u: %s' % (uPid, sFull,));
                     fnCrashFile(sFull, True);
-
+    elif sOs == 'solaris':
+        asDmpDirs = [];
+        try:
+            sScratchPath = os.environ.get('TESTBOX_PATH_SCRATCH', None);
+            asDmpDirs.extend([ sScratchPath ]);
+        except:
+            pass;
+        # Some other useful locations as fallback.
+        asDmpDirs.extend([
+            u'/var/cores/',
+            u'/var/core/',
+        ]);
+        #
+        # Solaris by default creates a core file in the directory of the crashing process with the name 'core'.
+        #
+        # As we need to distinguish the core files correlating to their PIDs and have a persistent storage location,
+        # the host needs to be tweaked via:
+        #
+        # ```coreadm -g /path/to/cores/core.%f.%p```
+        #
+        sMatchSuffix = '.%u.core' % (uPid,);
+        for sDir in asDmpDirs:
+            sDir = os.path.expandvars(sDir);
+            if not os.path.isdir(sDir):
+                continue;
+            try:
+                asDirEntries = os.listdir(sDir);
+            except:
+                continue;
+            for sEntry in asDirEntries:
+                fnLog('Entry: %s' % (os.path.join(sDir, sEntry)));
+                if sEntry.endswith(sMatchSuffix):
+                    sFull = os.path.join(sDir, sEntry);
+                    fnLog('Found crash dump for %u: %s' % (uPid, sFull,));
+                    fnCrashFile(sFull, True);
     else:
         pass; ## TODO
     return None;
@@ -2452,7 +2486,7 @@ def calcCrc32OfFile(sFile):
     import zlib;
 
     uCrc32 = 0;
-    with open(sFile, 'rb') as oFile:
+    with open(sFile, 'rb') as oFile: # pylint: disable=unspecified-encoding
         while True:
             oBuf = oFile.read(1024 * 1024);
             if not oBuf:
@@ -2535,4 +2569,3 @@ class BuildCategoryDataTestCase(unittest.TestCase):
 if __name__ == '__main__':
     unittest.main();
     # not reached.
-

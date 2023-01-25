@@ -97,15 +97,6 @@ namespace NativeWindowSubsystem
     /** X11: Determines and returns current Window Manager type. */
     X11WMType X11WindowManagerType();
 
-#if 0 // unused for now?
-    /** X11: Inits the screen saver save/restore mechanism. */
-    SHARED_LIBRARY_STUFF void X11ScreenSaverSettingsInit();
-    /** X11: Saves screen saver settings. */
-    SHARED_LIBRARY_STUFF void X11ScreenSaverSettingsSave();
-    /** X11: Restores previously saved screen saver settings. */
-    SHARED_LIBRARY_STUFF void X11ScreenSaverSettingsRestore();
-#endif // unused for now?
-
     /** X11: Returns true if XLib extension with name @p extensionName is avaible, false otherwise. */
     bool X11CheckExtension(const char *extensionName);
 
@@ -138,14 +129,12 @@ namespace NativeWindowSubsystem
       *      focus away from the VM. */
     SHARED_LIBRARY_STUFF void X11SetXwaylandMayGrabKeyboardFlag(QWidget *pWidget);
 
-    /** X11: Get the X11 display pointer. */
-    SHARED_LIBRARY_STUFF struct _XDisplay *X11GetDisplay(void);
-
-    /** X11: Get the X11 connection.   */
-    SHARED_LIBRARY_STUFF struct xcb_connection_t *X11GetConnection(void);
-
-    /** X11: Get the X11 root (desktop) window. */
-    SHARED_LIBRARY_STUFF uint32_t X11GetAppRootWindow(void);
+    /** X11: Gets the X11 display pointer. */
+    SHARED_LIBRARY_STUFF struct _XDisplay *X11GetDisplay();
+    /** X11: Gets the X11 connection. */
+    SHARED_LIBRARY_STUFF struct xcb_connection_t *X11GetConnection();
+    /** X11: Gets the X11 root (desktop) window. */
+    SHARED_LIBRARY_STUFF uint32_t X11GetAppRootWindow();
 }
 
 #endif /* !FEQT_INCLUDED_SRC_platform_x11_VBoxUtils_x11_h */

@@ -174,6 +174,59 @@ static VBOXSTRICTRC    iemMemFetchSelDescWithErr(PVMCPUCC pVCpu, PIEMSELDESC pDe
 
 
 /**
+ * Slow path of iemInitDecoder() and iemInitExec() that checks what kind of
+ * breakpoints are enabled.
+ *
+ * @param   pVCpu               The cross context virtual CPU structure of the
+ *                              calling thread.
+ */
+void iemInitPendingBreakpointsSlow(PVMCPUCC pVCpu)
+{
+    /*
+     * Process guest breakpoints.
+     */
+#define PROCESS_ONE_BP(a_fDr7, a_iBp) do { \
+        if (a_fDr7 & X86_DR7_L_G(a_iBp)) \
+        { \
+            switch (X86_DR7_GET_RW(a_fDr7, a_iBp)) \
+            { \
+                case X86_DR7_RW_EO: \
+                    pVCpu->iem.s.fPendingInstructionBreakpoints = true; \
+                    break; \
+                case X86_DR7_RW_WO: \
+                case X86_DR7_RW_RW: \
+                    pVCpu->iem.s.fPendingDataBreakpoints = true; \
+                    break; \
+                case X86_DR7_RW_IO: \
+                    pVCpu->iem.s.fPendingIoBreakpoints = true; \
+                    break; \
+            } \
+        } \
+    } while (0)
+    uint32_t const fGstDr7 = (uint32_t)pVCpu->cpum.GstCtx.dr[7];
+    if (fGstDr7 & X86_DR7_ENABLED_MASK)
+    {
+        PROCESS_ONE_BP(fGstDr7, 0);
+        PROCESS_ONE_BP(fGstDr7, 1);
+        PROCESS_ONE_BP(fGstDr7, 2);
+        PROCESS_ONE_BP(fGstDr7, 3);
+    }
+
+    /*
+     * Process hypervisor breakpoints.
+     */
+    uint32_t const fHyperDr7 = DBGFBpGetDR7(pVCpu->CTX_SUFF(pVM));
+    if (fHyperDr7 & X86_DR7_ENABLED_MASK)
+    {
+        PROCESS_ONE_BP(fHyperDr7, 0);
+        PROCESS_ONE_BP(fHyperDr7, 1);
+        PROCESS_ONE_BP(fHyperDr7, 2);
+        PROCESS_ONE_BP(fHyperDr7, 3);
+    }
+}
+
+
+/**
  * Initializes the decoder state.
  *
  * iemReInitDecoder is mostly a copy of this function.
@@ -239,6 +292,14 @@ DECLINLINE(void) iemInitDecoder(PVMCPUCC pVCpu, bool fBypassHandlers, bool fDisr
     pVCpu->iem.s.rcPassUp           = VINF_SUCCESS;
     pVCpu->iem.s.fBypassHandlers    = fBypassHandlers;
     pVCpu->iem.s.fDisregardLock     = fDisregardLock;
+    pVCpu->iem.s.fPendingInstructionBreakpoints = false;
+    pVCpu->iem.s.fPendingDataBreakpoints        = false;
+    pVCpu->iem.s.fPendingIoBreakpoints          = false;
+    if (RT_LIKELY(   !(pVCpu->cpum.GstCtx.dr[7] & X86_DR7_ENABLED_MASK)
+                  && pVCpu->CTX_SUFF(pVM)->dbgf.ro.cEnabledHwBreakpoints == 0))
+    { /* likely */ }
+    else
+        iemInitPendingBreakpointsSlow(pVCpu);
 
 #ifdef DBGFTRACE_ENABLED
     switch (enmMode)
@@ -303,7 +364,9 @@ DECLINLINE(void) iemReInitDecoder(PVMCPUCC pVCpu)
 #ifdef IEM_WITH_CODE_TLB
     if (pVCpu->iem.s.pbInstrBuf)
     {
-        uint64_t off = (pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT ? pVCpu->cpum.GstCtx.rip : pVCpu->cpum.GstCtx.eip + (uint32_t)pVCpu->cpum.GstCtx.cs.u64Base)
+        uint64_t off = (pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT
+                        ? pVCpu->cpum.GstCtx.rip
+                        : pVCpu->cpum.GstCtx.eip + (uint32_t)pVCpu->cpum.GstCtx.cs.u64Base)
                      - pVCpu->iem.s.uInstrBufPc;
         if (off < pVCpu->iem.s.cbInstrBufTotal)
         {
@@ -374,15 +437,16 @@ static VBOXSTRICTRC iemInitDecoderAndPrefetchOpcodes(PVMCPUCC pVCpu, bool fBypas
 {
     iemInitDecoder(pVCpu, fBypassHandlers, fDisregardLock);
 
-#ifdef IEM_WITH_CODE_TLB
-    /** @todo Do ITLB lookup here. */
-
-#else /* !IEM_WITH_CODE_TLB */
-
+#ifndef IEM_WITH_CODE_TLB
     /*
      * What we're doing here is very similar to iemMemMap/iemMemBounceBufferMap.
      *
      * First translate CS:rIP to a physical address.
+     *
+     * Note! The iemOpcodeFetchMoreBytes code depends on this here code to fetch
+     *       all relevant bytes from the first page, as it ASSUMES it's only ever
+     *       called for dealing with CS.LIM, page crossing and instructions that
+     *       are too long.
      */
     uint32_t    cbToTryRead;
     RTGCPTR     GCPtrPC;
@@ -420,31 +484,31 @@ static VBOXSTRICTRC iemInitDecoderAndPrefetchOpcodes(PVMCPUCC pVCpu, bool fBypas
     else
     {
         Log(("iemInitDecoderAndPrefetchOpcodes: %RGv - rc=%Rrc\n", GCPtrPC, rc));
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
         if (Walk.fFailed & PGM_WALKFAIL_EPT)
             IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, IEM_ACCESS_INSTRUCTION, IEM_SLAT_FAIL_LINEAR_TO_PHYS_ADDR, 0 /* cbInstr */);
-#endif
-        return iemRaisePageFault(pVCpu, GCPtrPC, IEM_ACCESS_INSTRUCTION, rc);
+# endif
+        return iemRaisePageFault(pVCpu, GCPtrPC, 1, IEM_ACCESS_INSTRUCTION, rc);
     }
     if ((Walk.fEffective & X86_PTE_US) || pVCpu->iem.s.uCpl != 3) { /* likely */ }
     else
     {
         Log(("iemInitDecoderAndPrefetchOpcodes: %RGv - supervisor page\n", GCPtrPC));
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
         if (Walk.fFailed & PGM_WALKFAIL_EPT)
             IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, IEM_ACCESS_INSTRUCTION, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
-#endif
-        return iemRaisePageFault(pVCpu, GCPtrPC, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
+# endif
+        return iemRaisePageFault(pVCpu, GCPtrPC, 1, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
     }
     if (!(Walk.fEffective & X86_PTE_PAE_NX) || !(pVCpu->cpum.GstCtx.msrEFER & MSR_K6_EFER_NXE)) { /* likely */ }
     else
     {
         Log(("iemInitDecoderAndPrefetchOpcodes: %RGv - NX\n", GCPtrPC));
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
+# ifdef VBOX_WITH_NESTED_HWVIRT_VMX_EPT
         if (Walk.fFailed & PGM_WALKFAIL_EPT)
             IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, IEM_ACCESS_INSTRUCTION, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
-#endif
-        return iemRaisePageFault(pVCpu, GCPtrPC, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
+# endif
+        return iemRaisePageFault(pVCpu, GCPtrPC, 1, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
     }
     RTGCPHYS const GCPhys = Walk.GCPhys | (GCPtrPC & GUEST_PAGE_OFFSET_MASK);
     /** @todo Check reserved bits and such stuff. PGM is better at doing
@@ -718,7 +782,7 @@ VMM_INT_DECL(void) IEMTlbInvalidateAllPhysicalAllCpus(PVMCC pVM, VMCPUID idCpuCa
  */
 void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXCEPT_MAY_LONGJMP
 {
-#ifdef IN_RING3
+# ifdef IN_RING3
     for (;;)
     {
         Assert(cbDst <= 8);
@@ -767,7 +831,7 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
             /* Assert(!(GCPtrFirst & ~(uint32_t)UINT16_MAX) || pVCpu->iem.s.enmCpuMode == IEMMODE_32BIT); - this is allowed */
             if (RT_LIKELY((uint32_t)GCPtrFirst <= pVCpu->cpum.GstCtx.cs.u32Limit))
             { /* likely */ }
-            else /** @todo For CPUs older than the 386, we should not generate \#GP here but wrap around! */
+            else /** @todo For CPUs older than the 386, we should not necessarily generate \#GP here but wrap around! */
                 iemRaiseSelectorBoundsJmp(pVCpu, X86_SREG_CS, IEM_ACCESS_INSTRUCTION);
             cbMaxRead = pVCpu->cpum.GstCtx.cs.u32Limit - (uint32_t)GCPtrFirst + 1;
             if (cbMaxRead != 0)
@@ -809,7 +873,7 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
                 Assert(!(Walk.fFailed & PGM_WALKFAIL_EPT));
 #endif
                 Log(("iemOpcodeFetchMoreBytes: %RGv - rc=%Rrc\n", GCPtrFirst, rc));
-                iemRaisePageFaultJmp(pVCpu, GCPtrFirst, IEM_ACCESS_INSTRUCTION, rc);
+                iemRaisePageFaultJmp(pVCpu, GCPtrFirst, 1, IEM_ACCESS_INSTRUCTION, rc);
             }
 
             AssertCompile(IEMTLBE_F_PT_NO_EXEC == 1);
@@ -829,12 +893,12 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
             if ((pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PT_NO_USER) && pVCpu->iem.s.uCpl == 3)
             {
                 Log(("iemOpcodeFetchBytesJmp: %RGv - supervisor page\n", GCPtrFirst));
-                iemRaisePageFaultJmp(pVCpu, GCPtrFirst, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
+                iemRaisePageFaultJmp(pVCpu, GCPtrFirst, 1, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
             }
             if ((pTlbe->fFlagsAndPhysRev & IEMTLBE_F_PT_NO_EXEC) && (pVCpu->cpum.GstCtx.msrEFER & MSR_K6_EFER_NXE))
             {
                 Log(("iemOpcodeFetchMoreBytes: %RGv - NX\n", GCPtrFirst));
-                iemRaisePageFaultJmp(pVCpu, GCPtrFirst, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
+                iemRaisePageFaultJmp(pVCpu, GCPtrFirst, 1, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
             }
         }
 
@@ -868,7 +932,7 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
              == pVCpu->iem.s.CodeTlb.uTlbPhysRev)
         {
             uint32_t const offPg = (GCPtrFirst & X86_PAGE_OFFSET_MASK);
-            pVCpu->iem.s.cbInstrBufTotal  = offPg + cbMaxRead;
+            pVCpu->iem.s.cbInstrBufTotal = offPg + cbMaxRead;
             if (offBuf == (uint32_t)(int32_t)pVCpu->iem.s.offCurInstrStart)
             {
                 pVCpu->iem.s.cbInstrBuf       = offPg + RT_MIN(15, cbMaxRead);
@@ -877,9 +941,17 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
             else
             {
                 uint32_t const cbInstr = offBuf - (uint32_t)(int32_t)pVCpu->iem.s.offCurInstrStart;
-                Assert(cbInstr < cbMaxRead);
-                pVCpu->iem.s.cbInstrBuf       = offPg + RT_MIN(cbMaxRead + cbInstr, 15) - cbInstr;
-                pVCpu->iem.s.offCurInstrStart = (int16_t)(offPg - cbInstr);
+                if (cbInstr + (uint32_t)cbDst <= 15)
+                {
+                    pVCpu->iem.s.cbInstrBuf       = offPg + RT_MIN(cbMaxRead + cbInstr, 15) - cbInstr;
+                    pVCpu->iem.s.offCurInstrStart = (int16_t)(offPg - cbInstr);
+                }
+                else
+                {
+                    Log(("iemOpcodeFetchMoreBytes: %04x:%08RX64 LB %#x + %#zx -> #GP(0)\n",
+                         pVCpu->cpum.GstCtx.cs, pVCpu->cpum.GstCtx.rip, cbInstr, cbDst));
+                    iemRaiseGeneralProtectionFault0Jmp(pVCpu);
+                }
             }
             if (cbDst <= cbMaxRead)
             {
@@ -894,9 +966,8 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
             memcpy(pvDst, &pTlbe->pbMappingR3[offPg], cbMaxRead);
             pVCpu->iem.s.offInstrNextByte = offPg + cbMaxRead;
         }
-        else
-# endif
-#if 0
+# else
+#  error "refactor as needed"
         /*
          * If there is no special read handling, so we can read a bit more and
          * put it in the prefetch buffer.
@@ -924,14 +995,27 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
                 IEM_DO_LONGJMP(pVCpu, VBOXSTRICTRC_VAL(rcStrict));
             }
         }
+# endif
         /*
          * Special read handling, so only read exactly what's needed.
          * This is a highly unlikely scenario.
          */
         else
-#endif
         {
             pVCpu->iem.s.CodeTlb.cTlbSlowReadPath++;
+
+            /* Check instruction length. */
+            uint32_t const cbInstr = offBuf - (uint32_t)(int32_t)pVCpu->iem.s.offCurInstrStart;
+            if (RT_LIKELY(cbInstr + cbDst <= 15))
+            { /* likely */ }
+            else
+            {
+                Log(("iemOpcodeFetchMoreBytes: %04x:%08RX64 LB %#x + %#zx -> #GP(0) [slow]\n",
+                     pVCpu->cpum.GstCtx.cs, pVCpu->cpum.GstCtx.rip, cbInstr, cbDst));
+                iemRaiseGeneralProtectionFault0Jmp(pVCpu);
+            }
+
+            /* Do the reading. */
             uint32_t const cbToRead = RT_MIN((uint32_t)cbDst, cbMaxRead);
             VBOXSTRICTRC rcStrict = PGMPhysRead(pVCpu->CTX_SUFF(pVM), pTlbe->GCPhys + (GCPtrFirst & X86_PAGE_OFFSET_MASK),
                                                 pvDst, cbToRead, PGMACCESSORIGIN_IEM);
@@ -963,11 +1047,11 @@ void iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXC
         cbDst -= cbMaxRead;
         pvDst  = (uint8_t *)pvDst + cbMaxRead;
     }
-#else
+# else  /* !IN_RING3 */
     RT_NOREF(pvDst, cbDst);
     if (pvDst || cbDst)
         IEM_DO_LONGJMP(pVCpu, VERR_INTERNAL_ERROR);
-#endif
+# endif /* !IN_RING3 */
 }
 
 #else
@@ -989,21 +1073,26 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
      *
      * First translate CS:rIP to a physical address.
      */
-    uint8_t     cbLeft = pVCpu->iem.s.cbOpcode - pVCpu->iem.s.offOpcode; Assert(cbLeft < cbMin);
-    uint32_t    cbToTryRead;
-    RTGCPTR     GCPtrNext;
+    uint8_t const   cbOpcode  = pVCpu->iem.s.cbOpcode;
+    uint8_t const   offOpcode = pVCpu->iem.s.offOpcode;
+    uint8_t const   cbLeft    = cbOpcode - offOpcode;
+    Assert(cbLeft < cbMin);
+    Assert(cbOpcode <= sizeof(pVCpu->iem.s.abOpcode));
+
+    uint32_t        cbToTryRead;
+    RTGCPTR         GCPtrNext;
     if (pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT)
     {
-        cbToTryRead = GUEST_PAGE_SIZE;
-        GCPtrNext   = pVCpu->cpum.GstCtx.rip + pVCpu->iem.s.cbOpcode;
+        GCPtrNext   = pVCpu->cpum.GstCtx.rip + cbOpcode;
         if (!IEM_IS_CANONICAL(GCPtrNext))
             return iemRaiseGeneralProtectionFault0(pVCpu);
+        cbToTryRead = GUEST_PAGE_SIZE - (GCPtrNext & GUEST_PAGE_OFFSET_MASK);
     }
     else
     {
         uint32_t GCPtrNext32 = pVCpu->cpum.GstCtx.eip;
         /* Assert(!(GCPtrNext32 & ~(uint32_t)UINT16_MAX) || pVCpu->iem.s.enmCpuMode == IEMMODE_32BIT); - this is allowed */
-        GCPtrNext32 += pVCpu->iem.s.cbOpcode;
+        GCPtrNext32 += cbOpcode;
         if (GCPtrNext32 > pVCpu->cpum.GstCtx.cs.u32Limit)
             /** @todo For CPUs older than the 386, we should not generate \#GP here but wrap around! */
             return iemRaiseSelectorBounds(pVCpu, X86_SREG_CS, IEM_ACCESS_INSTRUCTION);
@@ -1017,17 +1106,27 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
         if (cbToTryRead < cbMin - cbLeft)
             return iemRaiseSelectorBounds(pVCpu, X86_SREG_CS, IEM_ACCESS_INSTRUCTION);
         GCPtrNext = (uint32_t)pVCpu->cpum.GstCtx.cs.u64Base + GCPtrNext32;
+
+        uint32_t cbLeftOnPage = GUEST_PAGE_SIZE - (GCPtrNext & GUEST_PAGE_OFFSET_MASK);
+        if (cbToTryRead > cbLeftOnPage)
+            cbToTryRead = cbLeftOnPage;
     }
 
-    /* Only read up to the end of the page, and make sure we don't read more
-       than the opcode buffer can hold. */
-    uint32_t cbLeftOnPage = GUEST_PAGE_SIZE - (GCPtrNext & GUEST_PAGE_OFFSET_MASK);
-    if (cbToTryRead > cbLeftOnPage)
-        cbToTryRead = cbLeftOnPage;
-    if (cbToTryRead > sizeof(pVCpu->iem.s.abOpcode) - pVCpu->iem.s.cbOpcode)
-        cbToTryRead = sizeof(pVCpu->iem.s.abOpcode) - pVCpu->iem.s.cbOpcode;
-/** @todo r=bird: Convert assertion into undefined opcode exception? */
-    Assert(cbToTryRead >= cbMin - cbLeft); /* ASSUMPTION based on iemInitDecoderAndPrefetchOpcodes. */
+    /* Restrict to opcode buffer space.
+
+       We're making ASSUMPTIONS here based on work done previously in
+       iemInitDecoderAndPrefetchOpcodes, where bytes from the first page will
+       be fetched in case of an instruction crossing two pages. */
+    if (cbToTryRead > sizeof(pVCpu->iem.s.abOpcode) - cbOpcode)
+        cbToTryRead = sizeof(pVCpu->iem.s.abOpcode) - cbOpcode;
+    if (RT_LIKELY(cbToTryRead + cbLeft >= cbMin))
+    { /* likely */ }
+    else
+    {
+        Log(("iemOpcodeFetchMoreBytes: %04x:%08RX64 LB %#x + %#zx -> #GP(0)\n",
+             pVCpu->cpum.GstCtx.cs, pVCpu->cpum.GstCtx.rip, offOpcode, cbMin));
+        return iemRaiseGeneralProtectionFault0(pVCpu);
+    }
 
     PGMPTWALK Walk;
     int rc = PGMGstGetPage(pVCpu, GCPtrNext, &Walk);
@@ -1038,7 +1137,7 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
         if (Walk.fFailed & PGM_WALKFAIL_EPT)
             IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, IEM_ACCESS_INSTRUCTION, IEM_SLAT_FAIL_LINEAR_TO_PHYS_ADDR, 0 /* cbInstr */);
 #endif
-        return iemRaisePageFault(pVCpu, GCPtrNext, IEM_ACCESS_INSTRUCTION, rc);
+        return iemRaisePageFault(pVCpu, GCPtrNext, 1, IEM_ACCESS_INSTRUCTION, rc);
     }
     if (!(Walk.fEffective & X86_PTE_US) && pVCpu->iem.s.uCpl == 3)
     {
@@ -1047,7 +1146,7 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
         if (Walk.fFailed & PGM_WALKFAIL_EPT)
             IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, IEM_ACCESS_INSTRUCTION, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 #endif
-        return iemRaisePageFault(pVCpu, GCPtrNext, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
+        return iemRaisePageFault(pVCpu, GCPtrNext, 1, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
     }
     if ((Walk.fEffective & X86_PTE_PAE_NX) && (pVCpu->cpum.GstCtx.msrEFER & MSR_K6_EFER_NXE))
     {
@@ -1056,10 +1155,10 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
         if (Walk.fFailed & PGM_WALKFAIL_EPT)
             IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, IEM_ACCESS_INSTRUCTION, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 #endif
-        return iemRaisePageFault(pVCpu, GCPtrNext, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
+        return iemRaisePageFault(pVCpu, GCPtrNext, 1, IEM_ACCESS_INSTRUCTION, VERR_ACCESS_DENIED);
     }
     RTGCPHYS const GCPhys = Walk.GCPhys | (GCPtrNext & GUEST_PAGE_OFFSET_MASK);
-    Log5(("GCPtrNext=%RGv GCPhys=%RGp cbOpcodes=%#x\n",  GCPtrNext,  GCPhys,  pVCpu->iem.s.cbOpcode));
+    Log5(("GCPtrNext=%RGv GCPhys=%RGp cbOpcodes=%#x\n",  GCPtrNext,  GCPhys,  cbOpcode));
     /** @todo Check reserved bits and such stuff. PGM is better at doing
      *        that, so do it when implementing the guest virtual address
      *        TLB... */
@@ -1073,7 +1172,7 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
      */
     if (!pVCpu->iem.s.fBypassHandlers)
     {
-        VBOXSTRICTRC rcStrict = PGMPhysRead(pVCpu->CTX_SUFF(pVM), GCPhys, &pVCpu->iem.s.abOpcode[pVCpu->iem.s.cbOpcode],
+        VBOXSTRICTRC rcStrict = PGMPhysRead(pVCpu->CTX_SUFF(pVM), GCPhys, &pVCpu->iem.s.abOpcode[cbOpcode],
                                             cbToTryRead, PGMACCESSORIGIN_IEM);
         if (RT_LIKELY(rcStrict == VINF_SUCCESS))
         { /* likely */ }
@@ -1094,7 +1193,7 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
     }
     else
     {
-        rc = PGMPhysSimpleReadGCPhys(pVCpu->CTX_SUFF(pVM), &pVCpu->iem.s.abOpcode[pVCpu->iem.s.cbOpcode], GCPhys, cbToTryRead);
+        rc = PGMPhysSimpleReadGCPhys(pVCpu->CTX_SUFF(pVM), &pVCpu->iem.s.abOpcode[cbOpcode], GCPhys, cbToTryRead);
         if (RT_SUCCESS(rc))
         { /* likely */ }
         else
@@ -1103,7 +1202,7 @@ VBOXSTRICTRC iemOpcodeFetchMoreBytes(PVMCPUCC pVCpu, size_t cbMin) RT_NOEXCEPT
             return rc;
         }
     }
-    pVCpu->iem.s.cbOpcode += cbToTryRead;
+    pVCpu->iem.s.cbOpcode = cbOpcode + cbToTryRead;
     Log5(("%.*Rhxs\n", pVCpu->iem.s.cbOpcode, pVCpu->iem.s.abOpcode));
 
     return VINF_SUCCESS;
@@ -4105,7 +4204,7 @@ DECL_NO_RETURN(void) iemRaiseSelectorInvalidAccessJmp(PVMCPUCC pVCpu, uint32_t i
 
 
 /** \#PF(n) - 0e.  */
-VBOXSTRICTRC iemRaisePageFault(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t fAccess, int rc) RT_NOEXCEPT
+VBOXSTRICTRC iemRaisePageFault(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t cbAccess, uint32_t fAccess, int rc) RT_NOEXCEPT
 {
     uint16_t uErr;
     switch (rc)
@@ -4151,15 +4250,28 @@ VBOXSTRICTRC iemRaisePageFault(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t fAcc
     }
 #endif
 
+    /* For FXSAVE and FRSTOR the #PF is typically reported at the max address
+       of the memory operand rather than at the start of it. (Not sure what
+       happens if it crosses a page boundrary.)  The current heuristics for
+       this is to report the #PF for the last byte if the access is more than
+       64 bytes. This is probably not correct, but we can work that out later,
+       main objective now is to get FXSAVE to work like for real hardware and
+       make bs3-cpu-basic2 work. */
+    if (cbAccess <= 64)
+    { /* likely*/ }
+    else
+        GCPtrWhere += cbAccess - 1;
+
     return iemRaiseXcptOrInt(pVCpu, 0, X86_XCPT_PF, IEM_XCPT_FLAGS_T_CPU_XCPT | IEM_XCPT_FLAGS_ERR | IEM_XCPT_FLAGS_CR2,
                              uErr, GCPtrWhere);
 }
 
 #ifdef IEM_WITH_SETJMP
 /** \#PF(n) - 0e, longjmp.  */
-DECL_NO_RETURN(void) iemRaisePageFaultJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t fAccess, int rc) IEM_NOEXCEPT_MAY_LONGJMP
+DECL_NO_RETURN(void) iemRaisePageFaultJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t cbAccess,
+                                          uint32_t fAccess, int rc) IEM_NOEXCEPT_MAY_LONGJMP
 {
-    IEM_DO_LONGJMP(pVCpu, VBOXSTRICTRC_VAL(iemRaisePageFault(pVCpu, GCPtrWhere, fAccess, rc)));
+    IEM_DO_LONGJMP(pVCpu, VBOXSTRICTRC_VAL(iemRaisePageFault(pVCpu, GCPtrWhere, cbAccess, fAccess, rc)));
 }
 #endif
 
@@ -5378,10 +5490,13 @@ VBOXSTRICTRC iemMemApplySegment(PVMCPUCC pVCpu, uint32_t fAccess, uint8_t iSegRe
  *
  * @param   pVCpu               The cross context virtual CPU structure of the calling thread.
  * @param   GCPtrMem            The virtual address.
+ * @param   cbAccess            The access size, for raising \#PF correctly for
+ *                              FXSAVE and such.
  * @param   fAccess             The intended access.
  * @param   pGCPhysMem          Where to return the physical address.
  */
-VBOXSTRICTRC iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t fAccess, PRTGCPHYS pGCPhysMem) RT_NOEXCEPT
+VBOXSTRICTRC iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t cbAccess,
+                                               uint32_t fAccess, PRTGCPHYS pGCPhysMem) RT_NOEXCEPT
 {
     /** @todo Need a different PGM interface here.  We're currently using
      *        generic / REM interfaces. this won't cut it for R0. */
@@ -5400,7 +5515,7 @@ VBOXSTRICTRC iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem,
             IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PHYS_ADDR, 0 /* cbInstr */);
 #endif
         *pGCPhysMem = NIL_RTGCPHYS;
-        return iemRaisePageFault(pVCpu, GCPtrMem, fAccess, rc);
+        return iemRaisePageFault(pVCpu, GCPtrMem, cbAccess, fAccess, rc);
     }
 
     /* If the page is writable and does not have the no-exec bit set, all
@@ -5420,7 +5535,7 @@ VBOXSTRICTRC iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem,
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 #endif
-            return iemRaisePageFault(pVCpu, GCPtrMem, fAccess & ~IEM_ACCESS_TYPE_READ, VERR_ACCESS_DENIED);
+            return iemRaisePageFault(pVCpu, GCPtrMem, cbAccess, fAccess & ~IEM_ACCESS_TYPE_READ, VERR_ACCESS_DENIED);
         }
 
         /* Kernel memory accessed by userland? */
@@ -5434,7 +5549,7 @@ VBOXSTRICTRC iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem,
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 #endif
-            return iemRaisePageFault(pVCpu, GCPtrMem, fAccess, VERR_ACCESS_DENIED);
+            return iemRaisePageFault(pVCpu, GCPtrMem, cbAccess, fAccess, VERR_ACCESS_DENIED);
         }
 
         /* Executing non-executable memory? */
@@ -5448,7 +5563,7 @@ VBOXSTRICTRC iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem,
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 #endif
-            return iemRaisePageFault(pVCpu, GCPtrMem, fAccess & ~(IEM_ACCESS_TYPE_READ | IEM_ACCESS_TYPE_WRITE),
+            return iemRaisePageFault(pVCpu, GCPtrMem, cbAccess, fAccess & ~(IEM_ACCESS_TYPE_READ | IEM_ACCESS_TYPE_WRITE),
                                      VERR_ACCESS_DENIED);
         }
     }
@@ -5735,20 +5850,26 @@ static VBOXSTRICTRC iemMemBounceBufferCommitAndUnmap(PVMCPUCC pVCpu, unsigned iM
 static VBOXSTRICTRC
 iemMemBounceBufferMapCrossPage(PVMCPUCC pVCpu, int iMemMap, void **ppvMem, size_t cbMem, RTGCPTR GCPtrFirst, uint32_t fAccess)
 {
+    Assert(cbMem <= GUEST_PAGE_SIZE);
+
     /*
      * Do the address translations.
      */
+    uint32_t const cbFirstPage  = GUEST_PAGE_SIZE - (uint32_t)(GCPtrFirst & GUEST_PAGE_OFFSET_MASK);
     RTGCPHYS GCPhysFirst;
-    VBOXSTRICTRC rcStrict = iemMemPageTranslateAndCheckAccess(pVCpu, GCPtrFirst, fAccess, &GCPhysFirst);
+    VBOXSTRICTRC rcStrict = iemMemPageTranslateAndCheckAccess(pVCpu, GCPtrFirst, cbFirstPage, fAccess, &GCPhysFirst);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
+    Assert((GCPhysFirst & GUEST_PAGE_OFFSET_MASK) == (GCPtrFirst & GUEST_PAGE_OFFSET_MASK));
 
+    uint32_t const cbSecondPage = (uint32_t)cbMem - cbFirstPage;
     RTGCPHYS GCPhysSecond;
     rcStrict = iemMemPageTranslateAndCheckAccess(pVCpu, (GCPtrFirst + (cbMem - 1)) & ~(RTGCPTR)GUEST_PAGE_OFFSET_MASK,
-                                                 fAccess, &GCPhysSecond);
+                                                 cbSecondPage, fAccess, &GCPhysSecond);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
-    GCPhysSecond &= ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK;
+    Assert((GCPhysSecond & GUEST_PAGE_OFFSET_MASK) == 0);
+    GCPhysSecond &= ~(RTGCPHYS)GUEST_PAGE_OFFSET_MASK; /** @todo why? */
 
     PVMCC pVM = pVCpu->CTX_SUFF(pVM);
 
@@ -5756,9 +5877,7 @@ iemMemBounceBufferMapCrossPage(PVMCPUCC pVCpu, int iMemMap, void **ppvMem, size_
      * Read in the current memory content if it's a read, execute or partial
      * write access.
      */
-    uint8_t        *pbBuf        = &pVCpu->iem.s.aBounceBuffers[iMemMap].ab[0];
-    uint32_t const  cbFirstPage  = GUEST_PAGE_SIZE - (GCPhysFirst & GUEST_PAGE_OFFSET_MASK);
-    uint32_t const  cbSecondPage = (uint32_t)(cbMem - cbFirstPage);
+    uint8_t * const pbBuf = &pVCpu->iem.s.aBounceBuffers[iMemMap].ab[0];
 
     if (fAccess & (IEM_ACCESS_TYPE_READ | IEM_ACCESS_TYPE_EXEC | IEM_ACCESS_PARTIAL_WRITE))
     {
@@ -6036,10 +6155,11 @@ VBOXSTRICTRC iemMemMap(PVMCPUCC pVCpu, void **ppvMem, size_t cbMem, uint8_t iSeg
                     return iemRaiseAlignmentCheckException(pVCpu);
             }
             else if (   (uAlignCtl & IEM_MEMMAP_F_ALIGN_GP_OR_AC)
-                     && iemMemAreAlignmentChecksEnabled(pVCpu)
-/** @todo may only apply to 2, 4 or 8 byte misalignments depending on the CPU
- *        implementation. See FXSAVE/FRSTOR/XSAVE/XRSTOR/++. */
-                    )
+                     && (GCPtrMem & 3) /* The value 4 matches 10980xe's FXSAVE and helps make bs3-cpu-basic2 work. */
+                    /** @todo may only apply to 2, 4 or 8 byte misalignments depending on the CPU
+                     * implementation. See FXSAVE/FRSTOR/XSAVE/XRSTOR/++.  Using 4 for now as
+                     * that's what FXSAVE does on a 10980xe. */
+                     && iemMemAreAlignmentChecksEnabled(pVCpu))
                 return iemRaiseAlignmentCheckException(pVCpu);
             else
                 return iemRaiseGeneralProtectionFault0(pVCpu);
@@ -6072,7 +6192,7 @@ VBOXSTRICTRC iemMemMap(PVMCPUCC pVCpu, void **ppvMem, size_t cbMem, uint8_t iSeg
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PHYS_ADDR, 0 /* cbInstr */);
 # endif
-            return iemRaisePageFault(pVCpu, GCPtrMem, fAccess, rc);
+            return iemRaisePageFault(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess, rc);
         }
 
         Assert(Walk.fSucceeded);
@@ -6101,7 +6221,7 @@ VBOXSTRICTRC iemMemMap(PVMCPUCC pVCpu, void **ppvMem, size_t cbMem, uint8_t iSeg
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 # endif
-            return iemRaisePageFault(pVCpu, GCPtrMem, fAccess & ~IEM_ACCESS_TYPE_READ, VERR_ACCESS_DENIED);
+            return iemRaisePageFault(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess & ~IEM_ACCESS_TYPE_READ, VERR_ACCESS_DENIED);
         }
 
         /* Kernel memory accessed by userland? */
@@ -6114,7 +6234,7 @@ VBOXSTRICTRC iemMemMap(PVMCPUCC pVCpu, void **ppvMem, size_t cbMem, uint8_t iSeg
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 # endif
-            return iemRaisePageFault(pVCpu, GCPtrMem, fAccess, VERR_ACCESS_DENIED);
+            return iemRaisePageFault(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess, VERR_ACCESS_DENIED);
         }
     }
 
@@ -6205,7 +6325,7 @@ VBOXSTRICTRC iemMemMap(PVMCPUCC pVCpu, void **ppvMem, size_t cbMem, uint8_t iSeg
 #else  /* !IEM_WITH_DATA_TLB */
 
     RTGCPHYS GCPhysFirst;
-    rcStrict = iemMemPageTranslateAndCheckAccess(pVCpu, GCPtrMem, fAccess, &GCPhysFirst);
+    rcStrict = iemMemPageTranslateAndCheckAccess(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess, &GCPhysFirst);
     if (rcStrict != VINF_SUCCESS)
         return rcStrict;
 
@@ -6337,10 +6457,11 @@ void *iemMemMapJmp(PVMCPUCC pVCpu, size_t cbMem, uint8_t iSegReg, RTGCPTR GCPtrM
                     iemRaiseAlignmentCheckExceptionJmp(pVCpu);
             }
             else if (   (uAlignCtl & IEM_MEMMAP_F_ALIGN_GP_OR_AC)
-                     && iemMemAreAlignmentChecksEnabled(pVCpu)
-/** @todo may only apply to 2, 4 or 8 byte misalignments depending on the CPU
- *        implementation. See FXSAVE/FRSTOR/XSAVE/XRSTOR/++. */
-                    )
+                     && (GCPtrMem & 3) /* The value 4 matches 10980xe's FXSAVE and helps make bs3-cpu-basic2 work. */
+                    /** @todo may only apply to 2, 4 or 8 byte misalignments depending on the CPU
+                     * implementation. See FXSAVE/FRSTOR/XSAVE/XRSTOR/++.  Using 4 for now as
+                     * that's what FXSAVE does on a 10980xe. */
+                     && iemMemAreAlignmentChecksEnabled(pVCpu))
                 iemRaiseAlignmentCheckExceptionJmp(pVCpu);
             else
                 iemRaiseGeneralProtectionFault0Jmp(pVCpu);
@@ -6398,7 +6519,7 @@ void *iemMemMapJmp(PVMCPUCC pVCpu, size_t cbMem, uint8_t iSegReg, RTGCPTR GCPtrM
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PHYS_ADDR, 0 /* cbInstr */);
 # endif
-            iemRaisePageFaultJmp(pVCpu, GCPtrMem, fAccess, rc);
+            iemRaisePageFaultJmp(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess, rc);
         }
 
         Assert(Walk.fSucceeded);
@@ -6442,7 +6563,7 @@ void *iemMemMapJmp(PVMCPUCC pVCpu, size_t cbMem, uint8_t iSegReg, RTGCPTR GCPtrM
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 # endif
-            iemRaisePageFaultJmp(pVCpu, GCPtrMem, fAccess & ~IEM_ACCESS_TYPE_READ, VERR_ACCESS_DENIED);
+            iemRaisePageFaultJmp(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess & ~IEM_ACCESS_TYPE_READ, VERR_ACCESS_DENIED);
         }
 
         /* Kernel memory accessed by userland? */
@@ -6453,7 +6574,7 @@ void *iemMemMapJmp(PVMCPUCC pVCpu, size_t cbMem, uint8_t iSegReg, RTGCPTR GCPtrM
             if (Walk.fFailed & PGM_WALKFAIL_EPT)
                 IEM_VMX_VMEXIT_EPT_RET(pVCpu, &Walk, fAccess, IEM_SLAT_FAIL_LINEAR_TO_PAGE_TABLE, 0 /* cbInstr */);
 # endif
-            iemRaisePageFaultJmp(pVCpu, GCPtrMem, fAccess, VERR_ACCESS_DENIED);
+            iemRaisePageFaultJmp(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess, VERR_ACCESS_DENIED);
         }
 
         /* Set the dirty / access flags.
@@ -6541,7 +6662,7 @@ void *iemMemMapJmp(PVMCPUCC pVCpu, size_t cbMem, uint8_t iSegReg, RTGCPTR GCPtrM
 
 
     RTGCPHYS GCPhysFirst;
-    rcStrict = iemMemPageTranslateAndCheckAccess(pVCpu, GCPtrMem, fAccess, &GCPhysFirst);
+    rcStrict = iemMemPageTranslateAndCheckAccess(pVCpu, GCPtrMem, (uint32_t)cbMem, fAccess, &GCPhysFirst);
     if (rcStrict == VINF_SUCCESS) { /*likely*/ }
     else IEM_DO_LONGJMP(pVCpu, VBOXSTRICTRC_VAL(rcStrict));
 
@@ -9772,7 +9893,7 @@ DECLINLINE(VBOXSTRICTRC) iemExecOneInner(PVMCPUCC pVCpu, bool fExecuteInhibit, c
     VBOXSTRICTRC rcStrict;
     IEM_TRY_SETJMP(pVCpu, rcStrict)
     {
-        uint8_t b; IEM_OPCODE_GET_NEXT_U8(&b);
+        uint8_t b; IEM_OPCODE_GET_FIRST_U8(&b);
         rcStrict = FNIEMOP_CALL(g_apfnOneByteMap[b]);
     }
     IEM_CATCH_LONGJMP_BEGIN(pVCpu, rcStrict);
@@ -9781,7 +9902,7 @@ DECLINLINE(VBOXSTRICTRC) iemExecOneInner(PVMCPUCC pVCpu, bool fExecuteInhibit, c
     }
     IEM_CATCH_LONGJMP_END(pVCpu);
 #else
-    uint8_t b; IEM_OPCODE_GET_NEXT_U8(&b);
+    uint8_t b; IEM_OPCODE_GET_FIRST_U8(&b);
     VBOXSTRICTRC rcStrict = FNIEMOP_CALL(g_apfnOneByteMap[b]);
 #endif
     if (rcStrict == VINF_SUCCESS)
@@ -9832,7 +9953,7 @@ DECLINLINE(VBOXSTRICTRC) iemExecOneInner(PVMCPUCC pVCpu, bool fExecuteInhibit, c
 #ifdef IEM_WITH_SETJMP
             IEM_TRY_SETJMP_AGAIN(pVCpu, rcStrict)
             {
-                uint8_t b; IEM_OPCODE_GET_NEXT_U8(&b);
+                uint8_t b; IEM_OPCODE_GET_FIRST_U8(&b);
                 rcStrict = FNIEMOP_CALL(g_apfnOneByteMap[b]);
             }
             IEM_CATCH_LONGJMP_BEGIN(pVCpu, rcStrict);
@@ -9841,7 +9962,7 @@ DECLINLINE(VBOXSTRICTRC) iemExecOneInner(PVMCPUCC pVCpu, bool fExecuteInhibit, c
             }
             IEM_CATCH_LONGJMP_END(pVCpu);
 #else
-            IEM_OPCODE_GET_NEXT_U8(&b);
+            IEM_OPCODE_GET_FIRST_U8(&b);
             rcStrict = FNIEMOP_CALL(g_apfnOneByteMap[b]);
 #endif
             if (rcStrict == VINF_SUCCESS)
@@ -10122,7 +10243,7 @@ VMMDECL(VBOXSTRICTRC) IEMExecLots(PVMCPUCC pVCpu, uint32_t cMaxInstructions, uin
                 /*
                  * Do the decoding and emulation.
                  */
-                uint8_t b; IEM_OPCODE_GET_NEXT_U8(&b);
+                uint8_t b; IEM_OPCODE_GET_FIRST_U8(&b);
                 rcStrict = FNIEMOP_CALL(g_apfnOneByteMap[b]);
 #ifdef VBOX_STRICT
                 CPUMAssertGuestRFlagsCookie(pVM, pVCpu);
@@ -10290,7 +10411,7 @@ VMMDECL(VBOXSTRICTRC) IEMExecForExits(PVMCPUCC pVCpu, uint32_t fWillExit, uint32
                  */
                 uint32_t const cPotentialExits = pVCpu->iem.s.cPotentialExits;
 
-                uint8_t b; IEM_OPCODE_GET_NEXT_U8(&b);
+                uint8_t b; IEM_OPCODE_GET_FIRST_U8(&b);
                 rcStrict = FNIEMOP_CALL(g_apfnOneByteMap[b]);
 
                 if (   cPotentialExits != pVCpu->iem.s.cPotentialExits

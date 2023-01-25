@@ -49,7 +49,6 @@
 #include "QIRichTextLabel.h"
 #include "UIActionPoolManager.h"
 #include "UICloudConsoleManager.h"
-#include "UICloudMachineSettingsDialog.h"
 #include "UICloudNetworkingStuff.h"
 #include "UICloudProfileManager.h"
 #include "UIDesktopServices.h"
@@ -620,7 +619,7 @@ void UIVirtualBoxManager::dropEvent(QDropEvent *pEvent)
 void UIVirtualBoxManager::sltHandleHostScreenAvailableAreaChange()
 {
     /* Prevent handling if fake screen detected: */
-    if (gpDesktop->isFakeScreenDetected())
+    if (UIDesktopWidgetWatchdog::isFakeScreenDetected())
         return;
 
     /* Restore the geometry cached by the window: */
@@ -755,7 +754,7 @@ void UIVirtualBoxManager::sltHandleChooserPaneIndexChange()
     updateActionsAppearance();
 
     /* Special handling for opened settings dialog: */
-    if (   m_pWidget->isMachineItemSelected()
+    if (   m_pWidget->isLocalMachineItemSelected()
         && m_settings.contains(UISettingsDialog::DialogType_Machine))
     {
         /* Cast dialog to required type: */
@@ -769,6 +768,18 @@ void UIVirtualBoxManager::sltHandleChooserPaneIndexChange()
 
         /* Update machine stuff: */
         pDialog->setNewMachineId(pItem->id());
+    }
+    else if (   m_pWidget->isCloudMachineItemSelected()
+             && m_pCloudSettings)
+    {
+        /* Get current item: */
+        UIVirtualMachineItem *pItem = currentItem();
+        AssertPtrReturnVoid(pItem);
+        UIVirtualMachineItemCloud *pItemCloud = pItem->toCloud();
+        AssertPtrReturnVoid(pItemCloud);
+
+        /* Update machine stuff: */
+        m_pCloudSettings->setCloudMachine(pItemCloud->machine());
     }
 }
 
@@ -1113,7 +1124,7 @@ void UIVirtualBoxManager::sltOpenSettingsDialog(QString strCategory /* = QString
                                                                                                actionPool(),
                                                                                                strCategory,
                                                                                                strControl);
-                connect(m_settings[UISettingsDialog::DialogType_Machine], &UISettingsDialogGlobal::sigClose,
+                connect(m_settings[UISettingsDialog::DialogType_Machine], &UISettingsDialogMachine::sigClose,
                         this, &UIVirtualBoxManager::sltCloseSettingsDialog);
                 m_settings.value(UISettingsDialog::DialogType_Machine)->load();
             }
@@ -1125,22 +1136,38 @@ void UIVirtualBoxManager::sltOpenSettingsDialog(QString strCategory /* = QString
     /* For cloud machine: */
     else
     {
-        /* Use the "safe way" to open stack of Mac OS X Sheets: */
-        QWidget *pDialogParent = windowManager().realParentWindow(this);
-        UISafePointerCloudMachineSettingsDialog pDialog = new UICloudMachineSettingsDialog(pDialogParent,
-                                                                                           pItem->toCloud()->machine());
-        windowManager().registerNewParent(pDialog, pDialogParent);
+        /* Create instance if not yet created: */
+        if (m_pCloudSettings.isNull())
+        {
+            m_pCloudSettings = new UICloudMachineSettingsDialog(this,
+                                                                pItem->toCloud()->machine());
+            connect(m_pCloudSettings, &UICloudMachineSettingsDialog::sigClose,
+                    this, &UIVirtualBoxManager::sltCloseSettingsDialog);
+        }
 
-        /* Execute dialog: */
-        pDialog->exec();
-        delete pDialog;
+        /* Expose instance: */
+        UIDesktopWidgetWatchdog::restoreWidget(m_pCloudSettings);
     }
 }
 
 void UIVirtualBoxManager::sltCloseSettingsDialog()
 {
-    /* Remove instance if exist: */
-    delete m_settings.take(UISettingsDialog::DialogType_Machine);
+    /* What type of dialog should we delete? */
+    enum DelType { None, Local, Cloud, All } enmType = None;
+    if (qobject_cast<UISettingsDialog*>(sender()))
+        enmType = (DelType)(enmType | Local);
+    else if (qobject_cast<UICloudMachineSettingsDialog*>(sender()))
+        enmType = (DelType)(enmType | Cloud);
+
+    /* It's all if nothing: */
+    if (enmType == None)
+        enmType = All;
+
+    /* Remove requested instances: */
+    if (enmType & Local)
+        delete m_settings.take(UISettingsDialog::DialogType_Machine);
+    if (enmType & Cloud)
+        delete m_pCloudSettings;
 }
 
 void UIVirtualBoxManager::sltOpenCloneMachineWizard()

@@ -108,7 +108,7 @@ void UIMultiScreenLayout::update()
                 /* Get top-left corner position: */
                 QPoint topLeftPosition(geo.topLeft());
                 /* Check which host-screen the position belongs to: */
-                iHostScreen = gpDesktop->screenNumber(topLeftPosition);
+                iHostScreen = UIDesktopWidgetWatchdog::screenNumber(topLeftPosition);
                 /* Revalidate: */
                 fValid =    iHostScreen >= 0 && iHostScreen < m_cHostScreens /* In the host screen bounds? */
                          && m_screenMap.key(iHostScreen, -1) == -1; /* Not taken already? */
@@ -167,7 +167,6 @@ void UIMultiScreenLayout::update()
                     uWidth = pFrameBuffer->width();
                 if (pFrameBuffer->height() > 0)
                     uHeight = pFrameBuffer->height();
-                pFrameBuffer->setAutoEnabled(true);
             }
             /* Re-enable guest-screen with proper resolution: */
             LogRel(("GUI: UIMultiScreenLayout::update: Enabling guest-screen %d with following resolution: %dx%d\n",
@@ -268,7 +267,7 @@ void UIMultiScreenLayout::sltHandleScreenLayoutChange(int iRequestedGuestScreen,
 
 void UIMultiScreenLayout::calculateHostMonitorCount()
 {
-    m_cHostScreens = gpDesktop->screenCount();
+    m_cHostScreens = UIDesktopWidgetWatchdog::screenCount();
 }
 
 void UIMultiScreenLayout::calculateGuestScreenCount()

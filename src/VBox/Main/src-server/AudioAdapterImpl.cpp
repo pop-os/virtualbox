@@ -40,11 +40,29 @@
 #include "LoggingNew.h"
 
 
+////////////////////////////////////////////////////////////////////////////////
+//
+// AudioAdapter private data definition
+//
+////////////////////////////////////////////////////////////////////////////////
+
+struct AudioAdapter::Data
+{
+    Data()
+        : pParent(NULL)
+    { }
+
+    AudioSettings * const          pParent;
+    const ComObjPtr<AudioAdapter>  pPeer;
+
+    // use the XML settings structure in the members for simplicity
+    Backupable<settings::AudioAdapter> bd;
+};
+
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
 AudioAdapter::AudioAdapter()
-    : mParent(NULL)
 {
 }
 
@@ -67,32 +85,32 @@ void AudioAdapter::FinalRelease()
 /////////////////////////////////////////////////////////////////////////////
 
 /**
- *  Initializes the audio adapter object.
+ * Initializes the audio adapter object.
  *
- *  @param aParent  Handle of the parent object.
+ * @returns HRESULT
+ * @param   aParent             Pointer of the parent object.
  */
 HRESULT AudioAdapter::init(AudioSettings *aParent)
 {
-    LogFlowThisFunc(("aParent=%p\n", aParent));
-
     ComAssertRet(aParent, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst(mParent)   = aParent;
-    /* mPeer is left null */
+    m = new Data();
 
-    mData.allocate();
+    unconst(m->pParent) = aParent;
+    /* mPeer is left null */
 
     /* We now always default to the "Default" audio driver, to make it easier
      * to move VMs around different host OSes.
      *
      * This can be changed by the user explicitly, if needed / wanted. */
-    mData->driverType  = AudioDriverType_Default;
-    mData->fEnabledIn  = false;
-    mData->fEnabledOut = false;
+    m->bd.allocate();
+    m->bd->driverType  = AudioDriverType_Default;
+    m->bd->fEnabledIn  = false;
+    m->bd->fEnabledOut = false;
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -101,33 +119,37 @@ HRESULT AudioAdapter::init(AudioSettings *aParent)
 }
 
 /**
- *  Initializes the audio adapter object given another audio adapter object
- *  (a kind of copy constructor). This object shares data with
- *  the object passed as an argument.
+ * Initializes the audio adapter object given another audio adapter object
+ * (a kind of copy constructor). This object shares data with
+ * the object passed as an argument.
  *
- *  @note This object must be destroyed before the original object
- *  it shares data with is destroyed.
+ * @note This object must be destroyed before the original object
+ *       it shares data with is destroyed.
  *
- *  @note Locks @a aThat object for reading.
+ * @note Locks @a aThat object for reading.
+ *
+ * @returns HRESULT
+ * @param   aParent             Pointer of the parent object.
+ * @param   aThat               Pointer to audio adapter to use settings from.
  */
 HRESULT AudioAdapter::init(AudioSettings *aParent, AudioAdapter *aThat)
 {
-    LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
-
     ComAssertRet(aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst(mParent) = aParent;
-    unconst(mPeer) = aThat;
+    m = new Data();
+
+    unconst(m->pParent) = aParent;
+    unconst(m->pPeer)   = aThat;
 
     AutoCaller thatCaller(aThat);
     AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
-    mData.share(aThat->mData);
+    m->bd.share(aThat->m->bd);
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -136,30 +158,34 @@ HRESULT AudioAdapter::init(AudioSettings *aParent, AudioAdapter *aThat)
 }
 
 /**
- *  Initializes the audio adapter object given another audio adapter object
- *  (a kind of copy constructor). This object makes a private copy of data
- *  of the original object passed as an argument.
+ * Initializes the audio adapter object given another audio adapter object
+ * (a kind of copy constructor). This object makes a private copy of data
+ * of the original object passed as an argument.
  *
- *  @note Locks @a aThat object for reading.
+ * @note Locks @a aThat object for reading.
+ *
+ * @returns HRESULT
+ * @param   aParent             Pointer of the parent object.
+ * @param   aThat               Pointer to audio adapter to use settings from.
  */
 HRESULT AudioAdapter::initCopy(AudioSettings *aParent, AudioAdapter *aThat)
 {
-    LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
-
     ComAssertRet(aParent && aThat, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
-    unconst(mParent) = aParent;
+    m = new Data();
+
+    unconst(m->pParent) = aParent;
     /* mPeer is left null */
 
     AutoCaller thatCaller(aThat);
     AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
-    mData.attachCopy(aThat->mData);
+    m->bd.attachCopy(aThat->m->bd);
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -173,17 +199,16 @@ HRESULT AudioAdapter::initCopy(AudioSettings *aParent, AudioAdapter *aThat)
  */
 void AudioAdapter::uninit(void)
 {
-    LogFlowThisFunc(("\n"));
-
     /* Enclose the state transition Ready->InUninit->NotReady */
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
 
-    unconst(mPeer)   = NULL;
-    unconst(mParent) = NULL;
+    unconst(m->pPeer) = NULL;
+    unconst(m->pParent) = NULL;
 
-    mData.free();
+    delete m;
+    m = NULL;
 }
 
 // IAudioAdapter properties
@@ -191,9 +216,12 @@ void AudioAdapter::uninit(void)
 
 HRESULT AudioAdapter::getEnabled(BOOL *aEnabled)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mData->fEnabled;
+    *aEnabled = m->bd->fEnabled;
 
     return S_OK;
 }
@@ -205,14 +233,14 @@ HRESULT AudioAdapter::setEnabled(BOOL aEnabled)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData->fEnabled != RT_BOOL(aEnabled))
+    if (m->bd->fEnabled != RT_BOOL(aEnabled))
     {
-        mData.backup();
-        mData->fEnabled = RT_BOOL(aEnabled);
+        m->bd.backup();
+        m->bd->fEnabled = RT_BOOL(aEnabled);
         alock.release();
 
-        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
-        mParent->i_onAdapterChanged(this);
+        m->pParent->i_onSettingsChanged(); // mParent is const, needs no locking
+        m->pParent->i_onAdapterChanged(this);
     }
 
     return S_OK;
@@ -220,9 +248,12 @@ HRESULT AudioAdapter::setEnabled(BOOL aEnabled)
 
 HRESULT AudioAdapter::getEnabledIn(BOOL *aEnabled)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mData->fEnabledIn;
+    *aEnabled = RT_BOOL(m->bd->fEnabledIn);
 
     return S_OK;
 }
@@ -234,15 +265,15 @@ HRESULT AudioAdapter::setEnabledIn(BOOL aEnabled)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (RT_BOOL(aEnabled) != mData->fEnabledIn)
+    if (RT_BOOL(aEnabled) != m->bd->fEnabledIn)
     {
-        mData.backup();
-        mData->fEnabledIn = RT_BOOL(aEnabled);
+        m->bd.backup();
+        m->bd->fEnabledIn = RT_BOOL(aEnabled);
 
         alock.release();
 
-        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
-        mParent->i_onAdapterChanged(this);
+        m->pParent->i_onSettingsChanged(); // mParent is const, needs no locking
+        m->pParent->i_onAdapterChanged(this);
     }
 
     return S_OK;
@@ -250,9 +281,12 @@ HRESULT AudioAdapter::setEnabledIn(BOOL aEnabled)
 
 HRESULT AudioAdapter::getEnabledOut(BOOL *aEnabled)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aEnabled = mData->fEnabledOut;
+    *aEnabled = RT_BOOL(m->bd->fEnabledOut);
 
     return S_OK;
 }
@@ -264,15 +298,15 @@ HRESULT AudioAdapter::setEnabledOut(BOOL aEnabled)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (RT_BOOL(aEnabled) != mData->fEnabledOut)
+    if (RT_BOOL(aEnabled) != m->bd->fEnabledOut)
     {
-        mData.backup();
-        mData->fEnabledOut = RT_BOOL(aEnabled);
+        m->bd.backup();
+        m->bd->fEnabledOut = RT_BOOL(aEnabled);
 
         alock.release();
 
-        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
-        mParent->i_onAdapterChanged(this);
+        m->pParent->i_onSettingsChanged(); // mParent is const, needs no locking
+        m->pParent->i_onAdapterChanged(this);
     }
 
     return S_OK;
@@ -280,9 +314,12 @@ HRESULT AudioAdapter::setEnabledOut(BOOL aEnabled)
 
 HRESULT AudioAdapter::getAudioDriver(AudioDriverType_T *aAudioDriver)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aAudioDriver = mData->driverType;
+    *aAudioDriver = m->bd->driverType;
 
     return S_OK;
 }
@@ -296,16 +333,16 @@ HRESULT AudioAdapter::setAudioDriver(AudioDriverType_T aAudioDriver)
 
     HRESULT rc = S_OK;
 
-    if (mData->driverType != aAudioDriver)
+    if (m->bd->driverType != aAudioDriver)
     {
         if (settings::MachineConfigFile::isAudioDriverAllowedOnThisHost(aAudioDriver))
         {
-            mData.backup();
-            mData->driverType = aAudioDriver;
+            m->bd.backup();
+            m->bd->driverType = aAudioDriver;
 
             alock.release();
 
-            mParent->i_onSettingsChanged(); // mParent is const, needs no locking
+            m->pParent->i_onSettingsChanged(); // mParent is const, needs no locking
         }
         else
         {
@@ -319,9 +356,12 @@ HRESULT AudioAdapter::setAudioDriver(AudioDriverType_T aAudioDriver)
 
 HRESULT AudioAdapter::getAudioController(AudioControllerType_T *aAudioController)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aAudioController = mData->controllerType;
+    *aAudioController = m->bd->controllerType;
 
     return S_OK;
 }
@@ -335,7 +375,7 @@ HRESULT AudioAdapter::setAudioController(AudioControllerType_T aAudioController)
 
     HRESULT hrc = S_OK;
 
-    if (mData->controllerType != aAudioController)
+    if (m->bd->controllerType != aAudioController)
     {
         AudioCodecType_T defaultCodec;
 
@@ -363,13 +403,13 @@ HRESULT AudioAdapter::setAudioController(AudioControllerType_T aAudioController)
 
         if (SUCCEEDED(hrc))
         {
-            mData.backup();
-            mData->controllerType = aAudioController;
-            mData->codecType      = defaultCodec;
+            m->bd.backup();
+            m->bd->controllerType = aAudioController;
+            m->bd->codecType      = defaultCodec;
 
             alock.release();
 
-            mParent->i_onSettingsChanged(); // mParent is const, needs no locking
+            m->pParent->i_onSettingsChanged(); // mParent is const, needs no locking
         }
     }
 
@@ -378,9 +418,12 @@ HRESULT AudioAdapter::setAudioController(AudioControllerType_T aAudioController)
 
 HRESULT AudioAdapter::getAudioCodec(AudioCodecType_T *aAudioCodec)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aAudioCodec = mData->codecType;
+    *aAudioCodec = m->bd->codecType;
 
     return S_OK;
 }
@@ -397,7 +440,7 @@ HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
     /*
      * ensure that the codec type matches the audio controller
      */
-    switch (mData->controllerType)
+    switch (m->bd->controllerType)
     {
         case AudioControllerType_AC97:
         {
@@ -423,7 +466,7 @@ HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
 
         default:
             AssertMsgFailed(("Wrong audio controller type %d\n",
-                             mData->controllerType));
+                             m->bd->controllerType));
             hrc = E_FAIL;
     }
 
@@ -432,14 +475,14 @@ HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
                         tr("Invalid audio codec type %d"),
                         aAudioCodec);
 
-    if (mData->codecType != aAudioCodec)
+    if (m->bd->codecType != aAudioCodec)
     {
-        mData.backup();
-        mData->codecType = aAudioCodec;
+        m->bd.backup();
+        m->bd->codecType = aAudioCodec;
 
         alock.release();
 
-        mParent->i_onSettingsChanged(); // mParent is const, needs no locking
+        m->pParent->i_onSettingsChanged(); // mParent is const, needs no locking
     }
 
     return hrc;
@@ -447,13 +490,16 @@ HRESULT AudioAdapter::setAudioCodec(AudioCodecType_T aAudioCodec)
 
 HRESULT AudioAdapter::getPropertiesList(std::vector<com::Utf8Str>& aProperties)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     using namespace settings;
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     aProperties.resize(0);
-    StringsMap::const_iterator cit = mData->properties.begin();
-    while(cit != mData->properties.end())
+    StringsMap::const_iterator cit = m->bd->properties.begin();
+    while(cit != m->bd->properties.end())
     {
         Utf8Str key = cit->first;
         aProperties.push_back(cit->first);
@@ -465,10 +511,13 @@ HRESULT AudioAdapter::getPropertiesList(std::vector<com::Utf8Str>& aProperties)
 
 HRESULT AudioAdapter::getProperty(const com::Utf8Str &aKey, com::Utf8Str &aValue)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    settings::StringsMap::const_iterator cit = mData->properties.find(aKey);
-    if (cit != mData->properties.end())
+    settings::StringsMap::const_iterator cit = m->bd->properties.find(aKey);
+    if (cit != m->bd->properties.end())
         aValue = cit->second;
 
     return S_OK;
@@ -476,6 +525,9 @@ HRESULT AudioAdapter::getProperty(const com::Utf8Str &aKey, com::Utf8Str &aValue
 
 HRESULT AudioAdapter::setProperty(const com::Utf8Str &aKey, const com::Utf8Str &aValue)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Generic properties processing.
@@ -483,16 +535,16 @@ HRESULT AudioAdapter::setProperty(const com::Utf8Str &aKey, const com::Utf8Str &
      */
     Utf8Str strOldValue;
 
-    settings::StringsMap::const_iterator cit = mData->properties.find(aKey);
-    if (cit != mData->properties.end())
+    settings::StringsMap::const_iterator cit = m->bd->properties.find(aKey);
+    if (cit != m->bd->properties.end())
         strOldValue = cit->second;
 
     if (strOldValue != aValue)
     {
         if (aValue.isEmpty())
-            mData->properties.erase(aKey);
+            m->bd->properties.erase(aKey);
         else
-            mData->properties[aKey] = aValue;
+            m->bd->properties[aKey] = aValue;
     }
 
     alock.release();
@@ -507,12 +559,13 @@ HRESULT AudioAdapter::setProperty(const com::Utf8Str &aKey, const com::Utf8Str &
 /////////////////////////////////////////////////////////////////////////////
 
 /**
- *  Loads settings from the given machine node.
- *  May be called once right after this object creation.
+ * Loads settings from the given machine node.
+ * May be called once right after this object creation.
  *
- *  @param data Configuration settings.
+ * @returns HRESULT
+ * @param   data                Audio adapter configuration settings to load from.
  *
- *  @note Locks this object for writing.
+ * @note Locks this object for writing.
  */
 HRESULT AudioAdapter::i_loadSettings(const settings::AudioAdapter &data)
 {
@@ -531,17 +584,18 @@ HRESULT AudioAdapter::i_loadSettings(const settings::AudioAdapter &data)
      * place when a setting of a newly created object must default to A while
      * the same setting of an object loaded from the old settings file must
      * default to B. */
-    mData.assignCopy(&data);
+    m->bd.assignCopy(&data);
 
     return S_OK;
 }
 
 /**
- *  Saves settings to the given machine node.
+ * Saves settings to the given machine node.
  *
- *  @param data Configuration settings.
+ * @returns HRESULT
+ * @param   data                Audio adapter configuration settings to save to.
  *
- *  @note Locks this object for reading.
+ * @note Locks this object for reading.
  */
 HRESULT AudioAdapter::i_saveSettings(settings::AudioAdapter &data)
 {
@@ -550,13 +604,15 @@ HRESULT AudioAdapter::i_saveSettings(settings::AudioAdapter &data)
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    data = *mData.data();
+    data = *m->bd.data();
 
     return S_OK;
 }
 
 /**
- *  @note Locks this object for writing.
+ * Rolls back the current configuration to a former state.
+ *
+ * @note Locks this object for writing.
  */
 void AudioAdapter::i_rollback()
 {
@@ -566,12 +622,14 @@ void AudioAdapter::i_rollback()
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.rollback();
+    m->bd.rollback();
 }
 
 /**
- *  @note Locks this object for writing, together with the peer object (also
- *  for writing) if there is one.
+ * Commits the current settings and propagates those to a peer (if assigned).
+ *
+ * @note Locks this object for writing, together with the peer object (also
+ *       for writing) if there is one.
  */
 void AudioAdapter::i_commit()
 {
@@ -580,27 +638,34 @@ void AudioAdapter::i_commit()
     AssertComRCReturnVoid(autoCaller.rc());
 
     /* sanity too */
-    AutoCaller peerCaller(mPeer);
+    AutoCaller peerCaller(m->pPeer);
     AssertComRCReturnVoid(peerCaller.rc());
 
     /* lock both for writing since we modify both (mPeer is "master" so locked
      * first) */
-    AutoMultiWriteLock2 alock(mPeer, this COMMA_LOCKVAL_SRC_POS);
+    AutoMultiWriteLock2 alock(m->pPeer, this COMMA_LOCKVAL_SRC_POS);
 
-    if (mData.isBackedUp())
+    if (m->bd.isBackedUp())
     {
-        mData.commit();
-        if (mPeer)
+        m->bd.commit();
+        if (m->pPeer)
         {
             /* attach new data to the peer and reshare it */
-            mPeer->mData.attach(mData);
+            m->pPeer->m->bd.attach(m->bd);
         }
     }
 }
 
 /**
- *  @note Locks this object for writing, together with the peer object
- *  represented by @a aThat (locked for reading).
+ * Copies settings from a given audio adapter object.
+ *
+ * This object makes a private copy of data of the original object passed as
+ * an argument.
+ *
+ * @note Locks this object for writing, together with the peer object
+ *       represented by @a aThat (locked for reading).
+ *
+ * @param aThat                 Audio adapter to load settings from.
  */
 void AudioAdapter::i_copyFrom(AudioAdapter *aThat)
 {
@@ -620,6 +685,6 @@ void AudioAdapter::i_copyFrom(AudioAdapter *aThat)
     AutoWriteLock wl(this COMMA_LOCKVAL_SRC_POS);
 
     /* this will back up current data */
-    mData.assignCopy(aThat->mData);
+    m->bd.assignCopy(aThat->m->bd);
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

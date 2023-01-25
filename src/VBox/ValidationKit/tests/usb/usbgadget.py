@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 # Standard Python imports.
 import array
@@ -562,7 +562,7 @@ class Session(TdTaskBase):
         self.fnTask         = fnTask;
         self.aTaskArgs      = aArgs;
         self.oThread        = threading.Thread(target=self.taskThread, args=(), name=('UTS-%s' % (sStatus)));
-        self.oThread.setDaemon(True);
+        self.oThread.setDaemon(True); # pylint: disable=deprecated-method
         self.msStart        = base.timestampMilli();
 
         self.lockTask();

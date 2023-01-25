@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 154599 $"
+__version__ = "$Revision: 154746 $"
 
 # Standard Python imports.
 import errno
@@ -110,9 +110,13 @@ class tdCtxCreds(object):
         """
         Applies credential defaults, based on the test VM (guest OS), if
         no credentials were set yet.
+
+        Returns success status.
         """
         self.oTestVm = oTestVm;
-        assert self.oTestVm is not None;
+        if not self.oTestVm:
+            reporter.log('VM object is invalid -- did VBoxSVC or a client crash?');
+            return False;
 
         if self.sUser is None:
             self.sUser = self.oTestVm.getTestUser();
@@ -122,6 +126,8 @@ class tdCtxCreds(object):
 
         if self.sDomain is None:
             self.sDomain   = '';
+
+        return True;
 
 class tdTestGuestCtrlBase(object):
     """
@@ -140,20 +146,27 @@ class tdTestGuestCtrlBase(object):
     def setEnvironment(self, oSession, oTxsSession, oTestVm):
         """
         Sets the test environment required for this test.
+
+        Returns success status.
         """
         _ = oTxsSession;
 
+        fRc = True;
         try:
             self.oGuest  = oSession.o.console.guest;
             self.oTestVm = oTestVm;
         except:
-            reporter.errorXcpt();
+            fRc = reporter.errorXcpt();
 
         if self.oCreds is None:
             self.oCreds = tdCtxCreds();
-        self.oCreds.applyDefaultsIfNotSet(self.oTestVm);
 
-        return True;
+        fRc = fRc and self.oCreds.applyDefaultsIfNotSet(self.oTestVm);
+
+        if not fRc:
+            reporter.log('Error setting up Guest Control testing environment!');
+
+        return fRc;
 
     def uploadLogData(self, oTstDrv, aData, sFileName, sDesc):
         """
@@ -887,7 +900,9 @@ class tdTestSessionEx(tdTestGuestCtrlBase):
         #
         assert self.enmUser is None; # For later.
         self.oCreds = tdCtxCreds();
-        self.setEnvironment(oVmSession, oTxsSession, oTestVm);
+        fRc = self.setEnvironment(oVmSession, oTxsSession, oTestVm);
+        if not fRc:
+            return False;
         reporter.log2('%s: %s steps' % (sMsgPrefix, len(self.aoSteps),));
         fRc, oCurSession = self.createSession(sMsgPrefix);
         if fRc is True:
@@ -1502,8 +1517,14 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
         fRc = True;
         for fMustSucceed, fnHandler, sShortNm, sTestNm in atTests:
-            reporter.testStart(sTestNm);
 
+            # If for whatever reason the VM object became invalid, bail out.
+            if not oTestVm:
+                reporter.error('Test VM object invalid (VBoxSVC or client process crashed?), aborting tests');
+                fRc = False;
+                break;
+
+            reporter.testStart(sTestNm);
             if sShortNm is None or sShortNm in self.asTests:
                 # Returns (fRc, oTxsSession, oSession) - but only the first one is mandatory.
                 aoResult = fnHandler(oSession, oTxsSession, oTestVm);
@@ -2536,7 +2557,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             oCurTest = tTest[0] # type: tdTestSession
             oCurRes  = tTest[1] # type: tdTestResult
 
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             reporter.log('Testing #%d, user="%s", sPassword="%s", sDomain="%s" ...'
                          % (i, oCurTest.oCreds.sUser, oCurTest.oCreds.sPassword, oCurTest.oCreds.sDomain));
             sCurGuestSessionName = 'testGuestCtrlSession: Test #%d' % (i,);
@@ -2587,7 +2610,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         reporter.log2('Opening multiple guest tsessions at once ...');
         for i in xrange(cMaxGuestSessions + 1):
             aoMultiSessions[i] = tdTestSession(sSessionName = 'MultiSession #%d' % (i,));
-            aoMultiSessions[i].setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = aoMultiSessions[i].setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
 
             cCurSessions = aoMultiSessions[i].getSessionCount(self.oTstDrv.oVBoxMgr);
             reporter.log2('MultiSession test #%d count is %d' % (i, cCurSessions));
@@ -3174,7 +3199,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         for (i, tTest) in enumerate(atTests):
             oCurTest = tTest[0]  # type: tdTestExec
             oCurRes  = tTest[1]  # type: tdTestResultExec
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc2, oCurGuestSession = oCurTest.createSession('testGuestCtrlExec: Test #%d' % (i,));
             if fRc2 is not True:
                 fRc = reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -3231,7 +3258,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                     oCurTest = tTest[0] # type: tdTestExec
                     oCurRes  = tTest[1] # type: tdTestResultExec
 
-                    oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+                    fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+                    if not fRc:
+                        break;
                     fRc = self.gctrlExecDoTest(i, oCurTest, oCurRes, oCurGuestSession);
                     if fRc is False:
                         break;
@@ -3352,7 +3381,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                         oThreadReboot = threading.Thread(target = self.threadForTestGuestCtrlSessionReboot,
                                                          args = (oGuestProcess,),
                                                          name = ('threadForTestGuestCtrlSessionReboot'));
-                        oThreadReboot.setDaemon(True);
+                        oThreadReboot.setDaemon(True); # pylint: disable=deprecated-method
                         oThreadReboot.start();
 
                         # Do the reboot.
@@ -3596,7 +3625,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             oCurRes  = tTest[1] # type: tdTestResult
             reporter.log('Testing #%d, sDirectory="%s" ...' % (i, limitString(oCurTest.sDirectory)));
 
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, oCurGuestSession = oCurTest.createSession('testGuestCtrlDirCreate: Test #%d' % (i,));
             if fRc is False:
                 return reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -3694,7 +3725,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             reporter.log('Testing #%d, sTemplate="%s", fMode=%#o, path="%s", secure="%s" ...' %
                          (i, oCurTest.sTemplate, oCurTest.fMode, oCurTest.sDirectory, oCurTest.fSecure));
 
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, oCurGuestSession = oCurTest.createSession('testGuestCtrlDirCreateTemp: Test #%d' % (i,));
             if fRc is False:
                 fRc = reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -3787,7 +3820,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             oCurRes  = tTest[1]   # type: tdTestResultDirRead
 
             reporter.log('Testing #%d, dir="%s" ...' % (i, oCurTest.sDirectory));
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, oCurGuestSession = oCurTest.createSession('testGuestCtrlDirRead: Test #%d' % (i,));
             if fRc is not True:
                 break;
@@ -3829,8 +3864,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         #
         if fRc is True:
             oCurTest = tdTestDirRead();
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
-            fRc, oCurGuestSession = oCurTest.createSession('testGuestCtrlDirRead: gctrlReadDirTree2');
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if fRc:
+                fRc, oCurGuestSession = oCurTest.createSession('testGuestCtrlDirRead: gctrlReadDirTree2');
             if fRc is True:
                 for oDir in (self.oTestFiles.oEmptyDir, self.oTestFiles.oManyDir, self.oTestFiles.oTreeDir):
                     reporter.log('Checking "%s" ...' % (oDir.sPath,));
@@ -3922,7 +3958,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         fRc = True;
         for (i, oTest) in enumerate(aoTests): # int, tdTestRemoveBase
             reporter.log('Testing #%d, path="%s" %s ...' % (i, oTest.sPath, oTest.__class__.__name__));
-            oTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = oTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, _ = oTest.createSession('testGuestCtrlFileRemove: Test #%d' % (i,));
             if fRc is False:
                 fRc = reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -3932,8 +3970,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
         if fRc is True:
             oCurTest = tdTestDirRead();
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
-            fRc, oCurGuestSession = oCurTest.createSession('remove final');
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if fRc:
+                fRc, oCurGuestSession = oCurTest.createSession('remove final');
             if fRc is True:
 
                 #
@@ -4047,7 +4086,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             return (fRc, oTxsSession);
 
         oTest = tdTestGuestCtrlBase();
-        oTest.setEnvironment(oSession, oTxsSession, oTestVm);
+        fRc = oTest.setEnvironment(oSession, oTxsSession, oTestVm);
+        if not fRc:
+            return (False, oTxsSession);
         fRc2, oGuestSession = oTest.createSession('FsStat on TestFileSet');
         if fRc2 is not True:
             return (False, oTxsSession);
@@ -4257,6 +4298,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                             oCurTest.eSharing, oCurTest.fCreationMode, oCurTest.afOpenFlags,));
 
             oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, _ = oCurTest.createSession('testGuestCtrlFileOpen: Test #%d' % (i,));
             if fRc is not True:
                 fRc = reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -4283,7 +4326,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         # Do everything in one session.
         #
         oTest = tdTestGuestCtrlBase();
-        oTest.setEnvironment(oSession, oTxsSession, oTestVm);
+        fRc = oTest.setEnvironment(oSession, oTxsSession, oTestVm);
+        if not fRc:
+            return (False, oTxsSession);
         fRc2, oGuestSession = oTest.createSession('FsStat on TestFileSet');
         if fRc2 is not True:
             return (False, oTxsSession);
@@ -4311,7 +4356,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 oFile.setSize(0);
                 oFile.setSize(64);
                 fUseFallback = False;
-            except Exception as oXcpt:
+            except:
                 reporter.logXcpt();
 
             # Grow the file till we hit trouble, typical VERR_DISK_FULL, then
@@ -4322,7 +4367,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                     cbBigFile += 16*1024*1024;
                     try:
                         oFile.setSize(cbBigFile);
-                    except Exception as oXcpt:
+                    except Exception:
                         reporter.logXcpt('cbBigFile=%s' % (sBigPath,));
                         try:
                             cbBigFile -= 16*1024*1024;
@@ -4383,6 +4428,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             else:
                 acbChunks = (768*1024, 128*1024);
 
+            reporter.log2('Chunked reads');
+
             for cbChunk in acbChunks:
                 # Read the whole file straight thru:
                 #if oTestFile.cbContent >= 1024*1024: reporter.log2('... cbChunk=%s' % (cbChunk,));
@@ -4423,6 +4470,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             #
             # Random reads.
             #
+            reporter.log2('Random reads (seek)');
             for _ in xrange(8):
                 offFile  = self.oTestFiles.oRandom.randrange(0, oTestFile.cbContent + 1024);
                 cbToRead = self.oTestFiles.oRandom.randrange(1, min(oTestFile.cbContent + 256, 768*1024));
@@ -4471,6 +4519,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             #
             # Random reads using readAt.
             #
+            reporter.log2('Random reads (readAt)');
             for _ in xrange(12):
                 offFile  = self.oTestFiles.oRandom.randrange(0, oTestFile.cbContent + 1024);
                 cbToRead = self.oTestFiles.oRandom.randrange(1, min(oTestFile.cbContent + 256, 768*1024));
@@ -4512,6 +4561,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             #
 
             # Zero byte reads -> E_INVALIDARG.
+            reporter.log2('Zero byte reads');
             try:
                 abRead = oFile.read(0, 30*1000);
             except Exception as oXcpt:
@@ -4530,6 +4580,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
             # See what happens when we read 1GiB.  We should get a max of 1MiB back.
             ## @todo Document this behaviour in VirtualBox.xidl.
+            reporter.log2('1GB reads');
             try:
                 oFile.seek(0, vboxcon.FileSeekOrigin_Begin);
             except:
@@ -4693,8 +4744,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
         for (i, oCurTest) in enumerate(aoTests):
             reporter.log('Testing #%d: %s ...' % (i, oCurTest.toString(),));
-
-            oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, _ = oCurTest.createSession('testGuestCtrlFileWrite: Test #%d' % (i,));
             if fRc is not True:
                 fRc = reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -4743,6 +4795,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         sScratchDstDir2Gst      = oTestVm.pathJoin(sScratchGst, 'dstdir2');
         sScratchDstDir3Gst      = oTestVm.pathJoin(sScratchGst, 'dstdir3');
         sScratchDstDir4Gst      = oTestVm.pathJoin(sScratchGst, 'dstdir4');
+        sScratchDotDotDirGst    = oTestVm.pathJoin(sScratchGst, '..');
         #sScratchGstNotExist     = oTestVm.pathJoin(self.oTstDrv.getGuestTempDir(oTestVm), 'no-such-file-or-directory');
         sScratchHstNotExist     = os.path.join(self.oTstDrv.sScratchPath,         'no-such-file-or-directory');
         sScratchGstPathNotFound = oTestVm.pathJoin(self.oTstDrv.getGuestTempDir(oTestVm), 'no-such-directory', 'or-file');
@@ -4794,6 +4847,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             open(sEmptyFileHst, "wb").close();                  # pylint: disable=consider-using-with
         except:
             return reporter.errorXcpt('sEmptyFileHst=%s' % (sEmptyFileHst,));
+
+        # os.path.join() is too clever for "..", so we just build up the path here ourselves.
+        sScratchDotDotFileHst = sScratchHst + os.path.sep + '..' + os.path.sep + 'gctrl-empty.data';
 
         #
         # Tests.
@@ -4925,6 +4981,18 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 [ tdTestCopyToDir(sSrc = sScratchTreeDirHst, sDst = sScratchDstDir4Gst + oTestVm.pathSep(),
                                   afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
             ]);
+        #
+        # Dotdot path handling.
+        #
+        if self.oTstDrv.fpApiVer >= 6.1:
+            atTests.extend([
+                # Test if copying stuff from a host dotdot ".." directory works.
+                [ tdTestCopyToFile(sSrc = sScratchDotDotFileHst, sDst = sScratchDstDir1Gst + oTestVm.pathSep()),
+                  tdTestResultSuccess() ],
+                # Test if copying stuff from the host to a guest's dotdot ".." directory works.
+                # That should fail on destinations.
+                [ tdTestCopyToFile(sSrc = sEmptyFileHst, sDst = sScratchDotDotDirGst), tdTestResultFailure() ],
+            ]);
 
         fRc = True;
         for (i, tTest) in enumerate(atTests):
@@ -4934,6 +5002,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                          % (i, limitString(oCurTest.sSrc), limitString(oCurTest.sDst), oCurTest.afFlags));
 
             oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, oCurGuestSession = oCurTest.createSession('testGuestCtrlCopyTo: Test #%d' % (i,));
             if fRc is not True:
                 fRc = reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -4966,6 +5036,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         sScratchDstDir2Hst      = os.path.join(sScratchHst, "dstdir2");
         sScratchDstDir3Hst      = os.path.join(sScratchHst, "dstdir3");
         sScratchDstDir4Hst      = os.path.join(sScratchHst, "dstdir4");
+        # os.path.join() is too clever for "..", so we just build up the path here ourselves.
+        sScratchDotDotDirHst    = sScratchHst + os.path.sep + '..' + os.path.sep;
         oExistingFileGst        = self.oTestFiles.chooseRandomFile();
         oNonEmptyDirGst         = self.oTestFiles.chooseRandomDirFromTree(fNonEmpty = True);
         oTreeDirGst             = self.oTestFiles.oTreeDir;
@@ -4979,6 +5051,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             sScratchHstInvalid  = "?*|<invalid-name>";
         else:
             sScratchHstInvalid  = None;
+
+        sScratchDotDotDirGst = oTestVm.pathJoin(self.oTstDrv.getGuestTempDir(oTestVm), '..');
 
         if os.path.exists(sScratchHst):
             if base.wipeDirectory(sScratchHst) != 0:
@@ -5123,6 +5197,19 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 [ tdTestCopyFromDir(oSrc = oTreeDirGst, sDst = sScratchDstDir4Hst + os.path.sep,
                                     afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]), tdTestResultSuccess() ],
             ]);
+        #
+        # Dotdot path handling.
+        #
+        if self.oTstDrv.fpApiVer >= 6.1:
+            atTests.extend([
+                # Test if copying stuff from a guest dotdot ".." directory works.
+                [ tdTestCopyFromDir(sSrc = sScratchDotDotDirGst, sDst = sScratchDstDir1Hst + os.path.sep,
+                                    afFlags = [ vboxcon.DirectoryCopyFlag_CopyIntoExisting, ]),
+                  tdTestResultFailure() ],
+                # Test if copying stuff from the guest to a host's dotdot ".." directory works.
+                # That should fail on destinations.
+                [ tdTestCopyFromFile(oSrc = oExistingFileGst, sDst = sScratchDotDotDirHst), tdTestResultFailure() ],
+            ]);
 
         reporter.log2('Executing tests ...');
 
@@ -5146,7 +5233,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             if isinstance(oCurTest, tdTestRemoveHostDir):
                 fRc = oCurTest.execute(self.oTstDrv, oSession, oTxsSession, oTestVm, 'testing #%d' % (i,));
             else:
-                oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+                fRc = oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+                if not fRc:
+                    break;
                 fRc2, oCurGuestSession = oCurTest.createSession('testGuestCtrlCopyFrom: Test #%d' % (i,));
                 if fRc2 is not True:
                     fRc = reporter.error('Test #%d failed: Could not create session' % (i,));
@@ -5237,6 +5326,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             reporter.log('Testing #%d, sSrc="%s", afFlags="%s" ...' % (i, oCurTest.sSrc, oCurTest.afFlags,));
 
             oCurTest.setEnvironment(oSession, oTxsSession, oTestVm);
+            if not fRc:
+                break;
             fRc, _ = oCurTest.createSession('Test #%d' % (i,));
             if fRc is not True:
                 fRc = reporter.error('Test #%d failed: Could not create session' % (i,));

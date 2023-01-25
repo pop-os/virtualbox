@@ -1600,8 +1600,6 @@
 # define RTMemEfTmpFreeNP                               RT_MANGLER(RTMemEfTmpFreeNP)
 # define RTMemEfTmpFreeZ                                RT_MANGLER(RTMemEfTmpFreeZ)
 # define RTMemEfTmpFreeZNP                              RT_MANGLER(RTMemEfTmpFreeZNP)
-# define RTMemExecAllocTag                              RT_MANGLER(RTMemExecAllocTag)
-# define RTMemExecFree                                  RT_MANGLER(RTMemExecFree)
 # define RTMemFree                                      RT_MANGLER(RTMemFree)
 # define RTMemFreeZ                                     RT_MANGLER(RTMemFreeZ)
 # define RTMemFreeEx                                    RT_MANGLER(RTMemFreeEx)
@@ -1851,6 +1849,7 @@
 # define RTProcSelf                                     RT_MANGLER(RTProcSelf)
 # define RTProcSetPriority                              RT_MANGLER(RTProcSetPriority)
 # define RTProcShortName                                RT_MANGLER(RTProcShortName)
+# define RTProcSignalName                               RT_MANGLER(RTProcSignalName)
 # define RTProcTerminate                                RT_MANGLER(RTProcTerminate)
 # define RTProcWait                                     RT_MANGLER(RTProcWait)
 # define RTProcWaitNoResume                             RT_MANGLER(RTProcWaitNoResume)
@@ -1864,7 +1863,6 @@
 # define RTR0DbgKrnlInfoRetain                          RT_MANGLER(RTR0DbgKrnlInfoRetain)      /* r0drv */
 # define RTR0Init                                       RT_MANGLER(RTR0Init)                   /* r0drv */
 # define RTR0MemAreKrnlAndUsrDifferent                  RT_MANGLER(RTR0MemAreKrnlAndUsrDifferent) /* r0drv */
-# define RTR0MemExecDonate                              RT_MANGLER(RTR0MemExecDonate)          /* r0drv */
 # define RTR0MemKernelIsValidAddr                       RT_MANGLER(RTR0MemKernelIsValidAddr)   /* r0drv */
 # define RTR0MemObjAddress                              RT_MANGLER(RTR0MemObjAddress)          /* r0drv */
 # define RTR0MemObjAddressR3                            RT_MANGLER(RTR0MemObjAddressR3)        /* r0drv */

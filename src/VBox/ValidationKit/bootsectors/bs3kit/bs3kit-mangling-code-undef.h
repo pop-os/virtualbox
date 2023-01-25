@@ -113,6 +113,7 @@
 #undef Bs3PrintX32
 #undef Bs3RegCtxConvertToRingX
 #undef Bs3RegCtxConvertV86ToRm
+#undef Bs3RegCtxGetRspSsAsCurPtr
 #undef Bs3RegCtxPrint
 #undef Bs3RegCtxRestore
 #undef Bs3RegCtxSave
@@ -172,6 +173,8 @@
 #undef Bs3SelSetup16BitCode
 #undef Bs3SelSetup16BitData
 #undef Bs3SelSetup32BitCode
+#undef Bs3SelSetupGate64
+#undef Bs3SelSetupGate
 #undef Bs3Shutdown
 #undef Bs3SlabAlloc
 #undef Bs3SlabAllocEx
@@ -219,6 +222,7 @@
 #undef Bs3Trap32Init
 #undef Bs3Trap32SetGate
 #undef Bs3Trap64Init
+#undef Bs3Trap64InitEx
 #undef Bs3Trap64SetGate
 #undef Bs3TrapDefaultHandler
 #undef Bs3TrapPrintFrame

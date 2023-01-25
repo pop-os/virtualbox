@@ -205,16 +205,16 @@ uint32_t VirtualBox::ClientWatcher::reapProcesses(void)
                     {
                         default:
                         case RTPROCEXITREASON_NORMAL:
-                            LogRel(("Reaper: Pid %d (%x) exited normally: %d (%#x)\n",
+                            LogRel(("Reaper: Pid %d (%#x) exited normally: %d (%#x)\n",
                                     pid, pid, Status.iStatus, Status.iStatus));
                             break;
                         case RTPROCEXITREASON_ABEND:
-                            LogRel(("Reaper: Pid %d (%x) abended: %d (%#x)\n",
+                            LogRel(("Reaper: Pid %d (%#x) abended: %d (%#x)\n",
                                     pid, pid, Status.iStatus, Status.iStatus));
                             break;
                         case RTPROCEXITREASON_SIGNAL:
-                            LogRel(("Reaper: Pid %d (%x) was signalled: %d (%#x)\n",
-                                    pid, pid, Status.iStatus, Status.iStatus));
+                            LogRel(("Reaper: Pid %d (%#x) was signalled: %s (%d / %#x)\n",
+                                    pid, pid, RTProcSignalName(Status.iStatus), Status.iStatus, Status.iStatus));
                             break;
                     }
                 }

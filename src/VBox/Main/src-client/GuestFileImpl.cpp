@@ -383,7 +383,7 @@ int GuestFile::i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCT
 }
 
 /**
- * Closes the file on the guest side.
+ * Closes the file on the guest side and unregisters it.
  *
  * @returns VBox status code.
  * @retval  VERR_GSTCTL_GUEST_ERROR when an error from the guest side has been received.
@@ -423,6 +423,12 @@ int GuestFile::i_closeFile(int *prcGuest)
         vrc = i_waitForStatusChange(pEvent, 30 * 1000 /* Timeout in ms */,
                                     NULL /* FileStatus */, prcGuest);
     unregisterWaitEvent(pEvent);
+
+    /* Unregister the file object from the guest session. */
+    AssertPtr(mSession);
+    int vrc2 = mSession->i_fileUnregister(this);
+    if (RT_SUCCESS(vrc))
+        vrc = vrc2;
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
@@ -533,27 +539,33 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
 
         case GUEST_FILE_NOTIFYTYPE_READ:
         {
-            if (pSvcCbData->mParms == 4)
+            ASSERT_GUEST_MSG_STMT_BREAK(pSvcCbData->mParms == 4, ("mParms=%u\n", pSvcCbData->mParms),
+                                        vrc = VERR_WRONG_PARAMETER_COUNT);
+            ASSERT_GUEST_MSG_STMT_BREAK(pSvcCbData->mpaParms[idx].type == VBOX_HGCM_SVC_PARM_PTR,
+                                        ("type=%u\n", pSvcCbData->mpaParms[idx].type),
+                                        vrc = VERR_WRONG_PARAMETER_TYPE);
+
+            vrc = HGCMSvcGetPv(&pSvcCbData->mpaParms[idx++], &dataCb.u.read.pvData, &dataCb.u.read.cbData);
+            if (RT_FAILURE(vrc))
+                break;
+
+            const uint32_t cbRead = dataCb.u.read.cbData;
+            Log3ThisFunc(("cbRead=%RU32\n", cbRead));
+
+            AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+            mData.mOffCurrent += cbRead; /* Bogus for readAt, which is why we've got GUEST_FILE_NOTIFYTYPE_READ_OFFSET. */
+            alock.release();
+
+            try
             {
-                vrc = HGCMSvcGetPv(&pSvcCbData->mpaParms[idx++], &dataCb.u.read.pvData,
-                                  &dataCb.u.read.cbData);
-                if (RT_FAILURE(vrc))
-                    break;
-
-                const uint32_t cbRead = dataCb.u.read.cbData;
-
-                Log3ThisFunc(("cbRead=%RU32\n", cbRead));
-
-                AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-                mData.mOffCurrent += cbRead; /* Bogus for readAt, which is why we've got GUEST_FILE_NOTIFYTYPE_READ_OFFSET. */
-
-                alock.release();
-
                 com::SafeArray<BYTE> data((size_t)cbRead);
+                AssertBreakStmt(data.size() == cbRead, vrc = VERR_NO_MEMORY);
                 data.initFrom((BYTE *)dataCb.u.read.pvData, cbRead);
-
                 ::FireGuestFileReadEvent(mEventSource, mSession, this, mData.mOffCurrent, cbRead, ComSafeArrayAsInParam(data));
+            }
+            catch (std::bad_alloc &)
+            {
+                vrc = VERR_NO_MEMORY;
             }
             break;
         }
@@ -566,7 +578,7 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
                                         ("type=%u\n", pSvcCbData->mpaParms[idx].type),
                                         vrc = VERR_WRONG_PARAMETER_TYPE);
             ASSERT_GUEST_MSG_STMT_BREAK(pSvcCbData->mpaParms[idx + 1].type == VBOX_HGCM_SVC_PARM_64BIT,
-                                        ("type=%u\n", pSvcCbData->mpaParms[idx].type),
+                                        ("type=%u\n", pSvcCbData->mpaParms[idx + 1].type),
                                         vrc = VERR_WRONG_PARAMETER_TYPE);
             BYTE const * const pbData = (BYTE const *)pSvcCbData->mpaParms[idx].u.pointer.addr;
             uint32_t const     cbRead = pSvcCbData->mpaParms[idx].u.pointer.size;
@@ -582,6 +594,7 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
             try
             {
                 com::SafeArray<BYTE> data((size_t)cbRead);
+                AssertBreakStmt(data.size() == cbRead, vrc = VERR_NO_MEMORY);
                 data.initFrom(pbData, cbRead);
                 ::FireGuestFileReadEvent(mEventSource, mSession, this, offNew, cbRead, ComSafeArrayAsInParam(data));
                 vrc = VINF_SUCCESS;
@@ -595,24 +608,21 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
 
         case GUEST_FILE_NOTIFYTYPE_WRITE:
         {
-            if (pSvcCbData->mParms == 4)
-            {
-                vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[idx++], &dataCb.u.write.cbWritten);
-                if (RT_FAILURE(vrc))
-                    break;
+            ASSERT_GUEST_MSG_STMT_BREAK(pSvcCbData->mParms == 4, ("mParms=%u\n", pSvcCbData->mParms),
+                                        vrc = VERR_WRONG_PARAMETER_COUNT);
+            ASSERT_GUEST_MSG_STMT_BREAK(pSvcCbData->mpaParms[idx].type == VBOX_HGCM_SVC_PARM_32BIT,
+                                        ("type=%u\n", pSvcCbData->mpaParms[idx].type),
+                                        vrc = VERR_WRONG_PARAMETER_TYPE);
 
-                const uint32_t cbWritten = dataCb.u.write.cbWritten;
+            uint32_t const cbWritten = pSvcCbData->mpaParms[idx].u.uint32;
 
-                Log3ThisFunc(("cbWritten=%RU32\n", cbWritten));
+            Log3ThisFunc(("cbWritten=%RU32\n", cbWritten));
 
-                AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+            AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+            mData.mOffCurrent += cbWritten; /* Bogus for writeAt and append mode, thus GUEST_FILE_NOTIFYTYPE_WRITE_OFFSET. */
+            alock.release();
 
-                mData.mOffCurrent += cbWritten; /* Bogus for writeAt and append mode, thus GUEST_FILE_NOTIFYTYPE_WRITE_OFFSET. */
-
-                alock.release();
-
-                ::FireGuestFileWriteEvent(mEventSource, mSession, this, mData.mOffCurrent, cbWritten);
-            }
+            ::FireGuestFileWriteEvent(mEventSource, mSession, this, mData.mOffCurrent, cbWritten);
             break;
         }
 
@@ -643,22 +653,20 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
 
         case GUEST_FILE_NOTIFYTYPE_SEEK:
         {
-            if (pSvcCbData->mParms == 4)
-            {
-                vrc = HGCMSvcGetU64(&pSvcCbData->mpaParms[idx++], &dataCb.u.seek.uOffActual);
-                if (RT_FAILURE(vrc))
-                    break;
+            ASSERT_GUEST_MSG_STMT_BREAK(pSvcCbData->mParms == 4, ("mParms=%u\n", pSvcCbData->mParms),
+                                        vrc = VERR_WRONG_PARAMETER_COUNT);
 
-                Log3ThisFunc(("uOffActual=%RU64\n", dataCb.u.seek.uOffActual));
+            vrc = HGCMSvcGetU64(&pSvcCbData->mpaParms[idx++], &dataCb.u.seek.uOffActual);
+            if (RT_FAILURE(vrc))
+                break;
 
-                AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+            Log3ThisFunc(("uOffActual=%RU64\n", dataCb.u.seek.uOffActual));
 
-                mData.mOffCurrent = dataCb.u.seek.uOffActual;
+            AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+            mData.mOffCurrent = dataCb.u.seek.uOffActual;
+            alock.release();
 
-                alock.release();
-
-                ::FireGuestFileOffsetChangedEvent(mEventSource, mSession, this, dataCb.u.seek.uOffActual, 0 /* Processed */);
-            }
+            ::FireGuestFileOffsetChangedEvent(mEventSource, mSession, this, dataCb.u.seek.uOffActual, 0 /* Processed */);
             break;
         }
 
@@ -684,19 +692,27 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
             break;
     }
 
-    if (RT_SUCCESS(vrc))
+    try
     {
-        try
+        if (RT_SUCCESS(vrc))
         {
             GuestWaitEventPayload payload(dataCb.uType, &dataCb, sizeof(dataCb));
 
             /* Ignore rc, as the event to signal might not be there (anymore). */
             signalWaitEventInternal(pCbCtx, vrcGuest, &payload);
         }
-        catch (int vrcEx) /* Thrown by GuestWaitEventPayload constructor. */
+        else /* OOM situation, wrong HGCM parameters or smth. not expected. */
         {
-            vrc = vrcEx;
+            /* Ignore rc, as the event to signal might not be there (anymore). */
+            signalWaitEventInternalEx(pCbCtx, vrc, 0 /* guestRc */, NULL /* pPayload */);
         }
+    }
+    catch (int vrcEx) /* Thrown by GuestWaitEventPayload constructor. */
+    {
+        /* Also try to signal the waiter, to let it know of the OOM situation.
+         * Ignore rc, as the event to signal might not be there (anymore). */
+        signalWaitEventInternalEx(pCbCtx, vrcEx, 0 /* guestRc */, NULL /* pPayload */);
+        vrc = vrcEx;
     }
 
     LogFlowThisFunc(("uType=%RU32, rcGuest=%Rrc, rc=%Rrc\n", dataCb.uType, vrcGuest, vrc));
@@ -1524,14 +1540,6 @@ HRESULT GuestFile::close()
     /* Close file on guest. */
     int vrcGuest = VERR_IPE_UNINITIALIZED_STATUS;
     int vrc = i_closeFile(&vrcGuest);
-    /* On failure don't return here, instead do all the cleanup
-     * work first and then return an error. */
-
-    AssertPtr(mSession);
-    int vrc2 = mSession->i_fileUnregister(this);
-    if (RT_SUCCESS(vrc))
-        vrc = vrc2;
-
     if (RT_FAILURE(vrc))
     {
         if (vrc == VERR_GSTCTL_GUEST_ERROR)
@@ -1638,26 +1646,35 @@ HRESULT GuestFile::read(ULONG aToRead, ULONG aTimeoutMS, std::vector<BYTE> &aDat
     if (aToRead > _1M)
         aToRead = _1M;
 
-    aData.resize(aToRead);
-
     HRESULT hrc = S_OK;
 
-    uint32_t cbRead;
-    int vrc = i_readData(aToRead, aTimeoutMS,
+    int vrc;
+    try
+    {
+        aData.resize(aToRead);
+
+        uint32_t cbRead;
+        vrc = i_readData(aToRead, aTimeoutMS,
                          &aData.front(), aToRead, &cbRead);
 
-    if (RT_SUCCESS(vrc))
-    {
-        if (aData.size() != cbRead)
-            aData.resize(cbRead);
+        if (RT_SUCCESS(vrc))
+        {
+            if (aData.size() != cbRead)
+                aData.resize(cbRead);
+        }
+        else
+        {
+            aData.resize(0);
+        }
     }
-    else
+    catch (std::bad_alloc &)
     {
-        aData.resize(0);
+        vrc = VERR_NO_MEMORY;
+    }
 
+    if (RT_FAILURE(vrc))
         hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading from file \"%s\" failed: %Rrc"),
                            mData.mOpenInfo.mFilename.c_str(), vrc);
-    }
 
     LogFlowFuncLeaveRC(vrc);
     return hrc;
@@ -1677,25 +1694,34 @@ HRESULT GuestFile::readAt(LONG64 aOffset, ULONG aToRead, ULONG aTimeoutMS, std::
     if (aToRead > _1M)
         aToRead = _1M;
 
-    aData.resize(aToRead);
-
     HRESULT hrc = S_OK;
 
-    size_t cbRead;
-    int vrc = i_readDataAt(aOffset, aToRead, aTimeoutMS,
-                           &aData.front(), aToRead, &cbRead);
-    if (RT_SUCCESS(vrc))
+    int vrc;
+    try
     {
-        if (aData.size() != cbRead)
-            aData.resize(cbRead);
-    }
-    else
-    {
-        aData.resize(0);
+        aData.resize(aToRead);
 
+        size_t cbRead;
+        vrc = i_readDataAt(aOffset, aToRead, aTimeoutMS,
+                           &aData.front(), aToRead, &cbRead);
+        if (RT_SUCCESS(vrc))
+        {
+            if (aData.size() != cbRead)
+                aData.resize(cbRead);
+        }
+        else
+        {
+            aData.resize(0);
+        }
+    }
+    catch (std::bad_alloc &)
+    {
+        vrc = VERR_NO_MEMORY;
+    }
+
+    if (RT_FAILURE(vrc))
         hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading from file \"%s\" (at offset %RU64) failed: %Rrc"),
                            mData.mOpenInfo.mFilename.c_str(), aOffset, vrc);
-    }
 
     LogFlowFuncLeaveRC(vrc);
     return hrc;

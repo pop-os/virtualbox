@@ -80,6 +80,9 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
+/** Near void pointer. */
+typedef void BS3_NEAR *NPVOID;
+
 typedef struct BS3CB2INVLDESCTYPE
 {
     uint8_t u4Type;
@@ -129,6 +132,9 @@ extern FNBS3FAR     bs3CpuBasic2_Int83;
 extern FNBS3FAR     bs3CpuBasic2_ud2;
 #define             g_bs3CpuBasic2_ud2_FlatAddr BS3_DATA_NM(g_bs3CpuBasic2_ud2_FlatAddr)
 extern uint32_t     g_bs3CpuBasic2_ud2_FlatAddr;
+
+extern FNBS3FAR     bs3CpuBasic2_salc_ud2;
+extern FNBS3FAR     bs3CpuBasic2_swapgs;
 
 extern FNBS3FAR     bs3CpuBasic2_iret;
 extern FNBS3FAR     bs3CpuBasic2_iret_opsize;
@@ -601,11 +607,20 @@ static void bs3CpuBasic2_CompareAcCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStar
  */
 static void bs3CpuBasic2_CompareDbCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStartCtx, uint32_t fDr6Expect)
 {
-    uint32_t const fDr6 = Bs3RegGetDr6();
+    uint16_t const cErrorsBefore = Bs3TestSubErrorCount();
+    uint32_t const fDr6          = Bs3RegGetDr6();
     fDr6Expect |= X86_DR6_RA1_MASK;
     CHECK_MEMBER("dr6", "%#08RX32", fDr6, fDr6Expect);
 
     bs3CpuBasic2_CompareCpuTrapCtx(pTrapCtx, pStartCtx, 0 /*always zero*/, X86_XCPT_DB, false /*f486ResumeFlagHint?*/, 0 /*cbIpAdjust*/);
+
+    if (Bs3TestSubErrorCount() > cErrorsBefore)
+    {
+#if 0
+        Bs3TestPrintf("Halting\n");
+        ASMHalt();
+#endif
+    }
 }
 
 
@@ -615,9 +630,15 @@ static void bs3CpuBasic2_CompareDbCtx(PCBS3TRAPFRAME pTrapCtx, PCBS3REGCTX pStar
  */
 static void bs3CpuBasic2_CheckDr6InitVal(void)
 {
-    uint32_t const fDr6       = Bs3RegGetDr6();
-    uint32_t const fDr6Expect = X86_DR6_INIT_VAL;
+    uint16_t const cErrorsBefore = Bs3TestSubErrorCount();
+    uint32_t const fDr6          = Bs3RegGetDr6();
+    uint32_t const fDr6Expect    = X86_DR6_INIT_VAL;
     CHECK_MEMBER("dr6", "%#08RX32", fDr6, fDr6Expect);
+    if (Bs3TestSubErrorCount() > cErrorsBefore)
+    {
+        Bs3TestPrintf("Halting\n");
+        ASMHalt();
+    }
 }
 
 #if 0 /* convert me */
@@ -1712,8 +1733,8 @@ static void bs3CpuBasic2_RaiseXcpt11Worker(uint8_t bMode, uint8_t *pbBuf, unsign
                     Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
 
                     if (   (pCmn->paEntries[iTest].fOp & MYOP_AC_GP)
-                             && fMisaligned
-                             && (!fAm || iRing != 3 || !fAc || (offMem & 3 /* 10980XE */) == 0) )
+                        && fMisaligned
+                        && (!fAm || iRing != 3 || !fAc || (offMem & 3 /* 10980XE */) == 0) )
                     {
                         if (fAc && bMode == BS3_MODE_RM)
                             TrapCtx.Ctx.rflags.u32 |= X86_EFL_AC;
@@ -3998,7 +4019,7 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_jmp_call)(uint8_t bMode)
         uint8_t BS3_FAR * const pbCode16 = BS3_MAKE_PROT_R0PTR_FROM_FLAT(BS3_ADDR_BS3TEXT16);
         uint8_t BS3_FAR * const pbLow    = BS3_FP_MAKE(BS3_SEL_TILED_R0, 0);
         if (offLow < 0x600 || offLow + cbLow >= BS3_ADDR_STACK_R2)
-            Bs3TestFailedF("Opsize overriden jumps are out of place: %#x LB %#z\n", offLow, cbLow);
+            Bs3TestFailedF("Opsize overriden jumps are out of place: %#x LB %#x\n", offLow, cbLow);
         Bs3MemSet(&pbLow[offLow], 0xcc /*int3*/, cbLow);
         if (!fIgnPfx)
         {
@@ -4007,6 +4028,7 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_jmp_call)(uint8_t bMode)
                 {
                     uint16_t const offFn = BS3_FP_OFF(s_aTests[iTest].pfnTest);
                     uint16_t const offUd = offFn + (int16_t)(int8_t)pbCode16[offFn - 1];
+                    BS3_ASSERT(offUd - offLow + 1 < cbLow);
                     pbCode16[offUd]     = 0xf1; /* replace original ud2 with icebp */
                     pbCode16[offUd + 1] = 0xf1;
                     pbLow[offUd]        = 0x0f; /* plant ud2 in low memory */
@@ -4075,6 +4097,8 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_jmp_call)(uint8_t bMode)
     FNBS3FAR a_Template ## _c16, \
              a_Template ## _c32, \
              a_Template ## _c64
+PROTO_ALL(bs3CpuBasic2_far_jmp_call_opsize_begin);
+
 FNBS3FAR  bs3CpuBasic2_jmpf_ptr_rm__ud2_c16;
 PROTO_ALL(bs3CpuBasic2_jmpf_ptr_same_r0__ud2);
 PROTO_ALL(bs3CpuBasic2_jmpf_ptr_same_r1__ud2);
@@ -4131,6 +4155,7 @@ FNBS3FAR  bs3CpuBasic2_callf_mem_r0_cs32__ud2_intel_c64;
 FNBS3FAR  bs3CpuBasic2_callf_mem_r0_cs64__ud2_intel_c64;
 FNBS3FAR  bs3CpuBasic2_callf_mem_r0_cs16l__ud2_intel_c64;
 
+PROTO_ALL(bs3CpuBasic2_far_jmp_call_opsize_end);
 #undef PROTO_ALL
 
 
@@ -4229,9 +4254,32 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_far_jmp_call)(uint8_t bMode)
         };
         bool const fRmOrV86 = BS3_MODE_IS_RM_OR_V86(bMode);
 
+        /* Prepare a copy of the SALC & UD2 instructions in low memory for opsize
+           prefixed tests jumping to BS3_SEL_SPARE_00 when in 64-bit mode, because
+           it'll be a 64-bit CS then with base=0 instead of a CS16 with base=0x10000. */
+        if (BS3_MODE_IS_64BIT_SYS(bMode))
+        {
+            uint16_t const          offLow   = BS3_FP_OFF(bs3CpuBasic2_far_jmp_call_opsize_begin_c16);
+            uint16_t const          cbLow    = BS3_FP_OFF(bs3CpuBasic2_far_jmp_call_opsize_end_c16) - offLow;
+            uint8_t BS3_FAR * const pbLow    = BS3_FP_MAKE(BS3_SEL_TILED_R0, 0);
+            uint8_t BS3_FAR * const pbCode16 = BS3_MAKE_PROT_R0PTR_FROM_FLAT(BS3_ADDR_BS3TEXT16);
+            if (offLow < 0x600 || offLow + cbLow >= BS3_ADDR_STACK_R2)
+                Bs3TestFailedF("Opsize overriden jumps/calls are out of place: %#x LB %#x\n", offLow, cbLow);
+            Bs3MemSet(&pbLow[offLow], 0xcc /*int3*/, cbLow);
+            for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+                if (s_aTests[iTest].uDstSel == BS3_SEL_SPARE_00 && s_aTests[iTest].uDstBits == 64)
+                {
+                    uint16_t const offFn = BS3_FP_OFF(s_aTests[iTest].pfnTest);
+                    uint16_t const offUd = offFn + (int16_t)(int8_t)pbCode16[offFn - 1];
+                    BS3_ASSERT(offUd - offLow + 1 < cbLow);
+                    pbLow[offUd - 1]    = 0xd6; /* plant salc + ud2 in low memory */
+                    pbLow[offUd]        = 0x0f;
+                    pbLow[offUd + 1]    = 0x0b;
+                }
+        }
+
         for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
-            if (   s_aTests[iTest].fRmOrV86 == fRmOrV86
-                && (s_aTests[iTest].uDstSel != BS3_SEL_SPARE_00 || !BS3_MODE_IS_64BIT_SYS(bMode))) /* skip it in LM16 for now*/
+            if (s_aTests[iTest].fRmOrV86 == fRmOrV86)
             {
                 uint64_t const         uSavedRsp = Ctx.rsp.u;
                 bool const             fGp       = (s_aTests[iTest].uDstSel & X86_SEL_RPL) != 0;
@@ -4245,6 +4293,8 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_far_jmp_call)(uint8_t bMode)
                         && !BS3_MODE_IS_16BIT_SYS(bMode)
                         && s_aTests[iTest].uDstSel != BS3_SEL_SPARE_00))
                     CtxExpected.rip.u += BS3_ADDR_BS3TEXT16;
+                if (s_aTests[iTest].uDstSel == BS3_SEL_SPARE_00 && s_aTests[iTest].uDstBits == 64 && BS3_MODE_IS_64BIT_SYS(bMode))
+                    CtxExpected.rip.u &= UINT16_MAX;
                 CtxExpected.cs    = s_aTests[iTest].uDstSel;
                 if (fGp)
                 {
@@ -4343,67 +4393,89 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_far_jmp_call)(uint8_t bMode)
             {  true, BS3_SEL_SPARE_00,       64,  true, bs3CpuBasic2_callf_mem_r0_cs16l__ud2_c32, }, /* 16-bit CS, except in LM. */
         };
 
+        /* Prepare a copy of the SALC & UD2 instructions in low memory for opsize
+           prefixed tests jumping to BS3_SEL_SPARE_00 when in 64-bit mode, because
+           it'll be a 64-bit CS then with base=0 instead of a CS16 with base=0x10000. */
+        if (BS3_MODE_IS_64BIT_SYS(bMode))
+        {
+            uint16_t const          offLow   = BS3_FP_OFF(bs3CpuBasic2_far_jmp_call_opsize_begin_c32);
+            uint16_t const          cbLow    = BS3_FP_OFF(bs3CpuBasic2_far_jmp_call_opsize_end_c32) - offLow;
+            uint8_t BS3_FAR * const pbLow    = BS3_FP_MAKE(BS3_SEL_TILED_R0, 0);
+            uint8_t BS3_FAR * const pbCode16 = BS3_MAKE_PROT_R0PTR_FROM_FLAT(BS3_ADDR_BS3TEXT16);
+            if (offLow < 0x600 || offLow + cbLow >= BS3_ADDR_STACK_R2)
+                Bs3TestFailedF("Opsize overriden jumps/calls are out of place: %#x LB %#x\n", offLow, cbLow);
+            Bs3MemSet(&pbLow[offLow], 0xcc /*int3*/, cbLow);
+            for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+                if (s_aTests[iTest].uDstSel == BS3_SEL_SPARE_00 && s_aTests[iTest].uDstBits == 64)
+                {
+                    uint16_t const offFn = BS3_FP_OFF(s_aTests[iTest].pfnTest);
+                    uint16_t const offUd = offFn + (int16_t)(int8_t)pbCode16[offFn - 1];
+                    BS3_ASSERT(offUd - offLow + 1 < cbLow);
+                    pbLow[offUd - 1]    = 0xd6; /* plant salc + ud2 in low memory */
+                    pbLow[offUd]        = 0x0f;
+                    pbLow[offUd + 1]    = 0x0b;
+                }
+        }
         for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
-            if (s_aTests[iTest].uDstSel != BS3_SEL_SPARE_00 || !BS3_MODE_IS_64BIT_SYS(bMode)) /* skip it in LM32 for now*/
+        {
+            uint64_t const         uSavedRsp = Ctx.rsp.u;
+            bool const             fGp       = (s_aTests[iTest].uDstSel & X86_SEL_RPL) != 0;
+            uint8_t const BS3_FAR *fpbCode   = Bs3SelLnkPtrToCurPtr(s_aTests[iTest].pfnTest);
+
+            Ctx.rip.u = Bs3SelLnkPtrToFlat(s_aTests[iTest].pfnTest);
+            CtxExpected.rip.u = Ctx.rip.u + (int64_t)(int8_t)fpbCode[-1];
+            if (   s_aTests[iTest].uDstBits == 16
+                || (   s_aTests[iTest].uDstBits == 64
+                    && (   BS3_MODE_IS_16BIT_SYS(bMode))
+                        || s_aTests[iTest].uDstSel == BS3_SEL_SPARE_00))
+                CtxExpected.rip.u &= UINT16_MAX;
+            CtxExpected.cs    = s_aTests[iTest].uDstSel;
+            if (fGp)
             {
-                uint64_t const         uSavedRsp = Ctx.rsp.u;
-                bool const             fGp       = (s_aTests[iTest].uDstSel & X86_SEL_RPL) != 0;
-                uint8_t const BS3_FAR *fpbCode   = Bs3SelLnkPtrToCurPtr(s_aTests[iTest].pfnTest);
-
-                Ctx.rip.u = Bs3SelLnkPtrToFlat(s_aTests[iTest].pfnTest);
-                CtxExpected.rip.u = Ctx.rip.u + (int64_t)(int8_t)fpbCode[-1];
-                if (   s_aTests[iTest].uDstBits == 16
-                    || (   s_aTests[iTest].uDstBits == 64
-                        && (   BS3_MODE_IS_16BIT_SYS(bMode))
-                            || s_aTests[iTest].uDstSel == BS3_SEL_SPARE_00))
-                    CtxExpected.rip.u -= BS3_ADDR_BS3TEXT16;
-                CtxExpected.cs    = s_aTests[iTest].uDstSel;
-                if (fGp)
-                {
-                    CtxExpected.rip.u = Ctx.rip.u;
-                    CtxExpected.cs    = Ctx.cs;
-                }
-                g_uBs3TrapEipHint = CtxExpected.rip.u32;
-                CtxExpected.rsp.u = Ctx.rsp.u;
-                if (s_aTests[iTest].fCall && !fGp)
-                    CtxExpected.rsp.u -= s_aTests[iTest].fOpSizePfx ? 4 : 8;
-                if (s_aTests[iTest].uDstBits == 64 && !fGp)
-                {
-                    if (BS3_MODE_IS_64BIT_SYS(bMode))
-                        CtxExpected.rip.u -= 1;
-                    else
-                        CtxExpected.rax.u8 = CtxExpected.rflags.u & X86_EFL_CF ? 0xff : 0x00;
-                }
-                //Bs3TestPrintf("cs:rip=%04RX16:%04RX64 -> %04RX16:%04RX64\n", Ctx.cs, Ctx.rip.u, CtxExpected.cs, CtxExpected.rip.u);
-                Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
-                if (!fGp)
-                    bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
-                else
-                    bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aTests[iTest].uDstSel & X86_TRAP_ERR_SEL_MASK);
-                Ctx.rsp.u = uSavedRsp;
-                g_usBs3TestStep++;
-
-                /* Again single stepping: */
-                //Bs3TestPrintf("stepping...\n");
-                Bs3RegSetDr6(X86_DR6_INIT_VAL);
-                Ctx.rflags.u16        |= X86_EFL_TF;
-                CtxExpected.rflags.u16 = Ctx.rflags.u16;
-                CtxExpected.rax.u      = Ctx.rax.u;
-                if (s_aTests[iTest].uDstBits == 64 && !fGp && !BS3_MODE_IS_64BIT_SYS(bMode))
-                    CtxExpected.rip.u -= 1;
-                Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
-                if (!fGp)
-                    bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
-                else
-                {
-                    bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aTests[iTest].uDstSel & X86_TRAP_ERR_SEL_MASK);
-                    bs3CpuBasic2_CheckDr6InitVal();
-                }
-                Ctx.rflags.u16        &= ~X86_EFL_TF;
-                CtxExpected.rflags.u16 = Ctx.rflags.u16;
-                Ctx.rsp.u              = uSavedRsp;
-                g_usBs3TestStep++;
+                CtxExpected.rip.u = Ctx.rip.u;
+                CtxExpected.cs    = Ctx.cs;
             }
+            g_uBs3TrapEipHint = CtxExpected.rip.u32;
+            CtxExpected.rsp.u = Ctx.rsp.u;
+            if (s_aTests[iTest].fCall && !fGp)
+                CtxExpected.rsp.u -= s_aTests[iTest].fOpSizePfx ? 4 : 8;
+            if (s_aTests[iTest].uDstBits == 64 && !fGp)
+            {
+                if (BS3_MODE_IS_64BIT_SYS(bMode))
+                    CtxExpected.rip.u -= 1;
+                else
+                    CtxExpected.rax.u8 = CtxExpected.rflags.u & X86_EFL_CF ? 0xff : 0x00;
+            }
+            //Bs3TestPrintf("cs:rip=%04RX16:%04RX64 -> %04RX16:%04RX64\n", Ctx.cs, Ctx.rip.u, CtxExpected.cs, CtxExpected.rip.u);
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            if (!fGp)
+                bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+            else
+                bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aTests[iTest].uDstSel & X86_TRAP_ERR_SEL_MASK);
+            Ctx.rsp.u = uSavedRsp;
+            g_usBs3TestStep++;
+
+            /* Again single stepping: */
+            //Bs3TestPrintf("stepping...\n");
+            Bs3RegSetDr6(X86_DR6_INIT_VAL);
+            Ctx.rflags.u16        |= X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            CtxExpected.rax.u      = Ctx.rax.u;
+            if (s_aTests[iTest].uDstBits == 64 && !fGp && !BS3_MODE_IS_64BIT_SYS(bMode))
+                CtxExpected.rip.u -= 1;
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            if (!fGp)
+                bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
+            else
+            {
+                bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aTests[iTest].uDstSel & X86_TRAP_ERR_SEL_MASK);
+                bs3CpuBasic2_CheckDr6InitVal();
+            }
+            Ctx.rflags.u16        &= ~X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            Ctx.rsp.u              = uSavedRsp;
+            g_usBs3TestStep++;
+        }
     }
     /*
      * 64-bit tests.
@@ -4501,7 +4573,6 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_far_jmp_call)(uint8_t bMode)
                 CtxExpected.rip.u = Ctx.rip.u;
                 CtxExpected.cs    = Ctx.cs;
             }
-            g_uBs3TrapEipHint = CtxExpected.rip.u32;
             CtxExpected.rsp.u = Ctx.rsp.u;
             if (s_aTests[iTest].fCall && !fGp && !fUd)
             {
@@ -4543,6 +4614,1787 @@ BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_far_jmp_call)(uint8_t bMode)
     else
         Bs3TestFailed("wtf?");
 
+    return 0;
+}
+
+
+/*********************************************************************************************************************************
+*   Near RET                                                                                                                     *
+*********************************************************************************************************************************/
+#define PROTO_ALL(a_Template) \
+    FNBS3FAR a_Template ## _c16, \
+             a_Template ## _c32, \
+             a_Template ## _c64
+PROTO_ALL(bs3CpuBasic2_retn_opsize_begin);
+PROTO_ALL(bs3CpuBasic2_retn__ud2);
+PROTO_ALL(bs3CpuBasic2_retn_opsize__ud2);
+PROTO_ALL(bs3CpuBasic2_retn_i24__ud2);
+PROTO_ALL(bs3CpuBasic2_retn_i24_opsize__ud2);
+PROTO_ALL(bs3CpuBasic2_retn_i760__ud2);
+PROTO_ALL(bs3CpuBasic2_retn_i0__ud2);
+PROTO_ALL(bs3CpuBasic2_retn_i0_opsize__ud2);
+FNBS3FAR  bs3CpuBasic2_retn_rexw__ud2_c64;
+FNBS3FAR  bs3CpuBasic2_retn_i24_rexw__ud2_c64;
+FNBS3FAR  bs3CpuBasic2_retn_opsize_rexw__ud2_c64;
+FNBS3FAR  bs3CpuBasic2_retn_rexw_opsize__ud2_c64;
+FNBS3FAR  bs3CpuBasic2_retn_i24_opsize_rexw__ud2_c64;
+FNBS3FAR  bs3CpuBasic2_retn_i24_rexw_opsize__ud2_c64;
+PROTO_ALL(bs3CpuBasic2_retn_opsize_end);
+#undef PROTO_ALL
+
+
+static void bs3CpuBasic2_retn_PrepStack(BS3PTRUNION StkPtr, PCBS3REGCTX pCtxExpected, uint8_t cbAddr)
+{
+    StkPtr.pu32[3]  = UINT32_MAX;
+    StkPtr.pu32[2]  = UINT32_MAX;
+    StkPtr.pu32[1]  = UINT32_MAX;
+    StkPtr.pu32[0]  = UINT32_MAX;
+    StkPtr.pu32[-1] = UINT32_MAX;
+    StkPtr.pu32[-2] = UINT32_MAX;
+    StkPtr.pu32[-3] = UINT32_MAX;
+    StkPtr.pu32[-4] = UINT32_MAX;
+    if (cbAddr == 2)
+        StkPtr.pu16[0] = pCtxExpected->rip.u16;
+    else if (cbAddr == 4)
+        StkPtr.pu32[0] = pCtxExpected->rip.u32;
+    else
+        StkPtr.pu64[0] = pCtxExpected->rip.u64;
+}
+
+
+/**
+ * Entrypoint for NEAR RET tests.
+ *
+ * @returns 0 or BS3TESTDOMODE_SKIPPED.
+ * @param   bMode       The CPU mode we're testing.
+ */
+BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_near_ret)(uint8_t bMode)
+{
+    BS3TRAPFRAME            TrapCtx;
+    BS3REGCTX               Ctx;
+    BS3REGCTX               CtxExpected;
+    unsigned                iTest;
+    BS3PTRUNION             StkPtr;
+
+    /* make sure they're allocated  */
+    Bs3MemZero(&Ctx, sizeof(Ctx));
+    Bs3MemZero(&CtxExpected, sizeof(Ctx));
+    Bs3MemZero(&TrapCtx, sizeof(TrapCtx));
+
+    bs3CpuBasic2_SetGlobals(bMode);
+
+    /*
+     * Create a context.
+     *
+     * ASSUMES we're in on the ring-0 stack in ring-0 and using less than 16KB.
+     */
+    Bs3RegCtxSaveEx(&Ctx, bMode, 1664);
+    Ctx.rsp.u = BS3_ADDR_STACK - _16K;
+    Bs3MemCpy(&CtxExpected, &Ctx, sizeof(CtxExpected));
+
+    StkPtr.pv = Bs3RegCtxGetRspSsAsCurPtr(&Ctx);
+    //Bs3TestPrintf("Stack=%p rsp=%RX64\n", StkPtr.pv, Ctx.rsp.u);
+
+    /*
+     * 16-bit tests.
+     */
+    if (BS3_MODE_IS_16BIT_CODE(bMode))
+    {
+        static struct
+        {
+            bool        fOpSizePfx;
+            uint16_t    cbImm;
+            FPFNBS3FAR  pfnTest;
+        }
+        const s_aTests[] =
+        {
+            { false,  0, bs3CpuBasic2_retn__ud2_c16, },
+            {  true,  0, bs3CpuBasic2_retn_opsize__ud2_c16, },
+            { false, 24, bs3CpuBasic2_retn_i24__ud2_c16, },
+            {  true, 24, bs3CpuBasic2_retn_i24_opsize__ud2_c16, },
+            { false,  0, bs3CpuBasic2_retn_i0__ud2_c16, },
+            {  true,  0, bs3CpuBasic2_retn_i0_opsize__ud2_c16, },
+            { false,760, bs3CpuBasic2_retn_i760__ud2_c16, },
+        };
+
+        for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+        {
+            uint8_t const BS3_FAR *fpbCode;
+
+            Bs3RegCtxSetRipCsFromLnkPtr(&Ctx, s_aTests[iTest].pfnTest);
+            fpbCode = (uint8_t const BS3_FAR *)BS3_FP_MAKE(Ctx.cs, Ctx.rip.u16);
+            CtxExpected.rip.u = Ctx.rip.u + (int64_t)(int8_t)fpbCode[-1];
+            g_uBs3TrapEipHint = CtxExpected.rip.u32;
+            CtxExpected.cs    = Ctx.cs;
+            if (!s_aTests[iTest].fOpSizePfx)
+                CtxExpected.rsp.u = Ctx.rsp.u + s_aTests[iTest].cbImm + 2;
+            else
+                CtxExpected.rsp.u = Ctx.rsp.u + s_aTests[iTest].cbImm + 4;
+            //Bs3TestPrintf("cs:rip=%04RX16:%04RX64 -> %04RX16:%04RX64\n", Ctx.cs, Ctx.rip.u, CtxExpected.cs, CtxExpected.rip.u);
+            //Bs3TestPrintf("ss:rsp=%04RX16:%04RX64\n", Ctx.ss, Ctx.rsp.u);
+            bs3CpuBasic2_retn_PrepStack(StkPtr, &CtxExpected, s_aTests[iTest].fOpSizePfx ? 4 : 2);
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+            g_usBs3TestStep++;
+
+            /* Again single stepping: */
+            //Bs3TestPrintf("stepping...\n");
+            Bs3RegSetDr6(X86_DR6_INIT_VAL);
+            Ctx.rflags.u16        |= X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            bs3CpuBasic2_retn_PrepStack(StkPtr, &CtxExpected, s_aTests[iTest].fOpSizePfx ? 4 : 2);
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
+            Ctx.rflags.u16        &= ~X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            g_usBs3TestStep++;
+        }
+    }
+    /*
+     * 32-bit tests.
+     */
+    else if (BS3_MODE_IS_32BIT_CODE(bMode))
+    {
+        static struct
+        {
+            uint8_t     cBits;
+            bool        fOpSizePfx;
+            uint16_t    cbImm;
+            FPFNBS3FAR  pfnTest;
+        }
+        const s_aTests[] =
+        {
+            { 32, false,  0, bs3CpuBasic2_retn__ud2_c32, },
+            { 32,  true,  0, bs3CpuBasic2_retn_opsize__ud2_c32, },
+            { 32, false, 24, bs3CpuBasic2_retn_i24__ud2_c32, },
+            { 32,  true, 24, bs3CpuBasic2_retn_i24_opsize__ud2_c32, },
+            { 32, false,  0, bs3CpuBasic2_retn_i0__ud2_c32, },
+            { 32,  true,  0, bs3CpuBasic2_retn_i0_opsize__ud2_c32, },
+            { 32, false,760, bs3CpuBasic2_retn_i760__ud2_c32, },
+        };
+
+        /* Prepare a copy of the UD2 instructions in low memory for opsize prefixed tests. */
+        uint16_t const          offLow   = BS3_FP_OFF(bs3CpuBasic2_retn_opsize_begin_c32);
+        uint16_t const          cbLow    = BS3_FP_OFF(bs3CpuBasic2_retn_opsize_end_c32) - offLow;
+        uint8_t BS3_FAR * const pbLow    = BS3_FP_MAKE(BS3_SEL_TILED_R0, 0);
+        uint8_t BS3_FAR * const pbCode16 = BS3_MAKE_PROT_R0PTR_FROM_FLAT(BS3_ADDR_BS3TEXT16);
+        if (offLow < 0x600 || offLow + cbLow >= BS3_ADDR_STACK_R2)
+            Bs3TestFailedF("Opsize overriden jumps/calls are out of place: %#x LB %#x\n", offLow, cbLow);
+        Bs3MemSet(&pbLow[offLow], 0xcc /*int3*/, cbLow);
+        for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+            if (s_aTests[iTest].fOpSizePfx)
+            {
+                uint16_t const offFn = BS3_FP_OFF(s_aTests[iTest].pfnTest);
+                uint16_t const offUd = offFn + (int16_t)(int8_t)pbCode16[offFn - 1];
+                BS3_ASSERT(offUd - offLow + 1 < cbLow);
+                pbCode16[offUd]     = 0xf1; /* replace original ud2 with icebp */
+                pbCode16[offUd + 1] = 0xf1;
+                pbLow[offUd]        = 0x0f; /* plant ud2 in low memory */
+                pbLow[offUd + 1]    = 0x0b;
+            }
+
+        for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+        {
+            uint8_t const BS3_FAR *fpbCode   = Bs3SelLnkPtrToCurPtr(s_aTests[iTest].pfnTest);
+
+            Ctx.rip.u = Bs3SelLnkPtrToFlat(s_aTests[iTest].pfnTest);
+            CtxExpected.rip.u = Ctx.rip.u + (int64_t)(int8_t)fpbCode[-1];
+            CtxExpected.cs    = Ctx.cs;
+            if (!s_aTests[iTest].fOpSizePfx)
+                CtxExpected.rsp.u = Ctx.rsp.u + s_aTests[iTest].cbImm + 4;
+            else
+            {
+                CtxExpected.rsp.u  = Ctx.rsp.u + s_aTests[iTest].cbImm + 2;
+                CtxExpected.rip.u &= UINT16_MAX;
+            }
+            g_uBs3TrapEipHint = CtxExpected.rip.u32;
+            //Bs3TestPrintf("cs:rip=%04RX16:%04RX64 -> %04RX16:%04RX64\n", Ctx.cs, Ctx.rip.u, CtxExpected.cs, CtxExpected.rip.u);
+            //Bs3TestPrintf("ss:rsp=%04RX16:%04RX64\n", Ctx.ss, Ctx.rsp.u);
+            bs3CpuBasic2_retn_PrepStack(StkPtr, &CtxExpected, s_aTests[iTest].fOpSizePfx ? 2 : 4);
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+            g_usBs3TestStep++;
+
+            /* Again single stepping: */
+            //Bs3TestPrintf("stepping...\n");
+            Bs3RegSetDr6(X86_DR6_INIT_VAL);
+            Ctx.rflags.u16        |= X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            bs3CpuBasic2_retn_PrepStack(StkPtr, &CtxExpected, s_aTests[iTest].fOpSizePfx ? 2 : 4);
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
+            Ctx.rflags.u16        &= ~X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            g_usBs3TestStep++;
+        }
+    }
+    /*
+     * 64-bit tests.
+     */
+    else if (BS3_MODE_IS_64BIT_CODE(bMode))
+    {
+        static struct
+        {
+            uint8_t     cBits;
+            bool        fOpSizePfx;
+            uint16_t    cbImm;
+            FPFNBS3FAR  pfnTest;
+        }
+        const s_aTests[] =
+        {
+            { 32, false,  0, bs3CpuBasic2_retn__ud2_c64, },
+            { 32, false,  0, bs3CpuBasic2_retn_rexw__ud2_c64, },
+            { 32,  true,  0, bs3CpuBasic2_retn_opsize__ud2_c64, },
+            { 32, false,  0, bs3CpuBasic2_retn_opsize_rexw__ud2_c64, },
+            { 32,  true,  0, bs3CpuBasic2_retn_rexw_opsize__ud2_c64, },
+            { 32, false, 24, bs3CpuBasic2_retn_i24__ud2_c64, },
+            { 32, false, 24, bs3CpuBasic2_retn_i24_rexw__ud2_c64, },
+            { 32,  true, 24, bs3CpuBasic2_retn_i24_opsize__ud2_c64, },
+            { 32, false, 24, bs3CpuBasic2_retn_i24_opsize_rexw__ud2_c64, },
+            { 32,  true, 24, bs3CpuBasic2_retn_i24_rexw_opsize__ud2_c64, },
+            { 32, false,  0, bs3CpuBasic2_retn_i0__ud2_c64, },
+            { 32,  true,  0, bs3CpuBasic2_retn_i0_opsize__ud2_c64, },
+            { 32, false,760, bs3CpuBasic2_retn_i760__ud2_c64, },
+        };
+        BS3CPUVENDOR const enmCpuVendor = Bs3GetCpuVendor();
+        bool const         fFix64OpSize = enmCpuVendor == BS3CPUVENDOR_INTEL; /** @todo what does VIA do? */
+
+        /* Prepare a copy of the UD2 instructions in low memory for opsize prefixed
+           tests, unless we're on intel where the opsize prefix is ignored. Here we
+           just fill low memory with int3's so we can detect non-intel behaviour.  */
+        uint16_t const          offLow   = BS3_FP_OFF(bs3CpuBasic2_retn_opsize_begin_c64);
+        uint16_t const          cbLow    = BS3_FP_OFF(bs3CpuBasic2_retn_opsize_end_c64) - offLow;
+        uint8_t BS3_FAR * const pbLow    = BS3_FP_MAKE(BS3_SEL_TILED_R0, 0);
+        uint8_t BS3_FAR * const pbCode16 = BS3_MAKE_PROT_R0PTR_FROM_FLAT(BS3_ADDR_BS3TEXT16);
+        if (offLow < 0x600 || offLow + cbLow >= BS3_ADDR_STACK_R2)
+            Bs3TestFailedF("Opsize overriden jumps/calls are out of place: %#x LB %#x\n", offLow, cbLow);
+        Bs3MemSet(&pbLow[offLow], 0xcc /*int3*/, cbLow);
+        if (!fFix64OpSize)
+            for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+                if (s_aTests[iTest].fOpSizePfx)
+                {
+                    uint16_t const offFn = BS3_FP_OFF(s_aTests[iTest].pfnTest);
+                    uint16_t const offUd = offFn + (int16_t)(int8_t)pbCode16[offFn - 1];
+                    BS3_ASSERT(offUd - offLow + 1 < cbLow);
+                    pbCode16[offUd]     = 0xf1; /* replace original ud2 with icebp */
+                    pbCode16[offUd + 1] = 0xf1;
+                    pbLow[offUd]        = 0x0f; /* plant ud2 in low memory */
+                    pbLow[offUd + 1]    = 0x0b;
+                }
+
+        for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+        {
+            uint8_t const BS3_FAR *fpbCode   = Bs3SelLnkPtrToCurPtr(s_aTests[iTest].pfnTest);
+
+            Ctx.rip.u = Bs3SelLnkPtrToFlat(s_aTests[iTest].pfnTest);
+            CtxExpected.rip.u = Ctx.rip.u + (int64_t)(int8_t)fpbCode[-1];
+            CtxExpected.cs    = Ctx.cs;
+            if (!s_aTests[iTest].fOpSizePfx || fFix64OpSize)
+                CtxExpected.rsp.u = Ctx.rsp.u + s_aTests[iTest].cbImm + 8;
+            else
+            {
+                CtxExpected.rsp.u  = Ctx.rsp.u + s_aTests[iTest].cbImm + 2;
+                CtxExpected.rip.u &= UINT16_MAX;
+            }
+            g_uBs3TrapEipHint = CtxExpected.rip.u32;
+            //Bs3TestPrintf("cs:rip=%04RX16:%04RX64 -> %04RX16:%04RX64\n", Ctx.cs, Ctx.rip.u, CtxExpected.cs, CtxExpected.rip.u);
+            //Bs3TestPrintf("ss:rsp=%04RX16:%04RX64\n", Ctx.ss, Ctx.rsp.u);
+            bs3CpuBasic2_retn_PrepStack(StkPtr, &CtxExpected, s_aTests[iTest].fOpSizePfx && !fFix64OpSize ? 2 : 8);
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+            g_usBs3TestStep++;
+
+            /* Again single stepping: */
+            //Bs3TestPrintf("stepping...\n");
+            Bs3RegSetDr6(X86_DR6_INIT_VAL);
+            Ctx.rflags.u16        |= X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            bs3CpuBasic2_retn_PrepStack(StkPtr, &CtxExpected, s_aTests[iTest].fOpSizePfx && !fFix64OpSize ? 2 : 8);
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
+            Ctx.rflags.u16        &= ~X86_EFL_TF;
+            CtxExpected.rflags.u16 = Ctx.rflags.u16;
+            g_usBs3TestStep++;
+        }
+    }
+    else
+        Bs3TestFailed("wtf?");
+
+    return 0;
+}
+
+
+/*********************************************************************************************************************************
+*   Far RET                                                                                                                      *
+*********************************************************************************************************************************/
+#define PROTO_ALL(a_Template) \
+    FNBS3FAR a_Template ## _c16, \
+             a_Template ## _c32, \
+             a_Template ## _c64
+PROTO_ALL(bs3CpuBasic2_retf);
+PROTO_ALL(bs3CpuBasic2_retf_opsize);
+FNBS3FAR  bs3CpuBasic2_retf_rexw_c64;
+FNBS3FAR  bs3CpuBasic2_retf_rexw_opsize_c64;
+FNBS3FAR  bs3CpuBasic2_retf_opsize_rexw_c64;
+PROTO_ALL(bs3CpuBasic2_retf_i32);
+PROTO_ALL(bs3CpuBasic2_retf_i32_opsize);
+FNBS3FAR  bs3CpuBasic2_retf_i24_rexw_c64;
+FNBS3FAR  bs3CpuBasic2_retf_i24_rexw_opsize_c64;
+FNBS3FAR  bs3CpuBasic2_retf_i24_opsize_rexw_c64;
+PROTO_ALL(bs3CpuBasic2_retf_i888);
+#undef PROTO_ALL
+
+
+static void bs3CpuBasic2_retf_PrepStack(BS3PTRUNION StkPtr, uint8_t cbStkItem, RTSEL uRetCs, uint64_t uRetRip,
+                                        bool fWithStack, uint16_t cbImm, RTSEL uRetSs, uint64_t uRetRsp)
+{
+    Bs3MemSet(&StkPtr.pu32[-4], 0xff, 96);
+    if (cbStkItem == 2)
+    {
+        StkPtr.pu16[0] = (uint16_t)uRetRip;
+        StkPtr.pu16[1] = uRetCs;
+        if (fWithStack)
+        {
+            StkPtr.pb += cbImm;
+            StkPtr.pu16[2] = (uint16_t)uRetRsp;
+            StkPtr.pu16[3] = uRetSs;
+        }
+    }
+    else if (cbStkItem == 4)
+    {
+        StkPtr.pu32[0] = (uint32_t)uRetRip;
+        StkPtr.pu16[2] = uRetCs;
+        if (fWithStack)
+        {
+            StkPtr.pb += cbImm;
+            StkPtr.pu32[2] = (uint32_t)uRetRsp;
+            StkPtr.pu16[6] = uRetSs;
+        }
+    }
+    else
+    {
+        StkPtr.pu64[0] = uRetRip;
+        StkPtr.pu16[4] = uRetCs;
+        if (fWithStack)
+        {
+            StkPtr.pb += cbImm;
+            StkPtr.pu64[2]  = uRetRsp;
+            StkPtr.pu16[12] = uRetSs;
+        }
+    }
+}
+
+
+/**
+ * Entrypoint for FAR RET tests.
+ *
+ * @returns 0 or BS3TESTDOMODE_SKIPPED.
+ * @param   bMode       The CPU mode we're testing.
+ */
+BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_far_ret)(uint8_t bMode)
+{
+    BS3TRAPFRAME            TrapCtx;
+    BS3REGCTX               Ctx;
+    BS3REGCTX               Ctx2;
+    BS3REGCTX               CtxExpected;
+    unsigned                iTest;
+    unsigned                iSubTest;
+    BS3PTRUNION             StkPtr;
+
+#define LOW_UD_ADDR             0x0609
+    uint8_t BS3_FAR * const pbLowUd     = BS3_FP_MAKE(BS3_FP_SEG(&StkPtr), LOW_UD_ADDR);
+#define LOW_SALC_UD_ADDR        0x0611
+    uint8_t BS3_FAR * const pbLowSalcUd = BS3_FP_MAKE(BS3_FP_SEG(&StkPtr), LOW_SALC_UD_ADDR);
+#define LOW_SWAPGS_ADDR         0x061d
+    uint8_t BS3_FAR * const pbLowSwapGs = BS3_FP_MAKE(BS3_FP_SEG(&StkPtr), LOW_SWAPGS_ADDR);
+#define BS3TEXT16_ADDR_HI   (BS3_ADDR_BS3TEXT16 >> 16)
+
+    /* make sure they're allocated  */
+    Bs3MemZero(&Ctx, sizeof(Ctx));
+    Bs3MemZero(&Ctx2, sizeof(Ctx2));
+    Bs3MemZero(&CtxExpected, sizeof(CtxExpected));
+    Bs3MemZero(&TrapCtx, sizeof(TrapCtx));
+
+    bs3CpuBasic2_SetGlobals(bMode);
+
+    //if (!BS3_MODE_IS_64BIT_SYS(bMode) && bMode != BS3_MODE_PP32_16) return 0xff;
+    //if (bMode != BS3_MODE_PE32_16) return 0xff;
+
+    /*
+     * When dealing retf with 16-bit effective operand size to 32-bit or 64-bit
+     * code, we're restricted to a 16-bit address.  So, we plant a UD
+     * instruction below 64KB that we can target with flat 32/64 code segments.
+     * (Putting it on the stack would be possible too, but we'd have to create
+     * the sub-test tables dynamically, which isn't necessary.)
+     */
+    Bs3MemSet(&pbLowUd[-9], 0xcc, 32);
+    Bs3MemSet(&pbLowSalcUd[-9], 0xcc, 32);
+    Bs3MemSet(&pbLowSwapGs[-9], 0xcc, 32);
+
+    pbLowUd[0] = 0x0f;      /* ud2 */
+    pbLowUd[1] = 0x0b;
+
+    /* A variation to detect whether we're in 64-bit or 16-bit mode when
+       executing the code. */
+    pbLowSalcUd[0] = 0xd6;  /* salc */
+    pbLowSalcUd[1] = 0x0f;  /* ud2 */
+    pbLowSalcUd[2] = 0x0b;
+
+    /* A variation to check that we're not in 64-bit mode. */
+    pbLowSwapGs[0] = 0x0f;  /* swapgs */
+    pbLowSwapGs[1] = 0x01;
+    pbLowSwapGs[2] = 0xf8;
+
+    /*
+     * Use separate stacks for all relevant CPU exceptions so we can put
+     * garbage in unused RSP bits w/o needing to care about where a long mode
+     * handler will end up when accessing the whole RSP.  (Not an issue with
+     * 16-bit and 32-bit protected mode kernels, as here the weird SS based
+     * stack pointer handling is in effect and the exception handler code
+     * will just continue using the same SS and same portion of RSP.)
+     *
+     * See r154660.
+     */
+    if (BS3_MODE_IS_64BIT_SYS(bMode))
+        Bs3Trap64InitEx(true);
+
+    /*
+     * Create some call gates and whatnot for the UD2 code using the spare selectors.
+     */
+    if (BS3_MODE_IS_64BIT_SYS(bMode))
+        for (iTest = 0; iTest < 16; iTest++)
+            Bs3SelSetupGate64(&Bs3GdteSpare00 + iTest * 2, iTest /*bType*/, 3 /*bDpl*/,
+                              BS3_SEL_R0_CS64, BS3_FP_OFF(bs3CpuBasic2_ud2) + BS3_ADDR_BS3TEXT16);
+    else
+    {
+        for (iTest = 0; iTest < 16; iTest++)
+        {
+            Bs3SelSetupGate(&Bs3GdteSpare00 + iTest,      iTest /*bType*/, 3 /*bDpl*/,
+                            BS3_SEL_R0_CS16, BS3_FP_OFF(bs3CpuBasic2_ud2), 0);
+            Bs3SelSetupGate(&Bs3GdteSpare00 + iTest + 16, iTest /*bType*/, 3 /*bDpl*/,
+                            BS3_SEL_R0_CS32, BS3_FP_OFF(bs3CpuBasic2_ud2) + BS3_ADDR_BS3TEXT16, 0);
+        }
+    }
+
+    /*
+     * Create a context.
+     *
+     * ASSUMES we're in on the ring-0 stack in ring-0 and using less than 16KB.
+     */
+    Bs3RegCtxSaveEx(&Ctx, bMode, 1728);
+    Ctx.rsp.u = BS3_ADDR_STACK - _16K;
+    Bs3MemCpy(&CtxExpected, &Ctx, sizeof(CtxExpected));
+
+    StkPtr.pv = Bs3RegCtxGetRspSsAsCurPtr(&Ctx);
+    //Bs3TestPrintf("Stack=%p rsp=%RX64\n", StkPtr.pv, Ctx.rsp.u);
+
+    /*
+     * 16-bit tests.
+     */
+    if (BS3_MODE_IS_16BIT_CODE(bMode))
+    {
+        static struct
+        {
+            bool        fOpSizePfx;
+            uint16_t    cbImm;
+            FPFNBS3FAR  pfnTest;
+        } const s_aTests[] =
+        {
+            { false,  0, bs3CpuBasic2_retf_c16, },
+            {  true,  0, bs3CpuBasic2_retf_opsize_c16, },
+            { false, 32, bs3CpuBasic2_retf_i32_c16, },
+            {  true, 32, bs3CpuBasic2_retf_i32_opsize_c16, },
+            { false,888, bs3CpuBasic2_retf_i888_c16, },
+        };
+
+        static struct
+        {
+            bool        fRmOrV86;
+            bool        fInterPriv;
+            int8_t      iXcpt;
+            RTSEL       uStartSs;
+            uint8_t     cDstBits;
+            RTSEL       uDstCs;
+            union   /* must use a union here as the compiler won't compile if uint16_t and will mess up fixups for uint32_t. */
+            {
+                uint32_t     offDst;
+                struct
+                {
+                    NPVOID   pv;
+                    uint16_t uHigh;
+                } s;
+            };
+            RTSEL       uDstSs;
+            uint16_t    uErrCd;
+        } const s_aSubTests[] =
+        { /* rm/v86, PriChg, Xcpt,  uStartSs,    => bits    uDstCs                   offDst/pv                                                    uDstSs               uErrCd */
+            {  true, false, -1,                   0, 16, BS3_SEL_TEXT16,          { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          0,                   0 },
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_TEXT16  | 0,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, 0 },
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16 | 0,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, 0 },
+            { false, false, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16 | 0,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS32 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS32 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS32 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS32 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS16 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS16 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS32 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS32 | 3, 0 },
+            /* conforming stuff */
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16_CNF | 0, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 1, BS3_SEL_R0_SS16 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16_CNF | 2, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16_CNF | 3, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS16 | 3, 0 },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16_CNF | 0, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, BS3_SEL_R1_CS16_CNF },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16_CNF | 0, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, BS3_SEL_R1_CS16_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16_CNF | 2, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16_CNF | 3, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS16 | 3, 0 },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16_CNF | 0, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, BS3_SEL_R2_CS16_CNF },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16_CNF | 0, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, BS3_SEL_R2_CS16_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16_CNF | 1, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, BS3_SEL_R2_CS16_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16_CNF | 1, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, BS3_SEL_R2_CS16_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16_CNF | 2, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16_CNF | 3, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS16 | 3, 0 },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16_CNF | 0, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, BS3_SEL_R3_CS16_CNF },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16_CNF | 0, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, BS3_SEL_R3_CS16_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16_CNF | 1, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R1_SS16 | 1, BS3_SEL_R3_CS16_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16_CNF | 1, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R0_SS16 | 0, BS3_SEL_R3_CS16_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16_CNF | 2, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS16 | 2, BS3_SEL_R3_CS16_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16_CNF | 2, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS16 | 2, BS3_SEL_R3_CS16_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16_CNF | 3, { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R3_SS16 | 3, 0 },
+            /* returning to 32-bit code: */
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 0, 0 },
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R0_SS16 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS32 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R1_SS32 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS32 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R2_SS32 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R3_SS16 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS32 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R3_SS32 | 3, 0 },
+            { false, false, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS32 | 0, 0 },
+            { false, false, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R0_SS32 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS32 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R1_SS32 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS32 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R2_SS32 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS32 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R3_SS32 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },        BS3_SEL_R3_SS16 | 3, 0 },
+            /* returning to 32-bit conforming code: */
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 1, BS3_SEL_R0_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 0, BS3_SEL_R0_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 1, BS3_SEL_R3_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, BS3_SEL_R3_SS16 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, 0 },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 0, BS3_SEL_R1_CS32_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 1, BS3_SEL_R0_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 0, BS3_SEL_R0_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 1, BS3_SEL_R3_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, BS3_SEL_R3_SS16 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, 0 },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 0, BS3_SEL_R2_CS32_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS16 | 1, BS3_SEL_R2_CS32_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, 0 },
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R0_SS16 | 0, BS3_SEL_R3_CS32_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R1_SS16 | 1, BS3_SEL_R3_CS32_CNF },
+            { false,  true, 42, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R2_SS16 | 2, BS3_SEL_R3_CS32_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                      BS3_SEL_R3_SS16 | 3, 0 },
+            /* returning to 64-bit code or 16-bit when not in long mode: */
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R0_SS16 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS16 | 3, 0 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R0_DS64 | 1, BS3_SEL_R0_DS64 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_DS64 | 1, 0 },
+            { false, false, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R0_SS32 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS32 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS32 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS16 | 3, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS32 | 3, 0 },
+            { false,  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS32 | 3, BS3_SEL_R2_CS64 },
+            { false,  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS32 | 3, BS3_SEL_R2_CS64 },
+            { false,  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS32 | 3, BS3_SEL_R1_SS32 },
+            { false,  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS32 | 2, BS3_SEL_R3_SS32 },
+            /* returning to 64-bit code or 16-bit when not in long mode, conforming code variant: */
+            { false, false, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R0_SS16 | 0, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS16 | 3, 0 },
+
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R0_SS16 | 0, BS3_SEL_R1_CS64_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS16 | 1, 0 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS16 | 2, BS3_SEL_R1_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 1, BS3_SEL_R2_SS16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 2, BS3_SEL_R2_SS16 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS16 | 3, 0 },
+
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R0_SS16 | 0, BS3_SEL_R2_CS64_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS16 | 1, BS3_SEL_R2_CS64_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 2, 0 },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS16 | 3, 0 },
+
+            { false, false, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R0_SS16 | 0, BS3_SEL_R3_CS64_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R1_SS16 | 1, BS3_SEL_R3_CS64_CNF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R2_SS16 | 2, BS3_SEL_R3_CS64_CNF },
+            { false,  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                 BS3_SEL_R3_SS16 | 3, 0 },
+
+            /* some additional #GP variations */ /** @todo test all possible exceptions! */
+            { false,  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16 | 2,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                          BS3_SEL_R2_SS16 | 2, BS3_SEL_R3_CS16 },
+            { false,  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_TSS32_DF | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS32 | 0, BS3_SEL_TSS32_DF },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_00 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_00 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_01 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_01 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_02 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_02 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_03 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_03 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_04 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_04 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_05 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_05 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_06 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_06 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_07 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_07 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_08 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_08 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_09 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_09 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_0a | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_0a },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_0b | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_0b },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_0c | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_0c },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_0d | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_0d },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_0e | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_0e },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_SPARE_0f | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_0f },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_10 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_10 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_11 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_11 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_12 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_12 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_13 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_13 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_14 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_14 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_15 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_15 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_16 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_16 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_17 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_17 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_18 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_18 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_19 | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_19 },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_1a | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_1a },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_1b | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_1b },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_1c | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_1c },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_1d | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_1d },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_1e | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_1e },
+            { false,  true, 14, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_SPARE_1f | 0,    { .offDst = 0 },                                                BS3_SEL_R0_SS16 | 0, BS3_SEL_SPARE_1f },
+        };
+
+        bool const         fRmOrV86     = BS3_MODE_IS_RM_OR_V86(bMode);
+        BS3CPUVENDOR const enmCpuVendor = Bs3GetCpuVendor();
+
+        Bs3RegSetDr7(X86_DR7_INIT_VAL);
+        for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+        {
+            Bs3RegCtxSetRipCsFromLnkPtr(&Ctx, s_aTests[iTest].pfnTest);
+
+            for (iSubTest = 0; iSubTest < RT_ELEMENTS(s_aSubTests); iSubTest++)
+            {
+                g_usBs3TestStep = (iTest << 12) | (iSubTest << 4);
+                if (   s_aSubTests[iSubTest].fRmOrV86 == fRmOrV86
+                    && (s_aSubTests[iSubTest].offDst <= UINT16_MAX || s_aTests[iTest].fOpSizePfx))
+                {
+                    uint16_t const cbFrmDisp = s_aSubTests[iSubTest].fInterPriv ? iSubTest % 7 : 0;
+                    uint16_t const cbStkItem = s_aTests[iTest].fOpSizePfx ? 4 : 2;
+                    uint16_t const cbFrame   = (s_aSubTests[iSubTest].fInterPriv ? 4 : 2) * cbStkItem;
+                    uint32_t const uFlatDst  = Bs3SelFar32ToFlat32(s_aSubTests[iSubTest].offDst, s_aSubTests[iSubTest].uDstCs)
+                                             + (s_aSubTests[iSubTest].cDstBits == 64 && !BS3_MODE_IS_64BIT_SYS(bMode));
+                    RTSEL    const uDstSs    = s_aSubTests[iSubTest].uDstSs;
+                    uint64_t       uDstRspExpect, uDstRspPush;
+                    uint16_t       cErrors;
+
+                    Ctx.ss = s_aSubTests[iSubTest].uStartSs;
+                    if (Ctx.ss != BS3_SEL_R0_SS32)
+                        Ctx.rsp.u32 |= UINT32_C(0xfffe0000);
+                    else
+                        Ctx.rsp.u32 &= UINT16_MAX;
+                    uDstRspExpect = uDstRspPush = Ctx.rsp.u + s_aTests[iTest].cbImm + cbFrame + cbFrmDisp;
+                    if (s_aSubTests[iSubTest].fInterPriv)
+                    {
+                        if (s_aTests[iTest].fOpSizePfx)
+                            uDstRspPush = (uDstRspPush & UINT16_MAX) | UINT32_C(0xacdc0000);
+                        if (   uDstSs == (BS3_SEL_R1_SS32 | 1)
+                            || uDstSs == (BS3_SEL_R2_SS32 | 2)
+                            || uDstSs == (BS3_SEL_R3_SS32 | 3)
+                            || (s_aSubTests[iSubTest].cDstBits == 64 && BS3_MODE_IS_64BIT_SYS(bMode)))
+                        {
+                            if (s_aTests[iTest].fOpSizePfx)
+                                uDstRspExpect = uDstRspPush;
+                            else
+                                uDstRspExpect &= UINT16_MAX;
+                        }
+                    }
+
+                    CtxExpected.bCpl  = Ctx.bCpl;
+                    CtxExpected.cs    = Ctx.cs;
+                    CtxExpected.ss    = Ctx.ss;
+                    CtxExpected.ds    = Ctx.ds;
+                    CtxExpected.es    = Ctx.es;
+                    CtxExpected.fs    = Ctx.fs;
+                    CtxExpected.gs    = Ctx.gs;
+                    CtxExpected.rip.u = Ctx.rip.u;
+                    CtxExpected.rsp.u = Ctx.rsp.u;
+                    CtxExpected.rax.u = Ctx.rax.u;
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                    {
+                        CtxExpected.cs    = s_aSubTests[iSubTest].uDstCs;
+                        CtxExpected.rip.u = s_aSubTests[iSubTest].offDst;
+                        if (s_aSubTests[iSubTest].cDstBits == 64 && !BS3_MODE_IS_64BIT_SYS(bMode))
+                        {
+                            CtxExpected.rip.u     += 1;
+                            CtxExpected.rax.au8[0] = CtxExpected.rflags.u16 & X86_EFL_CF ? 0xff : 0;
+                        }
+                        CtxExpected.ss    = uDstSs;
+                        CtxExpected.rsp.u = uDstRspExpect;
+                        if (s_aSubTests[iSubTest].fInterPriv)
+                        {
+                            uint16_t BS3_FAR *puSel = &CtxExpected.ds; /* ASSUME member order! */
+                            unsigned          cSels = 4;
+                            CtxExpected.bCpl = CtxExpected.ss & X86_SEL_RPL;
+                            while (cSels-- > 0)
+                            {
+                                uint16_t uSel = *puSel;
+                                if (   (uSel & X86_SEL_MASK_OFF_RPL)
+                                    && Bs3Gdt[uSel >> X86_SEL_SHIFT].Gen.u2Dpl < CtxExpected.bCpl
+                                    &&    (Bs3Gdt[uSel >> X86_SEL_SHIFT].Gen.u4Type & (X86_SEL_TYPE_CODE | X86_SEL_TYPE_CONF))
+                                       != (X86_SEL_TYPE_CODE | X86_SEL_TYPE_CONF))
+                                    *puSel = 0;
+                                puSel++;
+                            }
+                            CtxExpected.rsp.u += s_aTests[iTest].cbImm; /* arguments are dropped from both stacks. */
+                        }
+                    }
+                    g_uBs3TrapEipHint = CtxExpected.rip.u32;
+                    //Bs3TestPrintf("cs:rip=%04RX16:%04RX64 -> %04RX16:%04RX64\n", Ctx.cs, Ctx.rip.u, CtxExpected.cs, CtxExpected.rip.u);
+                    //Bs3TestPrintf("ss:rsp=%04RX16:%04RX64 -> %04RX16:%04RX64 [pushed %#RX64]\n", Ctx.ss, Ctx.rsp.u, CtxExpected.ss, CtxExpected.rsp.u, uDstRspPush);
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    //Bs3TestPrintf("%p: %04RX16 %04RX16 %04RX16 %04RX16\n", StkPtr.pu16, StkPtr.pu16[0], StkPtr.pu16[1], StkPtr.pu16[2], StkPtr.pu16[3]);
+                    //Bs3TestPrintf("%.48Rhxd\n", StkPtr.pu16);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    g_usBs3TestStep++;  /* 1 */
+
+                    /* Bad hw bp: Setup DR0-3 but use invalid length encodings (non-byte) */
+                    //Bs3TestPrintf("hw bp: bad len\n");
+                    Bs3RegSetDr0(uFlatDst);
+                    Bs3RegSetDr1(uFlatDst);
+                    Bs3RegSetDr2(uFlatDst);
+                    Bs3RegSetDr3(uFlatDst);
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL
+                                 | X86_DR7_RW(0, X86_DR7_RW_EO) | X86_DR7_LEN(1, X86_DR7_LEN_WORD)  | X86_DR7_L_G(1)
+                                 | X86_DR7_RW(2, X86_DR7_RW_EO) | X86_DR7_LEN(2, X86_DR7_LEN_DWORD) | X86_DR7_L_G(2)
+                                 | (  BS3_MODE_IS_64BIT_SYS(bMode)
+                                    ? X86_DR7_RW(3, X86_DR7_RW_EO) | X86_DR7_LEN(3, X86_DR7_LEN_QWORD) | X86_DR7_L_G(3) : 0) );
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    bs3CpuBasic2_CheckDr6InitVal();
+                    g_usBs3TestStep++; /* 2 */
+
+                    /* Bad hw bp: setup DR0-3 but don't enable them */
+                    //Bs3TestPrintf("hw bp: disabled\n");
+                    //Bs3RegSetDr0(uFlatDst);
+                    //Bs3RegSetDr1(uFlatDst);
+                    //Bs3RegSetDr2(uFlatDst);
+                    //Bs3RegSetDr3(uFlatDst);
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    bs3CpuBasic2_CheckDr6InitVal();
+                    g_usBs3TestStep++; /* 3 */
+
+                    /* Bad hw bp: Points at 2nd byte in the UD2.  Docs says it only works when pointing at first byte. */
+                    //Bs3TestPrintf("hw bp: byte 2\n");
+                    Bs3RegSetDr0(uFlatDst + 1);
+                    Bs3RegSetDr1(uFlatDst + 1);
+                    //Bs3RegSetDr2(uFlatDst);
+                    //Bs3RegSetDr3(uFlatDst);
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL
+                                 | X86_DR7_RW(0, X86_DR7_RW_EO) | X86_DR7_LEN(0, X86_DR7_LEN_BYTE) | X86_DR7_L_G(0)
+                                 | X86_DR7_RW(1, X86_DR7_RW_EO) | X86_DR7_LEN(1, X86_DR7_LEN_BYTE) | X86_DR7_L_G(1));
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    bs3CpuBasic2_CheckDr6InitVal();
+                    g_usBs3TestStep++; /* 4 */
+
+                    /* Again with two correctly hardware breakpoints and a disabled one that just matches the address: */
+                    //Bs3TestPrintf("bp 1 + 3...\n");
+                    Bs3RegSetDr0(uFlatDst);
+                    Bs3RegSetDr1(uFlatDst);
+                    Bs3RegSetDr2(0);
+                    Bs3RegSetDr3(uFlatDst);
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL
+                                 | X86_DR7_RW(1, X86_DR7_RW_EO) | X86_DR7_LEN(1, X86_DR7_LEN_BYTE) | X86_DR7_L_G(1)
+                                 | X86_DR7_RW(3, X86_DR7_RW_EO) | X86_DR7_LEN(3, X86_DR7_LEN_BYTE) | X86_DR7_L_G(3) );
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected,
+                                                  enmCpuVendor == BS3CPUVENDOR_AMD ? X86_DR6_B1 | X86_DR6_B3 /* 3990x */
+                                                  : X86_DR6_B0 | X86_DR6_B1 | X86_DR6_B3);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    g_usBs3TestStep++; /* 5 */
+
+                    /* Again with a single locally enabled breakpoint. */
+                    //Bs3TestPrintf("bp 0/l...\n");
+                    Bs3RegSetDr0(uFlatDst);
+                    Bs3RegSetDr1(0);
+                    Bs3RegSetDr2(0);
+                    Bs3RegSetDr3(0);
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL | X86_DR6_B1 | X86_DR6_B2 | X86_DR6_B3 | X86_DR6_BS);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL
+                                 | X86_DR7_RW(0, X86_DR7_RW_EO) | X86_DR7_LEN(0, X86_DR7_LEN_BYTE) | X86_DR7_L(0));
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_B0 | X86_DR6_BS); /* B0-B3 set, BS preserved */
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    g_usBs3TestStep++; /* 6 */
+
+                    /* Again with a single globally enabled breakpoint and serveral other types of breakpoints
+                       configured but not enabled. */
+                    //Bs3TestPrintf("bp 2/g+...\n");
+                    cErrors = Bs3TestSubErrorCount();
+                    Bs3RegSetDr0(uFlatDst);
+                    Bs3RegSetDr1(uFlatDst);
+                    Bs3RegSetDr2(uFlatDst);
+                    Bs3RegSetDr3(uFlatDst);
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL | X86_DR6_BS | X86_DR6_BD | X86_DR6_BT | X86_DR6_B2);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL
+                                 | X86_DR7_RW(0, X86_DR7_RW_RW) | X86_DR7_LEN(0, X86_DR7_LEN_BYTE)
+                                 | X86_DR7_RW(1, X86_DR7_RW_RW) | X86_DR7_LEN(1, X86_DR7_LEN_BYTE) | X86_DR7_L_G(1)
+                                 | X86_DR7_RW(2, X86_DR7_RW_EO) | X86_DR7_LEN(2, X86_DR7_LEN_BYTE) | X86_DR7_G(2)
+                                 | X86_DR7_RW(3, X86_DR7_RW_WO) | X86_DR7_LEN(3, X86_DR7_LEN_BYTE) | X86_DR7_G(3)
+                                 );
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_B2 | X86_DR6_BS | X86_DR6_BD | X86_DR6_BT);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    g_usBs3TestStep++; /* 7 */
+
+                    /* Now resume it with lots of execution breakpoints configured. */
+                    if (s_aSubTests[iSubTest].iXcpt < 0 && Bs3TestSubErrorCount() == cErrors)
+                    {
+                        Bs3MemCpy(&Ctx2, &TrapCtx.Ctx, sizeof(Ctx2));
+                        Ctx2.rflags.u32 |= X86_EFL_RF;
+                        //Bs3TestPrintf("bp 3/g+rf %04RX16:%04RX64 efl=%RX32 ds=%04RX16...\n", Ctx2.cs, Ctx2.rip.u, Ctx2.rflags.u32, Ctx2.ds);
+                        Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                        Bs3RegSetDr7(X86_DR7_INIT_VAL
+                                     | X86_DR7_RW(0, X86_DR7_RW_EO) | X86_DR7_LEN(0, X86_DR7_LEN_BYTE)
+                                     | X86_DR7_RW(1, X86_DR7_RW_EO) | X86_DR7_LEN(1, X86_DR7_LEN_BYTE) | X86_DR7_L_G(1)
+                                     | X86_DR7_RW(2, X86_DR7_RW_EO) | X86_DR7_LEN(2, X86_DR7_LEN_BYTE) | X86_DR7_G(2)
+                                     | X86_DR7_RW(3, X86_DR7_RW_EO) | X86_DR7_LEN(3, X86_DR7_LEN_BYTE) | X86_DR7_G(3)
+                                     );
+                        Bs3TrapSetJmpAndRestore(&Ctx2, &TrapCtx);
+                        Bs3RegSetDr7(X86_DR7_INIT_VAL);
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+                        bs3CpuBasic2_CheckDr6InitVal();
+                    }
+                    g_usBs3TestStep++; /* 8 */
+
+                    /* Now do single stepping: */
+                    //Bs3TestPrintf("stepping...\n");
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                    Ctx.rflags.u16        |= X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    if (s_aSubTests[iSubTest].iXcpt < 0 && s_aSubTests[iSubTest].cDstBits == 64 && !BS3_MODE_IS_64BIT_SYS(bMode))
+                    {
+                        CtxExpected.rip.u -= 1;
+                        CtxExpected.rax.u  = Ctx.rax.u;
+                    }
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    Ctx.rflags.u16        &= ~X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    g_usBs3TestStep++; /* 9 */
+
+                    /* Single step with B0-B3 set to check that they're not preserved
+                       and with BD & BT to check that they are (checked on Intel 6700K): */
+                    //Bs3TestPrintf("stepping b0-b3+bd+bt=1...\n");
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL | X86_DR6_B_MASK | X86_DR6_BD | X86_DR6_BT);
+                    Ctx.rflags.u16        |= X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS | X86_DR6_BD | X86_DR6_BT);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    Ctx.rflags.u16        &= ~X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    g_usBs3TestStep++; /* 10 */
+
+                }
+            }
+        }
+    }
+    /*
+     * 32-bit tests.
+     */
+    else if (BS3_MODE_IS_32BIT_CODE(bMode))
+    {
+        static struct
+        {
+            bool        fOpSizePfx;
+            uint16_t    cbImm;
+            FPFNBS3FAR  pfnTest;
+        } const s_aTests[] =
+        {
+            { false,  0, bs3CpuBasic2_retf_c32, },
+            {  true,  0, bs3CpuBasic2_retf_opsize_c32, },
+            { false, 32, bs3CpuBasic2_retf_i32_c32, },
+            {  true, 32, bs3CpuBasic2_retf_i32_opsize_c32, },
+            { false,888, bs3CpuBasic2_retf_i888_c32, },
+        };
+
+        static struct
+        {
+            bool        fInterPriv;
+            int8_t      iXcpt;
+            RTSEL       uStartSs;
+            uint8_t     cDstBits;
+            RTSEL       uDstCs;
+            union   /* must use a union here as the compiler won't compile if uint16_t and will mess up fixups for uint32_t. */
+            {
+                uint32_t     offDst;
+                struct
+                {
+                    NPVOID   pv;
+                    uint16_t uHigh;
+                } s;
+            };
+            RTSEL       uDstSs;
+            uint16_t    uErrCd;
+        } const s_aSubTests[] =
+        { /* PriChg, Xcpt,  uStartSs,     => bits    uDstCs                   offDst/pv                                                 uDstSs               uErrCd */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS16 | 3, 0 },
+            /* same with 32-bit wide target addresses: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R0_SS32 | 0, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, BS3TEXT16_ADDR_HI } },     BS3_SEL_R3_SS16 | 3, 0 },
+            /* conforming stuff */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, BS3_SEL_R1_CS32_CNF },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, BS3_SEL_R1_CS32_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, BS3_SEL_R2_CS32_CNF },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, BS3_SEL_R2_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, BS3_SEL_R2_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, BS3_SEL_R2_CS32_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, BS3_SEL_R3_CS32_CNF },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 0, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, BS3_SEL_R3_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R1_SS32 | 1, BS3_SEL_R3_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 1, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R0_SS32 | 0, BS3_SEL_R3_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R2_SS32 | 2, BS3_SEL_R3_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 2, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS32 | 2, BS3_SEL_R3_CS32_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 3, { .offDst = LOW_UD_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 16-bit code: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16 | 0,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS16 | 3, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16 | 0,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS16 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 16-bit conforming code: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 0, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 1, BS3_SEL_R3_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 3, BS3_SEL_R3_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 0, BS3_SEL_R1_CS16_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 0, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 1, BS3_SEL_R3_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 3, BS3_SEL_R3_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 0, BS3_SEL_R2_CS16_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS32 | 1, BS3_SEL_R2_CS16_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS16 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R0_SS32 | 0, BS3_SEL_R3_CS16_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R1_SS32 | 1, BS3_SEL_R3_CS16_CNF },
+            {  true, 42, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R2_SS32 | 2, BS3_SEL_R3_CS16_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_ud2, 0 } },                     BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 64-bit code or 16-bit when not in long mode: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R0_SS16 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R0_DS64 | 1, BS3_SEL_R0_DS64 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_DS64 | 1, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS32 | 3, BS3_SEL_R2_CS64 },
+            {  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS32 | 3, BS3_SEL_R2_CS64 },
+            {  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS32 | 3, BS3_SEL_R1_SS32 },
+            {  true, 14, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS32 | 2, BS3_SEL_R3_SS32 },
+            /* returning to 64-bit code or 16-bit when not in long mode, conforming code variant: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R0_SS16 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS16 | 3, 0 },
+
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R0_SS16 | 0, BS3_SEL_R1_CS64_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS16 | 2, BS3_SEL_R1_SS16 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 1, BS3_SEL_R2_SS16 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 2, BS3_SEL_R2_SS16 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS16 | 3, 0 },
+
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R0_SS16 | 0, BS3_SEL_R2_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS16 | 1, BS3_SEL_R2_CS64_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS16 | 3, 0 },
+
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R0_SS16 | 0, BS3_SEL_R3_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R1_SS16 | 1, BS3_SEL_R3_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R2_SS16 | 2, BS3_SEL_R3_CS64_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                              BS3_SEL_R3_SS16 | 3, 0 },
+
+            /* some additional #GP variations */ /** @todo test all possible exceptions! */
+            {  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 2,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                       BS3_SEL_R2_SS16 | 2, BS3_SEL_R3_CS16 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_00 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_00 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_01 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_01 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_02 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_02 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_03 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_03 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_04 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_04 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_05 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_05 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_06 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_06 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_07 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_07 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_08 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_08 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_09 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_09 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_0a | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0a },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_0b | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0b },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_0c | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0c },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_0d | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0d },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_0e | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0e },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_SPARE_0f | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0f },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_10 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_10 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_11 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_11 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_12 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_12 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_13 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_13 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_14 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_14 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_15 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_15 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_16 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_16 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_17 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_17 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_18 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_18 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_19 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_19 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_1a | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1a },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_1b | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1b },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_1c | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1c },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_1d | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1d },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_1e | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1e },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_SPARE_1f | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1f },
+        };
+
+        for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+        {
+            Bs3RegCtxSetRipCsFromLnkPtr(&Ctx, s_aTests[iTest].pfnTest);
+            //Bs3TestPrintf("-------------- #%u: cs:eip=%04RX16:%08RX64 imm=%u%s\n",
+            //              iTest, Ctx.cs, Ctx.rip.u, s_aTests[iTest].cbImm, s_aTests[iTest].fOpSizePfx ? " o16" : "");
+
+            for (iSubTest = 0; iSubTest < RT_ELEMENTS(s_aSubTests); iSubTest++)
+            {
+                g_usBs3TestStep = (iTest << 12) | (iSubTest << 1);
+                if (!s_aTests[iTest].fOpSizePfx || s_aSubTests[iSubTest].offDst <= UINT16_MAX)
+                {
+                    uint16_t const cbFrmDisp = s_aSubTests[iSubTest].fInterPriv ? iSubTest % 7 : 0;
+                    uint16_t const cbStkItem = s_aTests[iTest].fOpSizePfx ? 2 : 4;
+                    uint16_t const cbFrame   = (s_aSubTests[iSubTest].fInterPriv ? 4 : 2) * cbStkItem;
+                    RTSEL    const uDstSs    = s_aSubTests[iSubTest].uDstSs;
+                    uint64_t       uDstRspExpect, uDstRspPush;
+                    //Bs3TestPrintf(" #%u: %s %d %#04RX16 -> %u %#04RX16:%#04RX32 %#04RX16 %#RX16\n", iSubTest, s_aSubTests[iSubTest].fInterPriv ? "priv" : "same", s_aSubTests[iSubTest].iXcpt, s_aSubTests[iSubTest].uStartSs,
+                    //              s_aSubTests[iSubTest].cDstBits, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst, s_aSubTests[iSubTest].uDstSs, s_aSubTests[iSubTest].uErrCd);
+
+                    Ctx.ss = s_aSubTests[iSubTest].uStartSs;
+                    if (Ctx.ss != BS3_SEL_R0_SS32)
+                        Ctx.rsp.u32 |= UINT32_C(0xfffe0000);
+                    else
+                        Ctx.rsp.u32 &= UINT16_MAX;
+                    uDstRspExpect = uDstRspPush = Ctx.rsp.u + s_aTests[iTest].cbImm + cbFrame + cbFrmDisp;
+                    if (s_aSubTests[iSubTest].fInterPriv)
+                    {
+                        if (!s_aTests[iTest].fOpSizePfx)
+                            uDstRspPush = (uDstRspPush & UINT16_MAX) | UINT32_C(0xacdc0000);
+                        if (   uDstSs == (BS3_SEL_R1_SS32 | 1)
+                            || uDstSs == (BS3_SEL_R2_SS32 | 2)
+                            || uDstSs == (BS3_SEL_R3_SS32 | 3)
+                            || (s_aSubTests[iSubTest].cDstBits == 64 && BS3_MODE_IS_64BIT_SYS(bMode)))
+                        {
+                            if (!s_aTests[iTest].fOpSizePfx)
+                                uDstRspExpect = uDstRspPush;
+                            else
+                                uDstRspExpect &= UINT16_MAX;
+                        }
+                    }
+
+                    CtxExpected.bCpl  = Ctx.bCpl;
+                    CtxExpected.cs    = Ctx.cs;
+                    CtxExpected.ss    = Ctx.ss;
+                    CtxExpected.ds    = Ctx.ds;
+                    CtxExpected.es    = Ctx.es;
+                    CtxExpected.fs    = Ctx.fs;
+                    CtxExpected.gs    = Ctx.gs;
+                    CtxExpected.rip.u = Ctx.rip.u;
+                    CtxExpected.rsp.u = Ctx.rsp.u;
+                    CtxExpected.rax.u = Ctx.rax.u;
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                    {
+                        CtxExpected.cs    = s_aSubTests[iSubTest].uDstCs;
+                        CtxExpected.rip.u = s_aSubTests[iSubTest].offDst;
+                        if (s_aSubTests[iSubTest].cDstBits == 64 && !BS3_MODE_IS_64BIT_SYS(bMode))
+                        {
+                            CtxExpected.rip.u     += 1;
+                            CtxExpected.rax.au8[0] = CtxExpected.rflags.u16 & X86_EFL_CF ? 0xff : 0;
+                        }
+                        CtxExpected.ss    = uDstSs;
+                        CtxExpected.rsp.u = uDstRspExpect;
+                        if (s_aSubTests[iSubTest].fInterPriv)
+                        {
+                            uint16_t BS3_FAR *puSel = &CtxExpected.ds; /* ASSUME member order! */
+                            unsigned          cSels = 4;
+                            CtxExpected.bCpl = CtxExpected.ss & X86_SEL_RPL;
+                            while (cSels-- > 0)
+                            {
+                                uint16_t uSel = *puSel;
+                                if (   (uSel & X86_SEL_MASK_OFF_RPL)
+                                    && Bs3Gdt[uSel >> X86_SEL_SHIFT].Gen.u2Dpl < CtxExpected.bCpl
+                                    &&    (Bs3Gdt[uSel >> X86_SEL_SHIFT].Gen.u4Type & (X86_SEL_TYPE_CODE | X86_SEL_TYPE_CONF))
+                                       != (X86_SEL_TYPE_CODE | X86_SEL_TYPE_CONF))
+                                    *puSel = 0;
+                                puSel++;
+                            }
+                            CtxExpected.rsp.u += s_aTests[iTest].cbImm; /* arguments are dropped from both stacks. */
+                        }
+                    }
+                    g_uBs3TrapEipHint = CtxExpected.rip.u32;
+                    //Bs3TestPrintf("ss:rsp=%04RX16:%04RX64 -> %04RX16:%04RX64 [pushed %#RX64]; %04RX16:%04RX64\n",Ctx.ss, Ctx.rsp.u,
+                    //              CtxExpected.ss, CtxExpected.rsp.u, uDstRspPush, CtxExpected.cs, CtxExpected.rip.u);
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    //Bs3TestPrintf("%p: %04RX16 %04RX16 %04RX16 %04RX16\n", StkPtr.pu16, StkPtr.pu16[0], StkPtr.pu16[1], StkPtr.pu16[2], StkPtr.pu16[3]);
+                    //Bs3TestPrintf("%.48Rhxd\n", StkPtr.pu16);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    g_usBs3TestStep++;
+
+                    /* Again single stepping: */
+                    //Bs3TestPrintf("stepping...\n");
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                    Ctx.rflags.u16        |= X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    if (s_aSubTests[iSubTest].iXcpt < 0 && s_aSubTests[iSubTest].cDstBits == 64 && !BS3_MODE_IS_64BIT_SYS(bMode))
+                    {
+                        CtxExpected.rip.u -= 1;
+                        CtxExpected.rax.u  = Ctx.rax.u;
+                    }
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    Ctx.rflags.u16        &= ~X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    g_usBs3TestStep++;
+                }
+            }
+        }
+    }
+    /*
+     * 64-bit tests.
+     */
+    else if (BS3_MODE_IS_64BIT_CODE(bMode))
+    {
+        static struct
+        {
+            uint8_t     fOpSizePfx; /**< 0: none, 1: 066h, 2: REX.W;  Effective op size prefix. */
+            uint16_t    cbImm;
+            FPFNBS3FAR  pfnTest;
+        } const s_aTests[] =
+        {
+            { 0,  0, bs3CpuBasic2_retf_c64, },
+            { 1,  0, bs3CpuBasic2_retf_opsize_c64, },
+            { 0, 32, bs3CpuBasic2_retf_i32_c64, },
+            { 1, 32, bs3CpuBasic2_retf_i32_opsize_c64, },
+            { 2,  0, bs3CpuBasic2_retf_rexw_c64, },
+            { 2,  0, bs3CpuBasic2_retf_opsize_rexw_c64, },
+            { 1,  0, bs3CpuBasic2_retf_rexw_opsize_c64, },
+            { 2, 24, bs3CpuBasic2_retf_i24_rexw_c64, },
+            { 2, 24, bs3CpuBasic2_retf_i24_opsize_rexw_c64, },
+            { 1, 24, bs3CpuBasic2_retf_i24_rexw_opsize_c64, },
+            { 0,888, bs3CpuBasic2_retf_i888_c64, },
+        };
+
+        static struct
+        {
+            bool        fInterPriv;
+            int8_t      iXcpt;
+            RTSEL       uStartSs;
+            uint8_t     cDstBits;
+            RTSEL       uDstCs;
+            union   /* must use a union here as the compiler won't compile if uint16_t and will mess up fixups for uint32_t. */
+            {
+                uint32_t     offDst;
+                struct
+                {
+                    NPVOID   pv;
+                    uint16_t uHigh;
+                } s;
+            };
+            RTSEL       uDstSs;
+            uint16_t    uErrCd;
+        } const s_aSubTests[] =
+        { /* PriChg, Xcpt,  uStartSs,     => bits    uDstCs                   offDst/pv                                                     uDstSs               uErrCd */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS16 | 3, 0 },
+            /* same with 32-bit wide target addresses: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R0_SS32 | 0, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R0_CS64 | 0,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R1_CS64 | 1,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R2_CS64 | 2,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 64, BS3_SEL_R3_CS64 | 3,     { .s = {(NPVOID)bs3CpuBasic2_salc_ud2, BS3TEXT16_ADDR_HI } },    BS3_SEL_R3_SS16 | 3, 0 },
+            /* conforming stuff */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R0_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, BS3_SEL_R1_CS64_CNF },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, BS3_SEL_R1_CS64_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R1_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, BS3_SEL_R2_CS64_CNF },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, BS3_SEL_R2_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, BS3_SEL_R2_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, BS3_SEL_R2_CS64_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R2_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, BS3_SEL_R3_CS64_CNF },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 0, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, BS3_SEL_R3_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R1_SS32 | 1, BS3_SEL_R3_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 1, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R0_SS32 | 0, BS3_SEL_R3_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R2_SS32 | 2, BS3_SEL_R3_CS64_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 2, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS32 | 2, BS3_SEL_R3_CS64_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_R3_CS64_CNF | 3, { .offDst = LOW_SALC_UD_ADDR },                                  BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 16-bit code: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16 | 0,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS16 | 3, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R0_CS16 | 0,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS16 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R1_CS16 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R2_CS16 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 16-bit conforming code: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 0, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 1, BS3_SEL_R3_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 3, BS3_SEL_R3_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R0_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 0, BS3_SEL_R1_CS16_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 0, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 1, BS3_SEL_R3_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 3, BS3_SEL_R3_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R1_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 0, BS3_SEL_R2_CS16_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS32 | 1, BS3_SEL_R2_CS16_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R2_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS16 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R0_SS32 | 0, BS3_SEL_R3_CS16_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R1_SS32 | 1, BS3_SEL_R3_CS16_CNF },
+            {  true, 42, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R2_SS32 | 2, BS3_SEL_R3_CS16_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 16, BS3_SEL_R3_CS16_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_swapgs, 0 } },                      BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 32-bit code - narrow 16-bit target address: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R3_SS16 | 3, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R0_SS16 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 32-bit code - wider 32-bit target address: */
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS16 | 3, 0 },
+            { false, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R0_CS32 | 0,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS16 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R1_CS32 | 1,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R2_CS32 | 2,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS16 | 3, 0 },
+            {  true, -1, BS3_SEL_R0_SS16 | 0, 32, BS3_SEL_R3_CS32 | 3,     { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 3, 0 },
+            /* returning to 32-bit conforming code: */
+            { false, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 0, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS32 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 0, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 1, BS3_SEL_R3_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 3, BS3_SEL_R3_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R2_SS16 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R0_CS32_CNF | 3, { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 0, BS3_SEL_R1_CS32_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS16 | 1, 0 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 1, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 0, BS3_SEL_R0_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 1, BS3_SEL_R3_SS32 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 3, BS3_SEL_R3_SS32 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R1_CS32_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 0, BS3_SEL_R2_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS32 | 1, BS3_SEL_R2_CS32_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 2, { .offDst = LOW_SWAPGS_ADDR },                                   BS3_SEL_R2_SS32 | 2, 0 },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R2_CS32_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS16 | 3, 0 },
+            { false, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 0, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R0_SS32 | 0, BS3_SEL_R3_CS32_CNF },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 1, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R1_SS32 | 1, BS3_SEL_R3_CS32_CNF },
+            {  true, 42, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 2, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R2_SS32 | 2, BS3_SEL_R3_CS32_CNF },
+            {  true, -1, BS3_SEL_R0_SS32 | 0, 32, BS3_SEL_R3_CS32_CNF | 3, { .s = {(NPVOID)bs3CpuBasic2_swapgs, BS3TEXT16_ADDR_HI } },      BS3_SEL_R3_SS32 | 3, 0 },
+
+            /* some additional #GP variations */ /** @todo test all possible exceptions! */
+            {  true, 14, BS3_SEL_R0_SS16 | 0, 16, BS3_SEL_R3_CS16 | 2,     { .s = { (NPVOID)bs3CpuBasic2_ud2 } },                       BS3_SEL_R2_SS16 | 2, BS3_SEL_R3_CS16 },
+
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_00 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_00 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_02 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_02 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_04 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_04 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_06 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_06 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_08 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_08 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_0a | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0a },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_0c | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0c },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_0e | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_0e },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_10 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_10 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_12 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_12 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_14 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_14 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_16 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_16 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_18 | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_18 },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_1a | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1a },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_1c | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1c },
+            {  true, 14, BS3_SEL_R0_SS32 | 0, 64, BS3_SEL_SPARE_1e | 0,    { .offDst = 0 },                                             BS3_SEL_R0_SS32 | 0, BS3_SEL_SPARE_1e },
+        };
+
+        for (iTest = 0; iTest < RT_ELEMENTS(s_aTests); iTest++)
+        {
+            Bs3RegCtxSetRipCsFromLnkPtr(&Ctx, s_aTests[iTest].pfnTest);
+            //Bs3TestPrintf("-------------- #%u: cs:eip=%04RX16:%08RX64 imm=%u%s\n", iTest, Ctx.cs, Ctx.rip.u, s_aTests[iTest].cbImm,
+            //              s_aTests[iTest].fOpSizePfx == 1 ? " o16" : s_aTests[iTest].fOpSizePfx == 2 ? " o64" : "");
+
+            for (iSubTest = 0; iSubTest < RT_ELEMENTS(s_aSubTests); iSubTest++)
+            {
+                g_usBs3TestStep = (iTest << 12) | (iSubTest << 1);
+                if (s_aTests[iTest].fOpSizePfx != 1 || s_aSubTests[iSubTest].offDst <= UINT16_MAX)
+                {
+                    uint16_t const cbFrmDisp = s_aSubTests[iSubTest].fInterPriv ? iSubTest % 7 : 0;
+                    uint16_t const cbStkItem = s_aTests[iTest].fOpSizePfx == 2 ? 8 : s_aTests[iTest].fOpSizePfx == 0 ? 4 : 2;
+                    uint16_t const cbFrame   = (s_aSubTests[iSubTest].fInterPriv ? 4 : 2) * cbStkItem;
+                    RTSEL    const uDstSs    = s_aSubTests[iSubTest].uDstSs;
+                    uint64_t       uDstRspExpect, uDstRspPush;
+                    //Bs3TestPrintf(" #%u: %s %d %#04RX16 -> %u %#04RX16:%#04RX32 %#04RX16 %#RX16\n", iSubTest, s_aSubTests[iSubTest].fInterPriv ? "priv" : "same", s_aSubTests[iSubTest].iXcpt, s_aSubTests[iSubTest].uStartSs,
+                    //              s_aSubTests[iSubTest].cDstBits, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst, s_aSubTests[iSubTest].uDstSs, s_aSubTests[iSubTest].uErrCd);
+
+                    Ctx.ss = s_aSubTests[iSubTest].uStartSs;
+                    uDstRspExpect = uDstRspPush = Ctx.rsp.u + s_aTests[iTest].cbImm + cbFrame + cbFrmDisp;
+                    if (s_aSubTests[iSubTest].fInterPriv)
+                    {
+                        if (s_aTests[iTest].fOpSizePfx != 1)
+                        {
+                            if (s_aTests[iTest].fOpSizePfx == 2)
+                                uDstRspPush |= UINT64_C(0xf00dfaceacdc0000);
+                            else
+                                uDstRspPush |=         UINT32_C(0xacdc0000);
+                            if (s_aSubTests[iSubTest].cDstBits == 64)
+                                uDstRspExpect = uDstRspPush;
+                            else if (!BS3_SEL_IS_SS16(uDstSs))
+                                uDstRspExpect = (uint32_t)uDstRspPush;
+                        }
+                    }
+
+                    CtxExpected.bCpl  = Ctx.bCpl;
+                    CtxExpected.cs    = Ctx.cs;
+                    CtxExpected.ss    = Ctx.ss;
+                    CtxExpected.ds    = Ctx.ds;
+                    CtxExpected.es    = Ctx.es;
+                    CtxExpected.fs    = Ctx.fs;
+                    CtxExpected.gs    = Ctx.gs;
+                    CtxExpected.rip.u = Ctx.rip.u;
+                    CtxExpected.rsp.u = Ctx.rsp.u;
+                    CtxExpected.rax.u = Ctx.rax.u;
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                    {
+                        CtxExpected.cs    = s_aSubTests[iSubTest].uDstCs;
+                        CtxExpected.rip.u = s_aSubTests[iSubTest].offDst;
+                        if (s_aSubTests[iSubTest].cDstBits == 64 && !BS3_MODE_IS_64BIT_SYS(bMode))
+                        {
+                            CtxExpected.rip.u     += 1;
+                            CtxExpected.rax.au8[0] = CtxExpected.rflags.u16 & X86_EFL_CF ? 0xff : 0;
+                        }
+                        CtxExpected.ss    = uDstSs;
+                        CtxExpected.rsp.u = uDstRspExpect;
+                        if (s_aSubTests[iSubTest].fInterPriv)
+                        {
+                            uint16_t BS3_FAR *puSel = &CtxExpected.ds; /* ASSUME member order! */
+                            unsigned          cSels = 4;
+                            CtxExpected.bCpl = CtxExpected.ss & X86_SEL_RPL;
+                            while (cSels-- > 0)
+                            {
+                                uint16_t uSel = *puSel;
+                                if (   (uSel & X86_SEL_MASK_OFF_RPL)
+                                    && Bs3Gdt[uSel >> X86_SEL_SHIFT].Gen.u2Dpl < CtxExpected.bCpl
+                                    &&    (Bs3Gdt[uSel >> X86_SEL_SHIFT].Gen.u4Type & (X86_SEL_TYPE_CODE | X86_SEL_TYPE_CONF))
+                                       != (X86_SEL_TYPE_CODE | X86_SEL_TYPE_CONF))
+                                    *puSel = 0;
+                                puSel++;
+                            }
+                            CtxExpected.rsp.u += s_aTests[iTest].cbImm; /* arguments are dropped from both stacks. */
+                        }
+                    }
+                    g_uBs3TrapEipHint = CtxExpected.rip.u32;
+                    //Bs3TestPrintf("ss:rsp=%04RX16:%04RX64 -> %04RX16:%04RX64 [pushed %#RX64]; %04RX16:%04RX64\n",Ctx.ss, Ctx.rsp.u,
+                    //              CtxExpected.ss, CtxExpected.rsp.u, uDstRspPush, CtxExpected.cs, CtxExpected.rip.u);
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    //Bs3TestPrintf("%p: %04RX16 %04RX16 %04RX16 %04RX16\n", StkPtr.pu16, StkPtr.pu16[0], StkPtr.pu16[1], StkPtr.pu16[2], StkPtr.pu16[3]);
+                    //Bs3TestPrintf("%.48Rhxd\n", StkPtr.pu16);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    g_usBs3TestStep++;
+
+                    /* Again single stepping: */
+                    //Bs3TestPrintf("stepping...\n");
+                    Bs3RegSetDr6(X86_DR6_INIT_VAL);
+                    Ctx.rflags.u16        |= X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    if (s_aSubTests[iSubTest].iXcpt < 0 && s_aSubTests[iSubTest].cDstBits == 64 && !BS3_MODE_IS_64BIT_SYS(bMode))
+                    {
+                        CtxExpected.rip.u -= 1;
+                        CtxExpected.rax.u  = Ctx.rax.u;
+                    }
+                    bs3CpuBasic2_retf_PrepStack(StkPtr, cbStkItem, s_aSubTests[iSubTest].uDstCs, s_aSubTests[iSubTest].offDst,
+                                                s_aSubTests[iSubTest].fInterPriv, s_aTests[iTest].cbImm,
+                                                s_aSubTests[iSubTest].uDstSs, uDstRspPush);
+                    Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+                    if (s_aSubTests[iSubTest].iXcpt < 0)
+                        bs3CpuBasic2_CompareDbCtx(&TrapCtx, &CtxExpected, X86_DR6_BS);
+                    else
+                        bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, s_aSubTests[iSubTest].uErrCd);
+                    Ctx.rflags.u16        &= ~X86_EFL_TF;
+                    CtxExpected.rflags.u16 = Ctx.rflags.u16;
+                    g_usBs3TestStep++;
+                }
+            }
+        }
+    }
+    else
+        Bs3TestFailed("wtf?");
+
+    if (BS3_MODE_IS_64BIT_SYS(bMode))
+        Bs3TrapReInit();
+    return 0;
+}
+
+
+
+/*********************************************************************************************************************************
+*   Instruction Length                                                                                                           *
+*********************************************************************************************************************************/
+
+
+static uint8_t bs3CpuBasic2_instr_len_Worker(uint8_t bMode, uint8_t BS3_FAR *pbCodeBuf)
+{
+    BS3TRAPFRAME    TrapCtx;
+    BS3REGCTX       Ctx;
+    BS3REGCTX       CtxExpected;
+    uint32_t        uEipBase;
+    unsigned        cbInstr;
+    unsigned        off;
+
+    /* Make sure they're allocated and all zeroed. */
+    Bs3MemZero(&Ctx, sizeof(Ctx));
+    Bs3MemZero(&CtxExpected, sizeof(Ctx));
+    Bs3MemZero(&TrapCtx, sizeof(TrapCtx));
+
+    /*
+     * Create a context.
+     *
+     * ASSUMES we're in on the ring-0 stack in ring-0 and using less than 16KB.
+     */
+    Bs3RegCtxSaveEx(&Ctx, bMode, 768);
+    Bs3RegCtxSetRipCsFromCurPtr(&Ctx, (FPFNBS3FAR)pbCodeBuf);
+    uEipBase = Ctx.rip.u32;
+
+    Bs3MemCpy(&CtxExpected, &Ctx, sizeof(CtxExpected));
+
+    /*
+     * Simple stuff crossing the page.
+     */
+    for (off = X86_PAGE_SIZE - 32; off <= X86_PAGE_SIZE + 16; off++)
+    {
+        Ctx.rip.u32 = uEipBase + off;
+        for (cbInstr = 0; cbInstr < 24; cbInstr++)
+        {
+            /*
+             * Generate the instructions:
+             *      [es] nop
+             *      ud2
+             */
+            if (cbInstr > 0)
+            {
+                Bs3MemSet(&pbCodeBuf[off], 0x26 /* es */, cbInstr);
+                pbCodeBuf[off + cbInstr - 1] = 0x90; /* nop */
+            }
+            pbCodeBuf[off + cbInstr + 0] = 0x0f; /* ud2 */
+            pbCodeBuf[off + cbInstr + 1] = 0x0b;
+
+            /*
+             * Test it.
+             */
+            if (cbInstr < 16)
+                CtxExpected.rip.u32 = Ctx.rip.u32 + cbInstr;
+            else
+                CtxExpected.rip.u32 = Ctx.rip.u32;
+            g_uBs3TrapEipHint = CtxExpected.rip.u32;
+            Bs3TrapSetJmpAndRestore(&Ctx, &TrapCtx);
+            if (cbInstr < 16)
+                bs3CpuBasic2_CompareUdCtx(&TrapCtx, &CtxExpected);
+            else
+                bs3CpuBasic2_CompareGpCtx(&TrapCtx, &CtxExpected, 0);
+        }
+        pbCodeBuf[off] = 0xf1; /* icebp */
+    }
+
+    /*
+     * Pit instruction length violations against the segment limit (#GP).
+     */
+    if (!BS3_MODE_IS_RM_OR_V86(bMode) && bMode != BS3_MODE_LM64)
+    {
+        /** @todo */
+    }
+
+    /*
+     * Pit instruction length violations against an invalid page (#PF).
+     */
+    if (BS3_MODE_IS_PAGED(bMode))
+    {
+        /** @todo */
+    }
+
+    return 0;
+}
+
+
+/**
+ * Entrypoint for FAR RET tests.
+ *
+ * @returns 0 or BS3TESTDOMODE_SKIPPED.
+ * @param   bMode       The CPU mode we're testing.
+ */
+BS3_DECL_FAR(uint8_t) BS3_CMN_FAR_NM(bs3CpuBasic2_instr_len)(uint8_t bMode)
+{
+    /*
+     * Allocate three pages so we can straddle an instruction across the
+     * boundrary for testing special IEM cases, with the last page being
+     * made in accessible and useful for pitting #PF against #GP.
+     */
+    uint8_t BS3_FAR * const pbCodeBuf = (uint8_t BS3_FAR *)Bs3MemAlloc(BS3MEMKIND_REAL, X86_PAGE_SIZE * 3);
+    //Bs3TestPrintf("pbCodeBuf=%p\n", pbCodeBuf);
+    if (pbCodeBuf)
+    {
+        Bs3MemSet(pbCodeBuf, 0xf1, X86_PAGE_SIZE * 3);
+        bs3CpuBasic2_SetGlobals(bMode);
+
+        if (!BS3_MODE_IS_PAGED(bMode))
+            bs3CpuBasic2_instr_len_Worker(bMode, pbCodeBuf);
+        else
+        {
+            uint32_t const uFlatLastPg = Bs3SelPtrToFlat(pbCodeBuf) + X86_PAGE_SIZE * 2;
+            int rc = Bs3PagingProtect(uFlatLastPg, X86_PAGE_SIZE, 0, X86_PTE_P);
+            if (RT_SUCCESS(rc))
+            {
+                bs3CpuBasic2_instr_len_Worker(bMode, pbCodeBuf);
+                Bs3PagingProtect(uFlatLastPg, X86_PAGE_SIZE, X86_PTE_P, 0);
+            }
+            else
+                Bs3TestFailed("Failed to allocate 3 code pages");
+        }
+
+        Bs3MemFree(pbCodeBuf, X86_PAGE_SIZE * 3);
+    }
+    else
+        Bs3TestFailed("Failed to allocate 3 code pages");
     return 0;
 }
 

@@ -745,6 +745,32 @@ static const char *dxbcOperandTypeToString(uint32_t value)
 }
 
 
+static const char *dxbcExtendedOperandTypeToString(uint32_t value)
+{
+    VGPU10_EXTENDED_OPERAND_TYPE enm = (VGPU10_EXTENDED_OPERAND_TYPE)value;
+    switch (enm)
+    {
+        SVGA_CASE_ID2STR(VGPU10_EXTENDED_OPERAND_EMPTY);
+        SVGA_CASE_ID2STR(VGPU10_EXTENDED_OPERAND_MODIFIER);
+    }
+    return NULL;
+}
+
+
+static const char *dxbcOperandModifierToString(uint32_t value)
+{
+    VGPU10_OPERAND_MODIFIER enm = (VGPU10_OPERAND_MODIFIER)value;
+    switch (enm)
+    {
+        SVGA_CASE_ID2STR(VGPU10_OPERAND_MODIFIER_NONE);
+        SVGA_CASE_ID2STR(VGPU10_OPERAND_MODIFIER_NEG);
+        SVGA_CASE_ID2STR(VGPU10_OPERAND_MODIFIER_ABS);
+        SVGA_CASE_ID2STR(VGPU10_OPERAND_MODIFIER_ABSNEG);
+    }
+    return NULL;
+}
+
+
 static const char *dxbcOperandNumComponentsToString(uint32_t value)
 {
     VGPU10_OPERAND_NUM_COMPONENTS enm = (VGPU10_OPERAND_NUM_COMPONENTS)value;
@@ -1414,6 +1440,10 @@ static int dxbcParseOperand(DXBCTokenReader *r, VGPUOperand *paOperand, uint32_t
 
         VGPU10OperandToken1 operand1;
         operand1.value = dxbcTokenReaderRead32(r);
+
+        Log6(("      %s(%d)  %s(%d)\n",
+              dxbcExtendedOperandTypeToString(operand1.extendedOperandType), operand1.extendedOperandType,
+              dxbcOperandModifierToString(operand1.operandModifier), operand1.operandModifier));
     }
 
     ASSERT_GUEST_RETURN(operand0.operandType < VGPU10_NUM_OPERANDS, VERR_INVALID_PARAMETER);
@@ -2330,6 +2360,9 @@ static int dxbcCreateIOSGNBlob(DXShaderInfo const *pInfo, DXBCHeader *pHdr, uint
     if (!dxbcByteWriterCanWrite(w, sizeof(DXBCBlobHeader) + cbBlob))
         return VERR_NO_MEMORY;
 
+    Log6(("Create signature type %c%c%c%c (0x%RX32)\n",
+          RT_BYTE1(u32BlobType), RT_BYTE2(u32BlobType), RT_BYTE3(u32BlobType), RT_BYTE4(u32BlobType), u32BlobType));
+
     DXBCBlobHeader *pHdrBlob = (DXBCBlobHeader *)dxbcByteWriterPtr(w);
     pHdrBlob->u32BlobType = u32BlobType;
     // pHdrBlob->cbBlob = 0;
@@ -2360,6 +2393,10 @@ static int dxbcCreateIOSGNBlob(DXShaderInfo const *pInfo, DXBCHeader *pHdr, uint
         dst->enmComponentType = srcEntry->componentType;
         dst->idxRegister      = srcEntry->registerIndex;
         dst->u.mask           = srcEntry->mask;
+
+        Log6(("  [%u]: %s[%u] sv %u type %u reg %u mask %X\n",
+              iSignatureEntry, srcSemantic->pcszSemanticName, dst->idxSemantic,
+              dst->enmSystemValue, dst->enmComponentType, dst->idxRegister, dst->u.mask));
 
         if (dst->offElementName == 0)
         {

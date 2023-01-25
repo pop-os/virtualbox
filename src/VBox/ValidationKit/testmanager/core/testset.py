@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 154102 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard python imports.
@@ -203,7 +203,7 @@ class TestSetData(ModelDataBase):
         # Try raw file first.
         sFile1 = os.path.join(config.g_ksFileAreaRootDir, self.sBaseFilename + '-' + sFilename);
         try:
-            oFile = open(sFile1, sMode);                        # pylint: disable=consider-using-with
+            oFile = open(sFile1, sMode);                        # pylint: disable=consider-using-with,unspecified-encoding
             return (oFile, os.fstat(oFile.fileno()).st_size, False);
         except Exception as oXcpt1:
             # Try the zip archive next.
@@ -239,7 +239,7 @@ class TestSetData(ModelDataBase):
         try:
             if not os.path.exists(os.path.dirname(sFile1)):
                 os.makedirs(os.path.dirname(sFile1), 0o755);
-            oFile = open(sFile1, sMode);                        # pylint: disable=consider-using-with
+            oFile = open(sFile1, sMode);                        # pylint: disable=consider-using-with,unspecified-encoding
         except Exception as oXcpt1:
             return str(oXcpt1);
         return oFile;

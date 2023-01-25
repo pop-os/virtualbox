@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-unregistervm" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2022-11-01 11:38:05 +0100 (Tue, 01 Nov 2022) $</pubdate>
+    <pubdate>$Date: 2023-01-10 07:35:56 +0100 (Tue, 10 Jan 2023) $</pubdate>
     <title>VBoxManage unregistervm</title>
   </refentryinfo>
 
@@ -54,6 +54,7 @@
         <arg choice="plain"><replaceable>vmname</replaceable></arg>
       </group>
       <arg>--delete</arg>
+      <arg>--delete-all</arg>
     </cmdsynopsis>
   </refsynopsisdiv>
 
@@ -93,6 +94,14 @@
                 The empty directory associated with the unregistered VM.
               </para></listitem>
           </itemizedlist></listitem>
+      </varlistentry>
+      <varlistentry>
+        <term><option>--delete-all</option></term>
+        <listitem><para>
+            Deletes the files described in the <option>--delete</option> option,
+            as well as all DVDs and Floppy disks located in the VM folder and
+            attached only to this VM.
+          </para></listitem>
       </varlistentry>
     </variablelist>
   </refsect1>

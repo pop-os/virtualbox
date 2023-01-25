@@ -132,7 +132,7 @@ RTEXITCODE handleRegisterVM(HandlerArg *a)
         {
             RTEXITCODE rcExit = readPasswordFile(a->argv[3], &strPassword);
             if (rcExit == RTEXITCODE_FAILURE)
-                return RTMsgErrorExit(RTEXITCODE_FAILURE, Misc::tr("Failed to read password from file"));
+                return RTMsgErrorExitFailure(Misc::tr("Failed to read password from file"));
         }
     }
 
@@ -143,21 +143,21 @@ RTEXITCODE handleRegisterVM(HandlerArg *a)
     hrc = a->virtualBox->OpenMachine(Bstr(a->argv[0]).raw(),
                                      Bstr(strPassword).raw(),
                                      machine.asOutParam());
-    if (hrc == VBOX_E_FILE_ERROR)
+    if (FAILED(hrc) && !RTPathStartsWithRoot(a->argv[0]))
     {
         char szVMFileAbs[RTPATH_MAX] = "";
         int vrc = RTPathAbs(a->argv[0], szVMFileAbs, sizeof(szVMFileAbs));
         if (RT_FAILURE(vrc))
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, Misc::tr("Cannot convert filename \"%s\" to absolute path: %Rrc"),
-                                  a->argv[0], vrc);
+            return RTMsgErrorExitFailure(Misc::tr("Failed to convert \"%s\" to an absolute path: %Rrc"),
+                                         a->argv[0], vrc);
         CHECK_ERROR(a->virtualBox, OpenMachine(Bstr(szVMFileAbs).raw(),
                                                Bstr(strPassword).raw(),
                                                machine.asOutParam()));
     }
     else if (FAILED(hrc))
-        CHECK_ERROR(a->virtualBox, OpenMachine(Bstr(a->argv[0]).raw(),
-                                               Bstr(strPassword).raw(),
-                                               machine.asOutParam()));
+        com::GlueHandleComError(a->virtualBox,
+                                "OpenMachine(Bstr(a->argv[0]).raw(), Bstr(strPassword).raw(), machine.asOutParam()))",
+                                hrc, __FILE__, __LINE__);
     if (SUCCEEDED(hrc))
     {
         ASSERT(machine);
@@ -170,6 +170,8 @@ static const RTGETOPTDEF g_aUnregisterVMOptions[] =
 {
     { "--delete",       'd', RTGETOPT_REQ_NOTHING },
     { "-delete",        'd', RTGETOPT_REQ_NOTHING },    // deprecated
+    { "--delete-all",   'a', RTGETOPT_REQ_NOTHING },
+    { "-delete-all",    'a', RTGETOPT_REQ_NOTHING },    // deprecated
 };
 
 RTEXITCODE handleUnregisterVM(HandlerArg *a)
@@ -177,6 +179,7 @@ RTEXITCODE handleUnregisterVM(HandlerArg *a)
     HRESULT hrc;
     const char *VMName = NULL;
     bool fDelete = false;
+    bool fDeleteAll = false;
 
     int c;
     RTGETOPTUNION ValueUnion;
@@ -190,6 +193,10 @@ RTEXITCODE handleUnregisterVM(HandlerArg *a)
         {
             case 'd':   // --delete
                 fDelete = true;
+                break;
+
+            case 'a':   // --delete-all
+                fDeleteAll = true;
                 break;
 
             case VINF_GETOPT_NOT_OPTION:
@@ -223,10 +230,11 @@ RTEXITCODE handleUnregisterVM(HandlerArg *a)
                                                machine.asOutParam()),
                     RTEXITCODE_FAILURE);
     SafeIfaceArray<IMedium> aMedia;
-    CHECK_ERROR_RET(machine, Unregister(CleanupMode_DetachAllReturnHardDisksOnly,
+    CHECK_ERROR_RET(machine, Unregister(fDeleteAll ? CleanupMode_DetachAllReturnHardDisksAndVMRemovable
+                                                   :CleanupMode_DetachAllReturnHardDisksOnly,
                                         ComSafeArrayAsOutParam(aMedia)),
                     RTEXITCODE_FAILURE);
-    if (fDelete)
+    if (fDelete || fDeleteAll)
     {
         ComPtr<IProgress> pProgress;
         CHECK_ERROR_RET(machine, DeleteConfig(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam()),

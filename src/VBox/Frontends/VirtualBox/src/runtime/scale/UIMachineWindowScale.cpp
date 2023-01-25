@@ -221,7 +221,7 @@ bool UIMachineWindowScale::event(QEvent *pEvent)
         {
 #ifdef VBOX_WS_X11
             /* Prevent handling if fake screen detected: */
-            if (gpDesktop->isFakeScreenDetected())
+            if (UIDesktopWidgetWatchdog::isFakeScreenDetected())
                 break;
 #endif /* VBOX_WS_X11 */
 
@@ -245,7 +245,7 @@ bool UIMachineWindowScale::event(QEvent *pEvent)
         {
 #ifdef VBOX_WS_X11
             /* Prevent handling if fake screen detected: */
-            if (gpDesktop->isFakeScreenDetected())
+            if (UIDesktopWidgetWatchdog::isFakeScreenDetected())
                 break;
 #endif /* VBOX_WS_X11 */
 

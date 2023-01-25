@@ -166,12 +166,12 @@ void UIMachineViewScale::applyMachineViewScaleFactor()
 void UIMachineViewScale::resendSizeHint()
 {
     /* Get the last guest-screen size-hint, taking the scale factor into account. */
-    const QSize sizeHint = scaledBackward(guestScreenSizeHint());
+    const QSize sizeHint = scaledBackward(storedGuestScreenSizeHint());
     LogRel(("GUI: UIMachineViewScale::resendSizeHint: Restoring guest size-hint for screen %d to %dx%d\n",
             (int)screenId(), sizeHint.width(), sizeHint.height()));
 
     /* Expand current limitations: */
-    setMaxGuestSize(sizeHint);
+    setMaximumGuestSize(sizeHint);
 
     /* Send saved size-hint to the guest: */
     uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
@@ -226,4 +226,3 @@ void UIMachineViewScale::updateSliders()
     if (verticalScrollBarPolicy() != Qt::ScrollBarAlwaysOff)
         setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 }
-

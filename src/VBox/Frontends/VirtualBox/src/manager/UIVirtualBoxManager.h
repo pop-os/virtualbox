@@ -38,6 +38,7 @@
 /* GUI includes: */
 #include "QIWithRestorableGeometry.h"
 #include "QIWithRetranslateUI.h"
+#include "UICloudMachineSettingsDialog.h"
 #include "UICommon.h"
 #include "UIExtraDataDefs.h"
 #include "UISettingsDialog.h"
@@ -401,7 +402,7 @@ private:
         static void launchMachine(CCloudMachine &comMachine);
 
         /** Creates an unattended installer and uses it to install guest os to newly created vm. */
-    void startUnattendedInstall(CUnattended &comUnattendedInstaller, bool fStartHeadless, const QString &strMachineId);
+        void startUnattendedInstall(CUnattended &comUnattendedInstaller, bool fStartHeadless, const QString &strMachineId);
 
         /** Launches or shows virtual machines represented by passed @a items in corresponding @a enmLaunchMode (for launch). */
         void performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, UICommon::LaunchMode enmLaunchMode);
@@ -497,6 +498,8 @@ private:
 
     /** Holds the map of various settings dialogs. */
     QMap<UISettingsDialog::DialogType, UISettingsDialog*>  m_settings;
+    /** Holds the cloud settings dialog instance. */
+    UISafePointerCloudMachineSettingsDialog                m_pCloudSettings;
 
     /** Holds the instance of UIVMLogViewerDialog. */
     QIManagerDialog *m_pLogViewerDialog;
