@@ -279,7 +279,7 @@ static int dndTransferListObjAdd(PDNDTRANSFERLIST pList, const char *pcszSrcAbs,
 
                     if (   fIsFile
                         && !(fFlags & DNDTRANSFERLIST_FLAGS_KEEP_OPEN)) /* Shall we keep the file open while being added to this list? */
-                        DnDTransferObjectClose(pObj);
+                        rc = DnDTransferObjectClose(pObj);
                 }
 
                 if (RT_FAILURE(rc))
@@ -1067,7 +1067,6 @@ int DnDTransferListGetRootsEx(PDNDTRANSFERLIST pList,
         {
             rc = RTStrCopy(szPath, sizeof(szPath), pcszPathRootTmp);
             AssertRCBreak(rc);
-            cchString += RTStrNLen(pcszPathRootTmp, RTPATH_MAX);
         }
 
         rc = RTPathAppend(szPath, sizeof(szPath), pRoot->pszPathRoot);

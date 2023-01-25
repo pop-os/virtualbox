@@ -496,10 +496,12 @@ public:
               MediumLockList *aTargetMediumLockList,
               bool fKeepSourceMediumLockList = false,
               bool fKeepTargetMediumLockList = false,
-              bool fNotifyAboutChanges = true)
+              bool fNotifyAboutChanges = true,
+              uint64_t aTargetLogicalSize = 0)
         : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
           mTarget(aTarget),
           mParent(aParent),
+          mTargetLogicalSize(aTargetLogicalSize),
           mpSourceMediumLockList(aSourceMediumLockList),
           mpTargetMediumLockList(aTargetMediumLockList),
           mVariant(aVariant),
@@ -533,6 +535,7 @@ public:
 
     const ComObjPtr<Medium> mTarget;
     const ComObjPtr<Medium> mParent;
+    uint64_t mTargetLogicalSize;
     MediumLockList *mpSourceMediumLockList;
     MediumLockList *mpTargetMediumLockList;
     MediumVariant_T mVariant;
@@ -1056,7 +1059,8 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
     if (FAILED(rc)) return rc;
 
     if (!(m->formatObj->i_getCapabilities() & (  MediumFormatCapabilities_CreateFixed
-                                               | MediumFormatCapabilities_CreateDynamic))
+                                               | MediumFormatCapabilities_CreateDynamic
+                                               | MediumFormatCapabilities_File))
        )
     {
         /* Storage for mediums of this format can neither be explicitly
@@ -3019,6 +3023,8 @@ HRESULT Medium::cloneTo(const ComPtr<IMedium> &aTarget,
                         const ComPtr<IMedium> &aParent,
                         ComPtr<IProgress> &aProgress)
 {
+    /** @todo r=jack: Remove redundancy. Call Medium::resizeAndCloneTo. */
+
     /** @todo r=klaus The code below needs to be double checked with regard
      * to lock order violations, it probably causes lock order issues related
      * to the AutoCaller usage. */
@@ -3143,6 +3149,270 @@ HRESULT Medium::cloneTo(const ComPtr<IMedium> &aTarget,
                                       (MediumVariant_T)mediumVariantFlags,
                                       pParent, UINT32_MAX, UINT32_MAX,
                                       pSourceMediumLockList, pTargetMediumLockList);
+        rc = pTask->rc();
+        AssertComRC(rc);
+        if (FAILED(rc))
+            throw rc;
+
+        if (pTarget->m->state == MediumState_NotCreated)
+            pTarget->m->state = MediumState_Creating;
+    }
+    catch (HRESULT aRC) { rc = aRC; }
+
+    if (SUCCEEDED(rc))
+    {
+        rc = pTask->createThread();
+        pTask = NULL;
+        if (SUCCEEDED(rc))
+            pProgress.queryInterfaceTo(aProgress.asOutParam());
+    }
+    else if (pTask != NULL)
+        delete pTask;
+
+    return rc;
+}
+
+/**
+ * This is a helper function that combines the functionality of
+ * Medium::cloneTo() and Medium::resize(). The target medium will take the
+ * contents of the calling medium.
+ *
+ * @param aTarget           Medium to resize and clone to
+ * @param aLogicalSize      Desired size for targer medium
+ * @param aVariant
+ * @param aParent
+ * @param aProgress
+ * @return HRESULT
+ */
+HRESULT Medium::resizeAndCloneTo(const ComPtr<IMedium> &aTarget,
+                                 LONG64 aLogicalSize,
+                                 const std::vector<MediumVariant_T> &aVariant,
+                                 const ComPtr<IMedium> &aParent,
+                                 ComPtr<IProgress> &aProgress)
+{
+    /* Check for valid args */
+    ComAssertRet(aTarget != this, E_INVALIDARG);
+    CheckComArgExpr(aLogicalSize, aLogicalSize >= 0);
+
+    /* Convert args to usable/needed types */
+    IMedium *aT = aTarget;
+    ComObjPtr<Medium> pTarget = static_cast<Medium*>(aT);
+    ComObjPtr<Medium> pParent;
+    if (aParent)
+    {
+        IMedium *aP = aParent;
+        pParent = static_cast<Medium*>(aP);
+    }
+
+    /* Set up variables. Fetch needed data in lockable blocks */
+    HRESULT rc = S_OK;
+    Medium::Task *pTask = NULL;
+
+    Utf8Str strSourceName;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        strSourceName = i_getName();
+    }
+
+    uint64_t uTargetExistingSize = 0;
+    Utf8Str strTargetName;
+    {
+        AutoReadLock alock(pTarget COMMA_LOCKVAL_SRC_POS);
+        uTargetExistingSize = pTarget->i_getLogicalSize();
+        strTargetName = pTarget->i_getName();
+    }
+
+    /* Set up internal multi-subprocess progress object */
+    ComObjPtr<Progress> pProgress;
+    pProgress.createObject();
+    rc = pProgress->init(m->pVirtualBox,
+                static_cast<IMedium*>(this),
+                BstrFmt(tr("Resizing medium and cloning into it")).raw(),
+                TRUE, /* aCancelable */
+                2, /* Number of opearations */
+                BstrFmt(tr("Resizing medium before clone")).raw()
+                );
+
+    if (FAILED(rc))
+        return rc;
+
+    /* If target does not exist, handle resize. */
+    if (pTarget->m->state != MediumState_NotCreated && aLogicalSize > 0)
+    {
+        if ((LONG64)uTargetExistingSize != aLogicalSize) {
+            if (!i_isMediumFormatFile())
+            {
+                rc = setError(VBOX_E_NOT_SUPPORTED,
+                              tr("Sizes of '%s' and '%s' are different and \
+                                 medium format does not support resing"),
+                              strSourceName.c_str(), strTargetName.c_str());
+                return rc;
+            }
+
+            /**
+             * Need to lock the target medium as i_resize does do so
+             * automatically.
+             */
+
+            ComPtr<IToken> pToken;
+            rc = pTarget->LockWrite(pToken.asOutParam());
+
+            if (FAILED(rc)) return rc;
+
+            /**
+             * Have to make own lock list, because "resize" method resizes only
+             * last image in the lock chain.
+             */
+
+            MediumLockList* pMediumLockListForResize = new MediumLockList();
+            pMediumLockListForResize->Append(pTarget, pTarget->m->state == MediumState_LockedWrite);
+
+            rc = pMediumLockListForResize->Lock(true /* fSkipOverLockedMedia */);
+
+            if (FAILED(rc))
+            {
+                AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+                rc = setError(rc,
+                                tr("Failed to lock the medium '%s' to resize before merge"),
+                                strTargetName.c_str());
+                delete pMediumLockListForResize;
+                return rc;
+            }
+
+
+            rc = pTarget->i_resize((uint64_t)aLogicalSize, pMediumLockListForResize, &pProgress, true, false);
+
+            if (FAILED(rc))
+            {
+                /* No need to setError becasue i_resize and i_taskResizeHandler handle this automatically. */
+                AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+                delete pMediumLockListForResize;
+                return rc;
+            }
+
+            delete pMediumLockListForResize;
+
+            pTarget->m->logicalSize = (uint64_t)aLogicalSize;
+
+            pToken->Abandon();
+            pToken.setNull();
+        }
+    }
+
+    /* Report progress to supplied progress argument */
+    if (SUCCEEDED(rc))
+    {
+        pProgress.queryInterfaceTo(aProgress.asOutParam());
+    }
+
+    try
+    {
+        // locking: we need the tree lock first because we access parent pointers
+        // and we need to write-lock the media involved
+        uint32_t    cHandles    = 3;
+        LockHandle* pHandles[4] = { &m->pVirtualBox->i_getMediaTreeLockHandle(),
+                                    this->lockHandle(),
+                                    pTarget->lockHandle() };
+        /* Only add parent to the lock if it is not null */
+        if (!pParent.isNull())
+            pHandles[cHandles++] = pParent->lockHandle();
+        AutoWriteLock alock(cHandles,
+                            pHandles
+                            COMMA_LOCKVAL_SRC_POS);
+
+        if (    pTarget->m->state != MediumState_NotCreated
+            &&  pTarget->m->state != MediumState_Created)
+            throw pTarget->i_setStateError();
+
+        /* Build the source lock list. */
+        MediumLockList *pSourceMediumLockList(new MediumLockList());
+        alock.release();
+        rc = i_createMediumLockList(true /* fFailIfInaccessible */,
+                                    NULL /* pToLockWrite */,
+                                    false /* fMediumLockWriteAll */,
+                                    NULL,
+                                    *pSourceMediumLockList);
+        alock.acquire();
+        if (FAILED(rc))
+        {
+            delete pSourceMediumLockList;
+            throw rc;
+        }
+
+        /* Build the target lock list (including the to-be parent chain). */
+        MediumLockList *pTargetMediumLockList(new MediumLockList());
+        alock.release();
+        rc = pTarget->i_createMediumLockList(true /* fFailIfInaccessible */,
+                                             pTarget /* pToLockWrite */,
+                                             false /* fMediumLockWriteAll */,
+                                             pParent,
+                                             *pTargetMediumLockList);
+        alock.acquire();
+        if (FAILED(rc))
+        {
+            delete pSourceMediumLockList;
+            delete pTargetMediumLockList;
+            throw rc;
+        }
+
+        alock.release();
+        rc = pSourceMediumLockList->Lock();
+        alock.acquire();
+        if (FAILED(rc))
+        {
+            delete pSourceMediumLockList;
+            delete pTargetMediumLockList;
+            throw setError(rc,
+                           tr("Failed to lock source media '%s'"),
+                           i_getLocationFull().c_str());
+        }
+        alock.release();
+        rc = pTargetMediumLockList->Lock();
+        alock.acquire();
+        if (FAILED(rc))
+        {
+            delete pSourceMediumLockList;
+            delete pTargetMediumLockList;
+            throw setError(rc,
+                           tr("Failed to lock target media '%s'"),
+                           pTarget->i_getLocationFull().c_str());
+        }
+
+        ULONG mediumVariantFlags = 0;
+
+        if (aVariant.size())
+        {
+            for (size_t i = 0; i < aVariant.size(); i++)
+                mediumVariantFlags |= (ULONG)aVariant[i];
+        }
+
+        if (mediumVariantFlags & MediumVariant_Formatted)
+        {
+            delete pSourceMediumLockList;
+            delete pTargetMediumLockList;
+            throw setError(VBOX_E_NOT_SUPPORTED,
+                           tr("Medium variant 'formatted' applies to floppy images only"));
+        }
+
+        if (pTarget->m->state != MediumState_NotCreated || aLogicalSize == 0)
+        {
+            /* setup task object to carry out the operation asynchronously */
+            pTask = new Medium::CloneTask(this, pProgress, pTarget,
+                                          (MediumVariant_T)mediumVariantFlags,
+                                          pParent, UINT32_MAX, UINT32_MAX,
+                                          pSourceMediumLockList, pTargetMediumLockList,
+                                          false, false, true, 0);
+        }
+        else
+        {
+            /* setup task object to carry out the operation asynchronously */
+            pTask = new Medium::CloneTask(this, pProgress, pTarget,
+                                          (MediumVariant_T)mediumVariantFlags,
+                                          pParent, UINT32_MAX, UINT32_MAX,
+                                          pSourceMediumLockList, pTargetMediumLockList,
+                                          false, false, true, (uint64_t)aLogicalSize);
+        }
+
         rc = pTask->rc();
         AssertComRC(rc);
         if (FAILED(rc))
@@ -5369,7 +5639,7 @@ MediumVariant_T Medium::i_getPreferredDiffVariant()
 
     /* m->variant is const, no need to lock */
     ULONG mediumVariantFlags = (ULONG)m->variant;
-    mediumVariantFlags &= ~(ULONG)(MediumVariant_Fixed | MediumVariant_VmdkStreamOptimized);
+    mediumVariantFlags &= ~(ULONG)(MediumVariant_Fixed | MediumVariant_VmdkStreamOptimized | MediumVariant_VmdkESX | MediumVariant_VmdkRawDisk);
     mediumVariantFlags |= MediumVariant_Diff;
     return (MediumVariant_T)mediumVariantFlags;
 }
@@ -6814,7 +7084,7 @@ HRESULT Medium::i_exportFile(const char *aFilename,
                                          aFilename,
                                          false /* fMoveByRename */,
                                          0 /* cbSize */,
-                                         aVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                                         aVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted | MediumVariant_VmdkESX | MediumVariant_VmdkRawDisk),
                                          NULL /* pDstUuid */,
                                          VD_OPEN_FLAGS_NORMAL | VD_OPEN_FLAGS_SEQUENTIAL,
                                          pProgress,
@@ -8932,7 +9202,7 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
             vrc = VDCreateDiff(hdd,
                                targetFormat.c_str(),
                                targetLocation.c_str(),
-                                 (task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted | MediumVariant_VmdkESX))
+                                 (task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted | MediumVariant_VmdkESX | MediumVariant_VmdkRawDisk))
                                | VD_IMAGE_FLAGS_DIFF,
                                NULL,
                                targetId.raw(),
@@ -9646,8 +9916,8 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                                  targetFormat.c_str(),
                                  (fCreatingTarget) ? targetLocation.c_str() : (char *)NULL,
                                  false /* fMoveByRename */,
-                                 0 /* cbSize */,
-                                 task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                                 task.mTargetLogicalSize /* cbSize */,
+                                 task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted | MediumVariant_VmdkESX | MediumVariant_VmdkRawDisk),
                                  targetId.raw(),
                                  VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                  NULL /* pVDIfsOperation */,
@@ -9662,10 +9932,10 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                                    targetFormat.c_str(),
                                    (fCreatingTarget) ? targetLocation.c_str() : (char *)NULL,
                                    false /* fMoveByRename */,
-                                   0 /* cbSize */,
+                                   task.mTargetLogicalSize /* cbSize */,
                                    task.midxSrcImageSame,
                                    task.midxDstImageSame,
-                                   task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                                   task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted | MediumVariant_VmdkESX | MediumVariant_VmdkRawDisk),
                                    targetId.raw(),
                                    VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                    NULL /* pVDIfsOperation */,
@@ -10582,7 +10852,7 @@ HRESULT Medium::i_taskImportHandler(Medium::ImportTask &task)
                              (fCreatingTarget) ? targetLocation.c_str() : (char *)NULL,
                              false /* fMoveByRename */,
                              0 /* cbSize */,
-                             task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                             task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted | MediumVariant_VmdkESX | MediumVariant_VmdkRawDisk),
                              targetId.raw(),
                              VD_OPEN_FLAGS_NORMAL,
                              NULL /* pVDIfsOperation */,

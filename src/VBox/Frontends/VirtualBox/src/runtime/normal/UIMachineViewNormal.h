@@ -31,14 +31,15 @@
 # pragma once
 #endif
 
-/* Local includes */
+/* GUI includes: */
 #include "UIMachineView.h"
 
+/** UIMachineView subclass used as normal machine view implementation. */
 class UIMachineViewNormal : public UIMachineView
 {
     Q_OBJECT;
 
-protected:
+public:
 
     /* Normal machine-view constructor: */
     UIMachineViewNormal(UIMachineWindow *pMachineWindow, ulong uScreenId);
@@ -66,7 +67,7 @@ private:
     //void cleanupCommon() {}
 
     /** Returns whether the guest-screen auto-resize is enabled. */
-    virtual bool isGuestAutoresizeEnabled() const RT_OVERRIDE { return m_bIsGuestAutoresizeEnabled; }
+    virtual bool isGuestAutoresizeEnabled() const RT_OVERRIDE { return m_fGuestAutoresizeEnabled; }
     /** Defines whether the guest-screen auto-resize is @a fEnabled. */
     virtual void setGuestAutoresizeEnabled(bool bEnabled) RT_OVERRIDE;
 
@@ -82,11 +83,7 @@ private:
     QSize calculateMaxGuestSize() const;
 
     /* Private members: */
-    bool m_bIsGuestAutoresizeEnabled : 1;
-
-    /* Friend classes: */
-    friend class UIMachineView;
+    bool m_fGuestAutoresizeEnabled : 1;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_runtime_normal_UIMachineViewNormal_h */
-

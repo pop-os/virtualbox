@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Validation Kit imports.
@@ -87,7 +87,7 @@ class WuiReportBase(WuiContentBase):
 
         # Additional URL parameters for reports:
         from testmanager.webui.wuimain import WuiMain;
-        self._dExtraParams  = ReportFilter().strainParameters(dict() if oDisp is None else oDisp.getParameters(),
+        self._dExtraParams  = ReportFilter().strainParameters({} if oDisp is None else oDisp.getParameters(),
                                                               (WuiMain.ksParamReportPeriods,
                                                                WuiMain.ksParamReportPeriodInHours,
                                                                WuiMain.ksParamEffectiveDate,));

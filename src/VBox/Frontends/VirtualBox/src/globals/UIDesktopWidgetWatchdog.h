@@ -82,57 +82,55 @@ public:
     /** Destroys the static instance of the desktop-widget watchdog. */
     static void destroy();
 
-    /** Returns overall desktop width. */
-    int overallDesktopWidth() const;
-    /** Returns overall desktop height. */
-    int overallDesktopHeight() const;
-
     /** Returns the number of host-screens currently available on the system. */
-    int screenCount() const;
+    static int screenCount();
 
     /** Returns primary screen index. */
-    int primaryScreen() const;
-
+    static int primaryScreenNumber();
     /** Returns the index of the screen which contains contains @a pWidget. */
-    int screenNumber(const QWidget *pWidget) const;
+    static int screenNumber(const QWidget *pWidget);
     /** Returns the index of the screen which contains contains @a point. */
-    int screenNumber(const QPoint &point) const;
+    static int screenNumber(const QPoint &point);
 
+    /** Returns the geometry of the host @a pScreen. */
+    QRect screenGeometry(QScreen *pScreen) const;
     /** Returns the geometry of the host-screen with @a iHostScreenIndex.
       * @note The default screen is used if @a iHostScreenIndex is -1. */
-    const QRect screenGeometry(int iHostScreenIndex = -1) const;
+    QRect screenGeometry(int iHostScreenIndex = -1) const;
     /** Returns the geometry of the host-screen which contains @a pWidget. */
-    const QRect screenGeometry(const QWidget *pWidget) const;
+    QRect screenGeometry(const QWidget *pWidget) const;
     /** Returns the geometry of the host-screen which contains @a point. */
-    const QRect screenGeometry(const QPoint &point) const;
+    QRect screenGeometry(const QPoint &point) const;
 
+    /** Returns the available-geometry of the host @a pScreen. */
+    QRect availableGeometry(QScreen *pScreen) const;
     /** Returns the available-geometry of the host-screen with @a iHostScreenIndex.
       * @note The default screen is used if @a iHostScreenIndex is -1. */
-    const QRect availableGeometry(int iHostScreenIndex = -1) const;
+    QRect availableGeometry(int iHostScreenIndex = -1) const;
     /** Returns the available-geometry of the host-screen which contains @a pWidget. */
-    const QRect availableGeometry(const QWidget *pWidget) const;
+    QRect availableGeometry(const QWidget *pWidget) const;
     /** Returns the available-geometry of the host-screen which contains @a point. */
-    const QRect availableGeometry(const QPoint &point) const;
+    QRect availableGeometry(const QPoint &point) const;
 
     /** Returns overall region unifying all the host-screen geometries. */
-    const QRegion overallScreenRegion() const;
+    static QRegion overallScreenRegion();
     /** Returns overall region unifying all the host-screen available-geometries. */
-    const QRegion overallAvailableRegion() const;
+    static QRegion overallAvailableRegion();
 
 #ifdef VBOX_WS_X11
     /** Qt5: X11: Returns whether no or fake screen detected. */
-    bool isFakeScreenDetected() const;
+    static bool isFakeScreenDetected();
 #endif
 
     /** Returns device-pixel-ratio of the host-screen with @a iHostScreenIndex. */
-    double devicePixelRatio(int iHostScreenIndex = -1);
+    static double devicePixelRatio(int iHostScreenIndex = -1);
     /** Returns device-pixel-ratio of the host-screen which contains @a pWidget. */
-    double devicePixelRatio(QWidget *pWidget);
+    static double devicePixelRatio(QWidget *pWidget);
 
     /** Returns actual device-pixel-ratio of the host-screen with @a iHostScreenIndex. */
-    double devicePixelRatioActual(int iHostScreenIndex = -1);
+    static double devicePixelRatioActual(int iHostScreenIndex = -1);
     /** Returns actual device-pixel-ratio of the host-screen which contains @a pWidget. */
-    double devicePixelRatioActual(QWidget *pWidget);
+    static double devicePixelRatioActual(QWidget *pWidget);
 
     /** Search position for @a rectangle to make sure it is fully
       * contained within @a boundRegion, performing resize if allowed. */
@@ -146,9 +144,9 @@ public:
                                bool fCanResize = true);
     /** Aligns the center of @a pWidget with the center
       * of @a pRelative, performing resize if allowed. */
-    static void centerWidget(QWidget *pWidget,
-                             QWidget *pRelative,
-                             bool fCanResize = true);
+    void centerWidget(QWidget *pWidget,
+                      QWidget *pRelative,
+                      bool fCanResize = true) const;
     /** Restores and exposes the @a pWidget on desktop. */
     static void restoreWidget(QWidget *pWidget);
 
@@ -184,6 +182,9 @@ private:
     void prepare();
     /** Cleanup routine. */
     void cleanup();
+
+    /** Returns index of passed @a pScreen. */
+    static int screenToIndex(QScreen *pScreen);
 
     /** Returns the flipped (transposed) @a region. */
     static QRegion flip(const QRegion &region);

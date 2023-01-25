@@ -106,15 +106,7 @@ public:
         if (autoCaller.isNotOk())
             return;
 
-        int vrc = pThis->i_sendData(mpCtx, RT_INDEFINITE_WAIT /* msTimeout */);
-        if (RT_FAILURE(vrc)) /* In case we missed some error handling within i_sendData(). */
-        {
-            if (vrc != VERR_CANCELLED)
-                LogRel(("DnD: Sending data to guest failed with %Rrc\n", vrc));
-
-            /* Make sure to fire a cancel request to the guest side in case something went wrong. */
-            pThis->sendCancel();
-        }
+        /* ignore rc */ pThis->i_sendData(mpCtx, RT_INDEFINITE_WAIT /* msTimeout */);
     }
 
     virtual ~GuestDnDSendDataTask(void) { }
@@ -128,7 +120,10 @@ protected:
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR(GuestDnDTarget)
+GuestDnDTarget::GuestDnDTarget(void)
+    : GuestDnDBase(this) { }
+
+GuestDnDTarget::~GuestDnDTarget(void) { }
 
 HRESULT GuestDnDTarget::FinalConstruct(void)
 {
@@ -297,6 +292,9 @@ HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
     if (isDnDIgnoreAction(dndActionDefault))
         return S_OK;
 
+    GuestDnDState *pState = GuestDnDInst()->getState();
+    AssertPtrReturn(pState, E_POINTER);
+
     /*
      * Make a flat data string out of the supported format list.
      * In the GuestDnDTarget case the source formats are from the host,
@@ -317,11 +315,9 @@ HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
     m_lstFmtOffered = aFormats;
     Assert(m_lstFmtOffered.size());
 
-    HRESULT hrc = S_OK;
-
     /* Adjust the coordinates in a multi-monitor setup. */
-    int vrc = GuestDnDInst()->adjustScreenCoordinates(aScreenId, &aX, &aY);
-    if (RT_SUCCESS(vrc))
+    HRESULT hrc = GuestDnDInst()->adjustScreenCoordinates(aScreenId, &aX, &aY);
+    if (SUCCEEDED(hrc))
     {
         GuestDnDMsg Msg;
         Msg.setType(HOST_DND_FN_HG_EVT_ENTER);
@@ -335,16 +331,45 @@ HRESULT GuestDnDTarget::enter(ULONG aScreenId, ULONG aX, ULONG aY,
         Msg.appendPointer((void *)strFormats.c_str(), cbFormats);
         Msg.appendUInt32(cbFormats);
 
-        vrc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+        int vrc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
         if (RT_SUCCESS(vrc))
         {
-            if (RT_SUCCESS(m_pState->waitForGuestResponse()))
+            int vrcGuest;
+            if (RT_SUCCESS(vrc = pState->waitForGuestResponse(&vrcGuest)))
+            {
                 resAction = GuestDnD::toMainAction(m_pState->getActionDefault());
+
+                LogRel2(("DnD: Host enters the VM window at %RU32,%RU32 (screen %u, default action is '%s') -> guest reported back action '%s'\n",
+                         aX, aY, aScreenId, DnDActionToStr(dndActionDefault), DnDActionToStr(resAction)));
+
+                pState->set(VBOXDNDSTATE_ENTERED);
+            }
+            else
+                hrc = i_setErrorAndReset(vrc == VERR_DND_GUEST_ERROR ? vrcGuest : vrc, tr("Entering VM window failed"));
+        }
+        else
+        {
+            switch (vrc)
+            {
+                case VERR_ACCESS_DENIED:
+                {
+                    hrc = i_setErrorAndReset(tr("Drag and drop to guest not allowed. Select the right mode first"));
+                    break;
+                }
+
+                case VERR_NOT_SUPPORTED:
+                {
+                    hrc = i_setErrorAndReset(tr("Drag and drop to guest not possible -- either the guest OS does not support this, "
+                                                "or the Guest Additions are not installed"));
+                    break;
+                }
+
+                default:
+                    hrc = i_setErrorAndReset(vrc, tr("Entering VM window failed"));
+                    break;
+            }
         }
     }
-
-    if (RT_FAILURE(vrc))
-        hrc = VBOX_E_IPRT_ERROR;
 
     if (SUCCEEDED(hrc))
     {
@@ -385,6 +410,9 @@ HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
     if (isDnDIgnoreAction(dndActionDefault))
         return S_OK;
 
+    GuestDnDState *pState = GuestDnDInst()->getState();
+    AssertPtrReturn(pState, E_POINTER);
+
     /*
      * Make a flat data string out of the supported format list.
      * In the GuestDnDTarget case the source formats are from the host,
@@ -395,10 +423,8 @@ HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
         return setError(E_INVALIDARG, tr("No or not supported format(s) specified"));
     const uint32_t cbFormats = (uint32_t)strFormats.length() + 1; /* Include terminating zero. */
 
-    HRESULT hrc = S_OK;
-
-    int vrc = GuestDnDInst()->adjustScreenCoordinates(aScreenId, &aX, &aY);
-    if (RT_SUCCESS(vrc))
+    HRESULT hrc = GuestDnDInst()->adjustScreenCoordinates(aScreenId, &aX, &aY);
+    if (SUCCEEDED(hrc))
     {
         GuestDnDMsg Msg;
         Msg.setType(HOST_DND_FN_HG_EVT_MOVE);
@@ -412,17 +438,48 @@ HRESULT GuestDnDTarget::move(ULONG aScreenId, ULONG aX, ULONG aY,
         Msg.appendPointer((void *)strFormats.c_str(), cbFormats);
         Msg.appendUInt32(cbFormats);
 
-        vrc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+        int vrc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
         if (RT_SUCCESS(vrc))
         {
-            GuestDnDState *pState = GuestDnDInst()->getState();
-            if (pState && RT_SUCCESS(pState->waitForGuestResponse()))
+            int vrcGuest;
+            if (RT_SUCCESS(vrc = pState->waitForGuestResponse(&vrcGuest)))
+            {
                 resAction = GuestDnD::toMainAction(pState->getActionDefault());
+
+                LogRel2(("DnD: Host moved to %RU32,%RU32 in VM window (screen %u, default action is '%s') -> guest reported back action '%s'\n",
+                         aX, aY, aScreenId, DnDActionToStr(dndActionDefault), DnDActionToStr(resAction)));
+
+                pState->set(VBOXDNDSTATE_DRAGGING);
+            }
+            else
+                hrc = i_setErrorAndReset(vrc == VERR_DND_GUEST_ERROR ? vrcGuest : vrc,
+                                         tr("Moving to %RU32,%RU32 (screen %u) failed"), aX, aY, aScreenId);
+        }
+        else
+        {
+            switch (vrc)
+            {
+                case VERR_ACCESS_DENIED:
+                {
+                    hrc = i_setErrorAndReset(tr("Moving in guest not allowed. Select the right mode first"));
+                    break;
+                }
+
+                case VERR_NOT_SUPPORTED:
+                {
+                    hrc = i_setErrorAndReset(tr("Moving in guest not possible -- either the guest OS does not support this, "
+                                                "or the Guest Additions are not installed"));
+                    break;
+                }
+
+                default:
+                    hrc = i_setErrorAndReset(vrc, tr("Moving in VM window failed"));
+                    break;
+            }
         }
     }
-
-    if (RT_FAILURE(vrc))
-        hrc = VBOX_E_IPRT_ERROR;
+    else
+        hrc = i_setErrorAndReset(tr("Retrieving move coordinates failed"));
 
     if (SUCCEEDED(hrc))
     {
@@ -445,7 +502,15 @@ HRESULT GuestDnDTarget::leave(ULONG uScreenId)
     AutoCaller autoCaller(this);
     if (autoCaller.isNotOk()) return autoCaller.rc();
 
+    GuestDnDState *pState = GuestDnDInst()->getState();
+    AssertPtrReturn(pState, E_POINTER);
+
+    if (pState->get() == VBOXDNDSTATE_DROP_STARTED)
+        return S_OK;
+
     HRESULT hrc = S_OK;
+
+    LogRel2(("DnD: Host left the VM window (screen %u)\n", uScreenId));
 
     GuestDnDMsg Msg;
     Msg.setType(HOST_DND_FN_HG_EVT_LEAVE);
@@ -455,13 +520,36 @@ HRESULT GuestDnDTarget::leave(ULONG uScreenId)
     int vrc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
     if (RT_SUCCESS(vrc))
     {
-        GuestDnDState *pState = GuestDnDInst()->getState();
-        if (pState)
-            pState->waitForGuestResponse();
+        int vrcGuest;
+        if (RT_SUCCESS(vrc = pState->waitForGuestResponse(&vrcGuest)))
+        {
+            pState->set(VBOXDNDSTATE_LEFT);
+        }
+        else
+            hrc = i_setErrorAndReset(vrc == VERR_DND_GUEST_ERROR ? vrcGuest : vrc, tr("Leaving VM window failed"));
     }
+    else
+    {
+        switch (vrc)
+        {
+            case VERR_ACCESS_DENIED:
+            {
+                hrc = i_setErrorAndReset(tr("Leaving guest not allowed. Select the right mode first"));
+                break;
+            }
 
-    if (RT_FAILURE(vrc))
-        hrc = VBOX_E_IPRT_ERROR;
+            case VERR_NOT_SUPPORTED:
+            {
+                hrc = i_setErrorAndReset(tr("Leaving guest not possible -- either the guest OS does not support this, "
+                                            "or the Guest Additions are not installed"));
+                break;
+            }
+
+            default:
+                hrc = i_setErrorAndReset(vrc, tr("Leaving VM window failed"));
+                break;
+        }
+    }
 
     LogFlowFunc(("hrc=%Rhrc\n", hrc));
     return hrc;
@@ -509,6 +597,9 @@ HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
         return S_OK;
     }
 
+    GuestDnDState *pState = GuestDnDInst()->getState();
+    AssertPtrReturn(pState, E_POINTER);
+
     /*
      * Make a flat data string out of the supported format list.
      * In the GuestDnDTarget case the source formats are from the host,
@@ -520,8 +611,8 @@ HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
     const uint32_t cbFormats = (uint32_t)strFormats.length() + 1; /* Include terminating zero. */
 
     /* Adjust the coordinates in a multi-monitor setup. */
-    HRESULT hr = GuestDnDInst()->adjustScreenCoordinates(aScreenId, &aX, &aY);
-    if (SUCCEEDED(hr))
+    HRESULT hrc = GuestDnDInst()->adjustScreenCoordinates(aScreenId, &aX, &aY);
+    if (SUCCEEDED(hrc))
     {
         GuestDnDMsg Msg;
         Msg.setType(HOST_DND_FN_HG_EVT_DROPPED);
@@ -535,43 +626,55 @@ HRESULT GuestDnDTarget::drop(ULONG aScreenId, ULONG aX, ULONG aY,
         Msg.appendPointer((void*)strFormats.c_str(), cbFormats);
         Msg.appendUInt32(cbFormats);
 
+        LogRel2(("DnD: Host drops at %RU32,%RU32 in VM window (screen %u, default action is '%s')\n",
+                 aX, aY, aScreenId, DnDActionToStr(dndActionDefault)));
+
         int vrc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
         if (RT_SUCCESS(vrc))
         {
-            GuestDnDState *pState = GuestDnDInst()->getState();
-            if (pState && RT_SUCCESS(pState->waitForGuestResponse()))
+            int vrcGuest;
+            if (RT_SUCCESS(vrc = pState->waitForGuestResponse(&vrcGuest)))
             {
                 resAct = GuestDnD::toMainAction(pState->getActionDefault());
-
-                GuestDnDMIMEList lstFormats = pState->formats();
-                if (lstFormats.size() == 1) /* Exactly one format to use specified? */
+                if (resAct != DnDAction_Ignore) /* Does the guest accept a drop at the current position? */
                 {
-                    resFmt = lstFormats.at(0);
+                    GuestDnDMIMEList lstFormats = pState->formats();
+                    if (lstFormats.size() == 1) /* Exactly one format to use specified? */
+                    {
+                        resFmt = lstFormats.at(0);
+
+                        LogRel2(("DnD: Guest accepted drop in format '%s' (action %#x, %zu format(s))\n",
+                                 resFmt.c_str(), resAct, lstFormats.size()));
+
+                        pState->set(VBOXDNDSTATE_DROP_STARTED);
+                    }
+                    else
+                    {
+                        if (lstFormats.size() == 0)
+                            hrc = i_setErrorAndReset(VERR_DND_GUEST_ERROR, tr("Guest accepted drop, but did not specify the format"));
+                        else
+                            hrc = i_setErrorAndReset(VERR_DND_GUEST_ERROR, tr("Guest accepted drop, but returned more than one drop format (%zu formats)"),
+                                                     lstFormats.size());
+                    }
                 }
-                else
-                    /** @todo r=bird: This isn't an IPRT error, is it?   */
-                    hr = setError(VBOX_E_IPRT_ERROR, tr("Guest returned invalid drop formats (%zu formats)", "",
-                                                        lstFormats.size()), lstFormats.size());
             }
             else
-                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Waiting for response of dropped event failed (%Rrc)"), vrc);
+                hrc = i_setErrorAndReset(vrc == VERR_DND_GUEST_ERROR ? vrcGuest : vrc, tr("Dropping into VM failed"));
         }
         else
-            hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Sending dropped event to guest failed (%Rrc)"), vrc);
+            hrc = i_setErrorAndReset(vrc, tr("Sending dropped event to guest failed"));
     }
     else
-        hr = setError(hr, tr("Retrieving drop coordinates failed"));
+        hrc = i_setErrorAndReset(hrc, tr("Retrieving drop coordinates failed"));
 
-    LogFlowFunc(("resFmt=%s, resAct=%RU32, vrc=%Rhrc\n", resFmt.c_str(), resAct, hr));
-
-    if (SUCCEEDED(hr))
+    if (SUCCEEDED(hrc))
     {
         aFormat = resFmt;
         if (aResultAction)
             *aResultAction = resAct;
     }
 
-    return hr;
+    return hrc;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 }
 
@@ -608,9 +711,6 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
     if (m_fIsPending)
         return setError(E_FAIL, tr("Current drop operation to guest still in progress"));
 
-    /* Reset our internal state. */
-    i_reset();
-
     /* At the moment we only support one transfer at a time. */
     if (GuestDnDInst()->getTargetCount())
         return setError(E_INVALIDARG, tr("Another drag and drop operation to the guest already is in progress"));
@@ -618,7 +718,7 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
     /* Reset progress object. */
     GuestDnDState *pState = GuestDnDInst()->getState();
     AssertPtr(pState);
-    HRESULT hr = pState->resetProgress(m_pGuest);
+    HRESULT hr = pState->resetProgress(m_pGuest, tr("Dropping data to guest"));
     if (FAILED(hr))
         return hr;
 
@@ -635,6 +735,8 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
         mData.mSendCtx.Meta.strFmt = aFormat;
         mData.mSendCtx.Meta.add(aData);
 
+        LogRel2(("DnD: Host sends data in format '%s'\n", aFormat.c_str()));
+
         pTask = new GuestDnDSendDataTask(this, &mData.mSendCtx);
         if (!pTask->isOk())
         {
@@ -650,7 +752,7 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
     }
     catch (std::bad_alloc &)
     {
-        hr = setError(E_OUTOFMEMORY);
+        hr = E_OUTOFMEMORY;
     }
     catch (...)
     {
@@ -668,7 +770,7 @@ HRESULT GuestDnDTarget::sendData(ULONG aScreenId, const com::Utf8Str &aFormat, c
         ComAssertComRC(hr);
     }
     else
-        hr = setError(hr, tr("Starting thread for GuestDnDTarget failed (%Rhrc)"), hr);
+        hr = i_setErrorAndReset(tr("Starting thread for GuestDnDTarget failed (%Rhrc)"), hr);
 
     LogFlowFunc(("Returning hr=%Rhrc\n", hr));
     return hr;
@@ -764,7 +866,7 @@ Utf8Str GuestDnDTarget::i_hostErrorToString(int hostRc)
  */
 void GuestDnDTarget::i_reset(void)
 {
-    LogFlowThisFunc(("\n"));
+    LogRel2(("DnD: Target reset\n"));
 
     mData.mSendCtx.reset();
 
@@ -814,9 +916,27 @@ int GuestDnDTarget::i_sendData(GuestDnDSendCtx *pCtx, RTMSINTERVAL msTimeout)
         vrc = i_sendRawData(pCtx, msTimeout);
     }
 
-    if (RT_FAILURE(vrc))
+    GuestDnDState *pState = GuestDnDInst()->getState();
+    AssertPtrReturn(pState, E_POINTER);
+
+    if (RT_SUCCESS(vrc))
     {
-        LogRel(("DnD: Sending data to guest failed with %Rrc\n", vrc));
+        pState->set(VBOXDNDSTATE_DROP_ENDED);
+    }
+    else
+    {
+        if (vrc == VERR_CANCELLED)
+        {
+            LogRel(("DnD: Sending data to guest cancelled by the user\n"));
+            pState->set(VBOXDNDSTATE_CANCELLED);
+        }
+        else
+        {
+            LogRel(("DnD: Sending data to guest failed with %Rrc\n", vrc));
+            pState->set(VBOXDNDSTATE_ERROR);
+        }
+
+        /* Make sure to fire a cancel request to the guest side in any case to prevent any guest side hangs. */
         sendCancel();
     }
 
@@ -1173,7 +1293,7 @@ DECLCALLBACK(int) GuestDnDTarget::i_sendTransferDataCallback(uint32_t uMsg, void
     LogFlowFunc(("pThis=%p, pList=%p, uMsg=%RU32\n", pThis, pList, uMsg));
 
     int  vrc      = VINF_SUCCESS;
-    int  vrcGuest = VINF_SUCCESS; /* Contains error code from guest in case of VERR_GSTDND_GUEST_ERROR. */
+    int  vrcGuest = VINF_SUCCESS; /* Contains error code from guest in case of VERR_DND_GUEST_ERROR. */
     bool fNotify  = false;
 
     switch (uMsg)
@@ -1226,12 +1346,12 @@ DECLCALLBACK(int) GuestDnDTarget::i_sendTransferDataCallback(uint32_t uMsg, void
             }
             break;
         }
-        case GUEST_DND_FN_GH_EVT_ERROR:
+        case GUEST_DND_FN_EVT_ERROR:
         {
             PVBOXDNDCBEVTERRORDATA pCBData = reinterpret_cast<PVBOXDNDCBEVTERRORDATA>(pvParms);
             AssertPtr(pCBData);
             AssertReturn(sizeof(VBOXDNDCBEVTERRORDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(CB_MAGIC_DND_GH_EVT_ERROR == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
+            AssertReturn(CB_MAGIC_DND_EVT_ERROR == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
 
             pCtx->pState->reset();
 
@@ -1245,7 +1365,7 @@ DECLCALLBACK(int) GuestDnDTarget::i_sendTransferDataCallback(uint32_t uMsg, void
                                             GuestDnDTarget::i_guestErrorToString(pCBData->rc));
             if (RT_SUCCESS(vrc))
             {
-                vrc      = VERR_GSTDND_GUEST_ERROR;
+                vrc      = VERR_DND_GUEST_ERROR;
                 vrcGuest = pCBData->rc;
             }
             break;
@@ -1329,7 +1449,7 @@ DECLCALLBACK(int) GuestDnDTarget::i_sendTransferDataCallback(uint32_t uMsg, void
             break;
         }
 
-        case VERR_GSTDND_GUEST_ERROR:
+        case VERR_DND_GUEST_ERROR:
         {
             LogRel(("DnD: Guest reported error %Rrc, aborting transfer to guest\n", vrcGuest));
             break;
@@ -1413,7 +1533,7 @@ int GuestDnDTarget::i_sendTransferData(GuestDnDSendCtx *pCtx, RTMSINTERVAL msTim
     REGISTER_CALLBACK(GUEST_DND_FN_CONNECT);
     REGISTER_CALLBACK(GUEST_DND_FN_DISCONNECT);
     REGISTER_CALLBACK(GUEST_DND_FN_GET_NEXT_HOST_MSG);
-    REGISTER_CALLBACK(GUEST_DND_FN_GH_EVT_ERROR);
+    REGISTER_CALLBACK(GUEST_DND_FN_EVT_ERROR);
     /* Host callbacks. */
     REGISTER_CALLBACK(HOST_DND_FN_HG_SND_DIR);
     if (m_pState->m_uProtocolVersion >= 2)
@@ -1508,7 +1628,7 @@ int GuestDnDTarget::i_sendTransferData(GuestDnDSendCtx *pCtx, RTMSINTERVAL msTim
     UNREGISTER_CALLBACK(GUEST_DND_FN_CONNECT);
     UNREGISTER_CALLBACK(GUEST_DND_FN_DISCONNECT);
     UNREGISTER_CALLBACK(GUEST_DND_FN_GET_NEXT_HOST_MSG);
-    UNREGISTER_CALLBACK(GUEST_DND_FN_GH_EVT_ERROR);
+    UNREGISTER_CALLBACK(GUEST_DND_FN_EVT_ERROR);
     /* Host callbacks. */
     UNREGISTER_CALLBACK(HOST_DND_FN_HG_SND_DIR);
     if (m_pState->m_uProtocolVersion >= 2)
@@ -1538,7 +1658,7 @@ int GuestDnDTarget::i_sendTransferData(GuestDnDSendCtx *pCtx, RTMSINTERVAL msTim
             /* Cancelling is not an error, just set success here. */
             vrc  = VINF_SUCCESS;
         }
-        else if (vrc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
+        else if (vrc != VERR_DND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
         {
             LogRel(("DnD: Sending transfer data to guest failed with vrc=%Rrc\n", vrc));
             int vrc2 = pCtx->pState->setProgress(100, DND_PROGRESS_ERROR, vrc,
@@ -1660,7 +1780,7 @@ HRESULT GuestDnDTarget::cancel(BOOL *aVeto)
     if (aVeto)
         *aVeto = FALSE; /** @todo Implement vetoing. */
 
-    HRESULT hrc = RT_SUCCESS(vrc) ? S_OK : VBOX_E_IPRT_ERROR;
+    HRESULT hrc = RT_SUCCESS(vrc) ? S_OK : VBOX_E_DND_ERROR;
 
     LogFlowFunc(("hrc=%Rhrc\n", hrc));
     return hrc;

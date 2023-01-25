@@ -99,7 +99,46 @@ static int vbglR3DnDGetNextMsgType(PVBGLR3GUESTDNDCMDCTX pCtx, uint32_t *puMsg, 
             rc = Msg.cParms.GetUInt32(pcParms); AssertRC(rc);
         }
 
+        LogRel(("DnD: Received message %s (%#x) from host\n", DnDHostMsgToStr(*puMsg), *puMsg));
+
     } while (rc == VERR_INTERRUPTED);
+
+    return rc;
+}
+
+
+/**
+ * Sends a DnD error back to the host.
+ *
+ * @returns IPRT status code.
+ * @param   pCtx                DnD context to use.
+ * @param   rcErr               Error (IPRT-style) to send.
+ */
+VBGLR3DECL(int) VbglR3DnDSendError(PVBGLR3GUESTDNDCMDCTX pCtx, int rcErr)
+{
+    AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
+
+    HGCMMsgGHError Msg;
+    VBGL_HGCM_HDR_INIT(&Msg.hdr, pCtx->uClientID, GUEST_DND_FN_EVT_ERROR, 2);
+    /** @todo Context ID not used yet. */
+    Msg.u.v3.uContext.SetUInt32(0);
+    Msg.u.v3.rc.SetUInt32((uint32_t)rcErr); /* uint32_t vs. int. */
+
+    int rc = VbglR3HGCMCall(&Msg.hdr, sizeof(Msg));
+
+    /*
+     * Never return an error if the host did not accept the error at the current
+     * time.  This can be due to the host not having any appropriate callbacks
+     * set which would handle that error.
+     *
+     * bird: Looks like VERR_NOT_SUPPORTED is what the host will return if it
+     *       doesn't an appropriate callback.  The code used to ignore ALL errors
+     *       the host would return, also relevant ones.
+     */
+    if (RT_FAILURE(rc))
+        LogFlowFunc(("Sending error %Rrc failed with rc=%Rrc\n", rcErr, rc));
+    if (rc == VERR_NOT_SUPPORTED)
+        rc = VINF_SUCCESS;
 
     return rc;
 }
@@ -361,6 +400,7 @@ static int vbglR3DnDHGRecvFileHdr(PVBGLR3GUESTDNDCMDCTX  pCtx,
  * This function also will take care of the file creation / locking on the guest.
  *
  * @returns IPRT status code.
+ * @retval  VERR_CANCELLED if the transfer was cancelled by the host.
  * @param   pCtx                DnD context to use.
  * @param   pDataHdr            DnD data header to use. Needed for accounting.
  * @param   pDroppedFiles       Dropped files object to use for maintaining the file creation / locking.
@@ -384,6 +424,8 @@ static int vbglR3DnDHGRecvURIData(PVBGLR3GUESTDNDCMDCTX pCtx, PVBOXDNDSNDDATAHDR
      *       a bunch of 0-byte files to be transferred. */
     if (!cToRecvObjs)
         return VINF_SUCCESS;
+
+    LogRel2(("DnD: Receiving URI data started\n"));
 
     /*
      * Allocate temporary chunk buffer.
@@ -415,7 +457,7 @@ static int vbglR3DnDHGRecvURIData(PVBGLR3GUESTDNDCMDCTX pCtx, PVBOXDNDSNDDATAHDR
 
     do
     {
-        LogFlowFunc(("Wating for new message ...\n"));
+        LogFlowFunc(("Waiting for new message ...\n"));
 
         uint32_t uNextMsg;
         uint32_t cNextParms;
@@ -582,7 +624,7 @@ static int vbglR3DnDHGRecvURIData(PVBGLR3GUESTDNDCMDCTX pCtx, PVBOXDNDSNDDATAHDR
                 }
                 default:
                 {
-                    LogFlowFunc(("Message %RU32 not supported\n", uNextMsg));
+                    LogRel(("DnD: Warning: Message %s (%#x) from host not supported or in wrong order\n", DnDHostMsgToStr(uNextMsg), uNextMsg));
                     rc = VERR_NOT_SUPPORTED;
                     break;
                 }
@@ -615,11 +657,18 @@ static int vbglR3DnDHGRecvURIData(PVBGLR3GUESTDNDCMDCTX pCtx, PVBOXDNDSNDDATAHDR
      * something else went wrong. */
     if (RT_FAILURE(rc))
     {
+        if (rc == VERR_CANCELLED)
+            LogRel2(("DnD: Receiving URI data was cancelled by the host\n"));
+        else
+            LogRel(("DnD: Receiving URI data failed with %Rrc\n", rc));
+
         DnDTransferObjectDestroy(&objCur);
         DnDDroppedFilesRollback(pDroppedFiles);
     }
     else
     {
+        LogRel2(("DnD: Receiving URI data finished\n"));
+
         /** @todo Compare the transfer list with the dirs/files we really transferred. */
         /** @todo Implement checksum verification, if any. */
     }
@@ -818,7 +867,8 @@ static int vbglR3DnDHGRecvDataLoop(PVBGLR3GUESTDNDCMDCTX pCtx, PVBOXDNDSNDDATAHD
  * Host -> Guest
  * Main function for receiving the actual DnD data from the host.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
+ * @retval  VERR_CANCELLED if cancelled by the host.
  * @param   pCtx                DnD context to use.
  * @param   pMeta               Where to store the actual meta data received from the host.
  */
@@ -839,7 +889,6 @@ static int vbglR3DnDHGRecvDataMain(PVBGLR3GUESTDNDCMDCTX   pCtx,
 
     void    *pvData = NULL;
     uint64_t cbData = 0;
-
     int rc = vbglR3DnDHGRecvDataLoop(pCtx, &dataHdr, &pvData, &cbData);
     if (RT_SUCCESS(rc))
     {
@@ -898,6 +947,9 @@ static int vbglR3DnDHGRecvDataMain(PVBGLR3GUESTDNDCMDCTX   pCtx,
 
             pMeta->enmType = VBGLR3GUESTDNDMETADATATYPE_RAW;
         }
+
+        if (pvData)
+            RTMemFree(pvData);
     }
 
     if (dataHdr.pvMetaFmt)
@@ -905,16 +957,13 @@ static int vbglR3DnDHGRecvDataMain(PVBGLR3GUESTDNDCMDCTX   pCtx,
 
     if (RT_FAILURE(rc))
     {
-        if (pvData)
-            RTMemFree(pvData);
-
-        LogRel(("DnD: Receiving meta data failed with %Rrc\n", rc));
-
         if (rc != VERR_CANCELLED)
         {
+            LogRel(("DnD: Receiving data failed with %Rrc\n", rc));
+
             int rc2 = VbglR3DnDHGSendProgress(pCtx, DND_PROGRESS_ERROR, 100 /* Percent */, rc);
             if (RT_FAILURE(rc2))
-                LogFlowFunc(("Unable to send progress error %Rrc to host: %Rrc\n", rc, rc2));
+                LogRel(("DnD: Unable to send progress error %Rrc to host: %Rrc\n", rc, rc2));
         }
     }
 
@@ -1152,7 +1201,7 @@ VBGLR3DECL(int) VbglR3DnDReportFeatures(uint32_t idClient, uint64_t fGuestFeatur
  * the clients -- those only need to react to certain events, regardless of how the underlying
  * protocol actually is working.
  *
- * @returns IPRT status code.
+ * @returns VBox status code.
  * @param   pCtx                DnD context to work with.
  * @param   ppEvent             Next DnD event received on success; needs to be free'd by the client calling
  *                              VbglR3DnDEventFree() when done.
@@ -1177,8 +1226,7 @@ VBGLR3DECL(int) VbglR3DnDEventGetNext(PVBGLR3GUESTDNDCMDCTX pCtx, PVBGLR3DNDEVEN
         if (   RT_SUCCESS(rc2)
             && (uSessionID != pCtx->uSessionID))
         {
-            LogFlowFunc(("VM session ID changed to %RU64\n", uSessionID));
-
+            LogRel2(("DnD: VM session ID changed to %RU64\n", uSessionID));
             rc = VbglR3DnDDisconnect(pCtx);
             if (RT_SUCCESS(rc))
                 rc = VbglR3DnDConnect(pCtx);
@@ -1187,8 +1235,9 @@ VBGLR3DECL(int) VbglR3DnDEventGetNext(PVBGLR3GUESTDNDCMDCTX pCtx, PVBGLR3DNDEVEN
 
     if (rc == VERR_CANCELLED) /* Host service told us that we have to bail out. */
     {
-        pEvent->enmType = VBGLR3DNDEVENTTYPE_QUIT;
+        LogRel2(("DnD: Host service requested termination\n"));
 
+        pEvent->enmType = VBGLR3DNDEVENTTYPE_QUIT;
         *ppEvent = pEvent;
 
         return VINF_SUCCESS;
@@ -1278,7 +1327,7 @@ VBGLR3DECL(int) VbglR3DnDEventGetNext(PVBGLR3GUESTDNDCMDCTX pCtx, PVBGLR3DNDEVEN
             {
                 rc = vbglR3DnDHGRecvCancel(pCtx);
                 if (RT_SUCCESS(rc))
-                    pEvent->enmType = VBGLR3DNDEVENTTYPE_HG_CANCEL;
+                    rc = VERR_CANCELLED; /* Will emit a cancel event below. */
                 break;
             }
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
@@ -1310,12 +1359,23 @@ VBGLR3DECL(int) VbglR3DnDEventGetNext(PVBGLR3GUESTDNDCMDCTX pCtx, PVBGLR3DNDEVEN
 
     if (RT_FAILURE(rc))
     {
-        VbglR3DnDEventFree(pEvent);
-        LogFlowFunc(("Failed with %Rrc\n", rc));
+        /* Current operation cancelled? Set / overwrite event type and tell the caller. */
+        if (rc == VERR_CANCELLED)
+        {
+            pEvent->enmType = VBGLR3DNDEVENTTYPE_CANCEL;
+            rc              = VINF_SUCCESS; /* Deliver the event to the caller. */
+        }
+        else
+        {
+            VbglR3DnDEventFree(pEvent);
+            LogRel(("DnD: Handling message %s (%#x) failed with %Rrc\n", DnDHostMsgToStr(uMsg), uMsg, rc));
+        }
     }
-    else
+
+    if (RT_SUCCESS(rc))
         *ppEvent = pEvent;
 
+    LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
@@ -1620,7 +1680,8 @@ static int vbglR3DnDGHSendFile(PVBGLR3GUESTDNDCMDCTX pCtx, PDNDTRANSFEROBJECT pO
     void *pvBuf = RTMemAlloc(cbBuf); /** @todo Make this buffer part of PVBGLR3GUESTDNDCMDCTX? */
     if (!pvBuf)
     {
-        DnDTransferObjectClose(pObj);
+        int rc2 = DnDTransferObjectClose(pObj);
+        AssertRC(rc2);
         return VERR_NO_MEMORY;
     }
 
@@ -1692,7 +1753,9 @@ static int vbglR3DnDGHSendFile(PVBGLR3GUESTDNDCMDCTX pCtx, PDNDTRANSFEROBJECT pO
     }
 
     RTMemFree(pvBuf);
-    DnDTransferObjectClose(pObj);
+    int rc2 = DnDTransferObjectClose(pObj);
+    if (RT_SUCCESS(rc))
+        rc = rc2;
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -1873,48 +1936,11 @@ VBGLR3DECL(int) VbglR3DnDGHSendData(PVBGLR3GUESTDNDCMDCTX pCtx, const char *pszF
 
         if (rc != VERR_CANCELLED)
         {
-            int rc2 = VbglR3DnDGHSendError(pCtx, rc);
+            int rc2 = VbglR3DnDSendError(pCtx, rc);
             if (RT_FAILURE(rc2))
                 LogFlowFunc(("Unable to send error (%Rrc) to host, rc=%Rrc\n", rc, rc2));
         }
     }
-
-    return rc;
-}
-
-/**
- * Guest -> Host
- * Send an error back to the host.
- *
- * @returns IPRT status code.
- * @param   pCtx                DnD context to use.
- * @param   rcErr               Error (IPRT-style) to send.
- */
-VBGLR3DECL(int) VbglR3DnDGHSendError(PVBGLR3GUESTDNDCMDCTX pCtx, int rcErr)
-{
-    AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
-
-    HGCMMsgGHError Msg;
-    VBGL_HGCM_HDR_INIT(&Msg.hdr, pCtx->uClientID, GUEST_DND_FN_GH_EVT_ERROR, 2);
-    /** @todo Context ID not used yet. */
-    Msg.u.v3.uContext.SetUInt32(0);
-    Msg.u.v3.rc.SetUInt32((uint32_t)rcErr); /* uint32_t vs. int. */
-
-    int rc = VbglR3HGCMCall(&Msg.hdr, sizeof(Msg));
-
-    /*
-     * Never return an error if the host did not accept the error at the current
-     * time.  This can be due to the host not having any appropriate callbacks
-     * set which would handle that error.
-     *
-     * bird: Looks like VERR_NOT_SUPPORTED is what the host will return if it
-     *       doesn't an appropriate callback.  The code used to ignore ALL errors
-     *       the host would return, also relevant ones.
-     */
-    if (RT_FAILURE(rc))
-        LogFlowFunc(("Sending error %Rrc failed with rc=%Rrc\n", rcErr, rc));
-    if (rc == VERR_NOT_SUPPORTED)
-        rc = VINF_SUCCESS;
 
     return rc;
 }

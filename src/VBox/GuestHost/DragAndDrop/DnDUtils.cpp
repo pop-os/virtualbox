@@ -30,10 +30,71 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <VBox/GuestHost/DragAndDrop.h>
+#include <VBox/HostServices/DragAndDropSvc.h>
 
 #include <iprt/assert.h>
 #include <iprt/errcore.h>
 
+using namespace DragAndDropSvc;
+
+/**
+ * Converts a host HGCM message to a string.
+ *
+ * @returns Stringified version of the host message.
+ */
+const char *DnDHostMsgToStr(uint32_t uMsg)
+{
+    switch (uMsg)
+    {
+        RT_CASE_RET_STR(HOST_DND_FN_SET_MODE);
+        RT_CASE_RET_STR(HOST_DND_FN_CANCEL);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_EVT_ENTER);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_EVT_MOVE);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_EVT_LEAVE);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_EVT_DROPPED);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_SND_DATA_HDR);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_SND_DATA);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_SND_MORE_DATA);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_SND_DIR);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_SND_FILE_DATA);
+        RT_CASE_RET_STR(HOST_DND_FN_HG_SND_FILE_HDR);
+        RT_CASE_RET_STR(HOST_DND_FN_GH_REQ_PENDING);
+        RT_CASE_RET_STR(HOST_DND_FN_GH_EVT_DROPPED);
+        default:
+            break;
+    }
+    return "unknown";
+}
+
+/**
+ * Converts a guest HGCM message to a string.
+ *
+ * @returns Stringified version of the guest message.
+ */
+const char *DnDGuestMsgToStr(uint32_t uMsg)
+{
+    switch (uMsg)
+    {
+        RT_CASE_RET_STR(GUEST_DND_FN_CONNECT);
+        RT_CASE_RET_STR(GUEST_DND_FN_DISCONNECT);
+        RT_CASE_RET_STR(GUEST_DND_FN_REPORT_FEATURES);
+        RT_CASE_RET_STR(GUEST_DND_FN_QUERY_FEATURES);
+        RT_CASE_RET_STR(GUEST_DND_FN_GET_NEXT_HOST_MSG);
+        RT_CASE_RET_STR(GUEST_DND_FN_EVT_ERROR);
+        RT_CASE_RET_STR(GUEST_DND_FN_HG_ACK_OP);
+        RT_CASE_RET_STR(GUEST_DND_FN_HG_REQ_DATA);
+        RT_CASE_RET_STR(GUEST_DND_FN_HG_EVT_PROGRESS);
+        RT_CASE_RET_STR(GUEST_DND_FN_GH_ACK_PENDING);
+        RT_CASE_RET_STR(GUEST_DND_FN_GH_SND_DATA_HDR);
+        RT_CASE_RET_STR(GUEST_DND_FN_GH_SND_DATA);
+        RT_CASE_RET_STR(GUEST_DND_FN_GH_SND_DIR);
+        RT_CASE_RET_STR(GUEST_DND_FN_GH_SND_FILE_DATA);
+        RT_CASE_RET_STR(GUEST_DND_FN_GH_SND_FILE_HDR);
+        default:
+            break;
+    }
+    return "unknown";
+}
 
 /**
  * Converts a VBOXDNDACTION to a string.
@@ -53,5 +114,64 @@ const char *DnDActionToStr(VBOXDNDACTION uAction)
             break;
     }
     AssertMsgFailedReturn(("Unknown uAction=%d\n", uAction), "bad");
+}
+
+/**
+ * Converts a VBOXDNDACTIONLIST to a string.
+ *
+ * @returns Stringified version of VBOXDNDACTIONLIST. Must be free'd by the caller using RTStrFree().
+ * @retval  NULL on allocation failure.
+ * @retval  "<None>" if no (valid) actions found.
+ * @param   fActionList         DnD action list to convert.
+ */
+char *DnDActionListToStrA(VBOXDNDACTIONLIST fActionList)
+{
+    char *pszList = NULL;
+
+#define HANDLE_ACTION(a_Action) \
+    if (fActionList & a_Action) \
+    { \
+        if (pszList) \
+            AssertRCReturn(RTStrAAppend(&pszList, ", "), NULL); \
+        AssertRCReturn(RTStrAAppend(&pszList, DnDActionToStr(a_Action)), NULL); \
+    }
+
+    HANDLE_ACTION(VBOX_DND_ACTION_IGNORE);
+    HANDLE_ACTION(VBOX_DND_ACTION_COPY);
+    HANDLE_ACTION(VBOX_DND_ACTION_MOVE);
+    HANDLE_ACTION(VBOX_DND_ACTION_LINK);
+
+#undef HANDLE_ACTION
+
+    if (!pszList)
+        AssertRCReturn(RTStrAAppend(&pszList, "<None>"), NULL);
+
+    return pszList;
+}
+
+/**
+ * Converts a VBOXDNDSTATE to a string.
+ *
+ * @returns Stringified version of VBOXDNDSTATE.
+ * @param   enmState            DnD state to convert.
+ */
+const char *DnDStateToStr(VBOXDNDSTATE enmState)
+{
+    switch (enmState)
+    {
+        case VBOXDNDSTATE_UNKNOWN:       return "unknown";
+        case VBOXDNDSTATE_ENTERED:       return "entered VM window";
+        case VBOXDNDSTATE_LEFT:          return "left VM window";
+        case VBOXDNDSTATE_QUERY_FORMATS: return "querying formats";
+        case VBOXDNDSTATE_QUERY_STATUS:  return "querying status";
+        case VBOXDNDSTATE_DRAGGING:      return "dragging";
+        case VBOXDNDSTATE_DROP_STARTED:  return "drop started";
+        case VBOXDNDSTATE_DROP_ENDED:    return "drop ended";
+        case VBOXDNDSTATE_CANCELLED:     return "cancelled";
+        case VBOXDNDSTATE_ERROR:         return "error";
+        default:
+            break;
+    }
+    AssertMsgFailedReturn(("Unknown enmState=%d\n", enmState), "bad");
 }
 

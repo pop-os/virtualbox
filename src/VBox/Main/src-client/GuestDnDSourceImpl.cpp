@@ -127,7 +127,10 @@ protected:
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////
 
-DEFINE_EMPTY_CTOR_DTOR(GuestDnDSource)
+GuestDnDSource::GuestDnDSource(void)
+    : GuestDnDBase(this) { }
+
+GuestDnDSource::~GuestDnDSource(void) { }
 
 HRESULT GuestDnDSource::FinalConstruct(void)
 {
@@ -281,7 +284,16 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, GuestDnDMIMEList &aFormat
     if (aDefaultAction)
         *aDefaultAction = DnDAction_Ignore;
 
-    HRESULT hr = S_OK;
+    GuestDnDState *pState = GuestDnDInst()->getState();
+    AssertPtr(pState);
+
+    /* Check if any operation is active, and if so, bail out, returning an ignore action (see above). */
+    if (pState->get() != VBOXDNDSTATE_UNKNOWN)
+        return S_OK;
+
+    pState->set(VBOXDNDSTATE_QUERY_FORMATS);
+
+    HRESULT hrc = S_OK;
 
     GuestDnDMsg Msg;
     Msg.setType(HOST_DND_FN_GH_REQ_PENDING);
@@ -289,55 +301,98 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, GuestDnDMIMEList &aFormat
         Msg.appendUInt32(0); /** @todo ContextID not used yet. */
     Msg.appendUInt32(uScreenId);
 
-    int rc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
-    if (RT_SUCCESS(rc))
+    int vrc = GuestDnDInst()->hostCall(Msg.getType(), Msg.getCount(), Msg.getParms());
+    if (RT_SUCCESS(vrc))
     {
-        GuestDnDState *pState = GuestDnDInst()->getState();
-        AssertPtr(pState);
-
-        bool fFetchResult = true;
-
-        rc = pState->waitForGuestResponse(100 /* Timeout in ms */);
-        if (RT_FAILURE(rc))
-            fFetchResult = false;
-
-        if (   fFetchResult
-            && isDnDIgnoreAction(pState->getActionDefault()))
-            fFetchResult = false;
-
-        /* Fetch the default action to use. */
-        if (fFetchResult)
+        int vrcGuest;
+        vrc = pState->waitForGuestResponseEx(100 /* Timeout in ms */, &vrcGuest);
+        if (RT_SUCCESS(vrc))
         {
-            /*
-             * In the GuestDnDSource case the source formats are from the guest,
-             * as GuestDnDSource acts as a target for the guest. The host always
-             * dictates what's supported and what's not, so filter out all formats
-             * which are not supported by the host.
-             */
-            GuestDnDMIMEList lstFiltered  = GuestDnD::toFilteredFormatList(m_lstFmtSupported, pState->formats());
-            if (lstFiltered.size())
+            if (!isDnDIgnoreAction(pState->getActionDefault()))
             {
-                LogRel3(("DnD: Host offered the following formats:\n"));
-                for (size_t i = 0; i < lstFiltered.size(); i++)
-                    LogRel3(("DnD:\tFormat #%zu: %s\n", i, lstFiltered.at(i).c_str()));
+                /*
+                 * In the GuestDnDSource case the source formats are from the guest,
+                 * as GuestDnDSource acts as a target for the guest. The host always
+                 * dictates what's supported and what's not, so filter out all formats
+                 * which are not supported by the host.
+                 */
+                GuestDnDMIMEList const &lstGuest     = pState->formats();
+                GuestDnDMIMEList const  lstFiltered  = GuestDnD::toFilteredFormatList(m_lstFmtSupported, lstGuest);
+                if (lstFiltered.size())
+                {
+                    LogRel2(("DnD: Host offered the following formats:\n"));
+                    for (size_t i = 0; i < lstFiltered.size(); i++)
+                        LogRel2(("DnD:\tFormat #%zu: %s\n", i, lstFiltered.at(i).c_str()));
 
-                aFormats            = lstFiltered;
-                aAllowedActions     = GuestDnD::toMainActions(pState->getActionsAllowed());
-                if (aDefaultAction)
-                    *aDefaultAction = GuestDnD::toMainAction(pState->getActionDefault());
+                    aFormats            = lstFiltered;
+                    aAllowedActions     = GuestDnD::toMainActions(pState->getActionsAllowed());
+                    if (aDefaultAction)
+                        *aDefaultAction = GuestDnD::toMainAction(pState->getActionDefault());
 
-                /* Apply the (filtered) formats list. */
-                m_lstFmtOffered     = lstFiltered;
+                    /* Apply the (filtered) formats list. */
+                    m_lstFmtOffered     = lstFiltered;
+                }
+                else
+                {
+                    bool fSetError = true; /* Whether to set an error and reset or not. */
+
+                    /*
+                     * HACK ALERT: As we now expose an error (via i_setErrorAndReset(), see below) back to the API client, we
+                     *             have to add a kludge here. Older X11-based Guest Additions report "TARGETS, MULTIPLE" back
+                     *             to us, even if they don't offer any other *supported* formats of the host. This then in turn
+                     *             would lead to exposing an error, whereas we just should ignore those specific X11-based
+                     *             formats. For anything other we really want to be notified by setting an error though.
+                     */
+                    if (   lstGuest.size() == 2
+                        && GuestDnD::isFormatInFormatList("TARGETS",  lstGuest)
+                        && GuestDnD::isFormatInFormatList("MULTIPLE", lstGuest))
+                    {
+                        fSetError = false;
+                    }
+                    /* HACK ALERT END */
+
+                    if (fSetError)
+                        hrc = i_setErrorAndReset(tr("Negotiation of formats between guest and host failed!\n\nHost offers: %s\n\nGuest offers: %s"),
+                                                 GuestDnD::toFormatString(m_lstFmtSupported , ",").c_str(),
+                                                 GuestDnD::toFormatString(pState->formats() , ",").c_str());
+                    else /* Just silently reset. */
+                        i_reset();
+                }
             }
-            else
-                LogRel2(("DnD: Negotiation of formats between guest and host failed, drag and drop to host not possible\n"));
+            /* Note: Don't report an error here when the action is "ignore" -- that only means that the current window on the guest
+                     simply doesn't support the format or drag and drop at all. */
         }
+        else
+            hrc = i_setErrorAndReset(vrc == VERR_DND_GUEST_ERROR ? vrcGuest : vrc, tr("Requesting pending data from guest failed"));
+    }
+    else
+    {
+        switch (vrc)
+        {
+            case VERR_ACCESS_DENIED:
+            {
+                hrc = i_setErrorAndReset(tr("Dragging from guest to host not allowed -- make sure that the correct drag'n drop mode is set"));
+                break;
+            }
 
-        LogFlowFunc(("fFetchResult=%RTbool, lstActionsAllowed=0x%x\n", fFetchResult, pState->getActionsAllowed()));
+            case VERR_NOT_SUPPORTED:
+            {
+                hrc = i_setErrorAndReset(tr("Dragging from guest to host not supported by guest -- make sure that the Guest Additions are properly installed and running"));
+                break;
+            }
+
+            default:
+            {
+                hrc = i_setErrorAndReset(vrc, tr("Sending drag pending event to guest failed"));
+                break;
+            }
+        }
     }
 
-    LogFlowFunc(("hr=%Rhrc\n", hr));
-    return hr;
+    pState->set(VBOXDNDSTATE_UNKNOWN);
+
+    LogFlowFunc(("hr=%Rhrc\n", hrc));
+    return hrc;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 }
 
@@ -381,7 +436,7 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
     /* Reset progress object. */
     GuestDnDState *pState = GuestDnDInst()->getState();
     AssertPtr(pState);
-    HRESULT hr = pState->resetProgress(m_pGuest);
+    HRESULT hr = pState->resetProgress(m_pGuest, tr("Dropping data to host"));
     if (FAILED(hr))
         return hr;
 
@@ -415,7 +470,7 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
     }
     catch (std::bad_alloc &)
     {
-        hr = setError(E_OUTOFMEMORY);
+        hr = E_OUTOFMEMORY;
     }
     catch (...)
     {
@@ -433,7 +488,7 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
 
     }
     else
-        hr = setError(hr, tr("Starting thread for GuestDnDSource failed (%Rhrc)"), hr);
+        hr = i_setErrorAndReset(tr("Starting thread for GuestDnDSource failed (%Rhrc)"), hr);
 
     LogFlowFunc(("Returning hr=%Rhrc\n", hr));
     return hr;
@@ -605,7 +660,7 @@ Utf8Str GuestDnDSource::i_hostErrorToString(int hostRc)
  */
 void GuestDnDSource::i_reset(void)
 {
-    LogFlowThisFunc(("\n"));
+    LogRel2(("DnD: Source reset\n"));
 
     mData.mRecvCtx.reset();
 
@@ -1138,7 +1193,7 @@ int GuestDnDSource::i_receiveRawData(GuestDnDRecvCtx *pCtx, RTMSINTERVAL msTimeo
      */
     REGISTER_CALLBACK(GUEST_DND_FN_CONNECT);
     REGISTER_CALLBACK(GUEST_DND_FN_DISCONNECT);
-    REGISTER_CALLBACK(GUEST_DND_FN_GH_EVT_ERROR);
+    REGISTER_CALLBACK(GUEST_DND_FN_EVT_ERROR);
     if (m_pState->m_uProtocolVersion >= 3)
         REGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA_HDR);
     REGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA);
@@ -1173,7 +1228,7 @@ int GuestDnDSource::i_receiveRawData(GuestDnDRecvCtx *pCtx, RTMSINTERVAL msTimeo
      */
     UNREGISTER_CALLBACK(GUEST_DND_FN_CONNECT);
     UNREGISTER_CALLBACK(GUEST_DND_FN_DISCONNECT);
-    UNREGISTER_CALLBACK(GUEST_DND_FN_GH_EVT_ERROR);
+    UNREGISTER_CALLBACK(GUEST_DND_FN_EVT_ERROR);
     if (m_pState->m_uProtocolVersion >= 3)
         UNREGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA_HDR);
     UNREGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA);
@@ -1196,7 +1251,7 @@ int GuestDnDSource::i_receiveRawData(GuestDnDRecvCtx *pCtx, RTMSINTERVAL msTimeo
             rc2 = pCtx->pState->setProgress(100, DND_PROGRESS_CANCELLED);
             AssertRC(rc2);
         }
-        else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
+        else if (rc != VERR_DND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
         {
             int rc2 = pCtx->pState->setProgress(100, DND_PROGRESS_ERROR,
                                                 rc, GuestDnDSource::i_hostErrorToString(rc));
@@ -1251,7 +1306,7 @@ int GuestDnDSource::i_receiveTransferData(GuestDnDRecvCtx *pCtx, RTMSINTERVAL ms
     /* Guest callbacks. */
     REGISTER_CALLBACK(GUEST_DND_FN_CONNECT);
     REGISTER_CALLBACK(GUEST_DND_FN_DISCONNECT);
-    REGISTER_CALLBACK(GUEST_DND_FN_GH_EVT_ERROR);
+    REGISTER_CALLBACK(GUEST_DND_FN_EVT_ERROR);
     if (m_pState->m_uProtocolVersion >= 3)
         REGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA_HDR);
     REGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA);
@@ -1304,7 +1359,7 @@ int GuestDnDSource::i_receiveTransferData(GuestDnDRecvCtx *pCtx, RTMSINTERVAL ms
      */
     UNREGISTER_CALLBACK(GUEST_DND_FN_CONNECT);
     UNREGISTER_CALLBACK(GUEST_DND_FN_DISCONNECT);
-    UNREGISTER_CALLBACK(GUEST_DND_FN_GH_EVT_ERROR);
+    UNREGISTER_CALLBACK(GUEST_DND_FN_EVT_ERROR);
     UNREGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA_HDR);
     UNREGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DATA);
     UNREGISTER_CALLBACK(GUEST_DND_FN_GH_SND_DIR);
@@ -1337,7 +1392,7 @@ int GuestDnDSource::i_receiveTransferData(GuestDnDRecvCtx *pCtx, RTMSINTERVAL ms
             /* Cancelling is not an error, just set success here. */
             rc  = VINF_SUCCESS;
         }
-        else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
+        else if (rc != VERR_DND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
         {
             rc2 = pCtx->pState->setProgress(100, DND_PROGRESS_ERROR,
                                             rc, GuestDnDSource::i_hostErrorToString(rc));
@@ -1407,12 +1462,12 @@ DECLCALLBACK(int) GuestDnDSource::i_receiveRawDataCallback(uint32_t uMsg, void *
             rc = pThis->i_onReceiveData(pCtx, &pCBData->data);
             break;
         }
-        case GUEST_DND_FN_GH_EVT_ERROR:
+        case GUEST_DND_FN_EVT_ERROR:
         {
             PVBOXDNDCBEVTERRORDATA pCBData = reinterpret_cast<PVBOXDNDCBEVTERRORDATA>(pvParms);
             AssertPtr(pCBData);
             AssertReturn(sizeof(VBOXDNDCBEVTERRORDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(CB_MAGIC_DND_GH_EVT_ERROR == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
+            AssertReturn(CB_MAGIC_DND_EVT_ERROR == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
 
             pCtx->pState->reset();
 
@@ -1432,7 +1487,7 @@ DECLCALLBACK(int) GuestDnDSource::i_receiveRawDataCallback(uint32_t uMsg, void *
             LogRel3(("DnD: Guest reported data transfer error: %Rrc\n", pCBData->rc));
 
             if (RT_SUCCESS(rc))
-                rcCallback = VERR_GSTDND_GUEST_ERROR;
+                rcCallback = VERR_DND_GUEST_ERROR;
             break;
         }
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */
@@ -1591,12 +1646,12 @@ DECLCALLBACK(int) GuestDnDSource::i_receiveTransferDataCallback(uint32_t uMsg, v
                 rc = pThis->i_onReceiveFileData(pCtx, pCBData->pvData, pCBData->cbData);
             break;
         }
-        case GUEST_DND_FN_GH_EVT_ERROR:
+        case GUEST_DND_FN_EVT_ERROR:
         {
             PVBOXDNDCBEVTERRORDATA pCBData = reinterpret_cast<PVBOXDNDCBEVTERRORDATA>(pvParms);
             AssertPtr(pCBData);
             AssertReturn(sizeof(VBOXDNDCBEVTERRORDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(CB_MAGIC_DND_GH_EVT_ERROR == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
+            AssertReturn(CB_MAGIC_DND_EVT_ERROR == pCBData->hdr.uMagic, VERR_INVALID_PARAMETER);
 
             pCtx->pState->reset();
 
@@ -1616,7 +1671,7 @@ DECLCALLBACK(int) GuestDnDSource::i_receiveTransferDataCallback(uint32_t uMsg, v
             LogRel3(("DnD: Guest reported file transfer error: %Rrc\n", pCBData->rc));
 
             if (RT_SUCCESS(rc))
-                rcCallback = VERR_GSTDND_GUEST_ERROR;
+                rcCallback = VERR_DND_GUEST_ERROR;
             break;
         }
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */

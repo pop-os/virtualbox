@@ -15572,6 +15572,43 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_sqrtsd_u128_r64,(PX86FXSTATE pFpuState, PIEMSSE
 #endif
 
 
+#ifdef IEM_WITHOUT_ASSEMBLY
+/**
+ * RSQRTPS
+ */
+static uint32_t iemAImpl_rsqrt_worker(PRTFLOAT32U pr32Res, uint32_t fMxcsr, PCRTFLOAT32U pr32Val)
+{
+    RT_NOREF(pr32Res);
+    RT_NOREF(pr32Val);
+    AssertReleaseFailed();
+    return fMxcsr;
+}
+
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_rsqrtps_u128,(PX86FXSTATE pFpuState, PIEMSSERESULT pResult, PCX86XMMREG puSrc1, PCX86XMMREG puSrc2))
+{
+    RT_NOREF(puSrc1);
+
+    pResult->MXCSR  = iemAImpl_rsqrt_worker(&pResult->uResult.ar32[0], pFpuState->MXCSR, &puSrc2->ar32[0]);
+    pResult->MXCSR |= iemAImpl_rsqrt_worker(&pResult->uResult.ar32[1], pFpuState->MXCSR, &puSrc2->ar32[1]);
+    pResult->MXCSR |= iemAImpl_rsqrt_worker(&pResult->uResult.ar32[2], pFpuState->MXCSR, &puSrc2->ar32[2]);
+    pResult->MXCSR |= iemAImpl_rsqrt_worker(&pResult->uResult.ar32[3], pFpuState->MXCSR, &puSrc2->ar32[3]);
+}
+
+
+/**
+ * RSQRTSS
+ */
+IEM_DECL_IMPL_DEF(void, iemAImpl_rsqrtss_u128_r32,(PX86FXSTATE pFpuState, PIEMSSERESULT pResult, PCX86XMMREG puSrc1, PCRTFLOAT32U pr32Src2))
+{
+    pResult->MXCSR = iemAImpl_rsqrt_worker(&pResult->uResult.ar32[0], pFpuState->MXCSR, pr32Src2);
+    pResult->uResult.ar32[1] = puSrc1->ar32[1];
+    pResult->uResult.ar32[2] = puSrc1->ar32[2];
+    pResult->uResult.ar32[3] = puSrc1->ar32[3];
+}
+#endif
+
+
 /**
  * ADDSUBPS
  */
@@ -17083,6 +17120,69 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_cmpsd_u128,(uint32_t *pfMxcsr, PX86XMMREG puDst
     else
         puDst->au64[0] = 0;
 
+    puDst->au64[1] = pSrc->uSrc1.au64[1];
+}
+#endif
+
+
+/**
+ * ROUNDPS / ROUNDPD / ROUNDSS / ROUNDSD
+ */
+
+static RTFLOAT32U iemAImpl_round_worker_r32(uint32_t *pfMxcsr, PCRTFLOAT32U pr32Src, uint8_t bImm)
+{
+    RTFLOAT32U  r32Dst;
+
+    AssertReleaseFailed();
+    RT_NOREF(bImm);
+    RT_NOREF(pfMxcsr);
+    r32Dst = *pr32Src;
+    return r32Dst;
+}
+
+
+static RTFLOAT64U iemAImpl_round_worker_r64(uint32_t *pfMxcsr, PCRTFLOAT64U pr64Src, uint8_t bImm)
+{
+    RTFLOAT64U  r64Dst;
+
+    AssertReleaseFailed();
+    RT_NOREF(bImm);
+    RT_NOREF(pfMxcsr);
+    r64Dst = *pr64Src;
+    return r64Dst;
+}
+
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_roundps_u128_fallback,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
+{
+    for (uint8_t i = 0; i < RT_ELEMENTS(puDst->ar32); i++)
+    {
+        puDst->ar32[i] = iemAImpl_round_worker_r32(pfMxcsr, &pSrc->uSrc2.ar32[i], bImm & 0x7);
+    }
+}
+
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_roundpd_u128_fallback,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
+{
+    for (uint8_t i = 0; i < RT_ELEMENTS(puDst->ar64); i++)
+    {
+        puDst->ar64[i] = iemAImpl_round_worker_r64(pfMxcsr, &pSrc->uSrc2.ar64[i], bImm & 0x7);
+    }
+}
+
+
+#ifdef IEM_WITHOUT_ASSEMBLY
+IEM_DECL_IMPL_DEF(void, iemAImpl_roundss_u128,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
+{
+    puDst->ar32[0] = iemAImpl_round_worker_r32(pfMxcsr, &pSrc->uSrc2.ar32[0], bImm & 0x7);
+    puDst->au32[1] = pSrc->uSrc1.au32[1];
+    puDst->au64[1] = pSrc->uSrc1.au64[1];
+}
+
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_roundsd_u128,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
+{
+    puDst->ar64[0] = iemAImpl_round_worker_r64(pfMxcsr, &pSrc->uSrc2.ar64[0], bImm & 0x7);
     puDst->au64[1] = pSrc->uSrc1.au64[1];
 }
 #endif

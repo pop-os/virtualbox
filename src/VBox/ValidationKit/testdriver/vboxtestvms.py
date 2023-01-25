@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 # Standard Python imports.
 import copy;
@@ -1553,7 +1553,7 @@ class TestVmSet(object):
         sAltName = sVmName if sVmName.startswith('tst-') else 'tst-' + sVmName;
 
         for oTestVm in self.aoTestVms:
-            if oTestVm.sVmName == sVmName or oTestVm.sVmName == sAltName:
+            if oTestVm.sVmName in (sVmName, sAltName):
                 return oTestVm;
         return None;
 

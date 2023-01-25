@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard Python imports.
@@ -430,7 +430,7 @@ class FailureReasonLogic(ModelLogicBase): # pylint: disable=too-few-public-metho
         oData = FailureReasonData().initFromDbWithId(self._oDb, idFailureReason);
         assert oData.idFailureReason == idFailureReason;
         (tsCur, tsCurMinusOne) = self._oDb.getCurrentTimestamps();
-        if oData.tsEffective != tsCur and oData.tsEffective != tsCurMinusOne:
+        if oData.tsEffective not in (tsCur, tsCurMinusOne):
             self._historizeEntry(idFailureReason, tsCurMinusOne);
             self._readdEntry(uidAuthor, oData, tsCurMinusOne);
         self._historizeEntry(idFailureReason);

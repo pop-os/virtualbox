@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Unit Tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2022 Oracle and/or its affiliates.
+Copyright (C) 2010-2023 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 154504 $"
+__version__ = "$Revision: 155137 $"
 
 
 # Standard Python imports.
@@ -135,6 +135,8 @@ class tdUnitTest1(vbox.TestDriver):
         'testcase/tstClipboardMockHGCM': '',            # Ditto.
         'tstClipboardQt': '',                           # Is interactive and needs Qt, needed for Qt clipboard bugfixing.
         'testcase/tstClipboardQt': '',                  # In case it moves here.
+        'tstDragAndDropQt': '',                         # Is interactive and needs Qt, needed for Qt drag'n drop bugfixing.
+        'testcase/tstDragAndDropQt': '',                # In case it moves here.
         'testcase/tstFileLock': '',
         'testcase/tstDisasm-2': '',                     # without parameters it will disassembler 1GB starting from 0
         'testcase/tstFileAppendWin-1': '',
@@ -434,7 +436,7 @@ class tdUnitTest1(vbox.TestDriver):
         #
         # We need a VBox install (/ build) to test.
         #
-        if False is True: ## @todo r=andy WTF?
+        if False is True: ## @todo r=andy ??
             if not self.importVBoxApi():
                 reporter.error('Unabled to import the VBox Python API.');
                 return False;
@@ -495,13 +497,21 @@ class tdUnitTest1(vbox.TestDriver):
             for sCandidat in asCandidates:
                 if os.path.exists(os.path.join(sCandidat, 'testcase', 'tstVMStructSize' + self.sExeSuff)):
                     self.sUnitTestsPathSrc = sCandidat;
-                    break;
+                    break
 
-            if not self.sUnitTestsPathSrc:
+            if self.sUnitTestsPathSrc:
+                reporter.log('Unit test source dir path: ', self.sUnitTestsPathSrc)
+            else:
                 reporter.error('Unable to find unit test source dir. Candidates: %s' % (asCandidates,));
-                return False;
+                if reporter.getVerbosity() >= 2:
+                    reporter.log('Contents of "%s"' % self.sScratchPath);
+                    for paths, dirs, files in os.walk(self.sScratchPath):
+                        reporter.log('{} {} {}'.format(repr(paths), repr(dirs), repr(files)));
+                return False
+
         else:
-            reporter.log2('Unit test source dir already set to "%s"' % (self.sUnitTestsPathSrc));
+            reporter.log2('Unit test source dir already set to "%s"' % (self.sUnitTestsPathSrc))
+            reporter.log('Unit test source dir path: ', self.sUnitTestsPathSrc)
 
         self.sUnitTestsPathSrc = self._sanitizePath(self.sUnitTestsPathSrc);
 
@@ -663,7 +673,7 @@ class tdUnitTest1(vbox.TestDriver):
             else:
                 self.sExeSuff = '';
         else:
-            self.sExeSuff = '.exe' if utils.getHostOs() in [ 'win', 'dos', 'os2' ] else '';
+            self.sExeSuff = base.exeSuff();
 
         self._testRunUnitTestsSet(oTestVm, r'^tst*', 'testcase');
         self._testRunUnitTestsSet(oTestVm, r'^tst*', '.');
@@ -678,6 +688,7 @@ class tdUnitTest1(vbox.TestDriver):
         reporter.log('*********************************************************');
         reporter.log('           Target: %s' % (oTestVm.sVmName if oTestVm else 'local',));
         reporter.log('             Mode: %s' % (self.sMode,));
+        reporter.log('       Exe suffix: %s' % (self.sExeSuff,));
         reporter.log('Unit tests source: %s %s'
                      % (self.sUnitTestsPathSrc, '(on remote)' if self.sMode == 'remote-exec' else '',));
         reporter.log('VBox install root: %s %s'
@@ -1156,7 +1167,7 @@ class tdUnitTest1(vbox.TestDriver):
 
         # Open /dev/null for use as stdin further down.
         try:
-            oDevNull = open(os.path.devnull, 'w+');             # pylint: disable=consider-using-with
+            oDevNull = open(os.path.devnull, 'w+');             # pylint: disable=consider-using-with,unspecified-encoding
         except:
             oDevNull = None;
 

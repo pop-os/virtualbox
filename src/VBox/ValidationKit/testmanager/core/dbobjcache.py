@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Validation Kit imports.
@@ -77,9 +77,9 @@ class DatabaseObjCache(ModelLogicBase):
             self.sPeriodBack = '%u hours' % cHoursBack;
 
         self._adCache    = (
-            dict(), dict(), dict(), dict(),
-            dict(), dict(), dict(), dict(),
-            dict(),
+            {}, {}, {}, {},
+            {}, {}, {}, {},
+            {},
         );
         assert(len(self._adCache) == self.ksObjType_End);
 
@@ -157,7 +157,7 @@ class DatabaseObjCache(ModelLogicBase):
         from testmanager.core.vcsrevisions import VcsRevisionData;
         dRepo = self._adCache[self.ksObjType_VcsRevision_sRepository_iRevision].get(sRepository);
         if dRepo is None:
-            dRepo = dict();
+            dRepo = {};
             self._adCache[self.ksObjType_VcsRevision_sRepository_iRevision][sRepository] = dRepo;
             aiFiltered = aiRevisions;
         else:
@@ -186,7 +186,7 @@ class DatabaseObjCache(ModelLogicBase):
         if dRepo is not None:
             oRet = dRepo.get(iRevision);
         else:
-            dRepo = dict();
+            dRepo = {};
             self._adCache[self.ksObjType_VcsRevision_sRepository_iRevision][sRepository] = dRepo;
             oRet = None;
         if oRet is None:

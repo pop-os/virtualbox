@@ -76,7 +76,6 @@ void __cdecl          unimplemented(void);
 void __cdecl          unknown(void);
 
 static uint8_t find_vga_entry();
-static void biosfn_load_text_8_16_pat(uint8_t AL, uint8_t BL);
 
 extern uint8_t readx_byte(uint16_t seg, uint16_t offset);
 
@@ -934,6 +933,7 @@ int find_vpti(uint8_t line)
 }
 
 static void biosfn_load_text_user_pat(uint8_t AL, uint16_t ES, uint16_t BP, uint16_t CX, uint16_t DX, uint8_t BL, uint8_t BH);
+static void load_text_patch(uint16_t ES, uint16_t BP, uint8_t BL, uint8_t BH);
 
 void biosfn_set_video_mode(uint8_t mode)
 {// mode: Bit 7 is 1 if no clear screen
@@ -1162,9 +1162,12 @@ void biosfn_set_video_mode(uint8_t mode)
          break;
      case 14:
          biosfn_load_text_user_pat(0, 0xC000, (uint16_t)vgafont14, 256, 0, 0, vpt->cheight);
+         if (mode == 7) /* 350-line EGA modes are 640 wide, only mono EGA mode is 720 wide. */
+             load_text_patch(0xC000, (uint16_t)vgafont14alt, 0, 14);
          break;
      default:
          biosfn_load_text_user_pat(0, 0xC000, (uint16_t)vgafont16, 256, 0, 0, vpt->cheight);
+         load_text_patch(0xC000, (uint16_t)vgafont16alt, 0, 16);
      }
      if (ovr)
       {
@@ -1923,24 +1926,19 @@ static void biosfn_write_teletype(uint8_t car, uint8_t page, uint8_t attr, uint8
 // --------------------------------------------------------------------------------------------
 static void get_font_access(void)
 {
-    outw(VGAREG_SEQU_ADDRESS, 0x0100);
-    outw(VGAREG_SEQU_ADDRESS, 0x0402);
-    outw(VGAREG_SEQU_ADDRESS, 0x0704);
-    outw(VGAREG_SEQU_ADDRESS, 0x0300);
-    outw(VGAREG_GRDC_ADDRESS, 0x0204);
     outw(VGAREG_GRDC_ADDRESS, 0x0005);
-    outw(VGAREG_GRDC_ADDRESS, 0x0406);
+    outb(VGAREG_GRDC_ADDRESS, 0x06);
+    outw(VGAREG_GRDC_ADDRESS, (((0x04 | (inb(VGAREG_GRDC_DATA) & 0x01)) << 8) | 0x06));
+    outw(VGAREG_SEQU_ADDRESS, 0x0402);
+    outw(VGAREG_SEQU_ADDRESS, 0x0604);
 }
 
 static void release_font_access(void)
 {
-    outw(VGAREG_SEQU_ADDRESS, 0x0100);
-    outw(VGAREG_SEQU_ADDRESS, 0x0302);
-    outw(VGAREG_SEQU_ADDRESS, 0x0304);
-    outw(VGAREG_SEQU_ADDRESS, 0x0300);
     outw(VGAREG_GRDC_ADDRESS, (((0x0a | ((inb(VGAREG_READ_MISC_OUTPUT) & 0x01) << 2)) << 8) | 0x06));
-    outw(VGAREG_GRDC_ADDRESS, 0x0004);
     outw(VGAREG_GRDC_ADDRESS, 0x1005);
+    outw(VGAREG_SEQU_ADDRESS, 0x0302);
+    outw(VGAREG_SEQU_ADDRESS, 0x0204);
 }
 
 static void set_scan_lines(uint8_t lines)
@@ -1980,6 +1978,26 @@ static void biosfn_set_font_block(uint8_t BL)
  outw(VGAREG_SEQU_ADDRESS, 0x0300);
 }
 
+static void load_text_patch(uint16_t ES, uint16_t BP, uint8_t BL, uint8_t BH)
+{
+    uint16_t   blockaddr, dest, src;
+    uint8_t    __far *pat;
+
+    get_font_access();
+
+    blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
+    pat = ES :> (uint8_t *)BP;
+    src = BP + 1;
+    while (*pat) {
+        dest = blockaddr + *pat * 32;
+        memcpyb(0xA000, dest, ES, src, BH);
+        src += BH + 1;
+        pat += BH + 1;
+    }
+
+    release_font_access();
+}
+
 static void biosfn_load_text_user_pat(uint8_t AL, uint16_t ES, uint16_t BP, uint16_t CX,
                                       uint16_t DX, uint8_t BL, uint8_t BH)
 {
@@ -1997,64 +2015,6 @@ static void biosfn_load_text_user_pat(uint8_t AL, uint16_t ES, uint16_t BP, uint
  if(AL>=0x10)
   {
    set_scan_lines(BH);
-  }
-}
-
-static void biosfn_load_text_8_14_pat(uint8_t AL, uint8_t BL)
-{
- uint16_t blockaddr,dest,i,src;
-
- get_font_access();
- blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
- for(i=0;i<0x100;i++)
-  {
-   src = i * 14;
-   dest = blockaddr + i * 32;
-   memcpyb(0xA000, dest, 0xC000, (uint16_t)vgafont14+src, 14);
-  }
- release_font_access();
- if(AL>=0x10)
-  {
-   set_scan_lines(14);
-  }
-}
-
-static void biosfn_load_text_8_8_pat(uint8_t AL, uint8_t BL)
-{
- uint16_t blockaddr,dest,i,src;
-
- get_font_access();
- blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
- for(i=0;i<0x100;i++)
-  {
-   src = i * 8;
-   dest = blockaddr + i * 32;
-   memcpyb(0xA000, dest, 0xC000, (uint16_t)vgafont8+src, 8);
-  }
- release_font_access();
- if(AL>=0x10)
-  {
-   set_scan_lines(8);
-  }
-}
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_load_text_8_16_pat(uint8_t AL, uint8_t BL)
-{
- uint16_t blockaddr,dest,i,src;
-
- get_font_access();
- blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
- for(i=0;i<0x100;i++)
-  {
-   src = i * 16;
-   dest = blockaddr + i * 32;
-   memcpyb(0xA000, dest, 0xC000, (uint16_t)vgafont16+src, 16);
-  }
- release_font_access();
- if(AL>=0x10)
-  {
-   set_scan_lines(16);
   }
 }
 
@@ -2659,18 +2619,18 @@ void __cdecl int10_func(uint16_t DI, uint16_t SI, uint16_t BP, uint16_t SP, uint
         break;
        case 0x01:
        case 0x11:
-        biosfn_load_text_8_14_pat(GET_AL(),GET_BL());
+        biosfn_load_text_user_pat(GET_AL(), 0xC000, (uint16_t)vgafont14,  256, 0, GET_BL(), 14);
         break;
        case 0x02:
        case 0x12:
-        biosfn_load_text_8_8_pat(GET_AL(),GET_BL());
+        biosfn_load_text_user_pat(GET_AL(), 0xC000, (uint16_t)vgafont8,  256, 0, GET_BL(), 8);
         break;
        case 0x03:
         biosfn_set_font_block(GET_BL());
         break;
        case 0x04:
        case 0x14:
-        biosfn_load_text_8_16_pat(GET_AL(),GET_BL());
+        biosfn_load_text_user_pat(GET_AL(), 0xC000, (uint16_t)vgafont16,  256, 0, GET_BL(), 16);
         break;
        case 0x20:
         biosfn_load_gfx_8_8_chars(ES,BP);

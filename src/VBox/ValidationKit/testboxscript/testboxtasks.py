@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard python imports.
@@ -99,7 +99,7 @@ class TestBoxBaseTask(object):
         """
         self._lock();
         self._fRunning = False;
-        self._oCv.notifyAll();
+        self._oCv.notifyAll(); # pylint: disable=deprecated-method
         self._unlock();
 
     def isRunning(self):

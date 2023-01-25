@@ -31,14 +31,15 @@
 # pragma once
 #endif
 
-/* Local includes */
+/* GUI includes: */
 #include "UIMachineView.h"
 
+/** UIMachineView subclass used as full-screen machine view implementation. */
 class UIMachineViewFullscreen : public UIMachineView
 {
     Q_OBJECT;
 
-protected:
+public:
 
     /* Fullscreen machine-view constructor: */
     UIMachineViewFullscreen(UIMachineWindow *pMachineWindow, ulong uScreenId);
@@ -66,7 +67,7 @@ private:
     //void cleanupCommon() {}
 
     /** Returns whether the guest-screen auto-resize is enabled. */
-    virtual bool isGuestAutoresizeEnabled() const RT_OVERRIDE { return m_bIsGuestAutoresizeEnabled; }
+    virtual bool isGuestAutoresizeEnabled() const RT_OVERRIDE { return m_fGuestAutoresizeEnabled; }
     /** Defines whether the guest-screen auto-resize is @a fEnabled. */
     virtual void setGuestAutoresizeEnabled(bool bEnabled) RT_OVERRIDE;
 
@@ -78,11 +79,7 @@ private:
     QSize calculateMaxGuestSize() const;
 
     /* Private variables: */
-    bool m_bIsGuestAutoresizeEnabled : 1;
-
-    /* Friend classes: */
-    friend class UIMachineView;
+    bool m_fGuestAutoresizeEnabled : 1;
 };
 
 #endif /* !FEQT_INCLUDED_SRC_runtime_fullscreen_UIMachineViewFullscreen_h */
-

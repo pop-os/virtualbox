@@ -84,6 +84,9 @@
 
 /* External includes: */
 #include <math.h>
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include <new> /* For bad_alloc. */
+#endif
 #ifdef VBOX_WS_MAC
 # include <Carbon/Carbon.h>
 #endif
@@ -112,10 +115,10 @@ public:
     {}
 
     /** Redirects all the native events to parent. */
-#ifdef VBOX_IS_QT6_OR_LATER
-    bool nativeEventFilter(const QByteArray &eventType, void *pMessage, qintptr * /* pResult */)
+#ifdef VBOX_IS_QT6_OR_LATER /* long replaced with qintptr since 6.0 */
+    bool nativeEventFilter(const QByteArray &eventType, void *pMessage, qintptr*)
 #else
-    bool nativeEventFilter(const QByteArray &eventType, void *pMessage, long * /* pResult */)
+    bool nativeEventFilter(const QByteArray &eventType, void *pMessage, long*)
 #endif
     {
         return m_pParent->nativeEventPreprocessor(eventType, pMessage);
@@ -164,7 +167,7 @@ UIMachineView* UIMachineView::create(UIMachineWindow *pMachineWindow, ulong uScr
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
     /* Prepare DnD: */
-    pMachineView->prepareDnd();
+    /* rc ignored */ pMachineView->prepareDnd();
 #endif
 
     /* Prepare event-filters: */
@@ -184,7 +187,7 @@ UIMachineView* UIMachineView::create(UIMachineWindow *pMachineWindow, ulong uScr
      *        so it would not hurt.  Would it hurt for fullscreen? */
 
     /* Set a preliminary maximum size: */
-    pMachineView->setMaxGuestSize();
+    pMachineView->setMaximumGuestSize();
 
     /* Resend the last resize hint finally: */
     pMachineView->resendSizeHint();
@@ -223,8 +226,8 @@ void UIMachineView::applyMachineViewScaleFactor()
     double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
 
     /* Take the device-pixel-ratio into account: */
-    frameBuffer()->setDevicePixelRatio(gpDesktop->devicePixelRatio(machineWindow()));
-    frameBuffer()->setDevicePixelRatioActual(gpDesktop->devicePixelRatioActual(machineWindow()));
+    frameBuffer()->setDevicePixelRatio(UIDesktopWidgetWatchdog::devicePixelRatio(machineWindow()));
+    frameBuffer()->setDevicePixelRatioActual(UIDesktopWidgetWatchdog::devicePixelRatioActual(machineWindow()));
     const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
     const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatioActual;
     dScaleFactor = fUseUnscaledHiDPIOutput ? dScaleFactor : 1.0;
@@ -257,9 +260,106 @@ void UIMachineView::applyMachineViewScaleFactor()
     updateViewport();
 }
 
+UISession *UIMachineView::uisession() const
+{
+    return machineWindow()->uisession();
+}
+
+UIMachineLogic *UIMachineView::machineLogic() const
+{
+    return machineWindow()->machineLogic();
+}
+
+int UIMachineView::contentsWidth() const
+{
+    return frameBuffer()->width();
+}
+
+int UIMachineView::contentsHeight() const
+{
+    return frameBuffer()->height();
+}
+
+int UIMachineView::contentsX() const
+{
+    return horizontalScrollBar()->value();
+}
+
+int UIMachineView::contentsY() const
+{
+    return verticalScrollBar()->value();
+}
+
+int UIMachineView::visibleWidth() const
+{
+    return horizontalScrollBar()->pageStep();
+}
+
+int UIMachineView::visibleHeight() const
+{
+    return verticalScrollBar()->pageStep();
+}
+
+QPoint UIMachineView::viewportToContents(const QPoint &viewportPoint) const
+{
+    /* Get physical contents shifts of scroll-bars: */
+    int iContentsX = contentsX();
+    int iContentsY = contentsY();
+
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    if (!frameBuffer()->useUnscaledHiDPIOutput())
+    {
+        iContentsX *= dDevicePixelRatioActual;
+        iContentsY *= dDevicePixelRatioActual;
+    }
+    iContentsX /= dDevicePixelRatioFormal;
+    iContentsY /= dDevicePixelRatioFormal;
+
+    /* Return point shifted according scroll-bars: */
+    return QPoint(viewportPoint.x() + iContentsX, viewportPoint.y() + iContentsY);
+}
+
+void UIMachineView::scrollBy(int iDx, int iDy)
+{
+    horizontalScrollBar()->setValue(horizontalScrollBar()->value() + iDx);
+    verticalScrollBar()->setValue(verticalScrollBar()->value() + iDy);
+}
+
+UIVisualStateType UIMachineView::visualStateType() const
+{
+    return machineLogic()->visualStateType();
+}
+
 double UIMachineView::aspectRatio() const
 {
     return frameBuffer() ? (double)(frameBuffer()->width()) / frameBuffer()->height() : 0;
+}
+
+void UIMachineView::setMaximumGuestSize(const QSize &minimumSizeHint /* = QSize() */)
+{
+    QSize maxSize;
+    switch (m_enmMaximumGuestScreenSizePolicy)
+    {
+        case MaximumGuestScreenSizePolicy_Fixed:
+            maxSize = m_fixedMaxGuestSize;
+            break;
+        case MaximumGuestScreenSizePolicy_Automatic:
+            maxSize = calculateMaxGuestSize().expandedTo(minimumSizeHint);
+            break;
+        case MaximumGuestScreenSizePolicy_Any:
+            /* (0, 0) means any of course. */
+            maxSize = QSize(0, 0);
+    }
+    ASMAtomicWriteU64(&m_u64MaximumGuestSize,
+                      RT_MAKE_U64(maxSize.height(), maxSize.width()));
+}
+
+QSize UIMachineView::maximumGuestSize()
+{
+    uint64_t u64Size = ASMAtomicReadU64(&m_u64MaximumGuestSize);
+    return QSize(int(RT_HI_U32(u64Size)), int(RT_LO_U32(u64Size)));
 }
 
 void UIMachineView::updateViewport()
@@ -267,231 +367,219 @@ void UIMachineView::updateViewport()
     display().ViewportChanged(screenId(), contentsX(), contentsY(), visibleWidth(), visibleHeight());
 }
 
-void UIMachineView::sltPerformGuestResize(const QSize &toSize)
+#ifdef VBOX_WITH_DRAG_AND_DROP
+int UIMachineView::dragCheckPending()
 {
-    /* There is a couple of things to keep in mind:
-     *
-     * First of all, passed size can be invalid (or even not sane one, where one of values equal to zero).  Usually that happens
-     * if this function being invoked with default argument for example by some slot.  In such case we get the available size for
-     * the guest-screen we have.  We assume here that centralWidget() contains this view only and gives it all available space.
-     * In all other cases we have a valid non-zero size which should be handled as usual.
-     *
-     * Besides that, passed size or size taken from centralWidget() is _not_ absolute one, it's in widget's coordinate system
-     * which can and will be be transformed by scale-factor when appropriate, so before passing this size to a guest it has to
-     * be scaled backward.  This is the key aspect in which internal resize differs from resize initiated from the outside. */
+    int rc;
 
-    /* Make sure we have valid size to work with: */
-    QSize size(  toSize.isValid() && toSize.width() > 0 && toSize.height() > 0
-               ? toSize : machineWindow()->centralWidget()->size());
-    AssertMsgReturnVoid(size.isValid() && size.width() > 0 && size.height() > 0,
-                        ("Size should be valid (%dx%d)!\n", size.width(), size.height()));
-
-    /* Take the scale-factor(s) into account: */
-    size = scaledBackward(size);
-
-    /* Update current window size limitations: */
-    setMaxGuestSize(size);
-
-    /* Record the hint to extra data, needed for guests using VMSVGA:
-     * This should be done before the actual hint is sent in case the guest overrides it.
-     * Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
-    if (   !isFullscreenOrSeamless()
-        && uisession()->isGuestSupportsGraphics()
-        && (   (int)frameBuffer()->width() != size.width()
-            || (int)frameBuffer()->height() != size.height()
-            || uisession()->isScreenVisible(screenId()) != uisession()->isScreenVisibleHostDesires(screenId())))
-        storeGuestSizeHint(size);
-
-    /* If auto-mount of guest-screens (auto-pilot) enabled: */
-    if (gEDataManager->autoMountGuestScreensEnabled(uiCommon().managedVMUuid()))
+    if (!dragAndDropIsActive())
+        rc = VERR_ACCESS_DENIED;
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    else if (!m_fIsDraggingFromGuest)
     {
-        /* If host and guest have same opinion about guest-screen visibility: */
-        if (uisession()->isScreenVisible(screenId()) == uisession()->isScreenVisibleHostDesires(screenId()))
-        {
-            /* Do not send a hint if nothing has changed to prevent the guest being notified about its own changes: */
-            if ((int)frameBuffer()->width() != size.width() || (int)frameBuffer()->height() != size.height())
-            {
-                LogRel(("GUI: UIMachineView::sltPerformGuestResize: Auto-pilot resizing screen %d as %dx%d\n",
-                        (int)screenId(), size.width(), size.height()));
-                display().SetVideoModeHint(screenId(),
-                                           uisession()->isScreenVisible(screenId()),
-                                           false /* change origin? */,
-                                           0 /* origin x */,
-                                           0 /* origin y */,
-                                           size.width(),
-                                           size.height(),
-                                           0 /* bits per pixel */,
-                                           true /* notify? */);
-            }
-        }
-        else
-        {
-            /* If host desires to have guest-screen enabled and guest-screen is disabled, retrying: */
-            if (uisession()->isScreenVisibleHostDesires(screenId()))
-            {
-                /* Send enabling size-hint to the guest: */
-                LogRel(("GUI: UIMachineView::sltPerformGuestResize: Auto-pilot enabling guest-screen %d\n", (int)screenId()));
-                display().SetVideoModeHint(screenId(),
-                                           true /* enabled? */,
-                                           false /* change origin? */,
-                                           0 /* origin x */,
-                                           0 /* origin y */,
-                                           size.width(),
-                                           size.height(),
-                                           0 /* bits per pixel */,
-                                           true /* notify? */);
-            }
-            /* If host desires to have guest-screen disabled and guest-screen is enabled, retrying: */
-            else
-            {
-                /* Send disabling size-hint to the guest: */
-                LogRel(("GUI: UIMachineView::sltPerformGuestResize: Auto-pilot disabling guest-screen %d\n", (int)screenId()));
-                display().SetVideoModeHint(screenId(),
-                                           false /* enabled? */,
-                                           false /* change origin? */,
-                                           0 /* origin x */,
-                                           0 /* origin y */,
-                                           0 /* width */,
-                                           0 /* height */,
-                                           0 /* bits per pixel */,
-                                           true /* notify? */);
-            }
-        }
+        /// @todo Add guest->guest DnD functionality here by getting
+        //       the source of guest B (when copying from B to A).
+        rc = m_pDnDHandler->dragCheckPending(screenId());
+        if (RT_SUCCESS(rc))
+            m_fIsDraggingFromGuest = true;
     }
-    /* If auto-mount of guest-screens (auto-pilot) disabled: */
+    else /* Already dragging, so report success. */
+        rc = VINF_SUCCESS;
+# else
+    rc = VERR_NOT_SUPPORTED;
+# endif
+
+    DNDDEBUG(("DnD: dragCheckPending ended with rc=%Rrc\n", rc));
+    return rc;
+}
+
+int UIMachineView::dragStart()
+{
+    int rc;
+
+    if (!dragAndDropIsActive())
+        rc = VERR_ACCESS_DENIED;
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    else if (!m_fIsDraggingFromGuest)
+        rc = VERR_WRONG_ORDER;
     else
     {
-        /* Should we send a hint? */
-        bool fSendHint = true;
-        /* Do not send a hint if nothing has changed to prevent the guest being notified about its own changes: */
-        if (fSendHint && (int)frameBuffer()->width() == size.width() && (int)frameBuffer()->height() == size.height())
-            fSendHint = false;
-        /* Do not send a hint if GA supports graphics and we have sent that hint already: */
-        if (fSendHint && uisession()->isGuestSupportsGraphics() && m_lastSizeHint == size)
-            fSendHint = false;
-        if (fSendHint)
-        {
-            LogRel(("GUI: UIMachineView::sltPerformGuestResize: Sending guest size-hint to screen %d as %dx%d\n",
-                    (int)screenId(), size.width(), size.height()));
-            display().SetVideoModeHint(screenId(),
-                                       uisession()->isScreenVisible(screenId()),
-                                       false /* change origin? */,
-                                       0 /* origin x */,
-                                       0 /* origin y */,
-                                       size.width(),
-                                       size.height(),
-                                       0 /* bits per pixel */,
-                                       true /* notify? */);
-            m_lastSizeHint = size;
-        }
+        /// @todo Add guest->guest DnD functionality here by getting
+        //       the source of guest B (when copying from B to A).
+        rc = m_pDnDHandler->dragStart(screenId());
+
+        m_fIsDraggingFromGuest = false;
     }
+# else
+    rc = VERR_NOT_SUPPORTED;
+# endif
+
+    DNDDEBUG(("DnD: dragStart ended with rc=%Rrc\n", rc));
+    return rc;
 }
 
-void UIMachineView::sltHandleActionTriggerViewScreenToggle(int iScreen, bool fEnabled)
+int UIMachineView::dragStop()
 {
-    /* Skip unrelated guest-screen index: */
-    if (iScreen != (int)screenId())
-        return;
+    int rc;
 
-    /* Acquire current resolution: */
-    ULONG uWidth, uHeight, uBitsPerPixel;
-    LONG uOriginX, uOriginY;
-    KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
-    display().GetScreenResolution(screenId(), uWidth, uHeight, uBitsPerPixel, uOriginX, uOriginY, monitorStatus);
-    if (!display().isOk())
-    {
-        UINotificationMessage::cannotAcquireDispayParameter(display());
-        return;
-    }
-
-    /* Update desirable screen status: */
-    uisession()->setScreenVisibleHostDesires(screenId(), fEnabled);
-
-    /* Send enabling size-hint: */
-    if (fEnabled)
-    {
-        /* Defaults: */
-        if (!uWidth)
-            uWidth = 800;
-        if (!uHeight)
-            uHeight = 600;
-
-        /* Update current window size limitations: */
-        setMaxGuestSize(QSize(uWidth, uHeight));
-
-        /* Record the hint to extra data, needed for guests using VMSVGA:
-         * This should be done before the actual hint is sent in case the guest overrides it.
-         * Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
-        if (   !isFullscreenOrSeamless()
-            && uisession()->isGuestSupportsGraphics()
-            && (   frameBuffer()->width() != uWidth
-                || frameBuffer()->height() != uHeight
-                || uisession()->isScreenVisible(screenId()) != uisession()->isScreenVisibleHostDesires(screenId())))
-            storeGuestSizeHint(QSize(uWidth, uHeight));
-
-        /* Send enabling size-hint to the guest: */
-        LogRel(("GUI: UIMachineView::sltHandleActionTriggerViewScreenToggle: Enabling guest-screen %d\n", (int)screenId()));
-        display().SetVideoModeHint(screenId(),
-                                   true /* enabled? */,
-                                   false /* change origin? */,
-                                   0 /* origin x */,
-                                   0 /* origin y */,
-                                   uWidth,
-                                   uHeight,
-                                   0 /* bits per pixel */,
-                                   true /* notify? */);
-    }
+    if (!dragAndDropIsActive())
+        rc = VERR_ACCESS_DENIED;
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    else if (!m_fIsDraggingFromGuest)
+        rc = VERR_WRONG_ORDER;
     else
-    {
-        /* Send disabling size-hint to the guest: */
-        LogRel(("GUI: UIMachineView::sltHandleActionTriggerViewScreenToggle: Disabling guest-screen %d\n", (int)screenId()));
-        display().SetVideoModeHint(screenId(),
-                                   false /* enabled? */,
-                                   false /* change origin? */,
-                                   0 /* origin x */,
-                                   0 /* origin y */,
-                                   0 /* width */,
-                                   0 /* height */,
-                                   0 /* bits per pixel */,
-                                   true /* notify? */);
-    }
-}
+        rc = m_pDnDHandler->dragStop(screenId());
+# else
+    rc = VERR_NOT_SUPPORTED;
+# endif
 
-void UIMachineView::sltHandleActionTriggerViewScreenResize(int iScreen, const QSize &size)
+    DNDDEBUG(("DnD: dragStop ended with rc=%Rrc\n", rc));
+    return rc;
+}
+#endif /* VBOX_WITH_DRAG_AND_DROP */
+
+bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *pMessage)
 {
-    /* Skip unrelated guest-screen index: */
-    if (iScreen != (int)m_uScreenId)
-        return;
+    /* Check if some event should be filtered out.
+     * Returning @c true means filtering-out,
+     * Returning @c false means passing event to Qt. */
 
-    /* Make sure we have valid size to work with: */
-    AssertMsgReturnVoid(size.isValid() && size.width() > 0 && size.height() > 0,
-                        ("Size should be valid (%dx%d)!\n", size.width(), size.height()));
+# if defined(VBOX_WS_MAC)
 
-    /* Update current window size limitations: */
-    setMaxGuestSize(size);
+    /* Make sure it's generic NSEvent: */
+    if (eventType != "mac_generic_NSEvent")
+        return false;
+    EventRef event = static_cast<EventRef>(darwinCocoaToCarbonEvent(pMessage));
 
-    /* Record the hint to extra data, needed for guests using VMSVGA:
-     * This should be done before the actual hint is sent in case the guest overrides it.
-     * Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
-    if (   !isFullscreenOrSeamless()
-        && uisession()->isGuestSupportsGraphics()
-        && (   (int)frameBuffer()->width() != size.width()
-            || (int)frameBuffer()->height() != size.height()
-            || uisession()->isScreenVisible(screenId()) != uisession()->isScreenVisibleHostDesires(screenId())))
-        storeGuestSizeHint(size);
+    switch (::GetEventClass(event))
+    {
+        // Keep in mind that this stuff should not be enabled while we are still using
+        // own native keyboard filter installed through cocoa API, to be reworked.
+        // S.a. registerForNativeEvents call in UIKeyboardHandler implementation.
+#if 0
+        /* Watch for keyboard-events: */
+        case kEventClassKeyboard:
+        {
+            switch (::GetEventKind(event))
+            {
+                /* Watch for key-events: */
+                case kEventRawKeyDown:
+                case kEventRawKeyRepeat:
+                case kEventRawKeyUp:
+                case kEventRawKeyModifiersChanged:
+                {
+                    /* Delegate key-event handling to the keyboard-handler: */
+                    return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+#endif
+        /* Watch for mouse-events: */
+        case kEventClassMouse:
+        {
+            switch (::GetEventKind(event))
+            {
+                /* Watch for button-events: */
+                case kEventMouseDown:
+                case kEventMouseUp:
+                {
+                    /* Delegate button-event handling to the mouse-handler: */
+                    return machineLogic()->mouseHandler()->nativeEventFilter(pMessage, screenId());
+                }
+                default:
+                    break;
+            }
+            break;
+        }
+        default:
+            break;
+    }
 
-    /* Send enabling size-hint to the guest: */
-    LogRel(("GUI: UIMachineView::sltHandleActionTriggerViewScreenResize: Resizing guest-screen %d\n", (int)screenId()));
-    display().SetVideoModeHint(screenId(),
-                               true /* enabled? */,
-                               false /* change origin? */,
-                               0 /* origin x */,
-                               0 /* origin y */,
-                               size.width(),
-                               size.height(),
-                               0 /* bits per pixel */,
-                               true /* notify? */);
+# elif defined(VBOX_WS_WIN)
+
+    /* Make sure it's generic MSG event: */
+    if (eventType != "windows_generic_MSG")
+        return false;
+    MSG *pEvent = static_cast<MSG*>(pMessage);
+
+    switch (pEvent->message)
+    {
+        /* Watch for key-events: */
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+        case WM_KEYUP:
+        case WM_SYSKEYUP:
+        {
+            // WORKAROUND:
+            // There is an issue in the Windows Qt5 event processing sequence
+            // causing QAbstractNativeEventFilter to receive Windows native events
+            // coming not just to the top-level window but to actual target as well.
+            // They are calling one - "global event" and another one - "context event".
+            // That way native events are always duplicated with almost no possibility
+            // to distinguish copies except the fact that synthetic event always have
+            // time set to 0 (actually that field was not initialized at all, we had
+            // fixed that in our private Qt tool). We should skip such events instantly.
+            if (pEvent->time == 0)
+                return false;
+
+            /* Delegate key-event handling to the keyboard-handler: */
+            return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
+        }
+        default:
+            break;
+    }
+
+# elif defined(VBOX_WS_X11)
+
+    /* Make sure it's generic XCB event: */
+    if (eventType != "xcb_generic_event_t")
+        return false;
+    xcb_generic_event_t *pEvent = static_cast<xcb_generic_event_t*>(pMessage);
+
+    switch (pEvent->response_type & ~0x80)
+    {
+        /* Watch for key-events: */
+        case XCB_KEY_PRESS:
+        case XCB_KEY_RELEASE:
+        {
+            /* Delegate key-event handling to the keyboard-handler: */
+            return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
+        }
+        /* Watch for button-events: */
+        case XCB_BUTTON_PRESS:
+        case XCB_BUTTON_RELEASE:
+        {
+            /* Delegate button-event handling to the mouse-handler: */
+            return machineLogic()->mouseHandler()->nativeEventFilter(pMessage, screenId());
+        }
+        default:
+            break;
+    }
+
+# else
+
+#  warning "port me!"
+
+# endif
+
+    /* Filter nothing by default: */
+    return false;
 }
+
+#ifdef VBOX_WS_MAC
+CGImageRef UIMachineView::vmContentImage()
+{
+    /* Use pause-image if exists: */
+    if (!pausePixmap().isNull())
+        return darwinToCGImageRef(&pausePixmap());
+
+    /* Create the image ref out of the frame-buffer: */
+    return frameBuffertoCGImageRef(frameBuffer());
+}
+#endif /* VBOX_WS_MAC */
 
 void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
 {
@@ -588,7 +676,7 @@ void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
     if (   !isFullscreenOrSeamless()
         && uisession()->isGuestSupportsGraphics()
         && (machine().GetGraphicsAdapter().GetGraphicsControllerType() != KGraphicsControllerType_VMSVGA))
-        storeGuestSizeHint(frameBufferSizeNew);
+        setStoredGuestScreenSizeHint(frameBufferSizeNew);
 
     LogRel2(("GUI: UIMachineView::sltHandleNotifyChange: Complete for Screen=%d, Size=%dx%d\n",
              (unsigned long)m_uScreenId, frameBufferSizeNew.width(), frameBufferSizeNew.height()));
@@ -655,9 +743,243 @@ void UIMachineView::sltHandleSetVisibleRegion(QRegion region)
     Q_UNUSED(region);
 }
 
+void UIMachineView::sltPerformGuestResize(const QSize &toSize)
+{
+    /* There is a couple of things to keep in mind:
+     *
+     * First of all, passed size can be invalid (or even not sane one, where one of values equal to zero).  Usually that happens
+     * if this function being invoked with default argument for example by some slot.  In such case we get the available size for
+     * the guest-screen we have.  We assume here that centralWidget() contains this view only and gives it all available space.
+     * In all other cases we have a valid non-zero size which should be handled as usual.
+     *
+     * Besides that, passed size or size taken from centralWidget() is _not_ absolute one, it's in widget's coordinate system
+     * which can and will be be transformed by scale-factor when appropriate, so before passing this size to a guest it has to
+     * be scaled backward.  This is the key aspect in which internal resize differs from resize initiated from the outside. */
+
+    /* Make sure we have valid size to work with: */
+    QSize size(  toSize.isValid() && toSize.width() > 0 && toSize.height() > 0
+               ? toSize : machineWindow()->centralWidget()->size());
+    AssertMsgReturnVoid(size.isValid() && size.width() > 0 && size.height() > 0,
+                        ("Size should be valid (%dx%d)!\n", size.width(), size.height()));
+
+    /* Take the scale-factor(s) into account: */
+    size = scaledBackward(size);
+
+    /* Update current window size limitations: */
+    setMaximumGuestSize(size);
+
+    /* Record the hint to extra data, needed for guests using VMSVGA:
+     * This should be done before the actual hint is sent in case the guest overrides it.
+     * Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
+    if (   !isFullscreenOrSeamless()
+        && uisession()->isGuestSupportsGraphics()
+        && (   (int)frameBuffer()->width() != size.width()
+            || (int)frameBuffer()->height() != size.height()
+            || uisession()->isScreenVisible(screenId()) != uisession()->isScreenVisibleHostDesires(screenId())))
+        setStoredGuestScreenSizeHint(size);
+
+    /* If auto-mount of guest-screens (auto-pilot) enabled: */
+    if (gEDataManager->autoMountGuestScreensEnabled(uiCommon().managedVMUuid()))
+    {
+        /* If host and guest have same opinion about guest-screen visibility: */
+        if (uisession()->isScreenVisible(screenId()) == uisession()->isScreenVisibleHostDesires(screenId()))
+        {
+            /* Do not send a hint if nothing has changed to prevent the guest being notified about its own changes: */
+            if ((int)frameBuffer()->width() != size.width() || (int)frameBuffer()->height() != size.height())
+            {
+                LogRel(("GUI: UIMachineView::sltPerformGuestResize: Auto-pilot resizing screen %d as %dx%d\n",
+                        (int)screenId(), size.width(), size.height()));
+                display().SetVideoModeHint(screenId(),
+                                           uisession()->isScreenVisible(screenId()),
+                                           false /* change origin? */,
+                                           0 /* origin x */,
+                                           0 /* origin y */,
+                                           size.width(),
+                                           size.height(),
+                                           0 /* bits per pixel */,
+                                           true /* notify? */);
+            }
+        }
+        else
+        {
+            /* If host desires to have guest-screen enabled and guest-screen is disabled, retrying: */
+            if (uisession()->isScreenVisibleHostDesires(screenId()))
+            {
+                /* Send enabling size-hint to the guest: */
+                LogRel(("GUI: UIMachineView::sltPerformGuestResize: Auto-pilot enabling guest-screen %d\n", (int)screenId()));
+                display().SetVideoModeHint(screenId(),
+                                           true /* enabled? */,
+                                           false /* change origin? */,
+                                           0 /* origin x */,
+                                           0 /* origin y */,
+                                           size.width(),
+                                           size.height(),
+                                           0 /* bits per pixel */,
+                                           true /* notify? */);
+            }
+            /* If host desires to have guest-screen disabled and guest-screen is enabled, retrying: */
+            else
+            {
+                /* Send disabling size-hint to the guest: */
+                LogRel(("GUI: UIMachineView::sltPerformGuestResize: Auto-pilot disabling guest-screen %d\n", (int)screenId()));
+                display().SetVideoModeHint(screenId(),
+                                           false /* enabled? */,
+                                           false /* change origin? */,
+                                           0 /* origin x */,
+                                           0 /* origin y */,
+                                           0 /* width */,
+                                           0 /* height */,
+                                           0 /* bits per pixel */,
+                                           true /* notify? */);
+            }
+        }
+    }
+    /* If auto-mount of guest-screens (auto-pilot) disabled: */
+    else
+    {
+        /* Should we send a hint? */
+        bool fSendHint = true;
+        /* Do not send a hint if nothing has changed to prevent the guest being notified about its own changes: */
+        if (fSendHint && (int)frameBuffer()->width() == size.width() && (int)frameBuffer()->height() == size.height())
+        {
+            LogRel(("GUI: UIMachineView::sltPerformGuestResize: Omitting to send size-hint %dx%d to guest-screen %d "
+                    "because frame-buffer is already of the same size.\n", (int)screenId(), size.width(), size.height()));
+            fSendHint = false;
+        }
+        /* Do not send a hint if GA supports graphics and we have sent that hint already: */
+        if (fSendHint && uisession()->isGuestSupportsGraphics() && m_lastSizeHint == size)
+        {
+            LogRel(("GUI: UIMachineView::sltPerformGuestResize: Omitting to send size-hint %dx%d to guest-screen %d "
+                    "because this hint was previously sent.\n", (int)screenId(), size.width(), size.height()));
+            fSendHint = false;
+        }
+        if (fSendHint)
+        {
+            LogRel(("GUI: UIMachineView::sltPerformGuestResize: Sending guest size-hint to screen %d as %dx%d\n",
+                    (int)screenId(), size.width(), size.height()));
+            display().SetVideoModeHint(screenId(),
+                                       uisession()->isScreenVisible(screenId()),
+                                       false /* change origin? */,
+                                       0 /* origin x */,
+                                       0 /* origin y */,
+                                       size.width(),
+                                       size.height(),
+                                       0 /* bits per pixel */,
+                                       true /* notify? */);
+            m_lastSizeHint = size;
+        }
+    }
+}
+
+void UIMachineView::sltHandleActionTriggerViewScreenToggle(int iScreen, bool fEnabled)
+{
+    /* Skip unrelated guest-screen index: */
+    if (iScreen != (int)screenId())
+        return;
+
+    /* Acquire current resolution: */
+    ULONG uWidth, uHeight, uBitsPerPixel;
+    LONG uOriginX, uOriginY;
+    KGuestMonitorStatus monitorStatus = KGuestMonitorStatus_Enabled;
+    display().GetScreenResolution(screenId(), uWidth, uHeight, uBitsPerPixel, uOriginX, uOriginY, monitorStatus);
+    if (!display().isOk())
+    {
+        UINotificationMessage::cannotAcquireDispayParameter(display());
+        return;
+    }
+
+    /* Update desirable screen status: */
+    uisession()->setScreenVisibleHostDesires(screenId(), fEnabled);
+
+    /* Send enabling size-hint: */
+    if (fEnabled)
+    {
+        /* Defaults: */
+        if (!uWidth)
+            uWidth = 800;
+        if (!uHeight)
+            uHeight = 600;
+
+        /* Update current window size limitations: */
+        setMaximumGuestSize(QSize(uWidth, uHeight));
+
+        /* Record the hint to extra data, needed for guests using VMSVGA:
+         * This should be done before the actual hint is sent in case the guest overrides it.
+         * Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
+        if (   !isFullscreenOrSeamless()
+            && uisession()->isGuestSupportsGraphics()
+            && (   frameBuffer()->width() != uWidth
+                || frameBuffer()->height() != uHeight
+                || uisession()->isScreenVisible(screenId()) != uisession()->isScreenVisibleHostDesires(screenId())))
+            setStoredGuestScreenSizeHint(QSize(uWidth, uHeight));
+
+        /* Send enabling size-hint to the guest: */
+        LogRel(("GUI: UIMachineView::sltHandleActionTriggerViewScreenToggle: Enabling guest-screen %d\n", (int)screenId()));
+        display().SetVideoModeHint(screenId(),
+                                   true /* enabled? */,
+                                   false /* change origin? */,
+                                   0 /* origin x */,
+                                   0 /* origin y */,
+                                   uWidth,
+                                   uHeight,
+                                   0 /* bits per pixel */,
+                                   true /* notify? */);
+    }
+    else
+    {
+        /* Send disabling size-hint to the guest: */
+        LogRel(("GUI: UIMachineView::sltHandleActionTriggerViewScreenToggle: Disabling guest-screen %d\n", (int)screenId()));
+        display().SetVideoModeHint(screenId(),
+                                   false /* enabled? */,
+                                   false /* change origin? */,
+                                   0 /* origin x */,
+                                   0 /* origin y */,
+                                   0 /* width */,
+                                   0 /* height */,
+                                   0 /* bits per pixel */,
+                                   true /* notify? */);
+    }
+}
+
+void UIMachineView::sltHandleActionTriggerViewScreenResize(int iScreen, const QSize &size)
+{
+    /* Skip unrelated guest-screen index: */
+    if (iScreen != (int)m_uScreenId)
+        return;
+
+    /* Make sure we have valid size to work with: */
+    AssertMsgReturnVoid(size.isValid() && size.width() > 0 && size.height() > 0,
+                        ("Size should be valid (%dx%d)!\n", size.width(), size.height()));
+
+    /* Update current window size limitations: */
+    setMaximumGuestSize(size);
+
+    /* Record the hint to extra data, needed for guests using VMSVGA:
+     * This should be done before the actual hint is sent in case the guest overrides it.
+     * Do not send a hint if nothing has changed to prevent the guest being notified about its own changes. */
+    if (   !isFullscreenOrSeamless()
+        && uisession()->isGuestSupportsGraphics()
+        && (   (int)frameBuffer()->width() != size.width()
+            || (int)frameBuffer()->height() != size.height()
+            || uisession()->isScreenVisible(screenId()) != uisession()->isScreenVisibleHostDesires(screenId())))
+        setStoredGuestScreenSizeHint(size);
+
+    /* Send enabling size-hint to the guest: */
+    LogRel(("GUI: UIMachineView::sltHandleActionTriggerViewScreenResize: Resizing guest-screen %d\n", (int)screenId()));
+    display().SetVideoModeHint(screenId(),
+                               true /* enabled? */,
+                               false /* change origin? */,
+                               0 /* origin x */,
+                               0 /* origin y */,
+                               size.width(),
+                               size.height(),
+                               0 /* bits per pixel */,
+                               true /* notify? */);
+}
+
 void UIMachineView::sltDesktopResized()
 {
-    setMaxGuestSize();
+    setMaximumGuestSize();
 }
 
 void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
@@ -810,8 +1132,8 @@ void UIMachineView::sltMousePointerShapeChange()
          * compose the cursor on the basis of shape and mask both: */
         updateMousePointerPixmapScaling(pixmapShape, uXHot, uYHot);
         /// @todo updateMousePointerPixmapScaling(pixmapMask, uXHot, uYHot);
-#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: this is probably inefficient */
-        m_cursor = QCursor(QBitmap(pixmapShape), QBitmap(pixmapMask), uXHot, uYHot);
+#ifdef VBOX_IS_QT6_OR_LATER /* since qt6 explicit constructor is replaced with QBitmap::fromPixmap static method */
+        m_cursor = QCursor(QBitmap::fromPixmap(pixmapShape), QBitmap::fromPixmap(pixmapMask), uXHot, uYHot);
 #else
         m_cursor = QCursor(pixmapShape, pixmapMask, uXHot, uYHot);
 #endif
@@ -837,7 +1159,7 @@ UIMachineView::UIMachineView(UIMachineWindow *pMachineWindow, ulong uScreenId)
     , m_previousState(KMachineState_Null)
     , m_iHostScreenNumber(0)
     , m_enmMaximumGuestScreenSizePolicy(MaximumGuestScreenSizePolicy_Automatic)
-    , m_u64MaxGuestSize(0)
+    , m_u64MaximumGuestSize(0)
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
     , m_fIsDraggingFromGuest(false)
 #endif
@@ -899,8 +1221,8 @@ void UIMachineView::prepareFrameBuffer()
         double dScaleFactor = gEDataManager->scaleFactor(uiCommon().managedVMUuid(), m_uScreenId);
 
         /* Take the device-pixel-ratio into account: */
-        const double dDevicePixelRatioFormal = gpDesktop->devicePixelRatio(machineWindow());
-        const double dDevicePixelRatioActual = gpDesktop->devicePixelRatioActual(machineWindow());
+        const double dDevicePixelRatioFormal = UIDesktopWidgetWatchdog::devicePixelRatio(machineWindow());
+        const double dDevicePixelRatioActual = UIDesktopWidgetWatchdog::devicePixelRatioActual(machineWindow());
         const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatioActual;
         dScaleFactor = fUseUnscaledHiDPIOutput ? dScaleFactor : 1.0;
 
@@ -948,7 +1270,7 @@ void UIMachineView::prepareFrameBuffer()
         /* Processing pseudo resize-event to synchronize frame-buffer with stored framebuffer size.
          * On X11 this will be additional done when the machine state was 'saved'. */
         if (machine().GetState() == KMachineState_Saved || machine().GetState() == KMachineState_AbortedSaved)
-            size = guestScreenSizeHint();
+            size = storedGuestScreenSizeHint();
 #endif /* VBOX_WS_X11 */
 
         /* If there is a preview image saved,
@@ -991,13 +1313,25 @@ void UIMachineView::prepareCommon()
 }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-void UIMachineView::prepareDnd()
+int UIMachineView::prepareDnd(void)
 {
     /* Enable drag & drop: */
     setAcceptDrops(true);
 
+    int vrc;
+
     /* Create the drag and drop handler instance: */
     m_pDnDHandler = new UIDnDHandler(uisession(), this /* pParent */);
+    if (m_pDnDHandler)
+    {
+        vrc = m_pDnDHandler->init();
+    }
+    else
+        vrc = VERR_NO_MEMORY;
+
+    if (RT_FAILURE(vrc))
+        LogRel(("DnD: Initialization failed with %Rrc\n", vrc));
+    return vrc;
 }
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
@@ -1096,11 +1430,6 @@ void UIMachineView::cleanupNativeFilters()
     }
 }
 
-UISession* UIMachineView::uisession() const
-{
-    return machineWindow()->uisession();
-}
-
 CSession& UIMachineView::session() const
 {
     return uisession()->session();
@@ -1129,11 +1458,6 @@ CGuest& UIMachineView::guest() const
 UIActionPool* UIMachineView::actionPool() const
 {
     return machineWindow()->actionPool();
-}
-
-UIMachineLogic* UIMachineView::machineLogic() const
-{
-    return machineWindow()->machineLogic();
 }
 
 QSize UIMachineView::sizeHint() const
@@ -1169,72 +1493,7 @@ QSize UIMachineView::sizeHint() const
     return QSize(size.width() + frameWidth() * 2, size.height() + frameWidth() * 2);
 }
 
-int UIMachineView::contentsX() const
-{
-    return horizontalScrollBar()->value();
-}
-
-int UIMachineView::contentsY() const
-{
-    return verticalScrollBar()->value();
-}
-
-int UIMachineView::contentsWidth() const
-{
-    return frameBuffer()->width();
-}
-
-int UIMachineView::contentsHeight() const
-{
-    return frameBuffer()->height();
-}
-
-int UIMachineView::visibleWidth() const
-{
-    return horizontalScrollBar()->pageStep();
-}
-
-int UIMachineView::visibleHeight() const
-{
-    return verticalScrollBar()->pageStep();
-}
-
-void UIMachineView::setMaxGuestSize(const QSize &minimumSizeHint /* = QSize() */)
-{
-    QSize maxSize;
-    switch (m_enmMaximumGuestScreenSizePolicy)
-    {
-        case MaximumGuestScreenSizePolicy_Fixed:
-            maxSize = m_fixedMaxGuestSize;
-            break;
-        case MaximumGuestScreenSizePolicy_Automatic:
-            maxSize = calculateMaxGuestSize().expandedTo(minimumSizeHint);
-            break;
-        case MaximumGuestScreenSizePolicy_Any:
-            /* (0, 0) means any of course. */
-            maxSize = QSize(0, 0);
-    }
-    ASMAtomicWriteU64(&m_u64MaxGuestSize,
-                      RT_MAKE_U64(maxSize.height(), maxSize.width()));
-}
-
-QSize UIMachineView::maxGuestSize()
-{
-    uint64_t u64Size = ASMAtomicReadU64(&m_u64MaxGuestSize);
-    return QSize(int(RT_HI_U32(u64Size)), int(RT_LO_U32(u64Size)));
-}
-
-bool UIMachineView::guestScreenVisibilityStatus() const
-{
-    /* Always 'true' for primary guest-screen: */
-    if (m_uScreenId == 0)
-        return true;
-
-    /* Actual value for other guest-screens: */
-    return gEDataManager->lastGuestScreenVisibilityStatus(m_uScreenId, uiCommon().managedVMUuid());
-}
-
-QSize UIMachineView::guestScreenSizeHint() const
+QSize UIMachineView::storedGuestScreenSizeHint() const
 {
     /* Load guest-screen size-hint: */
     QSize sizeHint = gEDataManager->lastGuestScreenSizeHint(m_uScreenId, uiCommon().managedVMUuid());
@@ -1247,15 +1506,47 @@ QSize UIMachineView::guestScreenSizeHint() const
     sizeHint = scaledForward(sizeHint);
 
     /* Return size-hint: */
+    LogRel2(("GUI: UIMachineView::storedGuestScreenSizeHint: Acquired guest-screen size-hint for screen %d as %dx%d\n",
+             (int)screenId(), sizeHint.width(), sizeHint.height()));
     return sizeHint;
 }
 
-void UIMachineView::storeGuestSizeHint(const QSize &sizeHint)
+void UIMachineView::setStoredGuestScreenSizeHint(const QSize &sizeHint)
 {
     /* Save guest-screen size-hint: */
-    LogRel2(("GUI: UIMachineView::storeGuestSizeHint: Storing guest-screen size-hint for screen %d as %dx%d\n",
+    LogRel2(("GUI: UIMachineView::setStoredGuestScreenSizeHint: Storing guest-screen size-hint for screen %d as %dx%d\n",
              (int)screenId(), sizeHint.width(), sizeHint.height()));
     gEDataManager->setLastGuestScreenSizeHint(m_uScreenId, sizeHint, uiCommon().managedVMUuid());
+}
+
+QSize UIMachineView::requestedGuestScreenSizeHint() const
+{
+    /* Acquire last guest-screen size-hint set, if any: */
+    BOOL fEnabled, fChangeOrigin;
+    LONG iOriginX, iOriginY;
+    ULONG uWidth, uHeight, uBitsPerPixel;
+    display().GetVideoModeHint(screenId(), fEnabled, fChangeOrigin,
+                               iOriginX, iOriginY, uWidth, uHeight, uBitsPerPixel);
+
+    /* Acquire effective frame-buffer size otherwise: */
+    if (uWidth == 0 || uHeight == 0)
+    {
+        uWidth = frameBuffer()->width();
+        uHeight = frameBuffer()->height();
+    }
+
+    /* Return result: */
+    return QSize((int)uWidth, (int)uHeight);
+}
+
+bool UIMachineView::guestScreenVisibilityStatus() const
+{
+    /* Always 'true' for primary guest-screen: */
+    if (m_uScreenId == 0)
+        return true;
+
+    /* Actual value for other guest-screens: */
+    return gEDataManager->lastGuestScreenVisibilityStatus(m_uScreenId, uiCommon().managedVMUuid());
 }
 
 void UIMachineView::handleScaleChange()
@@ -1373,7 +1664,7 @@ void UIMachineView::takePausePixmapSnapshot()
     machine().QuerySavedGuestScreenInfo(m_uScreenId, uGuestOriginX, uGuestOriginY, uGuestWidth, uGuestHeight, fEnabled);
 
     /* Calculate effective size: */
-    QSize effectiveSize = uGuestWidth > 0 ? QSize(uGuestWidth, uGuestHeight) : guestScreenSizeHint();
+    QSize effectiveSize = uGuestWidth > 0 ? QSize(uGuestWidth, uGuestHeight) : storedGuestScreenSizeHint();
 
     /* Take the device-pixel-ratio into account: */
     const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
@@ -1458,33 +1749,6 @@ void UIMachineView::updateSliders()
     verticalScrollBar()->setPageStep(curViewportSize.height());
 }
 
-QPoint UIMachineView::viewportToContents(const QPoint &vp) const
-{
-    /* Get physical contents shifts of scroll-bars: */
-    int iContentsX = contentsX();
-    int iContentsY = contentsY();
-
-    /* Take the device-pixel-ratio into account: */
-    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
-    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
-    if (!frameBuffer()->useUnscaledHiDPIOutput())
-    {
-        iContentsX *= dDevicePixelRatioActual;
-        iContentsY *= dDevicePixelRatioActual;
-    }
-    iContentsX /= dDevicePixelRatioFormal;
-    iContentsY /= dDevicePixelRatioFormal;
-
-    /* Return point shifted according scroll-bars: */
-    return QPoint(vp.x() + iContentsX, vp.y() + iContentsY);
-}
-
-void UIMachineView::scrollBy(int dx, int dy)
-{
-    horizontalScrollBar()->setValue(horizontalScrollBar()->value() + dx);
-    verticalScrollBar()->setValue(verticalScrollBar()->value() + dy);
-}
-
 void UIMachineView::dimImage(QImage &img)
 {
     for (int y = 0; y < img.height(); ++ y)
@@ -1533,16 +1797,6 @@ void UIMachineView::updateDockIcon()
     machineLogic()->updateDockIcon();
 }
 
-CGImageRef UIMachineView::vmContentImage()
-{
-    /* Use pause-image if exists: */
-    if (!pausePixmap().isNull())
-        return darwinToCGImageRef(&pausePixmap());
-
-    /* Create the image ref out of the frame-buffer: */
-    return frameBuffertoCGImageRef(frameBuffer());
-}
-
 CGImageRef UIMachineView::frameBuffertoCGImageRef(UIFrameBuffer *pFrameBuffer)
 {
     CGImageRef ir = 0;
@@ -1563,11 +1817,6 @@ CGImageRef UIMachineView::frameBuffertoCGImageRef(UIFrameBuffer *pFrameBuffer)
     return ir;
 }
 #endif /* VBOX_WS_MAC */
-
-UIVisualStateType UIMachineView::visualStateType() const
-{
-    return machineLogic()->visualStateType();
-}
 
 bool UIMachineView::isFullscreenOrSeamless() const
 {
@@ -1660,7 +1909,7 @@ bool UIMachineView::eventFilter(QObject *pWatched, QEvent *pEvent)
             case QEvent::Move:
             {
                 /* Get current host-screen number: */
-                const int iCurrentHostScreenNumber = gpDesktop->screenNumber(this);
+                const int iCurrentHostScreenNumber = UIDesktopWidgetWatchdog::screenNumber(this);
                 if (m_iHostScreenNumber != iCurrentHostScreenNumber)
                 {
                     /* Recache current host screen: */
@@ -1853,75 +2102,6 @@ void UIMachineView::dragLeaveEvent(QDragLeaveEvent *pEvent)
     DNDDEBUG(("DnD: dragLeaveEvent ended with rc=%Rrc\n", rc));
 }
 
-int UIMachineView::dragCheckPending(void)
-{
-    int rc;
-
-    if (!dragAndDropIsActive())
-        rc = VERR_ACCESS_DENIED;
-# ifdef VBOX_WITH_DRAG_AND_DROP_GH
-    else if (!m_fIsDraggingFromGuest)
-    {
-        /// @todo Add guest->guest DnD functionality here by getting
-        //       the source of guest B (when copying from B to A).
-        rc = m_pDnDHandler->dragCheckPending(screenId());
-        if (RT_SUCCESS(rc))
-            m_fIsDraggingFromGuest = true;
-    }
-    else /* Already dragging, so report success. */
-        rc = VINF_SUCCESS;
-# else
-    rc = VERR_NOT_SUPPORTED;
-# endif
-
-    DNDDEBUG(("DnD: dragCheckPending ended with rc=%Rrc\n", rc));
-    return rc;
-}
-
-int UIMachineView::dragStart(void)
-{
-    int rc;
-
-    if (!dragAndDropIsActive())
-        rc = VERR_ACCESS_DENIED;
-# ifdef VBOX_WITH_DRAG_AND_DROP_GH
-    else if (!m_fIsDraggingFromGuest)
-        rc = VERR_WRONG_ORDER;
-    else
-    {
-        /// @todo Add guest->guest DnD functionality here by getting
-        //       the source of guest B (when copying from B to A).
-        rc = m_pDnDHandler->dragStart(screenId());
-
-        m_fIsDraggingFromGuest = false;
-    }
-# else
-    rc = VERR_NOT_SUPPORTED;
-# endif
-
-    DNDDEBUG(("DnD: dragStart ended with rc=%Rrc\n", rc));
-    return rc;
-}
-
-int UIMachineView::dragStop(void)
-{
-    int rc;
-
-    if (!dragAndDropIsActive())
-        rc = VERR_ACCESS_DENIED;
-# ifdef VBOX_WITH_DRAG_AND_DROP_GH
-    else if (!m_fIsDraggingFromGuest)
-        rc = VERR_WRONG_ORDER;
-    else
-        rc = m_pDnDHandler->dragStop(screenId());
-# else
-    rc = VERR_NOT_SUPPORTED;
-# endif
-
-    DNDDEBUG(("DnD: dragStop ended with rc=%Rrc\n", rc));
-    return rc;
-}
-
 void UIMachineView::dropEvent(QDropEvent *pEvent)
 {
     AssertPtrReturnVoid(pEvent);
@@ -1949,137 +2129,6 @@ void UIMachineView::dropEvent(QDropEvent *pEvent)
 }
 
 #endif /* VBOX_WITH_DRAG_AND_DROP */
-
-bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *pMessage)
-{
-    /* Check if some event should be filtered out.
-     * Returning @c true means filtering-out,
-     * Returning @c false means passing event to Qt. */
-
-# if defined(VBOX_WS_MAC)
-
-    /* Make sure it's generic NSEvent: */
-    if (eventType != "mac_generic_NSEvent")
-        return false;
-    EventRef event = static_cast<EventRef>(darwinCocoaToCarbonEvent(pMessage));
-
-    switch (::GetEventClass(event))
-    {
-        // Keep in mind that this stuff should not be enabled while we are still using
-        // own native keyboard filter installed through cocoa API, to be reworked.
-        // S.a. registerForNativeEvents call in UIKeyboardHandler implementation.
-#if 0
-        /* Watch for keyboard-events: */
-        case kEventClassKeyboard:
-        {
-            switch (::GetEventKind(event))
-            {
-                /* Watch for key-events: */
-                case kEventRawKeyDown:
-                case kEventRawKeyRepeat:
-                case kEventRawKeyUp:
-                case kEventRawKeyModifiersChanged:
-                {
-                    /* Delegate key-event handling to the keyboard-handler: */
-                    return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
-                }
-                default:
-                    break;
-            }
-            break;
-        }
-#endif
-        /* Watch for mouse-events: */
-        case kEventClassMouse:
-        {
-            switch (::GetEventKind(event))
-            {
-                /* Watch for button-events: */
-                case kEventMouseDown:
-                case kEventMouseUp:
-                {
-                    /* Delegate button-event handling to the mouse-handler: */
-                    return machineLogic()->mouseHandler()->nativeEventFilter(pMessage, screenId());
-                }
-                default:
-                    break;
-            }
-            break;
-        }
-        default:
-            break;
-    }
-
-# elif defined(VBOX_WS_WIN)
-
-    /* Make sure it's generic MSG event: */
-    if (eventType != "windows_generic_MSG")
-        return false;
-    MSG *pEvent = static_cast<MSG*>(pMessage);
-
-    switch (pEvent->message)
-    {
-        /* Watch for key-events: */
-        case WM_KEYDOWN:
-        case WM_SYSKEYDOWN:
-        case WM_KEYUP:
-        case WM_SYSKEYUP:
-        {
-            // WORKAROUND:
-            // There is an issue in the Windows Qt5 event processing sequence
-            // causing QAbstractNativeEventFilter to receive Windows native events
-            // coming not just to the top-level window but to actual target as well.
-            // They are calling one - "global event" and another one - "context event".
-            // That way native events are always duplicated with almost no possibility
-            // to distinguish copies except the fact that synthetic event always have
-            // time set to 0 (actually that field was not initialized at all, we had
-            // fixed that in our private Qt tool). We should skip such events instantly.
-            if (pEvent->time == 0)
-                return false;
-
-            /* Delegate key-event handling to the keyboard-handler: */
-            return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
-        }
-        default:
-            break;
-    }
-
-# elif defined(VBOX_WS_X11)
-
-    /* Make sure it's generic XCB event: */
-    if (eventType != "xcb_generic_event_t")
-        return false;
-    xcb_generic_event_t *pEvent = static_cast<xcb_generic_event_t*>(pMessage);
-
-    switch (pEvent->response_type & ~0x80)
-    {
-        /* Watch for key-events: */
-        case XCB_KEY_PRESS:
-        case XCB_KEY_RELEASE:
-        {
-            /* Delegate key-event handling to the keyboard-handler: */
-            return machineLogic()->keyboardHandler()->nativeEventFilter(pMessage, screenId());
-        }
-        /* Watch for button-events: */
-        case XCB_BUTTON_PRESS:
-        case XCB_BUTTON_RELEASE:
-        {
-            /* Delegate button-event handling to the mouse-handler: */
-            return machineLogic()->mouseHandler()->nativeEventFilter(pMessage, screenId());
-        }
-        default:
-            break;
-    }
-
-# else
-
-#  warning "port me!"
-
-# endif
-
-    /* Filter nothing by default: */
-    return false;
-}
 
 QSize UIMachineView::scaledForward(QSize size) const
 {

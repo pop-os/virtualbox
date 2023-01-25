@@ -33,7 +33,7 @@
 #include <QtXml/QDomDocument>
 #include <QtXml/QDomElement>
 #include <QWidget>
-#ifdef VBOX_IS_QT6_OR_LATER
+#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: ... */
 # include <QGuiApplication>
 #else
 # include <QX11Info>
@@ -50,14 +50,6 @@
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/dpms.h>
-
-/// @todo is it required still?
-// WORKAROUND:
-// rhel3 build hack
-//RT_C_DECLS_BEGIN
-//#include <X11/Xlib.h>
-//#undef BOOL /* VBox/com/defs.h conflict */
-//RT_C_DECLS_END
 
 
 bool NativeWindowSubsystem::X11IsCompositingManagerRunning()
@@ -124,51 +116,6 @@ X11WMType NativeWindowSubsystem::X11WindowManagerType()
     }
     return wmType;
 }
-
-#if 0 // unused for now?
-static int  gX11ScreenSaverTimeout;
-static BOOL gX11ScreenSaverDpmsAvailable;
-static BOOL gX11DpmsState;
-
-void NativeWindowSubsystem::X11ScreenSaverSettingsInit()
-{
-    /* Init screen-save availability: */
-    Display *pDisplay = NativeWindowSubsystem::X11GetDisplay();
-    int dummy;
-    gX11ScreenSaverDpmsAvailable = DPMSQueryExtension(pDisplay, &dummy, &dummy);
-}
-
-void NativeWindowSubsystem::X11ScreenSaverSettingsSave()
-{
-    /* Actually this is a big mess. By default the libSDL disables the screen saver
-     * during the SDL_InitSubSystem() call and restores the saved settings during
-     * the SDL_QuitSubSystem() call. This mechanism can be disabled by setting the
-     * environment variable SDL_VIDEO_ALLOW_SCREENSAVER to 1. However, there is a
-     * known bug in the Debian libSDL: If this environment variable is set, the
-     * screen saver is still disabled but the old state is not restored during
-     * SDL_QuitSubSystem()! So the only solution to overcome this problem is to
-     * save and restore the state prior and after each of these function calls. */
-
-    Display *pDisplay = NativeWindowSubsystem::X11GetDisplay();
-    int dummy;
-    CARD16 dummy2;
-    XGetScreenSaver(pDisplay, &gX11ScreenSaverTimeout, &dummy, &dummy, &dummy);
-    if (gX11ScreenSaverDpmsAvailable)
-        DPMSInfo(pDisplay, &dummy2, &gX11DpmsState);
-}
-
-void NativeWindowSubsystem::X11ScreenSaverSettingsRestore()
-{
-    /* Restore screen-saver settings: */
-    Display *pDisplay = NativeWindowSubsystem::X11GetDisplay();
-    int iTimeout, iInterval, iPreferBlank, iAllowExp;
-    XGetScreenSaver(pDisplay, &iTimeout, &iInterval, &iPreferBlank, &iAllowExp);
-    iTimeout = gX11ScreenSaverTimeout;
-    XSetScreenSaver(pDisplay, iTimeout, iInterval, iPreferBlank, iAllowExp);
-    if (gX11DpmsState && gX11ScreenSaverDpmsAvailable)
-        DPMSEnable(pDisplay);
-}
-#endif // unused for now?
 
 bool NativeWindowSubsystem::X11CheckExtension(const char *pExtensionName)
 {
@@ -665,10 +612,10 @@ void NativeWindowSubsystem::X11SetXwaylandMayGrabKeyboardFlag(QWidget *pWidget)
                         "_XWAYLAND_MAY_GRAB_KEYBOARD", 1);
 }
 
-Display *NativeWindowSubsystem::X11GetDisplay(void)
+Display *NativeWindowSubsystem::X11GetDisplay()
 {
-#ifdef VBOX_IS_QT6_OR_LATER
-    Display *pDisplay = nullptr;
+#ifdef VBOX_IS_QT6_OR_LATER /** QX11Info is replaced with QNativeInterface::QX11Application since qt6 */
+    Display *pDisplay = 0;
     if (qApp)
     {
         QNativeInterface::QX11Application *pX11App = qApp->nativeInterface<QNativeInterface::QX11Application>();
@@ -682,31 +629,32 @@ Display *NativeWindowSubsystem::X11GetDisplay(void)
     return pDisplay;
 }
 
-xcb_connection_t *NativeWindowSubsystem::X11GetConnection(void)
+xcb_connection_t *NativeWindowSubsystem::X11GetConnection()
 {
-#ifdef VBOX_IS_QT6_OR_LATER
+#ifdef VBOX_IS_QT6_OR_LATER /** QX11Info is replaced with QNativeInterface::QX11Application since qt6 */
+    xcb_connection_t *pConnection = 0;
     if (qApp)
     {
         QNativeInterface::QX11Application *pX11App = qApp->nativeInterface<QNativeInterface::QX11Application>();
         if (pX11App)
-            return pX11App->connection();
+            pConnection = pX11App->connection();
     }
-    return NULL;
 #else
-    return QX11Info::connection();
+    xcb_connection_t *pConnection = QX11Info::connection();
 #endif
+    Assert(pConnection);
+    return pConnection;
 }
 
-uint32_t NativeWindowSubsystem::X11GetAppRootWindow(void)
+uint32_t NativeWindowSubsystem::X11GetAppRootWindow()
 {
-#ifdef VBOX_IS_QT6_OR_LATER
+#ifdef VBOX_IS_QT6_OR_LATER /** QX11Info is replaced with QNativeInterface::QX11Application since qt6 */
     Window idWindow = 0;
     Display *pDisplay = NativeWindowSubsystem::X11GetDisplay();
     if (pDisplay)
-        idWindow = DefaultRootWindow(pDisplay); /** @todo qt6: ?? */
+        idWindow = DefaultRootWindow(pDisplay);
     return idWindow;
 #else
     return QX11Info::appRootWindow();
 #endif
 }
-

@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 154575 $"
+__version__ = "$Revision: 154728 $"
 
 # pylint: disable=unnecessary-semicolon
 
@@ -557,7 +557,7 @@ class EventHandlerBase(object):
         """
         self.oThread = threading.Thread(target = self.threadForPassiveMode, \
             args=(), name=('PAS-%s' % (self.sName,)));
-        self.oThread.setDaemon(True)
+        self.oThread.setDaemon(True); # pylint: disable=deprecated-method
         self.oThread.start();
         return None;
 
@@ -1980,13 +1980,13 @@ class TestDriver(base.TestDriver):                                              
         Returns an empty string if not found / invalid.
         """
         sAdpName = '';
-        if    oNic.adapterType == vboxcon.NetworkAdapterType_Am79C970A \
-            or oNic.adapterType == vboxcon.NetworkAdapterType_Am79C973 \
-            or oNic.adapterType == vboxcon.NetworkAdapterType_Am79C960:
+        if    oNic.adapterType in (vboxcon.NetworkAdapterType_Am79C970A, \
+                                   vboxcon.NetworkAdapterType_Am79C973, \
+                                   vboxcon.NetworkAdapterType_Am79C960):
             sAdpName = 'pcnet';
-        elif    oNic.adapterType == vboxcon.NetworkAdapterType_I82540EM \
-            or oNic.adapterType == vboxcon.NetworkAdapterType_I82543GC \
-            or oNic.adapterType == vboxcon.NetworkAdapterType_I82545EM:
+        elif    oNic.adapterType in (vboxcon.NetworkAdapterType_I82540EM, \
+                                     vboxcon.NetworkAdapterType_I82543GC, \
+                                     vboxcon.NetworkAdapterType_I82545EM):
             sAdpName = 'e1000';
         elif oNic.adapterType == vboxcon.NetworkAdapterType_Virtio:
             sAdpName = 'virtio-net';

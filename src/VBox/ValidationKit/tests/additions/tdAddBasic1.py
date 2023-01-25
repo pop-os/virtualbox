@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 # Standard Python imports.
 import os;
@@ -151,7 +151,7 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
                            '--pop ' \
                           % (uuid.uuid4(), self.sVBoxValidationKitIso, sGaIso);
             reporter.log2('Using VISO combining ValKit and GAs "%s": %s' % (sVisoContent, sGaViso));
-            with open(sGaViso, 'w') as oGaViso:
+            with open(sGaViso, 'w') as oGaViso: # pylint: disable=unspecified-encoding
                 oGaViso.write(sVisoContent);
             sGaIso = sGaViso;
 
@@ -201,17 +201,8 @@ class tdAddBasic1(vbox.TestDriver):                                         # py
                                                                       sFileCdWait = self.sFileCdWait);
             reporter.testDone();
 
-            # Certain Linux guests don't behave accordingly so that detecting the CD isn't working properly.
-            # So reboot those guests in the hope that it works finally.
-            ### @todo Needs investigation; probably only udev or something is broken there (?).
-            if oTestVm.isLinux():
-                reporter.testStart('Rebooting and reconnecting to TXS');
-                fRc, oTxsSession = self.txsRebootAndReconnectViaTcp(oSession, oTxsSession, fCdWait = True,
-                                                                    cMsCdWait = 5 * 60 * 1000,
-                                                                    sFileCdWait = self.sFileCdWait);
-                reporter.testDone();
-
-            if oSession is not None:
+            if  oSession    is not None \
+            and oTxsSession is not None:
                 self.addTask(oTxsSession);
                 # Do the testing.
                 fSkip = 'install' not in self.asTests;

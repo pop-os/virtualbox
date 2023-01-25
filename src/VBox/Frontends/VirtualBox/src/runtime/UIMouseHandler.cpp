@@ -26,6 +26,7 @@
  */
 
 /* Qt includes: */
+#include <QtMath>
 #include <QMouseEvent>
 #include <QTimer>
 #include <QTouchEvent>
@@ -173,6 +174,8 @@ void UIMouseHandler::captureMouse(ulong uScreenId)
 
         /* Memorize the host position where the cursor was captured: */
         m_capturedMousePos = QCursor::pos();
+        /* Determine geometry of screen cursor was captured at: */
+        m_capturedScreenGeo = gpDesktop->screenGeometry(m_capturedMousePos);
 
         /* Acquiring visible viewport rectangle in global coodrinates: */
         QRect visibleRectangle = m_viewports[m_iMouseCaptureViewIndex]->visibleRegion().boundingRect();
@@ -767,14 +770,13 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                      * over the speed acceleration & enables such devices to send a valid wheel event to our
                      * guest mouse device at all: */
                     int iDelta = 0;
-#ifdef VBOX_IS_QT6_OR_LATER
-                    Qt::Orientation const enmOrientation = RT_ABS(pWheelEvent->pixelDelta().x())
-                                                         > RT_ABS(pWheelEvent->pixelDelta().y()) ? Qt::Horizontal : Qt::Vertical;
+                    const Qt::Orientation enmOrientation = qFabs(pWheelEvent->angleDelta().x())
+                                                         > qFabs(pWheelEvent->angleDelta().y())
+                                                         ? Qt::Horizontal
+                                                         : Qt::Vertical;
                     m_iLastMouseWheelDelta += enmOrientation == Qt::Horizontal
-                                            ? pWheelEvent->pixelDelta().x() : pWheelEvent->pixelDelta().y();
-#else
-                    m_iLastMouseWheelDelta += pWheelEvent->delta();
-#endif
+                                            ? pWheelEvent->angleDelta().x()
+                                            : pWheelEvent->angleDelta().y();
                     if (qAbs(m_iLastMouseWheelDelta) >= 120)
                     {
                         /* Rounding iDelta to the nearest multiple of 120: */
@@ -782,26 +784,26 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         iDelta *= 120;
                         m_iLastMouseWheelDelta = m_iLastMouseWheelDelta % 120;
                     }
-                    if (mouseEvent(pWheelEvent->type(), uScreenId,
-#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: ... */
-                                   pWheelEvent->position().toPoint(), pWheelEvent->globalPosition().toPoint(),
+                    if (mouseEvent(pWheelEvent->type(),
+                                   uScreenId,
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+                                   pWheelEvent->position().toPoint(),
+                                   pWheelEvent->globalPosition().toPoint(),
 #else
-                                   pWheelEvent->pos(), pWheelEvent->globalPos(),
+                                   pWheelEvent->pos(),
+                                   pWheelEvent->globalPos(),
 #endif
 #ifdef VBOX_WS_MAC
-                                   /* Qt Cocoa is buggy. It always reports a left button pressed when the
-                                    * mouse wheel event occurs. A workaround is to ask the application which
-                                    * buttons are pressed currently: */
+                                   // WORKAROUND:
+                                   // Qt Cocoa is buggy. It always reports a left button pressed when the
+                                   // mouse wheel event occurs. A workaround is to ask the application which
+                                   // buttons are pressed currently:
                                    QApplication::mouseButtons(),
 #else /* !VBOX_WS_MAC */
                                    pWheelEvent->buttons(),
 #endif /* !VBOX_WS_MAC */
                                    iDelta,
-#ifdef VBOX_IS_QT6_OR_LATER
                                    enmOrientation)
-#else
-                                   pWheelEvent->orientation())
-#endif
                                    )
                         return true;
                     break;
@@ -1020,8 +1022,8 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
             // Underlying QCursor::setPos call requires coordinates, rescaled according to primary screen.
             // For that we have to map logical coordinates to relative origin (to make logical=>physical conversion).
             // Besides that we have to make sure m_lastMousePos still uses logical coordinates afterwards.
-            const double dDprPrimary = gpDesktop->devicePixelRatio(gpDesktop->primaryScreen());
-            const double dDprCurrent = gpDesktop->devicePixelRatio(m_windows.value(m_iMouseCaptureViewIndex));
+            const double dDprPrimary = UIDesktopWidgetWatchdog::devicePixelRatio(UIDesktopWidgetWatchdog::primaryScreenNumber());
+            const double dDprCurrent = UIDesktopWidgetWatchdog::devicePixelRatio(m_windows.value(m_iMouseCaptureViewIndex));
             const QRect screenGeometry = gpDesktop->screenGeometry(m_windows.value(m_iMouseCaptureViewIndex));
             QPoint requiredMousePos = (m_viewports[uScreenId]->mapToGlobal(p) - screenGeometry.topLeft()) * dDprCurrent + screenGeometry.topLeft();
             QCursor::setPos(requiredMousePos / dDprPrimary);
@@ -1033,18 +1035,23 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
             m_lastMousePos = globalPos;
             m_fCursorPositionReseted = false;
         }
-#else /* VBOX_WS_WIN */
-        int iWe = gpDesktop->overallDesktopWidth() - 1;
-        int iHe = gpDesktop->overallDesktopHeight() - 1;
+#else /* !VBOX_WS_WIN */
+        /* Compose boundaries: */
+        const int iX1 = m_capturedScreenGeo.left() + 1;
+        const int iY1 = m_capturedScreenGeo.top() + 1;
+        const int iX2 = m_capturedScreenGeo.right() - 1;
+        const int iY2 = m_capturedScreenGeo.bottom() - 1;
+
+        /* Simulate infinite movement: */
         QPoint p = globalPos;
-        if (globalPos.x() == 0)
-            p.setX(iWe - 1);
-        else if (globalPos.x() == iWe)
-            p.setX( 1 );
-        if (globalPos.y() == 0)
-            p.setY(iHe - 1);
-        else if (globalPos.y() == iHe)
-            p.setY(1);
+        if (globalPos.x() <= iX1)
+            p.setX(iX2 - 1);
+        else if (globalPos.x() >= iX2)
+            p.setX(iX1 + 1);
+        if (globalPos.y() <= iY1)
+            p.setY(iY2 - 1);
+        else if (globalPos.y() >= iY2)
+            p.setY(iY1 + 1);
 
         if (p != globalPos)
         {
@@ -1205,7 +1212,7 @@ bool UIMouseHandler::multiTouchEvent(QTouchEvent *pTouchEvent, ulong uScreenId)
 
     LONG xShift = 0, yShift = 0;
 
-#ifdef VBOX_IS_QT6_OR_LATER
+#ifdef VBOX_IS_QT6_OR_LATER /* QTouchDevice was consumed by QInputDevice in 6.0 */
     bool fTouchScreen = (pTouchEvent->device()->type() == QInputDevice::DeviceType::TouchScreen);
 #else
     bool fTouchScreen = (pTouchEvent->device()->type() == QTouchDevice::TouchScreen);
@@ -1323,7 +1330,7 @@ void UIMouseHandler::updateMouseCursorClipping()
         // WORKAROUND:
         // Underlying ClipCursor call requires physical coordinates, not logical upscaled Qt stuff.
         // But we will have to map to relative origin (to make logical=>physical conversion) first.
-        const double dDpr = gpDesktop->devicePixelRatio(m_windows.value(m_iMouseCaptureViewIndex));
+        const double dDpr = UIDesktopWidgetWatchdog::devicePixelRatio(m_windows.value(m_iMouseCaptureViewIndex));
         const QRect screenGeometry = gpDesktop->screenGeometry(m_windows.value(m_iMouseCaptureViewIndex));
         viewportRectangle.moveTo((viewportRectangle.topLeft() - screenGeometry.topLeft()) * dDpr + screenGeometry.topLeft());
         viewportRectangle.setSize(viewportRectangle.size() * dDpr);

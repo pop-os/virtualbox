@@ -66,6 +66,9 @@
 #include <signal.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#ifndef AF_LOCAL
+# define AF_LOCAL AF_UNIX
+#endif
 
 #include "internal/magics.h"
 #include "internal/path.h"
@@ -290,7 +293,7 @@ RTDECL(int) RTLocalIpcServerGrantGroupAccess(RTLOCALIPCSERVER hServer, RTGID gid
     AssertReturn(pThis->u32Magic == RTLOCALIPCSERVER_MAGIC, VERR_INVALID_HANDLE);
     AssertReturn(pThis->Name.sun_path[0] != '\0', VERR_INVALID_STATE);
 
-    if (chown(pThis->Name.sun_path, -1, gid) == 0)
+    if (chown(pThis->Name.sun_path, (uid_t)-1, gid) == 0)
     {
         if (chmod(pThis->Name.sun_path, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP) == 0)
         {
@@ -1027,7 +1030,7 @@ RTDECL(int) RTLocalIpcSessionWaitForData(RTLOCALIPCSESSION hSession, uint32_t cM
                     PollFd.fd      = RTSocketToNative(pThis->hSocket);
                     PollFd.events  = POLLHUP | POLLERR | POLLIN;
                     Log(("RTLocalIpcSessionWaitForData: Calling poll...\n"));
-                    int cFds = poll(&PollFd, 1, cMillies == RT_INDEFINITE_WAIT ? -1 : cMillies);
+                    int cFds = poll(&PollFd, 1, cMillies == RT_INDEFINITE_WAIT ? -1 : (int)cMillies);
                     if (cFds >= 1)
                     {
                         /* Linux & Darwin sets both POLLIN and POLLHUP when the pipe is
@@ -1132,9 +1135,7 @@ static int rtLocalIpcSessionQueryUcred(RTLOCALIPCSESSION hSession, PRTPROCESS pP
             rc = VINF_SUCCESS;
         }
         else
-        {
             rc = RTErrConvertFromErrno(errno);
-        }
 
         int rc2 = RTCritSectLeave(&pThis->CritSect);
         AssertStmt(RT_SUCCESS(rc2), rc = RT_SUCCESS(rc) ? rc2 : rc);

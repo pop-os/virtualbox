@@ -101,7 +101,11 @@ int DnDDroppedFilesReopen(PDNDDROPPEDFILES pDF);
 int DnDDroppedFilesReset(PDNDDROPPEDFILES pDF, bool fDelete);
 int DnDDroppedFilesRollback(PDNDDROPPEDFILES pDF);
 
+const char *DnDHostMsgToStr(uint32_t uMsg);
+const char *DnDGuestMsgToStr(uint32_t uMsg);
 const char *DnDActionToStr(VBOXDNDACTION uAction);
+      char *DnDActionListToStrA(VBOXDNDACTIONLIST fActionList);
+const char *DnDStateToStr(VBOXDNDSTATE enmState);
 
 bool DnDMIMEHasFileURLs(const char *pcszFormat, size_t cchFormatMax);
 bool DnDMIMENeedsDropDir(const char *pcszFormat, size_t cchFormatMax);
@@ -206,7 +210,7 @@ typedef DNDTRANSFEROBJECT *PDNDTRANSFEROBJECT;
 int DnDTransferObjectInit(PDNDTRANSFEROBJECT pObj);
 int DnDTransferObjectInitEx(PDNDTRANSFEROBJECT pObj, DNDTRANSFEROBJTYPE enmType, const char *pcszPathSrcAbs, const char *pcszPathDst);
 void DnDTransferObjectDestroy(PDNDTRANSFEROBJECT pObj);
-void DnDTransferObjectClose(PDNDTRANSFEROBJECT pObj);
+int DnDTransferObjectClose(PDNDTRANSFEROBJECT pObj);
 void DnDTransferObjectReset(PDNDTRANSFEROBJECT pObj);
 const char *DnDTransferObjectGetSourcePath(PDNDTRANSFEROBJECT pObj);
 const char *DnDTransferObjectGetDestPath(PDNDTRANSFEROBJECT pObj);

@@ -285,7 +285,7 @@ bool UISession::powerUp()
     }
     else
     {
-#ifdef VBOX_IS_QT6_OR_LATER
+#ifdef VBOX_IS_QT6_OR_LATER /** @todo why is this any problem on qt6? */
         msgCenter().showModalProgressDialog(progress, machineName(), ":/progress_start_90px.png", 0, 0);
 #else
         msgCenter().showModalProgressDialog(progress, machineName(), ":/progress_start_90px.png");
@@ -435,7 +435,7 @@ bool UISession::setPause(bool fOn)
 
 void UISession::sltInstallGuestAdditionsFrom(const QString &strSource)
 {
-    if (!GuestAdditionsUpgradable())
+    if (!guestAdditionsUpgradable())
         return sltMountDVDAdHoc(strSource);
 
     /* Update guest additions automatically: */
@@ -739,7 +739,7 @@ void UISession::sltCheckIfHostDisplayChanged()
     LogRelFlow(("GUI: UISession::sltCheckIfHostDisplayChanged()\n"));
 
     /* Check if display count changed: */
-    if (gpDesktop->screenCount() != m_hostScreens.size())
+    if (UIDesktopWidgetWatchdog::screenCount() != m_hostScreens.size())
     {
         /* Reset watchdog: */
         m_pWatchdogDisplayChange->setProperty("tryNumber", 0);
@@ -749,7 +749,7 @@ void UISession::sltCheckIfHostDisplayChanged()
     else
     {
         /* Check if at least one display geometry changed: */
-        for (int iScreenIndex = 0; iScreenIndex < gpDesktop->screenCount(); ++iScreenIndex)
+        for (int iScreenIndex = 0; iScreenIndex < UIDesktopWidgetWatchdog::screenCount(); ++iScreenIndex)
         {
             if (gpDesktop->screenGeometry(iScreenIndex) != m_hostScreens.at(iScreenIndex))
             {
@@ -868,7 +868,7 @@ void UISession::sltAdditionsChange()
         actionPool()->toRuntime()->setGuestSupportsGraphics(m_fIsGuestSupportsGraphics);
 
         if (actionPool()->action(UIActionIndexRT_M_Devices_S_UpgradeGuestAdditions))
-            actionPool()->action(UIActionIndexRT_M_Devices_S_UpgradeGuestAdditions)->setEnabled(GuestAdditionsUpgradable());
+            actionPool()->action(UIActionIndexRT_M_Devices_S_UpgradeGuestAdditions)->setEnabled(guestAdditionsUpgradable());
 
         /* Notify listeners about GA state really changed: */
         LogRel(("GUI: UISession::sltAdditionsChange: GA state really changed, notifying listeners\n"));
@@ -2079,7 +2079,7 @@ void UISession::updateHostScreenData()
 {
     /* Rebuild host-screen data vector: */
     m_hostScreens.clear();
-    for (int iScreenIndex = 0; iScreenIndex < gpDesktop->screenCount(); ++iScreenIndex)
+    for (int iScreenIndex = 0; iScreenIndex < UIDesktopWidgetWatchdog::screenCount(); ++iScreenIndex)
         m_hostScreens << gpDesktop->screenGeometry(iScreenIndex);
 
     /* Make sure action-pool knows host-screen count: */
@@ -2186,7 +2186,7 @@ void UISession::updateActionRestrictions()
     actionPool()->toRuntime()->setRestrictionForMenuDevices(UIActionRestrictionLevel_Session, restrictionForDevices);
 }
 
-bool UISession::GuestAdditionsUpgradable()
+bool UISession::guestAdditionsUpgradable()
 {
     if (!machine().isOk())
         return false;
@@ -2197,7 +2197,7 @@ bool UISession::GuestAdditionsUpgradable()
         return false;
 
     const QString strGuestFamily = osType.GetFamilyId();
-    bool fIsWindowOrLinux = strGuestFamily.contains("window", Qt::CaseInsensitive) || strGuestFamily.contains("linux", Qt::CaseInsensitive);
+    bool fIsWindowOrLinux = strGuestFamily.contains("windows", Qt::CaseInsensitive) || strGuestFamily.contains("linux", Qt::CaseInsensitive);
 
     if (!fIsWindowOrLinux)
         return false;

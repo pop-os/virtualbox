@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-guestcontrol" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2022-10-31 15:38:22 +0100 (Mon, 31 Oct 2022) $</pubdate>
+    <pubdate>$Date: 2023-01-05 14:44:46 +0100 (Thu, 05 Jan 2023) $</pubdate>
     <title>VBoxManage guestcontrol</title>
   </refentryinfo>
 
@@ -237,6 +237,7 @@
         <arg choice="plain"><replaceable>имя-ВМ</replaceable></arg>
       </group>
       <arg choice="plain">mktemp</arg>
+      <arg>--directory</arg>
       <arg>--domain=<replaceable>имя-домена</replaceable></arg>
       <arg>--mode=<replaceable>режим</replaceable></arg>
       <group>

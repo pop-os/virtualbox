@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard Python imports.
@@ -205,7 +205,7 @@ class tdGuestOsInstOs2(vbox.TestDriver):
         oSession.setupVrdp(True)
 
         # Set extra data
-        if self.asExtraData != []:
+        if self.asExtraData:
             for sExtraData in self.asExtraData:
                 try:
                     sKey, sValue = sExtraData.split(':')

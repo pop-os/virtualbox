@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard python imports.
@@ -144,7 +144,7 @@ class WuiDispatcherBase(object):
         # Debugger bits.
         self._fDbgSqlTrace      = False;
         self._fDbgSqlExplain    = False;
-        self._dDbgParams        = dict();
+        self._dDbgParams        = {};
         for sKey, sValue in oSrvGlue.getParameters().items():
             if sKey in self.kasDbgParams:
                 self._dDbgParams[sKey] = sValue;
@@ -321,7 +321,7 @@ class WuiDispatcherBase(object):
         #
         # Load the template.
         #
-        with open(os.path.join(self._oSrvGlue.pathTmWebUI(), self._sTemplate)) as oFile:
+        with open(os.path.join(self._oSrvGlue.pathTmWebUI(), self._sTemplate)) as oFile: # pylint: disable=unspecified-encoding
             sTmpl = oFile.read();
 
         #
@@ -591,7 +591,7 @@ class WuiDispatcherBase(object):
 
             aoListOfTestCases.append(oListEntryTestCase)
 
-        if aoListOfTestCases == []:
+        if not aoListOfTestCases:
             if asDefaults is None:
                 raise WuiException('%s is missing parameters: "%s"' % (self._sAction, sName))
             aoListOfTestCases = asDefaults

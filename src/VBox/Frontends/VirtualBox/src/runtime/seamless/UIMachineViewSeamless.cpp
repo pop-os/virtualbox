@@ -84,11 +84,11 @@ bool UIMachineViewSeamless::eventFilter(QObject *pWatched, QEvent *pEvent)
             {
                 /* Send guest-resize hint only if top window resizing to required dimension: */
                 QResizeEvent *pResizeEvent = static_cast<QResizeEvent*>(pEvent);
-                if (pResizeEvent->size() != workingArea().size())
+                if (pResizeEvent->size() != calculateMaxGuestSize())
                     break;
 
-                /* Recalculate max guest size: */
-                setMaxGuestSize();
+                /* Recalculate maximum guest size: */
+                setMaximumGuestSize();
 
                 break;
             }
@@ -146,64 +146,36 @@ void UIMachineViewSeamless::cleanupSeamless()
 
 void UIMachineViewSeamless::adjustGuestScreenSize()
 {
-    /* Should we adjust guest-screen size? Logging paranoia is required here to reveal the truth. */
-    LogRel(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Adjust guest-screen size if necessary.\n"));
-    bool fAdjust = false;
-
-    /* Step 1: Was the guest-screen enabled automatically? */
-    if (!fAdjust)
+    /* Step 1: Is guest-screen visible? */
+    if (!uisession()->isScreenVisible(screenId()))
     {
-        if (frameBuffer()->isAutoEnabled())
-        {
-            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-screen was enabled automatically, adjustment is required.\n"));
-            fAdjust = true;
-        }
+        LogRel(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: "
+                "Guest-screen #%d is not visible, adjustment is not required.\n",
+                screenId()));
+        return;
     }
+
+    /* What are the desired and requested hints? */
+    const QSize sizeToApply = calculateMaxGuestSize();
+    const QSize desiredSizeHint = scaledBackward(sizeToApply);
+    const QSize requestedSizeHint = requestedGuestScreenSizeHint();
+
     /* Step 2: Is the guest-screen of another size than necessary? */
-    if (!fAdjust)
+    if (desiredSizeHint == requestedSizeHint)
     {
-        /* Acquire frame-buffer size: */
-        QSize frameBufferSize(frameBuffer()->width(), frameBuffer()->height());
-        /* Take the scale-factor(s) into account: */
-        frameBufferSize = scaledForward(frameBufferSize);
-
-        /* Acquire working-area size: */
-        const QSize workingAreaSize = workingArea().size();
-
-        if (frameBufferSize != workingAreaSize)
-        {
-            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-screen is of another size than necessary, adjustment is required.\n"));
-            fAdjust = true;
-        }
+        LogRel(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: "
+                "Desired hint %dx%d for guest-screen #%d is already in IDisplay, adjustment is not required.\n",
+                desiredSizeHint.width(), desiredSizeHint.height(), screenId()));
+        return;
     }
 
-    /* Step 3: Is guest-additions supports graphics? */
-    if (fAdjust)
-    {
-        if (!uisession()->isGuestSupportsGraphics())
-        {
-            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-additions are not supporting graphics, adjustment is omitted.\n"));
-            fAdjust = false;
-        }
-    }
-    /* Step 4: Is guest-screen visible? */
-    if (fAdjust)
-    {
-        if (!uisession()->isScreenVisible(screenId()))
-        {
-            LogRel2(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: Guest-screen is not visible, adjustment is omitted.\n"));
-            fAdjust = false;
-        }
-    }
-
-    /* Final step: Adjust if requested/allowed. */
-    if (fAdjust)
-    {
-        frameBuffer()->setAutoEnabled(false);
-        sltPerformGuestResize(workingArea().size());
-        /* And remember the size to know what we are resizing out of when we exit: */
-        uisession()->setLastFullScreenSize(screenId(), scaledForward(scaledBackward(workingArea().size())));
-    }
+    /* Final step: Adjust .. */
+    LogRel(("GUI: UIMachineViewSeamless::adjustGuestScreenSize: "
+            "Desired hint %dx%d for guest-screen #%d differs from the one in IDisplay, adjustment is required.\n",
+            desiredSizeHint.width(), desiredSizeHint.height(), screenId()));
+    sltPerformGuestResize(sizeToApply);
+    /* And remember the size to know what we are resizing out of when we exit: */
+    uisession()->setLastFullScreenSize(screenId(), scaledForward(desiredSizeHint));
 }
 
 QRect UIMachineViewSeamless::workingArea() const

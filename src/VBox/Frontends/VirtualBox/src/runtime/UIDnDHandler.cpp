@@ -82,10 +82,10 @@
 UIDnDHandler::UIDnDHandler(UISession *pSession, QWidget *pParent)
     : m_pSession(pSession)
     , m_pParent(pParent)
-    , m_enmOpMode(DNDMODE_UNKNOWN)
-    , m_fIsPending(false)
     , m_fDataRetrieved(false)
-#ifndef RT_OS_WINDOWS
+#ifdef RT_OS_WINDOWS
+    , m_dwIntegrityLevel(0)
+#else
     , m_pMIMEData(NULL)
 #endif
 {
@@ -106,12 +106,7 @@ Qt::DropAction UIDnDHandler::dragEnter(ulong screenID, int x, int y,
                                        Qt::DropAction proposedAction, Qt::DropActions possibleActions,
                                        const QMimeData *pMimeData)
 {
-    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
-                 m_enmOpMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
-
-    if (   m_enmOpMode != DNDMODE_UNKNOWN
-        && m_enmOpMode != DNDMODE_HOSTTOGUEST)
-        return Qt::IgnoreAction;
+    LogFlowFunc(("screenID=%RU32, x=%d, y=%d, action=%ld\n", screenID, x, y, toVBoxDnDAction(proposedAction)));
 
     /* Ask the guest for starting a DnD event. */
     KDnDAction result = m_dndTarget.Enter(screenID,
@@ -122,10 +117,10 @@ Qt::DropAction UIDnDHandler::dragEnter(ulong screenID, int x, int y,
                                           pMimeData->formats().toVector());
     if (m_dndTarget.isOk())
     {
-        setOpMode(DNDMODE_HOSTTOGUEST);
         return toQtDnDAction(result);
     }
 
+    msgCenter().cannotDropDataToGuest(m_dndTarget, m_pParent);
     return Qt::IgnoreAction;
 }
 
@@ -133,10 +128,9 @@ Qt::DropAction UIDnDHandler::dragMove(ulong screenID, int x, int y,
                                       Qt::DropAction proposedAction, Qt::DropActions possibleActions,
                                       const QMimeData *pMimeData)
 {
-    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
-                 m_enmOpMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
+    LogFlowFunc(("screenID=%RU32, x=%d, y=%d, action=%ld\n", screenID, x, y, toVBoxDnDAction(proposedAction)));
 
-    if (m_enmOpMode != DNDMODE_HOSTTOGUEST)
+    if (!m_dndTarget.isOk()) /* Don't try any further if we got an error before. */
         return Qt::IgnoreAction;
 
     /* Notify the guest that the mouse has been moved while doing
@@ -150,6 +144,7 @@ Qt::DropAction UIDnDHandler::dragMove(ulong screenID, int x, int y,
     if (m_dndTarget.isOk())
         return toQtDnDAction(result);
 
+    msgCenter().cannotDropDataToGuest(m_dndTarget, m_pParent);
     return Qt::IgnoreAction;
 }
 
@@ -157,10 +152,9 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
                                       Qt::DropAction proposedAction, Qt::DropActions possibleActions,
                                       const QMimeData *pMimeData)
 {
-    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32, x=%d, y=%d, action=%ld\n",
-                 m_enmOpMode, screenID, x, y, toVBoxDnDAction(proposedAction)));
+    LogFlowFunc(("screenID=%RU32, x=%d, y=%d, action=%ld\n", screenID, x, y, toVBoxDnDAction(proposedAction)));
 
-    if (m_enmOpMode != DNDMODE_HOSTTOGUEST)
+    if (!m_dndTarget.isOk()) /* Don't try any further if we got an error before. */
         return Qt::IgnoreAction;
 
     /* The format the guest requests. */
@@ -172,10 +166,11 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
                                             toVBoxDnDAction(proposedAction),
                                             toVBoxDnDActions(possibleActions),
                                             pMimeData->formats().toVector(), strFormat);
-
-    /* Has the guest accepted the drop event? */
-    if (   m_dndTarget.isOk()
-        && enmResult != KDnDAction_Ignore)
+    if (!m_dndTarget.isOk())
+    {
+        msgCenter().cannotDropDataToGuest(m_dndTarget, m_pParent);
+    }
+    else if (enmResult != KDnDAction_Ignore) /* Has the guest accepted the drop event? */
     {
         LogRel2(("DnD: Guest requested format '%s'\n", strFormat.toUtf8().constData()));
         LogRel2(("DnD: The host offered %d formats:\n", pMimeData->formats().size()));
@@ -263,25 +258,22 @@ Qt::DropAction UIDnDHandler::dragDrop(ulong screenID, int x, int y,
             enmResult = KDnDAction_Ignore;
     }
 
-    /*
-     * Since the mouse button has been release this in any case marks
-     * the end of the current transfer direction. So reset the current
-     * mode as well here.
-     */
-    setOpMode(DNDMODE_UNKNOWN);
-
     return toQtDnDAction(enmResult);
 }
 
 void UIDnDHandler::dragLeave(ulong screenID)
 {
-    LogFlowFunc(("enmOpMode=%RU32, screenID=%RU32\n", m_enmOpMode, screenID));
+    LogFlowFunc(("screenID=%RU32\n", screenID));
 
-    if (m_enmOpMode == DNDMODE_HOSTTOGUEST)
-    {
-        m_dndTarget.Leave(screenID);
-        setOpMode(DNDMODE_UNKNOWN);
-    }
+    if (!m_dndTarget.isOk()) /* Don't try any further if we got an error before. */
+        return;
+
+    m_dndTarget.Leave(screenID);
+    if (m_dndTarget.isOk())
+        return;
+
+    msgCenter().cannotDropDataToGuest(m_dndTarget, m_pParent);
+    return;
 }
 
 #ifdef DEBUG_DND_QT
@@ -321,6 +313,7 @@ int UIDnDHandler::dragStartInternal(const QStringList &lstFormats,
                                     Qt::DropAction defAction, Qt::DropActions actions)
 {
     RT_NOREF(defAction);
+
     int rc = VINF_SUCCESS;
 
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
@@ -443,36 +436,26 @@ int UIDnDHandler::dragStartInternal(const QStringList &lstFormats,
 #endif /* DEBUG_DND_QT */
 
 #else /* !VBOX_WITH_DRAG_AND_DROP_GH */
-
     rc = VERR_NOT_SUPPORTED;
-
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
+/**
+ * Checks whether a G->H drag'n drop operation is pending.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NO_DATA if no operation is pending or an error has occurred.
+ * @retval  VERR_NOT_SUPPORTED if G->H operations are not supported.
+ * @param   screenID            Screen ID to check pending status.
+ */
 int UIDnDHandler::dragCheckPending(ulong screenID)
 {
     int rc;
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
-
-    LogFlowFunc(("enmOpMode=%RU32, fIsPending=%RTbool, screenID=%RU32\n", m_enmOpMode, m_fIsPending, screenID));
-
-    {
-        QMutexLocker AutoReadLock(&m_ReadLock);
-
-        if (   m_enmOpMode != DNDMODE_UNKNOWN
-            && m_enmOpMode != DNDMODE_GUESTTOHOST) /* Wrong mode set? */
-            return VINF_SUCCESS;
-
-        if (m_fIsPending) /* Pending operation is in progress. */
-            return VINF_SUCCESS;
-    }
-
-    QMutexLocker AutoWriteLock(&m_WriteLock);
-    m_fIsPending = true;
-    AutoWriteLock.unlock();
+    LogFlowFunc(("screenID=%RU32\n", screenID));
 
     /**
      * How this works: Source is asking the target if there is any DnD
@@ -494,6 +477,11 @@ int UIDnDHandler::dragCheckPending(ulong screenID)
     /* Ask the guest if there is a drag and drop operation pending (on the guest). */
     QVector<QString> vecFormats;
     m_dataSource.defaultAction = m_dndSource.DragIsPending(screenID, vecFormats, m_dataSource.vecActions);
+    if (!m_dndSource.isOk())
+    {
+        msgCenter().cannotDropDataToHost(m_dndSource, m_pParent);
+        return VERR_NO_DATA;
+    }
 
     LogRelMax3(10, ("DnD: Default action is: 0x%x\n", m_dataSource.defaultAction));
     LogRelMax3(10, ("DnD: Number of supported guest actions: %d\n", m_dataSource.vecActions.size()));
@@ -524,16 +512,9 @@ int UIDnDHandler::dragCheckPending(ulong screenID)
     else /* No format data from the guest arrived yet. */
         rc = VERR_NO_DATA;
 
-    AutoWriteLock.relock();
-    m_fIsPending = false;
-    AutoWriteLock.unlock();
-
 #else /* !VBOX_WITH_DRAG_AND_DROP_GH */
-
-    NOREF(screenID);
-
+    RT_NOREF(screenID);
     rc = VERR_NOT_SUPPORTED;
-
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */
 
     LogFlowFuncLeaveRC(rc);
@@ -545,7 +526,7 @@ int UIDnDHandler::dragStart(ulong screenID)
     int rc;
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
 
-    NOREF(screenID);
+    RT_NOREF(screenID);
 
     LogFlowFuncEnter();
 
@@ -557,17 +538,12 @@ int UIDnDHandler::dragStart(ulong screenID)
         return VERR_INVALID_PARAMETER;
     }
 
-    setOpMode(DNDMODE_GUESTTOHOST);
-
     rc = dragStartInternal(m_dataSource.lstFormats,
                            toQtDnDAction(m_dataSource.defaultAction), toQtDnDActions(m_dataSource.vecActions));
 
 #else /* !VBOX_WITH_DRAG_AND_DROP_GH */
-
-    NOREF(screenID);
-
+    RT_NOREF(screenID);
     rc = VERR_NOT_SUPPORTED;
-
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */
 
     LogFlowFuncLeaveRC(rc);
@@ -576,24 +552,66 @@ int UIDnDHandler::dragStart(ulong screenID)
 
 int UIDnDHandler::dragStop(ulong screenID)
 {
+    RT_NOREF(screenID);
     int rc;
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
-
-    NOREF(screenID);
-
     reset();
     rc = VINF_SUCCESS;
-
 #else /* !VBOX_WITH_DRAG_AND_DROP_GH */
-
-    NOREF(screenID);
-
     rc = VERR_NOT_SUPPORTED;
-
 #endif /* VBOX_WITH_DRAG_AND_DROP_GH */
-
     LogFlowFuncLeaveRC(rc);
     return rc;
+}
+
+/**
+ * Initializes the drag'n drop UI handler.
+ *
+ * @returns VBox status code.
+ */
+int UIDnDHandler::init(void)
+{
+    int vrc;
+#ifdef RT_OS_WINDOWS
+
+# define CASE_INTEGRITY_LEVEL(a_Level) \
+    case a_Level: \
+        LogRel(("DnD: User Interface Privilege Isolation (UIPI) is running with %s\n", #a_Level)); \
+        break;
+
+    /*
+     * Assign and log the current process integrity interity level, so that we have a better chance of diagnosing issues
+     * when it comes to drag'n drop and UIPI (User Interface Privilege Isolation) -- a lower integrity level process
+     * cannot drag'n drop stuff to a higher integrity level one.
+     */
+    vrc = getProcessIntegrityLevel(&m_dwIntegrityLevel);
+    if (RT_SUCCESS(vrc))
+    {
+        switch (m_dwIntegrityLevel)
+        {
+            CASE_INTEGRITY_LEVEL(SECURITY_MANDATORY_UNTRUSTED_RID);
+            CASE_INTEGRITY_LEVEL(SECURITY_MANDATORY_LOW_RID);
+            CASE_INTEGRITY_LEVEL(SECURITY_MANDATORY_MEDIUM_RID);
+            CASE_INTEGRITY_LEVEL(SECURITY_MANDATORY_HIGH_RID);
+            CASE_INTEGRITY_LEVEL(SECURITY_MANDATORY_SYSTEM_RID);
+            CASE_INTEGRITY_LEVEL(SECURITY_MANDATORY_PROTECTED_PROCESS_RID);
+            default:
+                break;
+        }
+
+        if (m_dwIntegrityLevel > SECURITY_MANDATORY_MEDIUM_RID)
+            LogRel(("DnD: Warning: The VM process' integrity level is higher than most regular processes on the system. "
+                    "This means that drag'n drop most likely will not work with other applications!\n"));
+    }
+    else
+        LogRel(("DnD: Unable to retrieve process integrity level (%Rrc) -- please report this bug!\n", vrc));
+# undef CASE_INTEGRITY_LEVEL
+
+#else /* ! RT_OS_WINDOWS */
+    vrc = VINF_SUCCESS;
+#endif /* RT_OS_WINDOWS */
+
+    return vrc;
 }
 
 void UIDnDHandler::reset(void)
@@ -601,10 +619,70 @@ void UIDnDHandler::reset(void)
     LogFlowFuncEnter();
 
     m_fDataRetrieved = false;
-    m_fIsPending = false;
 
-    setOpMode(DNDMODE_UNKNOWN);
+#ifdef RT_OS_WINDOWS
+    m_dwIntegrityLevel = 0;
+#endif
 }
+
+#ifdef RT_OS_WINDOWS
+/**
+ * Returns the process' current integrity level.
+ *
+ * @returns VBox status code.
+ * @param   pdwIntegrityLevel   Where to return the detected process integrity level on success.
+ */
+/* static */
+int UIDnDHandler::getProcessIntegrityLevel(DWORD *pdwIntegrityLevel)
+{
+    AssertPtrReturn(pdwIntegrityLevel, VERR_INVALID_POINTER);
+
+    int vrc = VINF_SUCCESS;
+
+# define PRINT_AND_ASSIGN_LAST_ERROR(a_Msg) \
+    { \
+        dwLastErr = GetLastError(); \
+        vrc = RTErrConvertFromWin32(dwLastErr); \
+        LogRel(("DnD: %s: %Rrc (%#x)\n", a_Msg, vrc, dwLastErr)); \
+    }
+
+    DWORD dwLastErr = 0;
+
+    DWORD  cb;
+    HANDLE hToken;
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &hToken))
+    {
+        PRINT_AND_ASSIGN_LAST_ERROR("OpenProcessToken failed");
+        return vrc;
+    }
+
+    if (   !GetTokenInformation(hToken, TokenIntegrityLevel, NULL, 0, &cb)
+        && GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+    {
+        PSID_AND_ATTRIBUTES pSidAndAttr = (PSID_AND_ATTRIBUTES)RTMemAlloc(cb);
+        if (GetTokenInformation(hToken, TokenIntegrityLevel, pSidAndAttr, cb, &cb))
+        {
+            *pdwIntegrityLevel = *GetSidSubAuthority(pSidAndAttr->Sid, *GetSidSubAuthorityCount(pSidAndAttr->Sid) - 1U);
+        }
+        else
+            PRINT_AND_ASSIGN_LAST_ERROR("GetTokenInformation(2) failed");
+        RTMemFree(pSidAndAttr);
+    }
+    else if (   GetLastError() == ERROR_INVALID_PARAMETER
+             || GetLastError() == ERROR_NOT_SUPPORTED)
+    {
+        /* Should never show, as we at least require Windows 7 nowadays on Windows hosts. */
+        PRINT_AND_ASSIGN_LAST_ERROR("Querying process integrity level not supported");
+    }
+    else
+        PRINT_AND_ASSIGN_LAST_ERROR("GetTokenInformation(1) failed");
+
+# undef PRINT_AND_ASSIGN_LAST_ERROR
+
+    CloseHandle(hToken);
+    return vrc;
+}
+#endif /* RT_OS_WINDOWS */
 
 int UIDnDHandler::retrieveData(Qt::DropAction          dropAction,
                                const QString          &strMIMEType,
@@ -718,27 +796,8 @@ int UIDnDHandler::retrieveDataInternal(      Qt::DropAction    dropAction,
         rc = VERR_GENERAL_FAILURE; /** @todo Fudge; do a GetResultCode() to rc translation. */
     }
 
-    setOpMode(DNDMODE_UNKNOWN);
-
     LogFlowFuncLeaveRC(rc);
     return rc;
-}
-
-/**
- * Sets the current DnD operation mode.
- *
- * Note: Only one mode (guest->host *or* host->guest) can be active at the same time.
- *
- * @param   enmMode             Current operation mode to set.
- */
-void UIDnDHandler::setOpMode(DNDOPMODE enmMode)
-{
-    QMutexLocker AutoWriteLock(&m_WriteLock);
-
-    /** @todo r=andy Check for old (current) mode and refuse new mode? */
-
-    m_enmOpMode = enmMode;
-    LogFunc(("Operation mode is now: %RU32\n", m_enmOpMode));
 }
 
 int UIDnDHandler::sltGetData(      Qt::DropAction  dropAction,

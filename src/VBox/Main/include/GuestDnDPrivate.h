@@ -820,8 +820,17 @@ public:
 
 public:
 
-    int notifyAboutGuestResponse(void) const;
-    int waitForGuestResponse(RTMSINTERVAL msTimeout = 500) const;
+    VBOXDNDSTATE get(void) const { return m_enmState; }
+    int set(VBOXDNDSTATE enmState) { LogRel3(("DnD: State %s -> %s\n", DnDStateToStr(m_enmState), DnDStateToStr(enmState))); m_enmState = enmState; return 0; }
+    void lock() { RTCritSectEnter(&m_CritSect); };
+    void unlock() { RTCritSectLeave(&m_CritSect); };
+
+    /** @name Guest response handling.
+     * @{ */
+    int notifyAboutGuestResponse(int rcGuest = VINF_SUCCESS);
+    int waitForGuestResponseEx(RTMSINTERVAL msTimeout = 3000, int *prcGuest = NULL);
+    int waitForGuestResponse(int *prcGuest = NULL);
+    /** @} */
 
     void setActionsAllowed(VBOXDNDACTIONLIST a) { m_dndLstActionsAllowed = a; }
     VBOXDNDACTIONLIST getActionsAllowed(void) const { return m_dndLstActionsAllowed; }
@@ -834,11 +843,20 @@ public:
 
     void reset(void);
 
-    bool isProgressCanceled(void) const;
+    /** @name Callback handling.
+     * @{ */
+    static DECLCALLBACK(int) i_defaultCallback(uint32_t uMsg, void *pvParms, size_t cbParms, void *pvUser);
     int setCallback(uint32_t uMsg, PFNGUESTDNDCALLBACK pfnCallback, void *pvUser = NULL);
+    /** @} */
+
+    /** @name Progress handling.
+     * @{ */
+    bool isProgressCanceled(void) const;
+    bool isProgressRunning(void) const;
     int setProgress(unsigned uPercentage, uint32_t uState, int rcOp = VINF_SUCCESS, const Utf8Str &strMsg = "");
-    HRESULT resetProgress(const ComObjPtr<Guest>& pParent);
+    HRESULT resetProgress(const ComObjPtr<Guest>& pParent, const Utf8Str &strDesc);
     HRESULT queryProgressTo(IProgress **ppProgress);
+    /** @} */
 
 public:
 
@@ -851,6 +869,9 @@ public:
 
     /** Pointer to context this class is tied to. */
     void                 *m_pvCtx;
+    RTCRITSECT            m_CritSect;
+    /** The current state we're in. */
+    VBOXDNDSTATE          m_enmState;
     /** The DnD protocol version to use, depending on the
      *  installed Guest Additions. See DragAndDropSvc.h for
      *  a protocol changelog. */
@@ -859,6 +880,9 @@ public:
     uint64_t              m_fGuestFeatures0;
     /** Event for waiting for response. */
     RTSEMEVENT            m_EventSem;
+    /** Last error reported from guest.
+     *  Set to VERR_IPE_UNINITIALIZED_STATUS if not set yet. */
+    int                   m_rcGuest;
     /** Default action to perform in case of a
      *  successful drop. */
     VBOXDNDACTION         m_dndActionDefault;
@@ -962,7 +986,7 @@ public:
      * @{ */
     static bool                     isFormatInFormatList(const com::Utf8Str &strFormat, const GuestDnDMIMEList &lstFormats);
     static GuestDnDMIMEList         toFormatList(const com::Utf8Str &strFormats, const com::Utf8Str &strSep = DND_FORMATS_SEPARATOR_STR);
-    static com::Utf8Str             toFormatString(const GuestDnDMIMEList &lstFormats);
+    static com::Utf8Str             toFormatString(const GuestDnDMIMEList &lstFormats, const com::Utf8Str &strSep = DND_FORMATS_SEPARATOR_STR);
     static GuestDnDMIMEList         toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const GuestDnDMIMEList &lstFormatsWanted);
     static GuestDnDMIMEList         toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const com::Utf8Str &strFormatsWanted);
     static DnDAction_T              toMainAction(VBOXDNDACTION dndAction);
@@ -1010,7 +1034,9 @@ class GuestDnDBase
 {
 protected:
 
-    GuestDnDBase(void);
+    GuestDnDBase(VirtualBoxBase *pBase);
+
+    virtual ~GuestDnDBase(void);
 
 protected:
 
@@ -1020,6 +1046,21 @@ protected:
     const GuestDnDMIMEList &i_getFormats(void) const;
     HRESULT i_addFormats(const GuestDnDMIMEList &aFormats);
     HRESULT i_removeFormats(const GuestDnDMIMEList &aFormats);
+    /** @}  */
+
+    /** @name Error handling.
+     * @{ */
+    HRESULT i_setErrorV(int vrc, const char *pcszMsgFmt, va_list va);
+    HRESULT i_setError(int vrc, const char *pcszMsgFmt, ...);
+    HRESULT i_setErrorAndReset(const char *pcszMsgFmt, ...);
+    HRESULT i_setErrorAndReset(int vrc, const char *pcszMsgFmt, ...);
+    /** @}  */
+
+protected:
+
+    /** @name Pure virtual functions needed to be implemented by the actual (derived) implementation.
+     * @{ */
+    virtual void i_reset(void) = 0;
     /** @}  */
 
 protected:
@@ -1038,6 +1079,8 @@ protected:
 
 protected:
 
+    /** Pointer to base class to use for stuff like error handlng. */
+    VirtualBoxBase                 *m_pBase;
     /** @name Public attributes (through getters/setters).
      * @{ */
     /** Pointer to guest implementation. */

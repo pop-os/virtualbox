@@ -274,7 +274,6 @@ RTDECL(void) RTMemFree(void *pv) RT_NO_THROW_DEF
     if (pHdr->u32Magic == RTMEMHDR_MAGIC)
     {
         Assert(!(pHdr->fFlags & RTMEMHDR_FLAG_ALLOC_EX));
-        Assert(!(pHdr->fFlags & RTMEMHDR_FLAG_EXEC));
 #ifdef RTR0MEM_STRICT
         AssertReleaseMsg(!memcmp((uint8_t *)(pHdr + 1) + pHdr->cbReq, &g_abFence[0], RTR0MEM_FENCE_EXTRA),
                          ("pHdr=%p pv=%p cbReq=%u cb=%u fFlags=%#x\n"
@@ -303,7 +302,6 @@ RTDECL(void) RTMemFreeZ(void *pv, size_t cb) RT_NO_THROW_DEF
     if (pHdr->u32Magic == RTMEMHDR_MAGIC)
     {
         Assert(!(pHdr->fFlags & RTMEMHDR_FLAG_ALLOC_EX));
-        Assert(!(pHdr->fFlags & RTMEMHDR_FLAG_EXEC));
 #ifdef RTR0MEM_STRICT
         AssertReleaseMsg(!memcmp((uint8_t *)(pHdr + 1) + pHdr->cbReq, &g_abFence[0], RTR0MEM_FENCE_EXTRA),
                          ("pHdr=%p pv=%p cbReq=%u cb=%u fFlags=%#x\n"
@@ -323,66 +321,6 @@ RTDECL(void) RTMemFreeZ(void *pv, size_t cb) RT_NO_THROW_DEF
 RT_EXPORT_SYMBOL(RTMemFreeZ);
 
 
-
-
-
-
-RTDECL(void *)    RTMemExecAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
-{
-    PRTMEMHDR pHdr;
-#ifdef RT_OS_SOLARIS /** @todo figure out why */
-    RT_ASSERT_INTS_ON();
-#else
-    RT_ASSERT_PREEMPTIBLE();
-#endif
-    RT_NOREF_PV(pszTag);
-
-
-    pHdr = rtR0MemAlloc(cb + RTR0MEM_FENCE_EXTRA, RTMEMHDR_FLAG_EXEC);
-    if (pHdr)
-    {
-#ifdef RTR0MEM_STRICT
-        pHdr->cbReq = (uint32_t)cb; Assert(pHdr->cbReq == cb);
-        memcpy((uint8_t *)(pHdr + 1) + cb, &g_abFence[0], RTR0MEM_FENCE_EXTRA);
-#endif
-        return pHdr + 1;
-    }
-    return NULL;
-}
-RT_EXPORT_SYMBOL(RTMemExecAllocTag);
-
-
-RTDECL(void)      RTMemExecFree(void *pv, size_t cb) RT_NO_THROW_DEF
-{
-    PRTMEMHDR pHdr;
-    RT_ASSERT_INTS_ON();
-    RT_NOREF_PV(cb);
-
-    if (!pv)
-        return;
-    pHdr = (PRTMEMHDR)pv - 1;
-    if (pHdr->u32Magic == RTMEMHDR_MAGIC)
-    {
-        Assert(!(pHdr->fFlags & RTMEMHDR_FLAG_ALLOC_EX));
-#ifdef RTR0MEM_STRICT
-        AssertReleaseMsg(!memcmp((uint8_t *)(pHdr + 1) + pHdr->cbReq, &g_abFence[0], RTR0MEM_FENCE_EXTRA),
-                         ("pHdr=%p pv=%p cbReq=%u cb=%u fFlags=%#x\n"
-                          "fence:    %.*Rhxs\n"
-                          "expected: %.*Rhxs\n",
-                          pHdr, pv, pHdr->cbReq, pHdr->cb, pHdr->fFlags,
-                          RTR0MEM_FENCE_EXTRA, (uint8_t *)(pHdr + 1) + pHdr->cbReq,
-                          RTR0MEM_FENCE_EXTRA, &g_abFence[0]));
-#endif
-        rtR0MemFree(pHdr);
-    }
-    else
-        AssertMsgFailed(("pHdr->u32Magic=%RX32 pv=%p\n", pHdr->u32Magic, pv));
-}
-RT_EXPORT_SYMBOL(RTMemExecFree);
-
-
-
-
 RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, const char *pszTag, void **ppv) RT_NO_THROW_DEF
 {
     uint32_t    fHdrFlags = RTMEMHDR_FLAG_ALLOC_EX;
@@ -393,6 +331,7 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
     RT_ASSERT_PREEMPT_CPUID_VAR();
     if (!(fFlags & RTMEMALLOCEX_FLAGS_ANY_CTX_ALLOC))
         RT_ASSERT_INTS_ON();
+    AssertReturn(!(fFlags & RTMEMALLOCEX_FLAGS_EXEC), VERR_INVALID_FLAGS);
 
     /*
      * Fake up some alignment support.
@@ -407,8 +346,6 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
     AssertMsgReturn(!(fFlags & ~RTMEMALLOCEX_FLAGS_VALID_MASK_R0), ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
     if (fFlags & RTMEMALLOCEX_FLAGS_ZEROED)
         fHdrFlags |= RTMEMHDR_FLAG_ZEROED;
-    if (fFlags & RTMEMALLOCEX_FLAGS_EXEC)
-        fHdrFlags |= RTMEMHDR_FLAG_EXEC;
     if (fFlags & RTMEMALLOCEX_FLAGS_ANY_CTX_ALLOC)
         fHdrFlags |= RTMEMHDR_FLAG_ANY_CTX_ALLOC;
     if (fFlags & RTMEMALLOCEX_FLAGS_ANY_CTX_FREE)
@@ -439,8 +376,6 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
         memcpy((uint8_t *)pv + cb, &g_abFence[0], RTR0MEM_FENCE_EXTRA);
 #endif
     }
-    else if (rc == VERR_NO_MEMORY && (fFlags & RTMEMALLOCEX_FLAGS_EXEC))
-        rc = VERR_NO_EXEC_MEMORY;
 
     RT_ASSERT_PREEMPT_CPUID();
     return rc;

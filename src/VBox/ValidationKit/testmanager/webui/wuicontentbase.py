@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard python imports.
@@ -189,7 +189,7 @@ class WuiAdminLink(WuiTmLink): # pylint: disable=too-few-public-methods
                  sFragmentId = None, fBracketed = True):
         from testmanager.webui.wuiadmin import WuiAdmin;
         if not dParams:
-            dParams = dict();
+            dParams = {};
         else:
             dParams = dict(dParams);
         if sAction is not None:
@@ -204,7 +204,7 @@ class WuiMainLink(WuiTmLink): # pylint: disable=too-few-public-methods
 
     def __init__(self, sName, sAction, dParams = None, sConfirm = None, sTitle = None, sFragmentId = None, fBracketed = True):
         if not dParams:
-            dParams = dict();
+            dParams = {};
         else:
             dParams = dict(dParams);
         from testmanager.webui.wuimain import WuiMain;
@@ -756,7 +756,7 @@ class WuiFormContentBase(WuiSingleContentBase): # pylint: disable=too-few-public
         """
         oForm = WuiHlpForm(self._sId,
                            '?' + webutils.encodeUrlParams({WuiDispatcherBase.ksParamAction: self._sSubmitAction}),
-                           dErrors if dErrors is not None else dict(),
+                           dErrors if dErrors is not None else {},
                            fReadOnly = self._sMode == self.ksMode_Show);
 
         self._oData.convertToParamNull();

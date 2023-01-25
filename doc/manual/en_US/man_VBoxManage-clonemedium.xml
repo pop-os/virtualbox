@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-clonemedium" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2022-10-06 17:22:35 +0200 (Thu, 06 Oct 2022) $</pubdate>
+    <pubdate>$Date: 2022-12-23 22:36:09 +0100 (Fri, 23 Dec 2022) $</pubdate>
     <title>VBoxManage clonemedium</title>
   </refentryinfo>
 

@@ -493,9 +493,9 @@ DECLR0VBGL(void)    VbglR0PhysHeapTerminate(void);
  * Allocate a memory block.
  *
  * @returns Virtual address of the allocated memory block.
- * @param cbSize    Size of block to be allocated.
+ * @param   cb      Number of bytes to allocate.
  */
-DECLR0VBGL(void *)  VbglR0PhysHeapAlloc(uint32_t cbSize);
+DECLR0VBGL(void *)  VbglR0PhysHeapAlloc(uint32_t cb);
 
 /**
  * Get physical address of memory block pointed by the virtual address.
@@ -507,9 +507,14 @@ DECLR0VBGL(void *)  VbglR0PhysHeapAlloc(uint32_t cbSize);
  *       if the given pointer is a valid one allocated from the heap.
  *
  * @param   pv      Virtual address of memory block.
- * @returns Physical address of the memory block.
+ * @returns Physical address of the memory block.  Zero is returned if @a pv
+ *          isn't valid.
  */
 DECLR0VBGL(uint32_t) VbglR0PhysHeapGetPhysAddr(void *pv);
+
+# ifdef IN_TESTCASE
+DECLVBGL(size_t)     VbglR0PhysHeapGetFreeSize(void);
+# endif
 
 /**
  * Free a memory block.
@@ -1246,21 +1251,21 @@ typedef const PVBGLR3GUESTDNDMETADATA CPVBGLR3GUESTDNDMETADATA;
  */
 typedef enum VBGLR3DNDEVENTTYPE
 {
-    VBGLR3DNDEVENTTYPE_INVALID        = 0,
-    VBGLR3DNDEVENTTYPE_HG_ERROR       = 1,
-    VBGLR3DNDEVENTTYPE_HG_ENTER       = 2,
-    VBGLR3DNDEVENTTYPE_HG_MOVE        = 3,
-    VBGLR3DNDEVENTTYPE_HG_LEAVE       = 4,
-    VBGLR3DNDEVENTTYPE_HG_DROP        = 5,
-    VBGLR3DNDEVENTTYPE_HG_RECEIVE     = 6,
-    VBGLR3DNDEVENTTYPE_HG_CANCEL      = 7,
+    VBGLR3DNDEVENTTYPE_INVALID = 0,
+    VBGLR3DNDEVENTTYPE_CANCEL,
+    VBGLR3DNDEVENTTYPE_HG_ERROR,
+    VBGLR3DNDEVENTTYPE_HG_ENTER,
+    VBGLR3DNDEVENTTYPE_HG_MOVE,
+    VBGLR3DNDEVENTTYPE_HG_LEAVE,
+    VBGLR3DNDEVENTTYPE_HG_DROP,
+    VBGLR3DNDEVENTTYPE_HG_RECEIVE,
 # ifdef VBOX_WITH_DRAG_AND_DROP_GH
-    VBGLR3DNDEVENTTYPE_GH_ERROR       = 100,
-    VBGLR3DNDEVENTTYPE_GH_REQ_PENDING = 101,
-    VBGLR3DNDEVENTTYPE_GH_DROP        = 102,
+    VBGLR3DNDEVENTTYPE_GH_ERROR,
+    VBGLR3DNDEVENTTYPE_GH_REQ_PENDING,
+    VBGLR3DNDEVENTTYPE_GH_DROP,
 # endif
     /** Tells the caller that it has to quit operation. */
-    VBGLR3DNDEVENTTYPE_QUIT           = 200,
+    VBGLR3DNDEVENTTYPE_QUIT,
     /** Blow the type up to 32-bit. */
     VBGLR3DNDEVENTTYPE_32BIT_HACK = 0x7fffffff
 } VBGLR3DNDEVENTTYPE;
@@ -1335,6 +1340,7 @@ VBGLR3DECL(int)     VbglR3DnDConnect(PVBGLR3GUESTDNDCMDCTX pCtx);
 VBGLR3DECL(int)     VbglR3DnDDisconnect(PVBGLR3GUESTDNDCMDCTX pCtx);
 
 VBGLR3DECL(int)     VbglR3DnDReportFeatures(uint32_t idClient, uint64_t fGuestFeatures, uint64_t *pfHostFeatures);
+VBGLR3DECL(int)     VbglR3DnDSendError(PVBGLR3GUESTDNDCMDCTX pCtx, int rcOp);
 
 VBGLR3DECL(int)     VbglR3DnDEventGetNext(PVBGLR3GUESTDNDCMDCTX pCtx, PVBGLR3DNDEVENT *ppEvent);
 VBGLR3DECL(void)    VbglR3DnDEventFree(PVBGLR3DNDEVENT pEvent);
@@ -1345,7 +1351,6 @@ VBGLR3DECL(int)     VbglR3DnDHGSendProgress(PVBGLR3GUESTDNDCMDCTX pCtx, uint32_t
 #  ifdef VBOX_WITH_DRAG_AND_DROP_GH
 VBGLR3DECL(int)     VbglR3DnDGHSendAckPending(PVBGLR3GUESTDNDCMDCTX pCtx, VBOXDNDACTION dndActionDefault, VBOXDNDACTIONLIST dndLstActionsAllowed, const char* pcszFormats, uint32_t cbFormats);
 VBGLR3DECL(int)     VbglR3DnDGHSendData(PVBGLR3GUESTDNDCMDCTX pCtx, const char *pszFormat, void *pvData, uint32_t cbData);
-VBGLR3DECL(int)     VbglR3DnDGHSendError(PVBGLR3GUESTDNDCMDCTX pCtx, int rcOp);
 #  endif /* VBOX_WITH_DRAG_AND_DROP_GH */
 /** @} */
 # endif /* VBOX_WITH_DRAG_AND_DROP */

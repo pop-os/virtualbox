@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard python imports.
@@ -92,7 +92,7 @@ class TestBoxResponse(object):
                 self._dResponse[sField] = self._dResponse[sField][0]
         else:
             # Special case, dummy response object.
-            self._dResponse = dict();
+            self._dResponse = {};
         # Done.
 
     def getStringChecked(self, sField):
@@ -229,7 +229,7 @@ class TestBoxConnection(object):
         Raises exception on failure.
         """
         if dParams is None:
-            dParams = dict();
+            dParams = {};
         dParams[constants.tbreq.ALL_PARAM_TESTBOX_ID]   = self._sTestBoxId;
         dParams[constants.tbreq.ALL_PARAM_TESTBOX_UUID] = self._sTestBoxUuid;
         return self.postRequestRaw(sAction, dParams);

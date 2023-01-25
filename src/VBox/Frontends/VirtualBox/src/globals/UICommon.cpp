@@ -233,7 +233,7 @@ UICommon::~UICommon()
 void UICommon::prepare()
 {
     /* Make sure QApplication cleanup us on exit: */
-#ifndef VBOX_IS_QT6_OR_LATER
+#ifndef VBOX_IS_QT6_OR_LATER /** @todo qt6: ... */
     qApp->setFallbackSessionManagementEnabled(false);
 #endif
     connect(qApp, &QGuiApplication::aboutToQuit,
@@ -2493,7 +2493,7 @@ quint64 UICommon::requiredVideoMemory(const QString &strGuestOSTypeId, int cMoni
      * correct, but as we can't predict on which host screens the user will
      * open the guest windows, this is the best assumption we can do, cause it
      * is the worst case. */
-    const int cHostScreens = gpDesktop->screenCount();
+    const int cHostScreens = UIDesktopWidgetWatchdog::screenCount();
     QVector<int> screenSize(qMax(cMonitors, cHostScreens), 0);
     for (int i = 0; i < cHostScreens; ++i)
     {
@@ -2764,7 +2764,7 @@ void UICommon::sltHandleCommitDataRequest(QSessionManager &manager)
              * but for fat clients: */
             if (!isSeparateProcess())
             {
-# if defined(VBOX_WS_MAC) && defined(VBOX_IS_QT6_OR_LATER)
+# if defined(VBOX_WS_MAC) && defined(VBOX_IS_QT6_OR_LATER) /** @todo qt6: ... */
                 /* This code prevents QWindowSystemInterface::handleApplicationTermination
                    for running, so among other things QApplication::closeAllWindows isn't
                    called and we're somehow stuck in a half closed down state.  That said,

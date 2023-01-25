@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Validation Kit imports.
@@ -86,7 +86,7 @@ class SchdulerBeci(SchedulerBase): # pylint: disable=too-few-public-methods
         cMaxItems = len(oData.aoArgsVariations) * 64;
         cMaxItems = min(cMaxItems, 1048576);
 
-        aoItems   = list();
+        aoItems   = [];
         cNotAtEnd = len(oData.aoTestCases);
         while len(aoItems) < cMaxItems:
             self.msgDebug('outer loop: %s items' % (len(aoItems),));

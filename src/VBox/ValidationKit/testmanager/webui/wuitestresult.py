@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 # Python imports.
 import datetime;
@@ -76,7 +76,7 @@ class WuiTestResultsForSomethingLink(WuiTmLink):
 
     def __init__(self, sGroupedBy, idGroupMember, sName = WuiContentBase.ksShortTestResultsLink,
                  dExtraParams = None, fBracketed = False):
-        dParams = dict(dExtraParams) if dExtraParams else dict();
+        dParams = dict(dExtraParams) if dExtraParams else {};
         dParams[WuiMain.ksParamAction] = sGroupedBy;
         dParams[WuiMain.ksParamGroupMemberId] = idGroupMember;
         WuiTmLink.__init__(self, sName, WuiMain.ksScriptName, dParams, fBracketed = fBracketed);

@@ -123,7 +123,7 @@ protected:
     /** Handles mouse-move @a pEvent. */
     virtual void mouseMoveEvent(QMouseEvent *pEvent) RT_OVERRIDE;
     /** Handles mouse-enter @a pEvent. */
-#ifdef VBOX_IS_QT6_OR_LATER
+#ifdef VBOX_IS_QT6_OR_LATER /* QWidget::enterEvent uses QEnterEvent since qt6 */
     virtual void enterEvent(QEnterEvent *pEvent) RT_OVERRIDE;
 #else
     virtual void enterEvent(QEvent *pEvent) RT_OVERRIDE;
@@ -588,7 +588,7 @@ void UITabBarItem::mouseMoveEvent(QMouseEvent *pEvent)
     pDrag->exec();
 }
 
-#ifdef VBOX_IS_QT6_OR_LATER
+#ifdef VBOX_IS_QT6_OR_LATER /* QWidget::enterEvent uses QEnterEvent since qt6 */
 void UITabBarItem::enterEvent(QEnterEvent *pEvent)
 #else
 void UITabBarItem::enterEvent(QEvent *pEvent)
@@ -611,20 +611,7 @@ void UITabBarItem::leaveEvent(QEvent *pEvent)
 {
     /* Make sure button is hovered: */
     if (!m_fHovered)
-    {
-#ifdef VBOX_IS_QT6_OR_LATER /** @todo qt6: Code duplication of enterEvent; split out in separate method (complete wast of time to cook up a QEnterEvent here). */
-# ifdef VBOX_WS_MAC
-        m_pLayoutStacked->setCurrentWidget(m_pButtonClose);
-# endif
-        m_fHovered = true;
-        /* And call for repaint: */
-        update();
-        RT_NOREF(pEvent);
-        return;
-#else
-        return QWidget::enterEvent(pEvent);
-#endif
-    }
+        return QWidget::leaveEvent(pEvent);
 
     /* Invert hovered state: */
 #ifdef VBOX_WS_MAC

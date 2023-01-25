@@ -795,18 +795,3 @@ RTDECL(void) RTMemPageFree(void *pv, size_t cb) RT_NO_THROW_DEF
     return rtMemPagePosixFree(pv, cb, &g_MemPagePosixHeap);
 }
 
-
-
-
-
-RTDECL(void *) RTMemExecAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
-{
-    return rtMemPagePosixAlloc(cb, pszTag, 0, &g_MemExecPosixHeap);
-}
-
-
-RTDECL(void) RTMemExecFree(void *pv, size_t cb) RT_NO_THROW_DEF
-{
-    return rtMemPagePosixFree(pv, cb, &g_MemExecPosixHeap);
-}
-

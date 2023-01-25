@@ -354,7 +354,7 @@ void UISettingsDialog::polishEvent(QShowEvent*)
 #endif /* VBOX_WS_MAC */
 
     /* Explicit centering according to our parent: */
-    UIDesktopWidgetWatchdog::centerWidget(this, parentWidget(), false);
+    gpDesktop->centerWidget(this, parentWidget(), false);
 }
 
 void UISettingsDialog::closeEvent(QCloseEvent *pEvent)
@@ -837,11 +837,7 @@ void UISettingsDialog::prepareWidgets()
                 fnt.setFamily(QStringLiteral("Sans Serif"));
                 fnt.setPointSize(11);
                 fnt.setBold(true);
-#ifdef VBOX_IS_QT6_OR_LATER
                 fnt.setWeight(QFont::ExtraBold);
-#else
-                fnt.setWeight(75);
-#endif
                 m_pLabelTitle->setFont(fnt);
                 m_pLabelTitle->setAutoFillBackground(true);
                 m_pLabelTitle->setFrameShadow(QFrame::Sunken);

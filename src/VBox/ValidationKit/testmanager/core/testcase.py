@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard python imports.
@@ -264,7 +264,7 @@ class TestCaseDependencyData(ModelDataBase):
 
         The dictionary keys are ksParam_*.
         """
-        dErrors = dict()
+        dErrors = {}
 
         self.idTestCase         = self._validateInt(   dErrors, self.ksParam_idTestCase,        self.idTestCase);
         self.idTestCasePreReq   = self._validateInt(   dErrors, self.ksParam_idTestCasePreReq,  self.idTestCasePreReq);

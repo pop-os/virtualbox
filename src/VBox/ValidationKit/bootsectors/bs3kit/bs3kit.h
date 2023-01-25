@@ -525,6 +525,36 @@ RT_C_DECLS_BEGIN
 #define BS3_SEL_GDT_LIMIT           0x3fd8 /**< The GDT limit. */
 /** @} */
 
+/** @name BS3_SEL_IS_XXX - Predicates for standard selectors.
+ *
+ * Standard selectors are in the range BS3_SEL_R0_FIRST thru BS3_SEL_R3_LAST.
+ *
+ * @{ */
+#define BS3_SEL_IS_CS16(a_uSel)     (((a_uSel) & 0xf8) == 0x00)
+#define BS3_SEL_IS_CS32(a_uSel)     (((a_uSel) & 0xf8) == 0x18)
+#define BS3_SEL_IS_CS64(a_uSel)     (((a_uSel) & 0xf8) == 0x30)
+
+#define BS3_SEL_IS_ANY_CS16(a_uSel) (   ((a_uSel) & 0xf8) == 0x00 \
+                                     || ((a_uSel) & 0xf8) == 0x40 \
+                                     || ((a_uSel) & 0xf8) == 0x48 \
+                                     || ((a_uSel) & 0xf8) == 0x50 )
+#define BS3_SEL_IS_ANY_CS32(a_uSel) (   ((a_uSel) & 0xf8) == 0x18 \
+                                     || ((a_uSel) & 0xf8) == 0x58 \
+                                     || ((a_uSel) & 0xf8) == 0x60 \
+                                     || ((a_uSel) & 0xf8) == 0x68 )
+#define BS3_SEL_IS_ANY_CS64(a_uSel) (   ((a_uSel) & 0xf8) == 0x18 \
+                                     || ((a_uSel) & 0xf8) == 0x58 \
+                                     || ((a_uSel) & 0xf8) == 0x60 \
+                                     || ((a_uSel) & 0xf8) == 0x68 )
+
+#define BS3_SEL_IS_DS16(a_uSel)     (((a_uSel) & 0xf8) == 0x08)
+#define BS3_SEL_IS_DS32(a_uSel)     (((a_uSel) & 0xf8) == 0x20)
+#define BS3_SEL_IS_DS64(a_uSel)     (((a_uSel) & 0xf8) == 0x38)
+
+#define BS3_SEL_IS_SS16(a_uSel)     (((a_uSel) & 0xf8) == 0x10)
+#define BS3_SEL_IS_SS32(a_uSel)     (((a_uSel) & 0xf8) == 0x28)
+/** @} */
+
 
 /** @def BS3_FAR
  * For indicating far pointers in 16-bit code.
@@ -1994,6 +2024,34 @@ BS3_CMN_PROTO_STUB(void, Bs3SelSetup16BitCode,(X86DESC BS3_FAR *pDesc, uint32_t 
  */
 BS3_CMN_PROTO_STUB(void, Bs3SelSetup32BitCode,(X86DESC BS3_FAR *pDesc, uint32_t uBaseAddr, uint32_t uLimit, uint8_t bDpl));
 
+/**
+ * Sets up a 16-bit or 32-bit gate descriptor.
+ *
+ * This can be used both for GDT/LDT and IDT.
+ *
+ * @param   pDesc       Pointer to the descriptor table entry.
+ * @param   bType       The gate type.
+ * @param   bDpl        The gate DPL.
+ * @param   uSel        The gate selector value.
+ * @param   off         The gate IP/EIP value.
+ * @param   cParams     Number of parameters to copy if call-gate.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3SelSetupGate,(X86DESC BS3_FAR *pDesc, uint8_t bType, uint8_t bDpl,
+                                          uint16_t uSel, uint32_t off, uint8_t cParams));
+
+/**
+ * Sets up a 64-bit gate descriptor.
+ *
+ * This can be used both for GDT/LDT and IDT.
+ *
+ * @param   pDescPair   Pointer to the _two_ descriptor table entries.
+ * @param   bType       The gate type.
+ * @param   bDpl        The gate DPL.
+ * @param   uSel        The gate selector value.
+ * @param   off         The gate IP/EIP value.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3SelSetupGate64,(X86DESC BS3_FAR *pDescPair, uint8_t bType, uint8_t bDpl, uint16_t uSel, uint64_t off));
+
 
 /**
  * Slab control structure list head.
@@ -2162,7 +2220,7 @@ typedef enum BS3MEMKIND
  * @returns Pointer to a chunk on success, NULL if we're out of chunks.
  * @param   enmKind     The kind of addressing constraints imposed on the
  *                      allocation.
- * @param   cb          How much to allocate.  Must be 4KB or less.
+ * @param   cb          How much to allocate.
  */
 BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemAlloc,(BS3MEMKIND enmKind, size_t cb));
 
@@ -2171,7 +2229,7 @@ BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemAlloc,(BS3MEMKIND enmKind, size_t cb));
  *
  * @param   enmKind     The kind of addressing constraints imposed on the
  *                      allocation.
- * @param   cb          How much to allocate.  Must be 4KB or less.
+ * @param   cb          How much to allocate.
  */
 BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3MemAllocZ,(BS3MEMKIND enmKind, size_t cb));
 
@@ -2828,6 +2886,14 @@ BS3_CMN_PROTO_STUB(void, Bs3RegCtxSetRipCsFromCurPtr,(PBS3REGCTX pRegCtx, FPFNBS
  */
 BS3_CMN_PROTO_STUB(bool, Bs3RegCtxSetGpr,(PBS3REGCTX pRegCtx, uint8_t iGpr, uint64_t uValue, uint8_t cb));
 
+/**
+ * Gets the stack pointer as a current context pointer.
+ *
+ * @return  Pointer to the top of the stack. NULL on failure.
+ * @param   pRegCtx     The register context.
+ */
+BS3_CMN_PROTO_STUB(void BS3_FAR *, Bs3RegCtxGetRspSsAsCurPtr,(PBS3REGCTX pRegCtx));
+
 
 /**
  * The method to be used to save and restore the extended context.
@@ -3281,6 +3347,17 @@ BS3_CMN_PROTO_STUB(void, Bs3Trap32Init,(void));
  *          structures.
  */
 BS3_CMN_PROTO_STUB(void, Bs3Trap64Init,(void));
+
+/**
+ * Initializes 64-bit trap handling, extended version.
+ *
+ * @remarks Does not install 64-bit trap handling, just initializes the
+ *          structures.
+ * @param   fMoreIstUsage   Use the interrupt stacks for more CPU exceptions.
+ *                          Default (false) is to only IST1 for the double fault
+ *                          handler and the rest uses IST0.
+ */
+BS3_CMN_PROTO_STUB(void, Bs3Trap64InitEx,(bool fMoreIstUsage));
 
 /**
  * Modifies the real-mode / V86 IVT entry specified by @a iIvt.

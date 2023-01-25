@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 
 # Standard python imports.
@@ -392,7 +392,7 @@ class WuiTestBoxList(WuiListContentWithActionBase):
 
             sVer1 = sOsVersion;
             sVer2 = None;
-            if oEntry.sOs == 'linux' or oEntry.sOs == 'darwin':
+            if oEntry.sOs in ('linux', 'darwin'):
                 iSep = sOsVersion.find(' / ');
                 if iSep > 0:
                     sVer1 = sOsVersion[:iSep].strip();

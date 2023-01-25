@@ -32,12 +32,13 @@
 #define LOG_GROUP   LOG_GROUP_IEM_VMX
 #define VMCPU_INCL_CPUM_GST_CTX
 #include <VBox/vmm/iem.h>
-#include <VBox/vmm/cpum.h>
 #include <VBox/vmm/apic.h>
-#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/cpum.h>
+#include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/hm.h>
 #include <VBox/vmm/gim.h>
+#include <VBox/vmm/hm.h>
+#include <VBox/vmm/pgm.h>
 #ifdef VBOX_WITH_NESTED_HWVIRT_VMX
 # include <VBox/vmm/hmvmxinline.h>
 #endif
@@ -3226,7 +3227,7 @@ VBOXSTRICTRC iemVmxVmexitInstrMovDrX(PVMCPUCC pVCpu, VMXINSTRID uInstrId, uint8_
                                                                      ? VMX_EXIT_QUAL_DRX_DIRECTION_WRITE
                                                                      : VMX_EXIT_QUAL_DRX_DIRECTION_READ),
                                                         cbInstr);
-            return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
+        return iemVmxVmexitInstrWithInfo(pVCpu, &ExitInfo);
     }
 
     return VINF_VMX_INTERCEPT_NOT_ACTIVE;
@@ -9050,7 +9051,7 @@ VBOXSTRICTRC iemVmxInvvpid(PVMCPUCC pVCpu, uint8_t cbInstr, uint8_t iEffSeg, RTG
 
         IEM_CTX_ASSERT(pVCpu, CPUMCTX_EXTRN_CR3);
         RTGCUINTPTR64 const GCPtrInvAddr = uDesc.s.Hi;
-        uint8_t       const uVpid        = uDesc.s.Lo & UINT64_C(0xfff);
+        uint16_t      const uVpid        = uDesc.Words.w0;
         uint64_t      const uCr3         = pVCpu->cpum.GstCtx.cr3;
         switch (u64InvvpidType)
         {

@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 # Standard python imports.
 import copy;
@@ -68,7 +68,7 @@ class WuiHlpForm(object):
     def __init__(self, sId, sAction, dErrors = None, fReadOnly = False, sOnSubmit = None):
         self._fFinalized = False;
         self._fReadOnly  = fReadOnly;
-        self._dErrors    = dErrors if dErrors is not None else dict();
+        self._dErrors    = dErrors if dErrors is not None else {};
 
         if sOnSubmit == self.ksOnSubmit_AddReturnToFieldWithCurrentUrl:
             sOnSubmit = u'return addRedirectToInputFieldWithCurrentUrl(this)';

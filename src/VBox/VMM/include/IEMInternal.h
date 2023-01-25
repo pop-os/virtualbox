@@ -545,9 +545,18 @@ typedef struct IEMCPU
     uint8_t                 uCpl;                                                                           /* 0x05 */
 
     /** Whether to bypass access handlers or not. */
-    bool                    fBypassHandlers;                                                                /* 0x06 */
+    bool                    fBypassHandlers : 1;                                                            /* 0x06.0 */
     /** Whether to disregard the lock prefix (implied or not). */
-    bool                    fDisregardLock;                                                                 /* 0x07 */
+    bool                    fDisregardLock : 1;                                                             /* 0x06.1 */
+    /** Whether there are pending hardware instruction breakpoints. */
+    bool                    fPendingInstructionBreakpoints : 1;                                             /* 0x06.2 */
+    /** Whether there are pending hardware data breakpoints. */
+    bool                    fPendingDataBreakpoints : 1;                                                    /* 0x06.3 */
+    /** Whether there are pending hardware I/O breakpoints. */
+    bool                    fPendingIoBreakpoints : 1;                                                      /* 0x06.4 */
+
+    /* Unused/padding */
+    bool                    fUnused;                                                                        /* 0x07 */
 
     /** @name Decoder state.
      * @{ */
@@ -599,7 +608,7 @@ typedef struct IEMCPU
 
     /** The offset of the ModR/M byte relative to the start of the instruction. */
     uint8_t                 offModRm;                                                                       /* 0x2c */
-#else
+#else  /* !IEM_WITH_CODE_TLB */
     /** The size of what has currently been fetched into abOpcode. */
     uint8_t                 cbOpcode;                                                                       /*       0x08 */
     /** The current offset into abOpcode. */
@@ -620,7 +629,7 @@ typedef struct IEMCPU
     /** The extra REX SIB index field bit (REX.X << 3). */
     uint8_t                 uRexIndex;                                                                      /*       0x12 */
 
-#endif
+#endif /* !IEM_WITH_CODE_TLB */
 
     /** The effective operand mode. */
     IEMMODE                 enmEffOpSize;                                                                   /* 0x2d, 0x13 */
@@ -2469,6 +2478,11 @@ FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_cmpps_u128;
 FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_cmppd_u128;
 FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_cmpss_u128;
 FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_cmpsd_u128;
+FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_roundss_u128;
+FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_roundsd_u128;
+
+FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_roundps_u128, iemAImpl_roundps_u128_fallback;
+FNIEMAIMPLMXCSRF2XMMIMM8 iemAImpl_roundpd_u128, iemAImpl_roundpd_u128_fallback;
 
 typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMXCSRU64U128,(uint32_t *pfMxcsr, uint64_t *pu64Dst, PCX86XMMREG pSrc));
 typedef FNIEMAIMPLMXCSRU64U128 *PFNIEMAIMPLMXCSRU64U128;
@@ -2837,6 +2851,7 @@ FNIEMAIMPLFPSSEF2U128 iemAImpl_haddpd_u128;
 FNIEMAIMPLFPSSEF2U128 iemAImpl_hsubps_u128;
 FNIEMAIMPLFPSSEF2U128 iemAImpl_hsubpd_u128;
 FNIEMAIMPLFPSSEF2U128 iemAImpl_sqrtps_u128;
+FNIEMAIMPLFPSSEF2U128 iemAImpl_rsqrtps_u128;
 FNIEMAIMPLFPSSEF2U128 iemAImpl_sqrtpd_u128;
 FNIEMAIMPLFPSSEF2U128 iemAImpl_addsubps_u128;
 FNIEMAIMPLFPSSEF2U128 iemAImpl_addsubpd_u128;
@@ -2866,6 +2881,7 @@ FNIEMAIMPLFPSSEF2U128R32 iemAImpl_cvtss2sd_u128_r32;
 FNIEMAIMPLFPSSEF2U128R64 iemAImpl_cvtsd2ss_u128_r64;
 FNIEMAIMPLFPSSEF2U128R32 iemAImpl_sqrtss_u128_r32;
 FNIEMAIMPLFPSSEF2U128R64 iemAImpl_sqrtsd_u128_r64;
+FNIEMAIMPLFPSSEF2U128R32 iemAImpl_rsqrtss_u128_r32;
 
 FNIEMAIMPLFPAVXF3U128 iemAImpl_vaddps_u128, iemAImpl_vaddps_u128_fallback;
 FNIEMAIMPLFPAVXF3U128 iemAImpl_vaddpd_u128, iemAImpl_vaddpd_u128_fallback;
@@ -3692,6 +3708,7 @@ typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPUCC pVCpu, uint8_t bRm);
 
 /** @} */
 
+void                    iemInitPendingBreakpointsSlow(PVMCPUCC pVCpu);
 
 
 /**
@@ -3751,9 +3768,9 @@ VBOXSTRICTRC            iemRaiseSelectorInvalidAccess(PVMCPUCC pVCpu, uint32_t i
 #ifdef IEM_WITH_SETJMP
 DECL_NO_RETURN(void)    iemRaiseSelectorInvalidAccessJmp(PVMCPUCC pVCpu, uint32_t iSegReg, uint32_t fAccess) IEM_NOEXCEPT_MAY_LONGJMP;
 #endif
-VBOXSTRICTRC            iemRaisePageFault(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t fAccess, int rc) RT_NOEXCEPT;
+VBOXSTRICTRC            iemRaisePageFault(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t cbAccess, uint32_t fAccess, int rc) RT_NOEXCEPT;
 #ifdef IEM_WITH_SETJMP
-DECL_NO_RETURN(void)    iemRaisePageFaultJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t fAccess, int rc) IEM_NOEXCEPT_MAY_LONGJMP;
+DECL_NO_RETURN(void)    iemRaisePageFaultJmp(PVMCPUCC pVCpu, RTGCPTR GCPtrWhere, uint32_t cbAccess, uint32_t fAccess, int rc) IEM_NOEXCEPT_MAY_LONGJMP;
 #endif
 VBOXSTRICTRC            iemRaiseMathFault(PVMCPUCC pVCpu) RT_NOEXCEPT;
 VBOXSTRICTRC            iemRaiseAlignmentCheckException(PVMCPUCC pVCpu) RT_NOEXCEPT;
@@ -3864,7 +3881,7 @@ VBOXSTRICTRC    iemMemCommitAndUnmapPostponeTroubleToR3(PVMCPUCC pVCpu, void *pv
 void            iemMemRollback(PVMCPUCC pVCpu) RT_NOEXCEPT;
 VBOXSTRICTRC    iemMemApplySegment(PVMCPUCC pVCpu, uint32_t fAccess, uint8_t iSegReg, size_t cbMem, PRTGCPTR pGCPtrMem) RT_NOEXCEPT;
 VBOXSTRICTRC    iemMemMarkSelDescAccessed(PVMCPUCC pVCpu, uint16_t uSel) RT_NOEXCEPT;
-VBOXSTRICTRC    iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t fAccess, PRTGCPHYS pGCPhysMem) RT_NOEXCEPT;
+VBOXSTRICTRC    iemMemPageTranslateAndCheckAccess(PVMCPUCC pVCpu, RTGCPTR GCPtrMem, uint32_t cbAccess, uint32_t fAccess, PRTGCPHYS pGCPhysMem) RT_NOEXCEPT;
 
 #ifdef IEM_WITH_CODE_TLB
 void            iemOpcodeFetchBytesJmp(PVMCPUCC pVCpu, size_t cbDst, void *pvDst) IEM_NOEXCEPT_MAY_LONGJMP;

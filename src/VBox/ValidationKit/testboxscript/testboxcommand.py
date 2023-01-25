@@ -36,7 +36,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 154728 $"
 
 # Standard python imports.
 import os;
@@ -285,7 +285,7 @@ class TestBoxCommand(object):
         """
         try:
             sCmdName = oResponse.getStringChecked(constants.tbresp.ALL_PARAM_RESULT);
-        except Exception as oXcpt:
+        except:
             oConnection.close();
             return False;
 

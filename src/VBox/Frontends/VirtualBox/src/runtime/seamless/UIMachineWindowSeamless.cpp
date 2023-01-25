@@ -203,7 +203,7 @@ void UIMachineWindowSeamless::placeOnScreen()
 #ifdef VBOX_WS_X11
 
     /* Make sure we are located on corresponding host-screen: */
-    if (   gpDesktop->screenCount() > 1
+    if (   UIDesktopWidgetWatchdog::screenCount() > 1
         && (x() != workingArea.x() || y() != workingArea.y()))
     {
         // WORKAROUND:

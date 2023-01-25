@@ -3844,7 +3844,7 @@ void UIActionPoolRuntime::updateMenuView()
             /* Add 'Virtual Screen %1' menu: */
             QMenu *pSubMenu = pMenu->addMenu(UIIconPool::iconSet(":/virtual_screen_16px.png",
                                                                  ":/virtual_screen_disabled_16px.png"),
-                                             QApplication::translate("UIMultiScreenLayout", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
+                                             QApplication::translate("UIActionPool", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
             pSubMenu->setProperty("Guest Screen Index", iGuestScreenIndex);
             connect(pSubMenu, &QMenu::aboutToShow, this, &UIActionPoolRuntime::sltPrepareMenuViewScreen);
         }
@@ -3887,7 +3887,7 @@ void UIActionPoolRuntime::updateMenuViewPopup()
             /* Add 'Virtual Screen %1' menu: */
             QMenu *pSubMenu = pMenu->addMenu(UIIconPool::iconSet(":/virtual_screen_16px.png",
                                                                  ":/virtual_screen_disabled_16px.png"),
-                                             QApplication::translate("UIMultiScreenLayout", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
+                                             QApplication::translate("UIActionPool", "Virtual Screen %1").arg(iGuestScreenIndex + 1));
             pSubMenu->setProperty("Guest Screen Index", iGuestScreenIndex);
             connect(pSubMenu, &QMenu::aboutToShow, this, &UIActionPoolRuntime::sltPrepareMenuViewScreen);
         }
@@ -4043,6 +4043,25 @@ void UIActionPoolRuntime::updateMenuViewRemap(QMenu *pMenu)
 
     /* Get corresponding screen index: */
     const int iGuestScreenIndex = pMenu->property("Guest Screen Index").toInt();
+    const bool fScreenEnabled = m_mapGuestScreenIsVisible.value(iGuestScreenIndex);
+
+    /* For non-primary screens: */
+    if (iGuestScreenIndex > 0)
+    {
+        /* Create 'toggle' action: */
+        QAction *pToggleAction = pMenu->addAction(QApplication::translate("UIActionPool", "Enable", "Virtual Screen"),
+                                                  this, SLOT(sltHandleActionTriggerViewScreenToggle()));
+        if (pToggleAction)
+        {
+            /* Configure 'toggle' action: */
+            pToggleAction->setEnabled(m_fGuestSupportsGraphics);
+            pToggleAction->setProperty("Guest Screen Index", iGuestScreenIndex);
+            pToggleAction->setCheckable(true);
+            pToggleAction->setChecked(fScreenEnabled);
+            /* Add separator: */
+            pMenu->addSeparator();
+        }
+    }
 
     /* Create exclusive 'remap' action-group: */
     QActionGroup *pActionGroup = new QActionGroup(pMenu);
@@ -4055,14 +4074,15 @@ void UIActionPoolRuntime::updateMenuViewRemap(QMenu *pMenu)
         for (int iHostScreenIndex = 0; iHostScreenIndex < m_cHostScreens; ++iHostScreenIndex)
         {
             /* Create exclusive 'remap' action: */
-            QAction *pAction = pActionGroup->addAction(QApplication::translate("UIMultiScreenLayout", "Use Host Screen %1")
+            QAction *pAction = pActionGroup->addAction(QApplication::translate("UIActionPool", "Use Host Screen %1")
                                                                                .arg(iHostScreenIndex + 1));
             if (pAction)
             {
                 /* Configure exclusive 'remap' action: */
-                pAction->setCheckable(true);
+                pAction->setEnabled(m_fGuestSupportsGraphics && fScreenEnabled);
                 pAction->setProperty("Guest Screen Index", iGuestScreenIndex);
                 pAction->setProperty("Host Screen Index", iHostScreenIndex);
+                pAction->setCheckable(true);
                 if (   m_mapHostScreenForGuestScreen.contains(iGuestScreenIndex)
                     && m_mapHostScreenForGuestScreen.value(iGuestScreenIndex) == iHostScreenIndex)
                     pAction->setChecked(true);
@@ -4094,7 +4114,7 @@ void UIActionPoolRuntime::updateMenuViewRescale(QMenu *pMenu)
 
         /* Get device-pixel-ratio: */
         bool fDevicePixelRatioMentioned = false;
-        const double dDevicePixelRatioActual = qMin(gpDesktop->devicePixelRatioActual(m_mapHostScreenForGuestScreen.value(iGuestScreenIndex)),
+        const double dDevicePixelRatioActual = qMin(UIDesktopWidgetWatchdog::devicePixelRatioActual(m_mapHostScreenForGuestScreen.value(iGuestScreenIndex)),
                                                     10.0 /* meh, who knows? */);
 
         /* Calculate minimum, maximum and step: */
