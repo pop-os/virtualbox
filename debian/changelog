@@ -1,3 +1,11 @@
+virtualbox (7.0.6-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 7.0.6-dfsg (Closes: #1029153)
+  * Refresh patches, drop upstream patches
+  * Update manpages
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 25 Jan 2023 12:16:26 +0100
+
 virtualbox (7.0.4-dfsg-5) unstable; urgency=medium
 
   * Add patch to support default python3.11
