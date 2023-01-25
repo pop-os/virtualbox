@@ -14,7 +14,4 @@
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
 37-do-not-run-if-not-in-vm.patch
-changeset_97677.patch
-diff-trunk-from-97685-to-97687.patch
-diff-trunk-from-97707-to-97711.patch
 python3.11.patch

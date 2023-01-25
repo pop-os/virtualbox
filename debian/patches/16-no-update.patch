@@ -28,7 +28,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
-@@ -2421,7 +2421,7 @@
+@@ -2417,7 +2417,7 @@
  bool UIExtraDataManager::applicationUpdateEnabled()
  {
      /* 'True' unless 'restriction' feature allowed: */

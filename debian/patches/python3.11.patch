@@ -2,7 +2,7 @@ diff --git a/configure b/configure
 index 0872ec4c7..037680e08 100755
 --- a/configure
 +++ b/configure
-@@ -2132,7 +2132,7 @@ extern "C" int main(void)
+@@ -2127,7 +2127,7 @@ extern "C" int main(void)
  }
  EOF
    found=

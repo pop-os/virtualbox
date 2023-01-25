@@ -1,7 +1,7 @@
 Description: fix version string for VNC plugin module.
 --- a/Config.kmk
 +++ b/Config.kmk
-@@ -3838,6 +3838,7 @@ VBOX_EDIT_VERSION_AND_BUILD_CMD_FN = $(SED) \
+@@ -3850,6 +3850,7 @@ VBOX_EDIT_VERSION_AND_BUILD_CMD_FN = $(SED) \
  	-e 's+@VBOX_VERSION_MINOR@+$(VBOX_VERSION_MINOR)+g' \
  	-e 's+@VBOX_VERSION_BUILD@+$(VBOX_VERSION_BUILD)+g' \
  	-e 's+@VBOX_VERSION_STRING@+$(VBOX_VERSION_STRING)+g' \
