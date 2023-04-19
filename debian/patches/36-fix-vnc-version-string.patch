@@ -1,7 +1,9 @@
 Description: fix version string for VNC plugin module.
---- a/Config.kmk
-+++ b/Config.kmk
-@@ -3850,6 +3850,7 @@ VBOX_EDIT_VERSION_AND_BUILD_CMD_FN = $(SED) \
+Index: virtualbox/Config.kmk
+===================================================================
+--- virtualbox.orig/Config.kmk
++++ virtualbox/Config.kmk
+@@ -3841,6 +3841,7 @@
  	-e 's+@VBOX_VERSION_MINOR@+$(VBOX_VERSION_MINOR)+g' \
  	-e 's+@VBOX_VERSION_BUILD@+$(VBOX_VERSION_BUILD)+g' \
  	-e 's+@VBOX_VERSION_STRING@+$(VBOX_VERSION_STRING)+g' \
@@ -9,8 +11,10 @@ Description: fix version string for VNC plugin module.
  	-e 's+@VBOX_SVN_REV@+$(VBOX_SVN_REV)+g' \
  	-e 's+@VBOX_VENDOR@+$(VBOX_VENDOR)+g' \
  	-e 's+@VBOX_VENDOR_SHORT@+$(VBOX_VENDOR_SHORT)+g' \
---- a/src/VBox/ExtPacks/VNC/ExtPack.xml
-+++ b/src/VBox/ExtPacks/VNC/ExtPack.xml
+Index: virtualbox/src/VBox/ExtPacks/VNC/ExtPack.xml
+===================================================================
+--- virtualbox.orig/src/VBox/ExtPacks/VNC/ExtPack.xml
++++ virtualbox/src/VBox/ExtPacks/VNC/ExtPack.xml
 @@ -2,7 +2,7 @@
  <VirtualBoxExtensionPack xmlns="http://www.virtualbox.org/VirtualBoxExtensionPack" version="1.0">
      <Name>VNC</Name>

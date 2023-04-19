@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp
 +++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp
-@@ -276,12 +276,8 @@
+@@ -281,12 +281,8 @@
  
  #ifdef RT_OS_LINUX
                  case VERR_SUPDRV_COMPONENT_NOT_FOUND:
@@ -20,7 +20,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
                      break;
  #endif
  
-@@ -347,12 +343,8 @@
+@@ -352,12 +348,8 @@
              {
                  case VERR_VM_DRIVER_LOAD_ERROR:
  #ifdef RT_OS_LINUX
@@ -35,7 +35,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
  #else
                      pszError = N_("VirtualBox kernel driver not loaded");
  #endif
-@@ -391,12 +383,8 @@
+@@ -396,12 +388,8 @@
                  case VERR_INVALID_HANDLE: /** @todo track down and fix this error. */
                  case VERR_VM_DRIVER_NOT_INSTALLED:
  #ifdef RT_OS_LINUX

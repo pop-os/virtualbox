@@ -6,7 +6,7 @@ Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp
 +++ virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
-@@ -4574,34 +4574,12 @@ int Console::i_checkMediumLocation(IMedium *pMedium, bool *pfUseHostIOCache)
+@@ -4628,34 +4628,12 @@
              if (   enmFsTypeFile == RTFSTYPE_EXT4
                  || enmFsTypeFile == RTFSTYPE_XFS)
              {
