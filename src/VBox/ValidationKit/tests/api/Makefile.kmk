@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -44,6 +44,7 @@ ValidationKitTestsApi_INST = $(INST_VALIDATIONKIT)tests/api/
 ValidationKitTestsApi_EXEC_SOURCES := \
 	$(PATH_SUB_CURRENT)/tdApi1.py \
 	$(PATH_SUB_CURRENT)/tdAppliance1.py \
+	$(PATH_SUB_CURRENT)/tdCloneMedium1.py \
 	$(PATH_SUB_CURRENT)/tdCreateVMWithDefaults1.py \
 	$(PATH_SUB_CURRENT)/tdMoveMedium1.py \
 	$(PATH_SUB_CURRENT)/tdMoveVm1.py \
@@ -52,21 +53,20 @@ ValidationKitTestsApi_EXEC_SOURCES := \
 
 ifndef VBOX_OSE
  ValidationKitTestsApi_EXEC_SOURCES += \
-	$(PATH_SUB_CURRENT)/tdCloud1.py \
-	$(PATH_SUB_CURRENT)/tdOciConnection1.py \
+ 	$(PATH_SUB_CURRENT)/tdCloud1.py \
+ 	$(PATH_SUB_CURRENT)/tdOciConnection1.py \
  	$(PATH_SUB_CURRENT)/tdOciExport1.py \
-	$(PATH_SUB_CURRENT)/tdOciImage1.py \
+ 	$(PATH_SUB_CURRENT)/tdOciImage1.py \
  	$(PATH_SUB_CURRENT)/tdOciImport1.py \
-	$(PATH_SUB_CURRENT)/tdOciInstance1.py \
+ 	$(PATH_SUB_CURRENT)/tdOciInstance1.py \
  	$(PATH_SUB_CURRENT)/tdOciProfile1.py
 endif
 ValidationKitTestsApi_SOURCES := \
 	$(wildcard \
-		$(PATH_SUB_CURRENT)/*.ova \
-		)
+	$(PATH_SUB_CURRENT)/*.ova \
+	)
 
 VBOX_VALIDATIONKIT_PYTHON_SOURCES += $(ValidationKitTestsApi_EXEC_SOURCES)
 
 $(evalcall def_vbox_validationkit_process_python_sources)
 include $(FILE_KBUILD_SUB_FOOTER)
-

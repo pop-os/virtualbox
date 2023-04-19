@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -546,6 +546,16 @@ int virtioCoreR3Init(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIRTIOCORECC pVir
  * @param   pVirtio     Pointer to the virtio state.
  */
 void  virtioCoreResetAll(PVIRTIOCORE pVirtio);
+
+/**
+ * Resets the device state upon a VM reset for instance.
+ *
+ * @returns nothing.
+ * @param   pVirtio     Pointer to the virtio state.
+ *
+ * @note Calls back into the upper device when the status changes.
+ */
+DECLHIDDEN(void) virtioCoreR3ResetDevice(PPDMDEVINS pDevIns, PVIRTIOCORE pVirtio, PVIRTIOCORECC pVirtioCC);
 
 /**
  * 'Attaches' host device-specific implementation's queue state to host VirtIO core

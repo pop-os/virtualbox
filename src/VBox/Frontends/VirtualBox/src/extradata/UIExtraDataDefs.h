@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -66,8 +66,10 @@ namespace UIExtraDataDefs
         SHARED_LIBRARY_STUFF extern const char *GUI_SuppressMessages;
         /** Holds the list of messages for the Message/Popup center frameworks with inverted check-box state. */
         SHARED_LIBRARY_STUFF extern const char *GUI_InvertMessageOption;
+#ifdef VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON
         /** Holds whether successfull notification-progresses should NOT close automatically. */
         SHARED_LIBRARY_STUFF extern const char *GUI_NotificationCenter_KeepSuccessfullProgresses;
+#endif
         /** Holds notification-center alignment. */
         SHARED_LIBRARY_STUFF extern const char *GUI_NotificationCenter_Alignment;
         /** Holds notification-center order. */
@@ -1074,12 +1076,13 @@ Q_DECLARE_METATYPE(IndicatorType);
 /** Runtime UI: Machine close actions. */
 enum MachineCloseAction
 {
-    MachineCloseAction_Invalid   = 0,
-    MachineCloseAction_Detach    = RT_BIT(0),
-    MachineCloseAction_SaveState = RT_BIT(1),
-    MachineCloseAction_Shutdown  = RT_BIT(2),
-    MachineCloseAction_PowerOff  = RT_BIT(3),
-    MachineCloseAction_All       = 0xFF
+    MachineCloseAction_Invalid                    = 0,
+    MachineCloseAction_Detach                     = RT_BIT(0),
+    MachineCloseAction_SaveState                  = RT_BIT(1),
+    MachineCloseAction_Shutdown                   = RT_BIT(2),
+    MachineCloseAction_PowerOff                   = RT_BIT(3),
+    MachineCloseAction_PowerOff_RestoringSnapshot = RT_BIT(4),
+    MachineCloseAction_All                        = 0xFF
 };
 Q_DECLARE_METATYPE(MachineCloseAction);
 

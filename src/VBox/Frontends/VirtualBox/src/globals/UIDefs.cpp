@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -37,3 +37,6 @@ const char* UIDefs::GUI_ExtPackName = "Oracle VM VirtualBox Extension Pack";
 QStringList UIDefs::VBoxFileExts = QStringList() << "xml" << "vbox";
 QStringList UIDefs::VBoxExtPackFileExts = QStringList() << "vbox-extpack";
 QStringList UIDefs::OVFFileExts = QStringList() << "ovf" << "ova";
+
+/** Environment variable names: */
+const char *UIDefs::VBox_DesktopWatchdogPolicy_SynthTest = "VBOX_DESKTOPWATCHDOGPOLICY_SYNTHTEST";

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2022 Oracle and/or its affiliates.
+# Copyright (C) 2010-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -35,11 +35,7 @@ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 # VBoxControl
 #
 PROGRAMS += VBoxControl
-if "$(KBUILD_TARGET)" == "win" || defined(VBOX_WITH_MASOCHISTIC_WARNINGS) ## @todo use VBoxGuestR3Exe everywhere
 VBoxControl_TEMPLATE = VBoxGuestR3Exe
-else
-VBoxControl_TEMPLATE = NewVBoxGuestR3Exe
-endif
 if "$(KBUILD_TARGET)" == "win" && defined(VBOX_SIGNING_MODE) && defined(VBOX_SIGN_ADDITIONS) # (See the main Windows Additions makefile.)
  VBoxControl_INSTTYPE = none
  VBoxControl_DEBUG_INSTTYPE = both
@@ -50,7 +46,7 @@ VBoxControl_DEFS     += \
 	$(if $(VBOX_WITH_SHARED_FOLDERS),VBOX_WITH_SHARED_FOLDERS,)
 VBoxControl_DEFS.win += \
 	$(if $(VBOX_WITH_DPC_LATENCY_CHECKER),VBOX_WITH_DPC_LATENCY_CHECKER,)
-VBoxControl_SDKS = VBOX_ZLIB_STATIC
+VBoxControl_SDKS = VBoxZlibStatic
 VBoxControl_SOURCES = \
 	VBoxControl.cpp
 VBoxControl_SOURCES.win = \

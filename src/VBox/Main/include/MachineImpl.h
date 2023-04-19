@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -603,15 +603,15 @@ public:
 
     HRESULT i_getDirectControl(ComPtr<IInternalSessionControl> *directControl)
     {
-        HRESULT rc;
         *directControl = mData->mSession.mDirectControl;
 
+        HRESULT hrc;
         if (!*directControl)
-            rc = E_ACCESSDENIED;
+            hrc = E_ACCESSDENIED;
         else
-            rc = S_OK;
+            hrc = S_OK;
 
-        return rc;
+        return hrc;
     }
 
     bool i_isSessionOpen(ComObjPtr<SessionMachine> &aMachine,

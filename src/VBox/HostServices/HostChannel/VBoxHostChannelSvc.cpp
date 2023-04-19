@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -244,40 +244,30 @@ static DECLCALLBACK(void) svcCall(void *pvService,
             LogRel2(("svcCall: VBOX_HOST_CHANNEL_FN_ATTACH\n"));
 
             if (cParms != 3)
-            {
                 rc = VERR_INVALID_PARAMETER;
-            }
             else if (   paParms[0].type != VBOX_HGCM_SVC_PARM_PTR     /* name */
                      || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT   /* flags */
                      || paParms[2].type != VBOX_HGCM_SVC_PARM_32BIT   /* handle */
                     )
-            {
                 rc = VERR_INVALID_PARAMETER;
-            }
             else
             {
-                uint32_t u32Flags;
-                void *pvName;
+                uint32_t u32Flags = 0; /* Shut up msvc*/
+                const char *pszName;
                 uint32_t cbName;
 
-                rc = VBoxHGCMParmPtrGet(&paParms[0], &pvName, &cbName);
-
+                rc = VBoxHGCMParmPtrGet(&paParms[0], (void **)&pszName, &cbName);
+                if (   RT_SUCCESS(rc)
+                    && pszName[cbName - 1] != '\0')
+                    rc = VERR_INVALID_PARAMETER;
+                if (RT_SUCCESS(rc))
+                    rc = VBoxHGCMParmUInt32Get(&paParms[1], &u32Flags);
                 if (RT_SUCCESS(rc))
                 {
-                    rc = VBoxHGCMParmUInt32Get(&paParms[1], &u32Flags);
-
+                    uint32_t u32Handle = 0;
+                    rc = vboxHostChannelAttach(pClient, &u32Handle, pszName, u32Flags);
                     if (RT_SUCCESS(rc))
-                    {
-                        uint32_t u32Handle = 0;
-
-                        /** @todo make sure that pvName is a nul terminated */
-                        rc = vboxHostChannelAttach(pClient, &u32Handle, (const char *)pvName, u32Flags);
-
-                        if (RT_SUCCESS(rc))
-                        {
-                            VBoxHGCMParmUInt32Set(&paParms[2], u32Handle);
-                        }
-                    }
+                        VBoxHGCMParmUInt32Set(&paParms[2], u32Handle);
                 }
             }
         } break;
@@ -515,43 +505,33 @@ static DECLCALLBACK(void) svcCall(void *pvService,
             }
             else
             {
-                void *pvName;
+                const char *pszName;
                 uint32_t cbName;
-                uint32_t u32Code;
-                void *pvParm;
-                uint32_t cbParm;
-                void *pvData;
-                uint32_t cbData;
+                uint32_t u32Code = 0; /* Shut up msvc*/
+                void *pvParm = NULL;  /* Shut up msvc*/
+                uint32_t cbParm = 0;  /* Shut up msvc*/
+                void *pvData = NULL;  /* Shut up msvc*/
+                uint32_t cbData = 0;  /* Shut up msvc*/
 
-                rc = VBoxHGCMParmPtrGet(&paParms[0], &pvName, &cbName);
+                rc = VBoxHGCMParmPtrGet(&paParms[0], (void **)&pszName, &cbName);
+                if (   RT_SUCCESS(rc)
+                    && pszName[cbName - 1] != '\0')
+                    rc = VERR_INVALID_PARAMETER;
 
+                if (RT_SUCCESS(rc))
+                    rc = VBoxHGCMParmUInt32Get(&paParms[1], &u32Code);
+                if (RT_SUCCESS (rc))
+                    rc = VBoxHGCMParmPtrGet(&paParms[2], &pvParm, &cbParm);
+                if (RT_SUCCESS (rc))
+                    rc = VBoxHGCMParmPtrGet(&paParms[3], &pvData, &cbData);
                 if (RT_SUCCESS (rc))
                 {
-                    rc = VBoxHGCMParmUInt32Get (&paParms[1], &u32Code);
-
-                    if (RT_SUCCESS (rc))
-                    {
-                        rc = VBoxHGCMParmPtrGet (&paParms[2], &pvParm, &cbParm);
-
-                        if (RT_SUCCESS (rc))
-                        {
-                            rc = VBoxHGCMParmPtrGet (&paParms[3], &pvData, &cbData);
-
-                            if (RT_SUCCESS (rc))
-                            {
-                                uint32_t u32SizeDataReturned = 0;
-
-                                /** @todo make sure that pvName is a nul terminated */
-                                rc = vboxHostChannelQuery(pClient, (const char *)pvName, u32Code,
-                                                          pvParm, cbParm,
-                                                          pvData, cbData, &u32SizeDataReturned);
-                                if (RT_SUCCESS(rc))
-                                {
-                                    VBoxHGCMParmUInt32Set(&paParms[4], u32SizeDataReturned);
-                                }
-                            }
-                        }
-                    }
+                    uint32_t u32SizeDataReturned = 0;
+                    rc = vboxHostChannelQuery(pClient, pszName, u32Code,
+                                              pvParm, cbParm,
+                                              pvData, cbData, &u32SizeDataReturned);
+                    if (RT_SUCCESS(rc))
+                        VBoxHGCMParmUInt32Set(&paParms[4], u32SizeDataReturned);
                 }
             }
         } break;

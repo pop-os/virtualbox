@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -55,15 +55,15 @@
 
 #ifdef VBOX_USB_WITH_SYSFS
 # ifdef VBOX_USB_WITH_INOTIFY
-#  include <dlfcn.h>
-#  include <fcntl.h>
+#  include <fcntl.h>        /* O_CLOEXEC */
 #  include <poll.h>
 #  include <signal.h>
 #  include <unistd.h>
+#  include <sys/inotify.h>
 # endif
 #endif
 
-#include <vector>
+//#include <vector>
 
 #include <errno.h>
 #include <dirent.h>
@@ -115,9 +115,12 @@ static int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList, bool i
 static int getDriveInfoFromSysfs(DriveInfoList *pList, SysfsWantDevice_T wantDevice, bool *pfSuccess) RT_NOTHROW_PROTO;
 
 
-/** Find the length of a string, ignoring trailing non-ascii or control
+/**
+ * Find the length of a string, ignoring trailing non-ascii or control
  * characters
- * @note Code duplicated in HostHardwareFreeBSD.cpp  */
+ *
+ * @note Code duplicated in HostHardwareFreeBSD.cpp
+ */
 static size_t strLenStripped(const char *pcsz) RT_NOTHROW_DEF
 {
     size_t cch = 0;
@@ -130,6 +133,7 @@ static size_t strLenStripped(const char *pcsz) RT_NOTHROW_DEF
 
 /**
  * Get the name of a floppy drive according to the Linux floppy driver.
+ *
  * @returns true on success, false if the name was not available (i.e. the
  *          device was not readable, or the file name wasn't a PC floppy
  *          device)
@@ -143,13 +147,13 @@ static bool floppyGetName(const char *pcszNode, unsigned Number, floppy_drive_na
     AssertPtrReturn(pszName, false);
     AssertReturn(Number <= 7, false);
     RTFILE File;
-    int rc = RTFileOpen(&File, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
-    if (RT_SUCCESS(rc))
+    int vrc = RTFileOpen(&File, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
+    if (RT_SUCCESS(vrc))
     {
-        int rcIoCtl;
-        rc = RTFileIoCtl(File, FDGETDRVTYP, pszName, 0, &rcIoCtl);
+        int iRcIoCtl;
+        vrc = RTFileIoCtl(File, FDGETDRVTYP, pszName, 0, &iRcIoCtl);
         RTFileClose(File);
-        if (RT_SUCCESS(rc) && rcIoCtl >= 0)
+        if (RT_SUCCESS(vrc) && iRcIoCtl >= 0)
             return true;
     }
     return false;
@@ -158,9 +162,10 @@ static bool floppyGetName(const char *pcszNode, unsigned Number, floppy_drive_na
 
 /**
  * Create a UDI and a description for a floppy drive based on a number and the
- * driver's name for it.  We deliberately return an ugly sequence of
- * characters as the description rather than an English language string to
- * avoid translation issues.
+ * driver's name for it.
+ *
+ * We deliberately return an ugly sequence of characters as the description
+ * rather than an English language string to avoid translation issues.
  *
  * @returns true if we know the device to be valid, false otherwise
  * @param   pcszName     the floppy driver name for the device (optional)
@@ -304,10 +309,10 @@ static int cdromDoInquiry(const char *pcszNode, uint8_t *pbType, char *pszVendor
     AssertPtrNullReturn(pszModel, VERR_INVALID_POINTER);
 
     RTFILE hFile = NIL_RTFILE;
-    int rc = RTFileOpen(&hFile, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
-    if (RT_SUCCESS(rc))
+    int vrc = RTFileOpen(&hFile, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
+    if (RT_SUCCESS(vrc))
     {
-        int                             rcIoCtl          = 0;
+        int                             iRcIoCtl         = 0;
         unsigned char                   auchResponse[96] = { 0 };
         struct cdrom_generic_command    CdromCommandReq;
         RT_ZERO(CdromCommandReq);
@@ -317,12 +322,12 @@ static int cdromDoInquiry(const char *pcszNode, uint8_t *pbType, char *pszVendor
         CdromCommandReq.buflen         = sizeof(auchResponse);
         CdromCommandReq.data_direction = CGC_DATA_READ;
         CdromCommandReq.timeout        = 5000;  /* ms */
-        rc = RTFileIoCtl(hFile, CDROM_SEND_PACKET, &CdromCommandReq, 0, &rcIoCtl);
-        if (RT_SUCCESS(rc) && rcIoCtl < 0)
-            rc = RTErrConvertFromErrno(-CdromCommandReq.stat);
+        vrc = RTFileIoCtl(hFile, CDROM_SEND_PACKET, &CdromCommandReq, 0, &iRcIoCtl);
+        if (RT_SUCCESS(vrc) && iRcIoCtl < 0)
+            vrc = RTErrConvertFromErrno(-CdromCommandReq.stat);
         RTFileClose(hFile);
 
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS(vrc))
         {
             if (pbType)
                 *pbType = auchResponse[0] & 0x1f;
@@ -341,14 +346,15 @@ static int cdromDoInquiry(const char *pcszNode, uint8_t *pbType, char *pszVendor
             return VINF_SUCCESS;
         }
     }
-    LogRelFlowFunc(("returning %Rrc\n", rc));
-    return rc;
+    LogRelFlowFunc(("returning %Rrc\n", vrc));
+    return vrc;
 }
 
 
 /**
  * Initialise the device strings (description and UDI) for a DVD drive based on
  * vendor and model name strings.
+ *
  * @param pcszVendor  the vendor ID string
  * @param pcszModel   the product ID string
  * @param pszDesc    where to store the description string (optional)
@@ -425,13 +431,13 @@ static bool probeNVME(const char *pcszNode) RT_NOTHROW_DEF
 {
     AssertPtrReturn(pcszNode, false);
     RTFILE File;
-    int rc = RTFileOpen(&File, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
-    if (RT_SUCCESS(rc))
+    int vrc = RTFileOpen(&File, pcszNode, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE | RTFILE_O_NON_BLOCK);
+    if (RT_SUCCESS(vrc))
     {
-        int rcIoCtl;
-        rc = RTFileIoCtl(File, NVME_IOCTL_ID, NULL, 0, &rcIoCtl);
+        int iRcIoCtl;
+        vrc = RTFileIoCtl(File, NVME_IOCTL_ID, NULL, 0, &iRcIoCtl);
         RTFileClose(File);
-        if (RT_SUCCESS(rc) && rcIoCtl >= 0)
+        if (RT_SUCCESS(vrc) && iRcIoCtl >= 0)
             return true;
     }
     return false;
@@ -513,55 +519,55 @@ static bool devValidateDevice(const char *pcszNode, bool isDVD, dev_t *pDevice,
 int VBoxMainDriveInfo::updateDVDs() RT_NOEXCEPT
 {
     LogFlowThisFunc(("entered\n"));
-    int rc;
+    int vrc;
     try
     {
         mDVDList.clear();
         /* Always allow the user to override our auto-detection using an
          * environment variable. */
         bool fSuccess = false;  /* Have we succeeded in finding anything yet? */
-        rc = getDriveInfoFromEnv("VBOX_CDROM", &mDVDList, true /* isDVD */, &fSuccess);
+        vrc = getDriveInfoFromEnv("VBOX_CDROM", &mDVDList, true /* isDVD */, &fSuccess);
         setNoProbe(false);
-        if (RT_SUCCESS(rc) && (!fSuccess || testing()))
-            rc = getDriveInfoFromSysfs(&mDVDList, DVD, &fSuccess);
-        if (RT_SUCCESS(rc) && testing())
+        if (RT_SUCCESS(vrc) && (!fSuccess || testing()))
+            vrc = getDriveInfoFromSysfs(&mDVDList, DVD, &fSuccess);
+        if (RT_SUCCESS(vrc) && testing())
         {
             setNoProbe(true);
-            rc = getDriveInfoFromSysfs(&mDVDList, DVD, &fSuccess);
+            vrc = getDriveInfoFromSysfs(&mDVDList, DVD, &fSuccess);
         }
     }
     catch (std::bad_alloc &e)
     {
-        rc = VERR_NO_MEMORY;
+        vrc = VERR_NO_MEMORY;
     }
-    LogFlowThisFunc(("rc=%Rrc\n", rc));
-    return rc;
+    LogFlowThisFunc(("vrc=%Rrc\n", vrc));
+    return vrc;
 }
 
 int VBoxMainDriveInfo::updateFloppies() RT_NOEXCEPT
 {
     LogFlowThisFunc(("entered\n"));
-    int rc;
+    int vrc;
     try
     {
         mFloppyList.clear();
         bool fSuccess = false;  /* Have we succeeded in finding anything yet? */
-        rc = getDriveInfoFromEnv("VBOX_FLOPPY", &mFloppyList, false /* isDVD */, &fSuccess);
+        vrc = getDriveInfoFromEnv("VBOX_FLOPPY", &mFloppyList, false /* isDVD */, &fSuccess);
         setNoProbe(false);
-        if (RT_SUCCESS(rc) && (!fSuccess || testing()))
-            rc = getDriveInfoFromSysfs(&mFloppyList, Floppy, &fSuccess);
-        if (RT_SUCCESS(rc) && testing())
+        if (RT_SUCCESS(vrc) && (!fSuccess || testing()))
+            vrc = getDriveInfoFromSysfs(&mFloppyList, Floppy, &fSuccess);
+        if (RT_SUCCESS(vrc) && testing())
         {
             setNoProbe(true);
-            rc = getDriveInfoFromSysfs(&mFloppyList, Floppy, &fSuccess);
+            vrc = getDriveInfoFromSysfs(&mFloppyList, Floppy, &fSuccess);
         }
     }
     catch (std::bad_alloc &)
     {
-        rc = VERR_NO_MEMORY;
+        vrc = VERR_NO_MEMORY;
     }
-    LogFlowThisFunc(("rc=%Rrc\n", rc));
-    return rc;
+    LogFlowThisFunc(("vrc=%Rrc\n", vrc));
+    return vrc;
 }
 
 int VBoxMainDriveInfo::updateFixedDrives() RT_NOEXCEPT
@@ -610,7 +616,7 @@ static int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList, bool i
     AssertPtrReturn(pList, VERR_INVALID_POINTER);
     AssertPtrNullReturn(pfSuccess, VERR_INVALID_POINTER);
     LogFlowFunc(("pcszVar=%s, pList=%p, isDVD=%d, pfSuccess=%p\n", pcszVar, pList, isDVD, pfSuccess));
-    int rc = VINF_SUCCESS;
+    int vrc = VINF_SUCCESS;
     bool success = false;
     char *pszFreeMe = RTEnvDupEx(RTENV_DEFAULT, pcszVar);
 
@@ -638,11 +644,11 @@ static int getDriveInfoFromEnv(const char *pcszVar, DriveInfoList *pList, bool i
     }
     catch (std::bad_alloc &)
     {
-        rc = VERR_NO_MEMORY;
+        vrc = VERR_NO_MEMORY;
     }
     RTStrFree(pszFreeMe);
-    LogFlowFunc(("rc=%Rrc, success=%d\n", rc, success));
-    return rc;
+    LogFlowFunc(("vrc=%Rrc, success=%d\n", vrc, success));
+    return vrc;
 }
 
 
@@ -689,14 +695,14 @@ private:
     bool findDeviceNode() RT_NOEXCEPT
     {
         dev_t dev = 0;
-        int rc = RTLinuxSysFsReadDevNumFile(&dev, "block/%s/dev", mpcszName);
-        if (RT_FAILURE(rc) || dev == 0)
+        int vrc = RTLinuxSysFsReadDevNumFile(&dev, "block/%s/dev", mpcszName);
+        if (RT_FAILURE(vrc) || dev == 0)
         {
             misConsistent = false;
             return false;
         }
-        rc = RTLinuxCheckDevicePath(dev, RTFS_TYPE_DEV_BLOCK, mszNode, sizeof(mszNode), "%s", mpcszName);
-        return RT_SUCCESS(rc);
+        vrc = RTLinuxCheckDevicePath(dev, RTFS_TYPE_DEV_BLOCK, mszNode, sizeof(mszNode), "%s", mpcszName);
+        return RT_SUCCESS(vrc);
     }
 
     /** Check whether the sysfs block entry is valid for a DVD device and
@@ -707,18 +713,18 @@ private:
     void validateAndInitForDVD() RT_NOEXCEPT
     {
         int64_t type = 0;
-        int rc = RTLinuxSysFsReadIntFile(10, &type, "block/%s/device/type", mpcszName);
-        if (RT_SUCCESS(rc) && type != TYPE_ROM)
+        int vrc = RTLinuxSysFsReadIntFile(10, &type, "block/%s/device/type", mpcszName);
+        if (RT_SUCCESS(vrc) && type != TYPE_ROM)
             return;
         if (type == TYPE_ROM)
         {
             char szVendor[128];
-            rc = RTLinuxSysFsReadStrFile(szVendor, sizeof(szVendor), NULL, "block/%s/device/vendor", mpcszName);
-            if (RT_SUCCESS(rc))
+            vrc = RTLinuxSysFsReadStrFile(szVendor, sizeof(szVendor), NULL, "block/%s/device/vendor", mpcszName);
+            if (RT_SUCCESS(vrc))
             {
                 char szModel[128];
-                rc = RTLinuxSysFsReadStrFile(szModel, sizeof(szModel), NULL, "block/%s/device/model", mpcszName);
-                if (RT_SUCCESS(rc))
+                vrc = RTLinuxSysFsReadStrFile(szModel, sizeof(szModel), NULL, "block/%s/device/model", mpcszName);
+                if (RT_SUCCESS(vrc))
                 {
                     misValid = true;
                     dvdCreateDeviceStrings(szVendor, szModel, mszDesc, sizeof(mszDesc), mszUdi, sizeof(mszUdi));
@@ -740,8 +746,8 @@ private:
         uint8_t bType = 0;
         char szVendor[128] = "";
         char szModel[128] = "";
-        int rc = cdromDoInquiry(mszNode, &bType, szVendor, sizeof(szVendor), szModel, sizeof(szModel));
-        if (RT_SUCCESS(rc) && bType == TYPE_ROM)
+        int vrc = cdromDoInquiry(mszNode, &bType, szVendor, sizeof(szVendor), szModel, sizeof(szModel));
+        if (RT_SUCCESS(vrc) && bType == TYPE_ROM)
         {
             misValid = true;
             dvdCreateDeviceStrings(szVendor, szModel, mszDesc, sizeof(mszDesc), mszUdi, sizeof(mszUdi));
@@ -765,9 +771,8 @@ private:
         bool fHaveName = false;
         if (!noProbe())
             fHaveName = floppyGetName(mszNode, mpcszName[2] - '0', szName);
-        int rc = RTLinuxSysFsGetLinkDest(szDriver, sizeof(szDriver), NULL, "block/%s/%s",
-                                         mpcszName, "device/driver");
-        if (RT_SUCCESS(rc))
+        int vrc = RTLinuxSysFsGetLinkDest(szDriver, sizeof(szDriver), NULL, "block/%s/%s", mpcszName, "device/driver");
+        if (RT_SUCCESS(vrc))
         {
             if (RTStrCmp(szDriver, "floppy"))
                 return;
@@ -788,28 +793,27 @@ private:
          * device entry.
          */
         int64_t type = 0;
-        int rc = RTLinuxSysFsReadIntFile(10, &type, "block/%s/device/type", mpcszName);
-        if (!RT_SUCCESS(rc) || type != TYPE_DISK)
+        int vrc = RTLinuxSysFsReadIntFile(10, &type, "block/%s/device/type", mpcszName);
+        if (!RT_SUCCESS(vrc) || type != TYPE_DISK)
         {
             if (noProbe() || !probeNVME(mszNode))
             {
                 char szDriver[16];
-                rc = RTLinuxSysFsGetLinkDest(szDriver, sizeof(szDriver), NULL, "block/%s/%s",
-                                                 mpcszName, "device/device/driver");
-                if (RT_FAILURE(rc) || RTStrCmp(szDriver, "nvme"))
-                        return;
+                vrc = RTLinuxSysFsGetLinkDest(szDriver, sizeof(szDriver), NULL, "block/%s/%s", mpcszName, "device/device/driver");
+                if (RT_FAILURE(vrc) || RTStrCmp(szDriver, "nvme"))
+                    return;
             }
         }
         char szVendor[128];
         char szModel[128];
         size_t cbRead = 0;
-        rc = RTLinuxSysFsReadStrFile(szVendor, sizeof(szVendor), &cbRead, "block/%s/device/vendor", mpcszName);
+        vrc = RTLinuxSysFsReadStrFile(szVendor, sizeof(szVendor), &cbRead, "block/%s/device/vendor", mpcszName);
         szVendor[cbRead] = '\0';
         /* Assume the model is always present. Vendor is not present for NVME disks */
         cbRead = 0;
-        rc = RTLinuxSysFsReadStrFile(szModel, sizeof(szModel), &cbRead, "block/%s/device/model", mpcszName);
+        vrc = RTLinuxSysFsReadStrFile(szModel, sizeof(szModel), &cbRead, "block/%s/device/model", mpcszName);
         szModel[cbRead] = '\0';
-        if (RT_SUCCESS(rc))
+        if (RT_SUCCESS(vrc))
         {
             misValid = true;
             dvdCreateDeviceStrings(szVendor, szModel, mszDesc, sizeof(mszDesc), mszUdi, sizeof(mszUdi));
@@ -863,17 +867,17 @@ static int getDriveInfoFromSysfs(DriveInfoList *pList, SysfsWantDevice_T wantDev
     bool fSuccess = true;
     unsigned cFound = 0;
     RTDIR hDir = NIL_RTDIR;
-    int rc = RTDirOpen(&hDir, "/sys/block");
+    int vrc = RTDirOpen(&hDir, "/sys/block");
     /* This might mean that sysfs semantics have changed */
-    AssertReturn(rc != VERR_FILE_NOT_FOUND, VINF_SUCCESS);
-    if (RT_SUCCESS(rc))
+    AssertReturn(vrc != VERR_FILE_NOT_FOUND, VINF_SUCCESS);
+    if (RT_SUCCESS(vrc))
     {
         for (;;)
         {
             RTDIRENTRY entry;
-            rc = RTDirRead(hDir, &entry, NULL);
-            Assert(rc != VERR_BUFFER_OVERFLOW);  /* Should never happen... */
-            if (RT_FAILURE(rc))  /* Including overflow and no more files */
+            vrc = RTDirRead(hDir, &entry, NULL);
+            Assert(vrc != VERR_BUFFER_OVERFLOW);  /* Should never happen... */
+            if (RT_FAILURE(vrc))  /* Including overflow and no more files */
                 break;
             if (entry.szName[0] == '.')
                 continue;
@@ -888,23 +892,23 @@ static int getDriveInfoFromSysfs(DriveInfoList *pList, SysfsWantDevice_T wantDev
             }
             catch (std::bad_alloc &e)
             {
-                rc = VERR_NO_MEMORY;
+                vrc = VERR_NO_MEMORY;
                 break;
             }
             ++cFound;
         }
         RTDirClose(hDir);
     }
-    if (rc == VERR_NO_MORE_FILES)
-        rc = VINF_SUCCESS;
-    else if (RT_FAILURE(rc))
+    if (vrc == VERR_NO_MORE_FILES)
+        vrc = VINF_SUCCESS;
+    else if (RT_FAILURE(vrc))
         /* Clean up again */
         while (cFound-- > 0)
             pList->pop_back();
     if (pfSuccess)
         *pfSuccess = fSuccess;
-    LogFlow (("rc=%Rrc, fSuccess=%u\n", rc, (unsigned)fSuccess));
-    return rc;
+    LogFlow (("vrc=%Rrc, fSuccess=%u\n", vrc, (unsigned)fSuccess));
+    return vrc;
 }
 
 
@@ -1017,21 +1021,20 @@ public:
  */
 typedef struct inotifyWatch
 {
-    /** Pointer to the inotify_add_watch() glibc function/Linux API */
-    int (*inotify_add_watch)(int, const char *, uint32_t);
     /** The native handle of the inotify fd. */
     int mhInotify;
 } inotifyWatch;
 
 /** The flags we pass to inotify - modify, create, delete, change permissions
  */
-#define IN_FLAGS 0x306
+#define MY_IN_FLAGS (IN_CREATE | IN_DELETE | IN_MODIFY | IN_ATTRIB)
+AssertCompile(MY_IN_FLAGS == 0x306);
 
 static int iwAddWatch(inotifyWatch *pSelf, const char *pcszPath)
 {
     errno = 0;
-    if (  pSelf->inotify_add_watch(pSelf->mhInotify, pcszPath, IN_FLAGS) >= 0
-        || (errno == EACCES))
+    if (   inotify_add_watch(pSelf->mhInotify, pcszPath, MY_IN_FLAGS) >= 0
+        || errno == EACCES)
         return VINF_SUCCESS;
     /* Other errors listed in the manpage can be treated as fatal */
     return RTErrConvertFromErrno(errno);
@@ -1040,44 +1043,16 @@ static int iwAddWatch(inotifyWatch *pSelf, const char *pcszPath)
 /** Object initialisation */
 static int iwInit(inotifyWatch *pSelf)
 {
-    int (*inotify_init)(void);
-    int fd, flags;
-    int rc = VINF_SUCCESS;
-
     AssertPtr(pSelf);
     pSelf->mhInotify = -1;
-    errno = 0;
-    *(void **)(&inotify_init) = dlsym(RTLD_DEFAULT, "inotify_init");
-    if (!inotify_init)
-        return VERR_LDR_IMPORTED_SYMBOL_NOT_FOUND;
-    *(void **)(&pSelf->inotify_add_watch)
-                    = dlsym(RTLD_DEFAULT, "inotify_add_watch");
-    if (!pSelf->inotify_add_watch)
-        return VERR_LDR_IMPORTED_SYMBOL_NOT_FOUND;
-    fd = inotify_init();
-    if (fd < 0)
+    int fd = inotify_init1(IN_CLOEXEC | IN_NONBLOCK);
+    if (fd >= 0)
     {
-        Assert(errno > 0);
-        return RTErrConvertFromErrno(errno);
-    }
-    Assert(errno == 0);
-
-    flags = fcntl(fd, F_GETFL, NULL);
-    if (   flags < 0
-        || fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0
-        || fcntl(fd, F_SETFD, FD_CLOEXEC) < 0 /* race here */)
-    {
-        Assert(errno > 0);
-        rc = RTErrConvertFromErrno(errno);
-    }
-    if (RT_FAILURE(rc))
-        close(fd);
-    else
-    {
-        Assert(errno == 0);
         pSelf->mhInotify = fd;
+        return VINF_SUCCESS;
     }
-    return rc;
+    Assert(errno > 0);
+    return RTErrConvertFromErrno(errno);
 }
 
 static void iwTerm(inotifyWatch *pSelf)
@@ -1146,19 +1121,12 @@ public:
     }
     /** Is inotify available and working on this system?  If so we expect that
      * this implementation will be usable. */
-    /** @todo test the "inotify in glibc but not in the kernel" case. */
     static bool Available(void)
     {
-        int (*inotify_init)(void);
-
-        *(void **)(&inotify_init) = dlsym(RTLD_DEFAULT, "inotify_init");
-        if (!inotify_init)
-            return false;
-        int fd = inotify_init();
-        if (fd == -1)
-            return false;
-        close(fd);
-        return true;
+        int const fd = inotify_init1(IN_CLOEXEC | IN_NONBLOCK);
+        if (fd >= 0)
+            close(fd);
+        return fd >= 0;
     }
 
     virtual int getStatus(void)
@@ -1180,18 +1148,11 @@ static int pipeCreateSimple(int *phPipeRead, int *phPipeWrite)
 
     /*
      * Create the pipe and set the close-on-exec flag.
+     * ASSUMES we're building and running on Linux 2.6.27 or later (pipe2).
      */
     int aFds[2] = {-1, -1};
-    if (pipe(aFds))
+    if (pipe2(aFds, O_CLOEXEC))
         return RTErrConvertFromErrno(errno);
-    if (   fcntl(aFds[0], F_SETFD, FD_CLOEXEC) < 0
-        || fcntl(aFds[1], F_SETFD, FD_CLOEXEC) < 0)
-    {
-        int rc = RTErrConvertFromErrno(errno);
-        close(aFds[0]);
-        close(aFds[1]);
-        return rc;
-    }
 
     *phPipeRead  = aFds[0];
     *phPipeWrite = aFds[1];
@@ -1203,9 +1164,9 @@ static int pipeCreateSimple(int *phPipeRead, int *phPipeWrite)
     return VINF_SUCCESS;
 }
 
-hotplugInotifyImpl::hotplugInotifyImpl(const char *pcszDevicesRoot) :
-    mhWakeupPipeR(-1), mhWakeupPipeW(-1), mfWaiting(0),
-    mpcszDevicesRoot(pcszDevicesRoot), mStatus(VERR_WRONG_ORDER)
+hotplugInotifyImpl::hotplugInotifyImpl(const char *pcszDevicesRoot)
+    : mhWakeupPipeR(-1), mhWakeupPipeW(-1), mfWaiting(0)
+    , mpcszDevicesRoot(pcszDevicesRoot), mStatus(VERR_WRONG_ORDER)
 {
 #  ifdef DEBUG
     /* Excercise the code path (term() on a not-fully-initialised object) as
@@ -1216,17 +1177,16 @@ hotplugInotifyImpl::hotplugInotifyImpl(const char *pcszDevicesRoot) :
     /* For now this probing method should only be used if nothing else is
      * available */
 #  endif
-    int rc;
-    do {
-        if (RT_FAILURE(rc = iwInit(&mWatches)))
-            break;
-        if (RT_FAILURE(rc = iwAddWatch(&mWatches, mpcszDevicesRoot)))
-            break;
-        if (RT_FAILURE(rc = pipeCreateSimple(&mhWakeupPipeR, &mhWakeupPipeW)))
-            break;
-    } while (0);
-    mStatus = rc;
-    if (RT_FAILURE(rc))
+
+    int vrc = iwInit(&mWatches);
+    if (RT_SUCCESS(vrc))
+    {
+        vrc = iwAddWatch(&mWatches, mpcszDevicesRoot);
+        if (RT_SUCCESS(vrc))
+            vrc = pipeCreateSimple(&mhWakeupPipeR, &mhWakeupPipeW);
+    }
+    mStatus = vrc;
+    if (RT_FAILURE(vrc))
         term();
 }
 
@@ -1254,9 +1214,9 @@ int hotplugInotifyImpl::drainInotify()
 
     AssertRCReturn(mStatus, VERR_WRONG_ORDER);
     errno = 0;
-    do {
+    do
         cchRead = read(iwGetFD(&mWatches), chBuf, sizeof(chBuf));
-    } while (cchRead > 0);
+    while (cchRead > 0);
     if (cchRead == 0)
         return VINF_SUCCESS;
     if (   cchRead < 0
@@ -1284,57 +1244,60 @@ int hotplugInotifyImpl::drainWakeupPipe(void)
 
 int hotplugInotifyImpl::Wait(RTMSINTERVAL aMillies)
 {
-    int rc;
-    char **ppszEntry;
-    VECTOR_PTR(char *) vecpchDevs;
-
     AssertRCReturn(mStatus, VERR_WRONG_ORDER);
     bool fEntered = ASMAtomicCmpXchgU32(&mfWaiting, 1, 0);
     AssertReturn(fEntered, VERR_WRONG_ORDER);
-    VEC_INIT_PTR(&vecpchDevs, char *, RTStrFree);
-    do {
-        struct pollfd pollFD[MAX_POLLID];
 
-        rc = readFilePaths(mpcszDevicesRoot, &vecpchDevs, false);
-        if (RT_SUCCESS(rc))
-            VEC_FOR_EACH(&vecpchDevs, char *, ppszEntry)
-                if (RT_FAILURE(rc = iwAddWatch(&mWatches, *ppszEntry)))
-                    break;
-        if (RT_FAILURE(rc))
-            break;
-        pollFD[RPIPE_ID].fd = mhWakeupPipeR;
-        pollFD[RPIPE_ID].events = POLLIN;
-        pollFD[INOTIFY_ID].fd = iwGetFD(&mWatches);
-        pollFD[INOTIFY_ID].events = POLLIN | POLLERR | POLLHUP;
-        errno = 0;
-        int cPolled = poll(pollFD, RT_ELEMENTS(pollFD), aMillies);
-        if (cPolled < 0)
+    VECTOR_PTR(char *) vecpchDevs;
+    VEC_INIT_PTR(&vecpchDevs, char *, RTStrFree);
+    int vrc = readFilePaths(mpcszDevicesRoot, &vecpchDevs, false);
+    if (RT_SUCCESS(vrc))
+    {
+        char **ppszEntry;
+        VEC_FOR_EACH(&vecpchDevs, char *, ppszEntry)
+            if (RT_FAILURE(vrc = iwAddWatch(&mWatches, *ppszEntry)))
+                break;
+
+        if (RT_SUCCESS(vrc))
         {
-            Assert(errno > 0);
-            rc = RTErrConvertFromErrno(errno);
+            struct pollfd pollFD[MAX_POLLID];
+            pollFD[RPIPE_ID].fd       = mhWakeupPipeR;
+            pollFD[RPIPE_ID].events   = POLLIN;
+            pollFD[INOTIFY_ID].fd     = iwGetFD(&mWatches);
+            pollFD[INOTIFY_ID].events = POLLIN | POLLERR | POLLHUP;
+            errno = 0;
+            int cPolled = poll(pollFD, RT_ELEMENTS(pollFD), aMillies);
+            if (cPolled < 0)
+            {
+                Assert(errno > 0);
+                vrc = RTErrConvertFromErrno(errno);
+            }
+            else if (pollFD[RPIPE_ID].revents)
+            {
+                vrc = drainWakeupPipe();
+                if (RT_SUCCESS(vrc))
+                    vrc = VERR_INTERRUPTED;
+            }
+            else if ((pollFD[INOTIFY_ID].revents))
+            {
+                if (cPolled == 1)
+                    vrc = drainInotify();
+                else
+                    AssertFailedStmt(vrc = VERR_INTERNAL_ERROR);
+            }
+            else
+            {
+                if (errno == 0 && cPolled == 0)
+                    vrc = VERR_TIMEOUT;
+                else
+                    AssertFailedStmt(vrc = VERR_INTERNAL_ERROR);
+            }
         }
-        else if (pollFD[RPIPE_ID].revents)
-        {
-            rc = drainWakeupPipe();
-            if (RT_SUCCESS(rc))
-                rc = VERR_INTERRUPTED;
-            break;
-        }
-        else if (!(pollFD[INOTIFY_ID].revents))
-        {
-            AssertBreakStmt(cPolled == 0, rc = VERR_INTERNAL_ERROR);
-            rc = VERR_TIMEOUT;
-        }
-        Assert(errno == 0 || (RT_FAILURE(rc) && rc != VERR_TIMEOUT));
-        if (RT_FAILURE(rc))
-            break;
-        AssertBreakStmt(cPolled == 1, rc = VERR_INTERNAL_ERROR);
-        if (RT_FAILURE(rc = drainInotify()))
-            break;
-    } while (false);
+    }
+
     mfWaiting = 0;
     VEC_CLEANUP_PTR(&vecpchDevs);
-    return rc;
+    return vrc;
 }
 
 void hotplugInotifyImpl::Interrupt(void)

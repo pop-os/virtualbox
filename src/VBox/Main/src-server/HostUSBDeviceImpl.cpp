@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -364,7 +364,7 @@ com::Utf8Str HostUSBDevice::i_getName()
     Utf8Str name;
 
     AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), name);
+    AssertComRCReturn(autoCaller.hrc(), name);
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -754,8 +754,8 @@ HRESULT HostUSBDevice::i_requestReleaseToHost()
         i_startTransition(kHostUSBDeviceState_ReleasingToHost, kHostUSBDeviceState_Unused);
 
     alock.release();
-    int rc = mUSBProxyBackend->releaseDevice(this);
-    if (RT_FAILURE(rc))
+    int vrc = mUSBProxyBackend->releaseDevice(this);
+    if (RT_FAILURE(vrc))
     {
         alock.acquire();
         i_failTransition(kHostUSBDeviceState_Invalid);
@@ -807,8 +807,8 @@ HRESULT HostUSBDevice::i_requestHold()
         i_startTransition(kHostUSBDeviceState_Capturing, kHostUSBDeviceState_HeldByProxy);
 
     alock.release();
-    int rc = mUSBProxyBackend->captureDevice(this);
-    if (RT_FAILURE(rc))
+    int vrc = mUSBProxyBackend->captureDevice(this);
+    if (RT_FAILURE(vrc))
     {
         alock.acquire();
         i_failTransition(kHostUSBDeviceState_Invalid);
@@ -966,7 +966,7 @@ void HostUSBDevice::i_onPhysicalDetachedInternal()
 bool HostUSBDevice::i_isMatch(const USBDeviceFilter::BackupableUSBDeviceFilterData &aData)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), false);
+    AssertComRCReturn(autoCaller.hrc(), false);
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1147,7 +1147,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
      */
     AssertReturn(!isWriteLockOnCurrentThread(), false);
     AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), false);
+    AssertComRCReturn(autoCaller.hrc(), false);
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /*

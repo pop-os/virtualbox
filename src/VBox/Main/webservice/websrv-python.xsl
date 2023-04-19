@@ -9,7 +9,7 @@
         web service API. Depends on WSDL file for actual SOAP bindings.
 -->
 <!--
-    Copyright (C) 2008-2022 Oracle and/or its affiliates.
+    Copyright (C) 2008-2023 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -489,7 +489,7 @@ class <xsl:value-of select="@name"/>:
 </xsl:template>
 
 <xsl:template match="/">
-<xsl:text># Copyright (C) 2008-2022 Oracle and/or its affiliates.
+<xsl:text># Copyright (C) 2008-2023 Oracle and/or its affiliates.
 #
 # This file is part of a free software library; you can redistribute
 # it and/or modify it under the terms of the GNU Lesser General

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2013-2022 Oracle and/or its affiliates.
+# Copyright (C) 2013-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -31,14 +31,14 @@ include $(KBUILD_PATH)/subheader.kmk
 if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBOX_ONLY_SDK)
  PROGRAMS += tstUsbMouse
 endif
-tstUsbMouse_TEMPLATE = VBOXR3TSTEXE
+tstUsbMouse_TEMPLATE = VBoxR3TstExe
 tstUsbMouse_DEFS     = VBOX_WITH_VUSB
 tstUsbMouse_INCS     = \
-        ../../build
+	../../build
 tstUsbMouse_LIBS     = $(LIB_VMM) $(LIB_REM)
 tstUsbMouse_SOURCES  = \
-        tstUsbMouse.cpp \
-        ../UsbMouse.cpp
+	tstUsbMouse.cpp \
+	../UsbMouse.cpp
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

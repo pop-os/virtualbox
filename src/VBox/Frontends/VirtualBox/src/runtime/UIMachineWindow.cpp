@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -530,10 +530,12 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
             break;
         }
         case MachineCloseAction_PowerOff:
+        case MachineCloseAction_PowerOff_RestoringSnapshot:
         {
             /* Power VM off: */
             LogRel(("GUI: Request for close-action to power VM off.\n"));
-            const bool fDiscardStateOnPowerOff = gEDataManager->discardStateOnPowerOff(uiCommon().managedVMUuid());
+            const bool fDiscardStateOnPowerOff  = gEDataManager->discardStateOnPowerOff(uiCommon().managedVMUuid())
+                                               || closeAction == MachineCloseAction_PowerOff_RestoringSnapshot;
             uisession()->powerOff(machine().GetSnapshotCount() > 0 && fDiscardStateOnPowerOff);
             break;
         }

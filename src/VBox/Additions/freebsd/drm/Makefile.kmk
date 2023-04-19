@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2022 Oracle and/or its affiliates.
+# Copyright (C) 2009-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -35,7 +35,7 @@ ifdef VBOX_WITH_ADDITION_DRIVERS
  SYSMODS  += vboxvideo_drm
 endif
 ifneq ($(KBUILD_HOST),freebsd)
-$(error "The FreeBSD guest additions can only be built on FreeBSD!")
+ $(error "The FreeBSD guest additions can only be built on FreeBSD!")
 endif
 
 #
@@ -53,7 +53,7 @@ vboxvideo-mod_SOURCES     = $(subst ",,$(FILES_VBOXVIDEO_DRM_NOBIN))
 #
 # Note! Syntax checking only.
 #
-vboxvideo_drm_TEMPLATE      = VBOXGUESTR0
+vboxvideo_drm_TEMPLATE      = VBoxGuestR0Drv
 vboxvideo_drm_NAME          = vboxvideo
 vboxvideo_drm_DEFS          = VBOX_WITH_HGCM VBOX_SVN_REV=$(VBOX_SVN_REV)
 vboxvideo_drm_DEPS         += $(VBOX_SVN_REV_KMK)

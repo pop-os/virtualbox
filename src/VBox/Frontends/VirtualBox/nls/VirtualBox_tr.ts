@@ -309,6 +309,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Kopyala</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -4812,7 +4819,7 @@
     <message>
         <source>Not attached</source>
         <comment>NetworkAttachmentType</comment>
-        <translation>Takılmadı</translation>
+        <translation>Takılı değil</translation>
     </message>
     <message>
         <source>NAT</source>
@@ -5439,7 +5446,7 @@
     <message>
         <source>Not Attached</source>
         <comment>network adapter</comment>
-        <translation>Takılmadı</translation>
+        <translation>Takılı Değil</translation>
     </message>
     <message>
         <source>NAT</source>
@@ -5904,12 +5911,12 @@
     <message>
         <source>&lt;p&gt;Attached to:  %1&lt;/p&gt;</source>
         <comment>image</comment>
-        <translation>&lt;p&gt;Şuna takıldı:  %1&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Şuna takılı:  %1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not Attached&lt;/i&gt;</source>
         <comment>image</comment>
-        <translation>&lt;i&gt;Takılmadı&lt;/i&gt;</translation>
+        <translation>&lt;i&gt;Takılı Değil&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
@@ -6553,7 +6560,7 @@
     <message>
         <source>Not Attached</source>
         <comment>details (storage)</comment>
-        <translation>Takılmadı</translation>
+        <translation>Takılı Değil</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -9011,7 +9018,7 @@ Oturum Panelini kullanın</translation>
     <message>
         <source>Not Attached</source>
         <comment>details (storage)</comment>
-        <translation type="vanished">Takılmadı</translation>
+        <translation type="vanished">Takılı Değil</translation>
     </message>
     <message>
         <source>Host Driver</source>
@@ -14154,7 +14161,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>&amp;Attached to:</source>
-        <translation type="vanished">Şun&amp;a takıldı:</translation>
+        <translation type="vanished">Şun&amp;a takılı:</translation>
     </message>
     <message>
         <source>Controls how this virtual adapter is attached to the real network of the Host OS.</source>
@@ -15113,7 +15120,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation type="vanished">Şuna Takıldı:</translation>
+        <translation type="vanished">Şuna Takılı:</translation>
     </message>
     <message>
         <source>Allows to use host I/O caching capabilities.</source>
@@ -16388,7 +16395,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation>Şuna takıldı:</translation>
+        <translation>Şuna takılı:</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
@@ -16400,7 +16407,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Takılmadı&lt;/i&gt;</translation>
+        <translation>&lt;i&gt;Takılı&amp;nbsp;Değil&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
@@ -16469,7 +16476,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation type="vanished">Şuna takıldı:</translation>
+        <translation type="vanished">Şuna takılı:</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
@@ -16481,7 +16488,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
-        <translation type="vanished">&lt;i&gt;Takılmadı&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Takılı&amp;nbsp;Değil&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
@@ -18360,7 +18367,7 @@ Oturum Panelini kullanın</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Aşağıdaki sanal makineleri makine listesinden kaldırmak üzeresiniz:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Sanal makineleri içeren dosyaları da sabit diskinizden silmek ister misiniz? Bunu yapmak, aynı zamanda makinelerin sanal sabit disklerini içeren dosyaları başka bir makine tarafından kullanımda değilseler kaldıracak.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Aşağıdaki sanal makineleri makine listesinden kaldırmak üzeresiniz:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Sanal makineleri içeren dosyaları da sabit diskinizden silmek ister misiniz? Bunu yapmak, aynı zamanda makinenin sanal sabit disklerini içeren dosyaları başka bir makine tarafından kullanımda değilseler kaldıracak.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
@@ -20321,7 +20328,7 @@ Oturum Panelini kullanın</translation>
     <name>UINetworkAttachmentEditor</name>
     <message>
         <source>&amp;Attached to:</source>
-        <translation>Şun&amp;a takıldı:</translation>
+        <translation>Şun&amp;a takılı:</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
@@ -23495,7 +23502,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>Attached to:</source>
-        <translation>Şuna takıldı:</translation>
+        <translation>Şuna takılı:</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
@@ -24529,11 +24536,11 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;İşaretlendiğinde, makine, kapatılıdıktan sonra şu anki anlık görüntüde depolanan duruma geri döndürülecektir. Bu, eğer son oturumunuzun sonuçlarından vazgeçmek ve bu anlık görüntüden tekrar başlatmak istediğinizden eminseniz faydalıdır.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;İşaretlendiğinde, makine, kapatılıdıktan sonra şu anki anlık görüntüde depolanan duruma geri döndürülecektir. Bu, eğer son oturumunuzun sonuçlarından vazgeçmek ve bu anlık görüntüden tekrar başlatmak istediğinizden eminseniz faydalıdır.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">Şu anki &apos;%1&apos; anlık görüntüsünü geri &amp;yükle</translation>
+        <translation>Şu anki &apos;%1&apos; anlık görüntüsünü geri &amp;yükle</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>
@@ -29374,7 +29381,7 @@ Version %1</source>
     <message>
         <source>Not attached</source>
         <comment>NetworkAttachmentType</comment>
-        <translation type="vanished">Takılmadı</translation>
+        <translation type="vanished">Takılı değil</translation>
     </message>
     <message>
         <source>NAT</source>
@@ -29932,7 +29939,7 @@ Version %1</source>
     <message>
         <source>Not Attached</source>
         <comment>details report (Storage)</comment>
-        <translation type="vanished">Takılmadı</translation>
+        <translation type="vanished">Takılı Değil</translation>
     </message>
     <message>
         <source>Storage</source>
@@ -30012,12 +30019,12 @@ Version %1</source>
     <message>
         <source>&lt;p&gt;Attached to:  %1&lt;/p&gt;</source>
         <comment>image</comment>
-        <translation type="vanished">&lt;p&gt;Şuna takıldı:  %1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Şuna takılı:  %1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not Attached&lt;/i&gt;</source>
         <comment>image</comment>
-        <translation type="vanished">&lt;i&gt;Takılmadı&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Takılı Değil&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Checking accessibility...&lt;/i&gt;</source>
@@ -31064,7 +31071,7 @@ Version %1</source>
     </message>
     <message>
         <source>Not Attached</source>
-        <translation type="vanished">Takılmadı</translation>
+        <translation type="vanished">Takılı Değil</translation>
     </message>
     <message>
         <source>NAT</source>
@@ -31203,7 +31210,7 @@ Version %1</source>
     <message>
         <source>Not Attached</source>
         <comment>network adapter</comment>
-        <translation type="vanished">Takılmadı</translation>
+        <translation type="vanished">Takılı Değil</translation>
     </message>
     <message>
         <source>Disconnected</source>
@@ -31907,7 +31914,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
-        <translation type="vanished">&lt;i&gt;Takılmadı&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Takılı&amp;nbsp;Değil&lt;/i&gt;</translation>
     </message>
     <message>
         <source>--</source>
@@ -31983,7 +31990,7 @@ to the system default language.&lt;/qt&gt;
     </message>
     <message>
         <source>Attached to:</source>
-        <translation type="vanished">Şuna takıldı:</translation>
+        <translation type="vanished">Şuna takılı:</translation>
     </message>
     <message>
         <source>&amp;Copy...</source>

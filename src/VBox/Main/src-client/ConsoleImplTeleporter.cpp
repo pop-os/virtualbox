@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -648,7 +648,7 @@ static DECLCALLBACK(void) teleporterDstTimeout(RTTIMERLR hTimerLR, void *pvUser,
 HRESULT Console::i_teleporterSrc(TeleporterStateSrc *pState)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     /*
      * Wait for Console::Teleport to change the state.
@@ -789,7 +789,7 @@ Console::i_teleporterSrcThreadWrapper(RTTHREAD hThreadSelf, void *pvUser)
      * and do the cleanups afterwards.
      */
     SafeVMPtr ptrVM(pState->mptrConsole);
-    HRESULT hrc = ptrVM.rc();
+    HRESULT hrc = ptrVM.hrc();
 
     if (SUCCEEDED(hrc))
         hrc = pState->mptrConsole->i_teleporterSrc(pState);
@@ -968,7 +968,7 @@ HRESULT Console::teleport(const com::Utf8Str &aHostname, ULONG aTcpport, const c
     }
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoWriteLock autoLock(this COMMA_LOCKVAL_SRC_POS);
     LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
@@ -1175,7 +1175,7 @@ HRESULT Console::i_teleporterTrg(PUVM pUVM, PCVMMR3VTABLE pVMM, IMachine *pMachi
                     else
                     {
                         hrc = setErrorBoth(E_FAIL, vrc, tr("Unexpected RTTcpServerListen status code %Rrc"), vrc);
-                        LogRel(("Teleporter: Unexpected RTTcpServerListen rc: %Rrc\n", vrc));
+                        LogRel(("Teleporter: Unexpected RTTcpServerListen vrc: %Rrc\n", vrc));
                     }
                 }
                 else

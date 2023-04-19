@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2022 Oracle and/or its affiliates.
+# Copyright (C) 2010-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -24,6 +24,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-only
 #
+
+/*: --no-rc-use
 
 # cbindings have different licences.
 /cbinding/*.h:                          --license-lgpl
@@ -66,6 +68,7 @@
 /UnattendedTemplates/*.cfg:             --external-copyright --treat-as .sh
 /UnattendedTemplates/*.sif:             --external-copyright
 /UnattendedTemplates/*.xml:             --dont-set-svn-eol --no-convert-eol
+/UnattendedTemplates/os2_response_files.rsp: --treat-as batch --external-copyright
 
 # The webservice is fun.
 /webservice/Makefile.webtest:           --treat-as Makefile
@@ -89,4 +92,9 @@
 --filter-out-files /testcase/VBoxVBTest/TestForm.frm
 --filter-out-files /testcase/VBoxVBTest/TestForm.frx
 --filter-out-files /testcase/VBoxVBTest/VBoxVBTest.vbp
+# for now:
+/testcase/*: --unrestricted-rc-use
+
+/testcase/tstUnattendedScript-1.expected: --treat-as plaintext --external-copyright
+/testcase/tstUnattendedScript-1.template: --treat-as plaintext --external-copyright
 

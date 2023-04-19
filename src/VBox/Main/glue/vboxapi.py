@@ -6,7 +6,7 @@ VirtualBox Python API Glue.
 
 __copyright__ = \
 """
-Copyright (C) 2009-2022 Oracle and/or its affiliates.
+Copyright (C) 2009-2023 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -35,7 +35,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 153224 $"
+__version__ = "$Revision: 155244 $"
 
 
 # Note! To set Python bitness on OSX use 'export VERSIONER_PYTHON_PREFER_32_BIT=yes'

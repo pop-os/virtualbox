@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage getextradata
 -->
 <!--
-    Copyright (C) 2006-2022 Oracle and/or its affiliates.
+    Copyright (C) 2006-2023 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-getextradata" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
+    <pubdate>$Date: 2023-01-18 00:40:56 +0100 (Wed, 18 Jan 2023) $</pubdate>
     <title>VBoxManage getextradata</title>
   </refentryinfo>
 
@@ -109,7 +109,7 @@
     </para>
 <screen>$ VBoxManage getextradata Fedora5 installdate
 VirtualBox Command Line Management Interface Version <replaceable>version-number</replaceable>
-Copyright (C) 2005-2022 Oracle and/or its affiliates
+Copyright (C) 2005-2023 Oracle and/or its affiliates
 
 Value: 2006.01.01</screen>
     <para>

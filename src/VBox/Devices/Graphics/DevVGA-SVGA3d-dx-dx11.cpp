@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2393,7 +2393,7 @@ static bool dxIsDepthStencilFormat(DXGI_FORMAT dxgiFormat)
         case DXGI_FORMAT_D32_FLOAT_S8X24_UINT:
         case DXGI_FORMAT_D32_FLOAT:
         case DXGI_FORMAT_D24_UNORM_S8_UINT:
-        case DXGI_FORMAT_R16_FLOAT:
+        case DXGI_FORMAT_D16_UNORM:
             return true;
         default:
             break;
@@ -5060,7 +5060,7 @@ static DECLCALLBACK(void) vmsvga3dBackSurfaceInvalidateImage(PVGASTATECC pThisCC
     {
         Assert(uFace == 0 && uMipmap == 0); /* The caller ensures this. */
         /** @todo This causes flickering when a buffer is invalidated and re-created right before a draw call. */
-        //vmsvga3dBackSurfaceDestroy(pThisCC, pSurface);
+        //vmsvga3dBackSurfaceDestroy(pThisCC, false, pSurface);
     }
     else
     {
@@ -6414,6 +6414,7 @@ static void dxSetupPipeline(PVGASTATECC pThisCC, PVMSVGA3DDXCONTEXT pDXContext)
                             AssertFailed();
                         D3D_RELEASE(pBlob);
                     }
+                    LogFunc(("Shader: set cid=%u shid=%u type=%d, GuestSignatures %d\n", pDXContext->cid, shaderId, pDXShader->enmShaderType, pDXShader->shaderInfo.fGuestSignatures));
 #endif
 
                     HRESULT hr = dxShaderCreate(pThisCC, pDXContext, pDXShader);

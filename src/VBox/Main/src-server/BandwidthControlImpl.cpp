@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -116,7 +116,7 @@ HRESULT BandwidthControl::init(Machine *aParent,
 
     /* sanity */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     unconst(m->pPeer) = aThat;
     AutoWriteLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
@@ -159,7 +159,7 @@ HRESULT BandwidthControl::initCopy(Machine *aParent, BandwidthControl *aThat)
     /* m->pPeer is left null */
 
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     AutoReadLock thatlock(aThat COMMA_LOCKVAL_SRC_POS);
 
@@ -193,15 +193,15 @@ void BandwidthControl::i_copyFrom(BandwidthControl *aThat)
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnVoid(thatCaller.rc());
+    AssertComRCReturnVoid(thatCaller.hrc());
 
     /* even more sanity */
     AutoAnyStateDependency adep(m->pParent);
-    AssertComRCReturnVoid(adep.rc());
+    AssertComRCReturnVoid(adep.hrc());
     /* Machine::copyFrom() may not be called when the VM is running */
     AssertReturnVoid(!Global::IsOnline(adep.machineState()));
 
@@ -229,11 +229,11 @@ void BandwidthControl::i_copyFrom(BandwidthControl *aThat)
 void BandwidthControl::i_rollback()
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* we need the machine state */
     AutoAnyStateDependency adep(m->pParent);
-    AssertComRCReturnVoid(adep.rc());
+    AssertComRCReturnVoid(adep.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     BandwidthGroupList::const_iterator it;
@@ -427,7 +427,7 @@ HRESULT BandwidthControl::createBandwidthGroup(const com::Utf8Str &aName,
      * The machine needs to be mutable:
      */
     AutoMutableOrSavedStateDependency adep(m->pParent);
-    HRESULT hrc = adep.rc();
+    HRESULT hrc = adep.hrc();
     if (SUCCEEDED(hrc))
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -483,13 +483,13 @@ HRESULT BandwidthControl::deleteBandwidthGroup(const com::Utf8Str &aName)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedStateDependency adep(m->pParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     ComObjPtr<BandwidthGroup> group;
-    HRESULT rc = i_getBandwidthGroupByName(aName, group, true /* aSetError */);
-    if (FAILED(rc)) return rc;
+    HRESULT hrc = i_getBandwidthGroupByName(aName, group, true /* aSetError */);
+    if (FAILED(hrc)) return hrc;
 
     if (group->i_getReferences() != 0)
         return setError(VBOX_E_OBJECT_IN_USE,
@@ -524,12 +524,11 @@ HRESULT BandwidthControl::getBandwidthGroup(const com::Utf8Str &aName, ComPtr<IB
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     ComObjPtr<BandwidthGroup> group;
-    HRESULT rc = i_getBandwidthGroupByName(aName, group, true /* aSetError */);
-
-    if (SUCCEEDED(rc))
+    HRESULT hrc = i_getBandwidthGroupByName(aName, group, true /* aSetError */);
+    if (SUCCEEDED(hrc))
         group.queryInterfaceTo(aBandwidthGroup.asOutParam());
 
-    return rc;
+    return hrc;
 }
 
 HRESULT BandwidthControl::getAllBandwidthGroups(std::vector<ComPtr<IBandwidthGroup> > &aBandwidthGroups)
@@ -547,27 +546,27 @@ HRESULT BandwidthControl::getAllBandwidthGroups(std::vector<ComPtr<IBandwidthGro
 
 HRESULT BandwidthControl::i_loadSettings(const settings::IOSettings &data)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
     settings::BandwidthGroupList::const_iterator it;
     for (it = data.llBandwidthGroups.begin();
          it != data.llBandwidthGroups.end();
          ++it)
     {
         const settings::BandwidthGroup &gr = *it;
-        rc = createBandwidthGroup(gr.strName, gr.enmType, (LONG64)gr.cMaxBytesPerSec);
-        if (FAILED(rc)) break;
+        hrc = createBandwidthGroup(gr.strName, gr.enmType, (LONG64)gr.cMaxBytesPerSec);
+        if (FAILED(hrc)) break;
     }
 
-    return rc;
+    return hrc;
 }
 
 HRESULT BandwidthControl::i_saveSettings(settings::IOSettings &data)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     data.llBandwidthGroups.clear();

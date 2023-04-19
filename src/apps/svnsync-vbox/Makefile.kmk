@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@ include $(KBUILD_PATH)/subheader.kmk
 
 PROGRAMS += svnsync-vbox
 
-svnsync-vbox_TEMPLATE = VBOXR3EXE
+svnsync-vbox_TEMPLATE = VBoxR3Exe
 svnsync-vbox_SOURCES = main.c
 svnsync-vbox_INCS = \
 	/usr/include/subversion-1 \

@@ -220,6 +220,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">ចម្លង</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -18272,11 +18279,11 @@ You may wish to translate this more like &quot;Time remaining: %1&quot;</comment
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;នៅពេល​គូស​ធីក ស្ថានភាព​ម៉ាស៊ីន​នឹង​ត្រូវ​បាន​ស្ដារ​ពី​ស្ថានភាព​ដែល​បាន​ទុក​នៅ​ក្នុង​រូបថត​បច្ចុប្បន្ន​ខាង​ស្ដាំ​បន្ទាប់​ពី​​បិទ&#xa0;។ វា​មាន​ប្រយោជន៍​ប្រសិន​បើ​​អ្នក​ប្រាកដ​ថា អ្នក​ចង់​បោះបង់​លទ្ធផល​នៃ​សម័យ​ចុងក្រោយ​របស់​អ្នក ហើយ​ត្រឡប់​ទៅ​រូបថត​បច្ចុប្បន្ន&#xa0;។&lt;/p&gt;</translation>
+        <translation type="unfinished">&lt;p&gt;នៅពេល​គូស​ធីក ស្ថានភាព​ម៉ាស៊ីន​នឹង​ត្រូវ​បាន​ស្ដារ​ពី​ស្ថានភាព​ដែល​បាន​ទុក​នៅ​ក្នុង​រូបថត​បច្ចុប្បន្ន​ខាង​ស្ដាំ​បន្ទាប់​ពី​​បិទ&#xa0;។ វា​មាន​ប្រយោជន៍​ប្រសិន​បើ​​អ្នក​ប្រាកដ​ថា អ្នក​ចង់​បោះបង់​លទ្ធផល​នៃ​សម័យ​ចុងក្រោយ​របស់​អ្នក ហើយ​ត្រឡប់​ទៅ​រូបថត​បច្ចុប្បន្ន&#xa0;។&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="obsolete">ស្តារ​រូប​ថត​បច្ចុប្បន្ន​ &apos;%1&apos;</translation>
+        <translation type="unfinished">ស្តារ​រូប​ថត​បច្ចុប្បន្ន​ &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

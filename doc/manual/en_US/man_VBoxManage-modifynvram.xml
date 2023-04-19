@@ -3,7 +3,7 @@
     manpage, user manual, usage: VBoxManage modifynvram
 -->
 <!--
-    Copyright (C) 2021-2022 Oracle and/or its affiliates.
+    Copyright (C) 2021-2023 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -30,7 +30,7 @@
 ]>
 <refentry id="vboxmanage-modifynvram" lang="en">
   <refentryinfo>
-    <pubdate>$Date: 2022-08-22 19:43:14 +0200 (Mon, 22 Aug 2022) $</pubdate>
+    <pubdate>$Date: 2023-04-06 11:27:32 +0200 (Thu, 06 Apr 2023) $</pubdate>
     <title>VBoxManage modifynvram</title>
   </refentryinfo>
 
@@ -66,6 +66,13 @@
       <arg choice="req"><replaceable>uuid|vmname</replaceable></arg>
       <arg choice="plain">enrollpk</arg>
       <arg>--platform-key=<replaceable>filename</replaceable></arg>
+      <arg>--owner-uuid=<replaceable>uuid</replaceable></arg>
+    </cmdsynopsis>
+    <cmdsynopsis id="synopsis-vboxmanage-modifynvram-enrollmok">
+      <command>VBoxManage modifynvram</command>
+      <arg choice="req"><replaceable>uuid|vmname</replaceable></arg>
+      <arg choice="plain">enrollmok</arg>
+      <arg>--mok=<replaceable>filename</replaceable></arg>
       <arg>--owner-uuid=<replaceable>uuid</replaceable></arg>
     </cmdsynopsis>
     <cmdsynopsis id="synopsis-vboxmanage-modifynvram-listvars">

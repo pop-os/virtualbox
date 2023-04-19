@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -143,15 +143,6 @@ public:
         UIType_RuntimeUI
     };
 
-    /** VM launch modes. */
-    enum LaunchMode
-    {
-        LaunchMode_Invalid,
-        LaunchMode_Default,
-        LaunchMode_Headless,
-        LaunchMode_Separate
-    };
-
     /** VM launch running options. */
     enum LaunchRunning
     {
@@ -213,13 +204,6 @@ public:
 
     /** @name Host OS stuff.
      * @{ */
-#ifdef VBOX_WS_MAC
-        /** Mac OS X: Returns #MacOSXRelease determined by <i>uname</i> call. */
-        static MacOSXRelease determineOsRelease();
-        /** Mac OS X: Returns #MacOSXRelease determined during UICommon prepare routine. */
-        MacOSXRelease osRelease() const { return m_enmMacOSVersion; }
-#endif
-
 #ifdef VBOX_WS_WIN
         /** Loads the color theme. */
         static void loadColorTheme();
@@ -348,7 +332,7 @@ public:
         /** Switches to certain @a comMachine. */
         static bool switchToMachine(CMachine &comMachine);
         /** Launches certain @a comMachine in specified @a enmLaunchMode. */
-        static bool launchMachine(CMachine &comMachine, LaunchMode enmLaunchMode = LaunchMode_Default);
+        static bool launchMachine(CMachine &comMachine, UILaunchMode enmLaunchMode = UILaunchMode_Default);
 
         /** Opens session of certain @a enmLockType for VM with certain @a uId. */
         CSession openSession(const QUuid &uId, KLockType enmLockType = KLockType_Write);
@@ -654,11 +638,6 @@ private:
 
     /** @name Host OS stuff.
      * @{ */
-#ifdef VBOX_WS_MAC
-        /** Mac OS X: Holds the #MacOSXRelease determined using <i>uname</i> call. */
-        MacOSXRelease  m_enmMacOSVersion;
-#endif
-
 #ifdef VBOX_WS_X11
         /** X11: Holds the #X11WMType of the Window Manager we are running under. */
         X11WMType  m_enmWindowManagerType;

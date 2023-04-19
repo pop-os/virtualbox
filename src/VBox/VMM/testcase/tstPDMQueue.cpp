@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2022 Oracle and/or its affiliates.
+ * Copyright (C) 2022-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -423,7 +423,7 @@ static void DoTests(void)
 {
     PVM  pVM;
     PUVM pUVM;
-    RTTESTI_CHECK_RC_OK_RETV(VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM));
+    RTTESTI_CHECK_RC_OK_RETV(VMR3Create(1 /*cCpus*/, NULL, VMCREATE_F_DRIVERLESS, NULL, NULL, NULL, NULL, &pVM, &pUVM));
 
     /*
      * Do the tests.

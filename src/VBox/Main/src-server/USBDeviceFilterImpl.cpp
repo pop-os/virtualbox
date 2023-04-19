@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -243,43 +243,37 @@ HRESULT USBDeviceFilter::init(USBDeviceFilters *aParent,
     /* use setters for the attributes below to reuse parsing errors
      * handling */
 
-    HRESULT rc = S_OK;
-    do
-    {
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_VENDOR_ID, data.strVendorId);
-        if (FAILED(rc)) break;
+    HRESULT hrc = i_usbFilterFieldSetter(USBFILTERIDX_VENDOR_ID, data.strVendorId);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_ID, data.strProductId);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_ID, data.strProductId);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_DEVICE, data.strRevision);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_DEVICE, data.strRevision);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_MANUFACTURER_STR, data.strManufacturer);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_MANUFACTURER_STR, data.strManufacturer);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_STR, data.strProduct);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_STR, data.strProduct);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_SERIAL_NUMBER_STR, data.strSerialNumber);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_SERIAL_NUMBER_STR, data.strSerialNumber);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_PORT, data.strPort);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_PORT, data.strPort);
+    if (FAILED(hrc)) return hrc;
 
-        rc = COMSETTER(Remote)(Bstr(data.strRemote).raw());
-        if (FAILED(rc)) break;
+    hrc = COMSETTER(Remote)(Bstr(data.strRemote).raw());
+    if (FAILED(hrc)) return hrc;
 
-        rc = COMSETTER(MaskedInterfaces)(data.ulMaskedInterfaces);
-        if (FAILED(rc)) break;
-    }
-    while (0);
+    hrc = COMSETTER(MaskedInterfaces)(data.ulMaskedInterfaces);
+    if (FAILED(hrc)) return hrc;
 
-    /* Confirm successful initialization when it's the case */
-    if (SUCCEEDED(rc))
-        autoInitSpan.setSucceeded();
+    /* Confirm successful initialization */
+    autoInitSpan.setSucceeded();
 
-    return rc;
+    return S_OK;
 }
 
 /**
@@ -357,7 +351,7 @@ HRESULT USBDeviceFilter::init(USBDeviceFilters *aParent, USBDeviceFilter *aThat,
 
     /* sanity */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     if (aReshare)
     {
@@ -409,7 +403,7 @@ HRESULT USBDeviceFilter::initCopy(USBDeviceFilters *aParent, USBDeviceFilter *aT
 
     /* sanity */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
     bd.attachCopy(aThat->bd);
@@ -463,7 +457,7 @@ HRESULT USBDeviceFilter::setName(const com::Utf8Str &aName)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent->i_getMachine());
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -501,7 +495,7 @@ HRESULT USBDeviceFilter::setActive(const BOOL aActive)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent->i_getMachine());
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -610,7 +604,7 @@ HRESULT USBDeviceFilter::setRemote(const com::Utf8Str &aRemote)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent->i_getMachine());
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     Bstr bRemote = Bstr(aRemote).raw();
 
@@ -655,7 +649,7 @@ HRESULT USBDeviceFilter::setMaskedInterfaces(ULONG aMaskedIfs)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent->i_getMachine());
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -685,7 +679,7 @@ HRESULT USBDeviceFilter::setMaskedInterfaces(ULONG aMaskedIfs)
 bool USBDeviceFilter::i_isModified()
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), false);
+    AssertComRCReturn(autoCaller.hrc(), false);
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     return m_fModified;
@@ -698,7 +692,7 @@ void USBDeviceFilter::i_rollback()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -713,11 +707,11 @@ void USBDeviceFilter::i_commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller peerCaller(mPeer);
-    AssertComRCReturnVoid(peerCaller.rc());
+    AssertComRCReturnVoid(peerCaller.hrc());
 
     /* lock both for writing since we modify both (mPeer is "master" so locked
      * first) */
@@ -745,11 +739,11 @@ void USBDeviceFilter::unshare()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller peerCaller(mPeer);
-    AssertComRCReturnVoid(peerCaller.rc());
+    AssertComRCReturnVoid(peerCaller.hrc());
 
     /* peer is not modified, lock it for reading (mPeer is "master" so locked
      * first) */
@@ -796,7 +790,7 @@ HRESULT USBDeviceFilter::i_usbFilterFieldSetter(USBFILTERIDX aIdx,
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent->i_getMachine());
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -811,11 +805,11 @@ HRESULT USBDeviceFilter::i_usbFilterFieldSetter(USBFILTERIDX aIdx,
         bd.backup();
 
         com::Utf8Str errStr;
-        HRESULT rc = i_usbFilterFieldFromString(&bd->mUSBFilter, aIdx, strNew, errStr);
-        if (FAILED(rc))
+        HRESULT hrc = i_usbFilterFieldFromString(&bd->mUSBFilter, aIdx, strNew, errStr);
+        if (FAILED(hrc))
         {
             bd.rollback();
-            return setError(rc, "%s", errStr.c_str());
+            return setError(hrc, "%s", errStr.c_str());
         }
 
         // leave the lock before informing callbacks
@@ -897,40 +891,34 @@ HRESULT HostUSBDeviceFilter::init(Host *aParent,
     /* use setters for the attributes below to reuse parsing errors
      * handling */
 
-    HRESULT rc = S_OK;
-    do
-    {
-        rc = setAction(data.action);
-        if (FAILED(rc)) break;
+    HRESULT hrc = setAction(data.action);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_VENDOR_ID, data.strVendorId);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_VENDOR_ID, data.strVendorId);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_ID, data.strProductId);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_ID, data.strProductId);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_DEVICE, data.strRevision);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_DEVICE, data.strRevision);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_MANUFACTURER_STR, data.strManufacturer);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_MANUFACTURER_STR, data.strManufacturer);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_ID, data.strProduct);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_PRODUCT_ID, data.strProduct);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_SERIAL_NUMBER_STR, data.strSerialNumber);
-        if (FAILED(rc)) break;
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_SERIAL_NUMBER_STR, data.strSerialNumber);
+    if (FAILED(hrc)) return hrc;
 
-        rc = i_usbFilterFieldSetter(USBFILTERIDX_PORT, data.strPort);
-        if (FAILED(rc)) break;
-    }
-    while (0);
+    hrc = i_usbFilterFieldSetter(USBFILTERIDX_PORT, data.strPort);
+    if (FAILED(hrc)) return hrc;
 
-    /* Confirm successful initialization when it's the case */
-    if (SUCCEEDED(rc))
-        autoInitSpan.setSucceeded();
+    /* Confirm successful initialization */
+    autoInitSpan.setSucceeded();
 
-    return rc;
+    return S_OK;
 }
 
 /**
@@ -1234,7 +1222,7 @@ HRESULT HostUSBDeviceFilter::i_usbFilterFieldGetter(USBFILTERIDX aIdx, com::Utf8
 void HostUSBDeviceFilter::i_saveSettings(settings::USBDeviceFilter &data)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     data.strName = bd->mData.strName;
@@ -1268,11 +1256,11 @@ HRESULT HostUSBDeviceFilter::i_usbFilterFieldSetter(USBFILTERIDX aIdx, const com
     {
         //bd.backup();
         com::Utf8Str errStr;
-        HRESULT rc = USBDeviceFilter::i_usbFilterFieldFromString(&bd->mUSBFilter, aIdx, aStr, errStr);
-        if (FAILED(rc))
+        HRESULT hrc = USBDeviceFilter::i_usbFilterFieldFromString(&bd->mUSBFilter, aIdx, aStr, errStr);
+        if (FAILED(hrc))
         {
             //bd.rollback();
-            return setError(rc, "%s", errStr.c_str());
+            return setError(hrc, "%s", errStr.c_str());
         }
 
         /* leave the lock before informing callbacks */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -498,7 +498,7 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
         int vrc2 = i_setFileStatus(FileStatus_Error, vrcGuest);
         AssertRC(vrc2);
 
-        /* Ignore rc, as the event to signal might not be there (anymore). */
+        /* Ignore return code, as the event to signal might not be there (anymore). */
         signalWaitEventInternal(pCbCtx, vrcGuest, NULL /* pPayload */);
         return VINF_SUCCESS; /* Report to the guest. */
     }
@@ -698,24 +698,24 @@ int GuestFile::i_onFileNotify(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOST
         {
             GuestWaitEventPayload payload(dataCb.uType, &dataCb, sizeof(dataCb));
 
-            /* Ignore rc, as the event to signal might not be there (anymore). */
+            /* Ignore return code, as the event to signal might not be there (anymore). */
             signalWaitEventInternal(pCbCtx, vrcGuest, &payload);
         }
         else /* OOM situation, wrong HGCM parameters or smth. not expected. */
         {
-            /* Ignore rc, as the event to signal might not be there (anymore). */
+            /* Ignore return code, as the event to signal might not be there (anymore). */
             signalWaitEventInternalEx(pCbCtx, vrc, 0 /* guestRc */, NULL /* pPayload */);
         }
     }
     catch (int vrcEx) /* Thrown by GuestWaitEventPayload constructor. */
     {
         /* Also try to signal the waiter, to let it know of the OOM situation.
-         * Ignore rc, as the event to signal might not be there (anymore). */
+         * Ignore return code, as the event to signal might not be there (anymore). */
         signalWaitEventInternalEx(pCbCtx, vrcEx, 0 /* guestRc */, NULL /* pPayload */);
         vrc = vrcEx;
     }
 
-    LogFlowThisFunc(("uType=%RU32, rcGuest=%Rrc, rc=%Rrc\n", dataCb.uType, vrcGuest, vrc));
+    LogFlowThisFunc(("uType=%RU32, rcGuest=%Rrc, vrc=%Rrc\n", dataCb.uType, vrcGuest, vrc));
     return vrc;
 }
 
@@ -965,10 +965,8 @@ int GuestFile::i_readData(uint32_t uSize, uint32_t uTimeoutMS,
             if (pcbRead)
                 *pcbRead = cbRead;
         }
-        else if (pEvent->HasGuestError()) /* Return guest rc if available. */
-        {
+        else if (pEvent->HasGuestError()) /* Return guest vrc if available. */
             vrc = pEvent->GetGuestError();
-        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1039,10 +1037,8 @@ int GuestFile::i_readDataAt(uint64_t uOffset, uint32_t uSize, uint32_t uTimeoutM
             if (pcbRead)
                 *pcbRead = cbRead;
         }
-        else if (pEvent->HasGuestError()) /* Return guest rc if available. */
-        {
+        else if (pEvent->HasGuestError()) /* Return guest vrc if available. */
             vrc = pEvent->GetGuestError();
-        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1111,10 +1107,8 @@ int GuestFile::i_seekAt(int64_t iOffset, GUEST_FILE_SEEKTYPE eSeekType,
             if (puOffset)
                 *puOffset = uOffset;
         }
-        else if (pEvent->HasGuestError()) /* Return guest rc if available. */
-        {
+        else if (pEvent->HasGuestError()) /* Return guest vrc if available. */
             vrc = pEvent->GetGuestError();
-        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1128,43 +1122,41 @@ int GuestFile::i_seekAt(int64_t iOffset, GUEST_FILE_SEEKTYPE eSeekType,
  *
  * @returns VBox status code.
  * @param   fileStatus          New file status to set.
- * @param   fileRc              New result code to set.
+ * @param   vrcFile             New result code to set.
  *
  * @note    Takes the write lock.
  */
-int GuestFile::i_setFileStatus(FileStatus_T fileStatus, int fileRc)
+int GuestFile::i_setFileStatus(FileStatus_T fileStatus, int vrcFile)
 {
     LogFlowThisFuncEnter();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("oldStatus=%RU32, newStatus=%RU32, fileRc=%Rrc\n",
-                     mData.mStatus, fileStatus, fileRc));
+    LogFlowThisFunc(("oldStatus=%RU32, newStatus=%RU32, vrcFile=%Rrc\n", mData.mStatus, fileStatus, vrcFile));
 
 #ifdef VBOX_STRICT
     if (fileStatus == FileStatus_Error)
-    {
-        AssertMsg(RT_FAILURE(fileRc), ("Guest rc must be an error (%Rrc)\n", fileRc));
-    }
+        AssertMsg(RT_FAILURE(vrcFile), ("Guest vrc must be an error (%Rrc)\n", vrcFile));
     else
-        AssertMsg(RT_SUCCESS(fileRc), ("Guest rc must not be an error (%Rrc)\n", fileRc));
+        AssertMsg(RT_SUCCESS(vrcFile), ("Guest vrc must not be an error (%Rrc)\n", vrcFile));
 #endif
 
     if (mData.mStatus != fileStatus)
     {
         mData.mStatus    = fileStatus;
-        mData.mLastError = fileRc;
+        mData.mLastError = vrcFile;
 
         ComObjPtr<VirtualBoxErrorInfo> errorInfo;
-        HRESULT hr = errorInfo.createObject();
-        ComAssertComRC(hr);
-        if (RT_FAILURE(fileRc))
+        HRESULT hrc = errorInfo.createObject();
+        ComAssertComRCRet(hrc, VERR_COM_UNEXPECTED);
+        if (RT_FAILURE(vrcFile))
         {
-            hr = errorInfo->initEx(VBOX_E_IPRT_ERROR, fileRc,
-                                   COM_IIDOF(IGuestFile), getComponentName(),
-                                   i_guestErrorToString(fileRc, mData.mOpenInfo.mFilename.c_str()));
-            ComAssertComRC(hr);
+            hrc = errorInfo->initEx(VBOX_E_GSTCTL_GUEST_ERROR, vrcFile,
+                                    COM_IIDOF(IGuestFile), getComponentName(),
+                                    i_guestErrorToString(vrcFile, mData.mOpenInfo.mFilename.c_str()));
+            ComAssertComRCRet(hrc, VERR_COM_UNEXPECTED);
         }
+        /* Note: On vrcFile success, errorInfo is set to S_OK and also sent via the event below. */
 
         alock.release(); /* Release lock before firing off event. */
 
@@ -1439,10 +1431,8 @@ int GuestFile::i_writeData(uint32_t uTimeoutMS, const void *pvData, uint32_t cbD
             if (pcbWritten)
                 *pcbWritten = cbWritten;
         }
-        else if (pEvent->HasGuestError()) /* Return guest rc if available. */
-        {
+        else if (pEvent->HasGuestError()) /* Return guest vrc if available. */
             vrc = pEvent->GetGuestError();
-        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1516,10 +1506,8 @@ int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
             if (pcbWritten)
                 *pcbWritten = cbWritten;
         }
-        else if (pEvent->HasGuestError()) /* Return guest rc if available. */
-        {
+        else if (pEvent->HasGuestError()) /* Return guest vrc if available. */
             vrc = pEvent->GetGuestError();
-        }
     }
 
     unregisterWaitEvent(pEvent);
@@ -1533,7 +1521,7 @@ int GuestFile::i_writeDataAt(uint64_t uOffset, uint32_t uTimeoutMS,
 HRESULT GuestFile::close()
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     LogFlowThisFuncEnter();
 
@@ -1559,7 +1547,7 @@ HRESULT GuestFile::close()
 HRESULT GuestFile::queryInfo(ComPtr<IFsObjInfo> &aObjInfo)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     LogFlowThisFuncEnter();
 
@@ -1603,7 +1591,7 @@ HRESULT GuestFile::queryInfo(ComPtr<IFsObjInfo> &aObjInfo)
 HRESULT GuestFile::querySize(LONG64 *aSize)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     LogFlowThisFuncEnter();
 
@@ -1635,7 +1623,7 @@ HRESULT GuestFile::querySize(LONG64 *aSize)
 HRESULT GuestFile::read(ULONG aToRead, ULONG aTimeoutMS, std::vector<BYTE> &aData)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     if (aToRead == 0)
         return setError(E_INVALIDARG, tr("The size to read is zero"));
@@ -1683,7 +1671,7 @@ HRESULT GuestFile::read(ULONG aToRead, ULONG aTimeoutMS, std::vector<BYTE> &aDat
 HRESULT GuestFile::readAt(LONG64 aOffset, ULONG aToRead, ULONG aTimeoutMS, std::vector<BYTE> &aData)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     if (aToRead == 0)
         return setError(E_INVALIDARG, tr("The size to read for guest file \"%s\" is zero"), mData.mOpenInfo.mFilename.c_str());
@@ -1730,7 +1718,7 @@ HRESULT GuestFile::readAt(LONG64 aOffset, ULONG aToRead, ULONG aTimeoutMS, std::
 HRESULT GuestFile::seek(LONG64 aOffset, FileSeekOrigin_T aWhence, LONG64 *aNewOffset)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     HRESULT hrc = S_OK;
 
@@ -1833,7 +1821,7 @@ HRESULT GuestFile::setSize(LONG64 aSize)
                 else
                     vrc = VWRN_GSTCTL_OBJECTSTATE_CHANGED;
             }
-            if (RT_FAILURE(vrc) && pWaitEvent->HasGuestError()) /* Return guest rc if available. */
+            if (RT_FAILURE(vrc) && pWaitEvent->HasGuestError()) /* Return guest vrc if available. */
                 vrc = pWaitEvent->GetGuestError();
         }
 
@@ -1856,7 +1844,7 @@ HRESULT GuestFile::setSize(LONG64 aSize)
 HRESULT GuestFile::write(const std::vector<BYTE> &aData, ULONG aTimeoutMS, ULONG *aWritten)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     if (aData.size() == 0)
         return setError(E_INVALIDARG, tr("No data to write specified"), mData.mOpenInfo.mFilename.c_str());
@@ -1879,7 +1867,7 @@ HRESULT GuestFile::write(const std::vector<BYTE> &aData, ULONG aTimeoutMS, ULONG
 HRESULT GuestFile::writeAt(LONG64 aOffset, const std::vector<BYTE> &aData, ULONG aTimeoutMS, ULONG *aWritten)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     if (aData.size() == 0)
         return setError(E_INVALIDARG, tr("No data to write at for guest file \"%s\" specified"), mData.mOpenInfo.mFilename.c_str());

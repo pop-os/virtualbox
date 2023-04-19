@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -77,7 +77,7 @@ static int vbsf_dir_open(struct inode *inode, struct file *file)
          */
         pReq = (VBOXSFCREATEREQ *)VbglR0PhysHeapAlloc(RT_UOFFSETOF(VBOXSFCREATEREQ, StrPath.String) + sf_i->path->u16Size);
         if (pReq) {
-            memcpy(&pReq->StrPath, sf_i->path, SHFLSTRING_HEADER_SIZE + sf_i->path->u16Size);
+            VBOX_LINUX_MEMCPY(&pReq->StrPath, sf_i->path, SHFLSTRING_HEADER_SIZE + sf_i->path->u16Size);
             RT_ZERO(pReq->CreateParms);
             pReq->CreateParms.Handle      = SHFL_HANDLE_NIL;
             pReq->CreateParms.CreateFlags = SHFL_CF_DIRECTORY
@@ -687,7 +687,7 @@ static struct dentry *vbsf_inode_lookup(struct inode *parent, struct dentry *den
             struct inode *pInode = NULL;
 
             RT_ZERO(*pReq);
-            memcpy(&pReq->StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
+            VBOX_LINUX_MEMCPY(&pReq->StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
             pReq->CreateParms.Handle = SHFL_HANDLE_NIL;
             pReq->CreateParms.CreateFlags = SHFL_CF_LOOKUP | SHFL_CF_ACT_FAIL_IF_NEW;
 
@@ -823,7 +823,7 @@ static int vbsf_create_worker(struct inode *parent, struct dentry *dentry, umode
             VBOXSFCLOSEREQ  Close;
         } *pReq = (union CreateAuxReq *)VbglR0PhysHeapAlloc(RT_UOFFSETOF(VBOXSFCREATEREQ, StrPath.String) + path->u16Size);
         if (pReq) {
-            memcpy(&pReq->Create.StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
+            VBOX_LINUX_MEMCPY(&pReq->Create.StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
             RT_ZERO(pReq->Create.CreateParms);
             pReq->Create.CreateParms.Handle                  = SHFL_HANDLE_NIL;
             pReq->Create.CreateParms.CreateFlags             = fCreateFlags;
@@ -1038,14 +1038,16 @@ static int vbsf_inode_atomic_open(struct inode *pDirInode, struct dentry *dentry
 /**
  * Create a new regular file.
  *
- * @param   ns      The name space.
+ * @param   idmap   idmap of the mount.
  * @param   parent  inode of the directory
  * @param   dentry  directory cache entry
  * @param   mode    file mode
  * @param   excl    Possible O_EXCL...
  * @returns 0 on success, Linux error code otherwise
  */
-#if RTLNX_VER_MIN(5,12,0) || defined(DOXYGEN_RUNNING)
+#if RTLNX_VER_MIN(6,3,0)
+static int vbsf_inode_create(struct mnt_idmap *idmap, struct inode *parent, struct dentry *dentry, umode_t mode, bool excl)
+#elif RTLNX_VER_MIN(5,12,0) || defined(DOXYGEN_RUNNING)
 static int vbsf_inode_create(struct user_namespace *ns, struct inode *parent, struct dentry *dentry, umode_t mode, bool excl)
 #elif RTLNX_VER_MIN(3,6,0)
 static int vbsf_inode_create(struct inode *parent, struct dentry *dentry, umode_t mode, bool excl)
@@ -1079,13 +1081,15 @@ static int vbsf_inode_create(struct inode *parent, struct dentry *dentry, int mo
 /**
  * Create a new directory.
  *
- * @param   ns      The name space.
+ * @param   idmap   idmap of the mount.
  * @param   parent  inode of the directory
  * @param   dentry  directory cache entry
  * @param   mode    file mode
  * @returns 0 on success, Linux error code otherwise
  */
-#if RTLNX_VER_MIN(5,12,0) || defined(DOXYGEN_RUNNING)
+#if RTLNX_VER_MIN(6,3,0)
+static int vbsf_inode_mkdir(struct mnt_idmap *idmap, struct inode *parent, struct dentry *dentry, umode_t mode)
+#elif RTLNX_VER_MIN(5,12,0) || defined(DOXYGEN_RUNNING)
 static int vbsf_inode_mkdir(struct user_namespace *ns, struct inode *parent, struct dentry *dentry, umode_t mode)
 #elif RTLNX_VER_MIN(3,3,0)
 static int vbsf_inode_mkdir(struct inode *parent, struct dentry *dentry, umode_t mode)
@@ -1126,7 +1130,7 @@ static int vbsf_unlink_worker(struct inode *parent, struct dentry *dentry, int f
         VBOXSFREMOVEREQ *pReq = (VBOXSFREMOVEREQ *)VbglR0PhysHeapAlloc(RT_UOFFSETOF(VBOXSFREMOVEREQ, StrPath.String)
                                                                        + path->u16Size);
         if (pReq) {
-            memcpy(&pReq->StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
+            VBOX_LINUX_MEMCPY(&pReq->StrPath, path, SHFLSTRING_HEADER_SIZE + path->u16Size);
             uint32_t fFlags = fDirectory ? SHFL_REMOVE_DIR : SHFL_REMOVE_FILE;
             if (dentry->d_inode && ((dentry->d_inode->i_mode & S_IFLNK) == S_IFLNK))
                 fFlags |= SHFL_REMOVE_SYMLINK;
@@ -1192,7 +1196,7 @@ static int vbsf_inode_rmdir(struct inode *parent, struct dentry *dentry)
 /**
  * Rename a regular file / directory.
  *
- * @param   ns          The name space.
+ * @param   idmap       idmap of the mount.
  * @param   old_parent  inode of the old parent directory
  * @param   old_dentry  old directory cache entry
  * @param   new_parent  inode of the new parent directory
@@ -1200,7 +1204,11 @@ static int vbsf_inode_rmdir(struct inode *parent, struct dentry *dentry)
  * @param   flags       flags
  * @returns 0 on success, Linux error code otherwise
  */
-#if RTLNX_VER_MIN(5,12,0) || defined(DOXYGEN_RUNNING)
+#if RTLNX_VER_MIN(6,3,0)
+static int vbsf_inode_rename(struct mnt_idmap *idmap,
+                             struct inode *old_parent, struct dentry *old_dentry,
+                             struct inode *new_parent, struct dentry *new_dentry, unsigned flags)
+#elif RTLNX_VER_MIN(5,12,0) || defined(DOXYGEN_RUNNING)
 static int vbsf_inode_rename(struct user_namespace *ns,
                              struct inode *old_parent, struct dentry *old_dentry,
                              struct inode *new_parent, struct dentry *new_dentry, unsigned flags)
@@ -1242,7 +1250,7 @@ static int vbsf_inode_rename(struct inode *old_parent, struct dentry *old_dentry
                     struct vbsf_inode_info *sf_file_i = VBSF_GET_INODE_INFO(old_dentry->d_inode);
                     PSHFLSTRING             pOldPath = sf_file_i->path;
 
-                    memcpy(&pReq->StrDstPath, pNewPath, SHFLSTRING_HEADER_SIZE + pNewPath->u16Size);
+                    VBOX_LINUX_MEMCPY(&pReq->StrDstPath, pNewPath, SHFLSTRING_HEADER_SIZE + pNewPath->u16Size);
                     rc = VbglR0SfHostReqRenameWithSrcContig(pSuperInfo->map.root, pReq, pOldPath, virt_to_phys(pOldPath), fRename);
                     VbglR0PhysHeapFree(pReq);
                     if (RT_SUCCESS(rc)) {
@@ -1312,7 +1320,9 @@ static int vbsf_inode_rename_no_flags(struct inode *old_parent, struct dentry *o
 /**
  * Create a symbolic link.
  */
-#if RTLNX_VER_MIN(5,12,0)
+#if RTLNX_VER_MIN(6,3,0)
+static int vbsf_inode_symlink(struct mnt_idmap *idmap, struct inode *parent, struct dentry *dentry, const char *target)
+#elif RTLNX_VER_MIN(5,12,0)
 static int vbsf_inode_symlink(struct user_namespace *ns, struct inode *parent, struct dentry *dentry, const char *target)
 #else
 static int vbsf_inode_symlink(struct inode *parent, struct dentry *dentry, const char *target)
@@ -1341,7 +1351,7 @@ static int vbsf_inode_symlink(struct inode *parent, struct dentry *dentry, const
             VBOXSFCREATESYMLINKREQ *pReq  = (VBOXSFCREATESYMLINKREQ *)VbglR0PhysHeapAlloc(cbReq);
             if (pReq) {
                 RT_ZERO(*pReq);
-                memcpy(&pReq->StrSymlinkPath, pPath, SHFLSTRING_HEADER_SIZE + pPath->u16Size);
+                VBOX_LINUX_MEMCPY(&pReq->StrSymlinkPath, pPath, SHFLSTRING_HEADER_SIZE + pPath->u16Size);
 
                 rc = VbglR0SfHostReqCreateSymlinkContig(pSuperInfo->map.root, pTarget, virt_to_phys(pTarget), pReq);
                 if (RT_SUCCESS(rc)) {

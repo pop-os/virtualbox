@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -25,16 +25,29 @@
  * SPDX-License-Identifier: GPL-3.0-only
  */
 
-#include <cppunit/ui/text/TestRunner.h>
-#include <cppunit/extensions/HelperMacros.h>
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#ifdef USE_CPPUNIT
+# include <cppunit/ui/text/TestRunner.h>
+# include <cppunit/extensions/HelperMacros.h>
+#else
+# include "CppUnitEmulation.h"
+#endif
 
 #include "../DevE1000Phy.h"
+
 
 /**
  * Test fixture for PHY MDIO/MDC interface emulation.
  */
-class PhyTest : public CppUnit::TestFixture  {
-    CPPUNIT_TEST_SUITE( PhyTest );
+class PhyTest
+#ifdef USE_CPPUNIT
+    : public CppUnit::TestFixture
+#endif
+{
+    CPPUNIT_TEST_SUITE( tstDevPhy );
 
     CPPUNIT_TEST(testSize);
     CPPUNIT_TEST(testReadPID);
@@ -165,10 +178,15 @@ void PhyTest::writeTo(uint16_t addr, uint32_t value)
 }
 
 // Create text test runner and run all tests.
-int main( int argc, char **argv)
+int main()
 {
+#ifdef USE_CPPUNIT
     CppUnit::TextUi::TestRunner runner;
     runner.addTest( PhyTest::suite() );
     return runner.run() ? 0 : 1;
+#else
+    PhyTest Test;
+    return Test.run();
+#endif
 }
 

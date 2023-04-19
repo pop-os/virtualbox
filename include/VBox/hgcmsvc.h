@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -108,7 +108,7 @@ typedef struct VBOXHGCMCALLHANDLE_TYPEDEF *VBOXHGCMCALLHANDLE;
 typedef struct VBOXHGCMSVCHELPERS
 {
     /** The service has processed the Call request. */
-    DECLR3CALLBACKMEMBER(int, pfnCallComplete, (VBOXHGCMCALLHANDLE callHandle, int32_t rc));
+    DECLR3CALLBACKMEMBER(int, pfnCallComplete, (VBOXHGCMCALLHANDLE callHandle, int32_t vrc));
 
     void *pvInstance;
 

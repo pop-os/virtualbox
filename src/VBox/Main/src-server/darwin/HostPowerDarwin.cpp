@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -46,11 +46,9 @@ HostPowerServiceDarwin::HostPowerServiceDarwin(VirtualBox *aVirtualBox)
   , mCritical(false)
 {
     /* Create the new worker thread. */
-    int rc = RTThreadCreate(&mThread, HostPowerServiceDarwin::powerChangeNotificationThread, this, 65536,
-                            RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "MainPower");
-
-    if (RT_FAILURE(rc))
-        LogFlow(("RTThreadCreate failed with %Rrc\n", rc));
+    int vrc = RTThreadCreate(&mThread, HostPowerServiceDarwin::powerChangeNotificationThread, this, 65536,
+                             RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "MainPower");
+    AssertLogRelRC(vrc);
 }
 
 HostPowerServiceDarwin::~HostPowerServiceDarwin()

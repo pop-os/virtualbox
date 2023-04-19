@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -276,6 +276,7 @@ void UIMachineSettingsUSB::putToCache()
             newUsbFilterData.m_guiData.m_strManufacturer = filter.m_strManufacturer;
             newUsbFilterData.m_guiData.m_strProduct = filter.m_strProduct;
             newUsbFilterData.m_guiData.m_strSerialNumber = filter.m_strSerialNumber;
+            newUsbFilterData.m_guiData.m_strPort = filter.m_strPort;
             newUsbFilterData.m_guiData.m_enmRemoteMode = filter.m_enmRemoteMode;
             m_pCache->child(iFilterIndex).cacheCurrentData(newUsbFilterData);
         }

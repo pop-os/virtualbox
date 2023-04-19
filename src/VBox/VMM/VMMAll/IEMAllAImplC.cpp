@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2011-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -14392,8 +14392,6 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_vpmovzxdq_u256_fallback,(PRTUINT256U puDst, PCR
     puDst->au64[3] = uSrc1.au32[3];
 }
 
-
-#ifdef IEM_WITHOUT_ASSEMBLY
 /**
  * Converts from the packed IPRT 32-bit (single precision) floating point format to
  * the SoftFloat 32-bit floating point format (float32_t).
@@ -14461,6 +14459,7 @@ DECLINLINE(PRTFLOAT64U) iemFpSoftF64ToIprt(PRTFLOAT64U pr64Dst, float64_t const 
         32 /* Rounding precision, not relevant for SIMD. */ \
     }
 
+#ifdef IEM_WITHOUT_ASSEMBLY
 
 /**
  * Helper for transfering exception to MXCSR and setting the result value
@@ -14584,6 +14583,8 @@ DECLINLINE(uint32_t) iemSseSoftStateAndR64ToMxcsrAndIprtResultNoFz(softfloat_sta
     return fMxcsr | (fXcpt & X86_MXCSR_XCPT_FLAGS);
 }
 
+#endif /* IEM_WITHOUT_ASSEMBLY */
+
 
 /**
  * Sets the given single precision floating point input value to the given output taking the Denormals-as-zero flag
@@ -14646,6 +14647,7 @@ DECLINLINE(uint32_t) iemSsePrepareValueR64(PRTFLOAT64U pr64Val, uint32_t fMxcsr,
     return 0;
 }
 
+#ifdef IEM_WITHOUT_ASSEMBLY
 
 /**
  * Validates the given input operands returning whether the operation can continue or whether one
@@ -14659,8 +14661,8 @@ DECLINLINE(uint32_t) iemSsePrepareValueR64(PRTFLOAT64U pr64Val, uint32_t fMxcsr,
  */
 DECLINLINE(bool) iemSseBinaryValIsNaNR32(PRTFLOAT32U pr32Res, PCRTFLOAT32U pr32Val1, PCRTFLOAT32U pr32Val2, uint32_t *pfMxcsr)
 {
-    uint8_t cQNan = RTFLOAT32U_IS_QUIET_NAN(pr32Val1) + RTFLOAT32U_IS_QUIET_NAN(pr32Val2);
-    uint8_t cSNan = RTFLOAT32U_IS_SIGNALLING_NAN(pr32Val1) + RTFLOAT32U_IS_SIGNALLING_NAN(pr32Val2);
+    uint8_t const cQNan = RTFLOAT32U_IS_QUIET_NAN(pr32Val1)      + RTFLOAT32U_IS_QUIET_NAN(pr32Val2);
+    uint8_t const cSNan = RTFLOAT32U_IS_SIGNALLING_NAN(pr32Val1) + RTFLOAT32U_IS_SIGNALLING_NAN(pr32Val2);
     if (cSNan + cQNan == 2)
     {
         /* Both values are either SNan or QNan, first operand is placed into the result and converted to a QNan. */
@@ -14669,7 +14671,7 @@ DECLINLINE(bool) iemSseBinaryValIsNaNR32(PRTFLOAT32U pr32Res, PCRTFLOAT32U pr32V
         *pfMxcsr |= (cSNan ? X86_MXCSR_IE : 0);
         return true;
     }
-    else if (cSNan)
+    if (cSNan)
     {
         /* One operand is an SNan and placed into the result, converting it to a QNan. */
         *pr32Res = RTFLOAT32U_IS_SIGNALLING_NAN(pr32Val1) ? *pr32Val1 : *pr32Val2;
@@ -14677,7 +14679,7 @@ DECLINLINE(bool) iemSseBinaryValIsNaNR32(PRTFLOAT32U pr32Res, PCRTFLOAT32U pr32V
         *pfMxcsr |= X86_MXCSR_IE;
         return true;
     }
-    else if (cQNan)
+    if (cQNan)
     {
         /* The QNan operand is placed into the result. */
         *pr32Res = RTFLOAT32U_IS_QUIET_NAN(pr32Val1) ? *pr32Val1 : *pr32Val2;
@@ -14701,8 +14703,8 @@ DECLINLINE(bool) iemSseBinaryValIsNaNR32(PRTFLOAT32U pr32Res, PCRTFLOAT32U pr32V
  */
 DECLINLINE(bool) iemSseBinaryValIsNaNR64(PRTFLOAT64U pr64Res, PCRTFLOAT64U pr64Val1, PCRTFLOAT64U pr64Val2, uint32_t *pfMxcsr)
 {
-    uint8_t cQNan = RTFLOAT64U_IS_QUIET_NAN(pr64Val1) + RTFLOAT64U_IS_QUIET_NAN(pr64Val2);
-    uint8_t cSNan = RTFLOAT64U_IS_SIGNALLING_NAN(pr64Val1) + RTFLOAT64U_IS_SIGNALLING_NAN(pr64Val2);
+    uint8_t const cQNan = RTFLOAT64U_IS_QUIET_NAN(pr64Val1)      + RTFLOAT64U_IS_QUIET_NAN(pr64Val2);
+    uint8_t const cSNan = RTFLOAT64U_IS_SIGNALLING_NAN(pr64Val1) + RTFLOAT64U_IS_SIGNALLING_NAN(pr64Val2);
     if (cSNan + cQNan == 2)
     {
         /* Both values are either SNan or QNan, first operand is placed into the result and converted to a QNan. */
@@ -14711,7 +14713,7 @@ DECLINLINE(bool) iemSseBinaryValIsNaNR64(PRTFLOAT64U pr64Res, PCRTFLOAT64U pr64V
         *pfMxcsr |= (cSNan ? X86_MXCSR_IE : 0);
         return true;
     }
-    else if (cSNan)
+    if (cSNan)
     {
         /* One operand is an SNan and placed into the result, converting it to a QNan. */
         *pr64Res = RTFLOAT64U_IS_SIGNALLING_NAN(pr64Val1) ? *pr64Val1 : *pr64Val2;
@@ -14719,7 +14721,7 @@ DECLINLINE(bool) iemSseBinaryValIsNaNR64(PRTFLOAT64U pr64Res, PCRTFLOAT64U pr64V
         *pfMxcsr |= X86_MXCSR_IE;
         return true;
     }
-    else if (cQNan)
+    if (cQNan)
     {
         /* The QNan operand is placed into the result. */
         *pr64Res = RTFLOAT64U_IS_QUIET_NAN(pr64Val1) ? *pr64Val1 : *pr64Val2;
@@ -14750,7 +14752,7 @@ DECLINLINE(bool) iemSseUnaryValIsNaNR32(PRTFLOAT32U pr32Res, PCRTFLOAT32U pr32Va
         *pfMxcsr |= X86_MXCSR_IE;
         return true;
     }
-    else if (RTFLOAT32U_IS_QUIET_NAN(pr32Val))
+    if (RTFLOAT32U_IS_QUIET_NAN(pr32Val))
     {
         /* The QNan operand is placed into the result. */
         *pr32Res = *pr32Val;
@@ -14780,7 +14782,7 @@ DECLINLINE(bool) iemSseUnaryValIsNaNR64(PRTFLOAT64U pr64Res, PCRTFLOAT64U pr64Va
         *pfMxcsr |= X86_MXCSR_IE;
         return true;
     }
-    else if (RTFLOAT64U_IS_QUIET_NAN(pr64Val))
+    if (RTFLOAT64U_IS_QUIET_NAN(pr64Val))
     {
         /* The QNan operand is placed into the result. */
         *pr64Res = *pr64Val;
@@ -14789,8 +14791,8 @@ DECLINLINE(bool) iemSseUnaryValIsNaNR64(PRTFLOAT64U pr64Res, PCRTFLOAT64U pr64Va
 
     return false;
 }
-#endif
 
+#endif /* IEM_WITHOUT_ASSEMBLY */
 
 /**
  * ADDPS
@@ -17059,8 +17061,8 @@ static bool iemAImpl_cmp_worker_r64(uint32_t *pfMxcsr, PCRTFLOAT64U pr64Src1, PC
         softfloat_state_t SoftState = IEM_SOFTFLOAT_STATE_INITIALIZER_FROM_MXCSR(*pfMxcsr);
 
         RTFLOAT64U r64Src1, r64Src2;
-        uint32_t fDe  = iemSsePrepareValueR64(&r64Src1, *pfMxcsr, pr64Src1);
-                 fDe |= iemSsePrepareValueR64(&r64Src2, *pfMxcsr, pr64Src2);
+        uint32_t fDe  = iemSsePrepareValueR64(&r64Src1, *pfMxcsr, pr64Src1)
+                      | iemSsePrepareValueR64(&r64Src2, *pfMxcsr, pr64Src2);
 
         *pfMxcsr |= fDe;
         float64_t f64Src1 = iemFpSoftF64FromIprt(&r64Src1);
@@ -17129,47 +17131,47 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_cmpsd_u128,(uint32_t *pfMxcsr, PX86XMMREG puDst
  * ROUNDPS / ROUNDPD / ROUNDSS / ROUNDSD
  */
 
+#define X86_SSE_ROUNDXX_IMM_RC_MASK    UINT32_C(0x0003)
+#define X86_SSE_ROUNDXX_IMM_ROUND_SEL  UINT32_C(0x0004)
+#define X86_SSE_ROUNDXX_IMM_PRECISION  UINT32_C(0x0008)
+
+DECLINLINE(softfloat_state_t) iemSseRoundXXMxcsrAndImmToSoftState(uint32_t fMxcsr, uint8_t bImm)
+{
+    if (bImm & X86_SSE_ROUNDXX_IMM_ROUND_SEL)
+        return IEM_SOFTFLOAT_STATE_INITIALIZER_FROM_MXCSR(fMxcsr);
+
+    fMxcsr &= ~X86_MXCSR_RC_MASK;
+    fMxcsr |= (bImm & X86_SSE_ROUNDXX_IMM_RC_MASK) << X86_MXCSR_RC_SHIFT;
+    return IEM_SOFTFLOAT_STATE_INITIALIZER_FROM_MXCSR(fMxcsr);
+}
+
 static RTFLOAT32U iemAImpl_round_worker_r32(uint32_t *pfMxcsr, PCRTFLOAT32U pr32Src, uint8_t bImm)
 {
-    RTFLOAT32U  r32Dst;
+    RTFLOAT32U r32Src, r32Dst;
+    float32_t f32Src;
+    softfloat_state_t SoftState = iemSseRoundXXMxcsrAndImmToSoftState(*pfMxcsr, bImm);
+    bool fExact = !RT_BOOL(bImm & X86_SSE_ROUNDXX_IMM_PRECISION);
 
-    AssertReleaseFailed();
-    RT_NOREF(bImm);
-    RT_NOREF(pfMxcsr);
-    r32Dst = *pr32Src;
+    iemSsePrepareValueR32(&r32Src, *pfMxcsr, pr32Src);
+    f32Src = f32_roundToInt(iemFpSoftF32FromIprt(&r32Src), SoftState.roundingMode, fExact, &SoftState);
+
+    iemFpSoftF32ToIprt(&r32Dst, f32Src);
     return r32Dst;
 }
 
-
 static RTFLOAT64U iemAImpl_round_worker_r64(uint32_t *pfMxcsr, PCRTFLOAT64U pr64Src, uint8_t bImm)
 {
-    RTFLOAT64U  r64Dst;
+    RTFLOAT64U r64Src, r64Dst;
+    float64_t f64Src;
+    softfloat_state_t SoftState = iemSseRoundXXMxcsrAndImmToSoftState(*pfMxcsr, bImm);
+    bool fExact = !RT_BOOL(bImm & X86_SSE_ROUNDXX_IMM_PRECISION);
 
-    AssertReleaseFailed();
-    RT_NOREF(bImm);
-    RT_NOREF(pfMxcsr);
-    r64Dst = *pr64Src;
+    iemSsePrepareValueR64(&r64Src, *pfMxcsr, pr64Src);
+    f64Src = f64_roundToInt(iemFpSoftF64FromIprt(&r64Src), SoftState.roundingMode, fExact, &SoftState);
+
+    iemFpSoftF64ToIprt(&r64Dst, f64Src);
     return r64Dst;
 }
-
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_roundps_u128_fallback,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
-{
-    for (uint8_t i = 0; i < RT_ELEMENTS(puDst->ar32); i++)
-    {
-        puDst->ar32[i] = iemAImpl_round_worker_r32(pfMxcsr, &pSrc->uSrc2.ar32[i], bImm & 0x7);
-    }
-}
-
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_roundpd_u128_fallback,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
-{
-    for (uint8_t i = 0; i < RT_ELEMENTS(puDst->ar64); i++)
-    {
-        puDst->ar64[i] = iemAImpl_round_worker_r64(pfMxcsr, &pSrc->uSrc2.ar64[i], bImm & 0x7);
-    }
-}
-
 
 #ifdef IEM_WITHOUT_ASSEMBLY
 IEM_DECL_IMPL_DEF(void, iemAImpl_roundss_u128,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
@@ -17187,6 +17189,22 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_roundsd_u128,(uint32_t *pfMxcsr, PX86XMMREG puD
 }
 #endif
 
+IEM_DECL_IMPL_DEF(void, iemAImpl_roundps_u128_fallback,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
+{
+    for (uint8_t i = 0; i < RT_ELEMENTS(puDst->ar32); i++)
+    {
+        puDst->ar32[i] = iemAImpl_round_worker_r32(pfMxcsr, &pSrc->uSrc2.ar32[i], bImm & 0x7);
+    }
+}
+
+
+IEM_DECL_IMPL_DEF(void, iemAImpl_roundpd_u128_fallback,(uint32_t *pfMxcsr, PX86XMMREG puDst, PCIEMMEDIAF2XMMSRC pSrc, uint8_t bImm))
+{
+    for (uint8_t i = 0; i < RT_ELEMENTS(puDst->ar64); i++)
+    {
+        puDst->ar64[i] = iemAImpl_round_worker_r64(pfMxcsr, &pSrc->uSrc2.ar64[i], bImm & 0x7);
+    }
+}
 
 /**
  * CVTPD2PI

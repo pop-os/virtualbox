@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -4656,9 +4656,12 @@ static int hmR0VmxLeave(PVMCPUCC pVCpu, bool fImportState)
     /* Restore host debug registers if necessary. We will resync on next R0 reentry. */
 #ifdef VMX_WITH_MAYBE_ALWAYS_INTERCEPT_MOV_DRX
     Assert(   (pVmcsInfo->u32ProcCtls & VMX_PROC_CTLS_MOV_DR_EXIT)
+           ||  pVCpu->hmr0.s.vmx.fSwitchedToNstGstVmcs
            || (!CPUMIsHyperDebugStateActive(pVCpu) && !pVCpu->CTX_SUFF(pVM)->hmr0.s.vmx.fAlwaysInterceptMovDRx));
 #else
-    Assert((pVmcsInfo->u32ProcCtls & VMX_PROC_CTLS_MOV_DR_EXIT) || !CPUMIsHyperDebugStateActive(pVCpu));
+    Assert(   (pVmcsInfo->u32ProcCtls & VMX_PROC_CTLS_MOV_DR_EXIT)
+           ||  pVCpu->hmr0.s.vmx.fSwitchedToNstGstVmcs
+           || !CPUMIsHyperDebugStateActive(pVCpu));
 #endif
     CPUMR0DebugStateMaybeSaveGuestAndRestoreHost(pVCpu, true /* save DR6 */);
     Assert(!CPUMIsGuestDebugStateActive(pVCpu));

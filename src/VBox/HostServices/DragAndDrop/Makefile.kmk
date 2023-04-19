@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2011-2022 Oracle and/or its affiliates.
+# Copyright (C) 2011-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -35,7 +35,7 @@ include $(KBUILD_PATH)/subheader.kmk
 # The drag and drop service DLL.
 #
 DLLS += VBoxDragAndDropSvc
-VBoxDragAndDropSvc_TEMPLATE  = VBOXR3
+VBoxDragAndDropSvc_TEMPLATE  = VBoxR3Dll
 VBoxDragAndDropSvc_NAME.os2  = VBoxDnD
 VBoxDragAndDropSvc_DEFS      = \
 	VBOX_WITH_HGCM \
@@ -49,8 +49,8 @@ VBoxDragAndDropSvc_SOURCES = \
 	dndmanager.cpp
 
 VBoxDragAndDropSvc_SOURCES += \
-    ../common/client.cpp \
-    ../common/message.cpp
+	../common/client.cpp \
+	../common/message.cpp
 
 VBoxDragAndDropSvc_SOURCES.win = \
 	VBoxDragAndDropSvc.rc

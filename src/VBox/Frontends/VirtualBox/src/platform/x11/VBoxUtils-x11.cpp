@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -47,9 +47,13 @@
 #include <VBox/log.h>
 
 /* Other includes: */
+#undef  BOOL            /* Undefine the VBox/com/defs.h variant */
+#define BOOL X11BOOL    /* Typedef'ed in Xmd.h via dpms.h, causing -Wpch-invalid to trigger. */
 #include <X11/Xatom.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/dpms.h>
+#undef  BOOL            /* Restore the VBox/com/defs.h variant */
+#define BOOL PRBool
 
 
 bool NativeWindowSubsystem::X11IsCompositingManagerRunning()

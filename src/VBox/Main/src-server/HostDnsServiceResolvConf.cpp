@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -75,8 +75,8 @@ HostDnsServiceResolvConf::~HostDnsServiceResolvConf()
 
 HRESULT HostDnsServiceResolvConf::init(HostDnsMonitorProxy *pProxy, const char *aResolvConfFileName)
 {
-    HRESULT hr = HostDnsServiceBase::init(pProxy);
-    AssertComRCReturn(hr, hr);
+    HRESULT hrc = HostDnsServiceBase::init(pProxy);
+    AssertComRCReturn(hrc, hrc);
 
     m = new Data(aResolvConfFileName);
     AssertPtrReturn(m, E_OUTOFMEMORY);
@@ -105,8 +105,8 @@ HRESULT HostDnsServiceResolvConf::readResolvConf(void)
     struct rcp_state st;
 
     st.rcps_flags = RCPSF_NO_STR2IPCONV;
-    int rc = rcp_parse(&st, m->resolvConfFilename.c_str());
-    if (rc == -1)
+    int vrc = rcp_parse(&st, m->resolvConfFilename.c_str());
+    if (vrc == -1)
         return S_OK;
 
     HostDnsInformation info;

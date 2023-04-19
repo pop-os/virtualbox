@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -31,6 +31,8 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_GUI
+
+#include <iprt/stream.h>
 
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
@@ -110,13 +112,6 @@ using namespace com;
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-#ifdef VBOX_SECURELABEL
-/** extra data key for the secure label */
-#define VBOXSDL_SECURELABEL_EXTRADATA "VBoxSDL/SecureLabel"
-/** label area height in pixels */
-#define SECURE_LABEL_HEIGHT 20
-#endif
-
 /** Enables the rawr[0|3], patm, and casm options. */
 #define VBOXSDL_ADVANCED_OPTIONS
 
@@ -182,10 +177,7 @@ static Uint32  ResizeTimer(Uint32 interval, void *param) RT_NOTHROW_PROTO;
 static Uint32  QuitTimer(Uint32 interval, void *param) RT_NOTHROW_PROTO;
 static int     WaitSDLEvent(SDL_Event *event);
 static void    SetFullscreen(bool enable);
-
-#ifdef VBOX_WITH_SDL2
 static VBoxSDLFB *getFbFromWinId(Uint32 id);
-#endif
 
 
 /*********************************************************************************************************************************
@@ -232,29 +224,9 @@ static ULONG       gcMonitors = 1;
 static ComObjPtr<VBoxSDLFB> gpFramebuffer[64];
 static Bstr gaFramebufferId[64];
 static SDL_Cursor *gpDefaultCursor = NULL;
-#ifdef VBOXSDL_WITH_X11
-static Cursor      gpDefaultOrigX11Cursor;
-#endif
-static SDL_Cursor *gpCustomCursor = NULL;
-#ifndef VBOX_WITH_SDL2
-static WMcursor   *gpCustomOrigWMcursor = NULL;
-#endif
 static SDL_Cursor *gpOffCursor = NULL;
-static SDL_TimerID gSdlResizeTimer = NULL;
-static SDL_TimerID gSdlQuitTimer = NULL;
-
-#if defined(VBOXSDL_WITH_X11) && !defined(VBOX_WITH_SDL2)
-static SDL_SysWMinfo gSdlInfo;
-#endif
-
-#ifdef VBOX_SECURELABEL
-#ifdef RT_OS_WINDOWS
-#define LIBSDL_TTF_NAME "SDL_ttf"
-#else
-#define LIBSDL_TTF_NAME "libSDL_ttf-2.0.so.0"
-#endif
-RTLDRMOD gLibrarySDL_ttf = NIL_RTLDRMOD;
-#endif
+static SDL_TimerID gSdlResizeTimer = 0;
+static SDL_TimerID gSdlQuitTimer = 0;
 
 static RTSEMEVENT g_EventSemSDLEvents;
 static volatile int32_t g_cNotifyUpdateEventsPending;
@@ -342,39 +314,7 @@ public:
         switch (aType)
         {
             case VBoxEventType_OnExtraDataChanged:
-            {
-#ifdef VBOX_SECURELABEL
-                ComPtr<IExtraDataChangedEvent> pEDCEv = aEvent;
-                Assert(pEDCEv);
-                Bstr bstrMachineId;
-                pEDCEv->COMGETTER(MachineId)(bstrMachineId.asOutParam());
-                if (gpMachine)
-                {
-                    /*
-                     * check if we're interested in the message
-                     */
-                    Bstr bstrOurId;
-                    gpMachine->COMGETTER(Id)(bstrOurId.asOutParam());
-                    if (bstrOurId == bstrMachineId)
-                    {
-                        Bstr bstrKey;
-                        pEDCEv->COMGETTER(Key)(bstrKey.asOutParam());
-                        if (bstrKey == VBOXSDL_SECURELABEL_EXTRADATA)
-                        {
-                            /*
-                             * Notify SDL thread of the string update
-                             */
-                            SDL_Event event  = {0};
-                            event.type       = SDL_USEREVENT;
-                            event.user.type  = SDL_USER_EVENT_SECURELABEL_UPDATE;
-                            PushSDLEventForSure(&event);
-                        }
-                    }
-                }
-#endif
                 break;
-            }
-
             default:
                 AssertFailed();
         }
@@ -549,25 +489,12 @@ public:
                 /* SDL feature not available on Quartz */
 #else
                 bool fCanShow = false;
-
-# ifdef VBOX_WITH_SDL2
                 Uint32 winId = 0;
-
                 VBoxSDLFB *fb = getFbFromWinId(winId);
-
                 SDL_SysWMinfo info;
                 SDL_VERSION(&info.version);
                 if (SDL_GetWindowWMInfo(fb->getWindow(), &info))
                     fCanShow = true;
-# else
-                SDL_SysWMinfo info;
-                SDL_VERSION(&info.version);
-                if (!SDL_GetWMInfo(&info))
-                    fCanShow = false;
-                else
-                    fCanShow = true;
-# endif /* VBOX_WITH_SDL2 */
-
                 if (fCanShow)
                     pCSWEv->AddApproval(NULL);
                 else
@@ -587,21 +514,13 @@ public:
 #ifndef RT_OS_DARWIN
                 SDL_SysWMinfo info;
                 SDL_VERSION(&info.version);
-# ifdef VBOX_WITH_SDL2
                 VBoxSDLFB *fb = getFbFromWinId(winId);
                 if (SDL_GetWindowWMInfo(fb->getWindow(), &info))
-# else
-                if (SDL_GetWMInfo(&info))
-# endif /* VBOX_WITH_SDL2 */
                 {
 # if defined(VBOXSDL_WITH_X11)
-                    pSWEv->COMSETTER(WinId)((LONG64)info.info.x11.wmwindow);
+                    pSWEv->COMSETTER(WinId)((LONG64)info.info.x11.window);
 # elif defined(RT_OS_WINDOWS)
-#  ifdef VBOX_WITH_SDL2
                     pSWEv->COMSETTER(WinId)((intptr_t)info.info.win.window);
-#  else
-                    pSWEv->COMSETTER(WinId)((intptr_t)info.window);
-#  endif /* VBOX_WITH_SDL2 */
 # else /* !RT_OS_WINDOWS */
                     AssertFailed();
 # endif
@@ -683,14 +602,6 @@ static void show_usage()
              "  --discardstate           Discard saved state (if present) and revert to last snapshot (if present)\n"
              "  --settingspw <pw>        Specify the settings password\n"
              "  --settingspwfile <file>  Specify a file containing the settings password\n"
-#ifdef VBOX_SECURELABEL
-             "  --securelabel            Display a secure VM label at the top of the screen\n"
-             "  --seclabelfnt            TrueType (.ttf) font file for secure session label\n"
-             "  --seclabelsiz            Font point size for secure session label (default 12)\n"
-             "  --seclabelofs            Font offset within the secure label (default 0)\n"
-             "  --seclabelfgcol <rgb>    Secure label text color RGB value in 6 digit hexadecimal (eg: FFFF00)\n"
-             "  --seclabelbgcol <rgb>    Secure label background color RGB value in 6 digit hexadecimal (eg: FF0000)\n"
-#endif
 #ifdef VBOXSDL_ADVANCED_OPTIONS
              "  --warpdrive <pct>        Sets the warp driver rate in percent (100 = normal)\n"
 #endif
@@ -777,6 +688,87 @@ void signal_handler_SIGINT(int sig)
 }
 #endif /* VBOXSDL_WITH_X11 */
 
+/**
+ * Returns a stringified version of a keyboard modifier.
+ *
+ * @returns Stringified version of the keyboard modifier.
+ * @param   mod                 Modifier code to return a stringified version for.
+ */
+static const char *keyModToStr(unsigned mod)
+{
+    switch (mod)
+    {
+        RT_CASE_RET_STR(KMOD_NONE);
+        RT_CASE_RET_STR(KMOD_LSHIFT);
+        RT_CASE_RET_STR(KMOD_RSHIFT);
+        RT_CASE_RET_STR(KMOD_LCTRL);
+        RT_CASE_RET_STR(KMOD_RCTRL);
+        RT_CASE_RET_STR(KMOD_LALT);
+        RT_CASE_RET_STR(KMOD_RALT);
+        RT_CASE_RET_STR(KMOD_LGUI);
+        RT_CASE_RET_STR(KMOD_RGUI);
+        RT_CASE_RET_STR(KMOD_NUM);
+        RT_CASE_RET_STR(KMOD_CAPS);
+        RT_CASE_RET_STR(KMOD_MODE);
+        RT_CASE_RET_STR(KMOD_SCROLL);
+        default:
+            break;
+    }
+
+    return "<Unknown>";
+}
+
+/**
+ * Handles detecting a host key by printing its values to stdout.
+ *
+ * @returns RTEXITCODE
+ */
+static RTEXITCODE handleDetectHostKey(void)
+{
+    RTEXITCODE rcExit  = RTEXITCODE_SUCCESS;
+
+    int rc = SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_TIMER);
+    if (rc == 0)
+    {
+        /* We need a window, otherwise we won't get any keypress events. */
+        SDL_Window *pWnd = SDL_CreateWindow("VBoxSDL",
+                                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 640, 480, SDL_WINDOW_SHOWN);
+        RTPrintf("Please hit one or two function key(s) to get the --hostkey value. ..\n");
+        RTPrintf("Press CTRL+C to quit.\n");
+        SDL_Event e1;
+        while (SDL_WaitEvent(&e1))
+        {
+            if (    e1.key.keysym.sym == SDLK_c
+                && (e1.key.keysym.mod & KMOD_CTRL) != 0)
+                break;
+            if (e1.type == SDL_QUIT)
+                break;
+            if (e1.type == SDL_KEYDOWN)
+            {
+                unsigned const mod = SDL_GetModState() & ~(KMOD_MODE | KMOD_NUM | KMOD_RESERVED);
+                RTPrintf("--hostkey %d", e1.key.keysym.sym);
+                if (mod)
+                    RTPrintf(" %d\n", mod);
+                else
+                    RTPrintf("\n");
+
+                if (mod)
+                    RTPrintf("Host key is '%s' + '%s'\n", keyModToStr(mod), SDL_GetKeyName(e1.key.keysym.sym));
+                else
+                    RTPrintf("Host key is '%s'\n", SDL_GetKeyName(e1.key.keysym.sym));
+            }
+        }
+        SDL_DestroyWindow(pWnd);
+        SDL_Quit();
+    }
+    else
+    {
+        RTPrintf("Error: SDL_InitSubSystem failed with message '%s'\n", SDL_GetError());
+        rcExit = RTEXITCODE_FAILURE;
+    }
+
+    return rcExit;
+}
 
 /** entry point */
 extern "C"
@@ -784,8 +776,41 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
     RT_NOREF(envp);
 #ifdef RT_OS_WINDOWS
+    /* As we run with the WINDOWS subsystem, we need to either attach to or create an own console
+     * to get any stdout / stderr output. */
+    bool fAllocConsole = IsDebuggerPresent();
+    if (!fAllocConsole)
+    {
+        if (!AttachConsole(ATTACH_PARENT_PROCESS))
+            fAllocConsole = true;
+    }
+
+    if (fAllocConsole)
+    {
+        if (!AllocConsole())
+            MessageBox(GetDesktopWindow(), L"Unable to attach to or allocate a console!", L"VBoxSDL", MB_OK | MB_ICONERROR);
+        /* Continue running. */
+    }
+
+    RTFILE hStdIn;
+    RTFileFromNative(&hStdIn,  (RTHCINTPTR)GetStdHandle(STD_INPUT_HANDLE));
+    /** @todo Closing of standard handles not support via IPRT (yet). */
+    RTStrmOpenFileHandle(hStdIn, "r", 0, &g_pStdIn);
+
+    RTFILE hStdOut;
+    RTFileFromNative(&hStdOut,  (RTHCINTPTR)GetStdHandle(STD_OUTPUT_HANDLE));
+    /** @todo Closing of standard handles not support via IPRT (yet). */
+    RTStrmOpenFileHandle(hStdOut, "wt", 0, &g_pStdOut);
+
+    RTFILE hStdErr;
+    RTFileFromNative(&hStdErr,  (RTHCINTPTR)GetStdHandle(STD_ERROR_HANDLE));
+    RTStrmOpenFileHandle(hStdErr, "wt", 0, &g_pStdErr);
+
+    if (!fAllocConsole) /* When attaching to the parent console, make sure we start on a fresh line. */
+        RTPrintf("\n");
+
     ATL::CComModule _Module; /* Required internally by ATL (constructor records instance in global variable). */
-#endif
+#endif /* RT_OS_WINDOWS */
 
 #ifdef Q_WS_X11
     if (!XInitThreads())
@@ -810,12 +835,16 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      * and work around the missing KeyPress/KeyRelease events in ProcessKeys().
      */
     {
+#if 0
         const SDL_version *pVersion = SDL_Linked_Version();
         if (  SDL_VERSIONNUM(pVersion->major, pVersion->minor, pVersion->patch)
             < SDL_VERSIONNUM(1, 2, 14))
             RTEnvSet("SDL_DISABLE_LOCK_KEYS", "1");
+#endif
     }
 #endif
+
+    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
 
     /*
      * the hostkey detection mode is unrelated to VM processing, so handle it before
@@ -824,59 +853,14 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     if (argc == 2 && (   !strcmp(argv[1], "-detecthostkey")
                       || !strcmp(argv[1], "--detecthostkey")))
     {
-        Uint32 fInitSubSystem = SDL_INIT_VIDEO | SDL_INIT_TIMER;
-#ifndef VBOX_WITH_SDL2
-        fInitSubSystem |= SDL_INIT_NOPARACHUTE;
+        rcExit = handleDetectHostKey();
+#ifdef RT_OS_WINDOWS
+        FreeConsole(); /* Detach or destroy (from) console. */
 #endif
-        int rc = SDL_InitSubSystem(fInitSubSystem);
-        if (rc != 0)
-        {
-            RTPrintf("Error: SDL_InitSubSystem failed with message '%s'\n", SDL_GetError());
-            return 1;
-        }
-        /* we need a video window for the keyboard stuff to work */
-#ifndef VBOX_WITH_SDL2 /** @todo Is this correct? */
-        if (!SDL_SetVideoMode(640, 480, 16, SDL_SWSURFACE))
-        {
-            RTPrintf("Error: could not set SDL video mode\n");
-            return 1;
-        }
-#endif
-        RTPrintf("Please hit one or two function key(s) to get the --hostkey value...\n");
-
-        SDL_Event event1;
-        while (SDL_WaitEvent(&event1))
-        {
-            if (event1.type == SDL_KEYDOWN)
-            {
-                SDL_Event event2;
-                unsigned  mod = SDL_GetModState() & ~(KMOD_MODE | KMOD_NUM | KMOD_RESERVED);
-                while (SDL_WaitEvent(&event2))
-                {
-                    if (event2.type == SDL_KEYDOWN || event2.type == SDL_KEYUP)
-                    {
-                        /* pressed additional host key */
-                        RTPrintf("--hostkey %d", event1.key.keysym.sym);
-                        if (event2.type == SDL_KEYDOWN)
-                        {
-                            RTPrintf(" %d", event2.key.keysym.sym);
-                            RTPrintf(" %d\n", SDL_GetModState() & ~(KMOD_MODE | KMOD_NUM | KMOD_RESERVED));
-                        }
-                        else
-                        {
-                            RTPrintf(" %d\n", mod);
-                        }
-                        /* we're done */
-                        break;
-                    }
-                }
-                /* we're down */
-                break;
-            }
-        }
-        SDL_Quit();
-        return 1;
+        return rcExit;
     }
+
+    /** @todo r=andy This function is waaaaaay to long, uses goto's and leaks stuff. Use RTGetOpt handling. */
 
     HRESULT hrc;
     int vrc;
@@ -902,14 +886,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     bool fDiscardState = false;
     const char *pcszSettingsPw = NULL;
     const char *pcszSettingsPwFile = NULL;
-#ifdef VBOX_SECURELABEL
-    BOOL fSecureLabel = false;
-    uint32_t secureLabelPointSize = 12;
-    uint32_t secureLabelFontOffs = 0;
-    char *secureLabelFontFile = NULL;
-    uint32_t secureLabelColorFG = 0x0000FF00;
-    uint32_t secureLabelColorBG = 0x00FFFF00;
-#endif
 #ifdef VBOXSDL_ADVANCED_OPTIONS
     uint32_t u32WarpDrive = 0;
 #endif
@@ -1283,64 +1259,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             pcszSettingsPwFile = argv[curArg];
         }
-#ifdef VBOX_SECURELABEL
-        else if (   !strcmp(argv[curArg], "--securelabel")
-                 || !strcmp(argv[curArg], "-securelabel"))
-        {
-            fSecureLabel = true;
-            LogFlow(("Secure labelling turned on\n"));
-        }
-        else if (   !strcmp(argv[curArg], "--seclabelfnt")
-                 || !strcmp(argv[curArg], "-seclabelfnt"))
-        {
-            if (++curArg >= argc)
-            {
-                RTPrintf("Error: missing font file name for secure label!\n");
-                return 1;
-            }
-            secureLabelFontFile = argv[curArg];
-        }
-        else if (   !strcmp(argv[curArg], "--seclabelsiz")
-                 || !strcmp(argv[curArg], "-seclabelsiz"))
-        {
-            if (++curArg >= argc)
-            {
-                RTPrintf("Error: missing font point size for secure label!\n");
-                return 1;
-            }
-            secureLabelPointSize = atoi(argv[curArg]);
-        }
-        else if (   !strcmp(argv[curArg], "--seclabelofs")
-                 || !strcmp(argv[curArg], "-seclabelofs"))
-        {
-            if (++curArg >= argc)
-            {
-                RTPrintf("Error: missing font pixel offset for secure label!\n");
-                return 1;
-            }
-            secureLabelFontOffs = atoi(argv[curArg]);
-        }
-        else if (   !strcmp(argv[curArg], "--seclabelfgcol")
-                 || !strcmp(argv[curArg], "-seclabelfgcol"))
-        {
-            if (++curArg >= argc)
-            {
-                RTPrintf("Error: missing text color value for secure label!\n");
-                return 1;
-            }
-            sscanf(argv[curArg], "%X", &secureLabelColorFG);
-        }
-        else if (   !strcmp(argv[curArg], "--seclabelbgcol")
-                 || !strcmp(argv[curArg], "-seclabelbgcol"))
-        {
-            if (++curArg >= argc)
-            {
-                RTPrintf("Error: missing background color value for secure label!\n");
-                return 1;
-            }
-            sscanf(argv[curArg], "%X", &secureLabelColorBG);
-        }
-#endif
 #ifdef VBOXSDL_ADVANCED_OPTIONS
         else if (   !strcmp(argv[curArg], "--warpdrive")
                  || !strcmp(argv[curArg], "-warpdrive"))
@@ -1459,7 +1377,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     }
     else if (pcszSettingsPwFile)
     {
-        int rcExit = settingsPasswordFile(pVirtualBox, pcszSettingsPwFile);
+        rcExit = settingsPasswordFile(pVirtualBox, pcszSettingsPwFile);
         if (rcExit != RTEXITCODE_SUCCESS)
             goto leave;
     }
@@ -1981,52 +1899,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             SetFullscreen(true);
     }
 
-#ifdef VBOX_SECURELABEL
-    if (fSecureLabel)
-    {
-        if (!secureLabelFontFile)
-        {
-            RTPrintf("Error: no font file specified for secure label!\n");
-            goto leave;
-        }
-        /* load the SDL_ttf library and get the required imports */
-        vrc = RTLdrLoadSystem(LIBSDL_TTF_NAME, true /*fNoUnload*/, &gLibrarySDL_ttf);
-        if (RT_SUCCESS(vrc))
-            vrc = RTLdrGetSymbol(gLibrarySDL_ttf, "TTF_Init", (void**)&pTTF_Init);
-        if (RT_SUCCESS(vrc))
-            vrc = RTLdrGetSymbol(gLibrarySDL_ttf, "TTF_OpenFont", (void**)&pTTF_OpenFont);
-        if (RT_SUCCESS(vrc))
-            vrc = RTLdrGetSymbol(gLibrarySDL_ttf, "TTF_RenderUTF8_Solid", (void**)&pTTF_RenderUTF8_Solid);
-        if (RT_SUCCESS(vrc))
-        {
-            /* silently ignore errors here */
-            vrc = RTLdrGetSymbol(gLibrarySDL_ttf, "TTF_RenderUTF8_Blended", (void**)&pTTF_RenderUTF8_Blended);
-            if (RT_FAILURE(vrc))
-                pTTF_RenderUTF8_Blended = NULL;
-            vrc = VINF_SUCCESS;
-        }
-        if (RT_SUCCESS(vrc))
-            vrc = RTLdrGetSymbol(gLibrarySDL_ttf, "TTF_CloseFont", (void**)&pTTF_CloseFont);
-        if (RT_SUCCESS(vrc))
-            vrc = RTLdrGetSymbol(gLibrarySDL_ttf, "TTF_Quit", (void**)&pTTF_Quit);
-        if (RT_SUCCESS(vrc))
-            vrc = gpFramebuffer[0]->initSecureLabel(SECURE_LABEL_HEIGHT, secureLabelFontFile, secureLabelPointSize, secureLabelFontOffs);
-        if (RT_FAILURE(vrc))
-        {
-            RTPrintf("Error: could not initialize secure labeling: rc = %Rrc\n", vrc);
-            goto leave;
-        }
-        Bstr bstrLabel;
-        gpMachine->GetExtraData(Bstr(VBOXSDL_SECURELABEL_EXTRADATA).raw(), bstrLabel.asOutParam());
-        Utf8Str labelUtf8(bstrLabel);
-        /*
-         * Now update the label
-         */
-        gpFramebuffer[0]->setSecureLabelColor(secureLabelColorFG, secureLabelColorBG);
-        gpFramebuffer[0]->setSecureLabelText(labelUtf8.c_str());
-    }
-#endif
-
 #ifdef VBOXSDL_WITH_X11
     /* NOTE1: We still want Ctrl-C to work, so we undo the SDL redirections.
      * NOTE2: We have to remove the PidFile if this file exists. */
@@ -2141,39 +2013,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     /* memorize the default cursor */
     gpDefaultCursor = SDL_GetCursor();
-
-#if !defined(VBOX_WITH_SDL2)
-# if defined(VBOXSDL_WITH_X11)
-    /* Get Window Manager info. We only need the X11 display. */
-    SDL_VERSION(&gSdlInfo.version);
-    if (!SDL_GetWMInfo(&gSdlInfo))
-        RTPrintf("Error: could not get SDL Window Manager info -- no Xcursor support!\n");
-    else
-        gfXCursorEnabled = TRUE;
-
-#  if !defined(VBOX_WITHOUT_XCURSOR)
-    /* SDL uses its own (plain) default cursor. Use the left arrow cursor instead which might look
-     * much better if a mouse cursor theme is installed. */
-    if (gfXCursorEnabled)
-    {
-        gpDefaultOrigX11Cursor = *(Cursor*)gpDefaultCursor->wm_cursor;
-        *(Cursor*)gpDefaultCursor->wm_cursor = XCreateFontCursor(gSdlInfo.info.x11.display, XC_left_ptr);
-        SDL_SetCursor(gpDefaultCursor);
-    }
-#  endif
-    /* Initialise the keyboard */
-    X11DRV_InitKeyboard(gSdlInfo.info.x11.display, NULL, NULL, NULL, NULL);
-# endif /* VBOXSDL_WITH_X11 */
-
-    /* create a fake empty cursor */
-    {
-        uint8_t cursorData[1] = {0};
-        gpCustomCursor = SDL_CreateCursor(cursorData, cursorData, 8, 1, 0, 0);
-        gpCustomOrigWMcursor = gpCustomCursor->wm_cursor;
-        gpCustomCursor->wm_cursor = NULL;
-    }
-#endif /* !VBOX_WITH_SDL2 */
-
     /*
      * Register our user signal handler.
      */
@@ -2414,15 +2253,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     UpdateTitlebar(TITLEBAR_NORMAL);
 
-#ifdef VBOX_WITH_SDL2
-    /* Key repeats are enabled by default on SDL2. */
-#else
-    /*
-     * Enable keyboard repeats
-     */
-    SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-#endif
-
     /*
      * Create PID file.
      */
@@ -2455,7 +2285,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             /*
              * The screen needs to be repainted.
              */
-#ifdef VBOX_WITH_SDL2
             case SDL_WINDOWEVENT:
             {
                 switch (event.window.event)
@@ -2485,12 +2314,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                                 break;
                             }
                             uResizeWidth  = event.window.data1;
-#ifdef VBOX_SECURELABEL
-                            if (fSecureLabel)
-                                uResizeHeight = RT_MAX(0, event.window.data2 - SECURE_LABEL_HEIGHT);
-                            else
-#endif
-                                uResizeHeight = event.window.data2;
+                            uResizeHeight = event.window.data2;
                             if (gSdlResizeTimer)
                                 SDL_RemoveTimer(gSdlResizeTimer);
                             gSdlResizeTimer = SDL_AddTimer(300, ResizeTimer, NULL);
@@ -2500,14 +2324,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     default:
                         break;
                 }
-            }
-#else
-            case SDL_VIDEOEXPOSE:
-            {
-                gpFramebuffer[0]->repaint();
                 break;
             }
-#endif
 
             /*
              * Keyboard events.
@@ -2515,11 +2333,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             case SDL_KEYDOWN:
             case SDL_KEYUP:
             {
-#ifdef VBOX_WITH_SDL2
                 SDL_Keycode ksym = event.key.keysym.sym;
-#else
-                SDLKey ksym = event.key.keysym.sym;
-#endif
                 switch (enmHKeyState)
                 {
                     case HKEYSTATE_NORMAL:
@@ -2661,17 +2475,21 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 if (gfGrabbed || UseAbsoluteMouse())
                 {
                     VBoxSDLFB *fb;
-#ifdef VBOX_WITH_SDL2
                     fb = getFbFromWinId(event.motion.windowID);
-#else
-                    fb = gpFramebuffer[0];
-#endif
                     AssertPtrBreak(fb);
                     SendMouseEvent(fb, 0, 0, 0);
                 }
                 break;
             }
 
+            case SDL_MOUSEWHEEL:
+            {
+                VBoxSDLFB *fb;
+                fb = getFbFromWinId(event.button.windowID);
+                AssertPtrBreak(fb);
+                SendMouseEvent(fb, -1 * event.wheel.y, 0, 0);
+                break;
+            }
             /*
              * A mouse button has been clicked or released.
              */
@@ -2690,15 +2508,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 }
                 else if (gfGrabbed || UseAbsoluteMouse())
                 {
-#ifdef VBOX_WITH_SDL2
-                    int dz = 0; /** @todo Implement mouse wheel support with SDL2 (event SDL_MOUSEWHEEL). */
-#else
-                    int dz = bev->button == SDL_BUTTON_WHEELUP
-                                         ? -1
-                                         : bev->button == SDL_BUTTON_WHEELDOWN
-                                                       ? +1
-                                                       :  0;
-#endif
                     /* end host key combination (CTRL+MouseButton) */
                     switch (enmHKeyState)
                     {
@@ -2724,18 +2533,14 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     }
 
                     VBoxSDLFB *fb;
-#ifdef VBOX_WITH_SDL2
                     fb = getFbFromWinId(event.button.windowID);
-#else
-                    fb = gpFramebuffer[0];
-#endif
                     AssertPtrBreak(fb);
-                    SendMouseEvent(fb, dz, event.type == SDL_MOUSEBUTTONDOWN, bev->button);
+                    SendMouseEvent(fb, 0 /*wheel vertical movement*/, event.type == SDL_MOUSEBUTTONDOWN, bev->button);
                 }
                 break;
             }
 
-#ifndef VBOX_WITH_SDL2
+#if 0
             /*
              * The window has gained or lost focus.
              */
@@ -2771,12 +2576,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                         break;
                     }
                     uResizeWidth  = event.resize.w;
-#ifdef VBOX_SECURELABEL
-                    if (fSecureLabel)
-                        uResizeHeight = RT_MAX(0, event.resize.h - SECURE_LABEL_HEIGHT);
-                    else
-#endif
-                        uResizeHeight = event.resize.h;
+                    uResizeHeight = event.resize.h;
                     if (gSdlResizeTimer)
                         SDL_RemoveTimer(gSdlResizeTimer);
                     gSdlResizeTimer = SDL_AddTimer(300, ResizeTimer, NULL);
@@ -2784,7 +2584,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 break;
             }
 #endif
-
             /*
              * User specific update event.
              */
@@ -2885,27 +2684,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                     RTPrintf("Error: VM terminated abnormally!\n");
                 goto leave;
             }
-
-#ifdef VBOX_SECURELABEL
-            /*
-             * User specific secure label update event
-             */
-            case SDL_USER_EVENT_SECURELABEL_UPDATE:
-            {
-                /*
-                 * Query the new label text
-                 */
-                Bstr bstrLabel;
-                gpMachine->GetExtraData(Bstr(VBOXSDL_SECURELABEL_EXTRADATA).raw(), bstrLabel.asOutParam());
-                Utf8Str labelUtf8(bstrLabel);
-                /*
-                 * Now update the label
-                 */
-                gpFramebuffer[0]->setSecureLabelText(labelUtf8.c_str());
-                break;
-            }
-#endif /* VBOX_SECURELABEL */
-
             /*
              * User specific pointer shape change event
              */
@@ -3020,43 +2798,6 @@ leave:
         AssertComRC(hrc);
     }
 
-#ifndef VBOX_WITH_SDL2
-    /* restore the default cursor and free the custom one if any */
-    if (gpDefaultCursor)
-    {
-# ifdef VBOXSDL_WITH_X11
-        Cursor pDefaultTempX11Cursor = 0;
-        if (gfXCursorEnabled)
-        {
-            pDefaultTempX11Cursor = *(Cursor*)gpDefaultCursor->wm_cursor;
-            *(Cursor*)gpDefaultCursor->wm_cursor = gpDefaultOrigX11Cursor;
-        }
-# endif /* VBOXSDL_WITH_X11 */
-        SDL_SetCursor(gpDefaultCursor);
-# if defined(VBOXSDL_WITH_X11) && !defined(VBOX_WITHOUT_XCURSOR)
-        if (gfXCursorEnabled)
-            XFreeCursor(gSdlInfo.info.x11.display, pDefaultTempX11Cursor);
-# endif /* VBOXSDL_WITH_X11 && !VBOX_WITHOUT_XCURSOR */
-    }
-
-    if (gpCustomCursor)
-    {
-        WMcursor *pCustomTempWMCursor = gpCustomCursor->wm_cursor;
-        gpCustomCursor->wm_cursor = gpCustomOrigWMcursor;
-        SDL_FreeCursor(gpCustomCursor);
-        if (pCustomTempWMCursor)
-        {
-# if defined(RT_OS_WINDOWS)
-            ::DestroyCursor(*(HCURSOR *)pCustomTempWMCursor);
-# elif defined(VBOXSDL_WITH_X11) && !defined(VBOX_WITHOUT_XCURSOR)
-            if (gfXCursorEnabled)
-                XFreeCursor(gSdlInfo.info.x11.display, *(Cursor *)pCustomTempWMCursor);
-# endif /* VBOXSDL_WITH_X11 && !VBOX_WITHOUT_XCURSOR */
-            free(pCustomTempWMCursor);
-        }
-    }
-#endif
-
     LogFlow(("Releasing mouse, keyboard, remote desktop server, display, console...\n"));
     if (gpDisplay)
     {
@@ -3084,12 +2825,6 @@ leave:
     }
 
     VBoxSDLFB::uninit();
-
-#ifdef VBOX_SECURELABEL
-    /* must do this after destructing the framebuffer */
-    if (gLibrarySDL_ttf)
-        RTLdrClose(gLibrarySDL_ttf);
-#endif
 
     /* VirtualBox (server) listener unregistration. */
     if (pVBoxListener)
@@ -3129,6 +2864,11 @@ leave:
 
     LogFlow(("Returning from main()!\n"));
     RTLogFlush(NULL);
+
+#ifdef RT_OS_WINDOWS
+    FreeConsole(); /* Detach or destroy (from) console. */
+#endif
+
     return FAILED(hrc) ? 1 : 0;
 }
 
@@ -3148,6 +2888,7 @@ int main(int argc, char **argv)
     int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_TRY_SUPLIB);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
+
     return TrustedMain(argc, argv, NULL);
 }
 #endif /* !VBOX_WITH_HARDENING */
@@ -3338,8 +3079,6 @@ static uint16_t Keyevent2Keycode(const SDL_KeyboardEvent *ev)
     int keycode = ev->keysym.scancode;
 
 #ifdef VBOXSDL_WITH_X11
-# ifdef VBOX_WITH_SDL2
-
     switch (ev->keysym.sym)
     {
         case SDLK_ESCAPE:           return 0x01;
@@ -3409,7 +3148,7 @@ static uint16_t Keyevent2Keycode(const SDL_KeyboardEvent *ev)
         case SDLK_QUESTION:         return 0x35;
         case SDLK_RSHIFT:           return 0x36;
         case SDLK_KP_MULTIPLY:
-        case SDLK_PRINT:            return 0x37; /* fixme */
+            //case SDLK_PRINT:            return 0x37; /* fixme */
         case SDLK_LALT:             return 0x38;
         case SDLK_MODE: /* alt gr*/
         case SDLK_RALT:             return 0x38 | 0x100;
@@ -3426,28 +3165,28 @@ static uint16_t Keyevent2Keycode(const SDL_KeyboardEvent *ev)
         case SDLK_F9:               return 0x43;
         case SDLK_F10:              return 0x44;
         case SDLK_PAUSE:            return 0x45; /* not right */
-        case SDLK_NUMLOCK:          return 0x45;
-        case SDLK_SCROLLOCK:        return 0x46;
-        case SDLK_KP7:              return 0x47;
+            //case SDLK_NUMLOCK:          return 0x45;
+            //case SDLK_SCROLLOCK:        return 0x46;
+            //case SDLK_KP7:              return 0x47;
         case SDLK_HOME:             return 0x47 | 0x100;
-        case SDLK_KP8:              return 0x48;
+            //case SDLK_KP8:              return 0x48;
         case SDLK_UP:               return 0x48 | 0x100;
-        case SDLK_KP9:              return 0x49;
+            //case SDLK_KP9:              return 0x49;
         case SDLK_PAGEUP:           return 0x49 | 0x100;
         case SDLK_KP_MINUS:         return 0x4a;
-        case SDLK_KP4:              return 0x4b;
+            //case SDLK_KP4:              return 0x4b;
         case SDLK_LEFT:             return 0x4b | 0x100;
-        case SDLK_KP5:              return 0x4c;
-        case SDLK_KP6:              return 0x4d;
+            //case SDLK_KP5:              return 0x4c;
+            //case SDLK_KP6:              return 0x4d;
         case SDLK_RIGHT:            return 0x4d | 0x100;
         case SDLK_KP_PLUS:          return 0x4e;
-        case SDLK_KP1:              return 0x4f;
+            //case SDLK_KP1:              return 0x4f;
         case SDLK_END:              return 0x4f | 0x100;
-        case SDLK_KP2:              return 0x50;
+            //case SDLK_KP2:              return 0x50;
         case SDLK_DOWN:             return 0x50 | 0x100;
-        case SDLK_KP3:              return 0x51;
+            //case SDLK_KP3:              return 0x51;
         case SDLK_PAGEDOWN:         return 0x51 | 0x100;
-        case SDLK_KP0:              return 0x52;
+            //case SDLK_KP0:              return 0x52;
         case SDLK_INSERT:           return 0x52 | 0x100;
         case SDLK_KP_PERIOD:        return 0x53;
         case SDLK_DELETE:           return 0x53 | 0x100;
@@ -3461,9 +3200,6 @@ static uint16_t Keyevent2Keycode(const SDL_KeyboardEvent *ev)
         default:
                                     return 0;
     }
-# else
-    keycode = X11DRV_KeyEvent(gSdlInfo.info.x11.display, keycode);
-# endif
 #elif defined(RT_OS_DARWIN)
     /* This is derived partially from SDL_QuartzKeys.h and partially from testing. */
     static const uint16_t s_aMacToSet1[] =
@@ -3672,7 +3408,7 @@ static void ResetKeys(void)
  */
 static void ProcessKey(SDL_KeyboardEvent *ev)
 {
-#if (defined(DEBUG) || defined(VBOX_WITH_STATISTICS)) && !defined(VBOX_WITH_SDL2)
+#if 0 //(defined(DEBUG) || defined(VBOX_WITH_STATISTICS)) && !defined(VBOX_WITH_SDL2)
     if (gpMachineDebugger && ev->type == SDL_KEYDOWN)
     {
         // first handle the debugger hotkeys
@@ -3904,13 +3640,7 @@ static void InputGrabStart(void)
 #endif
     if (!gfGuestNeedsHostCursor && gfRelativeMouseGuest)
         SDL_ShowCursor(SDL_DISABLE);
-#ifdef VBOX_WITH_SDL2
     SDL_SetRelativeMouseMode(SDL_TRUE);
-#else
-    SDL_WM_GrabInput(SDL_GRAB_ON);
-    // dummy read to avoid moving the mouse
-    SDL_GetRelativeMouseState(NULL, NULL);
-#endif
     gfGrabbed = TRUE;
     UpdateTitlebar(TITLEBAR_NORMAL);
 }
@@ -3920,11 +3650,7 @@ static void InputGrabStart(void)
  */
 static void InputGrabEnd(void)
 {
-#ifdef VBOX_WITH_SDL2
     SDL_SetRelativeMouseMode(SDL_FALSE);
-#else
-    SDL_WM_GrabInput(SDL_GRAB_OFF);
-#endif
     if (!gfGuestNeedsHostCursor && gfRelativeMouseGuest)
         SDL_ShowCursor(SDL_ENABLE);
 #ifdef RT_OS_DARWIN
@@ -3944,16 +3670,12 @@ static void SendMouseEvent(VBoxSDLFB *fb, int dz, int down, int button)
     int  x, y, state, buttons;
     bool abs;
 
-#ifdef VBOX_WITH_SDL2
     if (!fb)
     {
         SDL_GetMouseState(&x, &y);
         RTPrintf("MouseEvent: Cannot find fb mouse = %d,%d\n", x, y);
         return;
     }
-#else
-    AssertRelease(fb != NULL);
-#endif
 
     /*
      * If supported and we're not in grabbed mode, we'll use the absolute mouse.
@@ -4388,12 +4110,8 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
 #ifdef VBOX_WIN32_UI
     setUITitle(szTitle);
 #else
-# ifdef VBOX_WITH_SDL2
     for (unsigned i = 0; i < gcMonitors; i++)
         gpFramebuffer[i]->setWindowTitle(szTitle);
-# else
-    SDL_WM_SetCaption(szTitle, VBOX_PRODUCT);
-# endif
 #endif
 }
 
@@ -4580,40 +4298,6 @@ static void SetPointerShape(const PointerShapeChangeData *data)
                 srcShapePtr += srcShapePtrScan;
                 dstShapePtr += data->width;
             }
-
-#ifndef VBOX_WITH_SDL2 /** @BUGBUG Implement alpha cursor support handling. */
-            ICONINFO ii;
-            ii.fIcon = FALSE;
-            ii.xHotspot = data->xHot;
-            ii.yHotspot = data->yHot;
-            ii.hbmMask = hMonoBitmap;
-            ii.hbmColor = hBitmap;
-
-            HCURSOR hAlphaCursor = ::CreateIconIndirect(&ii);
-            Assert(hAlphaCursor);
-            if (hAlphaCursor)
-            {
-                // here we do a dirty trick by substituting a Window Manager's
-                // cursor handle with the handle we created
-
-                WMcursor *pCustomTempWMCursor = gpCustomCursor->wm_cursor;
-                // see SDL12/src/video/wincommon/SDL_sysmouse.c
-                void *wm_cursor = malloc(sizeof(HCURSOR) + sizeof(uint8_t *) * 2);
-                *(HCURSOR *)wm_cursor = hAlphaCursor;
-
-                gpCustomCursor->wm_cursor = (WMcursor *)wm_cursor;
-                SDL_SetCursor(gpCustomCursor);
-                SDL_ShowCursor(SDL_ENABLE);
-
-                if (pCustomTempWMCursor)
-                {
-                    ::DestroyCursor(*(HCURSOR *)pCustomTempWMCursor);
-                    free(pCustomTempWMCursor);
-                }
-
-                ok = true;
-            }
-#endif
         }
 
         if (hMonoBitmap)
@@ -4668,34 +4352,6 @@ static void SetPointerShape(const PointerShapeChangeData *data)
                     srcShapePtr += srcShapePtrScan;
                     dstShapePtr += data->width;
                 }
-
-#ifndef VBOX_WITH_SDL2
-                Cursor cur = XcursorImageLoadCursor(gSdlInfo.info.x11.display, img);
-                Assert(cur);
-                if (cur)
-                {
-                    // here we do a dirty trick by substituting a Window Manager's
-                    // cursor handle with the handle we created
-
-                    WMcursor *pCustomTempWMCursor = gpCustomCursor->wm_cursor;
-
-                    // see SDL12/src/video/x11/SDL_x11mouse.c
-                    void *wm_cursor = malloc(sizeof(Cursor));
-                    *(Cursor *)wm_cursor = cur;
-
-                    gpCustomCursor->wm_cursor = (WMcursor *)wm_cursor;
-                    SDL_SetCursor(gpCustomCursor);
-                    SDL_ShowCursor(SDL_ENABLE);
-
-                    if (pCustomTempWMCursor)
-                    {
-                        XFreeCursor(gSdlInfo.info.x11.display, *(Cursor *)pCustomTempWMCursor);
-                        free(pCustomTempWMCursor);
-                    }
-
-                    ok = true;
-                }
-#endif
             }
             XcursorImageDestroy(img);
         }
@@ -4996,7 +4652,7 @@ static Uint32 QuitTimer(Uint32 interval, void *param) RT_NOTHROW_DEF
 
     BOOL fHandled = FALSE;
 
-    gSdlQuitTimer = NULL;
+    gSdlQuitTimer = 0;
     if (gpConsole)
     {
         int rc = gpConsole->GetPowerButtonHandled(&fHandled);
@@ -5047,11 +4703,7 @@ int PushSDLEventForSure(SDL_Event *event)
     {
         int rc = SDL_PushEvent(event);
         RTSemEventSignal(g_EventSemSDLEvents);
-#ifdef VBOX_WITH_SDL2
         if (rc == 1)
-#else
-        if (rc == 0)
-#endif
             return 0;
         Log(("PushSDLEventForSure: waiting for 2ms (rc = %d)\n", rc));
         RTThreadSleep(2);
@@ -5069,11 +4721,7 @@ int PushSDLEventForSure(SDL_Event *event)
 void PushNotifyUpdateEvent(SDL_Event *event)
 {
     int rc = SDL_PushEvent(event);
-#ifdef VBOX_WITH_SDL2
     bool fSuccess = (rc == 1);
-#else
-    bool fSuccess = (rc == 0);
-#endif
 
     RTSemEventSignal(g_EventSemSDLEvents);
     AssertMsg(fSuccess, ("SDL_PushEvent returned SDL error\n"));
@@ -5140,7 +4788,6 @@ static void SetFullscreen(bool enable)
     }
 }
 
-#ifdef VBOX_WITH_SDL2
 static VBoxSDLFB *getFbFromWinId(Uint32 id)
 {
     for (unsigned i = 0; i < gcMonitors; i++)
@@ -5149,4 +4796,3 @@ static VBoxSDLFB *getFbFromWinId(Uint32 id)
 
     return NULL;
 }
-#endif

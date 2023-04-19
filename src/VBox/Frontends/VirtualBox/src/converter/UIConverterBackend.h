@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2012-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -91,6 +91,7 @@ template<> SHARED_LIBRARY_STUFF bool canConvert<Qt::Alignment>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<Qt::SortOrder>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<SizeSuffix>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<StorageSlot>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<DesktopWatchdogPolicy_SynthTest>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DialogType>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuType>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::MenuApplicationActionType>();
@@ -117,6 +118,7 @@ template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElem
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeUserInterface>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIExtraDataMetaDefs::DetailsElementOptionTypeDescription>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIColorThemeType>();
+template<> SHARED_LIBRARY_STUFF bool canConvert<UILaunchMode>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIToolType>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<UIVisualStateType>();
 template<> SHARED_LIBRARY_STUFF bool canConvert<DetailsElementType>();
@@ -181,6 +183,7 @@ template<> SHARED_LIBRARY_STUFF QString toString(const SizeSuffix &sizeSuffix);
 template<> SHARED_LIBRARY_STUFF SizeSuffix fromString<SizeSuffix>(const QString &strSizeSuffix);
 template<> SHARED_LIBRARY_STUFF QString toString(const StorageSlot &storageSlot);
 template<> SHARED_LIBRARY_STUFF StorageSlot fromString<StorageSlot>(const QString &strStorageSlot);
+template<> SHARED_LIBRARY_STUFF DesktopWatchdogPolicy_SynthTest fromInternalString<DesktopWatchdogPolicy_SynthTest>(const QString &strPolicyType);
 template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::DialogType &enmDialogType);
 template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DialogType fromInternalString<UIExtraDataMetaDefs::DialogType>(const QString &strDialogType);
 template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIExtraDataMetaDefs::MenuType &menuType);
@@ -241,6 +244,7 @@ template<> SHARED_LIBRARY_STUFF UIExtraDataMetaDefs::DetailsElementOptionTypeDes
 template<> SHARED_LIBRARY_STUFF QString toString(const UIColorThemeType &colorThemeType);
 template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIColorThemeType &colorThemeType);
 template<> SHARED_LIBRARY_STUFF UIColorThemeType fromInternalString<UIColorThemeType>(const QString &strColorThemeType);
+template<> SHARED_LIBRARY_STUFF UILaunchMode fromInternalString<UILaunchMode>(const QString &strDefaultFrontendType);
 template<> SHARED_LIBRARY_STUFF QString toInternalString(const UIToolType &enmToolType);
 template<> SHARED_LIBRARY_STUFF UIToolType fromInternalString<UIToolType>(const QString &strToolType);
 template<> SHARED_LIBRARY_STUFF QString toString(const UIVisualStateType &visualStateType);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2013-2023 Oracle and/or its affiliates.
  * This file is based on ast_mode.c
  * Copyright 2012 Red Hat Inc.
  * Parts based on xf86-video-ast
@@ -39,6 +39,10 @@
 #include "vbox_drv.h"
 #include <linux/export.h>
 #include <drm/drm_crtc_helper.h>
+#if RTLNX_VER_MIN(6,3,0)
+# include <drm/drm_modeset_helper_vtables.h>
+# include <drm/drm_modeset_helper.h>
+#endif
 #if RTLNX_VER_MIN(3,18,0) || RTLNX_RHEL_MAJ_PREREQ(7,2)
 # include <drm/drm_plane_helper.h>
 #endif
@@ -46,7 +50,7 @@
 # include <drm/drm_probe_helper.h>
 #endif
 
-#if RTLNX_VER_MIN(6,0,0)
+#if RTLNX_VER_MIN(6,0,0) || RTLNX_RHEL_MAJ_PREREQ(9,2)
 # include <drm/drm_edid.h>
 #endif
 

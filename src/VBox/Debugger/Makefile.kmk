@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -42,7 +42,7 @@ endif # VBOX_WITH_DEBUGGER
 #
 # Debugger library - linked into VBoxVMM.
 #
-Debugger_TEMPLATE  = VBOXR3
+Debugger_TEMPLATE  = VBoxR3Dll
 Debugger_DEFS      = IN_VMM_R3 IN_DBG_R3 IN_DIS
 ifneq ($(KBUILD_TYPE),release)
  Debugger_DEFS    += VBOX_WITH_DEBUGGER_TCP_BY_DEFAULT
@@ -70,7 +70,7 @@ Debugger_SOURCES   = \
 # The diggers plug-in.
 #
 DLLS += DbgPlugInDiggers
-DbgPlugInDiggers_TEMPLATE = VBOXR3
+DbgPlugInDiggers_TEMPLATE = VBoxR3Dll
 DbgPlugInDiggers_DEFS     = IN_DIS
 DbgPlugInDiggers_SOURCES = \
 	DBGPlugInDiggers.cpp \
@@ -91,7 +91,7 @@ $(call VBOX_SET_VER_INFO_DLL,DbgPlugInDiggers,VirtualBox Debugger Guest OS Digge
 # The DBGC parser testcase.
 # This stubs all the VBoxVMM APIs.
 #
-tstDBGCParser_TEMPLATE = VBOXR3TSTEXE
+tstDBGCParser_TEMPLATE = VBoxR3TstExe
 tstDBGCParser_DEFS = IN_VMM_R3
 tstDBGCParser_CXXFLAGS = $(VBOX_C_CXX_FLAGS_NO_UNUSED_PARAMETERS)
 tstDBGCParser_SOURCES = \
@@ -103,32 +103,32 @@ tstDBGCParser_LIBS = \
 
 
 if defined(VBOX_WITH_QTGUI) && defined(VBOX_WITH_DEBUGGER_GUI)
-#
-# Debugger GUI component (Qt).
-#
+ #
+ # Debugger GUI component (Qt).
+ #
  ifndef VBOX_WITH_QT6
-USES += qt5
+  USES += qt5
  else
-USES += qt6
+  USES += qt6
  endif
-DLLS += VBoxDbg
-VBoxDbg_TEMPLATE = VBOXQTGUI
-VBoxDbg_DEFS = IN_DBG_R3
-VBoxDbg_INCS = .
-VBoxDbg_QT_MODULES = Core Gui Widgets
-VBoxDbg_QT_MOCHDRS = \
-	VBoxDbgGui.h \
-	VBoxDbgConsole.h \
-	VBoxDbgStatsQt.h
-VBoxDbg_SOURCES = \
-	VBoxDbg.cpp \
-	VBoxDbgGui.cpp \
-	VBoxDbgBase.cpp \
-	VBoxDbgConsole.cpp \
-	VBoxDbgStatsQt.cpp
-VBoxDbg_LDFLAGS.darwin = \
-	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDbg.dylib
-$(call VBOX_SET_VER_INFO_DLL,VBoxDbg,VirtualBox Debugger GUI)
+ DLLS += VBoxDbg
+ VBoxDbg_TEMPLATE = VBoxQtGuiDll
+ VBoxDbg_DEFS = IN_DBG_R3
+ VBoxDbg_INCS = .
+ VBoxDbg_QT_MODULES = Core Gui Widgets
+ VBoxDbg_QT_MOCHDRS = \
+ 	VBoxDbgGui.h \
+ 	VBoxDbgConsole.h \
+ 	VBoxDbgStatsQt.h
+ VBoxDbg_SOURCES = \
+ 	VBoxDbg.cpp \
+ 	VBoxDbgGui.cpp \
+ 	VBoxDbgBase.cpp \
+ 	VBoxDbgConsole.cpp \
+ 	VBoxDbgStatsQt.cpp
+ VBoxDbg_LDFLAGS.darwin = \
+ 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDbg.dylib
+ $(call VBOX_SET_VER_INFO_DLL,VBoxDbg,VirtualBox Debugger GUI)
 endif # Qt
 
 

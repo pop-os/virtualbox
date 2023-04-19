@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -87,16 +87,12 @@ void UIMachineWindowScale::prepareVisualState()
         ::darwinLabelWindow(this, &betaLabel);
     }
 
-    /* For 'Yosemite' and above: */
-    if (uiCommon().osRelease() >= MacOSXRelease_Yosemite)
-    {
-        /* Enable fullscreen support for every screen which requires it: */
-        if (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
-            darwinEnableFullscreenSupport(this);
-        /* Register 'Zoom' button to use our full-screen: */
-        UICocoaApplication::instance()->registerCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom,
-                                                                                UIMachineWindow::handleStandardWindowButtonCallback);
-    }
+    /* Enable fullscreen support for every screen which requires it: */
+    if (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
+        darwinEnableFullscreenSupport(this);
+    /* Register 'Zoom' button to use our full-screen: */
+    UICocoaApplication::instance()->registerCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom,
+                                                                            UIMachineWindow::handleStandardWindowButtonCallback);
 }
 #endif /* VBOX_WS_MAC */
 
@@ -150,9 +146,8 @@ void UIMachineWindowScale::loadSettings()
 #ifdef VBOX_WS_MAC
 void UIMachineWindowScale::cleanupVisualState()
 {
-    /* Unregister 'Zoom' button from using our full-screen since Yosemite: */
-    if (uiCommon().osRelease() >= MacOSXRelease_Yosemite)
-        UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
+    /* Unregister 'Zoom' button from using our full-screen: */
+    UICocoaApplication::instance()->unregisterCallbackForStandardWindowButton(this, StandardWindowButtonType_Zoom);
 }
 #endif /* VBOX_WS_MAC */
 

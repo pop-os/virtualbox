@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -143,7 +143,7 @@ HRESULT NetworkAdapter::init(Machine *aParent, NetworkAdapter *aThat, bool aResh
 
     /* sanity */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     if (aReshare)
     {
@@ -191,7 +191,7 @@ HRESULT NetworkAdapter::initCopy(Machine *aParent, NetworkAdapter *aThat)
 
     /* sanity */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnRC(thatCaller.rc());
+    AssertComRCReturnRC(thatCaller.hrc());
 
     AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
     mData.attachCopy(aThat->mData);
@@ -237,7 +237,7 @@ HRESULT NetworkAdapter::setAdapterType(NetworkAdapterType_T aAdapterType)
 {
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -311,7 +311,7 @@ HRESULT NetworkAdapter::setEnabled(BOOL aEnabled)
 {
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -350,7 +350,7 @@ HRESULT NetworkAdapter::getMACAddress(com::Utf8Str &aMACAddress)
 
 HRESULT NetworkAdapter::i_updateMacAddress(Utf8Str aMACAddress)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     /*
      * Are we supposed to generate a MAC?
@@ -368,7 +368,7 @@ HRESULT NetworkAdapter::i_updateMacAddress(Utf8Str aMACAddress)
                  */
                 char *macAddressStr = aMACAddress.mutableRaw();
                 int i = 0;
-                while ((i < 13) && macAddressStr && *macAddressStr && (rc == S_OK))
+                while ((i < 13) && macAddressStr && *macAddressStr && hrc == S_OK)
                 {
                     char c = *macAddressStr;
                     /* canonicalize hex digits to capital letters */
@@ -380,39 +380,39 @@ HRESULT NetworkAdapter::i_updateMacAddress(Utf8Str aMACAddress)
                     /* we only accept capital letters */
                     if (   (c < '0' || c > '9')
                         && (c < 'A' || c > 'F'))
-                        rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
+                        hrc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
                     /* the second digit must have even value for unicast addresses */
                     if (   (i == 1)
                         && (!!(c & 1) == (c >= '0' && c <= '9')))
-                        rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
+                        hrc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
 
                     macAddressStr++;
                     i++;
                 }
                 /* we must have parsed exactly 12 characters */
                 if (i != 12)
-                    rc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
+                    hrc = setError(E_INVALIDARG, tr("Invalid MAC address format"));
             }
 
-            if (SUCCEEDED(rc))
+            if (SUCCEEDED(hrc))
                 mData->strMACAddress = aMACAddress;
         }
     }
 
-    return rc;
+    return hrc;
 }
 
 HRESULT NetworkAdapter::setMACAddress(const com::Utf8Str &aMACAddress)
 {
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     mData.backup();
 
-    HRESULT rc = i_updateMacAddress(aMACAddress);
-    if (SUCCEEDED(rc))
+    HRESULT hrc = i_updateMacAddress(aMACAddress);
+    if (SUCCEEDED(hrc))
     {
         // leave the lock before informing callbacks
         alock.release();
@@ -426,7 +426,7 @@ HRESULT NetworkAdapter::setMACAddress(const com::Utf8Str &aMACAddress)
         mParent->i_onNetworkAdapterChange(this, FALSE);
     }
 
-    return rc;
+    return hrc;
 }
 
 HRESULT NetworkAdapter::getAttachmentType(NetworkAttachmentType_T *aAttachmentType)
@@ -442,7 +442,7 @@ HRESULT NetworkAdapter::setAttachmentType(NetworkAttachmentType_T aAttachmentTyp
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -500,14 +500,14 @@ HRESULT NetworkAdapter::setBridgedInterface(const com::Utf8Str &aBridgedInterfac
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     Bstr canonicalName = aBridgedInterface;
 #ifdef RT_OS_DARWIN
     com::SafeIfaceArray<IHostNetworkInterface> hostNetworkInterfaces;
     ComPtr<IHost> host;
-    HRESULT rc = mParent->i_getVirtualBox()->COMGETTER(Host)(host.asOutParam());
-    if (SUCCEEDED(rc))
+    HRESULT hrc = mParent->i_getVirtualBox()->COMGETTER(Host)(host.asOutParam());
+    if (SUCCEEDED(hrc))
     {
         host->FindHostNetworkInterfacesOfType(HostNetworkInterfaceType_Bridged,
                                               ComSafeArrayAsOutParam(hostNetworkInterfaces));
@@ -570,7 +570,7 @@ HRESULT NetworkAdapter::setHostOnlyInterface(const com::Utf8Str &aHostOnlyInterf
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -625,7 +625,7 @@ HRESULT NetworkAdapter::setHostOnlyNetwork(const com::Utf8Str &aHostOnlyNetwork)
 #ifdef VBOX_WITH_VMNET
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -678,7 +678,7 @@ HRESULT NetworkAdapter::setInternalNetwork(const com::Utf8Str &aInternalNetwork)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -726,7 +726,7 @@ HRESULT NetworkAdapter::setNATNetwork(const com::Utf8Str &aNATNetwork)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -780,7 +780,7 @@ HRESULT NetworkAdapter::setGenericDriver(const com::Utf8Str &aGenericDriver)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -818,7 +818,7 @@ HRESULT NetworkAdapter::setCloudNetwork(const com::Utf8Str &aCloudNetwork)
 #ifdef VBOX_WITH_CLOUD_NET
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -875,7 +875,7 @@ HRESULT NetworkAdapter::setCableConnected(BOOL aConnected)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -912,7 +912,7 @@ HRESULT NetworkAdapter::setLineSpeed(ULONG aSpeed)
 {
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -948,7 +948,7 @@ HRESULT NetworkAdapter::setPromiscModePolicy(NetworkAdapterPromiscModePolicy_T a
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     switch (aPromiscModePolicy)
     {
@@ -961,7 +961,7 @@ HRESULT NetworkAdapter::setPromiscModePolicy(NetworkAdapterPromiscModePolicy_T a
     }
 
     AutoCaller autoCaller(this);
-    HRESULT hrc = autoCaller.rc();
+    HRESULT hrc = autoCaller.hrc();
 
     if (SUCCEEDED(hrc))
     {
@@ -995,7 +995,7 @@ HRESULT NetworkAdapter::setTraceEnabled(BOOL aEnabled)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1032,7 +1032,7 @@ HRESULT NetworkAdapter::setTraceFile(const com::Utf8Str &aTraceFile)
 {
     /* the machine needs to be mutable */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1077,7 +1077,7 @@ HRESULT NetworkAdapter::setBootPriority(ULONG aBootPriority)
 {
     /* the machine needs to be mutable */
     AutoMutableStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1119,7 +1119,7 @@ HRESULT NetworkAdapter::setProperty(const com::Utf8Str &aKey, const com::Utf8Str
     LogFlowThisFunc(("\n"));
     /* The machine needs to be mutable. */
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     bool fGenericChange = (mData->mode == NetworkAttachmentType_Generic);
     /* Generic properties processing.
@@ -1196,7 +1196,7 @@ HRESULT NetworkAdapter::i_loadSettings(BandwidthControl *bwctl,
                                        const settings::NetworkAdapter &data)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1211,19 +1211,17 @@ HRESULT NetworkAdapter::i_loadSettings(BandwidthControl *bwctl,
      * the same setting of an object loaded from the old settings file must
      * default to B. */
 
-    HRESULT rc = S_OK;
-
     /* MAC address (can be null) */
-    rc = i_updateMacAddress(data.strMACAddress);
-    if (FAILED(rc)) return rc;
+    HRESULT hrc = i_updateMacAddress(data.strMACAddress);
+    if (FAILED(hrc)) return hrc;
 
     mData.assignCopy(&data);
 
     if (mData->strBandwidthGroup.isNotEmpty())
     {
         ComObjPtr<BandwidthGroup> group;
-        rc = bwctl->i_getBandwidthGroupByName(data.strBandwidthGroup, group, true);
-        if (FAILED(rc)) return rc;
+        hrc = bwctl->i_getBandwidthGroupByName(data.strBandwidthGroup, group, true);
+        if (FAILED(hrc)) return hrc;
         group->i_reference();
     }
 
@@ -1233,8 +1231,8 @@ HRESULT NetworkAdapter::i_loadSettings(BandwidthControl *bwctl,
     // leave the lock before setting attachment type
     alock.release();
 
-    rc = COMSETTER(AttachmentType)(data.mode);
-    if (FAILED(rc)) return rc;
+    hrc = COMSETTER(AttachmentType)(data.mode);
+    if (FAILED(hrc)) return hrc;
 
     return S_OK;
 }
@@ -1251,7 +1249,7 @@ HRESULT NetworkAdapter::i_loadSettings(BandwidthControl *bwctl,
 HRESULT NetworkAdapter::i_saveSettings(settings::NetworkAdapter &data)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1282,7 +1280,7 @@ void NetworkAdapter::i_rollback()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1299,11 +1297,11 @@ void NetworkAdapter::i_commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller peerCaller(mPeer);
-    AssertComRCReturnVoid(peerCaller.rc());
+    AssertComRCReturnVoid(peerCaller.hrc());
 
     /* lock both for writing since we modify both (mPeer is "master" so locked
      * first) */
@@ -1332,11 +1330,11 @@ void NetworkAdapter::i_copyFrom(NetworkAdapter *aThat)
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     /* sanity too */
     AutoCaller thatCaller(aThat);
-    AssertComRCReturnVoid(thatCaller.rc());
+    AssertComRCReturnVoid(thatCaller.hrc());
 
     mNATEngine->i_copyFrom(aThat->mNATEngine);
 
@@ -1360,7 +1358,7 @@ void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.hrc());
 
     mNATEngine->i_applyDefaults();
 
@@ -1413,12 +1411,11 @@ bool NetworkAdapter::i_hasDefaults()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), true);
+    AssertComRCReturn(autoCaller.hrc(), true);
 
     ComObjPtr<GuestOSType> pGuestOSType;
-    HRESULT rc = mParent->i_getVirtualBox()->i_findGuestOSType(mParent->i_getOSTypeId(),
-                                                               pGuestOSType);
-    if (FAILED(rc))
+    HRESULT hrc = mParent->i_getVirtualBox()->i_findGuestOSType(mParent->i_getOSTypeId(), pGuestOSType);
+    if (FAILED(hrc))
         return false;
 
     NetworkAdapterType_T defaultType = pGuestOSType->i_networkAdapterType();
@@ -1499,7 +1496,7 @@ HRESULT NetworkAdapter::setBandwidthGroup(const ComPtr<IBandwidthGroup> &aBandwi
 
     /* the machine needs to be mutable */
     AutoMutableOrSavedStateDependency adep(mParent);
-    if (FAILED(adep.rc())) return adep.rc();
+    if (FAILED(adep.hrc())) return adep.hrc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 

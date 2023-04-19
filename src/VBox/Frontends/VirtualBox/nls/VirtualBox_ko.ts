@@ -170,6 +170,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">복사(&amp;C)</translation>
+    </message>
+</context>
+<context>
     <name>SFTreeViewItem</name>
     <message>
         <source>%1, %2: %3, %4: %5, %6: %7, %8: %9</source>
@@ -16300,11 +16307,11 @@
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;선택하면 가상 머신을 끈 다음 현재 스냅샷으로 가상 머신의 상태를 되돌립니다. 마지막 세션의 작업 결과를 삭제하고 현재 스냅샷으로 되돌아가려고 할 때 유용합니다.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;선택하면 가상 머신을 끈 다음 현재 스냅샷으로 가상 머신의 상태를 되돌립니다. 마지막 세션의 작업 결과를 삭제하고 현재 스냅샷으로 되돌아가려고 할 때 유용합니다.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">현재 스냅샷 &apos;%1&apos;(으)로 되돌리기(&amp;R)</translation>
+        <translation>현재 스냅샷 &apos;%1&apos;(으)로 되돌리기(&amp;R)</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

@@ -297,6 +297,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Kopírovať</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -19121,11 +19128,11 @@ preskočiť a pripojiť pevné disky neskôr pomocou dialógu Nastavenia virtuá
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="obsolete">&lt;p&gt;Ak je zaškrtnuté, bude stav počítača obnovený zo stavu uloženého v aktuálnej snímke ihneď po vypnutí. To sa hodí, keď ste si istý, že chcete zahodiť výsledky vášho posledného sedenia a vrátiť sa k aktuálnej snímke.&lt;/p&gt;</translation>
+        <translation type="unfinished">&lt;p&gt;Ak je zaškrtnuté, bude stav počítača obnovený zo stavu uloženého v aktuálnej snímke ihneď po vypnutí. To sa hodí, keď ste si istý, že chcete zahodiť výsledky vášho posledného sedenia a vrátiť sa k aktuálnej snímke.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;Obnoviť aktuálnu snímku &apos;%1&apos;</translation>
+        <translation>&amp;Obnoviť aktuálnu snímku &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

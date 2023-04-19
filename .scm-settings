@@ -10,7 +10,7 @@
 #
 
 #
-# Copyright (C) 2010-2022 Oracle and/or its affiliates.
+# Copyright (C) 2010-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -52,7 +52,10 @@
 #
 --filter-out-dirs  ".svn"
 --filter-out-dirs  "/*out*/."
---filter-out-dirs  "/*kBuild*/."
+--filter-out-dirs  "/kBuild/."
+--filter-out-dirs  "/*kBuild_*/."
+--filter-out-dirs  "/*kBuild.*/."
+--filter-out-dirs  "/*_kBuild*/."
 --filter-out-dirs  "/SlickEdit/."
 
 

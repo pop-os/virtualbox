@@ -3,7 +3,7 @@
     VirtualBox Windows Installation Script (WiX)
 -->
 <!--
-    Copyright (C) 2006-2022 Oracle and/or its affiliates.
+    Copyright (C) 2006-2023 Oracle and/or its affiliates.
 
     This file is part of VirtualBox base platform packages, as
     available from https://www.virtualbox.org.
@@ -463,10 +463,6 @@
     <?endif ?>
         <File Id="file_SDL.dll" Name="SDL.dll"
               Source="$(env.PATH_OUT)\bin\SDL.dll" />
-    <?if $(env.VBOX_WITH_SECURELABEL) = "yes" ?>
-            <File Id="file_SDL_ttf.dll" Name="SDL_ttf.dll"
-                  Source="$(env.PATH_OUT)\bin\SDL_ttf.dll" />
-    <?endif?>
     </Component> <!-- SDL frontend -->
 <?endif ?>
 

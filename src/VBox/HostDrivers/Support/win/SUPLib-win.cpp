@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -151,6 +151,17 @@ DECLHIDDEN(int) suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, uint32_t fFlags
 #endif
     }
 
+#if !defined(IN_SUP_HARDENED_R3)
+    /*
+     * Driverless?
+     */
+    if (fFlags & SUPR3INIT_F_DRIVERLESS)
+    {
+        pThis->fDriverless = true;
+        return VINF_SUCCESS;
+    }
+#endif
+
     /*
      * Try open the device.
      */
@@ -273,8 +284,21 @@ DECLHIDDEN(int) suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, uint32_t fFlags
             else
                 pErrInfo->pszMsg[0] = '\0';
         }
+
 #else
         RT_NOREF1(penmWhat);
+
+        /*
+         * Do fallback.
+         */
+        if (   (fFlags & SUPR3INIT_F_DRIVERLESS_MASK)
+            && rcNt != -1 /** @todo */ )
+        {
+            LogRel(("Failed to open '%.*ls' rc=%Rrc rcNt=%#x - Switching to driverless mode.\n",
+                    NtName.Length / sizeof(WCHAR), NtName.Buffer, rc, rcNt));
+            pThis->fDriverless = true;
+            return VINF_SUCCESS;
+        }
 #endif
         return rc;
     }

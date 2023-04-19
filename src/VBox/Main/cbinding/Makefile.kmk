@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2022 Oracle and/or its affiliates.
+# Copyright (C) 2009-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -87,7 +87,7 @@ if !defined(VBOX_ONLY_SDK)
  # The C API binding utility DLL
  #
  DLLS += VBoxCAPI
- VBoxCAPI_TEMPLATE = VBOXMAINCLIENTDLL
+ VBoxCAPI_TEMPLATE = VBoxMainClientDll
  ifdef VBOX_WITH_XPCOM
   # Keep old name on XPCOM so that legacy code is happy.
   VBoxCAPI_INST = $(INST_BIN)VBoxXPCOMC$(VBOX_SUFF_DLL)
@@ -96,7 +96,7 @@ if !defined(VBOX_ONLY_SDK)
  VBoxCAPI_SOURCES = \
  	VBoxCAPI.cpp
  VBoxCAPI_SOURCES.win = \
-	VBoxCAPI.rc
+ 	VBoxCAPI.rc
  VBoxCAPI_INCS = \
  	$(CAPIHeaders_0_OUTDIR)
  VBoxCAPI_INTERMEDIATES = \
@@ -106,16 +106,16 @@ if !defined(VBOX_ONLY_SDK)
  # The C glue library.
  #
  LIBRARIES += VBoxCAPIGlue
- VBoxCAPIGlue_TEMPLATE = VBOXMAINEXE
+ VBoxCAPIGlue_TEMPLATE = VBoxMainExe
  VBoxCAPIGlue_DEFS = IN_VBOXCAPI
  VBoxCAPIGlue_SOURCES = \
  	VBoxCAPIGlue.c
  ifdef VBOX_WITH_XPCOM
   VBoxCAPIGlue_SOURCES += \
- 	$(VBOX_PATH_SDK)/bindings/xpcom/lib/VirtualBox_i.c
+  	$(VBOX_PATH_SDK)/bindings/xpcom/lib/VirtualBox_i.c
  else
   VBoxCAPIGlue_SOURCES += \
- 	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox_i.c
+  	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox_i.c
  endif
  VBoxCAPIGlue_INCS = \
  	$(VBOX_PATH_SDK)/bindings/c/include \
@@ -130,7 +130,7 @@ if !defined(VBOX_ONLY_SDK)
   # C testcase using the dynamic glue.
   #
   PROGRAMS += tstCAPIGlue
-  tstCAPIGlue_TEMPLATE = VBOXR3TSTEXE
+  tstCAPIGlue_TEMPLATE = VBoxR3TstExe
   tstCAPIGlue_INCS = \
   	$(VBOX_PATH_SDK)/bindings/c/include \
   	$(VBOX_PATH_SDK)/bindings/c/glue
@@ -144,7 +144,7 @@ if !defined(VBOX_ONLY_SDK)
   tstCAPIGlue_INTERMEDIATES = \
   	$(VBOX_PATH_SDK)/bindings/c/glue/VBoxCAPIGlue.h \
   	$(VBOX_PATH_SDK)/bindings/c/include/VBoxCAPI_v$(VBOX_API_VERSION).h \
-       $(if-expr !defined(VBOX_WITH_XPCOM),$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h,)
+  	$(if-expr !defined(VBOX_WITH_XPCOM),$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h,)
   tstCAPIGlue_SOURCES = \
   	tstCAPIGlue.c
   tstCAPIGlue_LIBS = \

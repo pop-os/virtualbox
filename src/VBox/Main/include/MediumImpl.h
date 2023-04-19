@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -116,6 +116,7 @@ public:
     MediumState_T i_getState() const;
     MediumVariant_T i_getVariant() const;
     bool i_isHostDrive() const;
+    bool i_isClosing() const;
     const Utf8Str& i_getLocationFull() const;
     const Utf8Str& i_getFormat() const;
     const ComObjPtr<MediumFormat> & i_getMediumFormat() const;
@@ -359,7 +360,7 @@ private:
     bool    i_resetMoveOperationData();
     Utf8Str i_getNewLocationForMoving() const;
 
-    static DECLCALLBACK(void) i_vdErrorCall(void *pvUser, int rc, RT_SRC_POS_DECL,
+    static DECLCALLBACK(void) i_vdErrorCall(void *pvUser, int vrc, RT_SRC_POS_DECL,
                                             const char *pszFormat, va_list va);
     static DECLCALLBACK(bool) i_vdConfigAreKeysValid(void *pvUser,
                                                      const char *pszzValid);

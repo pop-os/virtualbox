@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -64,12 +64,12 @@ HRESULT MediumLock::UpdateLock(bool aLockWrite)
     {
         Unlock();
         mLockWrite = aLockWrite;
-        HRESULT rc = Lock();
-        if (FAILED(rc))
+        HRESULT hrc = Lock();
+        if (FAILED(hrc))
         {
             mLockWrite = fPrevLockWrite;
             Lock();
-            return rc;
+            return hrc;
         }
         return S_OK;
     }
@@ -99,13 +99,13 @@ HRESULT MediumLock::Lock(bool aIgnoreLockedMedia)
         return S_OK;
 
     mMediumCaller.attach(mMedium);
-    if (FAILED(mMediumCaller.rc()))
+    if (FAILED(mMediumCaller.hrc()))
     {
         mMediumCaller.attach(NULL);
         return VBOX_E_INVALID_OBJECT_STATE;
     }
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     MediumState_T state;
     {
         AutoReadLock alock(mMedium COMMA_LOCKVAL_SRC_POS);
@@ -124,32 +124,27 @@ HRESULT MediumLock::Lock(bool aIgnoreLockedMedia)
                 if (aIgnoreLockedMedia && (   state == MediumState_LockedRead
                                            || state == MediumState_LockedWrite))
                     return S_OK;
-                else
-                    rc = mMedium->LockWrite(mToken.asOutParam());
+                hrc = mMedium->LockWrite(mToken.asOutParam());
             }
             else
             {
                 if (aIgnoreLockedMedia && state == MediumState_LockedWrite)
                     return S_OK;
-                else
-                    rc = mMedium->LockRead(mToken.asOutParam());
+                hrc = mMedium->LockRead(mToken.asOutParam());
             }
     }
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
     {
         mIsLocked = true;
         return S_OK;
     }
-    else
-    {
-        mMediumCaller.attach(NULL);
-        return VBOX_E_INVALID_OBJECT_STATE;
-    }
+    mMediumCaller.attach(NULL);
+    return VBOX_E_INVALID_OBJECT_STATE;
 }
 
 HRESULT MediumLock::Unlock()
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     if (mIsLocked && !mLockSkipped && mToken)
     {
         mToken->Abandon();
@@ -158,7 +153,7 @@ HRESULT MediumLock::Unlock()
     mMediumCaller.attach(NULL);
     mLockSkipped = false;
     mIsLocked = false;
-    return rc;
+    return hrc;
 }
 
 MediumLockList::MediumLockList()
@@ -210,16 +205,16 @@ HRESULT MediumLockList::Update(const ComObjPtr<Medium> &aMedium, bool aLockWrite
 
 HRESULT MediumLockList::RemoveByIterator(Base::iterator &aIt)
 {
-    HRESULT rc = aIt->Unlock();
+    HRESULT hrc = aIt->Unlock();
     aIt = mMediumLocks.erase(aIt);
-    return rc;
+    return hrc;
 }
 
 HRESULT MediumLockList::Clear()
 {
-    HRESULT rc = Unlock();
+    HRESULT hrc = Unlock();
     mMediumLocks.clear();
-    return rc;
+    return hrc;
 }
 
 MediumLockList::Base::iterator MediumLockList::GetBegin()
@@ -236,44 +231,44 @@ HRESULT MediumLockList::Lock(bool fSkipOverLockedMedia /* = false */)
 {
     if (mIsLocked)
         return S_OK;
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     for (MediumLockList::Base::iterator it = mMediumLocks.begin();
          it != mMediumLocks.end();
          ++it)
     {
-        rc = it->Lock(fSkipOverLockedMedia);
-        if (FAILED(rc))
+        hrc = it->Lock(fSkipOverLockedMedia);
+        if (FAILED(hrc))
         {
             for (MediumLockList::Base::iterator it2 = mMediumLocks.begin();
                  it2 != it;
                  ++it2)
             {
-                HRESULT rc2 = it2->Unlock();
-                AssertComRC(rc2);
+                HRESULT hrc2 = it2->Unlock();
+                AssertComRC(hrc2);
             }
             break;
         }
     }
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         mIsLocked = true;
-    return rc;
+    return hrc;
 }
 
 HRESULT MediumLockList::Unlock()
 {
     if (!mIsLocked)
         return S_OK;
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     for (MediumLockList::Base::iterator it = mMediumLocks.begin();
          it != mMediumLocks.end();
          ++it)
     {
-        HRESULT rc2 = it->Unlock();
-        if (SUCCEEDED(rc) && FAILED(rc2))
-            rc = rc2;
+        HRESULT hrc2 = it->Unlock();
+        if (SUCCEEDED(hrc) && FAILED(hrc2))
+            hrc = hrc2;
     }
     mIsLocked = false;
-    return rc;
+    return hrc;
 }
 
 
@@ -297,7 +292,7 @@ bool MediumLockListMap::IsEmpty()
 }
 
 HRESULT MediumLockListMap::Insert(const ComObjPtr<MediumAttachment> &aMediumAttachment,
-                              MediumLockList *aMediumLockList)
+                                  MediumLockList *aMediumLockList)
 {
     if (mIsLocked)
         return VBOX_E_INVALID_OBJECT_STATE;
@@ -306,7 +301,7 @@ HRESULT MediumLockListMap::Insert(const ComObjPtr<MediumAttachment> &aMediumAtta
 }
 
 HRESULT MediumLockListMap::ReplaceKey(const ComObjPtr<MediumAttachment> &aMediumAttachmentOld,
-                                  const ComObjPtr<MediumAttachment> &aMediumAttachmentNew)
+                                      const ComObjPtr<MediumAttachment> &aMediumAttachmentNew)
 {
     MediumLockListMap::Base::iterator it = mMediumLocks.find(aMediumAttachmentOld);
     if (it == mMediumLocks.end())
@@ -330,7 +325,7 @@ HRESULT MediumLockListMap::Remove(const ComObjPtr<MediumAttachment> &aMediumAtta
 
 HRESULT MediumLockListMap::Clear()
 {
-    HRESULT rc = Unlock();
+    HRESULT hrc = Unlock();
     for (MediumLockListMap::Base::iterator it = mMediumLocks.begin();
          it != mMediumLocks.end();
          ++it)
@@ -339,7 +334,7 @@ HRESULT MediumLockListMap::Clear()
         delete pMediumLockList;
     }
     mMediumLocks.clear();
-    return rc;
+    return hrc;
 }
 
 HRESULT MediumLockListMap::Get(const ComObjPtr<MediumAttachment> &aMediumAttachment,
@@ -359,43 +354,43 @@ HRESULT MediumLockListMap::Lock()
 {
     if (mIsLocked)
         return S_OK;
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     for (MediumLockListMap::Base::const_iterator it = mMediumLocks.begin();
          it != mMediumLocks.end();
          ++it)
     {
-        rc = it->second->Lock();
-        if (FAILED(rc))
+        hrc = it->second->Lock();
+        if (FAILED(hrc))
         {
             for (MediumLockListMap::Base::const_iterator it2 = mMediumLocks.begin();
                  it2 != it;
                  ++it2)
             {
-                HRESULT rc2 = it2->second->Unlock();
-                AssertComRC(rc2);
+                HRESULT hrc2 = it2->second->Unlock();
+                AssertComRC(hrc2);
             }
             break;
         }
     }
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         mIsLocked = true;
-    return rc;
+    return hrc;
 }
 
 HRESULT MediumLockListMap::Unlock()
 {
     if (!mIsLocked)
         return S_OK;
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     for (MediumLockListMap::Base::const_iterator it = mMediumLocks.begin();
          it != mMediumLocks.end();
          ++it)
     {
         MediumLockList *pMediumLockList = it->second;
-        HRESULT rc2 = pMediumLockList->Unlock();
-        if (SUCCEEDED(rc) && FAILED(rc2))
-            rc = rc2;
+        HRESULT hrc2 = pMediumLockList->Unlock();
+        if (SUCCEEDED(hrc) && FAILED(hrc2))
+            hrc = hrc2;
     }
     mIsLocked = false;
-    return rc;
+    return hrc;
 }

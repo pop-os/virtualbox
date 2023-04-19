@@ -306,6 +306,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">Má&amp;solás</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -24762,11 +24769,11 @@ esetleg a &lt;b&gt;Létező&lt;/b&gt; gombbal a Virtuális lemezkezelőből.&lt;
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Ha engedélyezed, a gép visszaáll a legutolsó pillanatkép állapotába, miután kikapcsolod. Ez akkor hasznos, ha el szeretnéd dobni a virtuális gép legutóbbi módosításait.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Ha engedélyezed, a gép visszaáll a legutolsó pillanatkép állapotába, miután kikapcsolod. Ez akkor hasznos, ha el szeretnéd dobni a virtuális gép legutóbbi módosításait.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">Ezen &amp;pillanatkép visszatöltése: &apos;%1&apos;</translation>
+        <translation>Ezen &amp;pillanatkép visszatöltése: &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

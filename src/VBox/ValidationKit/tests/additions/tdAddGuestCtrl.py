@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Guest Control Tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2022 Oracle and/or its affiliates.
+Copyright (C) 2010-2023 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,7 +37,7 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 154746 $"
+__version__ = "$Revision: 155473 $"
 
 # Standard Python imports.
 import errno
@@ -1404,7 +1404,6 @@ class tdDebugSettings(object):
     def __init__(self, sVBoxServiceExeHst = None):
         self.sVBoxServiceExeHst = sVBoxServiceExeHst;
         self.sGstVBoxServiceLogPath = '';
-        self.fNoExit = False;
 
 class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
     """
@@ -1454,9 +1453,6 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             iNext = self.oTstDrv.requireMoreArgs(1, asArgs, iArg);
             self.oDebug.sVBoxServiceExeHst = asArgs[iArg];
             return iNext;
-        if asArgs[iArg] == '--add-guest-ctrl-debug-no-exit':
-            self.oDebug.fNoExit = True;
-            return iArg + 1;
         return iArg;
 
     def showUsage(self):
@@ -1468,8 +1464,6 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         reporter.log('Debugging:');
         reporter.log('  --add-guest-ctrl-debug-img');
         reporter.log('      Sets VBoxService image to deploy for debugging');
-        reporter.log('  --add-guest-ctrl-debug-no-exit');
-        reporter.log('      Does not tear down and exit the test driver after running the tests');
         return True;
 
     def testIt(self, oTestVm, oSession, oTxsSession):
@@ -5431,20 +5425,13 @@ class tdAddGuestCtrl(vbox.TestDriver):                                         #
         oSession, oTxsSession = self.startVmAndConnectToTxsViaTcp(oTestVm.sVmName, fCdWait = False);
         reporter.log("TxsSession: %s" % (oTxsSession,));
         if oSession is not None:
-
             fRc, oTxsSession = self.aoSubTstDrvs[0].testIt(oTestVm, oSession, oTxsSession);
-
-            if self.aoSubTstDrvs[0].oDebug.fNoExit:
-                self.sleep(60 * 60 * 1000); # Leave the VM session open for manual inspection / debugging.
-            else:
-                self.terminateVmBySession(oSession);
+            self.terminateVmBySession(oSession);
         else:
             fRc = False;
         return fRc;
 
     def onExit(self, iRc):
-        if self.aoSubTstDrvs[0].oDebug.fNoExit:
-            return True
         return vbox.TestDriver.onExit(self, iRc);
 
     def gctrlReportError(self, progress):

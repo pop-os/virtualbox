@@ -189,6 +189,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;คัดลอก</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Result&amp;nbsp;Code: </source>
@@ -17567,11 +17574,11 @@
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;เลือกที่นี่เพื่อให้เครื่องคืนสู่สถานะที่เก็บไว้ในสแนปช็อตปัจจุบันหลังจากปิดเครื่อง ใช้ในกรณีที่คุณต้องการละทิ้งความเปลี่ยนแปลงที่เกิดขึ้นในเซสชันล่าสุด และต้องการเริ่มการทำงานใหม่จากสแนปช็อตปัจจุบัน&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;เลือกที่นี่เพื่อให้เครื่องคืนสู่สถานะที่เก็บไว้ในสแนปช็อตปัจจุบันหลังจากปิดเครื่อง ใช้ในกรณีที่คุณต้องการละทิ้งความเปลี่ยนแปลงที่เกิดขึ้นในเซสชันล่าสุด และต้องการเริ่มการทำงานใหม่จากสแนปช็อตปัจจุบัน&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;คืนค่าจากสแนปช็อตปัจจุบัน &apos;%1&apos;</translation>
+        <translation>&amp;คืนค่าจากสแนปช็อตปัจจุบัน &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -693,6 +693,23 @@ bool ScmStreamIsAtStartOfLine(PSCMSTREAM pStream)
 }
 
 /**
+ * Compares the two streams from the start to end, binary fashion.
+ *
+ * The stream position does not change nor does it matter whether they are
+ * writable or readable.
+ *
+ * @returns true if identical, false if not.
+ * @param   pStream1            The first stream.
+ * @param   pStream2            The second stream.
+ */
+bool ScmStreamAreIdentical(PCSCMSTREAM pStream1, PCSCMSTREAM pStream2)
+{
+    return pStream1->cb == pStream2->cb
+        && memcmp(pStream1->pch, pStream2->pch, pStream1->cb) == 0;
+}
+
+
+/**
  * Worker for ScmStreamGetLineByNo and ScmStreamGetLine.
  *
  * Works on a fully lineated stream.
@@ -916,6 +933,20 @@ int ScmStreamRead(PSCMSTREAM pStream, void *pvBuf, size_t cbToRead)
     /* Copy the data and simply seek to the new stream position. */
     memcpy(pvBuf, &pStream->pch[pStream->off], cbToRead);
     return ScmStreamSeekAbsolute(pStream, pStream->off + cbToRead);
+}
+
+
+/**
+ * Checks if we're at the end of the stream.
+ *
+ * @returns true if end of stream, false if not.
+ * @param   pStream             The stream.  Must be in read mode.
+ */
+bool ScmStreamIsEndOfStream(PSCMSTREAM pStream)
+{
+    AssertReturn(!pStream->fWriteOrRead, false);
+    return pStream->off >= pStream->cb
+        || RT_FAILURE(pStream->rc);
 }
 
 

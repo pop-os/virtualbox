@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2014-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2014-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -327,6 +327,7 @@ uint64_t    AudioMixerSinkTransferFromCircBuf(PAUDMIXSINK pSink, PRTCIRCBUF pCir
                                               uint32_t idStream, PAUDIOHLPFILE pDbgFile);
 uint64_t    AudioMixerSinkTransferToCircBuf(PAUDMIXSINK pSink, PRTCIRCBUF pCircBuf, uint64_t offStream,
                                             uint32_t idStream, PAUDIOHLPFILE pDbgFile);
+bool        AudioMixerSinkLockIsOwner(PAUDMIXSINK pSink);
 int         AudioMixerSinkLock(PAUDMIXSINK pSink);
 int         AudioMixerSinkTryLock(PAUDMIXSINK pSink);
 int         AudioMixerSinkUnlock(PAUDMIXSINK pSink);

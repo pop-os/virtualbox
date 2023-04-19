@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2020-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2020-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -80,8 +80,12 @@ CProgress UIProgressTaskReadCloudMachineList::createProgress()
 
 void UIProgressTaskReadCloudMachineList::handleProgressFinished(CProgress &comProgress)
 {
+    /* Check if we already have error-mesage: */
+    if (!m_strErrorMessage.isEmpty())
+        return;
+
     /* Handle progress-wrapper errors: */
-    if (!comProgress.GetCanceled() && (!comProgress.isOk() || comProgress.GetResultCode() != 0))
+    if (comProgress.isNotNull() && !comProgress.GetCanceled() && (!comProgress.isOk() || comProgress.GetResultCode() != 0))
     {
         m_strErrorMessage = UIErrorString::formatErrorInfo(comProgress);
         return;

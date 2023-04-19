@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2022 Oracle and/or its affiliates.
+# Copyright (C) 2009-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -33,7 +33,7 @@ include $(KBUILD_PATH)/subheader.kmk
 # VBoxSampleDevice - A sample device module.
 #
 DLLS += VBoxSampleDevice
-VBoxSampleDevice_TEMPLATE = VBOXR3
+VBoxSampleDevice_TEMPLATE = VBoxR3Dll
 VBoxSampleDevice_SOURCES  = \
 	VBoxSampleDevice.cpp
 VBoxSampleDevice_LIBS     = \
@@ -43,7 +43,7 @@ VBoxSampleDevice_LIBS     = \
 # VBoxSampleDriver - A sample driver module.
 #
 DLLS += VBoxSampleDriver
-VBoxSampleDriver_TEMPLATE = VBOXR3
+VBoxSampleDriver_TEMPLATE = VBoxR3Dll
 VBoxSampleDriver_SOURCES  = \
 	DrvStorageFilter.cpp
 VBoxSampleDriver_LIBS     = \
@@ -54,7 +54,7 @@ VBoxSampleDriver_LIBS     = \
 # VBoxPlaygroundDevice - A device module demonstrating some unusual features.
 #
 DLLS += VBoxPlaygroundDevice
-VBoxPlaygroundDevice_TEMPLATE = VBOXR3
+VBoxPlaygroundDevice_TEMPLATE = VBoxR3Dll
 VBoxPlaygroundDevice_SOURCES  = \
 	DevPlayground.cpp
 VBoxPlaygroundDevice_LIBS     = \
@@ -68,16 +68,16 @@ ifdef VBOX_WITH_XPCOM
   VBoxPlaygroundDevice_DEFS += VBOX_WITH_XPCOM_NAMESPACE_CLEANUP
  endif
  VBoxPlaygroundDevice_INCS += \
-	$(VBOX_XPCOM_INCS)
+ 	$(VBOX_XPCOM_INCS)
  VBoxPlaygroundDevice_INTERMEDIATES += \
-	$(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
+ 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
  VBoxPlaygroundDevice_LIBS += \
-	$(LIB_XPCOM)
+ 	$(LIB_XPCOM)
 else  # COM
  VBoxPlaygroundDevice_INCS += \
-	$(VBOX_PATH_SDK)/bindings/mscom/include
+ 	$(VBOX_PATH_SDK)/bindings/mscom/include
  VBoxPlaygroundDevice_INTERMEDIATES += \
-	$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
+ 	$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
 endif # COM
 
 

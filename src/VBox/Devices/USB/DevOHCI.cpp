@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -2049,6 +2049,31 @@ static int ohciR3InFlightRemove(POHCI pThis, POHCICC pThisCC, uint32_t GCPhysTD)
 
 
 /**
+ * Clear any possible leftover traces of a URB from the in-flight tracking.
+ * Useful if broken guests confuse the tracking logic by using the same TD
+ * for multiple URBs. See @bugref{10410}.
+ *
+ * @param   pThisCC     OHCI instance data, ring-3 edition.
+ * @param   pUrb        The URB.
+ */
+static void ohciR3InFlightClearUrb(POHCICC pThisCC, PVUSBURB pUrb)
+{
+    unsigned i = 0;
+    while (i < RT_ELEMENTS(pThisCC->aInFlight))
+    {
+        if (pThisCC->aInFlight[i].pUrb == pUrb)
+        {
+            Log2(("ohciR3InFlightClearUrb: clearing leftover URB!!\n"));
+            pThisCC->aInFlight[i].GCPhysTD = 0;
+            pThisCC->aInFlight[i].pUrb = NULL;
+            pThisCC->cInFlight--;
+        }
+        i++;
+    }
+}
+
+
+/**
  * Removes all TDs associated with a URB from the in-flight tracking.
  *
  * @returns 0 if found. For logged builds this is the number of frames the TD has been in-flight.
@@ -2066,6 +2091,7 @@ static int ohciR3InFlightRemoveUrb(POHCI pThis, POHCICC pThisCC, PVUSBURB pUrb)
             if (ohciR3InFlightRemove(pThis, pThisCC, pUrb->paTds[iTd].TdAddr) < 0)
                 cFramesInFlight = -1;
     }
+    ohciR3InFlightClearUrb(pThisCC, pUrb);
     return cFramesInFlight;
 }
 

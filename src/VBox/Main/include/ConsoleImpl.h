@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2005-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -51,7 +51,7 @@ class MachineDebugger;
 class TeleporterStateSrc;
 class OUSBDevice;
 class RemoteUSBDevice;
-class SharedFolder;
+class ConsoleSharedFolder;
 class VRDEServerInfo;
 class EmulatedUSB;
 class AudioVRDE;
@@ -436,7 +436,7 @@ private:
             Assert(SUCCEEDED(mRC));
             doRelease();
         }
-        /** Restores the number of callers after by #release(). #rc() must be
+        /** Restores the number of callers after by #release(). #hrc() must be
          *  rechecked to ensure the operation succeeded. */
         void addYY()
         {
@@ -444,8 +444,8 @@ private:
             mRC = mThat->i_addVMCaller(taQuiet, taAllowNullVM);
         }
         /** Returns the result of Console::addVMCaller() */
-        HRESULT rc() const { return mRC; }
-        /** Shortcut to SUCCEEDED(rc()) */
+        HRESULT hrc() const { return mRC; }
+        /** Shortcut to SUCCEEDED(hrc()) */
         bool isOk() const { return SUCCEEDED(mRC); }
     protected:
         Console *mThat;
@@ -470,7 +470,7 @@ private:
      *  with mpUVM. The usage pattern is:
      *  <code>
      *      AutoVMCaller autoVMCaller(this);
-     *      if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
+     *      if (FAILED(autoVMCaller.hrc())) return autoVMCaller.hrc();
      *      ...
      *      VMR3ReqCall (mpUVM, ...
      *  </code>
@@ -539,8 +539,8 @@ private:
         }
 
         /** The combined result of Console::addVMCaller() and Console::safeVMPtrRetainer */
-        HRESULT rc() const { return Base::isOk()? mRC: Base::rc(); }
-        /** Shortcut to SUCCEEDED(rc()) */
+        HRESULT hrc() const { return Base::isOk() ? mRC : Base::hrc(); }
+        /** Shortcut to SUCCEEDED(hrc()) */
         bool isOk() const { return SUCCEEDED(mRC) && Base::isOk(); }
 
     private:
@@ -568,7 +568,7 @@ public:
      *  <code>
      *      Console::SafeVMPtr ptrVM(mParent);
      *      if (!ptrVM.isOk())
-     *          return ptrVM.rc();
+     *          return ptrVM.hrc();
      *      ...
      *      VMR3ReqCall(ptrVM.rawUVM(), ...
      *      ...
@@ -587,7 +587,7 @@ public:
      *  failure to the caller. The usage pattern is:
      *  <code>
      *      Console::SafeVMPtrQuiet pVM(mParent);
-     *      if (pVM.rc())
+     *      if (pVM.hrc())
      *          VMR3ReqCall(pVM, ...
      *      return S_OK;
      *  </code>
@@ -653,10 +653,10 @@ public:
         LONG     iPort;
     };
 
-    typedef std::map<Utf8Str, ComObjPtr<SharedFolder> > SharedFolderMap;
+    typedef std::map<Utf8Str, ComObjPtr<ConsoleSharedFolder> > SharedFolderMap;
     typedef std::map<Utf8Str, SharedFolderData> SharedFolderDataMap;
     typedef std::map<Utf8Str, ComPtr<IMediumAttachment> > MediumAttachmentMap;
-    typedef std::list <USBStorageDevice> USBStorageDeviceList;
+    typedef std::list<USBStorageDevice> USBStorageDeviceList;
 
     static void i_powerUpThreadTask(VMPowerUpTask *pTask);
     static void i_powerDownThreadTask(VMPowerDownTask *pTask);
@@ -691,7 +691,7 @@ private:
     }
 
     HRESULT i_findSharedFolder(const Utf8Str &strName,
-                               ComObjPtr<SharedFolder> &aSharedFolder,
+                               ComObjPtr<ConsoleSharedFolder> &aSharedFolder,
                                bool aSetError = false);
 
     HRESULT i_fetchSharedFolders(BOOL aGlobal);
@@ -708,11 +708,12 @@ private:
     void InsertConfigString(PCFGMNODE pNode, const char *pcszName, const char *pcszValue);
     void InsertConfigString(PCFGMNODE pNode, const char *pcszName, const Utf8Str &rStrValue);
     void InsertConfigString(PCFGMNODE pNode, const char *pcszName, const Bstr &rBstrValue);
+    void InsertConfigStringF(PCFGMNODE pNode, const char *pcszName, const char *pszFormat, ...);
     void InsertConfigPassword(PCFGMNODE pNode, const char *pcszName, const Utf8Str &rStrValue);
     void InsertConfigBytes(PCFGMNODE pNode, const char *pcszName, const void *pvBytes, size_t cbBytes);
     void InsertConfigInteger(PCFGMNODE pNode, const char *pcszName, uint64_t u64Integer);
     void InsertConfigNode(PCFGMNODE pNode, const char *pcszName, PCFGMNODE *ppChild);
-    void InsertConfigNodeF(PCFGMNODE pNode, PCFGMNODE *ppChild, const char *pszNameFormat, ...);
+    void InsertConfigNodeF(PCFGMNODE pNode, PCFGMNODE *ppChild, const char *pszNameFormat, ...) RT_IPRT_FORMAT_ATTR(3, 4);
     void RemoveConfigValue(PCFGMNODE pNode, const char *pcszName);
     int  SetBiosDiskInfo(ComPtr<IMachine> pMachine, PCFGMNODE pCfg, PCFGMNODE pBiosCfg,
                          Bstr controllerName, const char * const s_apszBiosConfig[4]);
@@ -808,11 +809,12 @@ private:
     HRESULT i_attachRawPCIDevices(PUVM pUVM, BusAssignmentManager *BusMgr, PCFGMNODE pDevices);
     struct LEDSET;
     typedef struct LEDSET *PLEDSET;
-    PPDMLED *i_getLedSet(uint32_t iLedSet);
-    uint32_t i_allocateDriverLeds(uint32_t cLeds, DeviceType_T enmType, DeviceType_T **ppSubTypes);
-    void i_attachStatusDriver(PCFGMNODE pCtlInst, DeviceType_T enmType,
-                              uint32_t uFirst, uint32_t uLast,
-                              DeviceType_T **ppaSubTypes,
+    PPDMLED volatile *i_getLedSet(uint32_t iLedSet);
+    void i_setLedType(DeviceType_T *penmSubTypeEntry, DeviceType_T enmNewType);
+    HRESULT i_refreshLedTypeArrays(AutoReadLock *pReadLock);
+    uint32_t i_allocateDriverLeds(uint32_t cLeds, uint32_t fTypes, DeviceType_T **ppSubTypes);
+    void i_attachStatusDriver(PCFGMNODE pCtlInst, DeviceType_T enmType, uint32_t cLeds = 1);
+    void i_attachStatusDriver(PCFGMNODE pCtlInst, uint32_t fTypes, uint32_t cLeds, DeviceType_T **ppaSubTypes,
                               Console::MediumAttachmentMap *pmapMediumAttachments,
                               const char *pcszDevice, unsigned uInstance);
 
@@ -877,7 +879,7 @@ private:
 
     static DECLCALLBACK(int)    i_stateProgressCallback(PUVM pUVM, unsigned uPercent, void *pvUser);
 
-    static DECLCALLBACK(void)   i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+    static DECLCALLBACK(void)   i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int vrc, RT_SRC_POS_DECL,
                                                             const char *pszErrorFmt, va_list va);
 
     void                        i_atVMRuntimeErrorCallbackF(uint32_t fFatal, const char *pszErrorId, const char *pszFormat, ...);
@@ -1068,16 +1070,44 @@ private:
 
     /** @name LEDs and their management
      * @{ */
+    /** Read/write lock separating LED allocations and per-type data construction
+     * (write) from queries (read). */
+    RWLockHandle            mLedLock;
+    /** LED configuration generation.  This is increased whenever a new set is
+     *  allocated or a sub-device type changes. */
+    uint32_t                muLedGen;
+    /** The LED configuration generation which maLedTypes was constructed for. */
+    uint32_t                muLedTypeGen;
     /** Number of LED sets in use in maLedSets. */
-    uint32_t          mcLedSets;
+    uint32_t                mcLedSets;
     /** LED sets. */
     struct LEDSET
     {
-        PPDMLED      *papLeds;
-        uint32_t      cLeds;
-        DeviceType_T  enmType;
-        DeviceType_T *paSubTypes; /**< Optionally, device types for each individual LED. Runs parallel to papLeds. */
-    }                 maLedSets[32];
+        /** Bitmask of possible DeviceType_T values (e.g. RT_BIT_32(DeviceType_Network)). */
+        uint32_t            fTypes;
+        /** Number of LEDs.   */
+        uint32_t            cLeds;
+        /** Array of PDMLED pointers.  The pointers in the array can be changed at any
+         *  time by Console::i_drvStatus_UnitChanged(). */
+        PPDMLED volatile   *papLeds;
+        /** Optionally, device types for each individual LED. Runs parallel to papLeds. */
+        DeviceType_T       *paSubTypes;
+    } maLedSets[32];
+    /** LEDs data organized by DeviceType_T.
+     * This is reconstructed by Console::i_refreshLedTypeArrays() when
+     * Console::getDeviceActivity is called and mLedTypeGen doesn't match
+     * muLedGen. */
+    struct
+    {
+        /** Number of possibly valid entries in pappLeds. */
+        uint32_t            cLeds;
+        /** Number of allocated entries. */
+        uint32_t            cAllocated;
+        /** Array of pointer to LEDSET::papLed entries.
+         * The indirection is due to Console::i_drvStatus_UnitChanged() only knowing
+         * about the LEDSET::papLeds. */
+        PPDMLED volatile  **pappLeds;
+    } maLedTypes[DeviceType_End];
     /** @} */
 
     MediumAttachmentMap mapMediumAttachments;

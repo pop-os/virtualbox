@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2019-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2019-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -104,7 +104,7 @@ void CloudNetwork::uninit()
 HRESULT CloudNetwork::i_loadSettings(const settings::CloudNetwork &data)
 {
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertComRCReturnRC(autoCaller.hrc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->s = data;
@@ -115,7 +115,7 @@ HRESULT CloudNetwork::i_loadSettings(const settings::CloudNetwork &data)
 HRESULT CloudNetwork::i_saveSettings(settings::CloudNetwork &data)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     AssertReturn(!m->s.strNetworkName.isEmpty(), E_FAIL);
@@ -167,8 +167,8 @@ HRESULT CloudNetwork::setNetworkName(const com::Utf8Str &aNetworkName)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -189,8 +189,8 @@ HRESULT CloudNetwork::setEnabled(BOOL aEnabled)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -211,8 +211,8 @@ HRESULT CloudNetwork::setProvider(const com::Utf8Str &aProvider)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -233,8 +233,8 @@ HRESULT CloudNetwork::setProfile(const com::Utf8Str &aProfile)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 
@@ -255,8 +255,8 @@ HRESULT CloudNetwork::setNetworkId(const com::Utf8Str &aNetworkId)
     }
 
     AutoWriteLock vboxLock(m->pVirtualBox COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = m->pVirtualBox->i_saveSettings();
-    ComAssertComRCRetRC(rc);
+    HRESULT hrc = m->pVirtualBox->i_saveSettings();
+    ComAssertComRCRetRC(hrc);
     return S_OK;
 }
 

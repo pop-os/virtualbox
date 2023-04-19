@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -30,10 +30,11 @@
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/param.h>
-#include <iprt/s3.h>
 #include <iprt/manifest.h>
 #include <iprt/stream.h>
 #include <iprt/zip.h>
+
+#include <iprt/formats/tar.h>
 
 #include <VBox/version.h>
 
@@ -72,7 +73,7 @@ using namespace std;
 HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8Str &aLocation,
                           ComPtr<IVirtualSystemDescription> &aDescription)
 {
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     if (!aAppliance)
         return E_POINTER;
@@ -93,10 +94,10 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
             strBasename.stripSuffix();
 
         // create a new virtual system to store in the appliance
-        rc = pNewDesc.createObject();
-        if (FAILED(rc)) throw rc;
-        rc = pNewDesc->init();
-        if (FAILED(rc)) throw rc;
+        hrc = pNewDesc.createObject();
+        if (FAILED(hrc)) throw hrc;
+        hrc = pNewDesc->init();
+        if (FAILED(hrc)) throw hrc;
 
         // store the machine object so we can dump the XML in Appliance::Write()
         pNewDesc->m->pMachine = this;
@@ -105,15 +106,15 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         // first, call the COM methods, as they request locks
         BOOL fUSBEnabled = FALSE;
         com::SafeIfaceArray<IUSBController> usbControllers;
-        rc = COMGETTER(USBControllers)(ComSafeArrayAsOutParam(usbControllers));
-        if (SUCCEEDED(rc))
+        hrc = COMGETTER(USBControllers)(ComSafeArrayAsOutParam(usbControllers));
+        if (SUCCEEDED(hrc))
         {
             for (unsigned i = 0; i < usbControllers.size(); ++i)
             {
                 USBControllerType_T enmType;
 
-                rc = usbControllers[i]->COMGETTER(Type)(&enmType);
-                if (FAILED(rc)) throw rc;
+                hrc = usbControllers[i]->COMGETTER(Type)(&enmType);
+                if (FAILED(hrc)) throw hrc;
 
                 if (enmType == USBControllerType_OHCI)
                     fUSBEnabled = TRUE;
@@ -125,14 +126,14 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         AutoReadLock alock1(this COMMA_LOCKVAL_SRC_POS);
 
         ComPtr<IAudioAdapter> pAudioAdapter;
-        rc = mAudioSettings->COMGETTER(Adapter)(pAudioAdapter.asOutParam());
-        if (FAILED(rc)) throw rc;
+        hrc = mAudioSettings->COMGETTER(Adapter)(pAudioAdapter.asOutParam());
+        if (FAILED(hrc)) throw hrc;
         BOOL fAudioEnabled;
-        rc = pAudioAdapter->COMGETTER(Enabled)(&fAudioEnabled);
-        if (FAILED(rc)) throw rc;
+        hrc = pAudioAdapter->COMGETTER(Enabled)(&fAudioEnabled);
+        if (FAILED(hrc)) throw hrc;
         AudioControllerType_T audioController;
-        rc = pAudioAdapter->COMGETTER(AudioController)(&audioController);
-        if (FAILED(rc)) throw rc;
+        hrc = pAudioAdapter->COMGETTER(AudioController)(&audioController);
+        if (FAILED(hrc)) throw hrc;
 
         // get name
         Utf8Str strVMName = mUserData->s.strName;
@@ -153,8 +154,8 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         // PAEEnabled?
         // Long mode enabled?
         BOOL fLongMode;
-        rc = GetCPUProperty(CPUPropertyType_LongMode, &fLongMode);
-        if (FAILED(rc)) throw rc;
+        hrc = GetCPUProperty(CPUPropertyType_LongMode, &fLongMode);
+        if (FAILED(hrc)) throw hrc;
 
         // snapshotFolder?
         // VRDPServer?
@@ -202,8 +203,8 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
 
         /* Fetch all available storage controllers */
         com::SafeIfaceArray<IStorageController> nwControllers;
-        rc = COMGETTER(StorageControllers)(ComSafeArrayAsOutParam(nwControllers));
-        if (FAILED(rc)) throw rc;
+        hrc = COMGETTER(StorageControllers)(ComSafeArrayAsOutParam(nwControllers));
+        if (FAILED(hrc)) throw hrc;
 
         ComPtr<IStorageController> pIDEController;
         ComPtr<IStorageController> pSATAController;
@@ -213,8 +214,8 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         for (size_t j = 0; j < nwControllers.size(); ++j)
         {
             StorageBus_T eType;
-            rc = nwControllers[j]->COMGETTER(Bus)(&eType);
-            if (FAILED(rc)) throw rc;
+            hrc = nwControllers[j]->COMGETTER(Bus)(&eType);
+            if (FAILED(hrc)) throw hrc;
             if (   eType == StorageBus_IDE
                 && pIDEController.isNull())
                 pIDEController = nwControllers[j];
@@ -236,8 +237,8 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         if (!pIDEController.isNull())
         {
             StorageControllerType_T ctlr;
-            rc = pIDEController->COMGETTER(ControllerType)(&ctlr);
-            if (FAILED(rc)) throw rc;
+            hrc = pIDEController->COMGETTER(ControllerType)(&ctlr);
+            if (FAILED(hrc)) throw hrc;
 
             Utf8Str strVBox;
             switch (ctlr)
@@ -278,8 +279,8 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         if (!pSCSIController.isNull())
         {
             StorageControllerType_T ctlr;
-            rc = pSCSIController->COMGETTER(ControllerType)(&ctlr);
-            if (SUCCEEDED(rc))
+            hrc = pSCSIController->COMGETTER(ControllerType)(&ctlr);
+            if (SUCCEEDED(hrc))
             {
                 Utf8Str strVBox = "LsiLogic";       // the default in VBox
                 switch (ctlr)
@@ -295,7 +296,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                                      strVBox);
             }
             else
-                throw rc;
+                throw hrc;
         }
 
         if (!pSASController.isNull())
@@ -313,8 +314,8 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         if (!pVirtioSCSIController.isNull())
         {
             StorageControllerType_T ctlr;
-            rc = pVirtioSCSIController->COMGETTER(ControllerType)(&ctlr);
-            if (SUCCEEDED(rc))
+            hrc = pVirtioSCSIController->COMGETTER(ControllerType)(&ctlr);
+            if (SUCCEEDED(hrc))
             {
                 Utf8Str strVBox = "VirtioSCSI";       // the default in VBox
                 switch (ctlr)
@@ -329,7 +330,7 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                                      strVBox);
             }
             else
-                throw rc;
+                throw hrc;
         }
 
 //     <const name="HardDiskImage" value="9" />
@@ -348,31 +349,31 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
             ComPtr<IStorageController> ctl;
             Bstr controllerName;
 
-            rc = pHDA->COMGETTER(Controller)(controllerName.asOutParam());
-            if (FAILED(rc)) throw rc;
+            hrc = pHDA->COMGETTER(Controller)(controllerName.asOutParam());
+            if (FAILED(hrc)) throw hrc;
 
-            rc = GetStorageControllerByName(controllerName.raw(), ctl.asOutParam());
-            if (FAILED(rc)) throw rc;
+            hrc = GetStorageControllerByName(controllerName.raw(), ctl.asOutParam());
+            if (FAILED(hrc)) throw hrc;
 
             StorageBus_T storageBus;
             DeviceType_T deviceType;
             LONG lChannel;
             LONG lDevice;
 
-            rc = ctl->COMGETTER(Bus)(&storageBus);
-            if (FAILED(rc)) throw rc;
+            hrc = ctl->COMGETTER(Bus)(&storageBus);
+            if (FAILED(hrc)) throw hrc;
 
-            rc = pHDA->COMGETTER(Type)(&deviceType);
-            if (FAILED(rc)) throw rc;
+            hrc = pHDA->COMGETTER(Type)(&deviceType);
+            if (FAILED(hrc)) throw hrc;
 
-            rc = pHDA->COMGETTER(Port)(&lChannel);
-            if (FAILED(rc)) throw rc;
+            hrc = pHDA->COMGETTER(Port)(&lChannel);
+            if (FAILED(hrc)) throw hrc;
 
-            rc = pHDA->COMGETTER(Device)(&lDevice);
-            if (FAILED(rc)) throw rc;
+            hrc = pHDA->COMGETTER(Device)(&lDevice);
+            if (FAILED(hrc)) throw hrc;
 
-            rc = pHDA->COMGETTER(Medium)(pMedium.asOutParam());
-            if (FAILED(rc)) throw rc;
+            hrc = pHDA->COMGETTER(Medium)(pMedium.asOutParam());
+            if (FAILED(hrc)) throw hrc;
             if (pMedium.isNull())
             {
                 Utf8Str strStBus;
@@ -401,8 +402,8 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
             {
                 Bstr bstrLocation;
 
-                rc = pMedium->COMGETTER(Location)(bstrLocation.asOutParam());
-                if (FAILED(rc)) throw rc;
+                hrc = pMedium->COMGETTER(Location)(bstrLocation.asOutParam());
+                if (FAILED(hrc)) throw hrc;
                 strLocation = bstrLocation;
 
                 // find the source's base medium for two things:
@@ -411,22 +412,22 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                 // 2) we need the size of the base image so we can give it to addEntry(), and later
                 //    on export, the progress will be based on that (and not the diff image)
                 ComPtr<IMedium> pBaseMedium;
-                rc = pMedium->COMGETTER(Base)(pBaseMedium.asOutParam());
+                hrc = pMedium->COMGETTER(Base)(pBaseMedium.asOutParam());
                         // returns pMedium if there are no diff images
-                if (FAILED(rc)) throw rc;
+                if (FAILED(hrc)) throw hrc;
 
                 strTargetImageName = Utf8StrFmt("%s-disk%.3d.vmdk", strBasename.c_str(), ++pAppliance->m->cDisks);
-                if (strTargetImageName.length() > RTTAR_NAME_MAX)
+                if (strTargetImageName.length() > RTZIPTAR_NAME_MAX)
                     throw setError(VBOX_E_NOT_SUPPORTED,
                                 tr("Cannot attach disk '%s' -- file name too long"), strTargetImageName.c_str());
 
                 // force reading state, or else size will be returned as 0
                 MediumState_T ms;
-                rc = pBaseMedium->RefreshState(&ms);
-                if (FAILED(rc)) throw rc;
+                hrc = pBaseMedium->RefreshState(&ms);
+                if (FAILED(hrc)) throw hrc;
 
-                rc = pBaseMedium->COMGETTER(Size)(&llSize);
-                if (FAILED(rc)) throw rc;
+                hrc = pBaseMedium->COMGETTER(Size)(&llSize);
+                if (FAILED(hrc)) throw hrc;
 
                 /* If the medium is encrypted add the key identifier to the list. */
                 IMedium *iBaseMedium = pBaseMedium;
@@ -478,24 +479,24 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
 
                 //1. no host drive CD/DVD image
                 BOOL fHostDrive = false;
-                rc = pMedium->COMGETTER(HostDrive)(&fHostDrive);
-                if (FAILED(rc)) throw rc;
+                hrc = pMedium->COMGETTER(HostDrive)(&fHostDrive);
+                if (FAILED(hrc)) throw hrc;
 
                 if(fHostDrive)
                     continue;
 
                 //2. the image must be accessible and readable
                 MediumState_T ms;
-                rc = pMedium->RefreshState(&ms);
-                if (FAILED(rc)) throw rc;
+                hrc = pMedium->RefreshState(&ms);
+                if (FAILED(hrc)) throw hrc;
 
                 if (ms != MediumState_Created)
                     continue;
 
                 //3. only ISO image is exported
                 Bstr bstrLocation;
-                rc = pMedium->COMGETTER(Location)(bstrLocation.asOutParam());
-                if (FAILED(rc)) throw rc;
+                hrc = pMedium->COMGETTER(Location)(bstrLocation.asOutParam());
+                if (FAILED(hrc)) throw hrc;
 
                 strLocation = bstrLocation;
 
@@ -507,12 +508,12 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
                     continue;
 
                 strTargetImageName = Utf8StrFmt("%s-disk%.3d.iso", strBasename.c_str(), ++pAppliance->m->cDisks);
-                if (strTargetImageName.length() > RTTAR_NAME_MAX)
+                if (strTargetImageName.length() > RTZIPTAR_NAME_MAX)
                     throw setError(VBOX_E_NOT_SUPPORTED,
                                 tr("Cannot attach image '%s' -- file name too long"), strTargetImageName.c_str());
 
-                rc = pMedium->COMGETTER(Size)(&llSize);
-                if (FAILED(rc)) throw rc;
+                hrc = pMedium->COMGETTER(Size)(&llSize);
+                if (FAILED(hrc)) throw hrc;
             }
             // and how this translates to the virtual system
             int32_t lControllerVsys = 0;
@@ -623,23 +624,23 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
         for (a = 0; a < maxNetworkAdapters; ++a)
         {
             ComPtr<INetworkAdapter> pNetworkAdapter;
-            BOOL fEnabled;
-            NetworkAdapterType_T adapterType;
-            NetworkAttachmentType_T attachmentType;
+            hrc = GetNetworkAdapter((ULONG)a, pNetworkAdapter.asOutParam());
+            if (FAILED(hrc)) throw hrc;
 
-            rc = GetNetworkAdapter((ULONG)a, pNetworkAdapter.asOutParam());
-            if (FAILED(rc)) throw rc;
             /* Enable the network card & set the adapter type */
-            rc = pNetworkAdapter->COMGETTER(Enabled)(&fEnabled);
-            if (FAILED(rc)) throw rc;
+            BOOL fEnabled;
+            hrc = pNetworkAdapter->COMGETTER(Enabled)(&fEnabled);
+            if (FAILED(hrc)) throw hrc;
 
             if (fEnabled)
             {
-                rc = pNetworkAdapter->COMGETTER(AdapterType)(&adapterType);
-                if (FAILED(rc)) throw rc;
+                NetworkAdapterType_T adapterType;
+                hrc = pNetworkAdapter->COMGETTER(AdapterType)(&adapterType);
+                if (FAILED(hrc)) throw hrc;
 
-                rc = pNetworkAdapter->COMGETTER(AttachmentType)(&attachmentType);
-                if (FAILED(rc)) throw rc;
+                NetworkAttachmentType_T attachmentType;
+                hrc = pNetworkAdapter->COMGETTER(AttachmentType)(&attachmentType);
+                if (FAILED(hrc)) throw hrc;
 
                 Utf8Str strAttachmentType = convertNetworkAttachmentTypeToString(attachmentType);
                 pNewDesc->i_addEntry(VirtualSystemDescriptionType_NetworkAdapter,
@@ -674,10 +675,10 @@ HRESULT Machine::exportTo(const ComPtr<IAppliance> &aAppliance, const com::Utf8S
     }
     catch(HRESULT arc)
     {
-        rc = arc;
+        hrc = arc;
     }
 
-    return rc;
+    return hrc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -710,7 +711,7 @@ HRESULT Appliance::write(const com::Utf8Str &aFormat,
         }
     }
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 //  AssertReturn(!(m->optListExport.contains(ExportOptions_CreateManifest)
 //  && m->optListExport.contains(ExportOptions_ExportDVDImages)), E_INVALIDARG);
 
@@ -719,18 +720,18 @@ HRESULT Appliance::write(const com::Utf8Str &aFormat,
 
     if (m->locInfo.storageType == VFSType_Cloud)
     {
-        rc = S_OK;
+        hrc = S_OK;
         ComObjPtr<Progress> progress;
         try
         {
-            rc = i_writeCloudImpl(m->locInfo, progress);
+            hrc = i_writeCloudImpl(m->locInfo, progress);
         }
-        catch (HRESULT aRC)
+        catch (HRESULT hrcXcpt)
         {
-            rc = aRC;
+            hrc = hrcXcpt;
         }
 
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             /* Return progress to the caller */
             progress.queryInterfaceTo(aProgress.asOutParam());
     }
@@ -798,7 +799,7 @@ HRESULT Appliance::write(const com::Utf8Str &aFormat,
                             tr("Appliance export failed because not all passwords were provided for all encrypted media"));
 
         ComObjPtr<Progress> progress;
-        rc = S_OK;
+        hrc = S_OK;
         try
         {
             /* Parse all necessary info out of the URI */
@@ -807,25 +808,25 @@ HRESULT Appliance::write(const com::Utf8Str &aFormat,
             switch (ovfF)
             {
                 case ovf::OVFVersion_unknown:
-                    rc = i_writeOPCImpl(ovfF, m->locInfo, progress);
+                    hrc = i_writeOPCImpl(ovfF, m->locInfo, progress);
                     break;
                 default:
-                    rc = i_writeImpl(ovfF, m->locInfo, progress);
+                    hrc = i_writeImpl(ovfF, m->locInfo, progress);
                     break;
             }
 
         }
-        catch (HRESULT aRC)
+        catch (HRESULT hrcXcpt)
         {
-            rc = aRC;
+            hrc = hrcXcpt;
         }
 
-        if (SUCCEEDED(rc))
+        if (SUCCEEDED(hrc))
             /* Return progress to the caller */
             progress.queryInterfaceTo(aProgress.asOutParam());
     }
 
-    return rc;
+    return hrc;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1183,32 +1184,32 @@ void Appliance::i_buildXML(AutoWriteLockBase& writeLock,
 
             Log(("Finding source disk \"%ls\"\n", bstrSrcFilePath.raw()));
 
-            HRESULT rc;
+            HRESULT hrc;
 
             if (pDiskEntry->type == VirtualSystemDescriptionType_HardDiskImage)
             {
-                rc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
-                                             DeviceType_HardDisk,
-                                             AccessMode_ReadWrite,
-                                             FALSE /* fForceNewUuid */,
-                                             pSourceDisk.asOutParam());
-                if (FAILED(rc))
-                    throw rc;
+                hrc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
+                                              DeviceType_HardDisk,
+                                              AccessMode_ReadWrite,
+                                              FALSE /* fForceNewUuid */,
+                                              pSourceDisk.asOutParam());
+                if (FAILED(hrc))
+                    throw hrc;
             }
             else if (pDiskEntry->type == VirtualSystemDescriptionType_CDROM)//may be, this is CD/DVD
             {
-                rc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
-                                             DeviceType_DVD,
-                                             AccessMode_ReadOnly,
-                                             FALSE,
-                                             pSourceDisk.asOutParam());
-                if (FAILED(rc))
-                    throw rc;
+                hrc = mVirtualBox->OpenMedium(bstrSrcFilePath.raw(),
+                                              DeviceType_DVD,
+                                              AccessMode_ReadOnly,
+                                              FALSE,
+                                              pSourceDisk.asOutParam());
+                if (FAILED(hrc))
+                    throw hrc;
             }
 
             Bstr uuidSource;
-            rc = pSourceDisk->COMGETTER(Id)(uuidSource.asOutParam());
-            if (FAILED(rc)) throw rc;
+            hrc = pSourceDisk->COMGETTER(Id)(uuidSource.asOutParam());
+            if (FAILED(hrc)) throw hrc;
             Guid guidSource(uuidSource);
 
             // output filename
@@ -1226,8 +1227,8 @@ void Appliance::i_buildXML(AutoWriteLockBase& writeLock,
             diskList.push_back(strTargetFilePath);
 
             LONG64 cbCapacity = 0;     // size reported to guest
-            rc = pSourceDisk->COMGETTER(LogicalSize)(&cbCapacity);
-            if (FAILED(rc)) throw rc;
+            hrc = pSourceDisk->COMGETTER(LogicalSize)(&cbCapacity);
+            if (FAILED(hrc)) throw hrc;
             /// @todo r=poetzsch: wrong it is reported in bytes ...
             // capacity is reported in megabytes, so...
             //cbCapacity *= _1M;
@@ -2227,9 +2228,9 @@ HRESULT Appliance::i_writeFS(TaskOVF *pTask)
     LogFlowFunc(("ENTER appliance %p\n", this));
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     // Lock the media tree early to make sure nobody else tries to make changes
     // to the tree. Also lock the IAppliance object for writing.
@@ -2240,16 +2241,16 @@ HRESULT Appliance::i_writeFS(TaskOVF *pTask)
     m->state = ApplianceExporting;
 
     if (pTask->locInfo.strPath.endsWith(".ovf", Utf8Str::CaseInsensitive))
-        rc = i_writeFSOVF(pTask, multiLock);
+        hrc = i_writeFSOVF(pTask, multiLock);
     else
-        rc = i_writeFSOVA(pTask, multiLock);
+        hrc = i_writeFSOVA(pTask, multiLock);
 
     // reset the state so others can call methods again
     m->state = ApplianceIdle;
 
-    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFunc(("hrc=%Rhrc\n", hrc));
     LogFlowFuncLeave();
-    return rc;
+    return hrc;
 }
 
 HRESULT Appliance::i_writeFSOVF(TaskOVF *pTask, AutoWriteLockBase& writeLock)
@@ -2608,7 +2609,7 @@ HRESULT Appliance::i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, R
 {
     LogFlowFuncEnter();
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
     int vrc;
     try
     {
@@ -2636,9 +2637,9 @@ HRESULT Appliance::i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, R
                 throw setError(VBOX_E_FILE_ERROR, tr("Could not create OVF file '%s'"), strOvfFile.c_str());
 
             /* Write the ovf file to "disk". */
-            rc = i_writeBufferToFile(hVfsFssDst, strOvfFile.c_str(), pvBuf, cbSize);
-            if (FAILED(rc))
-                throw rc;
+            hrc = i_writeBufferToFile(hVfsFssDst, strOvfFile.c_str(), pvBuf, cbSize);
+            if (FAILED(hrc))
+                throw hrc;
         }
 
         // We need a proper format description
@@ -2691,22 +2692,22 @@ HRESULT Appliance::i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, R
 
             if (pDiskEntry->type == VirtualSystemDescriptionType_HardDiskImage)
             {
-                rc = mVirtualBox->i_findHardDiskByLocation(strSrcFilePath, true, &pSourceDisk);
-                if (FAILED(rc)) throw rc;
+                hrc = mVirtualBox->i_findHardDiskByLocation(strSrcFilePath, true, &pSourceDisk);
+                if (FAILED(hrc)) throw hrc;
             }
             else//may be CD or DVD
             {
-                rc = mVirtualBox->i_findDVDOrFloppyImage(DeviceType_DVD,
-                                                         NULL,
-                                                         strSrcFilePath,
-                                                         true,
-                                                         &pSourceDisk);
-                if (FAILED(rc)) throw rc;
+                hrc = mVirtualBox->i_findDVDOrFloppyImage(DeviceType_DVD,
+                                                          NULL,
+                                                          strSrcFilePath,
+                                                          true,
+                                                          &pSourceDisk);
+                if (FAILED(hrc)) throw hrc;
             }
 
             Bstr uuidSource;
-            rc = pSourceDisk->COMGETTER(Id)(uuidSource.asOutParam());
-            if (FAILED(rc)) throw rc;
+            hrc = pSourceDisk->COMGETTER(Id)(uuidSource.asOutParam());
+            if (FAILED(hrc)) throw hrc;
             Guid guidSource(uuidSource);
 
             // output filename
@@ -2742,12 +2743,12 @@ HRESULT Appliance::i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, R
                     if (hVfsIosDst == NIL_RTVFSIOSTREAM)
                         throw setError(E_FAIL, "i_manifestSetupDigestCalculationForGivenIoStream(%s)", strTargetFilePath.c_str());
 
-                    rc = pSourceDisk->i_exportFile(strTargetFilePath.c_str(),
-                                                   format,
-                                                   MediumVariant_VmdkStreamOptimized,
-                                                   m->m_pSecretKeyStore,
-                                                   hVfsIosDst,
-                                                   pTask->pProgress);
+                    hrc = pSourceDisk->i_exportFile(strTargetFilePath.c_str(),
+                                                    format,
+                                                    MediumVariant_VmdkStreamOptimized,
+                                                    m->m_pSecretKeyStore,
+                                                    hVfsIosDst,
+                                                    pTask->pProgress);
                     RTVfsIoStrmRelease(hVfsIosDst);
                 }
                 else
@@ -2756,10 +2757,10 @@ HRESULT Appliance::i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, R
                      * Copy CD/DVD/floppy image.
                      */
                     Assert(pDiskEntry->type == VirtualSystemDescriptionType_CDROM);
-                    rc = pSourceDisk->i_addRawToFss(strTargetFilePath.c_str(), m->m_pSecretKeyStore, hVfsFssDst,
+                    hrc = pSourceDisk->i_addRawToFss(strTargetFilePath.c_str(), m->m_pSecretKeyStore, hVfsFssDst,
                                                     pTask->pProgress, false /*fSparse*/);
                 }
-                if (FAILED(rc)) throw rc;
+                if (FAILED(hrc)) throw hrc;
             }
             catch (HRESULT rc3)
             {
@@ -2797,34 +2798,33 @@ HRESULT Appliance::i_writeFSImpl(TaskOVF *pTask, AutoWriteLockBase &writeLock, R
                     RTVFSOBJ hVfsObjManifest = RTVfsObjFromIoStream(hVfsIosManifest);
                     vrc = RTVfsFsStrmAdd(hVfsFssDst, strMfFileName.c_str(), hVfsObjManifest, 0 /*fFlags*/);
                     if (RT_SUCCESS(vrc))
-                        rc = S_OK;
+                        hrc = S_OK;
                     else
-                        rc = setErrorVrc(vrc, tr("RTVfsFsStrmAdd failed for the manifest (%Rrc)"), vrc);
+                        hrc = setErrorVrc(vrc, tr("RTVfsFsStrmAdd failed for the manifest (%Rrc)"), vrc);
                 }
                 else
-                    rc = setErrorVrc(vrc, tr("RTManifestWriteStandard failed (%Rrc)"), vrc);
+                    hrc = setErrorVrc(vrc, tr("RTManifestWriteStandard failed (%Rrc)"), vrc);
             }
             else
-                rc = setErrorVrc(vrc, tr("RTManifestWriteStandard failed (%Rrc)"), vrc);
+                hrc = setErrorVrc(vrc, tr("RTManifestWriteStandard failed (%Rrc)"), vrc);
             RTVfsIoStrmRelease(hVfsIosManifest);
-            if (FAILED(rc))
-                throw rc;
+            if (FAILED(hrc))
+                throw hrc;
         }
     }
     catch (RTCError &x)  // includes all XML exceptions
     {
-        rc = setError(VBOX_E_FILE_ERROR,
-                      x.what());
+        hrc = setError(VBOX_E_FILE_ERROR, x.what());
     }
-    catch (HRESULT aRC)
+    catch (HRESULT hrcXcpt)
     {
-        rc = aRC;
+        hrc = hrcXcpt;
     }
 
-    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFunc(("hrc=%Rhrc\n", hrc));
     LogFlowFuncLeave();
 
-    return rc;
+    return hrc;
 }
 
 

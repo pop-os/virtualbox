@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -29,7 +29,6 @@
 #include <iprt/dir.h>
 #include <iprt/path.h>
 #include <iprt/file.h>
-#include <iprt/s3.h>
 #include <iprt/cpp/utils.h>
 
 #include <VBox/com/array.h>
@@ -211,24 +210,24 @@ void VFSExplorer::TaskVFSExplorer::handler()
     LogFlowFuncEnter();
     LogFlowFunc(("VFSExplorer %p\n", pVFSExplorer));
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     switch (this->m_taskType)
     {
         case TaskVFSExplorer::Update:
         {
             if (pVFSExplorer->m->storageType == VFSType_File)
-                rc = pVFSExplorer->i_updateFS(this);
+                hrc = pVFSExplorer->i_updateFS(this);
             else if (pVFSExplorer->m->storageType == VFSType_S3)
-                rc = E_NOTIMPL;
+                hrc = E_NOTIMPL;
             break;
         }
         case TaskVFSExplorer::Delete:
         {
             if (pVFSExplorer->m->storageType == VFSType_File)
-                rc = pVFSExplorer->i_deleteFS(this);
+                hrc = pVFSExplorer->i_deleteFS(this);
             else if (pVFSExplorer->m->storageType == VFSType_S3)
-                rc = E_NOTIMPL;
+                hrc = E_NOTIMPL;
             break;
         }
         default:
@@ -236,7 +235,7 @@ void VFSExplorer::TaskVFSExplorer::handler()
             break;
     }
 
-    LogFlowFunc(("rc=%Rhrc\n", rc)); NOREF(rc);
+    LogFlowFunc(("hrc=%Rhrc\n", hrc)); NOREF(hrc);
     LogFlowFuncLeave();
 }
 
@@ -280,11 +279,11 @@ HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     std::list<VFSExplorer::Data::DirEntry> fileList;
     RTDIR hDir;
@@ -313,30 +312,30 @@ HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
             if (aTask->m_ptrProgress)
                 aTask->m_ptrProgress->SetCurrentOperationProgress(66);
         }
-        catch (HRESULT aRC)
+        catch (HRESULT hrcXcpt)
         {
-            rc = aRC;
+            hrc = hrcXcpt;
         }
 
         /* Clean up */
         RTDirClose(hDir);
     }
     else
-        rc = setErrorBoth(VBOX_E_FILE_ERROR, vrc, tr ("Can't open directory '%s' (%Rrc)"), m->strPath.c_str(), vrc);
+        hrc = setErrorBoth(VBOX_E_FILE_ERROR, vrc, tr ("Can't open directory '%s' (%Rrc)"), m->strPath.c_str(), vrc);
 
     if (aTask->m_ptrProgress)
         aTask->m_ptrProgress->SetCurrentOperationProgress(99);
 
     /* Assign the result on success (this clears the old list) */
-    if (rc == S_OK)
+    if (hrc == S_OK)
         m->entryList.assign(fileList.begin(), fileList.end());
 
-    aTask->m_rc = rc;
+    aTask->m_rc = hrc;
 
     if (!aTask->m_ptrProgress.isNull())
-        aTask->m_ptrProgress->i_notifyComplete(rc);
+        aTask->m_ptrProgress->i_notifyComplete(hrc);
 
-    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFunc(("hrc=%Rhrc\n", hrc));
     LogFlowFuncLeave();
 
     return S_OK; /** @todo ??? */
@@ -347,11 +346,11 @@ HRESULT VFSExplorer::i_deleteFS(TaskVFSExplorer *aTask)
     LogFlowFuncEnter();
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoWriteLock appLock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     float fPercentStep = 100.0f / (float)aTask->m_lstFilenames.size();
     try
@@ -373,17 +372,17 @@ HRESULT VFSExplorer::i_deleteFS(TaskVFSExplorer *aTask)
                 aTask->m_ptrProgress->SetCurrentOperationProgress((ULONG)(fPercentStep * (float)i));
         }
     }
-    catch (HRESULT aRC)
+    catch (HRESULT hrcXcpt)
     {
-        rc = aRC;
+        hrc = hrcXcpt;
     }
 
-    aTask->m_rc = rc;
+    aTask->m_rc = hrc;
 
     if (aTask->m_ptrProgress.isNotNull())
-        aTask->m_ptrProgress->i_notifyComplete(rc);
+        aTask->m_ptrProgress->i_notifyComplete(hrc);
 
-    LogFlowFunc(("rc=%Rhrc\n", rc));
+    LogFlowFunc(("hrc=%Rhrc\n", hrc));
     LogFlowFuncLeave();
 
     return VINF_SUCCESS;
@@ -393,7 +392,7 @@ HRESULT VFSExplorer::update(ComPtr<IProgress> &aProgress)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     ComObjPtr<Progress> progress;
     try
@@ -403,28 +402,25 @@ HRESULT VFSExplorer::update(ComPtr<IProgress> &aProgress)
         /* Create the progress object */
         progress.createObject();
 
-        rc = progress->init(mVirtualBox,
-                            static_cast<IVFSExplorer*>(this),
-                            progressDesc.raw(),
-                            TRUE /* aCancelable */);
-        if (FAILED(rc)) throw rc;
+        hrc = progress->init(mVirtualBox, static_cast<IVFSExplorer*>(this), progressDesc.raw(), TRUE /* aCancelable */);
+        if (FAILED(hrc)) throw hrc;
 
         /* Initialize our worker task */
         TaskVFSExplorer* pTask = new TaskVFSExplorer(TaskVFSExplorer::Update, this, progress);
 
         //this function delete task in case of exceptions, so there is no need in the call of delete operator
-        rc = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
+        hrc = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
     }
-    catch (HRESULT aRC)
+    catch (HRESULT hrcXcpt)
     {
-        rc = aRC;
+        hrc = hrcXcpt;
     }
 
-     if (SUCCEEDED(rc))
+     if (SUCCEEDED(hrc))
          /* Return progress to the caller */
          progress.queryInterfaceTo(aProgress.asOutParam());
 
-    return rc;
+    return hrc;
 }
 
 HRESULT VFSExplorer::cd(const com::Utf8Str &aDir, ComPtr<IProgress> &aProgress)
@@ -482,7 +478,7 @@ HRESULT VFSExplorer::exists(const std::vector<com::Utf8Str> &aNames,
 {
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     aExists.resize(0);
@@ -506,11 +502,11 @@ HRESULT VFSExplorer::remove(const std::vector<com::Utf8Str> &aNames,
                             ComPtr<IProgress> &aProgress)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.hrc())) return autoCaller.hrc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = S_OK;
+    HRESULT hrc = S_OK;
 
     ComObjPtr<Progress> progress;
     try
@@ -518,10 +514,10 @@ HRESULT VFSExplorer::remove(const std::vector<com::Utf8Str> &aNames,
         /* Create the progress object */
         progress.createObject();
 
-        rc = progress->init(mVirtualBox, static_cast<IVFSExplorer*>(this),
-                            Bstr(tr("Delete files")).raw(),
-                            TRUE /* aCancelable */);
-        if (FAILED(rc)) throw rc;
+        hrc = progress->init(mVirtualBox, static_cast<IVFSExplorer*>(this),
+                             Bstr(tr("Delete files")).raw(),
+                             TRUE /* aCancelable */);
+        if (FAILED(hrc)) throw hrc;
 
         /* Initialize our worker task */
         TaskVFSExplorer* pTask = new TaskVFSExplorer(TaskVFSExplorer::Delete, this, progress);
@@ -531,17 +527,17 @@ HRESULT VFSExplorer::remove(const std::vector<com::Utf8Str> &aNames,
             pTask->m_lstFilenames.push_back(aNames[i]);
 
         //this function delete task in case of exceptions, so there is no need in the call of delete operator
-        rc = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
+        hrc = pTask->createThreadWithType(RTTHREADTYPE_MAIN_HEAVY_WORKER);
     }
-    catch (HRESULT aRC)
+    catch (HRESULT hrcXcpt)
     {
-        rc = aRC;
+        hrc = hrcXcpt;
     }
 
-    if (SUCCEEDED(rc))
+    if (SUCCEEDED(hrc))
         /* Return progress to the caller */
         progress.queryInterfaceTo(aProgress.asOutParam());
 
-    return rc;
+    return hrc;
 }
 

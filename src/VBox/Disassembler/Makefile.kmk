@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -35,14 +35,14 @@ endif
 
 
 LIBRARIES              += DisasmR3
-DisasmR3_TEMPLATE       = VBOXR3
+DisasmR3_TEMPLATE       = VBoxR3Dll
 DisasmR3_DEFS           = IN_DIS
 DisasmR3_SOURCES        = \
 	Disasm.cpp \
 	DisasmCore.cpp \
 	DisasmTables.cpp \
 	DisasmTablesX64.cpp \
- 	DisasmMisc.cpp \
+	DisasmMisc.cpp \
 	DisasmFormatBytes.cpp \
 	DisasmFormatYasm.cpp
 
@@ -57,7 +57,7 @@ ifndef VBOX_ONLY_VALIDATIONKIT
  DisasmBldProg_EXTENDS   = DisasmR3
 
  LIBRARIES              += DisasmCoreR3
- DisasmCoreR3_TEMPLATE   = VBOXR3
+ DisasmCoreR3_TEMPLATE   = VBoxR3Dll
  DisasmCoreR3_DEFS       = IN_DIS DIS_CORE_ONLY
  DisasmCoreR3_SOURCES    = \
  	DisasmCore.cpp \

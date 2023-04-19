@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -1081,12 +1081,6 @@ void UIVirtualBoxManager::sltOpenSettingsDialog(QString strCategory /* = QString
                                                 QString strControl /* = QString() */,
                                                 const QUuid &uID /* = QString() */)
 {
-    /* Lock the action preventing cascade calls: */
-    UIQObjectPropertySetter guardBlock(actionPool()->action(UIActionIndexMN_M_Machine_S_Settings), "opened", true);
-    connect(&guardBlock, &UIQObjectPropertySetter::sigAboutToBeDestroyed,
-            this, &UIVirtualBoxManager::sltHandleUpdateActionAppearanceRequest);
-    updateActionsAppearance();
-
     /* Get current item: */
     UIVirtualMachineItem *pItem = currentItem();
     AssertMsgReturnVoid(pItem, ("Current item should be selected!\n"));
@@ -1232,7 +1226,7 @@ void UIVirtualBoxManager::sltPerformStartOrShowMachine()
     /* Start selected VMs in corresponding mode: */
     QList<UIVirtualMachineItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-    performStartOrShowVirtualMachines(items, UICommon::LaunchMode_Invalid);
+    performStartOrShowVirtualMachines(items, UILaunchMode_Invalid);
 }
 
 void UIVirtualBoxManager::sltPerformStartMachineNormal()
@@ -1240,7 +1234,7 @@ void UIVirtualBoxManager::sltPerformStartMachineNormal()
     /* Start selected VMs in corresponding mode: */
     QList<UIVirtualMachineItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-    performStartOrShowVirtualMachines(items, UICommon::LaunchMode_Default);
+    performStartOrShowVirtualMachines(items, UILaunchMode_Default);
 }
 
 void UIVirtualBoxManager::sltPerformStartMachineHeadless()
@@ -1248,7 +1242,7 @@ void UIVirtualBoxManager::sltPerformStartMachineHeadless()
     /* Start selected VMs in corresponding mode: */
     QList<UIVirtualMachineItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-    performStartOrShowVirtualMachines(items, UICommon::LaunchMode_Headless);
+    performStartOrShowVirtualMachines(items, UILaunchMode_Headless);
 }
 
 void UIVirtualBoxManager::sltPerformStartMachineDetachable()
@@ -1256,7 +1250,7 @@ void UIVirtualBoxManager::sltPerformStartMachineDetachable()
     /* Start selected VMs in corresponding mode: */
     QList<UIVirtualMachineItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-    performStartOrShowVirtualMachines(items, UICommon::LaunchMode_Separate);
+    performStartOrShowVirtualMachines(items, UILaunchMode_Separate);
 }
 
 void UIVirtualBoxManager::sltPerformCreateConsoleConnectionForGroup()
@@ -2656,7 +2650,7 @@ void UIVirtualBoxManager::openNewMachineWizard(const QString &strISOFilePath /* 
 
 /* static */
 void UIVirtualBoxManager::launchMachine(CMachine &comMachine,
-                                        UICommon::LaunchMode enmLaunchMode /* = UICommon::LaunchMode_Default */)
+                                        UILaunchMode enmLaunchMode /* = UILaunchMode_Default */)
 {
     /* Switch to machine window(s) if possible: */
     if (   comMachine.GetSessionState() == KSessionState_Locked // precondition for CanShowConsoleWindow()
@@ -2667,7 +2661,7 @@ void UIVirtualBoxManager::launchMachine(CMachine &comMachine,
     }
 
     /* Not for separate UI (which can connect to machine in any state): */
-    if (enmLaunchMode != UICommon::LaunchMode_Separate)
+    if (enmLaunchMode != UILaunchMode_Separate)
     {
         /* Make sure machine-state is one of required: */
         const KMachineState enmState = comMachine.GetState(); Q_UNUSED(enmState);
@@ -2709,10 +2703,10 @@ void UIVirtualBoxManager::startUnattendedInstall(CUnattended &comUnattendedInsta
     comUnattendedInstaller.ReconfigureVM();
     AssertReturnVoid(checkUnattendedInstallError(comUnattendedInstaller));
 
-    launchMachine(comMachine, fStartHeadless ? UICommon::LaunchMode_Headless : UICommon::LaunchMode_Default);
+    launchMachine(comMachine, fStartHeadless ? UILaunchMode_Headless : UILaunchMode_Default);
 }
 
-void UIVirtualBoxManager::performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, UICommon::LaunchMode enmLaunchMode)
+void UIVirtualBoxManager::performStartOrShowVirtualMachines(const QList<UIVirtualMachineItem*> &items, UILaunchMode enmLaunchMode)
 {
     /* Do nothing while group saving is in progress: */
     if (isGroupSavingInProgress())
@@ -2748,13 +2742,13 @@ void UIVirtualBoxManager::performStartOrShowVirtualMachines(const QList<UIVirtua
             if (pItem->itemType() == UIVirtualMachineItemType_Local)
             {
                 /* Fetch item launch mode: */
-                UICommon::LaunchMode enmItemLaunchMode = enmLaunchMode;
-                if (enmItemLaunchMode == UICommon::LaunchMode_Invalid)
+                UILaunchMode enmItemLaunchMode = enmLaunchMode;
+                if (enmItemLaunchMode == UILaunchMode_Invalid)
                     enmItemLaunchMode = pItem->isItemRunningHeadless()
-                                      ? UICommon::LaunchMode_Separate
+                                      ? UILaunchMode_Separate
                                       : qApp->keyboardModifiers() == Qt::ShiftModifier
-                                      ? UICommon::LaunchMode_Headless
-                                      : UICommon::LaunchMode_Default;
+                                      ? UILaunchMode_Headless
+                                      : UILaunchMode_Default;
                 /* Acquire local machine: */
                 CMachine machine = pItem->toLocal()->machine();
                 /* Launch current VM: */
@@ -3421,9 +3415,7 @@ bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtua
         case UIActionIndexMN_M_Group_S_New:
         case UIActionIndexMN_M_Group_S_Add:
         {
-            return !isGroupSavingInProgress() &&
-                   (isSingleLocalGroupSelected() ||
-                    isSingleCloudProfileGroupSelected());
+            return !isGroupSavingInProgress();
         }
         case UIActionIndexMN_M_Group_S_Sort:
         {

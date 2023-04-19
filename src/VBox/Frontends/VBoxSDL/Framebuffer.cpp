@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -44,7 +44,7 @@
 using namespace com;
 
 #define LOG_GROUP LOG_GROUP_GUI
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 
 #include "VBoxSDL.h"
@@ -68,19 +68,6 @@ NS_DECL_CLASSINFO(VBoxSDLFB)
 NS_IMPL_THREADSAFE_ISUPPORTS2_CI(VBoxSDLFBOverlay, IFramebufferOverlay, IFramebuffer)
 NS_DECL_CLASSINFO(VBoxSDLFBOverlay)
 #endif
-
-#ifdef VBOX_SECURELABEL
-/* function pointers */
-extern "C"
-{
-DECLSPEC int (SDLCALL *pTTF_Init)(void);
-DECLSPEC TTF_Font* (SDLCALL *pTTF_OpenFont)(const char *file, int ptsize);
-DECLSPEC SDL_Surface* (SDLCALL *pTTF_RenderUTF8_Solid)(TTF_Font *font, const char *text, SDL_Color fg);
-DECLSPEC SDL_Surface* (SDLCALL *pTTF_RenderUTF8_Blended)(TTF_Font *font, const char *text, SDL_Color fg);
-DECLSPEC void (SDLCALL *pTTF_CloseFont)(TTF_Font *font);
-DECLSPEC void (SDLCALL *pTTF_Quit)(void);
-}
-#endif /* VBOX_SECURELABEL */
 
 static bool gfSdlInitialized = false;           /**< if SDL was initialized */
 static SDL_Surface *gWMIcon = NULL;             /**< the application icon */
@@ -126,12 +113,9 @@ HRESULT VBoxSDLFB::init(uint32_t uScreenId,
 
     mScreenId       = uScreenId;
     mfUpdateImage   = fUpdateImage;
-    mScreen         = NULL;
-#ifdef VBOX_WITH_SDL2
     mpWindow        = NULL;
     mpTexture       = NULL;
     mpRenderer      = NULL;
-#endif
     mSurfVRAM       = NULL;
     mfInitialized   = false;
     mfFullscreen    = fFullscreen;
@@ -151,26 +135,18 @@ HRESULT VBoxSDLFB::init(uint32_t uScreenId,
     mBitsPerPixel   = 0;
     mBytesPerLine   = 0;
     mfSameSizeRequested = false;
-#ifdef VBOX_SECURELABEL
-    mLabelFont      = NULL;
-    mLabelHeight    = 0;
-    mLabelOffs      = 0;
-#endif
-
     mfUpdates = false;
 
     int rc = RTCritSectInit(&mUpdateLock);
     AssertMsg(rc == VINF_SUCCESS, ("Error from RTCritSectInit!\n"));
 
     resizeGuest();
-    Assert(mScreen);
     mfInitialized = true;
 #ifdef RT_OS_WINDOWS
     HRESULT hr = CoCreateFreeThreadedMarshaler(this, m_pUnkMarshaler.asOutParam());
     Log(("CoCreateFreeThreadedMarshaler hr %08X\n", hr)); NOREF(hr);
 #endif
 
-#ifdef VBOX_WITH_SDL2
     rc = SDL_GetRendererInfo(mpRenderer, &mRenderInfo);
     if (RT_SUCCESS(rc))
     {
@@ -183,7 +159,6 @@ HRESULT VBoxSDLFB::init(uint32_t uScreenId,
                      mRenderInfo.flags,
                      RTEnvGet("SDL_VIDEODRIVER"));
     }
-#endif
 
     return rc;
 }
@@ -196,15 +171,6 @@ VBoxSDLFB::~VBoxSDLFB()
         SDL_FreeSurface(mSurfVRAM);
         mSurfVRAM = NULL;
     }
-    mScreen = NULL;
-
-#ifdef VBOX_SECURELABEL
-    if (mLabelFont)
-        pTTF_CloseFont(mLabelFont);
-    if (pTTF_Quit)
-        pTTF_Quit();
-#endif
-
     RTCritSectDelete(&mUpdateLock);
 }
 
@@ -220,12 +186,7 @@ bool VBoxSDLFB::init(bool fShowSDLConfig)
     /* default to DirectX if nothing else set */
     if (!RTEnvExist("SDL_VIDEODRIVER"))
     {
-# ifndef VBOX_WITH_SDL2
-        /* Always select the windib driver by default, as the directx one is known to be broken on newer Windows OSes. */
-        RTEnvSet("SDL_VIDEODRIVER", "windib");
-# else
         RTEnvSet("SDL_VIDEODRIVER", "directx");
-# endif
     }
 #endif
 #ifdef VBOXSDL_WITH_X11
@@ -242,53 +203,7 @@ bool VBoxSDLFB::init(bool fShowSDLConfig)
     }
     gfSdlInitialized = true;
 
-#ifdef VBOX_WITH_SDL2
     RT_NOREF(fShowSDLConfig);
-#else
-    const SDL_VideoInfo *videoInfo = SDL_GetVideoInfo();
-    AssertPtr(videoInfo);
-    if (videoInfo)
-    {
-        /* output what SDL is capable of */
-        if (fShowSDLConfig)
-            RTPrintf("SDL capabilities:\n"
-                     "  Hardware surface support:                    %s\n"
-                     "  Window manager available:                    %s\n"
-                     "  Screen to screen blits accelerated:          %s\n"
-                     "  Screen to screen colorkey blits accelerated: %s\n"
-                     "  Screen to screen alpha blits accelerated:    %s\n"
-                     "  Memory to screen blits accelerated:          %s\n"
-                     "  Memory to screen colorkey blits accelerated: %s\n"
-                     "  Memory to screen alpha blits accelerated:    %s\n"
-                     "  Color fills accelerated:                     %s\n"
-                     "  Video memory in kilobytes:                   %d\n"
-                     "  Optimal bpp mode:                            %d\n"
-                     "SDL video driver:                              %s\n",
-                         videoInfo->hw_available ? "yes" : "no",
-                         videoInfo->wm_available ? "yes" : "no",
-                         videoInfo->blit_hw ? "yes" : "no",
-                         videoInfo->blit_hw_CC ? "yes" : "no",
-                         videoInfo->blit_hw_A ? "yes" : "no",
-                         videoInfo->blit_sw ? "yes" : "no",
-                         videoInfo->blit_sw_CC ? "yes" : "no",
-                         videoInfo->blit_sw_A ? "yes" : "no",
-                         videoInfo->blit_fill ? "yes" : "no",
-                         videoInfo->video_mem,
-                         videoInfo->vfmt->BitsPerPixel,
-                         RTEnvGet("SDL_VIDEODRIVER"));
-    }
-#endif /* !VBOX_WITH_SDL2 */
-
-#ifndef VBOX_WITH_SDL2
-    gWMIcon = SDL_AllocSurface(SDL_SWSURFACE, 64, 64, 24, 0xff, 0xff00, 0xff0000, 0);
-    /** @todo make it as simple as possible. No PNM interpreter here... */
-    if (gWMIcon)
-    {
-        memcpy(gWMIcon->pixels, g_abIco64x01+32, g_cbIco64x01-32);
-        SDL_WM_SetIcon(gWMIcon, NULL);
-    }
-#endif
-
     return true;
 }
 
@@ -303,14 +218,6 @@ void VBoxSDLFB::uninit()
     {
         AssertMsg(gSdlNativeThread == RTThreadNativeSelf(), ("Wrong thread! SDL is not threadsafe!\n"));
         SDL_QuitSubSystem(SDL_INIT_VIDEO);
-
-#ifndef VBOX_WITH_SDL2
-        if (gWMIcon)
-        {
-            SDL_FreeSurface(gWMIcon);
-            gWMIcon = NULL;
-        }
-#endif
     }
 }
 
@@ -397,11 +304,7 @@ STDMETHODIMP VBoxSDLFB::COMGETTER(HeightReduction)(ULONG *heightReduction)
 {
     if (!heightReduction)
         return E_POINTER;
-#ifdef VBOX_SECURELABEL
-    *heightReduction = mLabelHeight;
-#else
     *heightReduction = 0;
-#endif
     return S_OK;
 }
 
@@ -772,7 +675,7 @@ void VBoxSDLFB::resizeGuest()
     }
     else
     {
-        mSurfVRAM = SDL_CreateRGBSurface(SDL_SWSURFACE, mGuestXRes, mGuestYRes, mBitsPerPixel,
+        mSurfVRAM = SDL_CreateRGBSurface(SDL_SWSURFACE, mGuestXRes, mGuestYRes, 32,
                                          Rmask, Gmask, Bmask, Amask);
         LogFlow(("VBoxSDL:: using SDL_SWSURFACE\n"));
     }
@@ -807,7 +710,6 @@ void VBoxSDLFB::resizeSDL(void)
 {
     LogFlow(("VBoxSDL:resizeSDL\n"));
 
-#ifdef VBOX_WITH_SDL2
     const int cDisplays = SDL_GetNumVideoDisplays();
     if (cDisplays > 0)
     {
@@ -840,52 +742,6 @@ void VBoxSDLFB::resizeSDL(void)
     }
     else
         AssertFailed(); /** @todo */
-#else
-
-    /*
-     * We request a hardware surface from SDL so that we can perform
-     * accelerated system memory to VRAM blits. The way video handling
-     * works it that on the one hand we have the screen surface from SDL
-     * and on the other hand we have a software surface that we create
-     * using guest VRAM memory for linear modes and using SDL allocated
-     * system memory for text and non linear graphics modes. We never
-     * directly write to the screen surface but always use SDL blitting
-     * functions to blit from our system memory surface to the VRAM.
-     * Therefore, SDL can take advantage of hardware acceleration.
-     */
-    int sdlFlags = SDL_HWSURFACE | SDL_ASYNCBLIT | SDL_HWACCEL;
-#ifndef RT_OS_OS2 /* doesn't seem to work for some reason... */
-    if (mfResizable)
-        sdlFlags |= SDL_RESIZABLE;
-#endif
-    if (mfFullscreen)
-        sdlFlags |= SDL_FULLSCREEN;
-
-    /*
-     * Now we have to check whether there are video mode restrictions
-     */
-    SDL_Rect **modes;
-    /* Get available fullscreen/hardware modes */
-    modes = SDL_ListModes(NULL, sdlFlags);
-    Assert(modes != NULL);
-    /* -1 means that any mode is possible (usually non fullscreen) */
-    if (modes != (SDL_Rect **)-1)
-    {
-        /*
-         * according to the SDL documentation, the API guarantees that
-         * the modes are sorted from larger to smaller, so we just
-         * take the first entry as the maximum.
-         */
-        mMaxScreenWidth  = modes[0]->w;
-        mMaxScreenHeight = modes[0]->h;
-    }
-    else
-    {
-        /* no restriction */
-        mMaxScreenWidth  = ~(uint32_t)0;
-        mMaxScreenHeight = ~(uint32_t)0;
-    }
-#endif /* VBOX_WITH_SDL2 */
 
     uint32_t newWidth;
     uint32_t newHeight;
@@ -903,17 +759,12 @@ void VBoxSDLFB::resizeSDL(void)
     else
     {
         newWidth  = RT_MIN(mGuestXRes, mMaxScreenWidth);
-#ifdef VBOX_SECURELABEL
-        newHeight = RT_MIN(mGuestYRes + mLabelHeight, mMaxScreenHeight);
-#else
         newHeight = RT_MIN(mGuestYRes, mMaxScreenHeight);
-#endif
     }
 
     /* we don't have any extra space by default */
     mTopOffset = 0;
 
-#ifdef VBOX_WITH_SDL2
     int sdlWindowFlags = SDL_WINDOW_SHOWN;
     if (mfResizable)
         sdlWindowFlags |= SDL_WINDOW_RESIZABLE;
@@ -972,102 +823,6 @@ void VBoxSDLFB::resizeSDL(void)
         if (!mpTexture)
             AssertReleaseFailed();
     }
-
-    void *pixels;
-    int pitch;
-    int w, h, bpp;
-    uint32_t Rmask, Gmask, Bmask, Amask;
-    uint32_t format;
-
-    if (SDL_QueryTexture(mpTexture, &format, NULL, &w, &h) < 0)
-        AssertReleaseFailed();
-
-    if (!SDL_PixelFormatEnumToMasks(format, &bpp, &Rmask, &Gmask, &Bmask, &Amask))
-        AssertReleaseFailed();
-
-    if (SDL_LockTexture(mpTexture, NULL /* SDL_Rect */, &pixels, &pitch) == 0)
-    {
-        mScreen = SDL_CreateRGBSurfaceFrom(pixels, w, h, bpp, pitch,
-                                           Rmask, Gmask, Bmask, Amask);
-        SDL_UnlockTexture(mpTexture); /** @BUGBUG See: https://bugzilla.libsdl.org/show_bug.cgi?id=1586 */
-    }
-    else
-    {
-        mScreen = SDL_CreateRGBSurface(0, w, h, bpp, Rmask, Gmask, Bmask, Amask);
-        AssertReleaseFailed();
-    }
-
-    SDL_SetClipRect(mScreen, NULL);
-
-#else
-    /*
-     * Now set the screen resolution and get the surface pointer
-     * @todo BPP is not supported!
-     */
-    mScreen = SDL_SetVideoMode(newWidth, newHeight, 0, sdlFlags);
-
-    /*
-     * Set the Window ID. Currently used for OpenGL accelerated guests.
-     */
-# if defined (RT_OS_WINDOWS)
-    SDL_SysWMinfo info;
-    SDL_VERSION(&info.version);
-    if (SDL_GetWMInfo(&info))
-        mWinId = (intptr_t) info.window;
-# elif defined (RT_OS_LINUX)
-    SDL_SysWMinfo info;
-    SDL_VERSION(&info.version);
-    if (SDL_GetWMInfo(&info))
-        mWinId = (LONG64) info.info.x11.wmwindow;
-# elif defined(RT_OS_DARWIN)
-    mWinId = (intptr_t)VBoxSDLGetDarwinWindowId();
-# else
-    /* XXX ignore this for other architectures */
-# endif
-#endif /* VBOX_WITH_SDL2 */
-#ifdef VBOX_SECURELABEL
-    /*
-     * For non fixed SDL resolution, the above call tried to add the label height
-     * to the guest height. If it worked, we have an offset. If it didn't the below
-     * code will try again with the original guest resolution.
-     */
-    if (mFixedSDLWidth == ~(uint32_t)0)
-    {
-        /* if it didn't work, then we have to go for the original resolution and paint over the guest */
-        if (!mScreen)
-        {
-            mScreen = SDL_SetVideoMode(newWidth, newHeight - mLabelHeight, 0, sdlFlags);
-        }
-        else
-        {
-            /* we now have some extra space */
-            mTopOffset = mLabelHeight;
-        }
-    }
-    else
-    {
-        /* in case the guest resolution is small enough, we do have a top offset */
-        if (mFixedSDLHeight - mGuestYRes >= mLabelHeight)
-            mTopOffset = mLabelHeight;
-
-        /* we also might have to center the guest picture */
-        if (mFixedSDLWidth > mGuestXRes)
-            mCenterXOffset = (mFixedSDLWidth - mGuestXRes) / 2;
-        if (mFixedSDLHeight > mGuestYRes + mLabelHeight)
-            mCenterYOffset = (mFixedSDLHeight - (mGuestYRes + mLabelHeight)) / 2;
-    }
-#endif /* VBOX_SECURELABEL */
-
-    AssertMsg(mScreen, ("Error: SDL_SetVideoMode failed!\n"));
-    if (mScreen)
-    {
-#ifdef VBOX_WIN32_UI
-        /* inform the UI code */
-        resizeUI(mScreen->w, mScreen->h);
-#endif
-        if (mfShowSDLConfig)
-            RTPrintf("Resized to %dx%d\n", mScreen->w, mScreen->h);
-    }
 }
 
 /**
@@ -1088,15 +843,15 @@ void VBoxSDLFB::update(int x, int y, int w, int h, bool fGuestRelative)
 #endif
     RTCritSectEnter(&mUpdateLock);
     Log(("Updates %d, %d,%d %dx%d\n", mfUpdates, x, y, w, h));
+    // printf("Updates %d, %d,%d %dx%d\n", mfUpdates, x, y, w, h);
     if (!mfUpdates)
     {
         RTCritSectLeave(&mUpdateLock);
         return;
     }
 
-    Assert(mScreen);
     Assert(mSurfVRAM);
-    if (!mScreen || !mSurfVRAM)
+    if (!mSurfVRAM)
     {
         RTCritSectLeave(&mUpdateLock);
         return;
@@ -1108,17 +863,6 @@ void VBoxSDLFB::update(int x, int y, int w, int h, bool fGuestRelative)
 
     /* this is how many pixels we have to cut off from the height for this specific blit */
     int yCutoffGuest = 0;
-
-#ifdef VBOX_SECURELABEL
-    bool fPaintLabel = false;
-    /* if we have a label and no space for it, we have to cut off a bit */
-    if (mLabelHeight && !mTopOffset)
-    {
-        if (y < (int)mLabelHeight)
-            yCutoffGuest = mLabelHeight - y;
-    }
-#endif
-
     /**
      * If we get a SDL window relative update, we
      * just perform a full screen update to keep things simple.
@@ -1127,11 +871,6 @@ void VBoxSDLFB::update(int x, int y, int w, int h, bool fGuestRelative)
      */
     if (!fGuestRelative)
     {
-#ifdef VBOX_SECURELABEL
-        /* repaint the label if necessary */
-        if (y < (int)mLabelHeight)
-            fPaintLabel = true;
-#endif
         x = 0;
         w = mGuestXRes;
         y = 0;
@@ -1151,34 +890,18 @@ void VBoxSDLFB::update(int x, int y, int w, int h, bool fGuestRelative)
      * yCutoffGuest >= 0)
      */
     dstRect.x = x + mCenterXOffset;
-#ifdef VBOX_SECURELABEL
-    dstRect.y = RT_MAX(mLabelHeight, y + yCutoffGuest + mTopOffset) + mCenterYOffset;
-#else
     dstRect.y = y + yCutoffGuest + mTopOffset + mCenterYOffset;
-#endif
     dstRect.w = w;
     dstRect.h = RT_MAX(0, h - yCutoffGuest);
 
-    /*
-     * Now we just blit
-     */
-    SDL_BlitSurface(mSurfVRAM, &srcRect, mScreen, &dstRect);
-    /* hardware surfaces don't need update notifications */
-#if defined(VBOX_WITH_SDL2)
-    AssertRelease(mScreen->flags & SDL_PREALLOC);
+    SDL_Texture *pNewTexture = SDL_CreateTextureFromSurface(mpRenderer, mSurfVRAM);
     /** @todo Do we need to update the dirty rect for the texture for SDL2 here as well? */
-    SDL_RenderClear(mpRenderer);
-    SDL_RenderCopy(mpRenderer, mpTexture, &dstRect, &dstRect);
+    // SDL_RenderClear(mpRenderer);
+    //SDL_UpdateTexture(mpTexture, &dstRect, mSurfVRAM->pixels, mSurfVRAM->pitch);
+    // SDL_RenderCopy(mpRenderer, mpTexture, NULL, NULL);
+    SDL_RenderCopy(mpRenderer, pNewTexture, &srcRect, &dstRect);
     SDL_RenderPresent(mpRenderer);
-#else
-    if ((mScreen->flags & SDL_HWSURFACE) == 0)
-        SDL_UpdateRect(mScreen, dstRect.x, dstRect.y, dstRect.w, dstRect.h);
-#endif
-
-#ifdef VBOX_SECURELABEL
-    if (fPaintLabel)
-        paintSecureLabel(0, 0, 0, 0, false);
-#endif
+    SDL_DestroyTexture(pNewTexture);
     RTCritSectLeave(&mUpdateLock);
 }
 
@@ -1191,7 +914,11 @@ void VBoxSDLFB::repaint()
 {
     AssertMsg(gSdlNativeThread == RTThreadNativeSelf(), ("Wrong thread! SDL is not threadsafe!\n"));
     LogFlow(("VBoxSDLFB::repaint\n"));
-    update(0, 0, mScreen->w, mScreen->h, false /* fGuestRelative */);
+    int w, h;
+    uint32_t format;
+    int access;
+    SDL_QueryTexture(mpTexture, &format, &access, &w, &h);
+    update(0, 0, w, h, false /* fGuestRelative */);
 }
 
 /**
@@ -1215,36 +942,6 @@ void VBoxSDLFB::setFullscreen(bool fFullscreen)
  */
 void VBoxSDLFB::getFullscreenGeometry(uint32_t *width, uint32_t *height)
 {
-#ifndef VBOX_WITH_SDL2
-    SDL_Rect **modes;
-
-    /* Get available fullscreen/hardware modes */
-    modes = SDL_ListModes(NULL, SDL_FULLSCREEN);
-    Assert(modes != NULL);
-    /* -1 means that any mode is possible (usually non fullscreen) */
-    if (modes != (SDL_Rect **)-1)
-    {
-        /*
-         * According to the SDL documentation, the API guarantees that the modes
-         * are sorted from larger to smaller, so we just take the first entry as
-         * the maximum.
-         *
-         * XXX Crude Xinerama hack :-/
-         */
-        if (   modes[0]->w > (16*modes[0]->h/9)
-            && modes[1]
-            && modes[1]->h == modes[0]->h)
-        {
-            *width  = modes[1]->w;
-            *height = modes[1]->h;
-        }
-        else
-        {
-            *width  = modes[0]->w;
-            *height = modes[0]->w;
-        }
-    }
-#else
     SDL_DisplayMode dm;
     int rc = SDL_GetDesktopDisplayMode(0, &dm); /** @BUGBUG Handle multi monitor setups! */
     if (rc == 0)
@@ -1252,532 +949,11 @@ void VBoxSDLFB::getFullscreenGeometry(uint32_t *width, uint32_t *height)
         *width  = dm.w;
         *height = dm.w;
     }
-#endif
 }
 
-#ifdef VBOX_WITH_SDL2
 int VBoxSDLFB::setWindowTitle(const char *pcszTitle)
 {
     SDL_SetWindowTitle(mpWindow, pcszTitle);
 
     return VINF_SUCCESS;
-}
-#endif
-
-#ifdef VBOX_SECURELABEL
-
-/**
- * Setup the secure labeling parameters
- *
- * @returns         VBox status code
- * @param height    height of the secure label area in pixels
- * @param font      file path fo the TrueType font file
- * @param pointsize font size in points
- */
-int VBoxSDLFB::initSecureLabel(uint32_t height, char *font, uint32_t pointsize, uint32_t labeloffs)
-{
-    LogFlow(("VBoxSDLFB:initSecureLabel: new offset: %d pixels, new font: %s, new pointsize: %d\n",
-              height, font, pointsize));
-    mLabelHeight = height;
-    mLabelOffs = labeloffs;
-    Assert(font);
-    pTTF_Init();
-    mLabelFont = pTTF_OpenFont(font, pointsize);
-    if (!mLabelFont)
-    {
-        AssertMsgFailed(("Failed to open TTF font file %s\n", font));
-        return VERR_OPEN_FAILED;
-    }
-    mSecureLabelColorFG = 0x0000FF00;
-    mSecureLabelColorBG = 0x00FFFF00;
-    repaint();
-    return VINF_SUCCESS;
-}
-
-/**
- * Set the secure label text and repaint the label
- *
- * @param   text UTF-8 string of new label
- * @remarks must be called from the SDL thread!
- */
-void VBoxSDLFB::setSecureLabelText(const char *text)
-{
-    mSecureLabelText = text;
-    paintSecureLabel(0, 0, 0, 0, true);
-}
-
-/**
- * Sets the secure label background color.
- *
- * @param   colorFG encoded RGB value for text
- * @param   colorBG encored RGB value for background
- * @remarks must be called from the SDL thread!
- */
-void VBoxSDLFB::setSecureLabelColor(uint32_t colorFG, uint32_t colorBG)
-{
-    mSecureLabelColorFG = colorFG;
-    mSecureLabelColorBG = colorBG;
-    paintSecureLabel(0, 0, 0, 0, true);
-}
-
-/**
- * Paint the secure label if required
- *
- * @param   fForce Force the repaint
- * @remarks must be called from the SDL thread!
- */
-void VBoxSDLFB::paintSecureLabel(int x, int y, int w, int h, bool fForce)
-{
-    RT_NOREF(x, w, h);
-# ifdef VBOXSDL_WITH_X11
-    AssertMsg(gSdlNativeThread == RTThreadNativeSelf(), ("Wrong thread! SDL is not threadsafe!\n"));
-# endif
-    /* only when the function is present */
-    if (!pTTF_RenderUTF8_Solid)
-        return;
-    /* check if we can skip the paint */
-    if (!fForce && ((uint32_t)y > mLabelHeight))
-    {
-        return;
-    }
-    /* first fill the background */
-    SDL_Rect rect = {0, 0, (Uint16)mScreen->w, (Uint16)mLabelHeight};
-    SDL_FillRect(mScreen, &rect, SDL_MapRGB(mScreen->format,
-                                            (mSecureLabelColorBG & 0x00FF0000) >> 16,   /* red   */
-                                            (mSecureLabelColorBG & 0x0000FF00) >> 8,   /* green */
-                                            mSecureLabelColorBG & 0x000000FF)); /* blue  */
-
-    /* now the text */
-    if (    mLabelFont != NULL
-         && !mSecureLabelText.isEmpty()
-       )
-    {
-        SDL_Color clrFg = {(uint8_t)((mSecureLabelColorFG & 0x00FF0000) >> 16),
-                           (uint8_t)((mSecureLabelColorFG & 0x0000FF00) >> 8),
-                           (uint8_t)( mSecureLabelColorFG & 0x000000FF      ), 0};
-        SDL_Surface *sText = (pTTF_RenderUTF8_Blended != NULL)
-                                 ? pTTF_RenderUTF8_Blended(mLabelFont, mSecureLabelText.c_str(), clrFg)
-                                 : pTTF_RenderUTF8_Solid(mLabelFont, mSecureLabelText.c_str(), clrFg);
-        rect.x = 10;
-        rect.y = mLabelOffs;
-        SDL_BlitSurface(sText, NULL, mScreen, &rect);
-        SDL_FreeSurface(sText);
-    }
-    /* make sure to update the screen */
-    SDL_UpdateRect(mScreen, 0, 0, mScreen->w, mLabelHeight);
-}
-
-#endif /* VBOX_SECURELABEL */
-
-// IFramebufferOverlay
-///////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Constructor for the VBoxSDLFBOverlay class (IFramebufferOverlay implementation)
- *
- * @param x       Initial X offset for the overlay
- * @param y       Initial Y offset for the overlay
- * @param width   Initial width for the overlay
- * @param height  Initial height for the overlay
- * @param visible Whether the overlay is initially visible
- * @param alpha   Initial alpha channel value for the overlay
- */
-VBoxSDLFBOverlay::VBoxSDLFBOverlay(ULONG x, ULONG y, ULONG width, ULONG height,
-                                   BOOL visible, VBoxSDLFB *aParent) :
-                                   mOverlayX(x), mOverlayY(y), mOverlayWidth(width),
-                                   mOverlayHeight(height), mOverlayVisible(visible),
-                                   mParent(aParent)
-{}
-
-/**
- * Destructor for the VBoxSDLFBOverlay class.
- */
-VBoxSDLFBOverlay::~VBoxSDLFBOverlay()
-{
-    SDL_FreeSurface(mBlendedBits);
-    SDL_FreeSurface(mOverlayBits);
-}
-
-/**
- * Perform any initialisation of the overlay that can potentially fail
- *
- * @returns S_OK on success or the reason for the failure
- */
-HRESULT VBoxSDLFBOverlay::init()
-{
-#ifndef VBOX_WITH_SDL2
-    Uint32 fFlags = SDL_ANYFORMAT;
-#else
-    Uint32 fFlags = 0;
-#endif
-
-    mBlendedBits = SDL_CreateRGBSurface(fFlags, mOverlayWidth, mOverlayHeight, 32,
-                                        0x00ff0000, 0x0000ff00, 0x000000ff, 0);
-    AssertMsgReturn(mBlendedBits != NULL, ("Failed to create an SDL surface\n"),
-                    E_OUTOFMEMORY);
-
-#ifndef VBOX_WITH_SDL2
-    fFlags = SDL_SWSURFACE | SDL_SRCALPHA, mOverlayWidth;
-#else
-    fFlags = 0;
-#endif
-
-    mOverlayBits = SDL_CreateRGBSurface(fFlags,
-                                        mOverlayHeight, 32, 0x00ff0000, 0x0000ff00,
-                                        0x000000ff, 0xff000000, 0);
-    AssertMsgReturn(mOverlayBits != NULL, ("Failed to create an SDL surface\n"),
-                    E_OUTOFMEMORY);
-    return S_OK;
-}
-
-/**
- * Returns the current overlay X offset in pixels.
- *
- * @returns COM status code
- * @param   x Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(X)(ULONG *x)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetX\n"));
-    if (!x)
-        return E_INVALIDARG;
-    *x = mOverlayX;
-    return S_OK;
-}
-
-/**
- * Returns the current overlay height in pixels.
- *
- * @returns COM status code
- * @param   height Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(Y)(ULONG *y)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetY\n"));
-    if (!y)
-        return E_INVALIDARG;
-    *y = mOverlayY;
-    return S_OK;
-}
-
-/**
- * Returns the current overlay width in pixels.  In fact, this returns the line size.
- *
- * @returns COM status code
- * @param   width Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(Width)(ULONG *width)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetWidth\n"));
-    if (!width)
-        return E_INVALIDARG;
-    *width = mOverlayBits->pitch;
-    return S_OK;
-}
-
-/**
- * Returns the current overlay line size in pixels.
- *
- * @returns COM status code
- * @param   lineSize Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(BytesPerLine)(ULONG *bytesPerLine)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetBytesPerLine\n"));
-    if (!bytesPerLine)
-        return E_INVALIDARG;
-    *bytesPerLine = mOverlayBits->pitch;
-    return S_OK;
-}
-
-/**
- * Returns the current overlay height in pixels.
- *
- * @returns COM status code
- * @param   height Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(Height)(ULONG *height)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetHeight\n"));
-    if (!height)
-        return E_INVALIDARG;
-    *height = mOverlayHeight;
-    return S_OK;
-}
-
-/**
- * Returns whether the overlay is currently visible.
- *
- * @returns COM status code
- * @param   visible Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(Visible)(BOOL *visible)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetVisible\n"));
-    if (!visible)
-        return E_INVALIDARG;
-    *visible = mOverlayVisible;
-    return S_OK;
-}
-
-/**
- * Sets whether the overlay is currently visible.
- *
- * @returns COM status code
- * @param   visible New value.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMSETTER(Visible)(BOOL visible)
-{
-    LogFlow(("VBoxSDLFBOverlay::SetVisible\n"));
-    mOverlayVisible = visible;
-    return S_OK;
-}
-
-/**
- * Returns the value of the global alpha channel.
- *
- * @returns COM status code
- * @param   alpha Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(Alpha)(ULONG *alpha)
-{
-    RT_NOREF(alpha);
-    LogFlow(("VBoxSDLFBOverlay::GetAlpha\n"));
-    return E_NOTIMPL;
-}
-
-/**
- * Sets whether the overlay is currently visible.
- *
- * @returns COM status code
- * @param   alpha new value.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMSETTER(Alpha)(ULONG alpha)
-{
-    RT_NOREF(alpha);
-    LogFlow(("VBoxSDLFBOverlay::SetAlpha\n"));
-    return E_NOTIMPL;
-}
-
-/**
- * Returns the current colour depth.  In fact, this is always 32bpp.
- *
- * @returns COM status code
- * @param   bitsPerPixel Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(BitsPerPixel)(ULONG *bitsPerPixel)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetBitsPerPixel\n"));
-    if (!bitsPerPixel)
-        return E_INVALIDARG;
-    *bitsPerPixel = 32;
-    return S_OK;
-}
-
-/**
- * Returns the current pixel format.  In fact, this is always RGB.
- *
- * @returns COM status code
- * @param   pixelFormat Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(PixelFormat)(ULONG *pixelFormat)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetPixelFormat\n"));
-    if (!pixelFormat)
-        return E_INVALIDARG;
-    *pixelFormat = BitmapFormat_BGR;
-    return S_OK;
-}
-
-/**
- * Returns whether the guest VRAM is used directly.  In fact, this is always FALSE.
- *
- * @returns COM status code
- * @param   usesGuestVRAM Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(UsesGuestVRAM)(BOOL *usesGuestVRAM)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetUsesGuestVRAM\n"));
-    if (!usesGuestVRAM)
-        return E_INVALIDARG;
-    *usesGuestVRAM = FALSE;
-    return S_OK;
-}
-
-/**
- * Returns the height reduction.  In fact, this is always 0.
- *
- * @returns COM status code
- * @param   heightReduction Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(HeightReduction)(ULONG *heightReduction)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetHeightReduction\n"));
-    if (!heightReduction)
-        return E_INVALIDARG;
-    *heightReduction = 0;
-    return S_OK;
-}
-
-/**
- * Returns the overlay for this framebuffer.  Obviously, we return NULL here.
- *
- * @returns COM status code
- * @param   overlay Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(Overlay)(IFramebufferOverlay **aOverlay)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetOverlay\n"));
-    if (!aOverlay)
-        return E_INVALIDARG;
-    *aOverlay = 0;
-    return S_OK;
-}
-
-/**
- * Returns associated window handle. We return NULL here.
- *
- * @returns COM status code
- * @param   winId Address of result buffer.
- */
-STDMETHODIMP VBoxSDLFBOverlay::COMGETTER(WinId)(LONG64 *winId)
-{
-    LogFlow(("VBoxSDLFBOverlay::GetWinId\n"));
-    if (!winId)
-        return E_INVALIDARG;
-    *winId = 0;
-    return S_OK;
-}
-
-
-/**
- * Lock the overlay.  This should not be used - lock the parent IFramebuffer instead.
- *
- * @returns COM status code
- */
-STDMETHODIMP VBoxSDLFBOverlay::Lock()
-{
-    LogFlow(("VBoxSDLFBOverlay::Lock\n"));
-    AssertMsgFailed(("You should not attempt to lock an IFramebufferOverlay object -\n"
-                     "lock the parent IFramebuffer object instead.\n"));
-    return E_NOTIMPL;
-}
-
-/**
- * Unlock the overlay.
- *
- * @returns COM status code
- */
-STDMETHODIMP VBoxSDLFBOverlay::Unlock()
-{
-    LogFlow(("VBoxSDLFBOverlay::Unlock\n"));
-    AssertMsgFailed(("You should not attempt to lock an IFramebufferOverlay object -\n"
-                     "lock the parent IFramebuffer object instead.\n"));
-    return E_NOTIMPL;
-}
-
-/**
- * Change the X and Y co-ordinates of the overlay area.
- *
- * @returns COM status code
- * @param   x New X co-ordinate.
- * @param   y New Y co-ordinate.
- */
-STDMETHODIMP VBoxSDLFBOverlay::Move(ULONG x, ULONG y)
-{
-    mOverlayX = x;
-    mOverlayY = y;
-    return S_OK;
-}
-
-/**
- * Notify the overlay that a section of the framebuffer has been redrawn.
- *
- * @returns COM status code
- * @param   x        X co-ordinate of upper left corner of modified area.
- * @param   y        Y co-ordinate of upper left corner of modified area.
- * @param   w        Width of modified area.
- * @param   h        Height of modified area.
- * @retval  finished Set if the operation has completed.
- *
- * All we do here is to send a request to the parent to update the affected area,
- * translating between our co-ordinate system and the parent's.  It would be have
- * been better to call the parent directly, but such is life.  We leave bounds
- * checking to the parent.
- */
-STDMETHODIMP VBoxSDLFBOverlay::NotifyUpdate(ULONG x, ULONG y,
-                            ULONG w, ULONG h)
-{
-    return mParent->NotifyUpdate(x + mOverlayX, y + mOverlayY, w, h);
-}
-
-/**
- * Change the dimensions of the overlay.
- *
- * @returns COM status code
- * @param   pixelFormat Must be BitmapFormat_BGR.
- * @param   vram        Must be NULL.
- * @param   lineSize    Ignored.
- * @param   w           New overlay width.
- * @param   h           New overlay height.
- * @retval  finished    Set if the operation has completed.
- */
-STDMETHODIMP VBoxSDLFBOverlay::RequestResize(ULONG aScreenId, ULONG pixelFormat, ULONG vram,
-                                             ULONG bitsPerPixel, ULONG bytesPerLine,
-                                             ULONG w, ULONG h, BOOL *finished)
-{
-    RT_NOREF(aScreenId, bytesPerLine, finished);
-    AssertReturn(pixelFormat == BitmapFormat_BGR, E_INVALIDARG);
-    AssertReturn(vram == 0, E_INVALIDARG);
-    AssertReturn(bitsPerPixel == 32, E_INVALIDARG);
-    mOverlayWidth = w;
-    mOverlayHeight = h;
-    SDL_FreeSurface(mOverlayBits);
-
-#ifndef VBOX_WITH_SDL2
-    Uint32 fFlags = SDL_ANYFORMAT;
-#else
-    Uint32 fFlags = 0;
-#endif
-
-    mBlendedBits = SDL_CreateRGBSurface(fFlags, mOverlayWidth, mOverlayHeight, 32,
-                                        0x00ff0000, 0x0000ff00, 0x000000ff, 0);
-    AssertMsgReturn(mBlendedBits != NULL, ("Failed to create an SDL surface\n"),
-                    E_OUTOFMEMORY);
-
-#ifndef VBOX_WITH_SDL2
-    fFlags = SDL_SWSURFACE | SDL_SRCALPHA;
-#else
-    fFlags = 0;
-#endif
-
-    mOverlayBits = SDL_CreateRGBSurface(fFlags, mOverlayWidth,
-                                        mOverlayHeight, 32, 0x00ff0000, 0x0000ff00,
-                                        0x000000ff, 0xff000000);
-    AssertMsgReturn(mOverlayBits != NULL, ("Failed to create an SDL surface\n"),
-                    E_OUTOFMEMORY);
-    return S_OK;
-}
-
-/**
- * Returns whether we like the given video mode.
- *
- * @returns COM status code
- * @param   width     video mode width in pixels
- * @param   height    video mode height in pixels
- * @param   bpp       video mode bit depth in bits per pixel
- * @retval  supported pointer to result variable
- *
- * Basically, we support anything with 32bpp.
- */
-STDMETHODIMP VBoxSDLFBOverlay::VideoModeSupported(ULONG width, ULONG height, ULONG bpp, BOOL *supported)
-{
-    RT_NOREF(width, height);
-    if (!supported)
-        return E_POINTER;
-    if (bpp == 32)
-        *supported = true;
-    else
-        *supported = false;
-    return S_OK;
 }

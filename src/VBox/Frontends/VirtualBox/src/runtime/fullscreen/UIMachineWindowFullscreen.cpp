@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -74,9 +74,6 @@ UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLog
 #ifdef VBOX_WS_MAC
 void UIMachineWindowFullscreen::handleNativeNotification(const QString &strNativeNotificationName)
 {
-    /* Make sure this method is only used for ML and next: */
-    AssertReturnVoid(uiCommon().osRelease() > MacOSXRelease_Lion);
-
     /* Log all arrived notifications: */
     LogRel(("UIMachineWindowFullscreen::handleNativeNotification: Notification '%s' received.\n",
             strNativeNotificationName.toLatin1().constData()));
@@ -170,9 +167,6 @@ void UIMachineWindowFullscreen::sltHandleMiniToolBarAutoHideToggled(bool fEnable
 #ifdef VBOX_WS_MAC
 void UIMachineWindowFullscreen::sltEnterNativeFullscreen(UIMachineWindow *pMachineWindow)
 {
-    /* Make sure this slot is called only under ML and next: */
-    AssertReturnVoid(uiCommon().osRelease() > MacOSXRelease_Lion);
-
     /* Make sure it is NULL or 'this' window passed: */
     if (pMachineWindow && pMachineWindow != this)
         return;
@@ -197,9 +191,6 @@ void UIMachineWindowFullscreen::sltEnterNativeFullscreen(UIMachineWindow *pMachi
 
 void UIMachineWindowFullscreen::sltExitNativeFullscreen(UIMachineWindow *pMachineWindow)
 {
-    /* Make sure this slot is called only under ML and next: */
-    AssertReturnVoid(uiCommon().osRelease() > MacOSXRelease_Lion);
-
     /* Make sure it is NULL or 'this' window passed: */
     if (pMachineWindow && pMachineWindow != this)
         return;
@@ -252,30 +243,26 @@ void UIMachineWindowFullscreen::prepareVisualState()
 #endif /* VBOX_WS_WIN || VBOX_WS_X11 */
 
 #ifdef VBOX_WS_MAC
-    /* Native fullscreen stuff on ML and next: */
-    if (uiCommon().osRelease() > MacOSXRelease_Lion)
-    {
-        /* Make sure this window has fullscreen logic: */
-        UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
-        AssertPtrReturnVoid(pFullscreenLogic);
-        /* Enable fullscreen support for every screen which requires it: */
-        if (pFullscreenLogic->screensHaveSeparateSpaces() || m_uScreenId == 0)
-            darwinEnableFullscreenSupport(this);
-        /* Enable transience support for other screens: */
-        else
-            darwinEnableTransienceSupport(this);
-        /* Register to native fullscreen notifications: */
-        UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowWillEnterFullScreenNotification", this,
-                                                                       UIMachineWindow::handleNativeNotification);
-        UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowDidEnterFullScreenNotification", this,
-                                                                       UIMachineWindow::handleNativeNotification);
-        UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowWillExitFullScreenNotification", this,
-                                                                       UIMachineWindow::handleNativeNotification);
-        UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowDidExitFullScreenNotification", this,
-                                                                       UIMachineWindow::handleNativeNotification);
-        UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowDidFailToEnterFullScreenNotification", this,
-                                                                       UIMachineWindow::handleNativeNotification);
-}
+    /* Make sure this window has fullscreen logic: */
+    UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
+    AssertPtrReturnVoid(pFullscreenLogic);
+    /* Enable fullscreen support for every screen which requires it: */
+    if (pFullscreenLogic->screensHaveSeparateSpaces() || m_uScreenId == 0)
+        darwinEnableFullscreenSupport(this);
+    /* Enable transience support for other screens: */
+    else
+        darwinEnableTransienceSupport(this);
+    /* Register to native fullscreen notifications: */
+    UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowWillEnterFullScreenNotification", this,
+                                                                   UIMachineWindow::handleNativeNotification);
+    UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowDidEnterFullScreenNotification", this,
+                                                                   UIMachineWindow::handleNativeNotification);
+    UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowWillExitFullScreenNotification", this,
+                                                                   UIMachineWindow::handleNativeNotification);
+    UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowDidExitFullScreenNotification", this,
+                                                                   UIMachineWindow::handleNativeNotification);
+    UICocoaApplication::instance()->registerToNotificationOfWindow("NSWindowDidFailToEnterFullScreenNotification", this,
+                                                                   UIMachineWindow::handleNativeNotification);
 #endif /* VBOX_WS_MAC */
 }
 
@@ -322,16 +309,12 @@ void UIMachineWindowFullscreen::cleanupMiniToolbar()
 void UIMachineWindowFullscreen::cleanupVisualState()
 {
 #ifdef VBOX_WS_MAC
-    /* Native fullscreen stuff on ML and next: */
-    if (uiCommon().osRelease() > MacOSXRelease_Lion)
-    {
-        /* Unregister from native fullscreen notifications: */
-        UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowWillEnterFullScreenNotification", this);
-        UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowDidEnterFullScreenNotification", this);
-        UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowWillExitFullScreenNotification", this);
-        UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowDidExitFullScreenNotification", this);
-        UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowDidFailToEnterFullScreenNotification", this);
-    }
+    /* Unregister from native fullscreen notifications: */
+    UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowWillEnterFullScreenNotification", this);
+    UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowDidEnterFullScreenNotification", this);
+    UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowWillExitFullScreenNotification", this);
+    UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowDidExitFullScreenNotification", this);
+    UICocoaApplication::instance()->unregisterFromNotificationOfWindow("NSWindowDidFailToEnterFullScreenNotification", this);
 #endif /* VBOX_WS_MAC */
 
 #if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
@@ -366,14 +349,11 @@ void UIMachineWindowFullscreen::placeOnScreen()
     /* Move window to the appropriate position: */
     move(workingArea.topLeft());
 
-    /* Resize window to the appropriate size on Lion and previous: */
-    if (uiCommon().osRelease() <= MacOSXRelease_Lion)
-        resize(workingArea.size());
-    /* Resize window to the appropriate size on ML and next if it's screen has no own user-space: */
-    else if (!pFullscreenLogic->screensHaveSeparateSpaces() && m_uScreenId != 0)
+    /* Resize window to the appropriate size if it's screen has no own user-space: */
+    if (!pFullscreenLogic->screensHaveSeparateSpaces() && m_uScreenId != 0)
         resize(workingArea.size());
     /* Resize the window if we are already in the full screen mode. This covers cases like host-resolution changes while in full screen mode: */
-    else if(darwinIsInFullscreenMode(this))
+    else if (darwinIsInFullscreenMode(this))
         resize(workingArea.size());
     else
     {
@@ -443,11 +423,8 @@ void UIMachineWindowFullscreen::showInNecessaryMode()
         /* Make sure window have appropriate geometry: */
         placeOnScreen();
 
-        /* Simple show() for ML and next, showFullScreen() otherwise: */
-        if (uiCommon().osRelease() > MacOSXRelease_Lion)
-            show();
-        else
-            showFullScreen();
+        /* Just show instead of showFullScreen: */
+        show();
 
         /* Adjust machine-view size if necessary: */
         adjustMachineViewSize();

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -37,21 +37,6 @@
 #include <iprt/thread.h>
 
 #include <iprt/critsect.h>
-
-#ifdef VBOX_SECURELABEL
-#include <SDL_ttf.h>
-/* function pointers */
-extern "C"
-{
-extern DECLSPEC int (SDLCALL *pTTF_Init)(void);
-extern DECLSPEC TTF_Font* (SDLCALL *pTTF_OpenFont)(const char *file, int ptsize);
-extern DECLSPEC SDL_Surface* (SDLCALL *pTTF_RenderUTF8_Solid)(TTF_Font *font, const char *text, SDL_Color fg);
-extern DECLSPEC SDL_Surface* (SDLCALL *pTTF_RenderUTF8_Shaded)(TTF_Font *font, const char *text, SDL_Color fg, SDL_Color bg);
-extern DECLSPEC SDL_Surface* (SDLCALL *pTTF_RenderUTF8_Blended)(TTF_Font *font, const char *text, SDL_Color fg);
-extern DECLSPEC void (SDLCALL *pTTF_CloseFont)(TTF_Font *font);
-extern DECLSPEC void (SDLCALL *pTTF_Quit)(void);
-}
-#endif /* VBOX_SECURELABEL && !VBOX_WITH_SDL2 */
 
 class VBoxSDLFBOverlay;
 
@@ -127,25 +112,15 @@ public:
     int32_t getOriginY() { return mOriginY; }
     int32_t getXOffset() { return mCenterXOffset; }
     int32_t getYOffset() { return mCenterYOffset; }
-#ifdef VBOX_WITH_SDL2
     SDL_Window *getWindow() { return mpWindow; }
-    bool hasWindow(uint32_t id) { return mScreen && SDL_GetWindowID(mpWindow) == id; }
+    bool hasWindow(uint32_t id) { return SDL_GetWindowID(mpWindow) == id; }
     int setWindowTitle(const char *pcszTitle);
-#endif
-#ifdef VBOX_SECURELABEL
-    int  initSecureLabel(uint32_t height, char *font, uint32_t pointsize, uint32_t labeloffs);
-    void setSecureLabelText(const char *text);
-    void setSecureLabelColor(uint32_t colorFG, uint32_t colorBG);
-    void paintSecureLabel(int x, int y, int w, int h, bool fForce);
-#endif
     void setWinId(int64_t winId) { mWinId = winId; }
     void setOrigin(int32_t axOrigin, int32_t ayOrigin) { mOriginX = axOrigin; mOriginY = ayOrigin; }
     bool getFullscreen() { return mfFullscreen; }
 
 private:
-    /** current SDL framebuffer pointer (also includes screen width/height) */
-    SDL_Surface *mScreen;
-#ifdef VBOX_WITH_SDL2
+
     /** the SDL window */
     SDL_Window *mpWindow;
     /** the texture */
@@ -154,7 +129,6 @@ private:
     SDL_Renderer *mpRenderer;
     /** render info */
     SDL_RendererInfo mRenderInfo;
-#endif
     /** false if constructor failed */
     bool mfInitialized;
     /** the screen number of this framebuffer */
@@ -196,22 +170,6 @@ private:
     bool mfShowSDLConfig;
     /** handle to window where framebuffer context is being drawn*/
     int64_t mWinId;
-#ifdef VBOX_SECURELABEL
-    /** current secure label text */
-    Utf8Str mSecureLabelText;
-    /** current secure label foreground color (RGB) */
-    uint32_t mSecureLabelColorFG;
-    /** current secure label background color (RGB) */
-    uint32_t mSecureLabelColorBG;
-    /** secure label font handle */
-    TTF_Font *mLabelFont;
-    /** secure label height in pixels */
-    uint32_t mLabelHeight;
-    /** secure label offset from the top of the secure label */
-    uint32_t mLabelOffs;
-
-#endif
-
     SDL_Surface *mSurfVRAM;
 
     BYTE *mPtrVRAM;

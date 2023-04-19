@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -34,12 +34,12 @@ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 # Hardened VBoxHeadless.
 #
 ifdef VBOX_WITH_HARDENING
-PROGRAMS += VBoxHeadlessHardened
-VBoxHeadlessHardened_TEMPLATE = VBOXR3HARDENEDEXE
-VBoxHeadlessHardened_DEFS    += $(if $(VBOX_WITH_DRIVERLESS_NEM_FALLBACK),VBOX_WITH_DRIVERLESS_NEM_FALLBACK,)
-VBoxHeadlessHardened_SOURCES = VBoxHeadlessHardened.cpp
-VBoxHeadlessHardened_NAME = VBoxHeadless
-$(call VBOX_SET_VER_INFO_DLL,VBoxHeadlessHardened,VirtualBox Headless Frontend,$(VBOX_WINDOWS_ICON_FILE)) # Version info / description.
+ PROGRAMS += VBoxHeadlessHardened
+ VBoxHeadlessHardened_TEMPLATE = VBoxR3HardenedExe
+ VBoxHeadlessHardened_DEFS   += $(if $(VBOX_WITH_DRIVERLESS_NEM_FALLBACK),VBOX_WITH_DRIVERLESS_NEM_FALLBACK,)
+ VBoxHeadlessHardened_SOURCES = VBoxHeadlessHardened.cpp
+ VBoxHeadlessHardened_NAME = VBoxHeadless
+ $(call VBOX_SET_VER_INFO_DLL,VBoxHeadlessHardened,VirtualBox Headless Frontend,$(VBOX_WINDOWS_ICON_FILE)) # Version info / description.
 endif
 
 
@@ -47,11 +47,11 @@ endif
 # VBoxHeadless
 #
 ifdef VBOX_WITH_HARDENING
-DLLS     += VBoxHeadless
+ DLLS    += VBoxHeadless
 else
-PROGRAMS += VBoxHeadless
+ PROGRAMS += VBoxHeadless
 endif
-VBoxHeadless_TEMPLATE := $(if $(VBOX_WITH_HARDENING),VBOXMAINCLIENTDLL,VBOXMAINCLIENTEXE)
+VBoxHeadless_TEMPLATE := $(if $(VBOX_WITH_HARDENING),VBoxMainClientDll,VBoxMainClientExe)
 VBoxHeadless_DEFS     += $(if $(VBOX_WITH_RECORDING),VBOX_WITH_RECORDING,)
 VBoxHeadless_INCS      = \
 	$(VBOX_GRAPHICS_INCS) \
@@ -66,9 +66,9 @@ ifdef VBOX_WITH_HARDENING
  VBoxHeadless_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxHeadless.dylib
 endif
 ifdef VBOX_WITH_HARDENING
-$(call VBOX_SET_VER_INFO_DLL,VBoxHeadless,VirtualBox Headless Frontend (dll),$(VBOX_WINDOWS_ICON_FILE)) # Version info / description.
+ $(call VBOX_SET_VER_INFO_DLL,VBoxHeadless,VirtualBox Headless Frontend (dll),$(VBOX_WINDOWS_ICON_FILE)) # Version info / description.
 else
-$(call VBOX_SET_VER_INFO_EXE,VBoxHeadless,VirtualBox Headless Frontend,$(VBOX_WINDOWS_ICON_FILE)) # Version info / description.
+ $(call VBOX_SET_VER_INFO_EXE,VBoxHeadless,VirtualBox Headless Frontend,$(VBOX_WINDOWS_ICON_FILE)) # Version info / description.
 endif
 
 include $(FILE_KBUILD_SUB_FOOTER)

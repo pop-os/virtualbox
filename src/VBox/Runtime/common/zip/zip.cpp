@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -54,6 +54,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#include <iprt/cdefs.h>
 #ifdef RTZIP_USE_BZLIB
 # include <bzlib.h>
 #endif
@@ -61,7 +62,9 @@
 # include <zlib.h>
 #endif
 #ifdef RTZIP_USE_LZF
-# include <lzf.h>
+ RT_C_DECLS_BEGIN
+#  include <lzf.h>
+ RT_C_DECLS_END
 # include <iprt/crc.h>
 #endif
 #ifdef RTZIP_USE_LZJB

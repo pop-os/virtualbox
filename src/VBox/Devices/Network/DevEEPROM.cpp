@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -42,11 +42,10 @@
  */
 void EEPROM93C46::init(const uint16_t *pu16Initial)
 {
-    if ( pu16Initial ) {
+    if ( pu16Initial )
         memcpy(this->m_au16Data, pu16Initial, sizeof(this->m_au16Data));
-    } else {
+    else
         memset(this->m_au16Data, 0, sizeof(this->m_au16Data));
-    }
     m_fWriteEnabled = false;
     m_u32InternalWires = 0;
     m_eState = STANDBY;

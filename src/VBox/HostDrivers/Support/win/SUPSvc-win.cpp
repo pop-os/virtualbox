@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2008-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -729,7 +729,7 @@ static int supSvcWinShowVersion(int argc, char **argv)
         RTPrintf("%s\n", VBOX_VERSION_STRING);
     else
         RTPrintf("VirtualBox System Service Version %s\n"
-                 "Copyright (C) 2008-2022 Oracle and/or its affiliates\n\n",
+                 "Copyright (C) 2008-" VBOX_C_YEAR " Oracle and/or its affiliates\n\n",
                  VBOX_VERSION_STRING);
     return 0;
 }
@@ -743,7 +743,7 @@ static int supSvcWinShowVersion(int argc, char **argv)
 static int supSvcWinShowHelp(void)
 {
     RTPrintf("VirtualBox System Service Version %s\n"
-             "Copyright (C) 2008-2022 Oracle and/or its affiliates\n\n",
+             "Copyright (C) 2008-" VBOX_C_YEAR " Oracle and/or its affiliates\n\n",
              VBOX_VERSION_STRING);
     RTPrintf("Usage:\n"
              "\n"

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -51,7 +51,7 @@ class BugReportNetworkAdaptersWin : public BugReportStream
 public:
     BugReportNetworkAdaptersWin() : BugReportStream("NetworkAdapters") {};
     virtual ~BugReportNetworkAdaptersWin() {};
-    virtual PRTSTREAM getStream(void) { collect(); return BugReportStream::getStream(); };
+    virtual RTVFSIOSTREAM getStream(void) { collect(); return BugReportStream::getStream(); };
 private:
     struct CharacteristicsName
     {
@@ -267,7 +267,7 @@ class BugReportUsbTreeWin : public BugReportStream
 public:
     BugReportUsbTreeWin();
     virtual ~BugReportUsbTreeWin();
-    virtual PRTSTREAM getStream(void) { enumerate(); return BugReportStream::getStream(); }
+    virtual RTVFSIOSTREAM getStream(void) { enumerate(); return BugReportStream::getStream(); }
 private:
     class AutoHandle {
     public:
@@ -581,7 +581,7 @@ class BugReportDriversWin : public BugReportStream
 public:
     BugReportDriversWin();
     virtual ~BugReportDriversWin();
-    virtual PRTSTREAM getStream(void) { enumerateDrivers(); return BugReportStream::getStream(); }
+    virtual RTVFSIOSTREAM getStream(void) { enumerateDrivers(); return BugReportStream::getStream(); }
 private:
     void enumerateDrivers(void);
 

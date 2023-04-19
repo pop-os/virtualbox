@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2014-2022 Oracle and/or its affiliates.
+# Copyright (C) 2014-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -33,13 +33,13 @@ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBO
  PROGRAMS += tstAudioMixBuffer
  TESTING  += $(tstAudioMixBuffer_0_OUTDIR)/tstAudioMixBuffer.run
 
- tstAudioMixBuffer_TEMPLATE = VBOXR3TSTEXE
+ tstAudioMixBuffer_TEMPLATE = VBoxR3TstExe
  tstAudioMixBuffer_DEFS = TESTCASE VBOX_AUDIO_MIX_BUFFER_TESTCASE
  tstAudioMixBuffer_DEFS.debug  = VBOX_WITH_EF_WRAPS
  tstAudioMixBuffer_SOURCES = \
-	tstAudioMixBuffer.cpp \
-	../AudioMixBuffer.cpp \
-	../AudioHlp.cpp
+ 	tstAudioMixBuffer.cpp \
+ 	../AudioMixBuffer.cpp \
+ 	../AudioHlp.cpp
  tstAudioMixBuffer_LIBS = $(LIB_RUNTIME)
 
  $$(tstAudioMixBuffer_0_OUTDIR)/tstAudioMixBuffer.run: $$(tstAudioMixBuffer_1_STAGE_TARGET)
@@ -47,14 +47,14 @@ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBO
 	$(QUIET)$(APPEND) -t "$@" "done"
 
  ifeq ($(KBUILD_TARGET),win.amd64) # Note: Only runs on Windows 8 or newer.
-  tstAudioClient3_TEMPLATE = VBOXR3TSTEXE
+  tstAudioClient3_TEMPLATE = VBoxR3TstExe
   tstAudioClient3_DEFS = TESTCASE
   tstAudioClient3_DEFS.debug = VBOX_WITH_EF_WRAPS
   tstAudioClient3_SOURCES = tstAudioClient3.cpp
   tstAudioClient3_LIBS = $(LIB_RUNTIME)
   tstAudioClient3_INCS = \
-	$(KBUILD_DEVTOOLS)/win.x86/sdk/v10.0.17134.0/Include/10.0.17134.0/um \
-	$(KBUILD_DEVTOOLS)/win.x86/sdk/v10.0.17134.0/include/10.0.17134.0/shared
+  	$(KBUILD_DEVTOOLS)/win.x86/sdk/v10.0.17134.0/Include/10.0.17134.0/um \
+  	$(KBUILD_DEVTOOLS)/win.x86/sdk/v10.0.17134.0/include/10.0.17134.0/shared
 
   # Requires manual execution / verification.
   PROGRAMS += tstAudioClient3
@@ -63,15 +63,15 @@ if defined(VBOX_WITH_TESTCASES) && !defined(VBOX_ONLY_ADDITIONS) && !defined(VBO
  PROGRAMS += tstAudioTestService
  TESTING  += $(tstAudioTestService_0_OUTDIR)/tstAudioTestService.run
 
- tstAudioTestService_TEMPLATE = VBOXR3TSTEXE
+ tstAudioTestService_TEMPLATE = VBoxR3TstExe
  tstAudioTestService_DEFS = TESTCASE
  tstAudioTestService_DEFS.debug  = VBOX_WITH_EF_WRAPS
  tstAudioTestService_SOURCES = \
-	tstAudioTestService.cpp \
-	../AudioTestService.cpp \
-	../AudioTestServiceProtocol.cpp \
-	../AudioTestServiceTcp.cpp \
-	../AudioTestServiceClient.cpp
+ 	tstAudioTestService.cpp \
+ 	../AudioTestService.cpp \
+ 	../AudioTestServiceProtocol.cpp \
+ 	../AudioTestServiceTcp.cpp \
+ 	../AudioTestServiceClient.cpp
  tstAudioTestService_LIBS = $(LIB_RUNTIME)
 
  $$(tstAudioTestService_0_OUTDIR)/tstAudioTestService.run: $$(tstAudioTestService_1_STAGE_TARGET)

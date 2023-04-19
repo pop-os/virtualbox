@@ -310,6 +310,13 @@
     </message>
 </context>
 <context>
+    <name>QIRichTextLabel</name>
+    <message>
+        <source>&amp;Copy</source>
+        <translation type="unfinished">&amp;Copia</translation>
+    </message>
+</context>
+<context>
     <name>QIWidgetValidator</name>
     <message>
         <source>not complete</source>
@@ -22477,11 +22484,11 @@ pas i connectar discos durs més avant, fent servir el diàleg de configuració 
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Quan estiga marcat, es restaurarà l&apos;estat de la màquina des de l&apos;estat emmagatzemat a la captura actual quan es va aturar. Això és útil si esteu segur que voleu descartar els resultats de les últimes sessions i tornar a la captura actual.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Quan estiga marcat, es restaurarà l&apos;estat de la màquina des de l&apos;estat emmagatzemat a la captura actual quan es va aturar. Això és útil si esteu segur que voleu descartar els resultats de les últimes sessions i tornar a la captura actual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
-        <translation type="vanished">&amp;Restaura la captura actual &apos;%1&apos;</translation>
+        <translation>&amp;Restaura la captura actual &apos;%1&apos;</translation>
     </message>
     <message>
         <source>&amp;Continue running in the background</source>

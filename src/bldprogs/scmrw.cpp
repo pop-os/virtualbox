@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2010-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -582,6 +582,36 @@ static SCMCOMMENTSTYLE determineBatchFileCommentStyle(PSCMSTREAM pIn)
 
 
 /**
+ * Calculates the number of spaces from @a offStart to @a offEnd in @a pchLine,
+ * taking tabs into account.
+ */
+size_t ScmCalcSpacesForSrcSpan(const char *pchLine, size_t offStart, size_t offEnd, PCSCMSETTINGSBASE pSettings)
+{
+    size_t cchRet = 0;
+    if (offStart < offEnd)
+    {
+        offEnd  -= offStart; /* becomes cchLeft now */
+        pchLine += offStart;
+        while (offEnd > 0)
+        {
+            const char *pszTab = (const char *)memchr(pchLine, '\t', offEnd);
+            if (!pszTab)
+            {
+                cchRet += offEnd;
+                break;
+            }
+            size_t offTab   = (size_t)(pszTab - pchLine);
+            size_t cchToTab = pSettings->cchTab - offTab % pSettings->cchTab;
+            cchRet += offTab + cchToTab;
+            offEnd -= offTab + 1;
+            pchLine = pszTab + 1;
+        }
+    }
+    return cchRet;
+}
+
+
+/**
  * Worker for isBlankLine.
  *
  * @returns true if blank, false if not.
@@ -646,15 +676,15 @@ DECLINLINE(bool) isSpanOfBlanks(const char *pch, size_t cch)
 /**
  * Strip trailing blanks (space & tab).
  *
- * @returns True if modified, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_StripTrailingBlanks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_StripTrailingBlanks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     if (!pSettings->fStripTrailingBlanks)
-        return false;
+        return kScmUnmodified;
 
     bool        fModified = false;
     SCMEOL      enmEol;
@@ -675,25 +705,25 @@ bool rewrite_StripTrailingBlanks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
             fModified = true;
         }
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
     }
     if (fModified)
         ScmVerbose(pState, 2, " * Stripped trailing blanks\n");
-    return fModified;
+    return fModified ? kScmModified : kScmUnmodified;
 }
 
 /**
  * Expand tabs.
  *
- * @returns True if modified, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_ExpandTabs(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_ExpandTabs(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     if (!pSettings->fConvertTabs)
-        return false;
+        return kScmUnmodified;
 
     size_t const    cchTab = pSettings->cchTab;
     bool            fModified = false;
@@ -733,28 +763,28 @@ bool rewrite_ExpandTabs(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCS
             fModified = true;
         }
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
     }
     if (fModified)
         ScmVerbose(pState, 2, " * Expanded tabs\n");
-    return fModified;
+    return fModified ? kScmModified : kScmUnmodified;
 }
 
 /**
  * Worker for rewrite_ForceNativeEol, rewrite_ForceLF and rewrite_ForceCRLF.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  * @param   enmDesiredEol       The desired end of line indicator type.
  * @param   pszDesiredSvnEol    The desired svn:eol-style.
  */
-static bool rewrite_ForceEol(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings,
-                             SCMEOL enmDesiredEol, const char *pszDesiredSvnEol)
+static SCMREWRITERRES rewrite_ForceEol(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings,
+                                       SCMEOL enmDesiredEol, const char *pszDesiredSvnEol)
 {
     if (!pSettings->fConvertEol)
-        return false;
+        return kScmUnmodified;
 
     bool        fModified = false;
     SCMEOL      enmEol;
@@ -770,7 +800,7 @@ static bool rewrite_ForceEol(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
         }
         int rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
     }
     if (fModified)
         ScmVerbose(pState, 2, " * Converted EOL markers\n");
@@ -797,18 +827,18 @@ static bool rewrite_ForceEol(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
     }
 
     /** @todo also check the subversion svn:eol-style state! */
-    return fModified;
+    return fModified ? kScmModified : kScmUnmodified;
 }
 
 /**
  * Force native end of line indicator.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_ForceNativeEol(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_ForceNativeEol(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     return rewrite_ForceEol(pState, pIn, pOut, pSettings, SCMEOL_CRLF, "native");
@@ -820,12 +850,12 @@ bool rewrite_ForceNativeEol(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut,
 /**
  * Force the stream to use LF as the end of line indicator.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_ForceLF(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_ForceLF(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_ForceEol(pState, pIn, pOut, pSettings, SCMEOL_LF, "LF");
 }
@@ -833,12 +863,12 @@ bool rewrite_ForceLF(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMS
 /**
  * Force the stream to use CRLF as the end of line indicator.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_ForceCRLF(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_ForceCRLF(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_ForceEol(pState, pIn, pOut, pSettings, SCMEOL_CRLF, "CRLF");
 }
@@ -847,25 +877,25 @@ bool rewrite_ForceCRLF(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSC
  * Strip trailing blank lines and/or make sure there is exactly one blank line
  * at the end of the file.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  *
  * @remarks ASSUMES trailing white space has been removed already.
  */
-bool rewrite_AdjustTrailingLines(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_AdjustTrailingLines(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     if (   !pSettings->fStripTrailingLines
         && !pSettings->fForceTrailingLine
         && !pSettings->fForceFinalEol)
-        return false;
+        return kScmUnmodified;
 
     size_t const cLines = ScmStreamCountLines(pIn);
 
     /* Empty files remains empty. */
     if (cLines <= 1)
-        return false;
+        return kScmUnmodified;
 
     /* Figure out if we need to adjust the number of lines or not. */
     size_t cLinesNew = cLines;
@@ -887,7 +917,7 @@ bool rewrite_AdjustTrailingLines(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
 
     if (   !fFixMissingEol
         && cLines == cLinesNew)
-        return false;
+        return kScmUnmodified;
 
     /* Copy the number of lines we've arrived at. */
     ScmStreamRewindForReading(pIn);
@@ -910,24 +940,24 @@ bool rewrite_AdjustTrailingLines(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
     }
 
     ScmVerbose(pState, 2, " * Adjusted trailing blank lines\n");
-    return true;
+    return kScmModified;
 }
 
 /**
  * Make sure there is no svn:executable property on the current file.
  *
- * @returns false - the state carries these kinds of changes.
+ * @returns kScmUnmodified - the state carries these kinds of changes.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_SvnNoExecutable(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_SvnNoExecutable(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF2(pIn, pOut);
     if (   !pSettings->fSetSvnExecutable
         || !ScmSvnIsInWorkingCopy(pState))
-        return false;
+        return kScmUnmodified;
 
     int rc = ScmSvnQueryProperty(pState, "svn:executable", NULL);
     if (RT_SUCCESS(rc))
@@ -937,24 +967,24 @@ bool rewrite_SvnNoExecutable(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
         if (RT_FAILURE(rc))
             ScmError(pState, rc, "ScmSvnSetProperty: %Rrc\n", rc);
     }
-    return false;
+    return kScmUnmodified;
 }
 
 /**
  * Make sure there is no svn:keywords property on the current file.
  *
- * @returns false - the state carries these kinds of changes.
+ * @returns kScmUnmodified - the state carries these kinds of changes.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_SvnNoKeywords(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_SvnNoKeywords(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF2(pIn, pOut);
     if (   !pSettings->fSetSvnExecutable
         || !ScmSvnIsInWorkingCopy(pState))
-        return false;
+        return kScmUnmodified;
 
     int rc = ScmSvnQueryProperty(pState, "svn:keywords", NULL);
     if (RT_SUCCESS(rc))
@@ -964,24 +994,24 @@ bool rewrite_SvnNoKeywords(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, 
         if (RT_FAILURE(rc))
             ScmError(pState, rc, "ScmSvnSetProperty: %Rrc\n", rc);
     }
-    return false;
+    return kScmUnmodified;
 }
 
 /**
  * Make sure there is no svn:eol-style property on the current file.
  *
- * @returns false - the state carries these kinds of changes.
+ * @returns kScmUnmodified - the state carries these kinds of changes.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_SvnNoEolStyle(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_SvnNoEolStyle(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF2(pIn, pOut);
     if (   !pSettings->fSetSvnExecutable
         || !ScmSvnIsInWorkingCopy(pState))
-        return false;
+        return kScmUnmodified;
 
     int rc = ScmSvnQueryProperty(pState, "svn:eol-style", NULL);
     if (RT_SUCCESS(rc))
@@ -991,24 +1021,24 @@ bool rewrite_SvnNoEolStyle(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, 
         if (RT_FAILURE(rc))
             ScmError(pState, rc, "ScmSvnSetProperty: %Rrc\n", rc);
     }
-    return false;
+    return kScmUnmodified;
 }
 
 /**
  * Makes sure the svn properties are appropriate for a binary.
  *
- * @returns false - the state carries these kinds of changes.
+ * @returns kScmUnmodified - the state carries these kinds of changes.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_SvnBinary(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_SvnBinary(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF2(pIn, pOut);
     if (   !pSettings->fSetSvnExecutable
         || !ScmSvnIsInWorkingCopy(pState))
-        return false;
+        return kScmUnmodified;
 
     /* remove svn:eol-style and svn:keywords */
     static const char * const s_apszRemove[] = { "svn:eol-style", "svn:keywords" };
@@ -1040,24 +1070,24 @@ bool rewrite_SvnBinary(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSC
     else if (RT_FAILURE(rc))
         ScmError(pState, rc, "ScmSvnQueryProperty: %Rrc\n", rc);
 
-    return false;
+    return kScmUnmodified;
 }
 
 /**
  * Make sure the Id and Revision keywords are expanded.
  *
- * @returns false - the state carries these kinds of changes.
+ * @returns kScmUnmodified - the state carries these kinds of changes.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_SvnKeywords(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_SvnKeywords(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF2(pIn, pOut);
     if (   !pSettings->fSetSvnKeywords
         || !ScmSvnIsInWorkingCopy(pState))
-        return false;
+        return kScmUnmodified;
 
     char *pszKeywords;
     int rc = ScmSvnQueryProperty(pState, "svn:keywords", &pszKeywords);
@@ -1092,24 +1122,24 @@ bool rewrite_SvnKeywords(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PC
     else if (RT_SUCCESS(rc))
         RTStrFree(pszKeywords);
 
-    return false;
+    return kScmUnmodified;
 }
 
 /**
  * Checks the svn:sync-process value and that parent is exported too.
  *
- * @returns false - the state carries these kinds of changes.
+ * @returns kScmUnmodified - the state carries these kinds of changes.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_SvnSyncProcess(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_SvnSyncProcess(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF2(pIn, pOut);
     if (   pSettings->fSkipSvnSyncProcess
         || !ScmSvnIsInWorkingCopy(pState))
-        return false;
+        return kScmUnmodified;
 
     char *pszSyncProcess;
     int rc = ScmSvnQueryProperty(pState, "svn:sync-process", &pszSyncProcess);
@@ -1146,23 +1176,23 @@ bool rewrite_SvnSyncProcess(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut,
     else if (rc != VERR_NOT_FOUND)
         ScmError(pState, rc, "ScmSvnQueryProperty: %Rrc\n", rc);
 
-    return false;
+    return kScmUnmodified;
 }
 
 /**
  * Checks the that there is no bidirectional unicode fun in the file.
  *
- * @returns false - the state carries these kinds of changes.
+ * @returns kScmUnmodified - the state carries these kinds of changes.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_UnicodeChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_UnicodeChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF2(pIn, pOut);
     if (pSettings->fSkipUnicodeChecks)
-        return false;
+        return kScmUnmodified;
 
     /*
      * Just scan the input for weird stuff and fail if we find anything we don't like.
@@ -1208,8 +1238,14 @@ bool rewrite_UnicodeChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, 
         }
     }
 
-    return false;
+    return kScmUnmodified;
 }
+
+
+
+/*********************************************************************************************************************************
+*   Copyright & License                                                                                                          *
+*********************************************************************************************************************************/
 
 /**
  * Compares two strings word-by-word, ignoring spaces, punctuation and case.
@@ -1835,19 +1871,19 @@ static int scmWriteCommentBody(PSCMSTREAM pOut, const char *pszText, size_t cchT
 /**
  * Updates the copyright year and/or license text.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  * @param   enmCommentStyle     The comment style used by the file.
  */
-static bool rewrite_Copyright_Common(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings,
-                                     SCMCOMMENTSTYLE enmCommentStyle)
+static SCMREWRITERRES rewrite_Copyright_Common(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut,
+                                                 PCSCMSETTINGSBASE pSettings, SCMCOMMENTSTYLE enmCommentStyle)
 {
     if (   !pSettings->fUpdateCopyrightYear
         && pSettings->enmUpdateLicense == kScmLicense_LeaveAlone)
-        return false;
+        return kScmUnmodified;
 
     /*
      * Try locate the relevant comments.
@@ -2087,12 +2123,12 @@ static bool rewrite_Copyright_Common(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTR
                     if (RT_FAILURE(rc))
                     {
                         RTStrFree(Info.pszContributedBy);
-                        return false;
+                        return kScmUnmodified;
                     }
                 } /* for each source line */
 
                 RTStrFree(Info.pszContributedBy);
-                return true;
+                return kScmModified;
             }
         }
     }
@@ -2100,98 +2136,64 @@ static bool rewrite_Copyright_Common(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTR
         ScmError(pState, rc,  "ScmEnumerateComments: %Rrc\n", rc);
     NOREF(pState); NOREF(pOut);
     RTStrFree(Info.pszContributedBy);
-    return false;
+    return kScmUnmodified;
 }
 
 
 /** Copyright updater for C-style comments.   */
-bool rewrite_Copyright_CstyleComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_CstyleComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_C);
 }
 
 /** Copyright updater for hash-prefixed comments.   */
-bool rewrite_Copyright_HashComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_HashComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Hash);
 }
 
 /** Copyright updater for REM-prefixed comments.   */
-bool rewrite_Copyright_RemComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_RemComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, determineBatchFileCommentStyle(pIn));
 }
 
 /** Copyright updater for python comments.   */
-bool rewrite_Copyright_PythonComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_PythonComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Python);
 }
 
 /** Copyright updater for semicolon-prefixed comments.   */
-bool rewrite_Copyright_SemicolonComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_SemicolonComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut,
+                                                  PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Semicolon);
 }
 
 /** Copyright updater for sql  comments.   */
-bool rewrite_Copyright_SqlComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_SqlComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Sql);
 }
 
 /** Copyright updater for tick-prefixed comments.   */
-bool rewrite_Copyright_TickComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_TickComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Tick);
 }
 
 /** Copyright updater for XML comments.   */
-bool rewrite_Copyright_XmlComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Copyright_XmlComment(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     return rewrite_Copyright_Common(pState, pIn, pOut, pSettings, kScmCommentStyle_Xml);
 }
 
 
-/**
- * Makefile.kup are empty files, enforce this.
- *
- * @returns true if modifications were made, false if not.
- * @param   pIn                 The input stream.
- * @param   pOut                The output stream.
- * @param   pSettings           The settings.
- */
-bool rewrite_Makefile_kup(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
-{
-    RT_NOREF2(pOut, pSettings);
 
-    /* These files should be zero bytes. */
-    if (pIn->cb == 0)
-        return false;
-    ScmVerbose(pState, 2, " * Truncated file to zero bytes\n");
-    return true;
-}
-
-/**
- * Rewrite a kBuild makefile.
- *
- * @returns true if modifications were made, false if not.
- * @param   pIn                 The input stream.
- * @param   pOut                The output stream.
- * @param   pSettings           The settings.
- *
- * @todo
- *
- * Ideas for Makefile.kmk and Config.kmk:
- *      - sort if1of/ifn1of sets.
- *      - line continuation slashes should only be preceded by one space.
- */
-bool rewrite_Makefile_kmk(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
-{
-    RT_NOREF4(pState, pIn, pOut, pSettings);
-    return false;
-}
-
+/*********************************************************************************************************************************
+*   Flower Box Section Markers                                                                                                   *
+*********************************************************************************************************************************/
 
 static bool isFlowerBoxSectionMarker(PSCMSTREAM pIn, const char *pchLine, size_t cchLine, uint32_t cchWidth,
                                      const char **ppchText, size_t *pcchText, bool *pfNeedFixing)
@@ -2306,15 +2308,15 @@ static bool isFlowerBoxSectionMarker(PSCMSTREAM pIn, const char *pchLine, size_t
 /**
  * Flower box marker comments in C and C++ code.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_FixFlowerBoxMarkers(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_FixFlowerBoxMarkers(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     if (!pSettings->fFixFlowerBoxMarkers)
-        return false;
+        return kScmUnmodified;
 
     /*
      * Work thru the file line by line looking for flower box markers.
@@ -2374,12 +2376,12 @@ bool rewrite_FixFlowerBoxMarkers(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
 
             int rc = ScmStreamSeekAbsolute(pIn, offSaved);
             if (RT_FAILURE(rc))
-                return false;
+                return kScmUnmodified;
         }
 
         int rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
 
         /* Do blank line accounting so we can ensure at least two blank lines
            before each section marker. */
@@ -2390,7 +2392,7 @@ bool rewrite_FixFlowerBoxMarkers(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
     }
     if (cChanges > 0)
         ScmVerbose(pState, 2, " * Converted %zu flower boxer markers\n", cChanges);
-    return cChanges != 0;
+    return cChanges != 0 ? kScmModified : kScmUnmodified;
 }
 
 
@@ -2499,16 +2501,16 @@ static size_t findTodo(char const *pchLine, size_t cchLine)
 /**
  * Doxygen todos in C and C++ code.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pState              The rewriter state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_Fix_C_and_CPP_Todos(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Fix_C_and_CPP_Todos(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     if (!pSettings->fFixTodos)
-        return false;
+        return kScmUnmodified;
 
     /*
      * Work thru the file line by line looking for the start of todo comments.
@@ -2577,11 +2579,11 @@ bool rewrite_Fix_C_and_CPP_Todos(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM 
 
         int rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
     }
     if (cChanges > 0)
         ScmVerbose(pState, 2, " * Converted %zu todo statements.\n", cChanges);
-    return cChanges != 0;
+    return cChanges != 0 ? kScmModified : kScmUnmodified;
 }
 
 
@@ -2682,15 +2684,15 @@ SCMINCLUDEDIR ScmMaybeParseCIncludeLine(PSCMRWSTATE pState, const char *pchLine,
 /**
  * Fix err.h/errcore.h usage.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_Fix_Err_H(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_Fix_Err_H(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     if (!pSettings->fFixErrH)
-        return false;
+        return kScmUnmodified;
 
     static struct
     {
@@ -2879,7 +2881,7 @@ bool rewrite_Fix_Err_H(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSC
      */
     if (   iIncludeLevel <= iUsageLevel
         || iIncludeLevel <= 1 /* we cannot safely eliminate errcore.h includes atm. */)
-        return false;
+        return kScmUnmodified;
 
     unsigned cChanges = 0;
     ScmStreamRewindForReading(pIn);
@@ -2923,10 +2925,10 @@ bool rewrite_Fix_Err_H(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSC
 
         int rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
     }
     ScmVerbose(pState, 2, " * Converted %zu err.h/errcore.h include statements.\n", cChanges);
-    return true;
+    return kScmModified;
 }
 
 typedef struct
@@ -3025,21 +3027,21 @@ int ScmMatchWords(const char *pchLine, size_t cchLine, SCMMATCHWORD const *paWor
 /**
  * Fix header file include guards and \#pragma once.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     if (!pSettings->fFixHeaderGuards)
-        return false;
+        return kScmUnmodified;
 
     /* always skip .cpp.h files */
     size_t cchFilename = strlen(pState->pszFilename);
     if (   cchFilename > sizeof(".cpp.h")
         && RTStrICmpAscii(&pState->pszFilename[cchFilename - sizeof(".cpp.h") + 1], ".cpp.h") == 0)
-        return false;
+        return kScmUnmodified;
 
     RTERRINFOSTATIC ErrInfo;
     char            szNormalized[168];
@@ -3175,7 +3177,7 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
                 ScmStreamWrite(pOut, Guard.psz, Guard.cch);
                 rc = ScmStreamPutEol(pOut, enmEol);
                 if (RT_FAILURE(rc))
-                    return false;
+                    return kScmUnmodified;
                 break;
             }
         }
@@ -3187,7 +3189,7 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
             cBlankLines = 0;
             rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
             if (RT_FAILURE(rc))
-                return false;
+                return kScmUnmodified;
         }
         else
             cBlankLines++;
@@ -3279,7 +3281,7 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
         ScmStreamPutLine(pOut, RT_STR_TUPLE("# pragma once"), enmEol);
         rc = ScmStreamPutLine(pOut, RT_STR_TUPLE("#endif"), enmEol);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
     }
 
     /*
@@ -3323,7 +3325,7 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
 
         rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
     }
 
     /*
@@ -3336,10 +3338,10 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
             return ScmError(pState, VERR_PARSE_ERROR, "Expected '#endif' at the end of the file...\n");
         rc = ScmStreamSeekByLine(pIn, iEndIfIn);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
         rc = ScmStreamSeekByLine(pOut, iEndIfOut);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
 
         pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol);
         if (!pchLine)
@@ -3354,18 +3356,18 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
         fRet |= cchTmp != cchLine || memcmp(szTmp, pchLine, cchTmp) != 0;
         rc = ScmStreamPutLine(pOut, szTmp, cchTmp, enmEol);
         if (RT_FAILURE(rc))
-            return false;
+            return kScmUnmodified;
 
         /* Copy out the remaining lines (assumes no #pragma once here). */
         while ((pchLine = ScmStreamGetLine(pIn, &cchLine, &enmEol)) != NULL)
         {
             rc = ScmStreamPutLine(pOut, pchLine, cchLine, enmEol);
             if (RT_FAILURE(rc))
-                return false;
+                return kScmUnmodified;
         }
     }
 
-    return fRet;
+    return fRet ? kScmModified : kScmUnmodified;
 }
 
 
@@ -3374,16 +3376,16 @@ bool rewrite_FixHeaderGuards(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut
  * prefix as well as banning PAGE_BASE_HC_MASK, PAGE_BASE_GC_MASK and
  * PAGE_BASE_MASK.
  *
- * @returns true if modifications were made, false if not.
+ * @returns kScmUnmodified - requires manual fix.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  */
-bool rewrite_PageChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_PageChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF(pOut);
     if (!pSettings->fOnlyGuestHostPage && !pSettings->fNoASMMemPageUse)
-        return false;
+        return kScmUnmodified;
 
     static RTSTRTUPLE const g_aWords[] =
     {
@@ -3446,7 +3448,7 @@ bool rewrite_PageChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCS
         }
     }
 
-    return false;
+    return kScmUnmodified;
 }
 
 
@@ -3454,18 +3456,18 @@ bool rewrite_PageChecks(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCS
  * Checks for usage of rc in code instead of vrc for IPRT status codes (int) and hrc for COM
  * status codes (HRESULT).
  *
- * @returns true if modifications were made, false if not.
+ * @returns kScmUnmodified - requires manual fix.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
  *
  * @note Used in Main to avoid ambiguity when just using rc.
  */
-bool rewrite_ForceHrcVrcInsteadOfRc(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_ForceHrcVrcInsteadOfRc(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
     RT_NOREF(pOut);
     if (!pSettings->fOnlyHrcVrcInsteadOfRc)
-        return false;
+        return kScmUnmodified;
 
     static const SCMMATCHWORD s_aHresultVrc[] =
     {
@@ -3567,14 +3569,14 @@ bool rewrite_ForceHrcVrcInsteadOfRc(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTRE
 #endif
     }
 
-    return false;
+    return kScmUnmodified;
 }
 
 
 /**
  * Rewrite a C/C++ source or header file.
  *
- * @returns true if modifications were made, false if not.
+ * @returns Modification state.
  * @param   pIn                 The input stream.
  * @param   pOut                The output stream.
  * @param   pSettings           The settings.
@@ -3602,10 +3604,10 @@ bool rewrite_ForceHrcVrcInsteadOfRc(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTRE
  *      - space between functions.
  *      - string.h -> iprt/string.h, stdarg.h -> iprt/stdarg.h, etc.
  */
-bool rewrite_C_and_CPP(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
+SCMREWRITERRES rewrite_C_and_CPP(PSCMRWSTATE pState, PSCMSTREAM pIn, PSCMSTREAM pOut, PCSCMSETTINGSBASE pSettings)
 {
 
     RT_NOREF4(pState, pIn, pOut, pSettings);
-    return false;
+    return kScmUnmodified;
 }
 

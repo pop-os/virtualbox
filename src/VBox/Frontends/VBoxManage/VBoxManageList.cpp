@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -97,6 +97,7 @@ static const char*getDeviceTypeText(DeviceType_T enmType)
         case DeviceType_USB:            return "USB";
         case DeviceType_SharedFolder:   return List::tr("SharedFolder");
         case DeviceType_Graphics3D:     return List::tr("Graphics3D");
+        case DeviceType_End: break; /* Shut up compiler warnings. */
 #ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
         case DeviceType_32BitHack: break; /* Shut up compiler warnings. */
 #endif

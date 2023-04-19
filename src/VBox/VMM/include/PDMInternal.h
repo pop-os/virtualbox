@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -366,7 +366,9 @@ typedef struct PDMUSBINSINT
     /** The port number that we're connected to. */
     uint32_t                        iPort;
     /** Indicates that the USB device hasn't been powered on or resumed.
-     * See PDMDEVINSINT_FLAGS_SUSPENDED. */
+     * See PDMDEVINSINT_FLAGS_SUSPENDED.
+     * @note Runtime attached USB devices gets a pfnHotPlugged callback rather than
+     *       a pfnVMResume one. */
     bool                            fVMSuspended;
     /** Indicates that the USB device has been reset. */
     bool                            fVMReset;
@@ -1511,7 +1513,9 @@ typedef struct PDM
     uint32_t                        u32Padding1;
     /** Array of ring-0 capable queues running in parallel to PDMR0PERVM::aQueues. */
     R3PTRTYPE(PPDMQUEUE)            apRing0Queues[16];
-    /** Number of ring-3 only queues  */
+
+    /** Number of ring-3 only queues.
+     * PDMUSERPERVM::ListCritSect protects this and the next two members. */
     uint32_t                        cRing3Queues;
     /** The allocation size of the ring-3 queue handle table. */
     uint32_t                        cRing3QueuesAlloc;
@@ -1647,7 +1651,7 @@ typedef struct PDMUSERPERVM
 {
     /** @todo move more stuff over here. */
 
-    /** Lock protecting the lists below it. */
+    /** Lock protecting the lists below it and the queue list. */
     RTCRITSECT                      ListCritSect;
     /** Pointer to list of loaded modules. */
     PPDMMOD                         pModules;

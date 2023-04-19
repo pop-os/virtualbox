@@ -3,7 +3,7 @@
 # libraries VBox OSE depends on.
 
 #
-# Copyright (C) 2006-2022 Oracle and/or its affiliates.
+# Copyright (C) 2006-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -732,9 +732,9 @@ EOF
         [ -n "$INCXML2" ] && I_INCXML2=`prefix_I "$INCXML2"`
         if test_compile "$LIBXML2 $LIBPTHREAD $I_INCXML2" xml2 xml2; then
           if test_execute; then
-            cnf_append "SDK_VBOX_LIBXML2_DEFS" "_REENTRANT" ## @todo get defines from --cflags
-            cnf_append "SDK_VBOX_LIBXML2_INCS" "$INCXML2"
-            cnf_append "SDK_VBOX_LIBXML2_LIBS" "`strip_l "$LIBXML2"`"
+            cnf_append "SDK_VBoxLibXml2_DEFS" "_REENTRANT" ## @todo get defines from --cflags
+            cnf_append "SDK_VBoxLibXml2_INCS" "$INCXML2"
+            cnf_append "SDK_VBoxLibXml2_LIBS" "`strip_l "$LIBXML2"`"
           fi
         fi
       fi
@@ -766,9 +766,9 @@ EOF
         [ -n "$INCXML2" ] && I_INCXML2=`prefix_I "$INCXML2"`
         if test_compile "$LIBXML2 $LIBPTHREAD $I_INCXML2" xml2 xml2; then
           if test_execute; then
-            cnf_append "SDK_VBOX_LIBXML2_DEFS" "_REENTRANT" ## @todo get defines from --cflags
-            cnf_append "SDK_VBOX_LIBXML2_INCS" "$INCXML2"
-            cnf_append "SDK_VBOX_LIBXML2_LIBS" "`strip_l "$LIBXML2"`"
+            cnf_append "SDK_VBoxLibXml2_DEFS" "_REENTRANT" ## @todo get defines from --cflags
+            cnf_append "SDK_VBoxLibXml2_INCS" "$INCXML2"
+            cnf_append "SDK_VBoxLibXml2_LIBS" "`strip_l "$LIBXML2"`"
           fi
         fi
       fi
@@ -888,9 +888,9 @@ extern "C" int main(void)
 EOF
     if test_compile "$INCCRYPTO $LIBCRYPTO" libcrypto openssl; then
       if test_execute nofatal; then
-        cnf_append "SDK_VBOX_OPENSSL_INCS" "`strip_I "$INCCRYPTO"`"
-        cnf_append "SDK_VBOX_OPENSSL_LIBS" "`strip_l "$LIBCRYPTO"`"
-        cnf_append "SDK_VBOX_BLD_OPENSSL_LIBS" "`strip_l "$LIBCRYPTO"`"
+        cnf_append "SDK_VBoxOpenSslStatic_INCS" "`strip_I "$INCCRYPTO"`"
+        cnf_append "SDK_VBoxOpenSslStatic_LIBS" "`strip_l "$LIBCRYPTO"`"
+        cnf_append "SDK_VBoxOpenSslBldProg_LIBS" "`strip_l "$LIBCRYPTO"`"
       fi
     fi
   fi
@@ -957,8 +957,8 @@ EOF
   if test_compile "$LIBZ $I_INCZ" zlib zlib; then
     if test_execute; then
       echo "if1of (\$(KBUILD_TARGET),darwin freebsd haiku linux)" >> $CNF
-      cnf_append " SDK_VBOX_ZLIB_LIBS" "`strip_l "$LIBZ"`"
-      cnf_append " SDK_VBOX_ZLIB_INCS" "$INCZ"
+      cnf_append " SDK_VBoxZlib_LIBS" "`strip_l "$LIBZ"`"
+      cnf_append " SDK_VBoxZlib_INCS" "$INCZ"
       echo "endif" >> $CNF
     fi
   fi
@@ -990,8 +990,8 @@ EOF
   if test_compile "$LIBLZF $I_INCLZF" liblzf liblzf nofatal; then
     if test_execute; then
       echo "if1of (\$(KBUILD_TARGET),darwin freebsd haiku linux)" >> $CNF
-      cnf_append " SDK_VBOX_LZF_LIBS" "`strip_l "$LIBLZF"`"
-      cnf_append " SDK_VBOX_LZF_INCS" "$INCLZF"
+      cnf_append " SDK_VBoxLzf_LIBS" "`strip_l "$LIBLZF"`"
+      cnf_append " SDK_VBoxLzf_INCS" "$INCLZF"
       echo "endif" >> $CNF
     fi
   else
@@ -1024,8 +1024,8 @@ EOF
   [ -n "$INCPNG" ] && I_INCPNG=`prefix_I "$INCPNG"`
   if test_compile "$LIBPNG $I_INCPNG" libpng libpng; then
     if test_execute; then
-      cnf_append "SDK_VBOX_LIBPNG_LIBS" "`strip_l "$LIBPNG"`"
-      cnf_append "SDK_VBOX_LIBPNG_INCS" "$INCPNG"
+      cnf_append "SDK_VBoxLibPng_LIBS" "`strip_l "$LIBPNG"`"
+      cnf_append "SDK_VBoxLibPng_INCS" "$INCPNG"
     fi
   fi
 }
@@ -1096,8 +1096,8 @@ EOF
     [ -n "$INCCURL" ] && I_INCCURL=`prefix_I "$INCCURL"`
     if test_compile "$LIBCURL $I_INCCURL" libcurl libcurl; then
       if test_execute; then
-        cnf_append "SDK_VBOX_LIBCURL_LIBS" "`strip_l "$LIBCURL"`"
-        cnf_append "SDK_VBOX_LIBCURL_INCS" "$INCCURL"
+        cnf_append "SDK_VBoxLibCurl_LIBS" "`strip_l "$LIBCURL"`"
+        cnf_append "SDK_VBoxLibCurl_INCS" "$INCCURL"
       fi
     fi
   fi
@@ -1765,8 +1765,8 @@ EOF
       [ -n "$INCVPX" ] && I_INCVPX=`prefix_I "$INCVPX"`
       if test_compile "$LIBVPX $I_INCVPX" vpx vpx; then
         if test_execute; then
-          cnf_append "SDK_VBOX_VPX_INCS" "$INCVPX"
-          cnf_append "SDK_VBOX_VPX_LIBS" "`strip_l "$LIBVPX"`"
+          cnf_append "SDK_VBoxLibVpx_INCS" "$INCVPX"
+          cnf_append "SDK_VBoxLibVpx_LIBS" "`strip_l "$LIBVPX"`"
           fi
       fi
     fi
@@ -1800,8 +1800,8 @@ EOF
       [ -n "$INCTPMS" ] && I_INCTPMS=`prefix_I "$INCTPMS"`
       if test_compile "$LIBTPMS $I_INCTPMS" libtpms libtpms nofatal; then
         if test_execute; then
-          cnf_append "SDK_VBOX_TPMS_INCS" "$INCTPMS"
-          cnf_append "SDK_VBOX_TPMS_LIBS" "`strip_l "$LIBTPMS"`"
+          cnf_append "SDK_VBoxLibTpms_INCS" "$INCTPMS"
+          cnf_append "SDK_VBoxLibTpms_LIBS" "`strip_l "$LIBTPMS"`"
         fi
       else
         echo "not found -- building libtpms from in-tree code."
@@ -1838,8 +1838,8 @@ EOF
     [ -n "$INCVRB" ] && I_INCVRB=`prefix_I "$INCVRB"`
     if test_compile "$LIBVRB $I_INCVRB" vorbis vorbis nofatal; then
       if test_execute; then
-        cnf_append "SDK_VBOX_VORBIS_INCS" "$INCVRB"
-        cnf_append "SDK_VBOX_VORBIS_LIBS" "`strip_l "$LIBVRB"`"
+        cnf_append "SDK_VBoxLibVorbis_INCS" "$INCVRB"
+        cnf_append "SDK_VBoxLibVorbis_LIBS" "`strip_l "$LIBVRB"`"
       fi
     else
       echo "not found -- building libvorbis from in-tree code."
@@ -1875,8 +1875,8 @@ EOF
     [ -n "$INCOGG" ] && I_INCVRB=`prefix_I "$INCOGG"`
     if test_compile "$LIBOGG $I_INCOGG" ogg ogg nofatal; then
       if test_execute; then
-        cnf_append "SDK_VBOX_OGG_INCS" "$INCOGG"
-        cnf_append "SDK_VBOX_OGG_LIBS" "`strip_l "$LIBOGG"`"
+        cnf_append "SDK_VBoxLibOgg_INCS" "$INCOGG"
+        cnf_append "SDK_VBoxLibOgg_LIBS" "`strip_l "$LIBOGG"`"
       fi
     else
       echo "not found -- building libogg from in-tree code."

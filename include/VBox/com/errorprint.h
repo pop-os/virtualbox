@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2009-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2009-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -58,10 +58,10 @@ namespace com
 // compiled only once for all front-ends
 void GluePrintErrorInfo(const com::ErrorInfo &info);
 void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t uLine, bool fWarning = false);
-void GluePrintRCMessage(HRESULT rc);
-void GlueHandleComError(ComPtr<IUnknown> iface, const char *pcszContext, HRESULT rc, const char *pcszSourceFile, uint32_t uLine);
-void GlueHandleComErrorNoCtx(ComPtr<IUnknown> iface, HRESULT rc);
-void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszContext, HRESULT rc,
+void GluePrintRCMessage(HRESULT hrc);
+void GlueHandleComError(ComPtr<IUnknown> iface, const char *pcszContext, HRESULT hrc, const char *pcszSourceFile, uint32_t uLine);
+void GlueHandleComErrorNoCtx(ComPtr<IUnknown> iface, HRESULT hrc);
+void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszContext, HRESULT hrc,
                                 const char *pcszSourceFile, uint32_t uLine);
 
 /**

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -66,8 +66,8 @@ static unsigned parseNum(const char *psz, unsigned cMaxNum, const char *name)
 {
     uint32_t u32;
     char *pszNext;
-    int rc = RTStrToUInt32Ex(psz, &pszNext, 10, &u32);
-    if (    RT_SUCCESS(rc)
+    int vrc = RTStrToUInt32Ex(psz, &pszNext, 10, &u32);
+    if (    RT_SUCCESS(vrc)
         &&  *pszNext == '\0'
         &&  u32 >= 1
         &&  u32 <= cMaxNum)

@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (C) 2007-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2007-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -50,20 +50,24 @@
 
 /* Little helpers ************************************************************/
 #ifdef PHY_UNIT_TEST
-# define SSMR3PutMem(a,b,c)
-# define SSMR3GetMem(a,b,c)
-# include <stdio.h>
-# define PhyLog(a)               printf a
-#else /* PHY_UNIT_TEST */
+# ifdef CPP_UNIT
+#  include <stdio.h>
+#  define PhyLog(a)               printf a
+# else
+#  include <iprt/test.h>
+#  define PhyLogC99(...)         RTTestIPrintf(RTTESTLVL_ALWAYS, __VA_ARGS__)
+#  define PhyLog(a)              PhyLogC99 a
+# endif
+#else  /* !PHY_UNIT_TEST */
 # define PhyLog(a)               Log(a)
-#endif /* PHY_UNIT_TEST */
+#endif /* !PHY_UNIT_TEST */
 
 #define REG(x) pPhy->au16Regs[x##_IDX]
 
 
 /* Internals */
 namespace Phy {
-#if defined(LOG_ENABLED) && !defined(PHY_UNIT_TEST)
+#if defined(LOG_ENABLED) || defined(PHY_UNIT_TEST)
     /** Retrieves state name by id */
     static const char * getStateName(uint16_t u16State);
 #endif
@@ -379,7 +383,11 @@ static void Phy::softReset(PPHY pPhy, PPDMDEVINS pDevIns)
     REG(PSSTAT)  &= 0xe001;
     PhyLog(("PHY#%d PSTATUS=%04x PSSTAT=%04x\n", pPhy->iInstance, REG(PSTATUS), REG(PSSTAT)));
 
+#ifndef PHY_UNIT_TEST
     e1kPhyLinkResetCallback(pDevIns);
+#else
+    RT_NOREF(pDevIns);
+#endif
 }
 
 /**
@@ -513,7 +521,7 @@ static uint16_t Phy::regReadGSTATUS(PPHY pPhy, uint32_t index, PPDMDEVINS pDevIn
     return 0x3C00;
 }
 
-#if defined(LOG_ENABLED) && !defined(PHY_UNIT_TEST)
+#if defined(LOG_ENABLED) || defined(PHY_UNIT_TEST)
 static const char * Phy::getStateName(uint16_t u16State)
 {
     static const char *pcszState[] =

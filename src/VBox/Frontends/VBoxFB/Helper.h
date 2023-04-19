@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2006-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -39,8 +39,8 @@ struct videoMode
     uint32_t height;
     uint32_t bpp;
 };
-extern videoMode videoModes[];
-extern uint32_t numVideoModes;
+extern videoMode g_videoModes[];
+extern uint32_t g_numVideoModes;
 
 DFBEnumerationResult enumVideoModesHandler(int width, int height, int bpp, void *callbackdata);
 int32_t getBestVideoMode(uint32_t width, uint32_t height, uint32_t bpp);

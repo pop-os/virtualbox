@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Clone Medium Test #1
 
 __copyright__ = \
 """
-Copyright (C) 2010-2022 Oracle and/or its affiliates.
+Copyright (C) 2010-2023 Oracle and/or its affiliates.
 
 This file is part of VirtualBox base platform packages, as
 available from https://www.virtualbox.org.
@@ -37,12 +37,11 @@ terms and conditions of either the GPL or the CDDL or both.
 
 SPDX-License-Identifier: GPL-3.0-only OR CDDL-1.0
 """
-__version__ = "$Revision: 155026 $"
+__version__ = "$Revision: 155244 $"
 
 
 # Standard Python imports.
 import os
-from subprocess import call
 import sys
 
 # Only the main script needs to modify the path.
@@ -77,7 +76,7 @@ class SubTstDrvCloneMedium1(base.SubTestDriverBase):
     # Test execution helpers.
     #
 
-    def createTestMedium(self, oVM, sPathSuffix, sFmt = 'VDI', cbSize = 1024*1024, data = []):
+    def createTestMedium(self, oVM, sPathSuffix, sFmt = 'VDI', cbSize = 1024*1024, data = None):
         assert oVM is not None
 
         oSession = self.oTstDrv.openSession(oVM)
@@ -100,7 +99,7 @@ class SubTstDrvCloneMedium1(base.SubTestDriverBase):
 
         oMediumIOBaseHdd1 = oBaseHdd1.openForIO(True, "")
 
-        if(len(data) > 0):
+        if data:
             cbWritten = oMediumIOBaseHdd1.write(0, data)
 
             if cbWritten != 1:
@@ -133,10 +132,12 @@ class SubTstDrvCloneMedium1(base.SubTestDriverBase):
         try:
             oProgressCom = oSrcHd.resizeAndCloneTo(oTgtHd, cbTgtSize, (vboxcon.MediumVariant_Standard, ), None);
         except:
-            reporter.errorXcpt('failed to resize and clone medium %s to %s and to size %d' % (oSrcHd.name, oTgtHd.name, cbTgtSize));
+            reporter.errorXcpt('failed to resize and clone medium %s to %s and to size %d' \
+                               % (oSrcHd.name, oTgtHd.name, cbTgtSize));
             return False;
         oProgress = vboxwrappers.ProgressWrapper(oProgressCom, self.oTstDrv.oVBoxMgr, self.oTstDrv,
-                                                 'resize and clone base disk %s to %s and to size %d' % (oSrcHd.name, oTgtHd.name, cbTgtSize));
+                                                 'resize and clone base disk %s to %s and to size %d' \
+                                                 % (oSrcHd.name, oTgtHd.name, cbTgtSize));
         oProgress.wait(cMsTimeout = 15*60*1000); # 15 min
         oProgress.logResult();
         return True;
@@ -225,7 +226,7 @@ class SubTstDrvCloneMedium1(base.SubTestDriverBase):
         if dataHd1 != dataHd2:
             reporter.testFailure("Data read is unexpected.")
 
-        if hd1.logicalSize != hd2.logicalSize and hd2.logicalSize != 1024*1024*2:
+        if hd2.logicalSize not in (hd1.logicalSize, 1024*1024*2):
             reporter.testFailure("Target medium did not resize.")
 
         self.deleteVM(oVM)
@@ -234,7 +235,7 @@ class SubTstDrvCloneMedium1(base.SubTestDriverBase):
         return True
 
     def testAll(self):
-        return (self.testCloneOnly() & self.testResizeAndClone())
+        return self.testCloneOnly() & self.testResizeAndClone()
 
 if __name__ == '__main__':
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))

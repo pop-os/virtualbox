@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2013-2022 Oracle and/or its affiliates.
+# Copyright (C) 2013-2023 Oracle and/or its affiliates.
 #
 # This file is part of VirtualBox base platform packages, as
 # available from https://www.virtualbox.org.
@@ -39,25 +39,25 @@ include $(KBUILD_PATH)/subheader.kmk
 
 LIBRARIES += EfiBldCommonLib
 EfiBldCommonLib_TEMPLATE = VBoxEfiBldLib
-EfiBldCommonLib_SOURCES =  \
-	 BasePeCoff.c \
-	 BinderFuncs.c \
-	 CommonLib.c \
-	 Crc32.c \
-	 Decompress.c \
-	 EfiCompress.c \
-	 EfiUtilityMsgs.c \
-	 FirmwareVolumeBuffer.c \
-	 FvLib.c \
-	 MemoryFile.c \
-	 MyAlloc.c \
-	 OsPath.c \
-	 ParseGuidedSectionTools.c \
-	 ParseInf.c \
-	 PeCoffLoaderEx.c \
-	 SimpleFileParsing.c \
-	 StringFuncs.c \
-	 TianoCompress.c
+EfiBldCommonLib_SOURCES = \
+	BasePeCoff.c \
+	BinderFuncs.c \
+	CommonLib.c \
+	Crc32.c \
+	Decompress.c \
+	EfiCompress.c \
+	EfiUtilityMsgs.c \
+	FirmwareVolumeBuffer.c \
+	FvLib.c \
+	MemoryFile.c \
+	MyAlloc.c \
+	OsPath.c \
+	ParseGuidedSectionTools.c \
+	ParseInf.c \
+	PeCoffLoaderEx.c \
+	SimpleFileParsing.c \
+	StringFuncs.c \
+	TianoCompress.c
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2021-2022 Oracle and/or its affiliates.
+ * Copyright (C) 2021-2023 Oracle and/or its affiliates.
  *
  * This file is part of VirtualBox base platform packages, as
  * available from https://www.virtualbox.org.
@@ -47,8 +47,6 @@
 #include "UINotificationCenter.h"
 #include "UINotificationObjectItem.h"
 #include "UINotificationModel.h"
-#include "UIVirtualBoxEventHandler.h" /** @todo EXAMPLE -- REMOVE THIS */
-#include "CUpdateAgent.h"             /** @todo EXAMPLE -- REMOVE THIS */
 
 /* Other VBox includes: */
 #include "iprt/assert.h"
@@ -166,7 +164,9 @@ UINotificationCenter::UINotificationCenter(QWidget *pParent)
     , m_pLayoutButtons(0)
     , m_pButtonOpen(0)
     , m_pButtonToggleSorting(0)
+#ifdef VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON
     , m_pButtonKeepFinished(0)
+#endif
     , m_pButtonRemoveFinished(0)
     , m_pLayoutItems(0)
     , m_pStateMachineSliding(0)
@@ -295,8 +295,10 @@ void UINotificationCenter::retranslateUi()
         m_pButtonOpen->setToolTip(tr("Open notification center"));
     if (m_pButtonToggleSorting)
         m_pButtonToggleSorting->setToolTip(tr("Toggle ascending/descending order"));
+#ifdef VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON
     if (m_pButtonKeepFinished)
         m_pButtonKeepFinished->setToolTip(tr("Keep finished progresses"));
+#endif
     if (m_pButtonRemoveFinished)
         m_pButtonRemoveFinished->setToolTip(tr("Delete finished notifications"));
 }
@@ -414,12 +416,6 @@ void UINotificationCenter::sltHandleOrderChange()
         m_pButtonOpen->toggle();
 }
 
-/** @todo EXAMPLE -- REMOVE THIS */
-void UINotificationCenter::sltUpdateAgentAvailable(CUpdateAgent comAgent, QString strVer, KUpdateChannel, KUpdateSeverity, QString, QString, QString)
-{
-    RT_NOREF(comAgent, strVer);
-}
-
 void UINotificationCenter::sltHandleOpenButtonToggled(bool fToggled)
 {
     if (fToggled)
@@ -428,10 +424,12 @@ void UINotificationCenter::sltHandleOpenButtonToggled(bool fToggled)
         emit sigClose();
 }
 
+#ifdef VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON
 void UINotificationCenter::sltHandleKeepButtonToggled(bool fToggled)
 {
     gEDataManager->setKeepSuccessfullNotificationProgresses(fToggled);
 }
+#endif /* VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON */
 
 void UINotificationCenter::sltHandleRemoveFinishedButtonClicked()
 {
@@ -558,9 +556,6 @@ void UINotificationCenter::prepareModel()
                 this, &UINotificationCenter::sltHandleModelItemAdded);
         connect(m_pModel, &UINotificationModel::sigItemRemoved,
                 this, &UINotificationCenter::sltHandleModelItemRemoved);
-        /** @todo EXAMPLE -- REMOVE THIS */
-        connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigUpdateAgentAvailable,
-                this, &UINotificationCenter::sltUpdateAgentAvailable);
     }
 }
 
@@ -641,6 +636,7 @@ void UINotificationCenter::prepareWidgets()
                 m_pLayoutButtons->addWidget(m_pButtonToggleSorting);
             }
 
+#ifdef VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON
             /* Prepare keep-finished button: */
             m_pButtonKeepFinished = new QIToolButton(this);
             if (m_pButtonKeepFinished)
@@ -651,6 +647,7 @@ void UINotificationCenter::prepareWidgets()
                 connect(m_pButtonKeepFinished, &QIToolButton::toggled, this, &UINotificationCenter::sltHandleKeepButtonToggled);
                 m_pLayoutButtons->addWidget(m_pButtonKeepFinished);
             }
+#endif /* VBOX_NOTIFICATION_CENTER_WITH_KEEP_BUTTON */
 
             /* Prepare remove-finished button: */
             m_pButtonRemoveFinished = new QIToolButton(this);
